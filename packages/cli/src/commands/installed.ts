@@ -46,11 +46,10 @@
 
 // compass: variance-authority.reach
 
-import { execFile } from 'node:child_process';
 import { readFile } from 'node:fs/promises';
 import { dirname, join, relative, resolve } from 'node:path';
-import { promisify } from 'node:util';
-import { nodesOfKind, within, type Relations } from '@variance-authority/core/relate';
+import type { Lockfile } from '@variance-authority/sense/lock';
+import { blobs, entriesIn, patchEnds } from './patch-blobs.js';
 
 /** A package name each importing file gets an edge to, and the package it rests on. */
 export type Depends = readonly (readonly [string, string])[];
@@ -82,17 +81,52 @@ export interface DiffPoint {
   readonly base: string;
   /** One file's contents at that commit, or `undefined` when it was not there. */
   at(path: string): Promise<string | undefined>;
+  /**
+   * The files the recorded run had deleted, which `at` answers as absent: the
+   * install it ran on had none, whatever the commit holds.
+   */
+  readonly ranWithout?: ReadonlySet<string>;
+}
+
+/**
+ * `point` as the install a recording ran on: each lockfile and manifest the
+ * runs record keeps (`kept-install.ts` in sense) answers with its kept text,
+ * or as absent where the run had deleted it, and every other file with the
+ * commit's. `installed` names paths from the top of the checkout, as `at` does.
+ *
+ * `{ missing }` names the first kept path whose text `kept` cannot produce:
+ * the record was copied here without it. Half an install is no install, so
+ * the caller reads the commit's whole.
+ */
+export function ranOn(
+  point: DiffPoint,
+  installed: Readonly<Record<string, string | null>>,
+  kept: (digest: string) => string | undefined,
+): DiffPoint | { readonly missing: string } {
+  const texts = new Map<string, string | undefined>();
+  for (const [path, digest] of Object.entries(installed)) {
+    const text = digest === null ? undefined : kept(digest);
+    if (digest !== null && text === undefined) return { missing: path };
+    texts.set(path, text);
+  }
+  if (texts.size === 0) return point;
+  const ranWithout = new Set([...texts].filter(([, text]) => text === undefined).map(([path]) => path));
+  return {
+    ...point,
+    at: async (path) => (texts.has(path) ? texts.get(path) : await point.at(path)),
+    ...(ranWithout.size === 0 ? {} : { ranWithout }),
+  };
 }
 
 /**
  * Which packages this diff installed differently, or the reason it cannot say.
  *
  * `undefined` is *there is no install to compare* — no lockfile anywhere above
- * the run, or no revision to compare it against — and it is the one absence
- * that widens nothing: a repository with no recorded install has no diff of
- * one, so no seed is missing. Every other failure is a sentence, because *this
- * cannot be read* and *nothing changed* produce the same empty list and mean
- * opposite things.
+ * the run — and it is the one absence that widens nothing: a repository with no
+ * recorded install has no diff of one, so no seed is missing. Every other
+ * failure is a sentence, because *this cannot be read* and *nothing changed*
+ * produce the same empty list and mean opposite things. A point that could not
+ * be resolved is one of them: a lockfile is here, and nothing says what it was.
  *
  * The point is passed in rather than resolved here, and that is the join that
  * has to hold: the file list is measured from the merge base, and an install
@@ -112,8 +146,40 @@ export async function installDiff(
   changed: readonly string[],
   from: string = process.cwd(),
 ): Promise<InstallDiff | undefined> {
+  return (await installDiffs([{ point, changed }], from))[0];
+}
+
+/**
+ * {@link installDiff} from several points to one working tree, in the order
+ * asked. The lockfile on disk is found, read and parsed once for all of them,
+ * however many commits a selection compares it from.
+ */
+export async function installDiffs(
+  asked: readonly { readonly point: DiffPoint | undefined; readonly changed: readonly string[] }[],
+  from: string = process.cwd(),
+): Promise<readonly (InstallDiff | undefined)[]> {
   const found = await lockfileNear(from);
-  if (found === undefined || point === undefined) return undefined;
+  if (found === undefined) return asked.map(() => undefined);
+  let parsed: Promise<Lockfile> | undefined;
+  const lock = () => import('@variance-authority/sense/lock');
+  const after = () => (parsed ??= lock().then((read) => read.readLockfile(found.file, found.text)));
+  return await Promise.all(asked.map(({ point, changed }) => installDiffAt(found, after, point, changed, from)));
+}
+
+async function installDiffAt(
+  found: { readonly file: string; readonly text: string },
+  after: () => Promise<Lockfile>,
+  point: DiffPoint | undefined,
+  changed: readonly string[],
+  from: string,
+): Promise<InstallDiff | undefined> {
+  if (point === undefined) {
+    return {
+      whole:
+        `${relative(from, found.file) || pathTail(found.file)} is compared from a commit git could not resolve here, ` +
+        'so there is no install to compare it against and any package in it may have moved',
+    };
+  }
 
   const path = relative(point.repository, found.file);
   // A lockfile above the checkout is somebody else's install — a vendored
@@ -122,26 +188,27 @@ export async function installDiff(
   if (path.startsWith('..')) return undefined;
 
   const manifests = [pathTail(found.file), MANIFEST];
-  const moved = await movedManifests(changed, (file) => {
-    const at = resolve(from, file);
-    const named = relative(point.repository, at);
-    return Promise.all([
-      named.startsWith('..') ? undefined : point.at(named),
-      readFile(at, 'utf8').catch(() => undefined),
-    ]);
-  });
-  const before = await point.at(path);
-  if (before === found.text) return { packages: [], manifests, moved };
+  // Asked in one turn, so a point that reads its files together reads them at once.
+  const [moved, before] = await Promise.all([movedSince(point, changed, from), point.at(path)]);
+  if (before === found.text) return { lockfile: path, packages: [], manifests, moved };
 
   if (before === undefined) {
-    return {
-      whole:
-        `${path} is not in the tree at the base of this diff, so there is no install to compare ` +
-        'it against and any package in it may have moved',
-    };
+    const where = point.ranWithout?.has(path)
+      ? `the suite ran at ${point.base.slice(0, 12)} with no ${path}`
+      : `${path} is not in the tree at ${point.base.slice(0, 12)}, where this install is compared from`;
+    return { whole: `${where}, so there is no install to compare it against and any package in it may have moved` };
   }
 
-  return await compared(path, before, found.text, manifests, moved);
+  return await compared(path, before, after, manifests, moved);
+}
+
+/** The changed manifests that moved between `point` and the working tree. */
+async function movedSince(point: DiffPoint, changed: readonly string[], from: string): Promise<readonly string[]> {
+  return await movedManifests(changed, (file) => {
+    const at = resolve(from, file);
+    const named = relative(point.repository, at);
+    return Promise.all([named.startsWith('..') ? undefined : point.at(named), readFile(at, 'utf8').catch(() => undefined)]);
+  });
 }
 
 /**
@@ -155,9 +222,9 @@ export async function installDiff(
  * nobody committed, and it is the working tree's file when that file hashes to
  * the same name.
  *
- * `undefined` when the patch leaves every lockfile alone. A lockfile the patch
- * changes and git cannot produce at both ends is a sentence, for the reason
- * {@link installDiff} gives one.
+ * `undefined` when the patch leaves every lockfile alone and moves no manifest.
+ * A lockfile the patch changes and git cannot produce at both ends is a
+ * sentence, for the reason {@link installDiff} gives one.
  */
 export async function installDiffOfPatch(patch: string, root: string = process.cwd()): Promise<InstallDiff | undefined> {
   const names = await import('@variance-authority/sense/lock')
@@ -165,8 +232,19 @@ export async function installDiffOfPatch(patch: string, root: string = process.c
     .catch(() => undefined);
   if (names === undefined) return undefined;
 
+  // Every manifest the patch names, read by the same blob names. One with no
+  // `index` line has no ends to read, and is a move.
+  const entries = new Map(entriesIn(patch, (path) => pathTail(path) === MANIFEST).map((entry) => [entry.path, entry]));
   const found = entriesIn(patch, (path) => names.includes(pathTail(path)))[0];
-  if (found === undefined) return undefined;
+  // Every end the patch names, the lockfile's included, is read in one go.
+  const read = await patchEnds([...entries.values(), ...(found === undefined ? [] : [found])], root);
+  const moved = await movedManifests([...entries.keys()], async (file) => {
+    const entry = entries.get(file)!;
+    if (!entry.indexed) return [undefined, undefined];
+    return [read.before(entry), read.after(entry)];
+  });
+  // An `exports` or a `type` is not the install's business, so it moves with every lockfile alone.
+  if (found === undefined) return moved.length === 0 ? undefined : { packages: [], manifests: [MANIFEST], moved };
   const manifests = [pathTail(found.path), MANIFEST];
   if (found.before === undefined || found.after === undefined) {
     return {
@@ -175,11 +253,8 @@ export async function installDiffOfPatch(patch: string, root: string = process.c
         'blobs, so there is no install to compare. Hand in the output of `git diff` itself',
     };
   }
-  const { path, before: from, after: to } = found;
-  const [before, after] = await Promise.all([
-    blob(from, root),
-    blob(to, root).then((text) => text ?? worktree(path, to, root)),
-  ]);
+  const { before: from, after: to } = found;
+  const [before, after] = [read.before(found), read.after(found)];
   if (before === undefined || after === undefined) {
     const missing = before === undefined ? from : to;
     return {
@@ -188,20 +263,8 @@ export async function installDiffOfPatch(patch: string, root: string = process.c
         'there is no install to compare it against and any package in it may have moved',
     };
   }
-  // Every manifest the patch names, read by the same blob names. One with no
-  // `index` line has no ends to read, and is a move.
-  const blobs = new Map(entriesIn(patch, (path) => pathTail(path) === MANIFEST).map((entry) => [entry.path, entry]));
-  const moved = await movedManifests([...blobs.keys()], async (file) => {
-    const entry = blobs.get(file)!;
-    if (!entry.indexed) return [undefined, undefined];
-    return await Promise.all([
-      entry.before === undefined ? undefined : blob(entry.before, root),
-      entry.after === undefined
-        ? undefined
-        : blob(entry.after, root).then((text) => text ?? worktree(file, entry.after!, root)),
-    ]);
-  });
-  return await compared(found.path, before, after, manifests, moved);
+  const lockfile = async () => (await import('@variance-authority/sense/lock')).readLockfile(found.path, after);
+  return await compared(found.path, before, lockfile, manifests, moved);
 }
 
 /**
@@ -210,8 +273,8 @@ export async function installDiffOfPatch(patch: string, root: string = process.c
  * Both ends come from the caller, which is the one that knows where each
  * revision lives — a commit and the working tree, or two blobs a patch names —
  * and `manifestMoved` in the lockfile reader owns which fields the install
- * speaks for, so this and the repository's own `yarn test:since` cannot
- * disagree about it. No reader is no reading: every changed manifest moved.
+ * speaks for, so this and every other reader of an install cannot disagree
+ * about it. No reader is no reading: every changed manifest moved.
  */
 async function movedManifests(
   changed: readonly string[],
@@ -219,29 +282,30 @@ async function movedManifests(
 ): Promise<readonly string[]> {
   const candidates = changed.filter((file) => pathTail(file) === MANIFEST);
   if (candidates.length === 0) return [];
+  // Every end is asked for before anything is awaited, so a caller that reads
+  // the asks of one turn together reads them in one go.
+  const read = candidates.map(ends);
   const moves = await import('@variance-authority/sense/lock')
     .then((lock) => lock.manifestMoved)
     .catch(() => () => true);
-  const moved: string[] = [];
-  for (const file of candidates) {
-    const [before, after] = await ends(file);
-    if (moves(before, after)) moved.push(file);
-  }
-  return moved;
+  const texts = await Promise.all(read);
+  return candidates.filter((_, at) => moves(...texts[at]!));
 }
 
+/** The packages that moved from `before` to `after`, which is parsed once however many commits read it. */
 async function compared(
   path: string,
   before: string,
-  after: string,
+  after: () => Promise<Lockfile>,
   manifests: readonly string[],
   moved: readonly string[],
 ): Promise<InstallDiff> {
   try {
     const lock = await import('@variance-authority/sense/lock');
     return {
+      lockfile: path,
       manifests,
-      packages: lock.changedPackages(lock.readLockfile(path, before), lock.readLockfile(path, after)),
+      packages: lock.changedPackages(lock.readLockfile(path, before), await after()),
       moved,
     };
   } catch (error) {
@@ -254,40 +318,6 @@ async function compared(
   }
 }
 
-/** A file a patch changes, and the blob names its `index` line gives each end. */
-interface PatchEntry {
-  readonly path: string;
-  /** Whether an `index` line named the blobs at all; an absent end is an all-zero name. */
-  readonly indexed: boolean;
-  readonly before?: string;
-  readonly after?: string;
-}
-
-/** Every file a patch changes whose path `wanted` accepts, in patch order. */
-function entriesIn(patch: string, wanted: (path: string) => boolean): readonly PatchEntry[] {
-  const found: PatchEntry[] = [];
-  const lines = patch.split('\n');
-  for (let at = 0; at < lines.length; at += 1) {
-    const header = /^diff --git a\/(.+) b\/(.+)$/u.exec(lines[at]!);
-    if (header === null || !wanted(header[2]!)) continue;
-    let entry: PatchEntry = { path: header[2]!, indexed: false };
-    for (let next = at + 1; next < lines.length && !lines[next]!.startsWith('diff --git '); next += 1) {
-      const index = /^index ([0-9a-f]+)\.\.([0-9a-f]+)/u.exec(lines[next]!);
-      if (index === null) continue;
-      const absent = (id: string) => /^0+$/u.test(id);
-      entry = {
-        path: header[2]!,
-        indexed: true,
-        ...(absent(index[1]!) ? {} : { before: index[1]! }),
-        ...(absent(index[2]!) ? {} : { after: index[2]! }),
-      };
-      break;
-    }
-    found.push(entry);
-  }
-  return found;
-}
-
 /**
  * The text each file had before `patch`, read from the blob its `index` line
  * names. A file the patch names no old blob for — new, or written without
@@ -295,29 +325,12 @@ function entriesIn(patch: string, wanted: (path: string) => boolean): readonly P
  */
 export async function patchPreimages(patch: string, root: string = process.cwd()): Promise<ReadonlyMap<string, string>> {
   const entries = entriesIn(patch, () => true).filter((entry) => entry.before !== undefined);
-  const texts = await Promise.all(entries.map(async (entry) => [entry.path, await blob(entry.before!, root)] as const));
-  return new Map(texts.filter((pair): pair is readonly [string, string] => pair[1] !== undefined));
-}
-
-async function blob(id: string, root: string): Promise<string | undefined> {
-  try {
-    const { stdout } = await promisify(execFile)('git', ['cat-file', 'blob', id], {
-      cwd: root,
-      maxBuffer: 256 * 1024 * 1024,
-    });
-    return stdout;
-  } catch {
-    return undefined;
-  }
-}
-
-async function worktree(path: string, id: string, root: string): Promise<string | undefined> {
-  try {
-    const { stdout } = await promisify(execFile)('git', ['hash-object', '--', path], { cwd: root });
-    return stdout.trim().startsWith(id) ? await readFile(join(root, path), 'utf8') : undefined;
-  } catch {
-    return undefined;
-  }
+  const texts = await blobs(
+    entries.map((entry) => entry.before!),
+    root,
+  );
+  const pairs = entries.map((entry) => [entry.path, texts.get(entry.before!)] as const);
+  return new Map(pairs.filter((pair): pair is readonly [string, string] => pair[1] !== undefined));
 }
 
 /**
@@ -384,9 +397,14 @@ function messageOf(error: unknown): string {
  * those fields — `exports`, `main`, `type`, `name` — read at both revisions by
  * the same comparison. Each one's directory is a changed directory: every
  * importer of the package may now load a different file.
+ *
+ * `lockfile` is the lockfile compared, as the repository names it, for the
+ * sentence that says what a bump reached. Absent when none was: the change
+ * left every lockfile alone.
  */
 export type InstallDiff =
   | {
+      readonly lockfile?: string;
       readonly packages: readonly string[];
       readonly manifests: readonly string[];
       readonly moved: readonly string[];
@@ -402,7 +420,7 @@ export const NO_INSTALL_DIFF: InstallDiff = { packages: [], manifests: [], moved
  * Matched on the last segment, so a monorepo's every `package.json` goes the
  * same way the root one does: a resolver, a `resolutions` block, a version
  * range — the install answered all three, at both revisions, by name. A moved
- * manifest is dropped here too; {@link movedPackages} says what stands in for it.
+ * manifest is dropped here too; `beyondReach` says what stands in for it.
  */
 export function withoutManifests(
   changed: readonly string[],
@@ -411,54 +429,4 @@ export function withoutManifests(
   return changed.filter(
     (file) => !manifests.some((name) => file === name || file.endsWith(`/${name}`)),
   );
-}
-
-/**
- * The files of every package whose manifest moved, from the graph.
- *
- * The directory of a moved `package.json` is expanded the way a monorepo tool's
- * changed directory is: every file the graph holds under it. A moved manifest
- * the graph holds no file beside is returned in `unplaced`, to be read as the
- * ordinary changed path it would have been — a gap under the scanned roots, a
- * file nothing reads outside them — rather than as a package that reached
- * nothing.
- */
-export function movedPackages(
-  relations: Relations,
-  install: InstallDiff | undefined,
-): { readonly files: readonly string[]; readonly unplaced: readonly string[] } {
-  const moved = install === undefined || 'whole' in install ? [] : install.moved;
-  if (moved.length === 0) return { files: [], unplaced: [] };
-  const names = nodesOfKind(relations, 'file').map((id) => relations.names[id]!);
-  const files = new Set<string>();
-  const unplaced: string[] = [];
-  for (const manifest of moved) {
-    const beside = names.filter((file) => within(file, [directoryOf(manifest)]));
-    if (beside.length === 0) unplaced.push(manifest);
-    for (const file of beside) files.add(file);
-  }
-  return { files: [...files].sort(byCodeUnit), unplaced };
-}
-
-/**
- * A patch that also changes, whole, every file of a package whose manifest
- * moved — the journal's reading of {@link movedPackages}.
- *
- * A file named with no hunk is every recorded region of it, and a file with no
- * row is answered by its recorded importers, so a package whose `exports`
- * moved selects every test that entered it or anything importing it, which is
- * what the walk's changed directory selects.
- */
-export function withMovedPackages(diff: string, files: readonly string[]): string {
-  if (files.length === 0) return diff;
-  return [diff, ...files.map((file) => `diff --git a/${file} b/${file}`)].join('\n');
-}
-
-function directoryOf(file: string): string {
-  const at = file.lastIndexOf('/');
-  return at === -1 ? '.' : file.slice(0, at);
-}
-
-function byCodeUnit(a: string, b: string): number {
-  return a < b ? -1 : a > b ? 1 : 0;
 }

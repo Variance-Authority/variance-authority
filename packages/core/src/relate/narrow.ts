@@ -26,8 +26,9 @@
  * reaches the same fixpoint whatever order the seeds arrive in.
  */
 
+import { carried, inIdOrder, NOTHING, WHOLE, type Carry, type CarriedStep } from './carried.js';
 import { EDGE_KINDS, type Adjacency, type NodeId } from './graph.js';
-import type { Traversal } from './reach.js';
+import type { Traversal, TraversalOptions } from './reach.js';
 
 /** How one file uses one file it imports, read from the parse that recorded the edge. */
 export interface EdgeUse {
@@ -75,80 +76,39 @@ export function narrowed(
   seeds: Iterable<NodeId>,
   moved: ReadonlyMap<NodeId, readonly string[]>,
   uses: Uses,
-  allowed: Uint8Array,
-  avoid: Iterable<NodeId> = [],
+  options: Pick<TraversalOptions, 'avoid' | 'through'> = {},
 ): Traversal {
-  const nodes = names.length;
-  const mask = new Uint8Array(nodes);
-  const via = new Int32Array(nodes).fill(-1);
-  const avoided = new Uint8Array(nodes);
-  for (const id of avoid) if (id >= 0 && id < nodes) avoided[id] = 1;
-
-  // A visited node absent here is whole.
-  const partial = new Map<NodeId, Set<string>>();
-  const queue: NodeId[] = [];
-
-  const enter = (next: NodeId, from: NodeId, exports?: readonly string[]): void => {
-    if (avoided[next] === 1) return;
-    if (mask[next] !== 1) {
-      mask[next] = 1;
-      via[next] = from;
-      if (exports !== undefined) partial.set(next, new Set(exports));
-      queue.push(next);
-      return;
+  const via = new Int32Array(names.length).fill(-1);
+  const starts = function* () {
+    for (const seed of seeds) {
+      const exports = moved.get(seed);
+      yield [seed, exports === undefined ? WHOLE : namesOf(exports)] as const;
     }
-    const held = partial.get(next);
-    if (held === undefined) return;
-    if (exports === undefined) {
-      partial.delete(next);
-      queue.push(next);
-      return;
-    }
-    const size = held.size;
-    for (const name of exports) held.add(name);
-    if (held.size > size) queue.push(next);
   };
 
-  for (const seed of seeds) {
-    if (seed < 0 || seed >= nodes || mask[seed] === 1 || avoided[seed] === 1) continue;
-    enter(seed, -1, moved.get(seed));
-  }
-
-  for (let head = 0; head < queue.length; head += 1) {
-    const node = queue[head]!;
-    const held = partial.get(node);
-    if (held?.size === 0) continue;
-    const end = dependents.offset[node + 1]!;
-
-    for (let at = dependents.offset[node]!; at < end; at += 1) {
-      const kind = dependents.kind[at]!;
-      if (allowed[kind] !== 1) continue;
-      const next = dependents.target[at]!;
-      if (held === undefined || (kind !== IMPORTS && kind !== REEXPORTS)) {
-        enter(next, node);
-        continue;
-      }
-
+  // Each edge reads everything the node holds, not only what this entry
+  // carried: a name that reached it by another path is as moved as this one.
+  const step: CarriedStep<string> = {
+    arrive(next, node, kind, _carry, held): Carry<string> | undefined {
+      if (held === WHOLE || (kind !== IMPORTS && kind !== REEXPORTS)) return WHOLE;
       const use = uses(names[next]!, names[node]!);
       if (kind === IMPORTS) {
         const imported = use?.imports;
-        // TODO: enter the importer carrying the exports whose bodies read the
-        // name, which needs the addon's per-export reach within the importer;
-        // until then an import hop two out is charged whole.
-        if (imported === undefined || imported.some((name) => held.has(name))) enter(next, node);
-      } else if (use?.reexports === undefined) {
-        enter(next, node);
-      } else {
-        const out = republished(use.reexports, held);
-        if (out.length > 0) enter(next, node, out);
+        // An importer that reads a moved name is entered whole: an import hop
+        // two out is charged whole, and narrowing past it is the coverage
+        // record's job, not the walk's.
+        if (imported === undefined) return undefined;
+        return imported.some((name) => held.has(name)) ? WHOLE : NOTHING;
       }
-    }
-  }
+      if (use?.reexports === undefined) return undefined;
+      return namesOf(republished(use.reexports, held));
+    },
+  };
 
-  // In id order, so a report built from it is byte-stable whatever order the
-  // caller listed its changed files in.
-  const visited: NodeId[] = [];
-  for (let id = 0; id < nodes; id += 1) if (mask[id] === 1) visited.push(id);
+  const { mask } = carried(dependents, starts(), step, { ...options, via });
+  return { mask, via, nodes: inIdOrder(mask) };
+}
 
-  return { mask, via, nodes: visited };
+function namesOf(exports: readonly string[]): ReadonlyMap<string, string> {
+  return new Map(exports.map((name) => [name, name]));
 }

@@ -144,11 +144,11 @@ live('a Playwright suite over a Storybook it opens itself', () => {
       expect(sorted(discounted.entered)).toEqual(specs('after-each', 'manager', 'navigate'));
 
       // A plain price. `navigate` rendered one too, in the document its second
-      // `goto` replaced, and that crossing went with the document. It is not
-      // selected here — and it is not whole either, so a selection that
-      // excludes on this answer runs it anyway.
+      // `goto` replaced: the drain before that statement read it while it was
+      // still there. Its record is not whole either way, because what the
+      // document did during the `goto` itself went with it.
       const plain = await ask(await lineOf('return amount;'));
-      expect(plain.entered).toEqual(specs('popup'));
+      expect(sorted(plain.entered)).toEqual(specs('navigate', 'popup'));
       expect(plain.whole).not.toContain(at('src/spec/navigate.spec.mjs'));
     });
   }, 180_000);

@@ -5,9 +5,10 @@
 > Announce what the code decided, so a test waits for the decision instead of guessing when it was made.
 
 Part of [Variance Authority](https://variance-authority.dev).
+Point your coding agent at [`llms.txt`](https://variance-authority.dev/llms.txt).
 
 This package compares no images and needs none of the rest of that system. It
-gives your application source one call that says *the code has just decided
+gives your application source one call that announces *the code has just decided
 something*, and gives your test one wait that settles on that call. Use it
 wherever a test has to assert the branch in which nothing is drawn: *the modal is
 not shown* and *the modal is not shown yet* look the same on screen, so that
@@ -16,8 +17,8 @@ branch is usually asserted after an arbitrary sleep, or not asserted. An
 assertion reads the screen one line later, once the decision has arrived.
 
 An announcement is three coordinates — `location`, `subject`, `action` — and no
-payload. It says **when**, never **what**. (In Variance Authority a *subject* is
-one named UI state you asked for and can ask for again; in these three
+payload. It marks **when**, never **what**. (In Variance Authority a *subject*
+is one named UI state you asked for and can ask for again; in these three
 coordinates, `subject` is simply what the announcement is about.)
 
 ## Requirements
@@ -49,7 +50,7 @@ ships to a user imports it.
 `vae(location, subject, action)` is the announcing call, and it is the only
 function your product source needs. Put it where the **decision** is made, not
 where the consequence renders: announced from the render it repeats what the
-screen already says, and the branch that draws nothing announces nothing.
+screen already shows, and the branch that draws nothing announces nothing.
 
 ```ts
 import { vae } from '@variance-authority/event';
@@ -109,8 +110,8 @@ the name a service reports under. An **execution** is one run of one test — th
 fixture mints an opaque id for it, and everything announced while it runs answers
 to that id and to no other test.
 
-Heard nothing at all, the same failure says so in different words, because that
-is a setup fact rather than a product defect:
+When nothing arrived at all, the same failure is printed in different words,
+because that is a setup fact rather than a product defect:
 
 ```
 `checkout / upsell-modal / decided` was never announced within 5000ms
@@ -157,7 +158,7 @@ Two property reads, two `typeof` checks and a return. `vae` looks for a **sink**
 the function a listener installs on `globalThis` under `EVENT_SINK` (`__VAE__`) —
 and for a story recorder, and finds neither in production. That is why these calls belong in product source
 rather than in a wrapper a test build swaps in: an announcement that only exists
-under test tells you about the test harness.
+under test is evidence about the test harness, not the product.
 
 Nothing a listener does affects the code that announced. A sink that throws is
 swallowed at the call, and the failure that produces is a wait that times out in
@@ -179,6 +180,28 @@ Nothing has to listen for this to happen, and nothing is waited on. When you
 compare the runs of a test that fails on some of them, the announcement is
 ordered with the steps around it, so the comparison shows whether the decision
 came before or after the code it raced on every run that failed.
+
+## Leave a breadcrumb of what the code read
+
+An announcement marks when the code decided; a **breadcrumb** records what it
+read to decide, so you can check that the state a test claims to set is the one
+the code saw. `varianceBreadcrumb(dimension, key, value)` returns `value`
+unchanged, so it wraps the read where it happens:
+
+```ts
+import { varianceBreadcrumb } from '@variance-authority/event';
+
+export function isOn(key: string): boolean {
+  return varianceBreadcrumb('flags', key, flags[key] === true);
+}
+```
+
+A Vitest, Jest or Rstest run in Node recorded with `@variance-authority/sense`
+lays each read on the case that made it, and `variance covering` prints it beside what the test
+said: `read flags:discount=false said true` is a claim that never reached the
+code. The [case preconditions](https://variance-authority.dev/docs/case-preconditions#check-what-the-code-read)
+page has the questions it answers. Where nothing records, the call costs one
+property read and a `typeof` check, and it never throws.
 
 ## Listen without Playwright, from `@variance-authority/event/collect`
 
@@ -210,7 +233,7 @@ console.log(await events.happened('checkout', 'upsell-modal', 'decided'));
 | --- | --- | --- |
 | `seen` | `readonly RecordedEvent[]` | everything heard, in arrival order |
 | `pending` | `readonly RecordedEvent[]` | what `vaStart` opened and `vaEnd` has not closed |
-| `saw` | `(location, subject, action) => boolean` | whether these coordinates have been announced, asked without waiting |
+| `saw` | `(location, subject, action) => boolean` | whether these coordinates have been announced, checked without waiting |
 | `happened` | `(location, subject, action, options?) => Promise<RecordedEvent>` | settles when these coordinates are announced in **any** phase, past or future |
 | `finished` | `(location, subject, action, options?) => Promise<RecordedEvent>` | settles only when an `end` closes these coordinates, past or future |
 | `record` | `(realm, event) => RecordedEvent` | feed the log one announcement, from a named realm |
@@ -308,7 +331,7 @@ out and prints what it did hear.
 `listen()`, from `@variance-authority/wire/listen`, is the other end for a driver
 that is not Playwright. It hands out one address per execution and calls back with
 the execution and a `HeadEventReport` — the three coordinates plus `phase`,
-`head`, and `version: 1` — in the order a head said them.
+`head`, and `version: 1` — in the order a head sent them.
 
 An announcement arriving for an execution no test here owns is counted and named
 in the failure rather than handed to whichever test was nearby, so a person
@@ -331,4 +354,4 @@ where it was answering instead.
 
 ---
 
-**[@variance-authority/event](https://variance-authority.dev/reference/packages/event)** is part of [Variance Authority](https://variance-authority.dev) — [documentation](https://variance-authority.dev/docs) · MIT
+**[@variance-authority/event](https://variance-authority.dev/reference/packages/event)** is part of [Variance Authority](https://variance-authority.dev) — [documentation](https://variance-authority.dev/docs) · [GitHub](https://github.com/Variance-Authority/variance-authority/tree/main/packages/event) · MIT

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { ledgerOf, liveIgnores, summarizeLedger } from './ignores.js';
-import type { IgnoreConfig } from '../config.js';
+import { ledgerOf, liveIgnores, summarizeLedger, withLiveIgnores } from './ignores.js';
+import type { Config, IgnoreConfig } from '../config.js';
 import type { CliObservationRecord } from './run-report.js';
 
 /**
@@ -134,6 +134,15 @@ describe('what reaches the collector', () => {
     expect(liveIgnores([expiring], '2026-08-05T00:00:00.001Z')).toEqual([expiring]);
     expect(liveIgnores([expiring], '2026-08-05T23:59:59.999Z')).toEqual([expiring]);
     expect(liveIgnores([expiring], '2026-08-06T00:00:00.000Z')).toEqual([]);
+  });
+
+  it('hands `run` and `collect` the same config, short of the expired rules', () => {
+    const expired: IgnoreConfig = { ...CLOCK, until: '2026-01-01' };
+    const config = { project: 'web', ignore: [expired, CAROUSEL] } as unknown as Config;
+    const bare = { project: 'web' } as unknown as Config;
+
+    expect(withLiveIgnores(config, '2026-08-05')).toEqual({ project: 'web', ignore: [CAROUSEL] });
+    expect(withLiveIgnores(bare, '2026-08-05')).toBe(bare);
   });
 });
 

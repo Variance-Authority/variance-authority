@@ -12,6 +12,8 @@ use oxc_resolver::{
     ResolveOptions, ResolverGeneric, TsconfigDiscovery, TsconfigOptions, TsconfigReferences,
 };
 
+use napi::Either;
+
 use crate::emitted::{Emitted, Origin};
 
 type Resolver = ResolverGeneric<Emitted>;
@@ -23,15 +25,37 @@ const DECLARATION_SUFFIXES: [&str; 3] = [".d.ts", ".d.mts", ".d.cts"];
 const STYLE_EXTENSIONS: &[&str] = &[".css", ".scss", ".sass", ".less"];
 const DEFAULT_CONDITIONS: [&str; 4] = ["source", "import", "require", "default"];
 
+/// Which `tsconfig` governs resolution, `paths` and `customConditions` both
+/// (`typescript.ts`): the one that owns each file, one config named by path,
+/// or none.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum Tsconfig {
+    Auto,
+    Named(PathBuf),
+    Off,
+}
+
+impl Tsconfig {
+    /// The setting as JavaScript passes it: absent or `"auto"`, a path, or `false`.
+    pub fn from_js(value: Option<Either<String, bool>>) -> Self {
+        match value {
+            None | Some(Either::B(true)) => Self::Auto,
+            Some(Either::B(false)) => Self::Off,
+            Some(Either::A(path)) if path == "auto" => Self::Auto,
+            Some(Either::A(path)) => Self::Named(PathBuf::from(path)),
+        }
+    }
+}
+
 pub struct Resolvers {
     modules: Arc<Resolver>,
     exact: Resolver,
     /// The options `modules` was built with, which a condition set is cloned from:
     /// `clone_with_options` replaces options rather than merging them.
     options: ResolveOptions,
-    /// Whether the caller named the conditions. Named conditions are the answer,
-    /// and no `tsconfig` adds to them.
-    named: bool,
+    /// Whether a `tsconfig` adds conditions: not when the caller named them,
+    /// since named conditions are the answer, and not when no config is read.
+    governs: bool,
     /// Governing `tsconfig` → the module resolver its `customConditions` select.
     governed: RwLock<HashMap<PathBuf, Arc<Resolver>>>,
     /// Condition set → its resolver, so configs that agree share one.
@@ -45,12 +69,12 @@ pub struct Resolvers {
 }
 
 impl Resolvers {
-    pub fn new(tsconfig: Option<String>, condition_names: Option<Vec<String>>) -> Self {
+    pub fn new(tsconfig: Tsconfig, condition_names: Option<Vec<String>>) -> Self {
         Self::over(tsconfig, condition_names, Emitted::default())
     }
 
     /// Resolvers that read the disk through `emitted`.
-    pub fn over(tsconfig: Option<String>, condition_names: Option<Vec<String>>, emitted: Emitted) -> Self {
+    pub fn over(tsconfig: Tsconfig, condition_names: Option<Vec<String>>, emitted: Emitted) -> Self {
         let options = ResolveOptions {
             extensions: MODULE_EXTENSIONS
                 .iter()
@@ -77,12 +101,13 @@ impl Resolvers {
                     [".cts", ".cjs"].map(str::to_owned).to_vec(),
                 ),
             ],
-            tsconfig: match tsconfig.as_deref() {
-                None | Some("auto") => Some(TsconfigDiscovery::Auto),
-                Some(path) => Some(TsconfigDiscovery::Manual(TsconfigOptions {
-                    config_file: PathBuf::from(path),
+            tsconfig: match &tsconfig {
+                Tsconfig::Auto => Some(TsconfigDiscovery::Auto),
+                Tsconfig::Named(path) => Some(TsconfigDiscovery::Manual(TsconfigOptions {
+                    config_file: path.clone(),
                     references: TsconfigReferences::Auto,
                 })),
+                Tsconfig::Off => None,
             },
             symlinks: true,
             builtin_modules: true,
@@ -100,7 +125,7 @@ impl Resolvers {
             modules,
             exact,
             options,
-            named: condition_names.is_some(),
+            governs: condition_names.is_none() && tsconfig != Tsconfig::Off,
             governed: RwLock::new(HashMap::new()),
             conditioned: Mutex::new(conditioned),
             declarations: Mutex::new(HashMap::new()),
@@ -113,7 +138,7 @@ impl Resolvers {
     /// conditions plus the `customConditions` of the `tsconfig` that governs
     /// `from` — the config `oxc_resolver` already picked for its `paths`.
     fn modules_for(&self, from: &Path) -> Arc<Resolver> {
-        if self.named {
+        if !self.governs {
             return Arc::clone(&self.modules);
         }
         let Ok(Some(tsconfig)) = self.modules.find_tsconfig(from) else {
@@ -402,7 +427,7 @@ mod tests {
             ("src/commands/dist/c.ts".to_owned(), 2),
         ]);
         let unlisted = HashMap::from([("src/commands/b.ts".to_owned(), 0)]);
-        let resolvers = Resolvers::new(None, None);
+        let resolvers = Resolvers::new(Tsconfig::Auto, None);
         let ask = |request, known| resolvers.resolve(&root, &from, request, known);
         assert_eq!(ask("./build/a", Some(&listed)), Some("src/commands/build/a.ts".to_owned()));
         assert_eq!(ask("./build/a", Some(&unlisted)), None);

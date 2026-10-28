@@ -15,15 +15,21 @@ const files = ['test/alpha.case.mjs', 'test/beta.case.mjs'].map((file) => resolv
 const recording = startRecording({
   coverageFile: process.env['VARIANCE_AUTHORITY_COVERAGE'],
   preconditions: [resolve(here, 'run.mjs'), resolve(here, 'worker.mjs')],
+  // `--no-cadence` leaves each test file uncut, for the test that turns cuts off.
+  cadence: !process.argv.includes('--no-cadence'),
+  // `--loads` records which files each test file loaded, and nothing inside them.
+  ...(process.argv.includes('--loads') ? { mode: 'loads' } : {}),
 });
 
 const finished = [];
 for (const file of files) {
   const started = performance.now();
-  const { complete, stdout } = await execute(process.execPath, [resolve(here, 'worker.mjs'), file, ...process.argv.slice(2)]).then(
-    ({ stdout }) => ({ complete: true, stdout }),
-    (error) => ({ complete: false, stdout: error.stdout ?? '' }),
+  const { complete, stdout, stderr } = await execute(process.execPath, [resolve(here, 'worker.mjs'), file, ...process.argv.slice(2)]).then(
+    ({ stdout, stderr }) => ({ complete: true, stdout, stderr }),
+    (error) => ({ complete: false, stdout: error.stdout ?? '', stderr: error.stderr ?? '' }),
   );
+  // What the worker warned is the run's to show, as a runner shows its workers'.
+  process.stderr.write(stderr);
   // The worker's last line is what it measured for each case; the file is what this process waited.
   const cases = JSON.parse(stdout.trim().split('\n').at(-1) || '[]');
   finished.push({ file, complete, duration: performance.now() - started, cases });

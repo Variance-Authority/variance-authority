@@ -1,14 +1,23 @@
 import type { Documented, Entry, Help, Opening } from '@variance-authority/package/help';
 import { everyEntry } from '@variance-authority/package/help';
+import { importsByPath } from './by-path.js';
+import { declarations, unreadLine } from './declared.js';
+import { type Members, membersStop } from './members.js';
+import type { Spelling } from '@variance-authority/mcp/tools';
+import { search } from './search.js';
 
 /**
- * Locating the thing a question is about, and refusing well when it is not there.
+ * Locating the thing a question is about, and answering well when it is not there.
  *
- * Every refusal here names what *is* there. A model handed "unknown package" has
+ * Every such answer names what *is* there. A model handed "unknown package" has
  * one move left, which is to guess again; a model handed the list has the answer
  * in the same turn. The list is the expensive part of the reading and it has
  * already been read, so withholding it buys nothing.
  */
+
+/** What a workspace with no published package is told, wherever it would have been listed. */
+export const NOTHING_PUBLISHED =
+  'this workspace publishes no package: no manifest it declares is both named and public';
 
 /** The door a subpath names, written the way somebody would import it. */
 export function specifierOf(published: Documented, opening: Opening): string {
@@ -19,6 +28,9 @@ export function packageOf(help: Help, name: string): Documented {
   const found = help.packages.find((published) => published.name === name);
   if (found !== undefined) return found;
 
+  // An empty list printed after the colon would read as the answer. It is one,
+  // but only said as a sentence: no manifest the workspace declares is public.
+  if (help.packages.length === 0) throw new Error(`unknown package \`${name}\`; ${NOTHING_PUBLISHED}`);
   const known = help.packages.map((published) => published.name).join(', ');
   throw new Error(`unknown package \`${name}\`; this workspace publishes: ${known}`);
 }
@@ -91,7 +103,7 @@ export function entriesNamed(help: Help, name: string): readonly (readonly [Docu
  * saying so costs the caller one hop instead of three; when the name is a
  * substring of several, the count says whether `search` is worth asking.
  */
-export function unfound(help: Help, name: string, within: string | undefined): string {
+export function unfound(help: Help, name: string, within: string | undefined, spell: Spelling): string {
   const where = within === undefined ? 'this workspace' : `\`${within}\``;
   const lowered = name.toLowerCase();
   const published = new Set([...everyEntry(help)].map(([, , entry]) => entry.name));
@@ -100,19 +112,73 @@ export function unfound(help: Help, name: string, within: string | undefined): s
   if (alike.length > 1) {
     return `\`${name}\` is not published by ${where}; ${alike.map((held) => `\`${held}\``).join(' and ')} are. Names are matched exactly.`;
   }
-  // Exported for a neighbour and never published is most of any repository,
-  // and it is the half `search` reports second. A caller who typed such a name
-  // exactly is not wrong about the name, only about the door, and the file is
-  // the whole answer.
+  // `symbol` and `uses` answer an export no entry publishes, so one reaches
+  // here only from outside the package asked about: the name is right, the
+  // package is not, and the file says which one exports it.
   const exported = help.exported.filter((held) => held.name === name && held.kind === 'source');
   if (exported.length > 0) {
     const [first] = exported;
     const more = exported.length > 1 ? ` and ${exported.length - 1} more` : '';
-    return `\`${name}\` is not published by ${where}; it is exported, without being published, at ${first?.at}:${first?.line}${more}.`;
+    const unknown =
+      within !== undefined &&
+      exported.some((held) => within.startsWith(`${held.by}/`)) &&
+      !importsByPath(help, within).some(([deep]) => deep.specifier === within && deep.to !== undefined);
+    const why = unknown ? `; no import of ${where} in this workspace resolved to a file, so the file it names is not known` : '';
+    return `\`${name}\` is not published by ${where}; it is exported, without being published, at ${first?.at}:${first?.line}${more}${why}.`;
   }
   const around = [...published].filter((held) => held.toLowerCase().includes(lowered)).length;
   if (around > 0) {
-    return `\`${name}\` is not published by ${where}; ${around} published ${around === 1 ? 'name contains' : 'names contain'} it — ask \`search\` with it as the query.`;
+    return `\`${name}\` is not published by ${where}; ${around} published ${around === 1 ? 'name contains' : 'names contain'} it — ask \`${spell.tool(search)}\` with it as the \`${spell.input('query')}\`.`;
   }
-  return `\`${name}\` is not published by ${where}, and no published name contains it; ask \`search\` with a word from its documentation.`;
+  return `\`${name}\` is not published by ${where}, and no published name contains it; ask \`${spell.tool(search)}\` with a word from its documentation.`;
+}
+
+/**
+ * A name a question looked for and did not find, said as an answer rather
+ * than a refusal: what was read and found nothing, and where else the name
+ * may be written. It is thrown, not returned, so every surface that reads a
+ * reused generation asks the question again of a current one before the
+ * absence is believed, as it does for a refusal; the last reading's
+ * `FoundNothing` is then given as the answer: `variance ask` and
+ * `variance-authority-help` print it on stdout and exit cleanly.
+ */
+export class FoundNothing extends Error {
+  override readonly name = 'FoundNothing';
+}
+
+/** Where a name is written that no reader here declares. */
+const AS_TEXT = 'A name written only as text, in a string or a comment, declares nothing: a text search such as `rg` finds it.';
+
+/**
+ * The answer for a name nothing in the workspace declares: that no file
+ * declares it, then, given `dependencies`, what is known of the installed
+ * ones, then where the reading of members stopped, then that a name written
+ * only as text is a text search's to find, then the files the source
+ * index holds no declarations of. Where the index could not be read, that is
+ * said in place of a claim about the files. Members are read from JavaScript
+ * and TypeScript only, so where the index holds files of another language the
+ * claim about members is made of those two, and the others are named.
+ */
+export function nowhere(
+  help: Help,
+  name: string,
+  wanted: string | undefined,
+  root: string | undefined,
+  members: Members | undefined,
+  dependencies: string | undefined,
+  spell: Spelling,
+): string {
+  const where = wanted === undefined ? 'this workspace' : `\`${wanted}\``;
+  const read = declarations(root, name);
+  const why = 'refused' in read ? read.refused : members?.unread;
+  const unread = 'refused' in read ? [] : unreadLine(read.unread);
+  const stop = why === undefined && members !== undefined ? membersStop(name, members) : undefined;
+  // What was read and found nothing comes first, as only what was read; what was not read, last.
+  const none = `No file in ${where}${unread.length === 0 ? '' : ' that the source index read'} declares \`${name}\``;
+  const files = why !== undefined
+    ? `Which files declare \`${name}\` is not known: ${why}.`
+    : stop === undefined
+      ? `${none}, at its top level or as a member.`
+      : `${none} at its top level, and no JavaScript or TypeScript file declares it as a member.`;
+  return [unfound(help, name, wanted, spell), files, ...(dependencies === undefined ? [] : [dependencies]), ...(stop === undefined ? [] : [stop]), AS_TEXT, ...unread].join(' ');
 }

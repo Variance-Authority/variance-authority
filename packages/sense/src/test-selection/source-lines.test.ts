@@ -4,8 +4,7 @@ import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { digestString } from '../digest.js';
 import { sourceLines, type ExtentOf } from './source-lines.js';
-import { testSelectionProbes, type TransformingContext } from './probes.js';
-import { readRecord, recordStore } from './instrumented-modules.js';
+import { captureModule } from './captured-modules.js';
 import { coverageBlock, coverageModule } from './coverage-rows.js';
 import { encodeTestCoverage } from './format.js';
 import { openTestCoverage } from './format-view.js';
@@ -26,7 +25,7 @@ import type { CoverageBlock, TestCoverage } from './index.js';
 // The map for a transform that dropped one blank line: four generated lines
 // standing for original lines 1, 3, 4 and 5.
 const DROPPED_BLANK = {
-  sources: ['app/src/a.ts'],
+  sources: ['a.ts'],
   mappings: 'AAAA;AAEA;AACA;AACA',
 };
 
@@ -66,7 +65,7 @@ describe('reading a block back to where it was written', () => {
     const withPrologue = `var __name = (t) => t;\n${TRANSFORMED}`;
     const extentOf = sourceLines(
       withPrologue,
-      { sources: ['app/src/a.ts'], mappings: `;${DROPPED_BLANK.mappings}` },
+      { sources: ['a.ts'], mappings: `;${DROPPED_BLANK.mappings}` },
       '/repo/app/src/a.ts',
     );
     const prologue = withPrologue.indexOf('\n') - 1;
@@ -93,12 +92,64 @@ describe('reading a block back to where it was written', () => {
     const lineOf = lineIn(
       sourceLines(
         TRANSFORMED,
-        { sources: ['app/src/other.ts', 'app/src/a.ts'], mappings: 'AAAA;ACEA' },
+        { sources: ['other.ts', 'a.ts'], mappings: 'AAAA;ACEA' },
         '/repo/app/src/a.ts',
       ),
     );
 
     expect(lineOf(TRANSFORMED.indexOf('const f'))).toBe(3);
+  });
+
+  // A line esbuild opens with the origin of the line above, carried over, and a
+  // segment of its own at `if (b)`: original line 2, column 5.
+  const CARRIED = 'if (a) x();\nelse if (b) y();';
+  const onCarried = (column: number): number => CARRIED.indexOf('else') + column;
+
+  it('leaves a region on its carried line when nothing inside it was written there', () => {
+    const extentOf = sourceLines(
+      CARRIED,
+      { sources: ['a.ts'], mappings: 'AAAA;AAAA,KACK' },
+      '/repo/app/src/a.ts',
+    );
+
+    // `se` ends before `if (b)`: the carried origin is the only one it has.
+    expect(extentOf(onCarried(2), onCarried(3))).toEqual([1, 1]);
+    expect(extentOf(onCarried(2), onCarried(10))).toEqual([2, 2]);
+  });
+
+  it('carries no origin across code the map left unmapped', () => {
+    // Line 1 ends in unmapped code, so the origin line 2 opens with is that
+    // line's own, not one carried over.
+    const extentOf = sourceLines(
+      CARRIED,
+      { sources: ['a.ts'], mappings: 'AAAA,C;AAAA,EACA' },
+      '/repo/app/src/a.ts',
+    );
+
+    expect(extentOf(onCarried(1), onCarried(2))).toEqual([1, 2]);
+  });
+
+  it('carries no origin across a generated line with none', () => {
+    // An unmapped `if (a) x();` between the origin and the line that repeats it.
+    const extentOf = sourceLines(
+      `\n${CARRIED}`,
+      { sources: ['a.ts'], mappings: 'AAAA;;AAAA,EACA' },
+      '/repo/app/src/a.ts',
+    );
+    const shifted = (column: number): number => onCarried(column) + 1;
+
+    expect(extentOf(shifted(1), shifted(2))).toEqual([1, 2]);
+  });
+
+  it('reads past another file the map also names to the origin carried over', () => {
+    // A segment of `other.ts` between the carried one and `if (b)`.
+    const extentOf = sourceLines(
+      CARRIED,
+      { sources: ['other.ts', 'a.ts'], mappings: 'ACAA;AAAA,CDAA,ICCK' },
+      '/repo/app/src/a.ts',
+    );
+
+    expect(extentOf(onCarried(2), onCarried(10))).toEqual([2, 2]);
   });
 
   it('keeps the span when the transform moved one end above the other', () => {
@@ -113,7 +164,7 @@ describe('reading a block back to where it was written', () => {
     // Generated line 1 came from original line 3, and lines 2-4 from 1-3.
     const extentOf = sourceLines(
       hoisted,
-      { sources: ['app/src/a.tsx'], mappings: 'AAEA;AAFA;AACA;AACA' },
+      { sources: ['a.tsx'], mappings: 'AAEA;AAFA;AACA;AACA' },
       '/repo/app/src/a.tsx',
     );
     const lineOf = lineIn(extentOf);
@@ -136,44 +187,20 @@ describe('reading a block back to where it was written', () => {
   });
 });
 
-const cacheRoot = join(tmpdir(), `variance-source-lines-${process.pid}`);
-const recorded = async () =>
-  await readRecord(recordStore('/repo', 'build', cacheRoot), 'app/src/a.ts');
+/** The module the transform cuts from `code`, handed to it as `path`. */
+const cut = (root: string, path: string, code: string, include: (file: string) => boolean = () => true) =>
+  captureModule(root, path, code, include, undefined);
 
-afterEach(async () => {
-  await rm(cacheRoot, { force: true, recursive: true });
-});
-
-describe('what the build seam writes down', () => {
-  it('records a block at the line the author would find it on', async () => {
-    const plugin = testSelectionProbes({ root: '/repo', cacheRoot });
-    const context: TransformingContext = { getCombinedSourcemap: () => DROPPED_BLANK };
-
-    plugin.transform.call(context, TRANSFORMED, '/repo/app/src/a.ts');
-
-    const written = await recorded();
+describe('what the build seam cuts', () => {
+  it('records a block at the line the author would find it on', () => {
+    // The file on disk holds the text the transform is handed.
+    const written = captureModule('/repo', '/repo/app/src/a.ts', ORIGINAL, () => true, undefined, () => ORIGINAL)?.module;
     const arrow = written?.blocks.find((block) => block.kind === 'function');
 
     expect(written?.file).toBe('app/src/a.ts');
+    expect(written?.sourceDigest).toBe(digestString(ORIGINAL));
     expect(arrow?.startLine).toBe(3);
     expect(arrow?.endLine).toBe(5);
-  });
-
-  it('survives a bundler that answers the map request by throwing', async () => {
-    // Rollup without a sourcemap chain does exactly this, and losing the
-    // record over it would lose the whole run's selection.
-    const plugin = testSelectionProbes({ root: '/repo', cacheRoot });
-    const context: TransformingContext = {
-      getCombinedSourcemap: () => {
-        throw new Error('no sourcemap chain');
-      },
-    };
-
-    plugin.transform.call(context, TRANSFORMED, '/repo/app/src/a.ts');
-
-    const written = await recorded();
-
-    expect(written?.blocks.find((block) => block.kind === 'function')?.startLine).toBe(2);
   });
 });
 
@@ -181,10 +208,10 @@ describe('what the build seam writes down', () => {
  * The digest and the line numbers have to describe the same text.
  *
  * A record pairs one digest of the module's source with block extents, and the
- * only reader of those extents is a diff. When the bundler keeps no map the
- * extents fall back to the transformed text's own lines — that is the honest
- * answer for them — but the digest goes on being taken from the file on disk,
- * so the record says *these are lines of the file you edited* about numbers
+ * only reader of those extents is a diff. When a plugin that ran before the
+ * seam rewrote the text and kept no map, the extents are the rewritten text's
+ * own lines — that is the honest answer for them — and a digest taken from the
+ * file on disk would say *these are lines of the file you edited* about numbers
  * counted somewhere else. Nothing downstream can catch it: `recorded()` in the
  * selector hashes the text at the snapshot's commit against that digest, they
  * agree, the module is not stale, and the changed lines are charged to
@@ -213,10 +240,8 @@ describe('a text the seam cannot map back to the file', () => {
     '',
   ].join('\n');
 
-  // What an earlier plugin hands an `enforce: 'post'` hook: the same code under
-  // a prologue, and no chain to read it back through. Rollup answers the map
-  // request this way as soon as any upstream plugin returns `{ code, map: null }`
-  // — which the two plugins in this package both do.
+  // What a plugin ordered before the seam hands it: the same code under a
+  // prologue, and no map that reads it back to the file.
   const transformed = [
     'var __defProp = Object.defineProperty;',
     'var __name = (t, value) => __defProp(t, "name", { value });',
@@ -226,18 +251,10 @@ describe('a text the seam cannot map back to the file', () => {
     onDisk,
   ].join('\n');
 
-  const unmapped: TransformingContext = {
-    getCombinedSourcemap: () => {
-      throw new Error('no sourcemap chain');
-    },
-  };
-
   const record = async () => {
     await mkdir(join(root, 'src'), { recursive: true });
     await writeFile(join(root, module), onDisk);
-    const plugin = testSelectionProbes({ root, cacheRoot });
-    plugin.transform.call(unmapped, transformed, join(root, module));
-    return await readRecord(recordStore(root, 'build', cacheRoot), module);
+    return cut(root, join(root, module), transformed)?.module;
   };
 
   afterEach(async () => {
@@ -298,30 +315,35 @@ describe('a text the seam cannot map back to the file', () => {
  * A module consumed as a build is recorded under the file it was written in.
  *
  * A host hands the transform hook whatever it resolved, and for a package
- * imported from its build that is `dist/a.js`. The lines already follow the map
- * home; the name did not, so the record named a path the scanner has never read
- * an import from and every test that entered the module came back unplaced.
- * Nobody asks *which tests cover dist*.
+ * imported from its build that is `dist/a.js`, whose last line points at the
+ * map `tsc` wrote beside it. Recorded under `dist/a.js`, it names a path the
+ * scanner has never read an import from, and every test that entered the
+ * module comes back unplaced. Nobody asks *which tests cover dist*.
  */
 describe('a module the host loaded from its build', () => {
   const root = join(tmpdir(), `variance-built-${process.pid}`);
-  const built = async (sources: readonly string[]) => {
+  const map = (sources: readonly string[]): string =>
+    JSON.stringify({ version: 3, sources, names: [], mappings: DROPPED_BLANK.mappings });
+  const built = async (
+    pointer: string,
+    files: Readonly<Record<string, string>>,
+    include: (file: string) => boolean = () => true,
+    handed: (disk: string) => string = (disk) => disk,
+  ) => {
     await mkdir(join(root, 'src'), { recursive: true });
     await mkdir(join(root, 'dist'), { recursive: true });
     await writeFile(join(root, 'src/a.ts'), ORIGINAL);
-    await writeFile(join(root, 'dist/a.js'), TRANSFORMED);
+    for (const [file, text] of Object.entries(files)) await writeFile(join(root, file), text);
     // `defaultInclude` refuses build output, so a suite that reaches its
     // subject through a manifest's `exports` says so — this repository's own
     // config is one. Recording it is the opt-in; naming it is this.
-    const plugin = testSelectionProbes({ root, cacheRoot, include: () => true });
-    const context: TransformingContext = {
-      getCombinedSourcemap: () => ({ sources: [...sources], mappings: DROPPED_BLANK.mappings }),
-    };
-    plugin.transform.call(context, TRANSFORMED, join(root, 'dist/a.js'));
-    const store = recordStore(root, 'build', cacheRoot);
+    const disk = `${TRANSFORMED}\n${pointer}\n`;
+    await writeFile(join(root, 'dist/a.js'), disk);
+    const done = cut(root, join(root, 'dist/a.js'), handed(disk), include);
     return {
-      original: await readRecord(store, 'src/a.ts'),
-      generated: await readRecord(store, 'dist/a.js'),
+      done,
+      original: done?.module.file === 'src/a.ts' ? done.module : undefined,
+      generated: done?.module.file === 'dist/a.js' ? done.module : undefined,
     };
   };
 
@@ -329,8 +351,10 @@ describe('a module the host loaded from its build', () => {
     await rm(root, { force: true, recursive: true });
   });
 
-  it('names it after the source its map points at, and digests that text', async () => {
-    const { original, generated } = await built(['../src/a.ts']);
+  it('names it after the source its own map file points at, and digests that text', async () => {
+    const { original, generated } = await built('//# sourceMappingURL=a.js.map', {
+      'dist/a.js.map': map(['../src/a.ts']),
+    });
 
     expect(generated).toBeUndefined();
     expect(original?.file).toBe('src/a.ts');
@@ -338,13 +362,56 @@ describe('a module the host loaded from its build', () => {
     expect(original?.blocks.find((block) => block.kind === 'function')?.startLine).toBe(3);
   });
 
-  it('leaves a bundle chunk under the name the host gave it', async () => {
-    // Many sources folded into one text. There is no single file to rename it
-    // to, and the first one would be a name that joins to the wrong module
-    // rather than to none.
-    const { original, generated } = await built(['../src/a.ts', '../src/b.ts']);
+  it('follows the map when a dev server hands the file with the comment blanked, and not when the text is another', async () => {
+    const pointer = '//# sourceMappingURL=a.js.map';
+    const files = { 'dist/a.js.map': map(['../src/a.ts']) };
+    // What Vite does once it has read the map itself: the same text, the comment spaced out.
+    const blanked = await built(pointer, files, undefined, (disk) => disk.replace(pointer, ' '.repeat(pointer.length)));
+    expect(blanked.original?.file).toBe('src/a.ts');
+    await rm(root, { force: true, recursive: true });
+
+    // A plugin ahead of this one changed the text, so the map no longer describes it.
+    const changed = await built(pointer, files, undefined, (disk) => `// banner\n${disk}`);
+    expect(changed.original).toBeUndefined();
+    expect(changed.generated?.file).toBe('dist/a.js');
+  });
+
+  it('keeps the name the host gave it for a bundle chunk, an inline map, or a map it cannot read', async () => {
+    // Many sources folded into one text have no single file to rename it to,
+    // and the first one would be a name that joins to the wrong module.
+    const inline = `//# sourceMappingURL=data:application/json;base64,${Buffer.from(map(['../src/a.ts'])).toString('base64')}`;
+    for (const [pointer, files] of [
+      ['//# sourceMappingURL=a.js.map', { 'dist/a.js.map': map(['../src/a.ts', '../src/b.ts']) }],
+      [inline, {}],
+      ['//# sourceMappingURL=a.js.map', {}],
+    ] as const) {
+      const { original, generated } = await built(pointer, files);
+
+      expect(original).toBeUndefined();
+      expect(generated?.file).toBe('dist/a.js');
+      await rm(root, { force: true, recursive: true });
+      }
+  });
+
+  it('keeps a module `include` accepts under its own name when its map leads to a file `include` refuses', async () => {
+    // A generated `schema.ts` whose map leads to the `.graphql` it was made from.
+    const { original, generated } = await built(
+      '//# sourceMappingURL=a.js.map',
+      { 'dist/a.js.map': map(['../src/a.ts']) },
+      (file) => !file.endsWith('.ts'),
+    );
 
     expect(original).toBeUndefined();
     expect(generated?.file).toBe('dist/a.js');
+  });
+
+  it('is left alone when `include` accepts neither name', async () => {
+    const { done, original, generated } = await built(
+      '//# sourceMappingURL=a.js.map',
+      { 'dist/a.js.map': map(['../src/a.ts']) },
+      () => false,
+    );
+
+    expect([done, original, generated]).toEqual([undefined, undefined, undefined]);
   });
 });

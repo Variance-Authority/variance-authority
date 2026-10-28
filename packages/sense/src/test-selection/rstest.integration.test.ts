@@ -7,11 +7,15 @@ import { promisify } from 'node:util';
 import { afterEach, describe, expect, it } from 'vitest';
 import { decodeTestCoverage } from './format.js';
 import { selectTestFiles } from './index.js';
+import { lineAt, linesOf } from './case-lines.js';
+import { recordedCases } from './case-record.js';
 import { decodeExecutionIndex } from './execution-format.js';
+import { openSetColumns } from './execution-set-format.js';
 
 // The story format is a CommonJS sandbox module whose own requires resolve only
 // once built, so it is read from `dist/` as the seam itself loads it.
 const stories = (await import('../../dist/story/format.cjs')).default as typeof import('../story/format.cjs');
+const { readRoute } = (await import('../../dist/story/read.js')) as typeof import('../story/read.js');
 const execute = promisify(execFile);
 const here = dirname(fileURLToPath(import.meta.url));
 const repository = resolve(here, '../../../..');
@@ -98,14 +102,14 @@ describe('the Rstest integration', () => {
     await run('rstest.cases.config.mjs', directory);
 
     // Beside the snapshot, never inside it.
-    const index = decodeExecutionIndex(await readFile(`${coverageFile}.cases.bin`));
+    const index = decodeExecutionIndex(await readFile(coverageFile));
     // `globals` is off here, so the registrars under test are the ones on the
     // object an import of `@rstest/core` compiles to, and the coordinate is
-    // read off `expect.getState()` at call time. Two of
-    // `alpha.case.ts`'s three cases are absent for different reasons: the
-    // skipped one never reaches the registrar's callback, and the one that only
-    // reads a global crossed nothing.
+    // read off `expect.getState()` at call time. The case that only reads a
+    // global is named though it crossed nothing; the skipped one never reaches
+    // the registrar's callback, so it is absent.
     expect(index.tests.map((test) => test.id)).toEqual([
+      at("test/alpha.case.ts > ran after the project's own setup file"),
       at('test/alpha.case.ts > takes the alpha path'),
       at('test/beta.case.ts > takes the beta path'),
     ]);
@@ -129,6 +133,14 @@ describe('the Rstest integration', () => {
     // credited with holds the file's evaluation, not its branches.
     expect(walking('A')).toEqual([at('test/alpha.case.ts > takes the alpha path')]);
     expect(walking('B')).toEqual([at('test/beta.case.ts > takes the beta path')]);
+
+    // The test's own statement on line 5 is what took the alpha turn.
+    const bytes = await readFile(coverageFile);
+    const alpha = index.tests.findIndex((test) => test.id === at('test/alpha.case.ts > takes the alpha path'));
+    const module = index.modules.indexOf(decide!);
+    const turn = source.slice(0, source.indexOf("return 'A'")).split('\n').length;
+    const block = decide!.blocks.findLastIndex((candidate) => candidate.startLine <= turn && turn <= candidate.endLine);
+    expect(lineAt(linesOf(openSetColumns(recordedCases(bytes))!.testLines, alpha)!, module, block)).toEqual({ line: 5, ambient: false });
   }, 120_000);
 
   it('names a case declared with the realm\'s registrars, the spelling the other configurations never take', async () => {
@@ -142,7 +154,7 @@ describe('the Rstest integration', () => {
     // about, and a placement no configuration exercises is one that records
     // nothing without saying so — which is how the equivalent hole in the Jest
     // seam survived until somebody outside the project read the page.
-    const index = decodeExecutionIndex(await readFile(`${coverageFile}.cases.bin`));
+    const index = decodeExecutionIndex(await readFile(coverageFile));
     expect(index.tests.map((test) => test.id)).toEqual([
       at('test/gamma.injected.ts > takes the gamma path with the registrars on the realm'),
     ]);
@@ -184,7 +196,7 @@ describe('the Rstest integration', () => {
     const recorded = async (into: string): Promise<unknown> => {
       const { tests, ...rest } = decodeTestCoverage(await readFile(resolve(into, 'coverage.bin')));
       expect(tests.every((test) => test.duration !== undefined)).toBe(true);
-      const cases = decodeExecutionIndex(await readFile(resolve(into, 'coverage.bin.cases.bin')));
+      const cases = decodeExecutionIndex(await readFile(resolve(into, 'coverage.bin')));
       expect(cases.tests.length).toBeGreaterThan(0);
       expect(cases.tests.every((test) => test.duration !== undefined)).toBe(true);
       return {
@@ -194,5 +206,25 @@ describe('the Rstest integration', () => {
       };
     };
     expect(await recorded(taped)).toEqual(await recorded(plain));
+  }, 120_000);
+
+  it('names every region a story went through by its coordinate in the record beside it', async () => {
+    const directory = await mkdtemp(resolve(tmpdir(), 'variance-authority-rstest-route-'));
+    temporary.push(directory);
+    await run('rstest.config.mjs', directory, { VARIANCE_AUTHORITY_STORY: '1' });
+    const taped = (await readdir(directory, { recursive: true })).filter((path) => path.endsWith('.story'));
+    const alpha = taped.map((path) => resolve(directory, path))
+      .find((path) => readRoute(repository, path).name === 'takes the alpha path');
+    const route = readRoute(repository, alpha!);
+
+    // A row of the tape names the module and the text it ran; the record
+    // beside it holds that text's regions, so nothing is left as a bare file.
+    expect(route.unresolved).toEqual([]);
+    const stop = route.route.map((step) => ('token' in step ? step.token : undefined))
+      .find((token) => token !== undefined && 'place' in token && token.place.name === 'decide');
+    expect(stop).toMatchObject({
+      place: { file: at('src/decide.ts'), at: `${at('src/decide.ts')}#decide/entry` },
+      arms: [{ path: 'if#0/then', at: `${at('src/decide.ts')}#decide/if#0/then` }],
+    });
   }, 120_000);
 });

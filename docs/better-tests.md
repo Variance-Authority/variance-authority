@@ -1,6 +1,6 @@
 # Make a suite faster, more stable, smarter and cheaper
 
-While a test runs, the machinery under it knows which code executed, which
+While a test runs, the machinery under it can observe which code executed, which
 elements the test queried or clicked, and what setup ran before it began.
 Teardown is normally where all of that disappears, and the run ends with a pass,
 a fail and a pixel count. [Variance Authority](README.md) keeps the record
@@ -43,7 +43,13 @@ kitchen-sink example, which is not part of the package.
 The Storybook collector holds a single preview open and switches stories over
 Storybook's own channel rather than navigating. The renderer keeps a pool of
 pages keyed by viewport, so 1x and 2x, or a phone width and a desktop one, come
-out of one browser in one run.
+out of one browser in one run. When the run reads stories in parallel, each
+worker is another page in that same browser and that same browser context, so
+it boots its preview from the HTTP cache the first page filled instead of
+fetching the bundle again. The pages share cookies and storage, as stories in
+one preview already share a document. The [clean-environment
+check](#more-stable-see-the-root-cause), which has to rule out every neighbour,
+still gets a browser of its own.
 
 That saving is available where the page is this side's to open. A shipped
 collector and the renderer decide when a browser starts, which page a subject is
@@ -122,12 +128,10 @@ An import graph tells you which tests might depend on a changed module. A
 recorded run also tells you which tests executed the changed code.
 `withTestSelection` wraps the runner configuration once, installing the reporter
 it needs along the way. Every run then records which source code each test file
-executed. A repository integration can use that record to choose tests for the
-next source diff.
-The published package stops at that evidence: it does not install a selection
-command, inventory the current suite, or invoke a runner. A repository
-integration supplies those three pieces. This repository has such an integration
-for its own Vitest suite, but that contributor command is not part of the package.
+executed. Set `VARIANCE_AUTHORITY_SINCE` on the next Vitest or Jest run and the
+runner reads that record itself, leaving out the test files your diff did not
+reach; [run the tests an edit needs](test-an-edit.md) is that loop. Any other
+runner gets the same skip list from `variance select`.
 
 The record also explains exclusions. A selection reports which tests have a
 complete recording and executed none of the changed code. Missing or incomplete
@@ -140,7 +144,7 @@ separate recorded test paths from the edit; an integration can use that reading
 to order its workload.
 
 The same record answers questions nobody wrote an assertion for. The process
-that produced a pass or a fail also knew which elements the test queried or
+that produced a pass or a fail also observed which elements the test queried or
 clicked, which components rendered, which component instances initiated updates,
 and which branches executed. Your test does not change to keep any of it.
 [Ask a question the test did not](observability.md) explains what you can learn
@@ -194,7 +198,7 @@ of everything the packages do.
 | --- | --- | --- |
 | One page across a run | the harness, or a shipped collector | a page this side opens; a runner that drives its own browser keeps its own lifecycle |
 | Test-order checks | a collector that can create a clean environment | the ability to mount the subject again, which a runner-owned mount does not offer |
-| Selection and distance | `withTestSelection` in a Vitest 2 or Jest 30 config; the four `@variance-authority/sense/jest-*` modules for a Jest configuration assembled by hand; `@variance-authority/sense/journal` for a build driven through a browser | a recorded run, plus repository-owned inventory and runner dispatch; the journal seam also needs a Vite-compatible build and a driver that can evaluate in the page |
+| Selection and distance | `withTestSelection` in a Vitest or Jest 30 config; the four `@variance-authority/sense/jest-*` modules for a Jest configuration assembled by hand; `@variance-authority/sense/journal` for a build driven through a browser | a recorded run and `@variance-authority/cli` installed, for the runner to read its selection; outside a wrapped Vitest or Jest run, repository-owned inventory and runner dispatch; the journal seam also needs a Vite-compatible build and a driver that can evaluate in the page |
 | Order-dependent module state | the same instrumentation | nothing further |
 | Finding unused imports and functions | the same instrumentation | one test's recorded execution, and `variance distill` |
 | Recording queried elements | `watch(screen)` from `@variance-authority/eyes/rtl`, in a setup file | any object with `getBy` / `queryBy` / `findBy` queries; React updates also need a commit hook installed before `react-dom` loads; `watch` attaches to that hook and reports when it is unavailable |

@@ -3,8 +3,10 @@ import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { createContext, runInContext } from 'node:vm';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { keepsCases } from './case-record.js';
 import { decodeTestCoverage } from './format.js';
 import instrumentModule, { type SelectionLoaderContext } from './rstest-loader.js';
+import probeAfter from './rstest-after-loader.js';
 import { withTestSelection, type RstestFileResult } from './rstest.js';
 
 type Hook = (...args: unknown[]) => void;
@@ -43,15 +45,19 @@ function api(browser: { enabled?: boolean } | undefined): unknown {
   };
 }
 
-/** What the loader makes of one module, as Rspack would call it. */
+/** What the two loaders make of one module, as Rspack would call them. */
 function instrumented(file: string, code: string, coverageFile: string): string {
   let out = code;
   const context: SelectionLoaderContext = {
     resourcePath: file,
     getOptions: () => ({ coverageFile }),
-    callback: (_error, next) => (out = next),
+    callback: (error, next) => {
+      if (error) throw error;
+      out = next;
+    },
   };
   instrumentModule.call(context, code);
+  probeAfter.call(context, out);
   return out;
 }
 
@@ -102,7 +108,7 @@ describe('an Rstest file that runs in a page', () => {
     plugin.setup(api({ enabled: true }));
     await mkdir(resolve(root, 'src'));
     const source = resolve(root, 'src/price.js');
-    await writeFile(source, `${PRICE}\n`);
+    await writeFile(source, PRICE);
     const module = instrumented(source, PRICE, coverageFile);
     const shim = await readFile(setup, 'utf8');
 
@@ -132,7 +138,7 @@ describe('an Rstest file that runs in a page', () => {
     ]);
   });
 
-  it('says it records files only, rather than writing an empty case index', async () => {
+  it('says it records files only, rather than keeping an empty case index in the record', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
     try {
       const { plugin, reporter, setup, coverageFile } = await seam(true);
@@ -142,7 +148,7 @@ describe('an Rstest file that runs in a page', () => {
       await reporter.onTestRunEnd({ results: [] });
 
       expect(warn.mock.calls.flat().join('\n')).toMatch(/a test file that runs in a page is recorded per file, not per case/);
-      await expect(readFile(`${coverageFile}.cases.bin`)).rejects.toThrow(/ENOENT/);
+      expect(keepsCases(coverageFile)).toBe(false);
     } finally {
       warn.mockRestore();
     }

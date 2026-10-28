@@ -1,33 +1,56 @@
 // compass: variance-authority/runtime/attention
 import type {
   Attention,
-  EyesArchive,
+  EyesJournal,
   EyesPhase,
-  EyesTestAttention,
   TargetSnapshot,
 } from '@variance-authority/eyes';
 import type {
   ExecutionIndex,
 } from '@variance-authority/sense/test-selection';
 import { attribute } from './attribution.js';
+import { caseOf } from './case.js';
 
 type Phase = EyesPhase | 'unphased';
 type OwnerPath = Extract<TargetSnapshot['provenance'], { status: 'resolved' }>['provenance']['owners'];
 type CommitAttention = Extract<Attention, { kind: 'react-commit' }>;
 type Updater = NonNullable<CommitAttention['commit']['updaters']>[number];
 
+/** One case's Eyes journal for one attempt, as the record keeps it. */
+export interface EyesAttempt {
+  /** The case, by the id the record's case index gives it. */
+  readonly case: string;
+  /** Which run of the case this is, counted from 1. A retry is attempt 2. */
+  readonly attempt: number;
+  readonly journal: EyesJournal;
+}
+
 export interface DistillInput {
-  readonly test: string;
-  readonly eyes?: EyesArchive;
-  readonly execution?: ExecutionIndex;
   /**
-   * The project root both producers recorded against.
-   *
-   * Eyes names a component's source with the path the bundler handed over —
-   * absolute in a normal run — and Sense names an entered module relative to the
-   * project root. Supplying the root is what lets the two be compared. Without
-   * it the comparison is made only when both sides already agree in shape, and
-   * is withheld otherwise.
+   * The case to read: its id as the record's case index spells it, or its
+   * whole title, when one case has it. Absent, `file` has to name
+   * a file with one case.
+   */
+  readonly test?: string;
+  /** The repository-relative path of the file that declares the case, which narrows `test`. */
+  readonly file?: string;
+  /** The record's case index: the cases, and the regions each one crossed. */
+  readonly execution: ExecutionIndex;
+  /**
+   * Every Eyes journal the record keeps. Absent when the run did not opt into
+   * Eyes, which is not the same reading as a case that addressed nothing.
+   */
+  readonly eyes?: readonly EyesAttempt[];
+  /**
+   * The cases whose test opened an Eyes journal, handed over or not. Absent
+   * when the record does not say, and then every case of a run with Eyes is
+   * read as watched.
+   */
+  readonly watched?: readonly string[];
+  /**
+   * The root both sides' paths are relative to. A record names every path
+   * against the checkout, so it is needed only for evidence that names a
+   * source absolutely.
    */
   readonly root?: string;
 }
@@ -83,6 +106,10 @@ export interface EnteredModule {
    * entered. `import { A } from './B'` where `A` is never called reads exactly
    * like this, whether the call site was replaced by a spy or a branch never
    * chose it.
+   *
+   * False when the module declares nothing below its top level — constants, a
+   * barrel of re-exports: loading it ran everything it has, so there is no
+   * declaration the test left alone and nothing for a mock to take away.
    */
   readonly loadedOnly: boolean;
   /** Regions the test called into, nearest first. */
@@ -91,26 +118,27 @@ export interface EnteredModule {
   readonly unentered: readonly Region[];
 }
 
+/** What one attempt of a case addressed, read from its Eyes journal. */
+export interface AttemptAttention {
+  /** Which run of the case this is, counted from 1. */
+  readonly attempt: number;
+  readonly complete: boolean;
+  readonly because?: string;
+  readonly targets: number;
+  readonly withoutFiber: number;
+  readonly phases: readonly AddressedPhase[];
+  readonly updates: readonly UpdatePhase[];
+}
+
 /** The portable deterministic reading shared by the CLI and MCP adapters. */
 export interface Distillation {
   readonly test: { readonly id: string; readonly title: string; readonly file?: string };
-  readonly attention?: {
-    readonly complete: boolean;
-    readonly because?: string;
-    readonly targets: number;
-    readonly withoutFiber: number;
-    readonly phases: readonly AddressedPhase[];
-    readonly updates: readonly UpdatePhase[];
-  };
-  readonly execution?: {
-    readonly joined: boolean;
-    /**
-     * Ids the index does hold, when the join found none — bounded, so a refusal
-     * can show the reader the mismatch rather than only the id that was missing.
-     */
-    readonly available?: readonly string[];
-    /** How many ids the index holds in total, however few `available` shows. */
-    readonly availableTotal?: number;
+  /**
+   * The case's attempts, in order. Absent when the record keeps no Eyes
+   * journal; empty when it keeps journals and none for this case.
+   */
+  readonly attempts?: readonly AttemptAttention[];
+  readonly execution: {
     readonly entered: readonly EnteredFile[];
     /** Absent when the entered-versus-addressed comparison was not made. */
     readonly opportunities?: readonly EnteredFile[];
@@ -141,70 +169,70 @@ interface MutableUpdates {
 
 export { formatDistillation } from './format.js';
 export { parseExecutionIndex } from './execution-json.js';
+export {
+  distillFile,
+  formatFileDistillation,
+  type FileDistillInput,
+  type FileDistillation,
+  type LoadedModule,
+} from './file.js';
+export {
+  distillScope,
+  formatScopeDistillation,
+  scopeRows,
+  type ScopeDistillInput,
+  type ScopeDistillation,
+  type ScopeRecord,
+  type ScopeRow,
+  type Spill,
+  type SpillCause,
+} from './scope.js';
+export { type FileTime, type ScopeTime } from './time.js';
+export { type ImportCharge } from './charge.js';
+export { type MisplacedMock } from './mocks.js';
+export { type ImportReach, type LoadCause } from './own.js';
 
 const PHASES = ['unphased', 'arrange', 'act', 'assert'] as const;
 
 /**
- * How many recorded ids a refusal shows.
+ * Distil one case's record into deterministic reduction opportunities.
  *
- * Enough for a reader to see the shape their own id should have had, and few
- * enough that an index of four thousand cases does not answer with four
- * thousand lines.
+ * The case is found in the record's case index alone, by id, title or file, and
+ * everything else is read by the id found there: no journal or region is joined
+ * to a case by its title. A question no case fits is refused with the ids the
+ * index holds, and one that more than one case fits with theirs.
+ * Each attempt is read on its own, and a file any attempt addressed counts as
+ * addressed, so a retry that touched a component is never told it could lose it.
  */
-const AVAILABLE_SHOWN = 5;
-
-/** Distil supplied observations into deterministic reduction opportunities. */
 export function distill(input: DistillInput): Distillation {
-  const eyesTest = input.eyes === undefined ? undefined : locateEyesTest(input.eyes, input.test);
-  const executionTest = locateExecutionTest(input.execution, input.test, eyesTest?.id);
-  if (eyesTest === undefined && executionTest === undefined) {
-    throw new Error(`no supplied evidence contains test ${input.test}`);
-  }
-
-  const identity = eyesTest ?? executionTest!;
-  const attention = eyesTest === undefined ? undefined : attentionOf(eyesTest);
-  const addressed = attention === undefined
+  const test = caseOf(input);
+  const identity = input.execution.tests[test]!;
+  const attempts = input.eyes
+    ?.filter((row) => row.case === identity.id)
+    .sort((left, right) => left.attempt - right.attempt)
+    .map((row) => attentionOf(row.attempt, row.journal));
+  const addressed = attempts === undefined
     ? undefined
-    : new Set(attention.phases.flatMap((phase) => phase.files));
-  const execution = input.execution === undefined
-    ? undefined
-    : executionOf(input.execution, identity.id, addressed, input.root);
+    : new Set(attempts.flatMap((attempt) => attempt.phases.flatMap((phase) => phase.files)));
   return {
     test: {
       id: identity.id,
-      title: 'title' in identity ? identity.title : identity.name,
+      title: identity.name,
       ...(identity.file === undefined ? {} : { file: identity.file }),
     },
-    ...(attention === undefined ? {} : { attention }),
-    ...(execution === undefined ? {} : { execution }),
+    ...(attempts === undefined ? {} : { attempts }),
+    execution: executionOf(
+      input.execution,
+      test,
+      attempts,
+      addressed,
+      input.root,
+      input.watched === undefined || input.watched.includes(identity.id),
+    ),
   };
 }
 
-function locateEyesTest(archive: EyesArchive, asked: string): EyesTestAttention | undefined {
-  const byId = archive.tests.find((test) => test.id === asked);
-  if (byId !== undefined) return byId;
-  const exact = archive.tests.filter((test) => test.title === asked);
-  if (exact.length === 1) return exact[0];
-  const partial = archive.tests.filter((test) =>
-    test.title.toLowerCase().includes(asked.toLowerCase()));
-  if (partial.length === 1) return partial[0];
-  if (partial.length > 1) {
-    throw new Error(`${partial.length} Eyes tests match ${asked}; use a stable test id`);
-  }
-  return undefined;
-}
-
-function locateExecutionTest(
-  index: ExecutionIndex | undefined,
-  asked: string,
-  eyesId: string | undefined,
-): ExecutionIndex['tests'][number] | undefined {
-  if (index === undefined) return undefined;
-  const id = eyesId ?? asked;
-  return index.tests.find((test) => test.id === id);
-}
-
-function attentionOf(test: EyesTestAttention): NonNullable<Distillation['attention']> {
+function attentionOf(attempt: number, test: EyesJournal): AttemptAttention {
   const addressed = new Map<Phase, MutableAddressed>();
   const updates = new Map<Phase, MutableUpdates>();
   let phase: Phase = 'unphased';
@@ -222,6 +250,7 @@ function attentionOf(test: EyesTestAttention): NonNullable<Distillation['attenti
     }
   }
   return {
+    attempt,
     complete: test.complete,
     ...(!test.complete ? { because: test.because } : {}),
     targets,
@@ -305,26 +334,18 @@ function updaterName(updater: Updater): string {
 
 function executionOf(
   index: ExecutionIndex,
-  id: string,
+  test: number,
+  attempts: readonly AttemptAttention[] | undefined,
   addressed: ReadonlySet<string> | undefined,
   root: string | undefined,
-): NonNullable<Distillation['execution']> {
-  const test = index.tests.findIndex((candidate) => candidate.id === id);
-  if (test < 0) return {
-    joined: false,
-    available: index.tests.slice(0, AVAILABLE_SHOWN).map((candidate) => candidate.id),
-    availableTotal: index.tests.length,
-    entered: [],
-    opportunities: [],
-    modules: [],
-  };
+  watched: boolean,
+): Distillation['execution'] {
   const modules = index.modules.flatMap((module) => enteredModule(module, test))
     .sort((left, right) => left.distance - right.distance || compare(left.file, right.file));
   const entered = modules.map(({ file, distance }) => ({ file, distance }));
   return {
-    joined: true,
     entered,
-    ...opportunitiesOf(entered, addressed, root),
+    ...opportunitiesOf(entered, attempts, addressed, root, watched),
     modules,
   };
 }
@@ -340,13 +361,20 @@ function executionOf(
  */
 function opportunitiesOf(
   entered: readonly EnteredFile[],
+  attempts: readonly AttemptAttention[] | undefined,
   addressed: ReadonlySet<string> | undefined,
   root: string | undefined,
+  watched: boolean,
 ): Pick<
-  NonNullable<Distillation['execution']>,
+  Distillation['execution'],
   'opportunities' | 'withheld' | 'addressedNotEntered'
 > {
-  if (addressed === undefined) return { withheld: 'Eyes attention was not supplied.' };
+  if (attempts === undefined || addressed === undefined) {
+    return { withheld: 'the record keeps no Eyes journals; the run did not opt into Eyes.' };
+  }
+  if (attempts.length === 0) {
+    return { withheld: watched ? 'the record keeps no Eyes journal for this case.' : 'this case\'s run did not opt into Eyes.' };
+  }
   const attribution = attribute(root, entered.map(({ file }) => file), addressed);
   if (!attribution.joined) return { withheld: attribution.because };
   return {
@@ -389,15 +417,16 @@ function enteredModule(
     });
   }
   if (crossed.length === 0) return [];
+  const unentered = outermost(missed).map(regionOf);
   return [{
     file: module.file,
     distance: Math.min(...crossed.map(({ distance }) => distance)),
-    loadedOnly: crossed.every(({ loaded }) => loaded),
+    loadedOnly: unentered.length > 0 && crossed.every(({ loaded }) => loaded),
     entered: crossed
       .filter(({ loaded }) => !loaded)
       .sort((left, right) => left.distance - right.distance || left.block.startLine - right.block.startLine)
       .map(({ block, distance }) => ({ ...regionOf(block), distance })),
-    unentered: outermost(missed).map(regionOf),
+    unentered,
   }];
 }
 

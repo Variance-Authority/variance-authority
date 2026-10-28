@@ -36,7 +36,7 @@ beforeAll(async () => {
     { cwd: fixture, env: { ...process.env, VARIANCE_AUTHORITY_COVERAGE: coverageFile, VARIANCE_AUTHORITY_CACHE: directory } },
   );
   coverage = decodeTestCoverage(await readFile(coverageFile));
-  index = decodeExecutionIndex(await readFile(`${coverageFile}.cases.bin`));
+  index = decodeExecutionIndex(await readFile(coverageFile));
 }, 30_000);
 
 afterAll(async () => {

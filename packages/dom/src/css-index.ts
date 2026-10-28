@@ -1,10 +1,12 @@
 import type { Declaration, Diagnostic } from '@variance-authority/core/format';
-import { SHORTHAND_PROPERTIES } from '@variance-authority/core/rules';
+import { declarationsOf } from './declarations.js';
 import { evaluateMedia, evaluateSupports, type ConditionEnvironment } from './media.js';
 import { splitSelectorList, specificityOf, type Specificity } from './specificity.js';
-import { items, propertyNames } from './dom-list.js';
-import { lastCompound } from './selector-parts.js';
+import { items } from './dom-list.js';
+import { lastCompound, outsideArguments, splitPseudoElement, unescapeName } from './selector-parts.js';
 import { STABILIZE_ATTRIBUTE } from './stabilize.js';
+import { faceOf, isFontFaceRule, type IndexedFace } from './font-faces.js';
+import { LayerOrder, layerBlockName, layerStatementNames, within, type LayerName } from './layers.js';
 
 /**
  * The per-document half of the pruning: sheets flattened into a matchable index.
@@ -29,6 +31,13 @@ export interface IndexedRule {
   readonly specificity: Specificity;
   readonly order: number;
   readonly declarations: readonly Declaration[];
+  /**
+   * What the originating element must match: the branch without its trailing
+   * pseudo-element, or the branch itself when it styles an element.
+   */
+  readonly host: string;
+  /** The pseudo-element the rule styles, as `::before`; absent when it styles an element. */
+  readonly pseudo?: string;
   /** Rightmost simple selector, used to avoid testing every rule on every node. */
   readonly key: string;
   /** Some condition around this rule could not be evaluated with certainty. */
@@ -41,6 +50,19 @@ export interface StyleIndex {
   readonly diagnostics: readonly Diagnostic[];
   /** Rules seen before applicability filtering. Reported to show what was pruned. */
   readonly totalRules: number;
+
+  /**
+   * Every `@font-face` in force, in document order, under the same conditions
+   * as the rules. A face matches no element, so it is kept here rather than in
+   * a bucket, and `facesUsedBy` asks the subject which of them it is set in.
+   */
+  readonly faces: readonly IndexedFace[];
+
+  /** Every cascade layer the sheets declare, in the order they declare them. */
+  readonly layers: readonly LayerName[];
+
+  /** The layer each layered rule sits in, by its `order`; an unlayered rule is absent. */
+  readonly layerOf: ReadonlyMap<number, LayerName>;
 
   /**
    * Which condition environment this index was flattened against, per
@@ -156,6 +178,18 @@ function isStabilizationSheet(sheet: CSSStyleSheet): boolean {
   return owner?.hasAttribute?.(STABILIZE_ATTRIBUTE) === true;
 }
 
+/**
+ * The sheets this project reads, in cascade order: every readable kind of sheet
+ * the document holds, less the one it injected itself, then the adopted ones.
+ */
+export function authoredSheets(document: Document): CSSStyleSheet[] {
+  const sheets: CSSStyleSheet[] = items(document.styleSheets)
+    .filter(isStyleSheet)
+    .filter((sheet) => !isStabilizationSheet(sheet));
+  for (const adopted of adoptedSheets(document)) sheets.push(adopted);
+  return sheets;
+}
+
 export function indexStyleSheets(
   document: Document,
   environment: ConditionEnvironment,
@@ -167,12 +201,11 @@ export function indexStyleSheets(
   let order = 0;
   let totalRules = 0;
 
-  const sheets: CSSStyleSheet[] = items(document.styleSheets)
-    .filter(isStyleSheet)
-    .filter((sheet) => !isStabilizationSheet(sheet));
-  for (const adopted of adoptedSheets(document)) sheets.push(adopted);
+  const faces: IndexedFace[] = [];
+  const layers = new LayerOrder();
+  const layerOf = new Map<number, LayerName>();
 
-  for (const [index, sheet] of sheets.entries()) {
+  for (const [index, sheet] of authoredSheets(document).entries()) {
     const name = sheetName(sheet, index);
 
     let rules: CSSRuleList;
@@ -200,7 +233,7 @@ export function indexStyleSheets(
       continue;
     }
 
-    walk(rules, name, false);
+    walk(rules, name, sheet.href ?? document.baseURI, false, undefined);
   }
 
   return {
@@ -208,12 +241,35 @@ export function indexStyleSheets(
     universal,
     diagnostics,
     totalRules,
+    faces,
+    layers: layers.names,
+    layerOf,
     evaluatedConditions,
     conditions: conditionKey(environment),
   };
 
-  function walk(rules: CSSRuleList, sheet: string, uncertain: boolean): void {
+  function walk(
+    rules: CSSRuleList,
+    sheet: string,
+    base: string,
+    uncertain: boolean,
+    layer: LayerName | undefined,
+  ): void {
     for (const rule of items(rules)) {
+      const statement = layerStatementNames(rule);
+      if (statement !== null) {
+        for (const name of statement) layers.declare(within(layer, name));
+        continue;
+      }
+
+      const block = layerBlockName(rule);
+      if (block !== null) {
+        const name = block === '' ? layers.anonymousWithin(layer) : within(layer, block);
+        layers.declare(name);
+        walk((rule as CSSGroupingRule).cssRules, sheet, base, uncertain, name);
+        continue;
+      }
+
       if (isGroupingRule(rule)) {
         const condition = conditionOf(rule, environment);
         const prelude = preludeOf(rule);
@@ -222,7 +278,13 @@ export function indexStyleSheets(
         }
 
         if (!condition.matches) continue;
-        walk(rule.cssRules, sheet, uncertain || condition.uncertain);
+        walk(rule.cssRules, sheet, base, uncertain || condition.uncertain, layer);
+        continue;
+      }
+
+      if (isFontFaceRule(rule)) {
+        const face = faceOf(rule, base, document);
+        if (face !== null) faces.push(face);
         continue;
       }
 
@@ -233,6 +295,8 @@ export function indexStyleSheets(
       if (declarations.length === 0) continue;
 
       for (const branch of splitSelectorList(rule.selectorText)) {
+        const split = splitPseudoElement(branch);
+        const host = split?.host ?? branch;
         const indexed: IndexedRule = {
           sheet,
           selector: rule.selectorText,
@@ -240,9 +304,12 @@ export function indexStyleSheets(
           specificity: specificityOf(branch),
           order: (order += 1),
           declarations,
-          key: rightmostKey(branch),
+          host,
+          ...(split ? { pseudo: split.pseudo } : {}),
+          key: rightmostKey(host),
           uncertain,
         };
+        if (layer !== undefined) layerOf.set(indexed.order, layer);
 
         if (indexed.key === '*') universal.push(indexed);
         else {
@@ -255,6 +322,12 @@ export function indexStyleSheets(
   }
 }
 
+/** A CSS escape: up to six hex digits and one whitespace, or one character. */
+const ESCAPE = String.raw`\\(?:[0-9a-fA-F]{1,6}[ \t\n]?|.)`;
+
+/** The characters of an id or class: name characters, non-ASCII, or an escape. */
+const NAME = String.raw`(?:${ESCAPE}|[\w-]|[^\x00-\x7f])+`;
+
 /**
  * The rightmost simple selector, as a bucket key.
  *
@@ -262,15 +335,24 @@ export function indexStyleSheets(
  * to an id, class, or tag must land in the universal bucket, where it is tested
  * against everything. Putting it in a specific bucket would silently drop rules
  * — the failure mode that reads as `unchanged`.
+ *
+ * The key is read from the compound outside its arguments and attribute
+ * selectors. `:where(.docs-content h2)` names no class of the node it styles,
+ * and keying it by `.docs-content` tested it only against the ancestor.
  */
 function rightmostKey(selector: string): string {
-  const compound = lastCompound(selector);
+  const compound = outsideArguments(lastCompound(selector));
 
-  const id = /#([\w-]+)/.exec(compound);
-  if (id) return `#${id[1]}`;
-
-  const className = /\.((?:\\.|[\w-])+)/.exec(compound);
-  if (className) return `.${className[1]!.replace(/\\/g, '')}`;
+  // An escape is consumed whole before a `#` or `.` can open a name, so the
+  // `\#` in `.accent-\[\#ff4a19\]` stays inside the class.
+  let id: string | undefined;
+  let className: string | undefined;
+  for (const [, sigil, name] of compound.matchAll(new RegExp(`${ESCAPE}|([#.])(${NAME})`, 'g'))) {
+    if (sigil === '#') id ??= name;
+    else if (sigil === '.') className ??= name;
+  }
+  if (id !== undefined) return `#${unescapeName(id)}`;
+  if (className !== undefined) return `.${unescapeName(className)}`;
 
   const tag = /^([a-z][\w-]*)/i.exec(compound);
   if (tag && !compound.startsWith(':')) return tag[1]!.toLowerCase();
@@ -278,58 +360,6 @@ function rightmostKey(selector: string): string {
   if (compound.startsWith('[')) return '[attr]';
 
   return '*';
-}
-
-function declarationsOf(style: CSSStyleDeclaration): Declaration[] {
-  const declarations: Declaration[] = [];
-  let pending = false;
-
-  for (const property of propertyNames(style)) {
-    const value = style.getPropertyValue(property);
-
-    // An empty value here is not "no declaration". Chromium enumerates a
-    // `var()`-tainted shorthand as its *longhand* names with empty values —
-    // pending substitution — so `padding: var(--x) var(--y)` appears as four
-    // empty `padding-*` entries and skipping them dropped the declaration
-    // entirely. JSDOM's CSSOM keeps the authored shorthand instead, so the same
-    // stylesheet produced different captures under the two profiles and a
-    // shorthand/longhand rewrite read as a change under `chromium` only.
-    // Found by P4; invisible to either profile scored alone.
-    if (value === '') {
-      pending = true;
-      continue;
-    }
-
-    declarations.push(declaration(property, value, style));
-  }
-
-  if (!pending) return declarations;
-
-  // Recover the shorthand the pending longhands came from. Restricted to
-  // `var()`-bearing values because that is the only thing that leaves a longhand
-  // pending: a shorthand with a resolvable value enumerates as longhands *with*
-  // values, and re-emitting it here would declare the same properties twice.
-  //
-  // The shorthand is emitted unexpanded, as ADR-0003 requires — decomposition is
-  // versioned by `core`'s ruleset, not by whichever engine the collector ran in.
-  for (const shorthand of SHORTHAND_PROPERTIES) {
-    const value = style.getPropertyValue(shorthand);
-    if (value === '' || !value.includes('var(')) continue;
-    declarations.push(declaration(shorthand, value, style));
-  }
-
-  return declarations;
-}
-
-function declaration(property: string, value: string, style: CSSStyleDeclaration): Declaration {
-  const references = [...value.matchAll(/var\(\s*(--[\w-]+)/g)].map((match) => match[1]!);
-
-  return {
-    property,
-    value,
-    important: style.getPropertyPriority(property) === 'important',
-    ...(references.length > 0 ? { references } : {}),
-  };
 }
 
 function conditionOf(
@@ -347,7 +377,7 @@ function conditionOf(
     return evaluateSupports((rule as CSSSupportsRule).conditionText ?? '', environment);
   }
 
-  // `@container`, `@layer`, `@scope`, and anything newer. Container queries in
+  // `@container`, `@scope`, and anything newer. Container queries in
   // particular depend on layout, which the declared-only profile does not have,
   // so the contents are included and marked uncertain rather than guessed at.
   return { matches: true, uncertain: true };
@@ -383,7 +413,7 @@ function isStyleRule(rule: CSSRule): rule is CSSStyleRule {
   return 'selectorText' in rule && 'style' in rule;
 }
 
-function isGroupingRule(rule: CSSRule): rule is CSSGroupingRule {
+export function isGroupingRule(rule: CSSRule): rule is CSSGroupingRule {
   return 'cssRules' in rule && !('selectorText' in rule);
 }
 

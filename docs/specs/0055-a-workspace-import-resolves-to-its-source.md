@@ -12,7 +12,7 @@ output came from, and nothing reads it backwards.
 
 This spec lands after 0.6.0. In 0.6.0 a workspace import that resolves into
 `dist` is `unresolved`, with a `packages` edge by name, and this repository
-bridges it in `tools/since-graph.mjs`.
+bridges it in tools/since-graph.mjs.
 
 ## 1. The promise
 
@@ -50,7 +50,7 @@ The resolver asks four owners in this order and stops at the first answer.
 - Else, if the installed TypeScript is 6 or later, use the config file's
   directory. The version is read from `typescript/package.json`, resolved from
   the config's directory. The lockfile that decides it is already in the config
-  digest (`reuse.ts:112`).
+  digest (`packages/sense/src/reuse.ts:112`).
 - Else, decline. TypeScript 5 computes rootDir from the file list
   (`getCommonSourceDirectory`), and a scan that does not compile cannot know
   that list.
@@ -150,7 +150,7 @@ reasons in `packages/sense/src/record.ts:148-153`, rendered as `${file} — ${re
 
 An unowned member never widens selection; that is true since `03984ae7`, and
 this spec does not change it. The `unknown` does change one reading:
-`foldBuilt` (`tools/since-graph.mjs:147`) leaves a file with `unknown` out of
+`foldBuilt` (tools/since-graph.mjs, line 147) leaves a file with `unknown` out of
 `enumerated`, so a walk will not treat a dead end at that importer as a dead end
 in the code. That is the correct reading of a file whose edge list has a named
 hole.
@@ -177,7 +177,7 @@ as owner 2. It is rejected:
   graphs, one per machine state.
 - **Reuse breaks.** A record would depend on untracked bytes, so its witnesses
   would have to include files git cannot see. `reuse.ts` is sound because a
-  record is a function of tracked bytes only (`reuse.ts:12-26`, `:46-52`).
+  record is a function of tracked bytes only (`packages/sense/src/reuse.ts:12-26`, `:46-52`).
 
 A map is a check that runs after a build, not an owner. Maps stay with the
 recorder: `source-lines.ts` `originalFile` (`:168`) owns line numbers for a
@@ -188,15 +188,15 @@ import names.
 
 - **`FileRecord`:** no new fields. Edges land on original files, and `unknown`
   can include the sentence in section 4.
-- **Witnesses:** `witnessesOf` (`witness.ts:238`) adds the directory under the
+- **Witnesses:** `witnessesOf` (`packages/sense/src/witness.ts:238`) adds the directory under the
   member's rootDir where the original is looked for, and, for an unowned member,
   the package directory. So adding the fixture's `ui/src/new.ts` invalidates the
   record that imports `@acme/ui/new`, and adding a tsconfig to an unowned
   member invalidates the records that named it.
 - **Config digest:** already covers `tsconfig*.json`, `package.json` and the
-  lockfiles (`reuse.ts:112-121`, `shapeOf` `:148-174`), so a change to any emit
+  lockfiles (`packages/sense/src/reuse.ts:112-121`, `shapeOf` `:148-174`), so a change to any emit
   setting rebuilds every record.
-- **`VERSION`** (`reuse.ts:103`, 3 in the working copy): bump to the next value
+- **`VERSION`** (`packages/sense/src/reuse.ts:103`, 3 in the working copy): bump to the next value
   after whatever concurrent work lands, because the same bytes now produce
   different edges.
 
@@ -217,7 +217,7 @@ import names.
 
 ## 8. Consumers that stop recomputing
 
-**`tools/since-graph.mjs`.** In the same change:
+**tools/since-graph.mjs.** In the same change:
 
 - Delete `target` (`:65`), `published` (`:80`) and `bridgeWorkspace` (`:118`),
   and the call at `:315`. They are a second resolver: `target` picks the first
@@ -234,7 +234,7 @@ import names.
   recorder names a `dist` module by its `src` path through tsc's map. Count
   `dist` rows in a fresh snapshot first. If there are none, `named` is the
   identity on scanned files. If there are some, it goes through `originalOf`.
-- `tools/since-graph.check.ts` loses the tests of `published` (`:26-48`) and
+- tools/since-graph.check.ts loses the tests of `published` (`:26-48`) and
   `bridgeWorkspace` (`:86-139`). Its `foldBuilt` tests (`:50-84`) follow the
   decision on `named`, and its faces tests (`:141-162`) pass unchanged.
 
@@ -243,13 +243,13 @@ the leading `../` fold, which is about worktree links, and the extension drop.
 The third, the `packages/<name>/dist/` → `src/` regex, is replaced by
 `originalOf` over a table built once when the config loads. `probeable`
 (`:126-128`) and every `stemOf` caller then read the table:
-`tools/test-since.mjs:152`, `:299` and `:353`, and `tools/since-diff.mjs:14`,
-`:18` and `:43`.
+tools/test-since.mjs, lines 152, 299 and 353, and tools/since-diff.mjs, lines
+14, 18 and 43.
 
 **Mocks.** `targetFrom` (`packages/sense/src/taint/join.ts:38-49`) calls
 `resolveTo`, which goes through the same `resolved()`. So `vi.mock('@acme/ui')`
 and `import … from '@acme/ui'` land on the same original, provided the
-`Resolvers` built at `taint/index.ts:199` has the scan's origins. Without them
+`Resolvers` built at `packages/sense/src/taint/index.ts:199` has the scan's origins. Without them
 the mock resolves to nothing while the import resolves to `src/`. This is the
 likely cause of the mock difference an external check reported against
 0.6.0: the mock resolved on its own, and `since-graph` bridged the import. It is
@@ -345,14 +345,14 @@ as plain bytes, so no compiler runs.
   `unresolved`. Any member that declines is named in the failure message. Every
   `packages/*/tsconfig.json` sets `rootDir: ./src` and `outDir: ./dist` and every
   build is `tsc --build`, so the expected count is zero.
-- `tools/since-graph.check.ts` passes with the bridge deleted.
+- tools/since-graph.check.ts passes with the bridge deleted.
 - An optional check after a build: each `dist/*.js.map` with a single source
   agrees with `originalOf`. Orphan maps are reported, never trusted.
 
 ## 11. Out of scope
 
 Each item gets a marker at its line when this spec is built. `// FIXME:` is used
-where the item is a defect in code that ships, as `AGENTS.md` requires.
+where the item is a defect in code that ships, as `.agents/references/change.md` requires.
 
 | Item | Marker |
 |---|---|
@@ -377,7 +377,7 @@ where the item is a defect in code that ships, as `AGENTS.md` requires.
   alias clones and one package lookup, each built on first use.
 - Size: about +200 lines in `origins.ts`, +20 in `resolve.ts`, +40 in
   `witness.ts`, +10 in `record.ts`, +60 in Rust, and about 120 lines deleted
-  from `tools/since-graph.mjs` and its check.
+  from tools/since-graph.mjs and its check.
 
 ## 13. Open decision: a package built by something other than `tsc`
 
@@ -406,7 +406,7 @@ Recommended: **(a)**.
 The fixture in section 10 will pass all nine assertions and every variant, on
 the JavaScript and native paths, in a checkout with no `dist` and again after
 writing one. This repository's scan will have no `@variance-authority/*`
-specifier in any `unresolved`, and `tools/since-graph.mjs` will have no
+specifier in any `unresolved`, and tools/since-graph.mjs will have no
 `published` and no `bridgeWorkspace`. `yarn test:since` over a change to
 `packages/core/src/format/index.ts` will select the tests of `packages/cli`
 through scan edges alone.

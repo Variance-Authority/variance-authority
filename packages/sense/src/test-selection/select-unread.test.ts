@@ -30,6 +30,7 @@ describe('a changed file the recording cannot answer for', () => {
 
     expect(narrowByExecutionFromView(openTestCoverage(encodeTestCoverage(coverage)), diff)).toEqual({
       whole: testFiles,
+      incomplete: [],
       entered: [],
       unread: ['README.md'],
       stale: [],
@@ -211,6 +212,7 @@ describe('a changed file the recording cannot answer for', () => {
 
     expect(narrowByExecutionFromView(openTestCoverage(encodeTestCoverage(unparsed)), diff)).toEqual({
       whole: testFiles,
+      incomplete: [],
       entered: [],
       unread: ['src/unparsed.ts'],
       stale: [],

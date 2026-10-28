@@ -3,6 +3,8 @@ import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { createContext, runInContext } from 'node:vm';
 import { describe, expect, it, vi } from 'vitest';
+import { moduleId } from './captured-modules.js';
+import { keepsCases } from './case-record.js';
 import { decodeTestCoverage } from './format.js';
 import { carriedJournal, type ReportedModule } from './finished-files.js';
 import { withTestSelection } from './vitest.js';
@@ -12,8 +14,8 @@ type Hook = (...args: unknown[]) => void;
 
 interface Seam {
   readonly plugin: {
-    config(config: { test: { browser: { enabled: boolean }; runner?: string } }): void;
-    transform(code: string, id: string): { code: string } | null;
+    config(config: { test: { browser: { enabled: boolean }; runner?: string } }): Promise<void>;
+    transform: { handler(code: string, id: string): { code: string } | null };
   };
   readonly reporter: { onTestRunEnd(modules: readonly ReportedModule[]): Promise<void> };
   readonly setup: string;
@@ -27,7 +29,7 @@ function seam(root: string, cases = false): Seam {
   );
   return {
     plugin: (configured.plugins as unknown as Seam['plugin'][])[0]!,
-    reporter: (configured.test!.reporters as unknown as Seam['reporter'][])[1]!,
+    reporter: (configured.test!.reporters as unknown as Seam['reporter'][]).at(-1)!,
     setup: (configured.test!.setupFiles as string[])[0]!,
     runner: configured.test!.runner as string | undefined,
   };
@@ -59,6 +61,14 @@ function page(setup: string, instrumented: string, test: string): { before: Hook
   };
 }
 
+/** `path` under `root`, written with `text`: the file a transform is handed a module of. */
+async function held(root: string, path: string, text: string): Promise<string> {
+  const file = resolve(root, path);
+  await mkdir(resolve(file, '..'), { recursive: true });
+  await writeFile(file, text);
+  return file;
+}
+
 const PRICE = 'export function price(amount) { if (amount > 10) { return 1; } return 2; }';
 
 describe('a test file that runs in a page', () => {
@@ -66,8 +76,8 @@ describe('a test file that runs in a page', () => {
     const root = await mkdtemp(resolve(tmpdir(), 'variance-browser-page-'));
     try {
       const { plugin, setup } = seam(root);
-      plugin.config({ test: { browser: { enabled: true } } });
-      const instrumented = plugin.transform(PRICE, resolve(root, 'src/price.ts'))!.code;
+      await plugin.config({ test: { browser: { enabled: true } } });
+      const instrumented = plugin.transform.handler(PRICE, await held(root, 'src/price.ts', PRICE))!.code;
       const run = page(await readFile(setup, 'utf8'), instrumented, 'price(20);');
       const file = { type: 'suite', filepath: resolve(root, 'src/premium.test.ts') } as { meta?: object };
 
@@ -78,7 +88,7 @@ describe('a test file that runs in a page', () => {
       // Loading the module entered its header, which every file that loads it
       // shares; the test entered the function and the branch it took.
       expect(journal?.modules).toEqual([
-        { id: 'src/price.ts', hits: [0, 1, 2], shared: [0], loaded: [0] },
+        { id: moduleId('src/price.ts', PRICE), hits: [0, 1, 2], shared: [0], loaded: [0] },
       ]);
     } finally {
       await rm(root, { recursive: true, force: true });
@@ -92,8 +102,8 @@ describe('a test file that runs in a page', () => {
     const root = await mkdtemp(resolve(tmpdir(), 'variance-browser-argument-'));
     try {
       const { plugin, setup } = seam(root);
-      plugin.config({ test: { browser: { enabled: true } } });
-      const instrumented = plugin.transform(PRICE, resolve(root, 'src/price.ts'))!.code;
+      await plugin.config({ test: { browser: { enabled: true } } });
+      const instrumented = plugin.transform.handler(PRICE, await held(root, 'src/price.ts', PRICE))!.code;
       const run = page(await readFile(setup, 'utf8'), instrumented, 'price(5);');
       const file = { type: 'suite', filepath: resolve(root, 'src/plain.test.ts') } as { meta?: object };
 
@@ -110,10 +120,9 @@ describe('a test file that runs in a page', () => {
     const root = await mkdtemp(resolve(tmpdir(), 'variance-browser-record-'));
     try {
       const { plugin, reporter, setup } = seam(root);
-      plugin.config({ test: { browser: { enabled: true } } });
-      const instrumented = plugin.transform(PRICE, resolve(root, 'src/price.ts'))!.code;
+      await plugin.config({ test: { browser: { enabled: true } } });
+      const instrumented = plugin.transform.handler(PRICE, await held(root, 'src/price.ts', PRICE))!.code;
       const shim = await readFile(setup, 'utf8');
-      await mkdir(resolve(root, 'src'));
       const finished = async (name: string, test: string): Promise<ReportedModule> => {
         const filepath = resolve(root, 'src', name);
         await writeFile(filepath, `it("x", () => { ${test} });\n`);
@@ -147,7 +156,7 @@ describe('a test file that runs in a page', () => {
     }
   });
 
-  it('drops the case runner and says it records files only, rather than writing an empty index', async () => {
+  it('drops the case runner and says it records files only, rather than keeping an empty index in the record', async () => {
     // An index with no case in it answers *which cases walk this line* with
     // none, which is a wrong answer rather than a missing one.
     const root = await mkdtemp(resolve(tmpdir(), 'variance-browser-cases-'));
@@ -156,14 +165,35 @@ describe('a test file that runs in a page', () => {
       const { plugin, reporter, runner } = seam(root, true);
       const config = { test: { browser: { enabled: true }, ...(runner === undefined ? {} : { runner }) } };
 
-      plugin.config(config);
+      await plugin.config(config);
       await reporter.onTestRunEnd([]);
 
       expect(config.test).not.toHaveProperty('runner');
       expect(warn.mock.calls.flat().join('\n')).toMatch(/a test file that runs in a page is recorded per file, not per case/);
-      await expect(readFile(resolve(root, 'coverage.bin.cases.bin'))).rejects.toThrow(/ENOENT/);
+      expect(keepsCases(resolve(root, 'coverage.bin'))).toBe(false);
     } finally {
       warn.mockRestore();
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it('leaves a module `include` refuses as the transforms wrote it, unprobed', async () => {
+    const root = await mkdtemp(resolve(tmpdir(), 'variance-browser-'));
+    try {
+      await mkdir(resolve(root, 'vendor'), { recursive: true });
+      const vendor = resolve(root, 'vendor/pad.ts');
+      const source = 'export const pad = (text) => ` ${text}`;\n';
+      await writeFile(vendor, source, 'utf8');
+      const { plugin } = seam(root);
+      await plugin.config({ test: { browser: { enabled: true } } });
+      const inside = resolve(root, 'src/pad.ts');
+      await mkdir(resolve(root, 'src'), { recursive: true });
+      await writeFile(inside, source, 'utf8');
+
+      expect(plugin.transform.handler(source, vendor)).toBeNull();
+      // The same text under `include` is probed, so the refusal is what left it.
+      expect(plugin.transform.handler(source, inside)?.code).toMatch(/__va\(/);
+    } finally {
       await rm(root, { recursive: true, force: true });
     }
   });
@@ -174,7 +204,7 @@ describe('a test file that runs in a page', () => {
       const { plugin, setup } = seam(root);
       const before = await readFile(setup, 'utf8');
 
-      plugin.config({ test: { browser: { enabled: false } } });
+      await plugin.config({ test: { browser: { enabled: false } } });
 
       expect(await readFile(setup, 'utf8')).toBe(before);
     } finally {
@@ -182,3 +212,7 @@ describe('a test file that runs in a page', () => {
     }
   });
 });
+
+it.todo(
+  'a module run in a page is probed after the transforms, as one run in Node is — needs `vi.mock`’s mock, loaded under the file’s name in a page, carried back to the file (FIXME on `late` in vitest-plugin.ts)',
+);

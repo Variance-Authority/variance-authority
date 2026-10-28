@@ -180,6 +180,17 @@ describe('what the run did that nobody claimed', () => {
     expect(greedy.verdict).toBe('unmet');
   });
 
+  it('names an unattributed change by what is missing, not by how it was grouped', () => {
+    const [entry] = adjudicateRun(report([changed('story:a', [region({ fingerprint: BRAND })])]), [])
+      .unclaimed;
+
+    // Every change is grouped by its pixel shape, named or not, so the sentence
+    // says only that no component was resolved.
+    expect(entry?.because).toBe(
+      '(no component resolved) moved and no claim covers it — 1 subject(s), 100 pixel(s), settles 1 of them',
+    );
+  });
+
   it('never counts a changed subject with no shape as collateral', () => {
     const result = adjudicateRun(report([changed('story:opaque', [region({})])]), []);
 
@@ -215,6 +226,17 @@ describe('the sentence an agent reads first', () => {
     );
 
     expect(text).toContain('1 subject(s) were not looked at');
+  });
+
+  it('counts each claim by the verdict word its line prints', () => {
+    const text = describeAdjudication(
+      adjudicateRun(report([], [component('Button', ['story:a'])]), [
+        { root: 'component:Tooltip', reason: 'arrow follows the accent' },
+      ]),
+    );
+
+    expect(text).toContain('[unobservable] component:Tooltip');
+    expect(text).toContain('1 claim(s): 0 delivered, 0 undelivered, 0 overreached, 1 unobservable.');
   });
 });
 

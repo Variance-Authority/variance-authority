@@ -15,6 +15,7 @@
     "@variance-authority/playwright": "workspace:^",
     "@variance-authority/png": "workspace:^",
     "@variance-authority/react": "workspace:^",
+    "@variance-authority/sense": "workspace:^",
     "react": "^19",
     "react-dom": "^19"
   },

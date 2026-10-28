@@ -152,10 +152,11 @@ gated('one document, every declared engine', () => {
   }, 180_000);
 
   it('measures how far apart the engines actually are', async () => {
-    // The empirical half of `incomparable`. Every product in this category
-    // assumes a baseline is engine-bound, and this repository asserted it too —
-    // from one engine. If two of these turned out byte-identical the refusal
-    // would be ceremony, and the honest move would be to say so.
+    // The empirical half of naming the engine as a cause. Every product in this
+    // category assumes a baseline is engine-bound, and this repository asserts
+    // it too — from one engine. If two of these turned out byte-identical,
+    // naming the engine on every change would be ceremony, and the honest move
+    // would be to say so.
     //
     // What the numbers are worth: one document, one machine, one set of engine
     // builds, and a *lower* bound on divergence, because the subject is

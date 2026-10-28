@@ -14,11 +14,13 @@ import type { Tool } from './tool.js';
  */
 
 /**
- * Why a subject has no comparison.
+ * Why a verdict is not a fact about the code.
  *
- * `incomparable` and `new` are the two verdicts an agent will otherwise treat as
- * failures and try to fix in code, which is exactly wrong: neither is about the
- * code. This makes the reason legible enough to act on — or to decide not to.
+ * `new` and a change painted under another identity are the two an agent will
+ * otherwise treat as failures and try to fix in code. `new` is not about the
+ * code at all. A change under a moved machine or recipe is shown like any other
+ * (ADR-0090), but what moved is its first suspect: the agent reads the cause
+ * before the regions, and compares the subject with the others under it.
  *
  * A subject with no observation at all is the third such case and the worst one
  * to refuse. "Unknown subject" tells an agent the subject does not exist, so it
@@ -28,9 +30,9 @@ import type { Tool } from './tool.js';
 export const explain: Tool = {
   name: 'variance_explain_verdict',
   description:
-    'Why a subject was not compared. `incomparable` means a baseline exists but another ' +
-    'machine rendered it; `new` means none exists; a subject in the coverage list was never ' +
-    'observed at all. None is a code problem — call this before attempting a fix.',
+    'Why a verdict may not be a code problem. A change painted under another machine, or an ' +
+    'older recipe of this tool, names what moved as its cause; `new` means no baseline exists; a ' +
+    'subject in the coverage list was never observed at all. Call this before attempting a fix.',
   inputSchema: {
     type: 'object',
     properties: { subject: { type: 'string' } },
@@ -52,14 +54,6 @@ export const explain: Tool = {
     const { observation } = located;
 
     switch (observation.verdict) {
-      case 'incomparable':
-        return [
-          observation.because,
-          '',
-          'This is not a code change and cannot be fixed in code. Either run on the machine ' +
-            'that wrote the baseline, re-record the baseline on this one, or use an ephemeral ' +
-            'comparison, which renders both sides here and needs no stored image at all.',
-        ].join('\n');
       case 'new':
         return [
           observation.because,
@@ -78,8 +72,22 @@ export const explain: Tool = {
             'configuration decision, not a fact about the code: if the change should have ' +
             'been caught, the ignore is too wide.',
         ].join('\n');
-      case 'changed':
-        return `${observation.subject} was compared and changed. Call variance_describe for the regions.`;
+      case 'changed': {
+        const moved = observation.signals?.moved ?? [];
+        if (moved.length === 0) {
+          return `${observation.subject} was compared and changed. Call variance_describe for the regions.`;
+        }
+        const what = observation.signals?.identity === 'recipe' ? "this tool's recipe" : 'the machine';
+        return [
+          observation.because,
+          '',
+          `The two images were painted under different identities, and ${what} moved: ` +
+            `${moved.join('; ')}. That is the first suspect for every pixel here, not the code. ` +
+            'Before an edit, compare it with the other subjects under the same cause: a change ' +
+            'shaped like theirs is the move, one shaped unlike them is worth reading. Call ' +
+            'variance_describe for the regions, and accept the images once the move is the whole story.',
+        ].join('\n');
+      }
     }
   },
 };

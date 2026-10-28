@@ -1,10 +1,12 @@
+import { variancePrecondition } from './precondition.js';
 import { describe, expect, it } from 'vitest';
 import {
   decodeExecutionIndex,
   encodeExecutionIndex,
-  executionIndexBytes,
   isEncodedExecutionIndex,
 } from './execution-format.js';
+import { CrossingSets } from './crossing-sets.js';
+import { encodeAsSetExecutionIndex, encodeSetExecutionIndex } from './execution-set-format.js';
 import type { ExecutionIndex } from './reverse.js';
 
 describe('the execution index as columns', () => {
@@ -73,6 +75,7 @@ describe('the execution index as columns', () => {
   });
 
   it('reads rows written before a region carried the flag as flagging nothing', () => {
+    variancePrecondition('fixture', { record: 'older' });
     const index: ExecutionIndex = {
       tests: [{ id: 'a.test.ts > one', file: 'a.test.ts', name: 'one' }],
       modules: [{
@@ -118,11 +121,35 @@ describe('the execution index as columns', () => {
     expect(isEncodedExecutionIndex(Buffer.from('\n  {"tests":[]}', 'utf8'))).toBe(false);
   });
 
-  it('writes JSON to a name that asked for it', () => {
-    const index = representative();
-    expect(JSON.parse(executionIndexBytes('cases.json', index).toString('utf8'))).toEqual(index);
-    expect(isEncodedExecutionIndex(executionIndexBytes('coverage.bin.cases.bin', index))).toBe(true);
+  it('reads a JSON index that opens on any JSON whitespace or a byte order mark', () => {
+    const json = JSON.stringify(representative());
+    for (const lead of ['\t', '\r\n', '﻿', '﻿ \t\r\n']) {
+      expect(isEncodedExecutionIndex(Buffer.from(lead + json, 'utf8'))).toBe(false);
+    }
   });
+
+  it('tells its own bytes by their framing, whatever the low byte of the header length', () => {
+    // A header length's low byte can spell `{`, a space or a newline; the frame still says columns.
+    const encoded = encodeExecutionIndex(representative());
+    for (const low of [0x7b, 0x20, 0x0a]) {
+      expect(isEncodedExecutionIndex(reframed(encoded, low))).toBe(true);
+    }
+    // Only a header length that is a multiple of four leaves the columns word-aligned to decode.
+    expect(decodeExecutionIndex(reframed(encoded, 0x20))).toEqual(representative());
+  });
+
+  /**
+   * `bytes` with the header padded to the next length whose low byte is `low`,
+   * the sections after it as they were.
+   */
+  function reframed(bytes: Buffer, low: number): Buffer {
+    const held = bytes.readUInt32LE(0);
+    const headerLength = (Math.floor(held / 0x100) + 1) * 0x100 + low;
+    const prefix = Buffer.alloc(4);
+    prefix.writeUInt32LE(headerLength);
+    const padding = Buffer.alloc(headerLength - held);
+    return Buffer.concat([prefix, bytes.subarray(4, 4 + held), padding, bytes.subarray(4 + held)]);
+  }
 
   it('refuses a file it did not write', () => {
     expect(() => decodeExecutionIndex(Buffer.from('not an index'))).toThrow();
@@ -222,6 +249,7 @@ describe('the duration each case carries', () => {
   });
 
   it('is absent from every case of an index written before cases carried one', () => {
+    variancePrecondition('fixture', { record: 'older' });
     const bytes = encodeExecutionIndex(timed);
     const headerLength = bytes.readUInt32LE(0);
     const header = JSON.parse(bytes.toString('utf8', 4, 4 + headerLength).replace(/\0+$/u, '')) as {
@@ -235,5 +263,70 @@ describe('the duration each case carries', () => {
     const back = decodeExecutionIndex(Buffer.concat([bytes.subarray(0, 4), older, bytes.subarray(4 + headerLength)]));
 
     expect(back.tests.map((test) => 'duration' in test)).toEqual([false, false, false]);
+  });
+});
+
+describe('the preconditions each case named', () => {
+  const said: ExecutionIndex = {
+    tests: [
+      {
+        id: 'a.test.ts > one', file: 'a.test.ts', name: 'one',
+        said: JSON.stringify({ said: [
+          ['fixture:flag', '"ff-on"', 'a.test.ts:4', 65535],
+          ['fixture:retries', '3', 'a.test.ts:5', 1],
+          ['fixture:seeded', 'true', 'a.test.ts:2', 0],
+        ] }),
+      },
+      { id: 'a.test.ts > two', file: 'a.test.ts', name: 'two', said: '{"said":[]}' },
+      { id: 'a.test.ts > three', file: 'a.test.ts', name: 'three' },
+    ],
+    modules: [],
+  };
+
+  it('keeps every name, value and site, a case that named none, and a case nobody listened to', () => {
+    const back = decodeExecutionIndex(encodeAsSetExecutionIndex(said));
+
+    expect(back.tests).toEqual(said.tests);
+    expect(back.tests[1]!.said).toBe('{"said":[]}');
+    expect('said' in back.tests[2]!).toBe(false);
+  });
+
+  it('writes no section when no case was listened to, so an older index reads as unmeasured', () => {
+    const silent: ExecutionIndex = { tests: said.tests.map(({ said: _, ...test }) => test), modules: [] };
+    const bytes = encodeAsSetExecutionIndex(silent);
+
+    expect(bytes.toString('utf8')).not.toContain('tests.said');
+    expect(decodeExecutionIndex(bytes).tests.map((test) => 'said' in test)).toEqual([false, false, false]);
+  });
+
+  it('crosses the set spelling the record lays its cases in', () => {
+    const bytes = encodeSetExecutionIndex({ tests: said.tests, modules: [], sets: new CrossingSets(3).pool() });
+
+    expect(decodeExecutionIndex(bytes).tests).toEqual(said.tests);
+  });
+
+  /** The bytes with the header rewritten, the columns where they were. */
+  function withHeader(bytes: Buffer, edit: (sections: { name: string; length: number }[]) => void): Buffer {
+    const headerLength = bytes.readUInt32LE(0);
+    const header = JSON.parse(bytes.toString('utf8', 4, 4 + headerLength).replace(/\0+$/u, '')) as {
+      sections: { name: string; length: number }[];
+    };
+    edit(header.sections);
+    const rewritten = Buffer.from(JSON.stringify(header).padEnd(headerLength, '\0'), 'utf8');
+    return Buffer.concat([bytes.subarray(0, 4), rewritten, bytes.subarray(4 + headerLength)]);
+  }
+
+  it('refuses a section that does not hold one entry per case', () => {
+    const short = (sections: { name: string; length: number }[]) => {
+      sections.find((section) => section.name === 'tests.said')!.length = 4;
+    };
+    const set = encodeSetExecutionIndex({ tests: said.tests, modules: [], sets: new CrossingSets(3).pool() });
+
+    expect(() => decodeExecutionIndex(withHeader(set, short))).toThrow(/not a variance-authority execution index/);
+  });
+
+  it('is refused by the row spelling, which has no pool to lay it in, a case that said nothing included', () => {
+    expect(() => encodeExecutionIndex(said)).toThrow(/row spelling cannot hold what a case said/);
+    expect(() => encodeExecutionIndex({ tests: [said.tests[1]!], modules: [] })).toThrow(/row spelling cannot hold/);
   });
 });

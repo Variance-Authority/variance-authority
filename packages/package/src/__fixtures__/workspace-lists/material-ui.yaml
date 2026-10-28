@@ -1,0 +1,12 @@
+packages:
+  - packages/*
+  - packages/mui-envinfo/test
+  - docs
+  - test
+  - test/*
+
+engineStrict: true
+minimumReleaseAgeExclude:
+  - '@mui/*'
+  # Renovate security update: next@16.2.11
+  - next@16.2.11

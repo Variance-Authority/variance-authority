@@ -2,11 +2,11 @@ import { readFile } from 'node:fs/promises';
 import { REVIEW_STYLES } from '../ui/styles.js';
 
 /**
- * The two files a browser needs, and neither of them is React.
+ * The files a browser needs, and none of them is React.
  *
  * The review surface is a React component tree, and a `node:http` server cannot
  * hand a browser a component tree. Something has to bundle it. That something is
- * **not this package** — [`tools/page-agents.mjs`](../../../../tools/page-agents.mjs)
+ * **not this package** — [`tools/page-agents.mjs`](https://github.com/Variance-Authority/variance-authority/blob/main/tools/page-agents.mjs)
  * records the rule and the reason: a bundler is not a thing a consumer of a
  * visual-regression tool should install, and `tools/shape.check.ts` refuses build
  * tools in any package's dependencies. So the bundling happens at this
@@ -14,8 +14,9 @@ import { REVIEW_STYLES } from '../ui/styles.js';
  * page agents do.
  *
  * What is left here is the page that loads it: a document, the stylesheet inlined,
- * and the configuration the entry reads. The script src is **absolute**, and that
- * is not a style choice — this same document is served at every address in
+ * the faces it names linked, and the configuration the entry reads. The script
+ * src and the font sheet's href are **absolute**, and that is not a style
+ * choice — this same document is served at every address in
  * [`ui/route.ts`](../ui/route.ts), and a relative `ui/review.js` resolves against
  * the one it was fetched from. On `/builds/7/changes/Button` it asks for
  * `/builds/7/changes/ui/review.js`, gets the router's 404, and renders a blank
@@ -51,6 +52,7 @@ export function reviewPage(options: ReviewPageOptions): string {
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="theme-color" content="#181b1d">
 <title>Variance Authority — review</title>
+<link rel="stylesheet" href="/ui/fonts/fonts.css">
 <style>/* This document's own reset, which is why it is here and not in
    REVIEW_STYLES: an operator injects that sheet into a page this package did not
    write, and a component stylesheet that reaches out and restyles the document
@@ -90,6 +92,33 @@ export async function uiAsset(): Promise<string> {
       'in the repository, or install a published @variance-authority/tribunal rather than a ' +
       'source checkout. The JSON API on this service is unaffected.',
   )};`;
+}
+
+/**
+ * The faces `REVIEW_STYLES` names first, and the sheet that declares them.
+ *
+ * A fixed list rather than a directory listing: the path arrives from a browser,
+ * and a name looked up in a table cannot climb out of the folder. The sheet names
+ * its files relatively, so it is served beside them.
+ */
+const FONT_FILES: Readonly<Record<string, string>> = {
+  'fonts.css': 'text/css; charset=utf-8',
+  'inter.woff2': 'font/woff2',
+  'jetbrains-mono.woff2': 'font/woff2',
+};
+
+/** The prefix the review page asks for its fonts under. */
+export const UI_FONTS_PATH = '/ui/fonts/';
+
+export async function uiFont(
+  name: string,
+): Promise<{ readonly bytes: Uint8Array<ArrayBuffer>; readonly contentType: string } | null> {
+  const contentType = Object.hasOwn(FONT_FILES, name) ? FONT_FILES[name] : undefined;
+  if (contentType === undefined) return null;
+  // `src/node` and `dist/node` both sit two levels under the package, where
+  // `fonts/` is published.
+  const bytes = await readFile(new URL(`../../fonts/${name}`, import.meta.url)).catch(() => null);
+  return bytes === null ? null : { bytes, contentType };
 }
 
 /**

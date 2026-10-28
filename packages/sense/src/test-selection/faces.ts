@@ -25,7 +25,51 @@
  */
 
 import { nodeAt, nodesOfKind, type Relations } from '@variance-authority/core/relate';
-import type { Face, Faces } from './distance.js';
+
+/**
+ * The public face `importer` reached past to get to `reached`, if it reached
+ * past one.
+ *
+ * A *unit* is a directory whose contents are meant to be reached through one
+ * file. What makes a directory one is a convention, not a fact about the
+ * filesystem, so this is supplied rather than inferred: `indexFaces` below
+ * reads the one this repository and most others keep —
+ * a directory with an `index` module — and a caller with a manifest, a build
+ * config, or a lint rule saying otherwise hands over its own.
+ *
+ * Both ends are given because a boundary only exists between them. `button/index.ts`
+ * importing `button/parts/glyph.ts` has reached into `parts`; `checkout/page.tsx`
+ * importing the same file has reached past `button` as well, and the second is
+ * the sentence worth printing. One provider holding both ends decides that once;
+ * two callers comparing prefixes decide it twice and disagree eventually.
+ *
+ * `undefined` when nothing was reached past: `reached` is a face, `importer` is
+ * inside every unit `reached` is in, or neither is in a unit at all.
+ */
+export type Faces = (reached: string, importer: string) => Face | undefined;
+
+export interface Face {
+  /** The directory whose contents are meant to be reached through `entry`. */
+  readonly unit: string;
+  /** The file that unit is entered by. */
+  readonly entry: string;
+  /** What an importer outside the unit should name instead, when that is known. */
+  readonly as?: string;
+}
+
+/** One hop that landed inside a unit instead of on its face. */
+export interface ReachThrough {
+  /** The file that reached in. */
+  readonly importer: string;
+  /** What it reached. */
+  readonly reached: string;
+  /** The unit `reached` is inside and `importer` is not. */
+  readonly unit: string;
+  /** The file that unit publishes itself as. */
+  readonly entry: string;
+  /** The name to import instead, when the face provider knows one. */
+  readonly as?: string;
+}
 
 const INDEX = /^index\.[cm]?[jt]sx?$/;
 
@@ -91,4 +135,32 @@ export function eitherFace(...providers: readonly Faces[]): Faces {
     }
     return undefined;
   };
+}
+
+/**
+ * The hops on a trail that landed inside a unit.
+ *
+ * Read from the test end, because that is the direction an import is written in:
+ * the file at `index + 1` is imported by the file at `index`, once the trail is
+ * change-first. Whether a hop crossed a face is {@link Faces}'s question and is
+ * asked with both ends, so the rule for what counts as reaching past one lives
+ * with whoever knows where the faces are.
+ */
+export function reachThroughs(trail: readonly string[], faces: Faces | undefined): readonly ReachThrough[] {
+  if (faces === undefined) return [];
+  const found: ReachThrough[] = [];
+  for (let at = trail.length - 1; at > 0; at -= 1) {
+    const importer = trail[at]!;
+    const reached = trail[at - 1]!;
+    const face = faces(reached, importer);
+    if (face === undefined) continue;
+    found.push({
+      importer,
+      reached,
+      unit: face.unit,
+      entry: face.entry,
+      ...(face.as === undefined ? {} : { as: face.as }),
+    });
+  }
+  return found;
 }

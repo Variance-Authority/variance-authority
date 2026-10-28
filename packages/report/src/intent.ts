@@ -128,9 +128,10 @@ export interface RunAdjudication {
   /**
    * Changed subjects that produced no shape at all.
    *
-   * Never folded into either arm. A run with no document behind its comparison
-   * cannot say what moved, so it cannot say whether a claim covers it — and
-   * counting these as unclaimed would invent collateral out of missing evidence.
+   * Never folded into either arm. A run that read no markup for a subject, or
+   * saw only its accessibility tree change, cannot say what moved there, so it
+   * cannot say whether a claim covers it — and counting these as unclaimed would
+   * invent collateral out of missing evidence.
    */
   readonly ungrouped: readonly string[];
 
@@ -326,7 +327,7 @@ function undeliveredOutcome(
 }
 
 function unclaimedBecause(change: Change): string {
-  const named = change.component ?? '(no component resolved; grouped by shape alone)';
+  const named = change.component ?? '(no component resolved)';
   const settle =
     change.settles.length === 0
       ? 'nothing it can settle on its own'
@@ -404,8 +405,8 @@ export function describeAdjudication(result: RunAdjudication): string {
 function headline(result: RunAdjudication, counts: Record<ClaimVerdict, number>): string {
   const claims =
     `${result.claims.length} claim(s): ${counts.delivered} delivered, ` +
-    `${counts.undelivered} undelivered, ${counts.overreached} over-reaching, ` +
-    `${counts.unobservable} unchecked.`;
+    `${counts.undelivered} undelivered, ${counts.overreached} overreached, ` +
+    `${counts.unobservable} unobservable.`;
 
   const lead =
     result.verdict === 'unmet'

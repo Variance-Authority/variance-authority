@@ -5,6 +5,7 @@
 > Put the states your unit suite already mounts in jsdom into visual regression review, without launching a browser in the test process.
 
 Part of [Variance Authority](https://variance-authority.dev).
+Point your coding agent at [`llms.txt`](https://variance-authority.dev/llms.txt).
 
 Your jsdom tests already mount components and assert on them. This package
 writes each mounted state to disk as a *capture*: the markup, the CSS that
@@ -95,7 +96,8 @@ prefer.
 never sees this DOM: media queries in the applicable CSS are evaluated against
 these values and the result is written into the capture. `deviceScaleFactor`
 and `colorScheme` are part of what the baseline is stored under, so changing
-either moves the subject to a partition where nothing has been approved yet.
+either compares the subject with the old image and names the moved value as the
+cause, until you accept.
 
 ### Resources arrive as bytes or the capture fails
 
@@ -242,7 +244,7 @@ directory rather than the working directory.
 | key | what it decides |
 |---|---|
 | `project` | the label this project's rows are filed under in a shared history store |
-| `profile` | what the run may claim about a change: `jsdom` is structure, ARIA and declared style, which is what a capture taken in a unit process records; `chromium` adds computed style, layout and geometry. It does not decide what paints — Chromium paints either way. Set it to match where the capture was taken |
+| `profile` | what the run may report about a change: `jsdom` is structure, ARIA and declared style, which is what a capture taken in a unit process records; `chromium` adds computed style, layout and geometry. It does not decide what paints — Chromium paints either way. Set it to match where the capture was taken |
 | `viewport` | the fallback for a subject that arrives without one. Every capture sets its own, and that is the one used for its subject |
 | `retention` | `durable` compares against a stored image and requires `baselines`; `ephemeral` renders both sides inside one run, keeps neither, and requires `baselines` to be absent |
 | `subjects.kind` | `collector` for a module like the one above, `storybook` for a built story index, or `list` for ids you write down |
@@ -288,9 +290,9 @@ npx variance report --format html > .variance/report.html
 ```
 
 The HTML is one self-contained file that fetches nothing, so it reads the same
-from your machine or a CI artifact. Each subject gives you the approved image,
-the difference and the candidate, with a wipe, a blend and a blink between the
-two.
+from your machine or a CI artifact. Each subject opens on what changed at its
+own size, and gives you the approved image, the difference and the candidate,
+with a wipe, a blend and a blink between the two.
 
 A run whose observed subjects are all `unchanged`, `ignored` or `new`, with
 every planned subject accounted for, exits `0`. Anything else exits `1`. The
@@ -420,7 +422,7 @@ test('the health endpoint', async () => {
 |---|---|---|
 | `subject` | required | `'api/health'`, or a full `SubjectRef`. A bare string becomes `kind: 'value'` |
 | `directory` | required | where the capture is written |
-| `dialect` | `'json'` | how the text is read later. A reader for a dialect it does not know still compares the value |
+| `dialect` | `'json'` | how the text is read later. A reader for a dialect it does not recognise still compares the value |
 | `drop` | none | JSON Pointers whose value is volatile. Recorded as present, never compared |
 | `replace` | none | JSON Pointers whose value becomes a token you choose, so the shape stays readable |
 | `arrayKey` | none | for an array of records, the member that identifies a row: `{ '/rows': 'id' }` |
@@ -443,4 +445,4 @@ documents`.
 
 ---
 
-**[@variance-authority/unit-test](https://variance-authority.dev/reference/packages/unit-test)** is part of [Variance Authority](https://variance-authority.dev) — [documentation](https://variance-authority.dev/docs) · MIT
+**[@variance-authority/unit-test](https://variance-authority.dev/reference/packages/unit-test)** is part of [Variance Authority](https://variance-authority.dev) — [documentation](https://variance-authority.dev/docs) · [GitHub](https://github.com/Variance-Authority/variance-authority/tree/main/packages/unit-test) · MIT

@@ -1,5 +1,6 @@
 import { createRequire } from 'node:module';
 import type { ShareConfig } from './config-share.js';
+import type { BaselinesConfig } from './config-baselines.js';
 
 /**
  * What this tool is, and what it expects the other end to be.
@@ -28,7 +29,7 @@ import type { ShareConfig } from './config-share.js';
  * number is the contract, and the contract is the thing a deployment can be
  * older than.
  */
-export const NEEDS_API = 3;
+export const NEEDS_API = 6;
 
 const require = createRequire(import.meta.url);
 
@@ -93,34 +94,56 @@ export async function reach(
   return { known: true, api, ...(typeof schema === 'number' ? { schema } : {}) };
 }
 
+/** What a project keeps at the deployment it reached: {@link shareAt} and {@link baselinesAt}. */
+export interface KeptAt {
+  readonly share: boolean;
+  readonly baselines: boolean;
+}
+
 /**
- * What each API level added that a push from this CLI uses, said as the symptom
- * an operator sees on a deployment older than it. `share` marks the one that
- * matters only to a project whose share is stored at that deployment.
+ * What each API level added that this CLI uses, said as the symptom an operator
+ * sees on a deployment older than it. `for` names what a project must keep at
+ * that deployment for the symptom to be its own; absent, every project's.
  */
-const ADDED: readonly { readonly api: number; readonly share: boolean; readonly symptom: string }[] = [
+const ADDED: readonly {
+  readonly api: number;
+  readonly for?: keyof KeptAt;
+  readonly symptom: string;
+}[] = [
   {
     api: 2,
-    share: false,
     symptom: 'A push is a full upload of every image, because the deployment cannot say which images it already has',
   },
   {
     api: 2,
-    share: false,
     symptom:
       'An approved baseline is stored under the run identity rather than the document one, so the subject can ' +
       'stay `new` after its approval',
   },
   {
     api: 3,
-    share: true,
+    for: 'share',
     symptom: 'The deployment answers 404 under /share/, so the share this project stores there holds nothing',
+  },
+  {
+    api: 5,
+    for: 'share',
+    symptom:
+      'The deployment refuses the share token at /review/changelog and has no /review/decisions, so ' +
+      '`variance changelog` and `variance ask decisions` cannot read what review settled there',
+  },
+  {
+    api: 6,
+    for: 'baselines',
+    symptom:
+      'Every baseline the deployment describes is refused as malformed, because it does not say whether the ' +
+      'baseline kept a snapshot of its nodes',
   },
 ];
 
 /** Every symptom of a deployment at `api`, or of one that did not say, for this project. */
-function missing(api: number | undefined, share: boolean): string {
-  return ADDED.filter((added) => (api === undefined || api < added.api) && (share || !added.share))
+function missing(api: number | undefined, at: KeptAt): string {
+  return ADDED.filter((added) => (api === undefined || api < added.api) && (added.for === undefined || at[added.for]))
     .map((added) => added.symptom)
     .join('. ');
 }
@@ -128,13 +151,25 @@ function missing(api: number | undefined, share: boolean): string {
 /**
  * Whether `share` is an `http` share stored at the deployment `endpoint` names,
  * which is the one case where a deployment older than API 3 costs this project
- * its share. Scheme and host are compared as `URL` spells them, and trailing
+ * its share, and one older than API 5 costs it reading what review settled. Scheme and host are compared as `URL` spells them, and trailing
  * slashes are ignored.
  */
 export function shareAt(share: ShareConfig | undefined, endpoint: string): boolean {
-  if (share?.kind !== 'http') return false;
+  return share?.kind === 'http' && under(share.endpoint, endpoint);
+}
+
+/**
+ * Whether `baselines` are `remote` ones stored at the deployment `endpoint`
+ * names, which is the one case where a deployment older than API 6 refuses every
+ * baseline it describes. Compared as {@link shareAt} compares.
+ */
+export function baselinesAt(baselines: BaselinesConfig | undefined, endpoint: string): boolean {
+  return baselines?.kind === 'remote' && under(baselines.endpoint, endpoint);
+}
+
+function under(url: string, endpoint: string): boolean {
   const base = normal(endpoint);
-  const at = normal(share.endpoint);
+  const at = normal(url);
   return at === base || at.startsWith(`${base}/`);
 }
 
@@ -158,19 +193,19 @@ function normal(url: string): string {
  * and a service ahead of it fail differently, and an operator deciding whether to
  * redeploy or to downgrade needs to know which one they have.
  *
- * `share` is {@link shareAt} for this project and this deployment.
+ * `at` is what this project keeps at this deployment.
  */
-export function versionNote(reached: Reached, share: boolean): string | undefined {
+export function versionNote(reached: Reached, at: KeptAt): string | undefined {
   if (!reached.known) {
     return (
       `this deployment did not say which API version it serves — ${reached.because}. ` +
       `variance ${CLI_VERSION} speaks ${String(NEEDS_API)}, so expect what a deployment older ` +
-      `than API 2 does. ${missing(undefined, share)}`
+      `than API 2 does. ${missing(undefined, at)}`
     );
   }
   if (reached.api === NEEDS_API) return undefined;
   if (reached.api < NEEDS_API) {
-    const symptoms = missing(reached.api, share);
+    const symptoms = missing(reached.api, at);
     if (symptoms === '') return undefined;
     return (
       `this deployment serves API ${String(reached.api)} and variance ${CLI_VERSION} speaks ` +

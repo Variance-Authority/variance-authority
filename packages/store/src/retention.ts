@@ -44,10 +44,24 @@ import { join } from 'node:path';
  * which is a slow run and never a wrong one: a miss can only cost a render.
  *
  * *What it does not do.* It never touches baselines. This walks the cache root
- * only, which `variance run` keeps separate from the baseline root for exactly
- * this reason — a sweep that could reach an approved image would be a sweep
- * nobody could afford to run automatically.
+ * only, which every caller that opens a store on a committed baseline root
+ * keeps separate from it, at {@link renderCacheIn}, for exactly this reason — a
+ * sweep that could reach an approved image would be a sweep nobody could
+ * afford to run automatically.
  */
+
+/**
+ * The render cache inside a variance-authority cache directory.
+ *
+ * One place for every caller that opens a store on a baseline root somebody
+ * commits: `variance run`, the Playwright fixture and helpers, and the Vitest
+ * plugin each pass this as `cacheRoot` and sweep it
+ * with {@link sweepRenderCache}, so a machine running all of them keeps one
+ * cache under one bound.
+ */
+export function renderCacheIn(cache: string): string {
+  return join(cache, 'renders');
+}
 
 /** Two weeks: long enough to cover a holiday, short enough to notice. */
 const DEFAULT_MAX_AGE_MS = 14 * 24 * 60 * 60 * 1000;

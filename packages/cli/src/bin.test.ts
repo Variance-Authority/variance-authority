@@ -4,7 +4,8 @@ import { BOOLEAN } from './args.js';
 import { USAGE, main, parseArgs } from './bin.js';
 import { openRenderer } from './renderer.js';
 import { EXIT_CLEAN, EXIT_OPERATOR, OperatorError } from './exit.js';
-import { QUESTIONS, argumentsOf, questionOf } from './commands/asking.js';
+import { verbOf } from '@variance-authority/mcp/tools';
+import { QUESTIONS, argumentsOf } from './commands/asking.js';
 import { flagsFor, helpFor, isCommand } from './usage.js';
 
 describe('parseArgs', () => {
@@ -130,7 +131,7 @@ describe('parseArgs', () => {
       config: resolve('variance.config.json'),
       question: 'describe',
       subject: 'story:card',
-      reports: [resolve('shard-a.json')],
+      reports: ['shard-a.json'],
     });
   });
 
@@ -145,20 +146,21 @@ describe('parseArgs', () => {
   });
 
   it('reads distillation evidence without project configuration', () => {
-    expect(parseArgs(['distill', '--test', 'redraw', '--eyes', 'eyes.json', '--format', 'json']))
+    // No record named is the checkout's own record, which the command finds
+    // from the root; unnamed, the root is here.
+    expect(parseArgs(['distill', '--test', 'redraw', '--format', 'json']))
       .toEqual({
         command: 'distill',
         test: 'redraw',
-        eyes: resolve('eyes.json'),
-        // Eyes names source absolutely and Sense names it relative to the
-        // project root, so the comparison needs a root; unnamed, it is here.
         root: resolve(process.cwd()),
         format: 'json',
       });
-    expect(parseArgs(['distill', '--test', 'redraw', '--eyes', 'eyes.json', '--root', 'elsewhere']))
-      .toMatchObject({ root: resolve('elsewhere') });
-    expect(attempt(['distill', '--test', 'redraw']).message).toContain('needs --eyes');
-    expect(attempt(['distill', '--execution', 'execution.json']).message).toContain('--test');
+    expect(parseArgs(['distill', '--test', 'redraw', '--execution', 'coverage.bin', '--root', 'elsewhere']))
+      .toMatchObject({ execution: resolve('coverage.bin'), root: resolve('elsewhere') });
+    expect(parseArgs(['distill', '--test', 'redraw'])).not.toHaveProperty('execution');
+    // The archive flag is gone, not ignored: a journal is read from the record.
+    expect(attempt(['distill', '--test', 'redraw', '--eyes', 'eyes.json']).message).toContain('--eyes');
+    expect(parseArgs(['distill', '--execution', 'execution.json'])).toMatchObject({ execution: resolve('execution.json') });
   });
 
   it('reads journeys with no pool named, which is the run rather than the record', () => {
@@ -428,10 +430,10 @@ describe('parseArgs', () => {
     // schemas, so the usage line advertises nothing the parser refuses.
     const refused: string[] = [];
     const accepted = flagsOf('ask');
-
     for (const question of QUESTIONS) {
       for (const argument of argumentsOf(question.tool)) {
-        if (!accepted.includes(argument.flag)) refused.push(`${questionOf(question.tool)}: ${argument.flag}`);
+        // Questions are typed as words after `intersection`, never behind a flag.
+        if (argument.kind !== 'questions' && !accepted.includes(argument.flag)) refused.push(`${verbOf(question.tool)}: ${argument.flag}`);
       }
     }
 

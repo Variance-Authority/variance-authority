@@ -17,7 +17,9 @@ In: whatever was already read — the run artifact, a live suite held in a
 watching process, **attention** journals and **scenario** evidence from
 [`runtime`](../../runtime/README.md), presentation readings from
 [`presentation`](../../presentation/README.md), the execution index from
-[`reach`](../../reach/README.md), and a workspace's published names — supplied
+[`reach`](../../reach/README.md), a workspace's published names, and the
+decisions and concerns a review deployment recorded, read with its share token
+from [`review`](../../review/README.md) — supplied
 per request so an agent that has just re-run is answered from the new evidence
 rather than the one loaded at start-up.
 
@@ -75,7 +77,9 @@ previous reading standing — stale rather than wrong.
   several subjects behind one connection
 - `packages/mcp/src/tools/` — one module per answer
 - `packages/mcp/src/tools/diff.ts` — the one stateful tool, and the single prior invocation it holds
-- `packages/help/src/tools.ts`, `packages/help/src/tools/` — the five questions asked of a workspace
+- `packages/help/src/tools.ts`, `packages/help/src/tools/` — the questions asked of a workspace
+- `packages/mcp/src/tools/names.ts` — what each file declares and imports by name, read off the scan's own parse; `packages/help/src/tools/discover.ts` crosses whole sets of files on it
+- `packages/help/src/tools/intersection.ts` — crosses whole questions, each through the uncapped file set `Tool.files` answers
 
 ## Diagram
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { locationsIn, routesFrom, routesFromFiles, subjectIdFor } from './sitemap.js';
+import { locationsIn, plannedRoute, rootNamed, routesFrom, routesFromFiles, subjectIdFor } from './sitemap.js';
 
 /**
  * A subject list taken from what the application already publishes.
@@ -46,7 +46,26 @@ describe('reading a sitemap', () => {
       <url><loc>https://b.example/x</loc></url>
     </urlset>`;
 
-    expect(() => routesFrom(colliding)).toThrow(/two URLs whose paths are both/);
+    expect(() => routesFrom(colliding, 'https://a.example/sitemap.xml')).toThrow(/two URLs whose paths are both/);
+  });
+
+  it('visits the server the sitemap was read from, whatever host its entries name', () => {
+    // A site generates its sitemap for where it is published, so the copy a
+    // local or preview server answers still lists production. Visiting those
+    // URLs would photograph production and report it as the build under test.
+    // The protocol puts every entry on the sitemap's own host, so the entry's
+    // host is the one part of it that carries nothing.
+    expect(routesFrom(SITEMAP, 'http://localhost:8787/sitemap.xml')).toEqual({
+      '/': 'http://localhost:8787/',
+      cart: 'http://localhost:8787/cart',
+      search: 'http://localhost:8787/search?q=a&b=2',
+    });
+  });
+
+  it('refuses an entry that is not a URL rather than visiting a guess', () => {
+    const broken = `<urlset><url><loc>http://[::1</loc></url></urlset>`;
+
+    expect(() => routesFrom(broken, 'http://localhost:8787/sitemap.xml')).toThrow(/lists http:\/\/\[::1, which is not a URL/);
   });
 
   it('accepts the same URL listed twice, which is a duplicate rather than a conflict', () => {
@@ -55,7 +74,7 @@ describe('reading a sitemap', () => {
       <url><loc>https://a.example/x</loc></url>
     </urlset>`;
 
-    expect(routesFrom(repeated)).toEqual({ x: 'https://a.example/x' });
+    expect(routesFrom(repeated, 'https://a.example/sitemap.xml')).toEqual({ x: 'https://a.example/x' });
   });
 
   it('does not follow a sitemap index, because that is a crawler', () => {
@@ -66,7 +85,27 @@ describe('reading a sitemap', () => {
       <sitemap><loc>https://a.example/pages.xml</loc></sitemap>
     </sitemapindex>`;
 
-    expect(routesFrom(index)).toEqual({ 'pages.xml': 'https://a.example/pages.xml' });
+    expect(routesFrom(index, 'https://a.example/sitemap.xml')).toEqual({ 'pages.xml': 'https://a.example/pages.xml' });
+  });
+});
+
+describe('naming a route for its baseline', () => {
+  it('names the site root `index`, so a baseline path can carry it', () => {
+    // `/` has no segment a file name can be made of, and the default
+    // `{title}/{name}-{engine}` refuses an empty name rather than writing
+    // `-chromium.png`. `index` is what a server answers `/` with.
+    expect(plannedRoute('/')).toEqual({ subject: { id: '/', kind: 'route' }, name: 'index' });
+  });
+
+  it('leaves every other route to be named by its id', () => {
+    expect(plannedRoute('docs/start')).toEqual({ subject: { id: 'docs/start', kind: 'route' } });
+  });
+
+  it('names the root an operator listed, and keeps a name the plan already gave', () => {
+    // A listed plan comes from the run, not from this collector, and the root
+    // in it has no more of a segment than a discovered one.
+    expect(rootNamed({ subject: { id: '/', kind: 'fixture' } })).toEqual({ subject: { id: '/', kind: 'fixture' }, name: 'index' });
+    expect(rootNamed({ subject: { id: '/', kind: 'route' }, name: 'home' }).name).toBe('home');
   });
 });
 

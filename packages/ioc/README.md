@@ -5,6 +5,7 @@
 > Wiring a test run drives and a production build ignores: declare how a module resets its own state, and let the runner decide when.
 
 Part of [Variance Authority](https://variance-authority.dev).
+Point your coding agent at [`llms.txt`](https://variance-authority.dev/llms.txt).
 
 A module-level `let` outlives the test that changed it. A counter, a cache, a
 lazily built client, a memoized value — each one is written by whichever test
@@ -17,10 +18,10 @@ The usual answers both cost something:
 - **Rebuilding the world between tests pays setup on every test.** It also
   throws away the evidence that would have identified the leak.
 - **Reading a module's internals from a test file couples the test to them.**
-  The test knows things the module never promised.
+  The test depends on internals that are not part of the module's contract.
 
-This package inverts that: the module that owns the state says how to reset it,
-and the runner says when.
+This package inverts that: the module that owns the state registers how to reset
+it, and the runner decides when.
 
 ```bash
 npm install --save-dev @variance-authority/ioc
@@ -52,7 +53,8 @@ Nothing happens yet. The handler is enrolled only when a test setup has
 installed a driver, and a shipped application never installs one — so this call
 costs a boolean comparison and the handler is never run. What the package keeps
 without a driver is a count, and the first handler it had to turn away, so that
-a setup file loaded too late can be told which module already asked.
+a setup file loaded too late can be told which module already registered a
+handler.
 
 Write the handler so that running it twice is the same as running it once. It
 assigns a known value rather than stepping a state machine, which is what lets
@@ -106,12 +108,12 @@ above every application module: in Vitest and Jest, make it the first entry in
 setupFiles; in Playwright, the first import of the fixture file.
 ```
 
-The count is how many asked early; the text after the dash is the first of them,
-so you can find the module. It is the handler's source, with the handler's name
-in front of it when it has one — a `function resetCounter() {}` declaration, or
-an arrow assigned to a `const`. The arrow above was passed straight into the
-call, so it has no name and only its source is printed. Name the handler if you
-want the message to name it.
+The count is how many registered early; the text after the dash is the first of
+them, so you can find the module. It is the handler's source, with the handler's
+name in front of it when it has one — a `function resetCounter() {}`
+declaration, or an arrow assigned to a `const`. The arrow above was passed
+straight into the call, so it has no name and only its source is printed. Name
+the handler if you want the message to name it.
 
 That check is unconditional and has no opt-out. A handler that registered early
 is not installed, and a suite that silently does not reset is the failure this
@@ -219,4 +221,4 @@ MIT © Machine Garden
 
 ---
 
-**[@variance-authority/ioc](https://variance-authority.dev/reference/packages/ioc)** is part of [Variance Authority](https://variance-authority.dev) — [documentation](https://variance-authority.dev/docs) · MIT
+**[@variance-authority/ioc](https://variance-authority.dev/reference/packages/ioc)** is part of [Variance Authority](https://variance-authority.dev) — [documentation](https://variance-authority.dev/docs) · [GitHub](https://github.com/Variance-Authority/variance-authority/tree/main/packages/ioc) · MIT

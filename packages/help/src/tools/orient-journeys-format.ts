@@ -18,6 +18,7 @@ const plural = (count: number, one: string, many = `${one}s`): string => `${coun
 /** The way an inferred call was matched, as each is printed; the legend is made from the same rows. */
 const INFERRED: readonly (readonly [string, string])[] = [
   ['name-match', 'by name'],
+  ['recorded', 'by the name it was imported under, from what the case ran'],
   ['new', 'by `new`'],
   ['handed', 'handed to a call'],
   ['parameter', 'as a parameter'],

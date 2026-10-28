@@ -1,11 +1,8 @@
 /**
- * What the emitted probe writes into: one flag per region, and a log of first
- * touches.
+ * What the emitted probe writes into: a flag per region, a log of first touches.
  *
- * Every collector this package ships — the Jest and Vitest ones, the page's,
- * a service's journeys — hands the probe the same object, and this is where it
- * comes from. The probe's side of the contract is in
- * [`index.ts`](index.ts); this file is the other side.
+ * Every collector this package ships hands the probe the same object, and this
+ * is where it comes from; [`index.ts`](index.ts) is the probe's side.
  *
  * ## Presence, logged once per segment
  *
@@ -31,32 +28,30 @@
  *
  * ## One flag array, one bucket at a time
  *
- * Flags are per realm, logs are per bucket. That works because a flag only
- * ever means *logged in the current segment*, and the segment ends before any
- * other bucket writes. An async scope that interleaves two buckets — cases
- * under `continuations`, concurrent journeys — switches at every crossing
- * between them: the root's `s` is then a function that asks the scope which
- * bucket owns the crossing and switches when the answer moved, and the probe
- * reads a row of zeros in place of the flags so that every hit reaches it.
- * Every other collector leaves `s` null, and a switch happens only when the
- * collector calls `use`.
+ * Flags are per realm, logs per bucket: a flag only means *logged in the
+ * current segment*, and the segment ends before another bucket writes. An
+ * async scope interleaving two buckets — cases under `continuations`,
+ * concurrent journeys — switches at every crossing: the root's `s` is then a
+ * function that asks the scope which bucket owns the crossing and switches
+ * when the answer moved, and the probe reads a row of zeros in place of the
+ * flags so that every hit reaches it. Every other collector leaves `s` null,
+ * and a switch happens only when the collector calls `use`.
  *
  * A bucket switched through thousands of times re-logs what it touches after
  * each switch, so its log holds repeats. A log that has to grow is compacted
- * first when half of it would be repeats: each region kept once, where it was
- * first logged, with the evaluating bit of every entry for it. A byte per
- * region, zero between compactions, marks what has been kept, so a compaction
- * is two passes over the log and none over the rows. That bounds a long-lived
- * bucket — the ambient remainder, a flat file's, a page between drains — by the
- * regions it entered.
+ * first when half of it would be repeats: each region kept once for each way
+ * it was entered, where it was first logged that way. A byte per region, zero
+ * between compactions, marks what has been kept, so a compaction is two passes
+ * over the log and none over the rows. That bounds a long-lived bucket — the
+ * ambient remainder, a flat file's, a page between drains — by the regions it
+ * entered.
  *
  * ## What a close reads out
  *
  * Rows in the order the bucket first touched them, each row's ordinals
- * ascending and deduplicated, the evaluating bit an or over its entries. That
- * is the order and content `test-selection/journal-format.cts` encodes a map of
- * rows in, so it writes the frame straight from this view and the bytes are the
- * ones a map would give.
+ * ascending, once each way an ordinal was entered — with the evaluating bit
+ * and without — so a case keeps what it entered after its inline require
+ * evaluated. `test-selection/journal-format.cts` writes frames from this view.
  *
  * A module whose text changed under a running realm — same id, another block
  * count — gets a new row, and the old row is dropped from every read: its
@@ -65,15 +60,15 @@
  * ## Written to be sent as text
  *
  * {@link createEngine} closes over everything it uses and names nothing from
- * this module, so its source is the page collector's too: `test-selection/probes.ts` sends
- * `createEngine.toString()` across the bundler. Node-only work — encoding
- * frames, keeping the file's union — lives with the callers in `test-selection/`.
- *
- * CommonJS for the reason `test-selection/journal-format.cts` is: Jest's setup file requires
- * it from inside the sandbox, from `node_modules`, untransformed.
+ * this module, so `test-selection/probes.ts` sends `createEngine.toString()`
+ * across the bundler as the page collector's. Node-only work — frames, the
+ * file's union, a test runner's cuts — is the callers', or handed in. CommonJS
+ * for the reason `test-selection/journal-format.cts` is: Jest's setup file
+ * requires it from inside the sandbox, from `node_modules`, untransformed.
  */
 
 import type { ModuleId } from './index.js';
+import type probeCuts = require('./probe-cuts.cjs');
 
 /** One caller's share of the log: a case, a journey, a file, a page between drains. */
 interface Bucket {
@@ -91,6 +86,8 @@ interface Bucket {
   open: boolean;
   /** Whether it has been read out and dropped. */
   closed: boolean;
+  /** Test lines cut in {@link L}, as `probe-cuts.cts` keeps them; null if none are kept, or after a kept read. */
+  cuts: number[] | null;
 }
 
 /**
@@ -99,8 +96,9 @@ interface Bucket {
  * @param scoped Whether the bucket follows an async scope. True makes every
  * probe call in and ask the resolver handed to `scope`, which is the price of
  * two scopes interleaving; false leaves the bucket to `use` alone.
+ * @param cuts What keeps a test runner's cuts; without it a cut does nothing.
  */
-function createEngine(scoped: boolean) {
+function createEngine(scoped: boolean, cuts?: ReturnType<typeof probeCuts.createCuts>) {
   const EVALUATING = -2147483648;
   const INDEX = 0x7fffffff;
   const NO_FLAGS = new Uint8Array(0);
@@ -118,37 +116,27 @@ function createEngine(scoped: boolean) {
   // Scratch for compaction, a byte per region, zero between compactions.
   let seen = new Uint8Array(1 << 12);
   let total = 0;
+  // The test line each region of the last read was first reached under.
+  let lines: Int32Array | undefined;
 
   const rows: number[] = [];
   let sorted = new Int32Array(1 << 12);
   let generation = 0;
   const spare: Int32Array<ArrayBuffer>[] = [];
 
-  const ints = (from: Int32Array<ArrayBuffer>, length: number): Int32Array<ArrayBuffer> => {
+  /** `from`, or a copy of it at the next power of two that holds `length`. */
+  const grow = <T extends Int32Array<ArrayBuffer> | Uint8Array<ArrayBuffer>>(from: T, length: number): T => {
     let size = Math.max(from.length, 1);
     while (size < length) size *= 2;
     if (size === from.length) return from;
-    const grown = new Int32Array(size);
-    grown.set(from);
-    return grown;
-  };
-  const bytes = (from: Uint8Array<ArrayBuffer>, length: number): Uint8Array<ArrayBuffer> => {
-    let size = from.length;
-    while (size < length) size *= 2;
-    if (size === from.length) return from;
-    const grown = new Uint8Array(size);
+    const grown = new (from.constructor as new (size: number) => T)(size);
     grown.set(from);
     return grown;
   };
 
   const open = (key: string): Bucket => ({
-    L: spare.pop() ?? new Int32Array(1 << 12),
-    n: 0,
-    d: 0,
-    dense: 0,
-    key,
-    open: true,
-    closed: false,
+    L: spare.pop() ?? new Int32Array(1 << 12), n: 0, d: 0, dense: 0, key, open: true, closed: false,
+    cuts: cuts === undefined ? null : [],
   });
 
   // Where a probe writes when no caller's bucket is current: after a file's
@@ -222,7 +210,7 @@ function createEngine(scoped: boolean) {
       }
       rowEnd[row] = rowEnd[row]! + 1;
     }
-    if (sorted.length < end) sorted = ints(sorted, end);
+    if (sorted.length < end) sorted = grow(sorted, end);
     let next = 0;
     for (const row of rows) {
       rowStart[row] = next;
@@ -259,18 +247,17 @@ function createEngine(scoped: boolean) {
       let kept = from;
       for (let at = from; at < to; at += 1) {
         const value = sorted[at]!;
-        if (kept > from && sorted[kept - 1]! >>> 1 === value >>> 1) sorted[kept - 1] = sorted[kept - 1]! | (value & 1);
-        else sorted[kept++] = value;
+        if (kept === from || sorted[kept - 1] !== value) sorted[kept++] = value;
       }
       rowEnd[row] = kept;
     }
   };
 
   /**
-   * Write a bucket's log back without its repeats, each region where it was
-   * first logged, with the evaluating bit of every entry for it. Two passes
-   * over the log and none over the rows, so a log compacted while it grows
-   * is not also sorted.
+   * Write a bucket's log back without its repeats: each region once each way
+   * it was entered, where it was first logged that way, `seen` holding a bit
+   * per way. Two passes over the log and none over the rows, so a log
+   * compacted while it grows is not also sorted.
    */
   const compact = (bucket: Bucket): void => {
     const live = bucket === current;
@@ -280,16 +267,24 @@ function createEngine(scoped: boolean) {
     for (let at = 0; at < end; at += 1) {
       const entry = log[at]!;
       const index = entry & INDEX;
-      seen[index] = seen[index]! | (entry < 0 ? 3 : 1);
+      seen[index] = seen[index]! | (entry < 0 ? 2 : 1);
     }
+    const moved = bucket.cuts ?? [];
+    let cut = 1;
     let written = 0;
     for (let at = 0; at < end; at += 1) {
-      const index = log[at]! & INDEX;
+      // A cut moves to where the first entry at or after it lands.
+      for (; cut < moved.length && moved[cut]! <= at; cut += 2) moved[cut] = written;
+      const entry = log[at]!;
+      const index = entry & INDEX;
+      const way = entry < 0 ? 2 : 1;
       const mark = seen[index]!;
-      if (mark === 0) continue;
-      seen[index] = 0;
-      if (rowLive[rowOf[index]!] === 1) log[written++] = mark === 3 ? index | EVALUATING : index;
+      if ((mark & way) === 0) continue;
+      seen[index] = mark & ~way;
+      if (rowLive[rowOf[index]!] === 1) log[written++] = entry;
     }
+    for (; cut < moved.length; cut += 2) moved[cut] = written;
+    cuts?.merge(moved);
     bucket.n = written;
     bucket.dense = written;
     if (live) {
@@ -306,8 +301,11 @@ function createEngine(scoped: boolean) {
     const live = bucket === current;
     if (live) segment();
     const log = live ? root.L : bucket.L;
-    sort(log, live ? root.n : bucket.n);
+    const end = live ? root.n : bucket.n;
+    lines = bucket.cuts === null ? undefined : cuts!.charge(log, end, bucket.cuts, INDEX, total);
+    sort(log, end);
     if (!keep) return;
+    bucket.cuts = null;
     let written = 0;
     for (const row of rows) {
       const base = rowBase[row]!;
@@ -324,7 +322,7 @@ function createEngine(scoped: boolean) {
     }
   };
 
-  /** The probe's slow write: the log is full, or this is a re-activation's root. */
+  /** The probe's slow write: the log is full, or this is a module's root, once a way a segment. */
   const push = (entry: number): void => {
     let end = root.n;
     if (end >= root.l) {
@@ -333,7 +331,7 @@ function createEngine(scoped: boolean) {
         end = root.n;
       }
       if (end >= root.l) {
-        const log = ints(root.L, end + 1);
+        const log = grow(root.L, end + 1);
         root.L = log;
         root.l = log.length;
         current.L = log;
@@ -355,16 +353,16 @@ function createEngine(scoped: boolean) {
       rowFlags.push(new Uint8Array(count));
       if (scoped) rowGates.push(new Uint8Array(count));
       if (row >= rowBase.length) {
-        rowBase = ints(rowBase, row + 1);
-        rowMark = ints(rowMark, row + 1);
-        rowStart = ints(rowStart, row + 1);
-        rowEnd = ints(rowEnd, row + 1);
-        rowLive = bytes(rowLive, row + 1);
+        rowBase = grow(rowBase, row + 1);
+        rowMark = grow(rowMark, row + 1);
+        rowStart = grow(rowStart, row + 1);
+        rowEnd = grow(rowEnd, row + 1);
+        rowLive = grow(rowLive, row + 1);
       }
       rowBase[row] = total;
       rowLive[row] = 1;
-      rowOf = ints(rowOf, total + count);
-      seen = bytes(seen, total + count);
+      rowOf = grow(rowOf, total + count);
+      seen = grow(seen, total + count);
       rowOf.fill(row, total, total + count);
       total += count;
     }
@@ -396,33 +394,51 @@ function createEngine(scoped: boolean) {
     }
   };
 
-  // The probe's side of this object, and nothing else: `a` the activation, a
-  // number `use` moves on every switch; `s` the scope check, null unless the
-  // bucket follows an async scope; `v` the evaluating bit; `n`/`l`/`L` the log;
-  // `g` the slow write; `r` registration; `e`/`x` the evaluating depth. Built
-  // with every field in place, so its shape never changes under the probes
-  // that read it. `a` is a number and `s` a separate field, because an
-  // accessor on `a` is not inlined and added about 6 ns to every scoped hit.
+  // The `loads` mark, one call: the module's own region, logged as the header's last statement logs it.
+  const loaded = (id: ModuleId): void => {
+    if (scoped) sync();
+    const { s: flags, b: base } = register(id, 1);
+    if ((flags[0]! & 2) === 0) { flags[0] = flags[0]! | 2; push(base | EVALUATING); }
+  };
+  // A cut test reached `line`: what the bucket logs from here on is charged to it.
+  const cut = (line: number): void => {
+    if (scoped) sync();
+    if (current !== idle && current.cuts !== null) cuts!.cut(current.cuts, line, root.n);
+  };
+
+  // What the probes and a tap read, and nothing else: `a` the activation, a
+  // number `use` moves on every switch, which the story tap reads; `s` the
+  // scope check, null unless the bucket follows an async scope; `v` the
+  // evaluating bit; `n`/`l`/`L` the log; `g` the slow write; `r` registration;
+  // `e`/`x` the evaluating depth; `m` a module marked loaded; `c` a test line's
+  // cut. Built with every field in place, so its shape never changes under the
+  // probes that read it. `s` is a field of its own because an accessor is not
+  // inlined: it cost 6 ns a hit.
   const root = {
     a: activation,
     s: null as (() => void) | null,
-    v: 0, n: 0, l: idle.L.length, L: idle.L, g: push, r: register, e: raise, x: lower,
+    v: 0, n: 0, l: idle.L.length, L: idle.L, g: push, r: register, e: raise, x: lower, m: loaded, c: cut,
   };
 
-  const view = { rows, start: rowStart, end: rowEnd, sorted, ids: rowIds, counts: rowCounts };
+  const view = {
+    rows, start: rowStart, end: rowEnd, sorted, ids: rowIds, counts: rowCounts, base: rowBase, lines,
+  };
   const read = (bucket: Bucket, keep = true) => {
     settle(bucket, keep);
     view.start = rowStart;
     view.end = rowEnd;
     view.sorted = sorted;
+    view.base = rowBase;
+    view.lines = lines;
     return view;
   };
 
-  /** Read a bucket out and empty it in place, leaving it current if it was. */
+  /** Read a bucket out and empty it in place, leaving it current if it was, its last cut standing. */
   const take = (bucket: Bucket) => {
     const out = read(bucket, false);
     bucket.n = 0;
     bucket.dense = 0;
+    if (cuts !== undefined) bucket.cuts = cuts.after(bucket.cuts);
     if (bucket === current) {
       root.n = 0;
       segmentAt = 0;
@@ -439,6 +455,11 @@ function createEngine(scoped: boolean) {
     use,
     /** The bucket the probes write into now. */
     current: (): Bucket => current,
+    /** Every module whose probes registered in this realm. */ registered: (): readonly ModuleId[] => rowIds,
+    /** Log every module the realm holds as loaded: a realm outliving a test file evaluates none twice. */
+    carry(): void {
+      for (let row = 0; row < rowIds.length; row += 1) if (rowLive[row] === 1) push(rowBase[row]! | EVALUATING);
+    },
     /** The scope's resolver, where the bucket follows an async scope. */
     scope(resolver: () => Bucket): void {
       resolveNow = resolver;
@@ -459,24 +480,6 @@ function createEngine(scoped: boolean) {
       if (bucket.L.length <= 1 << 20 && spare.length < 8) spare.push(bucket.L);
       bucket.L = new Int32Array(0);
       return out;
-    },
-    /**
-     * A read-out as rows of ordinals. `byRow` orders them by when the realm
-     * first registered each module rather than by when this bucket first
-     * touched it, so a page drained several times reports one order.
-     */
-    lists(out: typeof view, byRow: boolean): { id: ModuleId; hits: number[]; shared: number[] }[] {
-      const order = byRow ? [...out.rows].sort((left, right) => left - right) : out.rows;
-      return order.map((row) => {
-        const hits: number[] = [];
-        const shared: number[] = [];
-        for (let at = out.start[row]!; at < out.end[row]!; at += 1) {
-          const value = out.sorted[at]!;
-          hits.push(value >>> 1);
-          if (value & 1) shared.push(value >>> 1);
-        }
-        return { id: out.ids[row]!, hits, shared };
-      });
     },
   };
   Object.defineProperty(root, Symbol.for('variance-authority.test-selection.engine'), { value: api });

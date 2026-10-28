@@ -6,6 +6,7 @@ import {
   NONE,
   offsetsOf,
   openSegment,
+  OtherSegmentVersion,
   rangeOf,
   sameLength,
   stringColumns,
@@ -47,6 +48,23 @@ describe('a segment', () => {
     expect(() => openSegment(FORMAT, 1, new Uint8Array(2), 'test segment')).toThrow(/test segment/);
     expect(() => openSegment(FORMAT, 1, Uint8Array.of(255, 255, 255, 255, 0), 'test segment'))
       .toThrow(/test segment/);
+  });
+
+  it('tells another version of its own format from bytes it cannot read, naming both versions', () => {
+    const bytes = encodeSegment(FORMAT, 1, { 'flags': Uint8Array.of(1) });
+    let refused: unknown;
+    try {
+      openSegment(FORMAT, 2, bytes, 'test segment');
+    } catch (error) {
+      refused = error;
+    }
+    expect(refused).toBeInstanceOf(OtherSegmentVersion);
+    expect(refused).toMatchObject({
+      written: 1,
+      reads: 2,
+      message: 'a variance-authority test segment written in format version 1, and this reader reads version 2',
+    });
+    expect(() => openSegment('other', 1, bytes, 'test segment')).not.toThrow(OtherSegmentVersion);
   });
 
   it('names the reader that refused', () => {

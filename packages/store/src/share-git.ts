@@ -26,8 +26,9 @@ export interface GitLineOptions {
   /**
    * The `http.extraheader` your clone sends to `url`. `actions/checkout` writes
    * its token there, in the clone's own configuration, where this repository
-   * cannot see it. Given to every command through the environment, and never
-   * written to disk.
+   * cannot see it; a job that checks out with `persist-credentials: false`
+   * gives it to git for one step as `GIT_CONFIG_*` variables instead. Given to
+   * every command through the environment, and never written to disk.
    */
   readonly extraHeader?: string;
 }
@@ -40,7 +41,7 @@ type Git = (args: readonly string[], input?: Uint8Array, env?: Record<string, st
 /** Git in the cell's own repository, prepared on first use. */
 function gitIn(options: GitLineOptions): Git {
   const timeout = options.timeoutMs ?? 60_000;
-  const header = headerEnv(options.extraHeader);
+  const header = headerEnv(options.extraHeader, options.url);
   let ready: Promise<void> | undefined;
   return async (args, input, env = {}) => {
     ready ??= prepare(options, timeout);
@@ -49,15 +50,44 @@ function gitIn(options: GitLineOptions): Git {
   };
 }
 
-/** A configuration value git reads from the environment, after any the environment already names. */
-function headerEnv(value: string | undefined): Record<string, string> {
+/**
+ * A configuration value git reads from the environment, after any the
+ * environment already names. A header the environment already gives git for
+ * `url` is not given again: a CI step that hands its token to git as
+ * `GIT_CONFIG_*` variables is where your clone's configuration found it, and
+ * git would send it twice. The same value under another key, or under a URL
+ * that `url` does not start with, does not reach `url`, and the header is given.
+ */
+export function headerEnv(
+  value: string | undefined,
+  url: string,
+  env: NodeJS.ProcessEnv = process.env,
+): Record<string, string> {
   if (value === undefined) return {};
-  const at = Number(process.env['GIT_CONFIG_COUNT'] ?? '0') || 0;
+  const at = Number(env['GIT_CONFIG_COUNT'] ?? '0') || 0;
+  for (let index = 0; index < at; index += 1) {
+    const key = env[`GIT_CONFIG_KEY_${String(index)}`];
+    if (env[`GIT_CONFIG_VALUE_${String(index)}`] === value && key !== undefined && headerReaches(key, url)) return {};
+  }
   return {
     GIT_CONFIG_COUNT: String(at + 1),
     [`GIT_CONFIG_KEY_${String(at)}`]: 'http.extraheader',
     [`GIT_CONFIG_VALUE_${String(at)}`]: value,
   };
+}
+
+/**
+ * Whether `key` is `http.extraheader`, or `http.<prefix>.extraheader` for a
+ * prefix of `url` that ends at a path segment. Git also folds the host's case
+ * and default ports, and matches user names and wildcards; a key this does not
+ * place is read as not reaching `url`, so the header is given, and at worst
+ * sent twice rather than not at all.
+ */
+function headerReaches(key: string, url: string): boolean {
+  const named = /^http\.(?:(.+)\.)?extraheader$/iu.exec(key);
+  if (named === null) return false;
+  const prefix = named[1]?.replace(/\/+$/u, '');
+  return prefix === undefined || url === prefix || url.startsWith(`${prefix}/`);
 }
 
 /**
@@ -146,6 +176,23 @@ export function createGitLineCell(options: GitLineOptions): LineCell {
     return missOf(ran);
   }
 
+  /**
+   * Where the remote holds `ref` now, `''` when it holds none, or `undefined`
+   * when it did not answer.
+   *
+   * A refused push is a lost race only when the line moved, and the remote is
+   * the one that knows. Its words do not say: the lease git checks against the
+   * advertisement reads `[rejected] (stale info)`, but a line that moves while
+   * the pack uploads is refused at the remote's own ref update, in whatever
+   * words the host uses, beside a hook that declined or a ref it protects.
+   */
+  async function remoteAt(ref: string): Promise<string | undefined> {
+    const ran = await git(['ls-remote', '--refs', REMOTE, ref]);
+    if (ran.code !== 0) return undefined;
+    const held = text(ran.stdout).split('\n').find((row) => row.endsWith(`\t${ref}`));
+    return held === undefined ? '' : held.split('\t')[0]!;
+  }
+
   return {
     async load(line) {
       const ref = refOf(line);
@@ -215,8 +262,9 @@ export function createGitLineCell(options: GitLineOptions): LineCell {
       ]);
       await rm(shallow, { force: true });
       if (pushed.code !== 0) {
-        if (/stale info|\[rejected\]|fetch first|already exists/i.test(text(pushed.stdout) + pushed.stderr)) return 'conflict';
-        return missOf(pushed);
+        const now = await remoteAt(ref);
+        if (now !== undefined && now !== (write.expected ?? '')) return 'conflict';
+        return missOf(pushed, refusalOf(pushed));
       }
       await git(['update-ref', ref, sha]);
       return 'written';
@@ -287,12 +335,24 @@ function runGit(
   });
 }
 
-function missOf(ran: Ran): ShareMiss {
-  const detail = ran.stderr.trim().split('\n').at(-1) ?? `git exited ${String(ran.code)}`;
+function missOf(ran: Ran, said?: string): ShareMiss {
+  const detail = said ?? ran.stderr.trim().split('\n').at(-1) ?? `git exited ${String(ran.code)}`;
   if (/authentication failed|permission denied|could not read username|terminal prompts disabled|403|repository not found/i.test(ran.stderr)) {
     return { kind: 'refused', detail };
   }
   return { kind: 'unreachable', detail };
+}
+
+/**
+ * Why the remote refused a push, in its own words: the reason `--porcelain`
+ * gives the refused ref, then every `remote:` line its hooks printed. Git's
+ * last line, "failed to push some refs", names neither.
+ */
+function refusalOf(pushed: Ran): string | undefined {
+  const reason = text(pushed.stdout).split('\n').find((row) => row.startsWith('!\t'))?.split('\t').at(2);
+  const said = pushed.stderr.split('\n').filter((row) => row.startsWith('remote: ')).map((row) => row.slice(8).trim()).filter(Boolean);
+  const parts = [reason, ...said].filter((part): part is string => part !== undefined && part !== '');
+  return parts.length === 0 ? undefined : parts.join('; ');
 }
 
 function text(bytes: Uint8Array): string {

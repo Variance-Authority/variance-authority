@@ -150,7 +150,7 @@ live('a journey that crosses into a service', () => {
       expect(run, run.output).toMatchObject({ code: 0 });
       expect(run.output).not.toContain('variance-authority:');
 
-      const index = decodeExecutionIndex(await readFile(join(work, 'coverage.bin.cases.bin')));
+      const index = decodeExecutionIndex(await readFile(join(work, 'coverage.bin')));
       const named = async (text) =>
         coveringTests(index, { file: at('src/pricing.mjs'), line: await lineOf(text) }).map((test) => test.name);
       expect(await named("'1200 EUR'")).toEqual(['the euro branch is covered by this spec and no other']);

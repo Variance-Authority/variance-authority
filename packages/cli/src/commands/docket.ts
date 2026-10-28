@@ -1,4 +1,12 @@
-import type { ObservationRecord, RegionRecord } from '@variance-authority/report';
+import {
+  byReason,
+  isUnstable,
+  promotionOf,
+  unstableOf,
+  type ObservationRecord,
+  type RegionRecord,
+  type UnstableSubject,
+} from '@variance-authority/report';
 import type { CliRunReport, NotObserved } from './run.js';
 
 /**
@@ -64,8 +72,40 @@ export interface Group {
   readonly subjects: readonly string[];
 }
 
+/**
+ * Subjects painted under another identity than their baseline, grouped by what
+ * moved: an upgrade, a recipe of this tool, another machine (ADR-0090).
+ *
+ * Unchanged subjects are counted beside the changed ones, because an avalanche
+ * is read in proportion: 1,180 of 1,204 changed under one engine bump is the
+ * upgrade, and the subjects a source change also reached are found in
+ * {@link Docket.causes} like any other.
+ */
+export interface Move {
+  readonly identity: 'recipe' | 'machine';
+  /** Each field that moved, `field before → after`, baseline side first. */
+  readonly moved: readonly string[];
+  readonly changed: readonly string[];
+  /** Moved, every changed pixel inside a mask: neither changed nor left alone. */
+  readonly ignored: number;
+  readonly unchanged: number;
+}
+
 export interface Docket {
   readonly causes: readonly CauseEntry[];
+  /**
+   * Subjects read twice in a row, with nothing changed between, whose readings
+   * disagreed outside what they declared they assert on. In report order.
+   *
+   * Kept out of {@link Docket.causes} because a cause says what this change
+   * moved, and this subject moves on its own: its verdict came from whichever
+   * reading was taken first, so a reviewer handed its largest region as the edit
+   * is handed a coin flip in the voice of a finding. Neither a change nor a pass;
+   * `exitFor` holds the run open over each.
+   */
+  readonly unstable: readonly UnstableSubject[];
+  /** Largest first; empty when every subject was painted under its baseline's identity. */
+  readonly moves: readonly Move[];
   readonly collateral: Collateral;
   readonly withoutCause: readonly Group[];
   /**
@@ -84,6 +124,12 @@ export interface Docket {
    * nothing moved, and nobody has yet said what the subject should look like.
    */
   readonly fresh: number;
+  /**
+   * Subjects `accept` would promote, asked of `promotionOf` rather than decided
+   * here: the comment offers accept only when it would land, and a second rule
+   * for that would drift from the one `accept` applies.
+   */
+  readonly promotable: number;
   readonly failed: readonly NotObserved[];
   readonly excluded: number;
   /**
@@ -123,22 +169,42 @@ interface CauseAccumulator {
  */
 export function docketOf(report: CliRunReport): Docket {
   const causes = new Map<string, CauseAccumulator>();
-  const groups = new Map<string, { verdict: ObservationRecord['verdict']; because: string; subjects: string[] }>();
+  const withoutRegion: { label: ObservationRecord['verdict']; because: string; subject: string }[] = [];
   const missingFonts = new Map<string, number>();
   const collateralComponents = new Set<string>();
   const collateralSubjects = new Set<string>();
+  const moves = new Map<string, { identity: Move['identity']; moved: readonly string[]; changed: string[]; ignored: number; unchanged: number }>();
 
   let reviewable = 0;
   let fresh = 0;
+  let promotable = 0;
   let collateralRegions = 0;
   let collateralPixels = 0;
   let unrecorded = 0;
   let unrecordedPixels = 0;
 
   for (const observation of report.observations) {
+    if (promotionOf(observation).kind === 'promotable') promotable += 1;
+
     for (const font of observation.missingFonts ?? []) {
       missingFonts.set(font, (missingFonts.get(font) ?? 0) + 1);
     }
+
+    const identity = observation.signals?.identity;
+    if (identity !== undefined) {
+      const moved = observation.signals?.moved ?? [];
+      const key = `${identity}\u0000${moved.join('\u0000')}`;
+      const move = moves.get(key) ?? { identity, moved, changed: [], ignored: 0, unchanged: 0 };
+      if (observation.verdict === 'changed') move.changed.push(observation.subject);
+      else if (observation.verdict === 'ignored') move.ignored += 1;
+      else move.unchanged += 1;
+      moves.set(key, move);
+    }
+
+    // Before the green verdicts, because under `--flakes` an `unchanged` verdict
+    // can carry one: it agreed with its baseline and not with itself.
+    // Listed by `unstableOf`, which every surface reads.
+    if (isUnstable(observation)) continue;
 
     if (observation.verdict === 'unchanged' || observation.verdict === 'ignored') continue;
     if (observation.verdict === 'new') fresh += 1;
@@ -147,18 +213,11 @@ export function docketOf(report: CliRunReport): Docket {
     const lead = observation.regions.find((region) => region.cause) ?? observation.regions[0];
 
     if (lead === undefined) {
-      // `new`, `incomparable`, and anything the cheap tiers settled: a verdict
+      // `new`, and anything the cheap tiers settled: a verdict
       // with no geometry behind it. Grouped by the reason rather than listed one
       // per subject, because 300 subjects with no baseline share one sentence and
       // repeating it 300 times says nothing the count does not.
-      const key = `${observation.verdict}\u0000${observation.because}`;
-      const group = groups.get(key) ?? {
-        verdict: observation.verdict,
-        because: observation.because,
-        subjects: [],
-      };
-      group.subjects.push(observation.subject);
-      groups.set(key, group);
+      withoutRegion.push({ label: observation.verdict, because: observation.because, subject: observation.subject });
       continue;
     }
 
@@ -221,6 +280,10 @@ export function docketOf(report: CliRunReport): Docket {
 
   return {
     causes: entries,
+    unstable: unstableOf(report).subjects,
+    moves: [...moves.values()].sort(
+      (a, b) => b.changed.length + b.ignored + b.unchanged - (a.changed.length + a.ignored + a.unchanged),
+    ),
     collateral: {
       regions: collateralRegions,
       pixels: collateralPixels,
@@ -229,9 +292,14 @@ export function docketOf(report: CliRunReport): Docket {
       unrecorded,
       unrecordedPixels,
     },
-    withoutCause: [...groups.values()],
+    withoutCause: byReason(withoutRegion).map(({ label, because, subjects }) => ({
+      verdict: label,
+      because,
+      subjects,
+    })),
     reviewable,
     fresh,
+    promotable,
     failed: notObserved.filter((entry) => entry.kind === 'failed'),
     excluded: notObserved.filter((entry) => entry.kind === 'excluded').length,
     unreached: notObserved.filter((entry) => entry.kind === 'unreached').length,

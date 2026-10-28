@@ -11,7 +11,7 @@ at.
 This page takes one UI state through that loop end to end, so you can see the
 whole review cycle before deciding how much of the suite belongs in it.
 
-## Start from a state something already knows how to set up
+## Start from a state something already sets up
 
 A **subject** is one named UI state you asked for and can ask for again — one
 Storybook story, one route at one viewport, one component mounted in a test —
@@ -33,7 +33,7 @@ and the second report `unchanged`.
 | The harness puts the app in the intended UI state | Navigation, fixtures, authentication, and readiness stay where they already work. |
 | The first run reports `new` | The subject was captured, and no approved baseline exists yet. |
 | You accept that candidate | `variance accept <subject-id>`, or Playwright's snapshot update flag, promotes exactly the image the run under review produced. It never renders a replacement. |
-| The next run reports `unchanged` | The stored baseline and the new capture were comparable, and nothing differs. |
+| The next run reports `unchanged` | The stored baseline and the new capture were compared, and nothing differs beyond the default policy's tolerance: antialiasing, and a colour change of up to 1%. |
 
 ## Choose who already owns the state
 
@@ -119,8 +119,8 @@ variance run --config variance.config.json
 ```
 
 The rerun exits `0` once the subject is `unchanged`. Keep `accept --all` out of
-unattended workflows: it cannot tell a candidate somebody reviewed from one
-nobody opened.
+unattended workflows: it cannot distinguish a candidate somebody reviewed from
+one nobody opened.
 
 ## Read what came back
 
@@ -129,7 +129,7 @@ nobody opened.
 | `new` | Open the report, check the candidate is the state you meant, and accept that id. |
 | `unchanged` | The subject is through the loop. Add another state, or ask a deeper question below. |
 | `changed` | Open the report at the region it names: it includes the component and the `file:line` that drew it. [Trace the region to source](attribution.md), or [compare across subjects](composition.md) to see whether the same component held elsewhere. |
-| `incomparable` | The two images were refused a comparison because they were not made under the same renderer identity — engine, platform, scale factor, fonts, or stabilization recipe. The report names which. Make the pixels in one fixed place, a pinned local renderer or one you host, or switch to ephemeral retention where both sides are rendered in the same run. See [baseline placement](placement.md) and [stabilization](stabilization.md). Do not read a refused comparison as zero difference. |
+| `changed`, with a moved identity first | The baseline was painted under another renderer identity — engine, platform, scale factor, fonts, or stabilization recipe — and the reason names which before any component. Review the diff as you would any other; to stop the machine moving, make the pixels in one fixed place, a pinned local renderer or one you host, or switch to ephemeral retention where both sides are rendered in the same run. See [baseline placement](placement.md) and [stabilization](stabilization.md). |
 | Collection failure | The run could not read the subject at all, so it has no visual result. Fix the boundary it names. |
 
 ## Choose the next question

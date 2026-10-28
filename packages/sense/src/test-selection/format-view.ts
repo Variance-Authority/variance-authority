@@ -18,6 +18,7 @@ import {
   kinds,
   owners,
   presence,
+  RecordWithoutCoverage,
   validateCoverageShape,
 } from './format-validation.js';
 import { type CrossingSetsPool } from './crossing-sets.js';
@@ -25,7 +26,9 @@ import { openCrossingSets, type CrossingSetsView } from './crossing-sets-read.js
 import {
   DURATION,
   FORMAT,
-  KINDS,
+  PHASES,
+  UNTIMED_FORMAT,
+  BLOCK_KINDS,
   NAMES,
   NO_OWNER,
   readableFormat,
@@ -65,6 +68,12 @@ export interface TestCoverageView {
    * the layout before durations were recorded.
    */
   readonly testDuration: WordColumn | undefined;
+  /**
+   * What the runner said each test file spent before its first case:
+   * `PHASE_NAMES` words a test, `NO_DURATION` for a phase it did not report.
+   * Absent from a snapshot written in a layout before phases were recorded.
+   */
+  readonly testPhases: WordColumn | undefined;
   readonly preconditionName: WordColumn;
   readonly preconditionDigest: WordColumn;
   readonly modulePath: WordColumn;
@@ -150,10 +159,13 @@ export function openTestCoverage(input: Uint8Array | Bytes): TestCoverageView {
   const head = buffered(file.read(0, 4 + headerLength));
   const header = JSON.parse(head.toString('utf8', 4, 4 + headerLength).replace(/\0+$/, '')) as Header;
   if (!readableFormat(header.version)) throw new Error(`unsupported test coverage version: ${header.version}`);
-  const timed = header.version === FORMAT;
+  const timed = header.version !== UNTIMED_FORMAT;
+  const phased = header.version === FORMAT;
   const base = 4 + headerLength;
   if (!validSections(header.sections, file.length - base)) throw invalid();
   const found = new Map(header.sections.map((section) => [section.name, section]));
+  // None of the coverage is absent coverage; some of it is a broken record.
+  if (!NAMES.some((name) => found.has(name))) throw new RecordWithoutCoverage();
   const at = (name: string): Section => {
     const value = found.get(name);
     if (value === undefined) throw invalid();
@@ -167,7 +179,7 @@ export function openTestCoverage(input: Uint8Array | Bytes): TestCoverageView {
   };
 
   const rows: Record<string, number> = {};
-  for (const name of timed ? [...NAMES, DURATION] : NAMES) {
+  for (const name of [...NAMES, ...(timed ? [DURATION] : []), ...(phased ? [PHASES] : [])]) {
     const section = at(name);
     if (section.rows !== undefined) rows[name] = section.rows;
     else {
@@ -298,7 +310,7 @@ export function openTestCoverage(input: Uint8Array | Bytes): TestCoverageView {
   const commit = words('snapshot.commit', (values) => ids(values, strings));
   const moduleBlocks = settled(words('modules.blocks'), (values) => csr(values, blockCount));
   const blockOrdinal = words('blocks.ordinal');
-  const blockKind = flags('blocks.kind', (values) => kinds(values, KINDS.length));
+  const blockKind = flags('blocks.kind', (values) => kinds(values, BLOCK_KINDS.length));
   const blockStart = words('blocks.start');
 
   return {
@@ -315,6 +327,7 @@ export function openTestCoverage(input: Uint8Array | Bytes): TestCoverageView {
       csr(values, rows['preconditions.name']!),
     ),
     testDuration: timed ? words(DURATION) : undefined,
+    testPhases: phased ? words(PHASES) : undefined,
     preconditionName: words('preconditions.name', (values) => ids(values, strings)),
     preconditionDigest: words('preconditions.digest', (values) => ids(values, strings)),
     modulePath: words('modules.path', (values) => ids(values, strings)),

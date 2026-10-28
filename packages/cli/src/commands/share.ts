@@ -20,7 +20,7 @@ import {
 } from '@variance-authority/report/suite-index';
 import type { Config } from '../config.js';
 import { costsEntryOf } from './costs-entry.js';
-import { REPORT_ENTRY, readSuiteEntry, reportEntryOf, suiteEntry, suiteEntryOf, type NamedImage } from '../share-entries.js';
+import { REPORT_ENTRY, entryCarriesEyes, readSuiteEntry, reportEntryOf, suiteEntry, suiteEntryOf, type NamedImage } from '../share-entries.js';
 import {
   descendsOf,
   distanceFrom,
@@ -33,14 +33,13 @@ import {
   type Unconfigured,
 } from '../share-lines.js';
 import { suiteIndexRoot } from './resources.js';
-import { readCliRunReport } from './run.js';
-import { isSlice, suitePartPath, type CliRunReport } from './run-report.js';
+import { isSlice, readCliRunReport, suitePartPath, type CliRunReport } from './run-report.js';
 
 export { mainlinesOf, type Mainlines } from '../share-lines.js';
 
 /**
  * Publishing a run to its line, and reading a mainline's suite index back — the
- * CLI half of spec 0074.
+ * CLI half of ADR-0077.
  *
  * `@variance-authority/core/share` knows what a line holds and how a write
  * races another; `share-lines.ts` knows which line a run belongs to and which
@@ -54,7 +53,7 @@ export { mainlinesOf, type Mainlines } from '../share-lines.js';
  */
 
 /** The entry a suite index is published under. Carries its version. */
-export const SUITE_INDEX_ENTRY = 'suite-index-v1';
+export const SUITE_INDEX_ENTRY = 'suite-index-v2';
 
 /** Where this machine keeps the index for one commit of one project. */
 export function suiteIndexPath(config: Pick<Config, 'project' | 'cacheRoot'>, commit: string): string {
@@ -114,6 +113,8 @@ export interface Here {
  * written, and names each image the report names that this machine could not
  * read, as the absolute path it was looked for at. `unpublished` is present
  * when a suite's record here was not published, and says for each why.
+ * `eyes` names each suite entry whose record carries its cases' Eyes journals,
+ * which went with it.
  */
 export type RunPublish =
   | ({
@@ -121,6 +122,9 @@ export type RunPublish =
       readonly published: Published;
       readonly leftOut?: readonly string[];
       readonly unpublished?: readonly string[];
+      readonly eyes?: readonly string[];
+      /** By entry, the test files a mainline publish retired because the suite no longer collects them. */
+      readonly retired?: Readonly<Record<string, readonly string[]>>;
     } & NoMainline)
   | ({ readonly line: ShareLine; readonly miss: MainlineMiss } & NoMainline)
   | { readonly none: string };
@@ -188,16 +192,20 @@ export async function publishKept(
     leftOut = carried.leftOut;
   }
   const unpublished: string[] = [];
+  const eyes: string[] = [];
   // A report that timed nothing has no costs to give, the way a machine with no
   // record of a suite has no suite to give, and neither is news.
   const costs = await costsEntryOf(config, from.report, at);
   if (!('none' in costs)) entries.push(costs);
   for (const suite of config.suites ?? []) {
     if (suite.carry !== 'share') continue;
-    const entry = await suiteEntryOf(cwd, suite.name, at);
+    const entry = await suiteEntryOf(cwd, suite.name, at, { whole: run.line.kind === 'mainline' });
     if (entry === undefined) continue;
     if ('unpublished' in entry) unpublished.push(`${suiteEntry(suite.name)}: ${entry.unpublished}`);
-    else entries.push(entry);
+    else {
+      entries.push(entry);
+      if (entryCarriesEyes(entry)) eyes.push(entry.name);
+    }
   }
 
   const byDigest = new Map(images.map((image) => [image.digest, image.path]));
@@ -216,8 +224,15 @@ export async function publishKept(
     // A report the line kept is not this run's, so what this run left out of it is not news.
     ...(leftOut !== undefined && published.written.includes(REPORT_ENTRY) ? { leftOut } : {}),
     ...(unpublished.length === 0 ? {} : { unpublished }),
+    ...eyesWritten(eyes, published.written),
     ...noMainline,
   };
+}
+
+/** The entries among `written` whose records carried Eyes journals; a kept entry uploaded nothing. */
+export function eyesWritten(eyes: readonly string[], written: readonly string[]): { readonly eyes?: readonly string[] } {
+  const went = eyes.filter((name) => written.includes(name));
+  return went.length === 0 ? {} : { eyes: went };
 }
 
 /**
@@ -264,7 +279,8 @@ export async function mainlineIndex(
   config: Config,
   options: Here & { readonly mainline?: string } = {},
 ): Promise<MainlineRead> {
-  const found = await mainlineEntry(config, SUITE_INDEX_ENTRY, options);
+  // Newest first: a line a CLI before this one wrote holds `suite-index-v1`, which `decodeSuiteIndex` reads.
+  const found = await mainlineEntry(config, [SUITE_INDEX_ENTRY, 'suite-index-v1'], options);
   if ('miss' in found) return found;
   const { at, held } = found;
   // TODO: nothing compares this machine's index with the digest the manifest
@@ -289,10 +305,10 @@ export async function mainlineIndex(
   return { ...at, from: 'share', index };
 }
 
-/** One suite's record as the reader's mainline holds it: the coverage record, and its per-case index when it had one. */
+/** One suite's record as the reader's mainline holds it: the coverage record, its cases inside it, and its runs record when the publisher carried it. */
 export interface MainlineSuite extends MainlineAt {
   readonly coverage: Uint8Array;
-  readonly cases?: Uint8Array;
+  readonly runs?: Uint8Array;
 }
 
 /**
@@ -305,7 +321,7 @@ export interface MainlineSuite extends MainlineAt {
 export async function mainlineSuite(
   config: Pick<Config, 'share' | 'cacheRoot'>,
   suite: string,
-  options: Here & { readonly mainline?: string } = {},
+  options: Here & { readonly mainline?: string; readonly base?: string } = {},
 ): Promise<MainlineSuite | MainlineMissed> {
   const found = await mainlineEntry(config, suiteEntry(suite), options);
   if ('miss' in found) return found;
@@ -320,29 +336,30 @@ export async function mainlineSuite(
 /**
  * Where the reader's mainline holds `name`, and a way to read its bytes.
  *
- * The mainline is the one named, or else the one `readerMainline` chooses. The
+ * The mainline is the one named, with `HEAD`'s merge base with it when the
+ * caller asked for it, or else the one `readerMainline` chooses. The
  * bytes are read only when asked, because a commit this machine already holds
  * is answered from disk.
  */
 export async function mainlineEntry(
   config: Pick<Config, 'share' | 'cacheRoot'>,
-  name: string,
-  options: Here & { readonly mainline?: string },
+  name: string | readonly string[],
+  options: Here & { readonly mainline?: string; readonly base?: string },
 ): Promise<{ readonly at: MainlineAt; readonly held: LineEntry } | MainlineMissed> {
   const env = options.env ?? process.env;
   const cwd = options.cwd ?? process.cwd();
-  let mainline = options.mainline;
+  let { mainline, base } = options;
   if (mainline === undefined) {
     const chosen = await readerMainline(config, env, cwd);
     if ('missing' in chosen) {
       return { miss: { kind: 'unconfigured', detail: `nothing answered from ${chosen.missing.join(', ')}` } };
     }
-    mainline = chosen.name;
+    ({ name: mainline, base } = chosen);
   }
   const found = await lineEntry(config, { kind: 'mainline', name: mainline }, name, cwd);
   if ('miss' in found) return { mainline, ...found };
 
-  const distance = await distanceFrom(config, mainline, found.entry.commit, cwd);
+  const distance = await distanceFrom(config, mainline, found.entry.commit, cwd, base);
   return { at: { mainline, commit: found.entry.commit, ...(distance !== undefined ? { distance } : {}) }, held: found };
 }
 
@@ -354,16 +371,16 @@ export interface LineEntry {
 }
 
 /**
- * Where `line` holds `name`, or why it does not.
+ * Where `line` holds `name`, or the first of a list it holds, or the first's miss.
  *
  * An `absent` entry on a line that exists carries what the line does hold, so
- * a reader can say *it holds suite-index-v1* rather than *nothing is
+ * a reader can say *it holds suite-index-v2* rather than *nothing is
  * published*, which would send somebody to look for a publish that happened.
  */
 export async function lineEntry(
   config: Pick<Config, 'share' | 'cacheRoot'>,
   line: ShareLine,
-  name: string,
+  name: string | readonly string[],
   cwd: string,
 ): Promise<LineEntry | { readonly miss: MainlineMiss; readonly holds?: readonly string[] }> {
   const cell = await lineCellOf(config, { cwd, reuseMs: READ_REUSE_MS });
@@ -372,10 +389,9 @@ export async function lineEntry(
 
   const held = await readLine(cell, line);
   if ('kind' in held) return { miss: held };
-  const entry = findEntry(held.manifest, name);
-  if ('kind' in entry) {
-    return entry.kind === 'absent' ? { miss: entry, holds: held.manifest.entries.map((one) => one.name) } : { miss: entry };
-  }
+  const found = (typeof name === 'string' ? [name] : name).map((one) => findEntry(held.manifest, one));
+  const entry = found.find((one) => !('kind' in one)) ?? found[0]!;
+  if ('kind' in entry) return entry.kind === 'absent' ? { miss: entry, holds: held.manifest.entries.map((one) => one.name) } : { miss: entry };
   return { entry, bytes: () => held.entry(entry), image: (digest) => held.image(digest) };
 }
 
@@ -415,7 +431,7 @@ export async function shareLines(
 }
 
 /** What a publish did, in the lines `variance share --publish` prints. */
-export function describePublish(config: Config, done: RunPublish): readonly string[] {
+export function describePublish(config: Pick<Config, 'share'>, done: RunPublish): readonly string[] {
   const where = describeShare(config);
   if ('none' in done) return [`nothing published: ${done.none}.`];
   const line = `${done.line.kind} ${done.line.name}`;
@@ -444,10 +460,13 @@ export function describePublish(config: Config, done: RunPublish): readonly stri
           `left out ${String(leftOut.length)} image(s) the report names and this machine could not read, the first at ${leftOut[0]!}.`,
         ]),
     ...(done.unpublished ?? []).map((why) => `left out ${why}.`),
+    ...(done.eyes ?? []).map((name) =>
+      `${name} carried its cases' Eyes journals: the record's eyes section went with it.`),
+    ...Object.entries(done.retired ?? {}).map(([name, files]) => `retired ${String(files.length)} test file(s) from ${name} that the suite no longer collects, ${files[0]!} among them.`),
   ];
 }
 
-function describeShare(config: Config): string {
+function describeShare(config: Pick<Config, 'share'>): string {
   const share = config.share;
   if (share === undefined) return 'no share';
   if (share.kind === 'directory') return `the directory ${share.root}`;

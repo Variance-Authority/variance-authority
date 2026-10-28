@@ -100,7 +100,7 @@ function awaited(answer: unknown): answer is PromiseLike<unknown> {
  * its `byteOffset` is zero and a plain section can be cast to `Uint32Array`
  * without the copy an unaligned buffer would force.
  */
-function descriptor(fd: number): Bytes {
+export function descriptor(fd: number): Bytes {
   const length = fstatSync(fd).size;
   return {
     length,
@@ -144,5 +144,27 @@ export function isTestCoverageFile(file: string): boolean {
     return false;
   } finally {
     closeSync(fd);
+  }
+}
+
+/**
+ * Where a snapshot was recorded, without decoding it.
+ *
+ * The one field a caller asking "what has changed since the index was written"
+ * needs, and the whole of what it needs. Reading it through
+ * `readTestCoverage` builds every module and region in the file to reach
+ * forty hex characters at the head of it — most of a second at a repository's
+ * scale, on a command an operator is waiting at a prompt for. Opening parses the
+ * section index and the one string.
+ *
+ * `undefined` for an index recorded outside a checkout, which has no position,
+ * and for a file this build cannot read — the caller's next move is the same
+ * either way, and it is not to explain a format to somebody asking about a diff.
+ */
+export async function recordedCommit(file: string): Promise<string | undefined> {
+  try {
+    return askCoverageFile(file, (coverage) => coverage.commit);
+  } catch {
+    return undefined;
   }
 }

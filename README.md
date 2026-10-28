@@ -1,5 +1,5 @@
 <p align="center">
-  <a href="docs/visual-guidelines.md">
+  <a href="https://variance-authority.dev">
     <img src="assets/brand/variance-authority-logo.svg" alt="Variance Authority logo" width="800">
   </a>
 </p>
@@ -28,8 +28,9 @@ as the investigation grows.
 | What do you need to do? | Start here |
 | --- | --- |
 | Find where to start in an unfamiliar codebase | [Choose an orientation route](docs/orientation.md): exact text, exported names inside one import neighbourhood, or a captured UI subject you can describe. |
+| Use a library the way this project already does | [Ask what the file can import](docs/tech-stack.md): the packages its workspace declares, the installed signature of a name, and the agent skills a package ships, all read from `node_modules`. |
 | Find out why this test is stuck | [Hold a Playwright test at a line you chose](docs/agent-interrogate.md) and inspect the page and announced work while that exact test is still running. |
-| Run the tests this edit needs | [Combine source relationships with recorded execution](docs/selecting.md) to select affected test files, with the reason for each selection. A test with no complete recording always runs. |
+| Run the tests this edit needs | [Set one variable on the Vitest or Jest run you already call](docs/test-an-edit.md) and it leaves out every test file that never executed the code you changed, nearest tests first if you ask. A test with no complete recording always runs. |
 | Make one test smaller | [Find the modules loaded and components rendered that the test never used](docs/distill.md), try one substitution, and confirm it with the same test. |
 | Understand an interface | [Measure grouping, spacing, alignment, emphasis, and repetition](docs/presentation.md) on the live page, make an edit, and measure again. |
 | Explain what changed | [Keep text, accessibility, layout, styles, and pixels separate](docs/explain-variance.md), then trace a changed region to its component and source location. |
@@ -47,6 +48,8 @@ source facts and observations it reads, through the interfaces it already has.
 - [**As guided workflows**](docs/agent-workflows.md) — source discovery, live
   investigation, UI review, test selection, and test reduction, each carried
   through an edit and a check.
+
+Point your coding agent at [`llms.txt`](https://variance-authority.dev/llms.txt).
 
 ## One change, traced end to end
 
@@ -150,15 +153,16 @@ subject ids you meant, then rerun; an unchanged run exits `0`.
 
 ## What else the same evidence answers
 
-Once a run records what it rendered, what it executed, and what the source says,
-the questions below are answerable from the same material. None of them sits
-under another, and none requires the rest; take the one you need.
+Once a run records what it rendered and what it executed, and the source index
+records what the source declares, the questions below are answerable from the
+same material. None of them sits under another, and none requires the rest;
+take the one you need.
 
 | What do you need to know? | Start here |
 | --- | --- |
 | How is information grouped, aligned, repeated, and emphasized in one live interface? | [`@variance-authority/presentation`](packages/presentation) measures the rendered boxes — spacing, alignment, prominence, repetition — and hands back numbers you assert on. It has no baseline and gives no design score. |
 | At which step of a test did two runs stop agreeing? | [`@variance-authority/scenario`](packages/scenario) records the Arrange–Act–Assert steps a run actually took as a state machine, then compares two of them. |
-| Which components and tests could — or did — a source change reach? | [`@variance-authority/sense`](packages/sense) joins what the source says can be reached with what a recorded run actually executed, and selects tests from it. It reads [more than JavaScript](docs/polyglot.md). |
+| Which components and tests could — or did — a source change reach? | [`@variance-authority/sense`](packages/sense) joins what the source imports with what a recorded run actually executed, and selects tests from it. It reads [more than JavaScript](docs/polyglot.md). |
 | What public API does a workspace expose, and who consumes it? | [`@variance-authority/package`](packages/package) reads every entrypoint a manifest opens and what it exports; [`@variance-authority/help`](packages/help) answers questions about those names, their import sites and the module relations around them over MCP. |
 | What did a running system decide, and where did one execution go? | [`@variance-authority/event`](packages/event) lets code announce a decision so a test waits for it instead of guessing; [`@variance-authority/wire`](packages/wire) keeps one execution identity attached across processes; [`@variance-authority/vantage`](packages/vantage) makes a suite in flight something you can query rather than wait for. |
 | How often has a cause recurred, drifted, or proved unstable? | [`@variance-authority/history`](packages/history) defines those answers over retained observations; [`@variance-authority/server`](packages/server) is the self-hosted HTTP service that retains them. |
@@ -188,9 +192,9 @@ npx variance reach --since origin/main | grep '_test\.py$' | xargs pytest
 There is no framework integration behind this and none is implied: the answer is
 a list of paths on stdout, and what you do with it is yours. Because a run list
 that comes back empty would look like a green build, `reach` never exits `0` with
-nothing to say — an empty answer is an error, not a pass.
+an empty list — an empty answer is an error, not a pass.
 [How different languages are handled](docs/polyglot.md) states what the graph
-does and does not claim.
+covers and what it leaves out.
 
 ## How the packages are cut
 
@@ -277,10 +281,10 @@ Two questions meet in this repository — *what did this change look like* and
   it from what the edit changed, so an edit to a comment or a type selects
   nothing, and a file that imports only an unchanged export of a changed file is
   left out. Over sixty commits of TanStack Query, that is 441 test files where
-  the file graph selects 1,470; over sixty of Zod, whose tests import it
-  through one namespace, 4,142 where it selects 4,531.
-  [What a record knows that no graph can](docs/selecting.md#what-a-record-knows-that-no-graph-can)
-  is where a record's answer differs from any graph's.
+  the file graph selects 1,470; over sixty of Zod, whose tests import it through
+  one namespace, 4,142 where it selects 4,531. [What a record shows that no
+  graph can](docs/selecting.md#what-a-record-shows-that-no-graph-can) is where a
+  record's answer differs from any graph's.
 - [**Nx affected**](https://nx.dev/), [**Turborepo**](https://turborepo.com/),
   [**Bazel**](https://bazel.build/) — selection at the project or target grain,
   from dependencies you declare rather than executions anyone observed. Coarse,

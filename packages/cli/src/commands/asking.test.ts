@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { HELP_TOOLS, search, symbol } from '@variance-authority/help/tools';
-import { COSTS_TOOLS, TOOLS, VANTAGE_TOOLS, toolByName, vantageToolByName } from '@variance-authority/mcp/tools';
-import { QUESTIONS, argumentsOf, questionFor, questionOf, takes } from './asking.js';
+import { HELP_TOOLS, intersection, search, symbol } from '@variance-authority/help/tools';
+import { COSTS_TOOLS, REVIEW_TOOLS, TOOLS, VANTAGE_TOOLS, toolByName, vantageToolByName, verbOf } from '@variance-authority/mcp/tools';
+import { QUESTIONS, argumentsOf, questionFor, takes } from './asking.js';
 
 /**
  * The catalogue is derived, and this is the claim that it stays derived.
@@ -14,17 +14,17 @@ import { QUESTIONS, argumentsOf, questionFor, questionOf, takes } from './asking
 
 describe('the question a tool answers', () => {
   it('is the tool’s name with the transport taken out of it', () => {
-    expect(questionOf(toolByName('variance_trace_component')!)).toBe('trace-component');
-    expect(questionOf(vantageToolByName('variance_run_signals')!)).toBe('run-signals');
+    expect(verbOf(toolByName('variance_trace_component')!)).toBe('trace-component');
+    expect(verbOf(vantageToolByName('variance_run_signals')!)).toBe('run-signals');
     // The workspace API server has its own namespace on the wire, and the
     // question drops that one too: a reader types `search`, not `docs_search`.
-    expect(questionOf(search)).toBe('search');
+    expect(verbOf(search)).toBe('search');
   });
 
-  it('exists for every tool in all four sets, and for nothing else', () => {
-    const named = new Set([...TOOLS, ...VANTAGE_TOOLS, ...HELP_TOOLS, ...COSTS_TOOLS].map(questionOf));
+  it('exists for every tool in all five sets, and for nothing else', () => {
+    const named = new Set([...TOOLS, ...VANTAGE_TOOLS, ...HELP_TOOLS, ...COSTS_TOOLS, ...REVIEW_TOOLS].map(verbOf));
 
-    expect(new Set(QUESTIONS.map((question) => questionOf(question.tool)))).toEqual(named);
+    expect(new Set(QUESTIONS.map((question) => verbOf(question.tool)))).toEqual(named);
   });
 
   it('carries the tool that answers it, per subject', () => {
@@ -41,6 +41,8 @@ describe('the question a tool answers', () => {
     // Costs are read from the times a run kept, the mainline's by default, and
     // not from the report a reader has open.
     expect(questionFor('costs').costs).toBe(COSTS_TOOLS[0]);
+    expect(questionFor('decisions').review).toBe(REVIEW_TOOLS[0]);
+    expect(questionFor('concerns').review).toBe(REVIEW_TOOLS[1]);
     expect(questionFor('costs').report).toBeUndefined();
     expect(questionFor('search').live).toBeUndefined();
     expect(questionFor('locate').source).toBeUndefined();
@@ -64,6 +66,10 @@ describe('what a question takes', () => {
     expect(takes(symbol)).toBe('  --name <name> [--package <name>] [--from <path>]');
     expect(takes(vantageToolByName('variance_test_signals')!)).toBe('  --test <id>');
     expect(takes(vantageToolByName('variance_run_signals')!)).toContain('[--state <state>]');
+  });
+
+  it('spells whole questions as quoted words, never behind a flag', () => {
+    expect(takes(intersection)).toBe("  '<question>' '<question>'... [--limit <n>]");
   });
 
   it('says nothing after a question that takes nothing', () => {

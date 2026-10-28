@@ -221,23 +221,21 @@ describe('run', () => {
     });
   });
 
-  it('records a collector failure as `failed`, and keeps observing the rest', async () => {
-    // One component that throws must not cost the other 299 their observations,
-    // and must not be silently absent from the report either.
+  // One component that throws must not cost the other 299 their observations,
+  // and must not be silently absent from the report either. A page that marks
+  // itself out of the run is a decision, not a defect, and is named as one.
+  it.each([
+    ['a collector failure as `failed`', { ok: false, because: 'the story never became ready within 15000ms' }, 'failed'],
+    ['a subject the collector excluded as `excluded`', { ok: false, excluded: true, because: 'the page excludes itself' }, 'excluded'],
+  ] as const)('records %s, with its reason, and keeps observing the rest', async (_name, refused, kind) => {
     const collector = collectorOf(plan, (subject): Collected =>
-      subject.subject.id === 'fixture:a'
-        ? { ok: false, because: 'the story never became ready within 15000ms' }
-        : { ok: true, document: documentFor(subject.subject.id) },
+      subject.subject.id === 'fixture:a' ? refused : { ok: true, document: documentFor(subject.subject.id) },
     );
 
     const { report } = await runWith(configOf(), collector, storeAnswering(null));
 
     expect(report.observations.map((entry) => entry.subject)).toEqual(['fixture:b']);
-    expect(report.notObserved).toContainEqual({
-      subject: 'fixture:a',
-      kind: 'failed',
-      because: 'the story never became ready within 15000ms',
-    });
+    expect(report.notObserved).toContainEqual({ subject: 'fixture:a', kind, because: refused.because });
   });
 
   it('reports an ephemeral subject with no previous document as failed, not as passing', async () => {
@@ -477,5 +475,19 @@ describe('storeFor', () => {
     expect(await store.renderCache.get(raster.documentDigest, raster.identity)).not.toBeNull();
     // Only the tracking entry the store writes on the way in.
     expect(await readdir(root)).toEqual(['.gitattributes']);
+  });
+
+  it('keeps it out of a committed baseline directory too, in the cache the integrations share', async () => {
+    const root = await directory('variance-baselines-');
+    const cache = await directory('variance-cache-');
+    vi.stubEnv('VARIANCE_AUTHORITY_CACHE', cache);
+
+    const store = await storeFor(configOf({ baselines: { kind: 'directory', root } }));
+    const raster = rasterFor(documentFor('fixture:a'), IDENTITY);
+    await store.renderCache.put(raster);
+
+    expect(await store.renderCache.get(raster.documentDigest, raster.identity)).not.toBeNull();
+    expect(await readdir(cache)).toEqual(['renders']);
+    expect(await readdir(root)).toEqual([]);
   });
 });

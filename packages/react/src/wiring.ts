@@ -1,5 +1,5 @@
 import type { Wiring } from '@variance-authority/core/format';
-import { FiberTag, findFiber, isOwnerFrame, type ContextDependency, type Fiber } from './fiber.js';
+import { FiberTag, findCommittedFiber, isOwnerFrame, type ContextDependency, type Fiber } from './fiber.js';
 
 /**
  * Reading the framework's own account of a component, as a dimension.
@@ -81,10 +81,14 @@ const MAX_CONTEXTS = 256;
  * band rather than carrying a digest of emptiness — the ADR-0002 distinction
  * between "no wiring" and "no reading", which the band relies on to avoid
  * claiming a plain-DOM page and a React page render alike.
+ *
+ * @see https://variance-authority.dev/docs/framework-reference#wiringof
  */
 export function wiringOf(node: Node): Wiring | undefined {
-  const own = findFiber(node);
-  if (own === null) return undefined;
+  // Committed only: a component read off a render React has not committed is
+  // one nothing on screen came from (see `findCommittedFiber`).
+  const own = findCommittedFiber(node);
+  if (own === null || own === 'uncommitted') return undefined;
 
   const { component, key } = climb(own);
 
@@ -122,8 +126,8 @@ export function wiringOf(node: Node): Wiring | undefined {
  * says has none. One walk, stated once, is what stops that.
  */
 export function componentFiberOf(node: Node): Fiber | null {
-  const own = findFiber(node);
-  return own === null ? null : climb(own).component;
+  const own = findCommittedFiber(node);
+  return own === null || own === 'uncommitted' ? null : climb(own).component;
 }
 
 /**

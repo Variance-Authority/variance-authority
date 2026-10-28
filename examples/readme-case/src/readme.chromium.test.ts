@@ -3,7 +3,7 @@ import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { chromium } from 'playwright';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { diffImage } from '@variance-authority/png';
+import { comparePngs, diffImage } from '@variance-authority/png';
 import { ARTIFACT_ROOT, REPOSITORY_ROOT, runReadmeCase } from '../scripts/run-case.mjs';
 
 const BROWSER_AVAILABLE = (() => {
@@ -16,7 +16,7 @@ const BROWSER_AVAILABLE = (() => {
 
 if (!BROWSER_AVAILABLE) {
   console.warn(
-    '\nexamples/readme-case: skipped.\n  no browser — npx playwright install chromium\n',
+    '\nexamples/readme-case: the cases that paint skipped.\n  no browser — npx playwright install chromium\n',
   );
 }
 
@@ -55,22 +55,8 @@ describe.skipIf(!BROWSER_AVAILABLE)('the root README example', () => {
     expect(readme).toContain(`\`\`\`text\n${result!.report}\n\`\`\``);
   });
 
-  it('displays the generated PNGs and their actual derived diff', async () => {
-    const [before, after, diff, readme] = await Promise.all([
-      readFile(join(ARTIFACT_ROOT, 'before.png')),
-      readFile(join(ARTIFACT_ROOT, 'after.png')),
-      readFile(join(ARTIFACT_ROOT, 'diff.png')),
-      readFile(join(REPOSITORY_ROOT, 'README.md'), 'utf8'),
-    ]);
-
-    expect(diff).toEqual(diffImage(before, after));
-    for (const name of ['before.png', 'after.png', 'diff.png']) {
-      expect(readme).toContain(`examples/readme-case/artifacts/${name}`);
-    }
-  });
-
   it('records which browser and semantic delta produced the artifacts', async () => {
-    const provenance = JSON.parse(
+    const { changedPixels, raster, ...provenance } = JSON.parse(
       await readFile(join(ARTIFACT_ROOT, 'provenance.json'), 'utf8'),
     );
     const delta = result!.semantic.deltas[0]!;
@@ -85,7 +71,37 @@ describe.skipIf(!BROWSER_AVAILABLE)('the root README example', () => {
         to: delta.to,
         impact: delta.impact,
       },
-      changedPixels: result!.comparison.changed.default,
     });
+    expect(['darwin', 'linux', 'win32']).toContain(raster);
+    expect(changedPixels).toBeGreaterThan(0);
+  });
+});
+
+// Reads committed files only, so it runs with or without a browser.
+describe('the root README example\'s committed artifacts', () => {
+  it('displays the generated PNGs and their actual derived diff', async () => {
+    const [before, after, diff, readme] = await Promise.all([
+      readFile(join(ARTIFACT_ROOT, 'before.png')),
+      readFile(join(ARTIFACT_ROOT, 'after.png')),
+      readFile(join(ARTIFACT_ROOT, 'diff.png')),
+      readFile(join(REPOSITORY_ROOT, 'README.md'), 'utf8'),
+    ]);
+
+    expect(diff).toEqual(diffImage(before, after));
+    for (const name of ['before.png', 'after.png', 'diff.png']) {
+      expect(readme).toContain(`examples/readme-case/artifacts/${name}`);
+    }
+  });
+
+  it('records the number of pixels the comparison counts between the committed PNGs', async () => {
+    const [before, after, provenance] = await Promise.all([
+      readFile(join(ARTIFACT_ROOT, 'before.png')),
+      readFile(join(ARTIFACT_ROOT, 'after.png')),
+      readFile(join(ARTIFACT_ROOT, 'provenance.json'), 'utf8'),
+    ]);
+    // The count is a claim about the two committed images, not about this
+    // run's paint: one Chromium build rasterizes text differently on macOS and
+    // Linux, and on two Macs, by a glyph edge the default policy counts.
+    expect(JSON.parse(provenance).changedPixels).toBe(comparePngs(before, after).changed.default);
   });
 });

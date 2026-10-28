@@ -35,7 +35,13 @@ In practice that rules out, inside the rendered output:
 - iteration order over a `Set`, a `Map` built from concurrent writes, or an
   object assembled from parallel promises;
 - a live read — a network call, a database row, a feature flag service;
-- the machine's locale, timezone, or `process.env`, unless you pin them.
+- the machine's locale, timezone, or `process.env`, unless you pin them. The
+  renderer paints in `UTC` and `en-US`, or in the `timezoneId` and `locale` your
+  config declares. Your collector runs inside `variance run`, so a date it
+  formats reads the host's timezone and language unless you pin it to the same
+  pair: start the run as `TZ=UTC npx variance run`, and pass `'en-US'` and
+  `timeZone: 'UTC'` wherever the collector formats, as in
+  `date.toLocaleString('en-US', { timeZone: 'UTC' })`.
 
 Two more requirements come from where the render ends up:
 
@@ -58,10 +64,11 @@ rules that actually apply to it, the inherited values in force at its root, and
 the viewport those were resolved against. That bundle is a **render document**,
 and it is data — JSON, no live page, no handle to anything.
 
-`variance run` opens Chromium once and paints every document the collector
-returned. Splitting it this way is what makes the comparison meaningful: two
-screenshots are only comparable when the same engine on the same platform at the
-same pixel density produced them, so every image in the project is painted in
+`variance run` opens the configured engine, Chromium unless `browser` says
+otherwise, once and paints every document the collector returned. Splitting it
+this way is what makes the comparison meaningful: a difference between two
+screenshots can be attributed to the code only when the same engine on
+the same platform at the same pixel density produced them, so every image in the project is painted in
 one place, no matter which of the seven integrations acquired it. Your harness
 can be jsdom, a string template, or anything that produces markup, and it never
 needs a browser of its own.
@@ -81,7 +88,7 @@ drop `jsdom`.
 ## The harness
 
 This stands in for whatever you already have. It renders receipt templates to
-HTML strings and knows nothing about visual review:
+HTML strings and has no visual-review code:
 
 ```js
 // src/receipt.mjs
@@ -184,16 +191,17 @@ font identities, which the config section below explains.
 ### The argument
 
 `collect` is handed a **planned subject** — the state to render, plus what the
-run knows about it:
+plan declares about it:
 
 | field | type | required | what it is |
 | --- | --- | --- | --- |
-| `subject.id` | `string` | yes | The id this state is stored, compared and accepted under. Any string. `receipt/empty` is one id, not a path — the slash means nothing to the tool. |
+| `subject.id` | `string` | yes | The id this state is stored, compared and accepted under. Any string. `receipt/empty` is one id; its slash is a directory in the baseline's file name and means nothing else. |
 | `subject.kind` | `'story' \| 'route' \| 'fixture' \| 'value'` | yes | What sort of thing it is. Subjects planned from a config `ids` list are `fixture`. |
 | `subject.title` | `string` | no | A human label for the report. |
 | `viewport` | `Viewport` | no | Present when the subject declares its own; it overrides the run's. Absent means use the run's. |
 | `tags` | `readonly string[]` | no | What the subject declares itself to be, when the artifact that planned it declared tags. Absent for a `list` plan. |
-| `path` | `string` | no | The directory that declares this subject, relative to the repository root, when a plan can supply one. It decides where a `beside` baseline layout files the image. |
+| `declaredIn` | `string` | no | The file that declares this subject, relative to the repository root, when a plan can supply one. A `baselines.path` with `{dir}` or `{file}` files the image beside it. |
+| `title`, `name` | `string` | no | Where the subject sits in its file's own hierarchy and its name there — a story's title and name. `baselines.path` writes them as `{title}` and `{name}`; absent, both are read from the id. |
 
 One subject id is one image. To observe the same state at two viewports or in
 dark mode, give it two ids.
@@ -220,9 +228,9 @@ with a refused subject exits `1` — an absent observation is not an unchanged o
 | --- | --- | --- | --- |
 | `ok` | `true` | yes | |
 | `document` | `RenderDocument` | yes | The serialized render. Build it with `acquireDocument`. |
-| `snapshot` | `SemanticSnapshot` | no | The normalized structure and style of the same render. Without it a changed region has coordinates and no name: the report can show you the pixels but cannot say which element they are. |
+| `snapshot` | `SemanticSnapshot` | no | The normalized structure and style of the same render. Without it a changed region has coordinates and no name: the report can show you the pixels but cannot name the element they belong to. |
 | `source` | `SourceIndex` | no | Component name → `file:line`, as `Readonly<Record<string, {file, line, via}[]>>`. What turns a named region into somewhere to open in an editor. |
-| `stabilization` | `readonly string[]` | no | Names of tricks you applied to the page before reading it — pinned animations, hidden carets. Reported so a run can state what it did to your application. An empty list and an absent one both say you stabilized nothing. |
+| `stabilization` | `readonly string[]` | no | Names of tricks you applied to the page before reading it — pinned animations, hidden carets. Reported so a run can state what it did to your application. An empty list and an absent one both mean you stabilized nothing. |
 | `diagnostics` | `readonly Diagnostic[]` | no | `{ severity: 'warn' \| 'error', code, message, nodePath? }`. What you noticed about the *reading* rather than the picture: a template that logged an error and rendered anyway, a fixture that had to be retried. An `error` here fails the run. |
 | `causes` | `readonly string[]` | no | Components your own comparison already identified as the roots of the change. Used to order the report by the edit rather than by area. |
 | `before` | `RenderDocument` | no | The previous revision's document, for `retention: "ephemeral"`, where both sides are rendered inside one run and neither is stored. |
@@ -250,7 +258,7 @@ A full success object from the example above, abbreviated:
 
 `acquireDocument` fills every one of those document fields for you, so you do not
 assemble it by hand. Two are worth knowing about anyway. `css` lists only the
-rules that actually match the subtree — the `.unused` rule in the harness's
+rules that actually match the subtree, plus the `@font-face` of each face it is set in — the `.unused` rule in the harness's
 stylesheet is not in the list above, and on a real design system this is the
 difference between shipping one rule and shipping a thousand. And `frame`
 reproduces the ancestors the subject rendered inside as empty tags, so a rule
@@ -319,14 +327,15 @@ against this file's directory rather than the working directory.
 | `project` | The label this project's rows are filed under in a shared history store. Required even with no history configured. |
 | `profile` | What the run is *capable* of observing — `jsdom` or `chromium`. `jsdom` means structure, ARIA and declared style; `chromium` adds computed style, layout and geometry, and is only honest if your collector read inside a real browser. It does not decide what paints. Set it to match where you acquired. |
 | `viewport` | `width` and `height` in CSS pixels, plus optional `deviceScaleFactor` (default `1`) and `colorScheme`, `light` or `dark` (default `light`). The fallback for a subject whose planned entry sets no viewport of its own. Keep it equal to the viewport your collector acquires at, since that is what media queries were resolved against. |
+| `timezoneId`, `locale` | The timezone and language the renderer paints in, `UTC` and `en-US` when unset. Your collector's own process keeps the host's unless you pin it to the same pair, as the list above says. Both are part of the render identity, so changing one names the moved pair as the cause of every change against a baseline painted under the other. Review the changes and adopt them with `accept --all` ([the first loop](#run-the-first-loop)). |
 | `retention` | `durable` compares against an image a previous run stored, and requires `baselines`. `ephemeral` renders both sides inside one run and keeps neither, and then `baselines` must be absent and your `collect` must return `before`. Setting both is refused. |
 | `subjects.kind` | `list` — the ids are in this file. `storybook` — read them from a built story index. `collector` — your `plan()` discovers them, and the config stops being the statement of what is watched. |
 | `baselines.kind` | `directory` — files you commit. `lfs` — the same files through the Git LFS filter. `remote` — an endpoint and a token, with nothing in the repository. No default; see [baseline placement](placement.md). |
-| `fonts` | Fonts this machine is asserted to have, each as `family/weight/style/hash` — a bare family name is refused. The hash is of the font bytes and is yours to supply, because a page can ask whether a family resolves and can never read the file behind it. `[]` asserts nothing, which is correct for the example (it declares `system-ui` and no web fonts) and wrong for a subject with a web font: two machines with different cuts of Inter would then produce the same identity, compare, and report the difference as a regression. |
+| `fonts` | Fonts installed on this machine that a subject is set in, each as `family/weight/style/hash` — a bare family name is refused. The hash is of the font bytes and is yours to supply, because a page can ask whether a family resolves and can never read the file behind it. A face the page serves itself does not go here: `acquireDocument` carries its `@font-face` and keys the subject on its file's bytes. `[]` asserts nothing, which is correct for the example (it declares `system-ui`) and for a page that serves every face it is set in. It is wrong for a subject set in an installed font: two machines with different cuts of Inter would then produce the same identity, compare, and report the difference as a regression. |
 | `report` | Where `run` writes and where `report` and `accept` read. Defaults to `.variance/report.json`. Candidate images land beside it. |
-| `browser` | Which engine paints: `chromium` (default), `firefox`, or `webkit`. It is part of the key baselines are stored under, so switching it moves every subject into a partition where nothing is approved yet. |
+| `browser` | Which engine paints: `chromium` (default), `firefox`, or `webkit`. It is part of the identity baselines are stored under, so switching it compares every subject against the other engine's image, with the engine named as the cause, until you accept. |
 
-`profile: "jsdom"` costs you one thing, and the run says so on every line of
+`profile: "jsdom"` costs you one thing, and the run prints that on every line of
 output: jsdom has no layout engine, so a changed region can be located in the
 image but not joined to the element that occupies it. If attribution matters
 more than the simplicity of this page, acquire inside a browser — the
@@ -349,13 +358,14 @@ rather than the directory, and git still descends:
 !.variance/baselines/
 ```
 
-Inside that root, images are filed under the identity of the machine that
-painted them — `v1-297753c4…/receipt%2Fempty.png` — and a run only compares
-against its own partition. So baselines approved on your laptop are not the ones
-CI compares against: a Linux runner finds none under its identity and reports
-every subject `new`. Paint in one place that both use, which in practice means
+Inside that root, images are filed by subject and engine —
+`receipt/empty-chromium.png` — and the `.json` beside each records the machine
+that painted it. A run compares against that image whichever machine painted
+it, and names the machine as the cause when it is not this one. So baselines approved on your laptop are
+compared with a Linux runner's pixels, and the platform's font and antialiasing
+differences come back as changes. Paint in one place that both use, which in practice means
 running `variance run` inside the same container image locally and in CI.
-`variance doctor` is the readback: it lists each identity in the root and says
+`variance doctor` is the readback: it lists each identity in the root and prints
 whether this machine's is one of them.
 
 ## Run the first loop
@@ -380,9 +390,9 @@ because the image links inside it are relative to the report:
 npx variance report --config variance.config.json --format html > .variance/report.html
 ```
 
-Open it in a browser. Each subject is a picture you can work: the approved
-image, the difference, and the candidate, with a wipe, a blend and a blink
-between them. A `new` subject has no approved image, so what you are looking at
+Open it in a browser. Each subject opens on what changed at its own size, and
+is a picture you can work: the approved image, the difference, and the
+candidate, with a wipe, a blend and a blink between them. A `new` subject has no approved image, so what you are looking at
 is the candidate alone, and the question is only whether that is what the
 template is supposed to look like.
 
@@ -416,8 +426,8 @@ has no way to take an image you already made.
 
 `@variance-authority/observe` is the comparison on its own. Hand it two images,
 or one image and a baseline you looked up yourself, and it answers `new`,
-`changed`, `unchanged`, `ignored`, or `incomparable` with the differing regions
-and a sentence saying why. What you keep is everything around it: storing
+`changed`, `unchanged` or `ignored` with the differing regions and a sentence
+saying why, opening with the painter when the two were painted by different ones. What you keep is everything around it: storing
 baselines, deciding what approval means, writing the report, and choosing the
 process exit code. There is no `accept` command on this path, because that
 belongs to the CLI you are not using.

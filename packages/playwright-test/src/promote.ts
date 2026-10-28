@@ -11,6 +11,7 @@ import type { Page } from '@playwright/test';
 import { hashComponents } from '@variance-authority/core/attribute';
 import { documentDigest } from '@variance-authority/core/format';
 import type { AccessibilitySnapshot, SemanticSnapshot } from '@variance-authority/core/format';
+import { packSnapshot } from '@variance-authority/observe';
 import type { BaselineKey, RasterStore, Renderer } from '@variance-authority/raster';
 
 
@@ -59,6 +60,7 @@ export async function promote(
   await store.put(key, {
     ...candidate,
     components: hashComponents(snapshot),
+    snapshot: packSnapshot(snapshot),
     accessibility,
   });
 }

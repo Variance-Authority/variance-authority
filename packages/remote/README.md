@@ -5,6 +5,7 @@
 > Run a Variance Authority renderer or baseline store on the other side of an HTTP hop.
 
 Part of [Variance Authority](https://variance-authority.dev).
+Point your coding agent at [`llms.txt`](https://variance-authority.dev/llms.txt).
 
 ## What this is for
 
@@ -95,7 +96,8 @@ refused, rather than one of the two being quietly ignored.
 
 A liveness check, and the fingerprint the run will compare against — `identity`
 is the machine-and-software description of whatever painted an image, and two
-images stored under different identities are never diffed against each other:
+images stored under different identities are compared with the moved fields
+named as the cause:
 
 ```bash
 curl http://renderer.internal:7777/identity
@@ -203,9 +205,9 @@ const store = createRemoteStore({
 const found = await store.find({ subject: 'Button/primary' }, renderer.identity);
 ```
 
-`find` answers `null` only when the server positively said there is no baseline
-for that key. Every other outcome throws — see
-[Failure behavior](#failure-behavior).
+`find` answers `null` only when the server positively responded that there is no
+baseline for that key. Every other outcome throws — see [Failure
+behavior](#failure-behavior).
 
 ## The wire
 
@@ -269,7 +271,7 @@ become a wrong verdict. The renderer client refuses any raster whose identity is
 not the one it predicted for that document. The store client rebuilds every
 response field by field and throws on anything it cannot read — including a
 `comparable` or a `missingFonts` that is absent, which it will not default,
-because a default there is a claim about a machine it never heard from.
+because a default there would stand in for a value the machine never sent.
 
 ## Batching
 
@@ -310,8 +312,8 @@ a baseline image, recording its document digest, its identity and its missing
 fonts. Reading one is 32 hex characters and no image fetched. Over a socket that
 saving is spent again as one request per subject.
 
-`expect(keys)` is where a caller says which subjects this run is going to ask
-about. The client then fetches all of their descriptions for one identity from
+`expect(keys)` is where a caller names the subjects this run is going to look
+up. The client then fetches all of their descriptions for one identity from
 `/baseline/working-set` in a single request and answers `describe` out of it.
 
 `npx variance run` calls it for you, after it has narrowed the run, so a run
@@ -340,7 +342,7 @@ Every failure mode **throws**; none is translated into a missing baseline:
 | a lookup that hangs | a stalled run |
 | a 200 whose body is not an answer | an answer |
 | a bare `null` body | a miss |
-| a baseline that does not say whether it is comparable | a comparable baseline |
+| a baseline with no `comparable` field | a comparable baseline |
 
 They share one safety boundary. A subject with no baseline gets the verdict
 `new`, and `new` records what is on screen as the baseline. So a network blip
@@ -367,4 +369,4 @@ disk passes, from `@variance-authority/raster`.
 
 ---
 
-**[@variance-authority/remote](https://variance-authority.dev/reference/packages/remote)** is part of [Variance Authority](https://variance-authority.dev) — [documentation](https://variance-authority.dev/docs) · MIT
+**[@variance-authority/remote](https://variance-authority.dev/reference/packages/remote)** is part of [Variance Authority](https://variance-authority.dev) — [documentation](https://variance-authority.dev/docs) · [GitHub](https://github.com/Variance-Authority/variance-authority/tree/main/packages/remote) · MIT

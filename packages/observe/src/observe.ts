@@ -5,22 +5,25 @@ import type {
   SourceIndex,
 } from '@variance-authority/core/attribute';
 import type { Band } from '@variance-authority/core/compare';
-import type {
-  AccessibilitySnapshot,
-  Diagnostic,
-  Raster,
-  RenderDocument,
-  SemanticSnapshot,
+import {
+  timeOn,
+  type AccessibilitySnapshot,
+  type Diagnostic,
+  type Raster,
+  type RenderDocument,
+  type SemanticSnapshot,
+  type StepClock,
 } from '@variance-authority/core/format';
 import type { Level } from '@variance-authority/core/judge';
-import { identityDigest } from '@variance-authority/core/format';
 import type { PngDecoder } from '@variance-authority/png';
 import {
-  describeIdentity,
+  identityCause,
   type BaselineKey,
   type CompareOptions,
+  type IdentityCause,
   type RasterComparison,
   type RasterStore,
+  type Relocated,
   type Renderer,
 } from '@variance-authority/raster';
 import { declaredIgnores } from './decide.js';
@@ -46,17 +49,6 @@ export type RasterVerdict =
   | 'changed'
   /** No baseline for this subject. Not a pass, and not a failure. */
   | 'new'
-  /**
-   * A baseline exists, produced by a different machine.
-   *
-   * The verdict that keeps the durable mode honest. Comparing across identities
-   * yields a large, confident diff caused by a font stack or a driver, which the
-   * report would then attribute to whichever component happens to sit under the
-   * pixels — so the comparison is refused instead. `unchanged` is never available
-   * here: an unobservable difference must never be reported as no difference
-   * (ADR-0002, ADR-0008).
-   */
-  | 'incomparable'
   /**
    * Pixels differed, and every one of them fell inside something the operator
    * excluded (spec 0024).
@@ -85,9 +77,23 @@ export interface Observation {
   /** Fonts the document declared and the renderer did not have. */
   readonly missingFonts: readonly string[];
 
-  /** The three independently observed boundaries and the retained ARIA diff. */
+  /**
+   * The three independently observed boundaries and the retained ARIA diff.
+   *
+   * A missing member was not measured. A subject compared across two render
+   * identities carries `identity` and `moved`: the cause of whatever the
+   * comparison found (ADR-0090).
+   */
   readonly signals?: {
     readonly document: 'unchanged' | 'changed';
+    /**
+     * Set when the two images were painted under different identities: `recipe`
+     * when they differ in the recipe digests alone (`recipeOnly`), `machine` for
+     * any other difference, including one nobody recorded.
+     */
+    readonly identity?: 'recipe' | 'machine';
+    /** The identity fields that moved, as `field a → b`, stored side first. */
+    readonly moved?: readonly string[];
     /**
      * `unobservable` when the subject occupies no pixels — a wrapper whose only
      * child went to a portal, a mount with no children. Distinct from
@@ -95,12 +101,30 @@ export interface Observation {
      * was nothing to measure, and a reader that saw `unchanged` would take the
      * image as evidence it never was.
      */
-    readonly pixels: 'unchanged' | 'changed' | 'unobservable';
+    readonly pixels?: 'unchanged' | 'changed' | 'unobservable';
     readonly accessibility?: {
-      readonly verdict: 'unchanged' | 'changed' | 'incomparable';
+      readonly verdict: 'unchanged' | 'changed';
       readonly before?: AccessibilitySnapshot;
       readonly after?: AccessibilitySnapshot;
     };
+    /**
+     * `unrecorded` when this run collected a snapshot and the stored baseline
+     * it was compared against kept none that unpacks, whatever the verdict.
+     * Never set against an image the caller handed in, which nothing stores. A changed
+     * region is joined against that side's nodes, so an accepting run re-stamps
+     * an unchanged baseline that carries this, as it re-stamps one painted under
+     * another identity: left alone, the first change after it is joined against
+     * one render.
+     */
+    readonly snapshot?: 'unrecorded';
+    /**
+     * Set when the baseline was read from where the layout before
+     * `baselines.path` kept it, root-relative and without an extension: `from`
+     * the old place, `to` the path the configured template renders. A cause,
+     * never a reason to call the subject `new`, and an accepting run re-stamps
+     * an unchanged baseline that carries it, which is the move.
+     */
+    readonly relocated?: { readonly from: string; readonly to: string };
   };
 
   /**
@@ -270,6 +294,13 @@ export interface CompareInputs {
    * isolation actually returned, and a truncated tail is never silently absorbed.
    */
   readonly ignoreShapes?: Readonly<Record<string, string>>;
+
+  /**
+   * Where this observation's steps are taken: `baseline` (the store lookup),
+   * `cache.get` and `cache.put` (the render cache), the renderer's own steps
+   * under `render.`, then `decode` and `compare`. Absent, nothing is timed.
+   */
+  readonly steps?: StepClock;
 }
 
 /** {@link CompareInputs}, plus the two things a render needs. */
@@ -295,14 +326,12 @@ export interface ObserveOptions extends CompareInputs {
  * already an `undefined` that `decide` handles by saying less, so the reduction
  * arrives as absent fields in the observation rather than as a second code path.
  *
- * **The identities are checked here, and nowhere else could do it.** The two
- * other paths get comparability for free — `observePair` renders both sides with
- * one renderer in one run, and `observeAgainstBaseline` gets it from the store
- * lookup, which knows what a baseline was written under. This one is handed two
- * rasters from anywhere, so it is the only entry point where a caller can
- * compare a WebKit baseline against a Chromium run, or an iOS simulator capture
- * against a Figma export. Pixels are machine-bound; two identities is one word,
- * and the alternative is a wall of red with no cause attached to it.
+ * **Two identities are a cause, never a refusal.** This entry point is handed
+ * two rasters from anywhere, so a caller can compare a WebKit baseline against
+ * a Chromium run, or an iOS simulator capture against a Figma export. The
+ * pixels are compared all the same, and the identity that moved is named as
+ * the cause of whatever they show (ADR-0090): a wall of red with its cause
+ * attached is reviewable, and silence is not.
  */
 export async function observeRasters(
   subject: string,
@@ -310,21 +339,14 @@ export async function observeRasters(
   after: Raster,
   options: CompareInputs = {},
 ): Promise<Observation> {
-  if (identityDigest(before.identity) !== identityDigest(after.identity)) {
-    return {
-      subject,
-      verdict: 'incomparable',
-      because:
-        `\`${subject}\` was given two images from different painters: ` +
-        `${describeIdentity(before.identity)} and ${describeIdentity(after.identity)}; ` +
-        'pixels are machine-bound, so the two are not comparable',
-      regions: [],
-      rendered: false,
-      missingFonts: [],
-    };
-  }
-
-  return await decideRasters(subject, before, after, false, options);
+  return withCause(
+    await decideRasters(subject, before, after, false, options, 'image'),
+    identityCause(before.identity, after.identity, {
+      stored: 'the before image',
+      current: 'the after image',
+    }),
+    documentMoved(before, after),
+  );
 }
 
 /**
@@ -340,9 +362,9 @@ export async function observePair(
   after: RenderDocument,
   options: ObserveOptions,
 ): Promise<Observation> {
-  const left = await renderOnce(options.renderer, options.store, before);
+  const left = await renderOnce(options.renderer, options.store, before, undefined, undefined, options.steps);
   const components = componentsOf(options.snapshot);
-  const right = await renderOnce(options.renderer, options.store, after, components);
+  const right = await renderOnce(options.renderer, options.store, after, components, undefined, options.steps);
 
   return await decideRasters(
     after.subject.id,
@@ -350,15 +372,17 @@ export async function observePair(
     right.raster,
     left.rendered || right.rendered,
     options,
+    'image',
   );
 }
 
 /**
  * **Durable**: render this side, compare against a stored baseline.
  *
- * The baseline is looked up under *any* identity and the comparability check is
- * explicit, so a run on the wrong machine says so in one sentence instead of
- * failing every subject for reasons nobody can attribute.
+ * The baseline is looked up under *any* identity, its own first. One found
+ * under another identity is compared all the same, and the identity that moved
+ * is the cause the observation carries, so a run on another machine or after
+ * an upgrade shows every diff with the reason beside it.
  *
  * The key is `identityFor(document)`, never `renderer.identity`: the raster this
  * run is about to produce will be *written* under the former, and a lookup that
@@ -373,13 +397,14 @@ export async function observeAgainstBaseline(
   const identity = options.renderer.identityFor(document);
 
   const components = componentsOf(options.snapshot);
-  const found = await options.store.find(key, identity);
+  const found = await timeOn(options.steps, 'baseline', async () => options.store.find(key, identity));
   const fresh = await renderOnce(
     options.renderer,
     options.store,
     document,
     components,
     options.accessibility,
+    options.steps,
   );
 
   // Carried on the paths that never reach a comparison. What the operator
@@ -400,20 +425,74 @@ export async function observeAgainstBaseline(
     };
   }
 
-  if (!found.comparable) {
-    return {
-      subject: document.subject.id,
-      verdict: 'incomparable',
-      because:
-        'a baseline exists but was rendered by ' +
-        `${describeIdentity(found.storedUnder)}, and this run is ${describeIdentity(identity)}; ` +
-        'pixels are machine-bound, so the two are not comparable',
-      regions: [],
-      rendered: fresh.rendered,
-      missingFonts: fresh.raster.missingFonts,
-      ...declaredField,
-    };
-  }
+  return withRelocation(
+    withCause(
+      await decideRasters(
+        document.subject.id,
+        found.raster,
+        fresh.raster,
+        fresh.rendered,
+        options,
+        'baseline',
+      ),
+      identityCause(found.storedUnder, identity),
+      documentMoved(found.raster, fresh.raster),
+    ),
+    found.relocated,
+    documentMoved(found.raster, fresh.raster),
+  );
+}
 
-  return await decideRasters(document.subject.id, found.raster, fresh.raster, fresh.rendered, options);
+/**
+ * An observation with the identity that moved between its two images as its
+ * cause: named first in the sentence, and typed in `signals` for a report to
+ * group an avalanche by. Unchanged when nothing moved.
+ */
+export function withCause(
+  observation: Observation,
+  cause: IdentityCause | undefined,
+  document: 'unchanged' | 'changed',
+): Observation {
+  if (cause === undefined) return observation;
+  return {
+    ...observation,
+    because: `${cause.because}; ${observation.because}`,
+    signals: {
+      document,
+      ...observation.signals,
+      identity: cause.identity,
+      moved: cause.moved,
+    },
+  };
+}
+
+/**
+ * An observation with the place its baseline was read from as a cause: a
+ * baseline the layout before `baselines.path` kept is compared all the same,
+ * and the move is named first, so an upgrade that renames every baseline
+ * reads as one move and never as a suite of `new` subjects. Unchanged when the
+ * baseline was where the template puts it.
+ */
+export function withRelocation(
+  observation: Observation,
+  relocated: Relocated | undefined,
+  document: 'unchanged' | 'changed',
+): Observation {
+  if (relocated === undefined) return observation;
+  return {
+    ...observation,
+    because:
+      `the baseline was read from ${relocated.from}, a directory named for its renderer ` +
+      `identity, and accepting moves it to ${relocated.to}, the path \`baselines.path\` names; ` +
+      observation.because,
+    signals: { document, ...observation.signals, relocated },
+  };
+}
+
+/** Whether two rasters were painted from different documents. */
+export function documentMoved(
+  before: Pick<Raster, 'documentDigest'>,
+  after: Pick<Raster, 'documentDigest'>,
+): 'unchanged' | 'changed' {
+  return before.documentDigest === after.documentDigest ? 'unchanged' : 'changed';
 }

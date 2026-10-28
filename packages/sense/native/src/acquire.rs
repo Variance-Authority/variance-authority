@@ -1,7 +1,7 @@
 //! Bounded acquisition of worktree files and committed Git blobs.
 
 use std::fs;
-use std::io::{BufRead, BufReader, Read as _, Write as _};
+use std::io::{BufRead, BufReader, ErrorKind, Read as _, Write as _};
 use std::path::Path;
 use std::process::{Command, Stdio};
 use std::sync::mpsc;
@@ -14,7 +14,25 @@ use crate::digest;
 use crate::git::{self, Oid};
 use crate::read::{read_module, Read};
 
-pub(crate) type Answer = (Read, String, bool);
+/// What became of a file's bytes. `Declined` is a refusal the bytes decide —
+/// over the size this scan opens, or not UTF-8 — so the record may name them
+/// and is kept until they change. `Failed` is one they do not decide, and the
+/// file is tried again; so is a refusal reached through a symbolic link, whose
+/// object names the path the link holds and not the bytes behind it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Outcome {
+    Parsed,
+    Declined,
+    Failed,
+}
+
+impl Outcome {
+    pub(crate) fn parsed(self) -> bool {
+        self == Outcome::Parsed
+    }
+}
+
+pub(crate) type Answer = (Read, String, Outcome);
 type Numbered = (usize, Answer);
 type Requested = (usize, String, Option<Oid>);
 
@@ -31,6 +49,11 @@ const CHUNK: usize = 2048;
 /// bucket that only just clears the line saves nothing worth a process, while
 /// one that misses it pays 7 ms for a wave a disk read would have finished.
 const FILES_PER_PROCESS: usize = 160;
+/// The largest file a read opens when its caller names no limit.
+// FIXME: `LARGEST_FILE` in `scan.ts` is the same number, and a change to it
+// bumps `VERSION` in `reuse.ts` so that no index keeps what the old limit
+// declined. A change made only here moves the limit without that bump.
+pub(crate) const LARGEST_FILE: u32 = 1024 * 1024;
 
 pub(crate) fn read_git(
     root: String,
@@ -41,7 +64,7 @@ pub(crate) fn read_git(
     readers: Option<u32>,
     symbols: bool,
 ) -> Vec<Answer> {
-    let largest = u64::from(largest_file.unwrap_or(1024 * 1024));
+    let largest = u64::from(largest_file.unwrap_or(LARGEST_FILE));
     let wanted = digests.unwrap_or(false);
     let count = files.len();
     // A wave too small to pay for one process reads from disk, where the chunked
@@ -168,7 +191,7 @@ fn read_blob<R: BufRead>(
                 ..Read::default()
             },
             String::new(),
-            false,
+            Outcome::Declined,
         );
     }
     let mut bytes = vec![0; size as usize];
@@ -193,7 +216,7 @@ fn open_and_parse(
 ) -> Answer {
     let (_, opened, digest) = open(root, file, largest, digests);
     match opened {
-        Opened::Settled(read) => (read, digest, false),
+        Opened::Settled(read, outcome) => (read, digest, outcome),
         Opened::Source(source) => parsed(file, source, digests, arenas, symbols),
     }
 }
@@ -213,7 +236,7 @@ fn parsed(
     (
         read_module(file, &source, &arenas.get(), symbols),
         digest,
-        true,
+        Outcome::Parsed,
     )
 }
 
@@ -225,7 +248,7 @@ pub(crate) fn read_all(
     readers: Option<u32>,
     symbols: bool,
 ) -> Vec<Answer> {
-    let largest = u64::from(largest_file.unwrap_or(1024 * 1024));
+    let largest = u64::from(largest_file.unwrap_or(LARGEST_FILE));
     let wanted = digests.unwrap_or(false);
     let at = Path::new(&root);
     let arenas = AllocatorPool::new(rayon::current_num_threads());
@@ -257,7 +280,7 @@ pub(crate) fn read_all(
 
 enum Opened {
     Source(String),
-    Settled(Read),
+    Settled(Read, Outcome),
 }
 
 fn open_all<'a>(
@@ -296,41 +319,58 @@ fn parse_all(
     opened
         .into_par_iter()
         .map(|(file, held, digest)| match held {
-            Opened::Settled(read) => (read, digest, false),
+            Opened::Settled(read, outcome) => (read, digest, outcome),
             Opened::Source(source) => (
                 read_module(file, &source, &arenas.get(), symbols),
                 digest,
-                true,
+                Outcome::Parsed,
             ),
         })
         .collect()
 }
 
 fn open<'a>(root: &Path, file: &'a str, largest: u64, digests: bool) -> (&'a str, Opened, String) {
-    let settled = |unknown| {
+    let settled = |unknown, outcome| {
         (
             file,
-            Opened::Settled(Read {
-                unknown: Some(unknown),
-                ..Read::default()
-            }),
+            Opened::Settled(
+                Read {
+                    unknown: Some(unknown),
+                    ..Read::default()
+                },
+                outcome,
+            ),
             String::new(),
         )
     };
+    let failed = |error: std::io::Error| settled(format!("{file} could not be read: {error}"), Outcome::Failed);
     let mut held = match fs::File::open(root.join(file)) {
         Ok(held) => held,
-        Err(error) => return settled(format!("{file} could not be read: {error}")),
+        Err(error) => return failed(error),
     };
     let size = match held.metadata() {
         Ok(held) => held.len(),
-        Err(error) => return settled(format!("{file} could not be read: {error}")),
+        Err(error) => return failed(error),
+    };
+    // Asked only of a refusal, so a file that parses costs no second call: a
+    // link's object is the path it holds, and would keep a refusal of the bytes
+    // behind it after they change.
+    let declined = || match fs::symlink_metadata(root.join(file)) {
+        Ok(entry) if !entry.file_type().is_symlink() => Outcome::Declined,
+        _ => Outcome::Failed,
     };
     if size > largest {
-        return settled(too_large(file, size, largest));
+        return settled(too_large(file, size, largest), declined());
     }
     let mut source = String::with_capacity(size as usize);
     if let Err(error) = held.read_to_string(&mut source) {
-        return settled(format!("{file} could not be read: {error}"));
+        // Bytes that are not UTF-8 are refused by the same bytes every time.
+        return match error.kind() {
+            ErrorKind::InvalidData => {
+                settled(format!("{file} is not UTF-8, so this scan does not parse it: {error}"), declined())
+            }
+            _ => failed(error),
+        };
     }
     let digest = if digests {
         digest::of_string(&source)
@@ -356,40 +396,23 @@ fn too_large(file: &str, size: u64, largest: u64) -> String {
     )
 }
 
-#[cfg(test)]
-mod tests {
-    use std::io::Cursor;
-
-    use oxc_allocator::AllocatorPool;
-
-    use super::read_blob;
-
-    #[test]
-    fn an_oversized_blob_is_drained_without_losing_the_next_answer() {
-        let mut stream = Cursor::new(b"one blob 4\nxxxx\ntwo blob 19\nexport const y = 1\n\n");
-        let arenas = AllocatorPool::new(1);
-
-        let (oversized, _, parsed) = read_blob(
-            std::path::Path::new("."),
-            "large.ts",
-            &mut stream,
-            1,
-            false,
-            &arenas,
-            true,
-        );
-        let (_, _, next_parsed) = read_blob(
-            std::path::Path::new("."),
-            "next.ts",
-            &mut stream,
-            1024,
-            false,
-            &arenas,
-            true,
-        );
-
-        assert!(!parsed);
-        assert!(oversized.unknown.is_some());
-        assert!(next_parsed);
-    }
+/// Whether `unknown` is the reason `too_large` gives `file`. `record.ts` writes
+/// the same words for the files it declines.
+// TODO: a record carries a decline for size only in its reason's words; a field
+// for it would let a keep ask without matching them.
+pub(crate) fn declined_for_size(file: &str, unknown: &str) -> bool {
+    unknown.strip_prefix(file).is_some_and(|rest| rest.starts_with(" is "))
+        && unknown.contains(" this scan opens: parsing it costs about fifty times that in memory")
+        && unknown.ends_with("Raise `largestFile` to read it anyway.")
 }
+
+/// Whether `file` is still over `largest` as it is checked out, through any
+/// link. A decline is decided on these bytes and kept by Git's object name,
+/// which under a clean filter — `core.autocrlf`, LFS — names other bytes.
+pub(crate) fn still_too_large(root: &Path, file: &str, largest: u64) -> bool {
+    fs::metadata(root.join(file)).is_ok_and(|held| held.len() > largest)
+}
+
+#[cfg(test)]
+#[path = "acquire_tests.rs"]
+mod tests;

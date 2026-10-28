@@ -116,14 +116,19 @@ describe('the composite observability surface', () => {
     expect(text).toContain('does not establish that it is safe to mock');
   });
 
-  it('refuses title and file guesses when the exact runtime identity is absent', () => {
+  it('refuses a case the runtime journey does not hold, listing the ids it does', () => {
     const mismatched: ExecutionIndex = {
       ...EXECUTION,
       tests: [{ ...EXECUTION.tests[0]!, id: 'another-id' }],
     };
     const text = distillTool.run({ eyes: EYES, execution: mismatched }, { test: 'redraw-test' });
 
-    expect(text).toContain('contains no test with exact id redraw-test');
-    expect(text).toContain('No title or file join was guessed.');
+    expect(text).toContain('The record holds no case matching `redraw-test`.');
+    expect(text).toContain('  another-id');
+  });
+
+  it('says it needs the runtime journey rather than reading Eyes alone', () => {
+    expect(distillTool.run({ eyes: EYES }, { test: 'redraw-test' }))
+      .toContain('Runtime journey: unavailable.');
   });
 });

@@ -4,6 +4,7 @@ import { encodeTestCoverage } from './format.js';
 import { openTestCoverage } from './format-view.js';
 import type { CoverageBlock, TestCoverage } from './index.js';
 import { selectTestFilesFromView } from './select.js';
+import { disownedIn } from './shadowed.js';
 
 /**
  * `api.ts` imports `http.ts`. `card.test.ts` mocks `api.ts` and reaches `http.ts`
@@ -91,5 +92,57 @@ describe('a module a test mocked', () => {
 
     // `wire.test.ts` loaded `http.ts` by its own import and never called `send`.
     expect(select(coverage, edit('src/http.ts', 4))).toEqual(['test/card.test.ts', 'test/plain.test.ts']);
+  });
+});
+
+describe('whether a mock disowns a crossing', () => {
+  const coverage = record(['test/card.test.ts', 'test/plain.test.ts'], ['test/plain.test.ts']);
+  const files = ['src/api.ts', 'src/http.ts', 'src/card.ts'];
+
+  /** Every answer, file by test row by block, and how many times the loaded set was read for them. */
+  const answers = (): { readonly said: boolean[]; readonly loaded: number } => {
+    const opened = openTestCoverage(encodeTestCoverage(coverage));
+    let loaded = 0;
+    const from = {
+      ...opened,
+      blockLoadedSet: {
+        ...opened.blockLoadedSet,
+        length: opened.blockLoadedSet.length,
+        at: (block: number): number => {
+          loaded += 1;
+          return opened.blockLoadedSet.at(block);
+        },
+      },
+    };
+    const disowned = disownedIn(from, relations)!;
+    const said: boolean[] = [];
+    for (const file of files) {
+      for (let test = 0; test < TESTS.length; test += 1) {
+        said.push(disowned(file, test));
+        for (let block = 0; block < opened.blockSet.length; block += 1) said.push(disowned(file, test, block));
+      }
+    }
+    return { said, loaded };
+  };
+
+  it('disowns a crossing only where the test mocked the file and crossed the block while it evaluated', () => {
+    // Per file: card, plain, wire; each without a block, then blocks 0 to 3 —
+    // api's scope and `get`, http's scope and `send`. Only a scope was crossed
+    // while its module evaluated. `card.test.ts` reaches `http.ts` only through
+    // its mock; `wire.test.ts` imports it itself.
+    const mocked = [true, true, false, true, false];
+    const not = Array<boolean>(5).fill(false);
+    expect(answers().said).toEqual([
+      ...mocked, ...not, ...mocked,
+      ...mocked, ...not, ...not,
+      ...not, ...not, ...not,
+    ]);
+  });
+
+  it('asks which tests loaded a block only of a test that mocked the file', () => {
+    // Nine (file, test) pairs, four blocks each: three pairs are a test that
+    // mocked the file or reaches it only through a mock, so twelve blocks are
+    // asked about, not thirty-six.
+    expect(answers().loaded).toBe(12);
   });
 });

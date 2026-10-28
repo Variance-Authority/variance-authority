@@ -51,10 +51,10 @@ skipped entirely once that pass has found something: there is nothing left for
 it to establish, and a confident sentence about the suite aimed at a bisection
 that will never converge is worse than no sentence.
 
-Anything that is not unchanged leaves the change standing. **Incomparable** and
-new are folded in: neither is evidence that the change was a leak,
-and reporting *does not reproduce* on the strength of a baseline that could not
-be read would clear a real regression.
+Anything that is not unchanged leaves the change standing. New is folded in:
+it is no evidence that the change was a leak, and reporting *does not
+reproduce* on the strength of a baseline that does not exist would clear a real
+regression.
 
 It does not name the subject that poisoned this one. A probe can only see what
 it can read, and the causes that actually bite live in module scope, where a

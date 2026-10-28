@@ -4,12 +4,12 @@ import type { ProfileId } from '@variance-authority/core/format';
 import { OperatorError } from './exit.js';
 import type { ReportFormat } from './commands/report.js';
 import { COMMANDS, DEFAULT_CONFIG, flagsFor, isCommand, synopsisFor } from './usage.js';
-import { didYouMean, nearest } from '@variance-authority/mcp/tools';
+import { didYouMean, nearest } from '@variance-authority/core';
 import { parseCoveringArgs, type ParsedCovering } from './covering-args.js';
 import { parseDistill, type ParsedDistill } from './distill-args.js';
 import { parseStory, type ParsedStory } from './story-args.js';
 import { parseSelectArgs, type ParsedSelect } from './select-args.js';
-import { oneRecord } from './commands/suite-record.js';
+import { parseShardsArgs, type ParsedShards } from './shards-args.js';
 import { parseIndexArgs, type ParsedIndex } from './index-args.js';
 import { parseReachArgs, type ParsedReach } from './reach-args.js';
 import { parseReviewArgs, type ParsedReview } from './review-args.js';
@@ -18,10 +18,12 @@ import { parseLayersArgs, type ParsedLayers } from './layers-args.js';
 import { parseRestrictionsArgs, type ParsedRestrictions } from './restrictions-args.js';
 import { parseShareArgs, type ParsedShare } from './share-args.js';
 import { parseCarryArgs, type ParsedCarry } from './carry-args.js';
+import { parseCollectArgs, type ParsedCollect } from './collect-args.js';
 import { parsePushArgs, type ParsedPush } from './push-args.js';
 import { parseAskArgs, type ParsedAsk } from './ask-args.js';
 import { parseCommentArgs, type ParsedComment } from './comment-args.js';
-import { parseShard, type Shard } from './commands/shard.js';
+import { parseShard, type Shard } from './shard-args.js';
+import { parseJourneysArgs, type ParsedJourneys } from './journeys-args.js';
 
 export { USAGE } from './usage.js';
 /**
@@ -115,7 +117,7 @@ export type Parsed =
       readonly reports: readonly string[];
     }
   | ParsedAsk
-  | ParsedDistill | ParsedStory | ParsedCovering | ParsedCoverage | ParsedLayers | ParsedRestrictions | ParsedReview | ParsedIndex | ParsedSelect | ParsedReach | ParsedShare | ParsedCarry
+  | ParsedDistill | ParsedStory | ParsedCovering | ParsedCoverage | ParsedLayers | ParsedRestrictions | ParsedReview | ParsedIndex | ParsedSelect | ParsedShards | ParsedReach | ParsedShare | ParsedCarry | ParsedCollect
   | {
       readonly command: 'accept';
       readonly config: string;
@@ -142,45 +144,10 @@ export type Parsed =
       /** `--subject <id>`: exact, because a subject id is exact. */
       readonly subject?: string;
       readonly limit?: number;
-      /** `--since <rev>`: read forward from this revision, exclusive. */
+      /** `--since <rev|instant>`: after this revision, or a `remote` store's instant. */
       readonly since?: string;
     }
-  | {
-      readonly command: 'journeys';
-      readonly operation?: undefined;
-      readonly config: string;
-      /**
-       * `--all`: read every whole observation the snapshot holds.
-       *
-       * The default pool is the subjects the configured report names, because
-       * the snapshot accumulates across runs and a subject deleted two commits
-       * ago is still a party to every parting it was recorded in. This asks for
-       * that record on purpose, which is a different question and has to look
-       * like one.
-       */
-      readonly all: boolean;
-      /** `--file <text>`: substring, case-insensitive, over the recorded module path. */
-      readonly file?: string;
-      readonly limit?: number;
-      /** Shard snapshots to fold and land before reading, and `--into <path>`, where they land; this repository's cache otherwise. */
-      readonly shards: readonly string[];
-      readonly into?: string;
-      /** `--suite <name>`: whose record is read, and where shards land; beside `--into`, refused. */
-      readonly suite?: string;
-    }
-  | {
-      readonly command: 'journeys';
-      readonly operation: 'finalize';
-      readonly config: string;
-      readonly journeyFile: string;
-    }
-  | {
-      readonly command: 'journeys';
-      readonly operation: 'stitch';
-      readonly config: string;
-      readonly shards: readonly string[];
-      readonly into: string;
-    }
+  | ParsedJourneys
   | {
       readonly command: 'adjudicate';
       readonly config: string;
@@ -192,8 +159,9 @@ export type Parsed =
     }
   | ParsedPush
   | { readonly command: 'watch' }
+  | { readonly command: 'prune' }
   | { readonly command: 'serve'; readonly config: string; readonly justAnswer?: boolean }
-  | { readonly command: 'doctor'; readonly config: string; readonly prune?: boolean }
+  | { readonly command: 'doctor'; readonly config: string; readonly baselines?: true }
   | ParsedComment
   | {
       readonly command: 'help';
@@ -307,9 +275,7 @@ export function parseArgs(argv: readonly string[]): Parsed {
         reports: flags.positionals.map((path) => resolve(path)),
       };
     }
-
     case 'ask': return parseAskArgs(flags, config);
-
     case 'distill': return parseDistill(flags);
     case 'story': return parseStory(flags);
     case 'review': return parseReviewArgs(flags);
@@ -319,8 +285,10 @@ export function parseArgs(argv: readonly string[]): Parsed {
     case 'restrictions': return parseRestrictionsArgs(flags);
     case 'index': return parseIndexArgs(flags);
     case 'select': return parseSelectArgs(flags);
+    case 'shards': return parseShardsArgs(flags);
     case 'reach': return parseReachArgs(flags);
     case 'share': return parseShareArgs(flags, config);
+    case 'collect': return parseCollectArgs(flags, config);
     case 'carry': return parseCarryArgs(flags);
 
     case 'adjudicate': {
@@ -415,68 +383,18 @@ export function parseArgs(argv: readonly string[]): Parsed {
       };
     }
 
-    case 'journeys': {
-      const file = flags.values.get('--file');
-      const limit = countOf(flags.values.get('--limit'), 'modules to name');
-      const into = flags.values.get('--into');
-      const operation = flags.positionals[0];
+    case 'journeys': return parseJourneysArgs(flags, config);
 
-      if (operation === 'finalize') {
-        if (flags.present.size > 0 || flags.positionals.length !== 2) {
-          throw new OperatorError('`variance journeys finalize` takes one journey file and no flags');
-        }
-        return {
-          command: 'journeys',
-          operation: 'finalize',
-          config,
-          journeyFile: resolve(flags.positionals[1]!),
-        };
-      }
-
-      if (operation === 'stitch') {
-        const otherFlags = [...flags.present].filter((flag) => flag !== '--into');
-        if (otherFlags.length > 0 || into === undefined || flags.positionals.length < 2) {
-          throw new OperatorError(
-            '`variance journeys stitch` takes one or more shard files and `--into <journey-file>`',
-          );
-        }
-        return {
-          command: 'journeys',
-          operation: 'stitch',
-          config,
-          shards: flags.positionals.slice(1).map((path) => resolve(path)),
-          into: resolve(into),
-        };
-      }
-
-      if (into !== undefined && flags.positionals.length === 0) {
-        throw new OperatorError('`--into` says where a fold lands, and nothing was named to fold');
-      }
-      const suite = flags.values.get('--suite');
-      oneRecord(suite, into, '--into');
-
-      return {
-        command: 'journeys',
-        config,
-        all: flags.present.has('--all'),
-        ...(file !== undefined ? { file } : {}),
-        ...(limit !== undefined ? { limit } : {}),
-        shards: flags.positionals.map((path) => resolve(path)),
-        ...(into !== undefined ? { into: resolve(into) } : {}),
-        ...(suite !== undefined ? { suite } : {}),
-      };
-    }
-
-    case 'push':
-      return parsePushArgs(flags, config);
+    case 'push': return parsePushArgs(flags, config);
 
     // No config, because a watcher is not about a project. It listens, holds
     // what a suite says, and answers; none of that reads a subject list, a
     // baseline or a report path, and requiring one would put a watcher out of
     // reach in exactly the directories where somebody most wants to start one.
     case 'watch':
-      noPositionals(flags.positionals, 'watch');
-      return { command: 'watch' };
+    case 'prune':
+      noPositionals(flags.positionals, first);
+      return { command: first };
 
     case 'serve':
       noPositionals(flags.positionals, 'serve');
@@ -488,7 +406,7 @@ export function parseArgs(argv: readonly string[]): Parsed {
 
     case 'doctor':
       noPositionals(flags.positionals, 'doctor');
-      return { command: 'doctor', config, ...(flags.present.has('--prune') ? { prune: true as const } : {}) };
+      return flags.present.has('--baselines') ? { command: 'doctor', config, baselines: true } : { command: 'doctor', config };
 
     case 'comment': return parseCommentArgs(flags, config);
   }

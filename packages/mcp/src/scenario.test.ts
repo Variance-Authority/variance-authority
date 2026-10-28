@@ -105,7 +105,7 @@ describe('a run that could not see 50 of the 300 subjects it planned', () => {
     const text = call(HOLED, 'variance_summary');
 
     expect(text).toContain('not observed: 50 subject(s)');
-    expect(text).toContain('50 the run could not see, 0 excluded by configuration');
+    expect(text).toContain('50 the run could not see, 0 excluded on purpose');
     expect(text).toContain('[failed] story:unseen-0: the collector threw while mounting the story');
   });
 
@@ -143,7 +143,7 @@ describe('a subject that appears only in the coverage list', () => {
   it('separates an exclusion somebody chose from a failure nobody did', () => {
     const text = call(MIXED, 'variance_describe', { subject: 'story:docs' });
 
-    expect(text).toContain('excluded by configuration, not by a failure');
+    expect(text).toContain('excluded on purpose, not by a failure');
     expect(text).not.toContain('It is not a pass.');
   });
 
@@ -223,5 +223,53 @@ describe('reading a coverage list off disk', () => {
     } finally {
       await rm(directory, { recursive: true, force: true });
     }
+  });
+});
+
+describe('explaining a change by what moved between its two images', () => {
+  const changed = (subject: string, signals?: ObservationRecord['signals']): RunReport => ({
+    ...COMPLETE,
+    observations: [
+      { subject, verdict: 'changed', because: '40 pixel(s) differ', changedPixels: 40, regions: [], ...(signals === undefined ? {} : { signals }) },
+    ],
+  });
+
+  it('sends a change painted under one identity straight to its regions', () => {
+    const text = call(changed('story:card'), 'variance_explain_verdict', { subject: 'story:card' });
+
+    expect(text).toBe('story:card was compared and changed. Call variance_describe for the regions.');
+  });
+
+  it("names this tool's recipe, not the machine, when only the recipe moved", () => {
+    const text = call(
+      changed('story:card', { identity: 'recipe', moved: ['stabilization abc → def'] }),
+      'variance_explain_verdict',
+      { subject: 'story:card' },
+    );
+
+    expect(text).toContain("this tool's recipe moved: stabilization abc → def");
+    expect(text).not.toContain('the machine moved');
+  });
+});
+
+describe('previewing an accept by name across an upgrade', () => {
+  it('names the re-stamped subjects in the command, so running it does what the preview said', () => {
+    const signals = { identity: 'machine' as const, moved: ['engine chromium@131.0.0 → chromium@132.0.0'] };
+    const images = { after: 'story/after.png', record: 'story/record.json' };
+    const text = call(
+      {
+        ...COMPLETE,
+        run: { id: '4242', commit: 'abc123' },
+        observations: [
+          { subject: 'story:moved', verdict: 'changed', because: '40 pixel(s) differ', changedPixels: 40, regions: [], signals, images },
+          { subject: 'story:still', verdict: 'unchanged', because: 'no pixels differ', changedPixels: 0, regions: [], signals, images },
+        ],
+      },
+      'variance_changelog',
+      { subjects: ['story:moved', 'story:still'] },
+    );
+
+    expect(text).toContain('1 subject(s) did not change and are re-stamped');
+    expect(text).toContain('variance accept "story:moved" "story:still"');
   });
 });

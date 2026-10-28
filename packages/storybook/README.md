@@ -5,6 +5,7 @@
 > Storybook index parsing, subject planning and a host-neutral preview driver.
 
 Part of [Variance Authority](https://variance-authority.dev).
+Point your coding agent at [`llms.txt`](https://variance-authority.dev/llms.txt).
 
 ## What this is, and whether you want it
 
@@ -78,7 +79,7 @@ every skip:
 ]
 ```
 
-`plan.warnings` lists anything the parser read but wants to flag — an index
+`plan.warnings` lists anything the parser read and flags — an index
 version it was not written against, a file declaring no `v`, a file with
 both `entries` and `stories`.
 
@@ -163,7 +164,7 @@ outcome, not an exception — the remaining stories are still shown:
 ```
 
 `status` is one of `rendered`, `errored`, `missing`, `timeout`, `no-root`,
-`unreachable`. `error.from` says which layer failed: `story` is the preview's
+`unreachable`. `error.from` names which layer failed: `story` is the preview's
 side of the bridge, `page` is the browser refusing to be driven, `observer` is
 your own `observe` callback throwing on a story that rendered fine. `navigated`
 is `true` exactly once in a healthy run; a second `true` means the channel was
@@ -189,8 +190,8 @@ not found and that story cost a reload, which also lands in `warnings`.
 
 Story discovery needs nothing authored: the subject list is the stories you
 already have. The one thing a project may have to add to its own components is a
-readiness marker, and only for stories that keep working after Storybook says
-they rendered — see below.
+readiness marker, and only for stories that keep working after Storybook signals
+that they rendered — see below.
 
 ## `toSubjects(index, options)`
 
@@ -211,25 +212,29 @@ Storybook's own viewport entries are written. Any other unit is refused: `em` an
 | `baseUrl` | required | Storybook's root URL — `http://localhost:6006`, or a `file://` path to a built directory. An absolute URL: `localhost:6006` with no scheme is refused, naming the mistake |
 | `readySelector` | none | CSS selector for a marker the story attaches once it has settled. When set, it is the only signal that can mark a story `rendered` |
 | `timeoutMs` | `15000` | budget for one story to become ready |
-| `pollMs` | `50` | markup sampling interval, on the fallback path only |
+| `pollMs` | `50` | how often the `readySelector` marker is looked for |
 | `events` | `STORYBOOK_EVENTS` | the channel event names this adapter listens for — `{ setCurrentStory, updateGlobals, storyRendered, storyFinished, storyThrewException, storyErrored, storyMissing, playFunctionThrewException }`. Override any of them if a Storybook build renamed one |
 | `globals` | `{ a11y: { manual: true } }` | Storybook globals to set on the preview, once per document, before any story is shown. The default stands `@storybook/addon-a11y`'s automatic scan down for this pass. Pass `{}` to change nothing |
 | `roots` | `#storybook-root`, `#root` | where the story mounts, tried in order |
-| `errorOverlay` | `STORYBOOK_ERROR_OVERLAY` | CSS selectors identifying Storybook's fatal-error overlay — `{ bodyClass: 'sb-show-errordisplay', message: '#error-message', stack: '#error-stack' }`. Only consulted when no channel was found, since there is then no event to name the error |
+| `errorOverlay` | `STORYBOOK_ERROR_OVERLAY` | CSS selectors identifying Storybook's fatal-error overlay — `{ bodyClass: 'sb-show-errordisplay', message: '#error-message', stack: '#error-stack' }`. Consulted when no Storybook event named the error, and on a preview with no channel |
 | `observe` | none | `collectStories` only: called after a story became ready and before the next is shown. This is where a capture goes. Called only for `rendered` stories, and sequentially — one call finishes before the next story is shown |
 
 ## Readiness
 
 Without `readySelector`, a story is ready when Storybook's `storyRendered`
-fires, and failing that when the mounted root's markup is unchanged across two
-samples `pollMs` apart. Which of those decided it is in the outcome's
-`readiness` field, so a report can tell a declared-ready capture from a guessed
-one:
+fires. The story the URL selected may have rendered before anything listened,
+so for it Storybook's `currentRender` says whether that render is over. Markup
+that stopped changing is never taken for ready: it cannot see a story still
+waiting on a fetch, a font or an image. A story Storybook says nothing about
+within `timeoutMs` is a `timeout` naming the missing `storyRendered`, and a
+preview with no Storybook channel needs `readySelector`, since nothing else on
+it can say a story is ready.
+
+Which signal decided it is in the outcome's `readiness` field:
 
 `declared` (your marker appeared) · `storyRendered` (Storybook's signal) ·
-`already-rendered` (the story the URL selected was already on screen) ·
-`markup-quiescent` (the fallback) · `none` (the status says what happened
-instead).
+`already-rendered` (the story the URL selected had finished rendering) ·
+`none` (the status records what happened instead).
 
 Set `readySelector` for any component that fetches, animates, or defers work to
 an effect. Those async gaps are what produce a capture that differs between
@@ -269,20 +274,32 @@ Storybook has emitted `storyFinished` since 8.3. On anything older, the first
 story of a session waits out `timeoutMs` to establish that the event is never
 coming, and the rest of the run pays nothing.
 
+The wait for `storyFinished` is the event itself: the story is handed on when
+Storybook emits it, not at the next tick of a poll. Storybook's own fixed wait
+is gone too. Outside a test runner it opens every render's `completing` phase
+with a 100 ms timer before it looks for running animations; `collectStory` sets
+`__vitest_browser__` on each document it navigates, which is the switch
+Storybook reads to skip that timer. The same switch makes Storybook pause every
+animation at its last keyframe, so the adapter removes that stylesheet as it is
+added, and your page keeps the animation state it set. Like the globals below,
+the switch lives in a document this session opened and dies with it. The first
+story of a document is rendered before the switch
+can be set, and pays Storybook's wait once.
+
 Nor is there a wait for a story the preview is already showing. Storybook
 re-renders only a story it is not already displaying, so asking for the same
 subject twice in one page — which is how an order-dependent reading is told apart
 from a regression — is answered by the render that already finished.
 
-That event also says how the render ended. A story whose `play` threw after
+That event also records how the render ended. A story whose `play` threw after
 the last paint, or whose `afterEach` raised, finishes with status `error`, and
-the outcome includes a warning saying so. The status is not the outcome's status:
-the picture is on screen and a capture of it is a capture of what the component
-did, so the story is still `rendered`. The warning is for the baseline — a
-subject that failed its own checks is not one to record as the way it should
+the outcome includes a warning that names it. The status is not the outcome's
+status: the picture is on screen and a capture of it is a capture of what the
+component did, so the story is still `rendered`. The warning is for the baseline
+— a subject that failed its own checks is not one to record as the way it should
 look.
 
-## What a pass tells the preview
+## What a pass sends the preview
 
 Before the first story is shown, the session emits `updateGlobals` on the
 preview's channel with `{ a11y: { manual: true } }`. That is the addon's own
@@ -303,13 +320,19 @@ such as a theme: it replaces the default rather than merging with it.
 
 ## A pinned clock
 
-A story built from `Date.now()` renders a different picture every run, so
-pinning the clock is an ordinary fix. Which pin this survives, in Playwright's
-vocabulary:
+A story built from `Date.now()` would render a different picture every run, so
+the collector fixes `Date` before the preview loads: every story reads
+`DEFAULT_NOW`, or the instant you pass as `now`. Only `Date` is fixed. Timers,
+animation frames and `performance` keep running, so a story that settles on a
+timer still settles, and one that counts its own timer still counts.
 
-- `page.clock.setFixedTime` and `page.clock.setSystemTime` replace `Date` and
-  leave timers and `performance` running. **Supported.** Nothing here measures
-  anything with `Date`.
+To pin the clock yourself, in Playwright's vocabulary:
+
+- `page.clock.setFixedTime` and `page.clock.setSystemTime` replace `Date`, and
+  install Playwright's own `setTimeout`, `requestAnimationFrame` and
+  `performance` to do it, which keep running. **Supported.** Nothing here
+  measures anything with `Date`. Leave `freeze-clock` out of `stabilize`, so the recipe
+  the reading records does not name a clock you replaced.
 - `page.clock.install` also replaces `setTimeout` and `performance`, and advances
   only when you tick it. **Not supported while it is stopped**: a page whose
   timers never fire cannot render a story, and no deadline the driver sets can
@@ -324,4 +347,4 @@ pruning. There is no separate list of things to exclude to maintain.
 
 ---
 
-**[@variance-authority/storybook](https://variance-authority.dev/reference/packages/storybook)** is part of [Variance Authority](https://variance-authority.dev) — [documentation](https://variance-authority.dev/docs) · MIT
+**[@variance-authority/storybook](https://variance-authority.dev/reference/packages/storybook)** is part of [Variance Authority](https://variance-authority.dev) — [documentation](https://variance-authority.dev/docs) · [GitHub](https://github.com/Variance-Authority/variance-authority/tree/main/packages/storybook) · MIT

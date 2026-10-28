@@ -1,6 +1,5 @@
 import {
-  createHarness,
-  observeNetwork,
+  createObservedHarness,
   type Harness,
   type HarnessOptions,
   type NetworkObservation,
@@ -27,10 +26,10 @@ import {
 
 export interface WorldRecipe {
   /**
-   * Everything `createHarness` needs, except the hook this module owns.
+   * Everything `createHarness` needs, except the hook `createObservedHarness` owns.
    *
    * `prepare` is excluded because the network observation has to be installed
-   * before the first navigation and this is the file that knows it — a caller
+   * before the first navigation and `createObservedHarness` installs it — a caller
    * free to supply its own hook could open the two worlds with two different
    * observers, which is the one difference that would look exactly like
    * pollution.
@@ -44,7 +43,7 @@ export interface WorldRecipe {
    * carry their own content hash — and it has to be a property of the recipe
    * rather than a default here, because a world that watched the wire compared
    * against one that did not would produce two different environment keys and
-   * report `incomparable` where the run asked about order.
+   * blame the wire for every change where the run asked about order.
    */
   readonly network?: NetworkOptions;
 }
@@ -55,42 +54,52 @@ export interface World {
   /** The engine string that goes into every subject's key, from the browser itself. */
   readonly engine: string;
 
+  /** The timezone and locale the page was opened in, as they go into every subject's key. */
+  readonly region: Harness['region'];
+
   /** Absent exactly when {@link WorldRecipe.network} was. */
   readonly network?: NetworkObservation;
+
+  /**
+   * The driver tricks applied before the first navigation, which hold for
+   * every reading after it: nothing but this world moves the pointer.
+   *
+   * The ids go to the page agent, which keeps the driver tricks it was told
+   * about and drops the rest, so a reading's recipe is the one that held.
+   */
+  readonly driven: readonly string[];
 
   close(): Promise<void>;
 }
 
 /**
- * Launch a browser, open a page on the preview, and watch what it is served.
+ * Open a page on the preview, and watch what it is served.
  *
- * The whole world: a fresh browser process, a fresh context and a fresh page.
- * Not a fresh *context* on the running browser, which would be cheaper and would
- * be answering a smaller question — a leak through a shared browser process is
- * rarer than a leak through a shared document and it is the harder one to find
- * by hand, so the reading that costs a launch is the one worth having.
+ * A run's worlds are pages in one browser and one context: the browser is
+ * leased, and the context is shared because it holds the HTTP cache, so a
+ * worker's preview boots from what the first world already fetched. A recipe
+ * whose harness asks for `isolated` gets the whole world instead — a fresh
+ * browser process, a fresh context and a fresh page. Not a fresh *context* on
+ * the running browser, which would be cheaper and would be answering a smaller
+ * question — a leak through a shared browser process is rarer than a leak
+ * through a shared document and it is the harder one to find by hand, so the
+ * reading that costs a launch is the one worth having.
  */
 export async function openWorld(recipe: WorldRecipe): Promise<World> {
-  let network: NetworkObservation | undefined;
-
-  const harness = await createHarness({
-    ...recipe.harness,
-    ...(recipe.network === undefined
-      ? {}
-      : {
-          prepare: async (page): Promise<void> => {
-            network = await observeNetwork(page, recipe.network as NetworkOptions);
-          },
-        }),
-  });
+  const { harness, network } = await createObservedHarness(recipe.harness, recipe.network);
 
   return {
     page: harness.page,
     engine: harness.engine,
+    region: harness.region,
     ...(network !== undefined ? { network } : {}),
+    driven: harness.driven,
     async close(): Promise<void> {
-      await network?.close();
-      await harness.close();
+      try {
+        await network?.close();
+      } finally {
+        await harness.close();
+      }
     },
   };
 }

@@ -1,13 +1,23 @@
 import { serve as serveTools } from '@variance-authority/mcp';
 import { REPORTS } from '@variance-authority/mcp/protocol';
-import { COSTS_TOOLS, type CostsSubject, type Served, type Tool, type Tree } from '@variance-authority/mcp/tools';
+import {
+  COSTS_TOOLS,
+  REVIEW_TOOLS,
+  type CostsSubject,
+  type Reviewed,
+  type ReviewTool,
+  type Served,
+  type Tool,
+  type Tree,
+} from '@variance-authority/mcp/tools';
 import type { RunReport } from '@variance-authority/report';
 import { readRunReport } from '@variance-authority/report/file';
-import { readWorkspaceForAnswer, workspaceGeneration } from '@variance-authority/help';
-import { HELP, HELP_TOOLS, type Help } from '@variance-authority/help/tools';
+import { caughtUp, foundNothingAnswer, readWorkspaceForAnswer, workspaceGeneration } from '@variance-authority/help';
+import { HELP, HELP_TOOLS, UNCOMPARED_HELP, type Help } from '@variance-authority/help/tools';
 import { sourceIndexPath } from '@variance-authority/sense';
 import type { Config } from '../config.js';
 import { costsSubject } from './ask-costs.js';
+import { reviewSubject } from './ask-review.js';
 import { reportSource } from './report-source.js';
 
 /**
@@ -34,7 +44,7 @@ import { reportSource } from './report-source.js';
  *
  * ## One `ask`, and one server behind it
  *
- * The nine source questions are on this server too, from the same `HELP_TOOLS`
+ * The source questions are on this server too, from the same `HELP_TOOLS`
  * the CLI mounts on `variance ask`. A workspace that has this package needs
  * nothing from `@variance-authority/help`'s binary, over either transport, and
  * that is the point: two servers answering about one checkout is two connections
@@ -43,19 +53,26 @@ import { reportSource } from './report-source.js';
  *
  * Which half is read is decided by the question. A report is a file and is read
  * every request. A source question reads the last published workspace generation
- * while it is less than an hour old; `--just-answer` removes even that expiry.
+ * while it is less than an hour old; `--just-answer` removes even that expiry,
+ * and every answer then says it was not compared with the checkout. A source
+ * question refused from a reused generation is asked again of one read now, as
+ * `@variance-authority/help`'s `caughtUp` decides for `variance ask` too.
  * Producing a generation remains separate work. Neither half pays for the other.
  */
 
 /** A run's report, and the workspace reading — whichever of them a question needed. */
 interface Bench {
   readonly report: RunReport;
-  /** Absent until one of the nine is asked; nothing else reads it. */
+  /** Absent until a source question is asked; nothing else reads it. */
   readonly help?: Help;
   /** The mainline's subject costs, read when `variance_costs` is asked and at no other time. */
   readonly costs?: CostsSubject;
   /** Why they could not be read, in the sentence `variance ask costs` prints. */
   readonly costsRefused?: string;
+  /** What one review tool's call asked for, read for that call and at no other time. */
+  readonly review?: Reviewed;
+  /** Why it could not be read, in the sentence `variance ask` prints for the same question. */
+  readonly reviewRefused?: string;
   /** The line and commit the report was read from, when it came from the share. */
   readonly says?: string;
   /** `<kind> <name> at <commit>`: the line the report was read from, when it came from the share. */
@@ -64,6 +81,9 @@ interface Bench {
 
 /** The one tool whose answer is about the previous request's report as well as this one's. */
 const COMPARES_PREVIOUS = 'variance_diff';
+
+/** Every question about review, each read for the subject its own route answers. */
+const REVIEWING: readonly ReviewTool[] = REVIEW_TOOLS;
 
 const SOURCE_QUESTIONS: ReadonlySet<string> = new Set(HELP_TOOLS.map((tool) => tool.name));
 
@@ -79,8 +99,13 @@ function over<Inner>(
   half: (bench: Bench) => Inner | undefined,
   absent: string | ((bench: Bench) => string),
 ): readonly Tool<Bench>[] {
+  // Not `files`: a file set is asked of a tool by another tool, over the inner
+  // subject both already hold, never by the server over the bench.
   return tools.map((tool) => ({
-    ...tool,
+    name: tool.name,
+    description: tool.description,
+    inputSchema: tool.inputSchema,
+    ...(tool.wants === undefined ? {} : { wants: tool.wants }),
     run: (bench: Bench, input: Readonly<Record<string, unknown>>, invocation?): string => {
       const inner = half(bench);
       if (inner === undefined) throw new Error(typeof absent === 'string' ? absent : absent(bench));
@@ -94,7 +119,7 @@ function over<Inner>(
   }));
 }
 
-const BENCH: Served<Bench> = {
+const bench = (help: Served<Help>): Served<Bench> => ({
   name: REPORTS.name,
   version: REPORTS.version,
   tools: [
@@ -116,21 +141,29 @@ const BENCH: Served<Bench> = {
     })),
     // The mainline's times, as `variance ask costs` reads them with no report named.
     ...over(COSTS_TOOLS, (bench) => bench.costs, (bench) => bench.costsRefused ?? 'no subject costs were read'),
+    // What review settled, as `variance ask` reads it: with the share token.
+    ...over(REVIEWING, (bench) => bench.review, (bench) => bench.reviewRefused ?? 'nothing review settled was read'),
     ...over(
-      HELP.tools,
+      help.tools,
       (bench) => bench.help,
       'the workspace could not be read, so the source questions cannot be answered',
     ),
   ],
   instructions: (bench) =>
     `${REPORTS.instructions?.(bench.report) ?? ''} ` +
-    'The same connection answers nine questions about the source — what this repository ' +
+    'The same connection answers questions about the source — what this repository ' +
     'publishes, where a name is declared, who imports it, which lines match a pattern ' +
     'in the files a path imports, which files and packages the words of a task are in, ' +
+    'which third-party packages a location can use, which code the recorded tests ran around a file, ' +
     'and which recorded test files took longest — read from the checkout, ' +
     'with no run required. `variance_costs` says which files and subjects the suite spends its time on, ' +
-    'from the times the mainline\'s last build published.',
-};
+    'from the times the mainline\'s last build published. `variance_decisions` lists what reviewers ' +
+    'approved and rejected on the review surface, and `variance_concerns` which renders they flagged ' +
+    'as suspect and why; both are read with the share token, which never decides.',
+});
+
+const BENCH = bench(HELP);
+const UNCOMPARED_BENCH = bench(UNCOMPARED_HELP);
 
 export interface ServeOptions {
   /**
@@ -163,20 +196,52 @@ export async function serve(config: Config, options: ServeOptions = {}): Promise
   // should not pay for a scan it never uses.
   let report = await readRunReport(path);
   let help: Help | undefined;
+  // FIXME: no names are handed to `discover` here. The reading may come
+  // from the published snapshot, which holds no parses, so its `declares`, and
+  // `imports` of anything but a name out of a repository file, are refused over
+  // MCP and answered by `variance ask`.
   let tree: Tree | undefined;
+
+  const readHelp = async (refreshAfterMs?: number): Promise<Help> => {
+    let nextTree: Tree | undefined;
+    const read = await readWorkspaceForAnswer(root, {
+      index,
+      justAnswer: options.justAnswer === true,
+      ...(refreshAfterMs === undefined ? {} : { refreshAfterMs }),
+      tree: (drawn) => {
+        nextTree = drawn;
+      },
+    });
+    help = read;
+    tree = nextTree;
+    return read;
+  };
 
   return serveTools<Bench>({
     input: process.stdin,
     output: process.stdout,
-    served: BENCH,
+    served: options.justAnswer === true ? UNCOMPARED_BENCH : BENCH,
     tree: () => tree,
     root,
+    // A source question refused from a reused generation, asked again of one
+    // read now. `--just-answer` reads only what was published, so its refusal stands.
+    ...(options.justAnswer === true ? {} : {
+      again: async (asked: string | undefined, refused: Bench, started: number) => {
+        const at = refused.help === undefined ? undefined : workspaceGeneration(refused.help);
+        if (asked === undefined || !SOURCE_QUESTIONS.has(asked)) return undefined;
+        return caughtUp(at, started, root, async (current) => (current ? { ...refused, help: await readHelp(0) } : refused));
+      },
+    }),
+    // A source question's name nothing declares is the answer once it has
+    // been read again, said as `variance ask` says it.
+    answered: (thrown: unknown, bench: Bench, again) =>
+      foundNothingAnswer(thrown, again, bench.help === undefined ? undefined : workspaceGeneration(bench.help), options.justAnswer === true),
     // Only the report, and the line it came from. `previous` serves the one
     // tool that compares this request with the last one, and it compares
     // reports; cloning a whole workspace reading on every successful call would
     // buy that comparison nothing.
     remember: (bench) => ({ report: structuredClone(bench.report), ...(bench.from === undefined ? {} : { from: bench.from }) }),
-    subject: async (asked) => {
+    subject: async (asked, input) => {
       if (says !== undefined) {
         // A line's record does not change under its digest. The checkout's own
         // run does, and the first one written replaces it for every request after.
@@ -200,17 +265,7 @@ export async function serve(config: Config, options: ServeOptions = {}): Promise
         try {
           const at = help === undefined ? undefined : workspaceGeneration(help);
           const stale = at === undefined || Date.now() - Date.parse(at) > 60 * 60 * 1000;
-          if (help === undefined || (options.justAnswer !== true && stale)) {
-            let nextTree: Tree | undefined;
-            help = await readWorkspaceForAnswer(root, {
-              index,
-              justAnswer: options.justAnswer === true,
-              tree: (drawn) => {
-                nextTree = drawn;
-              },
-            });
-            tree = nextTree;
-          }
+          if (help === undefined || (options.justAnswer !== true && stale)) await readHelp();
         } catch (failure) {
           // A workspace mid-edit — a manifest saved half-written, a file being
           // rewritten — must not take the server down. The previous reading is
@@ -228,10 +283,19 @@ export async function serve(config: Config, options: ServeOptions = {}): Promise
           (refused: unknown) => ({ costsRefused: refused instanceof Error ? refused.message : String(refused) }),
         )
         : {};
+      // Read for the window this call names, so a reversal made a minute ago is in it.
+      const reviewing = REVIEWING.find((tool) => tool.name === asked);
+      const review = reviewing !== undefined
+        ? await reviewSubject(config, reviewing, input ?? {}).then(
+          (read) => ({ review: read }),
+          (refused: unknown) => ({ reviewRefused: refused instanceof Error ? refused.message : String(refused) }),
+        )
+        : {};
       return {
         report,
         ...(help === undefined ? {} : { help }),
         ...costs,
+        ...review,
         ...(says === undefined ? {} : { says }),
         ...(from === undefined ? {} : { from }),
       };

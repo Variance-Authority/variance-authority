@@ -1,6 +1,6 @@
 /**
  * Which lines a share keeps, which one this run writes, and which one a reader
- * reads (spec 0074).
+ * reads (ADR-0077).
  *
  * Every answer here has an owner that is not this file. The configuration
  * names the mainlines when it wants to; otherwise git does, through
@@ -26,6 +26,7 @@ import {
   type ShareMiss,
 } from '@variance-authority/core/share';
 import { createDirectoryLineCell, createGitLineCell, gitDescends } from '@variance-authority/store/share';
+import { countPast } from './clone-cut.js';
 import type { Config } from './config.js';
 import { ConfigError } from './config-values.js';
 import { shareRoot } from './commands/resources.js';
@@ -132,8 +133,8 @@ async function runLineOf(mainlines: Mainlines, env: Env, cwd: string): Promise<R
       if (fromFork(pull)) return { none: 'a pull request from a fork publishes nothing; its token is read-only' };
       const name = env['GITHUB_HEAD_REF'];
       if (name === undefined || name === '') return { none: 'the pull request names no head branch' };
-      const head = pull?.head?.sha;
-      return { line: { kind: 'branch', name }, ...(typeof head === 'string' ? { head } : {}) };
+      const head = pullHeadIn(pull);
+      return { line: { kind: 'branch', name }, ...(head === undefined ? {} : { head }) };
     }
     const name = env['GITHUB_REF_TYPE'] === 'branch' ? env['GITHUB_REF_NAME'] : undefined;
     if (name === undefined || name === '') return { none: 'this run is not on a branch' };
@@ -202,7 +203,7 @@ export async function headPast(commit: string, cwd: string = process.cwd()): Pro
     );
   });
   if (contains !== true) return contains;
-  return count(`${commit}..HEAD`, cwd);
+  return countPast(cwd, commit, 'HEAD');
 }
 
 /** How long a reader reuses a fetched line: one editor session asking ten questions fetches once. */
@@ -271,8 +272,14 @@ export async function descendsOf(
   return gitDescends(remote, mainline);
 }
 
-/** The mainline a reader reads, and how many commits `HEAD` is past its merge base with it. */
-export type ReaderMainline = { readonly name: string; readonly since?: number } | Extract<Mainlines, { missing: unknown }>;
+/**
+ * The mainline a reader reads, how many commits `HEAD` is past its merge base
+ * with it, and that merge base, so a distance measured from it next is not
+ * asked for it again.
+ */
+export type ReaderMainline =
+  | { readonly name: string; readonly since?: number; readonly base?: string }
+  | Extract<Mainlines, { missing: unknown }>;
 
 /**
  * The mainline this checkout is measured against.
@@ -291,14 +298,10 @@ export async function readerMainline(
   const base = env['GITHUB_BASE_REF'];
   const names = base !== undefined && mainlines.names.includes(base) ? [base] : mainlines.names;
 
-  let best: { name: string; since?: number } = { name: names[0]! };
-  let nearest = Number.POSITIVE_INFINITY;
-  for (const name of names) {
-    const since = await sinceMergeBase(config, name, cwd);
-    if (since !== undefined && since < nearest) {
-      nearest = since;
-      best = { name, since };
-    }
+  const measured = await Promise.all(names.map(async (name) => ({ name, ...(await sinceMergeBase(config, name, cwd)) })));
+  let best = measured[0]!;
+  for (const one of measured) {
+    if (one.since !== undefined && (best.since === undefined || one.since < best.since)) best = one;
   }
   return best;
 }
@@ -307,33 +310,40 @@ export async function readerMainline(
  * Commits between a held record's `commit` and `HEAD`'s merge base with
  * `mainline`: positive when the record is older than that base, negative when
  * it is newer. Absent when this clone cannot count, or when neither descends
- * from the other.
+ * from the other. `base` is that merge base, when the caller already asked.
  */
 export async function distanceFrom(
   config: Pick<Config, 'share'>,
   mainline: string,
   commit: string,
   cwd: string = process.cwd(),
+  base: string | undefined = undefined,
 ): Promise<number | undefined> {
-  const base = (await git(['merge-base', 'HEAD', `refs/remotes/${remoteOf(config)}/${mainline}`], cwd))?.trim();
-  if (base === undefined || base === '') return undefined;
-  const behind = await count(`${commit}..${base}`, cwd);
-  const ahead = await count(`${base}..${commit}`, cwd);
+  base ??= await mergeBase(config, mainline, cwd);
+  if (base === undefined) return undefined;
+  // Git named the base, so the clone holds it: a record at it is no distance.
+  if (commit === base) return 0;
+  const [behind, ahead] = await Promise.all([countPast(cwd, commit, base), countPast(cwd, base, commit)]);
   if (behind === undefined || ahead === undefined) return undefined;
   if (ahead === 0) return behind;
   if (behind === 0) return -ahead;
   return undefined;
 }
 
-async function sinceMergeBase(config: Pick<Config, 'share'>, mainline: string, cwd: string): Promise<number | undefined> {
-  const base = (await git(['merge-base', 'HEAD', `refs/remotes/${remoteOf(config)}/${mainline}`], cwd))?.trim();
-  if (base === undefined || base === '') return undefined;
-  return count(`${base}..HEAD`, cwd);
+async function sinceMergeBase(
+  config: Pick<Config, 'share'>,
+  mainline: string,
+  cwd: string,
+): Promise<{ base?: string; since?: number }> {
+  const base = await mergeBase(config, mainline, cwd);
+  if (base === undefined) return {};
+  const since = await countPast(cwd, base, 'HEAD');
+  return since === undefined ? { base } : { base, since };
 }
 
-async function count(range: string, cwd: string): Promise<number | undefined> {
-  const listed = (await git(['rev-list', '--count', range], cwd))?.trim();
-  return listed === undefined || listed === '' ? undefined : Number(listed);
+async function mergeBase(config: Pick<Config, 'share'>, mainline: string, cwd: string): Promise<string | undefined> {
+  const base = (await git(['merge-base', 'HEAD', `refs/remotes/${remoteOf(config)}/${mainline}`], cwd))?.trim();
+  return base === undefined || base === '' ? undefined : base;
 }
 
 function remoteOf(config: Pick<Config, 'share'> | undefined): string {
@@ -373,6 +383,23 @@ interface GitHubEvent {
 /** Whether a pull request's head is in another repository than its base. An event that names no head repository is not a fork. */
 function fromFork(pull: GitHubEvent['pull_request']): boolean {
   return pull?.head?.repo?.full_name !== undefined && pull.head.repo.full_name !== pull.base?.repo?.full_name;
+}
+
+/**
+ * The head commit of the pull request this CI run is for, as the event names
+ * it, or absent on any other run. CI checks out a merge of it that nobody
+ * pushed, so the head is read from the event, never guessed from the merge.
+ */
+export async function pullRequestHead(env: Env = process.env): Promise<string | undefined> {
+  if (env['GITHUB_ACTIONS'] !== 'true') return undefined;
+  const event = env['GITHUB_EVENT_NAME'];
+  if (event !== 'pull_request' && event !== 'pull_request_target') return undefined;
+  return pullHeadIn((await eventOf(env))?.pull_request);
+}
+
+function pullHeadIn(pull: GitHubEvent['pull_request']): string | undefined {
+  const head = pull?.head?.sha;
+  return typeof head === 'string' ? head : undefined;
 }
 
 async function eventOf(env: Env): Promise<GitHubEvent | undefined> {

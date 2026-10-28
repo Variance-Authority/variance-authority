@@ -26,7 +26,10 @@
  */
 
 import { dirname, resolve } from 'node:path';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { digestString } from '../digest.js';
+import { NODE_MODULES } from './instrumented-modules.js';
+import { decode, type Segment } from './map-segments.js';
 
 /** The fields of a bundler's map this reads. */
 export interface TransformSourceMap {
@@ -43,21 +46,17 @@ export interface TransformSourceMap {
  */
 export type ExtentOf = (start: number, last: number) => readonly [number, number] | undefined;
 
-interface Segment {
-  readonly column: number;
-  readonly source: number;
-  readonly line: number;
-}
-
 /**
  * A lookup from transformed offsets to original lines.
  *
- * `file` narrows a map that names more than one source — a bundler that inlined
- * a helper alongside the module still reports one file's mappings among
- * another's, and a segment from the helper would place a block in a file the
- * diff will never name. When no source matches, every segment is accepted: a map
- * whose paths are written relative to a root this cannot see is still that
- * module's map, and the alternative is discarding it whole.
+ * Only segments of `file` are read. A source is the file when it resolves to it
+ * as the Source Map specification resolves one: behind `sourceRoot`, against
+ * the directory of `generated`, the transformed text the map sits beside, which
+ * for a transform hook is `file` itself. A bundler that inlined a helper
+ * alongside the module reports the helper's mappings among the module's, and a
+ * source that resolves anywhere else is another file. A map with no source
+ * that resolves to `file` holds no lines of it, and every region is answered
+ * with none.
  *
  * Each end is the origin of the last thing at or before it, so the only text
  * with no answer is text before the first origin in the module — the prologue
@@ -67,11 +66,22 @@ interface Segment {
  * on, so its first line is the origin of the first thing after its start; that
  * origin sits inside the region, because its end has one and its start does
  * not.
+ *
+ * The last thing before a start is not always something written before it.
+ * esbuild opens a generated line that continues a statement with that
+ * statement's origin repeated, so the `else` of an `if` on the line above
+ * carries the `if`'s line, and the nested `if` after it has no segment of its
+ * own. A region opening there answers with the line above, strictly contains
+ * the regions on its own line, and a line query drops it as the outer one. So
+ * when what precedes a start on its own generated line is such a carried
+ * origin, the start is the origin of the first thing written in the region on
+ * that line.
  */
 export function sourceLines(
   code: string,
   map: TransformSourceMap | undefined,
   file: string,
+  generated: string = file,
 ): ExtentOf {
   // Once per module, not once per offset. A block asks twice and a module has
   // thousands of them, so counting newlines from the top each time is quadratic
@@ -82,7 +92,8 @@ export function sourceLines(
     return (start, last) => [lineOfStart(starts, start) + 1, lineOfStart(starts, last) + 1];
   }
 
-  const only = sourceIndex(map.sources, file);
+  const only = sourcesOf(map, generated, file);
+  if (only.size === 0) return () => undefined;
   const lines = decode(map.mappings);
   const at = (offset: number): readonly [number, number] => {
     const line = lineOfStart(starts, offset);
@@ -92,7 +103,11 @@ export function sourceLines(
   return (start, last) => {
     const closes = nearest(lines, ...at(last), only);
     if (closes === undefined) return undefined;
-    const opens = nearest(lines, ...at(start), only) ?? following(lines, ...at(start), only) ?? closes;
+    const opens =
+      opening(lines, at(start), at(last), only) ??
+      nearest(lines, ...at(start), only) ??
+      following(lines, ...at(start), only) ??
+      closes;
     return [opens + 1, closes + 1];
   };
 }
@@ -131,9 +146,11 @@ export function sourceLines(
  *
  * `original` is called with the file the lines landed in, which is usually the
  * one the host named and is {@link originalFile} when the map points somewhere
- * else. It is called only when there is a map worth reading back through or no
- * text to read, and a seam whose id is not a file on disk may throw rather than
- * answer. That is the untranslatable case again and it is recorded the same way,
+ * else. It is called only when there is a map with a source that resolves to
+ * that file or no text to read: a map whose sources are all other files reads
+ * nothing back, and the text is framed as it was handed over. A seam whose id
+ * is not a file on disk may throw rather than answer. That is the
+ * untranslatable case again and it is recorded the same way,
  * under the host's name: a frame reports one file or none, never a name from one
  * text and a digest from another.
  */
@@ -144,6 +161,8 @@ export interface RecordedFrame {
   readonly sourceDigest: string;
   /** The file that text is, which is what a record must be named after. */
   readonly file: string;
+  /** The text {@link sourceDigest} is of, which a region's digest is cut from. */
+  readonly text: string;
 }
 
 export function recordedFrame(
@@ -158,23 +177,135 @@ export function recordedFrame(
     if (whole !== undefined) return whole;
   }
   const candidate = originalFile(map, file) ?? file;
-  let text: string | undefined;
-  let named = file;
-  if (translated) {
-    try {
-      text = original(candidate);
-      named = candidate;
-    } catch {
-      text = undefined;
-    }
+  const text = translated && sourcesOf(map, file, candidate).size > 0 ? readable(original, candidate) : undefined;
+  if (text === undefined) {
+    return { file, extentOf: sourceLines(code, undefined, file), sourceDigest: digestString(code), text: code };
   }
-
-  return {
-    file: named,
-    extentOf: sourceLines(code, map, file),
-    sourceDigest: digestString(text ?? code),
-  };
+  return { file: candidate, extentOf: sourceLines(code, map, candidate, file), sourceDigest: digestString(text), text };
 }
+
+function readable(original: (path: string) => string, path: string): string | undefined {
+  try {
+    return original(path);
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * The frame of a module read as it is on disk, before any transform: named
+ * after the file, digested as the text, its lines the text's own.
+ *
+ * Except for a workspace library consumed as its build. `tsc` writes
+ * `dist/thing.js` ending in `//# sourceMappingURL=thing.js.map`, and that map
+ * names `src/thing.ts`, the file a diff is written against. When the file ends
+ * in such a comment, the text handed over is that file, the sibling map names
+ * exactly one source outside `node_modules`, and `include` accepts it, the
+ * frame is that source's: its name, its digest, and lines read back through
+ * the map. Anything else — an inline map, a bundle's many sources, a map or
+ * source that cannot be read — is the file under its own name, and so is a
+ * source `include` refuses: a module accepted under its own name is never
+ * dropped because of where its map points.
+ *
+ * Under its own name it is still the file, not the text handed over. A map
+ * with no positions in it — `tsc`'s for a module of nothing but types, which
+ * builds to `export {};` — leaves the build recorded under its own name, and a
+ * dev server hands that build over with its comment blanked. Digested as
+ * handed, the record names a text no commit holds: every landing of a run that
+ * did not load the module reads the file on disk as moved, cuts it again, and
+ * demotes every test that loaded it, and the next run of those tests records
+ * the blanked text again. Blanking keeps every offset and every line, so the
+ * frame is the file's: its digest, and regions cut from it.
+ *
+ * A file on disk that is not the text handed over, as it is or blanked, was
+ * changed by something that ran first, and nothing relates the two texts'
+ * lines. The frame is still cut from the text handed over, as before, and says
+ * so with {@link RawFrame.changed}: what a caller does about it is the caller's.
+ *
+ * A module no file holds — a builder's virtual entry, such as Storybook's
+ * `storybook-stories.js` handed over at the project root — is no file a diff is
+ * written against, whatever name it is handed under, and has no frame.
+ *
+ * `undefined` when neither name is accepted, or the module has no file.
+ */
+export function rawFrame(
+  code: string,
+  file: string,
+  include: (file: string) => boolean,
+  original: (path: string) => string,
+): RawFrame | undefined {
+  const read = onDisk(file, original);
+  const disk = read !== undefined && handedTexts(read).includes(code) ? read : undefined;
+  const map = disk === undefined ? undefined : builtMap(disk, file, original);
+  const source = map === undefined ? undefined : originalFile(map, file);
+  if (source !== undefined && !NODE_MODULES.test(source) && include(source)) {
+    const frame = recordedFrame(code, map, file, original);
+    if (frame.file === source) return frame;
+  }
+  if (!include(file)) return undefined;
+  // `onDisk` reads no file under `node_modules`: that one is read here only to see it is there.
+  if (read === undefined && (!NODE_MODULES.test(file) || readable(original, file) === undefined)) return undefined;
+  const frame = recordedFrame(code, undefined, file, original);
+  if (disk === undefined) return read === undefined ? frame : { ...frame, changed: true };
+  // Handed the file as it is, the frame already holds its digest: the text is digested once.
+  return frame.text !== code || disk === code ? frame : { ...frame, sourceDigest: digestString(disk), text: disk };
+}
+
+/** A {@link RecordedFrame} as {@link rawFrame} cuts it. */
+export interface RawFrame extends RecordedFrame {
+  /** The file is on disk, and the text handed over is not it: something changed it first. */
+  readonly changed?: true;
+}
+
+/** A sibling's name only: a `data:` map or a path elsewhere has a `/` in it. */
+const SOURCE_MAPPING_URL = /\/\/[#@] sourceMappingURL=([^\s'"/\\]+)(?=\s*$)/;
+
+/**
+ * The file on disk, outside `node_modules`. {@link rawFrame} takes it as the
+ * text handed over when that is the file as it is, or with its map comments
+ * blanked in place, which is what a Vite dev server hands a plugin once it has
+ * read the map itself.
+ */
+function onDisk(file: string, original: (path: string) => string): string | undefined {
+  return NODE_MODULES.test(file) ? undefined : readable(original, file);
+}
+
+/** The map the file on disk points at. */
+export function builtMap(disk: string, file: string, original: (path: string) => string): TransformSourceMap | undefined {
+  try {
+    const pointer = SOURCE_MAPPING_URL.exec(disk);
+    if (pointer === null) return undefined;
+    const map = JSON.parse(original(resolve(dirname(file), pointer[1]!))) as Partial<TransformSourceMap> | null;
+    return typeof map?.mappings === 'string' && Array.isArray(map.sources) ? map as TransformSourceMap : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * The texts a host hands a transform for a file whose contents are `disk`: the
+ * file as it is, and the file with its `sourceMappingURL` comments blanked in
+ * place, which is what a Vite dev server hands a plugin once it has read the
+ * map itself. Vite blanks every comment its map reader matches, inline maps
+ * and block comments too.
+ */
+export function handedTexts(disk: string): readonly string[] {
+  const blanked = disk.replace(MAP_COMMENTS, (comment) => ' '.repeat(comment.length));
+  return blanked === disk ? [disk] : [disk, blanked];
+}
+
+/**
+ * Whether the file whose contents are `disk` names its own map: a build's
+ * output. A host that reads that map composes every map after it onto it, so
+ * the map at the end names the files the build was made from, never this one.
+ */
+export function namesItsMap(disk: string): boolean {
+  return handedTexts(disk).length > 1;
+}
+
+/** The comments Vite blanks: `convert-source-map`'s `mapFileCommentRegex`, as Vite's load applies it. */
+const MAP_COMMENTS =
+  /(?:\/\/[@#][ \t]+?sourceMappingURL=([^\s'"`]+?)[ \t]*?$)|(?:\/\*[@#][ \t]+sourceMappingURL=([^*]+?)[ \t]*?(?:\*\/){1}[ \t]*?$)/gm;
 
 /** The frame of a module whose transformed text is empty: the file, every line of it. */
 function wholeFile(file: string, original: (path: string) => string): RecordedFrame | undefined {
@@ -187,20 +318,17 @@ function wholeFile(file: string, original: (path: string) => string): RecordedFr
   const starts = lineStarts(text);
   // A newline ends the line it is on; it does not open one nothing is written on.
   const lines = Math.max(1, text.endsWith('\n') ? starts.length - 1 : starts.length);
-  return { file, extentOf: () => [1, lines], sourceDigest: digestString(text) };
+  return { file, extentOf: () => [1, lines], sourceDigest: digestString(text), text };
 }
 
 /**
  * The file a map says the text was written in, when it says one and only one.
  *
- * A host hands the transform hook whatever it was asked to load, and for a
- * package consumed as a build that is `dist/thing.js`. Its map points back at
- * `src/thing.ts`, and {@link sourceLines} already follows the pointer — the
- * block extents recorded for such a module are lines of the original, not of
- * the file the name says. Following it for the lines and not for the name
- * leaves a record nothing can join: a graph walk asks the scanner about
- * `dist/thing.js`, the scanner reads imports and has never seen it, and every
- * test that entered the module comes back unplaced.
+ * For a package consumed as a build the host names `dist/thing.js`, and its
+ * map leads {@link sourceLines} to lines of `src/thing.ts`. Following it for
+ * the lines and not for the name leaves a record nothing can join: the scanner
+ * reads imports, has never seen `dist/thing.js`, and every test that entered
+ * the module comes back unplaced.
  *
  * So the name follows the lines, for the reason the digest does. The map is
  * read the same way here as there and answers only where it is unambiguous:
@@ -216,17 +344,41 @@ function wholeFile(file: string, original: (path: string) => string): RecordedFr
  */
 function originalFile(map: TransformSourceMap | undefined, file: string): string | undefined {
   if (map === undefined || map.mappings === '') return undefined;
-  if (sourceIndex(map.sources, file) !== undefined) return undefined;
-
   const named = map.sources.filter((source): source is string => source !== null && source !== '');
-  const only = named.length === 1 ? named[0] : undefined;
-  // A virtual module's id is not a path, and an absolute URL is not this
-  // machine's. Both are names a reader cannot open, which is what the host's
-  // own name at least is.
-  if (only === undefined || only.startsWith('\0') || only.includes('://')) return undefined;
+  const path = named.length === 1 ? sourcePath(map, file, named[0]!) : undefined;
+  return path === file ? undefined : path;
+}
 
+/** The indexes of `map.sources` that resolve to `file`, read beside `generated`. */
+function sourcesOf(map: TransformSourceMap, generated: string, file: string): ReadonlySet<number> {
+  const found = new Set<number>();
+  map.sources.forEach((source, index) => {
+    if (source !== null && sourcePath(map, generated, source) === file) found.add(index);
+  });
+  return found;
+}
+
+/**
+ * Where one entry of `sources` is: behind `sourceRoot`, resolved against the
+ * directory of `generated`, the text the map sits beside.
+ *
+ * A source is a URL, as the format says, so it is resolved as one: `a%20b.ts`
+ * is `a b.ts`, and `//host/a.ts` is on another machine, not `/host/a.ts` here.
+ * Only a `file:` URL with no host is a file this machine can open; a virtual
+ * module's id and every other URL are names a reader cannot open.
+ */
+function sourcePath(map: TransformSourceMap, generated: string, source: string): string | undefined {
+  if (source === '' || source.startsWith('\0')) return undefined;
   const root = map.sourceRoot ?? '';
-  return resolve(dirname(file), root === '' ? only : `${root.replace(/\/$/, '')}/${only}`);
+  const joined = root === '' ? source : `${root.replace(/\/$/, '')}/${source}`;
+  // `new URL` refuses what is no URL at all; `fileURLToPath` refuses a file URL
+  // no path can be, such as one holding an encoded `/`.
+  try {
+    const url = new URL(joined, pathToFileURL(`${dirname(generated)}/`));
+    return url.protocol === 'file:' && url.host === '' ? fileURLToPath(url) : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 /**
@@ -241,20 +393,46 @@ function nearest(
   lines: readonly (readonly Segment[])[],
   line: number,
   column: number,
-  only: number | undefined,
+  only: ReadonlySet<number>,
 ): number | undefined {
   for (let at = Math.min(line, lines.length - 1); at >= 0; at -= 1) {
     const segments = lines[at];
     if (segments === undefined) continue;
     let best: Segment | undefined;
     for (const segment of segments) {
-      if (only !== undefined && segment.source !== only) continue;
+      if (!only.has(segment.source)) continue;
       // Past the position on its own line. Earlier lines are read to their end,
       // because what is wanted there is the last origin before the position.
       if (at === line && segment.column > column) break;
       best = segment;
     }
     if (best !== undefined) return best.line;
+  }
+  return undefined;
+}
+
+/**
+ * The first origin written inside a region on the line it opens, when the only
+ * origin before its start there is one carried over from the line above.
+ * `undefined` otherwise, and the start is then {@link nearest}'s.
+ */
+function opening(
+  lines: readonly (readonly Segment[])[],
+  [line, column]: readonly [number, number],
+  [lastLine, lastColumn]: readonly [number, number],
+  only: ReadonlySet<number>,
+): number | undefined {
+  let before: Segment | undefined;
+  for (const segment of lines[line] ?? []) {
+    if (!only.has(segment.source)) continue;
+    if (segment.column === column) return undefined;
+    if (segment.column < column) {
+      before = segment;
+      continue;
+    }
+    if (before?.carried !== true) return undefined;
+    if (line === lastLine && segment.column > lastColumn) return undefined;
+    return segment.line;
   }
   return undefined;
 }
@@ -268,26 +446,16 @@ function following(
   lines: readonly (readonly Segment[])[],
   line: number,
   column: number,
-  only: number | undefined,
+  only: ReadonlySet<number>,
 ): number | undefined {
   for (let at = line; at < lines.length; at += 1) {
     for (const segment of lines[at] ?? []) {
-      if (only !== undefined && segment.source !== only) continue;
+      if (!only.has(segment.source)) continue;
       if (at === line && segment.column < column) continue;
       return segment.line;
     }
   }
   return undefined;
-}
-
-function sourceIndex(sources: readonly (string | null)[], file: string): number | undefined {
-  const found = sources.findIndex((source) => source !== null && names(file, source));
-  return found === -1 ? undefined : found;
-}
-
-function names(file: string, source: string): boolean {
-  const tail = source.replace(/^(?:\.\.?\/)+/, '');
-  return file === source || file.endsWith(`/${tail}`);
 }
 
 /** Which line an offset falls on, zero-based, by bisecting the line starts. */
@@ -308,77 +476,4 @@ function lineStarts(code: string): readonly number[] {
     if (code.charCodeAt(index) === 10) starts.push(index + 1);
   }
   return starts;
-}
-
-/** Segments per generated line, carrying only the fields a position needs. */
-function decode(mappings: string): readonly (readonly Segment[])[] {
-  const lines: Segment[][] = [];
-  let segments: Segment[] = [];
-  let column = 0;
-  let source = 0;
-  let line = 0;
-  let index = 0;
-
-  while (index < mappings.length) {
-    const char = mappings[index];
-    if (char === ';') {
-      lines.push(segments);
-      segments = [];
-      column = 0;
-      index += 1;
-      continue;
-    }
-    if (char === ',') {
-      index += 1;
-      continue;
-    }
-
-    const first = vlq(mappings, index);
-    column += first.value;
-    index = first.next;
-    if (boundary(mappings, index)) continue;
-
-    const second = vlq(mappings, index);
-    source += second.value;
-    const third = vlq(mappings, second.next);
-    line += third.value;
-    // The original column, decoded so the cursor lands on the next field and
-    // discarded because a diff's unit is the line.
-    index = vlq(mappings, third.next).next;
-    if (!boundary(mappings, index)) index = vlq(mappings, index).next;
-
-    segments.push({ column, source, line });
-  }
-
-  lines.push(segments);
-  return lines;
-}
-
-function boundary(mappings: string, index: number): boolean {
-  return index >= mappings.length || mappings[index] === ',' || mappings[index] === ';';
-}
-
-const DIGITS = new Map<string, number>(
-  [...'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/'].map(
-    (character, value) => [character, value],
-  ),
-);
-
-/** One base64 VLQ field, and where the next one starts. */
-function vlq(mappings: string, at: number): { readonly value: number; readonly next: number } {
-  let result = 0;
-  let shift = 0;
-  let index = at;
-
-  for (;;) {
-    const digit = DIGITS.get(mappings[index] ?? '');
-    if (digit === undefined) return { value: 0, next: index + 1 };
-    index += 1;
-    result += (digit & 31) << shift;
-    if ((digit & 32) === 0) break;
-    shift += 5;
-  }
-
-  const negative = (result & 1) === 1;
-  return { value: negative ? -(result >>> 1) : result >>> 1, next: index };
 }

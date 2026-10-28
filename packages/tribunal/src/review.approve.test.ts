@@ -94,6 +94,33 @@ describe('what the promoted baseline carries', () => {
     expect(found?.raster.findingMarks).toEqual(['a control inside another control']);
   });
 
+  it('keeps the snapshot the region join reads, as it was packed', async () => {
+    // Without it a later run joins a changed region against its own render's
+    // boxes alone, and an element its author replaced names the row around it.
+    const snapshot = 'H4sIAAAAAAAAA6tWKkktLlGyUlAqzy/KSVGqBQBNnvU3EgAAAA==';
+    await review.ingest(withSidecar({ snapshot }));
+    await review.decide({
+      build: 'ci-1001',
+      subject: 'story:todos--populated',
+      decision: 'approved',
+      by: 'marina',
+    });
+
+    const baselines = createBucketStore({ db, bucket, project: 'todomvc' });
+    const found = await baselines.find({ subject: 'story:todos--populated' }, IDENTITY);
+    expect(found?.raster.snapshot).toBe(snapshot);
+
+    await review.ingest(ingest());
+    await review.decide({
+      build: 'ci-1001',
+      subject: 'story:todos--populated',
+      decision: 'approved',
+      by: 'marina',
+    });
+    const silent = await baselines.find({ subject: 'story:todos--populated' }, IDENTITY);
+    expect(silent?.raster).not.toHaveProperty('snapshot');
+  });
+
   it('keeps unrecorded and empty apart, on both lists', async () => {
     // `[]` is the document declaring no components, or inspection finding
     // nothing. Absent is nobody having looked. A store that answered the second

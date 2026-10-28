@@ -1,11 +1,13 @@
 # Changes before and beyond
 
 Two changes widen a run that no import graph can narrow: a config file nothing
-imports, and a package you never wrote. Selection answers from names files say
-to each other, so a change with no name in that conversation is either the whole
-suite or nothing at all — and which of the two is a choice you make rather than
-one the walk makes for you. This page is about those two changes, and
-[selection](selecting.md) is about everything between them.
+imports, and a package you never wrote. Selection answers from the names files
+import from each other, so a change with no name in those imports is either the
+whole suite or nothing at all — and which of the two is a choice you make rather
+than one the walk makes for you. This page is about those two changes, about
+[the files a suite ignores](#what-a-suite-ignores) because none of its results
+can move with them, and [selection](selecting.md) is about everything between
+them.
 
 Read a run from left to right. The harness starts it, the tests it started run
 your code, and your code goes out into what the install provides and never comes
@@ -42,7 +44,7 @@ flowchart LR
 **Beyond reach** is the far right: a dependency bump. Nothing in the diff names
 a file you wrote, and yet the code that imports the bumped package renders
 differently. That change is reachable, because the thing that changed has a
-name and your files say the name.
+name and your files import that name.
 
 **Before reach** is the far left: the node version, the harness config, the
 bundler setup. Nothing imports them and they change everything downstream of
@@ -56,7 +58,7 @@ to it. So the question a dependency bump asks is the question every change asks
 — *which subjects covered something that depends on this* — and it is answered
 by the same walk, from a seed at the other end of the line.
 
-| The diff says | Selection does |
+| The diff contains | Selection does |
 | --- | --- |
 | `@mui/material` bumped | Every file whose imports reach it is treated as changed, transitively, and selection proceeds from there |
 | `jsdom` bumped, and only `jest-environment-jsdom` depends on it | The bump is traced up through the install to the packages that rest on it, and then into your files. A transitive dependency is not a shorter question, only a longer trail |
@@ -75,7 +77,11 @@ direction.
 `package.json` is a request, the lockfile is the answer, and neither is a
 changed file here. They are read at two revisions — the base and the working
 tree — and compared as installs, which is a different question from *did this
-file's bytes change*:
+file's bytes change*. For `variance select` the base is the install the
+recorded suite ran on: the journal's commit, unless the recording ran over
+lockfiles or manifests you had not committed. A run keeps those texts, and they
+are what your tree is compared from; a recording that kept none is compared from
+its commit.
 
 - A workspace edit rewrites `yarn.lock` and changes no package. Compared as an
   install it contributes nothing.
@@ -97,68 +103,143 @@ along and no answer smaller than the whole suite. That much is decided for you.
 What is not decided is whether the run notices.
 
 A diff that is *only* a config file already runs everything when no execution
-record is kept, because a diff no part of which is in the graph says nothing
+record is kept, because a diff no part of which is in the graph shows nothing
 about which component changed. That stops being true the moment anything else
 is in the diff, or a record is kept: the record has no row for the config file,
 so it keeps no subject in the run. A CI workflow edited
 beside one component gives the walk a seed, and the run narrows to that
 component, though it never examined the change that seeded it.
 
-Name the files the run rests on and it stops being an accident:
+Name the files the run rests on and it stops being an accident. What every
+suite rests on goes at the top, and what one suite rests on goes beside its
+kind:
 
 ```json
 {
-  "source": {
-    "dirs": ["src"],
-    "relations": true,
-    "before": ["vitest.config.ts", ".github/workflows", ".nvmrc"]
-  }
+  "before": [".github/workflows", ".nvmrc"],
+  "suites": {
+    "unit": { "kind": "unit", "before": ["vitest.config.ts", "test/global-setup.ts"] },
+    "e2e": { "kind": "e2e", "relations": false, "before": ["playwright.config.ts", "src/main.tsx"] }
+  },
+  "source": { "dirs": ["src"], "relations": true }
 }
 ```
 
+A runner config names its setup files and its environment as strings —
+`setupFiles: ['./test/setup.ts']`, `testEnvironment: 'jsdom'` — and a string
+is not an import, so nothing in the graph runs from the config to them. The
+runner integrations record some of them on every test they run, as
+preconditions: Vitest records the config file Vite loaded, the local modules it
+imports, its `setupFiles`, `snapshotSerializers` and `diff` file; Jest records
+`testEnvironment`, `setupFiles` and `setupFilesAfterEnv` when they are files of
+the repository; Rstest records `setupFiles`. Every test a configuration runs
+declares them, so a change to one selects every test it governs. Name the rest
+in `before`: `globalSetup` in every runner, Jest's `globalTeardown`, Jest's and
+Rstest's config file, Jest's `moduleNameMapper` and `transform` targets, and
+everything a Playwright config names. Name a recorded file too, as the example
+does with `vitest.config.ts`, when its change must run every test file: a
+recorded file reruns only the recorded tests that declared it, and a `before`
+entry also runs the tests no recording has seen.
+
 Each entry is matched against the diff by path, so naming a directory of
-workflows is one line rather than one per file. When one of them changes, the
-run is whole and the report says which file put it there.
+workflows is one line rather than one per file. A directory is also walked: every
+file under it is an entry point, so a `test/` that holds the setup brings in
+what that setup loads, wherever it lives. When a top-level entry changes,
+`variance run --since` runs whole; when either list changes for the suite
+`variance select` reads, it skips none of that suite. Each names the file that
+put it there.
 
 Which paths govern a run is a fact about your repository, and no rule derives
 it. *Every changed path the graph does not include* would be the README, the
 changelog and the editor settings — a whole run each, forever — and switching
 that off would switch the config files off with it. Declared, it is exact.
 
-`source.before` needs `source.relations: true`, because what an entry point
-buys is everything below it.
+`variance run --since` reads the top-level `before`, and needs
+`source.relations: true` to do it, because what an entry point buys is
+everything below it.
 
-Test selection makes the same declaration on the runner. `variance select` reads
-no `variance.config.json`, so `source.before` does not reach it. The Vitest
-integration declares the config file Vite loaded and the local modules it
-imports; the Vitest, Jest and Rstest integrations take a `preconditions` option
-for the rest, and every test they record declares each file it lists. A change
-to one of those files selects the whole suite. A changed file nothing imports
-and nothing lists selects nothing, and `select` names it.
+`variance select` reads both: the top-level list and the list of the suite whose
+record it reads, or with `--execution` the suite `--suite` names. A change to anything either one reaches runs that whole suite,
+and `select` names what put it there. A suite with no `before` has nothing
+before its reach, and `select` prints that beside its answer. Beside what they
+record themselves, the Vitest, Jest and Rstest integrations take a
+`preconditions` option: every test they record declares each file it lists, and a change to one
+selects every test that declares it. A changed file nothing imports and nothing
+declares selects nothing, and `select` names it.
+
+An end-to-end suite reaches your app through a browser and imports none of it,
+so the import graph names none of its tests, or names a unit test's neighbour by
+accident. Give such a suite `"relations": false` and list the files it rests on
+in its own `before`. A changed file its record did not measure then selects
+nothing in that suite, without a walk, and `select` names it declined; a change
+to an entry point runs the suite whole.
+
+## What a suite ignores
+
+The opposite case is a file a suite imports but that cannot change any of its
+results. A unit test that imports a component also imports its stylesheet and
+its icons, but jsdom paints nothing, so a changed `.css` or `.png` leaves every
+assertion where it was. The graph still reaches each test that imports the
+component. List those files in the suite's `ignore`, as globs from the
+repository root:
+
+```json
+{
+  "suites": {
+    "unit": { "kind": "unit", "ignore": ["**/*.css", "**/*.png"] },
+    "stories": { "kind": "visual" }
+  }
+}
+```
+
+A changed file that matches loses what selection would infer from it: the
+regions tests entered in it, the import and asset edges into it, and the
+suite's `before`. It keeps what somebody declared. A test that lists it as a
+precondition still runs, and so does every test the recording saw enter a
+module with a `/// <depends>` on it, because that edge says the module reads
+the bytes. A declaring module the recording holds nothing for is read as any
+file it did not measure: the tests that import it run, or, in a suite that
+declines relations, it is listed. A
+`!` pattern takes a file back out of the list. A suite uses only its own
+`ignore` list. In the example, the same stylesheet still selects the stories
+that render it.
+
+`select` names what it left out. With only `src/card.css` changed, the unit
+suite selects nothing and says why:
+
+```text
+the suite ignores 1 changed file (src/card.css) by its `ignore`, so only a test that declares it, as a precondition or by a `/// <depends>`, runs for it
+```
+
+and `--format json` carries the same list as `"ignored": ["src/card.css"]`.
+
+`variance run --since` reads the list of the suite it runs for, named by
+`--suite` or the only one declared. A matching file there moves no subject and
+no `before`, a subject whose module declares it with a `/// <depends>` is still
+observed, and the run's notes name the file.
 
 ## What comes with a declared entry point
 
-The config file is one name. The setup module it loads, the fixture only that
-setup imports, the polyfill, the environment package it names: each is an
-ordinary file that nothing imports, whose change reaches no component, and
-which on its own narrows a run to nothing. Declared once at the top, they
-arrive together — the entry point is the one thing walked **along** the arrows
+A declared file is one name. The fixture only the setup imports, the polyfill,
+the DOM package it registers: each is an ordinary file or package that nothing
+in a test imports, whose change reaches no component, and which on its own
+narrows a run to nothing. Declared once, they arrive with the file that
+imports them — the entry point is the one thing walked **along** the arrows
 instead of against them.
 
 ```mermaid
 flowchart LR
   config["vitest.config.ts<br/>declared"]
-  setup["test/setup.ts"]
+  setup["test/setup.ts<br/>declared"]
   fixtures["test/fixtures.ts"]
-  env["jest-environment-jsdom"]
+  env["global-jsdom"]
   jsdom["jsdom"]
   theme["src/theme.ts<br/>sensed"]
   tokens["src/tokens.css"]
   button["Button.tsx"]
 
-  config --> setup
-  config --> env
   setup --> fixtures
+  setup --> env
   setup --> theme
   env --> jsdom
   theme --> tokens
@@ -178,7 +259,7 @@ so `src/tokens.css` stays out too.
 
 An entry the scan does not cover — a `.nvmrc`, a workflow, a `tsconfig` —
 has nothing under it to read. It contributes its own name, which is all it has,
-and the run says so in a note.
+and the run prints that in a note.
 
 The cost is real and it is yours to spend. A config that imports your bundler
 rests on everything that bundler rests on, so a bump inside that set widens the
@@ -190,7 +271,8 @@ that finds it too wide narrows what it declares.
 A `jsdom` bump is beyond reach, and the environment it is wired into is before
 reach — the only arrow in the first figure that points back to the left. The
 install comparison names `jsdom`; the harness depends on it through
-`jest-environment-jsdom`, three edges out from a config file; and no file you
-wrote ever spells the word. Undeclared, that diff narrows to whatever else it
-touched. Declared, the run is whole, and it says `jsdom`.
+`global-jsdom`, which the declared setup imports; and no file you wrote ever
+spells the word. An environment the config names only by string is not
+imported by anything, so its packages are not reached. Undeclared, that diff narrows to whatever else it
+touched. Declared, the run is whole, and it names `jsdom`.
 

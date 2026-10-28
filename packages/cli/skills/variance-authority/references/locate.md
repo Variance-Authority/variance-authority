@@ -7,18 +7,23 @@ declaring files, roles, custom properties, and the regions a journey covered. It
 does not read the repository and it is not code search; for a name in the
 source, ask `search` in the [workspace API](workspace-api.md).
 
-Hits are ranked by how many of your words matched and how rare each word is.
-Past a trailing plural there is no stemming. The rule for expanding a query is
+Hits are ranked by how many of your words matched, then by how many pairs of
+adjacent words a hit says side by side in one value, then by how rare each word
+is. Type a label's words in the label's order. A match on a word more than half
+the searched subjects have prints `(in N of M)`: it found the hit and does not
+distinguish it. When every word is that common, the answer says so above the
+list; add a word only the subject you mean would show. Past a trailing plural
+there is no stemming. The rule for expanding a query is
 in `SKILL.md` under *Matching is lexical*.
 
 ## Ask in a different kind of name
 
-Each row is a field. The header of every answer says for which subjects the run
-took that reading.
+Each row is a field. The header of every answer names the subjects for which the
+run took that reading.
 
 | kind | example query |
 |---|---|
-| what the screen says | `Sign in`, `Mark as done` |
+| what the screen shows | `Sign in`, `Mark as done` |
 | what the component is likely called | `Credential`, `Login`, `Session` |
 | where it is likely written | `session`, `entry`, `auth/` |
 | what it is, structurally | `checkbox`, `dialog`, `alert` |
@@ -29,8 +34,10 @@ run did record printed beside it. Build the next query out of those.
 
 ## Hand the description over as words
 
-No word in `--query` is read as syntax, so a product that says *Under review*,
-*Show more* or *Inside sales* is searched for those words:
+No word in `--query` is read as syntax, so a product that shows *Under review*,
+*Show more* or *Inside sales* is searched for those words. Ten function words
+are dropped — `the a an in on of with and for to` — so `Sign in` searches
+`sign`. `--limit <n>` sets how many hits are printed; the default is 8:
 
 ```bash
 variance ask locate --query "footer filter chips"
@@ -41,8 +48,7 @@ where to take the id:
 
 ```
 1 of 3 subject(s) match `badge`.
-Read: id, example, names, text, components, createdBy, files, roles, tokens.
-Not read: regions (no execution journal was read).
+Read: id, example, names, text, components, createdBy, files, roles, tokens. Not read: regions (no execution journal was read).
 
 badge/standalone · 1 boundary · example of Badge
   badge: id `badge/standalone`; example `Badge`; components `Badge`
@@ -79,17 +85,16 @@ the anchor has to pick the surface as well. One relation per question; two is
 refused.
 
 **`--inside` is the only relation a run without layout can answer.** The other
-five are decided from the rectangles the run resolved. A run that resolved no
-layout refuses them rather than falling back to document order, and says so:
-*"This run did not resolve layout, so no landmark carries a rectangle and
-nothing here knows what sits beneath what."* Containment needs no rectangle.
-Check the run's layout before you use the other five.
+five are decided from the rectangles the run resolved. On a run that resolved
+no layout, they answer where the anchor is and say the run cannot tell what sits
+in that relation to it, rather than falling back to document order. Containment
+needs no rectangle.
 
 On a relation answer, read three things before acting:
 
-- `matched on place` — nothing on the screen says your word; the landmark was
+- `matched on place` — nothing on the screen shows your word; the landmark was
   found by where it is, not by what it is called. When your word is on it, the
-  answer says so instead.
+  answer prints that instead.
 - `also beneath` (and the other relations) — everything else in that relation,
   nearest first. The one you meant is sometimes the second.
 - `4px away` — measured between resolved rectangles. Absent when the run
@@ -97,11 +102,11 @@ On a relation answer, read three things before acting:
 
 ## Every hit is already a place
 
-`where:` names the thing on that surface that says your words, the file and line
-it is declared at, and what encloses it. A production build strips the line, so
-the place reads `in CarrierPicker · src/dispatch/CarrierPicker.tsx`: a source to
-open rather than a coordinate. Do not spend a second question asking where
-something lives.
+`where:` names the thing on that surface that shows your words, the file and
+line it is declared at, and what encloses it. A production build strips the
+line, so the place reads `in CarrierPicker · src/dispatch/CarrierPicker.tsx`: a
+source to open rather than a coordinate. Do not spend a second question asking
+where something lives.
 
 ## Read the header before reading an empty answer
 
@@ -110,12 +115,14 @@ Three states look alike, and the header separates them per field:
 - **Read, and nothing matched.** The names exist and your word is not among
   them. Ask again in another kind of name, from the table above.
 - **Not read.** No journal means no regions; no snapshot means no names, text or
-  roles; no source index means no files. Nothing was searched.
+  roles; no source index and no provenance means no files. Nothing was
+  searched.
 - **Read, and empty.** A build with owner links stripped has an empty
-  `createdBy` everywhere.
+  `createdBy` everywhere, and a suite that is not React has no components or
+  creators to record.
 
-Search is absent altogether, and says so, on a raster-only capture, a run under
-ephemeral retention, and a suite that is not React.
+A run that read no markup, such as a raster-only capture, writes no names at
+all: only subject ids are searched, and the answer prints that.
 
 The order of hits is orientation, not evidence: no hit has a verdict or a pixel
 count. Read the field each term matched on, narrow, then take the id to

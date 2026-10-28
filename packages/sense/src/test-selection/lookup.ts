@@ -12,14 +12,50 @@ import type { TestCoverageView } from './format-view.js';
  *
  * The dictionary underneath them is sorted the same way, by both of the things
  * that write one — `dictionary()` in `format.ts` sorts, and
- * `layeredDictionary()` merges two runs that are already in order — so a path
+ * `mergedDictionary()` merges two runs that are already in order — so a path
  * can be turned into the integer it was interned under before any column is
  * touched. That is what lets a question about a name be asked in integers.
+ *
+ * ## Why a view keeps what its searches decoded
+ *
+ * A search decodes the path at every row it probes, and every search over one
+ * column probes the same rows first: the middle, then a quarter in, and so on.
+ * One selection asks a few thousand paths — every name of every changed file,
+ * every importer the walks reach, every name the precondition table is asked
+ * about — so decoding each probe afresh decoded the same rows over and over, at
+ * three reads of the dictionary's offsets apiece: forty-four thousand decodes
+ * in one `variance select` over this repository, for under two thousand
+ * distinct rows and strings.
+ *
+ * So each view keeps the paths its searches decoded, by row, and the strings
+ * `findString` decoded, by id, for as long as the view is held. A row is
+ * decoded once per view at most, and only a row some search probed: a whole
+ * table built up front would decode every row of a recording to answer a diff
+ * that names three files, which on a recording of a few hundred thousand
+ * modules is more than the searches it replaces.
  */
+
+/** What one view's lookups decoded: a path by its row in each table, a string by its id. */
+interface Decoded {
+  readonly modules: Map<number, string>;
+  readonly tests: Map<number, string>;
+  readonly strings: Map<number, string>;
+}
+
+const decodedBy = new WeakMap<TestCoverageView, Decoded>();
+
+function decoded(coverage: TestCoverageView): Decoded {
+  let found = decodedBy.get(coverage);
+  if (found === undefined) {
+    found = { modules: new Map(), tests: new Map(), strings: new Map() };
+    decodedBy.set(coverage, found);
+  }
+  return found;
+}
 
 /** One module row recorded under exactly this path, if there is one; {@link findModules} has them all. */
 export function findModule(coverage: TestCoverageView, file: string): number | undefined {
-  return search(coverage, coverage.modulePath, file);
+  return search(coverage, coverage.modulePath, decoded(coverage).modules, file);
 }
 
 /**
@@ -32,20 +68,41 @@ export function findModule(coverage: TestCoverageView, file: string): number | u
  * a caller that reads one leaves the other's crossings on the floor.
  */
 export function findModules(coverage: TestCoverageView, file: string): readonly number[] {
-  const found = search(coverage, coverage.modulePath, file);
+  const held = decoded(coverage).modules;
+  const found = search(coverage, coverage.modulePath, held, file);
   if (found === undefined) return [];
   let first = found;
-  while (first > 0 && coverage.string(coverage.modulePath.at(first - 1)) === file) first -= 1;
+  while (first > 0 && pathAt(coverage, coverage.modulePath, held, first - 1) === file) first -= 1;
   let end = found + 1;
-  while (end < coverage.modulePath.length && coverage.string(coverage.modulePath.at(end)) === file) end += 1;
+  while (end < coverage.modulePath.length && pathAt(coverage, coverage.modulePath, held, end) === file) end += 1;
   const rows: number[] = [];
   for (let row = first; row < end; row += 1) rows.push(row);
   return rows;
 }
 
+/**
+ * The instrumented rows recorded under each of a file's names, keyed by the
+ * name, holding only names that have one. `instrumented: false` is a build
+ * saying it never read the module, not that nothing ran in it, so its zero
+ * blocks are no answer and take nothing from the instrumented row beside it.
+ */
+export function instrumentedRows(coverage: TestCoverageView, names: readonly string[]): Map<string, readonly number[]> {
+  const rows = new Map<string, readonly number[]>();
+  for (const name of names) {
+    const held = findModules(coverage, name).filter((module) => coverage.moduleInstrumented.at(module) === 1);
+    if (held.length > 0) rows.set(name, held);
+  }
+  return rows;
+}
+
 /** The test row recorded under exactly this path, if there is one. */
 export function findTest(coverage: TestCoverageView, file: string): number | undefined {
-  return search(coverage, coverage.testPath, file);
+  return search(coverage, coverage.testPath, decoded(coverage).tests, file);
+}
+
+/** The path a test row was recorded under, decoded once per view whoever asks for it. */
+export function testPathOf(coverage: TestCoverageView, test: number): string {
+  return pathAt(coverage, coverage.testPath, decoded(coverage).tests, test);
 }
 
 /**
@@ -56,29 +113,60 @@ export function findTest(coverage: TestCoverageView, file: string): number | und
  * search a column for it already has its answer and can decline to look.
  */
 export function findString(coverage: TestCoverageView, value: string): number | undefined {
-  let low = 0;
-  let high = coverage.strings - 1;
-  while (low <= high) {
-    const middle = Math.floor((low + high) / 2);
-    const candidate = coverage.string(middle);
-    if (candidate === value) return middle;
-    if (candidate < value) low = middle + 1;
-    else high = middle - 1;
-  }
-  return undefined;
+  const held = decoded(coverage).strings;
+  const string = (at: number): string => {
+    let found = held.get(at);
+    if (found === undefined) held.set(at, (found = coverage.string(at)));
+    return found;
+  };
+  const id = stringBound(coverage.strings, (at) => codeUnitOrder(string(at), value));
+  return id < coverage.strings && string(id) === value ? id : undefined;
 }
 
-function search(coverage: TestCoverageView, column: WordColumn, file: string): number | undefined {
+/**
+ * Where a string sorts among a dictionary of `strings` sorted in code-unit
+ * order: the first id whose string is not below it, and `strings` when every
+ * one is. `order(id)` compares the string at `id` with the one wanted, as
+ * `codeUnitOrder` does. A reader that holds the stored bytes compares those, so
+ * finding a name decodes nothing; one that reads through a view decodes the
+ * strings the search visits.
+ */
+export function stringBound(strings: number, order: (id: number) => number): number {
+  let low = 0;
+  let high = strings;
+  while (low < high) {
+    const middle = (low + high) >>> 1;
+    if (order(middle) < 0) low = middle + 1;
+    else high = middle;
+  }
+  return low;
+}
+
+function search(
+  coverage: TestCoverageView,
+  column: WordColumn,
+  held: Map<number, string>,
+  file: string,
+): number | undefined {
   let low = 0;
   let high = column.length - 1;
   while (low <= high) {
     const middle = Math.floor((low + high) / 2);
-    const candidate = coverage.string(column.at(middle));
+    const candidate = pathAt(coverage, column, held, middle);
     if (candidate === file) return middle;
     if (candidate < file) low = middle + 1;
     else high = middle - 1;
   }
   return undefined;
+}
+
+function pathAt(coverage: TestCoverageView, column: WordColumn, held: Map<number, string>, row: number): string {
+  let path = held.get(row);
+  if (path === undefined) {
+    path = coverage.string(column.at(row));
+    held.set(row, path);
+  }
+  return path;
 }
 
 /**
@@ -116,24 +204,46 @@ function search(coverage: TestCoverageView, column: WordColumn, file: string): n
  * precondition, so when none of them is interned the table is not read at all —
  * which is every diff that touches a document, an asset, or anything else the
  * run never saw.
+ *
+ * ## Why a test that ran the arrived text is not governed
+ *
+ * `arrived` gives some names the digest of the text the caller's tree holds.
+ * The digest beside a precondition is the text that test ran over, so a row
+ * recording the arrived one is a test that already ran what is there now: a
+ * run over a dirty tree, its edit left in place or committed since. That row
+ * governs nothing, and each test is decided by its own row. A name held only by
+ * such rows is in `ranOver`, and is not `unread`: the record holds it.
  */
 export function testsGovernedBy(
   coverage: TestCoverageView,
   files: readonly string[],
-): { readonly tests: ReadonlyMap<number, readonly string[]>; readonly unread: readonly string[] } {
-  if (files.length === 0) return { tests: new Map(), unread: [] };
+  arrived: ReadonlyMap<string, string> = new Map(),
+): {
+  readonly tests: ReadonlyMap<number, readonly string[]>;
+  readonly unread: readonly string[];
+  readonly ranOver: ReadonlySet<string>;
+} {
+  if (files.length === 0) return { tests: new Map(), unread: [], ranOver: new Set() };
 
   const wanted = new Map<number, string>();
+  // The id of the arrived digest, by the name's id: compared as names are, so a
+  // digest the dictionary never interned matches no row.
+  const ran = new Map<number, number | undefined>();
   for (const file of files) {
     const id = findString(coverage, file);
-    if (id !== undefined) wanted.set(id, file);
+    if (id === undefined) continue;
+    wanted.set(id, file);
+    const digest = arrived.get(file);
+    if (digest !== undefined) ran.set(id, findString(coverage, digest));
   }
-  if (wanted.size === 0) return { tests: new Map(), unread: [...files].sort(codeUnitOrder) };
+  if (wanted.size === 0) return { tests: new Map(), unread: [...files].sort(codeUnitOrder), ranOver: new Set() };
 
   const matched = new Set<string>();
+  const over = new Set<string>();
   const tests = new Map<number, string[]>();
   const preconditions = coverage.testPreconditions;
   const named = coverage.preconditionName;
+  const digests = coverage.preconditionDigest;
 
   // The offsets are a CSR: one test's end is the next one's start, so the
   // column is read once per test rather than twice per row.
@@ -143,9 +253,14 @@ export function testsGovernedBy(
     end = preconditions.at(test + 1);
     let governing: string[] | undefined;
     for (let input = start; input < end; input += 1) {
-      const name = wanted.get(named.at(input));
+      const id = named.at(input);
+      const name = wanted.get(id);
       if (name === undefined) continue;
       matched.add(name);
+      if (ran.has(id) && digests.at(input) === ran.get(id)) {
+        over.add(name);
+        continue;
+      }
       if (governing === undefined) {
         governing = [];
         tests.set(test, governing);
@@ -154,9 +269,11 @@ export function testsGovernedBy(
     }
   }
 
+  const governs = new Set([...tests.values()].flat());
   return {
     tests,
     unread: files.filter((file) => !matched.has(file)).sort(codeUnitOrder),
+    ranOver: new Set([...over].filter((name) => !governs.has(name))),
   };
 }
 

@@ -5,6 +5,7 @@
 > The shape a Variance Authority run leaves behind, so a person, a pull request and an agent read one format.
 
 Part of [Variance Authority](https://variance-authority.dev).
+Point your coding agent at [`llms.txt`](https://variance-authority.dev/llms.txt).
 
 ## What this is for
 
@@ -86,9 +87,13 @@ for (const subject of clustering.ungrouped) {
 
 Each **change** in `clustering.changes` is one fingerprint — a digest of the
 shape of the difference, stamped on every region of the diff and built from the
-component responsible, so the same-looking change in `Avatar` and in `Badge`
-stays two changes. `ungrouped` lists subjects that changed and produced no
-fingerprint at all; they are never folded into a catch-all.
+changed pixels alone: the region cropped to its box, resampled onto a fixed
+grid, with its aspect and size bucketed beside it. The component is not part of
+it, so the same-looking change in `Avatar` and in `Badge` is one change, and
+`accept --shape` on it promotes both. `change.component` names the first
+component a region in the change was attributed to. `ungrouped` lists subjects
+that changed and produced no fingerprint at all; they are never folded into a
+catch-all.
 
 ### What you get
 
@@ -107,6 +112,13 @@ re-renders. It takes subject ids, `--all`, or `--shape <fingerprint>` as printed
 above, and it refuses by name any subject where something the shape does not
 account for also moved — which is why the checkout route is in `subjects` and
 not in `settles`.
+
+`promotionOf(observation)` is the same rule as a function, for a caller that has
+to answer what accepting a subject would do without promoting it. A subject
+painted under another identity whose pixels changed is a change like any other:
+`--all` adopts it, and its `because` names what moved. One whose pixels did not
+change is promotable too, and accepting it re-stamps the image under the run's
+identity without recording a change.
 
 ## The shape
 
@@ -155,25 +167,26 @@ subject. Abridged to the fields most reports use:
 
 `identity` is the machine and renderer the pixels came from — what a baseline is
 only comparable within. Each observation's `verdict` is the run's answer for that
-one subject: `unchanged`, `changed`, `new`, `incomparable` or `ignored`. Its
+one subject: `unchanged`, `changed`, `new` or `ignored`. Its
 `regions` are the rectangles of the diff, each naming the component and pixel
 count that explain it.
 
 `notObserved` lists subjects the run planned and has no answer for, each
-`excluded`, `failed` or `unreached`. **Absent is not empty**: a report written by
-something other than `variance run` may never say what it skipped, and that is a
-different claim from "it skipped nothing". Read it before you print "nothing to
-review" — a run that planned 300 subjects, failed on 50 and found 250 unchanged
-has an all-clean observation list.
+`excluded`, `failed` or `unreached`. **Absent is not empty**: a report written
+by something other than `variance run` may have no record of what it skipped,
+and that is a different fact from "it skipped nothing". Read it before you print
+"nothing to review" — a run that planned 300 subjects, failed on 50 and found
+250 unchanged has an all-clean observation list.
 
 Three further fields are present only when the run had something to put in them:
 
-- `narrowing` — the ref the run was told to observe from (`--since`), and where
-  the recorded execution index stands: the commit it was written at, and how many
-  files the working tree differs from it by. A run that observed everything
-  includes the second half alone, which is what makes the option visible to a
-  reader who never passed one. Absent `index` means there is nothing to diff
-  from; it never means the index is current, which is `changed: 0`.
+- `narrowing` — the ref the run was configured to observe from (`--since`), and
+  where the recorded execution index stands: the commit it was written at, and
+  how many files the working tree differs from it by. A run that observed
+  everything includes the second half alone, which is what makes the option
+  visible to a reader who never passed one. Absent `index` means there is
+  nothing to diff from; it never means the index is current, which is `changed:
+  0`.
 - `drift` — design tokens whose value changed in this run, each with what it
   changed from, what it changed to, and how many approved steps it took to get
   there. This is what a single comparison structurally cannot show: eleven
@@ -196,7 +209,8 @@ elements, beside the document, pixel and accessibility boundaries. It does not
 change the verdict. A comparable presentation signal has the two digests,
 information counts, and `introduced`, `resolved` or `persisted` effects; an
 empty `effects` list means both sides were measured and no relationship changed.
-An `incomparable` one gives a reason and no effects.
+A side with no reading, or no layout findings, makes the signal `changed` with
+a `because` that names that side and no effects.
 
 The CLI passes the signal through both the pixel-compared path and the path
 where a subject's document digest matched the baseline's, so it was declared
@@ -211,7 +225,7 @@ than re-running the analysis. The producing API is in
 |---|---|---|
 | `.` | nothing | `RunReport`, `ObservationRecord`, `PresentationSignalRecord`, `RegionRecord`, `NotObserved`, `clusterChanges`, `adjudicateRun`, `changelogOf` |
 | `./file` | a filesystem | `readRunReport`, `writeRunReport`, `readSuiteIndex`, `writeSuiteIndex` |
-| `./suite-index` | nothing | `suiteIndexOf`, `encodeSuiteIndex`, `decodeSuiteIndex`, `SuiteIndex` |
+| `./suite-index` | nothing | `suiteIndexOf`, `encodeSuiteIndex`, `decodeSuiteIndex`, `SuiteIndex`, `SubjectCoverage`, `SuiteProvenance` |
 
 Import `./file` only when this process should read or write a local path. An
 object store, a pull request comment or a socket carries the same `RunReport`
@@ -219,11 +233,19 @@ value without it.
 
 `./suite-index` is the part of a report that is not about the run: what the suite
 is made of — its subjects, its components, every name each one goes by. That is a
-fact about the commit, it changes only when the suite does, and it is asked for
+fact about the commit, it changes only when the suite does, and it is read
 far more often than a run happens. `suiteIndexOf` takes it out of a report as
 bytes, addressed by that commit, small enough for a cache to keep and stable
 enough that two machines composing the same suite write the same file.
 `decodeSuiteIndex` refuses anything else.
+
+The index carries the lexicon whole, landmarks and `declaredIn` included, and
+keeps a field nobody read apart from one read and found empty. An index that
+`variance collect merge` wrote adds `coverage`, what became of every planned
+subject, and `provenance`, the plan, config and build it was composed from; one
+`suiteIndexOf` takes out of a run report leaves both out, because the report
+already holds them. A version 1 index still decodes, with none of them filled
+in.
 
 ## Check a run against what you said you were doing
 
@@ -254,7 +276,7 @@ On the same run:
 
 ```
 Every declared edit landed; something you did not declare also moved.
-1 claim(s): 1 delivered, 0 undelivered, 0 over-reaching, 0 unchecked. 1 unclaimed change(s).
+1 claim(s): 1 delivered, 0 undelivered, 0 overreached, 0 unobservable. 1 unclaimed change(s).
 
   [delivered] component:Button
       declared (new brand accent) and delivered: component:Button changed in 3 subject(s): component:Button/primary, component:Button/disabled, route:/checkout. Not checked here: viewport.
@@ -276,8 +298,8 @@ and held still, which means your edit did not take. Telling that apart from
 *never rendered here, so nothing in this run is evidence either way* needs the
 report's `composition.components` — which components the run's subjects rendered
 at all. With it, the two cases separate into `undelivered` and `unobservable`;
-without it, `adjudicateRun` cannot make the distinction and says so rather than
-guessing.
+without it, `adjudicateRun` cannot make the distinction, answers `unobservable`
+and gives the missing census as its `because` rather than guessing.
 
 `unchecked` is how a caller keeps a claim it could not verify. A boundary that
 parses claims from an agent — the MCP tool, the CLI — passes through the field
@@ -286,10 +308,10 @@ viewport` instead of reporting `delivered` about something nothing looked at.
 
 ## Record why a baseline is what it is
 
-A baseline update lands in a run of its own, and the artifact that lands says
+A baseline update lands in a run of its own, and the artifact that lands records
 *what* the new baseline is and nothing about what the change was. A month later,
-at the twelfth 2px approval, the report that could have said so left with the CI
-job.
+at the twelfth 2px approval, the report that could have recorded it left with
+the CI job.
 
 `changelogOf` folds a report and the subjects actually accepted into one record,
 and `renderCommitMessage` puts it where the baseline is — in the commit message,
@@ -356,7 +378,7 @@ squash merge moves them out of it.
 
 `renderCommitMessage` takes exactly two things: `message`, the subject line in
 your words, and `record`, what `changelogOf` returned. It writes no subject line
-of its own, so a commit says what you meant it to say and the trailers say what
+of its own, so a commit says what you meant it to say and the trailers list what
 was promoted.
 
 `changelogOf` takes:
@@ -376,10 +398,10 @@ would read as "nothing changed" — when nothing was accepted, or when the repor
 names no run id to attribute the baseline to. `isRecorded` narrows between the
 two.
 
-The record omits a changed-pixel count (the regions already say where the change
-was), rendered prose, and any derived total. `changelogVersion` changes only when
-an existing field's meaning changes; a reader keeps keys it does not recognise,
-so a new field does not need one.
+The record omits a changed-pixel count (the regions already show where the
+change was), rendered prose, and any derived total. `changelogVersion` changes
+only when an existing field's meaning changes; a reader keeps keys it does not
+recognise, so a new field does not need one.
 
 Reading it back where baselines are commits is `@variance-authority/store`'s
 `readChangelog`; where they are rows it is `@variance-authority/tribunal`'s.
@@ -398,4 +420,4 @@ than becoming an empty list.
 
 ---
 
-**[@variance-authority/report](https://variance-authority.dev/reference/packages/report)** is part of [Variance Authority](https://variance-authority.dev) — [documentation](https://variance-authority.dev/docs) · MIT
+**[@variance-authority/report](https://variance-authority.dev/reference/packages/report)** is part of [Variance Authority](https://variance-authority.dev) — [documentation](https://variance-authority.dev/docs) · [GitHub](https://github.com/Variance-Authority/variance-authority/tree/main/packages/report) · MIT

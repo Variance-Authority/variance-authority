@@ -21,12 +21,14 @@
 
 use std::borrow::Cow;
 use std::collections::{HashMap, HashSet};
+use std::path::Path;
 use std::sync::Arc;
 
 use napi_derive::napi;
 use rayon::prelude::*;
 use rustc_hash::{FxHashMap, FxHashSet};
 
+use crate::acquire::{declined_for_size, still_too_large, LARGEST_FILE};
 use crate::batch::{is_module, walk_beyond, GraphOptions, Walked};
 use crate::compact::{merged, Layer};
 use crate::emitted::Listing;
@@ -50,7 +52,7 @@ pub struct UpdateOptions {
     pub config: String,
     pub largest_file: Option<u32>,
     pub readers: Option<u32>,
-    pub tsconfig: Option<String>,
+    pub tsconfig: Option<napi::Either<String, bool>>,
     pub condition_names: Option<Vec<String>>,
     /// `Aliases.table` as JSON, when a configuration maps specifiers.
     pub aliases: Option<String>,
@@ -217,6 +219,7 @@ pub(crate) fn update(o: UpdateOptions, tree: Tree) -> napi::Result<Option<Update
     moved.extend(held_directories.keys().filter(|path| !directories.contains_key(**path)));
 
     let folded = fold(&layers);
+    let (root, largest) = (Path::new(&o.root), u64::from(o.largest_file.unwrap_or(LARGEST_FILE)));
     let valid: FxHashMap<&str, At> = folded
         .par_iter()
         .filter(|(file, at)| {
@@ -226,6 +229,11 @@ pub(crate) fn update(o: UpdateOptions, tree: Tree) -> napi::Result<Option<Update
             let Some(&index) = tree.at.get(**file) else { return false };
             names_object(digest, &tree.oids[index as usize])
                 && (moved.is_empty() || !records.witnesses_of(stored, row).any(|directory| moved.contains(directory)))
+                // Git's object is the cleaned bytes and a decline was decided on
+                // the checked-out ones, so it holds while those are still over.
+                && records
+                    .unknown_of(stored, row)
+                    .is_none_or(|unknown| !declined_for_size(file, unknown) || still_too_large(root, file, largest))
         })
         .map(|(file, at)| (*file, *at))
         .collect();
@@ -257,7 +265,7 @@ pub(crate) fn update(o: UpdateOptions, tree: Tree) -> napi::Result<Option<Update
                 seeds: need.clone(),
                 largest_file: o.largest_file,
                 readers: o.readers,
-                tsconfig: o.tsconfig.clone(),
+                tsconfig: crate::resolve::Tsconfig::from_js(o.tsconfig.clone()),
                 condition_names: o.condition_names.clone(),
                 include_parses: false,
             },
@@ -273,9 +281,9 @@ pub(crate) fn update(o: UpdateOptions, tree: Tree) -> napi::Result<Option<Update
             .zip(identities.into_par_iter())
             .zip(read.into_par_iter())
             .zip(targets.par_iter())
-            .map(|(((file, identity), (read, _, parsed)), targets)| {
-                let indexed = built(file, &identity, &read, parsed, targets, &settling);
-                Row { indexed, identity, read, parsed }
+            .map(|(((file, identity), (read, _, outcome)), targets)| {
+                let indexed = built(file, &identity, &read, outcome, targets, &settling);
+                Row { indexed, identity, read, parsed: outcome.parsed() }
             })
             .collect();
         walked.extend(files.into_iter().zip(rows));
@@ -407,7 +415,8 @@ pub(crate) fn update(o: UpdateOptions, tree: Tree) -> napi::Result<Option<Update
     let base = references.len() - chain.working;
     let mut working: Vec<&[u8]> = chain.segments[base..].iter().map(Vec::as_slice).collect();
     working.push(&delta);
-    let working = if working.len() == 1 { delta.clone() } else { merged(&working).map_err(fail)? };
+    let beneath: Vec<&[u8]> = chain.segments[..base].iter().map(Vec::as_slice).collect();
+    let working = if working.len() == 1 { delta.clone() } else { merged(&beneath, &working).map_err(fail)? };
     // Another writer between the read and here: its chain is not the one this delta is against.
     let refused = match written(&o.index, Over::Published(chain.published()), &references[..base], &[&working], &references[base..], 1) {
         Ok(false) => return Ok(None),

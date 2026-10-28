@@ -44,6 +44,7 @@ export type {
   ChurnRecord,
   DriftRecord,
   VariationRecord,
+  VariationStep,
 } from './format.js';
 
 export type { JourneysReport, JourneyParting, JourneyRegionRecord } from './journeys.js';
@@ -56,6 +57,9 @@ export type {
   PartingRecord,
   MovementRecord,
   SubjectStructureRecord,
+  SubjectPiecesRecord,
+  SubjectShareRecord,
+  ResidueRecord,
   BoundaryRow,
 } from './composition.js';
 
@@ -128,6 +132,10 @@ export type { CommitMessageOptions } from './changelog-message.js';
 
 export { promotionOf, selectByShape, whyNotWhole } from './promotion.js';
 export type { Promotion } from './promotion.js';
+export { NO_RECORD, isUnstable, unstableOf } from './unstable.js';
+export type { UnstableSubject } from './unstable.js';
+
+export { byReason } from './shared-reasons.js';
 
 export { adjudicateRun, describeAdjudication, parseRoot } from './intent.js';
 export type {

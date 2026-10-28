@@ -1,5 +1,6 @@
-import type { Documented, Entry, Opening } from '@variance-authority/package/help';
-import { opening } from '@variance-authority/package/help';
+import { codeUnitOrder } from '@variance-authority/core/segment';
+import type { Documented, Entry, Opening, Use } from '@variance-authority/package/help';
+import { mayBeRead, opening } from '@variance-authority/package/help';
 import { specifierOf } from './find.js';
 
 /**
@@ -27,10 +28,31 @@ export function audience(entry: Entry, cap: number): string {
   return `${entry.usedBy.length} ${entry.usedBy.length === 1 ? 'package' : 'packages'}: ${named}`;
 }
 
-/** How much of the repository reaches for this, in the words an asker ranks on. */
-export function reach(entry: Entry): string {
-  if (entry.usedBy.length === 0) return 'used by nothing outside its own package';
-  return `used by ${audience(entry, 12)} — ${entry.uses} ${entry.uses === 1 ? 'import' : 'imports'}`;
+/**
+ * What the caller read of the places that may read a name: `may`, reads off
+ * the module's `default` and the module passed on whole, which are no use of
+ * it, and whether any place imports it for certain. The caller partitions the
+ * sites, so every line of one answer names the same places.
+ */
+export interface Undecided {
+  readonly may: readonly Use[];
+  readonly imported: boolean;
+}
+
+/**
+ * How many other packages reach for this by its published path, in the words
+ * an asker ranks on, and where it may be read. The imports inside its own
+ * package are not in the Help value, and the caller that reads them counts
+ * them apart.
+ */
+export function reach(entry: Entry, { may, imported }: Undecided): string {
+  if (entry.usedBy.length === 0) {
+    return may.length === 0
+      ? 'no other package imports it by its published path'
+      : `no other package imports it by name through its published path; it ${mayBeRead(may)}${imported ? '' : ', so whether it is used is unknown'}`;
+  }
+  const also = may.length === 0 ? '' : `; it also ${mayBeRead(may)}`;
+  return `used by ${audience(entry, 12)} — ${entry.uses} ${entry.uses === 1 ? 'import' : 'imports'} by published path${also}`;
 }
 
 /** What a list line reads of a published name: the audience counted, never named. */
@@ -48,6 +70,41 @@ export function line(entry: Listed): string {
   return `${entry.name} [${entry.kind}] ${entry.usedBy.length} packages, ${entry.uses} imports — ${said}`;
 }
 
+/** `block` after what `lines` already holds, a blank line between them. */
+export function section(lines: string[], ...block: readonly string[]): void {
+  lines.push(...(lines.length > 0 ? [''] : []), ...block);
+}
+
+/** `count` and the noun, singular at one. */
+export const plural = (count: number, one: string, many = `${one}s`): string => `${count} ${count === 1 ? one : many}`;
+
+/** An argument a shell passes through unchanged, quoted only when it would not be. */
+export function shell(value: string): string {
+  return /^[\w@./:=+-]+$/u.test(value) ? value : `'${value.replace(/'/gu, `'\\''`)}'`;
+}
+
+/** The commands that take an answer further, after a blank line and a heading; nothing when there are none. */
+export function narrower(asks: readonly string[]): readonly string[] {
+  return asks.length === 0 ? [] : ['', 'Narrower questions:', ...asks.map((command) => `  ${command}`)];
+}
+
+/** `<specifier> — N names, U imported elsewhere, D documented`. */
+export function openingRow(published: Documented, held: Opening): string {
+  return `${specifierOf(published, held)} — ${plural(held.entries.length, 'name')}, ${used(held)} imported elsewhere, ${written(held)} documented`;
+}
+
+const used = (held: Opening): number => held.entries.filter((entry) => entry.usedBy.length > 0).length;
+const written = (held: Opening): number => held.entries.filter((entry) => entry.doc !== undefined).length;
+
+/** The specifier whose names the most packages import, ties in code-unit order; none when nothing imports any. */
+export function mostUsed(
+  opened: readonly (readonly [Documented, Opening])[],
+): readonly [Documented, Opening] | undefined {
+  return opened
+    .filter(([, held]) => used(held) > 0)
+    .sort((a, b) => used(b[1]) - used(a[1]) || codeUnitOrder(specifierOf(...a), specifierOf(...b)))[0];
+}
+
 /** The line a caller writes to reach this name. */
 export function importing(published: Documented, held: Opening, entry: Entry): string {
   const specifier = specifierOf(published, held);
@@ -55,12 +112,12 @@ export function importing(published: Documented, held: Opening, entry: Entry): s
 }
 
 /** One name in full, including the head somebody would copy. */
-export function block(published: Documented, held: Opening, entry: Entry): string {
+export function block(published: Documented, held: Opening, entry: Entry, undecided: Undecided): string {
   const lines = [
     `${entry.name} [${entry.kind}]`,
     importing(published, held, entry),
     `declared at ${entry.at}:${entry.line}`,
-    reach(entry),
+    reach(entry, undecided),
   ];
 
   if (entry.signature !== undefined) lines.push('', entry.signature);

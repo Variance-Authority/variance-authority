@@ -35,7 +35,7 @@ describe('the emitted probe', () => {
   it('reads the root once per module, and asks the scope only where there is one', () => {
     // Under Jest the global is an interceptor call on a contextified object;
     // this is a module-scoped variable, read once.
-    expect(code()).toContain('function __vaS(i){const K=__vaK||__vaI();if(K.s!==null)K.s();const a=K.a;if(__vaA!==a){');
+    expect(code()).toContain('function __vaS(i){const K=__vaK||__vaI();if(K.s!==null)K.s();const v=K.v,');
     expect(code()).toContain('function __vaE(){(__vaK||__vaI()).x()}');
   });
 
@@ -51,6 +51,6 @@ describe('the emitted probe', () => {
   });
 
   it('appends to the log inline, and hands a full log to the root', () => {
-    expect(code()).toContain('const n=K.n;if(n<K.l){K.L[n]=(__vaB+i)|K.v;K.n=n+1}else K.g((__vaB+i)|K.v)}}');
+    expect(code()).toContain('const n=K.n;if(n<K.l){K.L[n]=(__vaB+i)|v;K.n=n+1}else K.g((__vaB+i)|v)}}');
   });
 });

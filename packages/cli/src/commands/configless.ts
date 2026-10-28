@@ -8,10 +8,10 @@
  * together instead of accumulating at the top of `dispatch`.
  *
  * They arrive in two shapes and the split is a typing fact as much as a
- * narrative one. `constantAnswer` covers three *arguments* — `comment --marker`,
- * an `ask` with no question, and an `ask` whose question is about the source —
- * whose commands otherwise go on to load a config like any other.
- * `withoutConfig` covers nine whole commands, and narrows them out of the
+ * narrative one. `constantAnswer` covers two *arguments* — an `ask` with no
+ * question, and an `ask` whose question is about the source — whose commands
+ * otherwise go on to load a config like any other.
+ * `withoutConfig` covers thirteen whole commands, and narrows them out of the
  * union so that what is left in `dispatch` is exactly the set that has a
  * `--config` to read. `usage.ts` states the same fact from
  * the other side: `CONFIGLESS` is what keeps the flag off them, so a command
@@ -22,29 +22,13 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { EXIT_CLEAN, OperatorError, type ExitCode } from '../exit.js';
 import type { Parsed } from '../parse.js';
-import { askSource, questions } from './ask.js';
-import { questionFor } from './asking.js';
-import { COMMENT_MARKER } from './comment.js';
-import { coverage } from './coverage.js';
-import { layersOutput } from './layers-command.js';
-import { restrictionsOutput } from './restrictions-command.js';
-import { formatCoverage } from './coverage-text.js';
-import { coveringAnswer, formatCoveringAnswer } from './covering-suites.js';
-import { distillFiles, formatDistill } from './distill.js';
-import { followUpsOutput, indexOutput } from './index-command.js';
 import type { Detach } from './index-follow-ups.js';
-import { reachOutput } from './reach-command.js';
-import { review } from './review.js';
-import { REVIEW_ARTIFACT, reviewFromRun } from './review-from-run.js';
-import { formatReview } from './review-text.js';
-import { selectOutput } from './select-command.js';
-import { formatStory, story } from './story.js';
-import { watch, watching as watchingLines } from './watch.js';
+import { writePieces } from '../json-pieces.js';
 
-/** The nine commands that read no project configuration at all. */
+/** The thirteen commands that read no project configuration at all. */
 export type Configless = Extract<
   Parsed,
-  { command: 'watch' | 'distill' | 'covering' | 'coverage' | 'layers' | 'restrictions' | 'review' | 'story' | 'index' | 'select' | 'reach' }
+  { command: 'watch' | 'distill' | 'covering' | 'coverage' | 'layers' | 'restrictions' | 'review' | 'story' | 'index' | 'select' | 'shards' | 'reach' | 'prune' }
 >;
 
 export function withoutConfig(parsed: Parsed): parsed is Configless {
@@ -59,54 +43,63 @@ export function withoutConfig(parsed: Parsed): parsed is Configless {
     || parsed.command === 'story'
     || parsed.command === 'index'
     || parsed.command === 'select'
+    || parsed.command === 'shards'
     || parsed.command === 'reach'
+    || parsed.command === 'prune'
   );
 }
 
 /**
- * What answers before the project is read, for the three arguments that ask it to.
+ * What answers before the project is read, for the two arguments that ask it to.
  *
- * Two are constants this build carries rather than readings of anything. The
- * poster needs the marker in exactly the case where there is no body to find it
- * in — a clean run, where the previous docket has to be located and cleared; and
- * an agent finding out what it may ask has not reached a run to ask about, so
+ * One is a constant this build carries rather than a reading of anything: an
+ * agent finding out what it may ask has not reached a run to ask about, so
  * answering it with the config would be a refusal to hold a conversation on the
  * grounds that there is nothing to say yet.
  *
- * The third is a reading, of the one subject a config says nothing about. A
+ * The other is a reading, of the one subject a config says nothing about. A
  * question about the source — what a package publishes, who imports a name —
  * is asked of the checkout under the working directory, and a checkout is
  * there whether or not anybody configured a visual suite in it. Refusing it for
  * want of `variance.config.json` would send a reader to write a file that has
  * no bearing on the answer.
+ *
+ * `comment --marker` is not one of them: the marker names the config's
+ * `project`, so it is answered after the config is read, like any other answer
+ * about a project.
  */
 export async function constantAnswer(
   parsed: Parsed,
   streams: { out(text: string): void },
 ): Promise<ExitCode | undefined> {
-  if (parsed.command === 'comment' && parsed.marker) {
-    streams.out(`${COMMENT_MARKER}\n`);
-    return EXIT_CLEAN;
-  }
-  if (parsed.command === 'ask' && parsed.question === undefined) {
+  if (parsed.command !== 'ask') return undefined;
+  const [{ askSource, questions }, { questionFor }] = await Promise.all([import('./ask.js'), import('./asking.js')]);
+  if (parsed.question === undefined) {
     streams.out(questions());
     return EXIT_CLEAN;
   }
-  if (
-    parsed.command === 'ask' &&
-    parsed.question !== undefined &&
-    questionFor(parsed.question).source !== undefined
-  ) {
+  if (questionFor(parsed.question).source !== undefined) {
     streams.out(await askSource({ ...parsed, question: parsed.question }));
     return EXIT_CLEAN;
   }
   return undefined;
 }
 
+/**
+ * Where a command writes. `drained`, where a reader can lag, resolves once
+ * what was written has been taken, `false` when the reader has gone.
+ */
+export interface Streams {
+  out(text: string): void;
+  err(text: string): void;
+  drained?(): Promise<boolean>;
+  detach?: Detach;
+}
+
 /** Run one of them, each of which is about a suite rather than a project. */
 export async function answerConfigless(
   parsed: Configless,
-  streams: { out(text: string): void; err(text: string): void; detach?: Detach },
+  streams: Streams,
 ): Promise<ExitCode> {
   switch (parsed.command) {
     // A watcher is about a suite, not about a project: it listens, holds what a
@@ -114,6 +107,7 @@ export async function answerConfigless(
     // the directories somebody most wants to start one from — somebody else's
     // repository, a container, a checkout with no visual suite configured at all.
     case 'watch': {
+      const { watch, watching: watchingLines } = await import('./watch.js');
       const watching = await watch();
       streams.out(watchingLines(watching.address));
       await watching.until;
@@ -125,7 +119,15 @@ export async function answerConfigless(
     // are the whole input, so a project that has never configured this tool can
     // still be handed a pair of files somebody else recorded.
     case 'distill': {
-      streams.out(formatDistill(await distillFiles(parsed), parsed.format));
+      if (parsed.format === 'jsonl') {
+        const { distillRows } = await import('./distill.js');
+        const { rows, unrecorded } = await distillRows(parsed);
+        await writePieces(linesOf(rows), streams);
+        if (unrecorded !== undefined) streams.err(`Not recorded: ${unrecorded.length === 1 ? 'suite' : 'suites'} ${unrecorded.join(', ')}.\n`);
+        return EXIT_CLEAN;
+      }
+      const { distillFiles, distillPieces } = await import('./distill.js');
+      await writePieces(distillPieces(await distillFiles(parsed), parsed.format), streams);
       return EXIT_CLEAN;
     }
 
@@ -135,13 +137,26 @@ export async function answerConfigless(
     // flag long and needs nothing configured. Naming the file is still allowed,
     // for the run that happened somewhere else.
     case 'covering': {
+      const [{ answerGaps, coveringAnswer, formatCoveringAnswer }, { evidenceGapText, GapRefusal }] = await Promise.all([
+        import('./covering-suites.js'),
+        import('./evidence-gap.js'),
+      ]);
       try {
-        streams.out(formatCoveringAnswer(await coveringAnswer(parsed), parsed.format));
+        const answer = await coveringAnswer(parsed);
+        streams.out(formatCoveringAnswer(answer, parsed.format));
+        // Under `refs` stdout is a list a runner takes, so the run that closes a gap goes to the person, on stderr.
+        if (parsed.format === 'refs') for (const gap of answerGaps(answer)) streams.err(`${evidenceGapText(gap)}\n`);
       } catch (error) {
         // A program reading JSON is told which refusal this is on the stream it
         // parses; the sentence still goes to stderr, for the person.
+        const gap = error instanceof GapRefusal ? error.gap : undefined;
         if (parsed.format === 'json' && error instanceof OperatorError && error.kind !== undefined) {
-          streams.out(`${JSON.stringify({ refused: error.kind })}\n`);
+          streams.out(`${JSON.stringify({ refused: error.kind, ...(gap === undefined ? {} : { gap }) })}\n`);
+        }
+        // The person reads the run that would answer it under the sentence.
+        if (gap !== undefined) {
+          const kind = (error as OperatorError).kind;
+          throw new OperatorError(`${(error as Error).message}\n${evidenceGapText(gap)}`, { ...(kind === undefined ? {} : { kind }), cause: error });
         }
         throw error;
       }
@@ -154,18 +169,21 @@ export async function answerConfigless(
     // clean whatever it says (ADR-0081).
     // `layers` observes and never gates: the exit is clean whatever moved.
     case 'layers': {
+      const { layersOutput } = await import('./layers-command.js');
       streams.out(layersOutput(parsed));
       return EXIT_CLEAN;
     }
 
     // A fence: the exit is `1` when an import breaks a rule someone wrote.
     case 'restrictions': {
+      const { restrictionsOutput } = await import('./restrictions-command.js');
       const said = await restrictionsOutput(parsed);
       streams.out(said.out);
       return said.code;
     }
 
     case 'coverage': {
+      const [{ coverage }, { formatCoverage }] = await Promise.all([import('./coverage.js'), import('./coverage-text.js')]);
       try {
         streams.out(formatCoverage(await coverage(parsed), parsed.format));
       } catch (error) {
@@ -182,17 +200,28 @@ export async function answerConfigless(
     // them. `--out` keeps the answer as files, because a workflow uploads it and
     // comments with it in steps that do not share this process's output.
     case 'review': {
+      const [{ reviewWithCoverage }, { REVIEW_ARTIFACT, reviewFromRun }, { formatReview, reviewPieces }] = await Promise.all([
+        import('./review-evidence.js'),
+        import('./review-from-run.js'),
+        import('./review-text.js'),
+      ]);
       if (parsed.fromRun !== undefined) {
-        streams.out(formatReview(await reviewFromRun({ run: parsed.fromRun, artifact: parsed.artifact ?? REVIEW_ARTIFACT, root: parsed.root }), parsed.format));
+        const kept = await reviewFromRun({ run: parsed.fromRun, artifact: parsed.artifact ?? REVIEW_ARTIFACT, root: parsed.root });
+        await writePieces(reviewPieces(kept, parsed.format), streams);
         return EXIT_CLEAN;
       }
-      const answer = await review(parsed);
+      if (parsed.format === 'handover') {
+        const { formatHandover, handover } = await import('./review-handover.js');
+        streams.out(formatHandover(await handover(parsed)));
+        return EXIT_CLEAN;
+      }
+      const answer = await reviewWithCoverage(parsed);
       if (parsed.out !== undefined) {
         await mkdir(parsed.out, { recursive: true });
-        await writeFile(join(parsed.out, 'review.json'), formatReview(answer, 'json'));
+        await writeFile(join(parsed.out, 'review.json'), reviewPieces(answer, 'json'));
         await writeFile(join(parsed.out, 'review.md'), formatReview(answer, 'markdown'));
       }
-      streams.out(formatReview(answer, parsed.format));
+      await writePieces(reviewPieces(answer, parsed.format), streams);
       return EXIT_CLEAN;
     }
 
@@ -201,6 +230,7 @@ export async function answerConfigless(
     // may be an agent in a checkout that configured this tool for nothing but
     // its test seam.
     case 'story': {
+      const { formatStory, story } = await import('./story.js');
       streams.out(formatStory(story(parsed), parsed.format));
       return EXIT_CLEAN;
     }
@@ -209,9 +239,20 @@ export async function answerConfigless(
     // same reason: it publishes what they read, and a pipeline that runs them
     // may have configured this tool for nothing else.
     case 'index': {
-      const request = { cwd: process.cwd(), ...(parsed.noGit ? { noGit: true } : {}) };
-      if (parsed.followUps) streams.out(await followUpsOutput(request));
-      else streams.out(await indexOutput({ ...request, ...(parsed.wait || streams.detach === undefined ? {} : { detach: streams.detach, waiting: (text: string) => streams.err(text) }) }));
+      const [{ followUpsOutput, indexOutput }, { stepTicker }] = await Promise.all([
+        import('./index-command.js'),
+        import('./step-progress.js'),
+      ]);
+      // On stderr, beside the waiting lines: stdout is the answer a pipeline reads.
+      const ticker = stepTicker((text) => streams.err(text), process.stderr.isTTY === true);
+      const request = { cwd: process.cwd(), ...(parsed.noGit ? { noGit: true } : {}), progress: ticker.progress };
+      const waiting = (text: string): void => streams.err(text);
+      try {
+        if (parsed.followUps) streams.out(await followUpsOutput({ ...request, waiting }));
+        else streams.out(await indexOutput({ ...request, waiting, ...(parsed.wait || streams.detach === undefined ? {} : { detach: streams.detach }) }));
+      } finally {
+        ticker.done();
+      }
       return EXIT_CLEAN;
     }
 
@@ -228,6 +269,7 @@ export async function answerConfigless(
     // the runner prints next. `0` either way. An empty skip list is the answer
     // "run everything", which is a correct answer and not a failure.
     case 'select': {
+      const { selectOutput } = await import('./select-command.js');
       const said = await selectOutput({
         cwd: process.cwd(),
         format: parsed.format,
@@ -236,9 +278,19 @@ export async function answerConfigless(
         ...(parsed.execution === undefined ? {} : { execution: parsed.execution }),
         ...(parsed.suite === undefined ? {} : { suite: parsed.suite }),
         ...(parsed.diff === undefined ? {} : { diff: parsed.diff }),
+        ...(parsed.atDistance === undefined ? {} : { atDistance: parsed.atDistance }),
       });
       streams.err(said.err);
       streams.out(said.out);
+      return EXIT_CLEAN;
+    }
+
+    // `select`'s reason: asked by a CI job planning the shards a seam's runner
+    // splits by, in a repository that may configure this tool for nothing else.
+    case 'shards': {
+      const { shardsOutput } = await import('./shards-command.js');
+      const { command: _shards, ...asked } = parsed;
+      streams.out(await shardsOutput({ cwd: process.cwd(), ...asked }));
       return EXIT_CLEAN;
     }
 
@@ -249,6 +301,7 @@ export async function answerConfigless(
     // diff reaches — the changed files among them, always — or the command
     // failed and wrote nothing at all.
     case 'reach': {
+      const { reachOutput } = await import('./reach-command.js');
       const said = await reachOutput({
         cwd: process.cwd(),
         since: parsed.since,
@@ -260,5 +313,20 @@ export async function answerConfigless(
       streams.out(said.out);
       return EXIT_CLEAN;
     }
+
+    // The cache is the repository's, named by its root config or by
+    // `VARIANCE_AUTHORITY_CACHE`, and a checkout whose tests another runner
+    // records has it whether or not a visual suite is configured.
+    case 'prune': {
+      const { pruneOutput } = await import('./prune-cache.js');
+      const { text, exit } = await pruneOutput();
+      streams.out(text);
+      return exit;
+    }
   }
+}
+
+/** One JSON line a row, each written as it is reached. */
+function* linesOf(rows: Iterable<unknown>): Generator<string, void, undefined> {
+  for (const row of rows) yield `${JSON.stringify(row)}\n`;
 }

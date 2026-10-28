@@ -1,5 +1,5 @@
 import { OperatorError } from './exit.js';
-import { didYouMean } from '@variance-authority/mcp/tools';
+import { didYouMean } from '@variance-authority/core';
 
 /**
  * The flag lexer: hyphens, `=`, `--`, and nothing about what any command means.
@@ -23,7 +23,22 @@ export interface Flags {
   /** Flags that appeared, valued or not. Lets `--all` be a boolean without a value. */
   readonly present: Set<string>;
   readonly positionals: readonly string[];
+  /** Every value of a flag its command lists in {@link REPEATABLE}, in the order given; `values` holds the last. */
+  readonly repeated: Map<string, readonly string[]>;
 }
+
+/**
+ * Flags a command takes more than once, each time adding one more of a kind.
+ *
+ * Every other flag is refused when repeated. These are the exceptions because
+ * their repetitions do not contradict: each `--where` and `--read` of
+ * `covering` is a condition, and all of them hold; each `--name` of `story` is a case, and
+ * all of them are compared.
+ */
+export const REPEATABLE: Readonly<Record<string, ReadonlySet<string>>> = {
+  covering: new Set(['--read', '--where']),
+  story: new Set(['--name']),
+};
 
 /**
  * Flags that stand alone, and the one list that says so.
@@ -38,6 +53,7 @@ export interface Flags {
  */
 export const BOOLEAN = new Set([
   '--all',
+  '--baselines',
   '--marker',
   '--flakes',
   '--publish',
@@ -51,8 +67,9 @@ export const BOOLEAN = new Set([
   '--whole',
   '--exit-zero-on-changes',
   '--embed-images',
-  '--prune',
   '--packages',
+  '--coverage',
+  '--fan-in',
 ]);
 
 /**
@@ -104,6 +121,7 @@ export function readFlags(
   const values = new Map<string, string>();
   const present = new Set<string>();
   const positionals: string[] = [];
+  const repeated = new Map<string, string[]>();
 
   let index = 0;
   let flagsEnded = false;
@@ -134,7 +152,8 @@ export function readFlags(
           `${didYouMean(name, accepted)}\n\n${usage}`,
       );
     }
-    if (present.has(name)) {
+    const repeatable = REPEATABLE[command]?.has(name) === true;
+    if (present.has(name) && !repeatable) {
       // Repeated flags are refused rather than last-wins: two contradicting
       // `--subjects` on one line means the operator believes one of them is in
       // force, and picking either silently makes half of those beliefs wrong.
@@ -157,9 +176,10 @@ export function readFlags(
     }
     if (inline === undefined) index += 1;
     values.set(name, value);
+    if (repeatable) repeated.set(name, [...repeated.get(name) ?? [], value]);
   }
 
-  return { values, present, positionals };
+  return { values, present, positionals, repeated };
 }
 
 export function noPositionals(positionals: readonly string[], command: string): void {
@@ -171,18 +191,18 @@ export function noPositionals(positionals: readonly string[], command: string): 
 }
 
 /**
- * A `--limit` is a count, and the caller says a count of what.
+ * A count flag — `--limit`, `--workers` — and the caller says a count of what.
  *
- * Three commands take one, so the rule is here rather than restated in each:
+ * Several commands take one, so the rule is here rather than restated in each:
  * `0` and `-1` are typos for a number somebody meant, and a value that parsed
  * as `NaN` and quietly became *all of them* is the reading worth refusing.
  */
-export function countOf(value: string | undefined, of: string): number | undefined {
+export function countOf(value: string | undefined, of: string, flag = '--limit'): number | undefined {
   if (value === undefined) return undefined;
 
   if (!/^[1-9][0-9]*$/.test(value)) {
     throw new OperatorError(
-      `--limit is how many ${of} and must be a positive whole number, not \`${value}\``,
+      `${flag} is how many ${of} and must be a positive whole number, not \`${value}\``,
     );
   }
 

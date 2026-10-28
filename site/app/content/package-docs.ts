@@ -8,6 +8,7 @@ import eyes from "../../../packages/eyes/README.md?raw";
 import help from "../../../packages/help/README.md?raw";
 import history from "../../../packages/history/README.md?raw";
 import ioc from "../../../packages/ioc/README.md?raw";
+import isolator from "../../../packages/isolator/README.md?raw";
 import jsxSource from "../../../packages/jsx-source/README.md?raw";
 import mcp from "../../../packages/mcp/README.md?raw";
 import observe from "../../../packages/observe/README.md?raw";
@@ -19,6 +20,7 @@ import png from "../../../packages/png/README.md?raw";
 import presentation from "../../../packages/presentation/README.md?raw";
 import raster from "../../../packages/raster/README.md?raw";
 import react from "../../../packages/react/README.md?raw";
+import reads from "../../../packages/reads/README.md?raw";
 import remote from "../../../packages/remote/README.md?raw";
 import report from "../../../packages/report/README.md?raw";
 import routeCollector from "../../../packages/route-collector/README.md?raw";
@@ -52,6 +54,7 @@ const packages = [
   ["help", help],
   ["history", history],
   ["ioc", ioc],
+  ["isolator", isolator],
   ["jsx-source", jsxSource],
   ["mcp", mcp],
   ["observe", observe],
@@ -63,6 +66,7 @@ const packages = [
   ["presentation", presentation],
   ["raster", raster],
   ["react", react],
+  ["reads", reads],
   ["remote", remote],
   ["report", report],
   ["route-collector", routeCollector],

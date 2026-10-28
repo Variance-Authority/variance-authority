@@ -17,15 +17,16 @@ import type { ObservationRecord, RegionRecord } from './format.js';
  * ([test page](https://argos-ci.com/docs/learn/reliability-and-flakiness/test-page.md)).
  * Applitools clusters by diff-region shape so one accept propagates across the
  * batch. This project has had the *fingerprints* since 2026-08-05 and printed
- * them one region at a time — [`compare-visual-review.md`](../../../docs/compare-visual-review.md)
+ * them one region at a time — [`compare-visual-review.md`](https://variance-authority.dev/reference/compare-visual-review)
  * states the gap in as many words: they group the batch for you, and here the
  * operator copies one digest out of a report.
  *
  * This is the grouping. It needs nothing new: a fingerprint is already on every
- * region, and it already carries the component responsible, so a cluster is a
- * `groupBy` and an ordering.
+ * region, so a cluster is a `groupBy` and an ordering. The component is not part
+ * of the key. It sits beside the fingerprint on the region, and a cluster adopts
+ * the first one it finds (see `name`).
  *
- * ## Why the fingerprint is better than the one it is modelled on
+ * ## What the fingerprint is
  *
  * `mask-fingerprint` hashes the *silhouette* of a red diff mask — bounding box,
  * dilated, resampled onto a 16×16 grid, density quantized to four buckets. That
@@ -34,12 +35,19 @@ import type { ObservationRecord, RegionRecord } from './format.js';
  * ignore scoped to one of them silences the other. Their own docs concede a
  * version of this while a neighbouring page claims it cannot happen.
  *
- * The semantic fingerprint here is built from the kind of root, the multiset of
- * delta shapes, **and the component responsible**. So the same-looking change in
- * `Avatar` and in `Badge` are different clusters, and accepting one does not
- * reach the other. Where no document survived, the pixel fingerprint is the
- * fallback and inherits the weaker guarantee — which is a reason to keep the
- * document, not a reason to pretend the two are equal.
+ * The fingerprint on a region is the same kind of digest: `fingerprintOfMask`
+ * in `core/judge`, which `decide` in `@variance-authority/observe` computes from
+ * the change mask and the region's box alone — the mask cropped to the box and
+ * resampled onto a 12×12 grid, with the aspect ratio and the linear size
+ * bucketed beside it. The size bucket is the one difference: it is not
+ * scale-free, so a small flaky badge does not share a digest with a large card
+ * that went solid. It is equally blind to who drew the pixels. The same-looking
+ * change in `Avatar` and in `Badge` is one cluster, and `accept --shape` on it
+ * promotes both.
+ *
+ * The semantic fingerprint, `fingerprintOfRoot`, does include the component.
+ * It is computed from two documents and scopes semantic-tier ignores; no region
+ * carries it, so it never reaches this grouping.
  */
 
 export interface Change {
@@ -47,11 +55,12 @@ export interface Change {
   readonly fingerprint: string;
 
   /**
-   * The component this shape was attributed to, when the semantic tier named one.
+   * The component of the first region in this cluster that was attributed to one.
    *
-   * The field that makes a cluster safe to act on in bulk. Absent means the
-   * change is grouped by silhouette alone, and a bulk decision on it is the
-   * weaker claim — surfaced rather than smoothed over.
+   * Beside the fingerprint, not inside it: every cluster is grouped by
+   * silhouette, and regions in two components can share one. Absent means no
+   * region in the cluster was attributed, so nothing names the code that drew
+   * it — surfaced rather than smoothed over.
    */
   readonly component?: string;
 
@@ -87,9 +96,12 @@ export interface Clustering {
   /**
    * Subjects that changed and produced no fingerprint anywhere.
    *
-   * Never folded into a catch-all cluster. A run with no document to compare
-   * against — the ephemeral mode, or a raster-only path — produces regions with
-   * no shape, and grouping those together would invent a "change" that is
+   * Never folded into a catch-all cluster. A subject has no shape when the run
+   * read no markup for it — no semantic snapshot, so no region is attributed and
+   * none carries a fingerprint — or when only its accessibility tree changed and
+   * no pixel did. Retention does not decide it: the ephemeral pair and the
+   * durable baseline both attribute regions from whatever snapshot the collector
+   * gave. Grouping those subjects together would invent a "change" that is
    * really the absence of one. Counting them separately is what keeps the
    * headline honest: *N subjects, M changes, and K we could not group*.
    */
@@ -189,18 +201,14 @@ function blank(fingerprint: string): Mutable {
  * Adopt a component and a file from the first region in the cluster that has
  * them, wherever in the run that turns out to be.
  *
- * Filling a gap, not resolving a disagreement. A semantic fingerprint already
- * *contains* the cause, so two regions sharing one agree about the component by
- * construction — which means an absent component is a component that was not
- * resolved *there*, and taking it from a sibling adds information rather than
- * choosing between claims. Doing it only on the first subject seen was the first
- * draft, and it made the answer depend on report order.
- *
- * A pixel fingerprint contains no cause, so no region in that cluster names one
- * and the field stays absent — the honest report of a group formed by silhouette
- * alone, which must not borrow a component from a neighbour and start looking
- * like the stronger kind of claim.
+ * The fingerprint is a pixel silhouette and contains no component, so two
+ * regions that share one can name different components, or one can name a
+ * component and the other none. The first named region in report order wins.
+ * When no region in the cluster names a component, the field stays absent rather
+ * than borrowing one from outside the cluster.
  */
+// FIXME: a cluster whose regions name two components reports only the first,
+// so `component` and `file` misattribute the rest of the cluster.
 function name(entry: Mutable, regions: readonly RegionRecord[]): void {
   if (entry.component !== undefined) return;
 

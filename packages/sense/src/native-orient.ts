@@ -162,6 +162,66 @@ export interface NativeOrientPackageLayer {
   readonly layer: number;
   /** The packages it imports from, in code-unit order. */
   readonly takes: readonly string[];
+  /**
+   * Effective lines over every sized file its entries load, its own
+   * included, through every edge but a type-only one. A lower bound when
+   * `unsizedFiles` is above 0.
+   */
+  readonly lines: number;
+  /** Effective lines in the files of its own that its entries load. */
+  readonly own: number;
+  /** Files summed into `lines`. */
+  readonly files: number;
+  /** Files and unresolved requests the closure reached and could not size. */
+  readonly unsizedFiles: number;
+  /**
+   * Its manifest's `exports`, `main`, `module` and `bin` name none of its
+   * files, so what it ships starts at the files its own code never imports.
+   */
+  readonly undeclared: boolean;
+}
+
+/** The files the code map read as shipped: every counted file not on the tests' side. */
+export interface NativeOrientShipped {
+  /** Whether the lists were read from the index as it stands now. */
+  readonly current: boolean;
+  /** In code-unit order. */
+  readonly files: readonly string[];
+  /**
+   * The files on the tests' side that a story or an example shows, in code-unit
+   * order; absent from a list kept before they were read, which is not current.
+   */
+  readonly catalogued?: readonly string[];
+}
+
+/** A role a doc declares that the graph contradicts: `check_declared_roles` in the addon. */
+export interface NativeDeclaredRoleFinding {
+  /**
+   * `contradiction`: one doc declares both roles. `test-only-shipped`: a
+   * shipped file runs a `@testOnly` name. `production-unshipped`: a
+   * `@production` name is in a file only tests reach.
+   */
+  readonly kind: 'contradiction' | 'test-only-shipped' | 'production-unshipped';
+  /** The declaring file, or for a test-only use the shipped file using it. */
+  readonly file: string;
+  readonly line: number;
+  readonly name: string;
+  /** Where a used test-only name is declared. */
+  readonly declared?: string | null;
+  readonly declaredLine: number;
+}
+
+/** The declared roles in an index, checked against the shipped list kept beside it. */
+export interface NativeDeclaredRoleCheck {
+  /** How many exports a doc declares a role for. */
+  readonly declared: number;
+  /**
+   * Whether a shipped list is kept beside the index and was read from it as it
+   * stands now; without one, only a doc contradicting itself was checked.
+   */
+  readonly current: boolean;
+  /** In code-unit order of file, then line. */
+  readonly findings: readonly NativeDeclaredRoleFinding[];
 }
 
 /** Every package's layer from the map kept beside an index. */
@@ -264,8 +324,11 @@ export interface NativeOrientMapAnswer {
 
 /** The code-map call on a git listing the addon holds. */
 export interface NativeOrientMapListing {
-  /** Fold the source index at `index` into the code map, carrying this listing rather than asking git again; `null` when there is no index. */
-  prepareOrientMap?(root: string, index: string): Promise<NativeOrientMapPrepared | null>;
+  /**
+   * Fold the source index at `index` into the code map, carrying this listing rather than asking git again,
+   * resolving under the `tsconfig` the scan did; `null` when there is no index.
+   */
+  prepareOrientMap?(root: string, index: string, tsconfig?: string | false): Promise<NativeOrientMapPrepared | null>;
 }
 
 /** The addon's code-map calls, kept apart from the scanner's other calls. */
@@ -274,30 +337,109 @@ export interface NativeOrientMaps {
    * Fold the source index at `index` into the code map kept beside it, with no
    * scan's listing to carry: git lists the checkout for the map. `scanned` is a
    * scan that ran and git could not list, so none is asked for. `null` when
-   * there is no index.
+   * there is no index. `tsconfig` is the one the scan that built the index resolved under.
    */
-  prepareOrientMap?(root: string, index: string, scanned?: boolean | null): Promise<NativeOrientMapPrepared | null>;
+  prepareOrientMap?(root: string, index: string, scanned?: boolean | null, tsconfig?: string | false): Promise<NativeOrientMapPrepared | null>;
   /** One page of the code map kept beside the index at `index`, the top one without `area`; `null` when none is kept, or one of a format this reader does not know. */
   orientMapPage?(index: string, area?: string | null): NativeOrientMapAnswer | null;
   orientLayers?(index: string): NativeOrientLayers | null;
+  /** The shipped files kept beside the index at `index`; `null` when none are kept. */
+  orientShipped?(index: string): NativeOrientShipped | null;
+  /** The declared roles in the index at `index`, checked against the shipped files kept beside it; `null` when either is missing. */
+  checkDeclaredRoles?(index: string): Promise<NativeDeclaredRoleCheck | null>;
 }
 
 /** The addon's dependency-lexicon calls, kept apart from the scanner's other calls. */
 export interface NativeDependencyLexicon {
-  /** Refresh all installed third-party public declarations on the Rust side. */
-  refreshDependencyLexicon(root: string, index: string, path: string, refreshedAt: string): Promise<{
-    readonly path: string; readonly packages: number; readonly entrypoints: number;
+  /** Refresh all installed third-party public declarations on the Rust side, resolving under `tsconfig` as the scan did. */
+  refreshDependencyLexicon(root: string, index: string, path: string, sites: string, tsconfig?: string | false): Promise<{
+    readonly path: string; readonly sites: string; readonly packages: number; readonly entrypoints: number;
     readonly reused: number; readonly unavailable: number; readonly unresolved?: number; readonly unchanged: boolean;
+    /** The source files whose requests this refresh recorded. */
+    readonly appended: number;
+    /** The requests file was written whole, because its base or the names a request is internal to moved. */
+    readonly rebuilt: boolean;
   }>;
-  queryDependencyLexicon(path: string, query: string, files: string[] | null,
+  queryDependencyLexicon(path: string, sites: string, query: string, files: string[] | null,
     exact: boolean, packageName: string | null, limit: number): string | null;
-  dependencyStack(path: string, files: string[], offset: number, limit: number): string | null;
+  dependencyStack(path: string, sites: string, files: string[], offset: number, limit: number): string | null;
+  /** A question's distinct stems as `[stem, word]`, split the way package descriptions are. */
+  describedWords(query: string): [string, string][];
+  /** Per text, how many of the adjacent word pairs of `query` it writes adjacent. */
+  nearOf(query: string, texts: string[]): number[];
+  /** Each word's stem, in order. */
+  wordStems(words: string[]): string[];
 }
 
 /** What the published index records of imports and exports, read by `readHelp`. */
 export interface NativeIndexedUsage {
-  exported: { name: string; at: string; by: string; line: number; type: boolean; kind: 'story' | 'test' | 'source' }[];
-  deep: { specifier: string; by: string; at: string; line: number }[];
+  exported: { name: string; at: string; by: string; line: number; type: boolean; kind: 'story' | 'test' | 'source'; doc?: string }[];
+  /** Imports of a file past every specifier its package declares. */
+  deep: NativeByPath[];
+  /** Imports of a file of a package that declares no entry. */
+  byPath: NativeByPath[];
+  /** Imports of a specifier a published manifest declares, which the reading could not follow to a source file. */
+  unfollowed: NativeByPath[];
   unreadable: string[];
-  names: { key: string; name: string; by: string; at: string; line: number; type: boolean; kind: 'story' | 'test' | 'source'; through?: 'dynamic' | 'namespace'; throughLine: number }[];
+  names: NativeNameUse[];
+}
+
+/** One name taken through an import, keyed by the requested `<package> <subpath>`. */
+export interface NativeNameUse {
+  key: string;
+  name: string;
+  /** The name the importing file binds it to, or passes it on as, when its binding renames it with `as`. */
+  local?: string | null;
+  by: string;
+  at: string;
+  line: number;
+  type: boolean;
+  kind: 'story' | 'test' | 'source';
+  through?: 'dynamic' | 'namespace' | null;
+  throughLine: number;
+  /** Read off the module's `default`, which under interop is a CommonJS module's `module.exports`. */
+  throughDefault: boolean;
+  /** The module goes, whole, somewhere the reader does not follow: the line may read the name. */
+  whole: boolean;
+}
+
+/** Who imports one name out of a set of files, and which files pass it on with `export … from`. */
+export interface NativeImporters {
+  /** Ordered by the importing file in code units, then by line. */
+  uses: NativeNameUse[];
+  /** Every file that passes the name on, in code-unit order; none of the files asked about. */
+  through: string[];
+  /** Every line of a file asked about that uses the name it declares, by file in code units, then by line. */
+  inFile: NativeInFile[];
+  /**
+   * Every namespace a file passes the name on inside, by file in code units,
+   * then by name: `export * as shout` passes `greet` as `shout.greet`, `name`
+   * `shout` and `members` `['greet']`, the last member the name itself.
+   */
+  namespaces: NativeNamespace[];
+}
+
+/** A namespace one file passes a name on inside, under the name it exports it as. */
+export interface NativeNamespace {
+  at: string;
+  name: string;
+  members: string[];
+}
+
+/** One line of a file that uses a name the file declares at its top level. */
+export interface NativeInFile {
+  at: string;
+  line: number;
+  by: string;
+  kind: 'story' | 'test' | 'source';
+}
+
+/** An import of a file rather than an entry, with the file it resolved to when the index recorded one. */
+export interface NativeByPath {
+  specifier: string;
+  by: string;
+  at: string;
+  line: number;
+  to?: string | null;
+  names: NativeNameUse[];
 }

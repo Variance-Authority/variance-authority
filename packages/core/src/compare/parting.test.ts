@@ -30,6 +30,8 @@ function tree(options: {
   readonly expanded: boolean;
   readonly cart?: Holding;
   readonly summary?: Holding;
+  readonly authored?: boolean;
+  readonly styled?: boolean;
 }) {
   const { expanded } = options;
   return capture({
@@ -43,6 +45,8 @@ function tree(options: {
           tag: expanded ? 'p' : 'span',
           text: expanded ? '3 items in your cart' : '3',
           owners: [{ name: 'Summary' }, { name: 'Cart' }],
+          ...(options.authored ? { createdBy: 'Summary' } : {}),
+          ...(options.styled ? { computedStyle: { display: expanded ? 'block' : 'inline' } } : {}),
           holding: options.summary ?? { cells: [], props: [held('expanded', expanded)] },
         }),
       ],
@@ -74,15 +78,42 @@ describe('the rung a reading reaches', () => {
     expect(parting.origins).toHaveLength(1);
   });
 
-  it('pairs a boundary whose own tag changed, which no host matcher can', () => {
-    // `Summary` returns a `<span>` where it returned a `<p>`. Every identity key
-    // in `match.ts` ends in the tag, so the pair is unreachable there — and it is
-    // the pair carrying the prop that explains the branch.
+  it('pairs a boundary whose own tag changed, which the host matcher left unpaired', () => {
+    // `Summary` returns a `<span>` where it returned a `<p>`. The fixture records
+    // no author, and every identity key in `match.ts` that names neither an
+    // alias nor a role ends in the tag, so the pair is unreachable there — and it is the pair
+    // carrying the prop that explains the branch.
     const summary = part(tree({ expanded: false }), tree({ expanded: true })).boundaries!.find(
       (entry) => entry.component === 'Summary',
     )!;
 
     expect(summary.rung).not.toBe('unpaired');
+  });
+
+  it('reads the same boundary when the host matcher paired it by its recorded author', () => {
+    // The snapshot recorded `Summary` as the author of both tags, and it replaced
+    // one element, so `match.ts` pairs them itself; the reading does not depend
+    // on which of the two paired the boundary.
+    const summary = part(
+      tree({ expanded: false, authored: true }),
+      tree({ expanded: true, authored: true }),
+    ).boundaries!.find((entry) => entry.component === 'Summary')!;
+
+    expect(summary.rung).toBe('handed');
+    expect(summary.inputs.map((input) => input.name)).toEqual(['expanded']);
+  });
+
+  it('bands the replaced element’s style with its tag change, as the diff does', () => {
+    // A `<p>` is `block` and a `<span>` is `inline`: the style is what the new
+    // element is, so the row says `geometry`, not that a value moved.
+    const summary = part(
+      tree({ expanded: false, authored: true, styled: true }),
+      tree({ expanded: true, authored: true, styled: true }),
+    ).boundaries!.find((entry) => entry.component === 'Summary')!;
+
+    expect(summary.moved).toContain('display');
+    expect(summary.bands).toContain('geometry');
+    expect(summary.bands).not.toContain('token');
   });
 
   it('speaks the origin and hangs its manifestations under it', () => {

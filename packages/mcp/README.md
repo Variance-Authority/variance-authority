@@ -5,6 +5,7 @@
 > Let an agent ask questions about a test run that has already finished.
 
 Part of [Variance Authority](https://variance-authority.dev).
+Point your coding agent at [`llms.txt`](https://variance-authority.dev/llms.txt).
 
 Use this package only to hand an already-finished run, or an execution index,
 to an agent that speaks MCP.
@@ -38,7 +39,7 @@ variance run --config variance.config.json
 `variance run` writes the report at the path the config's `report` key names,
 `.variance/report.json` unless you change it. Setting up the config and the
 collector that mounts each UI state is
-[run visual review from the command line](https://variance-authority.dev/docs/start-cli).
+[run visual review from the command line](https://variance-authority.dev/start/cli).
 
 The report lists one record per **subject** — one named UI state you asked for
 and can ask for again, such as `checkout/empty`. Storybook stories become
@@ -47,7 +48,7 @@ subjects with a `story:` prefix, so `card--dark` is `story:card--dark`.
 ## Serve it to a client
 
 If you installed the CLI above, no further install is needed — `variance serve`
-is that server, reading the report your config names. It also answers the six
+is that server, reading the report your config names. It also answers the
 source questions of
 [`@variance-authority/help`](https://variance-authority.dev/reference/packages/help)
 from the checkout it is started in, so one declared server covers the run and
@@ -59,8 +60,9 @@ variance serve --config variance.config.json   # MCP over stdio
 
 When that report is not on disk, `variance serve` answers from the report CI
 published to the share for your branch or mainline, and every report answer
-opens with the line and commit it was read from. The CLI's page says
-[which record it reads and what it says](../cli/README.md#a-checkout-with-no-run-of-its-own).
+opens with the line and commit it was read from. The CLI's page says [which
+record it reads and what it
+prints](https://variance-authority.dev/reference/packages/cli#a-checkout-with-no-run-of-its-own).
 `variance-authority-mcp` reads only the path it is given.
 
 Install this package when you want the server without the CLI, or when the
@@ -172,27 +174,27 @@ placeholders: use ids from your own run, and a digest `variance_changes` printed
 | `variance_diff` | how the current supplied state differs from the previous successful MCP tool invocation | after rerunning or replacing the supplied evidence |
 | `variance_changes` | the distinct changes behind the changed subjects, most decidable first, each with the command that settles it | immediately after the summary, before touching any individual subject |
 | `variance_adjudicate` | this run against **what you said you were doing**: declared and delivered, changed and undeclared, and declared and never happened | you edited something and are reading your own run — declare before you read the diff |
-| `variance_composition` | the run's subjects compared to **each other**: the component graph, the renderings two examples share, and why each changed component changed — including *nothing here explains it*; with `subject`, what one subject is made of and which of its renderings other subjects share | a change has no obvious author, or you are about to call something flaky |
+| `variance_composition` | the run's subjects compared to **each other**: the component graph, the renderings two examples share, and why each changed component changed — including *nothing here explains it*; with `subject`, what one subject is made of, which of its renderings other subjects share, the smaller subjects inside it and the larger ones holding it, and what only it renders | a change has no obvious author, or you are about to call something flaky |
 | `variance_locate` | the subjects a `query` describes, matched over every name the run wrote down — ids, examples, accessible names, text, components, creators, files, roles, tokens, and the source-code regions its tests covered — each hit printing the field it matched | you can describe the subject and do not know its id |
 | `variance_variations` | the measured difference between a subject and the subject it declares as its parent, such as a feature flag, theme, or viewport | reviewing what a variant changes rather than whether it regressed |
 | `variance_changelog` | what accepting this run would write into the baseline record: the lines the commit will add, and the subjects that would be refused | before proposing an `accept` command, because the record is written once and outlives the run |
 | `variance_describe` | what changed inside one subject — the changed pixel regions, the component each belongs to, the files | the summary named a subject and you need the detail |
 | `variance_findings` | accessibility defects in the renders themselves, grouped by rule, with no baseline involved | fixing a component, whether or not it changed |
 | `variance_trace_component` | every subject one component appears in, with pixels and cause-or-displaced | sizing the blast radius of a design-system or token edit |
-| `variance_explain_verdict` | why a subject was **not compared** — `incomparable`, `new`, or never observed | before attempting a fix, because none of those is a code problem |
+| `variance_explain_verdict` | why a subject has the verdict it has — `new`, never observed, or `changed` under a moved identity, with what moved | before attempting a fix, because the first two are not code problems and the third names a suspect before the code |
 
 `variance_changes` is the one that decides how many of the others get called. A
 design-token edit reaching forty stories is one decision presented as forty, and
 an agent that walks them one at a time spends forty calls learning what one call
-says. It is also the only tool that hands back a *command* — the shape digest
+returns. It is also the only tool that hands back a *command* — the shape digest
 cannot be derived from anything else in the report, and it names which subjects
 the command will refuse, so the agent proposes something that works rather than
 something that gets rejected.
 
 `variance_adjudicate` is the only tool that takes evidence *in*, and the only
-one that can report an **absence**. Everything else answers about the run;
-this answers about the agent. `variance_changes` can say that `Button` changed in
-twelve subjects. It cannot say that `Card` — which the agent believes it just
+one that can report an **absence**. Everything else answers about the run; this
+answers about the agent. `variance_changes` can report that `Button` changed in
+twelve subjects. It cannot report that `Card` — which the agent believes it just
 edited — did not change at all, because a diff has no opinion about what was
 supposed to happen. That third case is where a wrong file, a dead branch, an
 overridden rule or a stale build surfaces, and no screenshot comparison shows
@@ -223,7 +225,7 @@ compares the run's subjects to each other, at one commit, because **a
 visual-regression example is a component built from components**: the example
 *is* a component at a boundary, and the same component appears again, with the
 same or different props, inside larger examples. Once those boundaries are
-addressable the run can say which of its examples are watching literally the
+addressable the run can show which of its examples are watching literally the
 same bytes, which of them disagree at one commit, and — for anything that
 changed — whether an edited file, a changed token or an edited *caller* accounts
 for it.
@@ -240,13 +242,13 @@ three different people:
 
 | label | what happened | what to do |
 |---|---|---|
-| `unstable` | read twice, seconds apart, nothing changed in between, and the two readings disagreed | fix what changes between readings; the named component and band say where. Do not review the pixel regions — which ones appear was decided by a race |
+| `unstable` | read twice in a row, nothing changed in between, and the two readings disagreed | fix what changes between readings; the named component and band show where. Do not review the pixel regions — which ones appear was decided by a race |
 | `order-dependent` | the difference is gone when the subject is collected with nothing else in the world | do not change the component; bisect run order to find the subject that writes the state this one reads |
 | `changed` | it survived both | review it |
 
 A fourth state is deliberately *not* on that table. A **sensitivity level** is a
 per-subject declaration of which bands it asserts on — a route declared `layout`
-has said, in its config, that it does not assert on what the page is painted
+is configured not to assert on what the page is painted
 with, so a clock inside it is a fact about the page rather than a defect. A
 subject whose two readings differed entirely in bands outside its declared level
 is listed under **not asserted on** and comes with no instruction. It is still
@@ -303,8 +305,9 @@ source-test tool, a `VantageState` for a suite that is still running, or an
 `ObservabilitySubject` combining several of those at once.
 
 `variance_diff` compares the currently served value with the value from the
-previous successful tool call. The first call records the current state and says
-there is nothing to compare. Each successful call then replaces that one value.
+previous successful tool call. The first call records the current state and
+answers that there is nothing to compare. Each successful call then replaces
+that one value.
 
 The value lives only in the MCP process. It is not written to disk, does not
 touch or replace a baseline, and disappears when the process exits. Initialization,
@@ -315,12 +318,13 @@ without MCP framing.
 
 ## Answer from the source tree
 
-A question can say where to start — `variance_locate {query, from}` takes a path
-and answers only from the files reachable from it, along the imports. `to` is
-the same walk against them, answering from the files that reach the path
+A question can name where to start — `variance_locate {query, from}` takes a
+path and answers only from the files reachable from it, along the imports. `to`
+is the same walk against them, answering from the files that reach the path
 instead: `from` the screen to find what it shows, `to` the component to find
-what shows it. A path is a fact about a repository, and a report is a file that travels, so the repository has to be
-named when the server is started. `serveReportFile(path, options)` takes it:
+what shows it. A path is a fact about a repository, and a report is a file that
+travels, so the repository has to be named when the server is started.
+`serveReportFile(path, options)` takes it:
 
 | option | what it decides |
 |---|---|
@@ -335,8 +339,9 @@ read the tree itself and hand it to a call:
 | `root` | the repository. Every coordinate comes back relative to it |
 | `dirs` | where to start walking, relative to the root. The whole repository by default, because a start point may name any path in it and a narrower walk answers *not found* about a file that is plainly there |
 | `index` | the persistent scan index, as above |
+| `names` | called once the walk ends, with what each file declares and what it imports, by name, read off the same parse. Without it no names are kept |
 
-The walk happens once per session and only when something asks for it: most
+The walk happens once per session and only when a call needs it: most
 questions do not name a path, and a repository is not a thing to read before
 anybody wanted it.
 
@@ -354,8 +359,8 @@ scope's total beside the run's.
 It is a subject of its own rather than a report because the times a reader
 wants are usually the mainline's, which cover the whole suite, and no report
 anybody has open holds them. `variance serve` reads them from the share, and
-`variance ask costs` asks the same tool from a shell; see
-[the CLI](../cli/README.md).
+`variance ask costs` calls the same tool from a shell; see
+[the CLI](https://variance-authority.dev/reference/packages/cli).
 
 ```js
 import { COSTS_TOOLS } from '@variance-authority/mcp/tools';
@@ -368,6 +373,64 @@ console.log(costs.run({
     { subject: 'route:/pricing', ms: 400 },
   ],
 }, { limit: 5, from: ['src'] }));
+```
+
+## Say what review decided and suspects
+
+`variance_decisions` answers from the review deployment's record: every
+approval and rejection, newest first, with the build, the subject, who decided
+and the note they left. A call names a `subject`, a `build` or both, and one
+that names neither is refused; `limit` is 20 unless you set it, and 200 at most. A subject rejected and then approved is two rows, because
+the rejection's note is often the only place the reason is written; the earlier
+row for the same build and subject is marked `(replaced)`, so the first row for
+a pair is the one that stands. `REVIEW_TOOLS` holds it, and its subject is a
+`DecisionsSubject` — the deployment it was read from, and a `ReviewDecisionEntry`
+per decision.
+
+It is a subject of its own because a decision is a fact about a deployment, not
+about a run. `variance serve` fetches the window a call names with the share
+token, which reads what review settled and never decides, so an agent holding
+this connection cannot approve or reject anything. Keep the token in an
+environment variable that the share declaration names:
+`"token": { "env": "VARIANCE_SHARE_TOKEN" }`. `variance ask decisions` calls the
+same tool from a shell; see [the CLI](https://variance-authority.dev/reference/packages/cli).
+
+```js
+import { REVIEW_TOOLS } from '@variance-authority/mcp/tools';
+
+const [decisions] = REVIEW_TOOLS;
+console.log(decisions.run({
+  from: 'https://variance.example.com',
+  decisions: [
+    { build: 'ci-42', subject: 'story:card', decision: 'approved', by: 'reviewer', at: '2026-08-21T10:14:02Z', note: 'padding is intended' },
+    { build: 'ci-42', subject: 'story:card', decision: 'rejected', by: 'reviewer', at: '2026-08-21T09:50:11Z' },
+  ],
+}, { subject: 'story:card' }));
+```
+
+`variance_concerns` answers, from the same deployment and with the same token,
+what reviewers suspect without having decided: each concern on a render, with
+its title, its state (`open`, `investigating` or `resolved`), the region and
+component it is about, what the reviewer pointed at, and every step since with
+its note and hypothesis. A call names a `subject`, a `build` or both, and
+`state` keeps one state. A `build` reads the concerns on every subject that
+build showed, whichever build raised them, and the answer counts them by state.
+Its subject is a `ConcernsSubject`, a `ReviewConcern` per concern. Every tool in
+`REVIEW_TOOLS` is a `ReviewTool`: it names the `route` its subject is read from
+and the `query` a call's input sends there, so a host reads them all one way.
+
+```js
+const [, concerns] = REVIEW_TOOLS;
+console.log(concerns.run({
+  from: 'https://variance.example.com',
+  concerns: [{
+    id: 7, build: 'ci-42', subject: 'story:card', title: 'The border is clipped',
+    region: { x: 154, y: 85, width: 24, height: 18, component: 'Button' },
+    evidence: ['the right border'], by: 'reviewer', at: '2026-08-21T09:40:00Z', state: 'open',
+    events: [{ state: 'open', by: 'reviewer', at: '2026-08-21T09:40:00Z', note: 'the right edge is cut' }],
+  }],
+  tally: { open: 1, investigating: 0, resolved: 0 },
+}, { build: 'ci-42' }));
 ```
 
 ## Watch a suite that has not finished
@@ -400,26 +463,29 @@ told it one run too late.
 |---|---|---|
 | `variance_self` | where this watcher is listening, what it has collected, and exactly what to start a suite with | first, and again whenever an answer is emptier than expected |
 | `variance_run_signals` | every test that has reported, in the order the run opened them, its state, and how much each has announced | you want to know where the suite has got to, or which test is the one still going |
-| `variance_test_signals` | everything one test has announced, in order, with the realm that said each, plus work that started and never ended | a test is hanging, or failed, and the assertion that did not settle is the part you already know |
+| `variance_test_signals` | everything one test has announced, in order, with the realm that announced each, plus work that started and never ended | a test is hanging, or failed, and the assertion that did not settle is the part you already know |
 | `variance_waiting` | which tests have stopped at an `await variance.observe()` call, where each stopped, and what it sent from there | before looking at anything, and whenever you want to know whether a run is holding something open for you |
 | `variance_continue` | nothing; it lets a stopped test go on | you have finished looking at what one was holding still |
 
 `variance_run_signals` takes `state`, `file` and `limit`, and marks a running
-test with `▸` and a stopped one as `waiting`. `variance_test_signals` takes `test` — an id from the listing, a
-title, or enough of one to be unambiguous; where it is not unambiguous, the
-answer is the candidates and their ids. `variance_self` takes nothing.
+test with `▸` and a stopped one as `waiting`. `file` is one spec file, by its
+path from the checkout the server was started in or from `/`; a path outside
+that checkout is refused. `variance_test_signals` takes `test` — an id from the listing, or
+a whole title; where two tests share that title, the answer is both and their
+ids, and where none has it, the answer is every test that has reported.
+`variance_self` takes nothing.
 
 `variance_self` is the one that separates the two reasons an answer is empty:
 nothing has run yet, or something ran and reported somewhere else. A connection
-is told the address at the handshake and can see itself connected, so it needs
+receives the address at the handshake and can see itself connected, so it needs
 this least — a reader that runs one command and exits has no handshake to look
-at, and asks it most.
+at, and calls it most.
 
 `variance_waiting` and `variance_continue` are the pair that make a run
 something to *interrupt* rather than only something to read. Where a test author
 wrote `await variance.observe()`, the test stops there and holds everything it
 had — the page up, the network as it was — until you say go on; the runner's
-clock is stopped while it stands still. `variance_waiting` says which tests are
+clock is stopped while it stands still. `variance_waiting` lists which tests are
 stopped and where, and prints whatever they sent from those points;
 `variance_continue` takes one id, or nothing at all to release everything.
 
@@ -437,7 +503,7 @@ arrived or never came back. Three announcements and then silence, with one
 Nothing is written down and nothing is added to the run's evidence: a report file
 records what a run **decided**, and this records what it **is doing**, which
 stops being a fact the moment this process exits. What it retains is bounded,
-and it says so when it dropped something, because a reader who cannot tell
+and its answer counts what it dropped, because a reader who cannot tell
 *nothing was announced* from *the beginning was forgotten* draws the first
 conclusion.
 
@@ -447,7 +513,7 @@ against a suite in flight the same way it works against a report.
 The same three questions, and `variance_diff` with them, are on the command line
 without a client: `variance watch` hosts the run and `variance ask <question>
 --at <address>` reads it. Same functions, same text, no client configuration to
-edit — see [ask a run from the command line](https://variance-authority.dev/docs/agent-cli).
+edit — see [ask a run from the command line](https://variance-authority.dev/agents/cli).
 
 ## Give an agent the tests for source
 
@@ -489,7 +555,7 @@ from a line absent from the execution index. The index is supplied by the test
 collector or editor integration; MCP does not manufacture coverage or control
 the test runner.
 
-`variance_changed_tests` is the same evidence asked at review time. It takes a
+`variance_changed_tests` is the same evidence read at review time. It takes a
 unified `diff` — the patch the agent is already holding — and reports every
 changed source region with the named cases that covered it, counting the two
 findings a percentage cannot state: regions **no case covered**, and regions
@@ -497,7 +563,7 @@ one case alone covered. A case that was inside a region only while its module
 was evaluating is counted apart from one that called into it. A changed test
 file has no module row, so it is answered with the named cases it declares
 rather than reported as unmeasured, and a changed path the index holds nothing
-for says exactly that — *no row* and *no test* are opposite facts.
+for is reported as exactly that — *no row* and *no test* are opposite facts.
 
 ## Serve several kinds of evidence at once
 
@@ -525,13 +591,13 @@ export function serveObservability(current: () => ObservabilitySubject) {
 An excerpt for the same reason: something has to call `serveObservability` with
 a supplier of your subject, from the entry module the client launches.
 
-The handshake tells the client to call `variance_observability` first. Its
+The handshake instructs the client to call `variance_observability` first. Its
 answer distinguishes a missing domain from a supplied domain that measured zero
 members. Native tools remain available on the same connection:
 
 | tool | evidence | answers |
 |---|---|---|
-| `variance_test_attention` | an **Eyes archive** — what [`@variance-authority/eyes`](https://variance-authority.dev/reference/packages/eyes) recorded about which DOM elements each test addressed, and which React component rendered each | one test's selectors, Locator consumption, DOM events, synchronous Fiber attribution, and authored AAA markers |
+| `variance_test_attention` | the **Eyes journals a record keeps** — what [`@variance-authority/eyes`](https://variance-authority.dev/reference/packages/eyes) recorded about which DOM elements each case addressed, and which React component rendered each, read from the run's `coverage.bin` by `readEyesRecord` | one test's selectors, Locator consumption, DOM events, synchronous Fiber attribution, and authored AAA markers |
 | `variance_presentations` | presentation reports | full presentation graphs, telemetry, semantic evidence, measured structures, and findings |
 | `variance_source_tests` | a Sense execution index, as above | which named tests covered source and their minimum observed distance |
 | `variance_changed_tests` | a Sense execution index and a unified diff | every changed region with the cases that covered it, and the ones nothing covered |
@@ -539,15 +605,15 @@ members. Native tools remain available on the same connection:
 | `variance_waiting`, `variance_continue` | Vantage state | which tests have stopped for you to look at them, and letting one go on |
 | visual report tools | run report | visual decisions, presentation signals, composition, variation, history, and review evidence |
 | `variance_scenarios` | scenario manifests | the witnessed Arrange state and observed or unobserved Act outcomes |
-| `variance_distill` | an Eyes archive and/or a Sense execution index | one test's addressed AAA surface, React update initiators, and source reduction opportunities |
+| `variance_distill` | a Sense execution index, and the Eyes journals the same record keeps | one test's addressed AAA surface, React update initiators, and source reduction opportunities |
 
-`variance_distill` is the deliberate cross-domain answer. It maps the
-DOM owners and source locations a test addressed in each authored phase, then
-places React update initiators inside or outside those exact structural component
-paths and contrasts both with files that the same exact test id covered.
-`PerformedWork` says a render body ran; it is not substituted for an updater.
-A covered file with no addressed target is a distillation opportunity, not proof that
-the branch is unrelated or safe to mock. The tool does not join by title or file
+`variance_distill` is the deliberate cross-domain answer. It maps the DOM owners
+and source locations a test addressed in each authored phase, then places React
+update initiators inside or outside those exact structural component paths and
+contrasts both with files that the same exact test id covered. `PerformedWork`
+records that a render body ran; it is not substituted for an updater. A covered
+file with no addressed target is a distillation opportunity, not proof that the
+branch is unrelated or safe to mock. The tool does not join by title or file
 when stable producer identities disagree. `ExecutionIndex` retains whole-test
 crossings, not AAA intervals, so runtime files remain test-scoped rather than
 phase-scoped.
@@ -568,11 +634,11 @@ the producer and route for every unavailable domain:
 
 | unavailable domain | supply it from | integration contract |
 |---|---|---|
-| visual report and durable presentation signals | `variance run` | configure its `report` path and supply the resulting `RunReport`; see [run an existing collector](https://variance-authority.dev/docs/start-cli) |
+| visual report and durable presentation signals | `variance run` | configure its `report` path and supply the resulting `RunReport`; see [run an existing collector](https://variance-authority.dev/start/cli) |
 | presentation readings | `@variance-authority/presentation/playwright` | call `sensePresentation` on the live subject and supply the returned full graph; see [presentation](https://variance-authority.dev/docs/presentation) |
 | runtime journey | a Vitest run wrapped with `withTestSelection`, or any other per-test collector | supply an `ExecutionIndex` with stable per-test ids; see [record which case covered a region](https://variance-authority.dev/reference/packages/sense#record-which-case-covered-a-region) |
-| live journey and events | `@variance-authority/playwright-test` plus a watcher | compose `varianceFixtures`, start the watcher first, then pass its exact `VARIANCE_AUTHORITY_VANTAGE` assignment to the suite; see [inspect a live run](https://variance-authority.dev/docs/agent-live-run) |
-| Eyes attention | `@variance-authority/eyes` | compose the host adapter, author AAA phase markers, retain per-test journals with their completion state under stable runner ids, and install React observation before `react-dom`; see the [Eyes integration reference](https://variance-authority.dev/reference/packages/eyes) |
+| live journey and events | `@variance-authority/playwright-test` plus a watcher | compose `varianceFixtures`, start the watcher first, then pass its exact `VARIANCE_AUTHORITY_VANTAGE` assignment to the suite; see [inspect a live run](https://variance-authority.dev/agents/live-run) |
+| Eyes attention | `@variance-authority/eyes` | compose the host adapter in a recording run, so each case's journal lands in its record under the case's id, author AAA phase markers, and install React observation before `react-dom`; see the [Eyes integration reference](https://variance-authority.dev/reference/packages/eyes) |
 | scenario AAA | `@variance-authority/scenario` | record host-produced semantic snapshots and authored Acts, then use the archive entrypoint when the evidence must survive the process; see the [scenario reference](https://variance-authority.dev/reference/packages/scenario) |
 
 The full mechanics stay with each producer. The MCP answer states the minimum
@@ -585,7 +651,7 @@ so an integration does not need the combined surface to receive it.
 
 | entrypoint | requires | exports |
 |---|---|---|
-| `.` | stdio | `serve`, `serveReportFile` and `serveVantage`, and the subject locator |
+| `.` | stdio | `serve`, `serveReportFile`, `serveEyesRecord` and `serveVantage`, `readEyesRecord` and `RecordKeepsNoEyes`, and the subject locator |
 | `./tools` | nothing | observability answers as pure functions over their native evidence |
 | `./protocol` | nothing | MCP framing, as a pure function from a request to a response |
 
@@ -595,7 +661,7 @@ and it stops being asked the moment answering it requires speaking a protocol
 over a pipe.
 
 What a producer *wrote* is not here either. Reports, execution indexes, live
-state, Eyes archives, and scenario manifests belong to their producing
+state, Eyes journals, and scenario manifests belong to their producing
 packages. MCP reads those contracts; it owns none.
 ## Serve a custom subject
 
@@ -608,6 +674,8 @@ composes when the report does not come from a file:
 | `output` | the `Writable` responses leave on |
 | `served` | the `Served<Subject>` name and tools for the subject; use `REPORTS` for a `RunReport` or supply a set for another serializable subject |
 | `subject` | supplies the current subject. A function rather than a value, so a long-lived server picks up a re-run without a restart — an agent that fixes something and asks again should be answered from the new report, not from the one loaded at boot. It may be async, and the request waits for it: a supplier that started a refresh and answered from the previous value would make *this* request the stale one, and this request is the agent that just re-ran |
+| `again` | a subject to ask a refused call of once more, for a host whose subject is a reading it reuses and may predate the file that answers, and a footer for a refusal that still stands |
+| `answered` | the text a well-formed call still refused after `again` answers with instead, as a result rather than an error, given what its tool threw and what your `again` returned; return nothing to let the refusal stand. It runs with or without `again`: a host that reads its subject fresh for every call still says its thrown answers here. A tool that throws an answer so `again` reads it once more, such as a name nothing declares, is answered here |
 
 A `Served` is a name, a version and the tools. It may also include
 `instructions`, a function of the subject whose answer the client puts in front
@@ -620,6 +688,10 @@ Both return a function that detaches the server from its streams.
 the same streams, and returns the `address` to start a run with alongside the
 call that stops both. Its subject is a snapshot taken per request, which is why a
 subject that keeps changing fits a surface built for one that does not.
+Given `{ root }`, the checkout the run is in, a tool's `file` argument is read
+from it, so `./tests/x.spec.ts` and an absolute path name the file the listing
+spells; without one, `file` is compared as given. `variance-authority-mcp --watch`
+passes the checkout git finds from where it was started.
 
 ## Stability
 
@@ -632,4 +704,4 @@ pin the version.
 
 ---
 
-**[@variance-authority/mcp](https://variance-authority.dev/reference/packages/mcp)** is part of [Variance Authority](https://variance-authority.dev) — [documentation](https://variance-authority.dev/docs) · MIT
+**[@variance-authority/mcp](https://variance-authority.dev/reference/packages/mcp)** is part of [Variance Authority](https://variance-authority.dev) — [documentation](https://variance-authority.dev/docs) · [GitHub](https://github.com/Variance-Authority/variance-authority/tree/main/packages/mcp) · MIT

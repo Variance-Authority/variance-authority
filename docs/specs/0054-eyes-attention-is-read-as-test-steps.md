@@ -98,7 +98,8 @@ does not by itself authorize a run or hosted review service to retain the
 journal.
 
 The writer will either include the journal in the run artifact under that
-artifact's retention and access boundary, or omit the attention reference. It
+artifact's retention and access boundary, or omit the attention reference. The
+run artifact is the run's one record, [spec 0094](0094-a-run-writes-one-record.md). It
 will not leave a local path in a portable report, upload an archive as an
 untracked side file, or replace omitted evidence with an empty journal. A local
 single-run report will work without a hosted service.

@@ -16,23 +16,39 @@ export interface ObservedTest {
   readonly name: string;
   /** Stable across retries, so a flake and its retry are one case read twice. */
   readonly id: string;
+  /** The project that ran it, so a spec two projects run is two cases; absent for an unnamed one. */
+  readonly project?: string;
 }
 
 /**
  * Where a test is declared, as the execution index names it.
  *
- * Playwright's own `titlePath` opens with the project and the file, which the
- * index already holds as the owner; what is left is the path a person reads in
- * the report, and the one a `describe` in a diff moves.
+ * Playwright's own `titlePath` is the file relative to `testDir`, then each
+ * enclosing `describe`, then the test's title; the project is not in it. The
+ * file is the owner and the project is recorded beside the name, so the name is
+ * the rest: the path a person reads in the report, and the one a `describe` in
+ * a diff moves.
  */
 export function testOf(testInfo: TestInfo): ObservedTest {
-  const path = [...testInfo.titlePath];
-  if (path[0] === testInfo.project.name) path.shift();
-  if (path[0] !== undefined && testInfo.file.endsWith(path[0])) path.shift();
-  return { name: path.join(' > '), id: testInfo.testId };
+  const project = testInfo.project.name;
+  return {
+    name: testInfo.titlePath.slice(1).join(' > '),
+    id: testInfo.testId,
+    ...(project === '' ? {} : { project }),
+  };
 }
 
 /** The test file a subject's crossings belong to, repository-relative. */
 export function ownerOf(root: string, testInfo: TestInfo): string {
-  return relative(resolve(root), testInfo.file).split(sep).join('/');
+  return fileOwner(root, testInfo.file);
+}
+
+/** A test file, by its absolute path, as the recording names it: repository-relative. */
+export function fileOwner(root: string, file: string): string {
+  return relative(resolve(root), file).split(sep).join('/');
+}
+
+/** The key a worker files one case under: the attempts of a retry share it. */
+export function caseKey(owner: string, id: string): string {
+  return `${owner}\u0000${id}`;
 }

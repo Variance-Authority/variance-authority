@@ -1,7 +1,9 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { afterAll, afterEach, describe, expect, it, vi } from 'vitest';
 import type { TestCoverage } from '@variance-authority/sense/test-selection';
-import { landJourneys } from './land.js';
-import { recordedJourneys } from './resources.js';
+import { recordedJourneys, recordPerStand } from './resources.js';
 
 /**
  * The reading of the execution journal that the lexicon draws its regions from.
@@ -14,25 +16,30 @@ import { recordedJourneys } from './resources.js';
  * every other list in the report is.
  */
 
-const { readTestCoverage, writeTestCoverage } = vi.hoisted(() => ({
-  readTestCoverage: vi.fn(),
-  writeTestCoverage: vi.fn(),
-}));
+const { readTestCoverage } = vi.hoisted(() => ({ readTestCoverage: vi.fn() }));
 
-const CACHED = '/cache/variance-authority/test-selection/abc/coverage.bin';
+// A real directory: the snapshots are stood in for, the cases they keep with
+// them, and the lock a landing takes on the record is on disk.
+const DISK = join(tmpdir(), `variance-resources-${process.pid}`);
+const CACHED = join(DISK, 'cache/variance-authority/test-selection/abc/coverage.bin');
 
 vi.mock('@variance-authority/sense/test-selection', async (importOriginal) => ({
   // The fold and the layer are the package's own; only the disk is stood in for.
   ...(await importOriginal<typeof import('@variance-authority/sense/test-selection')>()),
   testCoverageFile: () => CACHED,
+  readableTestCoverage: async () => CACHED,
   readTestCoverage,
-  writeTestCoverage,
+  // A stood-in snapshot keeps no cases, whatever the stand-in left on disk.
+  caseSectionsAt: () => ({}),
   journeyDivergences: () => [],
 }));
 
 afterEach(() => {
   readTestCoverage.mockReset();
-  writeTestCoverage.mockReset();
+});
+
+afterAll(async () => {
+  await rm(DISK, { recursive: true, force: true });
 });
 
 const COVERAGE: TestCoverage = {
@@ -136,116 +143,37 @@ describe('recordedJourneys — the regions each subject entered', () => {
     expect(reading.entered).toBeUndefined();
     expect(reading.recorded).toBeUndefined();
   });
+
+  it('refuses a journal it cannot read, and says what reading past it would hide rather than asking for a run', async () => {
+    readTestCoverage.mockRejectedValue(new Error('not a snapshot'));
+
+    const refused = recordedJourneys('/repo');
+
+    await expect(refused).rejects.toThrow(
+      `the recorded execution journal at ${CACHED} could not be read: not a snapshot. ` +
+        'A reading that skipped it would look exactly like a repository that never recorded anything.',
+    );
+    await expect(refused).rejects.not.toThrow(/[Dd]elete it|run once|record a new one/);
+  });
 });
 
-describe('landJourneys — N shard snapshots into the one this repository reads', () => {
-  const missing = () => Object.assign(new Error('no such file'), { code: 'ENOENT' });
+describe('recordPerStand — the record asked once per stand, the answers folded', () => {
+  const stands = [{ commit: 'c0ffee', tests: ['test/b.test.ts'], changed: ['test/b.test.ts'], whole: [] }];
+  const narrowing = (entered: readonly string[]) => ({ whole: [], entered, unread: [], stale: [], because: [] });
 
-  /** One shard: a single whole observation, and `CartCard` entered by it alone. */
-  function shardOf(observer: string, commit: string | undefined = 'c0ffee'): TestCoverage {
-    return {
-      version: 3,
-      instrumentation: 'fixture',
-      ...(commit === undefined ? {} : { commit }),
-      tests: [{ file: observer, complete: true, preconditions: [] }],
-      modules: [
-        {
-          file: 'app/src/components/CartCard.tsx',
-          sourceDigest: 'source:cart',
-          instrumented: true,
-          blocks: [
-            {
-              ordinal: 0,
-              kind: 'module',
-              digest: 'block:0',
-              name: 'CartCard',
-              path: 'module',
-              startLine: 1,
-              endLine: 80,
-              source: true,
-              testFiles: [observer],
-            },
-          ],
-        },
-      ],
-    };
-  }
+  it('folds what each stand entered into one answer', async () => {
+    const answer = await recordPerStand(stands, async (question) => ({
+      narrowing: narrowing(question.at === undefined ? ['test/a.test.ts'] : ['test/b.test.ts']),
+    }));
 
-  /** The disk: shards where they were named, and whatever is at the target. */
-  function disk(files: Record<string, TestCoverage>) {
-    readTestCoverage.mockImplementation(async (path: string) => {
-      const found = files[path];
-      if (found === undefined) throw missing();
-      return found;
-    });
-  }
-
-  it('folds the shards and lands the union in the cache, saying where it stands', async () => {
-    disk({ '/ci/shard-1.bin': shardOf('story:a'), '/ci/shard-2.bin': shardOf('story:b') });
-
-    const landed = await landJourneys('/repo', ['/ci/shard-1.bin', '/ci/shard-2.bin']);
-
-    expect(landed).toEqual({ at: CACHED, shards: 2, commit: 'c0ffee', observations: 2, modules: 1 });
-    expect(writeTestCoverage).toHaveBeenCalledTimes(1);
-    const [at, written] = writeTestCoverage.mock.calls[0] as [string, TestCoverage];
-    expect(at).toBe(CACHED);
-    expect(written.tests.map((test) => test.file)).toEqual(['story:a', 'story:b']);
-    expect(written.modules[0]?.blocks[0]?.testFiles).toEqual(['story:a', 'story:b']);
+    expect(answer?.narrowing.entered).toEqual(['test/a.test.ts', 'test/b.test.ts']);
   });
 
-  it('lands where --into says instead, and the reading is pointed there', async () => {
-    disk({ '/ci/shard-1.bin': shardOf('story:a') });
-
-    const landed = await landJourneys('/repo', ['/ci/shard-1.bin'], '/tmp/folded.bin');
-
-    expect(landed.at).toBe('/tmp/folded.bin');
-    expect(writeTestCoverage.mock.calls[0]?.[0]).toBe('/tmp/folded.bin');
-  });
-
-  it('layers the fold over what was already there, so a baseline lands under local evidence', async () => {
-    // The runner's own rule. The result stands where the fold stands, retires
-    // what the fold re-recorded whole, and keeps the local observation it did
-    // not — a fetched baseline is a floor, not a replacement.
-    disk({
-      [CACHED]: shardOf('story:local', 'l0ca1'),
-      '/ci/shard-1.bin': shardOf('story:a'),
-      '/ci/shard-2.bin': shardOf('story:b'),
-    });
-
-    const landed = await landJourneys('/repo', ['/ci/shard-1.bin', '/ci/shard-2.bin']);
-
-    expect(landed).toMatchObject({ commit: 'c0ffee', observations: 3 });
-    const [, written] = writeTestCoverage.mock.calls[0] as [string, TestCoverage];
-    expect(written.tests.map((test) => test.file)).toEqual(['story:a', 'story:b', 'story:local']);
-  });
-
-  it('refuses a shard that is not there, by name', async () => {
-    disk({ '/ci/shard-1.bin': shardOf('story:a') });
-
-    await expect(landJourneys('/repo', ['/ci/shard-1.bin', '/ci/shard-9.bin'])).rejects.toThrow(
-      'there is no snapshot at /ci/shard-9.bin',
+  it('has no answer when any stand has none, rather than a fold that is missing it', async () => {
+    const answer = await recordPerStand(stands, async (question) =>
+      question.at === undefined ? { narrowing: narrowing(['test/a.test.ts']) } : undefined,
     );
-    expect(writeTestCoverage).not.toHaveBeenCalled();
-  });
 
-  it('refuses shards that were not one run, in the fold\'s own words', async () => {
-    disk({ '/ci/shard-1.bin': shardOf('story:a', 'c0ffee'), '/ci/shard-2.bin': shardOf('story:b', 'decaf0') });
-
-    await expect(landJourneys('/repo', ['/ci/shard-1.bin', '/ci/shard-2.bin'])).rejects.toThrow(
-      /\/ci\/shard-1\.bin and \/ci\/shard-2\.bin disagree about the commit/,
-    );
-    expect(writeTestCoverage).not.toHaveBeenCalled();
-  });
-
-  it('refuses to write over a snapshot it cannot read, rather than replacing it', async () => {
-    readTestCoverage.mockImplementation(async (path: string) => {
-      if (path === CACHED) throw new Error('not a variance-authority test coverage artifact');
-      return shardOf('story:a');
-    });
-
-    await expect(landJourneys('/repo', ['/ci/shard-1.bin'])).rejects.toThrow(
-      `the snapshot already at ${CACHED} could not be read`,
-    );
-    expect(writeTestCoverage).not.toHaveBeenCalled();
+    expect(answer).toBeUndefined();
   });
 });

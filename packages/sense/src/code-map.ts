@@ -11,9 +11,10 @@
 // compass: variance-authority.reach.relations
 
 import { native, nativeRefusal } from './native.js';
-import type { NativeOrientLayers, NativeOrientMapAnswer, NativeOrientMapPrepared } from './native-orient.js';
+import type { NativeDeclaredRoleCheck, NativeOrientLayers, NativeOrientMapAnswer, NativeOrientMapPrepared, NativeOrientShipped } from './native-orient.js';
 import type { SourceUpdate } from './published.js';
 import { sourceIndexPath } from './source-index.js';
+import { declaredTsconfig } from './typescript.js';
 
 export type {
   NativeOrientLayers as PackageLayers,
@@ -24,9 +25,12 @@ export type {
   NativeOrientMapPrepared as CodeMapPrepared,
   NativeOrientMapRow as CodeMapRow,
   NativeOrientMapShare as CodeMapShare,
+  NativeOrientShipped as ShippedFiles,
+  NativeDeclaredRoleCheck as DeclaredRoleCheck,
+  NativeDeclaredRoleFinding as DeclaredRoleFinding,
 } from './native-orient.js';
 
-function entry<Name extends 'prepareOrientMap' | 'orientMapPage' | 'orientLayers'>(name: Name) {
+function entry<Name extends 'prepareOrientMap' | 'orientMapPage' | 'orientLayers' | 'orientShipped' | 'checkDeclaredRoles'>(name: Name) {
   const scanner = native();
   const call = scanner?.[name];
   if (scanner === undefined || call === undefined) {
@@ -57,9 +61,11 @@ export async function prepareCodeMap(
   scanned?: Pick<SourceUpdate, 'listing'>,
 ): Promise<PreparedCodeMap> {
   const carried = scanned?.listing?.prepareOrientMap?.bind(scanned.listing);
+  // A manifest's entry lands where the scan that built the index put it.
+  const tsconfig = declaredTsconfig(root);
   const prepared = await (carried !== undefined
-    ? carried(root, index)
-    : entry('prepareOrientMap')(root, index, scanned !== undefined && scanned.listing === undefined ? true : null));
+    ? carried(root, index, tsconfig)
+    : entry('prepareOrientMap')(root, index, scanned !== undefined && scanned.listing === undefined ? true : null, tsconfig));
   return prepared === null ? { index } : { index, prepared };
 }
 
@@ -85,4 +91,21 @@ export function codeMapPage(root: string, area?: string): CodeMapRead {
  */
 export function packageLayers(root: string, index: string = sourceIndexPath(root)): NativeOrientLayers | undefined {
   return entry('orientLayers')(index) ?? undefined;
+}
+
+/**
+ * The files the code map read as shipped — every counted file its fold did
+ * not put on the tests' side — kept beside `index`. Absent when no map is kept
+ * there.
+ */
+export function shippedFiles(root: string, index: string = sourceIndexPath(root)): NativeOrientShipped | undefined {
+  return entry('orientShipped')(index) ?? undefined;
+}
+
+/**
+ * The roles docs declare with `@testOnly` and `@production`, checked against
+ * the shipped files kept beside `index`. Absent when there is no index.
+ */
+export async function declaredRoles(root: string, index: string = sourceIndexPath(root)): Promise<NativeDeclaredRoleCheck | undefined> {
+  return (await entry('checkDeclaredRoles')(index)) ?? undefined;
 }

@@ -90,22 +90,67 @@ describe('variance_run_signals', () => {
   it('narrows by state and by file, and says what there is when nothing matches', () => {
     expect(runSignals.run(RUNNING, { state: 'passed' })).toContain('cart is empty at first');
     expect(runSignals.run(RUNNING, { state: 'passed' })).not.toContain('checkout settles');
-    expect(runSignals.run(RUNNING, { file: 'cart' })).toContain('cart is empty at first');
+    expect(runSignals.run(RUNNING, { file: 'tests/cart.spec.ts' })).toContain('cart is empty at first');
 
     const none = runSignals.run(RUNNING, { state: 'skipped' });
     expect(none).toContain('No test here matches state skipped');
     expect(none).toContain('passed, running');
   });
 
+  it('narrows to the one file named, never to a file whose name contains it', () => {
+    // Two names are two files. A substring took `tests/cart.spec.tsx` with
+    // `tests/cart.spec.ts`, and `cart` with both, and an agent reading the
+    // listing cannot see that a second file answered.
+    const two: VantageState = {
+      forgotten: 0,
+      tests: [
+        test({ id: 'ts', title: 'cart adds', file: 'tests/cart.spec.ts' }),
+        test({ id: 'tsx', title: 'cart renders', file: 'tests/cart.spec.tsx' }),
+      ],
+    };
+
+    const exact = runSignals.run(two, { file: 'tests/cart.spec.ts' });
+    expect(exact).toContain('cart adds');
+    expect(exact).not.toContain('cart renders');
+
+    const part = runSignals.run(two, { file: 'cart' });
+    expect(part).toContain('No test here matches file cart.');
+    expect(part).not.toContain('cart adds');
+  });
+
+  it('reads the file the way the record spells it, from the checkout it was given', () => {
+    const root = '/work/shop';
+    for (const asked of ['./tests/cart.spec.ts', 'tests/../tests/cart.spec.ts', '/work/shop/tests/cart.spec.ts']) {
+      const text = runSignals.run(RUNNING, { file: asked }, { root });
+      expect(text).toContain('cart is empty at first');
+      expect(text).not.toContain('checkout settles');
+    }
+
+    const none = runSignals.run(RUNNING, { file: './tests/gone.spec.ts' }, { root });
+    expect(none).toContain('No test here matches file tests/gone.spec.ts.');
+  });
+
+  it('refuses a file outside the checkout rather than answering that nothing matched', () => {
+    expect(() => runSignals.run(RUNNING, { file: '/elsewhere/cart.spec.ts' }, { root: '/work/shop' })).toThrow(
+      '/elsewhere/cart.spec.ts is outside the checkout at /work/shop, and the suite running there reports only files inside it.',
+    );
+  });
+
   it('refuses an argument a model made up', () => {
     expect(() => runSignals.run(RUNNING, { state: 'flaky' })).toThrow(/`state` must be one of/);
-    expect(() => runSignals.run(RUNNING, { limit: 0 })).toThrow(/positive integer/);
+    expect(() => runSignals.run(RUNNING, { limit: 0 })).toThrow('`limit` takes a whole number of rows, at least 1; it was given `0`.');
   });
 
   it('counts what it elided rather than answering as if there were no more', () => {
     const text = runSignals.run(RUNNING, { limit: 1 });
     expect(text).toContain('checkout settles');
-    expect(text).toContain('1 earlier match(es) not listed');
+    expect(text).toContain('1 earlier match(es) not listed; a higher `limit` lists them.');
+  });
+
+  it('names `limit` as a shell takes it when a shell asked', () => {
+    const text = runSignals.run(RUNNING, { limit: '1' }, { shell: 'variance ask' });
+    expect(text).toContain('1 earlier match(es) not listed; a higher `--limit` lists them.');
+    expect(() => runSignals.run(RUNNING, { limit: '0' }, { shell: 'variance ask' })).toThrow(/^`--limit` takes a whole number/);
   });
 });
 
@@ -119,19 +164,24 @@ describe('variance_test_signals', () => {
     expect(text).toContain('Still running');
   });
 
-  it('takes an id, a whole title, or enough of one', () => {
-    for (const asked of ['t1', 'checkout settles', 'settles']) {
+  it('takes an id or a whole title, never a part of one', () => {
+    for (const asked of ['t1', 'checkout settles']) {
       expect(testSignals.run(RUNNING, { test: asked })).toContain('checkout settles —');
+    }
+    for (const asked of ['settles', 'Checkout settles', 't']) {
+      const text = testSignals.run(RUNNING, { test: asked });
+      expect(text).toContain(`No test here has the id or title ${asked}.`);
+      expect(text).toContain('  checkout settles [t1]');
     }
   });
 
-  it('asks for an id rather than guessing between two matches', () => {
+  it('asks for an id when two tests share a whole title', () => {
     const two: VantageState = {
       forgotten: 0,
-      tests: [test({ id: 'a', title: 'cart adds' }), test({ id: 'b', title: 'cart removes' })],
+      tests: [test({ id: 'a', title: 'cart adds' }), test({ id: 'b', title: 'cart adds' })],
     };
-    const text = testSignals.run(two, { test: 'cart' });
-    expect(text).toContain('2 tests match cart');
+    const text = testSignals.run(two, { test: 'cart adds' });
+    expect(text).toContain('2 tests are titled cart adds');
     expect(text).toContain('[a]');
     expect(text).toContain('[b]');
   });
@@ -169,7 +219,7 @@ describe('variance_test_signals', () => {
 
   it('names what has reported when the test asked for has not', () => {
     const text = testSignals.run(RUNNING, { test: 'nothing like this' });
-    expect(text).toContain('No test here matches nothing like this');
+    expect(text).toContain('No test here has the id or title nothing like this');
     expect(text).toContain('[passed-one]');
   });
 });
@@ -195,7 +245,7 @@ describe('the handshake', () => {
 
     const instructions = (answer?.result as { instructions?: string } | undefined)?.instructions;
     expect(instructions).toContain('`variance run`');
-    expect(instructions).toContain('https://variance-authority.dev/start-cli');
+    expect(instructions).toContain('https://variance-authority.dev/start/cli');
   });
 });
 

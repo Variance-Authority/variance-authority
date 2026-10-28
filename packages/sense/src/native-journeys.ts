@@ -10,7 +10,7 @@
 
 /** What preparing the journeys walked and kept. */
 export interface NativeJourneysPrepared {
-  /** The file was already stamped with this recording, this index and this runner table. */
+  /** The file was already stamped with this recording and this index. */
   readonly kept: boolean;
   readonly cases: number;
   /** Functions outside the test files the cases entered, summed per case. */
@@ -21,10 +21,12 @@ export interface NativeJourneysPrepared {
   readonly flows: number;
   /** Specifiers the index did not answer, which the walk resolved itself. */
   readonly fellBack: number;
-  /** Specifiers the runner's alias table answered. */
-  readonly aliased: number;
-  /** Runner configs that did not load and aliases that were not read, each with why. */
-  readonly runnerUnread: readonly string[];
+  /** Call sites the static resolution missed that the recording placed, on the one entered function exported under the imported name. */
+  readonly recorded: number;
+  /** Call sites the static resolution missed where several entered functions are exported under the imported name and nothing else placed the call. */
+  readonly ambiguous: number;
+  /** The cases those ambiguous call sites were in. */
+  readonly ambiguousCases: number;
   /** The commit the recording ran at, when it names one. */
   readonly commit?: string | null;
   /** Why the call graph was parsed from the working tree rather than from the recorded commit. */
@@ -288,6 +290,24 @@ export interface NativeJourneyMapBranch {
   readonly smallest: NativeJourneyCase;
 }
 
+/** What the checkout says about a file the recording may keep no row for, read only when it keeps none. */
+export interface NativeJourneyMapFile {
+  /** Whether the default instrument filter takes the file. */
+  readonly module: boolean;
+  /** The commit the recording names. */
+  readonly commit?: string | null;
+  /** Whether git lists the file at `commit`; absent when git could not say. */
+  readonly existed?: boolean | null;
+  /** Why `existed` is absent. */
+  readonly unread?: string | null;
+  /** Whether git lists the file in the checkout, tracked or new and not ignored; absent when git could not say. */
+  readonly listed?: boolean | null;
+  /** Whether git lists files under the path, which makes it a directory. */
+  readonly directory?: boolean | null;
+  /** Whether the path is on disk and git ignores it. */
+  readonly ignored?: boolean | null;
+}
+
 /** The map of the code around one file, drawn from the journeys of the tests kept. */
 export interface NativeJourneyMap {
   readonly notRecorded?: string | null;
@@ -307,10 +327,40 @@ export interface NativeJourneyMap {
   readonly structure: number;
 }
 
+/** Another test, beside the one a composition was asked about. */
+export interface NativeJourneyPiece {
+  /** `blocks` is its footprint: the regions it entered, structure aside. */
+  readonly case: NativeJourneyCase;
+  /** Regions of the footprint asked about that it also entered. */
+  readonly shared: number;
+}
+
+/** What one test is made of: the smaller tests inside it, the larger ones holding it, and what no piece entered. */
+export interface NativeTestComposition {
+  /** Why the recording cannot answer; every other field is empty then. */
+  readonly notRecorded?: string | null;
+  /** Cases in the recording: the denominator of structure. */
+  readonly suite: number;
+  /** The test asked about; `blocks` is its footprint. */
+  readonly test?: NativeJourneyCase | null;
+  /** Regions it entered that more than half the suite entered too. */
+  readonly structure: number;
+  /** Other tests whose footprint is exactly its own. */
+  readonly alike: number;
+  /** Smaller tests with nine tenths of their footprint inside it, most shared first. */
+  readonly pieces: readonly NativeJourneyPiece[];
+  /** Larger tests holding nine tenths of it, smallest first. */
+  readonly wholes: readonly NativeJourneyPiece[];
+  /** Regions of its footprint some piece entered. */
+  readonly explained: number;
+  /** What no piece entered, in modules no piece entered: its own layer. */
+  readonly own: readonly NativeJourneyBlock[];
+  /** What no piece entered, in modules a piece entered: paths of a piece only it takes. */
+  readonly reached: readonly NativeJourneyBlock[];
+}
+
 /** The journey calls on a git listing the addon holds, carrying it rather than asking git again. */
 export interface NativeJourneysListing {
-  /** The Vite and Vitest configs this listing holds, not counting ones a fixture, template or example ships. */
-  runnerConfigs?(): string[];
   /** Walk every case of the recording and keep the journeys at `out`; `null` when there is no source index. */
   prepareJourneys?(
     root: string,
@@ -318,16 +368,17 @@ export interface NativeJourneysListing {
     recording: string,
     at: NativeJourneysCommit,
     out: string,
-    runner: string | null,
+    /** The runtime's own modules, which no function of the checkout answers. */
+    builtins: readonly string[],
+    /** The `tsconfig` the scan that built the index resolved under. */
+    tsconfig?: string | false,
   ): NativeJourneysPrepared | null;
 }
 
 /** The addon's layer-2 journey calls. */
 export interface NativeJourneys {
-  /** The Vite and Vitest configs git lists under `root`; `null` when git cannot list. */
-  runnerConfigs?(root: string): string[] | null;
-  /** The journeys kept at `out`, when this walk prepared them from this recording, this index and a runner table under `runnerDigest`. */
-  journeysKept?(index: string, recording: string, out: string, runnerDigest?: string | null): NativeJourneysPrepared | null;
+  /** The journeys kept at `out`, when this walk prepared them from this recording and this index. */
+  journeysKept?(index: string, recording: string, out: string): NativeJourneysPrepared | null;
   /** Walk every case of the recording and keep the journeys at `out`, with git listing the checkout; `null` when there is no source index. */
   prepareJourneys?(
     root: string,
@@ -335,7 +386,10 @@ export interface NativeJourneys {
     recording: string,
     at: NativeJourneysCommit,
     out: string,
-    runner: string | null,
+    /** The runtime's own modules, which no function of the checkout answers. */
+    builtins: readonly string[],
+    /** The `tsconfig` the scan that built the index resolved under. */
+    tsconfig?: string | false,
   ): NativeJourneysPrepared | null;
   /** Answer each ask from the journeys kept at `out`. */
   journeysFor?(root: string, index: string, recording: string, out: string, asks: NativeJourneysAsk[]): NativeJourneysAnswer;
@@ -346,5 +400,7 @@ export interface NativeJourneys {
   /** How the function at `a` is connected to the one at `b`. */
   forksBetween?(recording: string, a: NativeJourneyEnd, b: NativeJourneyEnd): NativeForksBetween;
   /** The map around `file`, kept to the cases whose test file or name holds any of `terms`. */
-  journeyMap?(recording: string, file: string, terms?: string[] | null): NativeJourneyMap;
+  journeyMap?(recording: string, file: string, terms?: string[] | null, known?: NativeJourneyMapFile | null): NativeJourneyMap;
+  /** What the test declared in `file`, chosen by `name` among several, is made of. */
+  testComposition?(recording: string, file: string, name?: string | null): NativeTestComposition;
 }

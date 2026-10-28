@@ -16,7 +16,7 @@ a typed status rather than an empty answer.
 
 In: an HTTP request carrying a bearer credential. Out: a response, or a typed
 refusal — a malformed argument is 400, a capability that may not do this is 403,
-a method the path does not serve is 405, a lineage conflict is 409, an operation
+a method the path does not serve is 405, a lineage conflict or a decision about a baseline that moved is 409, an operation
 that cannot be carried out is 422, and a platform that could not be reached is
 500. None of them is a value. Every client in this project turns a non-2xx into a
 thrown error precisely so a broken service cannot become the sentence *no
@@ -34,6 +34,7 @@ run configured with a URL and a reviewer's browser reach one address.
 - [`build-store`](../build-store/README.md) — the build list, one build's
   **docket**, and the bytes behind an image address
 - [`decision`](../decision/README.md) — the one answer a subject route records
+- [`concern`](../concern/README.md) — the concern routes, raised, moved and read
 - [`retention-sweep`](../retention-sweep/README.md) — what the sweep path performs
 
 ## Used by

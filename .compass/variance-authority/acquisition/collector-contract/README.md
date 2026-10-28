@@ -21,7 +21,11 @@ Out: three methods and two optional ones. `plan` returns the subjects and the
 refusals; `collect` returns, for one subject, either a **render document** with
 whatever else the cheap tiers produced beside it — a **semantic snapshot**, the
 source index behind `file:line`, the interventions applied, the presentation
-consequence — or the sentence saying why there is nothing. `close` ends the
+consequence — or the sentence saying why there is nothing. When the subject is
+known only once it is reached, `collect` returns a visit instead: every subject
+it realized from the planned one, each id the planned id or the planned id at
+a width, each with its own result, the warnings the visit raised, and whether
+it could not learn every subject it realizes. `close` ends the
 world. A **call site** resolver is present when the collector drives a page and
 absent otherwise. A second collection with the world rebuilt is offered or it is
 not, and not offering it is an answer.
@@ -67,7 +71,11 @@ repository.
 - `packages/cli/src/commands/collector.ts` — `Collector`, `Plan`, `Collected`,
   `CollectorContext`, `loadCollector`
 - `packages/cli/src/commands/schedule.ts` — `serial`, `pool`, `concurrencyOf`
-- `packages/cli/src/commands/run.ts` — the collection lane and per-subject refusal handling
+- `packages/cli/src/commands/acquire.ts` — `acquire`, the collection lanes and
+  per-subject refusal handling `run` and `collect` share
+- `packages/cli/src/commands/lanes.ts` — `openLanes`, `steal`, `closeLanes`
+- `packages/cli/src/commands/collect.ts` — `collectEvidence`, `acquire` with
+  nothing compared after it
 - `packages/unit-test/src/contract.ts` and
   `packages/{storybook-collector,route-collector}/src/contract.ts` — structural
   restatements, so a surface package does not pull the binary into an adopter's

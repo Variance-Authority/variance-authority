@@ -2,8 +2,7 @@
 //! files and the test files reach through imports and re-exports, parsed as the
 //! recording saw it, with each call site's target resolved once.
 //!
-//! Which file a specifier names is the test runner's answer where its alias
-//! table has one (`journeys_runner.rs`), and the source index's otherwise. The graph
+//! Which file a specifier names is the source index's answer. The graph
 //! resolves one itself only where the index has none — a request it left
 //! unresolved, or a file it holds no aligned parse for — and counts each one,
 //! so the prepared file says how much of the graph is the index's.
@@ -14,16 +13,16 @@
 
 // compass: variance-authority.reach.relations
 
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::path::Path;
 
 use rayon::prelude::*;
 
 use crate::compact::Layer;
 use crate::journeys_parse::{parse, Callee, Export, Parsed};
-use crate::journeys_runner::Runner;
 use crate::package_graph::{fold, join_parses, At, Crossing};
-use crate::resolve::Resolvers;
+use crate::resolve::{Resolvers, Tsconfig};
+use crate::resolve_export::{resolve_export, Bound, Exports, Modules, Passes};
 
 /// How a resolved call names its target.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -63,8 +62,6 @@ pub(crate) struct Graph {
     pub calls_from: Vec<Vec<Vec<u32>>>,
     /// Specifiers the index did not answer, which the graph resolved itself.
     pub fell_back: u32,
-    /// Specifiers the runner's alias table answered.
-    pub aliased: u32,
     /// Why the files were parsed as the working tree holds them rather than as
     /// the recorded commit did; absent when the commit's tree was read.
     pub tree: Option<String>,
@@ -81,13 +78,14 @@ fn bare(value: &str) -> bool {
 
 /// The text of every source file that differs between `commit` and the
 /// working tree, as it was at `commit`: `None` for a file that did not exist
-/// there. One diff and one `cat-file --batch`; a file not in the map is the
-/// same on disk. Renames are not detected: a file moved since the commit is a
-/// path the commit did not have, and the path it had is read from there under
-/// its own name. When git cannot answer, the reason, which the prepared file
-/// carries, since the graph is then the working tree's.
+/// there. One diff and one `cat-file --batch`, and in a partial clone one fetch
+/// and a second read for what it had not fetched ([`crate::promisor`]); a file
+/// not in the map is the same on disk. Renames are not detected: a file moved
+/// since the commit is a path the commit did not have, and the path it had is
+/// read from there under its own name. When git cannot answer, the reason,
+/// which the prepared file carries, since the graph is then the working tree's.
 pub(crate) fn text_at(root: &str, commit: &str) -> Result<HashMap<String, Option<String>>, String> {
-    let args = ["-c", "core.quotePath=false", "diff", "--name-only", "--no-renames", "-z", "--relative", commit];
+    let args = ["-c", "core.quotePath=false", "diff", "--raw", "--no-abbrev", "--no-renames", "-z", "--relative", commit];
     let Some(listed) = crate::git::git(root, &args, None) else {
         let known = crate::git::git(root, &["cat-file", "-e", &format!("{commit}^{{commit}}")], None).is_some();
         return Err(if known {
@@ -96,34 +94,61 @@ pub(crate) fn text_at(root: &str, commit: &str) -> Result<HashMap<String, Option
             format!("commit {} is not in this checkout's object store", short(commit))
         });
     };
-    let changed: Vec<String> = listed
-        .split(|&byte| byte == 0)
-        .filter(|path| !path.is_empty())
-        .map(|path| String::from_utf8_lossy(path).into_owned())
-        .filter(|path| code(path))
+    // `:<mode> <mode> <object> <object> <status>` and then the path, each ended
+    // by a NUL. The first object is the commit's, all zeros where it had none.
+    let fields: Vec<&[u8]> = listed.split(|&byte| byte == 0).collect();
+    let changed: Vec<(String, Option<String>)> = fields
+        .chunks_exact(2)
+        .filter_map(|pair| {
+            let object = pair[0].split(|&byte| byte == b' ').nth(2)?;
+            let object = String::from_utf8_lossy(object).into_owned();
+            Some((String::from_utf8_lossy(pair[1]).into_owned(), Some(object).filter(|object| object.bytes().any(|byte| byte != b'0'))))
+        })
+        .filter(|(path, _)| code(path))
         .collect();
     let mut texts = HashMap::new();
     if changed.is_empty() {
         return Ok(texts);
     }
     let unread = || format!("git could not read the files changed since commit {}", short(commit));
-    let asked: String = changed.iter().map(|file| format!("{commit}:./{file}\n")).collect();
-    let out = crate::git::git(root, &["cat-file", "--batch"], Some(asked.into_bytes())).ok_or_else(unread)?;
+    let files: Vec<&str> = changed.iter().map(|(file, _)| file.as_str()).collect();
+    let mut read = read_at(root, commit, &files, false).ok_or_else(unread)?;
+    let missing: Vec<usize> = (0..changed.len()).filter(|&at| read[at].is_none() && changed[at].1.is_some()).collect();
+    let oids: Vec<String> = missing.iter().filter_map(|&at| changed[at].1.clone()).collect();
+    if !missing.is_empty() && crate::promisor::fetch_missing(root, &oids) {
+        let files: Vec<&str> = missing.iter().map(|&at| changed[at].0.as_str()).collect();
+        for (at, text) in missing.iter().zip(read_at(root, commit, &files, true).ok_or_else(unread)?) {
+            read[*at] = text;
+        }
+    }
+    for ((file, _), text) in changed.into_iter().zip(read) {
+        texts.insert(file, text);
+    }
+    Ok(texts)
+}
+
+/// Each of `files` at `commit` from one `cat-file --batch`, `None` where it
+/// answers `missing`. Without `fetch`, an object a partial clone has not
+/// fetched is answered missing too, rather than fetched on its own.
+fn read_at(root: &str, commit: &str, files: &[&str], fetch: bool) -> Option<Vec<Option<String>>> {
+    let asked: String = files.iter().map(|file| format!("{commit}:./{file}\n")).collect();
+    let env: &[(&str, &str)] = if fetch { &[] } else { &[("GIT_NO_LAZY_FETCH", "1")] };
+    let out = crate::git::git_with(root, &["cat-file", "--batch"], Some(asked.into_bytes()), env)?;
+    let mut read = Vec::with_capacity(files.len());
     let mut at = 0;
-    for file in changed {
-        let end = at + out.get(at..).and_then(|rest| rest.iter().position(|&byte| byte == b'\n')).ok_or_else(unread)?;
+    for _ in files {
+        let end = at + out.get(at..)?.iter().position(|&byte| byte == b'\n')?;
         let head = String::from_utf8_lossy(&out[at..end]).into_owned();
         at = end + 1;
         if head.ends_with(" missing") {
-            texts.insert(file, None);
+            read.push(None);
             continue;
         }
-        let size: usize = head.rsplit(' ').next().and_then(|size| size.parse().ok()).ok_or_else(unread)?;
-        let text = String::from_utf8_lossy(out.get(at..at + size).ok_or_else(unread)?).into_owned();
-        texts.insert(file, Some(text));
+        let size: usize = head.rsplit(' ').next()?.parse().ok()?;
+        read.push(Some(String::from_utf8_lossy(out.get(at..at + size)?).into_owned()));
         at += size + 1;
     }
-    Ok(texts)
+    Some(read)
 }
 
 /// A commit as the output names one.
@@ -169,14 +194,14 @@ struct Read {
     parsed: Option<Parsed>,
     specs: Vec<(String, Option<String>)>,
     fell_back: u32,
-    aliased: u32,
 }
 
 impl Graph {
     /// The graph over everything `seeds` reach, read from the index's layers.
     /// `seeds` are interned first and in order, so their ids are their places.
     /// `commit` is the commit the recording ran at, or why there is none.
-    pub(crate) fn build(root: &str, layers: &[Layer], commit: Result<&str, &str>, seeds: &[String], runner: Option<&Runner>) -> Graph {
+    /// `tsconfig` is the config the scan that built the index resolved under.
+    pub(crate) fn build(root: &str, layers: &[Layer], commit: Result<&str, &str>, seeds: &[String], tsconfig: Tsconfig) -> Graph {
         let (then, index) = rayon::join(
             || commit.map_err(str::to_owned).and_then(|commit| text_at(root, commit)),
             || {
@@ -191,7 +216,7 @@ impl Graph {
             },
         );
         let by_file: HashMap<&str, usize> = index.iter().enumerate().map(|(at, crossing)| (crossing.file, at)).collect();
-        let resolvers = Resolvers::new(None, None);
+        let resolvers = Resolvers::new(tsconfig, None);
         let absolute = Path::new(root);
         let mut graph = Graph {
             files: Vec::new(),
@@ -201,7 +226,6 @@ impl Graph {
             targets: Vec::new(),
             calls_from: Vec::new(),
             fell_back: 0,
-            aliased: 0,
             tree: None,
         };
         let then = then.map_err(|why| graph.tree = Some(why)).ok();
@@ -218,7 +242,7 @@ impl Graph {
                         None => None,
                     };
                     let Some(parsed) = text.filter(|_| code(file)).and_then(|text| parse(file, &text)) else {
-                        return Read { parsed: None, specs: Vec::new(), fell_back: 0, aliased: 0 };
+                        return Read { parsed: None, specs: Vec::new(), fell_back: 0 };
                     };
                     let answered = by_file.get(file).and_then(|&at| answers(layers, &index[at]));
                     let mut written: Vec<&str> = parsed.imports.values().map(|import| import.spec.as_str()).collect();
@@ -229,14 +253,10 @@ impl Graph {
                     }));
                     written.sort_unstable();
                     written.dedup();
-                    let (mut fell_back, mut aliased) = (0, 0);
+                    let mut fell_back = 0;
                     let specs = written
                         .into_iter()
                         .map(|spec| {
-                            if let Some(meant) = runner.and_then(|runner| runner.resolve(absolute, file, spec)) {
-                                aliased += 1;
-                                return (spec.to_owned(), meant);
-                            }
                             if let Some(&to) = answered.as_ref().and_then(|answered| answered.get(spec)) {
                                 return (spec.to_owned(), to.map(str::to_owned));
                             }
@@ -247,13 +267,12 @@ impl Graph {
                             (spec.to_owned(), to)
                         })
                         .collect();
-                    Read { parsed: Some(parsed), specs, fell_back, aliased }
+                    Read { parsed: Some(parsed), specs, fell_back }
                 })
                 .collect();
             let mut next = Vec::new();
             for (&id, read) in frontier.iter().zip(read) {
                 graph.fell_back += read.fell_back;
-                graph.aliased += read.aliased;
                 let mut specs = HashMap::new();
                 for (spec, to) in read.specs {
                     let to = to.map(|to| {
@@ -321,29 +340,10 @@ impl Graph {
         self.specs.get(file as usize).and_then(|specs| specs.get(spec)).copied().flatten()
     }
 
-    /// An exported name followed to the file and local name that declare it.
-    pub(crate) fn declaration_of(&self, file: u32, name: &str, seen: &mut HashSet<(u32, String)>) -> Option<(u32, String)> {
-        if !seen.insert((file, name.to_owned())) {
-            return None;
-        }
-        let parsed = self.parsed(file)?;
-        match parsed.exports.get(name) {
-            Some(Export::Local(local)) => match parsed.imports.get(local) {
-                Some(import) => {
-                    let to = self.resolve(file, &import.spec)?;
-                    self.declaration_of(to, &import.name, seen)
-                }
-                None => Some((file, local.clone())),
-            },
-            Some(Export::From { spec, name }) => {
-                let to = self.resolve(file, spec)?;
-                self.declaration_of(to, name, seen)
-            }
-            None => parsed.star.iter().find_map(|spec| {
-                let to = self.resolve(file, spec)?;
-                self.declaration_of(to, name, seen)
-            }),
-        }
+    /// An exported name followed to the file and local name that declare it,
+    /// as ECMAScript resolves the export (`resolve_export.rs`).
+    pub(crate) fn declaration_of(&self, file: u32, name: &str) -> Option<(u32, String)> {
+        resolve_export(self, &file, name).declaration()
     }
 
     /// What a call written in function `from` of `file` calls.
@@ -379,20 +379,46 @@ impl Graph {
             }
             if let Some(import) = parsed.imports.get(id) {
                 let declaration =
-                    self.resolve(file, &import.spec).and_then(|to| self.declaration_of(to, &import.name, &mut HashSet::new()));
+                    self.resolve(file, &import.spec).and_then(|to| self.declaration_of(to, &import.name));
                 return declaration.map_or(Target::External, |declaration| declared(declaration, How::Import));
             }
             return Target::Free;
         }
         if let (Some(ns), Some(prop)) = (&callee.ns, &callee.prop) {
             if let Some(import) = parsed.imports.get(ns).filter(|import| import.name == "*") {
-                let declaration = self.resolve(file, &import.spec).and_then(|to| self.declaration_of(to, prop, &mut HashSet::new()));
+                let declaration = self.resolve(file, &import.spec).and_then(|to| self.declaration_of(to, prop));
                 if let Some(declaration) = declaration {
                     return declared(declaration, How::Namespace);
                 }
             }
         }
         Target::Member
+    }
+}
+
+impl Modules for Graph {
+    type File = u32;
+    type Declaration = (u32, String);
+
+    /// A name the file exports and neither imports nor declares as a function
+    /// or a value is taken for a declaration of the file, which the journeys
+    /// then read as no function.
+    fn exports(&self, file: &u32, name: &str) -> Exports<u32, (u32, String)> {
+        let file = *file;
+        let Some(parsed) = self.parsed(file) else { return Exports::Unread };
+        let stars = || parsed.star.iter().map(|spec| self.resolve(file, spec)).collect();
+        match parsed.exports.get(name) {
+            Some(Export::Local(local)) => Exports::Own(match parsed.imports.get(local) {
+                Some(import) if import.name == "*" => Bound::Unbound,
+                Some(import) => Bound::Imported(self.resolve(file, &import.spec), import.name.clone()),
+                None => Bound::Declared((file, local.clone())),
+            }),
+            Some(Export::From { spec, name }) => Exports::Passes(Passes {
+                named: Some(if name == "*" { None } else { self.resolve(file, spec).map(|to| (to, name.clone())) }),
+                stars: stars(),
+            }),
+            None => Exports::Passes(Passes { named: None, stars: stars() }),
+        }
     }
 }
 

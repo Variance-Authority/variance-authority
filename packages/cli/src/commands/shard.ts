@@ -1,5 +1,7 @@
-import { createHash } from 'node:crypto';
+import { widenedFrom } from '@variance-authority/core/format';
+import { longestFirst, place } from '@variance-authority/core/shard';
 import { matchesGlob, type PlannedSubject } from './collector.js';
+import type { Shard } from '../shard-args.js';
 import { shardFilterBecause, shardOwnedBecause, type NotObserved } from './run-report.js';
 
 /**
@@ -11,98 +13,49 @@ import { shardFilterBecause, shardOwnedBecause, type NotObserved } from './run-r
  *   CSF file and every width of one route load the same module graph; split
  *   across machines, each machine pays for it. `declaredIn` is the key, and a
  *   subject with none is its own group.
- * - **Without costs, a checksum decides.** Rendezvous hashing — each group goes
- *   to the shard whose `sha256(group, shard)` is highest — depends on the group
- *   and the shard count and on nothing else, so adding a story moves no other
- *   file and two machines that discovered different plans still agree on every
- *   group they share.
- * - **With costs, the recorded time decides.** A previous report carries
- *   `costMs` per subject; groups are placed longest first on the least-loaded
- *   shard (LPT). That placement is a function of the *whole* plan, so shards
- *   must plan the same suite — when they do not, `merge` sees the overlap or
- *   the gap and refuses, rather than a subject going unwatched.
+ * - **Where each group goes is `place` in `@variance-authority/core/shard`**,
+ *   the rule a test runner's seam places test files by: the recorded time
+ *   when a previous report carries `costMs`, longest first on the
+ *   least-loaded shard, and by count otherwise — every file weighing the
+ *   same under the same rule. Either placement is a function of the *whole*
+ *   plan, so shards must plan the same suite — when they do not, `merge` sees the overlap or the gap and refuses, rather than
+ *   a subject going unwatched.
  */
-
-export interface Shard {
-  /** 1-based, as `--shard 2/4` spells it. */
-  readonly index: number;
-  readonly total: number;
-}
 
 /** Subject id to milliseconds, read from a previous report's `costMs`. */
 export type Costs = ReadonlyMap<string, number>;
-
-/** `k/n`, or the sentence saying why not. */
-export function parseShard(text: string): Shard | string {
-  const match = /^(\d+)\/(\d+)$/.exec(text);
-  if (match === null) return `\`--shard\` takes \`k/n\`, such as \`2/4\`; got \`${text}\``;
-  const index = Number(match[1]);
-  const total = Number(match[2]);
-  if (total < 1 || index < 1 || index > total) {
-    return `\`--shard ${text}\` names no shard: k must be between 1 and n`;
-  }
-  return { index, total };
-}
 
 export function groupOf(planned: PlannedSubject): string {
   return planned.declaredIn ?? planned.subject.id;
 }
 
-interface Group {
-  readonly key: string;
-  /** Plan indices, in plan order. */
-  readonly members: number[];
-  /** Estimated milliseconds; `undefined` when no subject in the run has a cost. */
-  cost?: number;
-}
-
 /** Plan indices grouped by declaring file, groups in order of first appearance. */
-function groupsOf(subjects: readonly PlannedSubject[], costs: Costs | undefined): Group[] {
-  const byKey = new Map<string, Group>();
+function groupsOf(subjects: readonly PlannedSubject[]): { readonly key: string; readonly members: number[] }[] {
+  const byKey = new Map<string, { key: string; members: number[] }>();
   subjects.forEach((planned, index) => {
     const key = groupOf(planned);
     const group = byKey.get(key) ?? { key, members: [] };
     group.members.push(index);
     byKey.set(key, group);
   });
-  const groups = [...byKey.values()];
-
-  // An unrecorded subject is estimated at the median of the recorded ones: a new
-  // story is a story, and pricing it at zero would stack every new file on one
-  // shard. No recorded subject at all is no estimate, and the checksum decides.
-  const known = subjects.flatMap((planned) => {
-    const cost = costs?.get(planned.subject.id);
-    return cost === undefined ? [] : [cost];
-  });
-  if (known.length === 0) return groups;
-  const median = [...known].sort((a, b) => a - b)[Math.floor(known.length / 2)] ?? 0;
-  for (const group of groups) {
-    group.cost = group.members.reduce(
-      (sum, index) => sum + (costs?.get(subjects[index]?.subject.id ?? '') ?? median),
-      0,
-    );
-  }
-  return groups;
+  return [...byKey.values()];
 }
 
-/** Longest first; ties by key in code-unit order, so the order is a function of the plan. */
-function byCostDescending(a: Group, b: Group): number {
-  const difference = (b.cost ?? 0) - (a.cost ?? 0);
-  if (difference !== 0) return difference;
-  return a.key < b.key ? -1 : a.key > b.key ? 1 : 0;
-}
-
-function rendezvous(key: string, total: number): number {
-  let best = 1;
-  let bestScore = '';
-  for (let shard = 1; shard <= total; shard++) {
-    const score = createHash('sha256').update(`${key}\0${shard}`).digest('hex');
-    if (score > bestScore) {
-      best = shard;
-      bestScore = score;
-    }
+/**
+ * Costs keyed by planned id. A report records each width a visit read under
+ * its realized id, `<id>@<width>`, and the plan holds the story once, so a
+ * story costs what its widths cost together. A realized id is only ever its
+ * planned id or that id and a width, so nothing else is summed into it.
+ */
+function plannedCosts(subjects: readonly PlannedSubject[], costs: Costs): Map<string, number> {
+  const planned = new Set(subjects.map((subject) => subject.subject.id));
+  const priced = new Map<string, number>();
+  for (const [id, cost] of costs) {
+    const widened = widenedFrom(id);
+    const owner = planned.has(id) ? id : widened !== undefined && planned.has(widened) ? widened : undefined;
+    if (owner !== undefined) priced.set(owner, (priced.get(owner) ?? 0) + cost);
   }
-  return best;
+  return priced;
 }
 
 export interface Assignment {
@@ -110,7 +63,7 @@ export interface Assignment {
   readonly queue: readonly (readonly number[])[];
   /** Plan index to the shard that owns it, for every subject this shard does not. */
   readonly elsewhere: ReadonlyMap<number, number>;
-  readonly by: 'checksum' | 'recorded cost';
+  readonly by: 'count' | 'recorded cost';
 }
 
 /**
@@ -125,40 +78,30 @@ export function assign(
   shard: Shard | undefined,
   costs: Costs | undefined,
 ): Assignment {
-  const groups = groupsOf(subjects, costs);
-  const costed = groups.some((group) => group.cost !== undefined);
-  const total = shard?.total ?? 1;
-  const owner = new Map<Group, number>();
-
-  if (costed) {
-    const load = Array.from({ length: total }, () => 0);
-    for (const group of [...groups].sort(byCostDescending)) {
-      let least = 0;
-      for (let k = 1; k < total; k++) if ((load[k] ?? 0) < (load[least] ?? 0)) least = k;
-      load[least] = (load[least] ?? 0) + (group.cost ?? 0);
-      owner.set(group, least + 1);
-    }
-  } else {
-    for (const group of groups) owner.set(group, total === 1 ? 1 : rendezvous(group.key, total));
-  }
-
-  const mine = groups.filter((group) => owner.get(group) === (shard?.index ?? 1));
+  const groups = groupsOf(subjects);
+  const priced = costs === undefined ? undefined : plannedCosts(subjects, costs);
+  const placement = place(
+    groups.map(({ key, members }) => ({ key, costs: members.map((index) => priced?.get(subjects[index]?.subject.id ?? '')) })),
+    shard?.total ?? 1,
+  );
+  const here = shard?.index ?? 1;
   const elsewhere = new Map<number, number>();
-  for (const group of groups) {
-    const k = owner.get(group) ?? 1;
-    if (k !== (shard?.index ?? 1)) for (const index of group.members) elsewhere.set(index, k);
-  }
-
+  groups.forEach((group, at) => {
+    const owner = placement.owner[at]!;
+    if (owner !== here) for (const index of group.members) elsewhere.set(index, owner);
+  });
+  const mine = (order: readonly number[]) => order.filter((at) => placement.owner[at] === here).map((at) => groups[at]!.members);
+  const inPlan = groups.map((_, at) => at);
   return {
-    queue: (costed ? [...mine].sort(byCostDescending) : mine).map((group) => group.members),
+    queue: mine(placement.by === 'count' ? inPlan : longestFirst(groups.map((group) => group.key), placement.cost)),
     elsewhere,
-    by: costed ? 'recorded cost' : 'checksum',
+    by: placement.by,
   };
 }
 
 /**
  * The exclusion every subject another shard owns is reported under. It names
- * the shard and what placed it there — a checksum, or the costs of one commit —
+ * the shard and what placed it there — the count, or the costs of one commit —
  * so two shards that placed by different costs are visible in their reports.
  */
 export function placedElsewhere(
@@ -167,8 +110,8 @@ export function placedElsewhere(
   options: { readonly shard?: Shard; readonly costs?: { readonly commit: string } },
 ): ReadonlyMap<number, NotObserved> {
   const by =
-    assignment.by === 'checksum' || options.costs === undefined
-      ? 'checksum'
+    assignment.by === 'count' || options.costs === undefined
+      ? 'count'
       : `the costs recorded at ${options.costs.commit.slice(0, 12)}`;
   const entries = new Map<number, NotObserved>();
   for (const [index, owner] of assignment.elsewhere) {
@@ -185,6 +128,11 @@ export function placedElsewhere(
  * Why this shard's own subject is not collected, if it is not: `unreached` when
  * the diff was derived not to arrive — nobody configured that — and `excluded`
  * when `--subjects` left it out, which somebody did.
+ *
+ * A glob leaves a subject out only when no subject its visit can realize could
+ * match either: a story read at two widths is planned once, under its own id,
+ * and `--subjects 'story:card--receipt@375'` asks for one of them. What the
+ * visit realizes is filtered by the glob itself afterwards.
  */
 export function declinedBy(
   id: string,
@@ -193,8 +141,32 @@ export function declinedBy(
 ): NotObserved | undefined {
   const ruledOut = skipped?.get(id);
   if (ruledOut !== undefined) return { subject: id, kind: 'unreached', because: ruledOut };
-  if (glob !== undefined && !matchesGlob(glob, id)) {
+  if (glob !== undefined && !matchesGlob(glob, id) && !globReachesWidth(glob, id)) {
     return { subject: id, kind: 'excluded', because: shardFilterBecause(glob) };
   }
   return undefined;
+}
+
+/**
+ * Whether `pattern` matches some width of `id`, `<id>@<digits>`: a subject a
+ * visit may widen is declined by a glob only when no width it can realize is
+ * wanted. A width is the only extension a visit makes, so a glob naming another
+ * story whose id begins with this one does not reach it.
+ *
+ * Answered by {@link matchesGlob} at the one place a width's `@` can fall. The
+ * `@` is spelled by a literal `@` or a `?`, and then what precedes it matches
+ * `id` and what follows can spell a number; or it is swallowed by a `*`, and
+ * then the pattern up to that `*` matches `<id>@` and what follows can spell
+ * the rest of the number, which the `*` may already have taken.
+ */
+function globReachesWidth(pattern: string, id: string): boolean {
+  for (let at = 0; at < pattern.length; at++) {
+    const token = pattern[at];
+    const rest = pattern.slice(at + 1);
+    if ((token === '@' || token === '?') && /^[0-9?*]+$/.test(rest) && matchesGlob(pattern.slice(0, at), id)) {
+      return true;
+    }
+    if (token === '*' && /^[0-9?*]*$/.test(rest) && matchesGlob(pattern.slice(0, at + 1), `${id}@`)) return true;
+  }
+  return false;
 }

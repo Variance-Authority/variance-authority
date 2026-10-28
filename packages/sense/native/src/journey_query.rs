@@ -20,6 +20,7 @@ use std::collections::{HashMap, HashSet};
 
 use napi_derive::napi;
 
+use crate::case_said;
 use crate::journey_journal;
 use crate::journey_read::{overlaps, pairs, Journey};
 
@@ -42,6 +43,9 @@ pub struct JourneyTest {
     pub name: String,
     /// `ExecutionTest.stopped`: absent when the file does not say how the case settled.
     pub stopped: Option<bool>,
+    /// Everything the case said it arranged and the code read, as a frame
+    /// spells it (`case_said::spell`): absent for a case nobody listened to.
+    pub said: Option<String>,
 }
 
 #[napi(object)]
@@ -74,6 +78,7 @@ pub struct JourneyProjection {
 
 fn project(file: &str, changed: &[JourneyChange]) -> Result<JourneyProjection, String> {
     let journey = Journey::open(file)?;
+    let heard = journey.heard()?;
     let tests = (0..journey.tests())
         .map(|at| Ok(JourneyTest {
             id: journey.test_id(at)?.to_owned(),
@@ -84,6 +89,7 @@ fn project(file: &str, changed: &[JourneyChange]) -> Result<JourneyProjection, S
                 Some(journey_journal::FINISHED) => Some(false),
                 _ => None,
             },
+            said: heard[at].as_ref().map(case_said::spell),
         }))
         .collect::<Result<Vec<_>, String>>()?;
 
@@ -92,6 +98,9 @@ fn project(file: &str, changed: &[JourneyChange]) -> Result<JourneyProjection, S
         let Some(module) = journey.module_of(&change.file)? else { continue };
         let ranges = pairs(&change.ranges);
         let regions = journey.regions(module)?;
+        // FIXME: a region is read by `overlaps`, which needs its source, so an
+        // unwritten `else` on a changed line projects no cases here while
+        // `select --execution` (`charge_line`) selects them.
         let every = ranges.is_empty() || regions.iter().any(|region| overlaps(region, &ranges) && region.loaded);
         let blocks = regions
             .iter()

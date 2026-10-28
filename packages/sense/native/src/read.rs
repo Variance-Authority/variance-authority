@@ -1,17 +1,22 @@
 //! One module's cacheable facts, extracted without letting its AST cross N-API.
 
-use std::collections::HashMap;
-use std::sync::OnceLock;
+use std::collections::{HashMap, HashSet};
 
 use oxc_allocator::Allocator;
+use oxc_ast::ast::Program;
 use oxc_parser::Parser;
+use oxc_semantic::SemanticBuilder;
 use oxc_span::SourceType;
-use oxc_syntax::module_record::{ExportExportName, ExportImportName, ImportImportName};
-use regex::Regex;
+use oxc_syntax::module_record::{ExportExportName, ExportImportName, ExportLocalName, ImportImportName};
 use serde::Serialize;
 
+use crate::declarations::declarations;
+use crate::declared_role::DeclaredRoles;
 use crate::harvest::{Harvest, SourceSymbol, TextSpan};
-use crate::members::{members_in, Member};
+use crate::help_member_uses::{member_uses_in, MemberUse};
+use crate::help_own_uses::{own_uses_in, OwnUse};
+use crate::help_members::{member_declarations_in, MemberDeclaration};
+use crate::members::{members_and_loads_in, BindingMember, Member};
 use crate::mocks::{mocks_in, Mocks};
 use crate::source_size::{size_of, Size};
 
@@ -56,6 +61,12 @@ pub struct Request {
     pub kind: Kind,
     pub(crate) bindings: Vec<Binding>,
     pub(crate) line: u32,
+    /// An `export … from` group: what it binds it passes on, and takes for no
+    /// use of its own. Every `reexports` request is one, and a `type` one is
+    /// when `export type` writes it, which its kind alone cannot tell from
+    /// `import type`.
+    #[serde(skip_serializing_if = "is_false")]
+    pub(crate) republishes: bool,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -75,6 +86,12 @@ pub struct Export {
     pub(crate) signature: Option<TextSpan>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) doc: Option<TextSpan>,
+    /// The role tags its doc declares, as `declared_role` bits.
+    #[serde(rename = "roles", skip_serializing_if = "is_zero", serialize_with = "crate::declared_role::serialize")]
+    pub(crate) tags: u8,
+    /// A key of the object `export =` or `module.exports =` hands out.
+    #[serde(skip_serializing_if = "is_false")]
+    pub(crate) assigned: bool,
 }
 
 #[derive(Clone, Debug, Default, Serialize)]
@@ -84,6 +101,9 @@ pub struct Read {
     pub(crate) exports: Vec<Export>,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub(crate) symbols: Vec<SourceSymbol>,
+    /// Every function a function's body declares, apart from the top level.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub(crate) nested: Vec<crate::harvest::NestedSymbol>,
     #[serde(skip_serializing_if = "is_false")]
     pub(crate) harvested: bool,
     #[serde(skip_serializing_if = "Vec::is_empty")]
@@ -92,16 +112,31 @@ pub struct Read {
     pub(crate) mocks: Mocks,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub(crate) members: Vec<Member>,
+    /// Every name read off a binding a named import takes.
+    #[serde(rename = "bindingMembers", skip_serializing_if = "Vec::is_empty")]
+    pub(crate) binding_members: Vec<BindingMember>,
+    /// Every member of an interface, a type literal or a class the module declares.
+    #[serde(rename = "memberDeclarations", skip_serializing_if = "Vec::is_empty")]
+    pub(crate) member_declarations: Vec<MemberDeclaration>,
+    /// Every use of a member through a value whose type the module writes.
+    #[serde(rename = "memberUses", skip_serializing_if = "Vec::is_empty")]
+    pub(crate) member_uses: Vec<MemberUse>,
+    /// Every line that uses a name the module declares at its top level.
+    #[serde(rename = "ownUses", skip_serializing_if = "Vec::is_empty")]
+    pub(crate) own_uses: Vec<OwnUse>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub unknown: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) size: Option<Size>,
+    /// The module's own doc comment, inside its marks, as [`Harvest`] reads it.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) doc: Option<TextSpan>,
 }
 
 pub(crate) struct Lines(Vec<usize>);
 
 impl Lines {
-    fn new(source: &str) -> Self {
+    pub(crate) fn new(source: &str) -> Self {
         let mut starts = vec![0];
         starts.extend(source.match_indices('\n').map(|(at, _)| at + 1));
         Self(starts)
@@ -125,25 +160,31 @@ struct ReexportGroup {
     line: u32,
 }
 
-/// The dialect a source file is read in.
-///
-/// The extension alone leaves JSX off for `.js`, `.mjs` and `.cjs`, where most
-/// React components written in JavaScript live, and an element there is a parse
-/// error that leaves the file with no edges. Only those three are widened: `.ts`
-/// keeps its own dialect, because `<string>value` is a cast there.
-pub fn dialect(file: &str) -> Option<SourceType> {
-    let source_type = SourceType::from_path(file).ok()?;
-    let widened = [".js", ".mjs", ".cjs"].iter().any(|end| file.ends_with(end));
-    Some(if widened { source_type.with_jsx(true) } else { source_type })
-}
+pub use variance_sense_instrument::native::dialect;
 
 /// One module's `Parsed` value, from OXC's native module record.
 pub fn read_module(file: &str, source: &str, allocator: &Allocator, symbols: bool) -> Read {
+    read_module_and_tree(file, source, allocator, symbols).0
+}
+
+/// [`read_module`]'s value and the tree it was read from, for a caller that asks
+/// the tree what the module record does not hold, so the file is parsed once.
+pub(crate) fn read_module_and_tree<'a>(file: &str, source: &'a str, allocator: &'a Allocator, symbols: bool) -> (Read, Program<'a>) {
     let source_type = dialect(file).unwrap_or_else(SourceType::tsx);
     let parsed = Parser::new(allocator, source, source_type).parse();
     let record = &parsed.module_record;
     let lines = Lines::new(source);
-    let harvest = Harvest::new(&parsed.program, source, &lines, symbols);
+    let mut harvest = Harvest::new(&parsed.program, source, &lines, symbols);
+    // A module's own top level is its alone; a script's is global, or handed
+    // out through `module.exports`, and `export =` hands out what it names,
+    // neither of which the record holds.
+    let assigned = parsed.program.body.iter().any(|statement| crate::assigned_object::handed_out(statement).is_some());
+    if record.has_module_syntax && !assigned {
+        for symbol in &mut harvest.symbols {
+            symbol.reach = Some("file");
+        }
+    }
+    let roles = DeclaredRoles::new(&parsed.program, std::mem::take(&mut harvest.tagged));
     let mut requests = Vec::new();
     let mut imports: Vec<ImportGroup> = Vec::new();
     // A request's kind is the statement's keyword and never its names, for the
@@ -202,6 +243,7 @@ pub fn read_module(file: &str, source: &str, allocator: &Allocator, symbols: boo
         },
         bindings: group.bindings,
         line: lines.at(group.at),
+        republishes: false,
     }));
 
     let mut entries: Vec<_> = record
@@ -212,22 +254,38 @@ pub fn read_module(file: &str, source: &str, allocator: &Allocator, symbols: boo
         .collect();
     entries.sort_by_key(|entry| (entry.statement_span.start, entry.span.start));
 
+    // A namespace a module imports and exports by its local name, `import * as
+    // g from 'm'; export { g }`, is the module passed on as `export * as g from
+    // 'm'`, and is recorded as that: the binding is the module record.
+    let namespaces: HashMap<&str, &str> = record
+        .import_entries
+        .iter()
+        .filter(|entry| matches!(entry.import_name, ImportImportName::NamespaceObject))
+        .map(|entry| (entry.local_name.name.as_str(), entry.module_request.name.as_str()))
+        .collect();
+
     let mut exports = Vec::with_capacity(entries.len());
     let mut republished: Vec<ReexportGroup> = Vec::new();
     let mut groups: HashMap<String, usize> = HashMap::new();
     for entry in entries {
         let line = lines.at(entry.statement_span.start);
-        let from = entry
+        let mut from = entry
             .module_request
             .as_ref()
             .map(|name| name.name.to_string());
         let exported = export_name(&entry.export_name);
-        let imported = source_name(&entry.import_name);
+        let mut imported = source_name(&entry.import_name);
         // The record's own bound name, which for `export default name` is
         // `name`: `exported` already says `default`, and the identifier is what
         // a reader follows through this file's imports to where it comes from.
-        let local = entry.local_name.name().map(|name| name.to_string());
+        let mut local = entry.local_name.name().map(|name| name.to_string());
+        if let ExportLocalName::Name(name) = &entry.local_name {
+            if let Some(module) = namespaces.get(name.name.as_str()) {
+                (from, imported, local) = (Some((*module).to_owned()), Some("*".to_owned()), None);
+            }
+        }
 
+        let tags = roles.of(entry.statement_span.start, local.as_deref());
         exports.push(Export {
             exported: exported.clone(),
             local,
@@ -237,6 +295,8 @@ pub fn read_module(file: &str, source: &str, allocator: &Allocator, symbols: boo
             line,
             signature: Some(harvest.span(entry.statement_span)),
             doc: harvest.doc(entry.statement_span.start),
+            assigned: false,
+            tags,
         });
 
         let Some(value) = from else { continue };
@@ -265,6 +325,29 @@ pub fn read_module(file: &str, source: &str, allocator: &Allocator, symbols: boo
             });
         }
     }
+    // An object the module hands out whole exports each key, when it spells them all.
+    for statement in &parsed.program.body {
+        let Some(object) = crate::assigned_object::assigned(statement).filter(|it| crate::assigned_object::spelled(it)) else { continue };
+        let at = oxc_span::GetSpan::span(statement);
+        for key in crate::assigned_object::keys(object) {
+            let local = key.local.map(|it| it.name.to_string());
+            let tags = roles.of(at.start, local.as_deref());
+            // A key is declared where it is written, and documented there or on the statement.
+            let doc = harvest.doc(key.span.start).or_else(|| harvest.doc(at.start));
+            exports.push(Export {
+                exported: Some(key.name),
+                local,
+                from: None,
+                imported: None,
+                type_only: false,
+                line: lines.at(key.span.start),
+                signature: Some(harvest.span(key.span)),
+                doc,
+                tags,
+                assigned: true,
+            });
+        }
+    }
     requests.extend(republished.into_iter().map(|group| Request {
         value: group.value,
         kind: if group.only_types {
@@ -274,31 +357,27 @@ pub fn read_module(file: &str, source: &str, allocator: &Allocator, symbols: boo
         },
         bindings: group.bindings,
         line: group.line,
+        republishes: true,
     }));
 
     let mut reasons = Vec::new();
-    let mut dynamic = Vec::new();
-    for entry in &record.dynamic_imports {
-        let text = &source[entry.module_request.start as usize..entry.module_request.end as usize];
-        match quoted(text) {
-            Some(value) => {
-                dynamic.push((entry.span.start, requests.len() as u32));
-                requests.push(Request {
-                    value,
-                    kind: Kind::Dynamic,
-                    bindings: Vec::new(),
-                    line: lines.at(entry.span.start),
-                });
-            }
-            None => reasons.push("an `import()` whose specifier is not a literal".to_owned()),
-        }
+    // One scope tree serves every reader that resolves a name by scope.
+    let built = SemanticBuilder::new().build(&parsed.program);
+    let scoping = built.semantic.scoping();
+    let (members, binding_members, loads, taken) = members_and_loads_in(&parsed.program, scoping, &lines, &requests);
+    // A binding destructured off a module it holds is that module's value under
+    // a local name, as an import binds one, and declares nothing of its own,
+    // unless the file exports it: the export publishes the binding, and the
+    // binding is what says what it is, as `export const s = lib.shout` does.
+    let published: HashSet<&str> = exports.iter().filter(|it| it.from.is_none()).filter_map(|it| it.local.as_deref().or(it.exported.as_deref())).collect();
+    harvest.symbols.retain(|symbol| published.contains(symbol.name.as_str()) || !taken.contains(&(symbol.name.clone(), symbol.line)));
+    requests.extend(loads.dynamic);
+    reasons.extend((0..loads.unread_dynamic).map(|_| "an `import()` whose specifier is not a literal".to_owned()));
+    requests.extend(loads.required);
+    if loads.unread_required > 0 {
+        reasons.push(format!("{} `require()` call(s) with a specifier this cannot read", loads.unread_required));
     }
-
-    let required = read_requires(source, &lines);
-    requests.extend(required.requests);
-    if let Some(reason) = required.unknown {
-        reasons.push(reason);
-    }
+    requests.extend(loads.typed);
     let depends = crate::depends::depends_in(source, &parsed.program.comments, &lines);
     requests.extend(depends.requests);
     if depends.pathless > 0 {
@@ -309,24 +388,35 @@ pub fn read_module(file: &str, source: &str, allocator: &Allocator, symbols: boo
         reasons.push(format!("{count} parse error(s): {}", first.message));
     }
 
-    let members = members_in(&parsed.program, &lines, &requests, &dynamic);
     let clean = !parsed.panicked && parsed.diagnostics.is_empty();
     let size = size_of(source, &parsed.program, source_type.is_typescript(), clean);
-    Read {
+    let read = Read {
         requests,
         exports,
         symbols: harvest.symbols,
+        nested: harvest.nested,
         harvested: symbols,
-        declares: declarations(file, source),
+        declares: declarations(file, &parsed.program),
         mocks: mocks_in(source, &parsed.program),
         members,
+        binding_members,
+        member_declarations: member_declarations_in(&parsed.program, &lines),
+        member_uses: member_uses_in(&parsed.program, &lines),
+        own_uses: own_uses_in(&parsed.program, scoping, &lines),
         unknown: (!reasons.is_empty()).then(|| reasons.join("; ")),
         size: Some(size),
-    }
+        doc: harvest.module_doc,
+    };
+    drop(built);
+    (read, parsed.program)
 }
 
 fn is_false(value: &bool) -> bool {
     !*value
+}
+
+fn is_zero(value: &u8) -> bool {
+    *value == 0
 }
 
 fn import_name(name: &ImportImportName<'_>) -> String {
@@ -353,154 +443,18 @@ fn source_name(name: &ExportImportName<'_>) -> Option<String> {
     }
 }
 
-fn quoted(text: &str) -> Option<String> {
-    let trimmed = text.trim();
-    let first = *trimmed.as_bytes().first()?;
-    if trimmed.len() < 2
-        || (first != b'\'' && first != b'"')
-        || *trimmed.as_bytes().last()? != first
-    {
-        return None;
-    }
-    let value = &trimmed[1..trimmed.len() - 1];
-    (!value.contains("${")).then(|| value.to_owned())
-}
-
-fn read_requires(source: &str, lines: &Lines) -> Read {
-    let mut calls = 0usize;
-    let mut requests = Vec::new();
-    for (at, _) in source.match_indices("require") {
-        if at > 0 && is_word(source.as_bytes()[at - 1]) {
-            continue;
-        }
-        let rest = &source[at + "require".len()..];
-        let Some(open) = rest.find(|c: char| !c.is_whitespace()) else {
-            continue;
-        };
-        if rest.as_bytes()[open] != b'(' {
-            continue;
-        }
-        calls += 1;
-        let inner = rest[open + 1..].trim_start();
-        let Some(quote) = inner.as_bytes().first().copied() else {
-            continue;
-        };
-        if quote != b'\'' && quote != b'"' {
-            continue;
-        }
-        let Some(shut) = inner[1..].find(quote as char) else {
-            continue;
-        };
-        if inner[shut + 2..].trim_start().as_bytes().first() != Some(&b')') {
-            continue;
-        }
-        requests.push(Request {
-            value: inner[1..shut + 1].to_owned(),
-            kind: Kind::Imports,
-            bindings: Vec::new(),
-            line: lines.at(at as u32),
-        });
-    }
-    let unread = calls - requests.len();
-    Read {
-        requests,
-        unknown: (unread > 0)
-            .then(|| format!("{unread} `require()` call(s) with a specifier this cannot read")),
-        ..Read::default()
-    }
-}
-
-fn is_word(byte: u8) -> bool {
-    byte.is_ascii_alphanumeric() || byte == b'_'
-}
-
-fn declarations(file: &str, source: &str) -> Vec<String> {
-    if [".test.", ".spec.", ".stories.", ".d.ts"]
-        .iter()
-        .any(|skip| file.contains(skip))
-    {
-        return Vec::new();
-    }
-    static PATTERNS: OnceLock<[Regex; 3]> = OnceLock::new();
-    let patterns = PATTERNS.get_or_init(|| {
-        [
-            Regex::new(r"^\s*(?:export\s+)?(?:default\s+)?function\s+([A-Z][A-Za-z0-9_]*)")
-                .unwrap(),
-            Regex::new(r"^\s*(?:export\s+)?(?:const|let)\s+([A-Z][A-Za-z0-9_]*)\s*[:=]").unwrap(),
-            Regex::new(r"^\s*(?:export\s+)?(?:default\s+)?class\s+([A-Z][A-Za-z0-9_]*)").unwrap(),
-        ]
-    });
-    let mut found = Vec::new();
-    for line in source.lines() {
-        for pattern in patterns {
-            if let Some(name) = pattern.captures(line).and_then(|capture| capture.get(1)) {
-                found.push(name.as_str().to_owned());
-                break;
-            }
-        }
-    }
-    found.sort();
-    found.dedup();
-    found
-}
+#[cfg(test)]
+#[path = "read_tests.rs"]
+mod tests;
 
 #[cfg(test)]
-mod tests {
-    use super::*;
+#[path = "read_objects_tests.rs"]
+mod objects_tests;
 
-    fn read(source: &str) -> Read {
-        read_module("a.ts", source, &Allocator::default(), false)
-    }
+#[cfg(test)]
+#[path = "read_binding_members_tests.rs"]
+mod binding_members_tests;
 
-    fn kinds(source: &str) -> Vec<(String, &'static str)> {
-        read(source)
-            .requests
-            .into_iter()
-            .map(|request| (request.value, request.kind.as_str()))
-            .collect()
-    }
-
-    #[test]
-    fn only_the_statement_keyword_makes_a_request_type_only() {
-        let source = concat!(
-            "import type { A } from './a';\n",
-            "import { type B } from './b';\n",
-            "import { type C, D } from './c';\n",
-            "import type {} from './d';\n",
-            "export type { E } from './e';\n",
-            "export { type F } from './f';\n",
-            "export type * from './g';\n",
-        );
-        assert_eq!(
-            kinds(source),
-            [
-                ("./a", "type"),
-                ("./b", "imports"),
-                ("./c", "imports"),
-                ("./d", "type"),
-                ("./e", "type"),
-                ("./f", "reexports"),
-                ("./g", "type"),
-            ]
-            .map(|(value, kind)| (value.to_owned(), kind))
-        );
-    }
-
-    #[test]
-    fn an_inline_type_name_is_still_type_only_itself() {
-        let bindings = &read("import { type B } from './b';\n").requests[0].bindings;
-        assert!(bindings.iter().all(|binding| binding.type_only));
-    }
-
-    #[test]
-    fn a_republished_request_is_type_only_when_every_statement_says_so() {
-        assert_eq!(
-            kinds("export type { A } from './x';\nexport { type B } from './x';\n"),
-            [("./x".to_owned(), "reexports")]
-        );
-        assert_eq!(
-            kinds("export type { A } from './x';\nexport type * from './x';\n"),
-            [("./x".to_owned(), "type")]
-        );
-    }
-}
+#[cfg(test)]
+#[path = "read_passed_tests.rs"]
+mod passed_tests;

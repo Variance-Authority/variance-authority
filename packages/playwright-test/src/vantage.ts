@@ -71,6 +71,7 @@ import {
   type Waited,
   type WaitOptions,
 } from '@variance-authority/vantage';
+import { repositoryRoot } from '@variance-authority/sense/test-selection';
 import { ownerOf } from './execution.js';
 
 /** What a test author calls to be seen. */
@@ -218,9 +219,9 @@ export const varianceVantageFixtures: Fixtures<
 
   varianceWatched: [
     async ({ varianceVantage }, use, testInfo) => {
-      const file = ownerOf(process.cwd(), testInfo);
+      const file = ownerOf(repositoryRoot(process.cwd()), testInfo);
       varianceVantage?.opened(testInfo.testId, {
-        title: titleOf(testInfo, file),
+        title: titleOf(testInfo),
         file,
         ...(testInfo.project.name === '' ? {} : { project: testInfo.project.name }),
         worker: testInfo.workerIndex,
@@ -245,28 +246,13 @@ export const varianceVantageFixtures: Fixtures<
 /**
  * The whole title, describes included, joined the way the runner prints it.
  *
- * `titlePath` opens with the project and the spec file, both of which are
- * columns of their own in a listing and would only be repeated inside the title.
- * Dropped by what they are rather than by position, because how many entries
- * precede the first `describe` is the runner's business and has changed.
+ * `titlePath` is the spec file relative to the test directory, then each
+ * `describe`, then the test. The file is a column of its own in a listing, so
+ * the first entry is dropped, by position: an entry after it is a title, even
+ * one that spells the file or the project.
  */
-function titleOf(testInfo: TestInfo, file: string): string {
-  const named = leaf(file);
-  const path = testInfo.titlePath.filter(
-    (part) => part !== '' && part !== testInfo.project.name && leaf(part) !== named,
-  );
-  return path.length === 0 ? testInfo.title : path.join(' › ');
-}
-
-/**
- * The last segment of a path, whichever separator wrote it.
- *
- * The spec entry in `titlePath` is written relative to the runner's own root,
- * which is not always the directory this process is in, so the two spellings of
- * one file are compared by their leaf rather than by one containing the other.
- */
-function leaf(path: string): string {
-  return path.split(/[\\/]/).pop() ?? path;
+function titleOf(testInfo: TestInfo): string {
+  return testInfo.titlePath.slice(1).join(' › ');
 }
 
 /** A test that is being torn down has ended, whatever the runner calls it. */

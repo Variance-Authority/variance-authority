@@ -18,6 +18,12 @@
  * { "suites": { "unit": { "kind": "unit" }, "stories": { "kind": "visual" } } }
  * ```
  *
+ * What a suite rests on before any of its tests imports anything is declared
+ * on it too, as `before`: the runner's config and the setup it loads. The
+ * repository's own `before`, at the top of the file, is what every suite rests
+ * on — the Node version, the CI workflow. No rule derives either list: which
+ * files govern a run is a fact only the repository knows.
+ *
  * The kind is not inferred from the runner. A Playwright suite may be `e2e` or
  * `visual`, and a Vitest browser suite may be `unit` or `visual`; only the
  * repository knows which it meant.
@@ -26,6 +32,7 @@
 // compass: variance-authority.reach
 
 import { rootConfig } from './cache-layers.js';
+import { PRECISION_STEPS, byRelations, type Precision } from './precision.js';
 
 /**
  * What a suite is for. A closed list, because a reader that groups by kind, or a
@@ -60,6 +67,37 @@ export interface DeclaredSuite {
   readonly kind: SuiteKind;
   /** Absent when the record stays on the machine that wrote it. */
   readonly carry?: Carrier;
+  /**
+   * The entry points this suite's runner loads before any test: a change to one,
+   * or to anything it loads, reaches every test of the suite. Absent when the
+   * suite declares none, which puts nothing of its own before reach.
+   */
+  readonly before?: readonly string[];
+  /**
+   * The changed files that move none of this suite's tests: globs from the
+   * repository root, as the diff spells paths. A unit suite renders no pixel,
+   * so a stylesheet or an image it loads reaches none of its assertions, and
+   * it ignores every `.css` and `.png` file; a `!` glob takes one back out. A
+   * matching file loses its regions, its import and asset edges and its
+   * `before`, and keeps what a test declared of it: a precondition, a
+   * `/// <depends>`. Absent ignores nothing.
+   */
+  readonly ignore?: readonly string[];
+  /**
+   * Whether a changed file this suite's record did not measure is asked of the
+   * import graph, which names the first tests that import it. Absent asks it.
+   * `false` is a suite whose tests import none of what they exercise — an e2e
+   * suite drives the app through a browser — so the graph would name nobody,
+   * or a neighbour by accident; such a suite names the app in its `before`.
+   */
+  readonly relations?: boolean;
+  /**
+   * How precisely selection decides which of this suite's tests to skip,
+   * coarsest first: `file`, `symbol`, `file-use`, `function-use`,
+   * `region-use` (`precision.ts`). Absent is `region-use`. A suite that is new
+   * to selection starts where it feels safe and moves down.
+   */
+  readonly precision?: Precision;
 }
 
 /**
@@ -68,6 +106,9 @@ export interface DeclaredSuite {
  * directory.
  */
 const SUITE_NAME = /^[A-Za-z0-9][A-Za-z0-9._-]*$/u;
+
+/** The keys one suite's declaration may hold. */
+const SUITE_KEYS: readonly string[] = ['before', 'carry', 'ignore', 'precision', 'kind', 'relations'];
 
 /**
  * A `suites` value the declaration's rules refuse.
@@ -118,23 +159,82 @@ export function parseSuites(value: unknown, where: string): readonly DeclaredSui
       : undefined;
     const kind = keys === undefined ? undefined : (declared as Record<string, unknown>)['kind'];
     const carry = keys === undefined ? undefined : (declared as Record<string, unknown>)['carry'];
+    const before = keys === undefined ? undefined : (declared as Record<string, unknown>)['before'];
+    const relations = keys === undefined ? undefined : (declared as Record<string, unknown>)['relations'];
+    const precision = keys === undefined ? undefined : (declared as Record<string, unknown>)['precision'];
+    const ignore = keys === undefined ? undefined : (declared as Record<string, unknown>)['ignore'];
     if (
       keys === undefined ||
-      keys.some((key) => key !== 'kind' && key !== 'carry') ||
+      keys.some((key) => !SUITE_KEYS.includes(key)) ||
       !SUITE_KINDS.includes(kind as SuiteKind) ||
-      (carry !== undefined && !CARRIERS.includes(carry as Carrier))
+      (carry !== undefined && !CARRIERS.includes(carry as Carrier)) ||
+      (relations !== undefined && typeof relations !== 'boolean') ||
+      (precision !== undefined && !PRECISION_STEPS.includes(precision as Precision))
     ) {
       throw new SuitesError(
         where,
         `suites.${name}`,
-        `must be { "kind": ${quoted(SUITE_KINDS)}, "carry"?: ${quoted(CARRIERS)} }, not ${JSON.stringify(declared)}`,
+        `must be { "kind": ${quoted(SUITE_KINDS)}, "carry"?: ${quoted(CARRIERS)}, "before"?: [paths], "ignore"?: [globs], "relations"?: boolean, ` +
+          `"precision"?: ${quoted(PRECISION_STEPS)} }, ` +
+          `not ${JSON.stringify(declared)}`,
       );
     }
 
-    return carry === undefined
-      ? { name, kind: kind as SuiteKind }
-      : { name, kind: kind as SuiteKind, carry: carry as Carrier };
+    if (relations === false && byRelations(precision as Precision | undefined)) {
+      throw new SuitesError(
+        where,
+        `suites.${name}.precision`,
+        `is "${precision as string}", read from the import graph, and the suite declines the graph with "relations": false`,
+      );
+    }
+
+    return {
+      name,
+      kind: kind as SuiteKind,
+      ...(carry === undefined ? {} : { carry: carry as Carrier }),
+      ...(before === undefined ? {} : { before: parseBefore(before, `suites.${name}.before`, where) }),
+      ...(ignore === undefined ? {} : { ignore: parseIgnore(ignore, `suites.${name}.ignore`, where) }),
+      ...(relations === undefined ? {} : { relations: relations as boolean }),
+      ...(precision === undefined ? {} : { precision: precision as Precision }),
+    };
   });
+}
+
+/**
+ * Check a `before` list: paths, matched against a diff by path, so one entry
+ * may be a directory. An empty list declares nothing while looking configured,
+ * and is refused, as an empty `suites` is.
+ */
+export function parseBefore(value: unknown, field: string, where: string): readonly string[] {
+  if (!Array.isArray(value) || value.length === 0 || value.some((path) => typeof path !== 'string' || path === '')) {
+    throw new SuitesError(where, field, `must be a non-empty list of paths, not ${JSON.stringify(value)}`);
+  }
+  return value as readonly string[];
+}
+
+/**
+ * Check an `ignore` list: globs, matched against a diff's paths. An empty list
+ * ignores nothing while looking configured, and is refused.
+ */
+function parseIgnore(value: unknown, field: string, where: string): readonly string[] {
+  if (!Array.isArray(value) || value.length === 0 || value.some((glob) => typeof glob !== 'string' || glob === '')) {
+    throw new SuitesError(where, field, `must be a non-empty list of globs, not ${JSON.stringify(value)}`);
+  }
+  return value as readonly string[];
+}
+
+/**
+ * What a suite rests on before reach, as declared: the repository's `before`,
+ * then the suite's own. Empty when neither declares any, which puts nothing
+ * before reach — a changed config file then selects nothing, as any file no
+ * evidence connects to a test does.
+ */
+export function beforeOf(root: string, suite: string | undefined): readonly string[] {
+  const config = rootConfig(root);
+  if (config === undefined) return [];
+  const shared = config.value['before'] === undefined ? [] : parseBefore(config.value['before'], 'before', config.file);
+  const own = suite === undefined ? undefined : declaredSuites(root)?.find((one) => one.name === suite)?.before;
+  return [...shared, ...(own ?? [])];
 }
 
 function quoted(values: readonly string[]): string {

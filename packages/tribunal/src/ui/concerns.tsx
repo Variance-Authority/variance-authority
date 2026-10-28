@@ -1,0 +1,351 @@
+/**
+ * What reviewers suspect about a render, beside what they decided about it.
+ *
+ * A reviewer used to have two buttons for a change they were not sure of, and
+ * both were wrong: *Reject* blocks a change that may be fine, and *Approve* with
+ * a note buries the doubt the moment the baseline moves. A concern is the third
+ * answer — "this looks wrong, and here is why I think so" — kept on the subject
+ * across builds until somebody resolves it, and never touched by a decision.
+ */
+
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactElement } from 'react';
+import type { Concern, ConcernState, ConcernTally, RaiseConcern } from '../concern-types.js';
+import type { SubjectView } from '../review-types.js';
+import type { ReviewClient } from './client.js';
+import { ConcernForm, named } from './concern-form.js';
+import { messageOf } from './shell.js';
+import { when } from './text.js';
+
+export { evidenceFor } from './concern-form.js';
+
+/**
+ * A request from outside the card to open its form, in a state. `seq` counts the
+ * requests, so asking twice for the same state is still two requests.
+ */
+export interface Asked {
+  readonly state: ConcernState;
+  readonly seq: number;
+}
+
+type Loaded =
+  | { readonly kind: 'loading' }
+  | { readonly kind: 'failed'; readonly message: string }
+  | { readonly kind: 'ready'; readonly concerns: readonly Concern[] };
+
+/**
+ * Read one subject's trail into the card. Only the newest read may write: an
+ * earlier one answering last would put back a trail from before a decision.
+ * The returned function drops this read's answer.
+ */
+function readTrail(
+  client: ReviewClient,
+  subject: string,
+  setLoaded: (loaded: Loaded) => void,
+  reads: { current: number },
+): () => void {
+  const mine = ++reads.current;
+  const newest = (): boolean => reads.current === mine;
+  client.concerns({ subject }).then(
+    (answer) => newest() && setLoaded({ kind: 'ready', concerns: answer.concerns }),
+    (error: unknown) => newest() && setLoaded({ kind: 'failed', message: messageOf(error) }),
+  );
+  return () => {
+    if (newest()) reads.current += 1;
+  };
+}
+
+/** The concerns card on a subject page: its trail, and the form that adds to it. */
+export function Concerns({
+  client,
+  reviewer,
+  build,
+  subject,
+  asked,
+  onWriting,
+  onChanged,
+  read = 0,
+}: {
+  readonly client: ReviewClient;
+  readonly reviewer: string;
+  readonly build: string;
+  readonly subject: SubjectView;
+  /** The bar under the page asking for the form, and the state to start it in. */
+  readonly asked?: Asked | undefined;
+  /** Told when the form opens and closes, so a key elsewhere cannot leave a draft behind. */
+  readonly onWriting?: ((writing: boolean) => void) | undefined;
+  /** Told after every concern that landed, so a count elsewhere can follow. */
+  readonly onChanged?: (() => void) | undefined;
+  /** Moves when something other than this card may have written to the trail — a decision can. */
+  readonly read?: number;
+}): ReactElement {
+  const [loaded, setLoaded] = useState<Loaded>({ kind: 'loading' });
+  const [writing, setWriting] = useState(false);
+  const [startAs, setStartAs] = useState<ConcernState>('open');
+  const card = useRef<HTMLDivElement>(null);
+  const [busy, setBusy] = useState(false);
+  const [failed, setFailed] = useState<string | null>(null);
+  // The subject on screen. The page keeps this panel from subject to subject, so
+  // a write that answers after the reviewer moved on belongs to a trail that is
+  // no longer drawn, and is dropped rather than added to the next one's.
+  const shown = useRef(subject.subject);
+  const reads = useRef(0);
+
+  useEffect(() => {
+    shown.current = subject.subject;
+    setLoaded({ kind: 'loading' });
+    setBusy(false);
+    setFailed(null);
+    return readTrail(client, subject.subject, setLoaded, reads);
+  }, [client, subject.subject]);
+
+  // A decision can add to the trail, and a draft open beside it is the
+  // reviewer's: the trail is read again and the form is left as it was.
+  const lastRead = useRef(read);
+  useEffect(() => {
+    if (lastRead.current === read) return;
+    lastRead.current = read;
+    return readTrail(client, subject.subject, setLoaded, reads);
+  }, [client, subject.subject, read]);
+
+  // Both before paint: a browser runs the next keydown as soon as the form is
+  // drawn, and a J that reached the bar before it heard would leave the draft.
+  useLayoutEffect(() => onWriting?.(writing), [onWriting, writing]);
+
+  // A draft belongs to its subject. Closed in a layout effect declared before
+  // the request below, so a request the panel mounts with opens the form after
+  // the close rather than being closed by it, as a passive reset did.
+  useLayoutEffect(() => setWriting(false), [subject.subject]);
+
+  // Only a new request opens the form: the panel outlives the subject, and the
+  // last request is still in its props when the reviewer moves to the next one.
+  useLayoutEffect(() => {
+    if (asked === undefined) return;
+    setStartAs(asked.state);
+    setWriting(true);
+    card.current?.scrollIntoView?.({ block: 'nearest' });
+  }, [asked]);
+
+  /**
+   * Put a written concern where the list had it, or at the end when it is new.
+   * A list that never loaded stays unloaded: one concern drawn alone would read
+   * as the whole trail.
+   */
+  const keep = (concern: Concern): void =>
+    setLoaded((was) => {
+      if (was.kind !== 'ready') return was;
+      const known = was.concerns.some((each) => each.id === concern.id);
+      return {
+        kind: 'ready',
+        concerns: known
+          ? was.concerns.map((each) => (each.id === concern.id ? concern : each))
+          : [...was.concerns, concern],
+      };
+    });
+
+  const write = async (action: () => Promise<Concern>): Promise<boolean> => {
+    const on = subject.subject;
+    setBusy(true);
+    setFailed(null);
+    try {
+      const concern = await action();
+      onChanged?.();
+      if (shown.current !== on) return false;
+      keep(concern);
+      return true;
+    } catch (error) {
+      // Kept on the page, as a failed decision is: a concern that silently did not
+      // land is a reviewer who believes the next one will see it.
+      if (shown.current === on) setFailed(messageOf(error));
+      return false;
+    } finally {
+      if (shown.current === on) setBusy(false);
+    }
+  };
+
+  const save = async (input: RaiseConcern): Promise<void> => {
+    if (await write(() => client.raise(input))) setWriting(false);
+  };
+
+  const move = (concern: Concern, state: ConcernState): void =>
+    void write(() => client.moveConcern(concern.id, { state, by: reviewer }));
+
+  return (
+    <div className="va-concerns" ref={card}>
+      {failed === null ? null : <p className="va-failure">{failed}</p>}
+      {loaded.kind === 'loading' ? <p className="va-note">Reading concerns…</p> : null}
+      {loaded.kind === 'failed' ? <p className="va-failure">{loaded.message}</p> : null}
+      {loaded.kind === 'ready' && loaded.concerns.length === 0 && !writing ? (
+        <p className="va-note">Nobody has flagged this render.</p>
+      ) : null}
+      {loaded.kind === 'ready'
+        ? loaded.concerns.map((concern) => (
+            <ConcernTrail
+              key={concern.id}
+              concern={concern}
+              build={build}
+              busy={busy}
+              onMove={(state) => move(concern, state)}
+            />
+          ))
+        : null}
+
+      {writing ? (
+        <ConcernForm
+          subject={subject}
+          build={build}
+          reviewer={reviewer}
+          busy={busy}
+          initial={startAs}
+          asked={asked?.seq}
+          onSave={(input) => void save(input)}
+          onCancel={() => setWriting(false)}
+        />
+      ) : (
+        <p className="va-actions">
+          <button
+            type="button"
+            className="va-suspicious"
+            onClick={() => {
+              setStartAs('open');
+              setWriting(true);
+            }}
+          >
+            Looks suspicious
+          </button>
+        </p>
+      )}
+    </div>
+  );
+}
+
+/** Where a concern can go from where it stands, as the buttons that take it there. */
+const NEXT: Readonly<Record<ConcernState, readonly (readonly [ConcernState, string])[]>> = {
+  open: [
+    ['investigating', 'Investigate'],
+    ['resolved', 'Resolve'],
+  ],
+  investigating: [['resolved', 'Resolve']],
+  resolved: [['open', 'Reopen']],
+};
+
+/** One concern: what was suspected, where, on what, and every step since. */
+export function ConcernTrail({
+  concern,
+  build,
+  busy,
+  onMove,
+}: {
+  readonly concern: Concern;
+  /** The build on screen, so a concern raised in another one says so. */
+  readonly build: string;
+  readonly busy: boolean;
+  readonly onMove: (state: ConcernState) => void;
+}): ReactElement {
+  return (
+    <article className={`va-concern va-concern-${concern.state}`}>
+      <header>
+        <b>{concern.title}</b>
+        <span className="va-concern-state">{concern.state}</span>
+      </header>
+      <p className="va-note">
+        {concern.region === undefined ? 'the whole render' : named(concern.region)}
+        {concern.build === build ? null : <> · raised in {concern.build}</>}
+      </p>
+      {concern.evidence.length === 0 ? null : (
+        <p className="va-evidence-list">
+          {concern.evidence.map((name) => (
+            <code key={name}>{name}</code>
+          ))}
+        </p>
+      )}
+      <ol className="va-concern-trail">
+        {concern.events.map((event, index) => (
+          <li key={index}>
+            <span>
+              {event.state} · {event.by} · {when(event.at)}
+            </span>
+            {event.note === undefined ? null : <p>{event.note}</p>}
+            {event.hypothesis === undefined ? null : (
+              <p>
+                <i>Hypothesis:</i> {event.hypothesis}
+              </p>
+            )}
+          </li>
+        ))}
+      </ol>
+      <p className="va-actions">
+        {NEXT[concern.state].map(([state, label]) => (
+          <button key={state} type="button" disabled={busy} onClick={() => onMove(state)}>
+            {label}
+          </button>
+        ))}
+      </p>
+    </article>
+  );
+}
+
+/**
+ * The concerns a build showed and their tally, or why they could not be read,
+ * and a way to read them again. A string is the reason; undefined is not yet.
+ */
+export function useConcernTally(
+  client: ReviewClient,
+  build: string,
+): {
+  readonly tally: ConcernTally | string | undefined;
+  readonly concerns: readonly Concern[] | string | undefined;
+  readonly refresh: () => void;
+} {
+  const [read, setRead] = useState<
+    { readonly tally: ConcernTally | undefined; readonly concerns: readonly Concern[] } | string | undefined
+  >(undefined);
+  // Only the latest request draws. An answer overtaken by a later one — for
+  // another build, or for this one after another write — is dropped, so a slow
+  // answer never counts the wrong build or an older count of this one.
+  const latest = useRef(0);
+  const refresh = useCallback(() => {
+    const asked = ++latest.current;
+    client.concerns({ seenIn: build }).then(
+      (answer) => asked === latest.current && setRead({ tally: answer.tally, concerns: answer.concerns }),
+      (error: unknown) => asked === latest.current && setRead(messageOf(error)),
+    );
+  }, [client, build]);
+  useEffect(() => {
+    setRead(undefined);
+    refresh();
+  }, [refresh]);
+  return typeof read === 'object'
+    ? { tally: read.tally, concerns: read.concerns, refresh }
+    : { tally: read, concerns: read, refresh };
+}
+
+/**
+ * The concerns standing on a build, as one line for its header.
+ *
+ * It counts concerns and says so: the rail's tasks count the renders they stand
+ * on, and two concerns on one render are two here and one there.
+ *
+ * Nothing at all when nothing was ever flagged: a row of three zeros on every
+ * build is a header teaching its reader to skip it.
+ */
+export function ConcernTallyLine({
+  tally,
+}: {
+  /** A string is why it could not be read, which is not the same as none. */
+  readonly tally: ConcernTally | string | undefined;
+}): ReactElement | null {
+  if (tally === undefined) return null;
+  if (typeof tally === 'string') {
+    return (
+      <span className="va-concern-tally va-unknown" title={tally}>
+        concerns unread
+      </span>
+    );
+  }
+  if (tally.open + tally.investigating + tally.resolved === 0) return null;
+  return (
+    <span className="va-concern-tally">
+      concerns: <b>{tally.open} open</b> · {tally.investigating} investigating · {tally.resolved} resolved
+    </span>
+  );
+}

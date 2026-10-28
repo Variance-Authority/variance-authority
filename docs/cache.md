@@ -1,14 +1,15 @@
 # The cache
 
 The cache is one directory where variance-authority keeps what it can rebuild
-from your checkout or fetch again from a [share](sharing.md): the
-test-selection recording, the [source index](source-index.md), the renders a
-run took, the suite indexes a share publishes, what a git share fetched, and
-the suite records `select` and `review` read from your mainline. Your repository says where it is, in `cacheRoot`
-of the `variance.config.json` at its root. When it does not say, it is
-`node_modules/.cache/variance-authority` inside the checkout. Every command, every test runner integration and
-every function that takes a `cacheRoot` option read that one answer, so a
-recording written by `yarn test` is the recording `variance select` reads.
+from your checkout or fetch again from a [share](sharing.md): the test-selection
+recording, the [source index](source-index.md), the renders a run took, the
+suite indexes a share publishes, what a git share fetched, and the suite records
+`select` and `review` read from your mainline. You set where it is with
+`cacheRoot` in the `variance.config.json` at the repository root. When
+`cacheRoot` is not set, it is `node_modules/.cache/variance-authority` inside
+the checkout. Every command, every test runner integration and every function
+that takes a `cacheRoot` option read that one answer, so a recording written by
+`yarn test` is the recording `variance select` reads.
 
 Nothing in it is a baseline. Delete any part of it and the next run is slower,
 not wrong.
@@ -38,8 +39,9 @@ recording is seen by nothing that reacts to it. `XDG_CACHE_HOME` is not read:
 agent harnesses set it for their own reasons, and a repository whose
 recording follows it has as many recordings as it has harnesses.
 
-`cacheRootFor(root)` from `@variance-authority/sense/test-selection` returns the
-answer for a checkout. `variance index` prints the path of the source index it
+`cacheRootFor(root)` from `@variance-authority/sense/test-selection`, or from
+`@variance-authority/sense/cache-root` when you want it without the parser and
+resolver loaded, returns the answer for a checkout. `variance index` prints the path of the source index it
 wrote, which is inside it.
 
 ## Name it yourself
@@ -76,17 +78,18 @@ over it, so a repository that names its cache keeps one answer for everyone.
 ```text
 <cache>/
   test-selection/<repository>/
-    coverage.bin                 which test ran which region of which module
-    coverage.bin.cases.bin       the same, for each test case
-    coverage.bin.cases.*         the cases each run replaced, kept for `variance review`
+    coverage.bin                 which test ran which region of which module, by file and by case,
+                                 and the cases the last run replaced, kept for `variance review`
     coverage.bin.lock            held while a run writes the recording
-    coverage.runs.json           the runs at the current commit, and the commit before them
+    coverage.runs.json           the runs at the current commit, the install they ran on, and where each
+                                 other test last ran
     coverage.stories/            a test story for each test a run recorded, when you ask for them
     suites/<name>/               the same files for each suite you declare
     source-index.bin             the source index, and its segments beside it
     source-index.bin.map         the code map `variance ask orient` reads
-    <label>/                     one record store per runner or plugin
     checkout.json                the checkout this directory belongs to
+    .texts/<hash>                the text a run recorded a module from, or a lockfile or manifest it ran
+                                 on, when the commit does not hold it
     .run-<pid>-*/                a run in progress, removed when it ends
     .work/<worktree>/            a git worktree's own layer, the same files again
   renders/                       the images a run took, reused while they match
@@ -155,15 +158,20 @@ Delete the directory for your checkout and run `yarn test` again:
 rm -rf "<cache>/test-selection/<repository>"
 ```
 
-That is the whole reset. To reset only the source index and keep the
-recording, delete `source-index.bin` and `source-index.bin.segments/` and run
-`variance index`.
+For a suite given to the share, the first run then copies the mainline's
+record, but only when this machine has fetched one, and prints that it did.
+With none fetched, a worktree's first run copies the primary checkout's record,
+as [sharing](sharing.md#a-suite-your-checkout-has-not-recorded) describes. To
+start that suite from nothing, delete `<cache>/share/read/<suite>/` as well.
+
+To reset only the source index and keep the recording, delete
+`source-index.bin` and `source-index.bin.segments/` and run `variance index`.
 
 ## What is removed, and when
 
 A recording is removed only with its checkout. It is one file each run
 rewrites, so it stays the same size however long you keep it, and without it
-the next `test:since` runs the whole suite. Everything else in
+the next selected run declines and runs the whole suite. Everything else in
 `test-selection/<repository>/` stays as long as that directory does.
 
 The rest is removed when git, the file system or the process table shows that
@@ -184,16 +192,31 @@ a commit your clone does not have, and anything git could not answer for stay
 until nothing in them has been written for 30 days. `share/<digest>.git` is
 not removed.
 
-`variance run` checks `renders/` at the end of every run, as
-[the render cache](placement.md#the-cache-prunes-itself) describes. Everything
-else is checked at the end of a test run or a `variance run`, at most once a
-day, and each part prints one line when it removed something:
+`variance run` checks `renders/` at the end of every run, and the Playwright and
+Vitest integrations check it when they close, as
+[the render cache](placement.md#the-cache-prunes-itself) describes. `variance
+run` checks everything else at its end too, at most once a day, and prints one
+line for each part it removed something from:
 
 ```
 cache: freed 17.8 MiB in <cache>/test-selection: 218 runs whose processes are gone, 7 worktrees git no longer lists
 cache: freed 4.1 MiB in <cache>: 12 commits more than 200 behind HEAD
 ```
 
+A test run removes its own scratch and nothing else, so what one run leaves for
+another to clear stays until something checks. `variance prune` checks now,
+whenever the last check was, and prints the same lines, or
+`cache: nothing to prune`. It reads no project configuration, so a repository
+that only runs its test suites keeps its cache bounded with it: in a CI cleanup
+step, a scheduled job, or by hand.
+
+An entry a check could not remove gets a line of its own, with the error that
+stopped it, and stays out of the freed total. `variance prune` then
+exits 2:
+
+```
+cache: could not remove <cache>/scans, a directory nothing writes any more: EACCES: permission denied, rmdir '<cache>/scans'
+```
+
 `variance doctor` prints what the next check would remove, by rule, and what it
-keeps because git or the process table could not answer. `variance doctor
---prune` removes it now.
+keeps because git or the process table could not answer.

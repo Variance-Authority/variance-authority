@@ -48,7 +48,7 @@ so a reader of the decision meets it there too.
    installed" — [`packages/playwright/src/harness.ts`](../../packages/playwright/src/harness.ts).
 
 2. **The detector exists and runs nowhere.** `@variance-authority/session` is
-   1,060 lines of implementation across four files — the shared-state probe, the
+   1,189 lines of implementation across six files — the shared-state probe, the
    write ledger, reads derived from each subject's own capture, latent coupling,
    `verify()`, and a `report()` that emits the agent-ready text with a `fix:`
    line. **No manifest in the repo depends on it.** The only references outside
@@ -110,10 +110,10 @@ Only the first column is needed to classify, and only the first column shipped:
 vs `S` column refines a confirmed regression that is *also* order-dependent, and
 is not built.
 
-`incomparable` and `new` from the clean comparison are folded into "leaves the
-change standing" deliberately. Neither is evidence that the change was a leak,
-and reporting "does not reproduce" on the strength of a baseline that could not
-be read would clear a real regression.
+`new` from the clean comparison is folded into "leaves the change standing"
+deliberately. It is no evidence that the change was a leak, and reporting "does
+not reproduce" on the strength of a baseline that does not exist would clear a
+real regression.
 
 ## What it costs
 

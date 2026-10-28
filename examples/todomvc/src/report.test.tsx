@@ -2,7 +2,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { indexSource, mergeSourceIndexes } from '@variance-authority/core/attribute';
+import { mergeSourceIndexes } from '@variance-authority/core/attribute';
 import { diffSnapshots, type SemanticDiff } from '@variance-authority/core/compare';
 import type { Viewport } from '@variance-authority/core/format';
 import { adjudicate, buildDocket, summarizeAdjudication } from '@variance-authority/core/judge';
@@ -103,8 +103,8 @@ describe('connecting a change to a file', () => {
     // Two components can genuinely share a name. Silently choosing the first
     // would send an agent to edit the wrong file with full confidence.
     const ambiguous = mergeSourceIndexes([
-      indexSource('a/Button.tsx', 'export function Button() {}'),
-      indexSource('b/Button.tsx', 'export function Button() {}'),
+      { Button: [{ file: 'a/Button.tsx', line: 1, via: 'function' }] },
+      { Button: [{ file: 'b/Button.tsx', line: 1, via: 'function' }] },
     ]);
 
     expect(ambiguous['Button']).toHaveLength(2);

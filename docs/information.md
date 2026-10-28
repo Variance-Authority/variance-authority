@@ -32,7 +32,7 @@ several sections.
 | --- | --- |
 | **subject** | One named UI state you asked for and can ask for again — a story, route, fixture, or value — under an id that survives a rename. `story:components-button--primary` is one. |
 | **observation profile** | What the capture surface was *able* to see, independent of what it found. Two ship: `jsdom` resolves roles, accessible names and author-declared style but has no layout engine and paints nothing; `chromium` adds the resolved cascade, real box geometry and pixels. Set it with `--profile` or in configuration. A profile that cannot see a band says so rather than reporting the band `unchanged`. |
-| **painter** | The machine-and-software identity that produced an image: renderer (`playwright-chromium@1.49.0`, `remote:render.internal`), engine build, OS and architecture, device scale factor, the fonts the renderer actually had, and digests of what it did to the page before reading it and of its pixel-affecting launch settings. Every field is hashed into one **identity digest**. A *painter partition* is the set of images stored under one such digest — two painters never diff against each other. `variance doctor` prints your identity and every identity your baseline root and render cache already keep. |
+| **painter** | The machine-and-software identity that produced an image: renderer (`playwright-chromium@1.49.0`, `remote:render.internal`), engine build, OS and architecture, device scale factor, the fonts the renderer actually had, and digests of what it did to the page before reading it and of its pixel-affecting launch settings. Every field is hashed into one **identity digest**, recorded in the `.json` beside each baseline. A *painter partition* is the set of images one such digest painted. Two painters' images are still compared, and the fields that differ are named as the cause of what moved. `variance doctor` prints your identity and every identity your baseline root and render cache already keep. |
 | **band** | The kind of difference a change lands in. There are five, ordered loudest first: `a11y`, `geometry`, `token`, `content`, `texture`. The order is rarity — an accessible name almost never changes and is a defect when it does; anti-aliasing changes constantly and never matters. A set of bands collapses to the loudest one present, never to a default. |
 
 ### Things a run records
@@ -43,7 +43,7 @@ several sections.
 | **observation** | One subject's result: its id, the verdict, one sentence saying why, the comparison, the attributed regions with their components and `file:line`, whether the image was painted or came from the cache, fonts the document declared and the renderer lacked, the independently measured signals, and what your ignores absorbed. This is what `report.observations` is a list of. |
 | **block** | One region of a module's text that control runs under exactly one condition — a condition the region around it does not imply. A function body, a branch arm, a loop body, a `catch`, the module's top level. Running a `try` body follows from running the code around it, so it is no block; running its `catch` does not, so it is. Ternaries and short-circuit operators stay inside the region that encloses them. This is not statement coverage under another name. The **block universe** is the whole set the instrument cut for one checkout under one instrumentation recipe. |
 | **crossing** | One test covering one block. The [execution record](execution-record.md) is the whole set of crossings your suite produced, in one binary file. It is a relation, not a chronology. |
-| **verdict** | The one word an observation assigns its subject: `unchanged`, `changed`, `new`, `incomparable`, or `ignored`. [Verdicts](#verdicts) below defines each one. |
+| **verdict** | The one word an observation assigns its subject: `unchanged`, `changed`, `new`, or `ignored`. [Verdicts](#verdicts) below defines each one. |
 | **content digest** | A hash of bytes or of a structured value: a document digest, `<checkout-digest>`, `<repository-digest>`, an identity digest, a snapshot's `renderHash`. Equal content digests mean the same input. |
 | **component digest** | One hashed dimension of a component instance: `structure`, `semantics`, `text`, `style`, and — only under a profile with a layout engine — `geometry`. Equal component digests are a match, never a resemblance. A baseline saves these so a later run can settle a subject on hashes instead of pixels. |
 
@@ -66,7 +66,7 @@ each one is absent — not empty — when that input was not there.
 | --- | --- |
 | `notObserved` | Subjects the run planned and has no observation for, each under one of three kinds: `excluded` by configuration, `failed` where the run meant to look and could not, or `unreached` by this change. |
 | `composition` | The suite compared to *itself* at one commit: many subjects, one revision, joined on the components they share. The one section with no baseline anywhere in it. See [composition](composition.md). |
-| `lexicon` | Every name the run knew for each subject — component names, roles, accessible names, visible text, tokens, files — written down per field so you can ask for a subject you can only describe. See [the lexicon](lexicon.md). |
+| `lexicon` | Every name the run recorded for each subject — component names, roles, accessible names, visible text, tokens, files — written down per field so you can ask for a subject you can only describe. See [the lexicon](lexicon.md). |
 | `variations` | Subjects that declared themselves a variant of another subject. Each is compared against that parent *in the same run*, so what the variant exists for becomes a value with an identity. See [variations](variations.md). |
 | `reach` | What the commit reaches: which components the changed files can possibly have altered, and by which chain. Crossed against the verdicts, it is what lets a report say an edit reached a subject and changed nothing, or that a subject changed with nothing in the commit leading to it. |
 | `journeys` | Where this run's subjects parted in the source, read off the execution journal the build's probes wrote. See [journeys](journeys.md). |
@@ -101,11 +101,10 @@ and no other:
 
 | `verdict` | What it means |
 | --- | --- |
-| `unchanged` | The stored baseline and the new capture were comparable, and nothing differs. |
+| `unchanged` | The stored baseline and the new capture were compared, and nothing differs beyond the default policy's tolerance: antialiasing, and a colour change of up to 1%. |
 | `changed` | Pixels moved. The report names the region, the component and the `file:line`. |
 | `new` | The subject was captured and no approved baseline exists. |
 | `ignored` | Pixels moved, and every one of them fell inside a subtree your `ignore` rules excluded. Green, and a separate word from `unchanged`, so a report can be asked how much of its green was earned and how much was declared. |
-| `incomparable` | The comparison was refused because the two images came from different painters. The report names which field differs. It is not zero difference. |
 
 A subject the run could not observe at all gets no verdict. It goes in
 `notObserved` under one of three kinds — `excluded` by configuration, `failed`
@@ -114,8 +113,16 @@ a report whose `notObserved` is absent entirely cannot be read as a clean run.
 
 Beside the verdict, `signals` shows what each boundary independently measured:
 `document` is `unchanged` or `changed`; `pixels` adds `unobservable` for a
-subject that occupies no pixels; `accessibility` adds `incomparable`. These are
-measurements, not decisions, and they do not override the verdict.
+subject that occupies no pixels; `accessibility` is `unchanged` or `changed`.
+When the two images were painted under different identities, `identity` says
+whether only the recipe moved (`recipe`) or anything else did (`machine`), and
+`moved` lists each field with both values, baseline first. For a
+subject that occupies no pixels on either side, `document` is read through the
+component hashes, so a random class name or id your harness puts on each mount
+does not move it; for every other subject it covers every byte of markup.
+These are measurements, not decisions, and they do not override the verdict,
+except for a subject that occupies no pixels on either side, whose verdict is
+its `document` and `accessibility`.
 
 `variance adjudicate --claims <path>` answers a second question — whether the
 change you said you were making is the change that happened — and it uses its
@@ -178,7 +185,7 @@ the file.
 
 Configuration and the subject plan define the work. Caches may reduce its cost;
 they cannot change which answer is correct. Baselines and history are evidence,
-not caches: losing them changes what later runs can know.
+not caches: losing them changes what later runs can compare against.
 
 ## From execution to what lands on disk
 
@@ -327,7 +334,7 @@ server: you give it a renderer or a store and it exposes that one over HTTP.
 See [baseline placement](placement.md) for which layout to choose.
 
 What crosses that hop is not an operator API. A store — local directory, LFS,
-or remote — answers three questions the run asks: look up a baseline for this
+or remote — serves three requests from the run: look up a baseline for this
 key, describe the same lookup without moving the image, and store an accepted
 one. The describe path is why a remote store is affordable: most subjects
 settle on thirty-two hex characters read out of a few hundred bytes of
@@ -365,7 +372,11 @@ The Vitest integration consolidates temporary worker journals into a versioned
 `TestCoverage` binary. Its default location is
 `<cache>/test-selection/<repository-digest>/coverage.bin`, in
 [your cache](cache.md). `coverageFile` gives it an explicit path when CI must
-publish, restore, or share the artifact. Temporary journals are removed after
+publish, restore, or share the artifact. The runs record beside it,
+`coverage.runs.json` for `coverage.bin`, says which runs landed at the
+snapshot's commit and where they started; publish and restore the two
+together. A snapshot restored without its runs record is read with whatever
+record already lies beside it. Temporary journals are removed after
 consolidation.
 
 This record stores the instrumentation recipe, the test files with their
@@ -396,8 +407,8 @@ of the visual run report.
    content-addressed semantic snapshots.
 
 They stay separate because their edges mean different things: a source
-dependency trail says *could reach*, a crossing record says *did cover*, and a
-scenario path says *a person can walk this*. Merged into one graph, none of the
+dependency trail means *could reach*, a crossing record means *did cover*, and a
+scenario path means *a person can walk this*. Merged into one graph, none of the
 three questions has an answer any more.
 
 ## Joining two producers' records
@@ -409,26 +420,29 @@ you can check.
 
 **Images join on painter identity.** The producer is the renderer; the
 identity is the digest of renderer, engine, platform, device scale factor,
-fonts, and the two stabilization digests. When a run reports `incomparable`,
-that is this join failing: the baseline was written under one identity and this
-run painted under another. Run `variance doctor`. It prints your current
+fonts, and the two stabilization digests. When a reason opens with a moved
+identity, that is this join failing: the baseline was written under one
+identity and this run painted under another, and the two images were compared
+all the same. The reason names the fields that moved. When they are only the
+recipe — `stabilization` or `rasterization`, moved by an upgrade or a changed
+renderer option on the same machine — review the changes and re-baseline with
+`variance accept --all`; the reason also says whether the document is the one
+the baseline was painted from, so a page that moved too reads apart.
+Otherwise run `variance doctor`. It prints your current
 identity, then every identity your baseline root stores and every identity in
 your render cache, with an arrow on yours. If the arrow points at an identity
 nobody else has, that is the whole diagnosis — pin one painter for laptop and
 CI, either the same container image or one `"renderer": { "endpoint": … }` both
 use, and re-approve under it. See [placement](placement.md).
 
-**Test evidence joins on test id.** Eyes writes a per-test archive; Sense
-writes the execution record. They relate only where both producers emitted the
-same test id — the runner's own identifier for the test. Titles and file paths
-are presentation and are never used as a fallback identity, so two records that
-disagree on the id do not join at all rather than joining wrongly.
-`variance distill --test <id> --eyes <path> --execution <path>` is where you
-check it: give it both files and one test id, and what comes back tells you
-which of the two answered. Supply only one of the two flags and it distills
-from that one; supply neither and it exits `2` saying so. If the id you have
-from one file returns nothing from the other, the runner that wrote the second
-file named the test differently, and the id in each file is what to compare.
+**Test evidence joins on the case.** Sense writes the execution record, and Eyes
+writes each case's journal into the same record, under the case the recording
+runs and its attempt. Titles and file paths are presentation and are never used
+as a fallback identity: two readings join only on the case id the record holds.
+`variance distill` is where you read the two together: `--test` names one case
+in the record's case index by its id or its whole title, `--file` by its test
+file's checkout path, and everything else is read by that case's id. It prints a line when the
+record has no Eyes journal, rather than reading that as an empty one.
 
 Within a joined test, three things stay distinct and are not read as each
 other: which DOM the test attended to, which React components re-rendered
@@ -437,7 +451,7 @@ of the element the test addressed only when its position in the React tree
 sits under that element's — sharing a component name is not enough, because
 one component name can appear in a dozen unrelated places. Source files the
 test covered that Eyes attributed to no addressed element are exactly that and
-nothing more: covered, unattributed. Neither record says they are safe to
+nothing more: covered, unattributed. Neither record shows that they are safe to
 change.
 
 ### MCP view
@@ -522,11 +536,14 @@ for every composed subject whether or not anything was attributed to it, so
 
 Finally, one input gates two sections. The `journeys` section and the
 lexicon's `regions` field are both filled from the same execution journal, so a
-build with no probes in it loses both at once. Getting that journal needs the
-application under test built with `testSelectionProbes()` from
-`@variance-authority/sense/journal` and the collector asked to record — `tests:
-true` on the Storybook or Playwright integration. Without a collector in the
-page the run says so on stderr and records nothing. See the
+build with no probes in it loses both at once. Getting that journal needs probes in
+the build under test and the collector asked to record, `tests: true` on the
+Storybook or Playwright integration. A Storybook gets its probes from
+`@variance-authority/storybook-collector` in its `addons`, under
+`storybook build --test` or a dev server; an application gets them from
+`testSelectionProbes()` or `testSelectionRule()` in
+`@variance-authority/sense/journal`. Without a collector in the
+page the run prints that on stderr and records nothing. See the
 [Storybook](../packages/storybook-collector) and
 [Playwright](../packages/playwright-test) collector references.
 
@@ -602,7 +619,7 @@ Each durable output is kept, shared and reused on its own terms:
 | render cache | local XDG cache or backend cache | machine or backend cache scope | yes: avoids repainting an identical document under one painter |
 | source index | versioned binary generation under the configured root; local XDG scan namespace by default | exact artifact through CI cache, shared volume, or artifact transfer | yes: reuses validated source, name, and graph sections |
 | runtime coverage | default `coverage.bin` cache or configured file artifact | restored CI cache, shared volume, or explicit artifact transfer | yes: selects tests for later source changes |
-| Eyes attention | test process memory or a runner-owned JSON attachment containing an Eyes archive | whoever can read the test artifact | no: it explains the test execution that produced it |
+| Eyes attention | the run's record, `coverage.bin`, beside its case index | the machine that ran it; `variance share` or a configured carry uploads it with the record and names it | no: it explains the test execution that produced it |
 | scenario execution | process memory or opt-in scenario archive root | whoever can read the admitted semantic text | assessment and presentation; not automatic visual selection |
 | presentation reading | caller process memory; only the projected signal persists, inside the run report | whoever has the reading; the signal goes with the report | no: each run senses its own pages |
 | history facts | operator history service | authenticated clients in the configured project scope | yes: current values, recurrence, churn, flakiness, and drift |

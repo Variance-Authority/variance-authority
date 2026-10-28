@@ -60,16 +60,16 @@ const OBSERVATIONS: readonly ObservationRecord[] = [
     unstable: {
       components: [{ name: 'Clock', file: 'src/Clock.tsx:12' }],
       bands: ['content'],
-      because: 'read twice seconds apart and the two readings disagreed in Clock',
+      because: 'read twice in a row and the two readings disagreed in Clock',
     },
   },
   {
-    subject: 'story:ephemeral',
+    subject: 'story:unread',
     verdict: 'changed',
     because: 'pixels moved',
     changedPixels: 10,
     regions: [{ x: 0, y: 0, width: 5, height: 2, pixels: 10, cause: false }],
-    images: { after: '.variance/candidates/story:ephemeral.png' },
+    images: { after: '.variance/candidates/story:unread.png' },
   },
   { subject: 'story:calm', verdict: 'unchanged', because: '', changedPixels: 0, regions: [] },
 ];
@@ -85,6 +85,21 @@ const REPORT: RunReport = {
 };
 
 describe('reading the record before writing it', () => {
+  it('records nothing for a subject re-stamped under a moved identity, and says so', () => {
+    // Its pixels did not move: `accept` writes it under this run's identity and
+    // tells neither the record nor the commit about a change nobody approved.
+    const restamped: ObservationRecord = {
+      subject: 'story:upgraded', verdict: 'unchanged', because: 'no pixels differ', changedPixels: 0, regions: [],
+      images: { after: '.variance/candidates/story:upgraded.png' },
+      signals: { identity: 'machine', moved: ['engine chromium@131 → chromium@132'] },
+    };
+    const answer = changelog.run({ ...REPORT, observations: [button('story:button-a'), restamped] }, {});
+
+    expect(answer).toContain('across 1 subject(s)');
+    expect(answer).not.toContain('story:upgraded');
+    expect(answer).toContain('1 subject(s) did not change and are re-stamped; they record nothing.');
+  });
+
   it('answers in the lines the commit will carry, not a summary of them', () => {
     const answer = changelog.run(REPORT, {});
 
@@ -125,10 +140,10 @@ describe('reading the record before writing it', () => {
   it('says which subjects would be promoted with nothing recorded about them', () => {
     const answer = changelog.run(REPORT, {});
 
-    // `story:ephemeral` was compared without a document, so no shape names its
+    // The run read no markup for `story:unread`, so no shape names its
     // difference. The record counts it and cannot describe it — and after the
     // commit lands there is nowhere left to ask.
-    expect(answer).toContain('Promoted but not described (1): story:ephemeral');
+    expect(answer).toContain('Promoted but not described (1): story:unread');
     expect(answer).toContain('Nothing later can recover it');
     expect(answer).toContain('+1 unshaped');
   });

@@ -1,4 +1,4 @@
-import type { Diagnostic } from '@variance-authority/core/format';
+import type { Diagnostic, Step, StepTotal } from '@variance-authority/core/format';
 import type { NotObserved, ObservationRecord, RunReport } from '@variance-authority/report';
 import { readRunReport, writeRunReport } from '@variance-authority/report/file';
 
@@ -120,6 +120,26 @@ export interface CliRunReport extends RunReport {
    * simply not do it.
    */
   readonly stabilization?: readonly string[];
+
+  /**
+   * The worlds this run collected in: `workers`, as declared or derived, bounded
+   * by the files there were to take and by the collector's `openWorker`.
+   *
+   * Beside `steps` because a step is wall time and a total is summed over
+   * subjects: with several worlds the totals add to more than the run took, and
+   * this is what they are read against. Absent when the run collected nothing,
+   * and on a merged report, whose shards each had their own.
+   */
+  readonly workers?: number;
+
+  /**
+   * Each step's total over the subjects that ran it, by name in code-unit order:
+   * the summed milliseconds and how many subjects that is. A mean is `ms /
+   * subjects`; a subject that never ran a step is not a zero in it.
+   *
+   * Absent when no subject carried a step, which is a run with no clock.
+   */
+  readonly steps?: readonly StepTotal[];
 }
 
 /**
@@ -150,20 +170,24 @@ export interface CliObservationRecord extends ObservationRecord {
   readonly diagnostics?: readonly Diagnostic[];
 
   /**
-   * The directory this subject's code lives in, carried from the plan.
+   * What this subject's baseline is named after, carried from the plan: the
+   * file that declares it, its title and its name.
    *
    * Here because `accept` writes baselines and never re-plans: it reads this
    * report, reads the candidate images beside it, and puts them in the store.
-   * Under a `beside` layout the store needs the directory, and the only process
-   * that knew it was the run — so a report that dropped it would leave `accept`
-   * writing every accepted image to a placement the next run does not read.
+   * A `baselines.path` template names the file from these, and the only process
+   * that knew them was the run — so a report that dropped them would leave
+   * `accept` writing every accepted image to a path the next run does not read.
    *
    * A CLI field rather than part of `ObservationRecord`, because it says nothing
-   * about what was observed. Absent for every collector that names no path, and
-   * for every report written before the field existed, both of which place
-   * exactly as they did.
+   * about what was observed. Absent for every collector that names none of the
+   * three, whose baselines are named after the subject id alone.
    */
-  readonly placement?: string;
+  readonly baselineKey?: {
+    readonly file?: string;
+    readonly title?: string;
+    readonly name?: string;
+  };
 
   /**
    * Wall milliseconds from this subject's first collection to its decision,
@@ -172,6 +196,25 @@ export interface CliObservationRecord extends ObservationRecord {
    * Absent when the run could not time it, never zero.
    */
   readonly costMs?: number;
+
+  /**
+   * Where `costMs` went: each step of this subject, in the order its owner ran
+   * them, on the same clock.
+   *
+   * Each owner times only its own steps, so they never overlap and sum to at
+   * most `costMs`; what is left is the work between them. Named by owner: the
+   * collector's under `collect.` (navigation, each stabilization wait, the
+   * reading), the renderer's under `render.` (the lease, the load, its waits,
+   * the screenshot), then the run's own — `inspect`, `settle`, `baseline`,
+   * `cache.get`, `decode`, `compare`, `write` — and a second reading's under
+   * `again.` and `alone.`. A step that did not run is absent, never zero: a
+   * subject that settled on its digest has no `decode`.
+   *
+   * Here and not on the image's sidecar: a settled subject writes no sidecar,
+   * and a sidecar is what `accept` promotes to a baseline, which a timing must
+   * never reach. Absent, with `costMs`, when the run has no clock.
+   */
+  readonly steps?: readonly Step[];
 
   /**
    * The file that declares this subject, carried from the plan beside `costMs`

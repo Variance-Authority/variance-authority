@@ -2,8 +2,7 @@
 
 Five workflow files live here. Three of them are recipes, meant to be copied
 into your own repository and edited. Each is a complete answer to a different
-question, and every decision inside them is commented as a decision — including
-the ones that are wrong for somebody else's repository. They all shell out to
+question. They all shell out to
 one tool: `@variance-authority/cli`, a devDependency, invoked as
 `npx variance <command>`.
 
@@ -29,22 +28,45 @@ an image. [`docs/stabilization.md`](../../docs/stabilization.md) has both.
 
 The other two files here, [`check.yml`](check.yml) and
 [`release.yml`](release.yml), are this repository's own build and publish, and
-neither is a recipe. On a pull request, `check.yml` runs only the tests the
-change reached, selected by `yarn test:since` from the recording `main` saved,
-and a push to `main` runs the whole suite. It then posts two comments on the
-pull request, each under its own marker so neither overwrites the gate's:
-`variance review` over the suite's recording, and `variance coverage` against
-the record `main` saved.
+neither is a recipe. On a pull request, `check.yml` uses the recording `main`
+saved to select the tests the change reached. It compares the predicted time of
+that selection in one job with a sharded full suite and runs the cheaper option.
+A push to `main` runs the whole suite. It then posts two comments on the pull request, each under its own
+marker so neither overwrites the gate's: `variance review` over the suite's
+recording, and `variance coverage` against the record `main` saved. A merge
+group runs `plan` and `queue` in place of those jobs: lint and `yarn check` in
+one job, and the tests within two imports of what the group changed in the
+others, in as many shards per slice as `variance shards` counts them worth. It
+posts nothing.
 
 Here, the gate runs on every pull request and on every push to `main`, the sweep
-nightly, and the shards on demand only — sharding fourteen subjects across two
+nightly, and the shards on demand only — sharding thirteen subjects across two
 installs saves nothing, and the shards find their pull-request comment by the
-same hidden HTML marker the gate uses, so on the same event the two would
-overwrite each other.
+same hidden HTML marker the gate uses, because the marker names the config's
+`project` and the two run one config, so on the same event the two would
+overwrite each other. The gate runs three configs, each its own check with its
+own comment and its own accept label: the case's Storybook, and a matrix over
+this project's own surfaces, the review surface's Storybook and the site. The
+site's check photographs on a pull request only when the change reaches what
+the site is built from or photographed with, which `tools/site-reach.mjs`
+reads out of the checkout; otherwise it ends green and its summary says why.
+It reports rather than blocks: a change it finds is a warning on a green check,
+with its docket and report as on the other two, and `variance: accept site`
+still accepts it. It turns red when the run did not happen, when a subject
+could not be observed, an observation errored or the report cannot be read, and
+when an accept the comparison after it did not hold. The action's
+`exit-zero-on-changes` input does that for any job.
+Two more jobs run the case's Storybook under the other two ways of keeping a
+baseline, each with its own config, label and comment: `lfs` commits the
+baselines to the pull request's branch through git-LFS, and `tribunal-service`
+deploys this commit's review service to workers.dev and pushes the build to it.
+That one needs the `CLOUDFLARE_API_TOKEN` secret and fails without it.
 
-`check.yml` runs one job per harness — the repository's rules, the timed
-measurements, and the vitest suite — and a `check` job that turns their three
-results into the one check a branch rule names.
+`check.yml` runs one job per harness — the repository's rules, with the carry
+contract as one of their steps, the timed measurements, and the vitest suite —
+and a `check` job that turns their results into the one check a branch rule
+names. In a merge group `plan` and `queue`
+replace the harness jobs, and `check` still runs, reading only their results.
 
 ## How the CLI reaches the runner
 
@@ -90,7 +112,8 @@ nothing else.
 
 Accepting a change writes a new baseline, so where the baselines live decides
 who accepts and how. `variance.yml` chooses with one value at the top of the
-file, `VARIANCE_REVIEW`, and this repository runs `cache`.
+file, `VARIANCE_REVIEW`. This repository runs `cache` for both subjects, and
+the other two each in a job of its own over the case.
 [`docs/placement.md`](../../docs/placement.md#who-accepts-a-change) compares the
 three arrangements. This is what each one needs in your copy:
 
@@ -101,16 +124,18 @@ three arrangements. This is what each one needs in your copy:
 | `tribunal` | `remote`, and a `review` section | not in the work tree | `VARIANCE_INGEST_TOKEN` |
 
 - **`cache`** is what the rest of this page describes: a label accepts, the
-  store is saved to the runner's cache, and a merge accepts the same pixels on
-  `main`.
+  store is saved to the runner's cache, and every push to `main` accepts what
+  `main` renders.
 - **`git`** checks out the pull request's branch instead of the merge, skips the
   cache, and turns on the action's `commit-baselines` for the run the label
   started. That run stays red, because it found the change it then committed.
   The push starts the run that checks the new commit, which is why the token
   has to be one whose push starts a workflow. The first baseline comes from the
   label on the pull request that adds the suite: a dispatch with `accept` is
-  refused, because it has no branch to commit to. For `lfs`, add `lfs: true` to
-  the checkout and install git-lfs in a step before it.
+  refused, because it has no branch to commit to. For `lfs`, install git-lfs in
+  a step before the checkout, leave the checkout's `lfs` off, and run `git lfs
+  install --local --skip-smudge` after it: the run fetches the images it
+  compares, and a commit stores pointers.
 - **`tribunal`** skips the cache and sends every run to the service with
   `variance push`, red or green. The label accepts nothing, and the comment
   sends the reviewer to the service's page. A dispatch with `accept` writes
@@ -120,21 +145,23 @@ three arrangements. This is what each one needs in your copy:
 
 The first run of any subject reports `new`, and the comment lists it as NEW,
 apart from anything that needs review. `new` does not turn the check red —
-nothing moved — but an image nobody has approved is not a pass either, and
-nothing in these files promotes one on its own: the subject stays `new` on
-every run until somebody accepts it.
+nothing moved — but an image nobody has approved is not a pass either.
 
-To end that state under `cache`: run `variance.yml` from the Actions tab on `main`, tick
-`accept: true`, and let it finish. That run executes
+Under `cache`, the push to `main` that lands a subject's config records its
+baseline: every push to `main` accepts what `main` renders, as [Accepting a
+change on a pull request](#accepting-a-change-on-a-pull-request) describes. To
+record one without waiting for a push, run `variance.yml` from the Actions tab
+on `main`, tick `accept: true`, and let it finish. Either run executes
 `variance run --exit-zero-on-changes`, then `variance accept --all`, compares
 again, and saves the baseline store to the runner cache. Every run after it
 restores that store and compares against it.
 
 `accept --all` promotes every candidate the run produced — both the subjects
 nobody has ever reviewed and the subjects whose component just changed. The CLI
-cannot yet tell those two apart, so a job that ran it on a schedule or a push
-would promote the regression it was added to catch. That is why every accept is
-a person's act. Read the report from the run that listed them first.
+cannot yet tell those two apart, so a job that ran it on a schedule would
+promote the regression it was added to catch. That is why every accept is a
+person's act: a label, a dispatch, or a merge or push to `main`, each made by
+somebody who could read the report first.
 
 ## Accepting a change on a pull request
 
@@ -145,39 +172,45 @@ pull request's own cache scope, which its later runs read before `main`'s. The
 run takes the label off again, so a later push that moves pixels needs a new
 label, and the timeline keeps who accepted and when.
 
-Merging carries the acceptance to `main`. The push run finds the merged pull
-request, reads its `variance` check at its head commit, and when that was green
-it promotes the same pixels on `main`, so nobody accepts twice. It does so only
-when `main` itself was green before the merge: a red `main` already held pixels
-nobody accepted, and one render cannot separate them from the reviewed ones. In
-that case `main` stays red until somebody dispatches an accept there, and the
-run's log says why.
+Merging is an accept too. A pull request is where a change is judged, and what
+lands on `main` is `main`: every push to `main` promotes what it renders,
+whatever the pull request's check said, whether it finished, and whether `main`
+was green before. Like the label's run, it compares again and keeps the store
+whatever that finds: a subject still unstable, an observation that errored or a subject not
+observed leaves `main` red and names it, and every other subject's baseline is
+kept all the same. A pull request that holds no accept of its own then compares
+against the newest push to `main`. The run's log names the pull request that
+merged, or the pusher.
 
-Runs on `main` wait for each other instead of cancelling each other, so a
-merge's run always has the run before it to read. GitHub still keeps only one
-waiting run, so of three merges close together the middle one may never run,
-and a rebase merge runs only its last commit. A commit like that, with no
-finished check of its own, is skipped when an accepted pull request brought it
-in, and the run reads the commit before it instead. A commit nothing accepted
-stops there, and `main` stays red.
+Runs on `main` wait for each other instead of cancelling each other, so each
+run's store is saved after the one before it and the newest commit's render is
+the last one kept. GitHub keeps only one waiting run, so of three merges close
+together the middle one may never run, and a rebase merge runs only its last
+commit. That costs nothing: the newest commit renders everything the skipped one
+did.
 
 ## The pictures in the comment
 
-The comment shows the leading cause's before and after on its first screen, and
-each further cause's pair inside its fold. The action pushes the report's before
-and after images to `refs/variance/images/<branch>`, named for the pull request's
-branch: one commit with no parent, replaced by every run that finds a change. It
-is not a branch, so a clone does not fetch it and the branch list does not show
-it. The comment links the commit rather than the ref, so an image cache never
-shows a previous run's pictures. When the pull request closes, merged or not, a
-second job deletes the ref.
+The comment shows the leading cause's change on its first screen, and each
+further cause's inside its fold. A change is one picture at its own size: each
+of the largest changed regions with the rows around it, as before, after and the
+difference, top to bottom. A subject with no region to crop shows its whole
+before and after instead. The action pushes those images from the report to
+`refs/variance/project/<project>/images/<branch>`, named for
+the config's `project` and the pull request's branch, so each job's comment
+links its own pictures. `<project>` is spelled as `variance carry` prints it,
+one path segment whatever the project holds. The ref is one commit with no
+parent, replaced by every run that finds a change. It is not a branch, so a
+clone does not fetch it and the branch list does not show it. The comment links
+the commit rather than the ref, so an image cache never shows a previous run's
+pictures. When the pull request closes, merged or not, a second job deletes
+every project's ref for the branch.
 
 That ref and the report's share lines below are why `variance.yml` asks for
-`contents: write`. Anyone who can read
-the repository can read the images. A pull request from a fork runs with a
-read-only token, so the push is refused, the step warns, and the comment arrives
-without pictures. To turn this off in your copy, drop the `image-ref` input and
-the `images-cleanup` job.
+`contents: write`. Anyone who can read the repository can read the images. A
+pull request from a fork runs with a read-only token, so the push is refused,
+the step warns, and the comment arrives without pictures. To turn this off in
+your copy, drop the `image-ref-prefix` input and the `images-cleanup` job.
 
 ## Where the baselines live here
 
@@ -185,13 +218,13 @@ the `images-cleanup` job.
 reports beside their images would make a diff out of every edit that moved no
 pixel. The store is the runner's cache instead, which the case's config declares
 with `baselines.carry: actions-cache`. `variance.yml` writes it only on a run
-that accepts, and only after a comparison against it came back green.
+that accepts.
 
 A pull request and a push to `main` are both gates, both red when a subject
-moved. The cache key does not name the renderer, because the store already
-partitions by it: a baseline whose identity differs from the run's is reported
-`incomparable` and no image is produced, so the worst an image bump does is make
-a check loud until the next accept.
+moved. The cache key does not name the renderer, because the record beside
+each image already does: a baseline whose identity differs from the run's is compared
+with the moved identity named as the cause, so the worst an image bump does is
+make a check loud until the next accept.
 
 ## Where the report lives here
 

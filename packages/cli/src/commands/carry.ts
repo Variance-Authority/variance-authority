@@ -20,6 +20,12 @@
  *   lands on. The colons around it are there because git refuses a colon in a
  *   ref name, so `main` never matches a key of `main-2`.
  *
+ * A restore looks under the line, then under each other mainline, so a line
+ * that saves nothing, such as the branch a stacked pull request targets,
+ * starts from what a mainline saved rather than from nothing. The host lets a
+ * run restore only its own branch's, its base's and the default branch's
+ * entries, so the default branch is the mainline such a restore finds.
+ *
  * Only a push to a mainline saves a recording. A pull request that saved its
  * own would restore it on its next push and review the change against itself.
  * The mainlines are asked of `share` (ADR-0077's order), and when nothing
@@ -30,19 +36,23 @@
 
 import { execFile } from 'node:child_process';
 import { readFile } from 'node:fs/promises';
-import { basename, resolve } from 'node:path';
+import { basename, join, resolve } from 'node:path';
 import { promisify } from 'node:util';
 import {
   declaredSuites,
+  keepsEyes,
   repositoryLayers,
+  testCoverageFile,
   repositoryRoot,
   type DeclaredSuite,
 } from '@variance-authority/sense/test-selection';
 import type { ParsedCarry } from '../carry-args.js';
+import { DEFAULT_BASELINE_PATH, parseBaselinePath } from '@variance-authority/store/durable';
 import type { Mainlines } from '../share-lines.js';
 import type { Config } from '../config.js';
 import { loadConfig } from '../config-load.js';
 import { EXIT_CLEAN, OperatorError, type ExitCode } from '../exit.js';
+import { projectSegment } from '../project-segment.js';
 
 export type CarryDirection = 'restore' | 'save';
 
@@ -81,6 +91,11 @@ export interface CarryPlan {
   /** The branch the keys are cut for. Absent off a host, where nothing is keyed. */
   readonly line?: string;
   readonly base?: string;
+  /**
+   * The config's `project` as one path segment, for what the host names per
+   * project: a ref, an artifact. Absent with no config.
+   */
+  readonly project?: string;
   readonly cached: readonly Cached[];
   /**
    * Where the baseline store sits on disk, for a host step that commits what an
@@ -88,8 +103,25 @@ export interface CarryPlan {
    * which keep nothing in the checkout.
    */
   readonly baselinesRoot?: string;
+  /**
+   * What that step stages, as git pathspecs: the images and records at every
+   * path `baselines.path` can render, the old layout's partitions, and for
+   * `lfs` the `.gitattributes` that tracks them.
+   *
+   * Never the root. A template with `{dir}` puts the root at the repository,
+   * and staging it would commit whatever else the run left in the working
+   * tree. The old partitions are named so that a pair `accept` retired goes out
+   * as a deletion beside the file it moved to, which git shows as a rename.
+   */
+  readonly baselinesPathspecs?: readonly string[];
   /** What a reviewer downloads: uploaded as it is, so it has a path and no key. */
   readonly uploads: readonly { readonly name: string; readonly path: string }[];
+  /**
+   * The suites the config gives to the share, in the order the suites are
+   * given: what a workflow reads and publishes a base record for, so it names
+   * none.
+   */
+  readonly shared: readonly string[];
   /** What is carried and not printed, or not carried, and why: said, never silent. */
   readonly notes: readonly string[];
 }
@@ -119,9 +151,11 @@ const git = promisify(execFile);
 /**
  * Where the change starts, asked of git.
  *
- * On a pull request the checkout is the merge of its head into the base, and
- * the merge's first parent is the base tip, so the change is the pull
- * request's own and not whatever the base gained since it branched. On a push
+ * On a pull request the checkout is a merge of its head, and the merge's first
+ * parent is where the change starts: the base tip in the merge the host makes,
+ * or the commit the mainline's record was made at when the workflow merged the
+ * head with that instead. Either way the change is the pull request's own and
+ * not whatever the base gained since it branched. On a push
  * it is the commit the push replaced, which the event names; a push with none
  * (a new branch) or any other event starts one commit back.
  */
@@ -176,7 +210,10 @@ export function carryPlan(input: CarryInput): CarryPlan {
   const line = lineOf(run);
   const cached: Cached[] = [];
   const notes: string[] = [];
-  const keyed = (artifact: string, paths: readonly string[], prefix: string, restoreFrom: string | undefined, fallback: readonly string[]): void => {
+  // Every restore ends with the other mainlines, so a line that saves none,
+  // pushed to or targeted by a pull request, restores what a mainline saved.
+  const mainlines = 'names' in input.mainlines ? input.mainlines.names.filter((name) => name !== line) : [];
+  const keyed = (artifact: string, paths: readonly string[], prefix: string, restoreFrom: string | undefined): void => {
     if (line === undefined || run.sha === undefined) {
       notes.push(`${artifact} is carried by the host cache, and this is not a host run, so it has no key here`);
       return;
@@ -191,16 +228,17 @@ export function carryPlan(input: CarryInput): CarryPlan {
       return;
     }
     const from = restoreFrom ?? run.sha;
+    const fallback = mainlines.map((name) => `variance-${prefix}:${name}:`);
     cached.push({ artifact, paths, key: `${at}${from}`, restoreKeys: [`${at}${from}-`, at, ...fallback] });
   };
 
   if (config?.baselines?.kind === 'directory' && config.baselines.carry === 'actions-cache') {
     // Keyed by this commit, so a re-run of it finds what an accept in it saved,
-    // then by the newest under the line.
-    keyed('baselines', [config.baselines.root], `${config.project}-baselines`, undefined, []);
+    // then by the newest under the line, then under another mainline.
+    keyed('baselines', [config.baselines.root], `${config.project}-baselines`, undefined);
   }
   if (config?.reportCarry === 'actions-cache') {
-    keyed('report', [config.report, config.images], `${config.project}-report`, undefined, []);
+    keyed('report', [config.report, config.images], `${config.project}-report`, undefined);
   }
   if (config?.reportCarry === 'share') notes.push('the report is carried by `variance share`');
 
@@ -210,17 +248,11 @@ export function carryPlan(input: CarryInput): CarryPlan {
     if (suite.carry !== 'actions-cache') continue;
     const artifact = `suite-${suite.name}`;
     if (direction === 'save' && !savesRecording(run, line, input.mainlines, artifact, notes)) continue;
+    // A journal stays on the machine that ran it until something uploads it,
+    // and a saved recording is that something here.
+    if (direction === 'save') eyesNote(input.root, suite.name, notes);
     const prefix = `suite-${suite.name}-${basename(top)}`;
-    const mainlines = 'names' in input.mainlines ? input.mainlines.names.filter((name) => name !== line) : [];
-    keyed(
-      artifact,
-      [top, `!${top}/**/.run-*`, `!${top}/.work`],
-      prefix,
-      run.base,
-      // Then the mainlines, for a line that saves none: a push to a branch
-      // that is not one restores what a mainline recorded.
-      mainlines.map((name) => `variance-${prefix}:${name}:`),
-    );
+    keyed(artifact, [top, `!${top}/**/.run-*`, `!${top}/.work`], prefix, run.base);
   }
 
   const store = config?.baselines;
@@ -228,14 +260,44 @@ export function carryPlan(input: CarryInput): CarryPlan {
     direction,
     ...(line === undefined ? {} : { line }),
     ...(run.base === undefined ? {} : { base: run.base }),
+    ...(config === undefined ? {} : { project: projectSegment(config.project) }),
     cached,
-    ...(store === undefined || store.kind === 'remote' ? {} : { baselinesRoot: store.root }),
+    ...(store === undefined || store.kind === 'remote' ? {} : { baselinesRoot: store.root, baselinesPathspecs: pathspecsOf(store) }),
     uploads: [
       ...(config === undefined ? [] : [{ name: 'report', path: config.report }, { name: 'images', path: config.images }]),
       { name: 'review', path: resolve(input.root, REVIEW_OUT) },
     ],
+    shared: (input.suites ?? []).filter((suite) => suite.carry === 'share').map((suite) => suite.name),
     notes,
   };
+}
+
+/**
+ * An old layout's partition directory as a glob: `v1-<hex>` as it wrote it, or
+ * the raw `v1:<hex>` it wrote before that. The hex is spelled out, because a
+ * directory such as `api/v1-beta` only starts like one, and collocated, the
+ * root is the whole repository.
+ */
+const PARTITION = `v1[-:]${'[0-9a-f]'.repeat(32)}`;
+
+/** See {@link CarryPlan.baselinesPathspecs}. */
+function pathspecsOf(store: Exclude<NonNullable<Config['baselines']>, { kind: 'remote' }>): readonly string[] {
+  const { glob } = parseBaselinePath(store.path ?? DEFAULT_BASELINE_PATH);
+  const records = store.records ?? store.root;
+  const roots = records === store.root ? [store.root] : [store.root, records];
+  return [
+    `:(glob)${join(store.root, `${glob}.png`)}`,
+    `:(glob)${join(records, `${glob}.json`)}`,
+    ...roots.map((root) => `:(glob)${join(root, `**/${PARTITION}/*`)}`),
+    ...(store.kind === 'lfs' ? [`:(glob)${join(store.root, '.gitattributes')}`] : []),
+  ];
+}
+
+function eyesNote(root: string, suite: string, notes: string[]): void {
+  const record = testCoverageFile(root, { suite });
+  if (keepsEyes(record)) {
+    notes.push(`suite ${suite} carries its cases' Eyes journals: the eyes section of ${record} goes into the cache with it`);
+  }
 }
 
 function savesRecording(run: HostRun, line: string | undefined, mainlines: Mainlines, artifact: string, notes: string[]): boolean {
@@ -254,10 +316,12 @@ function savesRecording(run: HostRun, line: string | undefined, mainlines: Mainl
 /**
  * The plan as `$GITHUB_OUTPUT` lines.
  *
- * `<artifact>-path`, `<artifact>-key` and, on a restore,
- * `<artifact>-restore-keys`, with the multi-line values in the heredoc form
- * the host reads; then `baselines-root` and the uploads, one path each. An artifact that is not carried this time prints nothing,
- * so a step guarded by `<artifact>-key != ''` does not run.
+ * `project` when there is a config; `<artifact>-path`, `<artifact>-key` and,
+ * on a restore, `<artifact>-restore-keys`, with the multi-line values in the
+ * heredoc form the host reads; then `baselines-root` and the uploads, one path
+ * each. An artifact that is not carried this time prints nothing, so a step
+ * guarded by `<artifact>-key != ''` does not run. Last, `shared-suites`: the
+ * suites given to the share, separated by spaces, when there are any.
  */
 export function githubOutput(plan: CarryPlan): string {
   const lines: string[] = [];
@@ -271,13 +335,21 @@ export function githubOutput(plan: CarryPlan): string {
   };
   if (plan.line !== undefined) one('line', plan.line);
   if (plan.base !== undefined) one('base', plan.base);
+  if (plan.project !== undefined) one('project', plan.project);
   for (const cached of plan.cached) {
     many(`${cached.artifact}-path`, cached.paths);
     one(`${cached.artifact}-key`, cached.key);
     if (cached.restoreKeys !== undefined) many(`${cached.artifact}-restore-keys`, cached.restoreKeys);
   }
   if (plan.baselinesRoot !== undefined) one('baselines-root', plan.baselinesRoot);
+  if (plan.baselinesPathspecs !== undefined) many('baselines-pathspecs', plan.baselinesPathspecs);
   for (const upload of plan.uploads) one(upload.name, upload.path);
+  if (plan.shared.length > 0) {
+    // Read by a shell loop, so a space in a name would split it into two suites.
+    const spaced = plan.shared.find((name) => /\s/u.test(name));
+    if (spaced !== undefined) throw new Error(`a shared suite's name holds a space, which shared-suites cannot carry: ${JSON.stringify(spaced)}`);
+    one('shared-suites', plan.shared.join(' '));
+  }
 
   return `${lines.join('\n')}\n`;
 }

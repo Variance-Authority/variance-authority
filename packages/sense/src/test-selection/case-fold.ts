@@ -1,9 +1,8 @@
-import { existsSync } from 'node:fs';
-import { readFile, readdir, rm } from 'node:fs/promises';
+import { readFile, readdir } from 'node:fs/promises';
 import { resolve } from 'node:path';
-import { layerBefore, layerCaseIndex } from './case-layer.js';
-import { noteABusyIndex, withIndexLock } from './index-lock.js';
+import type { FreshCases, LaidRun } from './case-landing.js';
 import type { ModuleId } from '../instrument/index.js';
+import { FoldLines, fileStarts, linedCases, writtenPlaces } from './case-fold-lines.js';
 import { CrossingSets } from './crossing-sets.js';
 import { scanJournal, type JournalVisitor } from './crossing-fold.js';
 import { encodeSetExecutionIndex, type SetExecutionModule } from './execution-set-format.js';
@@ -13,12 +12,25 @@ import {
   projectPath,
   type CapturedModule,
 } from './instrumented-modules.js';
-import { AMBIENT, executionIndexFrom, readCaseJournals, settledAcross, unpackCase, unpackFrames } from './cases.js';
-import { executionIndexBytes } from './execution-format.js';
+import {
+  AMBIENT,
+  caseIds,
+  caseKey,
+  inCaseOrder,
+  indexCut,
+  settledAcross,
+  unpackCase,
+  unpackFrames,
+  type CaseCoordinate,
+} from './cases.js';
 import { UNTIMED, type CaseDurations } from './case-durations.js';
-import { writeCoverageBytes, type CoverageTest } from './index.js';
+import eyesFrames from './eyes-frame.cjs';
+import type { EyesSection, RecordedEyes } from './eyes-record.js';
+import { saidJoined, type Said } from './case-said.js';
+import preconditions from './case-preconditions.cjs';
 import type { ExecutionTest } from './reverse.js';
 import { isWritten } from './written-lines.js';
+import type { Reading } from './readings.js';
 
 /** What the first, allocation-free pass over a case-journal directory learned. */
 export interface CaseRun {
@@ -31,6 +43,10 @@ export interface CaseRun {
   readonly moduleIds: readonly ModuleId[];
   /** Half-open test-row range for each test file; test ordering makes it contiguous. */
   readonly testsByFile: ReadonlyMap<string, readonly [number, number]>;
+  /** The cases that opened Eyes journals and what they handed over; absent when none did. */
+  readonly eyes?: EyesSection;
+  /** 1 for each test with lines, by `linedCases`; absent when no frame was cut. */
+  readonly lined?: Uint8Array;
 }
 
 export interface CaseFold {
@@ -41,14 +57,17 @@ export interface CaseFold {
   readonly crossings: number;
 }
 
-interface Coordinate {
-  readonly file: string;
-  readonly name: string;
-  readonly id: string;
+interface Coordinate extends CaseCoordinate {
   /** How the case settled across its frames, by `settledAcross`. */
   stopped?: boolean;
+  /** What each of its frames said it arranged, as the realm wrote it; absent where a frame's writer never listened. */
+  readonly said: (Said | undefined)[];
   /** Every frame written under this coordinate, in replay order. */
   readonly frames: number[];
+  /** Whether a module row of the case's own frames was cut at its statements. */
+  cut?: boolean;
+  /** Whether one was not: a case a helper outside its file declared runs uncut. */
+  uncut?: boolean;
 }
 
 /**
@@ -73,36 +92,61 @@ export async function inspectCaseRun(
   const paths = [...names].sort(codeUnitOrder).map((name) => resolve(directory, name));
   const coordinates = new Map<string, Coordinate>();
   const moduleIds = new Set<ModuleId>();
+  // What Eyes handed each case, by coordinate key, in the order it arrived.
+  const looked = new Map<string, Omit<RecordedEyes, 'case'>[]>();
+  // The test files a frame was cut in, and the frame being scanned: a case, or a file's ambient frame.
+  const cutFiles = new Set<string>();
+  let scanning: Coordinate | string = '';
   let frame = 0;
   for (const path of paths) {
     for (const bytes of unpackFrames(await readFile(path))) {
+      const eyes = eyesFrames.decodeEyesFrame(bytes);
+      if (eyes !== undefined) {
+        const coordinate = unpackCase(eyes.case);
+        const located = { ...coordinate, file: projectPath(root, coordinate.file) };
+        const key = caseKey(located);
+        // A case that watched is a case, whether or not it crossed anything.
+        if (!coordinates.has(key)) coordinates.set(key, { ...caseOf(located), said: [], frames: [] });
+        const rows = looked.get(key) ?? [];
+        if (eyes.journal !== undefined) rows.push({ attempt: eyes.attempt, journal: eyes.journal });
+        looked.set(key, rows);
+        continue;
+      }
       scanJournal(bytes, {
         test(packed) {
           const coordinate = unpackCase(packed);
           if (coordinate.name !== AMBIENT || coordinate.id !== AMBIENT) {
             // A case is written when it settles, so work that outlived it
             // arrives as a second frame under the same coordinate: one case.
-            const file = projectPath(root, coordinate.file);
-            const key = `${file}\0${coordinate.name}\0${coordinate.id}`;
+            const located = { ...coordinate, file: projectPath(root, coordinate.file) };
+            const key = caseKey(located);
             const held = coordinates.get(key);
+            const said = preconditions.heardField(packed);
             if (held === undefined) {
-              coordinates.set(key, {
-                file,
-                name: coordinate.name,
-                id: coordinate.id,
+              scanning = {
+                ...caseOf(located),
                 ...settledAcross(coordinate.stopped, undefined),
+                said: [said],
                 frames: [frame],
-              });
+              };
+              coordinates.set(key, scanning);
             } else {
+              scanning = held;
               held.frames.push(frame);
               const settled = settledAcross(held.stopped, coordinate.stopped).stopped;
               if (settled !== undefined) held.stopped = settled;
+              held.said.push(said);
             }
             frame += 1;
+          } else {
+            scanning = projectPath(root, coordinate.file);
           }
         },
-        wants(id) {
+        wants(id, cut) {
           moduleIds.add(id);
+          const frameOf = scanning;
+          if (cut) cutFiles.add(typeof frameOf === 'string' ? frameOf : frameOf.file);
+          if (typeof frameOf !== 'string') frameOf[cut ? 'cut' : 'uncut'] = true;
           return false;
         },
         module() { /* refused above */ },
@@ -110,25 +154,20 @@ export async function inspectCaseRun(
     }
   }
 
-  const ordered = [...coordinates.values()].sort((left, right) =>
-    codeUnitOrder(left.file, right.file) ||
-    codeUnitOrder(left.name, right.name) ||
-    codeUnitOrder(left.id, right.id),
-  );
+  const ordered = inCaseOrder(coordinates.values());
+  const ids = caseIds(ordered);
   const frameTests = new Uint32Array(frame);
-  const seen = new Map<string, number>();
   const tests = ordered.map((coordinate, at): ExecutionTest => {
     for (const written of coordinate.frames) frameTests[written] = at;
-    const name = `${coordinate.file} > ${coordinate.name}`;
-    const repeat = seen.get(name) ?? 0;
-    seen.set(name, repeat + 1);
     const duration = durations(coordinate.file, coordinate.name, coordinate.id);
+    const said = coordinate.said.some((field) => field !== undefined) ? saidJoined(root, coordinate.said) : undefined;
     return {
-      id: repeat === 0 ? name : `${name}#${repeat}`,
+      id: ids.get(caseKey(coordinate))!,
       file: coordinate.file,
       name: coordinate.name,
       ...(coordinate.stopped === undefined ? {} : { stopped: coordinate.stopped }),
       ...(duration === undefined ? {} : { duration }),
+      ...(said === undefined ? {} : { said }),
     };
   });
   const testsByFile = new Map<string, readonly [number, number]>();
@@ -138,30 +177,42 @@ export async function inspectCaseRun(
     testsByFile.set(tests[first]!.file, [first, last]);
     first = last;
   }
-  return { root, paths, tests, frameTests, moduleIds: [...moduleIds], testsByFile };
+  const lined = linedCases(ordered, cutFiles);
+  const eyes = looked.size === 0 ? undefined : {
+    watched: [...looked.keys()].map((key) => ids.get(key)!),
+    journals: [...looked].flatMap(([key, rows]) => rows.map((row) => ({ case: ids.get(key)!, ...row }))),
+  };
+  return {
+    root, paths, tests, frameTests, moduleIds: [...moduleIds], testsByFile,
+    ...(eyes === undefined ? {} : { eyes }),
+    ...(lined === undefined ? {} : { lined }),
+  };
+}
+
+/** A frame's case coordinate, without how this frame settled. */
+function caseOf({ file, name, id, project }: CaseCoordinate): CaseCoordinate {
+  return { file, name, id, ...(project === undefined ? {} : { project }) };
 }
 
 const DEFAULT_BUDGET = 128 * 1_048_576;
-
 /**
- * Write a run's case journals as the execution index a reporter leaves beside
- * its snapshot.
+ * A run's case journals as the case index a reporter lays into its record, or
+ * `undefined` when the run has none to lay.
  *
  * The bounded fold is the writer: it reads the journals a slice at a time and
  * holds one relation per region, where materializing every case's crossings as
  * objects first cost the reporter 8.6 times the time and 20 times the heap on a
  * 200-case run over a thousand ambient modules — the heap arriving at the end
- * of a worker-heavy run, when the machine has least of it. A `.json` file is
- * still written from the object index, because JSON is that index spelled out.
+ * of a worker-heavy run, when the machine has least of it.
  *
- * A run that recorded no case and finished no test file writes nothing, and
- * leaves an index that is already there as it was. Absent is not empty: such
- * a run — projects that loaded none of this seam's modules, so no case wrote a
- * frame and no file wrote a journal — did not learn that no case walks any
- * line. Laid over the index anyway, it would name itself the last run with no
- * case and put the cases of every file it was handed in the before layer, as
- * though it had replaced them; written where none was, it would answer *which
- * cases walk this line* with none.
+ * A run that recorded no case and finished no test file has none, and leaves
+ * the record's cases as they were. Absent is not empty: such a run — projects
+ * that loaded none of this seam's modules, so no case wrote a frame and no file
+ * wrote a journal — did not learn that no case walks any line. Laid over the
+ * record anyway, it would name itself the last run with no case and put the
+ * cases of every file it was handed in the before layer, as though it had
+ * replaced them; laid where none was, it would answer *which cases walk this
+ * line* with none.
  *
  * A file that finished did learn, even when none of its cases entered
  * anything: its cases walk no line, and what an earlier run recorded for them
@@ -169,114 +220,32 @@ const DEFAULT_BUDGET = 128 * 1_048_576;
  * when its file wrote a journal and ran to the end — so it is read from
  * `run.tests`, not worked out again from the case journals. The cases decide
  * and the modules do not: the fold keeps a module only when a case entered it.
+ *
+ * The caller hands the result to `landRun`, which lays it under the record's
+ * lock in the same write as the coverage.
  */
-export async function writeCaseIndex(
-  file: string,
+export async function freshCases(
   directory: string,
   root: string,
   modules: ReadonlyMap<ModuleId, CapturedModule>,
   run: CaseRunTests,
-): Promise<void> {
+  readings: ReadonlyMap<ModuleId, Reading> = new Map(),
+): Promise<FreshCases | undefined> {
   const finished = run.tests.some((test) => test.complete);
-  if (file.endsWith('.json')) {
-    // TODO: lay a JSON index over the one it replaces, as the columns are — a
-    // `.json` name is still rewritten with the last run's cases alone.
-    const index = executionIndexFrom(await readCaseJournals(directory, root), modules, run.durations);
-    if (index.tests.length > 0 || finished) await writeCoverageBytes(file, executionIndexBytes(file, index));
-    return;
-  }
   const inspected = await inspectCaseRun(directory, root, run.durations);
-  if (inspected.tests.length === 0 && !finished) return;
-  const fresh = (await foldCaseRun(inspected, modules)).bytes;
-  const layers = caseLayerFiles(file);
-  const written = await withIndexLock(file, async () => {
-    const ran = new Set(run.tests.map((test) => test.file));
-    const { merged, last, before: retired } = layerCaseIndex(await readIfThere(file), fresh, {
-      ran,
-      finished: new Set(run.tests.filter((test) => test.complete).map((test) => test.file)),
-      present: (test) => existsSync(resolve(root, test)),
-    });
-    const prior = await readLastRun(layers.last);
-    // One more run at the commit the last one was made at: an invocation of
-    // the same suite, not a new change, so what the runs before it retired
-    // stays under what this one retired.
-    const again = run.commit !== undefined && prior?.commit === run.commit;
-    const before = again ? layerBefore(await readIfThere(layers.before), retired, ran) : retired;
-    const at = again ? (prior.files.some((test) => ran.has(test)) ? undefined : prior.before) : prior?.commit;
-    await writeCoverageBytes(file, merged);
-    const files = [...ran].sort(codeUnitOrder);
-    const named: LastCaseRun = {
-      ...(run.commit === undefined ? {} : { commit: run.commit }),
-      ...(before === undefined || at === undefined ? {} : { before: at }),
-      at: new Date().toISOString(),
-      files: again ? [...new Set([...prior.files, ...files])].sort(codeUnitOrder) : files,
-      cases: last,
-    };
-    await writeCoverageBytes(layers.last, Buffer.from(`${JSON.stringify(named, null, 2)}\n`));
-    // Absent is not empty: with no index to take them from, there is no before.
-    if (before === undefined) await rm(layers.before, { force: true });
-    else await writeCoverageBytes(layers.before, before);
-  });
-  if (!written.held) noteABusyIndex(file);
+  if (inspected.tests.length === 0 && !finished) return undefined;
+  const fresh = (await foldCaseRun(inspected, modules, DEFAULT_BUDGET, readings)).bytes;
+  return {
+    fresh,
+    run: { tests: run.tests, ...(run.commit === undefined ? {} : { commit: run.commit }) },
+    ...(inspected.eyes === undefined ? {} : { eyes: inspected.eyes }),
+  };
 }
 
 /** What a run tells the case index about itself. */
-export interface CaseRunTests {
-  /** Every test file the run was handed, and whether it ran to the end. */
-  readonly tests: readonly Pick<CoverageTest, 'file' | 'complete'>[];
-  /** The commit the run was made at, as the snapshot carries it. */
-  readonly commit?: string;
+export interface CaseRunTests extends LaidRun {
   /** Each case's duration as the runner reported it; absent, no case is timed. */
   readonly durations?: CaseDurations;
-}
-
-/**
- * The run that wrote the case index last. Its cases are in the index itself,
- * as that run left them, so this names them and holds nothing else.
- */
-export interface LastCaseRun {
-  readonly commit?: string;
-  /**
-   * The commit the cases in the before layer were recorded at: the commit of
-   * the run that wrote the index before the first run at this one. Absent
-   * when that run named none, and when a run at this commit ran a file again,
-   * because that file's before is then this commit's own.
-   */
-  readonly before?: string;
-  readonly at: string;
-  /** Every test file the runs at this commit announced, so a run can tell whether it ran one again. */
-  readonly files: readonly string[];
-  /** The cases the last run recorded, by id. */
-  readonly cases: readonly string[];
-}
-
-/**
- * The two layers kept beside a case index: the run that wrote it last, and what
- * the index held for that run's files before it landed.
- */
-export function caseLayerFiles(file: string): { readonly last: string; readonly before: string } {
-  const stem = file.endsWith('.bin') ? file.slice(0, -'.bin'.length) : file;
-  return { last: `${stem}.last.json`, before: `${stem}.before.bin` };
-}
-
-/** The run that wrote the index last, or `undefined` when none named itself or its name cannot be read. */
-async function readLastRun(file: string): Promise<LastCaseRun | undefined> {
-  const bytes = await readIfThere(file);
-  if (bytes === undefined) return undefined;
-  try {
-    return JSON.parse(bytes.toString('utf8')) as LastCaseRun;
-  } catch {
-    return undefined;
-  }
-}
-
-async function readIfThere(file: string): Promise<Buffer | undefined> {
-  try {
-    return await readFile(file);
-  } catch (error) {
-    if (isMissing(error)) return undefined;
-    throw error;
-  }
 }
 
 /**
@@ -290,6 +259,7 @@ export async function foldCaseRun(
   run: CaseRun,
   modules: ReadonlyMap<ModuleId, CapturedModule>,
   budget = DEFAULT_BUDGET,
+  readings: ReadonlyMap<ModuleId, Reading> = new Map(),
 ): Promise<CaseFold> {
   const shaped = [...modules.entries()].sort(([leftId, left], [rightId, right]) =>
     codeUnitOrder(left.file, right.file) || codeUnitOrder(leftId, rightId),
@@ -333,6 +303,12 @@ export async function foldCaseRun(
   const perBlock = words * 8;
   const limit = Math.max(budget, perBlock);
   const scratch = new Uint32Array(run.tests.length);
+  const lines = run.lined === undefined ? undefined : new FoldLines(run.lined, fileStarts(run.tests.length, run.testsByFile));
+  // Each region's place among its module's written regions, which the lines name it by.
+  const keptAt = lines === undefined ? undefined : writtenPlaces(shaped, blockCount);
+  // The module the collection has reached, and how many before it are written.
+  let encodedRow = 0;
+  let encodedAt = 0;
   let crossings = 0;
   let passes = 0;
   let first = 0;
@@ -352,6 +328,11 @@ export async function foldCaseRun(
     let testFirst = 0;
     let testLast = 0;
     let moduleRow = -1;
+    let ambient = false;
+    let cut = false;
+    lines?.slice(localBlocks);
+    // A joined reading's ordinals, read in its file's record: see `joinReadings`.
+    let lands: readonly (number | undefined)[] | undefined;
 
     const visit: JournalVisitor = {
       test(packed) {
@@ -360,36 +341,48 @@ export async function foldCaseRun(
           const range = run.testsByFile.get(projectPath(run.root, coordinate.file));
           testFirst = range?.[0] ?? 0;
           testLast = range?.[1] ?? 0;
+          ambient = true;
         } else {
           const test = run.frameTests[caseFrame++];
           if (test === undefined) throw new Error('case journal replay changed while it was being folded');
           testFirst = test;
           testLast = test + 1;
+          ambient = false;
         }
       },
-      wants(id) {
-        const row = rowOf.get(id);
+      wants(id, rowCut) {
+        cut = rowCut;
+        const reading = readings.get(id);
+        const row = rowOf.get(reading?.id ?? id);
         if (row === undefined || row < first || row >= last || testFirst === testLast) return false;
         moduleRow = row;
+        lands = reading?.lands;
         return true;
       },
-      module(_id, hits, shared) {
+      module(_id, hits, shared, _loaded, reached) {
         const ordinalBase = ordinalOffsets[moduleRow]!;
         const span = ordinalOffsets[moduleRow + 1]! - ordinalBase;
         let sharedAt = 0;
         for (let at = 0; at < hits.length; at += 1) {
-          const ordinal = hits[at]!;
+          const hit = hits[at]!;
+          while (sharedAt < shared.length && shared[sharedAt]! < hit) sharedAt += 1;
+          const ordinal = lands === undefined ? hit : lands[hit] ?? span;
           if (ordinal >= span) continue;
-          while (sharedAt < shared.length && shared[sharedAt]! < ordinal) sharedAt += 1;
           const block = ordinalBlocks[ordinalBase + ordinal]!;
           if (block < 0) continue;
-          if (shared[sharedAt] === ordinal) loaded[block] = 1;
-          else markRange(called, (block - firstBlock) * words, words, testFirst, testLast);
+          if (shared[sharedAt] === hit) {
+            loaded[block] = 1;
+            continue;
+          }
+          markRange(called, (block - firstBlock) * words, words, testFirst, testLast);
+          if (cut && reached !== undefined) lines?.reached(testFirst, block - firstBlock, reached[at]!, ambient);
         }
       },
     };
     for (const path of run.paths) {
-      for (const frame of unpackFrames(await readFile(path))) scanJournal(frame, visit);
+      for (const frame of unpackFrames(await readFile(path))) {
+        if (eyesFrames.decodeEyesFrame(frame) === undefined) scanJournal(frame, visit);
+      }
     }
     if (caseFrame !== run.frameTests.length) {
       throw new Error('case journal replay changed while it was being folded');
@@ -403,6 +396,9 @@ export async function foldCaseRun(
       calledSets[block] = sets.intern(scratch.subarray(0, calledCount));
       crossings += calledCount;
       if (calledCount > 0 || loaded[block] === 1) moduleEntered[moduleOf(moduleBlocks, first, last, block)] = 1;
+      if (lines === undefined || calledCount === 0 || keptAt![block]! < 0) continue;
+      for (; moduleBlocks[encodedRow + 1]! <= block; encodedRow += 1) encodedAt += moduleEntered[encodedRow]!;
+      lines.region(local, scratch.subarray(0, calledCount), encodedAt, keptAt![block]!);
     }
     first = last;
   }
@@ -417,20 +413,18 @@ export async function foldCaseRun(
     for (const [at, block] of module.blocks.entries()) if (isWritten(block)) kept.push(from + at);
     encodedModules.push({
       file: module.file,
-      blocks: module.blocks.filter(isWritten).map((block) => ({
-        kind: block.kind,
-        name: block.name,
-        path: block.path,
-        startLine: block.startLine,
-        endLine: block.endLine,
-        source: block.source,
-      })),
+      ...indexCut(module.blocks),
       called: Uint32Array.from(kept, (block) => calledSets[block]!),
       loaded: Uint8Array.from(kept, (block) => loaded[block]!),
     });
   }
   return {
-    bytes: encodeSetExecutionIndex({ tests: run.tests, modules: encodedModules, sets: sets.pool() }),
+    bytes: encodeSetExecutionIndex({
+      tests: run.tests,
+      modules: encodedModules,
+      sets: sets.pool(),
+      ...(lines === undefined ? {} : { lines: lines.finish() }),
+    }),
     passes,
     crossings,
   };

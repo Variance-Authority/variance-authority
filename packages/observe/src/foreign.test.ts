@@ -54,25 +54,47 @@ describe('two images from a painter this process never ran', () => {
       foreignRaster(screenshot((x) => (x < 20 ? [240, 240, 240] : [10, 10, 10])), IOS),
     );
 
-    // `changed` and not `incomparable`: one declared painter, two images, and
-    // the only thing that moved is the pixels.
+    // One declared painter, two images, and the only thing that moved is the
+    // pixels, so the change carries no identity cause.
     expect(observation.verdict).toBe('changed');
     const changed = Object.values(observation.comparison?.changed ?? {});
     expect(changed.length).toBeGreaterThan(0);
     expect(Math.max(...changed)).toBeGreaterThan(0);
   });
 
-  it('refuses to compare two painters instead of calling them different', async () => {
-    // The property that makes a declaration worth requiring. A run against
-    // images from another tool is a wall of red in every product in this
-    // category; here it is one word, and `accept` cannot promote it.
+  it('compares two painters and names them as the cause', async () => {
+    // A run against images from another tool is compared like any other pair:
+    // the painter that moved is why, and the pixels say whether anything did.
     const observation = await observeRasters(
       'ios:checkout',
       foreignRaster(PLAIN, IOS),
-      foreignRaster(PLAIN, { painter: 'figma-export' }),
+      foreignRaster(screenshot((x) => (x < 20 ? [240, 240, 240] : [10, 10, 10])), {
+        painter: 'figma-export',
+      }),
     );
 
-    expect(observation.verdict).toBe('incomparable');
+    expect(observation.verdict).toBe('changed');
+    expect(observation.signals).toMatchObject({ identity: 'machine' });
+    // A declared painter is its renderer, engine and platform at once, so the
+    // three fields name one pair of painters, once.
+    expect(observation.because).toContain(
+      'renderer, engine, platform declared:ios-simulator-17.4 → declared:figma-export',
+    );
+  });
+
+  it('names a recipe difference between two handed-in images without a command that has nothing to adopt', async () => {
+    const before = foreignRaster(PLAIN, IOS);
+    const after = foreignRaster(PLAIN, IOS);
+    const observation = await observeRasters(
+      'ios:checkout',
+      { ...before, identity: { ...before.identity, rasterization: 'v1:8040e1a2e35d148b301ebd30e5ed66c6' } },
+      { ...after, identity: { ...after.identity, rasterization: 'v1:54323cded938fde38b41cdd3865368fe' } },
+    );
+
+    expect(observation.verdict).toBe('unchanged');
+    expect(observation.signals).toMatchObject({ identity: 'recipe' });
+    expect(observation.because).toContain('rasterization e5ed66c6 → 865368fe');
+    expect(observation.because).not.toContain('accept');
   });
 
   it('names no component, because an image carries none', async () => {

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { JourneyDivergence } from '@variance-authority/sense/test-selection';
-import { formatJourneys, formatLanding, journeysOf, type JourneysInput } from './journeys.js';
+import { formatJourneys, formatLanding, journeysOf, type JourneysInput, type LandedJourneys } from './journeys.js';
 
 /**
  * The surface over the one instrument that narrows a flake to a place.
@@ -168,7 +168,7 @@ describe('the recorded partings a run can reach', () => {
     );
     expect(fallback.pool).toContain('no report at .variance/report.json');
     expect(fallback.pool).toContain('a deleted subject still counts');
-    expect(fallback.pool).toContain('run once to narrow it to this run, or pass --all');
+    expect(fallback.pool).toMatch(/a deleted subject still counts$/);
   });
 
   it('says how stale the record is, or that it cannot say', () => {
@@ -184,15 +184,16 @@ describe('the recorded partings a run can reach', () => {
     );
   });
 
-  it('narrows by file and says so when the filter is what emptied the answer', () => {
-    const kept = journeysOf(reading({ file: 'cartcard' }));
-    expect(kept.modules).toHaveLength(1);
+  it('narrows to the file at the path --file names, and says so when that file is not among the partings', () => {
+    const kept = journeysOf(reading({ file: 'app/src/components/CartCard.tsx' }));
+    expect(kept.modules.map((module) => module.file)).toEqual(['app/src/components/CartCard.tsx']);
 
-    const none = journeysOf(reading({ file: 'MainNav' }));
-    expect(none.modules).toEqual([]);
-    expect(none.notes).toContainEqual(
-      expect.stringContaining('1 module parted and none of them matches --file MainNav'),
-    );
+    // A file is its whole path: one whose path holds what was asked, in any case, is another file.
+    for (const other of ['CartCard', 'cartcard', 'src/components/CartCard.tsx', 'app/src/components/cartcard.tsx']) {
+      const none = journeysOf(reading({ file: other }));
+      expect(none.modules).toEqual([]);
+      expect(none.notes).toContainEqual(`1 module parted, and ${other}, the path --file named, is not one of them`);
+    }
   });
 
   it('counts what a cap left out', () => {
@@ -232,6 +233,35 @@ describe('formatLanding', () => {
       'folded 3 snapshots into /cache/variance-authority/test-selection/abc/coverage.bin\n' +
         '  342 observations over 1204 modules, recorded at 0123456789ab',
     );
+  });
+
+  it('names the shards whose read was not checked', () => {
+    const fold = { at: '/tmp/coverage.bin', shards: 3, observations: 2, modules: 1 };
+    expect(formatLanding({ ...fold, unchecked: ['/ci/jvm-1.bin', '/ci/jvm-2.bin'] }).split('\n').slice(2)).toEqual([
+      '  the reads of /ci/jvm-1.bin and /ci/jvm-2.bin were not checked: their records name the record their selection read `unknown`, ' +
+        'so nothing says they chose their tests from the record the other shards read',
+    ]);
+  });
+
+  it('says what the landing did to the cases of the record it wrote', () => {
+    const fold = { at: '/tmp/coverage.bin', shards: 2, observations: 2, modules: 1 };
+    const lines = (cases: LandedJourneys['cases']) => formatLanding({ ...fold, cases }).split('\n').slice(2);
+
+    expect(lines({ laid: '/tmp/coverage.bin', shards: 2 })).toEqual([
+      '  cases of 2 snapshots laid over /tmp/coverage.bin',
+    ]);
+    expect(lines({ laid: '/tmp/coverage.bin', shards: 0 })).toEqual([
+      '  case index at /tmp/coverage.bin left as it was: no snapshot finished a test file',
+    ]);
+    expect(lines({ unanswered: '/tmp/coverage.bin', shards: ['/ci/shard-1.bin', '/ci/shard-2.bin'], removed: false })).toEqual([
+      '  no case index at /tmp/coverage.bin: /ci/shard-1.bin and /ci/shard-2.bin ran test files to the end, and ' +
+        'their records keep no case index this build can read',
+    ]);
+    expect(lines({ unanswered: '/tmp/coverage.bin', shards: ['/ci/shard-1.bin'], removed: true })).toEqual([
+      '  case index removed at /tmp/coverage.bin: /ci/shard-1.bin ran a test file to the end, and ' +
+        'its record keeps no case index this build can read, so no index can say which of ' +
+        "that file's cases run a line.",
+    ]);
   });
 
   it('leaves the position out when the shards had none', () => {

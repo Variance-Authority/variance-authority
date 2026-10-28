@@ -1,6 +1,6 @@
 {
   "name": "@variance-authority/package",
-  "version": "0.12.0",
+  "version": "0.21.0",
   "description": "Read a TypeScript workspace API surface as data: every entrypoint a manifest opens and what each one exports, for release and breaking-change checks.",
   "keywords": [
     "variance-authority",
@@ -46,6 +46,8 @@
   },
   "dependencies": {
     "oxc-parser": "^0.144.0",
-    "oxc-resolver": "^11.24.2"
+    "oxc-resolver": "^11.24.2",
+    "tinyglobby": "^0.2.17",
+    "yaml": "^2.9.0"
   }
 }

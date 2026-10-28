@@ -1,8 +1,8 @@
 import { resolve } from 'node:path';
 import { noPositionals, type Flags } from './args.js';
+import { parseAtDistance } from './covering-args.js';
 import { OperatorError } from './exit.js';
 import type { SelectFormat } from './commands/select.js';
-import { oneRecord } from './commands/suite-record.js';
 
 export interface ParsedSelect {
   readonly command: 'select';
@@ -14,8 +14,13 @@ export interface ParsedSelect {
   readonly execution?: string;
   /** `--diff <path>`, or `-` for stdin: the change, handed in rather than read from git. */
   readonly diff?: string;
-  /** `--suite <name>`: whose record is read, when more than one suite is declared. */
+  /**
+   * `--suite <name>`: whose record is read, when more than one suite is declared;
+   * beside a journey file, whose `before` it is read against.
+   */
   readonly suite?: string;
+  /** `--at-distance <hops>`: one leg of the selection; an open end is `Number.MAX_SAFE_INTEGER`. */
+  readonly atDistance?: { readonly from: number; readonly to: number };
 }
 
 /**
@@ -39,7 +44,7 @@ export function parseSelectArgs(flags: Flags): ParsedSelect {
   const execution = flags.values.get('--execution');
   const diff = flags.values.get('--diff');
   const suite = flags.values.get('--suite');
-  oneRecord(suite, execution, '--execution');
+  const atDistance = parseAtDistance(flags);
   if (diff !== undefined && execution === undefined) {
     throw new OperatorError(
       '`--diff` is read against a journey file, and none was named: pass `--execution <path>`',
@@ -57,5 +62,6 @@ export function parseSelectArgs(flags: Flags): ParsedSelect {
     ...(execution === undefined ? {} : { execution: resolve(execution) }),
     ...(diff === undefined ? {} : { diff: diff === '-' ? diff : resolve(diff) }),
     ...(suite === undefined ? {} : { suite }),
+    ...(atDistance === undefined ? {} : { atDistance }),
   };
 }

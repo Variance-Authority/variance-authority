@@ -32,7 +32,7 @@ Chromium behind Playwright. Nothing in the extraction names either.
 ## Implementation coordinates
 
 - `packages/cli/src/commands/collector.ts` — the plan, the contract, the module load
-- `packages/cli/src/commands/schedule.ts` and the collection lane in `run.ts`
+- `packages/cli/src/commands/schedule.ts` and the collection lane in `acquire.ts` and `lanes.ts`
 - `packages/storybook/` and `packages/storybook-collector/`
 - `packages/route-collector/`
 - `packages/dom/`

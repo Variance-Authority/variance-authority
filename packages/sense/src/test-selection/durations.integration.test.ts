@@ -61,7 +61,7 @@ reporters[reporters.length - 1] = {
     for (const file of files) {
       appendFileSync(
         ${JSON.stringify(log)},
-        JSON.stringify({ file: file.filepath, duration: file.result?.duration, cases: cases(file, []) }) + '\\n',
+        JSON.stringify({ file: file.filepath, duration: file.result?.duration, phases: { prepare: file.prepareDuration, environment: file.environmentLoad, setup: file.setupDuration, collect: file.collectDuration, cases: file.result?.duration }, cases: cases(file, []) }) + '\\n',
       );
     }
     return seam.onFinished(files, ...rest);
@@ -75,6 +75,7 @@ export default configured;
 interface Reported {
   readonly file: string;
   readonly duration?: number;
+  readonly phases: Readonly<Record<string, number | undefined>>;
   readonly cases: readonly { readonly name: string; readonly duration?: number }[];
 }
 
@@ -103,7 +104,7 @@ async function recorded(): Promise<{ coverageFile: string; reported: Map<string,
 }
 
 describe('the duration a recording keeps', () => {
-  it('for each test file and each case, is the one vitest reported for it, to the whole millisecond', async () => {
+  it('for each test file, each of its phases and each case, is the one vitest reported for it, to the whole millisecond', async () => {
     const { coverageFile, reported } = await recorded();
 
     const files = decodeTestCoverage(await readFile(coverageFile)).tests;
@@ -113,9 +114,12 @@ describe('the duration a recording keeps', () => {
       const duration = reported.get(test.file)?.duration;
       expect(typeof duration).toBe('number');
       expect(test.duration).toBe(Math.round(duration!));
+      const phases = reported.get(test.file)!.phases;
+      expect(Object.values(phases).every((phase) => typeof phase === 'number')).toBe(true);
+      expect(test.phases, test.file).toEqual(Object.fromEntries(Object.entries(phases).map(([name, phase]) => [name, Math.round(phase!)])));
     }
 
-    const cases = decodeExecutionIndex(await readFile(`${coverageFile}.cases.bin`)).tests;
+    const cases = decodeExecutionIndex(await readFile(coverageFile)).tests;
     expect(cases.length).toBeGreaterThan(0);
     for (const test of cases) {
       const said = reported.get(test.file)?.cases.filter((held) => held.name === test.name) ?? [];
@@ -127,7 +131,7 @@ describe('the duration a recording keeps', () => {
 
   it('is scoped by the readers `variance covering` asks, and the two records agree on who entered a module', async () => {
     const { coverageFile } = await recorded();
-    const index = decodeExecutionIndex(await readFile(`${coverageFile}.cases.bin`));
+    const index = decodeExecutionIndex(await readFile(coverageFile));
     expect(index.modules.length).toBeGreaterThan(0);
 
     for (const module of index.modules) {

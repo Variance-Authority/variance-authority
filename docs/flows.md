@@ -16,14 +16,16 @@ identified by a stable id such as `checkout/empty`. A run renders each subject,
 captures a **reading** — the markup, the CSS that applied, the boxes it
 produced, and where available the image — and compares that reading against the
 subject's stored baseline to produce a verdict: `unchanged`, `changed`, `new`,
-or `incomparable`.
+or `ignored`.
 
 Where you keep the baseline does not make that verdict more correct. What
-decides whether two readings are comparable is **renderer identity** — the
+decides whether a difference between two readings is the code's is **renderer
+identity** — the
 engine, platform, scale, font declarations, and rasterization inputs that
 painted them, covered under [where the renderer
 runs](#the-other-machine-question-where-the-renderer-runs) below — and the
-evidence each reading actually captured. Deployment decides who keeps the
+evidence each reading actually captured. Two readings under different identities
+are still compared, and the identity that moved is named as the cause. Deployment decides who keeps the
 baseline, where review happens, and whether the comparison stays available long
 enough to answer questions across runs.
 
@@ -52,7 +54,7 @@ This page keeps four choices apart:
 ## Level 0 — ephemeral: compare two revisions now
 
 Ephemeral retention is a complete comparison with no durable baseline. Its
-**collector** — the module that drives the app to each UI state and says when
+**collector** — the module that drives the app to each UI state and reports when
 it is ready to be captured — supplies the current document and a `before`
 document for every subject; the renderer paints both under one identity during
 the run.
@@ -115,9 +117,19 @@ Git LFS uses the same durable layout while its filter stores the image bytes:
 ```
 
 Install Git LFS on every machine that checks out or accepts baselines. The store
-maintains the `.gitattributes` tracking declaration beneath its root. A checkout
-that still contains LFS pointer text where an image belongs is refused by name,
-so an unfetched pointer reads as a setup failure rather than as a changed image.
+maintains the `.gitattributes` tracking declaration beneath its root; commit it
+with the first images. A checkout that still contains LFS pointer text where
+an image belongs is refused, naming the subject and `git lfs install && git lfs
+pull`, with exit 2, so an unfetched pointer reads as a setup failure rather than
+as a changed image. The refusal comes only at the first subject whose document
+changed since its baseline: an unchanged subject is settled from its `.json`
+sidecar without its image being read, so on such a checkout a run where nothing
+changed passes. `npx variance doctor --baselines` reads the head of every image
+in the root, opens no browser and, where git-lfs is not set up in the root's
+work tree, counts the pointers, names the first and exits 2.
+The composite action runs it before every run over a store in the checkout, so a
+job that uses the action fails on the checkout. Anywhere else, run it before the
+run.
 
 Choose this when the baseline and its reason belong in the same repository
 change as the code. Acceptance writes files into your working tree; reviewing and
@@ -148,7 +160,7 @@ An endpoint the run cannot call, a refused token, or an invalid response stops
 the run. None of them is reported as a missing baseline, so a network failure
 can never lead the next `accept` to overwrite the only approved copy. Run
 `serveRasterStore` from
-[`@variance-authority/remote`](https://variance-authority.dev/reference/packages/remote)
+[`@variance-authority/remote/store`](https://variance-authority.dev/reference/packages/remote)
 behind infrastructure you operate, or point the endpoint at the compatible
 baseline API of
 [`@variance-authority/tribunal`](https://variance-authority.dev/reference/packages/tribunal).
@@ -159,10 +171,21 @@ Tribunal owns review and retention, not rendering: `push` uploads the report and
 candidate images the run already produced, and approval promotes those exact
 images **without another browser render**.
 
-Tribunal combines a baseline store, a history store, a **build docket** — the
-browser page listing each build's subjects awaiting a decision — candidate
-images, region overlays, recorded decisions, and retention sweeps. A deployment
-uses a database and object storage, plus two different secrets:
+Tribunal stores baselines, history, and each build's candidate images with the
+regions where they differ from their baselines. Your reviewers read a build on
+its **build docket**, the browser page listing the subjects that await a
+decision, and record two things about a subject, neither of which settles the
+other:
+
+- a **decision** approves or rejects the subject, and approving makes its
+  candidate the baseline;
+- a **concern** says the render looks wrong, where, and why you think so. It
+  blocks nothing and moves no baseline, and it stays on the subject across
+  builds, with every step somebody took on it.
+
+A retention sweep, run when you call it, removes builds older than 30 days by
+default and keeps baselines, decisions and concerns. A deployment uses a
+database and object storage, plus two different secrets:
 
 - the ingest token lets CI post builds, baselines, and history rows;
 - the review token lets a person read the review pages and decide.
@@ -262,17 +285,17 @@ A remote renderer is selected independently of baseline storage:
 ```
 
 `serveRenderer` from
-[`@variance-authority/remote`](https://variance-authority.dev/reference/packages/remote)
+[`@variance-authority/remote/renderer`](https://variance-authority.dev/reference/packages/remote)
 exposes no token setting, so keep it on a trusted network or put authentication
 in a proxy you operate. The remote machine must also be able to resolve the
 resources the captured document embeds or references. A resource the renderer
 cannot load is a collection or render failure, not an empty image.
 
-Moving the renderer to another machine does not by itself make readings
-incomparable — a different engine, platform, scale factor, font declaration, or
-rasterization input does. A run that finds a baseline under an incompatible
-identity reports `incomparable` and names what differs, rather than reporting a
-change in the subject.
+Moving the renderer to another machine does not by itself move a reading's
+identity — a different engine, platform, scale factor, font declaration, or
+rasterization input does. A run that finds a baseline under another identity
+compares the two images and names what moved as the cause, before any component
+in the subject.
 
 ## Choose the smallest complete flow
 

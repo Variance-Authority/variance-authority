@@ -30,7 +30,7 @@ import type { ModuleId } from '../instrument/index.js';
 import type { ReadJournal } from './instrumented-modules.js';
 
 /** `VAJRN` and a format version. A file that does not open with it is not one. */
-const MAGIC = [0x56, 0x41, 0x4a, 0x52, 0x4e, 0x00, 0x00, 0x02];
+const MAGIC = [0x56, 0x41, 0x4a, 0x52, 0x4e, 0x00, 0x00, 0x03];
 
 /** No snapshot: nothing was counted before the file's first test. */
 const NOTHING = new Uint32Array(0);
@@ -48,6 +48,15 @@ const EVALUATING = 0x80000000;
  * Tag `0`, a numbered module, is refused as damage: nothing writes one.
  */
 const NAMED = 1;
+
+/**
+ * A module row of a cut case: a named row with a fourth list after the three,
+ * the test line each of its `hits` was first reached under, one to one, as
+ * plain numbers — lines do not rise with ordinals, so a gap would not shrink
+ * them. A case nothing cut writes {@link NAMED} rows, byte for byte the frame
+ * it was before cuts existed.
+ */
+const NAMED_LINED = 2;
 
 /**
  * The counters as a frame, read straight out of the arrays the probes increment.
@@ -74,10 +83,12 @@ function encodeJournal(
   testFile: string,
   modules: ReadonlyMap<ModuleId, Uint32Array>,
   loaded: ReadonlyMap<ModuleId, Uint32Array> = new Map(),
+  collected?: number,
 ): Buffer {
   const out = new Writer();
   for (const byte of MAGIC) out.byte(byte);
   out.text(testFile);
+  out.time(collected);
   out.number(modules.size);
   for (const [id, counters] of modules) {
     out.byte(NAMED);
@@ -126,7 +137,8 @@ function gaps(out: Writer, ordinals: Uint32Array, count: number): void {
 /**
  * A probe log's read-out: which rows, in order, and where each row's entries
  * sit in `sorted`. Each entry is an ordinal shifted left one, with the
- * evaluating bit below it. `instrument/probe-log.cts` makes these.
+ * evaluating bit below it, and an ordinal entered both ways is two entries,
+ * the clear one first. `instrument/probe-log.cts` makes these.
  */
 interface LogRows {
   readonly rows: readonly number[];
@@ -134,64 +146,95 @@ interface LogRows {
   readonly end: Int32Array;
   readonly sorted: Int32Array;
   readonly ids: readonly ModuleId[];
+  /** Where each row's ordinals start in {@link lines}; set with it. */
+  readonly base?: Int32Array;
+  /** The test line each region was first reached under, by `base[row] + ordinal`; absent when nothing cut. */
+  readonly lines?: Int32Array | undefined;
 }
 
 /**
- * {@link encodeJournal} of a case's bucket, read from the probe log directly.
+ * A case's bucket as a frame, read from the probe log directly.
  *
- * The bytes are the ones `encodeJournal(name, counters)` writes for the same
- * bucket: modules in the order the bucket first entered them, ordinals rising,
- * and no `loaded` list, because a case frame has none. Writing from the log
- * skips building a counter array per module per case only to scan it for the
- * few entries that are set.
+ * Modules in the order the bucket first entered them, ordinals rising, and no
+ * `loaded` list, because a case frame has none. A module the case entered both
+ * while a module evaluated and after — the one its inline require evaluated,
+ * then called — gets a second row of those ordinals as entered after, which a
+ * reader folds as it folds any row. Writing from the log skips a counter array.
  */
 function encodeLog(name: string, log: LogRows): Buffer {
   const out = new Writer();
   for (const byte of MAGIC) out.byte(byte);
   out.text(name);
-  out.number(log.rows.length);
+  out.time(undefined);
   const { start, end, sorted } = log;
-  for (const row of log.rows) {
-    out.byte(NAMED);
-    out.text(log.ids[row]!);
-    const from = start[row]!;
-    const to = end[row]!;
-    out.number(to - from);
+  // Whether an entry is the evaluating half of an ordinal entered both ways.
+  const again = (at: number, from: number): boolean => at > from && sorted[at - 1] === (sorted[at]! ^ 1);
+  // Entered once or the first of two (`ONCE`), while evaluating (`EARLY`), or the second (`AGAIN`).
+  const takes = (at: number, from: number, kind: number): boolean =>
+    kind === EARLY ? (sorted[at]! & 1) === 1 : again(at, from) === (kind === AGAIN);
+  const ordinals = (from: number, to: number, kind: number): void => {
+    let count = 0;
+    for (let at = from; at < to; at += 1) if (takes(at, from, kind)) count += 1;
+    out.number(count);
     let last = 0;
-    let early = 0;
     for (let at = from; at < to; at += 1) {
-      const ordinal = sorted[at]! >>> 1;
-      out.number(ordinal - last);
-      last = ordinal;
-      early += sorted[at]! & 1;
+      if (!takes(at, from, kind)) continue;
+      out.number((sorted[at]! >>> 1) - last);
+      last = sorted[at]! >>> 1;
     }
-    out.number(early);
-    last = 0;
+  };
+  const twice = log.rows.map((row) => sorted.subarray(start[row]!, end[row]!).some((_, at) => again(start[row]! + at, start[row]!)));
+  const { base, lines } = log;
+  const lined = base !== undefined && lines !== undefined;
+  // The reaching line of each entry `ordinals` wrote for this row and kind.
+  const reached = (row: number, from: number, to: number, kind: number): void => {
+    if (!lined) return;
+    let count = 0;
+    for (let at = from; at < to; at += 1) if (takes(at, from, kind)) count += 1;
+    out.number(count);
     for (let at = from; at < to; at += 1) {
-      if ((sorted[at]! & 1) === 0) continue;
-      const ordinal = sorted[at]! >>> 1;
-      out.number(ordinal - last);
-      last = ordinal;
+      if (takes(at, from, kind)) out.number(lines[base[row]! + (sorted[at]! >>> 1)]!);
     }
+  };
+  out.number(log.rows.length + twice.filter(Boolean).length);
+  log.rows.forEach((row, index) => {
+    out.byte(lined ? NAMED_LINED : NAMED);
+    out.text(log.ids[row]!);
+    ordinals(start[row]!, end[row]!, ONCE);
+    ordinals(start[row]!, end[row]!, EARLY);
     out.number(0);
-  }
+    reached(row, start[row]!, end[row]!, ONCE);
+    if (!twice[index]) return;
+    out.byte(lined ? NAMED_LINED : NAMED);
+    out.text(log.ids[row]!);
+    ordinals(start[row]!, end[row]!, AGAIN);
+    out.number(0);
+    out.number(0);
+    reached(row, start[row]!, end[row]!, AGAIN);
+  });
   return out.done();
 }
+
+const [ONCE, EARLY, AGAIN] = [0, 1, 2];
 
 /** A frame back as rows. Throws on anything that does not end where it says. */
 function decodeJournal(raw: Uint8Array): ReadJournal {
   const read = new Reader(raw);
   for (const byte of MAGIC) if (read.byte() !== byte) throw damaged();
   const testFile = read.text();
+  const collected = read.time();
   const count = read.number();
-  const modules: Array<{ id: ModuleId; hits: number[]; shared: number[]; loaded: number[] }> = [];
+  const modules: Array<{ id: ModuleId; hits: number[]; shared: number[]; loaded: number[]; lines?: number[] }> = [];
   for (let index = 0; index < count; index += 1) {
-    if (read.byte() !== NAMED) throw damaged();
+    const tag = read.byte();
+    if (tag !== NAMED && tag !== NAMED_LINED) throw damaged();
     const id = read.text();
-    modules.push({ id, hits: read.ordinals(), shared: read.ordinals(), loaded: read.ordinals() });
+    const row = { id, hits: read.ordinals(), shared: read.ordinals(), loaded: read.ordinals() };
+    if (tag === NAMED) modules.push(row);
+    else modules.push({ ...row, lines: read.numbers(row.hits.length) });
   }
   if (!read.spent()) throw damaged();
-  return { testFile, modules };
+  return { testFile, ...(collected === undefined ? {} : { collected }), modules };
 }
 
 /**
@@ -210,10 +253,11 @@ interface JournalVisitor {
   /**
    * Whether the rows of this module are wanted. A fold that works a slice of
    * the modules at a time says no to the rest, and their ordinals are stepped
-   * over rather than decoded.
+   * over rather than decoded. `cut` says whether the row carries lines.
    */
-  wants?(id: ModuleId): boolean;
-  module(id: ModuleId, hits: Uint32Array, shared: Uint32Array, loaded: Uint32Array): void;
+  wants?(id: ModuleId, cut: boolean): boolean;
+  /** `lines`, when the case was cut, holds the test line each of `hits` was first reached under. */
+  module(id: ModuleId, hits: Uint32Array, shared: Uint32Array, loaded: Uint32Array, lines?: Uint32Array): void;
 }
 
 /**
@@ -227,36 +271,41 @@ function scanJournal(raw: Uint8Array, visit: JournalVisitor): void {
   const read = new Reader(raw);
   for (const byte of MAGIC) if (read.byte() !== byte) throw damaged();
   visit.test(read.text());
+  read.time();
   const count = read.number();
   const wants = visit.wants;
   let scratch = new Uint32Array(64);
   for (let index = 0; index < count; index += 1) {
-    if (read.byte() !== NAMED) throw damaged();
+    const tag = read.byte();
+    if (tag !== NAMED && tag !== NAMED_LINED) throw damaged();
+    const lists = tag === NAMED ? 3 : 4;
     const id = read.text();
-    if (wants !== undefined && !wants.call(visit, id)) {
-      read.skip();
-      read.skip();
-      read.skip();
+    if (wants !== undefined && !wants.call(visit, id, lists === 4)) {
+      for (let run = 0; run < lists; run += 1) read.skip();
       continue;
     }
     let held = 0;
     const runs: number[] = [];
-    for (let run = 0; run < 3; run += 1) {
+    for (let run = 0; run < lists; run += 1) {
       const length = read.number();
       if (held + length > scratch.length) {
         const grown = new Uint32Array(1 << (32 - Math.clz32(held + length - 1)));
         grown.set(scratch.subarray(0, held));
         scratch = grown;
       }
-      read.into(scratch, held, length);
+      // The fourth list is lines, written plain: they do not rise.
+      if (run === 3) read.plain(scratch, held, length);
+      else read.into(scratch, held, length);
       runs.push(held);
       held += length;
     }
+    if (lists === 4 && held - runs[3]! !== runs[1]! - runs[0]!) throw damaged();
     visit.module(
       id,
       scratch.subarray(runs[0]!, runs[1]!),
       scratch.subarray(runs[1]!, runs[2]!),
-      scratch.subarray(runs[2]!, held),
+      scratch.subarray(runs[2]!, lists === 4 ? runs[3]! : held),
+      lists === 4 ? scratch.subarray(runs[3]!, held) : undefined,
     );
   }
   if (!read.spent()) throw damaged();
@@ -282,6 +331,13 @@ class Writer {
       rest >>>= 7;
     }
     this.#bytes[this.#at++] = rest;
+  }
+
+  /** A moment in milliseconds as eight bytes, a double; zero where there is none. */
+  time(value: number | undefined): void {
+    this.#room(8);
+    this.#bytes.writeDoubleLE(value ?? 0, this.#at);
+    this.#at += 8;
   }
 
   text(value: string): void {
@@ -332,6 +388,13 @@ class Reader {
     }
   }
 
+  time(): number | undefined {
+    if (this.#at + 8 > this.#bytes.length) throw damaged();
+    const value = this.#bytes.readDoubleLE(this.#at);
+    this.#at += 8;
+    return value === 0 ? undefined : value;
+  }
+
   text(): string {
     const length = this.number();
     if (this.#at + length > this.#bytes.length) throw damaged();
@@ -348,6 +411,21 @@ class Reader {
       last += this.number();
       values[at + index] = last;
     }
+  }
+
+  /** A run of plain numbers, as they were written. */
+  plain(values: Uint32Array, at: number, count: number): void {
+    if (this.#at + count > this.#bytes.length) throw damaged();
+    for (let index = 0; index < count; index += 1) values[at + index] = this.number();
+  }
+
+  /** A run of plain numbers that has to hold `expected` of them. */
+  numbers(expected: number): number[] {
+    const count = this.number();
+    if (count !== expected || this.#at + count > this.#bytes.length) throw damaged();
+    const values: number[] = [];
+    for (let index = 0; index < count; index += 1) values.push(this.number());
+    return values;
   }
 
   /** A run stepped over: its varints are found by their last byte, not read. */
@@ -373,70 +451,6 @@ class Reader {
   spent(): boolean {
     return this.#at === this.#bytes.length;
   }
-}
-
-/** What a case frame calls the bucket no case owns. */
-const AMBIENT = '';
-
-/**
- * One case's coordinate, packed into the one string a journal frame names
- * itself with.
- *
- * A frame's first field is *who this journal belongs to*. For the file-level
- * seam that is a path; a case is the same fact spelled longer, so the frame
- * format is untouched and a per-case journal costs exactly what the measured
- * varint path already costs. NUL is the separator because it is the one byte a
- * file path and a test name cannot contain.
- *
- * Here rather than beside the fold in `cases.ts` because both writers are
- * CommonJS inside somebody else's sandbox — Jest's setup file, and the module
- * this package generates for Vitest — and this is the one file of the seam they
- * can already reach.
- */
-function packCase(file: string, name: string, id: string): string {
-  return `${file}\u0000${name}\u0000${id}`;
-}
-
-/**
- * How a frame says whether its case's journey ended.
- *
- * A fourth field rather than a second coordinate: the case is the same case
- * whichever way it settled, so the three fields a reader joins frames on are
- * untouched. A frame written before the case settled, or by a writer that
- * cannot see settling, has no fourth field, and says nothing.
- */
-const FINISHED = 'finished';
-const STOPPED = 'stopped';
-
-function settledCase(packed: string, stopped: boolean): string {
-  return `${packed}\u0000${stopped ? STOPPED : FINISHED}`;
-}
-
-function unpackCase(packed: string): { file: string; name: string; id: string; stopped?: boolean } {
-  const parts = packed.split('\u0000');
-  const coordinate = { file: parts[0] ?? packed, name: parts[1] ?? AMBIENT, id: parts[2] ?? AMBIENT };
-  if (parts[3] === STOPPED) return { ...coordinate, stopped: true };
-  if (parts[3] === FINISHED) return { ...coordinate, stopped: false };
-  return coordinate;
-}
-
-/**
- * A coordinate that handed out a journey id, as a fifth field.
- *
- * It follows the settling, which stays empty when the case has not settled, so
- * a reader that knows four fields reads the case and its settling unchanged.
- * The fold reads the fifth to join what ran beyond a fence under that id — a
- * part frame is owned by `\0\0\0\0<journey>`, no case of its own — back to
- * the case that sent it.
- */
-function packJourney(packed: string, journey: string): string {
-  const fields = packed.split('\u0000').length;
-  return `${packed}${'\u0000'.repeat(Math.max(1, 5 - fields))}${journey}`;
-}
-
-/** The journey a frame owner carries; empty when it carries none. */
-function journeyOf(packed: string): string {
-  return packed.split('\u0000')[4] ?? '';
 }
 
 /**
@@ -480,11 +494,6 @@ export = {
   encodeLog,
   decodeJournal,
   scanJournal,
-  packCase,
-  settledCase,
-  unpackCase,
-  packJourney,
-  journeyOf,
   packFrames,
   unpackFrames,
 };

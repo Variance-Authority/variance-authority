@@ -1,12 +1,13 @@
 import { execFileSync } from 'node:child_process';
-import { mkdtemp, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { resolve } from 'node:path';
+import { dirname, resolve } from 'node:path';
+import { testCoverageFile, writeTestCoverage } from '@variance-authority/sense/test-selection';
 import { describe, expect, test } from 'vitest';
 import { OperatorError } from '../exit.js';
 import { parseArgs } from '../parse.js';
 import { selectOutput } from './select-command.js';
-import { oneRecord, suiteRecord } from './suite-record.js';
+import { landingRecord, oneRecord, refiningRecord, selectingRecord, suiteRecord } from './suite-record.js';
 
 async function repository(config?: unknown): Promise<string> {
   const at = await mkdtemp(resolve(tmpdir(), 'va-suite-record-'));
@@ -56,19 +57,122 @@ describe('the record a one-runner command reads', () => {
   });
 });
 
+describe('the record `run --since` selects from', () => {
+  const SPLIT = { suites: { unit: { kind: 'unit' }, e2e: { kind: 'e2e', relations: false } } };
+
+  test('carries nothing more than the record for a suite that allows relations', async () => {
+    const selecting = await selectingRecord(await repository(SPLIT), 'unit');
+
+    expect(selecting.file.endsWith('/suites/unit/coverage.bin')).toBe(true);
+    expect(selecting).not.toHaveProperty('unmeasured');
+  });
+
+  test('says a suite declaring relations false sends a file its record did not measure to nothing', async () => {
+    const selecting = await selectingRecord(await repository(SPLIT), 'e2e');
+
+    expect(selecting.file.endsWith('/suites/e2e/coverage.bin')).toBe(true);
+    expect(selecting.unmeasured).toBe('nothing');
+  });
+
+  test('carries the precision a suite declares', async () => {
+    const root = await repository({ suites: { unit: { kind: 'unit', precision: 'file-use' }, e2e: { kind: 'e2e' } } });
+
+    expect((await selectingRecord(root, 'unit')).precision).toBe('file-use');
+    expect(await selectingRecord(root, 'e2e')).not.toHaveProperty('precision');
+  });
+});
+
+describe('the record a read the command runs without asks for', () => {
+  test('is none when more than one suite is declared and none is named', async () => {
+    expect(await refiningRecord(await repository(TWO))).toBeUndefined();
+  });
+
+  test('is the named suite when more than one is declared', async () => {
+    const at = await refiningRecord(await repository(TWO), 'unit');
+
+    expect(at?.endsWith('/suites/unit/coverage.bin')).toBe(true);
+  });
+
+  test('is the only declared suite when none is named', async () => {
+    const at = await refiningRecord(await repository({ suites: { stories: { kind: 'visual' } } }));
+
+    expect(at?.endsWith('/suites/stories/coverage.bin')).toBe(true);
+  });
+
+  test('is still refused by name for a suite the root config does not declare', async () => {
+    await expect(refiningRecord(await repository(TWO), 'e2e')).rejects.toThrow('the suite "e2e" is not declared in');
+  });
+});
+
+describe('the record a one-runner command reads in a worktree that has not run', () => {
+  // A relative `cacheRoot` in both checkouts keeps each layer inside its own
+  // checkout, whatever cache the suite running this was pointed at.
+  async function layered(config: object = {}): Promise<{ primary: string; path: string }> {
+    const at = await mkdtemp(resolve(tmpdir(), 'va-suite-record-layers-'));
+    const primary = resolve(at, 'primary');
+    const gitdir = resolve(primary, '.git', 'worktrees', 'feature');
+    await mkdir(gitdir, { recursive: true });
+    const path = resolve(at, 'feature');
+    await mkdir(path, { recursive: true });
+    await writeFile(resolve(path, '.git'), `gitdir: ${gitdir}\n`);
+    for (const where of [primary, path]) {
+      await writeFile(resolve(where, 'variance.config.json'), JSON.stringify({ cacheRoot: '.cache', ...config }));
+    }
+
+    return { primary, path };
+  }
+
+  test('is the primary checkout\'s, and a landing still goes to the worktree\'s own layer', async () => {
+    const { primary, path } = await layered({ suites: { unit: { kind: 'unit' } } });
+    const base = testCoverageFile(primary, { suite: 'unit' });
+    await writeTestCoverage(base, { version: 3, instrumentation: 'probe-recipe', tests: [], modules: [] });
+
+    expect(await suiteRecord(path)).toBe(base);
+    expect(await landingRecord(path)).toBe(testCoverageFile(path, { suite: 'unit' }));
+    expect(await landingRecord(path)).not.toBe(base);
+  });
+
+  test('is what `variance select` reads, rather than reporting nothing recorded', async () => {
+    const { primary, path } = await layered();
+    const base = testCoverageFile(primary);
+    await mkdir(dirname(base), { recursive: true });
+    await writeFile(base, 'this is not a snapshot');
+
+    // Unreadable on purpose: only a reader that opened the primary checkout's
+    // file can refuse it, and one that looked only in the worktree's own layer
+    // skips nothing instead.
+    await expect(selectOutput({ cwd: path, format: 'plain', noGit: true })).rejects.toThrow(/could not be read/);
+  });
+});
+
 describe('`--suite` beside a path', () => {
   test('is refused, because both name the record', () => {
     expect(() => oneRecord('unit', '/x/coverage.bin', '--execution')).toThrow(
       '`--suite` and `--execution` both name the record; pass one',
     );
     expect(() => oneRecord('unit', undefined, '--into')).not.toThrow();
-    expect(() => parseArgs(['select', '--suite', 'unit', '--execution', 'x'])).toThrow(
-      '`--suite` and `--execution` both name the record',
-    );
     expect(() => parseArgs(['journeys', 'shard.bin', '--into', 'x', '--suite', 'unit'])).toThrow(
       '`--suite` and `--into` both name the record',
     );
     expect(parseArgs(['run', '--since', 'main', '--suite', 'stories'])).toMatchObject({ suite: 'stories' });
+  });
+});
+
+describe('`variance select --suite` beside `--execution`', () => {
+  // A journey file is not a record, and `--suite` beside one says whose
+  // `before` it is read against; a snapshot named by path is the record.
+  test('is parsed, since only the file it names says whether it is a record', () => {
+    expect(parseArgs(['select', '--suite', 'unit', '--execution', 'x'])).toMatchObject({ suite: 'unit' });
+  });
+
+  test('is refused for a snapshot named by path, because both name the record', async () => {
+    const at = await repository(TWO);
+    const file = resolve(at, 'coverage.va');
+    await writeTestCoverage(file, { version: 3, instrumentation: 'fixture', commit: 'c0ffee', tests: [], modules: [] });
+
+    await expect(selectOutput({ cwd: at, format: 'plain', noGit: true, execution: file, suite: 'unit' })).rejects.toThrow(
+      '`--suite` and `--execution` both name the record; pass one',
+    );
   });
 });
 

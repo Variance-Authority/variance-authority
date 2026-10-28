@@ -35,8 +35,8 @@ invisible marker.
 
 - `packages/report/src/` — the format, its file, and the derivations that belong to it
 - `packages/cli/src/commands/report.ts`, `report-html*.ts` — the readings for a person
-- `packages/cli/src/commands/comment.ts`, `comment-blocks.ts`,
-  `comment-text.ts`, `docket.ts` — the reading for a change proposal
+- `packages/cli/src/commands/comment.ts`, `comment-lead.ts`, `comment-unstable.ts`,
+  `comment-blocks.ts`, `comment-text.ts`, `docket.ts` — the reading for a change proposal
 - `packages/cli/src/commands/merge.ts`, `run-report.ts`, `adjudicate.ts`, `changelog.ts`
 - `packages/cli/src/exit.ts` — the reading a pipeline takes
 - `packages/mcp/src/`, `packages/help/src/` — the readings an agent takes
@@ -92,12 +92,12 @@ accounts of the same evidence with no way to tell which one was fixed.
 | [exit code](./exit-code/README.md) | Says in one integer whether anything needs review, keeping a verdict about the product off the channel a crash uses |
 | [shard merge](./shard-merge/README.md) | Folds N partial runs into one artifact, or refuses by name, promoting any subject every shard excluded to a failure |
 | [person reading](./person-reading/README.md) | Renders the artifact for a person, at a terminal and as one self-contained page |
-| [proposal comment](./proposal-comment/README.md) | Renders the docket as one comment on a change proposal, found by a marker and rewritten in place |
+| [proposal comment](./proposal-comment/README.md) | Renders the docket as one comment per project on a change proposal, found by a marker and rewritten in place |
 | [agent surface](./agent-surface/README.md) | Serves evidence to an agent as a set of tools that read and never act |
 | [intent adjudication](./intent-adjudication/README.md) | Reads a run back against what its author declared they were changing |
 | `packages/cli/src/commands/report-html-{style,script,elements}.ts` | L5 — the page's inline stylesheet, its comparison script, and the escaping primitives every block writes through |
 | `packages/report/src/changelog-message.ts` | L5 — the codec a changelog record round-trips through on its way into and out of a commit message |
-| `packages/mcp/src/server.ts`, `packages/mcp/src/protocol.ts`, `packages/help/src/server.ts` | L5 — request framing and stdio transport, holding no decision |
+| `packages/mcp/src/server.ts`, `packages/mcp/src/framing.ts`, `packages/mcp/src/protocol.ts`, `packages/help/src/server.ts` | L5 — request framing and stdio transport, holding no decision |
 
 ## Diagram
 

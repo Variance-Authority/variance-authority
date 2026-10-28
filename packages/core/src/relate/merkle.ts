@@ -47,6 +47,7 @@
  */
 
 import { digestCombine, digestString, type Digest } from '../format/hash.js';
+import { allowedKinds } from './carried.js';
 import {
   EDGE_KINDS,
   NODE_KINDS,
@@ -94,7 +95,7 @@ export interface Closure {
  */
 export function closureOf(input: ClosureInput): Closure {
   const { relations, content } = input;
-  const allowed = allowedKinds(input.through);
+  const allowed = allowedKinds(input.through, CLOSURE_EDGES);
   const count = relations.names.length;
 
   const { component, order } = condense(relations, allowed);
@@ -322,18 +323,6 @@ export const CLOSURE_EDGES: readonly EdgeKind[] = [
   'declared-in',
   'depends',
 ];
-
-/** Edge kinds as a lookup, so the inner loop tests a byte. */
-function allowedKinds(through: Iterable<EdgeKind> | undefined): Uint8Array {
-  const allowed = new Uint8Array(EDGE_KINDS.length);
-
-  for (const kind of through ?? CLOSURE_EDGES) {
-    const at = EDGE_KINDS.indexOf(kind);
-    if (at !== -1) allowed[at] = 1;
-  }
-
-  return allowed;
-}
 
 function byCodeUnit(a: string, b: string): number {
   return a < b ? -1 : a > b ? 1 : 0;

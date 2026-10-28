@@ -25,7 +25,8 @@ export const Deferred = {
   name: 'AsyncPanel — settles late',
   render: () => (
     <Tokens>
-      <AsyncPanel />
+      {/* Long enough that a slow machine still asks before the panel settles. */}
+      <AsyncPanel delayMs={600} />
     </Tokens>
   ),
 };

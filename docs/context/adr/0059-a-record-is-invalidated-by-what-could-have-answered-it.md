@@ -33,7 +33,11 @@ Three parts, each load-bearing.
 
 **Configuration is repository-wide, and named by contents.** Manifests,
 lockfiles, every `tsconfig`/`jsconfig`, the requested `tsconfig`, and the
-condition names. One `paths` entry redirects every `@/` specifier there is, so
+condition names. The requested `tsconfig` is the caller's, or else the one the
+root `variance.config.json` declares in `typescript.tsconfig`: `"auto"`, a file
+named from the repository root, or `false`. `false` reads no config for `paths`,
+`baseUrl` or conditions; the configs still name the build layout and the aliases, and stay in
+the key. One `paths` entry redirects every `@/` specifier there is, so
 there is no narrower answer than everything, and a change to any of them rebuilds
 the repository. This is the old rule, kept, for the inputs it was always right
 about.

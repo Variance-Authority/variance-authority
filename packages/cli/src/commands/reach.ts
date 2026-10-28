@@ -49,9 +49,12 @@
  */
 
 import {
+  RUNTIME_EDGES,
   explain,
   changedBefore,
   affectedBy,
+  dependentsOf,
+  idOf,
   nodesOfKind,
   within,
   type BeforeReach,
@@ -59,7 +62,10 @@ import {
   type Relations,
 } from '@variance-authority/core/relate';
 import type { ReachedComponent } from '@variance-authority/report';
-import { movedPackages, NO_INSTALL_DIFF, withoutManifests, type InstallDiff } from './installed.js';
+import { ignoredBy } from '@variance-authority/sense/test-selection';
+import { NO_INSTALL_DIFF, withoutManifests, type InstallDiff } from './installed.js';
+import { beyondOf } from './select-beyond.js';
+import { listed, many } from './prose-counts.js';
 
 /** What the walk found, when it could answer. */
 export interface AffectedComponents {
@@ -77,7 +83,7 @@ export interface AffectedComponents {
 export interface GraphRefusal {
   readonly whole: string;
   readonly unscanned?: readonly string[];
-  /** The `source.before` files this diff moves, when that is the refusal. */
+  /** The `before` files this diff moves, when that is the refusal. */
   readonly rests?: readonly string[];
 }
 
@@ -114,6 +120,8 @@ interface Seeds {
   readonly seeded: number;
   /** `3 changed files and 1 changed package`, for whichever sentence prints. */
   readonly source: string;
+  /** The install chain ahead of each file a bump reached and the diff did not name, for the trail. */
+  readonly chains: ReadonlyMap<string, readonly string[]>;
 }
 
 /**
@@ -141,11 +149,11 @@ function affectsNothing<T extends object>(walk: T | Nothing): walk is Nothing {
  * selection, so the graph narrows outwards from them exactly as it does from a
  * file somebody edited.
  *
- * `install` enters the same way, at the other end of the line: a package name is
- * a node, every file that imports it has an edge to it, and a bumped package is
- * a seed the walk runs backwards from exactly as it does from an edited file.
- * A package name the graph has no node for is not a gap — it is a dependency no
- * file in this repository asks for, and it reaches nothing.
+ * `install` enters the same way, at the other end of the line, once it has been
+ * read back into files: a bumped package is the files whose imports rest on it,
+ * changed whole, and the walk runs backwards from them exactly as it does from
+ * an edited file. A package name the graph has no node for is not a gap — it is
+ * a dependency no file in this repository asks for, and it reaches nothing.
  *
  * `movedExports` are what the changed files moved, read from both texts. A
  * file that moved nothing seeds nothing, and a diff of nothing else is the
@@ -157,6 +165,11 @@ function affectsNothing<T extends object>(walk: T | Nothing): walk is Nothing {
  * setup file the suite loads for every test reaches whatever happens to import
  * it, which is nothing, and answering *no component* there would skip the whole
  * suite over the file that governs it.
+ *
+ * `ignore` is the suite's: a changed file it matches moves nothing the suite
+ * rests on and reaches no component through an edge the walk infers. A module
+ * that declares it with a `/// <depends>` reads its bytes on purpose, and is
+ * seeded in its place.
  *
  * Both callers below refuse the same readings — a changed file the scan should
  * hold and does not, and a diff no part of which is in the graph — and they are
@@ -172,21 +185,24 @@ function seedsOf(
   install: InstallDiff = NO_INSTALL_DIFF,
   before?: BeforeReach,
   movedExports: MovedExports = new Map(),
+  ignore?: readonly string[],
 ): Seeds | Nothing | GraphRefusal {
   if ('whole' in install) return { whole: install.whole };
 
-  const moved = movedPackages(relations, install);
+  const beyond = beyondOf(relations, install);
   const still = changed.filter((file) => movedExports.get(file)?.length === 0);
+  const read = withoutManifests(changed, install.manifests).filter((file) => !still.includes(file));
+  const ignored = ignoredBy(ignore, read);
   const files = [
-    ...withoutManifests(changed, install.manifests).filter((file) => !still.includes(file)),
-    ...moved.unplaced,
+    ...new Set([...read.filter((file) => !ignored.includes(file)), ...ignored.flatMap((file) => declaring(relations, file))]),
+    ...beyond.unplaced,
   ];
 
   // Before anything is walked, and it refuses rather than narrows. A walk
   // against the arrows from a setup file the suite loads for every test reaches
   // whatever happens to import it, which is nothing, and answering *no
   // component* there would skip the whole suite over the file that governs it.
-  const rests = before === undefined ? [] : [...changedBefore(before, files, install.packages)].sort(byCodeUnit);
+  const rests = before === undefined ? [] : [...new Set(changedBefore(before, [...files, ...beyond.files]))].sort(byCodeUnit);
   if (rests.length > 0) {
     const them = rests.length === 1 ? 'it' : 'them';
     return {
@@ -197,40 +213,42 @@ function seedsOf(
     };
   }
 
-  const expanded = [
-    ...new Set([
-      ...(changedDirs.length === 0
-        ? []
-        : nodesOfKind(relations, 'file')
-            .map((id) => relations.names[id]!)
-            .filter((file) => within(file, changedDirs))),
-      ...moved.files,
-    ]),
-  ];
+  const inDirs =
+    changedDirs.length === 0
+      ? []
+      : nodesOfKind(relations, 'file')
+          .map((id) => relations.names[id]!)
+          .filter((file) => within(file, changedDirs));
+  const expanded = [...new Set([...inDirs, ...beyond.files])];
 
-  const packages = install.packages.map((name) => ({ kind: 'package', name }) as const);
   const narrowed = files.filter((file) => (movedExports.get(file)?.length ?? 0) > 0);
   const affected = affectedBy(
     relations,
-    [...files, ...expanded, ...packages],
-    narrowed.length === 0 ? {} : { moved: new Map(narrowed.map((file) => [file, movedExports.get(file)!])) },
+    [...files, ...expanded],
+    {
+      through: RUNTIME_EDGES,
+      ...(narrowed.length === 0 ? {} : { moved: new Map(narrowed.map((file) => [file, movedExports.get(file)!])) }),
+    },
   );
   // Only the diff's own seeds can be missing; an expanded one came out of the
-  // graph, so it is in it by construction.
-  const seeded = files.length + packages.length - affected.missing.length + expanded.length;
+  // graph, so it is in it by construction. A path is counted once, however
+  // many of the diff, a changed directory and the install named it.
+  const absent = new Set(affected.missing);
+  const held = files.filter((file) => !absent.has(file));
+  const seeded = new Set([...held, ...expanded]).size;
 
-  // Files only. A missing *package* name is an answer — nothing imports it — and
-  // `within` would not tell the two apart, since a package may be named anything.
   const named = new Set(files);
+  // TODO: a file the diff deletes lands here as a gap in the scan, and widens the
+  // run's selector and the report to the whole suite. `reach-command.ts` takes
+  // deletions out before it calls; `affected.ts` and `reach-subjects.ts` do not.
   const unscanned = affected.missing.filter((file) => named.has(file) && within(file, roots));
 
   // What the answer was built from, for the sentence the selector prints. The
   // two halves are counted apart because they are read from different places —
   // one from the diff, one from the lockfile at both revisions — and an
   // operator who cannot see which is which cannot check either.
-  const absent = new Set(affected.missing);
-  const fromPackages = install.packages.filter((name) => !absent.has(name)).length;
-  const fromFiles = seeded - fromPackages;
+  const fromPackages = beyond.traced.length;
+  const fromFiles = new Set([...held, ...inDirs]).size;
   const source =
     (fromPackages === 0
       ? many(fromFiles, 'changed file')
@@ -238,7 +256,8 @@ function seedsOf(
         ? many(fromPackages, 'changed package')
         : `${many(fromFiles, 'changed file')} and ${many(fromPackages, 'changed package')}`) +
     (still.length === 0 ? '' : ` (${listed(still)}: no runtime change)`) +
-    (narrowed.length === 0 ? '' : ` (${byExport(narrowed, movedExports)})`);
+    (narrowed.length === 0 ? '' : ` (${byExport(narrowed, movedExports)})`) +
+    (ignored.length === 0 ? '' : ` (${ignoredSaid(ignored)})`);
   if (unscanned.length > 0) {
     return {
       unscanned,
@@ -255,20 +274,21 @@ function seedsOf(
     // step earlier — a lockfile rewritten by a workspace version bump resolves
     // every package to what it resolved before, and changed nothing.
     if (files.length === 0 && expanded.length === 0 && changed.length > 0) {
+      const quiet = [...(still.length === 0 ? [] : [ranAsBefore(still)]), ...(ignored.length === 0 ? [] : [ignoredSaid(ignored)])];
       const settled =
         install.packages.length > 0
           ? `no file imports ${listed([...install.packages].sort(byCodeUnit))}`
-          : still.length === 0
+          : quiet.length === 0
             ? 'the diff changed only manifests, and the install resolves every package to what ' +
               'it resolved before'
             : 'the install resolves every package to what it resolved before';
       return {
         nothing:
-          still.length === 0
+          quiet.length === 0
             ? settled
-            : still.length === changed.length
-              ? ranAsBefore(still)
-              : `${ranAsBefore(still)}, and ${settled}`,
+            : still.length + ignored.length === changed.length
+              ? quiet.join(', and ')
+              : `${quiet.join(', ')}, and ${settled}`,
       };
     }
 
@@ -279,7 +299,8 @@ function seedsOf(
     };
   }
 
-  return { affected, seeded, source };
+  const chains = new Map([...beyond.chains].filter(([file]) => !named.has(file)));
+  return { affected, seeded, source, chains };
 }
 
 /** What the file walk found, when it could answer. */
@@ -334,22 +355,15 @@ export function affectedFiles(
  * rather than as the selection, so the graph narrows outwards from them exactly
  * as it does from a file somebody edited.
  */
-export function affectedComponents(
-  relations: Relations,
-  changed: readonly string[],
-  changedDirs: readonly string[],
-  roots: readonly string[],
-  install: InstallDiff = NO_INSTALL_DIFF,
-  before?: BeforeReach,
-  movedExports: MovedExports = new Map(),
-): AffectedComponents | GraphRefusal {
-  const walk = seedsOf(relations, changed, changedDirs, roots, install, before, movedExports);
+export function affectedComponents(...readings: Parameters<typeof seedsOf>): AffectedComponents | GraphRefusal {
+  const [relations] = readings;
+  const walk = seedsOf(...readings);
   if (refused(walk)) return walk;
   if (affectsNothing(walk)) {
     return { components: [], files: [], seeded: 0, how: walk.nothing };
   }
 
-  const { affected, seeded, source } = walk;
+  const { affected, seeded, source, chains } = walk;
 
   if (affected.components.length === 0) {
     return {
@@ -361,7 +375,7 @@ export function affectedComponents(
 
   const components = [...affected.components].sort(byCodeUnit).map((component) => ({
     component,
-    trail: explain(relations, affected, { kind: 'component', name: component }),
+    trail: withChain(explain(relations, affected, { kind: 'component', name: component }), chains),
   }));
 
   return {
@@ -374,20 +388,27 @@ export function affectedComponents(
   };
 }
 
-/**
- * `1 component`, `3 components` — never `3 component(s)`, which is storage.
- *
- * Exported because [`affected.ts`](./affected.ts) prints the other half of these
- * same sentences, and a run whose selector and whose report pluralise differently
- * reads as two tools that happened to agree.
- */
-export function many(count: number, singular: string): string {
-  return `${count} ${singular}${count === 1 ? '' : 's'}`;
+/** A trail that opens at a file a bump reached, opened at the bumped package instead. */
+function withChain(trail: readonly string[], chains: ReadonlyMap<string, readonly string[]>): readonly string[] {
+  const chain = trail[0] === undefined ? undefined : chains.get(trail[0]);
+  return chain === undefined ? trail : [...chain, ...trail];
 }
 
 /** The first three of a list, with a mark when there are more. */
 function sample(files: readonly string[]): string {
   return `${files.slice(0, 3).join(', ')}${files.length > 3 ? ', …' : ''}`;
+}
+
+/** The modules that declare `file` with a `/// <depends>`, near and far. */
+function declaring(relations: Relations, file: string): readonly string[] {
+  const id = idOf(relations, 'file', file);
+  if (id === undefined) return [];
+  return [...dependentsOf(relations, [id], { through: ['depends'] }).nodes].filter((other) => other !== id).map((other) => relations.names[other]!);
+}
+
+/** The sentence for the changed files a suite's `ignore` matched. */
+export function ignoredSaid(files: readonly string[]): string {
+  return `the suite ignores ${listed([...files].sort(byCodeUnit))}`;
 }
 
 /**
@@ -410,20 +431,6 @@ function byExport(files: readonly string[], movedExports: MovedExports): string 
   return `${said.join('; ')}${more}`;
 }
 
-/**
- * Up to three names in prose, and a count for the rest.
- *
- * Exported for [`reach-subjects.ts`](./reach-subjects.ts), which prints the
- * per-subject half of the same sentences.
- */
-export function listed(names: readonly string[]): string {
-  if (names.length <= 3) {
-    const head = names.slice(0, -1).join(', ');
-    return head === '' ? names[0]! : `${head} and ${names[names.length - 1]!}`;
-  }
-  return `${names.slice(0, 3).join(', ')} and ${names.length - 3} more`;
-}
-
 function byCodeUnit(a: string, b: string): number {
   return a < b ? -1 : a > b ? 1 : 0;
 }
@@ -432,7 +439,7 @@ function byCodeUnit(a: string, b: string): number {
  * Whether a changed path lies under one of the scanned roots.
  *
  * Re-exported rather than written again: the same boundary decides what the
- * harness walk stops at ([`before.ts`](../../../core/src/relate/before.ts)),
+ * harness walk stops at ([`before.ts`](https://github.com/Variance-Authority/variance-authority/blob/main/packages/core/src/relate/before.ts)),
  * and two spellings of *is this path under that directory* would disagree the
  * day one of them was fixed.
  */

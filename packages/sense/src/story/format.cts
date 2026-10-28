@@ -54,7 +54,7 @@
 import crypto = require('node:crypto');
 import fs = require('node:fs');
 import path = require('node:path');
-import journals = require('../test-selection/journal-format.cjs');
+import caseOwner = require('../test-selection/case-owner.cjs');
 import type { ModuleId } from '../instrument/index.js';
 import type storyTap = require('../instrument/story-tap.cjs');
 
@@ -215,8 +215,16 @@ function encodeStory(tape: Tape, key: string, stopped?: boolean): Buffer {
     if (said) notes.push([(entry ?? before) - before, text]);
     else beforeNotes.push([entry ?? 0, text]);
   }
+  // What a module held was said once, when it loaded, and the tape started
+  // again before the first case: every case that went through it opens with it.
+  const told = new Set([...notes, ...beforeNotes].map(([, text]) => text));
+  const holding = rows.flatMap(([id]): [number, string][] => {
+    const line = tape.held.get(id);
+    return line === undefined || told.has(line) ? [] : [[0, line]];
+  });
+  beforeNotes.unshift(...holding);
 
-  const { file, name } = journals.unpackCase(key);
+  const { file, name } = caseOwner.unpackCase(key);
   const header = Buffer.from(
     JSON.stringify({
       file, name, rows, before, untaped: tape.visits - tape.taped, interleaved, stopped,
@@ -309,7 +317,7 @@ function storyWriter(
 ): (key: string, bytes: Uint8Array) => void {
   let written = 0;
   return (key, bytes) => {
-    const { file, name } = journals.unpackCase(key);
+    const { file, name } = caseOwner.unpackCase(key);
     const stem = caseStem(file, name);
     fs.mkdirSync(directory, { recursive: true });
     written += 1;

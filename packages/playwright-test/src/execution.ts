@@ -3,7 +3,7 @@
  *
  * The instrument is the one `@variance-authority/sense` already uses; only the
  * transport differs, which is the rule
- * [spec 0028](../../../docs/specs/0028-the-instrument.md) states. The adopter's
+ * [spec 0028](https://github.com/Variance-Authority/variance-authority/blob/main/docs/specs/0028-the-instrument.md) states. The adopter's
  * application build carries `testSelectionProbes()`, the page counts block
  * crossings, and this drains those counters around each observation.
  *
@@ -19,92 +19,35 @@
 import type { Page, TestInfo } from '@playwright/test';
 import {
   drainExecution,
+  driveJourneys,
   joinObservations,
+  listenForPreconditions,
+  modulesEntered,
   preconditionOf,
   recordExecution,
+  SAID_NOTHING,
+  saidAcross,
   stageExecution,
   stagingDirectory,
+  type CasePrecondition,
   type EvaluatingPage,
-  type ExecutedModule,
-  type InstrumentMode,
-  type ModuleId,
   type ObservedCase,
+  type ObservedEyes,
   type ObservedSubject,
+  type PreconditionStanding,
 } from '@variance-authority/sense/journal';
-import {
-  journeyReportFrom,
-  mintJourney,
-  stitchJourneys,
-  unsettledScopes,
-  type JourneyReport,
-} from '@variance-authority/sense/journey';
+import { stitchJourneys } from '@variance-authority/sense/journey';
 import { repositoryRoot, type CoveragePrecondition } from '@variance-authority/sense/test-selection';
-import { JOURNEY_COOKIE, RETURN_COOKIE } from '@variance-authority/wire';
-import { listen, type Wire } from '@variance-authority/wire/listen';
+import type { Wire } from '@variance-authority/wire/listen';
 import { resolve } from 'node:path';
-import { ownerOf, type ObservedTest } from './test-coordinate.js';
+import { absorb, accumulation, type Accumulated } from './accumulated.js';
+import type { ExecutionRecording } from './execution-recording.js';
+import { quietly } from './quiet.js';
+import { reachedLines } from './reached-lines.js';
+import { caseKey, ownerOf, type ObservedTest } from './test-coordinate.js';
 
 export { ownerOf, testOf, type ObservedTest } from './test-coordinate.js';
-
-/** Where the index and the block records live, when the defaults are wrong. */
-export interface ExecutionRecording {
-  /**
-   * A directory inside the repository; defaults to the cwd. Recorded paths are
-   * relative to the checkout it sits in, never to it.
-   */
-  readonly root?: string;
-  /** Matches the `label` given to `testSelectionProbes()`. Defaults to `build`. */
-  readonly label?: string;
-  /** Where that build wrote its records. Defaults to the repository's cache. */
-  readonly cacheRoot?: string;
-  /** The coverage index. Defaults to the repository's cache. */
-  readonly coverageFile?: string;
-  /** The suite this run is, as the root `variance.config.json` declares it under `suites`. */
-  readonly suite?: string;
-  /**
-   * Services that report their own crossings, by the name each one collects
-   * under.
-   *
-   * Empty is the default and the ordinary case: a suite driving one application
-   * has one instrumented realm, the page, and nothing can be missing from it.
-   * Naming a head is a promise that the service is running
-   * `collectJourneys()` from `@variance-authority/sense/journey`. A named head
-   * that reports nothing all run retires every observation the run made — the
-   * setup is extra, and a run half of whose evidence never arrived must not
-   * narrow the next one.
-   */
-  readonly heads?: readonly string[];
-  /**
-   * The origin the journey cookie is scoped to. Defaults to the project's
-   * `baseURL`. Same-origin is the filter, so this is also the whole of the
-   * decision about which services ever see it.
-   */
-  readonly origin?: string;
-  /**
-   * Where the execution index — which individual test entered which region —
-   * goes, for the worker that has no reporter to fold it.
-   * Defaults beside the snapshot: `<coverage file>.cases.bin`; a name ending
-   * `.json` is written as JSON instead, at the size JSON costs.
-   */
-  readonly executionFile?: string;
-  /**
-   * The probe recipe the build placed, matching `testSelectionProbes()`'s
-   * `mode`. `presence` when absent, as it is there.
-   *
-   * The same answer on both sides or neither works: a journal cut by one
-   * recipe and folded as another is refused, and a snapshot two seams write
-   * under two recipes has each run retire the other's evidence.
-   */
-  readonly mode?: InstrumentMode;
-  /**
-   * Files whose contents are preconditions of every spec this run recorded.
-   *
-   * A `globalSetup`, a fixture module the specs share, a seeded dump —
-   * nothing *enters* them, so no module row answers for them, and without
-   * this a commit that edits one selects nothing at all.
-   */
-  readonly preconditions?: readonly string[];
-}
+export type { ExecutionRecording } from './execution-recording.js';
 
 /** One worker's accumulation, drained per observation and written once. */
 export interface ExecutionRecorder {
@@ -115,8 +58,14 @@ export interface ExecutionRecorder {
    * `subject` names the individual test the window belongs to, for a run
    * recording cases. Without it the crossings join the file and nothing finer,
    * which is what selection reads either way.
+   *
+   * `line` is the test line whose statement ran since the drain before, for a
+   * case whose file was cut: each region the window holds that the case has
+   * not reached under an earlier line is charged to it. A case drained without
+   * one carries no lines, and a region drained without one before its first is
+   * ambient.
    */
-  readonly note: (page: EvaluatingPage, owner: string, subject?: ObservedTest) => Promise<void>;
+  readonly note: (page: EvaluatingPage, owner: string, subject?: ObservedTest, line?: number) => Promise<void>;
   /**
    * Mint this execution's journey and put it on the page's context.
    *
@@ -155,19 +104,19 @@ export interface ExecutionRecorder {
    * and the case each sum their attempts; nothing here reads a clock.
    */
   readonly mark: (owner: string, complete: boolean, subject?: ObservedTest, duration?: number) => void;
+  /**
+   * Keep one attempt's Eyes journal for its case, counted from 1, or without
+   * one, that the attempt opened a journal. The record joins it to the case by
+   * the id the index gives the case; see `case-scope.ts`.
+   */
+  readonly eyes: (owner: string, subject: ObservedTest, attempt: number, journal?: Readonly<Record<string, unknown>>) => void;
+  /** What the case has said so far, or nothing where no listener runs; see `arranged.ts`. */
+  readonly arranged: (owner: string, subject: ObservedTest) => readonly CasePrecondition[] | undefined;
+  /** The checkout every path this recorder writes is named against. */
+  readonly root: string;
   /** Merge this worker's contribution into the index, or explain the silence. */
   readonly close: () => Promise<void>;
 }
-
-interface Accumulated {
-  readonly hits: Map<ModuleId, Set<number>>;
-  /** Of `hits`, the ordinals a module entered while evaluating: every spec's. */
-  readonly shared: Map<ModuleId, Set<number>>;
-  complete: boolean;
-}
-
-/** How long a worker waits at its end for requests a head is still serving. */
-const SETTLING_MS = 5_000;
 
 
 /**
@@ -180,15 +129,22 @@ const SETTLING_MS = 5_000;
 export function createExecutionRecorder(
   recording: ExecutionRecording = {},
   wire?: Wire,
+  standing?: () => PreconditionStanding,
 ): ExecutionRecorder {
   const start = resolve(recording.root ?? process.cwd());
   const root = repositoryRoot(start);
+  // What each case said it arranged, where a runner says where a call stands:
+  // taken when the case is marked, which is after its `afterEach` ran.
+  const listener = standing === undefined ? undefined : listenForPreconditions(root, standing);
+  const heard = new Map<string, NonNullable<ObservedCase['said']>>();
   const owners = new Map<string, Accumulated>();
   // Kept beside the owners rather than derived from them: a case is a window
   // inside a file's window, and both are wanted whole. The key carries all
   // three coordinates because a test retried in the same worker drains twice
   // and is one case.
   const cases = new Map<string, { readonly of: Omit<ObservedCase, 'journal'>; readonly hits: Accumulated }>();
+  // The line that first reached each region of a case, by the key `cases` uses.
+  const reached = reachedLines();
   const heads = recording.heads ?? [];
   const minted = new Map<string, string>();
   // The case each journey was minted for, where the run records cases: a head
@@ -200,42 +156,39 @@ export function createExecutionRecorder(
   const stopped = new Map<string, boolean>();
   // What the runner counted, per owner and per case key, summed over attempts.
   const spent = new Map<string, number>();
+  // Each case's Eyes journals, one per attempt that handed one over.
+  const looked = new Map<string, ObservedEyes[]>();
   const add = (key: string, duration: number): void => void spent.set(key, (spent.get(key) ?? 0) + duration);
-  const reports: JourneyReport[] = [];
-  let seen = false;
-  let announced = false;
-  let instrumentation: string | undefined;
-  let owned: Wire | undefined;
-  let taking: Wire | undefined;
-
   // The medium is opened on the first execution that could use it, and only when
   // a head was named: a suite with one realm has nothing to reach it from
   // another process, and a listener nobody can find is a port for nothing.
-  const takeReports = async (): Promise<Wire> => {
-    const open = wire ?? (owned ??= await listen());
-    if (taking !== open) {
-      taking = open;
-      open.on('journeys', (journey, body) => {
-        if (journey === undefined) return;
-        const report = journeyReportFrom(journey, body);
-        if (report !== undefined) reports.push(report);
-      });
-    }
-    return open;
-  };
+  const journeys = driveJourneys(wire);
+  const reports = journeys.reports;
+  let seen = false;
+  let announced = false;
+  let instrumentation: string | undefined;
 
   return {
+    root,
     owner: (testInfo) => ownerOf(root, testInfo),
-    note: async (page, owner, subject) => {
-      const journal = await drainExecution(page);
+    arranged: (owner, subject) => listener?.held(caseKey(owner, subject.id)),
+    eyes: (owner, subject, attempt, journal) => {
+      caseOf(owner, subject);
+      const key = caseKey(owner, subject.id);
+      looked.set(key, [...(looked.get(key) ?? []), ...(journal === undefined ? [] : [{ attempt, journal }])]);
+    },
+    note: async (page, owner, subject, line) => {
+      const journal = await quietly(page, () => drainExecution(page));
       if (journal === undefined) return;
       seen = true;
       instrumentation = journal.instrumentation;
-      const accumulated = owners.get(owner) ?? { hits: new Map(), shared: new Map(), complete: true };
+      const accumulated = owners.get(owner) ?? accumulation();
       absorb(accumulated, journal);
       owners.set(owner, accumulated);
       if (subject === undefined) return;
-      absorb(caseOf(owner, subject), journal);
+      const held = caseOf(owner, subject);
+      if (line !== undefined) reached.charge(caseKey(owner, subject.id), held, journal.modules, line);
+      absorb(held, journal);
     },
 
     join: async (page, owner, origin, subject) => {
@@ -252,25 +205,24 @@ export function createExecutionRecorder(
         );
         return undefined;
       }
-      const open = await takeReports();
-      const journey = mintJourney();
+      const { journey, cookies } = await journeys.mint(url);
       minted.set(journey, owner);
       if (subject !== undefined) mintedFor.set(journey, { owner, subject });
-      // Both at one site, because they are one fact: this is the execution, and
-      // this is where it answers. Written apart, whichever half a later mint
-      // overwrote would leave a head reporting under an id nobody claims.
-      await page.context().addCookies([
-        { name: JOURNEY_COOKIE, value: journey, url },
-        { name: RETURN_COOKIE, value: open.addressFor(journey), url },
-      ]);
+      await page.context().addCookies([...cookies]);
       return journey;
     },
 
     mark: (owner, complete, subject, duration) => {
       if (duration !== undefined) add(owner, duration);
       if (subject !== undefined) {
-        const key = `${owner}\u0000${subject.id}`;
+        const key = caseKey(owner, subject.id);
         if (duration !== undefined) add(key, duration);
+        const said = listener?.take(key);
+        if (said !== undefined) {
+          heard.set(key, saidAcross(heard.get(key), said).said!);
+          // A case that only said something is still a case.
+          caseOf(owner, subject);
+        }
         stopped.set(key, stopped.get(key) === false ? false : !complete);
         // A case that stopped before the page had anything to drain is still a
         // case, and the one a reader most needs to hear about.
@@ -291,53 +243,23 @@ export function createExecutionRecorder(
 
     close: async () => {
       try {
-        await settled();
+        listener?.close();
+        await journeys.settled();
         await contribute();
       } finally {
         // Only a listener this recorder opened for itself: one it was handed
         // belongs to the worker, and closing somebody else's channel would take
         // the announcements down with the accounts.
-        await owned?.close();
+        await journeys.close();
       }
     },
   };
-
-  /**
-   * Wait for every request a head said it was still serving, up to a bound.
-   *
-   * A spec is over when its page is, and a handler's scope is over when what it
-   * returned settles: a streamed body or a write behind outlives the response
-   * that ended the test. Nothing is waited on when nothing is open, and what is
-   * still open at the bound is named by the stitch and retires the run.
-   */
-  async function settled(): Promise<void> {
-    const deadline = Date.now() + SETTLING_MS;
-    while (unsettledScopes(reports).size > 0 && Date.now() < deadline) {
-      await new Promise((settle) => setTimeout(settle, 10));
-    }
-  }
-
-  /** Fold one drained window into an accumulation, keeping evaluation apart. */
-  function absorb(accumulated: Accumulated, journal: { modules: readonly ExecutedModule[] }): void {
-    for (const module of journal.modules) {
-      const ordinals = accumulated.hits.get(module.id) ?? new Set<number>();
-      for (const ordinal of module.hits) ordinals.add(ordinal);
-      accumulated.hits.set(module.id, ordinals);
-      const shared = accumulated.shared.get(module.id) ?? new Set<number>();
-      for (const ordinal of module.shared) shared.add(ordinal);
-      accumulated.shared.set(module.id, shared);
-    }
-  }
 
   /** An accumulation as a journal again, which is what both records are made of. */
   function journalOf(accumulated: Accumulated) {
     return {
       instrumentation: instrumentation!,
-      modules: [...accumulated.hits].map(([id, ordinals]) => ({
-        id,
-        hits: [...ordinals],
-        shared: [...(accumulated.shared.get(id) ?? [])],
-      })),
+      modules: modulesEntered(accumulated),
     };
   }
 
@@ -345,8 +267,8 @@ export function createExecutionRecorder(
   function caseOf(owner: string, subject: ObservedTest): Accumulated {
     const key = `${owner}\u0000${subject.id}`;
     const held = cases.get(key) ?? {
-      of: { file: owner, name: subject.name, id: subject.id },
-      hits: { hits: new Map(), shared: new Map(), complete: true },
+      of: { file: owner, name: subject.name, id: subject.id, ...(subject.project === undefined ? {} : { project: subject.project }) },
+      hits: accumulation(),
     };
     cases.set(key, held);
     return held.hits;
@@ -357,10 +279,16 @@ export function createExecutionRecorder(
     return [...cases].map(([key, held]) => {
       const settled = stopped.get(key);
       const duration = spent.get(key);
+      const eyes = looked.get(key);
+      const said = listener === undefined ? undefined : (heard.get(key) ?? SAID_NOTHING);
+      const lines = reached.of(key);
       return {
         ...held.of,
+        ...(said === undefined ? {} : { said }),
         ...(settled === undefined ? {} : { stopped: settled }),
         ...(duration === undefined ? {} : { duration }),
+        ...(eyes === undefined ? {} : { eyes }),
+        ...(lines === undefined ? {} : { lines }),
         journal: journalOf(held.hits),
       };
     });
@@ -447,7 +375,6 @@ export function createExecutionRecorder(
     if (staging !== undefined) {
       await stageExecution(staging, {
         subjects: joined,
-        ...(stitched.heads.size === 0 ? {} : { heads: [...stitched.heads.keys()] }),
         ...(cases.size === 0 ? {} : { cases: observedCases() }),
       });
       return;
@@ -469,7 +396,6 @@ export function createExecutionRecorder(
     const record = await recordExecution({
       root,
       subjects: joined,
-      ...(recording.label === undefined ? {} : { label: recording.label }),
       ...(recording.cacheRoot === undefined ? {} : { cacheRoot: recording.cacheRoot }),
       ...(recording.coverageFile === undefined ? {} : { coverageFile: resolve(start, recording.coverageFile) }),
       ...(recording.suite === undefined ? {} : { suite: recording.suite }),
@@ -477,11 +403,7 @@ export function createExecutionRecorder(
       ...(recording.preconditions === undefined
         ? {}
         : { preconditions: recording.preconditions }),
-      ...(stitched.heads.size === 0 ? {} : { heads: [...stitched.heads.keys()] }),
       ...(cases.size === 0 ? {} : { cases: observedCases() }),
-      ...(recording.executionFile === undefined
-        ? {}
-        : { executionFile: resolve(start, recording.executionFile) }),
     });
     if (!record.recorded) {
       process.stderr.write(`variance-authority: recorded no test execution — ${record.because}\n`);

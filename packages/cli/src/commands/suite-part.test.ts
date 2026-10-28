@@ -1,5 +1,5 @@
 import { execFile } from 'node:child_process';
-import { mkdtemp, readdir } from 'node:fs/promises';
+import { mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
@@ -7,15 +7,18 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { LEXICON_CAP, type SubjectComposition } from '@variance-authority/core/attribute';
 import { readSuiteIndex } from '@variance-authority/report/file';
 import { decodeSuiteIndex, encodeSuiteIndex } from '@variance-authority/report/suite-index';
+import { main } from '../bin.js';
 import type { Config } from '../config.js';
+import { EXIT_OPERATOR } from '../exit.js';
 import { composeReports } from './compose.js';
 import { SOURCE, SUITE, instance } from './compose-fixture.js';
 import { IDENTITY } from './run-fixture.js';
-import { writeCliRunReport, shardOwnedBecause, type CliRunReport } from './run-report.js';
+import { suitePartPath, writeCliRunReport, shardOwnedBecause, type CliRunReport } from './run-report.js';
 import { publishedLine, suiteIndexPath } from './share.js';
 import {
   composeSuiteIndex,
-  readSuitePart,
+  encodeSuitePart,
+  openSuitePart,
   shareOutput,
   suitePartOf,
   writeSuitePart,
@@ -44,8 +47,8 @@ function whole(subjects: readonly SubjectComposition[]) {
 /** Each shard's part, where `owner` places plan position `i` on a shard. */
 function parts(subjects: readonly SubjectComposition[], total: number, owner: (i: number) => number): SuitePart[] {
   return Array.from({ length: total }, (_, k) => {
-    const slots = subjects.map((subject, i) => (owner(i) === k + 1 ? subject : null));
-    const { reading } = composeReports({ subjects: slots, observations: [], source: SOURCE });
+    const slots = subjects.map((subject, i) => (owner(i) === k + 1 ? [subject] : []));
+    const { reading } = composeReports({ subjects: slots.flat(), observations: [], source: SOURCE });
     return suitePartOf(slots, reading, COMMIT, { index: k + 1, total });
   });
 }
@@ -79,15 +82,54 @@ describe('a composed suite index', () => {
     expect(kept(composed)).toContain(`--t${String(LEXICON_CAP + 49)}`);
   });
 
-  it('refuses a build with a shard missing, one cut two ways, or one subject twice', () => {
+  it('takes where a component is declared from the same shard, in whatever order the parts arrive', () => {
+    const [one, two] = parts(SUITE, 2, (i) => (i < 2 ? 1 : 2));
+    // Both shards rendered Button, and their engines placed it in different files.
+    const a = { ...one!, declaredIn: { Button: ['src/one/Button.tsx'] } };
+    const b = { ...two!, declaredIn: { Button: ['src/two/Button.tsx'] } };
+    const forward = composeSuiteIndex([a, b], COMMIT);
+    expect(composeSuiteIndex([b, a], COMMIT)).toEqual(forward);
+    expect((forward as { lexicon?: { declaredIn?: unknown } }).lexicon?.declaredIn).toEqual({ Button: ['src/one/Button.tsx'] });
+  });
+
+  it('refuses a build with a shard missing, one cut two ways, one named twice, or one subject twice', () => {
     const [one, two] = parts(SUITE, 2, (i) => (i === 0 ? 1 : 2));
     const cutThree = parts(SUITE, 3, (i) => i + 1)[2]!;
 
     expect(composeSuiteIndex([one!], COMMIT)).toBe('shard 2/2 is missing');
     expect(composeSuiteIndex([one!, two!, cutThree], COMMIT)).toBe('the shards were cut 2 ways and 3 ways');
     expect(composeSuiteIndex([one!, { ...two!, shard: { index: 1, total: 2 } }], COMMIT)).toBe('shard 2/2 is missing');
-    const { shard: _, ...unnumbered } = one!;
-    expect(composeSuiteIndex([unnumbered, unnumbered], COMMIT)).toMatch(/was composed by two shards/);
+    expect(composeSuiteIndex([one!, two!, two!], COMMIT)).toBe('shard 2/2 was given twice');
+    expect(composeSuiteIndex([one!, { ...two!, subjects: one!.subjects }], COMMIT)).toMatch(/was composed by two shards/);
+  });
+
+  it('holds every width of a story at the one position the plan gave the story', () => {
+    // The last two subjects as two widths of one planned story, read by shard 2.
+    const [a, b, ...widths] = SUITE;
+    const one = suitePartOf([[a!], [b!], []], composeReports({ subjects: [a!, b!], observations: [], source: SOURCE }).reading, COMMIT, { index: 1, total: 2 });
+    const two = suitePartOf([[], [], widths], composeReports({ subjects: widths, observations: [], source: SOURCE }).reading, COMMIT, { index: 2, total: 2 });
+
+    expect(two.subjects.map((row) => row.position)).toEqual(widths.map(() => 2));
+    expect(composeSuiteIndex([one, two], COMMIT)).toEqual(whole(SUITE));
+  });
+
+  // The reading is one value per composition, in order. One that holds fewer
+  // was not read over these compositions, and every position after the gap
+  // would carry another subject's names.
+  it('refuses a reading that is not one value per composition', () => {
+    const [a, b, ...widths] = SUITE;
+    const { reading } = composeReports({ subjects: [a!, b!], observations: [], source: SOURCE });
+
+    expect(() => suitePartOf([[a!], [b!], widths], reading, COMMIT)).toThrow(`2 lexicon values for ${String(SUITE.length)} compositions`);
+    expect(suitePartOf([[a!], [b!], widths], undefined, COMMIT).subjects).toEqual([]);
+  });
+
+  it('refuses an unsharded part beside a shard, and two unsharded parts', () => {
+    const [one] = parts(SUITE, 2, (i) => (i === 0 ? 1 : 2));
+    const { shard: _, ...whole } = one!;
+
+    expect(composeSuiteIndex([one!, whole], COMMIT)).toBe('an unsharded part was given with shard 1/2; they are not one build');
+    expect(composeSuiteIndex([whole, whole], COMMIT)).toBe('two unsharded parts were given; they are not one build');
   });
 });
 
@@ -130,7 +172,7 @@ describe('share --publish over every shard', () => {
       retention: 'durable',
       run: { id: 'build-1', commit: COMMIT },
       observations: [{ subject: mine!, verdict: 'unchanged', because: 'nothing moved', regions: [] }],
-      notObserved: [{ subject: theirs!, kind: 'excluded', because: shardOwnedBecause(3 - k, 2, 'checksum') }],
+      notObserved: [{ subject: theirs!, kind: 'excluded', because: shardOwnedBecause(3 - k, 2, 'count') }],
     } as CliRunReport;
   }
 
@@ -151,7 +193,7 @@ describe('share --publish over every shard', () => {
     const root = join(home, 'share');
     const reports = await writeShards(true);
 
-    expect((await readSuitePart(reports[0]!))?.shard).toEqual({ index: 1, total: 2 });
+    expect((await openSuitePart(suitePartPath(reports[0]!)))?.shard).toEqual({ index: 1, total: 2 });
     expect(await shareOutput(configOf(root), { publish: true, reports: [reports[0]!] })).toContainEqual(
       expect.stringMatching(/is one shard of a build/),
     );
@@ -162,7 +204,7 @@ describe('share --publish over every shard', () => {
 
     const lines = await shareOutput(configOf(root), { publish: true, reports }, await pushed());
     expect(lines[0]).toMatch(/composed from 2 shard\(s\)/);
-    expect(lines[1]).toMatch(/^wrote suite-index-v1 to mainline main /);
+    expect(lines[1]).toMatch(/^wrote suite-index-v2 to mainline main /);
     expect(await readSuiteIndex(suiteIndexPath(configOf(), COMMIT))).toEqual(
       decodeSuiteIndex(encodeSuiteIndex(whole(SUITE.slice(0, 2)))),
     );
@@ -172,5 +214,69 @@ describe('share --publish over every shard', () => {
     const reports = await writeShards(false);
     const lines = await shareOutput(configOf(), { publish: true, reports });
     expect(lines[0]).toBe(`nothing published: ${reports[0]} has no ${join(home, 'shard-1', 'run.suite-part.json')} beside it.`);
+  });
+
+  it('refuses a part it cannot read by its path, through the binary, and publishes nothing', async () => {
+    const root = join(home, 'share');
+    const reports = await writeShards(true);
+    const torn = suitePartPath(reports[1]!);
+    await writeFile(torn, '{"version":2,"planned":2,"subjects":[]}\n');
+    const config = join(home, 'variance.config.json');
+    await writeFile(
+      config,
+      JSON.stringify({
+        project: 'web',
+        profile: 'chromium',
+        viewport: { width: 1280, height: 800 },
+        retention: 'ephemeral',
+        subjects: { kind: 'list', ids: ['story:ds-button--danger', 'story:page--default'], collector: './collector.mjs' },
+        fonts: [],
+        report: 'run.json',
+        share: { kind: 'directory', root, mainlines: ['main'] },
+      }),
+    );
+
+    let out = '';
+    let err = '';
+    const code = await main(['share', '--publish', ...reports, '--config', config], {
+      out: (text) => (out += text),
+      err: (text) => (err += text),
+    });
+
+    expect({ code, out, err: err.split('\n')[0] }).toEqual({
+      code: EXIT_OPERATOR,
+      out: '',
+      err: `nothing published: ${torn} is not a suite part this version reads.`,
+    });
+    expect(await readdir(home)).not.toContain('share');
+  });
+});
+
+describe('a part on disk', () => {
+  let root: string;
+
+  beforeEach(async () => {
+    root = await mkdtemp(join(tmpdir(), 'variance-suite-part-disk-'));
+  });
+
+  afterEach(async () => {
+    await rm(root, { recursive: true, force: true });
+  });
+
+  it('is written canonically, so equal parts are equal bytes whoever wrote them', async () => {
+    const [part] = parts(SUITE, 1, () => 1);
+    const report = join(root, 'run.json');
+    await writeSuitePart(report, part!);
+
+    expect(new Uint8Array(await readFile(suitePartPath(report)))).toEqual(encodeSuitePart(part!));
+    expect(await openSuitePart(suitePartPath(report))).toEqual(part);
+  });
+
+  it('refuses a torn part by its path, and reads nothing where there is none', async () => {
+    const report = join(root, 'run.json');
+    expect(await openSuitePart(suitePartPath(report))).toBeUndefined();
+
+    await writeFile(suitePartPath(report), '{"version":');
+    expect(await openSuitePart(suitePartPath(report))).toBe(`${suitePartPath(report)} is not JSON`);
   });
 });

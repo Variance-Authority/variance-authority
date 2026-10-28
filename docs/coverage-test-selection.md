@@ -5,8 +5,8 @@ executed the code you changed, according to a recording of an earlier run.
 [Variance Authority](README.md) records that relation on the suite you already
 run, for no more than 8% of its run time, and parses each changed file as it was
 recorded and as your diff leaves it before it selects a test. On an unmodified
-Zod checkout, a one-line edit selects 6 test files, 8 runs in all, where the
-import graph selects 131.
+Zod checkout, a one-line edit selects 6 test files, 8 runs in all, where
+rerunning every file that loads the changed module selects 197.
 
 This page compares that approach with other selectors: what each one records,
 where each one widens, and what each one costs to run on every change.
@@ -157,7 +157,7 @@ introduced with RAM bundles and
 make this rewrite for you, so a module loads only when the branch that needs it
 runs. The graph draws the same edge from `exportReport` to `./pdf` in both
 versions. The JSON test runs no code in `./pdf` in either version, and a record
-of what it ran says so in both.
+of what it ran shows that in both.
 
 A dynamic `import()` loads on demand, and the graph still counts it as loaded.
 Take a comment field that turns into a rich text editor when you double-click
@@ -173,12 +173,12 @@ export function CommentField({ value, onChange }) {
 }
 ```
 
-Every form in the product renders a comment field, and one team owns the
-editor. A graph read from source draws an edge from `CommentField` to
-`./editor`, because it cannot know whether anybody double-clicks. So when that
-team changes one toolbar button, every test that renders a form is selected.
-Almost none of them double-click. The record lists the tests that opened the
-editor, and a change to its toolbar selects those tests only.
+Every form in the product renders a comment field, and one team owns the editor.
+A graph read from source draws an edge from `CommentField` to `./editor`,
+because it cannot observe whether anybody double-clicks. So when that team
+changes one toolbar button, every test that renders a form is selected. Almost
+none of them double-click. The record lists the tests that opened the editor,
+and a change to its toolbar selects those tests only.
 
 In one file the gap between loading and running is one button, one branch or
 one double click. Across a suite it grows, for two reasons.
@@ -190,7 +190,7 @@ behaviour, so the tests of a module cover different, overlapping branches of
 it, and none of them runs all of it. A change to one branch is charged only to
 the tests that took that branch. Seen from one test file, the same rule applies:
 the file is charged with changes to the branches it ran, not with every change
-to every module it loads. In Zod, 131 test files load `locales/ru.ts`, 2 of
+to every module it loads. In Zod, 197 test files load `locales/ru.ts`, 2 of
 them call `getRussianPlural`, and 1 runs the branch the example edit
 changes.
 
@@ -202,7 +202,7 @@ at all. The further
 a test is from a module, the more often it loads the module and never calls it,
 because execution took another branch before it got there. In TanStack Query,
 149 of 188 test files load `query.ts`, and the median region in it is run by
-29 of them. The import graph counts all 149. The [execution record](execution-record.md) counts the tests
+29 of them. Rerunning every file that loads it selects all 149. The [execution record](execution-record.md) counts the tests
 that ran the changed region: the function, branch arm or loop body the edit is
 in.
 
@@ -211,7 +211,9 @@ in.
 So in a well-tested codebase the graph and the run give answers that are far
 apart. A [journey](journeys.md) is the set of code one test ran, stored after
 the run. It keeps no order: the order is a [test story](test-stories.md),
-written only when you ask for one. Selection reads journeys. A change to code in some test's journey selects
+written only when you ask for one. Under a test runner each test also keeps,
+for each region, the line of the test that first reached it, and selection
+does not read it. Selection reads journeys. A change to code in some test's journey selects
 that test. A change to code in no journey selects nothing, because no test ran
 it. In the record, a shared module is charged to the tests that ran the changed
 code. In the graph, it is charged to every test that imports it, and most of a
@@ -238,9 +240,9 @@ recorded on every run, so it describes an older commit.
 **What grain does a change charge?** A selector that decides by package or by
 file inherits the way modules load. Zod has 202 test files, and 196 of them
 import the code they test through one barrel. Change one line in
-`locales/ru.ts` and the package graph selects 201 files. The import graph
-selects 131, the files that load `ru.ts`. A record of which functions or regions
-ran shows that 2 of those 131 ran the function you changed.
+`locales/ru.ts` and the package graph selects 201 files. Rerunning every file
+that loads `ru.ts` selects 197. A record of which functions or regions ran shows
+that 2 of those 197 ran the function you changed.
 
 **What does an edit to a module's top level mean?** A line outside any function
 runs as the module loads, so by its lines alone it is charged to every test
@@ -266,6 +268,15 @@ same suites. At that
 cost you can record on every run, which keeps the record current.
 [Test-level coverage](test-level-coverage.md#what-you-already-believe-this-costs)
 has the measurements and how they were made.
+When a test file is the grain you select at,
+[`mode: 'loads'`](../packages/sense/README.md#record-only-what-each-test-file-loaded)
+records at Ekstazi's grain: the modules each test file loaded, with one line
+added after each module and nothing inside it. It is coarser than Ekstazi in
+two ways. Ekstazi compares a class by a checksum that leaves out debug
+information, so an edit to a comment selects nothing; under `loads` any change
+to a file's text selects every test file that loaded it. Ekstazi also records
+the resource files a test opens, where `loads` sees only what the run transforms; a file
+read with `fs` is a [precondition](execution-record.md) you declare.
 
 **It records blocks, and names them by position in the tree.** A region is a
 function, a branch arm, a loop body or a handler, and its identity is its
@@ -324,8 +335,8 @@ recorded text.
 **2. Git gives both texts.** The recorded text is read from git at the record's
 commit. The new text is that text with your hunks applied, so the diff is the
 whole description of the change, and a patch file works as well as `git diff`.
-When a hunk does not apply, the file is charged by its lines, and the run says
-so.
+When a hunk does not apply, the file is charged by its lines, and the run prints
+that.
 
 **3. Parsing both texts gives one verdict.** The native addon in
 [Sense](../packages/sense/README.md) parses each text with
@@ -337,7 +348,7 @@ emptied. It compares the two results side by side:
 | Whole, with comments, types and formatting removed | `none` | Nothing |
 | With bodies emptied, and every top-level value is the same | `bodies` | The regions around the changed lines |
 | With bodies emptied, but some top-level values differ | `values` | Those regions, and every function that reads a changed value, in this file and in the files that import it directly |
-| In neither form | `load` | Every test that loaded the file |
+| In neither form | `load` | The regions around the changed lines, as step 4 maps them. A line outside every function is in the module's own region, which every test that loaded the file ran |
 
 This edit is inside a function body, so the emptied texts are equal and nothing
 at the top level changed. The run prints one line for the file:
@@ -349,9 +360,9 @@ read packages/zod/src/v4/locales/ru.ts: bodies — the changed regions are charg
 **4. Lines become regions.** Line 14 is the first line of the `if` arm (lines
 14–16), inside `getRussianPlural` (lines 5–23). The arm is charged. The function
 is charged too, because the condition on line 14 runs in the function before
-the arm starts. The module's own region, lines 1–188, is not charged, because
-the verdict says that loading the module does the same thing as before. That
-region is the one all 131 files ran, just by loading `ru.ts`.
+the arm starts. The module's own region, lines 3–188, is not charged, because
+the verdict records that loading the module does the same thing as before. That
+region is the one all 197 files ran, just by loading `ru.ts`.
 
 **5. Regions become test files.** The record lists, for each region, the test
 files that ran it. Two ran `getRussianPlural`, and one of them ran the arm, so
@@ -417,12 +428,22 @@ Some reads cannot be placed in one function, and those charge the whole module:
 
 - A read at the top level, such as `const cache = new Array(MAX_ITEMS)`, runs
   when the module loads. Every test that loaded that file is selected.
+- A value converted at the top level, such as `const PAGES = MAX_ITEMS * 2` or
+  `` `${MAX_ITEMS} items` ``, can throw or run the value's own `toString` as the
+  module loads, so it charges the module too, and the readers of `PAGES` are
+  looked for as well. A copy, `===`, `!` and `typeof` convert nothing.
 - A namespace passed on whole, such as `configure(limits)`, or a module loaded
   by `require` or `import()`, gives the parser no name to match.
+- An importer whose text cannot be read, such as a Flow file, may read the name
+  anywhere or pass it on, so every test that loaded it is selected, through the
+  file graph when the record has no data for it. A test that mocked it ran
+  none of its text and is not selected.
 
 The search goes one import deep: it looks in the files that import the declaring
 file, and further only through a file that re-exports the name, such as a
-barrel with `export { MAX_ITEMS } from "./limits"`. Names are matched by
+barrel with `export { MAX_ITEMS } from "./limits"`. `limits.ts` is one of those
+files when it imports its own value back, as a namespace of itself or through
+such a barrel, under any local name. Names are matched by
 spelling, without resolving scopes. A parameter named `MAX_ITEMS` counts as a
 read, which selects more tests and never fewer. A test that loaded `limits.ts`
 through an import the file graph does not list is printed by name as `unseen`
@@ -442,9 +463,9 @@ unmodified fork with one commit of setup:
 |---|---|---|
 | Test files | 202 | 188 |
 | One-line edit, package graph | 201 files | 168 files, from `nx affected` |
-| One-line edit, test files that load the changed module | 131 files | 149 files |
-| One-line edit, the record | 6 files in 8 runs, 1.6 s instead of 8.1 s | 10 files, 4.4 s instead of 12.7 s |
-| Test file runs skipped over sixty commits | at least 51% | at least 79% |
+| One-line edit, test files that load the changed module | 197 files | 149 files |
+| One-line edit, the record | 6 files in 8 runs, 1.5 s instead of 8.2 s | 9 files, 758 of 4,523 tests |
+| Test file runs skipped over sixty commits | 57% | 93% |
 | Recording cost, at most | 1.02× | 1.08× |
 
 ```mermaid
@@ -455,10 +476,10 @@ config:
 ---
 xychart-beta horizontal
   accTitle: Test files one one-line edit selects, by what reads the change
-  x-axis ["Zod, package graph", "Zod, import graph", "Zod, record", "Query, nx affected", "Query, import graph", "Query, record"]
+  x-axis ["Zod, package graph", "Zod, files that load it", "Zod, record", "Query, nx affected", "Query, files that load it", "Query, record"]
   y-axis "test files selected" 0 --> 210
   bar [0, 0, 6, 0, 0, 10]
-  bar [201, 131, 0, 168, 149, 0]
+  bar [201, 197, 0, 168, 149, 0]
   bar [0, 0, 0, 0, 0, 0]
   bar [0, 0, 0, 0, 0, 0]
 ```
@@ -474,14 +495,28 @@ run records which test case covered which region, and [test-level coverage](test
 explain a line.
 
 It does not rank, predict or learn from history. A test runs because the
-record saw it execute changed code, or because the record cannot rule it out.
+record has it executing changed code, or because the record cannot rule it out.
 A selector that learns from past failures can skip more, and it can also skip
 a test that would have failed; this one does not make that trade.
 
 A record describes the commit it was recorded at. A change is measured from
 that commit rather than from your branch point, so a record several commits old
-selects for every change made since. Record on every run and the record is
-never more than one commit old.
+selects for every change made since. Record a run of the whole suite at every
+commit and the record is never more than one commit old. A run of some of the
+tests also stamps the record with its commit, and the tests it left out keep
+the rows they recorded on an older text. Each of those is measured from the
+commit it last ran at: what changed after that commit is read from both texts,
+the way a change in your tree is, so a test runs for an edit to a region it
+entered and not for one elsewhere in the same file. The install is compared from
+that commit too. A patch you hand in with `--diff` is read as the whole change
+for every test. A test that last ran before the record's commit is then not
+charged with what changed between its commit and the record's, so it can be
+skipped; the output reports when some test last ran before the record's commit.
+
+Where the record does not hold the commit a test last ran at, the selection
+assumes one and names it in the output. That assumption can skip a test that
+should run: a test read as though it ran later than it did is not charged with
+what changed in between.
 
 It does not see through a cache. A memoized function is credited to the case
 that ran it first. A later case that got the cached result is not recorded as
@@ -491,10 +526,16 @@ says when that happens and when it does not.
 
 ## Start
 
+- [Run the tests an edit needs](test-an-edit.md) for the loop: wrap the
+  runner once, then set one variable on each run.
 - [Record your Vitest, Jest or Rstest suite](../packages/sense/README.md) with
   `@variance-authority/sense`, or [any other runner](../packages/sense/README.md#record-a-runner-this-package-has-no-seam-for) with
-  `@variance-authority/sense/runner`. Then pass
-  `$(variance select --format vitest)` to your runner.
+  `@variance-authority/sense/runner`. Under Vitest or Jest 30, set
+  `VARIANCE_AUTHORITY_SINCE` when you run it, and the runner
+  [drops what the change cannot reach](../packages/sense/README.md#let-the-runner-skip-them).
+  Rstest and a runner recorded through `/runner` have no such seam: read the
+  skip list from `variance select --format json` and leave those files out
+  where your runner lists its test files.
 - [Measure test distance](distance.md) to run the tests nearest to a change
   first.
 - [Run relevant work](run-relevant-work.md) when the tests are visual subjects

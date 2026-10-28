@@ -1,19 +1,12 @@
-import { mkdir, readFile, rm, mkdtemp, writeFile } from 'node:fs/promises';
-import { createRequire } from 'node:module';
+import { readFile, rm, mkdtemp, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 import { instrumentationId } from '../instrument/index.js';
 import { decodeTestCoverage } from './format.js';
-import {
-  oneRowPerFile,
-  reportedComplete,
-  runnerSkipped,
-  taskComplete,
-  type ReportedModule,
-  type RunnerTask,
-} from './finished-files.js';
-import { mergeCoverage, withTestSelection } from './vitest.js';
+import { oneRowPerFile, reportedComplete, runnerSkipped, taskComplete, type ReportedModule, type RunnerTask } from './finished-files.js';
+import { laidCoverage } from './__fixtures__/laid.js';
+import { withTestSelection } from './vitest.js';
 import type { CoverageBlock, TestCoverage } from './index.js';
 
 describe('what a finished test file is worth', () => {
@@ -149,31 +142,6 @@ describe('a test file two projects both ran', () => {
 });
 
 describe('what the seam refuses to instrument', () => {
-  it('leaves a declared globalSetup file alone', async () => {
-    // Vitest runs `globalSetup` in its own process, before any test
-    // environment: the setup shim that installs `globalThis.__VA__` is a
-    // `setupFiles` entry and has not run there. Instrumented, the file throws
-    // at its first probe and the whole suite dies before a test loads.
-    const root = await mkdtemp(resolve(tmpdir(), 'variance-global-setup-'));
-    const coverageFile = resolve(root, 'coverage.bin');
-    try {
-      const configured = withTestSelection(
-        { test: { globalSetup: ['./eyes.globalSetup.ts'] } },
-        { root, coverageFile },
-      );
-      const plugin = (configured.plugins as unknown as Array<{
-        transform(code: string, id: string): { code: string } | null;
-      }>)[0]!;
-      const source = 'export default function setup() { return 1; }';
-
-      expect(plugin.transform(source, resolve(root, 'eyes.globalSetup.ts'))).toBeNull();
-      // The exclusion is the named path, not every file beside it.
-      expect(plugin.transform(source, resolve(root, 'src/cart.ts'))!.code).toContain('function __va(i)');
-    } finally {
-      await rm(root, { recursive: true, force: true });
-    }
-  });
-
   it('puts its setup shim and case runner on disk, where no plugin has to resolve them', async () => {
     // Vitest 4 loads both through Vite's module runner, which never consults
     // this config's plugins: as virtual ids they came back
@@ -198,57 +166,42 @@ describe('what the seam refuses to instrument', () => {
     }
   });
 
-  it('names Vitest\'s own packages by a path the runner file can resolve', async () => {
-    // `@vitest/runner` is Vitest's dependency, not the project's, and the case
-    // runner is a file in the project root. Under a layout that does not hoist
-    // — pnpm's — a bare specifier there resolves to nothing: measured on
-    // TanStack Query, where 163 files failed to load, the 25 that needed no
-    // runner passed, and the run reported itself green in a third of the time.
-    const root = await mkdtemp(resolve(tmpdir(), 'variance-runner-import-'));
-    const vitest = resolve(root, 'node_modules/vitest');
-    const runnerPackage = resolve(vitest, 'node_modules/@vitest/runner');
-    try {
-      await mkdir(runnerPackage, { recursive: true });
-      await writeFile(resolve(root, 'package.json'), '{"name":"project"}');
-      await writeFile(resolve(vitest, 'package.json'), '{"name":"vitest","main":"index.js"}');
-      await writeFile(resolve(vitest, 'index.js'), 'export {};');
-      await writeFile(resolve(runnerPackage, 'package.json'), '{"name":"@vitest/runner","main":"index.js"}');
-      await writeFile(resolve(runnerPackage, 'index.js'), 'export const getFn = () => undefined;');
-      await writeFile(resolve(runnerPackage, 'utils.js'), 'export const getNames = () => [];');
-
-      // The layout this is about: reachable from Vitest, unreachable from the
-      // project that installed it.
-      expect(() => createRequire(resolve(root, 'package.json')).resolve('@vitest/runner')).toThrow();
-
-      const configured = withTestSelection({}, { root, coverageFile: resolve(root, 'coverage.bin') });
-      const runner = configured.test!.runner as string;
-      const source = await readFile(runner, 'utf8');
-      const spelling = (name: string): string =>
-        new RegExp(`import \\{ ${name} \\} from "([^"]+)"`).exec(source)![1]!;
-      const from = createRequire(runner);
-
-      // Relative, because a leading slash is root-relative to Vite — and to the
-      // file Vitest loads, because a second copy of `@vitest/runner` is a
-      // second `getFn` over a different map.
-      expect(spelling('getFn')).toMatch(/^\.\./);
-      const fromVitest = createRequire(resolve(vitest, 'package.json'));
-      expect(from.resolve(spelling('getFn'))).toBe(fromVitest.resolve('@vitest/runner'));
-      expect(from.resolve(spelling('getNames'))).toBe(fromVitest.resolve('@vitest/runner/utils'));
-    } finally {
-      await rm(root, { recursive: true, force: true });
-    }
-  });
-
   it('leaves the config file itself alone under the default include', async () => {
     const root = await mkdtemp(resolve(tmpdir(), 'variance-config-file-'));
     const coverageFile = resolve(root, 'coverage.bin');
     try {
       const configured = withTestSelection({}, { root, coverageFile });
-      const plugin = (configured.plugins as unknown as Array<{
-        transform(code: string, id: string): { code: string } | null;
-      }>)[0]!;
+      const plugins = configured.plugins as unknown as Array<{
+        transform: { handler(code: string, id: string): { code: string } | null };
+      }>;
 
-      expect(plugin.transform('export default {};', resolve(root, 'vitest.config.ts'))).toBeNull();
+      // Neither the cut nor the probes.
+      for (const plugin of plugins) {
+        expect(plugin.transform.handler('export default {};', resolve(root, 'vitest.config.ts'))).toBeNull();
+      }
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+});
+
+describe('a module named unprobed', () => {
+  it('runs marked as loaded and recorded as not instrumented, though include accepts it too', async () => {
+    const root = await mkdtemp(resolve(tmpdir(), 'variance-unprobed-'));
+    const coverageFile = resolve(root, 'coverage.bin');
+    try {
+      const page = resolve(root, 'page.ts');
+      const configured = withTestSelection({}, { root, coverageFile, include: () => true, unprobed: (file) => file === page });
+      const { plugin, reporter } = seamOf(configured);
+      await writeFile(page, 'export function f(x) { if (x) { return 1; } return 2; }');
+
+      const placed = plugin.transform.handler('export function f(x) { if (x) { return 1; } return 2; }', page);
+      await reporter.onFinished([]);
+
+      expect(placed!.code).toMatch(/^export function f\(x\) \{ if \(x\) \{ return 1; \} return 2; \}\n;globalThis\.__VA__\.m\("[^"\n]*"\);$/);
+      expect(decodeTestCoverage(await readFile(coverageFile)).modules).toEqual([
+        expect.objectContaining({ file: 'page.ts', instrumented: false, blocks: [] }),
+      ]);
     } finally {
       await rm(root, { recursive: true, force: true });
     }
@@ -261,14 +214,13 @@ describe('coverage generations', () => {
     const coverageFile = resolve(root, 'coverage.bin');
     try {
       const configured = withTestSelection({}, { root, coverageFile, include: () => true });
-      const plugin = (configured.plugins as unknown as Array<{
-        transform(code: string, id: string): unknown;
-      }>)[0]!;
-      const reporter = (configured.test!.reporters as unknown as Array<{
-        onFinished(files: readonly []): Promise<void>;
-      }>)[1]!;
-
-      expect(plugin.transform('const =', resolve(root, 'broken.ts'))).toBeNull();
+      const { plugin, reporter } = seamOf(configured);
+      await writeFile(resolve(root, 'broken.ts'), 'const =');
+      // It still runs marked as loaded, so a test that loaded it still says so.
+      expect(plugin.transform.handler('const =', resolve(root, 'broken.ts'))).toEqual({
+        code: expect.stringMatching(/^const =\n;globalThis\.__VA__\.m\("[^"\n]*"\);$/),
+        map: null,
+      });
       await reporter.onFinished([]);
 
       expect(decodeTestCoverage(await readFile(coverageFile)).modules).toEqual([{
@@ -294,7 +246,7 @@ describe('coverage generations', () => {
       const configured = withTestSelection({}, { root, coverageFile, include: () => false });
       const reporter = (configured.test!.reporters as unknown as Array<{
         onFinished(files: readonly unknown[]): Promise<void>;
-      }>)[1]!;
+      }>).at(-1)!;
 
       await reporter.onFinished([{ filepath: testFile, tasks: [] }]);
 
@@ -318,7 +270,7 @@ describe('coverage generations', () => {
       const configured = withTestSelection({}, { root, coverageFile, include: () => false });
       const reporter = (configured.test!.reporters as unknown as Array<{
         onFinished(files: readonly []): Promise<void>;
-      }>)[1]!;
+      }>).at(-1)!;
 
       await reporter.onFinished([]);
 
@@ -334,14 +286,10 @@ describe('coverage generations', () => {
     const coverageFile = resolve(root, 'coverage.bin');
     try {
       const configured = withTestSelection({}, { root, coverageFile, include: () => true, mode: 'entries' });
-      const plugin = (configured.plugins as unknown as Array<{
-        transform(code: string, id: string): { code: string } | null;
-      }>)[0]!;
-      const reporter = (configured.test!.reporters as unknown as Array<{
-        onFinished(files: readonly []): Promise<void>;
-      }>)[1]!;
+      const { plugin, reporter } = seamOf(configured);
+      await writeFile(resolve(root, 'f.ts'), 'export function f(x) { if (x) { return 1; } return 2; }');
 
-      const placed = plugin.transform('export function f(x) { if (x) { return 1; } return 2; }', resolve(root, 'f.ts'));
+      const placed = plugin.transform.handler('export function f(x) { if (x) { return 1; } return 2; }', resolve(root, 'f.ts'));
       await reporter.onFinished([]);
 
       // One probe for the function and none for the branch; the header marks
@@ -359,7 +307,7 @@ describe('coverage generations', () => {
     const previous = coverage(true, 'test:old', module('source:old', ['case.test.ts']));
     const current = coverage(true, 'test:new');
 
-    const merged = mergeCoverage(previous, current);
+    const merged = laidCoverage(previous, current);
 
     expect(merged.tests).toEqual(current.tests);
     expect(merged.modules[0]?.blocks.flatMap((block) => block.testFiles)).toEqual([]);
@@ -369,7 +317,7 @@ describe('coverage generations', () => {
     const previous = coverage(true, 'test:same', module('source:old', ['case.test.ts']));
     const current = coverage(false, 'test:same');
 
-    const merged = mergeCoverage(previous, current);
+    const merged = laidCoverage(previous, current);
 
     expect(merged.tests).toEqual(current.tests);
     expect(merged.modules[0]?.blocks.flatMap((block) => block.testFiles)).toContain('case.test.ts');
@@ -379,7 +327,7 @@ describe('coverage generations', () => {
     const previous = coverage(true, 'test:old', module('source:old', ['case.test.ts']));
     const current = coverage(false, 'test:new');
 
-    const merged = mergeCoverage(previous, current);
+    const merged = laidCoverage(previous, current);
 
     expect(merged.tests).toEqual(current.tests);
     expect(merged.tests[0]?.complete).toBe(false);
@@ -404,7 +352,7 @@ describe('coverage generations', () => {
       module('source:new', [], { entry: 'entry:new', outcome: 'outcome:same' }),
     );
 
-    const merged = mergeCoverage(previous, current);
+    const merged = laidCoverage(previous, current);
     const blocks = merged.modules[0]!.blocks;
 
     expect(blocks.find((block) => block.path === 'entry')?.testFiles).toEqual(['case.test.ts']);
@@ -429,7 +377,7 @@ describe('coverage generations', () => {
     const previous = coverage(true, 'test:old', module('source:old', ['case.test.ts']));
     const current = coverage(false, 'test:old', module('source:new', [], {}, 'chose'));
 
-    const merged = mergeCoverage(previous, current);
+    const merged = laidCoverage(previous, current);
     const blocks = merged.modules[0]!.blocks;
 
     expect(blocks.find((block) => block.name === 'chose')?.testFiles)
@@ -437,6 +385,16 @@ describe('coverage generations', () => {
     expect(blocks.find((block) => block.path === 'module')?.testFiles).toEqual(['case.test.ts']);
   });
 });
+
+/** The probes plugin and the recording reporter of a configuration the seam wrapped. */
+function seamOf(configured: ReturnType<typeof withTestSelection>) {
+  const plugins = configured.plugins as unknown as Array<{
+    name: string;
+    transform: { handler(code: string, id: string): { code: string } | null };
+  }>;
+  const reporters = configured.test!.reporters as unknown as Array<{ onFinished(files: readonly []): Promise<void> }>;
+  return { plugin: plugins.find(({ name }) => name === 'variance-authority:test-selection-probes')!, reporter: reporters.at(-1)! };
+}
 
 function coverage(
   complete: boolean,

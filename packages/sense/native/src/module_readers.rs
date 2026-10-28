@@ -18,6 +18,9 @@
 //!   that loaded the file saw it;
 //! - a read into another pure binding — `const B = { a: A }` — moves the change
 //!   to `B`, and `B`'s readers are asked in turn;
+//! - a read the module converts as it loads — `const B = A * 2`, `` `${A}` ``,
+//!   `-A`, `{ [A]: 1 }` — is a load as well: the conversion can throw or run the
+//!   value's own code, so a test that never reads `B` still sees the change;
 //! - a name the file exports is the caller's to ask of the files that import it,
 //!   and there only by the names they import it under.
 //!
@@ -29,11 +32,16 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use oxc_ast::ast::*;
-use oxc_ast_visit::{walk, Visit};
-use oxc_syntax::scope::ScopeFlags;
 use napi_derive::napi;
 
-use crate::module_shape::{plain_class, pure, Lines};
+use crate::module_shape::Lines;
+
+#[path = "module_readers_walk.rs"]
+mod walker;
+use walker::reading_of;
+
+#[path = "module_references.rs"]
+mod references;
 
 #[derive(Clone, Copy, PartialEq)]
 enum Where {
@@ -47,6 +55,28 @@ struct Read {
     line: u32,
     at: Where,
     into: Option<String>,
+    /// Converted as the module loads, by an operator or a template.
+    converted: bool,
+    /// Inside a function or an instance field, so it runs when that is called, not when the module loads.
+    nested: bool,
+}
+
+/// One name an import declaration binds.
+struct Import {
+    local: String,
+    /// The name it imports, `default` or `*`.
+    imported: String,
+    /// The specifier, as written.
+    source: String,
+}
+
+/// One `export … from`.
+struct Reexport {
+    /// The name taken from the source, `*` for all.
+    taken: String,
+    /// The name given, if any.
+    given: Option<String>,
+    source: String,
 }
 
 /// One walk over a file, which every question about its readers is asked of.
@@ -54,10 +84,13 @@ pub struct Reading {
     reads: Vec<Read>,
     /// Local name to the names the module exports it as.
     exports: BTreeMap<String, Vec<String>>,
-    /// Every value import: its local name and the name it imports, `default` or `*`.
-    pub imports: Vec<(String, String)>,
-    /// `export … from`: the name taken from the source (`*` for all), and the name given, if any.
-    pub reexports: Vec<(String, Option<String>)>,
+    /// Every name a value import binds.
+    imports: Vec<Import>,
+    reexports: Vec<Reexport>,
+    /// Every specifier a value import or re-export names, side effects included.
+    sources: BTreeSet<String>,
+    /// Every specifier an import with no braces or binding names, `import './x'`, loaded for its effect.
+    effects: BTreeSet<String>,
     /// A `require`, an `import()` or an `import x = require()`: a binding no name reaches.
     pub untraced: bool,
 }
@@ -72,40 +105,6 @@ pub struct Readers {
     pub load: BTreeSet<String>,
     /// Names the file exports whose value moved with the change.
     pub exported: BTreeMap<String, String>,
-}
-
-pub fn reading_of(program: &Program, lines: &Lines) -> Reading {
-    let mut walker = Walker {
-        lines,
-        reading: Reading {
-            reads: Vec::new(),
-            exports: BTreeMap::new(),
-            imports: Vec::new(),
-            reexports: Vec::new(),
-            untraced: false,
-        },
-        namespaces: BTreeSet::new(),
-        in_function: false,
-        into: None,
-    };
-    for statement in &program.body {
-        let Statement::ImportDeclaration(import) = statement else { continue };
-        for specifier in import.specifiers.iter().flatten() {
-            let (local, imported) = match specifier {
-                ImportDeclarationSpecifier::ImportSpecifier(it) => (&it.local, it.imported.name().to_string()),
-                ImportDeclarationSpecifier::ImportDefaultSpecifier(it) => (&it.local, "default".to_string()),
-                ImportDeclarationSpecifier::ImportNamespaceSpecifier(it) => (&it.local, "*".to_string()),
-            };
-            if imported == "*" {
-                walker.namespaces.insert(local.name.to_string());
-            }
-            walker.reading.imports.push((local.name.to_string(), imported));
-        }
-    }
-    for statement in &program.body {
-        walker.top(statement);
-    }
-    walker.reading
 }
 
 /// Every name the module exports, to what it is bound: a local name, or the
@@ -136,214 +135,6 @@ pub fn interface_of(program: &Program, lines: &Lines) -> BTreeMap<String, String
         }
     }
     interface
-}
-
-struct Walker<'l> {
-    lines: &'l Lines,
-    reading: Reading,
-    namespaces: BTreeSet<String>,
-    in_function: bool,
-    into: Option<String>,
-}
-
-impl Walker<'_> {
-    fn read(&mut self, name: &str, offset: u32, escape: bool) {
-        let at = if escape { Where::Escape } else if self.in_function { Where::Function } else { Where::Top };
-        let into = if self.in_function { None } else { self.into.clone() };
-        self.reading.reads.push(Read { name: name.to_string(), line: self.lines.at(offset), at, into });
-    }
-
-    fn export_as(&mut self, local: &str, name: &str) {
-        self.reading.exports.entry(local.to_string()).or_default().push(name.to_string());
-    }
-
-    fn within(&mut self, value: Option<&Expression>, name: Option<String>) {
-        let was = std::mem::replace(&mut self.into, name);
-        if let Some(value) = value {
-            self.visit_expression(value);
-        }
-        self.into = was;
-    }
-
-    fn inside(&mut self, run: impl FnOnce(&mut Self)) {
-        let was = std::mem::replace(&mut self.in_function, true);
-        run(self);
-        self.in_function = was;
-    }
-
-    /// A pure class's instance fields are values `new` reads, so a read in one
-    /// moves the change to the class.
-    fn class(&mut self, class: &Class, name: Option<&str>) {
-        let Some(name) = name.filter(|_| plain_class(class)) else { return self.visit_class(class) };
-        for member in &class.body.body {
-            match member {
-                ClassElement::PropertyDefinition(field) if !field.r#static => {
-                    self.within(field.value.as_ref(), Some(name.to_string()));
-                }
-                ClassElement::AccessorProperty(field) if !field.r#static => {
-                    self.within(field.value.as_ref(), Some(name.to_string()));
-                }
-                member => self.visit_class_element(member),
-            }
-        }
-    }
-
-    fn top(&mut self, statement: &Statement) {
-        match statement {
-            Statement::ImportDeclaration(_) => {}
-            Statement::ExportFromDeclaration(it) => {
-                for specifier in &it.specifiers {
-                    let exported = specifier.exported.name().to_string();
-                    self.reading.reexports.push((specifier.local.name().to_string(), Some(exported)));
-                }
-            }
-            Statement::ExportAllDeclaration(it) => {
-                let exported = it.exported.as_ref().map(|name| name.name().to_string());
-                self.reading.reexports.push(("*".to_string(), exported));
-            }
-            // A list's names are exports, not reads.
-            Statement::ExportNamedDeclaration(it) => {
-                for specifier in &it.specifiers {
-                    self.export_as(&specifier.local.name(), &specifier.exported.name());
-                }
-            }
-            Statement::ExportDeclaration(it) => {
-                for name in declared(&it.declaration) {
-                    self.export_as(&name, &name);
-                }
-                self.declaration(&it.declaration);
-            }
-            Statement::ExportDefaultDeclaration(it) => match &it.declaration {
-                ExportDefaultDeclarationKind::FunctionDeclaration(function) => {
-                    if let Some(id) = &function.id {
-                        self.export_as(&id.name, "default");
-                    }
-                    self.visit_function(function, ScopeFlags::Function);
-                }
-                ExportDefaultDeclarationKind::ClassDeclaration(class) => match &class.id {
-                    Some(id) => {
-                        self.export_as(&id.name, "default");
-                        self.class(class, Some(&id.name));
-                    }
-                    None => self.class(class, Some("default")),
-                },
-                ExportDefaultDeclarationKind::TSInterfaceDeclaration(_) => {}
-                ExportDefaultDeclarationKind::Identifier(id) => self.export_as(&id.name, "default"),
-                declaration => {
-                    let expression = declaration.to_expression();
-                    self.within(Some(expression), pure(expression).then(|| "default".to_string()));
-                }
-            },
-            statement => match statement.as_declaration() {
-                Some(declaration) => self.declaration(declaration),
-                None => self.visit_statement(statement),
-            },
-        }
-    }
-
-    fn declaration(&mut self, declaration: &Declaration) {
-        match declaration {
-            Declaration::VariableDeclaration(it) => {
-                for declarator in &it.declarations {
-                    match &declarator.id {
-                        BindingPattern::BindingIdentifier(id) => {
-                            let into = declarator.init.as_ref().is_none_or(pure).then(|| id.name.to_string());
-                            self.within(declarator.init.as_ref(), into);
-                        }
-                        _ => self.visit_variable_declarator(declarator),
-                    }
-                }
-            }
-            Declaration::ClassDeclaration(class) => {
-                let name = class.id.as_ref().map(|id| id.name.to_string());
-                self.class(class, name.as_deref());
-            }
-            declaration => self.visit_declaration(declaration),
-        }
-    }
-}
-
-impl<'a> Visit<'a> for Walker<'_> {
-    fn visit_identifier_reference(&mut self, it: &IdentifierReference<'a>) {
-        let escape = self.namespaces.contains(it.name.as_str());
-        self.read(&it.name, it.span.start, escape);
-    }
-
-    fn visit_static_member_expression(&mut self, it: &StaticMemberExpression<'a>) {
-        match &it.object {
-            Expression::Identifier(object) if self.namespaces.contains(object.name.as_str()) => {
-                self.read(&format!("{}.{}", object.name, it.property.name), it.span.start, false);
-            }
-            _ => walk::walk_static_member_expression(self, it),
-        }
-    }
-
-    fn visit_jsx_member_expression(&mut self, it: &JSXMemberExpression<'a>) {
-        match &it.object {
-            JSXMemberExpressionObject::IdentifierReference(object) if self.namespaces.contains(object.name.as_str()) => {
-                self.read(&format!("{}.{}", object.name, it.property.name), it.span.start, false);
-            }
-            _ => walk::walk_jsx_member_expression(self, it),
-        }
-    }
-
-    // The opening tag already read the name.
-    fn visit_jsx_closing_element(&mut self, _: &JSXClosingElement<'a>) {}
-
-    fn visit_function(&mut self, it: &Function<'a>, flags: ScopeFlags) {
-        self.inside(|walker| walk::walk_function(walker, it, flags));
-    }
-
-    fn visit_arrow_function_expression(&mut self, it: &ArrowFunctionExpression<'a>) {
-        self.inside(|walker| walk::walk_arrow_function_expression(walker, it));
-    }
-
-    // An instance field's value runs when the class is constructed, which is a
-    // call like any other; a static one runs where the class is defined.
-    fn visit_property_definition(&mut self, it: &PropertyDefinition<'a>) {
-        self.visit_decorators(&it.decorators);
-        if it.computed {
-            self.visit_property_key(&it.key);
-        }
-        if let Some(value) = &it.value {
-            match it.r#static {
-                true => self.visit_expression(value),
-                false => self.inside(|walker| walker.visit_expression(value)),
-            }
-        }
-    }
-
-    fn visit_accessor_property(&mut self, it: &AccessorProperty<'a>) {
-        self.visit_decorators(&it.decorators);
-        if it.computed {
-            self.visit_property_key(&it.key);
-        }
-        if let Some(value) = &it.value {
-            match it.r#static {
-                true => self.visit_expression(value),
-                false => self.inside(|walker| walker.visit_expression(value)),
-            }
-        }
-    }
-
-    fn visit_import_expression(&mut self, it: &ImportExpression<'a>) {
-        self.reading.untraced = true;
-        walk::walk_import_expression(self, it);
-    }
-
-    fn visit_call_expression(&mut self, it: &CallExpression<'a>) {
-        if matches!(&it.callee, Expression::Identifier(callee) if callee.name == "require") {
-            self.reading.untraced = true;
-        }
-        walk::walk_call_expression(self, it);
-    }
-
-    fn visit_ts_import_equals_declaration(&mut self, it: &TSImportEqualsDeclaration<'a>) {
-        if matches!(it.module_reference, TSModuleReference::ExternalModuleReference(_)) {
-            self.reading.untraced = true;
-        }
-        walk::walk_ts_import_equals_declaration(self, it);
-    }
 }
 
 /// Where the change to these names is observed in this file: the lines of the
@@ -380,7 +171,7 @@ pub fn readers_of(reading: &Reading, seeds: impl IntoIterator<Item = (String, St
             Where::Escape => {
                 load.insert(origin.clone());
             }
-            Where::Top if read.into.is_none() => {
+            Where::Top if read.into.is_none() || read.converted => {
                 load.insert(origin.clone());
             }
             Where::Top => {}
@@ -406,7 +197,7 @@ pub fn readers_of(reading: &Reading, seeds: impl IntoIterator<Item = (String, St
 /// whose other uses are an escape.
 pub fn imported_as(reading: &Reading, exported: &[String]) -> Vec<(String, String)> {
     let mut seeds = Vec::new();
-    for (local, imported) in &reading.imports {
+    for Import { local, imported, .. } in &reading.imports {
         if imported == "*" {
             seeds.extend(exported.iter().map(|name| (format!("{local}.{name}"), name.clone())));
             // The namespace itself, handed on whole, carries every changed name.
@@ -418,35 +209,7 @@ pub fn imported_as(reading: &Reading, exported: &[String]) -> Vec<(String, Strin
     seeds
 }
 
-/// The names a declaration binds at top level, through any destructuring.
-pub fn declared(declaration: &Declaration) -> Vec<String> {
-    let mut names = Vec::new();
-    match declaration {
-        Declaration::VariableDeclaration(it) => it.declarations.iter().for_each(|it| bound(&it.id, &mut names)),
-        Declaration::FunctionDeclaration(it) => names.extend(it.id.as_ref().map(|id| id.name.to_string())),
-        Declaration::ClassDeclaration(it) => names.extend(it.id.as_ref().map(|id| id.name.to_string())),
-        Declaration::TSEnumDeclaration(it) => names.push(it.id.name.to_string()),
-        Declaration::TSNamespaceDeclaration(it) => names.push(it.id.name.to_string()),
-        Declaration::TSImportEqualsDeclaration(it) => names.push(it.id.name.to_string()),
-        _ => {}
-    }
-    names
-}
-
-pub fn bound(pattern: &BindingPattern, names: &mut Vec<String>) {
-    match pattern {
-        BindingPattern::BindingIdentifier(it) => names.push(it.name.to_string()),
-        BindingPattern::ObjectPattern(it) => {
-            it.properties.iter().for_each(|property| bound(&property.value, names));
-            it.rest.iter().for_each(|rest| bound(&rest.argument, names));
-        }
-        BindingPattern::ArrayPattern(it) => {
-            it.elements.iter().flatten().for_each(|element| bound(element, names));
-            it.rest.iter().for_each(|rest| bound(&rest.argument, names));
-        }
-        BindingPattern::AssignmentPattern(it) => bound(&it.left, names),
-    }
-}
+pub use variance_sense_instrument::native::{bound, declared, Erased};
 
 /// One read of a changed value inside a function.
 #[napi(object)]
@@ -501,7 +264,7 @@ pub fn module_readers(file: String, text: String, names: Vec<String>, imported: 
     let readers = readers_of(&reading, seeds);
     let mut passed = BTreeMap::new();
     if imported {
-        for (taken, given) in &reading.reexports {
+        for Reexport { taken, given, .. } in &reading.reexports {
             match (taken.as_str(), given) {
                 ("*", Some(namespace)) => {
                     if let Some(first) = names.first() {
@@ -520,7 +283,7 @@ pub fn module_readers(file: String, text: String, names: Vec<String>, imported: 
             }
         }
     }
-    let imports = reading.imports.iter().filter(|(_, imported)| imported != "*").map(|(_, imported)| imported.clone());
+    let imports = reading.imports.iter().filter(|it| it.imported != "*").map(|it| it.imported.clone());
     let pairs = |map: BTreeMap<String, String>| {
         map.into_iter().map(|(name, origin)| ModuleExport { name, origin }).collect::<Vec<_>>()
     };

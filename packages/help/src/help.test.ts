@@ -8,6 +8,7 @@ import { readHelp } from '@variance-authority/package/help';
 import { HELP, HELP_TOOLS, audience } from './tools.js';
 import { serveWorkspace } from './server.js';
 import { writePages } from './write.js';
+import { FoundNothing } from './tools/find.js';
 
 const WORKSPACE = join(dirname(fileURLToPath(import.meta.url)), './__fixtures__/workspace');
 const READING = readHelp(WORKSPACE);
@@ -18,9 +19,9 @@ function call(name: string, args: Record<string, unknown> = {}): string {
   return tool.run(READING, args);
 }
 
-describe('the first question', () => {
+describe('the question that takes no argument', () => {
   it('answers with the specifiers every other tool takes as an argument', () => {
-    // The whole reason this tool is first. A model that has to guess a package
+    // The whole reason this tool takes no argument. A model that has to guess a package
     // name to ask anything will guess, and a wrong guess reads exactly like a
     // workspace that does not publish the thing.
     const text = call('docs_packages');
@@ -30,16 +31,20 @@ describe('the first question', () => {
   });
 
   it('says how much of each door is used and documented', () => {
-    expect(call('docs_packages')).toMatch(/alpha — \d+ names, \d+ imported elsewhere, \d+ documented/);
+    expect(call('docs_packages')).toMatch(/alpha — \d+ names?, \d+ imported elsewhere, \d+ documented/);
   });
 
   it('reports a specifier that reaches past a published entrypoint', () => {
     const reaching = {
       ...READING,
-      deep: [{ specifier: 'alpha/values', by: 'beta', at: 'packages/beta/src/index.ts', line: 2 }],
+      deep: [{ specifier: 'alpha/values', by: 'beta', at: 'packages/beta/src/index.ts', line: 2, names: [] }],
     };
     const tool = HELP_TOOLS.find((candidate) => candidate.name === 'docs_packages')!;
-    expect(tool.run(reaching, {})).toContain('alpha/values — beta at packages/beta/src/index.ts:2');
+    expect(tool.run(reaching, {})).toMatch(/^ {2}alpha — 1 import$/m);
+    expect(tool.run(reaching, {})).toMatch(/^ {2}variance ask entrypoint --package alpha$/m);
+    const door = HELP_TOOLS.find((candidate) => candidate.name === 'docs_entrypoint')!;
+    expect(door.run(reaching, { package: 'alpha' })).toContain('  alpha/values — 0 names, imported by 1 file');
+    expect(door.run(reaching, { package: 'alpha/values' })).toMatch(/^ {2}the whole module, no name read — imported by 1 file$/m);
   });
 
   it('says when a file could not be read, because a missed import makes a live name look dead', () => {
@@ -74,6 +79,15 @@ describe('what one door opens', () => {
 
   it('names what is there when a package is not', () => {
     expect(() => call('docs_entrypoint', { package: 'gamma' })).toThrow(/this workspace publishes: alpha, beta/);
+  });
+
+  it('says a workspace publishes nothing rather than listing nothing', () => {
+    const empty = { ...READING, packages: [] };
+    const door = HELP_TOOLS.find((candidate) => candidate.name === 'docs_entrypoint')!;
+    expect(() => door.run(empty, { package: 'gamma' })).toThrow(/publishes no package/);
+    expect(() => door.run(empty, { package: 'gamma' })).not.toThrow(/publishes: *$/);
+    const listing = HELP_TOOLS.find((candidate) => candidate.name === 'docs_packages')!;
+    expect(listing.run(empty, {})).toMatch(/^This workspace publishes no package/);
   });
 
   it('takes the specifier the first question printed, unsplit', () => {
@@ -119,12 +133,30 @@ describe('one name in full', () => {
     );
   });
 
-  it('names the file when the name is exported and never published', () => {
-    expect(() => call('docs_symbol', { name: 'deeper' })).toThrow(/exported, without being published, at packages\/beta\/src\/inner\/deeper\.ts:3/);
+  it('answers with the file and line when the name is exported and never published', () => {
+    expect(call('docs_symbol', { name: 'deeper' })).toContain('exported, without being published, at packages/beta/src/inner/deeper.ts:3');
   });
 
-  it('refuses an unknown name by pointing at the question that finds one', () => {
-    expect(() => call('docs_symbol', { name: 'nope' })).toThrow(/ask `search`/);
+  it('says who imports an unpublished name is unreadable when the host named no checkout', () => {
+    expect(() => call('docs_uses', { name: 'deeper' })).toThrow(
+      '`deeper` is exported, without being published, at packages/beta/src/inner/deeper.ts:3; who imports it is read from the source index, and this host named no checkout to read the source index of.',
+    );
+  });
+
+  it('names the package that exports a name when another package is asked about it', () => {
+    expect(() => call('docs_symbol', { name: 'deeper', package: 'alpha' })).toThrow(
+      /not published by `alpha`; it is exported, without being published, at packages\/beta\/src\/inner\/deeper\.ts:3/,
+    );
+  });
+
+  it('answers an unknown name as found nothing, pointing at the question that finds one', () => {
+    expect(() => call('docs_symbol', { name: 'nope' })).toThrow(FoundNothing);
+    expect(() => call('docs_symbol', { name: 'nope' })).toThrow(/ask `docs_search`/);
+  });
+
+  it('answers the files of an unknown name as found nothing, as its answer is', () => {
+    const symbol = HELP_TOOLS.find((tool) => tool.name === 'docs_symbol')!;
+    expect(() => symbol.files!(READING, { name: 'nope' })).toThrow(FoundNothing);
   });
 
   it('refuses an empty name rather than answering about the first thing it finds', () => {
@@ -155,7 +187,7 @@ describe('what the workspace says when the declaration says nothing', () => {
 describe('where the repository already writes a name', () => {
   it('names every place it is imported, with a line to open', () => {
     const text = call('docs_uses', { name: 'behind' });
-    expect(text).toContain('`behind` is imported in 4 places.');
+    expect(text).toContain('`behind` [const] is imported in 4 places.');
     expect(text).toContain('packages/beta/src/index.ts:2 — beta');
   });
 
@@ -183,12 +215,15 @@ describe('where the repository already writes a name', () => {
     );
   });
 
-  it('answers plainly when a published name is imported by nothing', () => {
-    expect(call('docs_uses', { name: 'Span' })).toContain('nothing in this workspace imports it');
+  it('answers plainly when no other package imports a published name, and says the imports within its own were not read', () => {
+    expect(call('docs_uses', { name: 'Span' })).toBe(
+      '`Span` [type] is published and no other package imports it; the imports within its own package are read from the source index, and this host named no checkout to read the source index of.',
+    );
   });
 
-  it('refuses an unknown name by pointing at the question that finds one', () => {
-    expect(() => call('docs_uses', { name: 'nope' })).toThrow(/ask `search`/);
+  it('answers an unknown name as found nothing, pointing at the question that finds one', () => {
+    expect(() => call('docs_uses', { name: 'nope' })).toThrow(FoundNothing);
+    expect(() => call('docs_uses', { name: 'nope' })).toThrow(/ask `docs_search`/);
   });
 });
 
@@ -385,3 +420,7 @@ describe('the same answers as files', () => {
     }
   });
 });
+
+it.todo(
+  'a workspace that publishes nothing says which file listed its members and how many manifests it read — needs the reading to carry the member list into `Help` and the published snapshot',
+);

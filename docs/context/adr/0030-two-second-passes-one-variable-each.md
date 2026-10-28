@@ -2,6 +2,7 @@
 
 **Status:** accepted
 **Date:** 2026-08-06
+**Amended by:** [ADR-0088](0088-a-page-is-read-as-nobody-is-using-it.md) — the clock is fixed; the ticking story stays unstable on its own timer
 **Extends:** ADR-0009 (sessions detect instead of rinse), ADR-0029 (a page is held still before it is read)
 **Relates to:** [spec 0012](../../specs/0012-order-dependence-in-a-run.md)
 
@@ -60,7 +61,7 @@ anything.
 **It costs a collection and never a paint.** A `RenderDocument` is a complete
 statement of what is to be painted, so two documents with equal digests cannot
 paint differently — the argument `settle` already makes against a baseline, made
-here between two readings seconds apart. The check runs only on subjects the run
+here between two readings in a row. The check runs only on subjects the run
 already called `changed`, inside the same `alone.limit` budget, so a green run
 pays nothing and an investigated subject spends one either way.
 

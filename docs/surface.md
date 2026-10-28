@@ -2,7 +2,7 @@
 
 You already have a suite that gets the app into the UI states you care about. To
 put those states under review by [Variance Authority](README.md), you install
-one package that knows your host, and keep everything else.
+one package built for your host, and keep everything else.
 
 That package is called a **surface**. It finds the states worth observing,
 drives your host to each one, and gives each a **subject id**: one named UI
@@ -94,7 +94,7 @@ through Storybook's channel, waits for the rendered state, and acquires each
 subject. It runs beside Storybook: it installs no addon, reads no `.storybook`
 directory, and does not own your build command.
 
-Build the Storybook first, then write a collector module that says where your
+Build the Storybook first, then write a collector module that names where your
 components live:
 
 ```js
@@ -133,8 +133,8 @@ Storybook subject ids begin with `story:`, so a story whose Storybook id is
 `checkout--empty` is accepted as `story:checkout--empty`.
 
 `source.dirs` is what resolves a component to the file it is declared in. A
-built Storybook ships bundled code: the browser can say which component drew an
-element, not which file it is written in, so the collector scans your tree
+built Storybook ships bundled code: the browser can report which component drew
+an element, not which file it is written in, so the collector scans your tree
 instead.
 
 #### Keep component names in the Storybook build
@@ -494,7 +494,7 @@ Four flags:
 
 | Flag | What it does |
 | --- | --- |
-| `--all` | Promotes every changed candidate in the report. Keep it for a first run and for deliberate re-baselines: it cannot tell a candidate somebody reviewed from one nobody opened. |
+| `--all` | Promotes every candidate in the report: `new` and `changed`, whatever identity painted the baseline. Keep it for a first run and for deliberate re-baselines: it cannot distinguish a candidate somebody reviewed from one nobody opened. |
 | `--shape <fingerprint>[,…]` | Promotes one category of difference wherever it accounts for the *whole* change, and refuses by name any subject where something else also changed. Copy a fingerprint out of a report; every region has its own. |
 | `--message-file <path>` | Writes a commit message for the baseline update to that path, for `git commit -F`. It commits nothing itself. |
 | `--message <text>` | The subject line of that message. Only meaningful with `--message-file`. |
@@ -513,11 +513,13 @@ change.
 | Document painted remotely | pinning the acquisition machine; enables remote fan-out | disclosing the document and its resources, plus transport; an environment-dependent document requires equivalent resource access | a shared render service; cross-environment portability, for closed documents only |
 | A raster you already have | all acquisition and rendering work | less semantic evidence, unless you supply it yourself | another trusted capture system already owns the pixels and the identity |
 
-Baselines are partitioned by renderer identity: engine, platform, scale, fonts,
-stabilization, and rasterization recipe. Chromium rendering defaults to
-`--disable-lcd-text` and `--font-render-hinting=none`; changing the ordered
-launch recipe changes identity, so a font rasterization difference comes back as
-a refused comparison rather than as a component regression. Choose between a
+Every baseline records the renderer identity that painted it: engine, platform,
+scale, fonts, stabilization, and rasterization recipe. Chromium rendering
+defaults to `--disable-lcd-text`, `--font-render-hinting=none` and
+`--disable-partial-raster`; changing the ordered launch recipe changes
+identity, so a font rasterization difference comes back as a change caused by
+the recipe rather than as a component regression. The cause
+names the recipe as what moved, and `accept` adopts the new image. Choose between a
 committed directory, Git LFS and a remote store in
 [where baselines live](placement.md), which also covers what each costs.
 
@@ -565,13 +567,18 @@ The CLI collector contract is for hosts whose subjects are observed as a run:
 ```ts
 interface Collector {
   plan(): Promise<Plan>;
-  collect(subject: PlannedSubject): Promise<Collected>;
+  collect(subject: PlannedSubject): Promise<Collected | Visit>;
   close(): Promise<void>;
 }
 ```
 
 `plan` names what the run intends to observe. `collect` returns a render document
-and optional semantic and source evidence. `close` releases the host. The
+and optional semantic and source evidence. When reaching a subject is what tells
+you how many subjects it is, such as a story whose own parameters ask for two
+widths, `collect` returns a `Visit` instead: every subject the visit read, each
+with its result, and each id the planned one or the planned one at a width,
+`<id>@<digits>`. A visit that returns any other id fails that subject. `close` releases
+the host. The
 Storybook, route, and unit-capture surfaces implement this contract.
 
 Collectors do not choose the renderer or the baseline store. `variance run` wires

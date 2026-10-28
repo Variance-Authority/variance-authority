@@ -17,14 +17,15 @@
  * (`native/src/journey_query.rs` says what is kept).
  */
 
-import { open } from 'node:fs/promises';
+import { open, type FileHandle } from 'node:fs/promises';
 import { EDGE_KINDS, RUNTIME_EDGES, type Relations } from '@variance-authority/core/relate';
 import { native, type NativeJourneyChange, type NativeJourneyGraph } from '../native.js';
 import type { LineRange } from './diff-lines.js';
-import type { JourneySelectionOptions } from './execution-select.js';
+import { declaredReach, dependsReaders, type JourneySelectionOptions } from './execution-select.js';
 import { SET_EXECUTION_FORMAT } from './execution-set-format.js';
 import type { ExecutionIndex } from './reverse.js';
-import type { ExecutionNarrowing } from './select.js';
+import { ignoredBy, withoutPaths } from './route.js';
+import type { ExecutionNarrowing } from './narrowing.js';
 
 /**
  * `narrowByJourneys` over the journey file at `file`, answered by the addon.
@@ -41,19 +42,33 @@ export async function selectJourneyFile(
   options: JourneySelectionOptions = {},
 ): Promise<ExecutionNarrowing | undefined> {
   const select = native()?.selectJourneys;
-  if (select === undefined || (await headerVersion(file)) !== SET_EXECUTION_FORMAT) return undefined;
+  if (select === undefined || (await casesVersion(file)) !== SET_EXECUTION_FORMAT) return undefined;
   const graph = options.relations === undefined ? undefined : flatten(options.relations);
-  const selected = select(file, nativeChange(changed, options.read), graph, [...(options.packages ?? [])]);
+  const declines = options.unmeasured === 'nothing';
+  // What the suite ignores never reaches the addon, as it never reaches `narrowByJourneys`'s loop.
+  const ignored = ignoredBy(options.ignore, changed.keys());
+  const selected = select(file, nativeChange(withoutPaths(changed, ignored), options.read), graph, declines);
+  // An addon that cannot decline walked the graph anyway, and its answer is not this suite's.
+  if (declines && selected.declined === undefined) return undefined;
+  // What a module declared of an ignored file is the record's, read off the part of it that holds the module.
+  const readers = dependsReaders(options.relations, ignored);
+  const projected = readers.length === 0 ? undefined : await projectJourneyFile(file, new Map(readers.map((reader) => [reader, []])));
+  if (readers.length > 0 && projected === undefined) return undefined;
+  const index: ExecutionIndex = projected?.index ?? { tests: selected.whole.map((test) => ({ id: test, file: test, name: test })), modules: [] };
+  const declared = declaredReach(index, options.relations, ignored, options.unmeasured);
+  const unread = declines ? selected.unread : [...selected.unread, ...declared.unread];
   return {
     whole: [...selected.whole].sort(codeUnitOrder),
-    entered: [...selected.entered].sort(codeUnitOrder),
-    unread: [...selected.unread].sort(codeUnitOrder),
+    entered: [...new Set([...selected.entered, ...declared.entered])].sort(codeUnitOrder),
+    unread: [...unread].sort(codeUnitOrder),
+    ...(declines ? { declined: [...selected.declined!, ...declared.unread].sort(codeUnitOrder) } : {}),
+    ...(options.ignore === undefined ? {} : { ignored }),
     stale: [],
-    because: [],
   };
 }
 
-function flatten(relations: Relations): NativeJourneyGraph {
+/** The file graph as the addon's walks read it. */
+export function flatten(relations: Relations): NativeJourneyGraph {
   return {
     names: relations.names,
     kinds: relations.kinds,
@@ -91,7 +106,7 @@ export async function projectJourneyFile(
   changed: ReadonlyMap<string, readonly LineRange[]>,
 ): Promise<JourneyProjection | undefined> {
   const project = native()?.projectJourneys;
-  if (project === undefined || (await headerVersion(file)) !== SET_EXECUTION_FORMAT) return undefined;
+  if (project === undefined || (await casesVersion(file)) !== SET_EXECUTION_FORMAT) return undefined;
   const projected = project(file, nativeChange(changed));
   const index: ExecutionIndex = {
     tests: projected.tests.map((test) => ({
@@ -99,6 +114,7 @@ export async function projectJourneyFile(
       file: test.file,
       name: test.name,
       ...(test.stopped == null ? {} : { stopped: test.stopped }),
+      ...(test.said == null ? {} : { said: test.said }),
     })),
     modules: projected.modules.map((module) => ({
       file: module.file,
@@ -127,21 +143,50 @@ function codeUnitOrder(left: string, right: string): number {
   return left < right ? -1 : left > right ? 1 : 0;
 }
 
-/** The layout version a column file declares, read off its header alone. */
-async function headerVersion(file: string): Promise<number | undefined> {
+/**
+ * The layout version of the case index at `file`, read off headers alone: the
+ * `cases` section's when `file` is a record carrying one, the file's own when
+ * it is an index by itself.
+ */
+async function casesVersion(file: string): Promise<number | undefined> {
   const handle = await open(file, 'r');
   try {
-    const length = Buffer.alloc(4);
-    if ((await handle.read(length, 0, 4, 0)).bytesRead < 4 || length[0] === 0x7b) return undefined;
-    const size = length.readUInt32LE(0);
-    if (size === 0 || size > 1 << 20) return undefined;
-    const header = Buffer.alloc(size);
-    await handle.read(header, 0, size, 4);
-    const parsed = JSON.parse(header.toString('utf8').replace(/\0+$/u, '')) as { version?: unknown };
-    return typeof parsed.version === 'number' ? parsed.version : undefined;
+    const outer = await headerAt(handle, 0);
+    if (outer === undefined) return undefined;
+    const cases = outer.sections?.find((section) => section.name === 'cases' && section.rows === undefined);
+    if (cases === undefined) return outer.version;
+    return (await headerAt(handle, outer.base + cases.offset))?.version;
   } catch {
     return undefined;
   } finally {
     await handle.close();
   }
+}
+
+interface ColumnSection {
+  readonly name: string;
+  readonly offset: number;
+  readonly rows?: number;
+}
+
+interface ColumnHeader {
+  readonly version?: number;
+  readonly sections?: readonly ColumnSection[];
+  /** Where the columns this header indexes start. */
+  readonly base: number;
+}
+
+async function headerAt(handle: FileHandle, at: number): Promise<ColumnHeader | undefined> {
+  const length = Buffer.alloc(4);
+  if ((await handle.read(length, 0, 4, at)).bytesRead < 4 || length[0] === 0x7b) return undefined;
+  const size = length.readUInt32LE(0);
+  if (size === 0 || size > 1 << 20) return undefined;
+  const header = Buffer.alloc(size);
+  await handle.read(header, 0, size, at + 4);
+  const parsed = JSON.parse(header.toString('utf8').replace(/\0+$/u, '')) as { version?: unknown; sections?: unknown };
+  return {
+    ...(typeof parsed.version === 'number' ? { version: parsed.version } : {}),
+    ...(Array.isArray(parsed.sections) ? { sections: parsed.sections as readonly ColumnSection[] } : {}),
+    base: at + 4 + size,
+  };
 }

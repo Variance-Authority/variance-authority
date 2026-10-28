@@ -6,8 +6,8 @@
  * decides the same thing, a decoder is held to byte-identical RGBA, a cache in
  * the wrong place costs a re-render. These two can and do: without the graph the
  * selector falls back to declarations, and what a run *observes* changes. So the
- * environment is allowed a say over there and none at all here, and a missing
- * package is stated rather than absorbed.
+ * environment is allowed a say over there and none at all here: both are read
+ * by `sense`, a dependency imported like any other.
  */
 
 import { readdirSync, type Dirent } from 'node:fs';
@@ -15,67 +15,47 @@ import { readFile } from 'node:fs/promises';
 import { isAbsolute, join, relative } from 'node:path';
 import type { SourceIndex } from '@variance-authority/core/attribute';
 import { relationsOfFiles, type Relations, type Uses } from '@variance-authority/core/relate';
+import {
+  mockTaint,
+  publishedSources,
+  SourceIndexUnpublished,
+  sourcesWithin,
+  taintFile,
+  taintRecords,
+} from '@variance-authority/sense';
 import { isCI } from 'ci-info';
 import { OperatorError } from '../exit.js';
 import { indexOf } from './affected.js';
 import { installedDepends } from './installed.js';
-import { messageOf } from './resources.js';
 
 /**
  * The component index, from the directories the config names.
  *
- * The same walk both shipped collectors do, for the same reason and with the same
- * rule owner: `indexSource` in `core` decides how a file becomes an index, and
- * this decides which files. Selection needs it *before* anything is collected, so
- * it cannot borrow the collector's.
+ * The same walk the shipped collectors do, for the same reason: the module reader
+ * in `sense` decides how a file becomes an index ([`indexOf`](./affected.ts)),
+ * and this decides which files. Selection needs it *before* anything is
+ * collected, so it cannot borrow the collector's.
  */
 export async function scanSourceDirs(
   root: string,
   dirs: readonly string[],
 ): Promise<SourceIndex> {
   const contents = new Map<string, string>();
-
-  for (const dir of dirs) {
-    for (const file of walkSource(isAbsolute(dir) ? dir : join(root, dir))) {
-      contents.set(relative(root, file), await readFile(file, 'utf8'));
-    }
-  }
-
+  for (const file of sourceFiles(root, dirs)) contents.set(relative(root, file), await readFile(file, 'utf8'));
   return indexOf(contents);
 }
 
-/** Why a caller wants the file graph, and what they can do when there is none. */
-export interface GraphAsk {
-  /** The clause before "and the scanner could not be loaded". */
-  readonly why: string;
-  /** What to do about it, as a whole sentence. */
-  readonly fix: string;
+/**
+ * The files `scanSourceDirs` reads, as absolute paths: whatever is on disk
+ * under `dirs`, git-ignored or not, so a build identity can digest exactly the
+ * bytes the scan saw.
+ */
+export function sourceFiles(root: string, dirs: readonly string[]): readonly string[] {
+  return dirs.flatMap((dir) => walkSource(isAbsolute(dir) ? dir : join(root, dir)));
 }
-
-const BY_CONFIG: GraphAsk = {
-  why: 'config sets `source.relations`',
-  fix: 'Install `@variance-authority/sense`, or remove the key to select by declaration alone.',
-};
 
 /**
  * The file graph, from the same directories the component index walks.
- *
- * A dynamic import, and the one thing in this file that may not degrade quietly.
- * The other resolutions here are held to *cost, not correctness* — a slower
- * decoder decides the same thing. This one decides **what is observed**: without
- * the graph the selector falls back to declarations, and a changed file that
- * declares nothing widens the run. So a missing package is stated rather than
- * absorbed, because the alternative is a suite that quietly got slower and an
- * operator who configured a narrowing that never happened.
- *
- * `undefined` only when the operator asked for no graph at all — that is a
- * choice, and the selector already knows how to work without one.
- *
- * {@link GraphAsk} is who wanted the graph and what they can do about not
- * having it, and it is a parameter because the two differ: a run reached here
- * through a config key an operator can take back out, and `reach` reached here
- * through the command they typed, which has no key to remove. Advice to edit a
- * file they do not have is the kind of message that costs an afternoon.
  *
  * The graph is read, never built here. One step publishes the checkout's
  * source index — `variance index` — and every reader reads that generation, so a
@@ -99,20 +79,26 @@ export async function relationsFor(
   dirs: readonly string[],
   taints: readonly string[] = [],
   before: readonly string[] = [],
-  asked: GraphAsk = BY_CONFIG,
   noGit = false,
 ): Promise<Relations> {
-  let scanner;
-  try {
-    scanner = await import('@variance-authority/sense');
-  } catch (error) {
-    throw new OperatorError(
-      `${asked.why} and the scanner could not be loaded: ${messageOf(error)}. ${asked.fix}`,
-      { cause: error },
-    );
-  }
+  return (await sourceGraphFor(root, dirs, taints, before, noGit)).relations;
+}
 
-  const read = await publishedWithin(scanner, root, dirs, before, noGit);
+/** The graph {@link relationsFor} reads, and the files the index read source in to build it: a node the graph holds is not one, since an import of a file nothing reads is a node too. */
+export interface SourceGraph {
+  readonly relations: Relations;
+  readonly sources: ReadonlySet<string>;
+}
+
+/** {@link relationsFor}, with the files the source index read, from the one read of it. */
+export async function sourceGraphFor(
+  root: string,
+  dirs: readonly string[],
+  taints: readonly string[] = [],
+  before: readonly string[] = [],
+  noGit = false,
+): Promise<SourceGraph> {
+  const read = await publishedWithin(root, dirs, before, noGit);
 
   // The mocks are read unasked. A graph that believes `vi.mock('./api')`
   // imports `./api` selects that test for every change behind the mock, and
@@ -120,8 +106,8 @@ export async function relationsFor(
   // from the suite that ran. The scan recorded what each file mocks in its
   // parse, so the mock taint opens nothing; a table named in the config is
   // answered here too, and what it adds is never saved.
-  const tables = await Promise.all(taints.map((file) => scanner.taintFile(join(root, file))));
-  const tainted = await scanner.taintRecords(read.records, [scanner.mockTaint(), ...tables], {
+  const tables = await Promise.all(taints.map((file) => taintFile(join(root, file))));
+  const tainted = await taintRecords(read.records, [mockTaint(), ...tables], {
     root,
     cache: read.cache,
   });
@@ -138,7 +124,10 @@ export async function relationsFor(
   const uses: Uses = (importer, target) =>
     tainted.additions.get(importer)?.includes(target) ? undefined : read.uses(importer, target);
 
-  return relationsOfFiles(tainted.records, { shadows: tainted.shadows, depends, uses });
+  return {
+    relations: relationsOfFiles(tainted.records, { shadows: tainted.shadows, depends, uses }),
+    sources: new Set(read.records.map((record) => record.file)),
+  };
 }
 
 /**
@@ -150,7 +139,6 @@ export async function relationsFor(
  * loads is the part of a run nothing imports and every test rests on.
  */
 async function publishedWithin(
-  scanner: typeof import('@variance-authority/sense'),
   root: string,
   dirs: readonly string[],
   before: readonly string[],
@@ -158,7 +146,7 @@ async function publishedWithin(
 ) {
   let published;
   try {
-    published = await scanner.publishedSources(root, {
+    published = await publishedSources(root, {
       ci: isCI,
       step: noGit ? 'variance index --no-git' : 'variance index',
       announce: (line) => process.stderr.write(`variance: ${line}\n`),
@@ -168,11 +156,11 @@ async function publishedWithin(
     // A pipeline without the step is the operator's to fix, and the refusal
     // already names the step; printed as a defect, it would send them to file
     // a bug instead.
-    if (error instanceof scanner.SourceIndexUnpublished) throw new OperatorError(error.message, { cause: error });
+    if (error instanceof SourceIndexUnpublished) throw new OperatorError(error.message, { cause: error });
     throw error;
   }
   return {
-    records: scanner.sourcesWithin(published.records, root, dirs, before),
+    records: sourcesWithin(published.records, root, dirs, before),
     cache: published.cache,
     uses: published.uses,
   };

@@ -1,5 +1,6 @@
 import type { RunReport } from '@variance-authority/report';
 import type { Tree } from './tree.js';
+import type { SourceNames } from './names.js';
 
 /**
  * The contract every tool implements, and the untyped boundary it sits behind.
@@ -42,6 +43,36 @@ export interface Tool<Subject = RunReport> {
    * Absent means never, which is what almost every tool here means.
    */
   wants?(input: Readonly<Record<string, unknown>>): boolean;
+
+  /**
+   * Every file this call answers with, uncapped, where its answer is a set of
+   * files.
+   *
+   * `run` prints what a reader can take in, so it caps; a question asked as an
+   * operand of another — the files two questions both answer — needs the whole
+   * set, or the file it was asked to find can sit past the cap of either. So a
+   * tool whose answer is files says which, from the same computation `run`
+   * prints, and refuses what `run` refuses.
+   *
+   * Absent means the answer is not a set of files.
+   */
+  files?(
+    subject: Subject,
+    input: Readonly<Record<string, unknown>>,
+    invocation?: ToolInvocation<Subject>,
+  ): FileSet;
+}
+
+/**
+ * The files a question answers, each with the lines that put it there.
+ *
+ * An empty list of lines is a file in the set without one: a file a path
+ * reaches is in it as a whole. `unread` names what the question could not read,
+ * so a set that is short of files says so rather than reading as complete.
+ */
+export interface FileSet {
+  readonly files: ReadonlyMap<string, readonly number[]>;
+  readonly unread?: readonly string[];
 }
 
 /** What a host has already read, handed to a tool that cannot read anything itself. */
@@ -59,6 +90,12 @@ export interface ToolInvocation<Subject> {
    */
   readonly tree?: Tree;
   /**
+   * Every file's declared and imported names, read off the same scan as the
+   * tree, where the host read them. Absent means none were read, and a question
+   * that names a name is refused rather than answered as though no file had one.
+   */
+  readonly names?: SourceNames;
+  /**
    * The checkout the host answers about, as the host was told it.
    *
    * Carried rather than guessed: a tool that opens what a checkout published —
@@ -68,6 +105,17 @@ export interface ToolInvocation<Subject> {
    * one refuses rather than reading wherever the process happens to stand.
    */
   readonly root?: string;
+  /**
+   * The command a shell asks these tools through, such as `variance ask`, where
+   * the host is a shell rather than the wire.
+   *
+   * An answer that tells its reader what to ask next names an input or another
+   * tool, and the two surfaces spell them differently: the wire takes `from`
+   * and `docs_symbol`, a shell takes `--from` and `variance ask symbol`. A hint
+   * spelled for the other surface is one the reader cannot type. Absent means
+   * the tools are asked over the wire, by the names their schemas publish.
+   */
+  readonly shell?: string;
 }
 
 /**

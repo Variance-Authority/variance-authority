@@ -46,8 +46,8 @@ the expando prefix has not changed since 17.
 What does change by version is call-site evidence, which is not part of
 wiring: React 18 records `_debugSource`, and React 19 replaced it with a
 stack React captures inside its own element factory.
-[Attribution](attribution.md#what-each-build-already-knows) states what each
-build knows.
+[Attribution](attribution.md#what-each-build-already-records) states what each
+build records.
 
 ```ts
 import { detectReactRuntime } from '@variance-authority/react';
@@ -312,7 +312,7 @@ To get authored names out of a built bundle, keep them in the build. Vite 8
 spells the setting `build.rolldownOptions.output.keepNames`; Vite 7 and below
 spell it `esbuild.keepNames`. Resolving a changed element to the line it is
 written on is a separate purchase — see
-[attribution](attribution.md#what-each-build-already-knows).
+[attribution](attribution.md#what-each-build-already-records).
 
 ## Related React evidence
 
@@ -340,7 +340,7 @@ const held = holdingOf(document.querySelector('[data-testid="row-3"]')!);
 | `cells?: readonly HeldCell[]` | One entry per hook that retains something, in authored call order |
 | `contexts?: readonly HeldValue[]` | Context values this boundary read, by the context's display name, sorted |
 | `props?: readonly HeldValue[]` | The props object, one entry per key, sorted, with `children` excluded |
-| `unread?: string` | The name of a hook this reader does not know. Its presence means `cells` is a prefix, not the whole list |
+| `unread?: string` | The name of a hook this reader does not recognise. Its presence means `cells` is a prefix, not the whole list |
 
 `HeldCell` is `{ index: number; hook: string; digest: Digest }` — `index` is the
 position you get by counting hook calls down the component, and indexes

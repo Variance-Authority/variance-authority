@@ -1,0 +1,12 @@
+{
+  "$schema": "../packages/cli/schema/variance.config.schema.json",
+  "project": "site",
+  "profile": "chromium",
+  "viewport": { "width": 1280, "height": 800, "deviceScaleFactor": 1, "colorScheme": "dark" },
+  "retention": "durable",
+  "subjects": { "kind": "collector", "collector": "variance/routes.mjs" },
+  "baselines": { "kind": "directory", "root": ".variance/baselines", "carry": "actions-cache" },
+  "report": { "path": ".variance/run.json" },
+  "images": ".variance/images",
+  "source": { "dirs": ["site/app"] }
+}

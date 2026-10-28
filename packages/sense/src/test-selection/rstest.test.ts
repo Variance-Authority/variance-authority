@@ -5,7 +5,9 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { decodeTestCoverage } from './format.js';
 import { statusesComplete } from './finished-files.js';
 import { runOf } from './selection-run.js';
-import { SELECTION_LOADER, withTestSelection } from './rstest.js';
+import { SELECTION_LOADER, withTestSelection, type RstestConfig, type RstestTestSelectionOptions } from './rstest.js';
+import instrumentModule from './rstest-loader.js';
+import probeAfter, { type AfterLoaderContext } from './rstest-after-loader.js';
 
 const temporary: string[] = [];
 
@@ -24,7 +26,7 @@ interface Rules {
 }
 
 describe('what a wrapped Rstest configuration becomes', () => {
-  it('adds a post loader carrying the snapshot the reporter will write, without replacing the project\'s own', async () => {
+  it('adds a pre loader carrying the snapshot the reporter will write, last of the rules, and the probes loader first, without replacing the project\'s own', async () => {
     const directory = await root();
     const coverageFile = resolve(directory, 'coverage.bin');
     const mine = { module: { rules: [] } };
@@ -39,14 +41,23 @@ describe('what a wrapped Rstest configuration becomes', () => {
     // the key it writes would drop every sibling.
     expect((config.tools as { swc?: unknown }).swc).toEqual({});
 
-    const rule = (rspack[1] as Rules).module.rules[0]!;
-    // After the project's loaders and after SWC, so the probes land on
-    // JavaScript and the map back to the author's lines is the bundler's own.
-    expect(rule.enforce).toBe('post');
-    expect(rule.use[0]!.loader).toBe(SELECTION_LOADER);
+    // Applied the way Rsbuild applies a function, to the rules every entry
+    // before it wrote: theirs, and one post loader of the project's.
+    const theirs = { test: /\.ts$/, enforce: 'post', use: [{ loader: 'their-post-loader', options: {} }] };
+    const applied = { module: { rules: [theirs] as Rules['module']['rules'] } };
+    (rspack[1] as (config: typeof applied) => void)(applied);
+    const [probes, kept, rule] = applied.module.rules;
+    // The post rule first, so it runs after every other post loader, theirs
+    // included: a compiler that reads syntax never reads a probe.
+    expect(probes!.enforce).toBe('post');
+    expect(kept).toBe(theirs);
+    // The pre rule last, so it runs ahead of every other pre loader, on the
+    // file as it is on disk.
+    expect(rule!.enforce).toBe('pre');
+    expect(rule!.use[0]!.loader).toBe(SELECTION_LOADER);
     // The one string that names a run: a loader is loaded by path and can be
     // handed options, never the object the configuration built.
-    expect(rule.use[0]!.options.coverageFile).toBe(coverageFile);
+    expect(rule!.use[0]!.options.coverageFile).toBe(coverageFile);
     expect(runOf(coverageFile)?.root).toBe(directory);
   });
 
@@ -66,6 +77,15 @@ describe('what a wrapped Rstest configuration becomes', () => {
     expect(shim).toContain("from \"@rstest/core\"");
     // Every run records cases, so the shim wraps the injected registrars.
     expect(shim).toContain('wrapCase');
+  });
+
+  it('keeps one bucket per test file under the loads recipe, so its setup shim wraps no case', async () => {
+    const directory = await root();
+    const config = withTestSelection({ root: directory }, { coverageFile: resolve(directory, 'coverage.bin'), mode: 'loads' });
+
+    const shim = await readFile((config.setupFiles as readonly string[])[0]!, 'utf8');
+    expect(shim).toContain('.flat(globalThis)');
+    expect(shim).not.toContain('wrapCase');
   });
 
   it('wraps the registrars a suite imports, which is a configuration without globals', async () => {
@@ -180,10 +200,113 @@ describe('what a finished Rstest file is worth', () => {
   // skipped, which read leaf by leaf is the shape of a file that ran
   // everything it meant to. The file's own status is what tells them apart.
   it('refuses a file whose fixture threw, and keeps one whose tests were skipped by their own text', () => {
-    expect(statusesComplete('fail', ['pass', 'skip'])).toBe(false);
-    expect(statusesComplete('pass', ['pass', 'skip', 'todo'])).toBe(true);
-    expect(statusesComplete('pass', ['pass', 'fail'])).toBe(false);
+    expect(statusesComplete('fail', ['pass', 'skip'], false)).toBe(false);
+    expect(statusesComplete('pass', ['pass', 'skip', 'todo'], false)).toBe(true);
+    expect(statusesComplete('pass', ['pass', 'fail'], false)).toBe(false);
     // Nothing ran, so there is nothing to be evidence of.
-    expect(statusesComplete('pass', [])).toBe(false);
+    expect(statusesComplete('pass', [], false)).toBe(false);
+  });
+});
+
+describe('the Rstest loader', () => {
+  /** What the two loaders hand Rspack for `code` at `file`, one after the other, and the run they recorded into. */
+  async function loaded(
+    file: string,
+    code: string,
+    files: Readonly<Record<string, string>> = {},
+    config: RstestConfig = {},
+    options: RstestTestSelectionOptions = {},
+  ) {
+    const directory = await root();
+    const coverageFile = resolve(directory, 'coverage.bin');
+    // The loader is handed a module the checkout holds.
+    for (const [path, text] of Object.entries({ [file]: code, ...files })) {
+      await mkdir(resolve(directory, path, '..'), { recursive: true });
+      await writeFile(resolve(directory, path), text);
+    }
+    withTestSelection({ root: directory, ...config }, { coverageFile, ...options });
+    let handed: string | undefined;
+    let map: Parameters<AfterLoaderContext['callback']>[2];
+    const resourcePath = resolve(directory, file);
+    instrumentModule.call(
+      { resourcePath, getOptions: () => ({ coverageFile }), callback: (_error, text, given) => { handed = text; map = given as typeof map; } },
+      code,
+    );
+    probeAfter.call(
+      { resourcePath, getOptions: () => ({ coverageFile }), callback: (error, text) => { if (error) throw error; handed = text; } },
+      handed!,
+      map,
+    );
+    return { handed, modules: [...runOf(coverageFile)!.modules.values()] };
+  }
+
+  it('records a module loaded from its build under the source its own map file names', async () => {
+    const built = 'export const pick = (value) => (value ? 1 : 2);\n//# sourceMappingURL=pick.js.map\n';
+    const { handed, modules } = await loaded('dist/pick.js', built, {
+      'dist/pick.js': built,
+      'src/pick.ts': 'export const pick = (value: boolean): number => (value ? 1 : 2);\n',
+      'dist/pick.js.map': JSON.stringify({ version: 3, sources: ['../src/pick.ts'], names: [], mappings: 'AAAA' }),
+    });
+
+    expect(handed).not.toBe(built);
+    expect(modules.map((module) => module.file)).toEqual(['src/pick.ts']);
+  });
+
+  it('hands a module it cannot parse back marked as loaded, recorded as not instrumented', async () => {
+    const broken = 'export const pick = (;\n';
+    const { handed, modules } = await loaded('src/pick.ts', broken);
+
+    expect(handed).toMatch(/^export const pick = \(;\n\n;globalThis\.__VA__\.m\("[^"\n]*"\);$/);
+    expect(modules).toEqual([expect.objectContaining({ file: 'src/pick.ts', instrumented: false, blocks: [] })]);
+  });
+
+  it('hands a module named unprobed back marked as loaded, though include accepts it, recorded as not instrumented', async () => {
+    const page = 'export const tag = () => \'#text\';\n';
+    const { handed, modules } = await loaded('src/page.ts', page, { 'src/page.ts': page }, {}, { unprobed: (file) => file.endsWith('page.ts') });
+
+    expect(handed).toMatch(/^export const tag = \(\) => '#text';\n\n;globalThis\.__VA__\.m\("[^"\n]*"\);$/);
+    expect(handed).not.toMatch(/__va\(\d+\)/);
+    expect(modules).toEqual([expect.objectContaining({ file: 'src/page.ts', instrumented: false, blocks: [] })]);
+  });
+
+  const TEST = "it('adds', () => {\n  expect(1 + 1).toBe(2);\n});\n";
+
+  it('cuts a file the project counts as a test, and probes nothing `include` refuses', async () => {
+    const { handed, modules } = await loaded('src/add.test.ts', TEST);
+
+    expect(handed).toContain('  __vaC(2);expect(1 + 1)');
+    expect(modules).toEqual([]);
+  });
+
+  it('probes a test file `include` takes, and then cuts it', async () => {
+    const { handed, modules } = await loaded('spec/add.check.ts', TEST, {}, { include: ['spec/**/*.check.ts'] });
+
+    expect(handed).toContain('__va(1);');
+    expect(handed).toContain('  __vaC(2);expect(1 + 1)');
+    expect(modules).toEqual([expect.objectContaining({ file: 'spec/add.check.ts', instrumented: true })]);
+  });
+
+  it('counts what `include` names as a test, and nothing else', async () => {
+    const config = { include: ['spec/**/*.check.ts'] };
+
+    expect((await loaded('spec/add.check.ts', TEST, {}, config)).handed).toContain('__vaC(2);');
+    expect((await loaded('src/add.test.ts', TEST, {}, config)).handed).not.toContain('__vaC(');
+  });
+
+  it('leaves a test file as it is when `cadence` is off', async () => {
+    expect((await loaded('src/add.test.ts', TEST, {}, {}, { cadence: false })).handed).toBe(TEST);
+  });
+
+  it('leaves a test file as it is under the loads recipe, which cuts nothing', async () => {
+    expect((await loaded('src/add.test.ts', TEST, {}, {}, { mode: 'loads' })).handed).toBe(TEST);
+  });
+
+  it('marks a module as loaded under the loads recipe, and probes nothing in it', async () => {
+    const add = 'export const add = (a, b) => a + b;\n';
+    const { handed, modules } = await loaded('src/add.ts', add, { 'src/add.ts': add }, {}, { mode: 'loads' });
+
+    expect(handed).toMatch(/^export const add = \(a, b\) => a \+ b;\n\n;globalThis\.__VA__\.m\("[^"\n]*"\);$/);
+    expect(handed).not.toMatch(/__va\(\d+\)/);
+    expect(modules).toEqual([expect.objectContaining({ file: 'src/add.ts', instrumented: false, blocks: [] })]);
   });
 });

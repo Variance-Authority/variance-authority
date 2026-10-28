@@ -3,7 +3,8 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { treeOf, type FileRecord } from '@variance-authority/mcp/tools';
 import { readHelp } from '@variance-authority/package/help';
-import { ask, inputFrom, toolNamed, verbOf, verbs } from './ask.js';
+import { verbOf } from '@variance-authority/mcp/tools';
+import { ask, inputFrom, toolNamed, verbs } from './ask.js';
 import { HELP_TOOLS } from './tools.js';
 
 const WORKSPACE = join(dirname(fileURLToPath(import.meta.url)), './__fixtures__/workspace');
@@ -11,7 +12,7 @@ const READING = readHelp(WORKSPACE);
 
 describe('a verb is a tool, not a second implementation of one', () => {
   it('names every tool the server lists, with the wire prefix dropped', () => {
-    expect(verbs().map(([verb]) => verb)).toEqual(['packages', 'entrypoint', 'symbol', 'uses', 'search', 'grep', 'orient', 'slowest-tests', 'journey-map', 'stack', 'gaps']);
+    expect(verbs().map(([verb]) => verb)).toEqual(['packages', 'entrypoint', 'symbol', 'uses', 'search', 'grep', 'discover', 'intersection', 'orient', 'slowest-tests', 'journey-map', 'test-composition', 'stack', 'gaps']);
   });
 
   it('dispatches to the same value the server would have called', () => {
@@ -23,9 +24,15 @@ describe('a verb is a tool, not a second implementation of one', () => {
     expect(ask(READING, 'search', ['deep'])).toBe(tool.run(READING, { query: 'deep' }));
   });
 
+  it('spells the inputs and the questions an answer names as this binary takes them', () => {
+    const text = ask(READING, 'uses', ['behind']);
+    expect(text).toContain('Path order; `--from` sorts nearest first.');
+    expect(() => ask(READING, 'uses', ['nope'])).toThrow(/ask `variance-authority-help search` with it as the `--query`|ask `variance-authority-help search` with a word/);
+  });
+
   it('names what it answers when a verb is not one of them', () => {
     // A model handed "unknown verb" has one move left, which is to guess again.
-    expect(() => toolNamed('symbols')).toThrow(/packages, entrypoint, symbol, uses, search, grep, orient, slowest-tests, journey-map, stack, gaps/);
+    expect(() => toolNamed('symbols')).toThrow(/packages, entrypoint, symbol, uses, search, grep, discover, intersection, orient, slowest-tests, journey-map, test-composition, stack, gaps/);
   });
 });
 
@@ -63,6 +70,21 @@ describe('arguments, read off the schema the tool already publishes', () => {
 
   it('refuses an argument to a verb that takes none', () => {
     expect(() => inputFrom(toolNamed('gaps'), ['alpha'])).toThrow(/takes no argument `alpha`/);
+  });
+
+  it('reads each bare word of `intersection` as a question, typed as it would be asked alone', () => {
+    expect(inputFrom(toolNamed('intersection'), ["symbol --name 'deep'", 'discover --from a/b.ts'])).toEqual({
+      questions: [
+        { question: 'symbol', input: { name: 'deep' } },
+        { question: 'discover', input: { from: 'a/b.ts' } },
+      ],
+    });
+  });
+
+  it('refuses a flag a question inside `intersection` does not take, naming that question', () => {
+    expect(() => inputFrom(toolNamed('intersection'), ['symbol --form deep', 'discover --from a/b.ts'])).toThrow(
+      /question 1, `symbol --form deep`: `symbol` takes no `--form`/,
+    );
   });
 });
 

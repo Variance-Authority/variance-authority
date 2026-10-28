@@ -3,9 +3,10 @@
  * Vitest seam, arranged for a runner that bundles the suite before it runs it.
  *
  * Rstest builds with Rspack, so the two halves are an
- * [`enforce: 'post'` loader](./rstest-loader.ts) and a reporter. Both live in
- * the process Rstest was started in — the loader runs in the main process, not
- * in a worker — so they are joined the way the Vitest seam joins its plugin to
+ * [`enforce: 'pre'` loader](./rstest-loader.ts) for the test files it cuts, an
+ * [`enforce: 'post'` loader](./rstest-after-loader.ts) for every other module,
+ * and a reporter. All live in the process Rstest was started in — the loaders
+ * run in the main process, not in a worker — so they are joined the way the Vitest seam joins its plugin to
  * its reporter, through the run registry in
  * [`selection-run.ts`](./selection-run.ts). A loader cannot be handed the run
  * object, only options the bundler may carry as data, so it is given the one
@@ -22,14 +23,17 @@
 
 import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
 import type { InstrumentMode } from '../instrument/index.js';
-import { defaultInclude } from './instrumented-modules.js';
-import { carriedJournal, reportedDuration, statusesComplete } from './finished-files.js';
+import { probesRegions } from '../instrument/identity.js';
+import { defaultInclude, type ProbePlacement } from './instrumented-modules.js';
+import { AFTER_LOADER, SELECTION_LOADER, unprobedFiles } from './rstest-loaders.js';
+import { carriedJournal, statusesComplete } from './finished-files.js';
+import { reportedDuration } from './reported-time.js';
 import { foldRun } from './selection-fold.js';
-import { removeSeamModules, reopenRun, runFor, runStamp, writeSeamModule, type SelectionRun } from './selection-run.js';
-import { browserSetupSource, caseGlobalsSource, setupSource } from './worker-source.js';
+import { removeSeamModules, reopenRun, runFor, seamModuleId, writeSeamModule, type SelectionRun } from './selection-run.js';
+import { attendingSource, browserSetupSource, caseGlobalsSource, setupSource } from './worker-source.js';
 import { recordFileFor } from './record-location.js';
+import { testFilesAt } from './test-files.js';
 import { repositoryRoot } from './repository-root.js';
 import { askedForStories } from '../story/directory.js';
 import { finishedCase } from './case-durations.js';
@@ -52,6 +56,13 @@ export interface RstestTestSelectionOptions {
   /** Decide which bundled modules are product source. */
   readonly include?: (file: string) => boolean;
   /**
+   * Decide which bundled modules are product source no probe may sit in: a
+   * module whose functions cross into a page as text, where the first probe
+   * would throw. It wins over `include`. Each is marked as loaded at its end
+   * instead, and an edit to it selects every test that loaded it.
+   */
+  readonly unprobed?: (file: string) => boolean;
+  /**
    * Additional files whose contents are preconditions of every test observation.
    *
    * The configured setup files are declared already; the config file is not,
@@ -62,11 +73,23 @@ export interface RstestTestSelectionOptions {
    */
   readonly preconditions?: readonly string[];
   /**
-   * `presence` probes every arrival region; `entries` probes modules and
-   * functions only, and costs a fraction of it. Both record which functions
-   * ran before the file's first test.
+   * `presence`, the default, probes every arrival region; `entries` probes
+   * modules and functions only, so a suite reads it no finer than
+   * `function-use`. Both record which functions ran before the file's first
+   * test. `loads` probes nothing: each module runs with one line after its own
+   * text, the record says which files each test loaded, and a change to a file
+   * selects every test that loaded it. Under it `cadence` is off, whatever it
+   * says.
    */
   readonly mode?: InstrumentMode;
+  /**
+   * Where the probes go. `after-transforms`, the default, places them after
+   * the project's loaders, through the map Rspack hands on, so a compiler
+   * that reads syntax reads none. `before-transforms` places them in the file
+   * as read, ahead of every loader, one parse and no map: for a suite whose
+   * loaders only strip types or JSX.
+   */
+  readonly placement?: ProbePlacement;
   /**
    * Follow each case through the async context, and name the cases whose work
    * outlived them.
@@ -93,10 +116,13 @@ export interface RstestTestSelectionOptions {
    */
   readonly continuations?: boolean;
   /**
-   * Where the per-case execution index goes. Defaults to `<coverageFile>.cases.bin`;
-   * a name ending `.json` is written as JSON instead, at the size JSON costs.
+   * Whether each statement of a test or a hook is cut, so the record says which
+   * line of the test first reached each region its case entered. On by default.
+   * The cut is one call per statement the test runs, and it reaches the record
+   * only as a line per case; turn it off to record a suite exactly as it ran
+   * before cuts existed.
    */
-  readonly executionFile?: string;
+  readonly cadence?: boolean;
 }
 
 /** What one test file's run left behind, as Rstest's `onTestRunEnd` reports it. */
@@ -154,8 +180,16 @@ function projectKey(name: string): string {
   return `project:${name}`;
 }
 
-/** The loader an Rstest configuration names, by absolute path. */
-export const SELECTION_LOADER = fileURLToPath(new URL('./rstest-loader.js', import.meta.url));
+/**
+ * The refusal of a run whose first loader passed modules on that the probes
+ * loader never reached: {@link unprobedFiles}.
+ */
+function unprobedAtEnd(run: SelectionRun): Promise<never> | undefined {
+  if (run.awaiting.size === 0) return undefined;
+  const error = unprobedFiles(run.root, run.awaiting);
+  run.awaiting.clear();
+  return Promise.reject(error);
+}
 
 /**
  * Rstest's API, which is an injected object rather than a resolvable module.
@@ -185,11 +219,7 @@ export function withTestSelection(
   const mode = options.mode ?? 'presence';
   const run = runFor(coverageFile, root, mode);
 
-  // Named for the run rather than for the seam, so two Rstest processes over
-  // one project — a watch run beside a CLI one — do not write each other's
-  // setup shim, which carries the directory its journals go to.
-  const stamp = runStamp(run);
-  const setupId = resolve(configRoot, `.variance-authority/test-selection-setup-${stamp}.mjs`);
+  const setupId = seamModuleId(configRoot, run, 'setup');
   run.shims.add(setupId);
 
   // A `globalSetup` file runs before any test environment exists, so the setup
@@ -199,6 +229,13 @@ export function withTestSelection(
   const globalSetup = new Set(array(config.globalSetup).map((file) => resolve(configRoot, file)));
   const chosen = options.include ?? defaultInclude;
   run.include = (file: string): boolean => !globalSetup.has(file) && chosen(file);
+  const marked = options.unprobed;
+  run.unprobed = marked === undefined ? undefined : (file: string): boolean => !globalSetup.has(file) && marked(file);
+  run.placement = options.placement ?? 'after-transforms';
+  // Under `loads` no region is probed for a line of a test to have reached first.
+  run.cadence = options.cadence === false || !probesRegions(mode)
+    ? undefined
+    : testFilesAt(configRoot, undefined, config['include'] as readonly string[] | undefined);
 
   const setupFiles = array(config.setupFiles);
   // A setup entry may be a package — `dotenv/config` — rather than a file of
@@ -221,17 +258,22 @@ export function withTestSelection(
   // The configuration that lists the projects is what every test rests on.
   if (config.projects !== undefined) run.runConfig = '';
 
-  const executionFile = options.executionFile === undefined
-    ? `${coverageFile}.cases.bin`
-    : resolve(configRoot, options.executionFile);
-  const settle = foldRun(run, { coverageFile, executionFile, shims: [setupId] });
+  const settle = foldRun(run, { coverageFile, shims: [setupId] });
+  let ended: number | undefined;
   const reporter = {
     // A watching Rstest starts every cycle here, after the last cycle's end.
-    onTestRunStart: () => reopenRun(run),
-    onTestRunEnd: (payload: RstestRunEnd) => settle(
-      cycleResults(run, payload).map((file) => ({
+    // Rstest builds the cycle's bundle, reading its files, before it announces
+    // the start: the first cycle began when the run was made, and a rerun when
+    // the last cycle ended.
+    // FIXME: so a watching rerun counts the save that started it as a write
+    // while it ran, and records the files it saved incomplete.
+    onTestRunStart: () => reopenRun(run, ended ?? run.startedAt),
+    onTestRunEnd: (payload: RstestRunEnd) => {
+      ended = Date.now();
+      const named = [...nameFiltersOf(run)].some((filter) => ![undefined, ''].includes(filter() as string | undefined));
+      return unprobedAtEnd(run) ?? settle(cycleResults(run, payload).map((file) => ({
         filepath: file.testPath,
-        complete: statusesComplete(file.status, (file.results ?? []).map((test) => test.status)),
+        complete: statusesComplete(file.status, (file.results ?? []).map((test) => test.status), named),
         ...reportedDuration(file.duration),
         ...(file.results === undefined ? {} : {
           cases: file.results.map((test) => finishedCase(
@@ -242,8 +284,8 @@ export function withTestSelection(
         }),
         ...carriedJournal(file.testPath, file.meta),
         ...(file.project === undefined ? {} : { configs: [projectKey(file.project)] }),
-      })),
-    ),
+      })));
+    },
     // A watching run kept its shim for the cycles after the first.
     onExit: () => removeSeamModules(run, [setupId]),
   };
@@ -263,7 +305,8 @@ export function withTestSelection(
   // `globalThis['@rstest/core']`, which is where Rstest assigns its API and
   // what Rspack compiles the import of that external to. Wrapping both reaches
   // a mixed suite, and wrapping an absent one is skipped.
-  const scope = caseGlobalsSource(`globalThis, globalThis[${JSON.stringify(RSTEST_API)}]`);
+  const scope = caseGlobalsSource(`globalThis, globalThis[${JSON.stringify(RSTEST_API)}]`) +
+    attendingSource(`globalThis[${JSON.stringify(RSTEST_API)}]`);
   return {
     ...config,
     // First, so a setup file of the project's that loads an instrumented
@@ -274,9 +317,11 @@ export function withTestSelection(
         setupId,
         setupSource(run.runDirectory, run.caseDirectory, {
           runner: RSTEST_API,
+          root,
           continuations: options.continuations === true,
           scope,
           story: askedForStories(coverageFile),
+          cases: probesRegions(mode),
         }),
       ),
       ...setupFiles,
@@ -285,24 +330,36 @@ export function withTestSelection(
     reporters: [...reporters, reporter],
     tools: {
       ...config.tools,
-      // Appended to whatever the project configured rather than replacing it:
-      // Rsbuild folds an array of these in order, and the rule only has to be
-      // present, not first.
+      // After whatever the project configured, as a function, so the rules
+      // are placed among every rule Rsbuild and the project wrote. Loaders of
+      // one phase run right to left: the pre rule goes last, ahead of every
+      // other pre loader, and the post rule first, after every other post
+      // loader.
       rspack: [
         ...array(config.tools?.rspack),
-        {
-          module: {
+        (rspack: { module?: { rules?: unknown[] } }) => {
+          const rules = rspack.module?.rules ?? [];
+          rspack.module = {
+            ...rspack.module,
             rules: [
               {
                 test: /\.[cm]?[jt]sx?$/,
-                // After the project's own loaders and after SWC, so the probes
-                // land on JavaScript and the map back to the author's lines is
-                // the one the bundler already made.
+                // After SWC and the project's own loaders, so a compiler that
+                // reads syntax never reads a probe, and the probes go where
+                // their map says the file went.
                 enforce: 'post',
+                use: [{ loader: AFTER_LOADER, options: { coverageFile } }],
+              },
+              ...rules,
+              {
+                test: /\.[cm]?[jt]sx?$/,
+                // Before them, so a test file's cut lands on the file as it is
+                // on disk, and a file that names its own map is probed on it.
+                enforce: 'pre',
                 use: [{ loader: SELECTION_LOADER, options: { coverageFile } }],
               },
             ],
-          },
+          };
         },
       ],
     },
@@ -312,8 +369,24 @@ export function withTestSelection(
 /** The part of Rsbuild's plugin API this seam reads. */
 interface RsbuildPluginApi {
   readonly useExposed: (id: string) => {
-    readonly getRstestConfig: () => { readonly browser?: { readonly enabled?: boolean } };
+    readonly getRstestConfig: () => {
+      readonly browser?: { readonly enabled?: boolean };
+      readonly testNamePattern?: string | RegExp;
+    };
   } | undefined;
+}
+
+const nameFilters = new WeakMap<SelectionRun, Set<() => unknown>>();
+
+/**
+ * The name filter each project of a run runs under, read when a cycle ends: a
+ * watch session sets and clears it between cycles. Every test a filter left out
+ * reads as skipped, so under one no skip in the run is the file's own.
+ */
+function nameFiltersOf(run: SelectionRun): Set<() => unknown> {
+  let filters = nameFilters.get(run);
+  if (filters === undefined) nameFilters.set(run, (filters = new Set()));
+  return filters;
 }
 
 /**
@@ -322,13 +395,17 @@ interface RsbuildPluginApi {
  *
  * Where a file runs is the runner's to say, and `--browser.enabled` says it
  * after the configuration was written. Rstest hands its Rsbuild plugins the
- * configuration with the command line merged in, so it is read there.
+ * configuration with the command line merged in, so it is read there, and so is
+ * `-t`, which skips every test it does not name.
  */
 function pagePlugin(setupId: string, run: SelectionRun, mode: InstrumentMode) {
   return {
     name: 'variance-authority:test-selection',
     setup(api: RsbuildPluginApi): void {
-      if (api.useExposed('rstest')?.getRstestConfig().browser?.enabled !== true) return;
+      const exposed = api.useExposed('rstest');
+      // `-t` is merged in here too, and watch mode's `t` sets it between cycles.
+      if (exposed !== undefined) nameFiltersOf(run).add(() => exposed.getRstestConfig().testNamePattern);
+      if (exposed?.getRstestConfig().browser?.enabled !== true) return;
       writeSeamModule(run, setupId, browserSetupSource(mode, RSTEST_API));
       // TODO: record cases in a page — a drain per test, carried on each
       // test's `meta` as the file's is.
@@ -347,4 +424,4 @@ function array<T>(value: T | readonly T[] | undefined): T[] {
   return value === undefined ? [] : Array.isArray(value) ? [...value] : [value as T];
 }
 
-export { mergeCoverage } from './merge.js';
+export { SELECTION_LOADER } from './rstest-loaders.js';

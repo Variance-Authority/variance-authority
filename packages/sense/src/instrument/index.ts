@@ -5,7 +5,7 @@
  * the execution boundaries are ([`spliced.ts`](./spliced.ts)), and splices a
  * recording call in front of each one. No disk, no runner, no index. That is
  * deliberate — this is the only part of
- * [spec 0027](../../../../docs/specs/0027-a-test-is-selected-by-what-it-executed.md)
+ * [spec 0027](https://github.com/Variance-Authority/variance-authority/blob/main/docs/specs/0027-a-test-is-selected-by-what-it-executed.md)
  * that *manufactures* an artifact, so it is the first thing to build and the
  * cheapest thing to refute.
  *
@@ -36,7 +36,7 @@
  * evaluating bit, to the log in [`probe-log.cts`](probe-log.cts).
  * `packages/sense/scripts/probe-write.mjs` prices the logged hit at 1.2 ns at 4
  * and 16 regions and 3.2 ns at 64, on the machine
- * [`docs/context`](../../../../docs/context/README.md) names.
+ * [`docs/context`](https://github.com/Variance-Authority/variance-authority/blob/main/docs/context/README.md) names.
  *
  * `__vaS` is its own function so that `__va` stays small enough to inline at
  * every site. Folded into `__va`, the same logic measures slower at 16 regions
@@ -75,10 +75,14 @@
  * the root and never reassigns the global. A module that kept a replaced root
  * would log into it, silently, for as long as it lived.
  *
- * A switch moves the root's activation, `a`. A probe that finds `a` changed
- * since its module last logged also logs the module's own region into the new
- * bucket: a case that reached a module another case evaluated entered that
- * module, and an edit to its top level is an edit the case ran.
+ * A probe also logs its module's own region, once each way per segment: a case
+ * that reached a module another case evaluated entered that module, and so did
+ * a case that called into a module its own inline require evaluated, and an
+ * edit to the top level is an edit the case ran. It tests the region's flag
+ * against the root's evaluating bit `v` rather than `__vaP`, because a story
+ * tap hands every module a passing bit of zero to see each hit, and the root
+ * would otherwise be logged on all of them. The module's own probe sets the
+ * evaluating side directly: it runs just after raising the depth.
  *
  * ## The scope, and why it is not a getter
  *
@@ -115,38 +119,29 @@
  * Every inserted site calls the declarations in the generated module directly.
  * Re-evaluating an instrumented function's source in another realm loses those
  * declarations and throws, exposing that configuration error at its first probe.
+ *
+ * A function the module itself hands to a page is the exception the walk can
+ * see: the argument of `evaluate`, `addInitScript`, `waitForFunction`, `$eval`
+ * and the rest of Playwright's and Puppeteer's serializing calls, written at the
+ * call or bound in the module to a function, by a declaration or a variable,
+ * that is never reassigned. It gets no probe, and its text belongs to the
+ * region around it — except a declaration written after a branch that can
+ * leave or under a `case`, which exists from its block's start and gets a
+ * region probed where the block is entered. A
+ * function written in another module and sent from this one is not visible
+ * here, and the module that wrote it stays uninstrumented.
  */
 
-import { spliced as splice, type Block, type BlockKind, type InstrumentMode } from './spliced.js';
+import { instrumentationId } from './identity.js';
+import { instrumenter, spliced as splice, type Block, type BlockKind, type InstrumentMode, type WalkMode } from './spliced.js';
 
-export type { Block, BlockKind, InstrumentMode };
-
-/** Changes whenever two instrumented block universes must not share observations. */
-export const INSTRUMENTATION_ID = 'sense:instrument/presence-v5';
-
-/**
- * The recipe each mode emits under. One identity per mode, because the two
- * walks number regions differently: ordinal 3 under `entries` is a function,
- * and under `presence` it may be the `else` of the module's first `if`. A
- * record, journal or snapshot cut under one is not evidence about the other.
- */
-const IDS: Readonly<Record<InstrumentMode, string>> = {
-  presence: INSTRUMENTATION_ID,
-  entries: 'sense:instrument/entries-v2',
-};
-
-export function instrumentationId(mode: InstrumentMode = 'presence'): string {
-  return IDS[mode];
-}
-
-/** The mode an identity names, or nothing for a recipe this build does not emit. */
-export function instrumentModeOf(instrumentation: string): InstrumentMode | undefined {
-  return (Object.keys(IDS) as InstrumentMode[]).find((mode) => IDS[mode] === instrumentation);
-}
+export type { Block, BlockKind, InstrumentMode, WalkMode };
+export { cadence, columnBehindCut, type CutSourceMap, type CutTestFile } from './cadence.js';
+export { INSTRUMENTATION_ID, instrumentationId, instrumentModeOf } from './identity.js';
 
 export interface InstrumentOptions {
   /** `presence` records every arrival region; `entries` only modules and functions. */
-  readonly mode?: InstrumentMode;
+  readonly mode?: WalkMode;
 }
 
 /**
@@ -162,7 +157,7 @@ export interface InstrumentOptions {
  * bit. The collectors report such an ordinal as shared. A module that throws
  * before its end leaves the depth raised, and every later region that bucket
  * logs is then shared — over-including, in the direction
- * [`selecting.md`](../../../../docs/selecting.md) argues for.
+ * [`selecting.md`](https://variance-authority.dev/docs/selecting) argues for.
  */
 export const EVALUATING = 0x80000000;
 
@@ -183,6 +178,18 @@ export interface Instrumented {
   readonly code: string;
   /** Every region, in ordinal order. `blocks[0]` is always the module itself. */
   readonly blocks: readonly Block[];
+  /**
+   * Whether `code` imports or exports. `false` is a script, as CommonJS is: a
+   * caller that opens it with an `import` turns it into a module, and its
+   * `module.exports` stops being read.
+   */
+  readonly module: boolean;
+  /**
+   * Where the header starts in `code`, in UTF-16 code units: after the
+   * directive prologue, so a statement that must run ahead of the module's own
+   * code goes here and leaves `"use strict"` in force.
+   */
+  readonly headerAt: number;
 }
 
 /**
@@ -190,7 +197,7 @@ export interface Instrumented {
  *
  * `undefined` when the source could not be parsed or holds a lone surrogate, and
  * that is the whole reason it is not an exception: a file this cannot read is a
- * file whose blocks are unknown, and [ADR-0008](../../../../docs/context/adr/0008-per-profile-expectations.md)
+ * file whose blocks are unknown, and [ADR-0008](https://github.com/Variance-Authority/variance-authority/blob/main/docs/context/adr/0008-per-profile-expectations.md)
  * says the honest report is *not instrumented*, never *not executed*. A caller
  * that swallowed a throw here would produce the second. The one throw is a
  * missing addon, which would leave every module uninstrumented.
@@ -202,22 +209,17 @@ export function instrument(
   options: InstrumentOptions = {},
 ): Instrumented | undefined {
   const mode = options.mode ?? 'presence';
-  const spliced = splice(source, file, mode);
+  const spliced = splice(source, file, mode, id);
   if (spliced === undefined) return undefined;
 
-  const { code, headerAt, sourceDigest, blocks } = spliced;
-  return {
-    code: code.slice(0, headerAt) + runtime(id, blocks.length) + code.slice(headerAt),
-    sourceDigest,
-    instrumentation: IDS[mode],
-    blocks,
-  };
+  const { code, sourceDigest, blocks, module, headerAt } = spliced;
+  return { code, sourceDigest, instrumentation: instrumentationId(mode), blocks, module, headerAt };
 }
 
 /**
  * The declarations every instrumented module carries, and its own probe.
  *
- * 671 bytes a module, 357 after gzip and 322 after brotli: the text is the same
+ * 618 bytes a module, 340 after gzip and 317 after brotli: the text is the same
  * in every module but two numbers, so a compressor spends almost nothing on it.
  * It is written per module rather than built by the collector because the
  * fast path is made of module variables: `__vaF` and `__vaP` are slots in the
@@ -243,28 +245,31 @@ export function instrument(
  * depth lives on the bucket and not in this module, because it is the realm's
  * fact: the module evaluating is not the only module whose probes fire while it
  * does.
+ *
+ * The text is written by the instrumenter crate,
+ * [`header.rs`](../../native/instrument/src/header.rs), for every module
+ * `instrument` returns; this hands it over for a module written by hand.
  */
-function runtime(id: ModuleId, count: number): string {
-  const module = JSON.stringify(id);
-
-  return (
-    `var __vaK,__vaG,__vaB,__vaA;function __vaF(){}function __vaP(){}` +
-    `function __vaI(){__vaK=globalThis.__VA__;const r=__vaK.r(${module},${count});__vaF=r.f;__vaG=r.s;__vaB=r.b;__vaP=r.p;return __vaK}` +
-    `function __va(i){if((__vaF[i]&__vaP[0])===0)__vaS(i)}` +
-    `function __vaS(i){const K=__vaK||__vaI();if(K.s!==null)K.s();const a=K.a;if(__vaA!==a){if(__vaA!==undefined&&__vaG[0]===0){__vaG[0]=1;K.g(__vaB)}__vaA=a}` +
-    `const f=__vaG[i],p=__vaP[0];if((f&p)===0){__vaG[i]=f|p;const n=K.n;if(n<K.l){K.L[n]=(__vaB+i)|K.v;K.n=n+1}else K.g((__vaB+i)|K.v)}}` +
-    `function __vaR(v,i){__va(i);return v}` +
-    `function __vaE(){(__vaK||__vaI()).x()}` +
-    `(__vaK||__vaI()).e();__vaA=__vaK.a;__vaG[0]|=__vaP[0];__vaK.g(${EVALUATING}|__vaB);`
-  );
+export function probeRuntime(id: ModuleId, count: number): string {
+  return instrumenter().probeHeader(id, count);
 }
 
 /**
- * The emitted runtime with a placeholder path and count.
+ * What this build writes under `mode`: its identity, and one digest of the
+ * header's text and of the instrumenter crate's sources.
  *
  * A transform cache that keys on the instrumentation identity alone serves the
- * previous probe after this text changes: the regions are the same, so the
- * identity is too. What the text does is not a region question, and a cache
- * that stores it keys on the text.
+ * previous probe after the header or the walk changes under the same identity.
+ * A cache that stores instrumented text keys on the recipe. A Rust pipeline built on the instrumenter
+ * crate answers the same string from its `recipe()`, which is how a wrapper
+ * tells that the probes it did not place are the ones this build would have.
  */
-export const PROBE_RUNTIME = runtime('', 0);
+export function probeRecipe(mode: InstrumentMode = 'presence'): string {
+  if (mode !== 'loads') return instrumenter().probeRecipe(mode === 'entries');
+  // A mark is the header and nothing the walk wrote. The digest is one over the
+  // header and the walk's sources, so it moves on a change to the walk too: a
+  // cache is keyed afresh more often than the mark needs, never less.
+  const recipe = instrumenter().probeRecipe(false);
+  return `${instrumentationId('loads')}${recipe.slice(recipe.indexOf('+'))}`;
+}
+

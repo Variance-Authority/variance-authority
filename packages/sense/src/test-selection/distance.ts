@@ -42,55 +42,12 @@
  * first, which is the right place for it and the wrong reason.
  */
 
-import { dependenciesOf, idOf, nodeAt, trailOf, type NodeId, type Relations } from '@variance-authority/core/relate';
+import { EDGE_KINDS, RUNTIME_EDGES, dependenciesOf, idOf, nodeAt, trailOf, type NodeId, type Relations, type Traversal } from '@variance-authority/core/relate';
+import { reachThroughs, type Faces, type ReachThrough } from './faces.js';
 import type { TestCoverageView } from './format-view.js';
 import { findTest } from './lookup.js';
-import type { ExecutionNarrowing, SelectionCause } from './select.js';
-
-/**
- * The public face `importer` reached past to get to `reached`, if it reached
- * past one.
- *
- * A *unit* is a directory whose contents are meant to be reached through one
- * file. What makes a directory one is a convention, not a fact about the
- * filesystem, so this is supplied rather than inferred: `indexFaces` in
- * [`faces.ts`](./faces.ts) reads the one this repository and most others keep —
- * a directory with an `index` module — and a caller with a manifest, a build
- * config, or a lint rule saying otherwise hands over its own.
- *
- * Both ends are given because a boundary only exists between them. `button/index.ts`
- * importing `button/parts/glyph.ts` has reached into `parts`; `checkout/page.tsx`
- * importing the same file has reached past `button` as well, and the second is
- * the sentence worth printing. One provider holding both ends decides that once;
- * two callers comparing prefixes decide it twice and disagree eventually.
- *
- * `undefined` when nothing was reached past: `reached` is a face, `importer` is
- * inside every unit `reached` is in, or neither is in a unit at all.
- */
-export type Faces = (reached: string, importer: string) => Face | undefined;
-
-export interface Face {
-  /** The directory whose contents are meant to be reached through `entry`. */
-  readonly unit: string;
-  /** The file that unit is entered by. */
-  readonly entry: string;
-  /** What an importer outside the unit should name instead, when that is known. */
-  readonly as?: string;
-}
-
-/** One hop that landed inside a unit instead of on its face. */
-export interface ReachThrough {
-  /** The file that reached in. */
-  readonly importer: string;
-  /** What it reached. */
-  readonly reached: string;
-  /** The unit `reached` is inside and `importer` is not. */
-  readonly unit: string;
-  /** The file that unit publishes itself as. */
-  readonly entry: string;
-  /** The name to import instead, when the face provider knows one. */
-  readonly as?: string;
-}
+import { reachesThrough } from './reading.js';
+import type { ExecutionNarrowing, SelectionCause } from './narrowing.js';
 
 /**
  * What the path from a change to a test is, in one word.
@@ -200,6 +157,21 @@ export interface DistanceOptions {
  * not because they matter least but because a band that runs them is a band that
  * has stopped narrowing, and a caller slicing the front of this list should have
  * to reach past everything measured to get to them.
+ *
+ * A test the record holds `incomplete` and the change did not enter is placed
+ * too, by the shortest path it executed to a file the diff was read in
+ * (`readings`) and the test loaded; with no such path it is left out. Its
+ * record lacks the cases it did not run, so *entered no changed region* is no
+ * evidence it is far, and a changed file it never loaded is no seed: the last
+ * hop to it would be an edge nothing says the test ran. A file the parser read
+ * `none` — whitespace, a comment — is no seed either: that verdict says the
+ * change reaches no test through it. A `none` the record's kept text decided
+ * (`kept`) is, because a partial run over an edit reads its own edit that way.
+ * Every other reading seeds, an `unread` one included ({@link reachesThrough}).
+ * A changed file with no reading seeds nothing: a stale one, or one whose text
+ * was checked and that has no line ranges, such as a rename, mode or binary
+ * change. A test the walk could not measure (`unmeasured`) is left out with the
+ * rest.
  */
 export function distanceFromView(
   coverage: TestCoverageView,
@@ -207,9 +179,22 @@ export function distanceFromView(
   options: DistanceOptions = {},
 ): readonly TestDistance[] {
   const entered = enteredByTest(coverage);
-  const placed = narrowing.because.map((cause) => place(coverage, cause, entered, options));
-  return [...placed].sort(nearestFirst);
+  const placed = (narrowing.because ?? []).map((cause) => place(coverage, cause, entered, options));
+  const selected = new Set(narrowing.entered);
+  const read = (narrowing.readings ?? []).filter(reachesThrough).map((reading) => reading.file);
+  for (const test of narrowing.incomplete ?? []) {
+    if (selected.has(test)) continue;
+    const ran = entered.get(findTest(coverage, test) ?? -1) ?? new Set<string>();
+    const seeds = read.filter((file) => (options.knownAs ?? ownName)(file).some((name) => ran.has(name)));
+    if (seeds.length === 0) continue;
+    const distance = measure(test, seeds, new Map(), ran, options);
+    if (distance.hops !== undefined) placed.push(distance);
+  }
+  return placed.sort(nearestFirst);
 }
+
+/** A file held under its own path alone, when no `knownAs` names more. */
+const ownName = (file: string): readonly string[] => [file];
 
 /** The one comparison every consumer of this reading sorts by. */
 export function nearestFirst(left: TestDistance, right: TestDistance): number {
@@ -256,11 +241,22 @@ function place(
     }
   }
 
-  const walked = walk(cause.test, seeds, entered.get(findTest(coverage, cause.test) ?? -1) ?? new Set(), options);
+  return measure(cause.test, seeds, chains, entered.get(findTest(coverage, cause.test) ?? -1) ?? new Set(), options);
+}
+
+/** Walk from `test` through the modules it `ran` to the nearest seed, and splice that seed's chain back on. */
+function measure(
+  test: string,
+  seeds: readonly string[],
+  chains: ReadonlyMap<string, readonly string[]>,
+  ran: ReadonlySet<string>,
+  options: DistanceOptions,
+): TestDistance {
+  const walked = walk(test, seeds, ran, options);
   if ('because' in walked) {
     return walked.because === undefined
-      ? { test: cause.test, bearing: 'unexplained' }
-      : { test: cause.test, bearing: 'unmeasured', because: walked.because };
+      ? { test, bearing: 'unexplained' }
+      : { test, bearing: 'unmeasured', because: walked.because };
   }
 
   // The importer chain, when one answered, is hops the change travelled through
@@ -271,7 +267,7 @@ function place(
   const through = reachThroughs(trail, options.faces);
   const hops = trail.length - 1;
   return {
-    test: cause.test,
+    test,
     bearing: through.length > 0 ? 'reach-through' : hops <= 1 ? 'direct' : 'transitive',
     hops,
     from: trail[0]!,
@@ -313,48 +309,17 @@ function walk(
   const { relations } = options;
   if (relations === undefined) return { because: 'no import graph was supplied' };
   if (seeds.length === 0) return { because: 'nothing named a file to measure from' };
-  const knownAs = options.knownAs ?? ((file: string): readonly string[] => [file]);
   const held = options.enumerated ?? ((): boolean => true);
-
-  // Every name, not the first one that resolves. One module can be two nodes —
-  // a workspace package is imported through its manifest, so an importer's edge
-  // lands on `dist` while the snapshot recorded `src`, and picking either one
-  // leaves the other cut out of the graph at exactly the hop that mattered.
-  // `knownAs` is documented as every name a file is held under; honouring one of
-  // them would make that sentence false.
-  const nodes = (file: string): readonly NodeId[] => {
-    const found: NodeId[] = [];
-    for (const name of knownAs(file)) {
-      const id = idOf(relations, 'file', name);
-      if (id !== undefined) found.push(id);
-    }
-    return found;
-  };
+  const nodes = nodesOf(relations, options.knownAs ?? ownName);
 
   const start = nodes(test);
   if (start.length === 0) return { because: `the graph does not hold ${test}` };
 
-  // Everything the test did not enter is removed from the graph. The test's own
-  // file is never a module row — nothing instruments one — so it is admitted by
-  // name, and so is every seed: a changed module the test entered is in
+  // Every seed is admitted by name: a changed module the test entered is in
   // `entered` already, and one it did not is unreachable either way.
-  const open = new Uint8Array(relations.names.length);
-  for (const id of start) open[id] = 1;
-  // A module the test ran and the graph never read is a hole in the middle of
-  // the route, not a shorter route. Counted, because a walk that failed with one
-  // of these on the frontier has not measured anything — see `Walked`.
-  let blind = 0;
-  for (const file of entered) {
-    const found = nodes(file);
-    if (found.length === 0) blind += 1;
-    for (const id of found) open[id] = 1;
-  }
   const wanted = new Map<NodeId, string>();
   for (const seed of seeds) {
-    for (const id of nodes(seed)) {
-      wanted.set(id, seed);
-      open[id] = 1;
-    }
+    for (const id of nodes(seed)) wanted.set(id, seed);
   }
   if (wanted.size === 0) {
     const [first] = seeds;
@@ -363,10 +328,7 @@ function walk(
     };
   }
 
-  const avoid: NodeId[] = [];
-  for (let id = 0; id < open.length; id += 1) if (open[id] !== 1) avoid.push(id);
-
-  const traversal = dependenciesOf(relations, start, { avoid });
+  const { traversal, blind } = executed(relations, start, entered, [...wanted.keys()], nodes);
   let best: readonly NodeId[] | undefined;
   for (const id of wanted.keys()) {
     if (traversal.mask[id] !== 1) continue;
@@ -407,31 +369,100 @@ function walk(
 }
 
 /**
- * The hops on a trail that landed inside a unit.
+ * Import hops from a test's file to every module it entered, walked over the
+ * modules it entered alone — the walk {@link distanceFromView} measures a
+ * change by, read for every module at once. A module the walk could not reach
+ * from the test's file is absent, never far: the graph has no executed path to
+ * it, which says nothing of how far it is. The test's own file is 0.
  *
- * Read from the test end, because that is the direction an import is written in:
- * the file at `index + 1` is imported by the file at `index`, once the trail is
- * change-first. Whether a hop crossed a face is {@link Faces}'s question and is
- * asked with both ends, so the rule for what counts as reaching past one lives
- * with whoever knows where the faces are.
+ * Breadth-first over the entered nodes only, so a test costs the imports of
+ * what it entered and never the size of the graph: `coverage --at-distance`
+ * walks once per test file.
  */
-function reachThroughs(trail: readonly string[], faces: Faces | undefined): readonly ReachThrough[] {
-  if (faces === undefined) return [];
-  const found: ReachThrough[] = [];
-  for (let at = trail.length - 1; at > 0; at -= 1) {
-    const importer = trail[at]!;
-    const reached = trail[at - 1]!;
-    const face = faces(reached, importer);
-    if (face === undefined) continue;
-    found.push({
-      importer,
-      reached,
-      unit: face.unit,
-      entry: face.entry,
-      ...(face.as === undefined ? {} : { as: face.as }),
-    });
+export function hopsFromTest(
+  test: string,
+  entered: ReadonlySet<string>,
+  options: DistanceOptions,
+): ReadonlyMap<string, number> | { readonly because: string } {
+  const { relations } = options;
+  if (relations === undefined) return { because: 'no import graph was supplied' };
+  const nodes = nodesOf(relations, options.knownAs ?? ownName);
+  const start = nodes(test);
+  if (start.length === 0) return { because: `the graph does not hold ${test}` };
+  const open = new Set<NodeId>(start);
+  for (const file of entered) for (const id of nodes(file)) open.add(id);
+  const depth = new Map<NodeId, number>(start.map((id) => [id, 0]));
+  const { offset, target, kind } = relations.depends;
+  for (let queue = [...start], next: NodeId[] = [], hop = 1; queue.length > 0; queue = next, next = [], hop += 1) {
+    for (const from of queue) {
+      for (let edge = offset[from]!; edge < offset[from + 1]!; edge += 1) {
+        const to = target[edge]!;
+        if (!RUNTIME_KINDS[kind[edge]!] || !open.has(to) || depth.has(to)) continue;
+        depth.set(to, hop);
+        next.push(to);
+      }
+    }
   }
-  return found;
+  const hops = new Map<string, number>();
+  for (const file of entered) {
+    for (const id of nodes(file)) {
+      const length = depth.get(id);
+      if (length !== undefined && length < (hops.get(file) ?? Infinity)) hops.set(file, length);
+    }
+  }
+  return hops;
+}
+
+/** Whether each edge kind, by its index, is one a run loads through. */
+const RUNTIME_KINDS = EDGE_KINDS.map((one) => RUNTIME_EDGES.includes(one));
+
+/**
+ * Every node one file is held under. Every name, not the first one that
+ * resolves: one module can be two nodes — a workspace package is imported
+ * through its manifest, so an importer's edge lands on `dist` while the
+ * snapshot recorded `src`, and picking either one leaves the other cut out of
+ * the graph at exactly the hop that mattered. `knownAs` is documented as every
+ * name a file is held under; honouring one of them would make that sentence
+ * false.
+ */
+function nodesOf(relations: Relations, knownAs: (file: string) => readonly string[]): (file: string) => readonly NodeId[] {
+  return (file) => {
+    const found: NodeId[] = [];
+    for (const name of knownAs(file)) {
+      const id = idOf(relations, 'file', name);
+      if (id !== undefined) found.push(id);
+    }
+    return found;
+  };
+}
+
+/**
+ * The walk from a test's file with everything the test did not enter removed
+ * from the graph. The test's own file is never a module row — nothing
+ * instruments one — so it is admitted by name, and so is everything in
+ * `admitted`. `blind` counts the modules the test ran that the graph never
+ * read: a hole in the middle of the route, not a shorter route, and a walk that
+ * failed with one of these on the frontier has not measured anything.
+ */
+function executed(
+  relations: Relations,
+  start: readonly NodeId[],
+  entered: ReadonlySet<string>,
+  admitted: readonly NodeId[],
+  nodes: (file: string) => readonly NodeId[],
+): { readonly traversal: Traversal; readonly blind: number } {
+  const open = new Uint8Array(relations.names.length);
+  for (const id of start) open[id] = 1;
+  for (const id of admitted) open[id] = 1;
+  let blind = 0;
+  for (const file of entered) {
+    const found = nodes(file);
+    if (found.length === 0) blind += 1;
+    for (const id of found) open[id] = 1;
+  }
+  const avoid: NodeId[] = [];
+  for (let id = 0; id < open.length; id += 1) if (open[id] !== 1) avoid.push(id);
+  return { traversal: dependenciesOf(relations, start, { through: RUNTIME_EDGES, avoid }), blind };
 }
 
 /**

@@ -39,7 +39,7 @@ export interface IgnoreUsage {
    * Subjects where it excluded something **and a comparison happened**.
    *
    * The denominator that stops "absorbed nothing" from being an accusation. A
-   * subject that is `new`, `incomparable`, or settled from a digest compared no
+   * subject that is `new`, or settled from a digest, compared no
    * pixels, so an ignore over it had nothing to absorb — which says nothing at
    * all about whether the rule is still needed. Without this a fresh checkout
    * reported every ignore in the config as dead.
@@ -341,7 +341,7 @@ export function absorbedBands(entry: SensitivityUsage): readonly string[] | unde
  * being re-derived on the far side of the wire.
  */
 export interface GreenSubject {
-  readonly verdict: 'unchanged' | 'changed' | 'new' | 'incomparable' | 'ignored';
+  readonly verdict: 'unchanged' | 'changed' | 'new' | 'ignored';
   //
   // Both are written `| undefined` as well as optional, because the second
   // caller reads its subjects out of a database and declares them by indexed

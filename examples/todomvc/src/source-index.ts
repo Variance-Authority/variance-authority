@@ -1,10 +1,7 @@
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { join, relative } from 'node:path';
-import {
-  indexSource,
-  mergeSourceIndexes,
-  type SourceIndex,
-} from '@variance-authority/core/attribute';
+import { mergeSourceIndexes, type SourceIndex } from '@variance-authority/core/attribute';
+import { indexDeclarations } from '@variance-authority/sense';
 
 /**
  * This example's own source, indexed by component name.
@@ -46,6 +43,6 @@ export function buildSourceIndex(): SourceIndex {
   walk(join(PACKAGE_ROOT, 'src'));
 
   return mergeSourceIndexes(
-    files.map((file) => indexSource(relative(PACKAGE_ROOT, file), readFileSync(file, 'utf8'))),
+    files.map((file) => indexDeclarations(relative(PACKAGE_ROOT, file), readFileSync(file, 'utf8'))),
   );
 }

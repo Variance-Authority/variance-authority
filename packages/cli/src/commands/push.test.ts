@@ -323,11 +323,30 @@ describe('saying where a push has got to', () => {
     expect(await noteOf({ kind: 'http', endpoint: 'https://bucket.example/share' })).toBeUndefined();
     expect(await noteOf({ kind: 'http', endpoint: `${REVIEW.endpoint}/share` })).toContain('404 under /share/');
   });
+
+  it('names a refused description at API 5 only when the project reads its baselines from that deployment', async () => {
+    const noteOf = async (baselines?: PushOptions['baselines']): Promise<string | undefined> => {
+      const seen: PushProgress[] = [];
+      await push(
+        options({
+          ...(baselines === undefined ? {} : { baselines }),
+          onProgress: (event) => seen.push(event),
+          deps: { fetch: surface({ api: 5 }).fetch, read: disk({}) },
+        }),
+      );
+      const service = seen.find((event) => event.phase === 'service');
+      return service?.phase === 'service' ? service.note : undefined;
+    };
+
+    expect(await noteOf()).toBeUndefined();
+    expect(await noteOf({ kind: 'remote', endpoint: 'https://store.example' })).toBeUndefined();
+    expect(await noteOf({ kind: 'remote', endpoint: REVIEW.endpoint })).toContain('kept a snapshot of its nodes');
+  });
 });
 
 describe('the sidecar a promotion will be made from', () => {
   /**
-   * The three fields a push used to read past.
+   * The fields a push used to read past.
    *
    * Each of them is written by the run beside the PNG, survives the local
    * durable store, and is read by a *later* run off whatever baseline this
@@ -344,6 +363,7 @@ describe('the sidecar a promotion will be made from', () => {
     missingFonts: ['Inter'],
     components: [{ component: 'Card', instances: 1, structure: 's', semantics: 'm', text: 't', style: 'y' }],
     findingMarks: ['a control inside another control'],
+    snapshot: 'v1:H4sIAAAAAAAAA6tWKkktLlGyUlAqzy/KSVGqBQBNnvU3EgAAAA==',
   });
 
   async function sentCandidate(sidecar: string): Promise<Record<string, unknown> | undefined> {
@@ -382,6 +402,12 @@ describe('the sidecar a promotion will be made from', () => {
     expect(after?.['findingMarks']).toEqual(['a control inside another control']);
   });
 
+  it('carries the snapshot the region join reads, as it was packed', async () => {
+    expect((await sentCandidate(FULL))?.['snapshot']).toBe(
+      'v1:H4sIAAAAAAAAA6tWKkktLlGyUlAqzy/KSVGqBQBNnvU3EgAAAA==',
+    );
+  });
+
   it('leaves absent fields absent rather than sending an empty answer', async () => {
     // `[]` is a claim: this render was read and had nothing. A sidecar that
     // never carried the field made no claim, and `promote` writes whatever
@@ -391,6 +417,7 @@ describe('the sidecar a promotion will be made from', () => {
 
     expect(after).not.toHaveProperty('components');
     expect(after).not.toHaveProperty('findingMarks');
+    expect(after).not.toHaveProperty('snapshot');
   });
 
   it('withholds a candidate whose sidecar never said which fonts were missing', async () => {

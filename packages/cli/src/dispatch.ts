@@ -1,64 +1,60 @@
 import { writeFile } from 'node:fs/promises';
-import { dirname } from 'node:path';
+import { dirname, resolve } from 'node:path';
 import type { Config } from './config.js';
 import { loadConfig } from './config-load.js';
-import {
-  EXIT_CLEAN,
-  EXIT_OPERATOR,
-  EXIT_REVIEW,
-  OperatorError,
-  exitFor,
-  type ExitCode,
-} from './exit.js';
+import { EXIT_CLEAN, EXIT_OPERATOR, EXIT_REVIEW, OperatorError, exitFor, type ExitCode } from './exit.js';
 import {
   collectorPath,
   loadCollector,
-  planList,
-  planStorybook,
+  planFor,
   affectedProjects,
   historyFor,
   identityOf,
   relationsFor,
   run,
-  journeyAgainst,
+  suiteJourney,
   narrowingFor,
   recordedJourneys,
   scanSourceDirs,
   storeFor,
   writeArtifactToDisk,
   writeCliRunReport,
-  type Plan,
 } from './commands/run.js';
 import { renderCacheLine, sweepRenders } from './commands/renders.js';
-import { prunedLines, pruneNow, pruneWhenDueLines } from './commands/prune-cache.js';
+import { pruneWhenDueLines } from './commands/prune-cache.js';
 import { ask, costsSubject } from './commands/ask.js';
-import { questionFor } from './commands/asking.js';
+import { reviewSubject } from './commands/ask-review.js';
 import { said } from './here.js';
 import { formatReport } from './commands/report.js';
+import { writeReportPage } from './commands/report-page.js';
 import {
   adjudicateReport,
   exitForAdjudication,
   formatAdjudication,
   readClaims,
 } from './commands/adjudicate.js';
-import { liveIgnores } from './commands/ignores.js';
+import { withLiveIgnores } from './commands/ignores.js';
 import { reportsFor } from './commands/report-read.js';
 import { costsToPlace, publishedCostsLine } from './commands/costs.js';
 import { accept, formatAcceptance, readCandidate, reportToPromoteFrom } from './commands/accept.js';
 import { writeAcceptMessage } from './commands/accept-message.js';
-import { changelog, formatChangelog } from './commands/changelog.js';
-import { journeysOutput } from './commands/journeys-command.js';
-import { suiteRecord } from './commands/suite-record.js';
+import { changelog, changelogStoreFor, formatChangelog } from './commands/changelog.js';
+import { formatRemoteChangelog, readRemoteChangelog } from './commands/changelog-remote.js';
+import { runJourneys } from './commands/journeys-command.js';
+import { refiningRecord } from './commands/suite-record.js';
+import { suiteIgnore } from './commands/select-before.js';
 import { runJourneyArtifactCommand } from './commands/journey-artifact-command.js';
 import { formatPush, push, pushTicker } from './commands/push.js';
 import { serve } from './commands/serve.js';
-import { renderComment } from './commands/comment.js';
-import { doctor, machineProbes } from './commands/doctor.js';
+import { commentMarker, renderComment } from './commands/comment.js';
+import { baselineFinding, doctor, machineProbes } from './commands/doctor.js';
 import { mainlinesOf, publishedLine } from './commands/share.js';
 import { shareOutput, writeSuitePart } from './commands/suite-part.js';
 import { runCarry } from './commands/carry.js';
-import { answerConfigless, constantAnswer, withoutConfig } from './commands/configless.js';
-import { exitForDiagnosis, formatDiagnosis } from './commands/doctor-report.js';
+import { runCollect, runCollectMerge } from './commands/collect-command.js';
+import { runSuiteShare } from './commands/suite-share.js';
+import type { Configless } from './commands/configless.js';
+import { exitForBaselines, exitForDiagnosis, formatBaselines, formatDiagnosis } from './commands/doctor-report.js';
 import { VANTAGE_VARIABLE } from '@variance-authority/vantage';
 import type { ChangelogSelection } from '@variance-authority/report';
 import type { Parsed } from './parse.js';
@@ -74,45 +70,33 @@ import { rendererFor } from './renderer.js';
  * which is exactly the point of parsing into a value first.
  */
 export async function dispatch(
-  parsed: Exclude<Parsed, { command: 'help' } | { command: 'version' }>,
+  parsed: Exclude<Parsed, { command: 'help' } | { command: 'version' } | Configless>,
   streams: { out(text: string): void; err(text: string): void; detach?(argv: readonly string[], log: string): number | undefined },
 ): Promise<ExitCode> {
-  // What answers before a config is read, and why each of them may: see
-  // `configless.ts`, which holds those reasons beside the `CONFIGLESS` list in
-  // `usage.ts` that keeps `--config` off them. The guard also narrows: past it,
-  // every command left in the union has a `--config` to load.
-  // A question nobody asks is refused before a file is opened. The name is a
-  // fact about this tool and not about the project, so a mistyped one answered
-  // with "cannot read the config" sends the reader to fix the wrong thing —
-  // and sends the reader who cannot see the two are unrelated a long way.
-  if (parsed.command === 'ask' && parsed.question !== undefined) questionFor(parsed.question);
-
-  const constant = await constantAnswer(parsed, streams);
-  if (constant !== undefined) return constant;
-  if (withoutConfig(parsed)) return answerConfigless(parsed, streams);
   if (parsed.command === 'journeys' && parsed.operation !== undefined)
     return runJourneyArtifactCommand(parsed, streams);
   if (parsed.command === 'carry') return runCarry(parsed, streams, mainlinesOf);
+  // The parts say how they were collected; a merge reads no project.
+  if (parsed.command === 'collect' && parsed.operation === 'merge') return runCollectMerge(parsed, streams);
+  // A suite's record alone: the root config declares the suite and its share,
+  // and no project config is read.
+  if (parsed.command === 'share' && parsed.suite !== undefined) return runSuiteShare({ ...parsed, suite: parsed.suite }, streams);
+  if (parsed.command === 'journeys' && parsed.suite !== undefined) return runJourneys(parsed, streams);
 
   const config = await loadConfig(parsed.config);
   switch (parsed.command) {
+    case 'collect':
+      return runCollect(parsed, config, streams);
+
     case 'run': {
       const effective: Config =
         parsed.profile === undefined ? config : { ...config, profile: parsed.profile };
       const plan = await planFor(effective);
+      const scanRelations = async (dirs: readonly string[]) =>
+        relationsFor(process.cwd(), dirs, effective.source?.taints, effective.before);
 
-      // The collector is handed the rules that are still live. Expiry is a
-      // run-level decision with a clock in it, and a collector — which runs in a
-      // browser — is the wrong place to make one. An expired rule is simply never
-      // sent, so what it used to absorb is reported again with no other machinery.
-      const today = new Date().toISOString();
       const collector = await loadCollector(collectorPath(effective.subjects), {
-        config: {
-          ...effective,
-          ...(effective.ignore !== undefined
-            ? { ignore: liveIgnores(effective.ignore, today) }
-            : {}),
-        },
+        config: withLiveIgnores(effective, new Date().toISOString()),
         ...(plan !== undefined ? { plan } : {}),
       });
 
@@ -120,7 +104,7 @@ export async function dispatch(
       // itself stays free of both — it is handed an identity or it is not, and a
       // test can hand it one without setting environment variables that outlive
       // the test.
-      const history = historyFor(effective);
+      const history = await historyFor(effective);
 
       // One fetch for both verbs when they name the same ref, and `--since`
       // implies `--against` wherever a graph is configured: the walk has already
@@ -144,12 +128,15 @@ export async function dispatch(
         process.env,
       );
 
+      const ignore = await suiteIgnore(process.cwd(), parsed.suite);
+
       try {
         const report = await run({
           config: effective,
+          ...(ignore !== undefined ? { ignore } : {}),
           ...(parsed.subjects !== undefined ? { subjects: parsed.subjects } : {}),
           ...(parsed.shard !== undefined ? { shard: parsed.shard } : {}),
-          ...(await costsToPlace(effective, parsed.shard !== undefined)),
+          ...(await costsToPlace(effective)),
           ...(parsed.intent !== undefined ? { intent: parsed.intent } : {}),
           ...(parsed.flakes ? { flakes: true } : {}),
           ...(identity !== undefined ? { identity } : {}),
@@ -164,12 +151,14 @@ export async function dispatch(
             writeReport: writeCliRunReport,
             writeSuitePart,
             scanSource: async (dirs) => scanSourceDirs(process.cwd(), dirs),
-            scanRelations: async (dirs) =>
-              relationsFor(process.cwd(), dirs, effective.source?.taints, effective.source?.before),
-            readJourney: async (diff, relations, packages) =>
-              journeyAgainst(process.cwd(), diff, relations, packages, await suiteRecord(process.cwd(), parsed.suite)),
-            readJourneys: async (subjects) =>
-              recordedJourneys(process.cwd(), subjects, await suiteRecord(process.cwd(), parsed.suite)),
+            scanRelations,
+            // A suite with no `source` is read over the checkout, as `variance select` reads it.
+            readJourney: async (diff, relations) =>
+              suiteJourney(process.cwd(), diff, relations, parsed.suite, async () => scanRelations(effective.source?.dirs ?? ['.'])),
+            readJourneys: async (subjects) => {
+              const at = await refiningRecord(process.cwd(), parsed.suite);
+              return at === undefined ? undefined : recordedJourneys(process.cwd(), subjects, at);
+            },
             ...(effective.source?.changes === undefined
               ? {}
               : {
@@ -211,7 +200,14 @@ export async function dispatch(
     }
 
     case 'report': {
-      const report = await reportsFor(parsed.reports, config, parsed.embedImages);
+      if (parsed.format === 'html') {
+        const report = await writeReportPage(
+          { paths: parsed.reports, config, embedImages: parsed.embedImages, ...(parsed.subject !== undefined ? { subject: parsed.subject } : {}) },
+          streams,
+        );
+        return sideJob(exitFor(report), parsed.exitZeroOnChanges, streams);
+      }
+      const report = await reportsFor(parsed.reports, config);
       streams.out(
         formatReport({
           report,
@@ -230,12 +226,14 @@ export async function dispatch(
       // so a shell that has one exported asks a live question with no flag — and
       // one that has not is told, by the question itself, what is missing.
       const at = parsed.at ?? process.env[VANTAGE_VARIABLE];
+      const reports = parsed.reports.map((path) => resolve(path));
       streams.out(
         await ask({
           ...parsed,
           ...(at === undefined ? {} : { at }),
           report: config.report,
-          read: () => reportsFor(parsed.reports, config), costs: () => costsSubject(config, parsed.reports),
+          read: () => reportsFor(reports, config), costs: () => costsSubject(config, reports),
+          review: (tool, input) => reviewSubject(config, tool, input),
         }),
       );
       // A reading is not a verdict. `report` and `adjudicate` are where a run is
@@ -257,7 +255,7 @@ export async function dispatch(
 
     case 'accept': {
       const report = await reportToPromoteFrom(config.report);
-      const acceptHistory = historyFor(config);
+      const acceptHistory = await historyFor(config);
       const result = await accept({
         report,
         reportDir: dirname(config.report),
@@ -298,18 +296,27 @@ export async function dispatch(
     }
 
     case 'changelog': {
-      const result = await changelog({
-        config,
-        ...(parsed.limit !== undefined ? { limit: parsed.limit } : {}),
-        ...(parsed.since !== undefined ? { since: parsed.since } : {}),
-      });
+      const view = {
+        ...(parsed.component !== undefined ? { component: parsed.component } : {}),
+        ...(parsed.subject !== undefined ? { subject: parsed.subject } : {}),
+      };
+      const since = parsed.since !== undefined ? { since: parsed.since } : {};
+      const bounds = { ...(parsed.limit !== undefined ? { limit: parsed.limit } : {}), ...since };
+      const store = changelogStoreFor(config);
+      if ('deployment' in store) {
+        const read = await readRemoteChangelog({
+          config,
+          deployment: store.deployment,
+          ...view,
+          ...bounds,
+        });
+        streams.out(`${formatRemoteChangelog(read, store.deployment, { ...view, ...since })}\n`);
+        return EXIT_CLEAN;
+      }
 
-      streams.out(
-        `${formatChangelog(result, {
-          ...(parsed.component !== undefined ? { component: parsed.component } : {}),
-          ...(parsed.subject !== undefined ? { subject: parsed.subject } : {}),
-        })}\n`,
-      );
+      const result = await changelog({ root: store.root, ...bounds });
+
+      streams.out(`${formatChangelog(result, view)}\n`);
 
       // Reading a record is never a verdict about the project. This exits 0 even
       // when it found nothing, because "no baseline was explained" is an answer
@@ -317,25 +324,8 @@ export async function dispatch(
       return EXIT_CLEAN;
     }
 
-    case 'journeys': {
-      streams.out(
-        await journeysOutput({
-          cwd: process.cwd(),
-          report: config.report,
-          all: parsed.all,
-          shards: parsed.shards,
-          ...(parsed.into !== undefined ? { into: parsed.into } : {}),
-          ...(parsed.suite !== undefined ? { suite: parsed.suite } : {}),
-          ...(parsed.file !== undefined ? { file: parsed.file } : {}),
-          ...(parsed.limit !== undefined ? { limit: parsed.limit } : {}),
-        }),
-      );
-
-      // `changelog`'s rule. A parting is where to look, not a verdict: every
-      // suite with two stories per component has them legitimately, and a
-      // command that gated on one would be red on every healthy project.
-      return EXIT_CLEAN;
-    }
+    case 'journeys':
+      return runJourneys(parsed, streams, config.report);
 
     case 'push': {
       if (config.review === undefined) {
@@ -382,6 +372,7 @@ export async function dispatch(
           commit: identity.commit,
           ...(parsed.branch !== undefined ? { branch: parsed.branch } : {}),
           ...(config.share !== undefined ? { share: config.share } : {}),
+          ...(config.baselines !== undefined ? { baselines: config.baselines } : {}),
           onProgress: ticker.on,
         });
       } finally {
@@ -404,8 +395,13 @@ export async function dispatch(
       return EXIT_CLEAN;
 
     case 'doctor': {
-      // Pruned first, so the finding below reports the cache as it now stands.
-      if (parsed.prune === true) streams.out(prunedLines(await pruneNow(config)) || 'cache: nothing to prune\n');
+      // The store alone: no browser launched, no font measured, so the action
+      // can ask it before every run for the price of reading the store's heads.
+      if (parsed.baselines === true) {
+        const finding = await baselineFinding(config, machineProbes(config));
+        streams.out(`${formatBaselines(finding)}\n`);
+        return exitForBaselines(finding);
+      }
       const diagnosis = await doctor(config, machineProbes(config));
       streams.out(`${formatDiagnosis(diagnosis)}\n`);
       return exitForDiagnosis(diagnosis);
@@ -417,8 +413,15 @@ export async function dispatch(
     }
 
     case 'comment': {
+      // The poster's question, asked where no body may exist to find it in: a
+      // clean run, whose previous docket has to be located and cleared.
+      if (parsed.marker) {
+        streams.out(`${commentMarker(config.project)}\n`);
+        return EXIT_CLEAN;
+      }
       const report = await reportsFor(parsed.reports, config);
       const body = renderComment({
+        project: config.project,
         report,
         ...(parsed.runUrl !== undefined ? { runUrl: parsed.runUrl } : {}),
         ...(parsed.toAccept !== undefined ? { toAccept: parsed.toAccept } : {}),
@@ -481,19 +484,4 @@ function sideJob(
   if (!suppress || code !== EXIT_REVIEW) return code;
   streams.err('changes need review; --exit-zero-on-changes exits 0, not 1.\n');
   return EXIT_CLEAN;
-}
-
-/** The generic half of planning, when the config named a source that has one. */
-async function planFor(config: Config): Promise<Plan | undefined> {
-  if (config.subjects.kind === 'storybook') {
-    return planStorybook(config.subjects.index, config.viewport, config.subjects.excludeTags);
-  }
-
-  // `collector` returns nothing on purpose: the collector's own `plan()` is the
-  // answer, and handing it an empty one to return would make an *absent* plan
-  // and a *discovered empty* plan indistinguishable — the second is a suite that
-  // watches nothing and has to be able to say so.
-  if (config.subjects.kind === 'collector') return undefined;
-
-  return planList(config.subjects.ids);
 }

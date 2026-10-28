@@ -126,20 +126,23 @@ describe('reading a module', () => {
           { imported: 'b', local: 'b', type: false, line: 1 },
           { imported: 'c', local: 'c', type: true, line: 2 },
         ],
+        republishes: true,
       },
     ]);
   });
 
-  it('reads every re-export, including the star', () => {
+  it('reads every re-export, including the star, and tells `export type … from` from `import type`', () => {
     const read = readModule(
       'index.ts',
-      "export * from './star';\nexport { E } from './e';\nexport type { F } from './f';\n",
+      "export * from './star';\nexport { E } from './e';\nexport type { F } from './f';\nimport type { G } from './g';\n",
     );
 
-    expect(read.requests.map((request) => [request.value, request.kind])).toEqual([
-      ['./star', 'reexports'],
-      ['./e', 'reexports'],
-      ['./f', 'type'],
+    // `export type` and `import type` share a kind; only the first passes what it binds on.
+    expect(read.requests.map((request) => [request.value, request.kind, request.republishes])).toEqual([
+      ['./g', 'type', undefined],
+      ['./star', 'reexports', true],
+      ['./e', 'reexports', true],
+      ['./f', 'type', true],
     ]);
   });
 
@@ -221,6 +224,14 @@ describe('reading a module', () => {
     expect(computed.unknown).toContain('require()');
   });
 
+  it('reads a require only where it is a call, never in a comment or a string', () => {
+    // Kibana's `// require('...')` was a third-party package named `...`.
+    const read = readModule('a.cjs', "// require('...')\nconst text = 'require(name)';\nconst a = require('./req');\n");
+
+    expect(read.requests).toEqual([{ value: './req', kind: 'imports', bindings: [], line: 3 }]);
+    expect(read.unknown).toBeUndefined();
+  });
+
   it('reads JSX in a file whose extension does not announce it', () => {
     // `.jsx` is the rarer spelling. Most React components written in JavaScript
     // sit in a `.js`, and the parser's own inference leaves JSX off for that
@@ -250,6 +261,20 @@ describe('reading a module', () => {
     const read = readModule('broken.ts', "import { A } from './a';\nfunction (((\n");
 
     expect(read.unknown).toContain('parse error');
+  });
+
+  it('declares the components its code declares, and none its comments or strings spell', () => {
+    const read = readModule('Button.tsx', [
+      '/*',
+      'export function Retired() { return null; }',
+      '*/',
+      'const snippet = `',
+      'class Emitted {}',
+      '`;',
+      'export function Button() { return null; }',
+    ].join('\n'));
+
+    expect(read.declares).toEqual(['Button']);
   });
 });
 

@@ -1,4 +1,9 @@
-import { detectProfile } from './profile.js';
+import { pageOrigin, withoutOrigin } from '@variance-authority/core/format';
+import { authoredSheets, isGroupingRule } from './css-index.js';
+import { urlsIn } from './css-url.js';
+import { items } from './dom-list.js';
+import { faceOf, familiesPaintedWith, isFontFaceRule } from './font-faces.js';
+import { paintedStyles } from './painted-styles.js';
 
 /**
  * Which external files a subject's own subtree asks for.
@@ -45,17 +50,6 @@ const URL_PROPERTIES: readonly string[] = [
 ];
 
 /**
- * Pseudo-elements that can paint a file the element's own styles do not name.
- *
- * Only asked of a host with a layout engine. `getComputedStyle(element, '::before')`
- * is unimplemented under jsdom, where it costs a virtual-console error per
- * element rather than an answer — three hundred subjects of noise for a question
- * that host cannot answer anyway. The profile probe is the honest way to ask:
- * *can this host resolve a pseudo-element's style*, not *is this jsdom*.
- */
-const PSEUDO_ELEMENTS: readonly string[] = ['::before', '::after'];
-
-/**
  * Every asset URL the subtree references, absolute, sorted, de-duplicated.
  *
  * Sorted because the result is folded into a digest through an object key order
@@ -69,8 +63,6 @@ const PSEUDO_ELEMENTS: readonly string[] = ['::before', '::after'];
  */
 export function referencedAssets(root: Element): readonly string[] {
   const document = root.ownerDocument;
-  const view = document.defaultView;
-  const pseudo = view === null || !detectProfile(view).layout ? [] : PSEUDO_ELEMENTS;
   const found = new Set<string>();
 
   const add = (value: string | null | undefined): void => {
@@ -91,26 +83,32 @@ export function referencedAssets(root: Element): readonly string[] {
     found.add(resolved);
   };
 
-  for (const element of [root, ...root.querySelectorAll('*')]) {
-    addAttributes(element, add);
-    if (view === null) continue;
+  for (const element of [root, ...root.querySelectorAll('*')]) addAttributes(element, add);
 
-    for (const selector of [null, ...pseudo]) {
-      const style = view.getComputedStyle(element, selector);
-      // A suite that stubs `getComputedStyle` -- to drive a layout it cannot
-      // otherwise produce -- hands back a plain object with the two properties
-      // the component under test reads. There is no computed style to scan,
-      // and there is nothing to fail about: whatever it would have named, the
-      // stub has already removed from the page.
-      if (typeof style?.getPropertyValue !== 'function') continue;
-      for (const property of URL_PROPERTIES) {
-        for (const url of urlsIn(style.getPropertyValue(property))) add(url);
-      }
+  const styles = paintedStyles(root);
+  for (const style of styles) {
+    for (const property of URL_PROPERTIES) {
+      for (const url of urlsIn(style.getPropertyValue(property))) add(url);
     }
   }
 
+  // A face's file is named by a rule no element matches, so no computed value
+  // above carries it; the subtree asks for it by setting text in the face.
+  for (const source of faceSources(familiesPaintedWith(styles), document)) add(source);
+
   return [...found].sort();
 }
+
+/** An attribute that names a file: `srcset` names one per candidate. */
+export interface FileAttribute {
+  readonly name: string;
+  readonly namespace: string | null;
+  readonly candidates: boolean;
+}
+
+const SRC: FileAttribute = { name: 'src', namespace: null, candidates: false };
+const HREF: FileAttribute = { name: 'href', namespace: null, candidates: false };
+const XLINK_HREF: FileAttribute = { name: 'href', namespace: 'http://www.w3.org/1999/xlink', candidates: false };
 
 /**
  * The attributes that name a file, by element.
@@ -118,65 +116,134 @@ export function referencedAssets(root: Element): readonly string[] {
  * `href` is read only on SVG's `<use>` and `<image>`. On an `<a>` it is a
  * destination rather than an asset, and hashing every link target would put the
  * whole site in one subject's key.
+ *
+ * **Every `srcset` candidate, not the one the browser picked.** Which candidate
+ * is used depends on the device pixel ratio, and a key that recorded only the
+ * chosen one would let a 2× asset change without moving the 1× runner's key —
+ * the same file, the same URL list, and a baseline that is quietly of different
+ * bytes. Over-inclusion here costs a re-render nobody needed; under-inclusion
+ * costs a false `unchanged`.
  */
-function addAttributes(element: Element, add: (value: string | null) => void): void {
-  const tag = element.tagName.toLowerCase();
-
-  if (tag === 'img' || tag === 'source') {
-    add(element.getAttribute('src'));
-    // **Every candidate, not the one the browser picked.** Which candidate is
-    // used depends on the device pixel ratio, and a key that recorded only the
-    // chosen one would let a 2× asset change without moving the 1× runner's key
-    // — the same file, the same URL list, and a baseline that is quietly of
-    // different bytes. Over-inclusion here costs a re-render nobody needed;
-    // under-inclusion costs a false `unchanged`.
-    for (const candidate of srcsetCandidates(element.getAttribute('srcset'))) add(candidate);
-  }
-
-  if (tag === 'image' || tag === 'use') {
-    add(element.getAttribute('href'));
-    add(element.getAttributeNS('http://www.w3.org/1999/xlink', 'href'));
-  }
-
-  if (tag === 'video' || tag === 'audio' || tag === 'track' || tag === 'embed' || tag === 'iframe') {
-    add(element.getAttribute('src'));
-  }
-
-  if (tag === 'video') add(element.getAttribute('poster'));
-  if (tag === 'object') add(element.getAttribute('data'));
-  if (tag === 'input' && element.getAttribute('type')?.toLowerCase() === 'image') {
-    add(element.getAttribute('src'));
+export function fileAttributes(element: Element): readonly FileAttribute[] {
+  switch (element.tagName.toLowerCase()) {
+    case 'img':
+    case 'source':
+      return [SRC, { name: 'srcset', namespace: null, candidates: true }];
+    case 'image':
+    case 'use':
+      return [HREF, XLINK_HREF];
+    case 'video':
+      return [SRC, { name: 'poster', namespace: null, candidates: false }];
+    case 'audio':
+    case 'track':
+    case 'embed':
+    case 'iframe':
+      return [SRC];
+    case 'object':
+      return [{ name: 'data', namespace: null, candidates: false }];
+    case 'input':
+      return element.getAttribute('type')?.toLowerCase() === 'image' ? [SRC] : [];
+    default:
+      return [];
   }
 }
 
-/** `a.png 1x, b.png 2x` → `['a.png', 'b.png']`. Descriptors are not URLs. */
-function srcsetCandidates(value: string | null): readonly string[] {
-  if (value === null) return [];
+function addAttributes(element: Element, add: (value: string | null) => void): void {
+  for (const attribute of fileAttributes(element)) {
+    const value = element.getAttributeNS(attribute.namespace, attribute.name);
+    if (!attribute.candidates) add(value);
+    else for (const candidate of srcsetCandidates(value ?? '')) add(candidate.url);
+  }
+}
 
-  return value
-    .split(',')
-    .map((candidate) => candidate.trim().split(/\s+/)[0] ?? '')
-    .filter((candidate) => candidate !== '');
+/** HTML splits a `srcset` on these, and a no-break space is part of a URL. */
+const ASCII_WHITESPACE = /[\t\n\f\r ]/;
+
+/** One candidate in a `srcset`: its URL, and the descriptor offered with it. */
+export interface SrcsetCandidate {
+  readonly url: string;
+  /** `2x`, `640w`, or empty. */
+  readonly descriptor: string;
 }
 
 /**
- * The URLs inside a computed style value.
+ * `a.png 1x, b.png 2x` → each URL with its descriptor, by HTML's rule.
  *
- * Computed values are normalized by the engine, so quoting is predictable — but
- * only in a real engine. Under jsdom a declared value comes back as written,
- * which is why both quoted forms and the bare one are handled: the same function
- * has to work in the cheap tier, where most of this project's tests run.
+ * A URL is a run of anything but ASCII whitespace, so the comma inside a `data:` URL is part of
+ * it: splitting on every comma cut such a URL in two, and the second half
+ * resolved as a file next to the page. A comma ends a candidate only after its
+ * URL, or trailing it.
  */
-function urlsIn(value: string): readonly string[] {
-  if (value === '' || !value.includes('url(')) return [];
+export function srcsetCandidates(value: string): readonly SrcsetCandidate[] {
+  const candidates: SrcsetCandidate[] = [];
+  let position = 0;
 
-  const urls: string[] = [];
-  for (const match of value.matchAll(/url\(\s*(?:"([^"]*)"|'([^']*)'|([^)\s]*))\s*\)/g)) {
-    const url = match[1] ?? match[2] ?? match[3] ?? '';
-    if (url !== '') urls.push(url);
+  while (position < value.length) {
+    while (position < value.length && /[\t\n\f\r ,]/.test(value[position]!)) position += 1;
+    if (position >= value.length) break;
+
+    const start = position;
+    while (position < value.length && !ASCII_WHITESPACE.test(value[position]!)) position += 1;
+    const written = value.slice(start, position);
+    const url = written.replace(/,+$/, '');
+    if (url !== written) {
+      candidates.push({ url, descriptor: '' });
+      continue;
+    }
+
+    // A descriptor runs to the next comma outside parentheses; the first `)`
+    // closes them, however many opened.
+    const after = position;
+    let inParens = false;
+    while (position < value.length && (value[position] !== ',' || inParens)) {
+      if (value[position] === '(') inParens = true;
+      else if (value[position] === ')') inParens = false;
+      position += 1;
+    }
+    candidates.push({ url, descriptor: value.slice(after, position).trim() });
   }
 
-  return urls;
+  return candidates;
+}
+
+/**
+ * The files of every face named in `families`, conditions or not.
+ *
+ * A face under an `@media` that does not hold here is counted anyway, because the key is asked
+ * of the live page with no environment to erase a condition against: a key
+ * naming a file the render will not fetch costs a render nobody needed, and
+ * one missing a file the render paints with is a false `unchanged`.
+ *
+ * A walk of its own rather than the index's, because the index is built per
+ * environment and erases what does not hold in it.
+ */
+function faceSources(families: ReadonlySet<string>, document: Document): readonly string[] {
+  if (families.size === 0) return [];
+  const sources: string[] = [];
+
+  const walk = (rules: CSSRuleList, base: string): void => {
+    for (const rule of items(rules)) {
+      if (isFontFaceRule(rule)) {
+        const face = faceOf(rule, base, document);
+        if (face !== null && families.has(face.family)) sources.push(...face.sources);
+      } else if (isGroupingRule(rule)) {
+        walk(rule.cssRules, base);
+      }
+    }
+  };
+
+  for (const sheet of authoredSheets(document)) {
+    let rules: CSSRuleList;
+    try {
+      rules = sheet.cssRules;
+    } catch {
+      // Cross-origin. The index reports it; nothing in it can be read here.
+      continue;
+    }
+    walk(rules, sheet.href ?? document.baseURI);
+  }
+
+  return sources;
 }
 
 /**
@@ -185,16 +252,23 @@ function urlsIn(value: string): readonly string[] {
  * Where the two halves meet: the driver knows the bytes and the page knows the
  * subject. Returned as a plain object because that is what `EnvironmentInputs`
  * carries, and built in referenced order so the shape is stable.
+ *
+ * An asset the page's own origin serves is keyed by its path. A collector serves
+ * a build on whatever port the machine had free, and a key holding that port
+ * makes one build served twice two environments. An asset from another origin
+ * keeps its absolute URL, because there the host is part of what was fetched.
  */
 export function assetsFor(
   root: Element,
   observed: Readonly<Record<string, string>>,
 ): Readonly<Record<string, string>> {
   const scoped: Record<string, string> = {};
+  const origin = pageOrigin(root.ownerDocument.baseURI);
 
   for (const url of referencedAssets(root)) {
     const digest = observed[url];
-    if (digest !== undefined) scoped[url] = digest;
+    if (digest === undefined) continue;
+    scoped[withoutOrigin(url, origin)] = digest;
   }
 
   return scoped;

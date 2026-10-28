@@ -87,6 +87,7 @@ function probesOf(
       };
     },
     exists: async () => options.exists !== false,
+    pointers: async () => [],
     partitions: async () => partitions,
     // Nothing cached. The cache is reported, never diagnosed: it holds only
     // images this machine can repaint.
@@ -95,31 +96,38 @@ function probesOf(
   };
 }
 
-describe('a store this machine cannot compare against', () => {
+describe('a store another machine painted', () => {
   const foreign = () => doctor(configOf(), probesOf([{ identity: THEIRS, baselines: 342 }]));
 
   it('is found before the run rather than during it', async () => {
     const { baselines } = await foreign();
-    expect(baselines.comparable).toBe(false);
+    expect(baselines.paintedHere).toBe(false);
     expect(baselines.because).toContain('no baseline in /repo/baselines was painted by a machine');
   });
 
-  it('names both exits instead of only the diagnosis', async () => {
+  it('says the run compares every subject and names the machine as the cause', async () => {
+    // Nothing refuses (ADR-0090): a run here diffs every subject, so the finding
+    // is what to expect from it, not a reason it cannot happen.
+    const { baselines } = await foreign();
+    expect(baselines.because).toContain('every subject is compared against another machine');
+    expect(baselines.because).not.toMatch(/comparable/i);
+  });
+
+  it('names both ways to keep the machine out of the diff', async () => {
     // A finding an operator cannot act on is a finding they learn to scroll past.
-    // Both ways out are real and are in this repository: ephemeral retention, or
-    // a renderer endpoint carrying the identity the baselines were written under.
     const { baselines } = await foreign();
     expect(baselines.because).toContain('"retention": "ephemeral"');
     expect(baselines.because).toContain('"renderer"');
   });
 
-  it('exits 2, because a run here would produce no verdicts at all', async () => {
-    expect(exitForDiagnosis(await foreign())).toBe(EXIT_OPERATOR);
+  it('exits clean, because a run here compares and reports every subject', async () => {
+    expect(exitForDiagnosis(await foreign())).toBe(EXIT_CLEAN);
   });
 
   it('lays the store out by identity, marking this machine', async () => {
     const text = formatDiagnosis(await foreign());
-    expect(text).toContain('NOT COMPARABLE HERE');
+    expect(text).toContain('PAINTED ELSEWHERE');
+    expect(text).not.toContain('COMPARABLE');
     expect(text).toContain(THEIRS.slice(0, 16));
   });
 });
@@ -128,7 +136,7 @@ describe('a store this machine wrote', () => {
   it('says so, and exits clean', async () => {
     const diagnosis = await doctor(configOf(), probesOf([{ identity: MINE, baselines: 8 }]));
 
-    expect(diagnosis.baselines.comparable).toBe(true);
+    expect(diagnosis.baselines.paintedHere).toBe(true);
     expect(diagnosis.baselines.because).toContain('8 baseline(s)');
     expect(exitForDiagnosis(diagnosis)).toBe(EXIT_CLEAN);
     expect(formatDiagnosis(diagnosis)).toContain('(this machine)');
@@ -146,7 +154,7 @@ describe('a store this machine wrote', () => {
       ]),
     );
 
-    expect(diagnosis.baselines.comparable).toBe(true);
+    expect(diagnosis.baselines.paintedHere).toBe(true);
     expect(diagnosis.baselines.partitions).toEqual([
       { identity: THEIRS, baselines: 900, mine: false },
       { identity: MINE, baselines: 4, mine: true },
@@ -164,7 +172,7 @@ describe('a store this machine wrote', () => {
       probesOf([{ identity: MINE, baselines: 8, colonSpelled: 3 }]),
     );
 
-    expect(diagnosis.baselines.comparable).toBe(true);
+    expect(diagnosis.baselines.paintedHere).toBe(true);
     expect(exitForDiagnosis(diagnosis)).toBe(EXIT_CLEAN);
     const text = formatDiagnosis(diagnosis);
     expect(text).toContain(`3 of them in a \`${MINE.slice(0, 16)}…\` directory`);
@@ -184,14 +192,14 @@ describe('states that are not a wrong machine', () => {
     // machine is wrong.
     const diagnosis = await doctor(configOf(), probesOf([]));
 
-    expect(diagnosis.baselines.comparable).toBeUndefined();
+    expect(diagnosis.baselines.paintedHere).toBeUndefined();
     expect(diagnosis.baselines.because).toContain('will be `new` on the first run');
     expect(exitForDiagnosis(diagnosis)).toBe(EXIT_CLEAN);
   });
 
   it('a root of empty identity directories is also the first run', async () => {
     const diagnosis = await doctor(configOf(), probesOf([{ identity: THEIRS, baselines: 0 }]));
-    expect(diagnosis.baselines.comparable).toBeUndefined();
+    expect(diagnosis.baselines.paintedHere).toBeUndefined();
   });
 
   it('an absent root is never scanned', async () => {
@@ -209,7 +217,7 @@ describe('states that are not a wrong machine', () => {
       probesOf([{ identity: THEIRS, baselines: 12 }], { opens: false }),
     );
 
-    expect(diagnosis.baselines.comparable).toBeUndefined();
+    expect(diagnosis.baselines.paintedHere).toBeUndefined();
     expect(diagnosis.baselines.because).toContain('no renderer opened here to be asked');
     expect(exitForDiagnosis(diagnosis)).toBe(EXIT_OPERATOR);
   });

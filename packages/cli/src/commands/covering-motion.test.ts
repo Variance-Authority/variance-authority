@@ -7,13 +7,14 @@ import { readFlags } from '../args.js';
 import { parseCoveringArgs } from '../covering-args.js';
 import { flagsFor, synopsisFor } from '../usage.js';
 import {
-  caseLayerFiles,
   encodeExecutionIndex,
+  writeTestCoverage,
+  type CommitRuns,
   type ExecutionBlock,
   type ExecutionIndex,
 } from '@variance-authority/sense/test-selection';
 import { covering, formatCovering } from './covering.js';
-import { motionOfLast, motionText } from './covering-motion.js';
+import { motionOfLast, motionOfRuns, motionText, runsWrote } from './covering-motion.js';
 import { indexOutput } from './index-command.js';
 
 const DISCOUNTS = { id: 'total.test.ts > discounts', file: 'total.test.ts', name: 'discounts', stopped: false };
@@ -45,68 +46,251 @@ async function records(): Promise<string> {
   return mkdtemp(join(tmpdir(), 'variance-covering-motion-'));
 }
 
+/**
+ * A record at `file` holding `now` as its case index, with the before layer
+ * and the last run's name when given, the way a run keeps them. It holds no
+ * coverage of its own: the question here reads only its cases.
+ */
+async function keep(file: string, now: ExecutionIndex, layers: { readonly before?: ExecutionIndex; readonly last?: object } = {}): Promise<void> {
+  await writeTestCoverage(file, { version: 3, instrumentation: 'fixture-instrumentation', tests: [], modules: [] }, {
+    index: encodeExecutionIndex(now),
+    ...(layers.before === undefined ? {} : { before: encodeExecutionIndex(layers.before) }),
+    ...(layers.last === undefined ? {} : { last: Buffer.from(JSON.stringify(layers.last)) }),
+  });
+}
+
+const cwd = process.cwd();
+afterEach(() => process.chdir(cwd));
+
+const git = (at: string, args: readonly string[]): string =>
+  execFileSync('git', args, { cwd: at, stdio: 'pipe', encoding: 'utf8' }).trim();
+
+/** A checkout with `main` at `first`, and the change on a branch of its own. */
+async function checkout(): Promise<{ root: string; first: string }> {
+  const root = await mkdtemp(join(tmpdir(), 'variance-covering-against-'));
+  await mkdir(join(root, 'src'), { recursive: true });
+  git(root, ['init', '--quiet', '--initial-branch', 'main']);
+  git(root, ['config', 'user.email', 'fixture@example.test']);
+  git(root, ['config', 'user.name', 'Fixture']);
+  await writeFile(join(root, 'src/total.ts'), 'export const total = 1;\n');
+  await writeFile(join(root, 'src/other.ts'), 'export const other = 1;\n');
+  await writeFile(join(root, 'total.test.ts'), 'it("discounts", () => {});\n');
+  git(root, ['add', '-A']);
+  git(root, ['commit', '--quiet', '-m', 'first']);
+  process.chdir(root);
+  return { root, first: git(root, ['rev-parse', 'HEAD']) };
+}
+
+/** A commit no clone has: forty hex digits that name no object. */
+const ABSENT = 'f'.repeat(40);
+
+/** The cases `discounts` ran at the base: both functions. */
+const RETIRED: ExecutionIndex = {
+  tests: [DISCOUNTS],
+  modules: [{ file: 'src/total.ts', blocks: [block('applyDiscount', 10, [0]), block('round', 30, [0])] }],
+};
+
 describe('what the last run moved', () => {
   it('compares the last run with the cases it retired, and names what a test stopped calling', async () => {
-    const dir = await records();
-    const execution = join(dir, 'cases.bin');
-    await writeFile(execution, encodeExecutionIndex(index([0, 1], [1])));
-    await writeFile(caseLayerFiles(execution).last, JSON.stringify({ at: '2026-09-25T00:00:00.000Z', files: ['total.test.ts'], cases: [DISCOUNTS.id] }));
-    await writeFile(caseLayerFiles(execution).before, encodeExecutionIndex({ tests: [DISCOUNTS], modules: [
-      { file: 'src/total.ts', blocks: [block('applyDiscount', 10, [0]), block('round', 30, [0])] },
-    ] }));
+    const { first } = await checkout();
+    const execution = join(await records(), 'coverage.bin');
+    // No case of the record calls `round` now, the retained `flow.test.tsx` included.
+    await keep(execution, index([0, 1], []), {
+      last: { commit: first, before: first, at: '2026-09-25T00:00:00.000Z', files: ['total.test.ts'], cases: [DISCOUNTS.id] },
+      before: RETIRED,
+    });
 
     const answer = await covering(parse(['--file', 'src/total.ts', '--cases', 'last', '--execution', execution]));
 
     expect(answer.motion?.moved?.regions.map((region) => [region.name, region.motion])).toEqual([['round', 'lost']]);
     const text = formatCovering(answer, 'text');
-    expect(text).toContain('Against the run before it: 1 lost.');
+    expect(text).toContain(`Against the run before it at ${first.slice(0, 12)}: 1 lost.`);
     expect(text).toContain('  lost     src/total.ts 30-34 function round — was total.test.ts > discounts');
     expect(text).toContain('total.test.ts no longer enters round in src/total.ts (1 region).');
   });
 
+  it('credits no case an earlier run at the same commit recorded as kept from before it', async () => {
+    // Two runs at one commit: the first ran `flow.test.tsx`, the last
+    // `total.test.ts`, and both now call `round`, which no case called before.
+    // `flow.test.tsx`'s case is new at this commit, not kept from an earlier
+    // recording, so it says nothing of what `round` had before.
+    const { first } = await checkout();
+    const execution = join(await records(), 'coverage.bin');
+    await keep(execution, index([0], [0, 1]), {
+      last: { commit: first, before: first, at: '2026-09-25T00:00:00.000Z', files: ['flow.test.tsx', 'total.test.ts'], cases: [DISCOUNTS.id] },
+      before: { tests: [DISCOUNTS, CHECKS_OUT], modules: [
+        { file: 'src/total.ts', blocks: [block('applyDiscount', 10, [0]), block('round', 30, [])] },
+      ] },
+    });
+
+    const answer = await covering(parse(['--file', 'src/total.ts', '--cases', 'last', '--execution', execution]));
+
+    expect(answer.motion?.moved?.regions.map((region) => [region.name, region.motion])).toEqual([['round', 'gained']]);
+  });
+
+  it('names, in the module asked about, each retired row that stands on a region of another path', async () => {
+    // The retired layer claims the commit the last run was made at, yet on the
+    // lines of each of its branches the record now holds a branch of another
+    // path, and no edit lies between them to have renumbered one.
+    const { first } = await checkout();
+    const execution = join(await records(), 'coverage.bin');
+    const branch = (file: string, name: string, path: string, line: number, tests: readonly number[]) =>
+      ({ file, name, path, line, tests });
+    const layer = (rows: readonly ReturnType<typeof branch>[]): ExecutionIndex => ({
+      tests: [DISCOUNTS],
+      modules: ['src/other.ts', 'src/total.ts'].map((file) => ({
+        file,
+        blocks: rows.filter((row) => row.file === file).flatMap((row) => [
+          { kind: 'function', name: row.name, path: 'entry', startLine: row.line - 1, endLine: row.line + 1, source: true, crossings: [] },
+          { kind: 'branch', name: row.name, path: row.path, startLine: row.line, endLine: row.line, source: true,
+            crossings: row.tests.map((test) => ({ test, distance: 0 })) },
+        ]),
+      })),
+    });
+    await keep(execution, layer([
+      branch('src/total.ts', 'apply', 'if#1/then', 12, []),
+      branch('src/total.ts', 'round', 'if#0/then', 32, []),
+      branch('src/other.ts', 'format', 'if#1/then', 2, []),
+    ]), {
+      last: { commit: first, before: first, at: '2026-09-25T00:00:00.000Z', files: ['total.test.ts'], cases: [DISCOUNTS.id] },
+      before: layer([
+        branch('src/total.ts', 'round', 'if#0/else', 32, [0]),
+        branch('src/total.ts', 'apply', 'if#0/then', 12, [0]),
+        branch('src/other.ts', 'format', 'if#0/then', 2, [0]),
+      ]),
+    });
+
+    const answer = await covering(parse(['--file', 'src/total.ts', '--cases', 'last', '--execution', execution]));
+
+    expect(answer.motion?.moved?.regions).toEqual([]);
+    expect(answer.motion?.moved?.mismatched?.map((row) => [row.file, row.startLine, row.path, row.now.path])).toEqual([
+      ['src/total.ts', 12, 'if#0/then', 'if#1/then'],
+      ['src/total.ts', 32, 'if#0/else', 'if#0/then'],
+    ]);
+  });
+
   it('says there was nothing to compare when no run came before', async () => {
     const dir = await records();
-    const execution = join(dir, 'cases.bin');
-    await writeFile(execution, encodeExecutionIndex(index([0], [])));
-    await writeFile(caseLayerFiles(execution).last, JSON.stringify({ at: '2026-09-25T00:00:00.000Z', files: [], cases: [DISCOUNTS.id] }));
+    const execution = join(dir, 'coverage.bin');
+    await keep(execution, index([0], []), { last: { at: '2026-09-25T00:00:00.000Z', files: [], cases: [DISCOUNTS.id] } });
 
     const answer = await covering(parse(['--file', 'src/total.ts', '--cases', 'last', '--execution', execution]));
 
     expect(answer.motion?.moved).toBeUndefined();
     expect(formatCovering(answer, 'text')).toContain('Nothing to compare:');
   });
+
+  it('refuses cases it retired that name no commit, and says when that happens', async () => {
+    const { first } = await checkout();
+    const execution = join(await records(), 'coverage.bin');
+    // A run at the commit the last one was made at ran the file again, so what
+    // it retired was recorded over more than one tree and names no `before`.
+    await keep(execution, index([0, 1], [1]), {
+      last: { commit: first, at: '2026-09-25T00:00:00.000Z', files: ['total.test.ts'], cases: [DISCOUNTS.id] },
+      before: RETIRED,
+    });
+
+    await expect(covering(parse(['--file', 'src/total.ts', '--cases', 'last', '--execution', execution]))).rejects.toMatchObject({
+      exitCode: 2,
+      message: expect.stringContaining('The run before the last one names no commit it was recorded at'),
+    });
+    await expect(covering(parse(['--file', 'src/total.ts', '--cases', 'last', '--execution', execution]))).rejects.toThrow(
+      'a run at the same commit ran one of its test files again',
+    );
+  });
+
+  it('refuses cases it retired at a commit this clone does not have, and names how to fetch it', async () => {
+    await checkout();
+    const execution = join(await records(), 'coverage.bin');
+    await keep(execution, index([0, 1], [1]), {
+      last: { commit: ABSENT, before: ABSENT, at: '2026-09-25T00:00:00.000Z', files: ['total.test.ts'], cases: [DISCOUNTS.id] },
+      before: RETIRED,
+    });
+
+    const refused = covering(parse(['--file', 'src/total.ts', '--cases', 'last', '--execution', execution]));
+
+    await expect(refused).rejects.toMatchObject({
+      exitCode: 2,
+      message: expect.stringContaining(`was recorded at ${ABSENT}, which this clone does not have`),
+    });
+    await expect(refused).rejects.toThrow(`git fetch origin ${ABSENT}`);
+  });
+
+  it('refuses a record whose retired cases do not read, rather than saying it holds none', async () => {
+    const dir = await records();
+    const execution = join(dir, 'coverage.bin');
+    await writeTestCoverage(execution, { version: 3, instrumentation: 'fixture-instrumentation', tests: [], modules: [] }, {
+      index: encodeExecutionIndex(index([0], [])),
+      before: Buffer.from('not a case index'),
+      last: Buffer.from(JSON.stringify({ at: '2026-09-25T00:00:00.000Z', files: ['total.test.ts'], cases: [DISCOUNTS.id] })),
+    });
+
+    await expect(covering(parse(['--file', 'src/total.ts', '--cases', 'last', '--execution', execution])))
+      .rejects.toThrow(new RegExp(`the cases the last run retired in ${execution.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&')} do not read`, 'u'));
+  });
+});
+
+describe('what the runs at one commit moved', () => {
+  it('compares only the files a run before them recorded, and names the rest', async () => {
+    // TanStack Query's first cycle: a whole run into an empty cache, then the
+    // selected file again. `flow.test.tsx` ran once, over no index, so no case
+    // of it came before, and `round`, which only it enters, gained nothing.
+    const { root, first } = await checkout();
+    const execution = join(await records(), 'coverage.bin');
+    const full = index([0], [1]);
+    await keep(execution, full, {
+      last: {
+        commit: 'c', before: first, at: '2026-09-25T00:00:00.000Z', files: ['flow.test.tsx', 'total.test.ts'],
+        unbased: ['flow.test.tsx'], cases: [DISCOUNTS.id],
+      },
+      before: { tests: [DISCOUNTS], modules: [
+        { file: 'src/total.ts', blocks: [block('applyDiscount', 10, [0]), block('round', 30, [])] },
+      ] },
+    });
+
+    const wrote = await runsWrote(execution, { commit: 'c', files: ['flow.test.tsx', 'total.test.ts'] } as CommitRuns);
+    const motion = await motionOfRuns(full, execution, wrote, root);
+
+    expect(motion.moved?.regions).toEqual([]);
+    expect(motion.unbased).toEqual(['flow.test.tsx']);
+    expect(motion.unwritten).toEqual([]);
+    expect(motionText(motion)).toContain('Not compared, no case of these was recorded before this commit\'s first run: flow.test.tsx.');
+  });
+
+  it('keeps the cases of a test file that did not run again on both sides of a region', async () => {
+    // Only `total.test.ts` ran at this commit. It stopped calling `round` and
+    // started calling `format`, but `flow.test.tsx`, which did not run again,
+    // retains its earlier recording of both: `round` kept one case rather than
+    // losing every case, and `format` gained none it did not have.
+    const { root, first } = await checkout();
+    const execution = join(await records(), 'coverage.bin');
+    const full = index([0], [1], [0, 1]);
+    await keep(execution, full, {
+      last: { commit: first, before: first, at: '2026-09-25T00:00:00.000Z', files: ['total.test.ts'], cases: [DISCOUNTS.id] },
+      before: { tests: [DISCOUNTS], modules: [
+        { file: 'src/total.ts', blocks: [block('applyDiscount', 10, [0]), block('round', 30, [0])] },
+        { file: 'src/other.ts', blocks: [block('format', 1, [])] },
+      ] },
+    });
+
+    const wrote = await runsWrote(execution, { commit: first, files: ['total.test.ts'] } as CommitRuns);
+    const motion = await motionOfRuns(full, execution, wrote, root);
+
+    expect(motion.moved?.regions.map((region) => [region.name, region.motion])).toEqual([['round', 'thinned']]);
+    const text = motionText(motion);
+    expect(text).toContain(`Against the run before it at ${first.slice(0, 12)}: 1 thinned.`);
+    expect(text).toContain('  thinned  src/total.ts 30-34 function round — was 2 cases, now only flow.test.tsx > checks out');
+    expect(text).toContain('total.test.ts now enters format in src/other.ts (1 region), and no longer enters round in src/total.ts (1 region).');
+  });
 });
 
 describe('what a change moved against the base', () => {
-  const cwd = process.cwd();
-  afterEach(() => process.chdir(cwd));
-
-  const git = (at: string, args: readonly string[]): string =>
-    execFileSync('git', args, { cwd: at, stdio: 'pipe', encoding: 'utf8' }).trim();
-
-  /** A checkout with `main` at `first`, and the change on a branch of its own. */
-  async function checkout(): Promise<{ root: string; first: string }> {
-    const root = await mkdtemp(join(tmpdir(), 'variance-covering-against-'));
-    await mkdir(join(root, 'src'), { recursive: true });
-    git(root, ['init', '--quiet', '--initial-branch', 'main']);
-    git(root, ['config', 'user.email', 'fixture@example.test']);
-    git(root, ['config', 'user.name', 'Fixture']);
-    await writeFile(join(root, 'src/total.ts'), 'export const total = 1;\n');
-    await writeFile(join(root, 'src/other.ts'), 'export const other = 1;\n');
-    await writeFile(join(root, 'total.test.ts'), 'it("discounts", () => {});\n');
-    git(root, ['add', '-A']);
-    git(root, ['commit', '--quiet', '-m', 'first']);
-    process.chdir(root);
-    return { root, first: git(root, ['rev-parse', 'HEAD']) };
-  }
-
-  async function recorded(base: ExecutionIndex, now: ExecutionIndex, commit: string) {
+  async function recorded(base: ExecutionIndex, now: ExecutionIndex, commit: string | undefined) {
     const dir = await records();
-    const against = join(dir, 'base.cases.bin');
-    await writeFile(against, encodeExecutionIndex(base));
-    await writeFile(caseLayerFiles(against).last, JSON.stringify({ commit, at: '2026-09-25T00:00:00.000Z', files: [], cases: [] }));
-    const execution = join(dir, 'cases.bin');
-    await writeFile(execution, encodeExecutionIndex(now));
+    const against = join(dir, 'base.bin');
+    await keep(against, base, { last: { commit, at: '2026-09-25T00:00:00.000Z', files: [], cases: [] } });
+    const execution = join(dir, 'coverage.bin');
+    await keep(execution, now);
     // The pipeline step a CI run needs before `--since`, taken the way a pipeline takes it.
     await indexOutput({ cwd: process.cwd() });
     return { against, execution };
@@ -152,6 +336,37 @@ describe('what a change moved against the base', () => {
     expect(formatCovering(answer, 'text')).toContain('no region moved.');
   });
 
+  it('names a base row the diff put on a region of another path as not compared, with where it landed', () => {
+    const row = { file: 'src/total.ts', kind: 'branch', name: 'apply', startLine: 12, endLine: 12, path: 'if#0/then' };
+    const moved = {
+      regions: [], counts: { lost: 0, hidden: 0, thinned: 0, gained: 0 }, testFiles: [], unread: [], renumbered: [],
+      mismatched: [{ ...row, now: { ...row, startLine: 13, endLine: 13, path: 'if#1/then' } }],
+    };
+
+    expect(motionText({ base: { from: 'base.json', kind: 'record' }, moved })).toEqual([
+      '',
+      'Against base.json, no region moved.',
+      'Not compared, 1 base row the diff put on a region of another path that no edit explains:',
+      '  src/total.ts 12-12 branch apply if#0/then — now on 13-13 if#1/then',
+    ]);
+  });
+
+  it('names a region whose carried case its file\'s edit dropped as not measured, never as lost', () => {
+    const region = { file: 'src/total.ts', kind: 'module', name: '', startLine: 1, endLine: 20 };
+    const carried = { id: 'b.test.ts > two', file: 'b.test.ts', name: 'two', stopped: false };
+    const moved = {
+      regions: [], counts: { lost: 0, hidden: 0, thinned: 0, gained: 0 }, testFiles: [], unread: [], renumbered: [],
+      unmeasured: [{ ...region, before: [carried], now: [] }],
+    };
+
+    expect(motionText({ base: { from: 'base.json', kind: 'record' }, moved })).toEqual([
+      '',
+      'Against base.json, no region moved.',
+      'Not measured, 1 region whose cases last ran before its file changed:',
+      expect.stringMatching(/^  src\/total\.ts 1-20 .* — was /u),
+    ]);
+  });
+
   it('leaves out what the base branch changed after the base was recorded, and names it', async () => {
     const { root, first } = await checkout();
     await writeFile(join(root, 'src/other.ts'), 'export const other = 2;\n');
@@ -173,13 +388,12 @@ describe('what a change moved against the base', () => {
     git(root, ['commit', '--quiet', '-am', 'main moves']);
     git(root, ['checkout', '--quiet', '-b', 'change']);
     const dir = await records();
-    const execution = join(dir, 'cases.bin');
+    const execution = join(dir, 'coverage.bin');
     const now = index([0], [1], []);
-    await writeFile(execution, encodeExecutionIndex(now));
-    await writeFile(caseLayerFiles(execution).before, encodeExecutionIndex(index([0], [1], [0])));
-    await writeFile(caseLayerFiles(execution).last, JSON.stringify({
-      commit: git(root, ['rev-parse', 'HEAD']), before: first, at: '2026-09-25T00:00:00.000Z', files: [], cases: [],
-    }));
+    await keep(execution, now, {
+      before: index([0], [1], [0]),
+      last: { commit: git(root, ['rev-parse', 'HEAD']), before: first, at: '2026-09-25T00:00:00.000Z', files: [], cases: [] },
+    });
 
     const motion = await motionOfLast(now, execution, [DISCOUNTS.id, CHECKS_OUT.id], process.cwd(), undefined, 'main');
 
@@ -195,6 +409,56 @@ describe('what a change moved against the base', () => {
 
     await expect(covering(parse(['--since', 'main', '--against', join(root, 'missing.bin'), '--execution', execution])))
       .rejects.toThrow(/needs no `--against`/);
+  });
+
+  it('refuses a base recorded at a commit this clone does not have, and names how to fetch it', async () => {
+    const { root } = await checkout();
+    git(root, ['checkout', '--quiet', '-b', 'change']);
+    await writeFile(join(root, 'total.test.ts'), 'it("discounts", () => { /* no round */ });\n');
+    const { against, execution } = await recorded(index([0, 1], [0]), index([0, 1], []), ABSENT);
+
+    const refused = covering(parse(['--since', 'main', '--against', against, '--execution', execution]));
+
+    await expect(refused).rejects.toMatchObject({
+      exitCode: 2,
+      message: expect.stringContaining(`The base \`${against}\` was recorded at ${ABSENT}, which this clone does not have`),
+    });
+    await expect(refused).rejects.toThrow(`git fetch origin ${ABSENT}`);
+    await expect(refused).rejects.toThrow('fetch-depth: 0');
+  });
+
+  it('refuses a base that names no commit', async () => {
+    const { root } = await checkout();
+    git(root, ['checkout', '--quiet', '-b', 'change']);
+    await writeFile(join(root, 'total.test.ts'), 'it("discounts", () => { /* no round */ });\n');
+    const { against, execution } = await recorded(index([0, 1], [0]), index([0, 1], []), undefined);
+
+    await expect(covering(parse(['--since', 'main', '--against', against, '--execution', execution]))).rejects.toMatchObject({
+      exitCode: 2,
+      message: expect.stringContaining(`The base \`${against}\` names no commit it was recorded at`),
+    });
+  });
+
+  it('refuses cases it retired when the base\'s branch shares no history with this one', async () => {
+    const { root, first } = await checkout();
+    git(root, ['checkout', '--quiet', '--orphan', 'elsewhere']);
+    git(root, ['commit', '--quiet', '-m', 'unrelated']);
+    git(root, ['checkout', '--quiet', 'main']);
+    const execution = join(await records(), 'coverage.bin');
+    const now = index([0], [1]);
+    await keep(execution, now, {
+      before: index([0], [1]),
+      last: { commit: first, before: first, at: '2026-09-25T00:00:00.000Z', files: [], cases: [] },
+    });
+
+    const refused = motionOfLast(now, execution, [DISCOUNTS.id, CHECKS_OUT.id], root, undefined, 'elsewhere');
+
+    await expect(refused).rejects.toMatchObject({
+      exitCode: 2,
+      kind: 'undiffed',
+      message: expect.stringContaining(`What the branch of \`elsewhere\` changed after ${first} could not be read, so the base is not compared:`),
+    });
+    await expect(refused).rejects.toThrow('fetch-depth: 0');
   });
 
   it('refuses `--against` without a diff', () => {

@@ -15,7 +15,7 @@
 import type { EdgeKind, FileEdge, FileRecord, PackageEdge } from '@variance-authority/core/relate';
 import type { Parsed } from './cache.js';
 import type { Digest } from './digest.js';
-import type { NativeInstrumented } from './instrument/spliced.js';
+import type { NativeInstrumented, NativePlaced } from './instrument/spliced.js';
 import { keyFor, parseWay } from './files.js';
 import { type ResolveOptions } from './resolve.js';
 import { isRelative, kindFor, packageOf, requestOf } from './specifier.js';
@@ -23,14 +23,16 @@ import type { Aliases, AliasTable } from './witness.js';
 import type { NativeIndexGraph, NativeIndexGraphOptions } from './native-index-graph.js';
 import type {
   NativeJourneyGraph, NativeJourneySelection, NativeJourneyChange,
-  NativeJourneyProjection,
-  NativeJourneyFold,
-  NativeJourneyFoldResult,
+  NativeJourneyProjection, NativeJourneyFold, NativeJourneyFoldResult,
+  NativeJourneyModule,
   NativeJourneyStitch,
   NativeJourneyStitchResult,
 } from './native-journey.js';
 import type { NativeCasesEntered, NativeDependencyLexicon, NativeExternalOrientation, NativeOrientation, NativeOrientMapListing, NativeOrientMaps } from './native-orient.js';
+import type { NativeDistill } from './native-distill.js';
+import type { NativeSaid } from './native-said.js';
 import type { NativeJourneys, NativeJourneysListing } from './native-journeys.js';
+import type { NativeRecords } from './native-record.js';
 import { witnessesOf } from './witness.js';
 export { PLATFORMS, native, nativeAvailable, nativeRefusal, refusal } from './addon.js';
 export type {
@@ -40,11 +42,12 @@ export type {
   NativeJourneyProjection,
   NativeJourneyFold,
   NativeJourneyFoldResult,
+  NativeJourneyModule,
   NativeJourneyStitch,
   NativeJourneyStitchResult,
 } from './native-journey.js';
-import type { NativeModuleReaders, NativeModuleVerdict } from './native-module-reads.js';
-export type { NativeModuleReaders, NativeModuleVerdict };
+import type { NativeModuleReaders, NativeModuleReferences, NativeModuleVerdict } from './native-module-reads.js';
+export type { NativeModuleReaders, NativeModuleReferences, NativeModuleVerdict };
 import type { NativeUpdateOptions, NativeUpdated } from './native-update.js';
 /** Every tracked path under a root, with the digest of the bytes on disk. */
 export interface NativeGitTree extends NativeOrientMapListing, NativeJourneysListing {
@@ -59,7 +62,7 @@ export interface NativeGitTree extends NativeOrientMapListing, NativeJourneysLis
     largestFile?: number,
     digests?: boolean,
     readers?: number,
-    tsconfig?: string,
+    tsconfig?: string | false,
     conditionNames?: string[],
   ): NativeScanBatch;
   scanGraph(
@@ -67,7 +70,7 @@ export interface NativeGitTree extends NativeOrientMapListing, NativeJourneysLis
     seeds: string[],
     largestFile?: number,
     readers?: number,
-    tsconfig?: string,
+    tsconfig?: string | false,
     conditionNames?: string[],
     includeParses?: boolean,
   ): NativeScanBatch;
@@ -101,6 +104,11 @@ export interface NativeReadBatch {
   readonly parses: string[];
   /** One when bytes were parsed, even if parse JSON was not requested. */
   readonly parsed: Buffer;
+  /**
+   * One when the bytes decided the file is not parsed — over the size the scan
+   * opens, or not UTF-8 — rather than a read that failed.
+   */
+  readonly declined: Buffer;
   readonly declareCounts: Uint32Array;
   readonly declares: string[];
 }
@@ -113,9 +121,24 @@ export interface NativeScanBatch extends NativeReadBatch {
   readonly targets: string[];
 }
 
-export interface NativeScanner extends NativeOrientMaps, NativeDependencyLexicon, NativeJourneys {
-  /** `instrument()`'s walk and splice, or `null` for a source that does not parse. */
-  instrument(source: string, file: string, entries: boolean): NativeInstrumented | null;
+export interface NativeScanner extends NativeOrientMaps, NativeDependencyLexicon, NativeJourneys, NativeRecords, NativeDistill, NativeSaid {
+  /**
+   * `instrument()`'s walk and splice, or `null` for a source that does not
+   * parse. With a `module`, the header reporting under it is in the text.
+   */
+  instrument(source: string, file: string, entries: boolean, module?: string): NativeInstrumented | null;
+  /** `authored`'s regions placed in `transformed` through `mappings`: `native/instrument/src/place.rs`. */
+  place(...args: [string, string, string, string, number, boolean, string, boolean]): NativePlaced | null;
+  /** The header one module carries: `native/instrument/src/header.rs`. */
+  probeHeader(module: string, count: number): string;
+  /** The instrumenter crate's `recipe()` for `presence`, or for `entries`. */
+  probeRecipe(entries: boolean): string;
+  /**
+   * The test file with a cut before each statement of its test and hook
+   * bodies, the `mappings` back to `source` and the `[line, column, length]`
+   * shifts they were made from, or `null`: `native/instrument/src/cadence.rs`.
+   */
+  cadence(source: string, file: string, awaited?: boolean): { code: string; mappings: string; shifts: number[] } | null;
   gitTree(root: string): NativeGitTree | null;
   /**
    * The alias table the `tsconfig` and `jsconfig` files among `paths` declare,
@@ -138,6 +161,8 @@ export interface NativeScanner extends NativeOrientMaps, NativeDependencyLexicon
   appendSourceIndex(path: string, read: string[], legacy: boolean, layers: Uint8Array[]): string | null;
   /** Start the chain at `path` as a copy of the one at `from`, when `path` has none; whether it did. */
   seedSourceIndex(path: string, from: string): boolean;
+  /** The machine's index turn at `path`, `holder` written beside it; `null` while another process holds it (`native/src/index_turn.rs`). */
+  takeIndexTurn(path: string, holder: string): { release(): void } | null;
   gitTreeFor(root: string, dirs: string[]): NativeGitTree | null;
   /** Every readable file below the configured roots, using bounded native I/O. */
   seedFiles(root: string, dirs: string[]): string[];
@@ -165,7 +190,7 @@ export interface NativeScanner extends NativeOrientMaps, NativeDependencyLexicon
     largestFile?: number,
     digests?: boolean,
     readers?: number,
-    tsconfig?: string,
+    tsconfig?: string | false,
     conditionNames?: string[],
     listed?: string[],
   ): NativeScanBatch;
@@ -174,15 +199,16 @@ export interface NativeScanner extends NativeOrientMaps, NativeDependencyLexicon
   /**
    * What one file of a tree-sitter language asks for and publishes, as `Read` JSON.
    *
-   * One file rather than a batch, because this crosses the boundary from inside
-   * the parse cache — the caller is a synchronous reader holding one file's
-   * bytes, and the batching that the module path does happens a layer above it.
+   * One file rather than a batch: the caller is a synchronous reader inside the
+   * parse cache, holding one file's bytes, and the module path batches above it.
    * Nothing when the addon does not claim the language: every language on a
    * binary built without the grammars, which `native/build.mjs` falls back to.
    */
   readLanguage(language: string, file: string, source: string): string | null;
   /** A `Package.swift`'s targets as JSON `[{ name, path }]`; `null` unparsed or without grammars. */
   swiftTargets(source: string): string | null;
+  /** Each path's text digest, as `digestString(readFile(path, 'utf8'))` has it, read in parallel; throws naming the first it cannot read. */
+  textDigests?(paths: string[]): string[];
   /** One module's parse, as JSON, for source text already in hand. */
   readSource(file: string, source: string): string;
   /**
@@ -197,30 +223,39 @@ export interface NativeScanner extends NativeOrientMaps, NativeDependencyLexicon
    */
   moduleReaders?(file: string, text: string, names: string[], imported: boolean): NativeModuleReaders | null;
   /**
-   * Where each source `file` imports from lands: a repository path, an absolute path outside it, or `''`.
-   * `listed` names the files the caller's graph holds under a tracked `build/` ([`repo-path.ts`](./repo-path.ts)).
+   * Where one file references what it imports, by the specifier each import names, and whether each
+   * reference runs when the file loads. A name in a type position is no reference. `null` when it does not parse.
    */
-  resolveSources?(root: string, file: string, sources: string[], listed?: string[]): string[];
+  moduleReferences?(file: string, text: string): NativeModuleReferences | null;
+  /**
+   * Where each source `file` imports from lands: a repository path, an absolute path outside it, or `''`.
+   * `listed` names the files the caller's graph holds under a tracked `build/` ([`repo-path.ts`](./repo-path.ts)); `tsconfig`, the one the scan that built it resolved under ([`typescript.ts`](./typescript.ts)).
+   */
+  resolveSources?(root: string, file: string, sources: string[], listed?: string[], tsconfig?: string | false): string[];
+  /**
+   * Fetch in one request the blobs at `commit` of `paths` a partial clone has not fetched yet.
+   * `false` when no remote promised any, so a path a read found missing is absent.
+   */
+  fetchMissingAt?(root: string, commit: string, paths: string[]): boolean;
   /** Of these files, those whose nearest `package.json` declares that loading them does something. */
   declaredEffects?(root: string, files: string[]): string[];
+  /** Every module id a run's cases and parts name, for the caller to cut again with `deriveModules`. */
+  journeyModuleIds?(caseDirectory: string, root: string, parts?: string[]): string[];
   /** Read, fold, and encode one run's case journals without crossing rows into V8. */
   foldJourney?(
     caseDirectory: string,
     root: string,
-    stores: string[],
-    instrumentation: string,
+    modules: NativeJourneyModule[],
     budgetMegabytes?: number,
   ): NativeJourneyFold;
   /** Fold and write the compressed artifact without returning its bytes to JavaScript. */
   foldJourneyTo?(
     caseDirectory: string,
     root: string,
-    stores: string[],
-    instrumentation: string,
+    modules: NativeJourneyModule[],
     output: string,
     budgetMegabytes?: number,
     parts?: string[],
-    partStores?: string[],
   ): NativeJourneyFoldResult;
   /** Union compressed journey artifacts while their crossing relation stays native. */
   stitchJourneys?(files: string[]): NativeJourneyStitch;
@@ -233,7 +268,7 @@ export interface NativeScanner extends NativeOrientMaps, NativeDependencyLexicon
     file: string,
     changed: NativeJourneyChange[],
     graph?: NativeJourneyGraph,
-    packages?: string[],
+    declines?: boolean,
   ): NativeJourneySelection;
   /** The packages `files` belong to and the names crossing their edges, read off the source index at `index`; `null` when none was published. */
   orientPackages?(root: string, index: string, files: string[], rows: number, names: number): NativeOrientation | null;
@@ -364,9 +399,15 @@ function builtFromBatch(
     declareAt += declareCount;
     const encoded = batch.parses[index] ?? '';
     if (batch.parsed[index] !== 1) {
+      // A file its bytes declined names them; a failed read names nothing, and
+      // is tried again. `built` in `record.rs` is the same rule.
+      const declined = batch.declined[index] === 1
+        ? options.digests[index] ?? asDigest(batch.digests[index])
+        : undefined;
       built.push({
         record: {
           file,
+          ...(declined === undefined ? {} : { digest: declined }),
           ...(batch.unknown[index] === '' ? {} : { unknown: batch.unknown[index] }),
         },
         witnesses: [],

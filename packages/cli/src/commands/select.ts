@@ -77,8 +77,11 @@
  */
 
 import { resolve } from 'node:path';
-import { readingLines, type ExecutionNarrowing, type FileReading } from '@variance-authority/sense/test-selection';
-import { many } from './reach.js';
+import { readingLines, type ExecutionNarrowing, type FileReading, type SelectionCause, type TestDistance } from '@variance-authority/sense/test-selection';
+import { jsonOf } from './select-json.js';
+import { many } from './prose-counts.js';
+import { declinedNotes, ignoredNotes, recordingNotes, unreadNotes } from './select-notes.js';
+import type { SelectInstall } from './select-beyond.js';
 
 /** How the answer is written for whoever is about to run the tests. */
 export type SelectFormat = 'plain' | 'json' | 'vitest' | 'jest';
@@ -86,17 +89,35 @@ export type SelectFormat = 'plain' | 'json' | 'vitest' | 'jest';
 /**
  * What the journal answered, or why it did not.
  *
- * Four states rather than an optional reading, because *no snapshot*, *no
- * diff*, *no install to compare* and *a snapshot that answered* are four
- * different claims and only one of them is about the tests. Collapsing the
- * first three into an empty narrowing would make a broken `git` print the same
- * thing as a clean recording.
+ * Five states rather than an optional reading, because *no snapshot*, *no
+ * diff*, *no install to compare*, *a diff that moved what the suite rests on*
+ * and *a snapshot that answered* are five different claims and only the last
+ * is about the tests. Collapsing the first four into an empty narrowing would
+ * make a broken `git` print the same thing as a clean recording.
  */
 export type SelectGround =
-  | { readonly kind: 'read'; readonly narrowing: ExecutionNarrowing }
+  | {
+      readonly kind: 'read';
+      readonly narrowing: ExecutionNarrowing;
+      /** How far the change travelled to each test it selected; asked only for a leg. */
+      readonly distances?: readonly TestDistance[];
+      /**
+       * The tests that last ran before the journal's commit, when that commit
+       * is HEAD: no run that landed at HEAD ran them.
+       * Asked only for a leg that starts past 0 hops.
+       */
+      readonly unrunAtHead?: readonly string[];
+    }
   | { readonly kind: 'no-journal' }
+  | { readonly kind: 'no-coverage' }
   | { readonly kind: 'no-diff'; readonly from: string }
-  | { readonly kind: 'no-install'; readonly whole: string };
+  | { readonly kind: 'no-install'; readonly whole: string }
+  | {
+      readonly kind: 'before';
+      readonly whole: string;
+      /** The changed files inside the suite's `before` closure, which put the whole suite in the run. */
+      readonly rests: readonly string[];
+    };
 
 /**
  * Whose record was read, for a suite given to a share: this checkout's own, or
@@ -126,10 +147,23 @@ export interface SelectInput {
    * read against whatever diff it is given, a synthetic one included.
    */
   readonly given?: boolean;
+  /**
+   * Where the tests that did not run at the journal's commit last ran, and
+   * what that reading could not tell, from the runs recorded beside the
+   * journal. Said after whose record it was, in every outcome.
+   */
+  readonly standing?: readonly string[];
+  /** What the declared `before` could not cover, or that none is declared. Said after `standing`. */
+  readonly resting?: readonly string[];
+  /** What the install changed whole, when it changed a file. Said after `resting`. */
+  readonly install?: SelectInstall;
   readonly ground: SelectGround;
 }
 
 export interface TestSelection {
+  /** Which reading was made, or which could not be: the ground's own kind. */
+  readonly ground: SelectGround['kind'];
+
   /**
    * Test files the journal proves this diff did not reach.
    *
@@ -151,6 +185,18 @@ export interface TestSelection {
   /** One sentence for the operator, whichever way it went. */
   readonly because: string;
 
+  /** The changed files that moved what the suite rests on; present exactly when `ground` is `before`. */
+  readonly rests?: readonly string[];
+
+  /**
+   * Why each test the change reached was selected, as the narrowing named it.
+   * Present when the record narrowed and its reading names why.
+   */
+  readonly causes?: readonly SelectionCause[];
+
+  /** Recorded tests whose observation was not whole, so absence is no evidence and they run. */
+  readonly incomplete?: readonly string[];
+
   /** Facts about the recording itself that survive the answer. */
   readonly notes: readonly string[];
 
@@ -161,12 +207,28 @@ export interface TestSelection {
   /** Counts rather than lists: `whole` is the whole suite, and nobody reads it. */
   readonly recorded?: { readonly whole: number; readonly entered: number };
   readonly unread: readonly string[];
+  /** What the install changed whole; absent when it changed nothing. */
+  readonly install?: SelectInstall;
+  /**
+   * The changed files the record did not measure, in a suite that declines
+   * relations, so the graph was never asked about them. Absent when the suite
+   * asks it.
+   */
+  readonly declined?: readonly string[];
+  /** The changed files the suite's `ignore` matched. Absent when the suite ignores nothing. */
+  readonly ignored?: readonly string[];
   readonly stale: readonly string[];
   /**
    * What the parser made of each changed file. Absent when no diff was read
    * against the journal, which is not the same as a diff that changed nothing.
    */
   readonly readings?: readonly FileReading[];
+  /** The hops `--at-distance` asked for; `to` is absent for an open leg. Absent when no leg was asked. */
+  readonly leg?: { readonly from: number; readonly to?: number };
+  /** The selected test files this leg skipped and another leg runs. Present exactly when `leg` is. */
+  readonly left?: readonly string[];
+  /** How far the change travelled to each test it entered. Present when a leg cut a narrowed selection. */
+  readonly distances?: readonly TestDistance[];
 }
 
 /**
@@ -179,14 +241,21 @@ export interface TestSelection {
  */
 export function skippableTests(input: SelectInput): TestSelection {
   const base = {
+    ground: input.ground.kind,
     skip: [] as readonly string[],
     at: input.at,
     ...(input.commit === undefined ? {} : { commit: input.commit }),
     ...(input.source === undefined ? {} : { source: input.source }),
     unread: [] as readonly string[],
     stale: [] as readonly string[],
+    ...(input.install === undefined ? {} : { install: input.install }),
     // Which record answered is the first note, before any other note about it.
-    notes: input.source === undefined ? [] : [input.source.says],
+    notes: [
+      ...(input.source === undefined ? [] : [input.source.says]),
+      ...(input.standing ?? []),
+      ...(input.resting ?? []),
+      ...(input.install?.says ?? []),
+    ],
   };
 
   if (input.ground.kind === 'no-journal') {
@@ -194,6 +263,14 @@ export function skippableTests(input: SelectInput): TestSelection {
       ...base,
       widened: `no execution journal at ${input.at}`,
       because: 'nothing to narrow by, so every test file runs',
+    };
+  }
+
+  if (input.ground.kind === 'no-coverage') {
+    return {
+      ...base,
+      widened: `the record at ${input.at} holds no coverage`,
+      because: 'the run that wrote it instrumented no module, so every test file runs',
     };
   }
 
@@ -213,14 +290,32 @@ export function skippableTests(input: SelectInput): TestSelection {
     };
   }
 
-  const { whole, entered, unread, stale, readings } = input.ground.narrowing;
-  const notes = [...base.notes, ...unreadNotes(unread), ...recordingNotes(stale, input.commit, input.given === true)];
+  if (input.ground.kind === 'before') {
+    return {
+      ...base,
+      rests: input.ground.rests,
+      widened: input.ground.whole,
+      because: 'what a suite rests on runs before every test in it, so every test file runs',
+    };
+  }
+
+  const { whole, entered, unread, declined, ignored, stale, readings, because, incomplete } = input.ground.narrowing;
+  const notes = [
+    ...base.notes,
+    ...unreadNotes(unread),
+    ...declinedNotes(declined ?? []),
+    ...ignoredNotes(ignored ?? []),
+    ...recordingNotes(stale, input.commit, input.given === true),
+  ];
   const measured = {
     ...base,
     notes,
     unread,
+    ...(declined === undefined ? {} : { declined }),
+    ...(ignored === undefined ? {} : { ignored }),
     stale,
     ...(readings === undefined ? {} : { readings }),
+    ...(incomplete === undefined ? {} : { incomplete }),
     recorded: { whole: whole.length, entered: entered.length },
   };
 
@@ -238,64 +333,11 @@ export function skippableTests(input: SelectInput): TestSelection {
   return {
     ...measured,
     skip,
+    ...(because === undefined ? {} : { causes: because }),
     because:
-      `skipping ${skip.length} of ${many(whole.length, 'test file')} recorded whole: none ` +
-      'covered a changed line; every other test file runs',
+      `skipping ${skip.length} of ${many(whole.length, 'test file')} recorded whole: none covered a changed ` +
+      `line${input.install === undefined ? '' : ' or entered a file the install moved'}; every other test file runs`,
   };
-}
-
-/**
- * The changed paths the journal records nothing about, argued at the top of
- * this file.
- *
- * Named rather than counted, because the one an operator acts on is a fixture a
- * test reads without importing it, and that is recognised by its name.
- */
-function unreadNotes(unread: readonly string[]): readonly string[] {
-  if (unread.length === 0) return [];
-  return [
-    `the journal records nothing about ${many(unread.length, 'changed file')} ` +
-      `(${unread.slice(0, 3).join(', ')}${unread.length > 3 ? ', …' : ''}), so ` +
-      `${unread.length === 1 ? 'it keeps' : 'they keep'} no test in the run; a file the suite ` +
-      'reads without importing it is declared as a precondition',
-  ];
-}
-
-/**
- * What the recording says about itself, which outlives whichever way the answer
- * went.
- *
- * `stale` has already widened the reading — every region of such a module was
- * charged — so it cannot make the skip list wrong. It is printed because it is
- * the one number here an operator can act on: it counts modules recorded from a
- * text nobody at that commit has, and it goes to zero by recording once over a
- * clean tree.
- */
-function recordingNotes(
-  stale: readonly string[],
-  commit: string | undefined,
-  given: boolean,
-): readonly string[] {
-  const notes: string[] = [];
-
-  if (commit === undefined && !given) {
-    notes.push(
-      'the journal names no commit, so none of its line ranges could be checked against the ' +
-        'text they were cut from; every changed module with a row was charged whole',
-    );
-  }
-
-  if (stale.length > 0) {
-    const [first] = stale;
-    notes.push(
-      `${many(stale.length, 'changed module')} ${stale.length === 1 ? 'was' : 'were'} recorded ` +
-        `from a different text than the one at the journal's own commit (${first}), so every ` +
-        `region of ${stale.length === 1 ? 'it' : 'them'} was charged rather than read; record ` +
-        'once over a clean tree to clear this',
-    );
-  }
-
-  return notes;
 }
 
 /**
@@ -362,27 +404,6 @@ function jestIgnore(test: string): string {
   const escaped = test.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   const boundary = escaped.startsWith('/') || escaped.startsWith('\\.') ? '' : '/';
   return `--testPathIgnorePatterns=${boundary}${escaped}$`;
-}
-
-/** Everything the reading knows, for a caller that is a program. */
-function jsonOf(selection: TestSelection): object {
-  return {
-    skip: selection.skip,
-    ...(selection.widened === undefined ? {} : { widened: selection.widened }),
-    because: selection.because,
-    notes: selection.notes,
-    journal: {
-      at: selection.at,
-      ...(selection.commit === undefined ? {} : { commit: selection.commit }),
-      ...(selection.recorded === undefined ? {} : { recorded: selection.recorded }),
-      ...(selection.source?.from === undefined ? {} : { from: selection.source.from }),
-      ...(selection.source?.mainline === undefined ? {} : { mainline: selection.source.mainline }),
-      ...(selection.source?.distance === undefined ? {} : { distance: selection.source.distance }),
-    },
-    unread: selection.unread,
-    stale: selection.stale,
-    ...(selection.readings === undefined ? {} : { readings: selection.readings }),
-  };
 }
 
 /**

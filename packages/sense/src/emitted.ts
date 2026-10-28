@@ -61,8 +61,12 @@ interface Mirror {
   code: boolean;
 }
 
-/** An `Emitted` with its own memo of what each package directory declares. */
-export function emittedFrom(): Emitted {
+/**
+ * An `Emitted` with its own memo of what each package directory declares.
+ * `present` says which sources are there to be built from; a caller that
+ * knows of a source the disk no longer holds names it there.
+ */
+export function emittedFrom(present: (path: string) => boolean = isFile): Emitted {
   const declared = new Map<string, readonly Layout[]>();
   const declaredBy = (directory: string): readonly Layout[] => {
     let held = declared.get(directory);
@@ -83,7 +87,7 @@ export function emittedFrom(): Emitted {
       if (emitted === undefined || !wrote(mirror)) continue;
       const [output, sources] = emitted;
       const stem = counterpart.slice(0, counterpart.length - output.length);
-      const found = sources.map((extension) => `${stem}${extension}`).find(isFile);
+      const found = sources.map((extension) => `${stem}${extension}`).find(present);
       if (found !== undefined) return found;
     }
     // Output none of the configs wrote is some other tool's, and the disk

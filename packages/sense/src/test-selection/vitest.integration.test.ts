@@ -13,6 +13,7 @@ import { coveringTests, type ExecutionIndex } from './reverse.js';
 import { deviationOfTests, narrowByExecution, selectTestFiles } from './index.js';
 import { withTestSelection } from './vitest.js';
 import { decodeExecutionIndex } from './execution-format.js';
+import { caseIndexOf } from './case-record.js';
 
 const execute = promisify(execFile);
 const here = dirname(fileURLToPath(import.meta.url));
@@ -35,15 +36,15 @@ afterEach(async () => {
 });
 
 describe('the Vitest integration', () => {
-  it('adds one product plugin, setup file, and reporter to an ordinary configuration', () => {
+  it('adds one product plugin and setup file to an ordinary configuration, and a reporter on each side of its own', () => {
     // A root of its own, because constructing the configuration writes this
     // seam's shims under it — and this one never runs, so nothing settles to
     // take them off again.
     const configured = withTestSelection({}, { root: tmpdir(), coverageFile: '/tmp/coverage.bin' });
 
-    expect(configured.plugins).toHaveLength(1);
+    expect(configured.plugins).toHaveLength(2);
     expect(configured.test?.setupFiles).toHaveLength(1);
-    expect(configured.test?.reporters).toHaveLength(2);
+    expect(configured.test?.reporters).toHaveLength(3);
   });
 
   it('runs under the default include, which leaves the seam\'s own setup module alone', async () => {
@@ -382,7 +383,7 @@ describe('the Vitest integration', () => {
       );
 
       const coverage = await readFile(coverageFile);
-      const index = await readFile(`${coverageFile}.cases.bin`).catch(() => undefined);
+      const index = await caseIndexOf(coverageFile);
       return {
         coverage,
         output: `${stdout}${stderr}`,
@@ -405,9 +406,10 @@ describe('the Vitest integration', () => {
       expect(named(index, 8)).toEqual(['decide > falls through to B']);
 
       // And the function they share still names all three, so nothing was
-      // narrowed that should not have been. Only three: a line inside `decide`
-      // is answered by `decide`, not by the module root that also spans it.
-      expect(named(index, 1)).toEqual([
+      // narrowed that should not have been. Line 2 opens the first branch and
+      // holds the condition `decide` evaluates, so it is answered by `decide`,
+      // and only by it: the module root that also spans it is not charged.
+      expect(named(index, 2)).toEqual([
         'decide > falls through to B',
         'decide > takes the alpha branch',
         'decide > takes the gamma branch',

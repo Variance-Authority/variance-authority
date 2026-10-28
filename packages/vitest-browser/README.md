@@ -5,6 +5,7 @@
 > Observe a component against its baseline from inside a Vitest browser-mode test, without leaving the test body.
 
 Part of [Variance Authority](https://variance-authority.dev).
+Point your coding agent at [`llms.txt`](https://variance-authority.dev/llms.txt).
 
 Your component test in Vitest browser mode has already mounted the component in
 a real engine with the real stylesheets, and the locator it awaited is proof the
@@ -116,12 +117,13 @@ for a region to name a component and a line.
 | option | default | what it decides |
 |---|---|---|
 | `baselines` | `.variance/baselines` | the directory baselines are stored in |
+| `baselinePath` | `{title}/{name}-{engine}` | where each baseline goes under `baselines`: `{title}` is the `describe` titles, `{name}` the test's title, `{file}` and `{dir}` the test file. `{dir}/__baselines__/{file}/{title}/{name}-{engine}` with `baselines: '.'` keeps each image beside its test |
 | `store` | a durable store on `baselines` | an existing store, when baselines do not live in a directory |
 | `renderer` | a Playwright renderer opened on first use | an existing renderer, whose lifetime then stays yours |
 | `accept` | Vitest's own `--update` | whether this run may promote a candidate to a baseline |
 
 Use `varianceCommands(options)` instead of the plugin when your config already
-builds its own command map and wants to decide when the browser closes.
+builds its own command map and decides when the browser closes.
 
 ## Add the comparison
 
@@ -188,8 +190,11 @@ afterwards does not turn that verdict into a pass. Open the PNG it wrote under
 `.variance/baselines` before you commit it — that review is the approval. Run the
 suite again and the subject reports `unchanged`.
 
-Set `accept: false` on the plugin to keep baselines out of `--update`
-altogether, or `accept: true` for a job whose whole purpose is to write them.
+`--update` reaches every selected test and adopts what `variance accept --all`
+adopts: every changed candidate, whatever identity painted its baseline. Set
+`accept: false` on the plugin to keep baselines out of `--update` altogether, or
+`accept: true` for a job whose whole purpose is to write them, which adopts
+every image it painted.
 
 ### Commit the baselines
 
@@ -201,12 +206,12 @@ its contents rather than the directory, so git still descends into it:
 ```gitignore
 .variance/*
 !.variance/baselines/
-.variance/baselines/**/by-document/
 ```
 
-The third line keeps the render cache out. A durable store is also a cache keyed
-by the digest of the document that produced each image; it gains an entry on
-every edit and is worth nothing after the next one.
+The images a run paints to compare go to `renders/` in
+[the cache](https://variance-authority.dev/docs/cache), not to the baseline
+directory, and the plugin prunes them when the run closes. A `store` you pass in
+keeps its render cache wherever you built it to.
 
 ## Read a failure
 
@@ -236,8 +241,8 @@ Paths are absolute, and are made relative to `sourceRoot` when you pass one.
 
 The images are files. The approved baseline is the `.png` under the baseline
 directory, beside a `.json` recording what painted it; the candidate this run
-painted is in the render cache under `by-document/`, named by the digest of the
-document it came from.
+painted is in `renders/` in the cache, named by the digest of the document it
+came from.
 
 ## Read the verdict yourself
 
@@ -251,23 +256,22 @@ if (observed.verdict === 'new') {
 }
 ```
 
-There are five verdicts, and `assertUnchanged` throws on all four that are not
+There are four verdicts, and `assertUnchanged` throws on all three that are not
 `unchanged`, `ignored` included, because it asserts exactly what its name says.
 
 | verdict | what it means |
 |---|---|
-| `unchanged` | the two images were comparable and no pixels differ |
-| `changed` | pixels differ; `regions` names what drew them |
-| `new` | no baseline exists for this subject under this renderer identity. Not a pass and not a failure |
-| `incomparable` | a baseline exists but a different machine painted it, so the comparison is refused. Never read it as zero difference |
-| `ignored` | pixels differ and every one of them fell inside something you excluded |
+| `unchanged` | the two images were compared and no pixels differ beyond the default policy's tolerance: antialiasing, and a colour change of up to 1%. The reason counts any pixels it forgave |
+| `changed` | pixels differ; `regions` names what drew them, and the reason names a moved identity first |
+| `new` | no baseline exists for this subject. Not a pass and not a failure |
+| `ignored` | pixels differ and every one of them fell inside something you excluded, or within a sensitivity you set |
 
 The observation reports these fields:
 
 | field | what it gives you |
 |---|---|
 | `subject` | the subject id this observation is about |
-| `verdict` | one of the five above |
+| `verdict` | one of the four above |
 | `because` | one sentence saying what happened and why it has that verdict |
 | `message` | the whole formatted failure, regions included — what `assertUnchanged` throws |
 | `regions` | changed regions, each with its component, the element it landed in, `file:line`, box, pixel count and fingerprint where it has one |
@@ -309,8 +313,9 @@ whether it has the font, and what it could not find comes back in
 `missingFonts`. The weight, style and hash are folded into the renderer identity
 and compared for equality, never parsed, so any stable digest of the font file's
 bytes serves as the hash. What the declaration buys is that two machines with
-different cuts of one family produce different identities and report
-`incomparable` instead of blaming a component for a substituted typeface.
+different cuts of one family produce different identities, and a change between
+them names the font as its cause instead of blaming a component for a
+substituted typeface.
 
 ### About `wiring`
 
@@ -373,22 +378,22 @@ pointing an `<img>` at a path nobody serves is testing the fallback.
 your Vitest config imports. It owns the baseline store and one browser for the
 whole run — opened on the first observation, not at config time — and it paints
 that reading rather than screenshotting the tab. A live screenshot has nothing
-behind it that can say which machine, which scale and which font stack produced
-it, so nothing can decide whether a later run is entitled to compare against it.
+behind it that records which machine, which scale and which font stack produced
+it, so nothing can name the machine when a later run differs from it.
 
-The consequence is that a baseline approved on your laptop is usually not
-comparable on a CI runner. That run says `incomparable` and names both
-identities rather than reporting a day of changed pixels nobody caused. Two ways
-to get a verdict instead: approve with `-u` inside the CI image and commit what
+The consequence is that a baseline approved on your laptop usually changes on a
+CI runner. That run names both identities as the cause of every change rather
+than reporting a day of changed pixels nobody caused. Two ways to get a verdict
+about your code instead: approve with `-u` inside the CI image and commit what
 it wrote, or pass one shared `renderer` to the plugin so laptop and CI paint on
 the same machine.
 
 Full walkthrough:
-[add one baseline comparison to a Vitest browser-mode test](https://variance-authority.dev/docs/start-vitest-browser).
+[add one baseline comparison to a Vitest browser-mode test](https://variance-authority.dev/start/vitest-browser).
 How a region resolves to a component and a line:
 [attribution](https://variance-authority.dev/docs/attribution). Where the bytes
 live: [baseline placement](https://variance-authority.dev/docs/placement).
 
 ---
 
-**[@variance-authority/vitest-browser](https://variance-authority.dev/reference/packages/vitest-browser)** is part of [Variance Authority](https://variance-authority.dev) — [documentation](https://variance-authority.dev/docs) · MIT
+**[@variance-authority/vitest-browser](https://variance-authority.dev/reference/packages/vitest-browser)** is part of [Variance Authority](https://variance-authority.dev) — [documentation](https://variance-authority.dev/docs) · [GitHub](https://github.com/Variance-Authority/variance-authority/tree/main/packages/vitest-browser) · MIT

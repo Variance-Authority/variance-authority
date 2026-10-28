@@ -5,17 +5,18 @@
 > Measure how a rendered interface groups, separates, aligns and emphasizes its content, and return those measurements as data a test or an agent can read.
 
 Part of [Variance Authority](https://variance-authority.dev).
+Point your coding agent at [`llms.txt`](https://variance-authority.dev/llms.txt).
 
 ## What this is for
 
-Your spacing tokens say the hierarchy is intact. The rendered page disagrees.
+Your spacing tokens describe an intact hierarchy. The rendered page disagrees.
 
 A heading and the paragraph under it both resolve to `--space-2` and both look
 correct in the design file, but at the rendered size the gap between two cards
 is the same as the gap inside a card, so six records read as one block of text.
 Nothing in the stylesheet is wrong. Nothing in a screenshot diff is different
 either, because this is how the page has always shipped. The only thing that
-would tell you is a measurement of the rendered boxes, and you do not have one.
+would show it is a measurement of the rendered boxes, and you do not have one.
 
 This package takes that measurement. Point it at a live Playwright locator and
 it returns a graph of the rendered elements, the relationships between them —
@@ -284,7 +285,8 @@ reading.
 | --- | --- |
 | `subjectId`, `title` | Name the sensed boundary in the returned report. Defaults to `presentation` with no title. |
 | `fonts` | Font identities you established for this capture. The report returns them, and a substitution changes `report.digest` while `report.contentDigest` stays the same. |
-| `suspense` | `{ timeoutMs }` for settling React boundaries before reading. |
+| `suspense` | `{ timeoutMs }`, the bound on React Suspense boundaries under the subject. A boundary still pending at the bound rejects the call and names the subject. |
+| `loading` | `true` when the subject *is* its loading state. A boundary pending at the bound is then read as the fallback, and a subject with none pending rejects the call: the declaration no longer describes it. |
 | `stabilize` | Replaces the default stabilization recipe. |
 | `paint` | `true`, or a list of the layers above. |
 | `accessibility` | The browser-computed ARIA snapshot read beside this capture. The report keeps it as an independent semantic reading and it covers `report.contentDigest`. Leave it out only when nothing observed it. |
@@ -297,12 +299,19 @@ capture whose layout was never observed.
 
 A **stabilization recipe** is a list of named interventions applied to the page
 before it is read. The default here is the standard collection recipe —
-`pin-animations`, `hide-scrollbars`, `hide-caret` and `wait-for-fonts` — with
-`wait-for-images` narrowed to images inside your subject and its React portals,
-so an unrelated hero image elsewhere in the document does not keep the read
-waiting. The other ids you can name are `hold-animations`, `wait-for-images` and
-`hide-presentational-images`; an id nothing answers to fails the read rather
-than being skipped. Pass `stabilize: ['pin-animations']` to run only some of
+`pin-animations`, `hide-scrollbars`, `hide-caret`, `no-focus` and
+`wait-for-fonts` — with `wait-for-images` narrowed to images inside your subject
+and its React portals, so an unrelated hero image elsewhere in the document does
+not keep the read waiting. `no-focus` blurs whatever holds focus while the
+subject is read, and gives focus back to the same element once the reading is
+taken. The page is yours, so the three tricks a browser driver applies —
+`no-hover`, `reduced-motion` and `freeze-clock` — are not applied here and are
+left out of the recorded recipe. Set them on your page with
+`page.mouse.move(-1, -1)` and `driveBeforeTest(page)` from
+`@variance-authority/playwright-test`, which asks for reduced motion and fixes
+`Date` before `page.goto()`. The other ids you can name are
+`hold-animations`, `wait-for-images` and `hide-presentational-images`; an id
+nothing answers to fails the read rather than being skipped. Pass `stabilize: ['pin-animations']` to run only some of
 them, and `stabilize: []` only for a static document you own, such as an MHTML
 archive whose page clock cannot advance. A live page needs the default. What
 each one buys is in
@@ -369,8 +378,8 @@ evidence, not a preferred gap and not an automatic finding.
 
 This is the answer to the problem at the top of the page. Rather than asserting
 that a gap equals a token, declare which measured separations stand for which
-product-defined role, and let the measurement say whether two roles are actually
-distinguishable in the rendered page.
+product-defined role, and let the measurement show whether two roles are
+actually distinguishable in the rendered page.
 
 An excerpt, with the same `page` and `report` as above:
 
@@ -486,7 +495,7 @@ const observation: ObservationRecord = {
   because: 'the candidate differs from its baseline',
   changedPixels: 320,
   regions: [],
-  signals: { presentation },
+  ...(presentation === undefined ? {} : { signals: { presentation } }),
 };
 
 console.log(observation.signals?.presentation);
@@ -498,10 +507,13 @@ effects were introduced, which were resolved, and which changed measurement.
 automatic findings are the complete evidence for the subject.
 
 A missing report, or a report with no layout findings to compare, produces
-`verdict: 'incomparable'` with a `because` naming which side was missing —
-never an empty clean list, because "we could not look" and "we looked and found
-nothing" are different answers. The content identity and information counts
-travel alongside the effects.
+`verdict: 'changed'` with a `because` naming which side was missing and no
+effects. It is never an empty clean list, because "we could not look" and "we
+looked and found nothing" are different answers. When neither side has a
+reading with layout findings, `presentationSignal` returns `undefined`, and the
+member stays absent.
+
+The content identity and information counts travel alongside the effects.
 
 The stored signal reports consequence, not severity. Project policy still
 decides whether any finding blocks a run.
@@ -512,4 +524,4 @@ and [Presentation evidence reference](https://variance-authority.dev/docs/presen
 
 ---
 
-**[@variance-authority/presentation](https://variance-authority.dev/reference/packages/presentation)** is part of [Variance Authority](https://variance-authority.dev) — [documentation](https://variance-authority.dev/docs) · MIT
+**[@variance-authority/presentation](https://variance-authority.dev/reference/packages/presentation)** is part of [Variance Authority](https://variance-authority.dev) — [documentation](https://variance-authority.dev/docs) · [GitHub](https://github.com/Variance-Authority/variance-authority/tree/main/packages/presentation) · MIT

@@ -1,10 +1,10 @@
-import { spawnSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { FileRecord, Tree } from '@variance-authority/mcp/tools';
 import { treeOf } from '@variance-authority/mcp/tools';
+import { RIPGREP_ON_PATH } from '../__fixtures__/ripgrep-on-path.js';
 import { grep } from './grep.js';
 
 /**
@@ -15,8 +15,6 @@ import { grep } from './grep.js';
  * `far.ts` and `outside.ts` say the same word. Only one of them is in reach,
  * so an answer holding both was a folder search, not a closure.
  */
-
-const RG = spawnSync('rg', ['--version']).error === undefined;
 
 /** Paths long enough that the closure cannot go to `rg` as one command line. */
 const MANY = 3000;
@@ -69,7 +67,7 @@ describe('grep refuses without a closure', () => {
   });
 });
 
-describe.skipIf(!RG)('grep over a closure', () => {
+describe.skipIf(!RIPGREP_ON_PATH)('grep over a closure', () => {
   it('answers from the files in reach, nearest first', () => {
     const text = ask({ query: 'needle', from: 'src/entry.ts' });
     expect(text).toContain('2 matching lines in 2 files, nearest first.');
@@ -101,5 +99,16 @@ describe.skipIf(!RG)('grep over a closure', () => {
 
   it("hands ripgrep's refusal back", () => {
     expect(() => ask({ query: '(', from: 'src/entry.ts' })).toThrow('ripgrep refused the pattern');
+  });
+
+  it('says ripgrep is missing when it is not on PATH', () => {
+    const path = process.env.PATH;
+    process.env.PATH = '';
+    try {
+      expect(() => ask({ query: 'needle', from: 'src/entry.ts' })).toThrow('`grep` and `discover` run ripgrep on the files, and `rg` is not on PATH');
+    } finally {
+      if (path === undefined) delete process.env.PATH;
+      else process.env.PATH = path;
+    }
   });
 });

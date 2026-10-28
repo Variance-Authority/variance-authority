@@ -17,9 +17,7 @@
  *
  * The reader that matters next is not this one. Every field is a run of
  * fixed-width little-endian values at a computable offset, so a reader in
- * another language takes a slice where this one takes a loop — the same bargain
- * [`record-format.ts`](../../../sense/src/test-selection/record-format.ts)
- * already made for the coverage segments.
+ * another language takes a slice where this one takes a loop.
  *
  * ## Why the header is JSON
  *
@@ -130,8 +128,28 @@ export interface OpenSegment {
 }
 
 /**
+ * A segment of the named format, written in a version this reader does not
+ * read. Not a damaged file: the bytes are what another release wrote, and a
+ * caller that rebuilds or refuses says which release that was.
+ */
+export class OtherSegmentVersion extends Error {
+  override readonly name = 'OtherSegmentVersion';
+
+  constructor(
+    what: string,
+    /** The version the segment's header names. */
+    readonly written: number,
+    /** The version this reader reads. */
+    readonly reads: number,
+  ) {
+    super(`a variance-authority ${what} written in format version ${written}, and this reader reads version ${reads}`);
+  }
+}
+
+/**
  * Open a segment, refusing anything that is not one of the named format and
- * version.
+ * version. Another version of the named format is refused with
+ * {@link OtherSegmentVersion}, so a caller can tell it from a damaged file.
  *
  * `what` is the noun a rejection is phrased with — "source index", "suite index"
  * — because the one thing a caller of this can usefully be told is which reader
@@ -161,11 +179,11 @@ export function openSegment(
   } catch {
     throw reject();
   }
-  if (
-    header.format !== format ||
-    header.version !== version ||
-    !validSections(header.sections, raw.length - 4 - headerLength)
-  ) throw reject();
+  if (header.format !== format) throw reject();
+  if (header.version !== version) {
+    throw typeof header.version === 'number' ? new OtherSegmentVersion(what, header.version, version) : reject();
+  }
+  if (!validSections(header.sections, raw.length - 4 - headerLength)) throw reject();
 
   const base = 4 + headerLength;
   const found = new Map(header.sections.map((section) => [section.name, section]));

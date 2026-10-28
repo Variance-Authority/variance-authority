@@ -5,6 +5,7 @@
 > Extract a Variance Authority capture from a mounted element, under jsdom or a browser, with CSS applicability pruning.
 
 Part of [Variance Authority](https://variance-authority.dev).
+Point your coding agent at [`llms.txt`](https://variance-authority.dev/llms.txt).
 
 Point this package at an element that is already mounted and it reads back two
 things: a **capture** — the element's tree, its ARIA, and the CSS declarations
@@ -24,8 +25,8 @@ runs in whichever one your test already has:
 
 | Environment | What you get |
 | --- | --- |
-| jsdom (`jsdom`, or Vitest's `jsdom` environment) | tree, ARIA, and declared CSS |
-| a real browser (Chromium, via Playwright or a collector) | the above, plus computed styles and element geometry |
+| jsdom (`jsdom`, or Vitest's `jsdom` environment) | tree, ARIA, and declared CSS; a `::before` or `::after` whose rules give it content is in the tree with those rules and the words its declared `content` says; one whose `content` needs a counter, a quote, a `var()` or a `url()` is marked `unread` instead, because jsdom computes no generated content |
+| a real browser (Chromium, via Playwright or a collector) | the above, plus computed styles, element geometry, and the computed style and text of every `::before` and `::after` that renders |
 
 `@variance-authority/core` installs with it and defines the capture types. The
 examples below also use `jsdom`:
@@ -148,6 +149,29 @@ dead utility classes, CSS-in-JS accretion — pruning reduced 1,010 parsed rules
 to the one that could style the subject. Without it, a baseline changes when a
 stylesheet the subject never touched does.
 
+An `@font-face` matches no element, so it is kept by what the subtree is set
+in: the render document carries every face whose family appears in a computed
+`font-family` inside the subject or in a box its frame generates, with its
+`url()`s rewritten to resolve against
+the page rather than the sheet that declared them, and `referencedAssets` adds
+those files to the asset key. A face the subject is not set in is pruned like
+any other rule. jsdom keeps a face's `font-family` and drops its `src`, so a
+face read there cannot be carried; `acquireDocument` reports
+`unreadable-font-face` for it, and the render paints the fallback.
+
+## Images a page made itself
+
+A `blob:` URL names memory in the page that minted it, and the renderer paints
+in a page of its own. So `acquireDocument` reads every `blob:` URL the render
+document would carry, in an attribute that names a file or in a `url()` of a
+style, a `<style>` in the subject, a kept rule, an inherited value or a box the
+subject sits in, and writes its bytes in as a `data:` URL: the render paints the
+picture the page showed, and the same picture is the same document on every
+load. An object URL the page has already revoked cannot be read; it is reported
+as an `unreadable-object-url` error, because its render would show a broken
+image where the page shows a whole one. Under a host that paints nothing, such
+as jsdom, the same report is a warning: no page there showed the picture.
+
 ## Use this package when
 
 Use `@variance-authority/dom` when your code already owns a live `Element` and
@@ -166,10 +190,10 @@ and call this underneath.
 | --- | --- |
 | `collect` / `acquireDocument` | `subject`, `viewport` and `engine` name what was read; `features` supplies media conditions such as `prefers-reduced-motion`; `index` reuses a stylesheet index across subjects sharing one document, and is refused if it was built for a different viewport or colour scheme |
 | `acquireDocument` | `inherited` overrides the values and custom properties resolved from ancestors outside the subject; design tokens live on `:root`, which pruning correctly drops, so this is what keeps `var(--brand)` resolving |
-| `collect` | `ignore` excludes subtrees by selector, `provenanceOf` adds component ownership, `wiringOf` adds framework wiring, `holdingOf` adds what each component was handed and retained, `portalsOf` pulls in portalled subtrees, and `stabilization` records the digest of whatever held the page still; none of these is inferred from markup |
-| `stabilizeForObservation` | `recipe` selects the interventions to apply — animations, carets, and the rest — and the result reports which ones actually applied. `tier` raises how much the run is claiming about: declarations, geometry, or pixels. Pass the raster tier when you are screenshotting the document you just read, so holds such as the caret are installed |
+| `collect` | `ignore` excludes subtrees by selector, `provenanceOf` adds component ownership, `wiringOf` adds framework wiring, `holdingOf` adds what each component was handed and retained, `portalsOf` pulls in portalled subtrees, `stabilization` records the digest of whatever held the page still, and `timezoneId` and `locale` record the timezone and language the driver opened the page in, as given rather than read from `Intl`; none of these is inferred from markup |
+| `stabilizeForObservation` | `recipe` selects the interventions to apply — animations, carets, and the rest — and the result reports which ones actually applied. `tier` raises the tier the reading is taken at — declarations, geometry, or pixels — when it is higher than the profile's. Pass the raster tier when you are screenshotting the document you just read, so holds such as the caret are installed. `driven` names the tricks your browser driver applied before the page loaded — `no-hover`, `reduced-motion`, `freeze-clock` — since nothing in the document can apply them; a recipe trick you did not drive is left out of the ids and the digest. `steps` takes each wait as a timed step, the recipe's settles by their id and `frames` for the two frames after a new sheet |
 | `resolveIgnores` | `selectors` names the excluded places, `markers` controls handling of the `data-variance-ignore` attribute |
-| `attributeProvenance` | `component`, `createdBy` and `props` name the attributes to read provenance from, defaulting to `data-component`, `data-created-by` and `data-props`. What they say is declared by whatever rendered the element, never guessed from a tag name |
+| `attributeProvenance` | `component`, `createdBy` and `props` name the attributes to read provenance from, defaulting to `data-component`, `data-created-by` and `data-props`. Their values are declared by whatever rendered the element, never guessed from a tag name |
 
 ## What is in here
 
@@ -189,7 +213,7 @@ and call this underneath.
 ## Component names are optional
 
 `provenanceOf`, `wiringOf` and `holdingOf` are parameters, not imports. This
-package knows nothing about React. For React, pass the providers from
+package has no code for React. For React, pass the providers from
 `@variance-authority/react`:
 
 ```bash
@@ -223,4 +247,4 @@ a modal is open or closed, and an opening dialog reads as unchanged.
 
 ---
 
-**[@variance-authority/dom](https://variance-authority.dev/reference/packages/dom)** is part of [Variance Authority](https://variance-authority.dev) — [documentation](https://variance-authority.dev/docs) · MIT
+**[@variance-authority/dom](https://variance-authority.dev/reference/packages/dom)** is part of [Variance Authority](https://variance-authority.dev) — [documentation](https://variance-authority.dev/docs) · [GitHub](https://github.com/Variance-Authority/variance-authority/tree/main/packages/dom) · MIT

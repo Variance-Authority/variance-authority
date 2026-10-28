@@ -1,29 +1,7 @@
 import { codeUnitOrder } from './instrumented-modules.js';
-import type { TestCoverageView } from './format-view.js';
-import type { CoverageModule, CoverageTest } from './index.js';
-
-/**
- * The output's module order, as one integer a row: a previous row number as
- * itself, and a module the run touched or re-cut as the ones' complement of
- * its position in the objects beside it.
- *
- * Four bytes is the whole of what a carried module costs. Everything the layer
- * does between here and the columns reads this array, and only it.
- */
-export type LayeredOrder = Int32Array;
-
-/** The id columns a carried row names its strings through. */
-export interface NamingColumns {
-  readonly modulePath: Uint32Array;
-  readonly moduleSource: Uint32Array;
-  readonly moduleBlocks: Uint32Array;
-  readonly blockName: Uint32Array;
-  readonly blockPath: Uint32Array;
-  readonly blockDigest: Uint32Array;
-}
 
 /** The dictionary the output gets, and the two ways to name a string in it. */
-export interface LayeredDictionary {
+export interface MergedDictionary {
   /** A previous string id to its new one. Meaningless for an id nothing kept. */
   readonly remap: Uint32Array;
   /** The new id of a string an object-backed row or a test names. */
@@ -33,47 +11,24 @@ export interface LayeredDictionary {
 }
 
 /**
- * The output's dictionary, built without decoding the strings it carries.
- *
- * A layer keeps almost every string the previous snapshot held and adds a few
- * hundred. Deciding which are kept is a pass over the id columns, and an id is
- * an integer; placing the entrants among them is a merge of two ordered runs,
- * and the run that dominates the result is compared and copied as UTF-8 and
- * never becomes a string at all. That is what makes the whole layer cheap: the
- * dictionary is the one part of a snapshot that a rewrite has to touch in full.
+ * A previous dictionary's `marked` strings and the `fresh` ones, as one
+ * dictionary in code-unit order: each string once, every kept one copied as
+ * the bytes it is stored as. `string` reads a kept one as text, for the rare
+ * comparison bytes cannot settle.
  */
-export function layeredDictionary(input: {
-  readonly view: TestCoverageView;
-  readonly rows: LayeredOrder;
-  readonly objects: readonly CoverageModule[];
-  readonly tests: readonly CoverageTest[];
-  readonly instrumentation: string;
-  readonly commit: string | undefined;
-  readonly columns: NamingColumns;
-}): LayeredDictionary {
-  const { view, rows, objects, tests, columns } = input;
-  const { modulePath, moduleSource, moduleBlocks, blockName, blockPath, blockDigest } = columns;
-  const current = { instrumentation: input.instrumentation, commit: input.commit };
-
-  // Which previous strings the output still names. No string is made to answer
-  // that: marking is a pass over the id columns, and an id is an integer.
-  const stored = view.dictionary();
-  const previousOffsets = stored.offsets;
-  const previousBlob = Buffer.isBuffer(stored.blob)
-    ? stored.blob
-    : Buffer.from(stored.blob.buffer, stored.blob.byteOffset, stored.blob.byteLength);
-  const strings = previousOffsets.length - 1;
-  const marked = new Uint8Array(strings);
-  for (const row of rows) {
-    if (row < 0) continue;
-    marked[modulePath[row]!] = 1;
-    marked[moduleSource[row]!] = 1;
-    for (let block = moduleBlocks[row]!; block < moduleBlocks[row + 1]!; block += 1) {
-      marked[blockName[block]!] = 1;
-      marked[blockPath[block]!] = 1;
-      marked[blockDigest[block]!] = 1;
-    }
-  }
+export function mergedDictionary(input: {
+  readonly blob: Uint8Array;
+  readonly offsets: Uint32Array;
+  readonly marked: Uint8Array;
+  readonly fresh: ReadonlySet<string>;
+  readonly string: (id: number) => string;
+}): MergedDictionary {
+  const { marked, string } = input;
+  const previousOffsets = input.offsets;
+  const previousBlob = Buffer.isBuffer(input.blob)
+    ? input.blob
+    : Buffer.from(input.blob.buffer, input.blob.byteOffset, input.blob.byteLength);
+  const strings = Math.max(previousOffsets.length - 1, 0);
   // Counted before it is filled, so the ids go straight into an array of the
   // size they need. A snapshot this size keeps a couple of million of them, and
   // a JavaScript array of a couple of million numbers is an order of magnitude
@@ -84,28 +39,7 @@ export function layeredDictionary(input: {
   const survivors = new Uint32Array(survivorCount);
   for (let id = 0, at = 0; id < strings; id += 1) if (marked[id] === 1) survivors[at++] = id;
 
-  // Everything the object-backed side names. Small, because the object-backed
-  // side is what this run actually looked at.
-  const freshValues = new Set<string>();
-  freshValues.add(current.instrumentation);
-  if (current.commit !== undefined) freshValues.add(current.commit);
-  for (const test of tests) {
-    freshValues.add(test.file);
-    for (const precondition of test.preconditions) {
-      freshValues.add(precondition.name);
-      freshValues.add(precondition.digest);
-    }
-  }
-  for (const module of objects) {
-    freshValues.add(module.file);
-    freshValues.add(module.sourceDigest);
-    for (const block of module.blocks) {
-      freshValues.add(block.name);
-      freshValues.add(block.path);
-      freshValues.add(block.digest);
-    }
-  }
-  const fresh = [...freshValues].sort(codeUnitOrder);
+  const fresh = [...input.fresh].sort(codeUnitOrder);
   const freshBytes = fresh.map((value) => Buffer.from(value, 'utf8'));
 
   /**
@@ -123,7 +57,7 @@ export function layeredDictionary(input: {
     ? (id: number, bytes: Buffer): number =>
       previousBlob.compare(bytes, 0, bytes.length, previousOffsets[id]!, previousOffsets[id + 1]!)
     : (id: number, bytes: Buffer): number =>
-      codeUnitOrder(view.string(id), decoder.decode(bytes));
+      codeUnitOrder(string(id), decoder.decode(bytes));
 
   /**
    * The new dictionary, as a merge of two ordered runs.
@@ -189,8 +123,8 @@ export function layeredDictionary(input: {
   return { remap, id, blob: stringBlob, offsets: stringOffsets };
 }
 
-/** Whether these bytes hold no code point at or above U+E000. */
-function below(bytes: Uint8Array): boolean {
+/** Whether these bytes hold no code point at or above U+E000, where UTF-8 order stops being code-unit order. */
+export function below(bytes: Uint8Array): boolean {
   for (let at = 0; at < bytes.length; at += 1) if (bytes[at]! >= 0xee) return false;
   return true;
 }

@@ -1,4 +1,4 @@
-import { acquireDocument, collect, stabilizeForObservation } from '@variance-authority/dom';
+import { acquireDocument, collect, stabilizeAsRequested } from '@variance-authority/dom';
 import {
   awaitSuspense,
   createDeclarationRegistry,
@@ -9,9 +9,10 @@ import {
   wiringOf,
 } from '@variance-authority/react';
 import type { DeclaredComponents, SuspenseSettlement } from '@variance-authority/react';
-import { recipeOf } from '@variance-authority/core/format';
+import { takeWatch } from './watch.js';
 import type {
   Digest,
+  PageRegion,
   RawCapture,
   RenderDocument,
   SubjectRef,
@@ -44,7 +45,8 @@ export const AGENT = '__variance_authority_playwright_test__';
 export const ACCESSIBILITY_ROOT_ATTRIBUTE = 'data-variance-authority-accessibility-root';
 let accessibilitySequence = 0;
 
-export interface AcquireRequest {
+/** What a reading asks of the agent. Its region is the one the page runs in, for the environment key. */
+export interface AcquireRequest extends PageRegion {
   readonly subject: SubjectRef;
   readonly viewport: Viewport;
 
@@ -70,6 +72,15 @@ export interface AcquireRequest {
    * not survive the trip; the page holds the same registry and resolves them.
    */
   readonly stabilize?: readonly string[];
+
+  /**
+   * The driver tricks the driver applied to this page, by id.
+   *
+   * `no-hover` before each reading, and `reduced-motion` and `freeze-clock`
+   * when the `variance` fixture set them before the test's page loaded. A trick
+   * nobody drove is left out of the recorded recipe. Absent is none.
+   */
+  readonly driven?: readonly string[];
 
   /**
    * `'raster'` when this reading is followed by a screenshot of the same live
@@ -131,9 +142,19 @@ export interface Acquired {
     readonly marker: string;
     readonly previous?: string;
   }[];
+
+  /**
+   * What changed in the subject since `watch` was called on it, outside the
+   * regions it marks ignored. Absent when nothing was watching.
+   */
+  readonly mutated?: readonly string[];
 }
 
 export async function acquire(root: Element, request: AcquireRequest): Promise<string> {
+  // Before anything here awaits or writes: the settle steps below edit the
+  // subject themselves, and a watch still running would record them.
+  const mutated = takeWatch();
+
   // First of everything, because it decides what the rest of it is looking at.
   // Ahead of stabilization deliberately — content that arrives late brings its
   // own images and fonts, and a `waitForImages` that ran before them waited for
@@ -144,10 +165,8 @@ export async function acquire(root: Element, request: AcquireRequest): Promise<s
   // `transform` and `opacity`, both of which the semantic representation
   // carries — so an unstabilized collection reports a fade as a regression with
   // a component and a file attached. See `docs/stabilization.md`.
-  const held = await stabilizeForObservation(root.ownerDocument, {
-    ...(request.stabilize === undefined ? {} : { recipe: recipeOf(request.stabilize) }),
-    ...(request.tier === undefined ? {} : { tier: request.tier }),
-  });
+  const held = await stabilizeAsRequested(root.ownerDocument, request);
+  unfocused.push(held.refocus);
 
   // The width media queries resolve against is the page's, not the one the
   // driver asked for. They differ under `isMobile`: a page with no viewport meta
@@ -161,6 +180,9 @@ export async function acquire(root: Element, request: AcquireRequest): Promise<s
         ? request.viewport
         : { ...request.viewport, width: view.innerWidth, height: view.innerHeight },
     ...(request.fonts !== undefined ? { fonts: request.fonts } : {}),
+    // The preference the driver emulated, declared, so `@media` reads it as
+    // the browser answers it rather than as unknown.
+    ...(held.features !== undefined ? { features: held.features } : {}),
   };
 
   // FIXME: remounts are not read here, and `remountedSince` is why. It needs a
@@ -179,6 +201,8 @@ export async function acquire(root: Element, request: AcquireRequest): Promise<s
   const capture = collect(root, {
     ...shared,
     engine: request.engine,
+    ...(request.timezoneId === undefined ? {} : { timezoneId: request.timezoneId }),
+    ...(request.locale === undefined ? {} : { locale: request.locale }),
     portalsOf: () => portals,
     // One memo for this collection: `provenanceOf` walks the owner chain of
     // every node, so without it each boundary's props are digested once per
@@ -209,11 +233,32 @@ export async function acquire(root: Element, request: AcquireRequest): Promise<s
       ...(held.digest === undefined ? {} : { digest: held.digest }),
     },
     accessibilityPortals,
+    ...(mutated === undefined ? {} : { mutated }),
   });
+}
+
+/** What each acquisition since the last {@link refocus} took focus from. */
+const unfocused: (() => void)[] = [];
+
+/**
+ * Give focus back to the element the acquisitions since the last call took it
+ * from.
+ *
+ * Not part of `acquire`, because the in-place path photographs the live
+ * document after it, and a focus ring given back before the photograph is in
+ * it. The Node half calls this once the observation is done.
+ */
+export function refocus(): void {
+  for (const restore of unfocused.splice(0)) restore();
 }
 
 export interface InstalledAgent {
   readonly acquire: (root: Element, request: AcquireRequest) => Promise<string>;
+  /** {@link refocus}. */
+  readonly refocus: () => void;
+  /** Record changes to the subject until the next `acquire` or `unwatch`. */
+  readonly watch: (root: Element) => void;
+  readonly unwatch: () => void;
   readonly version: string;
   /** What `createDeclarationReader` reads, keyed on `AGENT` rather than `AGENT_GLOBAL`. */
   readonly declared: DeclaredComponents;

@@ -86,8 +86,8 @@ export interface TribunalChangelog {
   /**
    * Approved subjects no shape could group.
    *
-   * A run that attributed nothing — the ephemeral and raster-only paths — still
-   * approved something, and counting it is how the total stays a total. Dropping
+   * A run that read no markup for a subject attributed nothing in it and still
+   * approved it, and counting it is how the total stays a total. Dropping
    * these would make a changelog that covers eleven of forty approvals look like
    * a changelog of eleven approvals.
    */
@@ -105,7 +105,8 @@ export interface TribunalChangelogQuery {
   readonly since?: string;
 }
 
-const DEFAULT_LIMIT = 500;
+/** How many approvals one reading returns unless it asks for fewer, and the most it may ask for. */
+export const CHANGELOG_LIMIT = 500;
 
 /**
  * Freeze the explanation of one approval.
@@ -167,7 +168,7 @@ export async function readChangelog(
   project: string,
   query: TribunalChangelogQuery = {},
 ): Promise<TribunalChangelog> {
-  const limit = query.limit ?? DEFAULT_LIMIT;
+  const limit = query.limit ?? CHANGELOG_LIMIT;
   const conditions = ['project = ?'];
   const bindings: D1Value[] = [project];
 

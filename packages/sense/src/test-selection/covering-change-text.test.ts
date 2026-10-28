@@ -125,4 +125,33 @@ describe('formatCoveringChange', () => {
     );
     expect(text).toContain('12-14 function priceOf — 1 case, and 1 case that could have reached it stopped first');
   });
+
+  it('words a region from the state its caller read, when the listed cases are fewer than the ones that covered it', () => {
+    const text = formatCoveringChange([file({
+      regions: [
+        { ...region({ stopped: [] }), state: 'walked' as const },
+        { ...region({ startLine: 8, endLine: 10, tests: [witness('guest')], stopped: [] }), state: 'walked' as const },
+        { ...region({ startLine: 12, endLine: 14, stopped: [] }), state: 'unwalked' as const },
+      ],
+    })]);
+
+    expect(text.split('\n')[0]).toBe(
+      '1 changed file, 3 changed regions: 1 nothing covered, 0 covered by one case.',
+    );
+    expect(text).toContain('1-6 function priceOf — covered only by cases not listed here');
+    expect(text).toContain('8-10 function priceOf — 1 case listed, and cases not listed here also covered it');
+    expect(text).toContain(
+      '12-14 function priceOf — no case covered this region, and every case that could have reached it finished',
+    );
+  });
+
+  it('carries what each listed case said on its line, and nothing under it', () => {
+    const said = (name: string): CoveringTest => ({ ...witness(name), said: JSON.stringify({ said: [['fixture:flag', '"ff-on"', 'test/cart.test.ts:3', 1]] }) });
+    const text = formatCoveringChange(
+      [file({ regions: [region({ tests: [said('guest')] })] }), file({ file: 'test/cart.test.ts', cases: [said('member')] })],
+    );
+
+    expect(text).toContain('    test/cart.test.ts > guest — fixture:flag=ff-on (test/cart.test.ts:3)\n\n');
+    expect(text).toContain('    test/cart.test.ts > member — fixture:flag=ff-on (test/cart.test.ts:3)\n');
+  });
 });

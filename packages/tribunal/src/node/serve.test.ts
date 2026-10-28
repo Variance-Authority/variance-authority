@@ -183,7 +183,7 @@ describe('the three adapters compose into one service', () => {
   });
 });
 
-describe('the surface is a document and one script', () => {
+describe('the surface is a document, one script and its faces', () => {
   it('serves the review page at the root, with no token in it', async () => {
     await serve({ reviewer: 'marina' });
 
@@ -205,6 +205,39 @@ describe('the surface is a document and one script', () => {
     const asset = await fetch(`${service.url}/ui/review.js`);
     expect(asset.status).toBe(200);
     expect(asset.headers.get('content-type')).toBe('text/javascript; charset=utf-8');
+  });
+
+  it('serves the faces the stylesheet names, from the address the page links', async () => {
+    // A reviewer without Inter installed otherwise reads every caption in a
+    // fallback, and the visual gate's renderer has neither face either.
+    await serve();
+
+    const html = await (await fetch(service.url)).text();
+    expect(html).toContain('<link rel="stylesheet" href="/ui/fonts/fonts.css">');
+
+    const sheet = await fetch(`${service.url}/ui/fonts/fonts.css`);
+    expect(sheet.headers.get('content-type')).toBe('text/css; charset=utf-8');
+    // The sheet names its files relatively, so each resolves beside it.
+    const named = [...(await sheet.text()).matchAll(/url\("\.\/([^"]+)"\)/g)].map((match) => match[1]!);
+    expect(named).toEqual(['inter.woff2', 'jetbrains-mono.woff2']);
+
+    for (const file of named) {
+      const face = await fetch(`${service.url}/ui/fonts/${file}`);
+      expect([file, face.status, face.headers.get('content-type')]).toEqual([file, 200, 'font/woff2']);
+      // `wOF2`, the signature a browser checks before it draws a glyph from it.
+      expect(Buffer.from(await face.arrayBuffer()).subarray(0, 4).toString('latin1')).toBe('wOF2');
+    }
+  });
+
+  it('serves nothing from the font folder it was not given a name for', async () => {
+    await serve();
+
+    // A licence sits beside the faces and is not one; `%2F` is a slash the
+    // table never decodes into a path.
+    for (const path of ['/ui/fonts/inter-LICENSE.txt', '/ui/fonts/..%2Fpackage.json', '/ui/fonts/']) {
+      const response = await fetch(`${service.url}${path}`);
+      expect([path, response.status]).toEqual([path, 404]);
+    }
   });
 
   it('serves the same document at every address the surface renders', async () => {

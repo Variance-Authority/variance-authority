@@ -54,10 +54,10 @@ import { useCallback, useState, type CSSProperties, type ReactElement } from 're
 import type { RegionRecord } from '@variance-authority/report';
 import type { ReviewClient } from './client.js';
 import type { Appearance } from './grouping.js';
-import { hasDifference, useDifferenceUrl } from './difference.js';
+import { hasDifference, useDifference } from './difference.js';
 import { leadOf } from './lead.js';
 import { count, number } from './text.js';
-import { share, union, type Size } from './plate.js';
+import { SMALLEST_SCALE, share, union, type Size } from './plate.js';
 
 /**
  * The crop window, in CSS pixels.
@@ -73,14 +73,13 @@ const WINDOW: Size = { width: 264, height: 176 };
 const PAD = 20;
 
 /**
- * How far the crop may be pushed, in either direction.
- *
- * Below 1:1 a two-pixel shift is handed to the resampler, which is the whole
- * reason the sheet refuses smoothing — but a region larger than the window has to
- * come down or it is not a picture of anything, so the floor is a quarter rather
- * than one, and {@link Frame.whole} says which of the two happened.
+ * How close the crop may be pushed. The other way it stops at
+ * {@link SMALLEST_SCALE}: below 1:1 a two-pixel shift is handed to the
+ * resampler, which is the whole reason the sheet refuses smoothing — but a
+ * region larger than the window has to come down or it is not a picture of
+ * anything, so the floor is a quarter rather than one, and {@link Frame.whole}
+ * says which of the two happened.
  */
-const FURTHEST = 0.25;
 const CLOSEST = 8;
 
 /**
@@ -93,6 +92,16 @@ const CLOSEST = 8;
 type Layer = 'diff' | 'after' | 'before';
 
 const LAYERS: readonly Layer[] = ['diff', 'after', 'before'];
+
+/**
+ * Whether a render can draw a layer at all. A mask the build did not keep is
+ * still drawn from the two captures, so the strip offers it wherever the crop
+ * can draw it — the strip and the crop asking two questions opened such a strip
+ * on the candidate.
+ */
+function shows(subject: Appearance['subject'], layer: Layer): boolean {
+  return layer === 'diff' ? hasDifference(subject) : subject.has[layer];
+}
 
 const SAY: Readonly<Record<Layer, string>> = {
   diff: 'difference',
@@ -125,7 +134,7 @@ export function frameOf(region: RegionRecord, box: Size, window: Size): Frame {
     window.width / (region.width + PAD * 2),
     window.height / (region.height + PAD * 2),
   );
-  const scale = Math.min(CLOSEST, Math.max(FURTHEST, wanted));
+  const scale = Math.min(CLOSEST, Math.max(SMALLEST_SCALE, wanted));
 
   return {
     scale,
@@ -210,11 +219,11 @@ export function Look({
   const [asked, setAsked] = useState<readonly Layer[]>([]);
 
   const found = sightings(appearances).filter(({ appearance }) =>
-    LAYERS.some((layer) => appearance.subject.has[layer]),
+    LAYERS.some((layer) => shows(appearance.subject, layer)),
   );
 
   const offered = LAYERS.filter((layer) =>
-    found.some(({ appearance }) => appearance.subject.has[layer]),
+    found.some(({ appearance }) => shows(appearance.subject, layer)),
   );
   const first = offered[0];
   if (first === undefined) return null;
@@ -324,20 +333,27 @@ function Sighted({
 }
 
 /**
- * Whether this crop's window has come near the viewport.
+ * Whether this crop's window has come near the viewport: `undefined` until the
+ * observer has answered once, then whether it has ever been near.
  *
  * A renderer without the observer is told yes at once. A deferral nothing can
  * lift is a permanently empty frame, which is the exact failure `loading="lazy"`
  * had here — and a static render has no scroll to wait for.
  */
-function useSeen(): readonly [(node: HTMLSpanElement | null) => (() => void) | undefined, boolean] {
-  const [seen, setSeen] = useState(() => typeof IntersectionObserver === 'undefined');
+function useSeen(): readonly [
+  (node: HTMLSpanElement | null) => (() => void) | undefined,
+  boolean | undefined,
+] {
+  const [seen, setSeen] = useState(() =>
+    typeof IntersectionObserver === 'undefined' ? true : undefined,
+  );
 
   const watch = useCallback((node: HTMLSpanElement | null) => {
     if (node === null || typeof IntersectionObserver === 'undefined') return undefined;
     const observer = new IntersectionObserver(
       (entries) => {
-        if (entries.some((entry) => entry.isIntersecting)) setSeen(true);
+        const near = entries.some((entry) => entry.isIntersecting);
+        setSeen((was) => was === true || near);
       },
       // A screen ahead of the scroll, so the crop is decoded by the time it is
       // reached rather than arriving after it.
@@ -376,16 +392,25 @@ function Crop({
   readonly mounted: ReadonlySet<Layer>;
 }): ReactElement {
   const [watch, seen] = useSeen();
-  // Only once the crop is mounting the mask: a strip of renders nobody switched
-  // to `diff` decodes nothing. See [`difference.ts`](./difference.js).
-  const difference = useDifferenceUrl(client, build, subject, mounted.has('diff'));
+  // Only once the crop is mounting the mask and its window is near: the strip
+  // opens on `diff`, and a crop nobody has scrolled to decodes nothing. See
+  // [`difference.ts`](./difference.js).
+  const difference = useDifference(client, build, subject, seen === true && mounted.has('diff'));
+  // Said while what the crop will hold is undecided: before the observer's
+  // first answer, and while a mask is made from two fetches into an object URL.
+  // Neither is on the wire or in `document.images`, so only this tells a
+  // reading — a screen reader or a capture — that the crop is not done.
+  const busy = seen === undefined || difference?.state === 'loading';
   const box = union(subject.size, subject.baseline);
 
   /** What this render can show at all, and where its bytes come from. */
-  const shown = (layer: Layer): boolean =>
-    layer === 'diff' ? hasDifference(subject) : subject.has[layer];
+  const shown = (layer: Layer): boolean => shows(subject, layer);
   const srcOf = (layer: Layer): string | undefined =>
-    layer === 'diff' ? difference : client.imageUrl(build, subject.subject, layer);
+    layer === 'diff'
+      ? difference?.state === 'ready'
+        ? difference.value
+        : undefined
+      : client.imageUrl(build, subject.subject, layer);
 
   if (box === undefined) {
     return (
@@ -406,6 +431,15 @@ function Crop({
     );
   }
 
+  // The same for a mask the page set out to compute and could not.
+  if (showing === 'diff' && difference?.state === 'failed') {
+    return (
+      <span className="va-crop va-crop-unplaced" style={boxOf(WINDOW)}>
+        <span className="va-note">The difference could not be computed for this render.</span>
+      </span>
+    );
+  }
+
   const frame = frameOf(at, box, WINDOW);
   const plate: CSSProperties = {
     height: `${String(box.height * frame.scale)}px`,
@@ -415,9 +449,14 @@ function Crop({
   };
 
   return (
-    <span className="va-crop" style={boxOf(WINDOW)} ref={watch}>
+    <span
+      className="va-crop"
+      style={boxOf(WINDOW)}
+      ref={watch}
+      aria-busy={busy ? true : undefined}
+    >
       <span className="va-crop-plate" style={plate}>
-        {seen
+        {seen === true
           ? LAYERS.filter(
               (layer) => mounted.has(layer) && shown(layer) && srcOf(layer) !== undefined,
             ).map((layer) => (

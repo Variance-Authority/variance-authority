@@ -1,18 +1,22 @@
-import { readFile, writeFile } from 'node:fs/promises';
-import { dirname, join } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 import type { RunReport } from '@variance-authority/report';
 import { VANTAGE_VARIABLE } from '@variance-authority/vantage';
 import type { VantageReading } from '@variance-authority/vantage/attach';
-import { messageOf } from '../config-values.js';
+import type { Crossing } from '../ask-args.js';
 import { OperatorError } from '../exit.js';
 import { readClaims } from './adjudicate.js';
-import { inputFor, questionFor, questionOf, type Question } from './asking.js';
-import { grep, journeyMapTool, orient, search, slowestTests, type Help } from '@variance-authority/help/tools';
+import { inputFor, invocationOf, questionFor, refuseWords, type Question } from './asking.js';
+import { caughtUp, foundNothingAnswer, snapshotLine, unopenedLine } from '@variance-authority/help';
+import { discover, grep, intersection, journeyMapTool, orient, search, slowestTests, testCompositionTool, type Help } from '@variance-authority/help/tools';
 import { sourceIndexPath } from '@variance-authority/sense';
 import type { Taint } from '@variance-authority/sense/taint';
-import { readTree, type CostsSubject, type Tree } from '@variance-authority/mcp/tools';
+import { repositoryRoot } from '@variance-authority/sense/test-selection';
+import { readTree, verbOf, type CostsSubject, type Reviewed, type ReviewTool, type Tool, type Tree } from '@variance-authority/mcp/tools';
+import { flagged, type Flagged } from './ask-flagged.js';
+import { intersectionInput } from './ask-intersection.js';
+import { ASKED, record, recorded } from './ask-previous.js';
 import { questions } from './ask-questions.js';
-import { grepSource, journeyMapSource, orientSource, readChanged, readSource, readTaint, searchSource, slowestSource, wholeSource } from './ask-source.js';
+import { type Answering, discoverSource, grepSource, intersectionSource, journeyMapSource, orientSource, readChanged, readSource, readTaint, searchSource, slowestSource, testCompositionSource, wholeSource } from './ask-source.js';
 import { readingFor } from './report-source.js';
 import type { Here } from './share.js';
 import { readVantage } from './watch.js';
@@ -79,16 +83,9 @@ export { costsSubject } from './ask-costs.js';
  * answer here exits `0`; the run's verdict stays where it was decided.
  */
 
-/**
- * Where the subject of the previous answer is kept, beside the report it is about.
- *
- * In the report's directory rather than a cache of this tool's own, because it is
- * a fact about *that artifact* and it should disappear with it. It is derived and
- * disposable: deleting it costs the next `diff` its comparison and nothing else.
- */
-export const ASKED = 'asked.json';
+export { ASKED } from './ask-previous.js';
 
-export interface AskRequest {
+export interface AskRequest extends Crossing {
   /** The question. Absent asks for the list of them, which is the MCP handshake. */
   readonly question?: string;
   readonly subject?: string;
@@ -100,6 +97,8 @@ export interface AskRequest {
   readonly claims?: string;
   readonly test?: string;
   readonly state?: string;
+  /** `--build <id>`: a review build, for the questions about what reviewers decided and flagged. */
+  readonly build?: string;
   readonly file?: string;
   readonly files?: readonly string[];
   /** `--area <id>`: the page of the code map `orient` prints. */
@@ -135,6 +134,12 @@ export interface AskRequest {
   readonly at?: string;
   /** `--format json`: the answer as data. Only `search` answers in it. */
   readonly format?: 'json';
+  /**
+   * The words typed after the question, as typed. A question about a finished
+   * run or about costs reads them as reports, through `read` and `costs`; a
+   * question that reads no report refuses them.
+   */
+  readonly reports?: readonly string[];
   /** The configured report. Names the directory the previous subject is kept in, or, when a line is read in its place, the kept copy does. */
   readonly report: string;
   /** The report to answer from — the configured one, or the shards the operator named. */
@@ -145,18 +150,11 @@ export interface AskRequest {
   readonly look?: (at: string) => Promise<VantageReading>;
   /** What each subject cost: the mainline's times, or the named reports'. Absent, `costs` is refused. */
   readonly costs?: () => Promise<CostsSubject>;
+  /** What a review tool's call names, read from its deployment. Absent, every question about review is refused. */
+  readonly review?: <Subject extends Reviewed>(tool: ReviewTool<Subject>, input: Readonly<Record<string, unknown>>) => Promise<Subject>;
   /** How the checkout is read. Injected so the source path is testable without a repository. */
   readonly source?: (root: string, options?: SourceReadOptions) => Promise<Sourced>;
 }
-
-/** The flags every question is spelled with, whichever subject answers it. */
-type Flagged = Pick<
-  AskRequest,
-  | 'subject' | 'subjects' | 'component' | 'rule' | 'shape' | 'test' | 'state' | 'file' | 'files' | 'area'
-  | 'name' | 'package' | 'subpath' | 'query'
-  | 'under' | 'above' | 'inside' | 'beside' | 'leftOf' | 'rightOf' | 'on'
-  | 'from' | 'to' | 'limit' | 'offset'
->;
 
 /**
  * What a question about the code takes: every flag `ask` accepts, and nothing
@@ -164,7 +162,7 @@ type Flagged = Pick<
  * `--subject` typed at `search` is refused by name like it is everywhere else,
  * instead of being dropped on the way in and answered around.
  */
-export type SourceRequest = Flagged & Pick<AskRequest, 'source' | 'changedFile' | 'taintFile' | 'format'> & {
+export type SourceRequest = Flagged & Pick<AskRequest, 'source' | 'changedFile' | 'taintFile' | 'format' | 'reports'> & {
   readonly question: string;
   readonly justAnswer?: boolean;
 };
@@ -174,6 +172,12 @@ export interface SourceReadOptions {
   readonly taints?: readonly Taint[];
   readonly justAnswer?: boolean;
   readonly tree?: boolean;
+  /**
+   * Read a generation made now rather than reuse a recent one. Set when a
+   * question was refused from a generation older than it, so the refusal is
+   * given only once the checkout as it is has been read.
+   */
+  readonly current?: boolean;
 }
 
 /** A workspace, read once, and the tree its scan drew — folded only if a question names a path. */
@@ -191,7 +195,17 @@ export async function ask(request: AskRequest): Promise<string> {
   if (question.costs !== undefined) {
     const input = inputFor(question.costs, flagged(request));
     if (request.costs === undefined) throw new OperatorError('`costs` needs a config: the times are kept under its project');
-    return `${question.costs.run(await request.costs(), input)}\n`;
+    return `${question.costs.run(await request.costs(), input, invocationOf())}\n`;
+  }
+  if (question.review !== undefined) {
+    const input = inputFor(question.review, flagged(request));
+    refuseWords(question.tool, request.reports);
+    if (request.review === undefined) {
+      throw new OperatorError(
+        `\`${request.question}\` needs a config: it names the deployment and the share token that reads it`,
+      );
+    }
+    return `${question.review.run(await request.review(question.review, input), input, invocationOf())}\n`;
   }
   if (request.changedFile !== undefined || request.taintFile !== undefined) {
     const flag = request.changedFile !== undefined ? '--changed-file' : '--taint-file';
@@ -201,7 +215,12 @@ export async function ask(request: AskRequest): Promise<string> {
     throw new OperatorError(`\`${request.question}\` answers in text only; \`--format json\` is taken by \`search\``);
   }
 
+  // A question only a watcher answers reads no report, with a watcher or
+  // without one, so the word is refused before the missing watcher is.
+  if (question.report === undefined) refuseWords(question.tool, request.reports);
+
   const input = await inputFrom(question, request);
+  if (request.at !== undefined && question.live !== undefined) unread(question, request.at, request.reports);
 
   const answer =
     request.at !== undefined && question.live !== undefined
@@ -222,13 +241,17 @@ export async function askSource(request: SourceRequest): Promise<string> {
   if (tool === undefined) {
     throw new OperatorError(`\`${request.question}\` is about a run, not the source; ask it of a report`);
   }
+  // `intersection` is the one source question whose words are its own: each
+  // is a whole question, in quotes.
+  const crossing = tool.name === intersection.name;
+  if (!crossing) refuseWords(tool, request.reports);
 
   // Refused before anything is read: a question that has no shape to give
   // would otherwise answer in prose to a caller about to parse it.
   if (request.format === 'json' && tool.name !== search.name) {
     throw new OperatorError(`\`${request.question}\` answers in text only; \`--format json\` is taken by \`search\``);
   }
-  const input = inputFor(tool, flagged(request));
+  const input = crossing ? intersectionInput(request.reports ?? [], request.limit) : inputFor(tool, flagged(request));
   const changed = request.changedFile === undefined ? undefined : await readChanged(request.changedFile);
   const taints = request.taintFile === undefined ? undefined : [await readTaint(request.taintFile)];
   if (request.justAnswer === true && (changed !== undefined || taints !== undefined)) {
@@ -240,35 +263,86 @@ export async function askSource(request: SourceRequest): Promise<string> {
     ...(request.justAnswer === true ? { justAnswer: true } : {}),
     ...(tool.wants?.(input) === true ? { tree: true } : {}),
   };
-  // `search` opens its own published file in place rather than the whole
-  // value, which is most of what a large repository's question costs. The
-  // answer is the tool's, over the same generation.
-  const answering =
-    request.source !== undefined ? await wholeSource(request.source, tool, input, reading)
-    : tool.name === search.name ? await searchSource(process.cwd(), input, reading)
-    : tool.name === grep.name ? await grepSource(process.cwd(), input)
-    : tool.name === orient.name ? orientSource(process.cwd(), input)
-    : tool.name === slowestTests.name ? slowestSource(process.cwd(), input)
-    : tool.name === journeyMapTool.name ? journeyMapSource(process.cwd(), input)
-    : await wholeSource(readSource, tool, input, reading);
+  const started = Date.now();
+  const answering = await sourceAnswering(request, tool, input, reading);
+  // A reading `--just-answer` asked for, or a published search opened at its
+  // age, is not compared with the checkout, and every answer from it says so.
+  // Every other one is the checkout's as it is by the time it refuses.
+  const unseen = request.justAnswer === true || answering.unseen === true;
   // A refusal is the answer here, not a crash. Every one of them names what is
   // there instead — the packages, the doors, the name one letter away — and it
   // is thrown because that is the contract the tool shares with the wire, where
   // the protocol layer turns it into `isError`. Printed as a defect with a stack
-  // under it, the one useful line is the one a reader cannot find.
+  // under it, the one useful line is the one a reader cannot find. A name not
+  // found is thrown the same way, so it is read again like a refusal, and is
+  // then printed as the answer it is.
   try {
-    const at = answering.at;
-    if (request.format === 'json') {
-      // The generation is carried as a field rather than a footer line, and is
-      // absent when the reading could not say when it was made.
-      const data = answering.data?.();
-      return `${JSON.stringify({ ...data, ...(at === undefined ? {} : { generatedAt: at }) }, undefined, 2)}\n`;
-    }
-    const answer = answering.answer();
-    return `${at === undefined ? answer : `${answer}\nSnapshot ${at}.`}\n`;
+    return rendered(request, answering, unseen);
   } catch (refusal) {
-    throw new OperatorError(refusal instanceof Error ? refusal.message : String(refusal), { cause: refusal });
+    // A refusal read from what the checkout was before the question is not
+    // yet a fact about the checkout: it is read again, brought up to date,
+    // and that answer stands.
+    // A reading nothing compared with the checkout says so under its refusal,
+    // and one that could not be compared says why.
+    const caught = unseen ? undefined : await caughtUp(answering.at, started, request.source === undefined ? process.cwd() : undefined, (current) => sourceAnswering(request, tool, input, { ...reading, ...(current ? { current: true } : {}) }));
+    const dated = caught?.footer ?? (unseen && answering.at !== undefined ? snapshotLine(answering.at, true) : undefined);
+    const footer = [dated, unopenedLine(answering.unopened, !unseen)].filter((line) => line !== undefined).join('\n');
+    const said = footer === '' ? '' : `\n\n${footer}`;
+    if (caught?.subject === undefined) {
+      // A name not found is an answer, dated like any other, once nothing newer can be read.
+      const found = foundNothingAnswer(refusal, caught, answering.at, unseen);
+      if (found !== undefined) return foundNothing(found, unopenedLine(answering.unopened, !unseen));
+      throw refused(refusal, said);
+    }
+    try {
+      return rendered(request, caught.subject, false);
+    } catch (still) {
+      const found = foundNothingAnswer(still, caught, caught.subject.at, false);
+      if (found !== undefined) return foundNothing(found, unopenedLine(caught.subject.unopened, true));
+      throw refused(still, said);
+    }
   }
+}
+
+function refused(refusal: unknown, footer: string): OperatorError {
+  return new OperatorError(`${refusal instanceof Error ? refusal.message : String(refusal)}${footer}`, { cause: refusal });
+}
+
+/** A name the last reading did not find, written as `rendered` writes an answer: the text, then the lines under it. */
+function foundNothing(answer: string, said: string | undefined): string {
+  return `${said === undefined ? answer : `${answer}\n${said}`}\n`;
+}
+
+/** The reader each source question is answered from. */
+async function sourceAnswering(request: SourceRequest, tool: Tool<Help>, input: Readonly<Record<string, unknown>>, reading: SourceReadOptions): Promise<Answering> {
+  // `search` opens its own published file in place rather than the whole
+  // value, which is most of what a large repository's question costs. The
+  // answer is the tool's, over the same generation.
+  return request.source !== undefined ? await wholeSource(request.source, tool, input, reading)
+    : tool.name === search.name ? await searchSource(process.cwd(), input, reading)
+    : tool.name === grep.name ? await grepSource(process.cwd(), input)
+    : tool.name === discover.name ? await discoverSource(process.cwd(), input)
+    : tool.name === intersection.name ? await intersectionSource(process.cwd(), input, reading)
+    : tool.name === orient.name ? orientSource(process.cwd(), input)
+    : tool.name === slowestTests.name ? slowestSource(process.cwd(), input)
+    : tool.name === journeyMapTool.name ? journeyMapSource(process.cwd(), input)
+    : tool.name === testCompositionTool.name ? testCompositionSource(process.cwd(), input)
+    : await wholeSource(readSource, tool, input, reading);
+}
+
+function rendered(request: SourceRequest, answering: Answering, unseen: boolean): string {
+  const at = answering.at;
+  if (request.format === 'json') {
+    // The generation is carried as a field rather than a footer line, and is
+    // absent when the reading could not say when it was made.
+    const data = answering.data?.();
+    const unopened = answering.unopened === undefined ? {} : { unopened: answering.unopened };
+    return `${JSON.stringify({ ...data, ...(at === undefined ? {} : { generatedAt: at, ...(unseen ? { compared: false } : {}) }), ...unopened }, undefined, 2)}\n`;
+  }
+  const answer = answering.answer();
+  const dated = at === undefined ? answer : `${answer}\n${snapshotLine(at, unseen)}`;
+  const said = unopenedLine(answering.unopened, !unseen);
+  return `${said === undefined ? dated : `${dated}\n${said}`}\n`;
 }
 
 /**
@@ -289,11 +363,13 @@ async function live(
   // The watcher rotates its own previous reading as it hands this one over, so
   // there is nothing to record here and nothing left behind when this exits.
   const reading = await (request.look ?? readVantage)(at);
-  return tool.run(
-    reading.state,
-    input,
-    reading.previous === undefined ? {} : { previous: reading.previous },
-  );
+  // `file` is a path, and a terminal, unlike the watcher, has a directory `./x` is read from.
+  const file = input['file'];
+  const asked = typeof file === 'string' && file !== '' ? { ...input, file: resolve(file) } : input;
+  return tool.run(reading.state, asked, invocationOf({
+    ...(reading.previous === undefined ? {} : { previous: reading.previous }),
+    root: repositoryRoot(process.cwd()),
+  }));
 }
 
 /** A question about a run that finished, asked of the report it left. */
@@ -315,10 +391,10 @@ async function finished(
   // it — `wants` is the tool's answer about its own arguments — because it is a
   // walk of the repository and most questions name no path at all.
   const tree = tool.wants?.(input) === true ? await sourceTree() : undefined;
-  const answer = tool.run(report, input, {
+  const answer = tool.run(report, input, invocationOf({
     ...(previous === undefined ? {} : { previous }),
     ...(tree === undefined ? {} : { tree }),
-  });
+  }));
 
   // After the answer and only after it, which is the MCP rule verbatim: a
   // refused call must not become the thing the next diff compares against.
@@ -358,10 +434,25 @@ async function sourceTree(): Promise<Tree | undefined> {
  */
 function noWatcher(question: Question): OperatorError {
   return new OperatorError(
-    `\`${questionOf(question.tool)}\` is about a suite that is still running, and needs a ` +
+    `\`${verbOf(question.tool)}\` is about a suite that is still running, and needs a ` +
       'watcher to ask. Start one with `variance watch`, start the suite with the ' +
       `\`${VANTAGE_VARIABLE}\` line it prints, then ask again — with \`--at <address>\`, or ` +
       `with \`${VANTAGE_VARIABLE}\` set in this shell too.`,
+  );
+}
+
+/**
+ * Refuse a report typed after a question a watcher answers, when the question
+ * also reads a finished run — `diff`, which would read the word as a report
+ * without the watcher — so the refusal says the watcher is why it went unread.
+ */
+function unread(question: Question, at: string, reports: readonly string[] | undefined): void {
+  const word = reports?.[0];
+  if (word === undefined) return;
+  throw new OperatorError(
+    `\`${word}\` is a report, and \`variance ask ${verbOf(question.tool)}\` was asked of the ` +
+      `watcher at \`${at}\`, which reads none. Ask without \`--at\`, and without ` +
+      `\`${VANTAGE_VARIABLE}\` set, to read the report.`,
   );
 }
 
@@ -377,78 +468,4 @@ async function inputFrom(
     // its intent badly is told so once, in one wording.
     claims: request.claims === undefined ? undefined : await readClaims(request.claims),
   });
-}
-
-/**
- * The flags, and only the flags, off a request. Named one by one rather than
- * spread, because a request also carries what it is *about* — a report path, a
- * watcher address, a reader — and `inputFor` refuses every property it does
- * not recognise, which is the right rule for a flag and the wrong one for a
- * subject.
- */
-function flagged(request: Flagged): Readonly<Record<string, unknown>> {
-  return {
-    subject: request.subject,
-    subjects: request.subjects,
-    component: request.component,
-    rule: request.rule,
-    shape: request.shape,
-    test: request.test,
-    state: request.state,
-    file: request.file,
-    files: request.files,
-    area: request.area,
-    name: request.name,
-    package: request.package,
-    subpath: request.subpath,
-    query: request.query,
-    under: request.under,
-    above: request.above,
-    inside: request.inside,
-    beside: request.beside,
-    leftOf: request.leftOf,
-    rightOf: request.rightOf,
-    on: request.on,
-    from: request.from,
-    to: request.to,
-    limit: request.limit,
-    offset: request.offset,
-  };
-}
-
-/**
- * The subject of the previous answer, or nothing.
- *
- * Unreadable is the same as absent here, and only here. It is a derived file in
- * the run's own output directory, not evidence: the state it holds was written
- * by this command and can be reproduced by asking again, so refusing to answer
- * because a cache is malformed would withhold the report over the one file in
- * this system that nobody has to keep.
- */
-async function recorded(path: string): Promise<RunReport | undefined> {
-  try {
-    return JSON.parse(await readFile(path, 'utf8')) as RunReport;
-  } catch {
-    return undefined;
-  }
-}
-
-/**
- * Record what this answer was read from, or say that it could not be.
- *
- * Loud rather than best-effort. A silent failure here does not spoil this
- * answer; it spoils the *next* `diff`, which would then report that nothing has
- * changed since a run it never saw — and that answer arrives with nothing
- * attached to say it was built on a write that did not happen.
- */
-async function record(path: string, report: RunReport): Promise<void> {
-  try {
-    await writeFile(path, `${JSON.stringify(report)}\n`, 'utf8');
-  } catch (error) {
-    throw new OperatorError(
-      `the answer could not be recorded to \`${path}\`: ${messageOf(error)}. Each answer ` +
-        'replaces the state `ask diff` compares against, so leaving it unwritten would let a ' +
-        'later diff answer from a run nobody read.',
-    );
-  }
 }

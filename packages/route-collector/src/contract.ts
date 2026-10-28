@@ -1,7 +1,10 @@
 import type { CallSiteResolver, SourceIndex } from '@variance-authority/core/attribute';
 import type {
+  Diagnostic,
+  PageRegion,
   RenderDocument,
   SemanticSnapshot,
+  Step,
   SubjectRef,
   Viewport,
 } from '@variance-authority/core/format';
@@ -17,7 +20,11 @@ import type {
  * run.
  */
 
-export interface CollectorConfig {
+/**
+ * The subset of a run's configuration this collector reads. A region field it
+ * leaves out is pinned to `UTC` or `en-US`, never the host's.
+ */
+export interface CollectorConfig extends PageRegion {
   readonly viewport: Viewport;
   readonly fonts?: readonly string[];
   /**
@@ -78,6 +85,9 @@ export interface PlannedSubject {
    */
   readonly tags?: readonly string[];
 
+  /** The name a baseline is filed under, when the id's last segment cannot be one. */
+  readonly name?: string;
+
   /** What declares the subject; every width of one route shares its route. */
   readonly declaredIn?: string;
 }
@@ -99,13 +109,36 @@ export type Collected =
        * Stabilization tricks applied to the page before this subject was read.
        *
        * Reported so a run can say what it did to somebody else's page. The
-       * digest of the same list is in the environment key, which is what makes a
-       * differently-stabilized baseline `incomparable`; this is the half a
-       * person reads.
+       * digest of the same list is in the environment key, which is what names a
+       * differently-stabilized baseline as the cause of a change; this is the
+       * half a person reads.
        */
       readonly stabilization?: readonly string[];
+
+      /**
+       * What the collector noticed about the way it read this subject.
+       *
+       * Not about the picture, which the document and the snapshot carry, but
+       * about the reading: a route whose components could not be read because
+       * no React root was found for it at all. It leaves a real image to
+       * compare and changes what a region with no component means, so a run
+       * carries it into the subject's record.
+       */
+      readonly diagnostics?: readonly Diagnostic[];
+
+      /** How long each step of this reading took, in the order they ran. */
+      readonly steps?: readonly Step[];
     }
-  | { readonly ok: false; readonly because: string };
+  | {
+      readonly ok: false;
+      /**
+       * The page marked itself out of the run with `data-variance-exclude`.
+       * A decision, not a defect: the run names it and does not fail on it.
+       * Absent is a failure.
+       */
+      readonly excluded?: true;
+      readonly because: string;
+    };
 
 export interface CollectorContext {
   readonly config: CollectorConfig;
@@ -163,5 +196,9 @@ export interface Collector {
    */
   openWorker?(): Promise<Collector>;
 
-  close(): Promise<void>;
+  /**
+   * `costs` is what the run timed for each page, first collection to decision,
+   * by subject id; the execution record carries it as each page's duration.
+   */
+  close(costs?: ReadonlyMap<string, number>): Promise<void>;
 }

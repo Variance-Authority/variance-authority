@@ -247,26 +247,60 @@ describe('presentation intelligence', () => {
     const introduced = presentationSignal(clean, collapsed);
     const resolved = presentationSignal(collapsed, clean);
 
-    expect(introduced.verdict).toBe('changed');
-    expect(introduced.verdict === 'changed' && introduced.effects).toEqual(
+    expect(introduced?.verdict).toBe('changed');
+    expect(introduced !== undefined && 'effects' in introduced && introduced.effects).toEqual(
       expect.arrayContaining([expect.objectContaining({ transition: 'introduced' })]),
     );
-    expect(resolved.verdict === 'changed' && resolved.effects).toEqual(
+    expect(resolved !== undefined && 'effects' in resolved && resolved.effects).toEqual(
       expect.arrayContaining([expect.objectContaining({ transition: 'resolved' })]),
     );
   });
 
-  it('keeps unobserved layout incomparable instead of reporting an empty effect list', () => {
+  it('analyzes a generated box that carries no rect of its own, and refuses an element that lacks one', () => {
+    // The DOM measures elements, and `::before` is not one: its geometry is in
+    // its host's. An element with no rect is a capture that lied about layout.
+    const box = { x: 0, y: 0, width: 200, height: 20 };
+    const generated = node('::before', undefined, [text('New')], undefined);
+    const unmeasured = node('span', undefined, [text('New')], undefined);
+
+    expect(() => analyzePresentation(rawCapture(node('main', box, [generated, text('Reading')], undefined)))).not.toThrow();
+    expect(() => analyzePresentation(rawCapture(node('main', box, [unmeasured], undefined)))).toThrow(
+      /r0:0\/0 has no rect/,
+    );
+  });
+
+  it('reports a side without layout findings as changed, naming that side, with no effects', () => {
     const withoutLayout = analyzePresentation(rawCapture(
       node('main', undefined, [text('Reading')], { role: 'main', name: 'Reading' }),
       false,
     ));
     const withLayout = analyzePresentation(rawCapture(records({ between: 12, internal: 4, count: 6 })));
 
-    expect(presentationSignal(withoutLayout, withLayout)).toEqual(expect.objectContaining({
-      verdict: 'incomparable',
-      because: expect.stringContaining('baseline'),
-    }));
+    expect(presentationSignal(withoutLayout, withLayout)).toEqual({
+      verdict: 'changed',
+      because: 'the baseline contained no layout findings',
+      before: withoutLayout.digest,
+      after: withLayout.digest,
+    });
+    expect(presentationSignal(withoutLayout, withoutLayout)).toBeUndefined();
+    expect(presentationSignal(undefined, withoutLayout)).toBeUndefined();
+    expect(presentationSignal(withoutLayout, undefined)).toBeUndefined();
+  });
+
+  it('reports a side without a presentation reading as changed, and no reading on either side as no signal', () => {
+    const reading = analyzePresentation(rawCapture(records({ between: 12, internal: 4, count: 6 })));
+
+    expect(presentationSignal(undefined, reading)).toEqual({
+      verdict: 'changed',
+      because: 'the baseline supplied no presentation reading',
+      after: reading.digest,
+    });
+    expect(presentationSignal(reading, undefined)).toEqual({
+      verdict: 'changed',
+      because: 'the candidate supplied no presentation reading',
+      before: reading.digest,
+    });
+    expect(presentationSignal(undefined, undefined)).toBeUndefined();
   });
 });
 

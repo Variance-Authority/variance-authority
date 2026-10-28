@@ -1,14 +1,15 @@
 // compass: variance-authority.acquisition
 
-import { posix } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import type { CallSiteResolver, SourceIndex } from '@variance-authority/core/attribute';
-import type {
-  Diagnostic,
-  RenderDocument,
-  SemanticSnapshot,
-  SubjectRef,
-  Viewport,
+import {
+  realizes,
+  type Diagnostic,
+  type RenderDocument,
+  type SemanticSnapshot,
+  type Step,
+  type SubjectRef,
+  type Viewport,
 } from '@variance-authority/core/format';
 import { storySubjectId, toSubjects } from '@variance-authority/storybook';
 import { readStoryIndex } from '@variance-authority/storybook/read';
@@ -64,24 +65,27 @@ export interface PlannedSubject {
   readonly tags?: readonly string[];
 
   /**
-   * The directory holding the file that declares this subject, relative to the
-   * repository root, or `''` for a subject declared at that root.
+   * Where the subject sits in its file's own hierarchy, `/`-separated: a
+   * story's `title`. Absent when the plan knows none.
    *
-   * The only route from a subject to a place, and it travels one way: the
-   * artifact that produced the plan knows it — Storybook's index names an
-   * `importPath` per story — and nothing downstream can recover it, because a
-   * subject id is a namespaced name and not a path. A `beside` baseline layout
-   * is what reads it, so the image lands in the same directory, the same review
-   * and the same `git mv` as the code it is an image of.
-   *
-   * Optional, and absent is not `''`. A `list` collector names its own subjects
-   * and may already have named them after directories, which `beside` splits on
-   * its own; `''` says this subject's code is at the root, which is a place.
+   * With {@link name} and {@link declaredIn}, what a baseline is named after,
+   * and they travel one way: the artifact that produced the plan knows them —
+   * Storybook's index names a title, a name and an `importPath` per story — and
+   * nothing downstream can recover them, because a subject id is a namespaced
+   * name and not a path.
    */
-  readonly path?: string;
+  readonly title?: string;
+
+  /** The subject's own name under its title: a story's `name`. */
+  readonly name?: string;
 
   /**
-   * The file that declares this subject, when the plan knows one.
+   * The file that declares this subject, relative to the repository, when the
+   * plan knows one.
+   *
+   * What a baseline path template's `{dir}` and `{file}` render, so the image
+   * lands in the same directory, the same review and the same `git mv` as the
+   * code it is an image of.
    *
    * What `--shard` keeps together: every story of one CSF file, every width of
    * one route, lands on the same shard and the same worker, because they share
@@ -157,8 +161,70 @@ export type Collected =
       readonly source?: SourceIndex;
       /** Product-owned presentation consequence, already compared by the collector. */
       readonly presentation?: PresentationSignalRecord;
+      /**
+       * How long each step of this reading took, in the order they ran, on the
+       * collector's own clock. The run records them as `collect.<step>` beside
+       * its own; absent records none.
+       */
+      readonly steps?: readonly Step[];
     }
-  | { readonly ok: false; readonly because: string };
+  | {
+      readonly ok: false;
+      /**
+       * The subject left the run by its own decision, which a collector learns
+       * only once it reads it — a page that marks itself excluded. The run
+       * records it as `excluded`, beside the subjects the plan left out, and
+       * does not send the run to review for it. Absent is a failure.
+       */
+      readonly excluded?: true;
+      readonly because: string;
+    };
+
+/** One subject a visit read: the subject as it was realized, and its reading. */
+export interface VisitedSubject {
+  readonly planned: PlannedSubject;
+  readonly collected: Collected;
+}
+
+/**
+ * What reaching one planned subject produced, when it is not one reading.
+ *
+ * A plan is made before any subject is visited, and some of what decides how a
+ * subject is read is known only at the visit: a story's widths live in its
+ * parameters, which are read when its file is loaded. So a visit may realize
+ * several subjects, or the planned one at a viewport it declared, and say what
+ * it could not read on the way. Every realized id is the planned id or the
+ * planned id at a width, `<id>@<digits>`, so a `--subjects` glob decides before
+ * the visit whether anything it realizes can be wanted. A visit that realizes
+ * any other id fails its story.
+ */
+export interface Visit {
+  readonly subjects: readonly VisitedSubject[];
+  readonly warnings?: readonly string[];
+  /**
+   * Present when the visit could not learn every subject the planned one
+   * realizes — a story whose parameters were not read, so its widths are
+   * unknown. The run then treats what the store holds of the planned subject
+   * as it does for a subject it did not visit: planned, not left behind.
+   */
+  readonly incomplete?: true;
+}
+
+/**
+ * The subjects one `collect` produced, as a list whichever shape it answered in.
+ * A visit that realized nothing is the planned subject failed: the plan holds
+ * it, so the report says what became of it. So is a visit that realized an id
+ * outside {@link Visit}'s contract: the run cannot trust any of it.
+ */
+export function visited(planned: PlannedSubject, result: Collected | Visit): readonly VisitedSubject[] {
+  if (!('subjects' in result)) return [{ planned, collected: result }];
+  const id = planned.subject.id;
+  const stray = result.subjects.find((entry) => !realizes(id, entry.planned.subject.id))?.planned.subject.id;
+  const because = `the collector realized \`${stray}\`, which is neither \`${id}\` nor one of its widths`;
+  if (stray !== undefined) return [{ planned, collected: { ok: false, because } }];
+  if (result.subjects.length > 0) return result.subjects;
+  return [{ planned, collected: { ok: false, because: 'the collector visited it and realized no subject' } }];
+}
 
 /**
  * The half of a run this package cannot write.
@@ -194,7 +260,8 @@ export type Collected =
 export interface Collector {
   /** Subjects to observe, plus the ones this source already refuses, with reasons. */
   plan(): Promise<Plan>;
-  collect(subject: PlannedSubject): Promise<Collected>;
+  /** One planned subject read: a {@link Collected}, or a {@link Visit} when it realized other subjects. */
+  collect(subject: PlannedSubject): Promise<Collected | Visit>;
 
   /**
    * The frames a snapshot carries, spent on demand.
@@ -239,8 +306,8 @@ export interface Collector {
    * Another standing world from the same recipe, for a second worker.
    *
    * Same build, same server, same origin — a world served from another port is
-   * another page as far as a baseline is concerned, and every comparison against
-   * it would be `incomparable`. A worker is a whole collector: the run hands it
+   * another page as far as a baseline is concerned, and every subject would read
+   * changed with the port as its cause. A worker is a whole collector: the run hands it
    * subjects in its own serial lane and closes it before this one.
    *
    * Absent means one world, and a run configured with `workers` says so.
@@ -282,7 +349,7 @@ export interface CollectorContext {
    * The generic half of planning, already done — for **both** subject kinds.
    *
    * `storybook` supplies a story index parsed into subjects; `list` supplies the
-   * configured ids. The binary produces one either way (`planFor` in `bin.ts`),
+   * configured ids. The binary produces one either way ({@link planFor}),
    * so a collector the CLI loaded can return `context.plan` from `plan()` and
    * write no planning of its own.
    *
@@ -335,7 +402,8 @@ export async function planStorybook(
       subject: story.subject,
       ...(story.viewport !== undefined ? { viewport: story.viewport } : {}),
       ...(story.story.tags.length > 0 ? { tags: story.story.tags } : {}),
-      path: declaringDirectory(story.story.importPath),
+      title: story.story.title,
+      name: story.story.name,
       declaredIn: story.story.importPath.replace(/^\.\//, ''),
     })),
     notObserved: plan.excluded.map((entry) => ({
@@ -352,35 +420,17 @@ export async function planStorybook(
  *
  * One function because three callers build it — the run's working-set
  * declaration, selection's sidecar read, and the observation itself — and a key
- * carrying the placement at two of them would look a baseline up in a directory
- * the third never wrote it to. That failure reads as `new`, and `new` records
+ * carrying the file or the title at two of them would look a baseline up at a
+ * path the third never wrote it to. That failure reads as `new`, and `new` records
  * whatever is on screen.
  */
 export function keyFor(planned: PlannedSubject): BaselineKey {
   return {
     subject: planned.subject.id,
-    ...(planned.path !== undefined ? { path: planned.path } : {}),
+    ...(planned.declaredIn !== undefined ? { file: planned.declaredIn } : {}),
+    ...(planned.title !== undefined ? { title: planned.title } : {}),
+    ...(planned.name !== undefined ? { name: planned.name } : {}),
   };
-}
-
-/**
- * The directory a story is declared in, from the `importPath` its index carries.
- *
- * Storybook writes `./src/ui/shell/HatBar.stories.tsx`, relative to the project
- * root and with the `./` on it. The leading `./` has to come off here rather
- * than at the store, because a `.` segment is exactly what the store refuses as
- * an escape — and it is right to refuse it, so the normalizing belongs with the
- * half that knows the convention.
- *
- * A story at the root normalizes to `''`, which is a place and not an absence.
- * Anything else — an absolute `importPath`, or one climbing out of the project
- * with `../` — is carried through unchanged and refused by name at the store,
- * because a placement this cannot express is a thing to say out loud rather than
- * to quietly clamp into the nearest directory that happens to be writable.
- */
-function declaringDirectory(importPath: string): string {
-  const directory = posix.dirname(importPath);
-  return directory === '.' ? '' : directory.replace(/^\.\//, '');
 }
 
 /** Plan a run from an explicit list. Nothing is excluded; the operator wrote it. */
@@ -390,6 +440,21 @@ export function planList(ids: readonly string[]): Plan {
     notObserved: [],
     warnings: [],
   };
+}
+
+/** The generic half of planning, when the config named a source that has one. */
+export async function planFor(config: Config): Promise<Plan | undefined> {
+  if (config.subjects.kind === 'storybook') {
+    return planStorybook(config.subjects.index, config.viewport, config.subjects.excludeTags);
+  }
+
+  // `collector` returns nothing on purpose: the collector's own `plan()` is the
+  // answer, and handing it an empty one to return would make an *absent* plan
+  // and a *discovered empty* plan indistinguishable — the second is a suite that
+  // watches nothing and has to be able to say so.
+  if (config.subjects.kind === 'collector') return undefined;
+
+  return planList(config.subjects.ids);
 }
 
 /** The collector module named by the configured subject source. */

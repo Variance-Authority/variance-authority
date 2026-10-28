@@ -9,13 +9,20 @@
  * code, code was deleted, or code the other suites run was written.
  */
 
-import type { SuiteChange, SuiteCount, TestFileMotion } from '@variance-authority/sense/test-selection';
+import type { MovedRegion, TestFileMotion } from '@variance-authority/sense/test-selection';
+import { fanInLines, fanInMarkdown } from './coverage-fan-in-text.js';
+import { earnedLines, earnedMarkdown, ownershipLines, ownershipMarkdown } from './coverage-owner-text.js';
+import { coverageParts as parts, coverageRows, coverageSum, grouped, ratio, signed, table } from './coverage-summary.js';
+import { functionsIn, notListed } from './covering-motion.js';
+import { text as escape } from './report-html-elements.js';
 import type { CoverageFormat } from '../coverage-args.js';
 import type { CoverageSource } from './coverage-source.js';
-import type { Coverage, CoverageSuite } from './coverage.js';
+import type { Coverage, CoverageSuite, UnloadedChange } from './coverage.js';
 
 /** How many test files are named under a suite whose count changed. */
 const NAMED_TEST_FILES = 3;
+/** How many files a change no suite loads names before it counts the rest. */
+const NAMED_CHANGED_FILES = 5;
 /** How many directories of unloaded files the text names; the JSON has every file. */
 const NAMED_DIRECTORIES = 5;
 
@@ -62,7 +69,7 @@ function text(answer: Coverage): string {
   if (count.load > 0) tail.push(['  ran only at load', grouped(count.load), '']);
   lines.push(...table(tail));
   if (count.unjoined > 0) lines.push(`not joined across suites: ${grouped(count.unjoined)} region${count.unjoined === 1 ? '' : 's'}`);
-  lines.push(...sourceLines(answer));
+  lines.push(...sourceLines(answer), ...ownershipLines(answer.entries ?? [], answer.ownership ?? []), ...earnedLines(answer.earned), ...fanInLines(answer.fanIn));
 
   if (base !== undefined) {
     for (const suite of answer.suites) {
@@ -70,7 +77,7 @@ function text(answer: Coverage): string {
       lines.push(...namedTestFiles(suite, suite.base.change.testFiles));
     }
     lines.push('', ...answer.suites.flatMap((suite) => suite.base === undefined ? [] : [
-      `${suite.suite ?? 'the record'} compared with ${suite.base.from}${suite.base.commit === undefined ? '' : `, recorded at ${short(suite.base.commit)}`}`,
+      `${suite.suite ?? 'the record'} compared with ${suite.base.from}, recorded at ${short(suite.base.commit)}`,
     ]));
   } else {
     const missed = answer.suites.filter((suite) => suite.baseMissed !== undefined);
@@ -86,108 +93,140 @@ function heading(answer: Coverage): string {
   const at = answer.at === undefined ? 'coverage' : `coverage at ${short(answer.at)}`;
   const regions = regionCount(answer.count.regions);
   const files = `${grouped(answer.count.files)} file${answer.count.files === 1 ? '' : 's'} the suites loaded`;
-  if (answer.base === undefined) return `${at} — ${regions} in ${files}`;
-  return `${at} against each suite's base — ${regions} (${grouped(answer.base.regions)} at the base) in ${files}`;
+  if (answer.base === undefined) return `${at} — ${regions} in ${files}${banded(answer)}`;
+  return `${at} against each suite's base — ${regions} (${grouped(answer.base.regions)} at the base) in ${files}${banded(answer)}`;
 }
 
-/** The parts a suite's change in count is made of, the ones that are not zero. */
-function parts(change: SuiteChange): readonly string[] {
-  const said: string[] = [];
-  if (change.gained > 0) said.push(`gained ${grouped(change.gained)}`);
-  if (change.lost > 0) said.push(`lost ${grouped(change.lost)}`);
-  if (change.hidden > 0) said.push(`hidden ${grouped(change.hidden)}`);
-  if (change.written.regions > 0) said.push(`written ${grouped(change.written.regions)}, ${grouped(change.written.run)} run`);
-  if (change.deleted.regions > 0) said.push(`deleted ${grouped(change.deleted.regions)}, ${grouped(change.deleted.run)} had run`);
-  if (change.arrived.files.length > 0) {
-    said.push(`now loads ${files(change.arrived.files.length)}, ${grouped(change.arrived.run)} of ${grouped(change.arrived.regions)} run`);
-  }
-  if (change.departed.files.length > 0) {
-    said.push(`no longer loads ${files(change.departed.files.length)}, ${grouped(change.departed.run)} had run`);
-  }
-  return said.length === 0 ? ['no region gained, lost, written or deleted'] : said;
-}
-
-/** The test files whose reach changed most, under the suite they belong to. */
-function namedTestFiles(suite: CoverageSuite, testFiles: readonly TestFileMotion[]): readonly string[] {
-  const left = [...testFiles].filter((file) => file.left.length > 0).sort((a, b) => b.left.length - a.left.length || order(a.file, b.file));
-  const entered = [...testFiles].filter((file) => file.entered.length > 0).sort((a, b) => b.entered.length - a.entered.length || order(a.file, b.file));
-  const lines: string[] = [];
-  for (const file of left.slice(0, NAMED_TEST_FILES)) {
-    lines.push(`  ${suite.suite ?? 'the record'}: ${file.file} no longer runs ${regionCount(file.left.length)} it ran at the base`);
-  }
-  for (const file of entered.slice(0, NAMED_TEST_FILES)) {
-    lines.push(`  ${suite.suite ?? 'the record'}: ${file.file} now runs ${regionCount(file.entered.length)} it did not run at the base`);
-  }
-  return lines;
+/** What `--at-distance` narrowed the counts to, as a clause after the heading, and the test files it could not place. */
+function banded(answer: Coverage): string {
+  const { atDistance } = answer;
+  if (atDistance === undefined) return '';
+  const { from, to, unplaced, unmeasured } = atDistance;
+  const hops = to === undefined ? `${from} or more` : from === to ? `${from}` : `${from}-${to}`;
+  const left = unplaced.length === 0 ? '' : `; ${grouped(unplaced.length)} test file${unplaced.length === 1 ? '' : 's'} not on the import graph left out`;
+  const outside = unmeasured === 0 ? '' : `; ${grouped(unmeasured)} region${unmeasured === 1 ? '' : 's'} run from no measured distance, in no band`;
+  return `, counted where the nearest test that ran the code is ${hops} import hop${hops === '1' ? '' : 's'} away${left}${outside}`;
 }
 
 /**
- * The same answer as a pull-request comment. GitHub draws a table at the width
- * of its content, so the comment leads with the one share a reviewer reads,
- * keeps one table of suites, and folds every list that grows with the
- * repository under a summary that counts it.
+ * The test files whose reach changed most, under the suite they belong to, each
+ * with the functions its moved regions sit in, and a count of the test files
+ * left unnamed.
  */
+function namedTestFiles(suite: CoverageSuite, testFiles: readonly TestFileMotion[]): readonly string[] {
+  const name = suite.suite ?? 'the record';
+  const named = (regions: (file: TestFileMotion) => readonly MovedRegion[], before: string, after: string, which: string) => {
+    const files = testFiles.filter((file) => regions(file).length > 0)
+      .sort((a, b) => regions(b).length - regions(a).length || order(a.file, b.file));
+    return [
+      ...files.slice(0, NAMED_TEST_FILES).map((file) => `  ${name}: ${file.file} ${before} ${functionsIn(regions(file))} ${after}`),
+      ...notListed(files.length - NAMED_TEST_FILES, 'test file', which).map((line) => `  ${name}: ${line}`),
+    ];
+  };
+  return [
+    ...named((file) => file.left, 'no longer runs', 'at the base', ' that lost regions'),
+    ...named((file) => file.entered, 'now runs', 'not run at the base', ' that gained regions'),
+  ];
+}
+
+/** The summary gives each suite one row; inventories stay behind named disclosures. */
 function markdown(answer: Coverage): string {
-  const { count, base } = answer;
-  const compared = base !== undefined;
-  const lines = [`<sub>${heading(answer)}</sub>`, '', lead(count.run, count.regions, base?.run, base?.regions), ''];
-  lines.push(compared ? '| Suite | Kind | Regions run | Share | What changed it |' : '| Suite | Kind | Regions run | Share |');
-  lines.push(compared ? '|---|---|--:|--:|---|' : '|---|---|--:|--:|');
-  lines.push(`| **any suite** | | **${countCell(count.run, base?.run)}** | **${ratioCell(count.run, count.regions, base?.run, base?.regions)}** |${compared ? ' |' : ''}`);
-  let counted = 0;
-  for (const suite of answer.suites) {
-    const name = suite.suite ?? 'the record';
-    if (suite.from === undefined) {
-      lines.push(`| ${name} | ${suite.kind ?? ''} | unrecorded | |${compared ? ' |' : ''}`);
-      continue;
-    }
-    const now: SuiteCount = count.suites[counted]!;
-    const was = base?.suites[counted];
-    counted += 1;
-    lines.push(
-      `| ${name} | ${suite.kind ?? ''} | ${countCell(now.run, was?.run)} | ${ratioCell(now.run, count.regions, was?.run, base?.regions)} |` +
-        (compared ? ` ${suite.base === undefined ? '' : parts(suite.base.change).join(' · ')} |` : ''),
-    );
+  if (answer.unloadedChange !== undefined) return `${unloadedMarkdown(answer.unloadedChange, answer.suites)}\n`;
+  const lines = [
+    '| Suite | Regions executed by cases | Compared with baseline |',
+    '|---|--:|---|',
+    ...coverageRows(answer, true),
+    '',
+    `Percentages count the ${regionCount(answer.count.regions)} in ${files(answer.count.files)} the recorded suites loaded${banded(answer)}. Module-load execution is counted separately.`,
+    ...coverageBreakdown(answer),
+  ];
+  if (answer.source !== undefined || answer.sourceMissed !== undefined) {
+    lines.push('', `<details><summary>${escape(breakdownLabel(answer))}: source beyond the recordings</summary>`, ...sourceMarkdown(answer), '', '</details>');
   }
-
-  const share = (regions: number) => ratio(regions, count.regions);
-  lines.push('', '| Of the regions the suites loaded | Regions | Share |', '|---|--:|--:|');
-  const kinds = Object.entries(count.overlap?.alone ?? {});
-  if (count.overlap !== undefined && kinds.length > 1) {
-    lines.push(`| 🟢 run by more than one kind | ${grouped(count.overlap.several)} | ${share(count.overlap.several)} |`);
-    for (const [kind, regions] of kinds) lines.push(`| 🟡 run by ${kind} alone | ${grouped(regions)} | ${share(regions)} |`);
-  } else {
-    lines.push(`| 🟢 run by ${kinds.length === 1 ? `${kinds[0]![0]} alone` : 'a suite'} | ${grouped(count.run)} | ${share(count.run)} |`);
-  }
-  if (count.load > 0) lines.push(`| ⚪ run only while their module loaded | ${grouped(count.load)} | ${share(count.load)} |`);
-  lines.push(`| 🔴 run by no suite | ${grouped(count.none)} | ${share(count.none)} |`);
-  if (count.unjoined > 0) lines.push(`| not joined across suites | ${grouped(count.unjoined)} | ${share(count.unjoined)} |`);
-
-  lines.push(...sourceMarkdown(answer));
-
-  if (base !== undefined) {
-    const named = answer.suites.flatMap((suite) => suite.base === undefined ? [] : namedTestFiles(suite, suite.base.change.testFiles));
-    if (named.length > 0) {
-      lines.push('', `<details><summary>🧪 ${named.length} test file${named.length === 1 ? '' : 's'} whose regions changed most</summary>`, '');
-      lines.push(...named.map((line) => `- ${line.trim()}`), '', '</details>');
-    }
-    lines.push('', ...answer.suites.flatMap((suite) => suite.base === undefined ? [] : [
-      `<sub>${suite.suite ?? 'the record'} is compared with ${suite.base.commit === undefined ? suite.base.from : `the record made at ${short(suite.base.commit)}`}.</sub>`,
-    ]));
-  }
-  for (const suite of answer.suites) {
-    if (suite.baseMissed !== undefined) lines.push('', `> [!NOTE]`, `> ${suite.suite ?? 'the record'}: ${suite.baseMissed}`);
-  }
+  lines.push(...ownershipMarkdown(answer.entries ?? [], answer.ownership ?? []), ...earnedMarkdown(answer.earned), ...fanInMarkdown(answer.fanIn));
   return `${lines.join('\n')}\n`;
 }
 
-/** The share a reviewer reads first, with its arrow when there is a base. */
-function lead(run: number, regions: number, wasRun: number | undefined, wasRegions: number | undefined): string {
-  const now = `📊 **${ratio(run, regions)}** of the ${regionCount(regions)} the suites loaded ran`;
-  if (wasRun === undefined || wasRegions === undefined || regions === 0 || wasRegions === 0) return `${now}.`;
-  const points = ((run / regions) - (wasRun / wasRegions)) * 100;
-  const moved = Math.abs(points) < 0.05 ? '➖ unchanged' : `${points > 0 ? '📈 up' : '📉 down'} ${Math.abs(points).toFixed(1)} points`;
-  return `${now}: ${moved} from ${ratio(wasRun, wasRegions)} at the base.`;
+/** Detailed counts and provenance, shared with the combined review. */
+export function coverageBreakdown(answer: Coverage): readonly string[] {
+  const { count, base } = answer;
+  const lines = ['', `<details><summary>${escape(breakdownLabel(answer))}: execution breakdown and changed regions</summary>`, '', `<sub>${escape(heading(answer))}</sub>`, ''];
+  if (answer.suites.filter((suite) => suite.from !== undefined).length > 1) {
+    lines.push(`Any suite: ${countCell(count.run, base?.run)} regions executed by cases (${ratioCell(count.run, count.regions, base?.run, base?.regions)}).`, '');
+  }
+  const share = (regions: number) => ratio(regions, count.regions);
+  lines.push('| Execution | Regions | Share |', '|---|--:|--:|');
+  const kinds = Object.entries(count.overlap?.alone ?? {});
+  if (count.overlap !== undefined && kinds.length > 1) {
+    lines.push(`| More than one kind | ${grouped(count.overlap.several)} | ${share(count.overlap.several)} |`);
+    for (const [kind, regions] of kinds) lines.push(`| ${kind} alone | ${grouped(regions)} | ${share(regions)} |`);
+  } else {
+    lines.push(`| Executed by cases | ${grouped(count.run)} | ${share(count.run)} |`);
+  }
+  if (count.load > 0) lines.push(`| Module-load execution only | ${grouped(count.load)} | ${share(count.load)} |`);
+  lines.push(`| Not executed | ${grouped(count.none)} | ${share(count.none)} |`);
+  if (count.unjoined > 0) lines.push('', `${grouped(count.unjoined)} regions could not be joined across suites.`);
+  let counted = 0;
+  for (const suite of answer.suites) {
+    const name = suite.suite ?? 'the record';
+    const now = suite.from === undefined ? undefined : count.suites[counted];
+    const was = suite.from === undefined ? undefined : base?.suites[counted];
+    if (suite.from !== undefined) counted += 1;
+    if (suite.recorded !== undefined) lines.push('', `${name} recorded at ${short(suite.recorded)}.`);
+    if (suite.base !== undefined) {
+      lines.push('', `${name} compared with ${short(suite.base.commit)}.`);
+      lines.push('', reconciled(`\`${name}\``, suite.base.change, now?.run, was?.run));
+      const named = namedTestFiles(suite, suite.base.change.testFiles).map((line) => `- ${line.trim()}`);
+      if (named.length > 0) lines.push(...named, '', 'A region several test files ran is counted under each of them, so these counts do not add up to the suite\'s.');
+    }
+    if (suite.baseMissed !== undefined) lines.push('', `${name}: ${suite.baseMissed}`);
+  }
+  if (base === undefined && answer.suites.some((suite) => suite.base !== undefined)) {
+    lines.push('', 'No aggregate comparison: not every recorded suite has a baseline.');
+  }
+  lines.push('', '</details>');
+  return lines;
+}
+
+function breakdownLabel(answer: Coverage): string {
+  return answer.suites.length === 1 ? answer.suites[0]!.suite ?? 'the record' : 'All recorded suites';
+}
+
+/**
+ * A suite's change in regions run, beside the parts it is made of, so a reader
+ * checks one against the other. Parts that do not add up are said to, never
+ * left for the reader to find.
+ */
+function reconciled(name: string, change: Parameters<typeof parts>[0], now: number | undefined, was: number | undefined): string {
+  const said = parts(change).join(' · ');
+  if (now === undefined || was === undefined) return `${name} regions that changed the count: ${said}.`;
+  const sum = coverageSum(change);
+  const off = sum === now - was ? '' : ` These parts add to ${signed(sum)}, not ${signed(now - was)}.`;
+  return `${name} regions run by cases, ${grouped(was)} → ${grouped(now)} (${signed(now - was)}): ${said}.${off}`;
+}
+
+/**
+ * A change no suite loads, as the one sentence a reviewer needs: every count
+ * is the base's, so the tables would repeat the mainline's report under a
+ * change that did not touch it.
+ */
+function unloadedMarkdown(change: UnloadedChange, suites: readonly CoverageSuite[]): string {
+  const one = change.files.length === 1;
+  const named = change.files.slice(0, NAMED_CHANGED_FILES).map((file) => `\`${file}\``);
+  const more = change.files.length - named.length;
+  const list = more > 0 ? `${named.join(', ')} and ${grouped(more)} more` : joined(named);
+  const what = one ? `${list} changed` : `${grouped(change.files.length)} files changed`;
+  const which = one ? '' : ` — ${list} —`;
+  const names = suites.map((suite) => suite.suite).filter((name) => name !== undefined);
+  const loads = names.length <= 1
+    ? `${names.length === 0 ? 'the suite' : `the ${names[0]} suite`} ${one ? 'does not load it' : 'loads none of them'}`
+    : `none of the ${joined(names)} suites loads ${one ? 'it' : 'any of them'}`;
+  return `📊 ${what} since the base was recorded at ${short(change.since)}${which}${one ? ',' : ''} and ${loads}, so coverage is the same as at the base.`;
+}
+
+/** `a`, `a and b`, `a, b and c`. */
+function joined(items: readonly string[]): string {
+  return items.length <= 1 ? items.join('') : `${items.slice(0, -1).join(', ')} and ${items.at(-1)!}`;
 }
 
 /** The files no suite recorded: the total first, the table of where they are folded under it. */
@@ -196,14 +235,16 @@ function sourceMarkdown(answer: Coverage): readonly string[] {
   if (source === undefined) return answer.sourceMissed === undefined ? [] : ['', `🗂️ Files no suite recorded: not counted, because ${answer.sourceMissed}.`];
   const { unloaded, before } = source;
   const early = before?.regions ?? 0;
-  const lines = ['', `🗂️ Of the ${regionCount(source.regions)} in ${files(source.files)} ${sourceWhere(source)}, **${ratio(source.ran, source.regions)}** ran${
-    early === 0 ? '' : ` (${ratio(early, source.ran)} of it before reach)`
-  }${unloaded.files > 0 ? `; ${files(unloaded.files)} no suite recorded` : ''}.`];
+  const lines = ['', [
+    `🗂️ ${sourceSubject(source)} with ${regionCount(source.regions)}, and **${ratio(source.ran, source.regions)}** of those regions ran.`,
+    ...(early === 0 ? [] : [`${ratio(early, source.ran)} of what ran is code the test harness loads before any test starts.`]),
+    ...(unloaded.files > 0 ? [`No suite recorded ${grouped(unloaded.files)} of those files.`] : []),
+  ].join(' ')];
   for (const pattern of source.unmatched ?? []) lines.push(`- the entry point \`${pattern}\` matches no file`);
   const row = (label: string, size: { files: number; lines: number; regions: number }) =>
     `| ${label} | ${grouped(size.files)} | ${grouped(size.lines)} | ${grouped(size.regions)} |`;
   const rows: string[] = [];
-  if (before !== undefined && before.files > 0) rows.push(row('⚙️ before reach', before));
+  if (before !== undefined && before.files > 0) rows.push(row('⚙️ loaded by the test harness', before));
   if (unloaded.files > 0) {
     rows.push(row('🔴 recorded by no suite', unloaded));
     rows.push(...unloaded.directories.slice(0, NAMED_DIRECTORIES).map((size) => row(`&emsp;\`${size.directory}\``, size)));
@@ -214,7 +255,11 @@ function sourceMarkdown(answer: Coverage): readonly string[] {
   if (rows.length === 0) {
     lines.push('', "Every one is in a suite's record.");
   } else {
-    const fold = unloaded.files > 0 ? `📦 ${files(unloaded.files)} no suite recorded, by directory` : `⚙️ ${files(before!.files)} before reach`;
+    // The table holds both rows when both have files, so the summary names both.
+    const harnessed = before === undefined || before.files === 0 ? undefined : `the ${files(before.files)} the test harness loads`;
+    const fold = unloaded.files === 0
+      ? `⚙️ The ${files(before!.files)} the test harness loads`
+      : `📦 The ${files(unloaded.files)} no suite recorded, by directory${harnessed === undefined ? '' : `, and ${harnessed}`}`;
     lines.push('', `<details><summary>${fold}</summary>`, '');
     lines.push('| | Files | Lines | Regions |', '|---|--:|--:|--:|', ...rows);
     if (unloaded.uncut > 0) lines.push('', `${files(unloaded.uncut)} did not parse, so no regions are counted for them.`);
@@ -223,8 +268,13 @@ function sourceMarkdown(answer: Coverage): readonly string[] {
   const entries = answer.entries ?? [];
   if (entries.length > 0) {
     const share = (scope: CoverageSource) => ratio(scope.before?.regions ?? 0, scope.ran);
-    lines.push('', `<details><summary>📁 ${grouped(entries.length)} directories: their own files, and everything each reaches</summary>`, '');
-    lines.push('| Directory | Own | Before reach | With imports | Before reach |', '|---|--:|--:|--:|--:|');
+    lines.push('', `<details><summary>📁 How much of each of ${grouped(entries.length)} directories ran</summary>`, '');
+    lines.push(
+      'Each directory is counted twice: over its own files, and over its own files with everything they import. ' +
+        '*Harness* is the share of what ran that is code the test harness loads before any test starts.',
+      '',
+    );
+    lines.push('| Directory | Own files ran | Harness | With imports ran | Harness |', '|---|--:|--:|--:|--:|');
     for (const entry of entries) {
       lines.push('missed' in entry
         ? `| \`${entry.from}\` | ${entry.missed} | | | |`
@@ -267,6 +317,18 @@ function sourceWhere(source: CoverageSource): string {
   return source.seeds === 'directory' ? `reached from every file under ${source.from}, which declares no entry points` : 'in the source index';
 }
 
+/** Which files the source counts, as `--from` chose them, as the subject of the comment's sentence. */
+function sourceSubject(source: CoverageSource): string {
+  const counted = files(source.files);
+  if (source.seeds === 'entrypoints') {
+    const who = source.from === undefined ? 'The declared entry points' : `The entry points of \`${source.from}\``;
+    return `${who} import ${counted}, directly or through other files,`;
+  }
+  return source.seeds === 'directory'
+    ? `\`${source.from}\` declares no entry points, so every file under it and what those import come to ${counted},`
+    : `The source index lists ${counted}`;
+}
+
 /** One row per directory: its own files, then everything it reaches, each with its share before reach. */
 function entryLines(entries: NonNullable<Coverage['entries']>): readonly string[] {
   if (entries.length === 0) return [];
@@ -293,22 +355,6 @@ function countCell(now: number, was: number | undefined): string {
 function ratioCell(run: number, regions: number, wasRun: number | undefined, wasRegions: number | undefined): string {
   const now = ratio(run, regions);
   return wasRun === undefined || wasRegions === undefined ? now : `${ratio(wasRun, wasRegions)} → ${now}`;
-}
-
-function ratio(run: number, regions: number): string {
-  return regions === 0 ? '—' : `${((run / regions) * 100).toFixed(1)}%`;
-}
-
-/** Columns padded to the widest cell, with no trailing space. */
-function table(rows: readonly (readonly string[])[]): readonly string[] {
-  const widths: number[] = [];
-  for (const row of rows) row.forEach((cell, at) => (widths[at] = Math.max(widths[at] ?? 0, cell.length)));
-  return rows.map((row) => row.map((cell, at) => cell.padEnd(widths[at]!)).join('  ').trimEnd());
-}
-
-/** Thousands grouped with commas, whatever `LANG` says. */
-function grouped(value: number): string {
-  return String(value).replace(/\B(?=(\d{3})+(?!\d))/gu, ',');
 }
 
 function regionCount(regions: number): string {

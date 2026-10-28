@@ -12,7 +12,7 @@ name: variance shards
 # shard, because they load the same module graph and splitting them pays for it
 # twice. Files are placed by the time each subject took on the newest mainline
 # commit this checkout descends from — longest first, onto the least loaded
-# shard — and by a checksum of the file when no such record exists. Both are
+# shard — and by file count, every file weighing the same, when no such record exists. Both are
 # functions of the plan and the shard count, so every shard computes the same
 # placement without talking to the others.
 #
@@ -41,11 +41,12 @@ name: variance shards
 
 # ## On demand here
 #
-# It observes the same fourteen subjects `variance.yml` does, and the two render
-# their dockets with the same marker — so run on the same event they would fight
-# over one comment, each rewriting the other. A repository picks one gate. This
-# one is kept on demand because the suite it would shard is five story files,
-# where a second shard costs an install and a Storybook build to save nothing.
+# It observes the same thirteen subjects `variance.yml` does, through the same
+# config, and the marker is the config's project — so run on the same event the
+# two would fight over one comment, each rewriting the other. A repository picks
+# one gate. This one is kept on demand because the suite it would shard is five
+# story files, where a second shard costs an install and a Storybook build to
+# save nothing.
 #
 # Add `pull_request:` below and delete the gate workflow to swap them. Nothing
 # else in this file changes: the docket steps in the merge job already ask what
@@ -119,17 +120,22 @@ jobs:
       options: --ipc=host
 
     steps:
-      # Full history, so the mainline's costs are read at a distance this clone
-      # can count from its merge base.
+      # Every commit, so the mainline's costs are read at a distance this clone
+      # can count from its merge base. No trees: the count walks commits only.
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          filter: tree:0
+
+      # For the reason written at the same step in `variance.yml`.
+      - name: trust the workspace
+        shell: bash
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
 
       - shell: bash
         run: corepack enable && yarn install --immutable
 
-      - shell: bash
-        run: yarn build
+      - uses: ./.github/actions/build
 
       # The subject has to exist before a shard can slice it. Every shard builds
       # its own copy: `storybook-static/` is ignored and a build artifact passed
@@ -232,8 +238,7 @@ jobs:
       - shell: bash
         run: corepack enable && yarn install --immutable
 
-      - shell: bash
-        run: yarn build
+      - uses: ./.github/actions/build
 
       - uses: actions/download-artifact@v4
         with:
@@ -377,9 +382,11 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           VARIANCE_MARKER: ${{ steps.render.outputs.marker }}
         run: |
+          # This gate posted the docket before the marker named its project.
           node .github/actions/variance/post-comment.mjs \
             --body-file "$RUNNER_TEMP/variance-comment.md" \
-            --marker "$VARIANCE_MARKER"
+            --marker "$VARIANCE_MARKER" \
+            --adopt-unkeyed true
 
       - if: always()
         name: verdict

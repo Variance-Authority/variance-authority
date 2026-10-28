@@ -1,0 +1,173 @@
+/**
+ * Where a held module's regions stand in the text a run recorded, read off the
+ * edit between the two texts.
+ *
+ * A region changed or it did not. git's `-U0` hunks between the held text and
+ * the recorded one say where every region stands, and the selector's reading
+ * of the two texts ({@link readEdit}) says how far the edit reaches what runs.
+ * An untouched region keeps its cases at the lines the hunks place it. A
+ * touched one keeps them only where the reading spares its kind
+ * ({@link reaches}), the rule the snapshot's landing demotes by. The two
+ * still part where their evidence does: a region here has no digest, so the
+ * hunks say whether it moved, and a reached region drops its cases where the
+ * snapshot keeps its row with every crosser owed a run.
+ */
+
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+import { digestString } from '../digest.js';
+import { addressKey } from './carried-rows.js';
+import { reaches, readEdit, type EditReading } from './edit-readings.js';
+import type { SetExecutionModule } from './execution-set-format.js';
+import { NO_OWNER } from './format-layout.js';
+import { addressedAlike } from './region-landing.js';
+import { keptTexts } from './kept-texts.js';
+import { hunksOf, placeThrough, type Hunk } from './placed.js';
+import { textAtRecording } from './recorded-text.js';
+import { diffTexts } from './text-diff.js';
+import { NO_LINE } from './written-lines.js';
+
+/** What an edit did to a module: git's `-U0` hunks between the two texts, and how far it reaches what runs. */
+export interface Edit {
+  readonly hunks: readonly Hunk[];
+  /**
+   * The selector's reading of the two texts. Absent when the module reader does
+   * not claim the file: every region the hunks touch then changed.
+   */
+  readonly reading?: EditReading;
+}
+
+/** The edit between a text and itself: no region is touched and every one stands where it was. */
+export const NO_EDIT: Edit = { hunks: [] };
+
+/** The edit a module went through, or `undefined` when a text of it cannot be found. */
+export type EditOf = (file: string) => Edit | undefined;
+
+/** The edit one module went through from the text `from` names to the text `to` names. */
+export type Edits = (file: string, from: string, to: string) => Edit | undefined;
+
+/**
+ * A reader of the edit one module went from the text `from` names to the text
+ * `to` names, both digests.
+ *
+ * Two digests that agree are no edit and need no text. Otherwise each text is
+ * found the way a reading of an edit finds it: kept by a landing, at one of the
+ * commits the record names, or on disk, and taken only when it hashes to its
+ * digest. `undefined` when either cannot be had: the caller then reads the
+ * whole module as changed.
+ */
+export function editsBetween(
+  root: string,
+  cacheRoot: string | undefined,
+  commits: readonly (string | undefined)[],
+): Edits {
+  const kept = keptTexts(root, cacheRoot);
+  const atRecording = textAtRecording(root, []);
+  const textOf = (file: string, digest: string): string | undefined => {
+    const text = kept(digest);
+    if (text !== undefined) return text;
+    for (const commit of new Set(commits)) {
+      const found = hashingTo(atRecording(file, commit), digest);
+      if (found !== undefined) return found;
+    }
+    try {
+      return hashingTo(readFileSync(resolve(root, file), 'utf8'), digest);
+    } catch {
+      return undefined;
+    }
+  };
+  return (file, from, to) => {
+    if (from === to) return NO_EDIT;
+    const [before, after] = [textOf(file, from), textOf(file, to)];
+    if (before === undefined || after === undefined) return undefined;
+    const reading = readEdit(root, file, before, after);
+    return { hunks: hunksOf(diffTexts(before, after)), ...(reading === undefined ? {} : { reading }) };
+  };
+}
+
+function hashingTo(text: string | undefined, digest: string): string | undefined {
+  return text !== undefined && digestString(text) === digest ? text : undefined;
+}
+
+type Cut = Pick<SetExecutionModule, 'blocks' | 'owner'>;
+
+/**
+ * For each region of `recorded`, the held region its cases carry from, or -1.
+ *
+ * A recorded region first lands on the held region of its kind the edit left
+ * alone and places at its lines, the n-th of them when several share the
+ * lines; that region ran as it did whatever the edit read as. A region no
+ * untouched one stands under pairs by address, as the snapshot's landing
+ * pairs its rows (`carried` in `record_coverage_recut.rs`): the n-th region of
+ * a name and structural path, of the same kind, where both cuts hold the
+ * address as many times and seated every counter it passes through alike
+ * ({@link addressedAlike}), and the held one is not already seated. The top
+ * level is one region in every cut of a module and pairs with the held top
+ * level whatever an edit renumbered. A region with neither was written by the
+ * edit, or cannot be told from a sibling, and takes what the region around it
+ * took: a superset, never a sibling's cases.
+ * A region that lands by address or is born carries those cases only when
+ * {@link reaches} says the edit did not reach its kind; otherwise it is -1,
+ * and its tests count as changed. An edit with no hunks — the same text, cut
+ * into more regions — reaches nothing.
+ *
+ * Without a `change` — a text could not be found — the whole module changed
+ * and nothing lands.
+ */
+// FIXME: the snapshot's `carried` in record_coverage_recut.rs pairs by the same
+// rule in Rust; the case index should ask the addon for its landing instead.
+export function landedThrough(held: Cut, recorded: Cut, change: Edit | undefined): Int32Array {
+  const lands = new Int32Array(recorded.blocks.length).fill(-1);
+  if (change === undefined) return lands;
+  // A text the edit left whole runs as it did, as the recut keeps a row whose text did not move.
+  const reading = change.hunks.length === 0 ? 'none' : change.reading;
+  // The held regions the edit left alone, at the lines it places them, in order.
+  const seats = new Map<string, number[]>();
+  for (const [at, block] of held.blocks.entries()) {
+    let placed: { readonly startLine: number; readonly endLine: number } | undefined = block;
+    if (block.startLine !== NO_LINE) {
+      const through = placeThrough(change.hunks, block);
+      placed = through === undefined || through.moved ? undefined : through.lines;
+    }
+    if (placed === undefined) continue;
+    const key = seatOf(block.kind, placed.startLine, placed.endLine);
+    seats.set(key, [...(seats.get(key) ?? []), at]);
+  }
+  const seated = new Int32Array(recorded.blocks.length).fill(-1);
+  const taken = new Map<string, number>();
+  for (const [at, block] of recorded.blocks.entries()) {
+    const key = seatOf(block.kind, block.startLine, block.endLine);
+    const nth = taken.get(key) ?? 0;
+    taken.set(key, nth + 1);
+    seated[at] = seats.get(key)?.[nth] ?? -1;
+  }
+  const occupied = new Set(seated.filter((from) => from >= 0));
+  const addressed = new Map<string, number>();
+  // The top level is one region in every cut of a module, whatever its branches did.
+  const top = held.blocks.findIndex((block) => block.kind === 'module');
+  const alike = addressedAlike(held, recorded);
+  const heldSeen = new Map<string, number>();
+  for (const [at, block] of held.blocks.entries()) addressed.set(addressKey(`${block.name}\0${block.path}`, heldSeen), at);
+  const seen = new Map<string, number>();
+  // What each recorded region took before the edit's reach was asked: a born
+  // region inside it takes the same, as the recut's `decided` does.
+  const decided = new Int32Array(recorded.blocks.length).fill(-1);
+  for (const [at, block] of recorded.blocks.entries()) {
+    const address = addressKey(`${block.name}\0${block.path}`, seen);
+    if (seated[at]! >= 0) {
+      decided[at] = lands[at] = seated[at]!;
+      continue;
+    }
+    const was = block.kind === 'module' && top >= 0 ? top : alike(block) ? addressed.get(address) : undefined;
+    const owner = recorded.owner?.[at];
+    decided[at] = was !== undefined && !occupied.has(was) && held.blocks[was]!.kind === block.kind
+      ? was
+      : owner === undefined || owner === NO_OWNER ? -1 : decided[owner]!;
+    if (!reaches(reading, block.kind)) lands[at] = decided[at]!;
+  }
+  return lands;
+}
+
+function seatOf(kind: string, startLine: number, endLine: number): string {
+  return `${kind}\0${startLine}\0${endLine}`;
+}

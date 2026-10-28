@@ -1,4 +1,4 @@
-import type { Raster } from '@variance-authority/core/format';
+import type { Raster, RenderIdentity } from '@variance-authority/core/format';
 import {
   RasterStoreError,
   identityFrom,
@@ -254,7 +254,7 @@ export async function promote(
     .prepare('SELECT identity FROM builds WHERE project = ? AND build = ?')
     .bind(project, build)
     .first<Row>();
-  const identity = identityFrom(JSON.parse(text(buildRow ?? {}, 'identity', 'a build')) as unknown);
+  const identity = buildIdentity(buildRow ?? {});
 
   if (identity === null) {
     throw new ReviewError(
@@ -273,32 +273,18 @@ export async function promote(
     );
   }
 
-  // The document's identity when the push carried it, the build's otherwise.
-  //
-  // They differ by exactly the scale, and only the first is what a later run
-  // looks a baseline up under: `identityFor` folds the document's
-  // `deviceScaleFactor` in, while a renderer serving 1x and 2x viewports in one
-  // run reports one machine identity with the scale left at 1. Filing under the
-  // build's is therefore correct only at 1x, and silently wrong above it — the
-  // approval is recorded, the page says so, and no run ever finds the baseline.
-  //
-  // The fallback is for rows written before the column existed. It reproduces
-  // what this service did for all of them, which is right for every 1x suite and
-  // is the most that can be said about a row whose real identity was never sent.
-  const painted = identityFrom(
-    JSON.parse(optionalText(row, 'candidate_identity', 'a build subject') ?? 'null') as unknown,
-  );
+  const under = promotedIdentity(row, identity);
 
   const raster: Raster = {
     documentDigest: digest as Raster['documentDigest'],
-    identity: painted ?? identity,
+    identity: under,
     width: number(row, 'candidate_width', 'a build subject'),
     height: number(row, 'candidate_height', 'a build subject'),
     bytes: base64Of(await object.arrayBuffer()),
     missingFonts: strings(optionalText(row, 'candidate_missing_fonts', 'a build subject')),
     ...accessibilityField(
       optionalText(row, 'candidate_accessibility', 'a build subject'),
-      painted ?? identity,
+      under,
     ),
     // Carried through rather than re-derived, because nothing here can derive
     // them: they describe the document that painted this image, and this service
@@ -307,9 +293,40 @@ export async function promote(
     // every standing defect as arriving with the change under review.
     ...listField(row, 'candidate_components', 'components'),
     ...listField(row, 'candidate_finding_marks', 'findingMarks'),
+    // The packed tree a later run joins a changed region against. Text in and
+    // text out: nothing here unpacks it, and `decide` treats one that will not
+    // unpack as not recorded.
+    ...snapshotField(optionalText(row, 'candidate_snapshot', 'a build subject')),
   };
 
   await baselines.put({ subject }, raster);
+}
+
+/** The machine identity a build row recorded, or `null` when it cannot be read back. */
+export function buildIdentity(row: Row): RenderIdentity | null {
+  return identityFrom(JSON.parse(text(row, 'identity', 'a build')) as unknown);
+}
+
+/**
+ * The identity an approval files the baseline under: the document's when the
+ * push carried it, the build's otherwise.
+ *
+ * They differ by exactly the scale, and only the first is what a later run
+ * looks a baseline up under: `identityFor` folds the document's
+ * `deviceScaleFactor` in, while a renderer serving 1x and 2x viewports in one
+ * run reports one machine identity with the scale left at 1. Filing under the
+ * build's is therefore correct only at 1x, and silently wrong above it — the
+ * approval is recorded, the page says so, and no run ever finds the baseline.
+ *
+ * The fallback is for rows written before the column existed. It reproduces
+ * what this service did for all of them, which is right for every 1x suite and
+ * is the most that can be said about a row whose real identity was never sent.
+ */
+export function promotedIdentity(row: Row, build: RenderIdentity): RenderIdentity {
+  const painted = identityFrom(
+    JSON.parse(optionalText(row, 'candidate_identity', 'a build subject') ?? 'null') as unknown,
+  );
+  return painted ?? build;
 }
 
 /**
@@ -344,6 +361,11 @@ function listField(
     return parsed?.components === undefined ? {} : { components: parsed.components };
   }
   return parsed?.findingMarks === undefined ? {} : { findingMarks: parsed.findingMarks };
+}
+
+/** The packed snapshot a candidate carried, put back on the raster, or absent. */
+function snapshotField(snapshot: string | undefined): Partial<Pick<Raster, 'snapshot'>> {
+  return snapshot === undefined ? {} : { snapshot };
 }
 
 /** Stands in for the one field `sidecarFrom` requires and `listField` is not reading. */

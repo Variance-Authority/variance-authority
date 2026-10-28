@@ -12,13 +12,24 @@ short path through a module the test never loaded. Distance walks only the
 modules that test covered or loaded in a recorded run, so the count it gives you
 describes execution rather than possibility.
 
-Distance is an API in `@variance-authority/sense/test-selection`, not a command.
-It reads an execution snapshot and a diff. It does not discover your current
-suite, decide whether a path belongs to Vitest, Jest, Playwright or another test
-host, or invoke a runner. The Vitest and Jest integrations record execution;
-orchestration stays with the repository that owns those hosts.
+A wrapped Vitest or Jest run takes one range of distances at a time when you
+set `VARIANCE_AUTHORITY_AT_DISTANCE` beside `VARIANCE_AUTHORITY_SINCE`, and
+`variance select --at-distance` prints the same leg's skip list:
 
-To turn distance into a run, you supply four things:
+```bash
+VARIANCE_AUTHORITY_SINCE= VARIANCE_AUTHORITY_AT_DISTANCE=0-2 npx vitest run
+VARIANCE_AUTHORITY_SINCE= VARIANCE_AUTHORITY_AT_DISTANCE=3- npx vitest run
+```
+
+The runner's own inventory is the other half of that join, so every selected
+file runs in one of the two legs. A test new since the recording runs in
+both. A test recorded incomplete runs in the leg of the shortest import path it
+ran to a changed file it loaded, or in the second when it ran none.
+[Run the tests an edit needs](test-an-edit.md) is the page about that loop. The
+rest of this page is for a repository that composes the legs itself, across
+several test hosts, from the API in `@variance-authority/sense/test-selection`.
+
+To turn distance into a run yourself, you supply four things:
 
 1. the current test-file inventory for every host you own;
 2. a unified diff and the import relations needed to place paths;
@@ -26,11 +37,11 @@ To turn distance into a run, you supply four things:
 4. dispatch from each selected path to the runner and project that owns it.
 
 The inventory matters because a snapshot is historical. It can justify skipping
-a test it observed completely; it cannot enumerate a new test, know that a
+a test it observed completely; it cannot enumerate a new test, detect that a
 recorded test no longer belongs to your suite, or decide which runner should
-execute a file. You can take that inventory from a retained host index,
-incremental discovery, or the runner itself. [Sense](../packages/sense) does not
-choose that mechanism for you.
+execute a file. A wrapped runner takes it from what that runner discovered; for
+any other host, you can take it from a retained host index, incremental
+discovery, or the runner itself.
 
 ## Partition the distances Sense can measure
 
@@ -55,8 +66,10 @@ const { narrowing, distances } = await distanceByExecution(
 This is a partial integration: it reads recorded evidence but neither inventories
 the current suite nor invokes a runner. `narrowing.whole` names test files whose
 recording completed, `narrowing.entered` names the recorded files the diff
-reached, and `narrowing.unread` names changed paths the snapshot says nothing
-about and the graph does not list.
+reached, and `narrowing.unread` names changed paths the snapshot has no rows
+for and the graph does not list. `distances` can hold a test outside
+`narrowing.entered`: one recorded incomplete that the diff did not enter,
+placed by the shortest path it ran to a changed file it loaded.
 
 A safe execution integration starts from its **current host inventory** and
 subtracts only exclusions the snapshot proved:
@@ -69,9 +82,12 @@ selected = current host inventory minus skip
 Everything outside `whole` remains selected: new tests, partially recorded
 tests, files another host owns, and files absent from the snapshot. `unread` is
 a report, not an input to the join: it lists a README, a fixture a test reads
-with `fs`, a script a test spawns. When your suite depends on one of those,
-name it in the integration's `preconditions` option; it then selects every test
-that declared it and leaves `unread`.
+with `fs`, a script a test spawns. When your suite depends on one of those, name
+it in the integration's `preconditions` option; it then selects every test that
+declared it and leaves `unread`. That option names files. The state a test ran
+under, such as what a mock returns, is recorded as a [case
+precondition](case-preconditions.md): nothing in a checkout changes it, so it
+never selects a test.
 
 After that join, distance can divide the measured part of `selected` into
 ranges:
@@ -110,7 +126,7 @@ selected paths, still carrying their host
 each host invokes its own runner
 ```
 
-Sense returns paths and evidence. It does not provide this registry or dispatcher.
+[Sense](../packages/sense) returns paths and evidence. It does not provide this registry or dispatcher.
 Apply each snapshot only to the host inventory whose execution it recorded; one
 runner's absence is not evidence about another runner's suite.
 
@@ -132,12 +148,13 @@ If the nearest measured test is five hops away, `0-2` is empty. Distance does
 not renumber the groups to fill a requested range.
 
 A test selected from the snapshot without a measurable path is **unplaced**.
-`atDistance` returns such tests with the range that covers the measured end.
+`atDistance` returns such tests with the one range that holds the furthest hop
+measured, or with the open range, such as `3-`, when nothing was measured.
 Tests selected only by the current host inventory are outside the distance
 reading altogether and stay your integration's responsibility.
 
 Every range is a smaller claim than the selection, which is already a smaller
-claim than the suite. Passing a near range says nothing about selected tests in
+claim than the suite. Passing a near range shows nothing about selected tests in
 later ranges or about tests the snapshot could not place.
 
 ### What a near range buys you
@@ -201,7 +218,7 @@ The distance options describe how to interpret the caller's graph:
   in the execution record and its built output in the import graph.
 - `faces` identifies public entry points, so the report can flag imports that
   bypass them.
-- `enumerated` says whether a file's imports were scanned. Without it, the
+- `enumerated` records whether a file's imports were scanned. Without it, the
   traversal assumes every file in the graph was fully scanned.
 
 ## What the labels mean
@@ -222,17 +239,18 @@ A longer path is not itself a problem.
 
 ## Limits
 
-**Distance is not a test command.** It neither inventories the current suite nor
-dispatches paths to a runner. A repository integration owns both operations.
+**A leg covers one runner's suite.** A wrapped runner joins the leg with the
+files it discovered. Across several hosts, the inventory and the dispatch are
+yours, as above.
 
 **Distance describes recorded execution.** It cannot provide a path for a
 branch that no recorded test took. When a change cannot be read from both of
 its texts, selection charges a changed line no recorded region contains to every
 test that ran its module; distance counts only the imports those tests actually
-took, and says nothing about a path none of them did.
+took, and counts nothing for a path none of them took.
 
 **Distance is not detection distance.** It counts import hops to a selected
-test. It does not say that test can reveal this fault, that no nearer test can,
+test. It does not show that test can reveal this fault, that no nearer test can,
 or that a farther test may be skipped. Those are outcome and risk questions the
 snapshot does not record.
 

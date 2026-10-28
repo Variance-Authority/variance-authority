@@ -67,10 +67,12 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { randomUUID } from 'node:crypto';
 import { channelFrom, JOURNEY_COOKIE, type Channel } from '@variance-authority/wire';
-import { INSTRUMENTATION_ID, type ModuleId } from '../instrument/index.js';
+import { INSTRUMENTATION_ID } from '../instrument/identity.js';
+import type { ModuleId } from '../instrument/index.js';
 import { codeUnitOrder } from './instrumented-modules.js';
 import { UNATTRIBUTED, type JourneyAccount } from './stitch.js';
 import type { ExecutedModule } from './probes.js';
+import probeLists from '../instrument/probe-lists.cjs';
 import probeLog from '../instrument/probe-log.cjs';
 import { isThenable, TOLD, writeParts } from './journey-parts.js';
 import { journeyOf, type JourneyTrace } from './journey-carrier.js';
@@ -145,8 +147,7 @@ export function mintJourney(): string {
 export interface JourneyCollectorOptions {
   /**
    * What this head calls itself. Defaults to {@link JOURNEY_HEAD_VARIABLE}, then
-   * `head`. It is the `label` its build gave `testSelectionProbes()`: an ordinal
-   * means something only against the inventory that minted it.
+   * `head`. It is the `label` its build gave `testSelectionProbes()`.
    */
   readonly head?: string;
   /**
@@ -332,7 +333,7 @@ function installJourneys(options: JourneyCollectorOptions): JourneyCollector {
     const bucket = buckets.get(journey);
     buckets.delete(journey);
     const entered: ExecutedModule[] =
-      bucket === undefined ? [] : engine.lists(engine.close(bucket), false);
+      bucket === undefined ? [] : probeLists.lists(engine.close(bucket), false);
     // What the process did outside any journey is every subject's, and so is
     // what a module did while a request was the first to need it evaluated.
     // Both are kept for every driver, not only the one this account reaches.

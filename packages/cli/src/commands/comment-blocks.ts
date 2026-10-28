@@ -1,6 +1,6 @@
 import { clusterChanges, type Change } from '@variance-authority/report';
 import type { CliRunReport } from './run.js';
-import type { CommentLimits, CommentOptions } from './comment.js';
+import type { CommentLimits } from './comment.js';
 import type { CauseEntry, Collateral, Docket } from './docket.js';
 import { code, count } from './comment-text.js';
 import type { Pictures } from './comment-images.js';
@@ -20,74 +20,6 @@ import type { Pictures } from './comment-images.js';
  * failure this whole system exists to avoid — reproduced, this time, in the one
  * artifact a human actually looks at.
  */
-
-/**
- * What a reviewer reads before deciding whether to open anything: the count, the
- * leading cause, and where to go.
- *
- * Kept to lines a phone shows without scrolling, because that is where a
- * pull-request notification is opened. Everything that qualifies the count —
- * every cause, the collateral, what was skipped, what painted the images — is in
- * the fold under it, and stays there rather than being dropped: a reviewer who
- * wants the whole docket opens one element.
- */
-export function leadBlocks(
-  docket: Docket,
-  options: CommentOptions,
-  pictures: Pictures,
-): readonly string[] {
-  const needing = docket.reviewable + docket.failed.length;
-  // NEW is said apart from review, because it is a different reason to open the
-  // comment: nothing moved, and nobody has yet said what the subject should look like.
-  const fresh = docket.fresh === 0 ? '' : `${docket.fresh} subject(s) NEW`;
-
-  const heading =
-    needing > 0
-      ? `## Visual variance — ${needing} subject(s) need review${fresh === '' ? '' : `, ${fresh}`}`
-      : fresh !== ''
-        ? `## Visual variance — ${fresh}, nothing to review`
-        : // Reachable, and the only way to reach it is the case worth naming: a run
-          // whose observations are all `unchanged` and whose report never stated
-          // what it skipped. `exitFor` calls that review, and a heading claiming
-          // zero findings over it would be the tool inventing the reassurance.
-          '## Visual variance — this run cannot claim a clean result';
-
-  const [first] = docket.causes;
-  const picture =
-    first !== undefined && first.namedIn > 0 && first.subjects[0] !== undefined
-      ? pictures(first.subjects[0])
-      : undefined;
-
-  return [
-    heading,
-    ...leadLine(docket),
-    ...(picture === undefined ? [] : [picture]),
-    ...footerBlocks(options),
-  ];
-}
-
-/**
- * The first cause, in the voice the docket gives it, or the first reason nothing
- * could be compared.
- *
- * An entry the semantic tier did not name is left out rather than printed here:
- * "the largest region" is a size, and a size on the first line reads as a cause.
- */
-function leadLine(docket: Docket): readonly string[] {
-  const [first] = docket.causes;
-  if (first !== undefined && first.namedIn > 0) {
-    const label = first.named ? code(first.label) : first.label;
-    const at = first.files[0] === undefined ? '' : ` at ${code(first.files[0])}`;
-    const more =
-      docket.causes.length > 1 ? `, and ${count(docket.causes.length - 1, 'more cause')}` : '';
-    return [`Cause: **${label}**${at}${more}`];
-  }
-  const [group] = docket.withoutCause;
-  if (group !== undefined) {
-    return [`**${group.verdict}** — ${count(group.subjects.length, 'subject')}: ${group.because}`];
-  }
-  return [];
-}
 
 /**
  * Everything the lead summarised, inside one element a reviewer opens on purpose.
@@ -162,8 +94,9 @@ export function bulkBlocks(report: CliRunReport, limits: CommentLimits): readonl
       : []),
     ...(ungrouped.length > 0
       ? [
-          `${count(ungrouped.length, 'changed subject')} carry no difference shape, so the run ` +
-            'compared without a document and they have to be reviewed one at a time.',
+          `No difference shape for ${count(ungrouped.length, 'changed subject')}: the run read ` +
+            'no markup there, or only the accessibility tree changed, so each one has to be ' +
+            'reviewed on its own.',
         ]
       : []),
   ];
@@ -307,14 +240,33 @@ function collateralBlocks(collateral: Collateral): readonly string[] {
 }
 
 /**
+ * Subjects painted under another identity, one line per move, beside the lead:
+ * what an upgrade changed against what it left alone is read first.
+ */
+export function moveBlocks(docket: Docket, limits: CommentLimits): readonly string[] {
+  if (docket.moves.length === 0) return [];
+
+  const items = docket.moves.map((move) => {
+    const total = move.changed.length + move.ignored + move.unchanged;
+    const what = move.moved.map((field) => `**${field}**`).join(', ');
+    const masked = move.ignored === 0 ? '' : `; ${move.ignored} ignored by an ignore or a sensitivity`;
+    if (move.changed.length === 0) return `- ${what} — none of ${count(total, 'subject')} changed${masked}`;
+    const named = move.changed.slice(0, limits.subjects).map(code).join(', ');
+    const rest = move.changed.length - Math.min(move.changed.length, limits.subjects);
+    const more = rest === 0 ? '' : ` and ${count(rest, 'other')} not listed`;
+    return `- ${what} — ${move.changed.length} of ${count(total, 'subject')} changed: ${named}${more}${masked}`;
+  });
+
+  return ['### Painted under another identity', items.join('\n')];
+}
+
+/**
  * Subjects with a verdict and nothing to point at.
  *
- * `new` and `incomparable` are the two that a reader — or an agent — will
- * otherwise treat as failures of the code, and neither is about the code. Both
- * are listed anyway: nobody has agreed what a new subject should look like, which
- * is why the heading names it NEW rather than counting it as a review, and an
- * incomparable one is a comparison that was *refused*, which is not the same
- * sentence as "no difference".
+ * `new` is the one a reader — or an agent — will otherwise treat as a failure
+ * of the code. It is listed anyway: nobody has agreed what a new subject should
+ * look like, which is why the heading names it NEW rather than counting it as a
+ * review.
  */
 export function withoutCauseBlocks(docket: Docket, limits: CommentLimits): readonly string[] {
   if (docket.withoutCause.length === 0) return [];
@@ -329,7 +281,7 @@ export function withoutCauseBlocks(docket: Docket, limits: CommentLimits): reado
     );
   });
 
-  return ['### Not compared', items.join('\n')];
+  return ['### Nothing to point at', items.join('\n')];
 }
 
 /**
@@ -338,9 +290,9 @@ export function withoutCauseBlocks(docket: Docket, limits: CommentLimits): reado
  * `failed` entries are listed, and above the fold, because each has its own
  * reason, a count of them tells a reviewer nothing they can act on, and the
  * heading counts them among what needs review. `excluded` and unreached entries
- * are counted in the fold by {@link skippedBlocks}: the operator already decided,
- * in a file that was already reviewed, and re-litigating that decision on every
- * pull request is how an exclusion list ends up deleted rather than read.
+ * are counted in the fold by {@link skippedBlocks}: an exclusion was decided in
+ * a reviewed file (config, story tags, a page's marker), the run report keeps
+ * its reason, and re-litigating it on every pull request gets it deleted.
  */
 export function coverageBlocks(
   report: CliRunReport,
@@ -377,7 +329,7 @@ export function skippedBlocks(docket: Docket): readonly string[] {
     ...(docket.excluded === 0
       ? []
       : [
-          `${count(docket.excluded, 'subject')} excluded by configuration and not listed.`,
+          `${count(docket.excluded, 'subject')} excluded on purpose and not listed.`,
         ]),
     // Stated as work avoided rather than coverage lost, because that is what it
     // is: the run read the diff and every stored baseline and concluded these
@@ -413,23 +365,6 @@ export function warningBlocks(report: CliRunReport, docket: Docket): readonly st
   if (lines.length === 0) return [];
   const listed = lines.length === 1 ? lines : lines.map((line) => `- ${line}`);
   return [['> [!WARNING]', ...listed.map((line) => `> ${line}`)].join('\n')];
-}
-
-/**
- * Where to look, and what to do after looking.
- *
- * The command line is the fallback for a comment with no report to link: it
- * reads a report on disk, which a reviewer on a pull request does not have.
- */
-export function footerBlocks(options: CommentOptions): readonly string[] {
-  return [
-    [
-      options.runUrl === undefined
-        ? 'Per subject: `variance report --subject <id>`'
-        : `[Full report and images](${options.runUrl})`,
-      ...(options.toAccept === undefined ? [] : [`To accept: ${options.toAccept}`]),
-    ].join('  \n'),
-  ];
 }
 
 function describeIdentity(report: CliRunReport): string {

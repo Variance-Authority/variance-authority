@@ -8,6 +8,20 @@ const cacheDirectory = process.env['VARIANCE_AUTHORITY_JEST_CACHE'];
 if (coverageFile === undefined || cacheDirectory === undefined) {
   throw new Error('VARIANCE_AUTHORITY_COVERAGE and VARIANCE_AUTHORITY_JEST_CACHE are required');
 }
+// A selection handed in by the test that runs this fixture: the files to skip,
+// as JSON. Absent, nothing is handed in and every file runs.
+const skip = process.env['FIXTURE_SKIP'];
+// The cases to skip in the files that run, as JSON of file to names. Absent,
+// every file that runs, runs whole.
+const cases = process.env['FIXTURE_CASES'];
+const selection = skip === undefined
+  ? {}
+  : { selection: async () => ({
+    whole: new Set(JSON.parse(skip)),
+    skip: new Set(JSON.parse(skip)),
+    ...(cases === undefined ? {} : { cases: new Map(Object.entries(JSON.parse(cases))) }),
+    notes: [],
+  }) };
 
 export default withTestSelection(
   {
@@ -25,5 +39,11 @@ export default withTestSelection(
       ['<rootDir>/test/reporter.cjs', { mark: resolve(dirname(coverageFile), 'user-reporter.txt') }],
     ],
   },
-  { coverageFile, preconditions: ['jest.config.mjs'] },
+  {
+    coverageFile,
+    preconditions: ['jest.config.mjs'],
+    // The recipe, when the test that runs this fixture names one.
+    ...(process.env['FIXTURE_MODE'] === undefined ? {} : { mode: process.env['FIXTURE_MODE'] }),
+    ...selection,
+  },
 );

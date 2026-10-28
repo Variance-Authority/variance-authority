@@ -22,7 +22,7 @@ little. This one is about the moment the record is believed.
 `entered`, and `unread` names the changed paths the record says nothing about,
 which select nothing and are reported. The library computes all four correctly and
 then leaves the subtraction to its callers, who have each written it
-themselves: `variance select`, `variance run --since`, `tools/test-since.mjs`,
+themselves: `variance select`, `variance run --since`, tools/test-since.mjs,
 and the README (`packages/sense/README.md:717`). A fourth exported surface
 hands out `entered` alone. **The sentence the entire feature rests on is not a
 line of shipped code anywhere.**
@@ -35,19 +35,19 @@ That would be a tidiness complaint if the four agreed. They do not:
   the same diff against the same snapshot yields two different skip lists
   depending on which command asked. Without the walk a changed stylesheet is
   `unread` rather than answered by its measured importers, and selects nothing.
-- `knownAs` is supplied only by `tools/test-since.mjs`. The CLI's reader passes
+- `knownAs` is supplied only by tools/test-since.mjs. The CLI's reader passes
   `sourceAt` and `relations` and nothing else.
-- Only `tools/test-since.mjs` intersects `whole` with the suite that was
+- Only tools/test-since.mjs intersects `whole` with the suite that was
   actually collected. `variance select` subtracts from `whole` directly — so
   deleted tests, renamed tests, and tests belonging to another project or
   another config are all in the answer.
 
 And the frame check contradicts its own documentation in the direction that
 misleads an operator. `textAtRecording` returns `undefined` when the snapshot
-names no commit, with a docblock at `recorded-text.ts:111-113` saying this
+names no commit, with a docblock at `packages/sense/src/test-selection/recorded-text.ts:111-113` saying this
 avoids "reporting every module stale". `frameOf` at
-`test-selection/reading.ts:107` reads `undefined` under every name as
-disagreement and answers `stale`. `tools/test-since.mjs` withholds `sourceAt`
+`packages/sense/src/test-selection/reading.ts:107` reads `undefined` under every name as
+disagreement and answers `stale`. tools/test-since.mjs withholds `sourceAt`
 from a commitless snapshot; the CLI does not. **Through `variance select` and
 `variance run --since`, a commitless snapshot therefore reports exactly every
 changed module stale** — the widening is safe,
@@ -85,7 +85,7 @@ as a corrupt snapshot with destructive advice.
 **4. One translation between names and paths.** The frame check is one unit,
 `frameOf`, asked under every name `knownAs` gives a file, and a built twin's
 rows are in frame when the source's are. What is still written twice is the
-translation: `tools/test-since.mjs` rewrites a diff with `inSnapshotCoordinates`
+translation: tools/test-since.mjs rewrites a diff with `inSnapshotCoordinates`
 before the library sees it, and the CLI's reader supplies no `knownAs` at all.
 The name a row carries and the path a diff carries are two coordinate systems,
 and the translation between them belongs beside the check, once.
@@ -114,7 +114,7 @@ record made under a coarser mode is believed exactly as a branch-level one.
 Nothing distinguishes a snapshot whose `whole` set predates the diff base from
 one recorded at it. The same hole has a second edge the write path already names
 and the read path cannot see: `usableOutcome`
-(`test-selection/finished-files.ts:125`) counts a skip as a usable outcome, and
+(`packages/sense/src/test-selection/finished-files.ts:125`) counts a skip as a usable outcome, and
 its docblock states the boundary — a skip decided outside the source, by an
 environment variable or a platform check, is not covered. A record made where
 that condition was true is applied where it is false without a word, because the
@@ -137,7 +137,7 @@ to say a thing is unfinished, and the answer stage has no row in
 `docs/instruments.md` at all.
 
 **9. The frame is checked against the frame the diff is in.** `frameOf`
-asks `sourceAt(name, coverage.commit)` (`test-selection/reading.ts:97`) — the
+asks `sourceAt(name, coverage.commit)` (`packages/sense/src/test-selection/reading.ts:97`) — the
 text as of the *snapshot's* commit. The hunks it is deciding about are line
 ranges in the *diff base's* coordinates. The two coincide only while the
 snapshot was recorded at the base, which is the local case and not the CI one:

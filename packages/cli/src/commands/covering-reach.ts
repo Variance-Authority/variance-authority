@@ -10,7 +10,7 @@
  *
  * So the witnesses are narrowed by where the *test* sits, never by what the
  * crossing recorded. Nothing here reads
- * [`ExecutionCrossing.distance`](../../../sense/src/test-selection/reverse.ts):
+ * [`ExecutionCrossing.distance`](https://github.com/Variance-Authority/variance-authority/blob/main/packages/sense/src/test-selection/reverse.ts):
  * that is call-stack depth, ADR-0056 forecloses recording one, and this
  * project's own collector writes zero into it. The quantity used instead is
  * import hops from the file under the question to the test's own file, walked
@@ -19,8 +19,9 @@
  *
  * ## An answer may not carry the unplaced
  *
- * `atDistance` gives tests with no measured distance to whichever leg reaches
- * the end, because a loop that never runs them is a loop that skipped work.
+ * `atDistance` gives tests with no measured distance to the leg that holds the
+ * furthest measured hop, because a loop that never runs them is a loop that
+ * skipped work.
  * This is not a loop. A test nobody could place is not within three hops — it
  * is a test the walk could not measure — so it is dropped from the list and
  * counted in a note. Reporting it inside the band would answer *yes, something
@@ -38,6 +39,7 @@ import {
   distanceToSource,
   type CoveringTest,
   type SourcePoint,
+  type SourceTestRange,
 } from '@variance-authority/sense/test-selection';
 import { OperatorError } from '../exit.js';
 import { packageOf } from '../package-home.js';
@@ -86,7 +88,9 @@ export async function nearbyWitnesses(request: CoveringAt): Promise<Narrowing> {
 
   if (request.atDistance !== undefined) {
     const { from, to } = request.atDistance;
-    const hops = await hopsToTests(request);
+    const { byFile: hops, unread } = await hopsToTests(request);
+    // A snapshot that cannot measure any distance keeps no test, and says so.
+    if (unread !== undefined) notes.push(unread);
     const unplaced = [...hops.values()].filter((distance) => distance === undefined).length;
     // A file the graph cannot place is left out of the band, not carried into
     // it: an unmeasured distance is not a short one.
@@ -109,27 +113,34 @@ export async function nearbyWitnesses(request: CoveringAt): Promise<Narrowing> {
  * exists to print. Measured once per question: `--at-distance` and `--hops`
  * read the same walk.
  */
-export function hopsToTests(request: CoveringAt): Promise<ReadonlyMap<string, number | undefined>> {
+export function hopsToTests(request: CoveringAt): Promise<Hops> {
   let measured = MEASURED.get(request);
   if (measured === undefined) MEASURED.set(request, (measured = measureHops(request)));
   return measured;
 }
 
-const MEASURED = new WeakMap<CoveringAt, Promise<ReadonlyMap<string, number | undefined>>>();
+/** Import hops to each test file, or why none could be read. */
+export interface Hops {
+  readonly byFile: ReadonlyMap<string, number | undefined>;
+  /** Present when the snapshot holds no row for the file, so no distance was measured. */
+  readonly unread?: string;
+}
 
-async function measureHops(request: CoveringAt): Promise<ReadonlyMap<string, number | undefined>> {
-  const relations = await relationsFor(request.root, ['.'], [], [], {
-    why: 'import hops are counted over the file graph',
-    fix: 'Install `@variance-authority/sense`, which is what reads the tree.',
-  });
+const MEASURED = new WeakMap<CoveringAt, Promise<Hops>>();
 
+async function measureHops(request: CoveringAt): Promise<Hops> {
+  const relations = await relationsFor(request.root, ['.'], [], []);
+
+  // A hop runs from the file to a test file, whichever of the file's regions the
+  // test entered, so a run of lines and every `--function`, exact name or scope,
+  // measure from the file: the point cannot spell a run or a scope, and the
+  // listed test files come from the answer, not from the point.
   const point: SourcePoint = {
     file: request.file,
     ...(request.line === undefined ? {} : { line: request.line }),
-    ...(request.function === undefined ? {} : { function: request.function }),
   };
 
-  const snapshot = snapshotFor(request);
+  const snapshot = await snapshotFor(request);
   if (snapshot === undefined) {
     throw new OperatorError(
       'import hops are read from a suite\'s coverage snapshot, and an index named by `--execution` is no ' +
@@ -142,19 +153,24 @@ async function measureHops(request: CoveringAt): Promise<ReadonlyMap<string, num
     { relations },
   );
   if (!audience.recorded) {
-    throw new OperatorError(
-      `import hops are read from the coverage snapshot at \`${snapshot}\`, ` +
-        `which holds no instrumented row for \`${request.file}\`. The per-case index and the ` +
-        'snapshot are written by the same run, so a file in one and not the other means the two ' +
-        'are from different runs; record once and ask again.',
-    );
+    // One run writes the per-case index and the snapshot, so a file in one and not the other means two runs.
+    return {
+      byFile: new Map(),
+      unread: `import hops are unmeasured: the coverage snapshot at ${snapshot} holds no instrumented row for ${request.file}, ` +
+        'though the per-case index holds it, so the two are from different runs and no test file\'s distance can be read',
+    };
   }
 
   const hops = new Map<string, number | undefined>();
   for (const distance of distances) hops.set(distance.test, distance.hops);
-  return hops;
+  return { byFile: hops };
 }
 
 function relativeTo(root: string, directory: string): string {
   return directory.startsWith(`${root}/`) ? directory.slice(root.length + 1) : directory;
+}
+
+/** How many distinct named tests a set of ranges names. */
+export function identities(ranges: readonly SourceTestRange[]): number {
+  return new Set(ranges.flatMap((range) => range.tests.map((test) => test.id))).size;
 }

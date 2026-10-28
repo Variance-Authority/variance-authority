@@ -43,6 +43,19 @@ describe('observing a mounted subject', () => {
     expect(artifact.subject.kind).toBe('fixture');
   });
 
+  describe('Save > Cancel', () => {
+    it('sends the titles the runner declared, a separator inside one kept whole', async () => {
+      const asked = recorder();
+      await observeSubject(mount('<button>Save</button>'), {}, asked.deliver);
+
+      expect(asked.requests[0]!.titlePath).toEqual([
+        'observing a mounted subject',
+        'Save > Cancel',
+        'sends the titles the runner declared, a separator inside one kept whole',
+      ]);
+    });
+  });
+
   it('takes a located subject, the shape a runner locator has', async () => {
     const element = mount('<p class="body">text</p>');
     const asked = recorder();
@@ -124,4 +137,8 @@ describe('asserting on what came back', () => {
     expect(failing.pass).toBe(false);
     expect(failing.message()).toBe('two regions moved');
   });
+});
+
+describe('a snapshot taken inside a case', () => {
+  it.todo('names the case and the preconditions it had said by then, as the Playwright fixture does — needs the browser command to read the case from the Vitest worker that runs it');
 });

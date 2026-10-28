@@ -43,6 +43,8 @@ yarn vitest run cases/playwright-additive-case/src/workflow.chromium.test.js
 | A test that waits on the decision an application made, not on what it drew | [`event-announcement-case/src/workflow.chromium.test.js`](event-announcement-case/src/workflow.chromium.test.js) | A page and a service announcing decisions, six executions running against one service process without hearing each other, and what a wait that never settles reports. |
 | One execution followed from the browser into a service serving many at once | [`journey-tracing-case/src/workflow.chromium.test.js`](journey-tracing-case/src/workflow.chromium.test.js) | An execution id carried in a `Cookie` header, the service reporting both its decision and the source regions it entered under that id, and a following run narrowed to the spec that reached the changed branch. |
 | An ordinary Playwright suite over a Storybook, recorded without naming a fixture | [`playwright-storybook-case/src/workflow.chromium.test.js`](playwright-storybook-case/src/workflow.chromium.test.js) | A Storybook that Storybook built with probes, seven specs that open it themselves — straight to a story, through the manager, in a second tab, past `afterEach`, across a reload — and a change to one line narrowed to the specs whose pages executed it. |
+| A selection handed to Vitest 4, not the one this repository runs | [`vitest-4-case/src/selection.integration.test.ts`](vitest-4-case/src/selection.integration.test.ts) | The real Vitest 4 CLI over a two-file fixture: a selection that skips every file passes and runs none, a shard the selection left empty passes, and a kept file is the only one recorded. |
+| A recording under Vitest 5, its module cache warm, its cases concurrent | [`vitest-5-case/src/selection.integration.test.ts`](vitest-5-case/src/selection.integration.test.ts) | The real Vitest 5 CLI over a shared module graph with concurrent cases: both files recorded, each branch named for the case that took it across interleaved awaits, and a selection that runs only the file it kept. |
 
 Two cases build an external artifact first, through their own package script:
 
@@ -100,7 +102,9 @@ choice between them is visible as a choice rather than as two products. The anno
 application's own decision, and carrying one execution id from a browser into a
 service that answers many callers at once. The Playwright-over-Storybook case
 covers recording which spec executed which source lines, for a suite whose specs
-never name this project.
+never name this project. The Vitest 4 case covers the test-selection seam under the
+newest Vitest major, which ends a run differently from the Vitest the rest of the
+repository runs.
 
 These cases are run on one Mac and one Chromium. They say nothing about a hosted
 review product, a browser fleet, a service-level deployment, or repository-scale

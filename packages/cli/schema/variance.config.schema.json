@@ -44,6 +44,18 @@
       "default": "chromium",
       "enum": ["chromium", "firefox", "webkit"]
     },
+    "timezoneId": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The IANA timezone the page's clock reads in, such as `Europe/Berlin`. Defaults to `UTC`, never the host's timezone, so a date the page formats reads the same on every machine. Part of the render identity, so a baseline painted in another timezone is compared with the moved timezone named as the cause.",
+      "default": "UTC"
+    },
+    "locale": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The BCP 47 language tag the page formats numbers and dates for, such as `de-DE`. Defaults to `en-US`, never the host's language, so a number the page formats reads the same on every machine. Part of the render identity, so a baseline painted for another language is compared with the moved language named as the cause.",
+      "default": "en-US"
+    },
     "renderer": { "$ref": "#/$defs/renderer" },
     "history": { "$ref": "#/$defs/history" },
     "review": { "$ref": "#/$defs/review" },
@@ -106,13 +118,12 @@
       "type": "integer",
       "minimum": 1,
       "default": 1,
-      "description": "How many subjects may be in the raster tier at once. Collection stays strictly serial however high this is set. Each lane holds a browser page and the decoded pixels of two images, so this is a memory decision as much as a speed one. Observations are written in plan order, so raising it changes what a run costs and never what it says."
+      "description": "How many subjects may be in the raster tier at once, split evenly across the worlds and rounded up, so at least one per world. It widens rendering, decoding and comparing; how many worlds collect is `workers`. Each lane holds a browser page and the decoded pixels of two images, so this is a memory decision as much as a speed one. Observations are written in plan order, so raising it changes what a run costs and never what it says."
     },
     "workers": {
       "type": "integer",
       "minimum": 1,
-      "default": 1,
-      "description": "How many standing worlds collect at once, each from the collector's `openWorker` with its own serial lane. Files go to workers whole, longest recorded first, and a worker that finishes takes the next. A collector with no `openWorker` runs one, and the report says so."
+      "description": "How many standing worlds collect at once, each from the collector's `openWorker` with its own serial lane. Absent, half the machine's logical cores, at least one, never more than a declared `concurrency` and never more than there are files. Files go to workers whole, longest recorded first, and a worker that finishes takes the next. A collector with no `openWorker` collects in one; it warns when `workers` was declared. Set 1 for a server under test that cannot take concurrent pages. The report names the worlds it used, and no verdict depends on the count."
     },
     "cacheRoot": {
       "type": "string",
@@ -135,10 +146,32 @@
           "carry": {
             "$ref": "#/$defs/carry",
             "description": "Who carries the suite's recording off the machine that recorded it. Without it, the recording stays there."
+          },
+          "before": {
+            "$ref": "#/$defs/before",
+            "description": "What this suite rests on before any of its tests imports anything: its runner config, and the setup files that config loads. Each entry is walked down the file graph, and a change to any file or package it reaches runs the whole suite. Without it, nothing is before this suite's reach."
+          },
+          "ignore": {
+            "type": "array",
+            "minItems": 1,
+            "items": { "type": "string", "minLength": 1 },
+            "description": "Globs, from the repository root and matching dotfiles, of changed files whose regions, import and asset edges and before select none of this suite's tests; a `!` glob takes a file back out. A test that declares a matching file, as a precondition or through a `/// <depends>`, still runs, and the selection names the file as ignored. A unit suite under jsdom paints nothing, so it can ignore stylesheets and images. Without it, nothing is ignored."
+          },
+          "precision": {
+            "enum": ["file", "symbol", "file-use", "function-use", "region-use"],
+            "description": "How precisely selection decides which of this suite's tests to skip, coarsest first. file runs every recorded test that imports a changed file, directly or through other files. symbol walks the same graph through only the importers of the exports a change moved. Both also run every test file-use runs, so each step runs every test a finer step runs. file-use runs every test that loaded a changed file, function-use every test that entered the function a changed line is in, and region-use every test that entered the region a changed line is in. Without it, region-use. Nothing is recorded differently at any step. file and symbol read the import graph, so a suite that sets relations to false cannot declare them."
+          },
+          "relations": {
+            "type": "boolean",
+            "description": "Whether a changed file this suite's recording did not measure, such as a file added since the run, selects the first tests that import it. Without it, it does. Set it to false for a suite whose tests import none of the code they exercise, such as an e2e suite that drives the app through a browser, and list the app's entry points in the suite's before: a file such a suite did not measure then selects nothing, and the selection names it as declined."
           }
         }
       },
       "description": "Every test suite the repository runs, by name, with its kind. Each suite records separately, and names itself with the suite option of its test runner integration. Read only from the variance.config.json at the repository root."
+    },
+    "before": {
+      "$ref": "#/$defs/before",
+      "description": "What every suite rests on before any test imports anything: a CI workflow, a `.nvmrc`. A change to any file or package an entry reaches runs every suite, and for `variance run --since`, every subject. Read only from the variance.config.json at the repository root."
     },
     "entrypoints": {
       "type": "object",
@@ -149,9 +182,37 @@
         "items": { "type": "string", "minLength": 1 }
       },
       "description": "Where each part of the repository starts, by its directory spelled from the repository root. Each pattern is relative to that directory: `*` matches within one path segment and `**` any number of segments. `variance coverage --from <dir>` counts the files these entry points import, followed through every import. Read only from the variance.config.json at the repository root."
+    },
+    "tiers": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "type": "integer", "minimum": 1 },
+      "description": "Budgets in effective lines of code (comments and blank lines excluded) over the code a package pulls in at run time, tier 0 first, each strictly smaller than the one before. A package sits in the highest-numbered tier whose budget holds it; tier 0 holds everything, so its budget labels it and does not limit it. `variance layers` prints each package's tier, and a `maxTier` entry in a `.relations.json` holds packages to one. Read only from the variance.config.json at the repository root."
+    },
+    "typescript": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "tsconfig": {
+          "anyOf": [
+            { "const": "auto" },
+            { "const": false },
+            { "type": "string", "minLength": 1 }
+          ],
+          "default": "auto",
+          "description": "The `tsconfig` whose `paths` and `customConditions` decide where an import lands in every scan. `\"auto\"` reads the nearest config that owns each file. A path from the repository root, such as `tsconfig.app.json`, reads that config and the projects it references. `false` reads no `tsconfig`: imports resolve through `package.json` alone, which suits a repository whose packages export the files they hold, or one with no TypeScript. `variance doctor` says when no `tsconfig` in the repository names `customConditions`, `paths` or `baseUrl`."
+        }
+      },
+      "description": "How scans read TypeScript's configuration. Read only from the variance.config.json at the repository root."
     }
   },
   "$defs": {
+    "before": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "type": "string", "minLength": 1 },
+      "description": "Repository-root-relative paths that nothing in a run imports. A directory claims every file under it. Each entry is walked down the file graph once, so what it loads, directly or not, and the packages those files import are before reach too. An entry the scan does not hold, such as a `.nvmrc`, contributes only its own name."
+    },
     "carry": {
       "enum": ["actions-cache", "share"],
       "description": "Who moves an artifact to the next machine. `actions-cache`: the CI host, from job to job, with the path and key `variance carry` prints. `share`: variance itself, through the `share` section, where a checkout can read it too."
@@ -206,7 +267,7 @@
           "type": "integer",
           "minimum": 0,
           "default": 20,
-          "description": "Subjects to re-collect, at most. `0` turns the pass off, which is a decision and is reported differently from a collector that cannot do it. The cap exists because a token change makes everything differ, and a tool that gets slowest exactly when the diff is largest is a tool that gets switched off on the day it mattered."
+          "description": "Subjects to re-collect, at most: the first to change in the order the run takes its subjects, so the same ones at any `workers`. `0` turns the pass off, which is a decision and is reported differently from a collector that cannot do it. The cap exists because a token change makes everything differ, and a tool that gets slowest exactly when the diff is largest is a tool that gets switched off on the day it mattered."
         }
       }
     },
@@ -298,7 +359,7 @@
           "minLength": 1,
           "description": "Directory the images live in, resolved against this file."
         },
-        "layout": { "$ref": "#/$defs/baselineLayout" },
+        "path": { "$ref": "#/$defs/baselinePath" },
         "records": {
           "type": "string",
           "minLength": 1,
@@ -327,7 +388,7 @@
           "minLength": 1,
           "description": "The `.gitattributes` pattern the images are tracked by."
         },
-        "layout": { "$ref": "#/$defs/baselineLayout" },
+        "path": { "$ref": "#/$defs/baselinePath" },
         "records": {
           "type": "string",
           "minLength": 1,
@@ -354,9 +415,11 @@
         }
       }
     },
-    "baselineLayout": {
-      "description": "How image files are arranged under `root`. `flat` is one directory per identity, for baselines kept as a corpus; `beside` puts each image in the directory holding the code it depicts, which is the placement to take when that code is in this repository. A story finds its directory through the `importPath` its built index carries; a subject named after a path finds it in its own id.",
-      "enum": ["flat", "beside"]
+    "baselinePath": {
+      "type": "string",
+      "minLength": 1,
+      "default": "{title}/{name}-{engine}",
+      "description": "Where each baseline is written under `root`, without an extension. `{title}` and `{name}` are the story's title and name, or a test's describe titles and its own title; `{file}` is the file that declares the subject and `{dir}` its directory; `{id}` is the subject id; `{engine}` is the browser engine. `{dir}/__baselines__/{file}/{name}-{engine}` keeps each image beside the code it depicts. A template names `{name}` or `{id}`. Without `{engine}`, every engine writes one file. `{project}` is refused here: it is the Playwright fixture's. Two subjects that render one path stop the run, which names both."
     },
 
     "share": {
@@ -511,12 +574,6 @@
           "type": "array",
           "minItems": 1,
           "description": "Directories components are declared in. Directories rather than globs: a glob syntax is a small language with its own bugs, and which directories hold components is answerable without one. An empty list would silently narrow a run to nothing.",
-          "items": { "type": "string", "minLength": 1 }
-        },
-        "before": {
-          "type": "array",
-          "minItems": 1,
-          "description": "Files the run rests on that nothing in it imports: the test harness config, the setup it loads, a CI workflow, a `.nvmrc`. Nothing has an edge to a config, so a walk back from one reaches no component and a diff that touches one beside a component file would narrow silently. Declared, each entry is walked down once, and the files and packages it reaches do not narrow a run. The descent stops at the first file under `dirs`, which already answers for itself. An entry the scan does not hold contributes only its own name. Needs `relations`.",
           "items": { "type": "string", "minLength": 1 }
         },
         "relations": {

@@ -389,6 +389,39 @@ pub(crate) fn join_parses(layers: &[Layer], crossings: &mut [Crossing]) {
     }
 }
 
+/// One name an `export … from` passes on: `imported` is `*` for a star, and
+/// `exported` is absent for a bare `export *`. `type_only` for `export type`
+/// and `export { type … }`, which a walk over runtime edges does not follow
+/// and every other walk does.
+pub(crate) struct Passed<'a> {
+    pub imported: &'a str,
+    pub exported: Option<&'a str>,
+    pub type_only: bool,
+}
+
+/// What the republishing request `request` of the parse at `row` passes on.
+/// It is read from the parse's exports, not the request's bindings, for the
+/// reason `uses.ts` gives. `None` when the parse never recorded its export
+/// list, which reads as the whole module.
+pub(crate) fn passed_on<'a>(layer: &'a Layer<'a>, row: usize, request: usize) -> Option<Vec<Passed<'a>>> {
+    let (text, parses) = (&layer.stored, &layer.parses);
+    if parses.exports_present[row] != 1 {
+        return None;
+    }
+    let value = text.text(parses.request_value.at(request));
+    let passed = parses
+        .exports
+        .range(row)
+        .filter(|&export| text.optional(parses.export_from.at(export)) == Some(value))
+        .map(|export| Passed {
+            imported: text.optional(parses.export_imported.at(export)).unwrap_or("*"),
+            exported: text.optional(parses.export_exported.at(export)),
+            type_only: parses.export_type[export] == 1,
+        })
+        .collect();
+    Some(passed)
+}
+
 /// The names one crossing record takes across a package line, once each per
 /// other package; `None` when its parse is not there or does not line up with
 /// its targets, which `usesByTarget` refuses in the same way.
@@ -410,19 +443,12 @@ fn units<'a>(layers: &'a [Layer<'a>], owners: &Owners, parties: &Parties, crossi
             continue;
         }
         let mut names: Vec<&str> = Vec::new();
-        if text.text(parses.request_kind.at(request)) == "reexports" {
-            // What a republishing request passes on is in the parse's exports,
-            // not its bindings, for the reason `uses.ts` gives.
-            // An export list the parse never recorded reads as the whole module.
-            if parses.exports_present[parse_row] != 1 {
-                names.push("*");
-            }
-            let value = text.text(parses.request_value.at(request));
-            let listed = if parses.exports_present[parse_row] == 1 { parses.exports.range(parse_row) } else { 0..0 };
-            for export in listed {
-                if parses.export_type[export] != 1 && text.optional(parses.export_from.at(export)) == Some(value) {
-                    names.push(text.optional(parses.export_imported.at(export)).unwrap_or("*"));
-                }
+        // The map answers a question about source, so a name passed on
+        // type-only is taken, as an `import type` binding is.
+        if parses.request_republishes[request] == 1 {
+            match passed_on(&layers[parse_layer], parse_row, request) {
+                Some(passed) => names.extend(passed.into_iter().map(|passed| passed.imported)),
+                None => names.push("*"),
             }
         } else {
             for binding in parses.request_bindings.range(request) {
@@ -435,7 +461,7 @@ fn units<'a>(layers: &'a [Layer<'a>], owners: &Owners, parties: &Parties, crossi
                 // the parse saw any; otherwise it is the whole module.
                 let before = names.len();
                 for member in parses.members.range(parse_row) {
-                    if parses.member_request.at(member) as usize == local {
+                    if parses.member_request.at(member) as usize == local && parses.member_through_default[member] == 0 {
                         names.push(text.text(parses.member_name.at(member)));
                     }
                 }

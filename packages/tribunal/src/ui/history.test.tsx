@@ -123,6 +123,15 @@ describe('churn counts approved changes and reports displacement beside them', (
     expect(markup).toContain('unknown');
     expect(markup).not.toContain('0 of 0');
   });
+
+  it('dates the last change the way the rest of the page dates things', () => {
+    const markup = renderToStaticMarkup(
+      <ChurnLine component="Toggle" churn={churn({ lastAt: '2026-10-12T23:28:42.495Z' })} />,
+    );
+
+    expect(markup).toContain('most recently 12 Oct 2026, 23:28 UTC');
+    expect(markup).not.toContain('2026-10-12T23:28');
+  });
 });
 
 describe('the changelog groups by shape and still counts what it could not group', () => {
@@ -142,7 +151,7 @@ describe('the changelog groups by shape and still counts what it could not group
     ungrouped: [
       {
         build: 'ci-8',
-        subject: 'story:ephemeral',
+        subject: 'story:unread',
         commit: 'deadbeefcafe',
         by: 'marina',
         at: '2026-08-19T09:00:00.000Z',
@@ -165,7 +174,23 @@ describe('the changelog groups by shape and still counts what it could not group
     // A changelog covering eleven of forty approvals that reads as a changelog
     // of eleven approvals is worse than none.
     expect(markup).toContain('1 approved without an attributed shape');
-    expect(markup).toContain('story:ephemeral');
+    expect(markup).toContain('story:unread');
+    // The reason is what the run read, not its retention: an ephemeral run whose
+    // collector gave a snapshot attributes its regions like any other.
+    expect(markup).toContain('because the run read no markup for the subject');
+    expect(markup).not.toContain('ephemeral');
+  });
+
+  it('opens on the unattributed approvals when no shape grouped any, with no list above them', () => {
+    // An empty list of changes is not a section, and the rule that parts the two
+    // lists drew a line under nothing at the top of the page.
+    const markup = renderToStaticMarkup(<ChangelogEntries log={{ changes: [], ungrouped: log.ungrouped }} />);
+
+    expect(markup).toContain('1 approved without an attributed shape');
+    expect(markup).not.toContain('va-changes');
+    // With both lists, the section sits right after the list, where
+    // `.va-changes + .va-ungrouped` draws the divider.
+    expect(renderToStaticMarkup(<ChangelogEntries log={log} />)).toContain('</ol><section class="va-ungrouped">');
   });
 
   it('says nothing has been approved rather than rendering an empty list', () => {

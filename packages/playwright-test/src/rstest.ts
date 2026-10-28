@@ -91,7 +91,10 @@ export function runOf(context: RstestContext): VarianceRun {
     // rather than carried.
     ...(state?.currentTestName === undefined
       ? {}
-      : { id: state.currentTestName.split(' > ').join('/') }),
+      : {
+          id: state.currentTestName.split(' > ').join('/'),
+          titlePath: state.currentTestName.split(' > '),
+        }),
     colorScheme: options?.colorScheme === 'dark' ? 'dark' : 'light',
     deviceScaleFactor: options?.deviceScaleFactor ?? 1,
     ...(baseURL === undefined ? {} : { baseURL }),

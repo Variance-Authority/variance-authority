@@ -1,7 +1,9 @@
 import {
   coveringTests,
   coveringTestsInFile,
+  functionsUnder,
   ranWhileLoading,
+  unenteredSentence,
   type CoveringTest,
   type ExecutionIndex,
 } from '@variance-authority/sense/test-selection';
@@ -20,7 +22,7 @@ export const sourceTests: Tool<ExecutionIndex> = {
     properties: {
       file: { type: 'string', description: 'Repository-relative source file.' },
       line: { type: 'integer', minimum: 1, description: 'Optional one-based source line.' },
-      function: { type: 'string', description: 'Optional exact indexed function name.' },
+      function: { type: 'string', description: 'Optional recorded function name, as `Cart/total`, or a scope such as a class, `Cart`, answered for every recorded function under it.' },
     },
     required: ['file'],
     additionalProperties: false,
@@ -42,9 +44,7 @@ export const sourceTests: Tool<ExecutionIndex> = {
       return focused(file, `line ${line}`, coveringTests(index, { file, line }), ranWhileLoading(index, { file, line }));
     }
     if (functionName !== undefined) {
-      if (!module.blocks.some((block) =>
-        block.source && block.kind === 'function' && block.name === functionName,
-      )) return `Function ${functionName} is not indexed in ${file}.`;
+      if (functionsUnder(module.blocks, functionName).length === 0) return `Function ${functionName} is not indexed in ${file}.`;
       const target = { file, function: functionName };
       return focused(file, `function ${functionName}`, coveringTests(index, target), ranWhileLoading(index, target));
     }
@@ -102,6 +102,10 @@ function wholeFile(index: ExecutionIndex, file: string): string {
       ? [range.loaded === true ? '  no named test called into this range' : '  no named test reached this range']
       : range.tests.map((test) => `  ${formatTest(test)}`)));
     if (range.loaded === true) lines.push('  ran while its module evaluated');
+    // The range's cases are the ones an edit to its lines selects; a region with no line of its own would read as theirs.
+    for (const region of range.unentered ?? []) {
+      lines.push(`  ${unenteredSentence(region)}`);
+    }
   }
   if (ranges.some((range) => range.loaded === true)) lines.push(UNNAMED_LOADERS);
   return lines.join('\n');

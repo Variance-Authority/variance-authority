@@ -10,10 +10,10 @@
  * A test file is every case of that file.
  */
 
-import { readFile } from 'node:fs/promises';
 import { relative, resolve } from 'node:path';
 import {
-  caseLayerFiles,
+  caseSectionsAt,
+  lastCaseRunOf,
   type ExecutionIndex,
   type LastCaseRun,
 } from '@variance-authority/sense/test-selection';
@@ -21,7 +21,7 @@ import { OperatorError } from '../exit.js';
 
 /** Which cases an answer was read from, when it was not the whole suite. */
 export interface CoveringScope {
-  /** What was asked: `last`, or the test file as the index spells it. */
+  /** What was asked: `last`, or the test file, named from the repository root. */
   readonly cases: string;
   /** The ids of the cases the answer was read from. */
   readonly tests: readonly string[];
@@ -37,7 +37,7 @@ export async function scopeCases(
   root: string,
 ): Promise<{ readonly index: ExecutionIndex; readonly scope: CoveringScope }> {
   if (cases === 'last') {
-    const last = await lastRun(from);
+    const last = lastRun(from);
     return {
       index: keepCases(index, new Set(last.cases)),
       scope: { cases, tests: last.cases, ...(last.commit === undefined ? {} : { at: last.commit }) },
@@ -78,32 +78,29 @@ export function keepCases(index: ExecutionIndex, ids: ReadonlySet<string>): Exec
   };
 }
 
-async function lastRun(from: string): Promise<LastCaseRun> {
-  const file = caseLayerFiles(from).last;
+function lastRun(from: string): LastCaseRun {
+  let last: LastCaseRun | undefined;
   try {
-    return JSON.parse(await readFile(file, 'utf8')) as LastCaseRun;
+    last = lastCaseRunOf(caseSectionsAt(from));
   } catch (error) {
     throw new OperatorError(
-      `\`--cases last\` reads the run that wrote the index last from \`${file}\`, and it could not be read (${
+      `\`--cases last\` reads the run that wrote the index last from the record \`${from}\`, and it could not be read (${
         error instanceof Error ? error.message : String(error)
-      }). A run records it beside the index; run a test file and ask again.`,
+      }).`,
     );
   }
+  if (last !== undefined) return last;
+  throw new OperatorError(
+    `\`--cases last\` reads the run that wrote the index last from the record \`${from}\`, and it names none, ` +
+      'so which of its cases the last run wrote is not recorded. Without `--cases`, the answer reads every case the record holds.',
+  );
 }
 
-/** The test file as the index spells it, whether it was given that way or from here. */
+/** The test file named from the repository root, whether it was given that way or from here. */
 function testFile(index: ExecutionIndex, given: string, root: string): string {
   const files = new Set(index.tests.map((test) => test.file));
   if (files.has(given)) return given;
   const fromRoot = relative(root, resolve(given));
   if (files.has(fromRoot)) return fromRoot;
-  const tail = given.slice(given.lastIndexOf('/') + 1);
-  const near = [...files].filter((file) => file.endsWith(`/${tail}`) || file === tail).sort().slice(0, 3);
-  throw new OperatorError(
-    `\`--cases ${given}\` names no test file the index holds a case of. ${
-      near.length === 0
-        ? `Nothing recorded ends in \`${tail}\`.`
-        : `The record spells it ${near.map((file) => `\`${file}\``).join(', ')}.`
-    }`,
-  );
+  throw new OperatorError(`\`--cases ${given}\` names no test file the index holds a case of.`);
 }

@@ -4,7 +4,6 @@ import {
   excludedBoxes,
   isolateRegions,
   subtractRegions,
-  type AttributedRegion,
   type DiffRegion,
   type Isolation,
 } from '@variance-authority/core/attribute';
@@ -12,8 +11,9 @@ import { mergeDiagnostics, type Pictured, type Raster } from '@variance-authorit
 import { absorbsEntirely, relaxes, fingerprintOfMask } from '@variance-authority/core/judge';
 import type { SemanticSnapshot } from '@variance-authority/core/format';
 import { compareRasters } from '@variance-authority/png';
-import type { RasterComparison } from '@variance-authority/raster';
 import { attributionOf } from './attribution.js';
+import { count, describeChange, forgiveness, reshaped, unjoined, unrecorded, type BeforeSide } from './because.js';
+import { unpackSnapshot } from './packed.js';
 import { frameDiagnostics } from './frame.js';
 import type { CompareInputs, IgnoredPixels, Observation } from './observe.js';
 
@@ -39,6 +39,10 @@ import type { CompareInputs, IgnoredPixels, Observation } from './observe.js';
  * a pair the caller has already established is comparable — which includes both
  * having been photographed. A subject with no pixels never arrives here, and
  * `unpictured.ts` is the entry point that decides which of the two this is.
+ *
+ * `beforeIs` says what the before side is, so a sentence about it can name it:
+ * a stored baseline, which accepting again rewrites, or an image the caller
+ * handed in.
  */
 export async function decide(
   subject: string,
@@ -46,10 +50,12 @@ export async function decide(
   after: Pictured,
   rendered: boolean,
   options: CompareInputs,
+  beforeIs: BeforeSide,
 ): Promise<Observation> {
   const comparison = await compareRasters(before, after, {
     ...options.compare,
     ...(options.decoder !== undefined ? { decoder: options.decoder } : {}),
+    ...(options.steps !== undefined ? { steps: options.steps } : {}),
   });
   const missingFonts = [...new Set([...before.missingFonts, ...after.missingFonts])];
 
@@ -84,32 +90,25 @@ export async function decide(
   const remaining = subtraction.mask.changed;
   const documentMoved = before.documentDigest !== after.documentDigest;
   const accessibility = accessibilityBetween(before, after);
-  const pixelsMoved = remaining > 0 || comparison.dimensionsChanged;
+  // Rows that moved are pixels that moved, even where each matches the row it
+  // came from: the alignment keeps the shift out of the mask and says so here.
+  const moved = reshaped(comparison);
+  const pixelsMoved = remaining > 0 || moved;
+  // The before side's tree, for the region join. Asked only when this run has a
+  // tree of its own: without one there is nothing to join, and nothing an
+  // accepting run could record in its place.
+  const left = options.snapshot === undefined ? undefined : unpackSnapshot(before.snapshot);
   const signals = {
     document: documentMoved ? ('changed' as const) : ('unchanged' as const),
     pixels: pixelsMoved ? ('changed' as const) : ('unchanged' as const),
     ...(accessibility === undefined ? {} : { accessibility }),
+    // A stored baseline only: an image handed in is nobody's to re-stamp.
+    ...(beforeIs === 'baseline' && options.snapshot !== undefined && left === undefined
+      ? { snapshot: 'unrecorded' as const }
+      : {}),
   };
-
-  if (accessibility?.verdict === 'incomparable') {
-    return {
-      subject,
-      verdict: 'incomparable',
-      because:
-        accessibility.before === undefined
-          ? 'the baseline has no browser accessibility snapshot, so this run cannot call the accessibility boundary unchanged'
-          : accessibility.after === undefined
-            ? 'this run did not capture a browser accessibility snapshot, so it cannot compare the baseline accessibility boundary'
-            : 'the two browser accessibility snapshots were produced by different engines or formats',
-      comparison,
-      regions: [],
-      rendered,
-      missingFonts,
-      signals,
-      ...attribution,
-      ...diagnosticsField,
-    };
-  }
+  // Said on every verdict the mark is set on, so the sentence explains the render.
+  const short = signals.snapshot === undefined ? '' : unrecorded();
 
   const byRule: Record<string, number> = {};
   for (const [index, box] of boxes.entries()) {
@@ -148,18 +147,18 @@ export async function decide(
   // It cannot run before the exclusion subtraction above, because a subject may
   // be both relaxed and masked, and the ignore register's numbers are computed
   // there. It runs after, so both accounts are complete.
-  const relaxed = relaxedVerdict(options, before, after);
+  const relaxed = relaxedVerdict(options, before, after, forgiveness(comparison, options));
 
   if (
     relaxed !== null &&
     remaining > 0 &&
-    !comparison.dimensionsChanged &&
+    !moved &&
     accessibility?.verdict !== 'changed'
   ) {
     return {
       subject,
       verdict: 'ignored',
-      because: relaxed.because,
+      because: relaxed.because + short,
       relaxed: relaxed.relaxed,
       comparison,
       regions: [],
@@ -177,7 +176,7 @@ export async function decide(
   // Shape ignores cannot apply here, because there is no region to fingerprint.
   if (
     remaining === 0 &&
-    !comparison.dimensionsChanged &&
+    !moved &&
     accessibility?.verdict !== 'changed'
   ) {
     // Two green verdicts, never one. `unchanged` is a fact about the render;
@@ -185,17 +184,18 @@ export async function decide(
     // the second into the first is the failure the whole mechanism is written
     // around — a suite could then never be asked how much of its green it earned.
     const wasIgnored = subtraction.ignored > 0;
+    const beyond = forgiveness(comparison, options);
 
     return {
       subject,
       verdict: wasIgnored ? 'ignored' : 'unchanged',
-      because: wasIgnored
+      because: (wasIgnored
         ? `${count(subtraction.ignored, 'pixel')} differ and all of them fall inside ` +
-          `${count(boxes.length, 'excluded region')}; nothing outside them moved`
+          `${count(boxes.length, 'excluded region')}; nothing outside them moved${beyond}`
         : missingFonts.length > 0
-          ? `no pixels differ, but the renderer lacked ${missingFonts.join(', ')} on both sides, ` +
-            'so both images are of a substituted font'
-          : 'no pixels differ',
+          ? `no pixels differ${beyond}, but the renderer lacked ${missingFonts.join(', ')} ` +
+            'on both sides, so both images are of a substituted font'
+          : `no pixels differ${beyond}`) + short,
       comparison,
       regions: [],
       rendered,
@@ -212,11 +212,16 @@ export async function decide(
   // before/after ARIA snapshots are the evidence. Document movement remains a
   // named signal, but is not itself a raster verdict: reconstruction inputs can
   // differ while both independently observed outputs agree.
-  if (remaining === 0 && !comparison.dimensionsChanged) {
+  if (remaining === 0 && !moved) {
     return {
       subject,
       verdict: 'changed',
-      because: 'the browser accessibility tree changed while no pixels changed',
+      because:
+        (accessibility?.before === undefined
+          ? 'the baseline has no browser accessibility snapshot and this run captured one, while no pixels changed'
+          : accessibility.after === undefined
+            ? 'this run captured no browser accessibility snapshot where the baseline has one, while no pixels changed'
+            : 'the browser accessibility tree changed while no pixels changed') + short,
       comparison,
       regions: [],
       rendered,
@@ -268,7 +273,7 @@ export async function decide(
 
   if (
     outstanding === 0 &&
-    !comparison.dimensionsChanged &&
+    !moved &&
     accessibility?.verdict !== 'changed'
   ) {
     return {
@@ -276,7 +281,7 @@ export async function decide(
       verdict: 'ignored',
       because:
         `${count(absorbed, 'pixel')} differ and every one of them was absorbed by an ignore; ` +
-        'nothing else moved',
+        `nothing else moved${forgiveness(comparison, options)}${short}`,
       comparison,
       regions: [],
       rendered,
@@ -295,6 +300,8 @@ export async function decide(
       ? []
       : attributeRegions(isolation.regions, options.snapshot, {
           scale: after.identity.deviceScaleFactor,
+          before: left,
+          ...(comparison.alignment === undefined ? {} : { inserted: comparison.alignment.inserted }),
         })
   ).map((attributed) => {
     const fingerprint = prints.get(attributed.region);
@@ -306,7 +313,8 @@ export async function decide(
     verdict: 'changed',
     because:
       describeChange(comparison, isolation, regions, outstanding) +
-      (absorbed > 0 ? `, with ${absorbed}px absorbed by an ignore` : ''),
+      (absorbed > 0 ? `, with ${absorbed}px absorbed by an ignore` : '') +
+      (regions.length > 0 && left === undefined ? unjoined(beforeIs) : short),
     comparison,
     isolation,
     regions,
@@ -326,27 +334,28 @@ export function accessibilityBetween(
   const left = before.accessibility;
   const right = after.accessibility;
   if (left === undefined && right === undefined) return undefined;
+  // Evidence on one side only is a change in what the subject is recorded as,
+  // never an empty tree: accepting it gives the axis its baseline.
   if (left === undefined || right === undefined) {
     return {
-      verdict: 'incomparable',
+      verdict: 'changed',
       ...(left === undefined ? {} : { before: left }),
       ...(right === undefined ? {} : { after: right }),
     };
   }
-  if (left.producer !== right.producer || left.engine !== right.engine) {
-    return { verdict: 'incomparable', before: left, after: right };
-  }
-  return {
-    verdict: left.digest === right.digest ? 'unchanged' : 'changed',
-    before: left,
-    after: right,
-  };
+  // The digest covers the producer and the engine, so trees from two engines
+  // are compared by what they expose; the engine that moved is the cause.
+  const same =
+    left.digest === right.digest ||
+    (left.roots.length === right.roots.length &&
+      left.roots.every((root, index) => root === right.roots[index]));
+  return { verdict: same ? 'unchanged' : 'changed', before: left, after: right };
 }
 
 /**
  * What the snapshot declared, before anything was compared.
  *
- * Every path that returns before a comparison — `new`, `incomparable`, and the
+ * Every path that returns before a comparison — `new` and the
  * settlement that answers from a digest — still has an operator's exclusions on
  * its snapshot, and used to report none. The run-level ledger derives "this rule
  * resolved nowhere" from the absence, so a fresh checkout with no baselines told
@@ -375,48 +384,6 @@ export function declaredIgnores(
 }
 
 /**
- * `1 pixel`, `8,818 pixels` — a quantity, rather than a template with the plural
- * left for the reader to apply.
- *
- * These sentences are the `because` a person reads on a review page beside the
- * render they are about, and `8818 pixel(s) differ across 2 region(s)` reads as
- * output rather than as a finding. Grouped, because six digits of pixels is not a
- * number anybody parses as a magnitude on sight.
- */
-function count(value: number, noun: string): string {
-  return `${value.toLocaleString('en-US')} ${noun}${value === 1 ? '' : 's'}`;
-}
-
-function describeChange(
-  comparison: RasterComparison,
-  isolation: Isolation,
-  regions: readonly AttributedRegion[],
-  changed: number,
-): string {
-  const size = comparison.dimensionsChanged
-    ? `, and the subject resized from ${comparison.before.width}×${comparison.before.height} ` +
-      `to ${comparison.after.width}×${comparison.after.height}`
-    : '';
-
-  const named = [...new Set(regions.map((region) => region.component).filter(Boolean))];
-  const where =
-    named.length > 0
-      ? ` in ${named.slice(0, 3).join(', ')}${named.length > 3 ? ` (+${named.length - 3} more)` : ''}`
-      : '';
-
-  const capped =
-    isolation.truncated > 0
-      ? ` (+${count(isolation.truncated, 'smaller region')} not listed, ` +
-        `${isolation.truncatedPixels.toLocaleString('en-US')}px)`
-      : '';
-
-  return (
-    `${count(changed, 'pixel')} differ across ` +
-    `${count(isolation.regions.length, 'region')}${where}${size}${capped}`
-  );
-}
-
-/**
  * Whether a declared sensitivity absorbs this subject entirely, and why.
  *
  * `null` for every reason not to absorb, and they are not the same reason:
@@ -438,6 +405,7 @@ function relaxedVerdict(
   options: CompareInputs,
   before: Raster,
   after: Raster,
+  beyond: string,
 ): { readonly because: string; readonly relaxed: NonNullable<Observation['relaxed']> } | null {
   const rule = options.sensitivity;
   if (rule === undefined || rule.level === 'strict') return null;
@@ -450,7 +418,7 @@ function relaxedVerdict(
 
   return {
     because:
-      `pixels differ, and every band that moved (${absorbed.join(', ')}) is one this subject ` +
+      `pixels differ${beyond}, and every band that moved (${absorbed.join(', ')}) is one this subject ` +
       `is not asserted on: \`${rule.rule}\` declares it asserts on ${rule.level} — ${rule.reason}`,
     relaxed: { rule: rule.rule, level: rule.level, bands: absorbed },
   };

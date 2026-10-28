@@ -34,9 +34,11 @@ detection.
 3. A clean pull request posts **nothing**, and the absence is observed rather
    than assumed. A bot that comments on every green build teaches the team to
    filter it out, and the filter does not distinguish the clean ones.
-4. The commit-back runs once on a branch where accepting is correct, and its
-   three refusals are each provoked: no baselines to commit, no head branch, and
-   a workspace on a detached merge ref.
+4. The commit-back runs once on a pull request's branch where accepting is
+   correct, and its three refusals are each provoked: no baselines to commit, no
+   head branch, and a workspace on a detached merge ref. The `lfs` job of
+   `variance.yml` runs the commit-back onto a pull request's branch when its
+   label is added; no refusal has been met.
 
 **Then the second platform, on its own terms.** The Bitbucket recipe in
 [`packages/cli/README.md`](../../packages/cli/README.md#run-it-in-ci)
@@ -53,7 +55,9 @@ and running it is cheaper than the paragraph explaining why it is not.
   only, and writes one line to stderr saying it did. A job whose browser never
   launched observed nothing, and `|| true` would post a green tick over it.
 - **`accept --all` does not belong in an unattended job** until
-  [spec 0023](0023-accept-tells-new-from-changed.md) lands.
+  [spec 0023](0023-accept-tells-new-from-changed.md) lands. A schedule is
+  unattended. A label, a dispatch and a push to `main` are not: each is
+  somebody's act, made where the report could be read first.
 
 ## Leaves behind
 

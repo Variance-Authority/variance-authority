@@ -6,12 +6,16 @@ import {
   nodeAt,
   nodesOfKind,
   relationsOfFiles,
+  trailOf,
+  type EdgeKind,
   type FileRecord,
+  type Traversal,
   type NodeId,
   type Relations,
 } from '@variance-authority/core/relate';
 import { relative } from 'node:path';
 import { costsFrom } from './hops.js';
+import { namesOf, type FileNames, type SourceNames } from './names.js';
 
 /**
  * The source tree, as the one thing allowed to say whether a path exists.
@@ -46,10 +50,9 @@ import { costsFrom } from './hops.js';
  * subject rendered carries the answer upward — a leaf in scope brings in every
  * subject recorded as having rendered it, which no import arrow could say.
  *
- * Every edge kind is walked, `type` included. The default traversal leaves type
- * imports out because nothing behind one can *run* — but a reader asking where
- * something lives is asking about source, and a type a component imports is a
- * file in its neighbourhood by any reading a person would recognise.
+ * Every edge kind is walked, `type` included: a reader asking where something
+ * lives is asking about source, and a type a component imports is a file in its
+ * neighbourhood by any reading a person would recognise.
  */
 
 /** The scanned tree, and the two questions a start point asks of it. */
@@ -103,6 +106,35 @@ export interface Tree {
   hopsFrom(seeds: Iterable<string>): ReadonlyMap<string, number>;
   /** The same quantity against the arrows, for the `to` direction. */
   hopsTo(seeds: Iterable<string>): ReadonlyMap<string, number>;
+  /**
+   * The walk {@link Tree.distanceTo} answers, kept so each file it reached can
+   * say how: one shortest chain of imports from that file to a seed.
+   *
+   * The same breadth-first search, read twice — once for the distances and
+   * once, per file asked, back along its parent pointers. A chain costs its
+   * length, so a caller that shows ten rows of a walk that reached a hundred
+   * thousand files pays for ten chains.
+   */
+  chainsTo(seeds: Iterable<string>): Chains;
+}
+
+/** What rests on a set of files, and the evidence for each. */
+export interface Chains {
+  /** Every file reached against the imports, seeds at zero, in code-unit order. */
+  readonly distance: ReadonlyMap<string, number>;
+  /**
+   * One shortest chain from `file` to a seed: `file` first, the seed last, and
+   * on every step but the last the kind of the import it takes to the next.
+   * The same chain on every call. Empty for a file the walk did not reach.
+   */
+  chain(file: string): readonly Link[];
+}
+
+/** One file on a chain, and the import it takes towards the seed. */
+export interface Link {
+  readonly file: string;
+  /** Absent on the seed, which imports nothing further along the chain. */
+  readonly kind?: EdgeKind;
 }
 
 /**
@@ -148,6 +180,7 @@ export function treeFromRelations(
     unknownAmong: (among) => unknownAmong(relations, among),
     hopsFrom: (seeds) => costsFrom(relations, idsOf(relations, seeds), relations.depends, packages),
     hopsTo: (seeds) => costsFrom(relations, idsOf(relations, seeds), relations.dependents, packages, true),
+    chainsTo: (seeds) => chainsTo(relations, seeds),
   };
 }
 
@@ -172,6 +205,7 @@ export function treeAtWorkspace(tree: Tree, workspace: string): Tree {
     unknownAmong: (values) => tree.unknownAmong(values),
     hopsFrom: (values) => tree.hopsFrom(seeds(values)),
     hopsTo: (values) => tree.hopsTo(seeds(values)),
+    chainsTo: (values) => tree.chainsTo(seeds(values)),
   };
 }
 
@@ -181,7 +215,44 @@ function distances(
   seeds: Iterable<string>,
   direction: Direction,
 ): ReadonlyMap<string, number> {
-  const traversal = direction(relations, idsOf(relations, seeds), { through: EDGE_KINDS });
+  return depthsOf(relations, direction(relations, idsOf(relations, seeds), { through: EDGE_KINDS }));
+}
+
+function chainsTo(relations: Relations, seeds: Iterable<string>): Chains {
+  const traversal = dependentsOf(relations, idsOf(relations, seeds), { through: EDGE_KINDS });
+  return {
+    distance: depthsOf(relations, traversal),
+    chain(file) {
+      const id = idOf(relations, 'file', file);
+      if (id === undefined) return [];
+      // The trail runs seed first; a chain is read from the file that reaches.
+      const trail = [...trailOf(traversal, id)].reverse();
+      return trail.map((at, step) =>
+        step === trail.length - 1
+          ? { file: relations.names[at]! }
+          : { file: relations.names[at]!, kind: importKind(relations, at, trail[step + 1]!) },
+      );
+    },
+  };
+}
+
+/**
+ * The kind of the import `from` makes of `to`. A file that imports another
+ * both ways is said by the import that runs: the type one is the weaker claim.
+ */
+function importKind(relations: Relations, from: NodeId, to: NodeId): EdgeKind {
+  const { offset, target, kind } = relations.depends;
+  let found: EdgeKind | undefined;
+  for (let at = offset[from]!; at < offset[from + 1]!; at += 1) {
+    if (target[at] !== to) continue;
+    const held = EDGE_KINDS[kind[at]!]!;
+    if (held !== 'type') return held;
+    found = held;
+  }
+  return found!;
+}
+
+function depthsOf(relations: Relations, traversal: Traversal): ReadonlyMap<string, number> {
   const depths = new Int32Array(relations.names.length).fill(-1);
   const found = new Map<string, number>();
 
@@ -268,6 +339,13 @@ export interface TreeOptions {
    * run pays a map lookup per unchanged file rather than a parse.
    */
   readonly index?: string;
+  /**
+   * Receives every file's names, read off the parses that drew the tree, once
+   * the scan is done. Asked for only by a question that names a name: holding
+   * them costs a map the size of the tree, which a question about paths would
+   * pay for nothing.
+   */
+  readonly names?: (names: SourceNames) => void;
 }
 
 /**
@@ -292,12 +370,21 @@ export async function readTree(options: TreeOptions): Promise<Tree> {
   }
 
   const source = options.index === undefined ? undefined : await scanner.openSourceIndex(options.index);
+  const names = options.names === undefined ? undefined : new Map<string, FileNames>();
   const records = await scanner.scanRelations({
     root: options.root,
     dirs: options.dirs ?? ['.'],
     ...(source === undefined ? {} : { cache: source.cache, reuse: source.reuse }),
+    ...(names === undefined ? {} : {
+      // A parse that holds no declarations is left out of the names, which
+      // counts its file as unread rather than declaring nothing.
+      indexed: (file, parsed, targets) => {
+        if (parsed.harvested === true) names.set(file, namesOf(parsed, targets));
+      },
+    }),
   });
   await source?.save();
+  if (names !== undefined) options.names?.(names);
 
   return treeOf(records, options.root);
 }

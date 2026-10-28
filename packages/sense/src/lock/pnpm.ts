@@ -7,13 +7,73 @@
  * combination appended — `vite@5.4.0(@types/node@20.14.9)` — and it is where the
  * dependencies live. `importers:` is the workspace, and belongs to the file
  * graph rather than to this one.
+ *
+ * A pnpm that pins itself writes the file as two YAML documents, and the split
+ * is pnpm's own (`lockfile/fs`, `yamlDocuments`): a file that opens on `---`
+ * holds an **environment** document up to the first `\n---\n`, and the lockfile
+ * of the install after it. The environment is a lockfile of the same version
+ * and shape whose one importer lists `configDependencies` and
+ * `packageManagerDependencies` — pnpm itself and what its configuration loads.
+ * Both are read into one answer: a package the environment installs is a
+ * package that moved when it moves, and no source file importing it means it
+ * selects nothing, which is the true answer rather than a silent one.
  */
 
 import { Packages, packageNameOf, withoutPeers, type Lockfile } from './lockfile.js';
 import { mapAt, readYaml, textAt, Unreadable, unquoted, type YamlMap } from './yaml.js';
 
+/** pnpm's own markers: a file opening on the first, and the one between two documents. */
+const DOCUMENT_START = '---\n';
+const DOCUMENT_SEPARATOR = '\n---\n';
+
 export function readPnpm(text: string): Lockfile {
-  const root = readYaml(text);
+  const packages = new Packages();
+
+  for (const document of documentsOf(text)) {
+    readDocument(readYaml(document.text, document.firstLine), document.name, packages);
+  }
+
+  return packages.done('pnpm');
+}
+
+interface Document {
+  /** How a refusal names it. */
+  readonly name: string;
+  readonly text: string;
+  /** The line of the file its text starts on. */
+  readonly firstLine: number;
+}
+
+/**
+ * The documents of the file, the way pnpm splits them: the byte order mark and
+ * CRLF line ends a Windows checkout adds are dropped first, as pnpm drops them.
+ */
+function documentsOf(raw: string): readonly Document[] {
+  const text = (raw.startsWith('﻿') ? raw.slice(1) : raw).replaceAll('\r\n', '\n');
+  if (!text.startsWith(DOCUMENT_START)) return [{ name: 'pnpm-lock.yaml', text, firstLine: 1 }];
+
+  const separator = text.indexOf(DOCUMENT_SEPARATOR, DOCUMENT_START.length);
+  if (separator === -1) {
+    // pnpm reads this as a project with no lockfile at all, so there is no
+    // install here to compare.
+    throw new Unreadable('pnpm-lock.yaml holds no lockfile after its environment document');
+  }
+
+  const environment = text.slice(DOCUMENT_START.length, separator);
+  const install = text.slice(separator + DOCUMENT_SEPARATOR.length);
+  return [
+    { name: "pnpm-lock.yaml's environment document", text: environment, firstLine: 2 },
+    { name: 'pnpm-lock.yaml', text: install, firstLine: 4 + lineCount(environment) },
+  ];
+}
+
+function lineCount(text: string): number {
+  let count = 0;
+  for (let at = text.indexOf('\n'); at !== -1; at = text.indexOf('\n', at + 1)) count += 1;
+  return count;
+}
+
+function readDocument(root: YamlMap, name: string, packages: Packages): void {
   const version = unquoted(textAt(root, 'lockfileVersion') ?? '');
 
   // Only the major is checked. pnpm writes `'9.0'` and has bumped the minor for
@@ -21,12 +81,11 @@ export function readPnpm(text: string): Lockfile {
   // run a whole suite.
   if (!version.startsWith('9')) {
     throw new Unreadable(
-      `pnpm-lock.yaml declares lockfileVersion ${version === '' ? '(absent)' : version}, and ` +
+      `${name} declares lockfileVersion ${version === '' ? '(absent)' : version}, and ` +
         'this reader reads 9',
     );
   }
 
-  const packages = new Packages();
   const resolutions = mapAt(root, 'packages') ?? new Map();
 
   for (const [key, entry] of resolutions) {
@@ -49,8 +108,6 @@ export function readPnpm(text: string): Lockfile {
       for (const to of on.keys()) packages.depend(name, packageNameOf(withoutPeers(to)));
     }
   }
-
-  return packages.done('pnpm');
 }
 
 /**

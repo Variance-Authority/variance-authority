@@ -19,9 +19,10 @@ Read [`src/spec/cart.spec.mjs`](src/spec/cart.spec.mjs) and you can check it:
 One thing is not free, and it is in the config rather than the spec.
 [`src/playwright.config.mjs`](src/playwright.config.mjs) pins `colorScheme`,
 `deviceScaleFactor` and `viewport`, and adds `CHROMIUM_RASTER_ARGS`
-(`--disable-lcd-text`, `--font-render-hinting=none`) to `launchOptions`. Those
-are the inputs a raster is only reproducible across runs if you hold still; a
-suite that has never screenshotted anything will not already have them set.
+(`--disable-lcd-text`, `--font-render-hinting=none`, `--disable-partial-raster`)
+to `launchOptions`. Those are the inputs a raster is only reproducible across
+runs if you hold still; a suite that has never screenshotted anything will not
+already have them set.
 
 ## Files
 
@@ -51,7 +52,7 @@ passing.
 A **subject id** is one named UI state you asked for and can ask for again —
 here `cart/empty`, passed as `subjectId`. A **baseline** is the last image of that
 subject you approved; later runs compare against it. A **verdict** is what the
-comparison returned: `unchanged`, `changed`, `new`, `incomparable`.
+comparison returned: `unchanged`, `changed`, `new`, `ignored`.
 
 ## What you see
 
@@ -98,15 +99,16 @@ Running 1 test using 1 worker
   1 passed (4.3s)
 ```
 
-The baseline directory now holds the image, its metadata, and the document the
-pixels were rendered from, under a key for the renderer identity:
+The baseline directory now holds the image and its metadata, named for the
+subject and the engine:
 
 ```
-v1:09e74320ec70c26d7a5e40add47c455f/cart%2Fempty.png
-v1:09e74320ec70c26d7a5e40add47c455f/cart%2Fempty.json
-v1:09e74320ec70c26d7a5e40add47c455f/by-document/v1:501aa7bb8b17ac7bfcdb4312b4f93b1e.png
-v1:09e74320ec70c26d7a5e40add47c455f/by-document/v1:501aa7bb8b17ac7bfcdb4312b4f93b1e.json
+cart/empty-chromium.png
+cart/empty-chromium.json
 ```
+
+The image the run painted from the document is in `renders/` in the checkout's
+cache, outside the baseline directory.
 
 The outer Vitest file asserts exactly that sequence: exit 1, then exit 0 under
 the flag, then exit 0 with `1 passed`.

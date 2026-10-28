@@ -13,7 +13,10 @@
  * implementation rather than a copy each.
  */
 
+import { vitestCutSource } from './case-cut.js';
+import { runnerHelpersSource } from './runner-helpers-source.js';
 import { CASE_SCOPE } from './cases.js';
+import { scopeGlobalsSource } from './precondition-source.js';
 import { EXECUTION_GLOBAL, executionCollectorSource } from './probes.js';
 import type { InstrumentMode } from '../instrument/index.js';
 
@@ -69,6 +72,10 @@ export interface SetupShim {
   readonly continuations?: boolean;
   /** Where each case's story goes, when the run asked for stories. */
   readonly story?: string | undefined;
+  /** The checkout the record names files against; given, the case scope keeps Eyes journals. */
+  readonly root?: string;
+  /** `false` keeps one bucket for the file and no case scope or frame: a run under `loads`. */
+  readonly cases?: boolean;
 }
 
 export function setupSource(
@@ -81,18 +88,16 @@ import { afterAll, beforeAll, expect } from ${JSON.stringify(shim.runner ?? 'vit
 import { mkdir, writeFile } from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
 import { createRequire } from 'node:module';
-const journalFormat = createRequire(${JSON.stringify(HERE)})('./journal-format.cjs');
-const collector = createRequire(${JSON.stringify(HERE)})('./collectors.cjs').scoped(globalThis, ${
-    shim.continuations === true
-  }, ${
-    shim.story === undefined
-      ? 'undefined'
-      : `createRequire(${JSON.stringify(HERE)})('../story/format.cjs').storyWriter(${JSON.stringify(shim.story)})`
-  });
+const senseRequire = createRequire(${JSON.stringify(HERE)});
+const journalFormat = senseRequire('./journal-format.cjs');
+const collector = ${shim.cases === false ? `senseRequire('./collectors.cjs').flat(globalThis)` : `senseRequire('./collectors.cjs').scoped(
+  globalThis, ${shim.continuations === true}, ${shim.story === undefined
+    ? 'undefined'
+    : `senseRequire('../story/format.cjs').storyWriter(${JSON.stringify(shim.story)})`}, ${shim.root === undefined ? 'undefined' : JSON.stringify(shim.root)})`};
 const seal = (testFile) => collector.seal(testFile);
 const finish = (testFile) => collector.finish(testFile);
 const runaways = () => collector.runaways();
-${shim.scope ?? ''}
+${shim.cases === false ? '' : shim.scope ?? ''}
 // What had run before the file's first test. The file is collected — its
 // imports evaluated, its top level run — before any hook runs, so a function
 // counted here ran as a consequence of loading, not of a test. Read off the
@@ -149,6 +154,7 @@ export const BROWSER_JOURNAL = 'varianceAuthority';
  * collector keeps it: the drain is always the realm's own.
  */
 export function browserSetupSource(mode?: InstrumentMode, runner = 'vitest'): string {
+  // FIXME: Vitest is the default runner of a runner-neutral file; the caller names it (No runner is the default).
   return `
 import { afterAll, beforeAll } from ${JSON.stringify(runner)};
 {${executionCollectorSource(mode)}}
@@ -211,11 +217,14 @@ export function caseWriterSource(caseDirectory: string): string {
  * through the serializer is credited with what it called.
  *
  * @param runner How this module should spell `@vitest/runner`, and its `utils`
- * entry. The runner is a file in the project root, and `@vitest/runner` is a
- * dependency of Vitest rather than of the project — under a node_modules layout
- * that does not hoist, a bare specifier there resolves to nothing and every
- * test file fails to load. The caller resolves it; see `runnerImport` in
- * [`vitest.ts`](./vitest.ts). `recording` is the engine the setup module's
+ * entry, on the Vitest lines that ship it: 2, 3 and 4. The runner is a file in
+ * the project root, and `@vitest/runner` is a dependency of Vitest rather than
+ * of the project — under a node_modules layout that does not hoist, a bare
+ * specifier there resolves to nothing and every test file fails to load. The
+ * caller resolves it; see `runnerImports` in [`vitest.ts`](./vitest.ts). Absent,
+ * the module imports nothing but `vitest`, as Vitest 5 needs: it ships neither
+ * `@vitest/runner` nor `vitest/runners`, and its `TestRunner` hands out the
+ * test's function and a suite's hooks itself. `recording` is the engine the setup module's
  * collector will ask for, which a realm decides once: the same `continuations`
  * and story answers the caller hands {@link setupSource}.
  */
@@ -224,6 +233,7 @@ export function caseRunnerSource(
     readonly module?: string;
     readonly utils?: string;
     readonly finished?: string;
+    readonly cut?: string;
     readonly recording?: { readonly continuations: boolean; readonly story: boolean };
   } = {},
 ): string {
@@ -233,14 +243,9 @@ export function caseRunnerSource(
       runner.recording.continuations
     }, ${runner.recording.story});\n`;
   return `
-// \`vitest/runners\` on every supported major. Vitest 4.1 deprecates the entry in
-// favour of the package root and prints a line saying so on each run, but does
-// not export the class there yet — measured on 4.1.11, where the root has no
-// \`VitestTestRunner\` at all. The notice is the cost of the only entry that
-// answers on 2, 3 and 4 alike.
-import { VitestTestRunner } from 'vitest/runners';
-import { getFn } from ${JSON.stringify(runner.module ?? '@vitest/runner')};
-import { getNames } from ${JSON.stringify(runner.utils ?? '@vitest/runner/utils')};
+import * as vitest from 'vitest';
+${runnerHelpersSource(runner.module, runner.utils)}
+import { readFileSync } from 'node:fs';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
 import { createRequire } from 'node:module';
@@ -271,7 +276,81 @@ const tree = (task) => ({
   ...(task.tasks === undefined ? {} : { tasks: task.tasks.map(tree) }),
 });
 
+// A file's phases, under the record's names, as the runner measured them; the
+// reader keeps the ones that are durations. Its cases are the file's own result.
+const phases = (file) => ({
+  prepare: file.prepareDuration,
+  environment: file.environmentLoad,
+  setup: file.setupDuration,
+  collect: file.collectDuration,
+  cases: file.result?.duration,
+});
+
+const caseScope = () => globalThis[Symbol.for('variance-authority.test-selection.cases')];
+// The declaration path under the file, which is what a reader recognises a
+// case by. The runner's own \`test.id\` is unique and is carried beside it,
+// because it is positional and moves when a case is inserted above. The
+// project that runs the file rides with it: two projects' copies of one case
+// are two cases.
+let caseOwner;
+const caseKey = (test) => {
+  const file = test.file?.filepath ?? test.file?.name ?? '';
+  // Required here, where a case is recorded, and not at the top: a runner that
+  // records nothing never loads it.
+  caseOwner ??= createRequire(${JSON.stringify(HERE)})('./case-owner.cjs');
+  return caseOwner.packCase(file, testName(test), test.id, test.file?.projectName);
+};
+
+// Where a \`variancePrecondition\` call stands. Hooks are wrapped when their
+// suite starts, each knowing its depth and, for a \`beforeEach\`, the case it
+// runs for. A \`beforeAll\` or an \`afterAll\` runs for no one case, and a call
+// in one throws, as a call while the file collects does.
+const WRAPPED = Symbol('variance-authority.wrapped-hook');
+const hookAt = (kind, depth, args) => {
+  if (kind === 'afterEach') return { kind: 'after' };
+  if (kind !== 'beforeEach') {
+    return { kind: 'outside', because: 'ran in ' + (kind === 'beforeAll' ? 'a beforeAll' : 'an afterAll') + ', which runs for no one case' };
+  }
+  const test = args[0]?.task;
+  return test === undefined
+    ? { kind: 'outside', because: 'ran in a beforeEach Vitest named no case for' }
+    : { kind: 'each', depth, case: caseKey(test) };
+};
+
+${vitestCutSource(runner.cut)}
 export default class extends VitestTestRunner {
+  async onCollected(files) {
+    await super.onCollected?.(files);
+    const skipped = [];
+    for (const file of files) {
+      const names = cutOf(file.filepath);
+      if (names !== undefined) skipCut(file, new Set(names), skipped);
+    }
+    if (skipped.length > 0) await this.onTaskUpdate?.(skipped, []);
+  }
+
+  async onBeforeRunSuite(suite) {
+    await super.onBeforeRunSuite?.(suite);
+    const scope = caseScope();
+    const hooks = scope?.within === undefined ? undefined : getHooks(suite);
+    if (hooks === undefined) return;
+    const depth = depthOf(suite);
+    for (const kind of ['beforeAll', 'beforeEach', 'afterEach', 'afterAll']) {
+      const registered = hooks[kind] ?? [];
+      const kept = [];
+      for (const hook of registered) {
+        if (hook[WRAPPED] === true) {
+          kept.push(hook);
+          continue;
+        }
+        kept.push(Object.assign(function (...args) {
+          return scope.within(hookAt(kind, depth, args), () => hook.apply(this, args));
+        }, { [WRAPPED]: true }));
+      }
+      registered.splice(0, registered.length, ...kept);
+    }
+  }
+
   async onAfterRunFiles(files) {
     await super.onAfterRunFiles?.(files);
     if (finished === null) return;
@@ -279,8 +358,19 @@ export default class extends VitestTestRunner {
     const runnerSkipped = Boolean(this.config?.testNamePattern) || this.cancelRun === true;
     await writeFile(
       finished + '/' + process.pid + '-' + randomUUID() + '.json',
-      JSON.stringify(files.map((file) => ({ filepath: file.filepath, runnerSkipped, ...tree(file) }))),
+      JSON.stringify(files.map((file) => ({ filepath: file.filepath, runnerSkipped, phases: phases(file), ...tree(file) }))),
     );
+  }
+
+  // An attempt is its hooks as well as its body, and Eyes hands a journal over
+  // in \`afterEach\`: the scope attends the case from here until the test's
+  // \`onFinished\` callbacks, which run once its \`afterEach\` hooks are done.
+  async onBeforeTryTask(test, options) {
+    await super.onBeforeTryTask?.(test, options);
+    const scope = globalThis[Symbol.for('variance-authority.test-selection.cases')];
+    if (typeof scope?.begin !== 'function') return;
+    scope.begin();
+    (test.onFinished ??= []).push(() => scope.leave());
   }
 
   runTask(test) {
@@ -288,15 +378,7 @@ export default class extends VitestTestRunner {
     if (!fn) throw new Error('variance-authority: Vitest gave a task with no function');
     const scope = globalThis[Symbol.for('variance-authority.test-selection.cases')];
     if (scope === undefined) return fn();
-    const names = getNames(test);
-    const file = test.file?.filepath ?? names[0] ?? '';
-    // The declaration path under the file, which is what a reader recognises a
-    // case by. The runner's own \`test.id\` is unique and is carried beside it,
-    // because it is positional and moves when a case is inserted above.
-    return scope.enter(
-      file + '\\u0000' + names.slice(1).join(' > ') + '\\u0000' + test.id,
-      fn,
-    );
+    return scope.enter(caseKey(test), fn);
   }
 }
 `;
@@ -341,13 +423,32 @@ let caseOrdinal = 0;
 const wrapCase = (api, depth) => {
   if (typeof api !== 'function' || depth > 4) return api;
   const out = function (...args) {
-    const fn = args[1];
-    if (typeof fn === 'function') {
+    // The body is second, or third behind an options object.
+    const at = typeof args[1] === 'function' ? 1 : typeof args[2] === 'function' ? 2 : -1;
+    if (at !== -1) {
+      const fn = args[at];
       const ordinal = String((caseOrdinal += 1));
-      args[1] = function (...given) {
+      // The describe path it was registered under, from the describe wrap below.
+      const path = scopeCurrent;
+      args[at] = function (...given) {
         const state = expect.getState();
-        const key = (state.testPath ?? '') + '\\u0000' + (state.currentTestName ?? '') + '\\u0000' + ordinal;
-        return caseScope.enter(key, () => fn.apply(this, given));
+        // Concurrent cases share the one \`expect\`, which names whichever case
+        // set it last; the case's own context names the case, under the path
+        // it was registered at.
+        const own = given[0]?.task?.name;
+        const name = typeof own !== 'string' || state.currentTestName === own ||
+          state.currentTestName?.endsWith(' > ' + own) === true
+          ? state.currentTestName ?? ''
+          : [...path, own].join(' > ');
+        // FIXME: the key carries no project, so two Rstest projects' copies of
+        // one file are numbered as repeats (\`#1\`) rather than named. The case
+        // context names none, and a configuration with \`projects\` gets no setup
+        // file of ours to hand one in.
+        const key = (state.testPath ?? '') + '\\u0000' + name + '\\u0000' + ordinal;
+        // The context the runner hands the body is the one it handed the
+        // case's \`beforeEach\`es, so it joins what they said to this case
+        // when cases run concurrently.
+        return caseScope.enter(key, () => fn.apply(this, given), given[0]);
       };
     }
     const answered = api.apply(this, args);
@@ -360,6 +461,32 @@ for (const holder of [${holders}]) {
   if (holder === undefined || holder === null) continue;
   for (const name of ['it', 'test']) {
     if (typeof holder[name] === 'function') holder[name] = wrapCase(holder[name], 0);
+  }
+}
+${scopeGlobalsSource(holders)}`;
+}
+
+/**
+ * The attending bracket for a runner that has no runner to replace, as source:
+ * the counterpart of `onBeforeTryTask` in {@link caseRunnerSource}.
+ *
+ * Rstest calls the root's `beforeEach` hooks at the start of every attempt,
+ * retries included, and the setup module registers this one before any of the
+ * project's, so a journal opened in the project's `beforeEach` is already
+ * attended. The attempt's `onTestFinished` callbacks run once its `afterEach`
+ * hooks are done, which is where the bracket closes.
+ *
+ * @param api Source for the object that holds `beforeEach`.
+ */
+export function attendingSource(api: string): string {
+  return `
+{
+  const attended = globalThis[Symbol.for(${JSON.stringify(CASE_SCOPE_KEY)})];
+  if (typeof attended?.begin === 'function') {
+    ${api}.beforeEach((context) => {
+      attended.begin();
+      context.onTestFinished(() => attended.leave());
+    });
   }
 }
 `;

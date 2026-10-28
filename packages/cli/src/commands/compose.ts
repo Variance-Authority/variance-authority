@@ -3,6 +3,7 @@ import {
   composeSubjects,
   lexiconOfValues,
   lexiconValuesOf,
+  piecesOf,
   structureOf,
   type Divergence,
   type Echo,
@@ -48,7 +49,7 @@ import type { CliObservationRecord, CliRunReport } from './run-report.js';
  *
  * A movement nothing explains is **not** a flake here. The position has not
  * moved: a subject is unstable when it fails to read the same way twice, and one
- * reading can never establish that ([`flakiness.md`](../../../../docs/flakiness.md)).
+ * reading can never establish that ([`flakiness.md`](https://variance-authority.dev/docs/flakiness)).
  * What this produces is the *shortlist* — the subjects a sweep should spend its
  * second readings on — and `standing: 'flake'` appears only where the run already
  * has both halves: an unexplained movement in a subject that also disagreed with
@@ -122,6 +123,7 @@ export function compositionOf(input: ComposeInput): CompositionReport | undefine
   );
 
   const echoes = composition.echoes.map(echoRecord);
+  const pieces = piecesOf(present);
 
   return {
     subjects: composition.subjects,
@@ -131,10 +133,10 @@ export function compositionOf(input: ComposeInput): CompositionReport | undefine
     movements: attribution.movements.map((movement) =>
       movementRecord(movement, attribution.flakes, attribution.suspects),
     ),
-    structure: present.map((subject) => ({
-      subject: subject.subject,
-      rows: structureOf(subject),
-    })),
+    structure: present.map((subject) => {
+      const held = pieces.get(subject.subject);
+      return { subject: subject.subject, rows: structureOf(subject), ...(held === undefined ? {} : { pieces: held }) };
+    }),
     ...(echoes.length > MAX_ECHOES ? { truncated: { echoes: echoes.length - MAX_ECHOES } } : {}),
   };
 }
@@ -237,19 +239,30 @@ export function lexiconReadingOf(input: ComposeInput): LexiconReading | undefine
   // sentence a locator has for it — `Not read: files (no source index and no
   // provenance)` — on exactly the runs that needed it. So the index answers for
   // itself: with no source index, `files` was read if the fold produced one.
-  const withSnapshot = present.some((subject) => subject.snapshot !== undefined);
-  const located = values.some((subject) => subject.fields.files !== undefined);
-
-  const fields: LexiconField[] = ['example', 'components', 'createdBy', 'tokens'];
-  if (withSnapshot) fields.push('names', 'text', 'roles');
-  if (input.source !== undefined || located) fields.push('files');
-  if (input.regions !== undefined) fields.push('regions');
+  const fields = fieldsRead({
+    snapshot: present.some((subject) => subject.snapshot !== undefined),
+    files: input.source !== undefined || values.some((subject) => subject.fields.files !== undefined),
+    regions: input.regions !== undefined,
+  });
 
   return {
     values,
     fields,
     ...(input.source === undefined ? {} : { declaredIn: Object.fromEntries(declaredIn) }),
   };
+}
+
+/**
+ * The fields a reading of subjects looked at: the snapshot's own when one was
+ * carried, `files` when a source index was at hand or the fold produced one,
+ * `regions` when a journal was read.
+ */
+function fieldsRead(read: { readonly snapshot: boolean; readonly files: boolean; readonly regions: boolean }): LexiconField[] {
+  const fields: LexiconField[] = ['example', 'components', 'createdBy', 'tokens'];
+  if (read.snapshot) fields.push('names', 'text', 'roles');
+  if (read.files) fields.push('files');
+  if (read.regions) fields.push('regions');
+  return fields;
 }
 
 /** Subject → the components it is the narrow example of, from the census. */
@@ -477,7 +490,7 @@ export function composeReports(given: ComposeInput): {
 }
 
 /** The scan under what the engine said, as one `source`; the input unchanged when the engine said nothing. */
-function withDeclared({ declared, ...input }: ComposeInput): ComposeInput {
+export function withDeclared({ declared, ...input }: ComposeInput): ComposeInput {
   if (declared === undefined) return input;
   return { ...input, source: overlaySourceIndex(input.source ?? {}, declared) };
 }

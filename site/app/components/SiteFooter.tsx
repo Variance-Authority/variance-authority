@@ -4,6 +4,7 @@ import {
   GITHUB,
   MACHINE_GARDEN,
   MACHINE_GARDEN_GITHUB,
+  X,
 } from "../links";
 import Mark from "./Mark";
 
@@ -29,6 +30,7 @@ const FOOTER = [
       { href: "/reference/comparison", label: "Comparison" },
       { href: EXAMPLE_BUILD, label: "Example build" },
       { href: GITHUB, label: "GitHub" },
+      { href: X, label: "X" },
     ],
   },
 ];

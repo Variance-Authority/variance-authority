@@ -114,6 +114,67 @@ describe('a condition only the tsconfig names', () => {
     expect(oracle(root, named)).toBe(TARGET);
   });
 
+  it('reads no conditions from a project that references itself, which oxc refuses', async () => {
+    const root = await workspace({
+      'packages/app/tsconfig.json': JSON.stringify({
+        compilerOptions: { customConditions: ['@acme/source'] },
+        references: [{ path: '.' }],
+      }),
+    });
+
+    expect(await scanned(root) ?? []).not.toContain(TARGET);
+    expect(customConditionsFor('auto')(join(root, IMPORTER))).toEqual([]);
+  });
+
+  it('reads no conditions from a project whose reference is missing, which oxc refuses', async () => {
+    const root = await workspace({
+      'packages/app/tsconfig.json': JSON.stringify({
+        compilerOptions: { customConditions: ['@acme/source'] },
+        references: [{ path: '../absent' }],
+      }),
+    });
+
+    expect(await scanned(root) ?? []).not.toContain(TARGET);
+    expect(customConditionsFor('auto')(join(root, IMPORTER))).toEqual([]);
+  });
+
+  it('answers from each side of a reference cycle, reading each side one level deep', async () => {
+    const root = await workspace({
+      'packages/app/tsconfig.json': JSON.stringify({
+        compilerOptions: { customConditions: ['@acme/source'] },
+        references: [{ path: '../lib' }],
+      }),
+      'packages/lib/tsconfig.json': JSON.stringify({
+        compilerOptions: { customConditions: ['@acme/lib-source'] },
+        references: [{ path: '../app' }],
+      }),
+    });
+    for (const entry of ['app', 'lib']) {
+      const conditions = customConditionsFor(join(root, `packages/${entry}/tsconfig.json`));
+      expect(conditions(join(root, IMPORTER))).toEqual(['@acme/source']);
+      expect(conditions(join(root, TARGET))).toEqual(['@acme/lib-source']);
+      expect(conditions(join(root, IMPORTER))).toEqual(['@acme/source']);
+    }
+  });
+
+  it('reads no tsconfig when the caller turns it off', async () => {
+    const root = await workspace({ 'tsconfig.json': WITH });
+    const off = { tsconfig: false } as const;
+
+    expect(await scanned(root, off) ?? []).not.toContain(TARGET);
+    expect(oracle(root, off)).toBeUndefined();
+  });
+
+  it('follows no paths when the caller turns the tsconfig off', async () => {
+    const root = await workspace({
+      'tsconfig.json': JSON.stringify({ compilerOptions: { baseUrl: '.', paths: { '~lib': [TARGET] } } }),
+      [IMPORTER]: "import { clamp } from '~lib';\nexport const App = () => clamp(1);\n",
+    });
+
+    expect(await scanned(root)).toContain(TARGET);
+    expect(await scanned(root, { tsconfig: false }) ?? []).not.toContain(TARGET);
+  });
+
   it('keeps conditions a caller names as the whole set', async () => {
     const root = await workspace({ 'tsconfig.json': WITH });
     const named = { conditionNames: ['import', 'default'] };
@@ -160,5 +221,13 @@ describe('the native scanner against the oracle, on custom conditions', () => {
 
     expect(batch.targets[0] ?? '').toBe(oracle(root) ?? '');
     expect(batch.targets[0] ?? '').toBe(name === 'without' || name === 'cleared' ? '' : TARGET);
+  });
+
+  it.runIf(nativeAvailable())('agrees with the tsconfig off', async () => {
+    const root = await workspace(cases['with']!);
+    const batch = native()!.scanBatch(root, [IMPORTER], undefined, undefined, undefined, false);
+
+    expect(batch.targets[0] ?? '').toBe(oracle(root, { tsconfig: false }) ?? '');
+    expect(batch.targets[0] ?? '').toBe('');
   });
 });

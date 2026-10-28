@@ -79,7 +79,7 @@ export function formatCache(finding: CacheFinding): readonly string[] {
   return [
     `cache: ${mib(finding.held)} besides renders`,
     `  ${finding.root}`,
-    '  a run prunes it once a day; `variance doctor --prune` prunes it now',
+    '  `variance run` prunes it once a day; `variance prune` prunes it now',
     ...(finding.removable.length === 0
       ? ['  the next prune removes nothing']
       : [

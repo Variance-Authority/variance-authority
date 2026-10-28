@@ -57,7 +57,7 @@ function build(id: string, subjects: readonly SubjectView[]): BuildDetail {
     at: '2026-06-01T12:00:00.000Z',
     identity: { renderer: 'playwright-chromium', engine: 'chromium@131' } as never,
     retention: 'durable',
-    verdicts: { changed: 1, unchanged: 0, new: 0, incomparable: 0, unstable: 0, ignored: 0, failed: 0 },
+    verdicts: { changed: 1, unchanged: 0, new: 0, unstable: 0, ignored: 0, failed: 0 },
     decided: 0,
     pending: 1,
     coverage: { stated: true, failed: 0, excluded: 0, unreached: 0 },
@@ -68,6 +68,7 @@ function build(id: string, subjects: readonly SubjectView[]): BuildDetail {
     composition: null,
     causes: [],
     variations: [],
+    sameImage: [],
     reach: null,
     journeys: null,
     // Builds 5 and 6 of the example repository, and 6 is the one with a run
@@ -132,7 +133,7 @@ describe('a verdict that describes no comparison is never placed on the axis', (
   });
 
   it('sets aside a subject this run did not compare', () => {
-    expect(shiftOf(subject({ verdict: 'incomparable' }), subject({ verdict: 'changed' }))).toBe(
+    expect(shiftOf(subject({ verdict: 'new', changedPixels: 0 }), subject({ verdict: 'changed' }))).toBe(
       'uncompared',
     );
   });
@@ -345,6 +346,28 @@ describe('a declaration decided it, and that is not the same as nobody comparing
 
     expect(markup).toContain('nav-cart-badge');
     expect(markup).toContain('325 px absorbed');
+  });
+
+  it('prints no count beside a row whose pixels the run did not count', async () => {
+    // A render that changed size arrives with no count at all. *0 px* beside it,
+    // on any of the three rows that print one, is a comparison that never ran.
+    const uncounted = subject({ changedPixels: 0, signals: { pixels: 'changed' } });
+    const still = subject({
+      verdict: 'unchanged',
+      changedPixels: 0,
+      signals: { pixels: 'unchanged' },
+    });
+
+    for (const [now, earlier, row] of [
+      [uncounted, still, 'pixels changed, uncounted'],
+      [uncounted, declared(), 'pixels changed, uncounted, reported'],
+      [declared(), uncounted, 'pixels changed, uncounted before'],
+    ] as const) {
+      const markup = await mount(clientThat(async () => build('5', [earlier])), build('6', [now]));
+
+      expect(markup).toContain(row);
+      expect(markup).not.toMatch(/>0 px/);
+    }
   });
 
   it('says the rule is unrecorded rather than implying the difference was small', async () => {

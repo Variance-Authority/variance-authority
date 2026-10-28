@@ -33,6 +33,8 @@ pub(crate) struct Package {
     pub name: String,
     pub depends: Vec<String>,
     pub develops: Vec<String>,
+    /// The paths it offers a runtime, as written (`offered`).
+    pub offers: Vec<String>,
 }
 
 pub(crate) struct Owners<'a> {
@@ -40,6 +42,17 @@ pub(crate) struct Owners<'a> {
     /// Every tracked file's package, as an index into `packages` or
     /// [`NO_OWNER`], and its position in the listing it came from.
     pub files: HashMap<&'a str, (u32, u32)>,
+}
+
+impl Owners<'_> {
+    /// The name of the package `file` belongs to, or `""` when none holds it
+    /// or `file` was not among the paths read.
+    pub fn package_of(&self, file: &str) -> &str {
+        match self.files.get(file) {
+            Some(&(owner, _)) if owner != NO_OWNER => self.packages[owner as usize].name.as_str(),
+            _ => "",
+        }
+    }
 }
 
 #[derive(Deserialize)]
@@ -52,6 +65,47 @@ pub(crate) struct Manifest {
     pub optional_dependencies: Option<serde_json::Value>,
     #[serde(rename = "devDependencies")]
     pub dev_dependencies: Option<serde_json::Value>,
+    exports: Option<serde_json::Value>,
+    main: Option<serde_json::Value>,
+    module: Option<serde_json::Value>,
+    bin: Option<serde_json::Value>,
+}
+
+/// The paths a manifest offers a runtime, as written: every target of
+/// `exports` but one under a `types` condition, then `main`, `module` and
+/// every `bin`. A declaration is not what a runtime loads. A subpath pattern's
+/// target (`./src/*.ts`) is offered as written, `*` and all, and
+/// `orient_map_entries.rs` expands it against the files the package holds.
+fn offered(manifest: &Manifest) -> Vec<String> {
+    fn targets(value: &serde_json::Value, into: &mut Vec<String>) {
+        match value {
+            serde_json::Value::String(target) => into.push(target.clone()),
+            serde_json::Value::Array(values) => values.iter().for_each(|value| targets(value, into)),
+            serde_json::Value::Object(map) => {
+                for (key, value) in map {
+                    if key != "types" && key != "typings" {
+                        targets(value, into);
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+    let mut offers = Vec::new();
+    if let Some(exports) = &manifest.exports {
+        targets(exports, &mut offers);
+    }
+    for field in [&manifest.main, &manifest.module] {
+        if let Some(serde_json::Value::String(target)) = field {
+            offers.push(target.clone());
+        }
+    }
+    match &manifest.bin {
+        Some(serde_json::Value::String(target)) => offers.push(target.clone()),
+        Some(serde_json::Value::Object(map)) => offers.extend(map.values().filter_map(|value| value.as_str().map(str::to_owned))),
+        _ => {}
+    }
+    offers
 }
 
 /// The keys of a dependency map; anything that is not a map declares nothing.
@@ -81,13 +135,14 @@ pub(crate) fn owners<'a>(root: &str, paths: &'a [String]) -> Owners<'a> {
         .filter_map(|manifest| {
             let bytes = std::fs::read(std::path::Path::new(root).join(manifest)).ok()?;
             let parsed: Manifest = serde_json::from_slice(&bytes).ok()?;
+            let offers = offered(&parsed);
             let serde_json::Value::String(name) = parsed.name? else { return None };
             let depends = [&parsed.dependencies, &parsed.peer_dependencies, &parsed.optional_dependencies]
                 .into_iter()
                 .flat_map(declared)
                 .collect();
             let develops = declared(&parsed.dev_dependencies).collect();
-            Some(Package { directory: parent(manifest).to_owned(), name, depends, develops })
+            Some(Package { directory: parent(manifest).to_owned(), name, depends, develops, offers })
         })
         .collect();
     named.sort_unstable_by(|left, right| crate::order::code_unit(&left.directory, &right.directory));
@@ -110,7 +165,7 @@ pub(crate) fn is_package(path: &str) -> bool {
 }
 
 /// A directory's package: its own manifest's, or its parent's answer.
-fn directory_owner<'a>(directory: &'a str, named: &HashMap<&str, u32>, known: &mut HashMap<&'a str, u32>) -> u32 {
+pub(crate) fn directory_owner<'a>(directory: &'a str, named: &HashMap<&str, u32>, known: &mut HashMap<&'a str, u32>) -> u32 {
     if let Some(&owner) = known.get(directory) {
         return owner;
     }

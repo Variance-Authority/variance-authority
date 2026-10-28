@@ -1,0 +1,149 @@
+/**
+ * The segments of a source map's `mappings`, decoded into the fields a line
+ * lookup needs. `sourceLines` in `source-lines.ts` is the only reader; the
+ * digits are `cut-map.ts`'s as well, and {@link shifted} moves a map past text
+ * inserted on one of its lines.
+ */
+
+export interface Segment {
+  readonly column: number;
+  readonly source: number;
+  readonly line: number;
+  /**
+   * Opens its generated line with the origin the segment before it ended on:
+   * the statement above continuing, not something written here.
+   */
+  readonly carried: boolean;
+}
+
+/** Segments per generated line, carrying only the fields a position needs. */
+export function decode(mappings: string): readonly (readonly Segment[])[] {
+  const lines: Segment[][] = [];
+  let segments: Segment[] = [];
+  let column = 0;
+  let source = 0;
+  let line = 0;
+  let original = 0;
+  let previous: { readonly source: number; readonly line: number; readonly original: number } | undefined;
+  let index = 0;
+
+  while (index < mappings.length) {
+    const char = mappings[index];
+    if (char === ';') {
+      // Only the line just above can carry an origin onto the next one.
+      if (segments.length === 0) previous = undefined;
+      lines.push(segments);
+      segments = [];
+      column = 0;
+      index += 1;
+      continue;
+    }
+    if (char === ',') {
+      index += 1;
+      continue;
+    }
+
+    const first = vlq(mappings, index);
+    column += first.value;
+    index = first.next;
+    if (boundary(mappings, index)) {
+      // Unmapped code: what follows it carries nothing over.
+      previous = undefined;
+      continue;
+    }
+
+    const second = vlq(mappings, index);
+    source += second.value;
+    const third = vlq(mappings, second.next);
+    line += third.value;
+    // The original column. A diff's unit is the line, so it only tells a
+    // carried origin from a new one on the same line.
+    const fourth = vlq(mappings, third.next);
+    original += fourth.value;
+    index = fourth.next;
+    if (!boundary(mappings, index)) index = vlq(mappings, index).next;
+
+    const carried =
+      segments.length === 0 &&
+      previous !== undefined &&
+      previous.source === source &&
+      previous.line === line &&
+      previous.original === original;
+    previous = { source, line, original };
+    segments.push({ column, source, line, carried });
+  }
+
+  lines.push(segments);
+  return lines;
+}
+
+function boundary(mappings: string, index: number): boolean {
+  return index >= mappings.length || mappings[index] === ',' || mappings[index] === ';';
+}
+
+const CHARACTERS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+
+const DIGITS = new Map<string, number>(
+  [...CHARACTERS].map(
+    (character, value) => [character, value],
+  ),
+);
+
+/** One base64 VLQ field, and where the next one starts. */
+export function vlq(mappings: string, at: number): { readonly value: number; readonly next: number } {
+  let result = 0;
+  let shift = 0;
+  let index = at;
+
+  for (;;) {
+    const digit = DIGITS.get(mappings[index] ?? '');
+    if (digit === undefined) return { value: 0, next: index + 1 };
+    index += 1;
+    result += (digit & 31) << shift;
+    if ((digit & 32) === 0) break;
+    shift += 5;
+  }
+
+  const negative = (result & 1) === 1;
+  return { value: negative ? -(result >>> 1) : result >>> 1, next: index };
+}
+
+/** `value` as one base64 VLQ field. */
+export function vlqOf(value: number): string {
+  let rest = value < 0 ? (-value << 1) | 1 : value << 1;
+  let text = '';
+  do {
+    let digit = rest & 31;
+    rest >>>= 5;
+    if (rest > 0) digit |= 32;
+    text += CHARACTERS[digit];
+  } while (rest > 0);
+  return text;
+}
+
+/**
+ * `mappings` with every column of generated line `line` (from 0) at or past
+ * `column` moved `by` to the right, for text of that length inserted there.
+ * A line's columns are each relative to the one before it, so only the first
+ * segment at or past the point changes.
+ */
+export function shifted(mappings: string, by: number, line = 0, column = 0): string {
+  let index = 0;
+  for (let at = 0; at < line; at++) {
+    index = mappings.indexOf(';', index);
+    if (index === -1) return mappings;
+    index += 1;
+  }
+  let reached = 0;
+  while (DIGITS.has(mappings[index] ?? '')) {
+    const { value, next } = vlq(mappings, index);
+    reached += value;
+    if (reached >= column) return mappings.slice(0, index) + vlqOf(value + by) + mappings.slice(next);
+    // The segment's other fields, to the comma before the next one.
+    index = next;
+    while (index < mappings.length && mappings[index] !== ',' && mappings[index] !== ';') index += 1;
+    if (mappings[index] !== ',') return mappings;
+    index += 1;
+  }
+  return mappings;
+}

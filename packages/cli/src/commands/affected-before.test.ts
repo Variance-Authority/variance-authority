@@ -93,11 +93,12 @@ describe('a diff that moved what the run rests on', () => {
   it('observes everything for a package the harness rests on and no file names', () => {
     // Before and beyond reach at once: `jsdom` is bumped, the install names it,
     // no file in the repository writes the word, and the environment every test
-    // runs in is built on it.
+    // runs in is built on it. Beyond reach reads the bump as the config that
+    // imports the environment, and before reach holds that file.
     const answer = answerFor(['yarn.lock'], ['jsdom']);
 
     expect(answer.observe).toEqual(PLANNED);
-    expect(answer.whole).toContain('jsdom');
+    expect(answer.whole).toContain('vitest.config.ts');
   });
 
   it('narrows as usual for a change the harness does not rest on', () => {

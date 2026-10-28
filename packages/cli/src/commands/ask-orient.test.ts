@@ -2,6 +2,7 @@ import { execFileSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, realpathSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { basename, dirname, join } from 'node:path';
+import { encodeSegment } from '@variance-authority/core/segment';
 import { sourceIndexPath } from '@variance-authority/sense';
 import { testCoverageFile } from '@variance-authority/sense/test-selection';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -195,7 +196,7 @@ describe('variance ask orient', () => {
     const root = checkout();
     const indexed = await run(['index']);
     expect(indexed.code).toBe(EXIT_CLEAN);
-    expect(indexed.out.split('\n')[2]).toBe(`journeys: not prepared: nothing is recorded at ${testCoverageFile(root)}.cases.bin`);
+    expect(indexed.out.split('\n')[2]).toBe(`journeys: not prepared: nothing is recorded at ${testCoverageFile(root)}`);
 
     const answered = await run(['ask', 'orient', '--files', 'packages/checkout/src/total.ts:2,./packages/cart/src/price.ts,src/gone.ts']);
 
@@ -227,7 +228,7 @@ describe('variance ask orient', () => {
         '  No external package request was read from this path.',
         '  Not in the source index: src/gone.ts.',
         '',
-        `Recorded cases: none read from ${testCoverageFile(root)}.cases.bin, nothing is recorded there. A run with \`withTestSelection\` records them.`,
+        `Recorded cases: none read from ${testCoverageFile(root)}, no run kept its cases there. A run with \`withTestSelection\` records them.`,
         '',
         'Narrower questions:',
         '  variance ask uses --name priceOf --package @t/cart',
@@ -235,5 +236,20 @@ describe('variance ask orient', () => {
         '',
       ].join('\n'),
     });
+  });
+
+  it('with files, says an index another release wrote in its own format version is of another version, and names the step that rebuilds it', async () => {
+    const root = checkout();
+    const at = sourceIndexPath(root);
+    mkdirSync(dirname(at), { recursive: true });
+    writeFileSync(at, encodeSegment('variance-authority-source-index', 15, {}));
+
+    const answered = await run(['ask', 'orient', '--files', 'packages/cart/src/price.ts']);
+    expect(answered.code).toBe(EXIT_OPERATOR);
+    // The version this release reads is sense's to pin; the command relays sense's line around it.
+    expect(answered.err.split('\n')[0]!.replace(/reads version \d+;/, 'reads version N;')).toBe(
+      `the source index at ${at} did not read: segment 0: a variance-authority-source-index written in format version 15, ` +
+        'and this release reads version N; `variance index` rebuilds it',
+    );
   });
 });

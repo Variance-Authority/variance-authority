@@ -43,6 +43,28 @@ export interface StorybookCollectorOptions {
   readonly headless?: boolean;
 
   /**
+   * Stabilization tricks to hold each story still with, by id. Defaults to
+   * `COLLECT_RECIPE`.
+   *
+   * Name your own list to leave a trick out: a story that is about its hover
+   * state, for one, is read with `no-hover` missing from it. `[]` means
+   * observed untouched, and the environment key records it, so a baseline made
+   * under one list, compared with a run made under another, names the list as
+   * the cause of what changed.
+   */
+  readonly stabilize?: readonly string[];
+
+  /**
+   * The instant `Date` reads in every story, as an ISO 8601 instant with its
+   * zone. Defaults to `DEFAULT_NOW`, noon UTC on 15 June 2024.
+   *
+   * Applied by the `freeze-clock` trick, so a `stabilize` list without it
+   * leaves the clock running and this unused. A time with no zone is refused
+   * before a browser opens: it names a different instant on every machine.
+   */
+  readonly now?: string;
+
+  /**
    * Watch the wire: hash asset bodies into the environment key, and serve
    * animated GIFs as their first frame. Defaults to `true`.
    *
@@ -125,9 +147,11 @@ export interface StorybookCollectorOptions {
    * Record what each story executed, into the shared test-selection index.
    *
    * Off unless asked for, and it asks something of the build rather than of this
-   * package: the Storybook preview has to have been built with
-   * `testSelectionProbes()` from `@variance-authority/sense/journal`, which is
-   * what puts probes in the source and writes down what their ordinals mean.
+   * package: the Storybook preview has to have been built with this package in
+   * its addons, `addons: ['@variance-authority/storybook-collector']`, and with
+   * `storybook build --test`, or served by a dev server. That is what puts
+   * probes in the source and writes down what their ordinals mean; any other
+   * `storybook build` is left as it was, for a team to publish.
    * Without it a run records nothing and says so on stderr — the next selection
    * then runs everything, which is the direction every uncertainty here
    * resolves.

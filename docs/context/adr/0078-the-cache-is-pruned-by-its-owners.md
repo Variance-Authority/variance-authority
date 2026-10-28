@@ -2,6 +2,8 @@
 
 **Status:** accepted
 **Date:** 2026-09-27
+**Superseded in part by:** [ADR-0085](0085-a-test-run-prunes-only-what-it-started.md),
+for the *When* bullet and doctor's `--prune`.
 **Relates to:** [ADR-0069](0069-every-answer-has-an-owner.md) (every answer
 has an owner), [ADR-0077](0077-the-config-says-where-an-artifact-lives.md)
 (the config places the cache),

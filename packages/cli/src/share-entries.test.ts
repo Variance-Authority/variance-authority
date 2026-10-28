@@ -4,7 +4,7 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { testCoverageFile, writeTestCoverage } from '@variance-authority/sense/test-selection';
+import { caseSectionsOf, commitRunsFile, decodeTestCoverage, testCoverageFile, writeTestCoverage } from '@variance-authority/sense/test-selection';
 import { report } from './commands/push-fixture.js';
 import {
   REPORT_ENTRY,
@@ -60,32 +60,57 @@ describe('a report as a `report-v1` entry', () => {
 });
 
 describe('a suite as a `suite-v1/<suite>` entry', () => {
-  async function recorded(name: string, commit?: string): Promise<{ readonly root: string; readonly coverage: string }> {
+  async function recorded(
+    name: string,
+    commit?: string,
+    cases: Parameters<typeof writeTestCoverage>[2] = {},
+  ): Promise<{ readonly root: string; readonly coverage: string }> {
     const root = join(dir, name);
     await mkdir(root, { recursive: true });
     execFileSync('git', ['init', '--quiet', root]);
     await writeFile(join(root, 'variance.config.json'), JSON.stringify({ suites: { unit: { kind: 'unit' } } }));
     const coverage = testCoverageFile(root, { suite: 'unit' });
     await mkdir(dirname(coverage), { recursive: true });
-    await writeTestCoverage(coverage, { version: 3, instrumentation: 'fixture', ...(commit === undefined ? {} : { commit }), tests: [], modules: [] });
+    await writeTestCoverage(
+      coverage,
+      { version: 3, instrumentation: 'fixture', ...(commit === undefined ? {} : { commit }), tests: [], modules: [] },
+      cases,
+    );
 
     return { root, coverage };
   }
 
-  it('holds the coverage record and its per-case index, and no names table', async () => {
-    const { root, coverage } = await recorded('repo', AT.commit);
-    await writeFile(`${coverage}.cases.bin`, 'cases');
+  it('holds the coverage record with its case index in it, and neither the last run\'s parts nor a names table', async () => {
+    const { root } = await recorded('repo', AT.commit, {
+      index: Buffer.from('cases'),
+      before: Buffer.from('before'),
+      last: Buffer.from('{}'),
+    });
 
     const entry = await suiteEntryOf(root, 'unit', { commit: AT.commit });
 
     if (entry === undefined || 'unpublished' in entry) throw new Error(`not published: ${JSON.stringify(entry)}`);
     expect(entry).toMatchObject({ name: 'suite-v1/unit', commit: AT.commit });
     const parts = unframe(entry.bytes);
-    expect(typeof parts === 'string' ? parts : [...parts.keys()]).toEqual(['coverage.bin', 'coverage.bin.cases.bin']);
+    expect(typeof parts === 'string' ? parts : [...parts.keys()]).toEqual(['coverage.bin']);
     const read = readSuiteEntry(entry.bytes);
     if (typeof read === 'string') throw new Error(read);
-    expect(Buffer.from(read.coverage).equals(await readFile(coverage))).toBe(true);
-    expect(new TextDecoder().decode(read.cases)).toBe('cases');
+    // The last run is the publisher's, not the taker's: only the index crosses.
+    const cases = caseSectionsOf(read.coverage);
+    expect(Object.keys(cases)).toEqual(['index']);
+    expect(new TextDecoder().decode(cases.index)).toBe('cases');
+  });
+
+  it('reads an entry an earlier publisher framed with the index beside the record, as a record that kept no cases', async () => {
+    const { coverage } = await recorded('earlier', AT.commit);
+    const record = await readFile(coverage);
+
+    const read = readSuiteEntry(frame([['coverage.bin', record], ['coverage.bin.cases.bin', Buffer.from('cases')]]));
+
+    if (typeof read === 'string') throw new Error(read);
+    expect(Buffer.from(read.coverage).equals(record)).toBe(true);
+    expect(caseSectionsOf(read.coverage)).toEqual({ base: new Uint8Array(Buffer.from('none')) });
+    expect(Object.keys(read)).toEqual(['coverage']);
   });
 
   it('is not published under a commit other than the one the record names, and says which it names', async () => {
@@ -122,6 +147,134 @@ describe('a suite as a `suite-v1/<suite>` entry', () => {
   });
 });
 
+describe('a mainline\'s `suite-v1/<suite>` entry', () => {
+  /** A commit that holds `test/kept.test.ts`, the record a run made there, and the runs record `runs` beside it when one is given. */
+  async function ranAt(name: string, runs?: (commit: string) => object): Promise<{ root: string; coverage: string; commit: string }> {
+    const root = join(dir, name);
+    await mkdir(join(root, 'test'), { recursive: true });
+    const git = (...args: string[]) => execFileSync('git', args, { cwd: root, encoding: 'utf8' }).trim();
+    git('init', '--quiet');
+    await writeFile(join(root, 'variance.config.json'), JSON.stringify({ suites: { unit: { kind: 'unit' } } }));
+    await writeFile(join(root, 'test/kept.test.ts'), '');
+    git('add', '-A');
+    git('-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.test', 'commit', '--quiet', '-m', 'first');
+    const commit = git('rev-parse', 'HEAD');
+    const coverage = testCoverageFile(root, { suite: 'unit' });
+    await mkdir(dirname(coverage), { recursive: true });
+    await writeTestCoverage(coverage, { version: 3, instrumentation: 'fixture', commit, tests: [], modules: [] });
+    if (runs !== undefined) await writeFile(commitRunsFile(coverage), JSON.stringify(runs(commit)));
+    return { root, coverage, commit };
+  }
+  const at = '2026-01-01T00:00:00.000Z';
+  const ran = (commit: string, standing?: readonly { commit: string; files: string[] }[]) => ({
+    commit, first: at, latest: at, runs: 1, files: ['test/kept.test.ts'], ...(standing === undefined ? {} : { standing }),
+  });
+  /** What the runner collects at the commit `ranAt` makes. */
+  const collected = new Set(['test/kept.test.ts']);
+
+  it('carries the runs record of a run of the whole suite, and a reader reads it back', async () => {
+    const { root, coverage, commit } = await ranAt('whole', (at) => ran(at, []));
+
+    const entry = await suiteEntryOf(root, 'unit', { commit }, { whole: true, collected });
+
+    if (entry === undefined || 'unpublished' in entry) throw new Error(`not published: ${JSON.stringify(entry)}`);
+    const read = readSuiteEntry(entry.bytes);
+    if (typeof read === 'string') throw new Error(read);
+    expect(Buffer.from(read.runs ?? []).equals(await readFile(commitRunsFile(coverage)))).toBe(true);
+  });
+
+  it('counts a test that last ran before the commit as run when the commit no longer has it', async () => {
+    const { root, commit } = await ranAt('deleted', (at) => ran(at, [{ commit: 'c'.repeat(40), files: ['test/gone.test.ts'] }]));
+
+    expect(await suiteEntryOf(root, 'unit', { commit }, { whole: true, collected })).toMatchObject({ name: 'suite-v1/unit', commit });
+  });
+
+  it('retires the rows of a test file the suite no longer collects, and names it', async () => {
+    const gone = 'test/moved.chromium.test.ts';
+    const { root, coverage, commit } = await ranAt('retired', (at) => ran(at, [{ commit: 'c'.repeat(40), files: [gone] }]));
+    await writeTestCoverage(coverage, {
+      version: 3,
+      instrumentation: 'fixture',
+      commit,
+      tests: [{ file: gone, complete: false, preconditions: [] }, { file: 'test/kept.test.ts', complete: true, preconditions: [] }],
+      modules: [],
+    });
+
+    const entry = await suiteEntryOf(root, 'unit', { commit }, { whole: true, collected });
+
+    if (entry === undefined || 'unpublished' in entry) throw new Error(`not published: ${JSON.stringify(entry)}`);
+    expect(entry.retired).toEqual([gone]);
+    const read = readSuiteEntry(entry.bytes);
+    if (typeof read === 'string') throw new Error(read);
+    expect(decodeTestCoverage(read.coverage).tests.map((test) => test.file)).toEqual(['test/kept.test.ts']);
+  });
+
+  it('is not published for a mainline when a test the commit still has last ran before it, and names one', async () => {
+    const { root, coverage, commit } = await ranAt('partial', (at) => ran(at, [{ commit: 'c'.repeat(40), files: ['test/kept.test.ts'] }]));
+
+    expect(await suiteEntryOf(root, 'unit', { commit }, { whole: true, collected })).toEqual({
+      unpublished: `its record at ${coverage} is not a whole run: 1 test file(s) the suite collects last ran before ${commit}, test/kept.test.ts among them`,
+    });
+  });
+
+  it('is not published for a mainline when a test file the runner collects is in no run the record lists, and names it', async () => {
+    const { root, coverage, commit } = await ranAt('unlisted', (at) => ran(at, []));
+    const more = new Set(['test/kept.test.ts', 'test/new.test.ts']);
+
+    expect(await suiteEntryOf(root, 'unit', { commit }, { whole: true, collected: more })).toEqual({
+      unpublished: `its record at ${coverage} is not a whole run: 1 test file(s) the suite collects are listed nowhere in the runs record: test/new.test.ts`,
+    });
+    expect(await suiteEntryOf(root, 'unit', { commit }, { whole: true, collected: new Set(['test/kept.test.ts']) })).toMatchObject({
+      name: 'suite-v1/unit',
+    });
+  });
+
+  it('is not published for a mainline when the runner lists none of the record\'s test files, rather than retiring every row', async () => {
+    const { root, coverage, commit } = await ranAt('elsewhere', (at) => ({ ...ran(at, []), files: ['test/kept.test.ts', 'test/other.test.ts'] }));
+    await writeTestCoverage(coverage, {
+      version: 3, instrumentation: 'fixture', commit, tests: [{ file: 'test/kept.test.ts', complete: true, preconditions: [] }], modules: [],
+    });
+
+    expect(await suiteEntryOf(root, 'unit', { commit }, { whole: true, collected: new Set(['test/other.test.ts']) })).toEqual({
+      unpublished: `its record at ${coverage} is not cut to what the runner collects: the list names none of the 1 test file(s) the record holds, test/kept.test.ts among them, so every one would be retired`,
+    });
+  });
+
+  it('is not published for a mainline when the runs record has the wrong shape, and says what it lacks', async () => {
+    const shapes: readonly [string, (commit: string) => unknown, string][] = [
+      ['not-an-object', () => null, 'is not a JSON object'],
+      ['no-files', (commit) => ({ ...ran(commit, []), files: undefined }), 'has no list of the test files that ran at its commit'],
+      ['standing-not-a-list', (commit) => ({ ...ran(commit), standing: { [commit]: ['test/kept.test.ts'] } }), 'holds a `standing` that is not a list'],
+      ['entry-without-files', (commit) => ran(commit, [{ commit: 'c'.repeat(40) } as { commit: string; files: string[] }]), 'holds a `standing` entry with no list of test files'],
+    ];
+
+    for (const [name, runs, lacks] of shapes) {
+      const { root, coverage, commit } = await ranAt(name, runs as (commit: string) => object);
+      for (const listed of [undefined, collected]) {
+        await expect(suiteEntryOf(root, 'unit', { commit }, { whole: true, ...(listed === undefined ? {} : { collected: listed }) }), name).resolves.toEqual({
+          unpublished: `its record at ${coverage} is not a whole run: the runs record beside it ${lacks}`,
+        });
+      }
+    }
+  });
+
+  it('is not published for a mainline when nothing says the whole suite ran, and says what was missing', async () => {
+    const bare = await ranAt('runless');
+    const vague = await ranAt('vague', (at) => ran(at));
+    const other = await ranAt('other', () => ran('c'.repeat(40), []));
+
+    const why = async (one: { root: string; commit: string }) => {
+      const entry = await suiteEntryOf(one.root, 'unit', { commit: one.commit }, { whole: true });
+      return entry !== undefined && 'unpublished' in entry ? entry.unpublished : JSON.stringify(entry);
+    };
+    expect(await why(bare)).toBe(`its record at ${bare.coverage} is not a whole run: no runs record lies beside it, so nothing says which tests ran at this commit`);
+    expect(await why(vague)).toBe(`its record at ${vague.coverage} is not a whole run: the runs record beside it does not say where every test it did not run last ran`);
+    expect(await why(other)).toBe(`its record at ${other.coverage} is not a whole run: the runs record beside it is ${'c'.repeat(40)}'s, not ${other.commit}'s`);
+    // A branch's line asks for no whole run: its record is what its run selected.
+    expect(await suiteEntryOf(bare.root, 'unit', { commit: bare.commit })).toMatchObject({ name: 'suite-v1/unit' });
+  });
+});
+
 describe('the frame both entries share', () => {
   it('refuses bytes whose length disagrees with the header, rather than reading a part short', () => {
     const framed = frame([['a', new Uint8Array([1, 2, 3])]]);
@@ -129,5 +282,21 @@ describe('the frame both entries share', () => {
     expect(unframe(framed.subarray(0, framed.byteLength - 1))).toBe('the entry is shorter than its header says, at a');
     expect(unframe(new Uint8Array([...framed, 9]))).toBe('the entry is longer than its header says');
     expect(unframe(new Uint8Array([1, 2]))).toBe('the entry has no header line');
+  });
+
+  it('refuses bytes whose first line is not a list of named parts, rather than guessing at one', () => {
+    const line = (header: string) => new TextEncoder().encode(`${header}\n`);
+
+    expect(unframe(line('{"format":1,'))).toBe('the entry header is not JSON');
+    expect(unframe(line('{"format":1}'))).toBe('the entry header is not a list of parts');
+    expect(unframe(line('[["a"]]'))).toBe('the entry header names a part without a name and a length');
+  });
+
+  it('hands each part back at the start of its own buffer, wherever the header left it', () => {
+    const parts = unframe(frame([['odd', new Uint8Array([1])], ['words', new Uint8Array(8)]]));
+    if (typeof parts === 'string') throw new Error(parts);
+
+    expect(parts.get('words')?.byteOffset).toBe(0);
+    expect(new Uint32Array(parts.get('words')!.buffer)).toHaveLength(2);
   });
 });

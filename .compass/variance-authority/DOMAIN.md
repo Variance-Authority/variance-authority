@@ -144,14 +144,14 @@ The judgement for one subject in one run.
 
 A green verdict is never one word: absorbed is spelled differently from
 unchanged, so a suite can answer how much of its green it earned and how much
-it declared. Evidence produced under a different identity is incomparable —
-never unchanged and never changed. A verdict about the product and a failure of
-the machine never share a channel.
+it declared. Two images painted under different identities are compared like
+any other two, and the identity that moved is carried as the cause of the
+verdict, never as a verdict of its own. A verdict about the product and a
+failure of the machine never share a channel.
 
 ##### Lifecycle
 
-Unchanged, changed, new, incomparable, ignored, unstable, order-dependent, not
-observed.
+Unchanged, changed, new, ignored, unstable, order-dependent, not observed.
 
 #### Cause
 
@@ -339,8 +339,8 @@ route through declarations.
 
 A story is taken only when asked for, and taking it leaves the journey it rides
 on exactly as it would have been. It is never folded into the record, never
-compared and never selected on. It claims order only — a visit is not a call,
-so no step is another's parent — and what it could not keep, a later visit past
+compared and never selected on. It claims order, and what each region was handed, as a ref for any object —
+a visit is not a call, so no step is another's parent — and what it could not keep, a later visit past
 its limit or another case's work inside this one, is said rather than dropped.
 
 ### Relationships

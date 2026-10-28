@@ -21,6 +21,8 @@ export interface NativeJourneySelection {
   readonly whole: readonly string[];
   readonly entered: readonly string[];
   readonly unread: readonly string[];
+  /** Absent from an addon built before a suite could decline relations. */
+  readonly declined?: readonly string[];
 }
 
 export interface NativeJourneyChange {
@@ -37,6 +39,8 @@ export interface NativeJourneyProjection {
     readonly file: string;
     readonly name: string;
     readonly stopped?: boolean | null;
+    /** Every item the case said, unresolved, as `tests.said` holds them; absent where nobody listened. */
+    readonly said?: string | null;
   }[];
   readonly modules: readonly {
     readonly file: string;
@@ -55,14 +59,36 @@ export interface NativeJourneyProjection {
   readonly files: readonly string[];
 }
 
+/** One region of a module, as the transform that placed its probes cut it. */
+export type NativeRegion = NativeJourneyModule['blocks'][number];
+
+/** One module a run's cases named, cut again from the checkout, as the fold reads it. */
+export interface NativeJourneyModule {
+  readonly id: string;
+  readonly file: string;
+  /** In ordinal order; empty for a module whose ordinals cannot be read. */
+  readonly blocks: readonly {
+    readonly kind: string;
+    readonly name: string;
+    readonly path: string;
+    /** Zero for a region with no line of any file. */
+    readonly startLine: number;
+    readonly endLine: number;
+    readonly source: boolean;
+  }[];
+  /**
+   * Each region's owner, as its position among `blocks`, always before it, or
+   * `NO_OWNER`; absent where the cut named none.
+   */
+  readonly owners?: readonly number[];
+}
+
 export interface NativeJourneyFold {
   readonly bytes: Buffer;
   readonly tests: number;
   readonly modules: number;
   readonly crossings: number;
   readonly passes: number;
-  /** Files two builds cut into different regions, read at the regions both hold. */
-  readonly renumbered: readonly string[];
   /** Modules a case ran that no record holds: a change there selects nothing. */
   readonly unrecorded: readonly string[];
   /** Part files that ran code under no journey a case handed out. */

@@ -20,9 +20,9 @@
  *
  * ```
  * <cache>/test-selection/<repository>/
- *   coverage.bin, <label>/                the base: the primary checkout's own
+ *   coverage.bin, suites/                 the base: the primary checkout's own
  *   .work/<workspace>/                    one per worktree
- *     coverage.bin, <label>/
+ *     coverage.bin, suites/
  * ```
  *
  * A worktree reads both layers and writes only its own. That is the whole of the
@@ -30,10 +30,8 @@
  * to everyone who is not the primary checkout, so no two writers ever address
  * one byte. Nothing was given up to gain the sharing.
  *
- * `.work` is dotted because the sibling of these directories is a
- * {@link recordStore} label, and a label is caller-chosen — a bundler plugin's
- * word, or a Jest project id. A dot cannot begin one, which is the same reason
- * a run's scratch segments are already `.run-<pid>-<uuid>`.
+ * `.work` is dotted for the reason a run's scratch segments are
+ * `.run-<pid>-<uuid>`: nothing a caller names begins with a dot.
  *
  * ## Why the base is the primary checkout and not the git directory
  *
@@ -47,7 +45,7 @@
 // compass: variance-authority.reach
 
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { basename, dirname, isAbsolute, resolve } from 'node:path';
+import { basename, dirname, isAbsolute, relative, resolve, sep } from 'node:path';
 import { digestString } from '../digest.js';
 import { repositoryRoot } from './repository-root.js';
 
@@ -81,7 +79,11 @@ export interface RootConfig {
  * setting it would have made is one the reader never sees.
  */
 export function rootConfig(root: string): RootConfig | undefined {
-  const repository = repositoryRoot(root);
+  return configOf(repositoryRoot(root));
+}
+
+/** {@link rootConfig} for a directory known to be a checkout's root. */
+function configOf(repository: string): RootConfig | undefined {
   if (!configs.has(repository)) configs.set(repository, readRootConfig(repository));
 
   return configs.get(repository);
@@ -112,13 +114,32 @@ export function rootConfig(root: string): RootConfig | undefined {
  * the cache a run would fall back to is one the reader never sees.
  */
 export function cacheRootFor(root: string): string {
-  const config = rootConfig(root);
+  return cacheRootOf(repositoryRoot(root));
+}
+
+/**
+ * The cache directory of the checkout `here` was cut from: {@link cacheRootFor}
+ * its primary checkout, and `here`'s own when it was cut from none.
+ *
+ * A worktree's primary checkout is read from git's own layout — the directory
+ * holding the git directory the worktree points into — so it is that
+ * checkout's root already, and git is not started to say so a second time.
+ */
+export function primaryCacheRoot(here: string): string {
+  const primary = primaryCheckout(here);
+
+  return primary === here ? cacheRootFor(here) : cacheRootOf(primary);
+}
+
+/** {@link cacheRootFor} for a directory known to be a checkout's root. */
+function cacheRootOf(repository: string): string {
+  const config = configOf(repository);
   const named = config === undefined ? undefined : cacheRootIn(config);
   if (named !== undefined) return named;
   const isolated = process.env[CACHE_VARIABLE];
   if (isolated !== undefined && isAbsolute(isolated)) return resolve(isolated);
 
-  return resolve(repositoryRoot(root), 'node_modules', '.cache', 'variance-authority');
+  return resolve(repository, 'node_modules', '.cache', 'variance-authority');
 }
 
 function cacheRootIn({ file, value: config }: RootConfig): string | undefined {
@@ -180,7 +201,7 @@ export interface CacheLayers {
 export function cacheLayers(root: string, cacheRoot?: string): CacheLayers {
   const here = resolve(root);
   const primary = primaryCheckout(here);
-  const base = resolve(cacheRoot ?? cacheRootFor(primary), 'test-selection', keyOf(primary));
+  const base = resolve(cacheRoot ?? primaryCacheRoot(here), 'test-selection', keyOf(primary));
   if (primary === here) return { top: base, base };
   // Each checkout reads its own `cacheRoot`: a relative one names a directory
   // inside the worktree, which is the one directory a sandboxed agent may write.
@@ -203,6 +224,23 @@ export function cacheLayers(root: string, cacheRoot?: string): CacheLayers {
  */
 export function repositoryLayers(root: string, cacheRoot?: string): CacheLayers {
   return cacheLayers(repositoryRoot(root), cacheRoot);
+}
+
+/**
+ * Whether writing `file` from the checkout these `layers` are of would write
+ * the cached base its runs are laid over: in a worktree, a file in the
+ * primary checkout's layer and not in its own. A worktree's runs read through
+ * the base and lay over it in their own layer, and never write it, so a writer
+ * handed such a path by name refuses it. In the primary checkout the base is
+ * its own layer, and nothing is.
+ */
+export function writesBase(layers: CacheLayers, file: string): boolean {
+  if (layers.top === layers.base) return false;
+  const within = (dir: string) => {
+    const path = relative(dir, resolve(file));
+    return path !== '' && path !== '..' && !path.startsWith(`..${sep}`) && !isAbsolute(path);
+  };
+  return within(layers.base) && !within(layers.top);
 }
 
 /** The layers to read for one artifact, nearest first; one entry in the primary checkout. */
@@ -280,7 +318,7 @@ const primaries = new Map<string, string>();
  * error here: a checkout whose lineage cannot be established is a checkout that
  * keeps its own cache, which is where it started.
  */
-function primaryCheckout(here: string): string {
+export function primaryCheckout(here: string): string {
   const held = primaries.get(here);
   if (held !== undefined) return held;
   const found = readPrimary(here);

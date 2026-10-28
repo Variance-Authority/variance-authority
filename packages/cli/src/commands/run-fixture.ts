@@ -2,11 +2,15 @@ import { deflateSync } from 'node:zlib';
 import type { SourceIndex } from '@variance-authority/core/attribute';
 import {
   documentDigest,
+  environmentKey,
+  keepsSnapshot,
   pictured,
+  profileById,
   type Diagnostic,
   type Raster,
   type RenderDocument,
   type RenderIdentity,
+  type SemanticSnapshot,
   type Viewport,
 } from '@variance-authority/core/format';
 import type { Relations } from '@variance-authority/core/relate';
@@ -16,11 +20,13 @@ import {
   type RasterStore,
   type Renderer,
 } from '@variance-authority/raster';
+import type { HistoryStore } from '@variance-authority/history';
 import type { ExecutionNarrowing } from '@variance-authority/sense/test-selection';
 import type { Config } from '../config.js';
 import type { JourneyReading } from './journeys.js';
 import type { InstallDiff } from './installed.js';
-import type { Costs, Shard } from './shard.js';
+import type { Shard } from '../shard-args.js';
+import type { Costs } from './shard.js';
 import type { SuitePart } from './suite-part.js';
 import {
   run,
@@ -29,6 +35,7 @@ import {
   type Collector,
   type Plan,
   type PlannedSubject,
+  type RunIdentity,
 } from './run.js';
 
 /**
@@ -156,6 +163,7 @@ export function storeAnswering(found: Found | null | (() => never)): RasterStore
         comparable: baseline.comparable,
         storedUnder: baseline.storedUnder,
         pictured: pictured(baseline.raster),
+        keepsSnapshot: keepsSnapshot(baseline.raster.snapshot),
         missingFonts: baseline.raster.missingFonts,
         ...(baseline.raster.accessibility === undefined
           ? {}
@@ -308,6 +316,54 @@ export function configOf(overrides: Partial<Config> = {}): Config {
   };
 }
 
+/** The environment every fixture snapshot was read in: Chromium at `VIEWPORT`. */
+export const ENVIRONMENT = environmentKey({
+  profile: 'chromium',
+  engine: 'chromium@131',
+  ruleset: 'test',
+  allowlist: 'test',
+  viewport: VIEWPORT,
+  fonts: [],
+  conditions: {},
+  assets: {},
+});
+
+/**
+ * A page with a clock in it, as a snapshot: one `Clock` owns a span reading `at`,
+ * so a disagreement between two readings, and a history observation, can name it.
+ */
+export function snapshotFor(id: string, at: string): SemanticSnapshot {
+  return {
+    formatVersion: 1,
+    subject: { id, kind: 'fixture' },
+    profile: profileById('chromium'),
+    environment: ENVIRONMENT,
+    renderHash: 'v1:0',
+    structureHash: 'v1:0',
+    styleHash: 'v1:0',
+    root: {
+      path: '0',
+      tag: 'div',
+      attributes: {},
+      style: {},
+      provenance: { owners: [{ name: 'Clock', propsDigest: 'v1:x' }] },
+      children: [
+        {
+          path: '0/0',
+          tag: 'span',
+          attributes: {},
+          style: {},
+          text: at,
+          provenance: { owners: [{ name: 'Clock', propsDigest: 'v1:x' }] },
+          children: [],
+        },
+      ],
+    },
+    styleProvenance: [],
+    diagnostics: [],
+  };
+}
+
 export interface Written {
   readonly artifacts: Map<string, Buffer>;
   reports: CliRunReport[];
@@ -329,17 +385,19 @@ export async function runWith(
       readonly install?: InstallDiff;
       readonly diff?: string;
     };
+    ignore?: readonly string[];
     scanSource?: (dirs: readonly string[]) => Promise<SourceIndex>;
     scanRelations?: (dirs: readonly string[]) => Promise<Relations>;
     readJourney?: (
       diff: string,
       relations?: Relations,
-      packages?: readonly string[],
     ) => Promise<ExecutionNarrowing | undefined>;
     readJourneys?: (subjects: readonly string[]) => Promise<JourneyReading>;
     shard?: Shard;
     costs?: { readonly commit: string; readonly costs: Costs };
     elapsed?: () => number;
+    identity?: RunIdentity;
+    history?: HistoryStore;
   } = {},
 ): Promise<{ report: CliRunReport; written: Written }> {
   const written: Written = { artifacts: new Map(), reports: [], parts: [] };
@@ -350,9 +408,12 @@ export async function runWith(
     ...(options.intent !== undefined ? { intent: options.intent } : {}),
     ...(options.flakes === true ? { flakes: true } : {}),
     ...(options.since !== undefined ? { since: options.since } : {}),
+    ...(options.ignore !== undefined ? { ignore: options.ignore } : {}),
     ...(options.shard !== undefined ? { shard: options.shard } : {}),
     ...(options.costs !== undefined ? { costs: options.costs } : {}),
+    ...(options.identity !== undefined ? { identity: options.identity } : {}),
     deps: {
+      ...(options.history !== undefined ? { history: options.history } : {}),
       ...(options.elapsed !== undefined ? { elapsed: options.elapsed } : {}),
       ...(options.scanSource !== undefined ? { scanSource: options.scanSource } : {}),
       ...(options.scanRelations !== undefined ? { scanRelations: options.scanRelations } : {}),

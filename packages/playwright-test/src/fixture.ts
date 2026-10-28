@@ -3,6 +3,7 @@ import type {
   Locator,
   Page,
   PlaywrightTestArgs,
+  PlaywrightTestOptions,
   PlaywrightWorkerArgs,
 } from '@playwright/test';
 import { hashComponents, overlaySourceIndex } from '@variance-authority/core/attribute';
@@ -10,28 +11,25 @@ import { documentDigest } from '@variance-authority/core/format';
 import { normalize } from '@variance-authority/core/rules';
 import type { CaptureArtifact } from '@variance-authority/core';
 import type { SourceIndex } from '@variance-authority/core/attribute';
-import type {
-  SemanticSnapshot,
-  SubjectRef,
-  Viewport,
-} from '@variance-authority/core/format';
+import type { SemanticSnapshot, SubjectRef } from '@variance-authority/core/format';
 import {
   observeAgainstBaseline,
   observeCaptureAgainstBaseline,
+  packSnapshot,
 } from '@variance-authority/observe';
 import { createDeclarationReader, type DeclarationReader } from '@variance-authority/playwright';
-import { createPlaywrightRenderer } from '@variance-authority/playwright/renderer';
 import { settle, type BaselineKey, type RasterStore, type Renderer } from '@variance-authority/raster';
 import { suspenseRefusal } from '@variance-authority/react';
-import { createDurableStore } from '@variance-authority/store/durable';
-import { accepted } from './accepted.js';
+import { accepted, adopts } from './accepted.js';
 import type { MaterializationOptions, VarianceOptions } from './options.js';
 import { bundlePageAgent } from './bundle.js';
-import { acquireFrom } from './acquire.js';
-import { runOf, type VarianceRun } from './run.js';
-import { settledCapture } from './in-place.js';
+import { checkoutStore } from './render-cache.js';
+import { acquireFrom, refocusAfter } from './acquire.js';
+import { baselineKeyOf, runOf, subjectFromRun, viewportOf, type VarianceRun } from './run.js';
+import { regionOf, settledCapture } from './in-place.js';
 import { varianceCompletedFixtures, type VarianceCompletedFixtures } from './completed.js';
 import { varianceDocumentFixtures } from './documents.js';
+import { arrangedText, snapshotCaseOf, type SnapshotCase } from './arranged.js';
 import { withEvidence, type Observed } from './evidence.js';
 import { engineOf, promote } from './promote.js';
 import {
@@ -47,6 +45,13 @@ import {
 import { runnerReprieve, varianceDesk, varianceVantageFixtures } from './vantage.js';
 import type { VarianceDesk, VarianceVantageFixtures, VarianceVantageWorkerFixtures } from './vantage.js';
 import { varianceWireFixtures, type VarianceWireFixtures } from './wire.js';
+import { varianceDriveFixtures, type VarianceDriveFixtures } from './drive.js';
+import {
+  varianceRendererFixtures,
+  type VarianceRendererFixtures,
+  type VarianceRendererWorkerFixtures,
+} from './renderers.js';
+import { playwrightStanding } from './preconditions.js';
 import { AGENT, type AcquireRequest } from './page-agent.js';
 
 /**
@@ -78,7 +83,12 @@ import { AGENT, type AcquireRequest } from './page-agent.js';
  * two networks away.
  */
 
-export interface VarianceFixtures extends VarianceEventFixtures, VarianceVantageFixtures, VarianceCompletedFixtures {
+export interface VarianceFixtures
+  extends VarianceEventFixtures,
+    VarianceVantageFixtures,
+    VarianceCompletedFixtures,
+    VarianceDriveFixtures,
+    VarianceRendererFixtures {
   /**
    * Observe one subtree against its stored baseline — and, on the same name, the
    * two calls that let a test be looked at while it runs.
@@ -97,7 +107,8 @@ export interface VarianceFixtures extends VarianceEventFixtures, VarianceVantage
 export interface VarianceWorkerFixtures
   extends VarianceEventWorkerFixtures,
     VarianceWireFixtures,
-    VarianceVantageWorkerFixtures {
+    VarianceVantageWorkerFixtures,
+    VarianceRendererWorkerFixtures {
   /**
    * Record what each spec executed, for the next run's `--since`.
    *
@@ -111,9 +122,14 @@ export interface VarianceWorkerFixtures
   /** The worker's accumulation. Written once, at worker teardown. */
   readonly varianceRecorder: ExecutionRecorder | undefined;
   readonly varianceBundle: string;
-  readonly varianceRenderer: Renderer;
   readonly varianceStore: RasterStore;
   readonly varianceBaselines: string;
+  /**
+   * Where each baseline goes under `varianceBaselines`, as `baselines.path`
+   * spells it: `{title}/{name}-{engine}` when unset, and
+   * `{dir}/__baselines__/{file}/{name}-{engine}` beside each spec.
+   */
+  readonly varianceBaselinePath: string | undefined;
 }
 
 export interface VarianceRuntime {
@@ -133,41 +149,14 @@ export interface VarianceRuntime {
    * at pixels should pay.
    */
   readonly evidence?: string;
-}
-
-/**
- * The subject id a run supplies when an observation does not name one.
- *
- * Refused rather than defaulted: an id is the coordinate a baseline is stored
- * at, and inventing one from a counter or a timestamp would give the same
- * subject a different address on every run.
- */
-function subjectFromRun(run: VarianceRun): string {
-  if (run.id === undefined || run.id === '') {
-    throw new Error(
-      'variance needs a subject id and this run has none; ' +
-        'pass `subjectId` on the observation, or `id` on the run descriptor',
-    );
-  }
-  return run.id;
-}
-
-function viewportOf(
-  size: { width: number; height: number } | null,
-  run: VarianceRun,
-): Viewport {
-  if (size === null) {
-    throw new Error(
-      'variance needs a viewport and this page has none; ' +
-        'a null viewport means the image has no declared size, so no two runs are comparable',
-    );
-  }
-
-  return {
-    ...size,
-    deviceScaleFactor: run.deviceScaleFactor ?? 1,
-    colorScheme: run.colorScheme === 'dark' ? 'dark' : 'light',
-  };
+  /**
+   * The case this observation is made in, read the moment its document is
+   * captured: a precondition said while the observation is still comparing is
+   * not one the document was taken under. Absent outside a runner's case.
+   */
+  readonly arranged?: () => SnapshotCase;
+  /** The driver tricks set on this page before it loaded, by id. Absent is none. */
+  readonly driven?: readonly string[];
 }
 
 /**
@@ -176,12 +165,12 @@ function viewportOf(
  * A suite extends its own base with it — `base.extend(varianceFixtures)` — which
  * is the only shape that composes with the extension module a project already
  * owns. The worker fixtures below are options: a suite names one in `use` when
- * it supplies its own renderer, store, agent bundle or listening arrangement.
+ * it supplies its own renderers, store, agent bundle or listening arrangement.
  */
 export const varianceFixtures: Fixtures<
   VarianceFixtures,
   VarianceWorkerFixtures,
-  PlaywrightTestArgs,
+  PlaywrightTestArgs & PlaywrightTestOptions,
   PlaywrightWorkerArgs
 > = {
   ...varianceWireFixtures,
@@ -189,11 +178,19 @@ export const varianceFixtures: Fixtures<
   ...varianceEventFixtures,
   ...varianceCompletedFixtures,
   ...varianceDocumentFixtures,
+  ...varianceDriveFixtures,
+  ...varianceRendererFixtures,
 
   varianceBaselines: ['.variance/baselines', { scope: 'worker', option: true }],
 
+  varianceBaselinePath: [undefined, { scope: 'worker', option: true }],
+
   varianceExecution: [false, { scope: 'worker', option: true }],
 
+  // FIXME: a `variancePrecondition` call while the worker's first file is
+  // collected finds no listener and records nothing rather than throwing —
+  // needs the listener installed before this fixture, which Playwright sets up
+  // once the file has collected.
   // One recorder per worker, closed when the worker is: a worker is a process,
   // and a process that wrote the shared index per assertion would spend the run
   // contending for a lock it holds for microseconds of work.
@@ -203,9 +200,10 @@ export const varianceFixtures: Fixtures<
         await use(undefined);
         return;
       }
-      const recorder = createExecutionRecorder(
+      const recorder: ExecutionRecorder = createExecutionRecorder(
         varianceExecution === true ? {} : varianceExecution,
         varianceWire,
+        playwrightStanding((testInfo) => recorder.owner(testInfo)),
       );
       await use(recorder);
       await recorder.close();
@@ -224,23 +222,12 @@ export const varianceFixtures: Fixtures<
     { scope: 'worker' },
   ],
 
-  // One renderer per worker, never one per assertion. A browser launch and first
-  // navigation dominate the work they enclose by roughly two orders of magnitude
-  // — 205 ms cold against 7.5 ms warm (journal 0007) — so a renderer built per
-  // subject spends the whole saving before it paints anything.
-  varianceRenderer: [
-    // eslint-disable-next-line no-empty-pattern -- see `varianceBundle`.
-    async ({}, use) => {
-      const renderer = await createPlaywrightRenderer();
-      await use(renderer);
-      await renderer.close();
-    },
-    { scope: 'worker' },
-  ],
-
   varianceStore: [
-    async ({ varianceBaselines }, use) => {
-      await use(createDurableStore(varianceBaselines));
+    async ({ varianceBaselines, varianceBaselinePath }, use, workerInfo) => {
+      const projects = workerInfo.config.projects.map((project) => project.name);
+      const { store, sweep } = checkoutStore(varianceBaselines, varianceBaselinePath, projects);
+      await use(store);
+      await sweep();
     },
     { scope: 'worker' },
   ],
@@ -254,7 +241,16 @@ export const varianceFixtures: Fixtures<
     // Nothing is drained here. The page belongs to the test's context, and the
     // context drains every document it held once the test is done with it —
     // for every spec, including the ones that never destructure this fixture.
-    { page, varianceBundle, varianceRenderer, varianceStore, varianceJourney, varianceVantage },
+    {
+      page,
+      varianceBundle,
+      varianceRecorder,
+      varianceRenderer,
+      varianceStore,
+      varianceJourney,
+      varianceVantage,
+      varianceDriven,
+    },
     use,
     testInfo,
   ) => {
@@ -274,12 +270,20 @@ export const varianceFixtures: Fixtures<
           store: varianceStore,
           declared,
           evidence: testInfo.outputPath('variance'),
+          arranged: () => snapshotCaseOf(testInfo, varianceRecorder),
+          driven: varianceDriven,
         },
         locator,
         options,
       );
       for (const [name, path] of Object.entries(observed.evidence ?? {})) {
         await testInfo.attach(`${observed.subject} ${name}`, { path, contentType: 'image/png' });
+      }
+      // Annotated as well as carried, so the report shows it under a passing
+      // test too.
+      const taken = observed.case;
+      if (taken?.preconditions !== undefined) {
+        testInfo.annotations.push({ type: 'variance', description: `${observed.subject}: ${arrangedText(taken)}` });
       }
       return observed;
     };
@@ -310,7 +314,7 @@ export async function observeLocator(
   locator: Locator,
   options: VarianceOptions = {},
 ): Promise<Observed> {
-  const { page, run, renderer, store } = runtime;
+  const { page, run } = runtime;
   const subject: SubjectRef = {
     id: options.subjectId ?? subjectFromRun(run),
     kind: options.subjectKind ?? 'route',
@@ -326,6 +330,7 @@ export async function observeLocator(
     ...(materialization.kind === 'in-place' ? { tier: 'raster' as const } : {}),
     viewport: viewportOf(page.viewportSize(), run),
     engine: engineOf(page),
+    ...(await regionOf(page)),
     ...(options.fonts !== undefined ? { fonts: options.fonts } : {}),
     ...(options.loading === true
       ? { suspense: { timeoutMs: 0 } }
@@ -337,9 +342,37 @@ export async function observeLocator(
     // about what absent meant.
     ...(options.wiring !== undefined ? { wiring: options.wiring } : {}),
     ...(options.holdings !== undefined ? { holdings: options.holdings } : {}),
+    ...(options.stabilize !== undefined ? { stabilize: options.stabilize } : {}),
+    ...(runtime.driven !== undefined && runtime.driven.length > 0 ? { driven: runtime.driven } : {}),
   };
 
-  const acquired = await acquireFrom(page, locator, request);
+  // Read at capture rather than when the case ends, the accessibility tree is
+  // read or the comparison returns: a later call is not what this document was
+  // taken under.
+  let taken: SnapshotCase | undefined;
+  const acquired = await acquireFrom(page, locator, request, () => {
+    taken = runtime.arranged?.();
+  });
+  const observed = await observeAcquired(runtime, locator, options, { subject, request, acquired });
+  // The test goes on using this page, and types into the field it focused.
+  await refocusAfter(page);
+  return taken === undefined ? observed : { ...observed, case: taken };
+}
+
+/** The rest of an observation, from a document already captured. */
+async function observeAcquired(
+  runtime: VarianceRuntime,
+  locator: Locator,
+  options: VarianceOptions,
+  captured: {
+    readonly subject: SubjectRef;
+    readonly request: AcquireRequest;
+    readonly acquired: Awaited<ReturnType<typeof acquireFrom>>;
+  },
+): Promise<Observed> {
+  const { page, run, renderer, store } = runtime;
+  const { subject, request, acquired } = captured;
+  const materialization = runtime.materialization ?? { kind: 'deferred' };
   const { document, capture, suspense, accessibility } = acquired;
 
   // The engine's answer laid over the caller's index, read after the acquisition
@@ -358,7 +391,7 @@ export async function observeLocator(
   // folds in the scale and nothing else about the viewport, and nothing here
   // sets `label`, the one part of the key the store files apart, so no layer
   // partitions on what the `start-*.md` pages say an image is stored under.
-  const key: BaselineKey = { subject: subject.id };
+  const key: BaselineKey = baselineKeyOf(run, subject.id, { named: options.subjectId !== undefined });
 
   if (materialization.kind === 'in-place') {
     const { held, snapshot: heldSnapshot, raster: candidate } = await settledCapture(
@@ -379,10 +412,11 @@ export async function observeLocator(
       store,
       ...(options.sensitivity === undefined ? {} : { sensitivity: options.sensitivity }),
     });
-    if (run.accepting === true && observation.verdict !== 'unchanged') {
+    if (adopts(observation, run)) {
       await store.put(key, {
         ...candidate,
         components: hashComponents(heldSnapshot),
+        snapshot: packSnapshot(heldSnapshot),
         accessibility: held.accessibility,
       });
       return accepted(observation);
@@ -398,6 +432,7 @@ export async function observeLocator(
     described,
     identity,
     accessibility,
+    snapshot,
   );
 
   if (settlement.kind === 'settled') {
@@ -433,7 +468,7 @@ export async function observeLocator(
     ...(options.sensitivity === undefined ? {} : { sensitivity: options.sensitivity }),
   });
 
-  if (run.accepting === true && observation.verdict !== 'unchanged') {
+  if (adopts(observation, run)) {
     await promote(store, renderer, document, key, snapshot, accessibility);
     return accepted(observation);
   }

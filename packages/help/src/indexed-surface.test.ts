@@ -38,7 +38,7 @@ async function publishedBy(
     declared: {},
     entrypoints: [{ subpath: '.', source: entry }],
   };
-  const names = await indexedNames(root, [offering], sources, async () => new Map());
+  const names = await indexedNames(root, [offering], sources);
   return Object.fromEntries(
     [...names(entry)].map(([name, kinds]) => [
       name,
@@ -68,7 +68,7 @@ describe('published names from indexed declaration facts', () => {
       entrypoints: [{ subpath: '.', source: 'entry.ts' }],
     };
 
-    const names = await indexedNames(root, [offering], sources, async () => new Map());
+    const names = await indexedNames(root, [offering], sources);
     expect([...names('entry.ts').get('default')!.keys()]).toEqual(['function']);
   });
 
@@ -85,7 +85,7 @@ describe('published names from indexed declaration facts', () => {
       entrypoints: [{ subpath: '.', source: 'literal.ts' }],
     };
 
-    const names = await indexedNames(root, [offering], source, async () => new Map());
+    const names = await indexedNames(root, [offering], source);
     expect(names('literal.ts').get('default')?.get('const')).toMatchObject({
       kind: 'const',
       at: 'literal.ts',
@@ -112,5 +112,15 @@ describe('published names from indexed declaration facts', () => {
       'pair.ts': { text: pair, targets: ['logger.ts'] },
       'logger.ts': logger,
     })).toEqual({ default: ['function logger.ts:1'], logger: ['const pair.ts:3'] });
+  });
+
+  it('follows a type through a JavaScript module to the declaration written beside it', async () => {
+    // The graph lands `./theme` on `theme.js`, which a runtime loads and which
+    // declares no type; TypeScript reads `theme.d.ts` first.
+    expect(await publishedBy('styles.ts', {
+      'styles.ts': { text: "export type { Theme } from './theme';\n", targets: ['theme.js'] },
+      'theme.js': { text: 'export default function createTheme() {}\n', targets: [] },
+      'theme.d.ts': { text: 'export interface Theme {}\n', targets: [] },
+    })).toEqual({ Theme: ['interface theme.d.ts:1'] });
   });
 });

@@ -4,17 +4,13 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { Raster, RenderIdentity } from '@variance-authority/core/format';
-import { digestFileName, identityDigest } from '@variance-authority/core/format';
 import { RasterStoreError } from '@variance-authority/raster';
 import { createLfsStore, type CommandResult, type CommandRunner } from './lfs.js';
-
-/** The directory a store names for this identity's partition. */
-const partition = (identity: RenderIdentity): string => digestFileName(identityDigest(identity));
 
 /**
  * Baselines in the repository, and the three things that can quietly go wrong.
  *
- * The bytes have to survive a round trip; the identity partition has to survive
+ * The bytes have to survive a round trip; the identity check has to survive
  * being wrapped; and the tracking has to be *established* rather than assumed,
  * because a `.gitattributes` that was never written and a `.gitattributes` that
  * is overridden from above look identical from inside this package. Every test
@@ -31,25 +27,36 @@ const MAC: RenderIdentity = {
   fonts: ['Inter/400/normal/abc'],
 };
 
-/** Same browser, different machine. The case the partition exists for. */
+/** Same browser, different machine. The case the identity check exists for. */
 const RUNNER: RenderIdentity = { ...MAC, platform: 'linux/x64' };
 
-const ENTRY = '*.png filter=lfs diff=lfs merge=lfs -text';
+const ENTRY = '*-*.png filter=lfs diff=lfs merge=lfs -text';
 
 function rasterOf(identity: RenderIdentity, bytes = 'QUJD'): Raster {
   return { documentDigest: 'v1:doc', identity, width: 10, height: 10, bytes, missingFonts: [] };
 }
 
 /** A git that reports the glob as tracked, without a git being present. */
-function gitReporting(filter: string, lfsInstalled = true): CommandRunner {
+function gitReporting(filter: string, lfsInstalled = true, setUp = lfsInstalled): CommandRunner {
   return async (command, args): Promise<CommandResult> => {
     if (command !== 'git') throw new Error(`unexpected command ${command}`);
-    if (args[1] === 'version') return { code: lfsInstalled ? 0 : 1, stdout: '', stderr: '' };
+    if (args[0] === 'rev-parse') return { code: 0, stdout: `${root}\n`, stderr: '' };
+    if (args[0] === 'config') {
+      return setUp ? { code: 0, stdout: 'git-lfs clean -- %f\n', stderr: '' } : { code: 1, stdout: '', stderr: '' };
+    }
+    if (args[0] === 'lfs') {
+      return lfsInstalled
+        ? { code: 0, stdout: '', stderr: '' }
+        : { code: 1, stdout: '', stderr: "git: 'lfs' is not a git command. See 'git --help'.\n" };
+    }
     return { code: 0, stdout: `probe.png: filter: ${filter}\n`, stderr: '' };
   };
 }
 
 const TRACKED = gitReporting('lfs');
+
+/** Tracked, on a machine where nothing implements the filter. */
+const WITHOUT_LFS = gitReporting('lfs', false);
 
 const hasGit = spawnSync('git', ['--version']).status === 0;
 
@@ -75,15 +82,15 @@ describe('a baseline store in the repository', () => {
     expect(found?.comparable).toBe(true);
     expect(found?.raster.bytes).toBe('QUJD');
     // At the durable layout's path, not somewhere of this store's own devising.
-    const path = join(root, partition(MAC), 'todo--empty.png');
+    const path = join(root, 'todo--empty-chromium.png');
     expect((await stat(path)).isFile()).toBe(true);
   });
 
-  it('never runs git to read or write an image', async () => {
+  it('never runs git to read or write an image it already holds', async () => {
     // The rule the previous test can only imply. LFS is a clean/smudge filter, so
-    // the bytes are already at the path; a `git show` in the read path would be a
-    // second source for the same image and a process per lookup. git is asked one
-    // question, once, and it is not about content.
+    // on a smudged checkout the bytes are already at the path; a `git show` in the
+    // read path would be a second source for the same image and a process per
+    // lookup. git is asked about content only for a pointer (`lfs-fetch.test.ts`).
     const calls: string[] = [];
     const counted: CommandRunner = async (command, args) => {
       calls.push([command, ...args].join(' '));
@@ -99,13 +106,17 @@ describe('a baseline store in the repository', () => {
     await store.renderCache.put(rasterOf(MAC));
     await store.renderCache.get('v1:doc', MAC);
 
-    expect(calls).toEqual(['git check-attr filter -- probe.png', 'git lfs version']);
+    expect(calls).toEqual([
+      'git check-attr filter -- probe-probe.png',
+      'git lfs version',
+      'git config --get filter.lfs.clean',
+    ]);
     expect(calls.length).toBe(during);
   });
 
   it('does not let one machine reach another machine`s baseline', async () => {
-    // The partition is delegated rather than reimplemented, and this is the test
-    // that says so: wrapping the durable store must not have loosened it.
+    // The identity check is delegated rather than reimplemented, and this is the
+    // test that says so: wrapping the durable store must not have loosened it.
     const store = await createLfsStore({ root, git: TRACKED });
     await store.put({ subject: 'todo--empty' }, rasterOf(RUNNER));
 
@@ -139,13 +150,21 @@ describe('a baseline store in the repository', () => {
     // `.gitattributes` is a file people write by hand and other tools read.
     // Rewriting someone's entry into this package's preferred form would change
     // how git treats paths this package knows nothing about.
-    await writeFile(join(root, '.gitattributes'), '*.png text\n', 'utf8');
+    await writeFile(join(root, '.gitattributes'), '*-*.png text\n', 'utf8');
 
     const store = await createLfsStore({ root, git: TRACKED });
 
-    expect(await readFile(join(root, '.gitattributes'), 'utf8')).toBe('*.png text\n');
+    expect(await readFile(join(root, '.gitattributes'), 'utf8')).toBe('*-*.png text\n');
     expect(store.tracking.added).toBe(false);
     expect(store.tracking.diagnostics.join('\n')).toMatch(/does not route it through LFS/);
+  });
+
+  it('tracks the images a collocated template renders and no other image in the tree', async () => {
+    // A root that is the repository holds every screenshot, icon and fixture
+    // anyone committed. An entry for `*.png` would move all of them into LFS.
+    const store = await createLfsStore({ root, git: TRACKED, path: '{dir}/__baselines__/{file}/{name}-{engine}' });
+
+    expect(store.tracking.pattern).toBe('**/__baselines__/*/*-*.png');
   });
 
   it('appends without disturbing entries that were already there', async () => {
@@ -217,6 +236,16 @@ describe('a machine that cannot be asked about tracking', () => {
     expect(store.tracking.diagnostics.join('\n')).toMatch(/git-lfs is not installed/);
   });
 
+  it('reports git-lfs installed but never set up in the repository', async () => {
+    // What a CI job gets from installing git-lfs with apt and checking out with
+    // `lfs` off: the attribute routes images to a filter git has no command for,
+    // so a commit stores the whole image, and `git lfs pull` leaves the pointer.
+    const store = await createLfsStore({ root, git: gitReporting('lfs', true, false) });
+
+    expect(store.tracking.filter).toBe('lfs');
+    expect(store.tracking.diagnostics.join('\n')).toMatch(/filter\.lfs\.clean.*git lfs install --local/s);
+  });
+
   it('states that it did not check when it was told not to', async () => {
     const store = await createLfsStore({ root, verify: false, git: TRACKED });
 
@@ -230,13 +259,13 @@ describe('a clone without git-lfs', () => {
     // PNG should be. Reporting that as absent makes the verdict `new`, `new`
     // re-records what is on screen, and the baseline it overwrites was the only
     // copy of what the subject looked like before.
-    const store = await createLfsStore({ root, git: TRACKED });
+    const store = await createLfsStore({ root, git: WITHOUT_LFS });
     await store.put({ subject: 'todo--empty' }, rasterOf(MAC));
 
     const pointer =
       'version https://git-lfs.github.com/spec/v1\n' +
       'oid sha256:4d7a2145b0d3f1e2c4a5b6c7d8e9f0a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7\nsize 1024\n';
-    await writeFile(join(root, partition(MAC), 'todo--empty.png'), pointer, 'utf8');
+    await writeFile(join(root, 'todo--empty-chromium.png'), pointer, 'utf8');
 
     // The class as much as the message: `run` routes a `RasterStoreError` to the
     // operator exit and reads any other throw as a fact about the subject it was
@@ -246,7 +275,7 @@ describe('a clone without git-lfs', () => {
       RasterStoreError,
     );
     await expect(store.find({ subject: 'todo--empty' }, MAC)).rejects.toThrow(
-      /git-LFS pointer, not an image/,
+      /git-LFS pointer.*'lfs' is not a git command/s,
     );
   });
 
@@ -257,10 +286,10 @@ describe('a clone without git-lfs', () => {
     // painted from" is a fact about two committed text files and stays true where
     // the PNG is 130 bytes of pointer. The moment the bytes are needed — the
     // document moved, something must be compared — `find` runs and refuses.
-    const store = await createLfsStore({ root, git: TRACKED });
+    const store = await createLfsStore({ root, git: WITHOUT_LFS });
     await store.put({ subject: 'todo--empty' }, rasterOf(MAC));
     await writeFile(
-      join(root, partition(MAC), 'todo--empty.png'),
+      join(root, 'todo--empty-chromium.png'),
       'version https://git-lfs.github.com/spec/v1\noid sha256:4d7a\nsize 1024\n',
       'utf8',
     );
@@ -269,11 +298,12 @@ describe('a clone without git-lfs', () => {
       documentDigest: 'v1:doc',
       comparable: true,
       pictured: true,
+      keepsSnapshot: false,
       storedUnder: MAC,
       missingFonts: [],
     });
     await expect(store.find({ subject: 'todo--empty' }, MAC)).rejects.toThrow(
-      /git-LFS pointer, not an image/,
+      /git-LFS pointer.*'lfs' is not a git command/s,
     );
   });
 
@@ -281,7 +311,7 @@ describe('a clone without git-lfs', () => {
     // A store that acquired its own idea of what a raster may contain would make
     // "switching implementations changes no verdict" false for reasons unrelated
     // to storage.
-    const store = await createLfsStore({ root, git: TRACKED });
+    const store = await createLfsStore({ root, git: WITHOUT_LFS });
     await store.put({ subject: 's' }, rasterOf(MAC, 'AAAA'));
 
     expect((await store.find({ subject: 's' }, MAC))?.raster.bytes).toBe('AAAA');
@@ -313,23 +343,17 @@ describe('against a real git', () => {
       const store = await createLfsStore({ root, git: TRACKED, recordRoot: records });
       await store.put({ subject: 'todo--empty' }, rasterOf(MAC));
 
-      expect(await readdir(join(root, partition(MAC)))).toEqual(['todo--empty.png']);
-      expect(await readdir(join(records, partition(MAC)))).toEqual(['todo--empty.json']);
+      expect((await readdir(root)).sort()).toEqual(['.gitattributes', 'todo--empty-chromium.png']);
+      expect(await readdir(records)).toEqual(['todo--empty-chromium.json']);
       expect((await store.find({ subject: 'todo--empty' }, MAC))?.raster.bytes).toBe('QUJD');
     } finally {
       await rm(records, { recursive: true, force: true });
     }
   });
 
-  it.todo(
-    'a committed baseline is a pointer in the object database and a whole PNG in the working tree — needs git-lfs installed and `git lfs install` run in the temporary repository above',
-  );
-
-  it.todo(
-    'a checkout made with GIT_LFS_SKIP_SMUDGE=1 hands `find` a pointer this file did not write by hand, and the refusal fires on that one — needs git-lfs installed, since every pointer here is a string literal the filter never produced',
-  );
-
-  it.todo(
-    'bytes put through the clean filter and read back through smudge are the bytes that went in — needs git-lfs installed, and it is spec 0018 assertion 4',
-  );
+  // What git-lfs itself does to these files — the clean filter, a pointer in the
+  // object database, a clone that skipped the smudge, the bytes coming back — is
+  // asked of a real git-lfs by `lfs-fetch.test.ts` where git-lfs is installed,
+  // and by the `lfs` job of `.github/workflows/variance.yml`, on this
+  // repository's pull requests, where `variance doctor` is asserted too.
 });

@@ -66,7 +66,7 @@ inputs:
   shard:
     description: >-
       `k/n`: observe the files placed on shard k of n, by the costs the mainline
-      lineage recorded or by checksum when there are none. Every other subject is
+      lineage recorded or by file count when there are none. Every other subject is
       reported as another shard's, never dropped, and `variance report` over all n
       reports is the suite.
     required: false
@@ -92,14 +92,30 @@ inputs:
     default: '.'
 
   comment:
-    description: 'Post the docket to the pull request. One comment, updated in place.'
+    description: >-
+      Post the docket to the pull request: one comment for the config's
+      `project`, updated in place.
+    required: false
+    default: 'true'
+
+  adopt-unkeyed-comment:
+    description: >-
+      Take over the docket this job posted before the marker named the config's
+      `project`, rather than post a second comment beside it on a pull request
+      opened before the upgrade. Set it to `'false'` on a job that never posted
+      a comment before then: in a repository with two gates, the old docket is
+      the other gate's, and taking it would replace that docket, or clear it on
+      a clean run.
     required: false
     default: 'true'
 
   accept:
     description: >-
       Promote what this run renders before the gate compares, and save the store
-      for every run after when that comparison comes back green. For a store the
+      for every run after. The gate still compares against what was promoted,
+      and a subject that renders differently twice still turns the check red,
+      but the accept is kept either way: one unstable subject does not take the
+      others' baselines with it. For a store the
       host cache carries (`carry: actions-cache`); a committed store accepts
       through `commit-baselines` instead. Turn it on only for a run a person
       asked for, as `.github/workflows/variance.yml` does: on every run,
@@ -144,24 +160,43 @@ inputs:
   report-page:
     description: >-
       Write the HTML report as one file with its images inside it, upload it
-      unzipped as the `variance-report.html` artifact, and link that from the
-      comment. The artifact opens in the browser, a phone's included. Off by
-      default, because it is the one thing this action would publish: the images
-      are pixels of your product, kept for your artifact retention period.
+      unzipped as the `variance-report-<project>.html` artifact, and link that
+      from the comment. Named for the config's `project`, so two jobs over two
+      configs in one run each upload their own: a run holds one artifact per
+      name. `<project>` is spelled as `variance carry` prints it, with every
+      character but a letter, a digit, `_` or `-` written as `%XX`. The artifact
+      opens in the browser, a phone's included. Off by default, because it is
+      the one thing this action would publish: the images are pixels of your
+      product, kept for your artifact retention period.
     required: false
     default: 'false'
 
   image-ref:
     description: >-
-      A ref to push the report's before and after images to, so the comment can
-      show the leading cause's pair on its first screen, such as
-      `refs/variance/images/<head branch>`. Outside `refs/heads/`, a clone does not
-      fetch it and the branch list does not show it. One commit with no parent,
-      replaced by every run that finds a change, and linked by its commit so a
-      reader never sees the previous run's pictures from a cache. Empty is off.
-      Anyone who can read the repository can read the images, and pushing needs
-      `contents: write`; deleting the ref when the pull request closes is the
-      workflow's job, since this action runs on nothing but the change.
+      Removed: set `image-ref-prefix` instead. A ref named by the workflow
+      cannot hold the project this action reads from the config, so two jobs
+      would push to one ref. Set, it fails the run rather than leaving the
+      comment without pictures behind a warning.
+    required: false
+    default: ''
+
+  image-ref-prefix:
+    description: >-
+      A prefix to push the report's before and after images under, so the
+      comment can show the leading cause's pair on its first screen, such as
+      `refs/variance/project`, with no trailing slash. The action pushes them to
+      `<prefix>/<project>/images/<head branch>`, with `<project>` as
+      `variance carry --format github` prints it, one segment a ref takes, and
+      the head branch the pull request's. Named for the project as well as the
+      branch, because each config's run pushes its own pictures and a second
+      project's push would replace the first's while its comment still links
+      them. Outside `refs/heads/`, a clone does not fetch it and the branch list
+      does not show it. One commit with no parent, replaced by every run that
+      finds a change, and linked by its commit so a reader never sees the
+      previous run's pictures from a cache. Empty is off. Anyone who can read
+      the repository can read the images, and pushing needs `contents: write`;
+      deleting the refs when the pull request closes is the workflow's job,
+      since this action runs on nothing but the change.
     required: false
     default: ''
 
@@ -174,10 +209,22 @@ inputs:
     required: false
     default: ''
 
+  exit-zero-on-changes:
+    description: >-
+      `true` for a check that reports rather than blocks: changes that need
+      review are named as a warning and the check passes, with the comment and
+      the report as they would be otherwise. It still fails when the run did
+      not happen, when a subject could not be observed or its observation
+      errored, and when an accept the comparison after it did not hold.
+    required: false
+    default: 'false'
+
 outputs:
+  # The doctor step writes `exit-code` only when it refuses, so a run step it
+  # skipped leaves the run's answer empty and the doctor's 2 is the one read.
   exit-code:
     description: '0 nothing needs review, 1 changes need review, 2 the run did not happen.'
-    value: ${{ steps.run.outputs.exit-code }}
+    value: ${{ steps.run.outputs.exit-code || steps.doctor.outputs.exit-code }}
   report:
     description: 'Absolute path to the run report, resolved from the config.'
     value: ${{ steps.carry.outputs.report }}
@@ -191,6 +238,13 @@ outputs:
 runs:
   using: composite
   steps:
+    - if: ${{ inputs.image-ref != '' }}
+      name: refuse the removed image-ref input
+      shell: bash
+      run: |
+        echo "::error::image-ref is removed: set image-ref-prefix, such as refs/variance/project, and the action names the ref for the project and the branch"
+        exit 1
+
     # Before the run, because the baselines have to be in place before it
     # compares. A config the parser refuses stops here, with the CLI's message.
     - id: carry
@@ -206,7 +260,8 @@ runs:
         $VARIANCE_COMMAND carry restore --config "$VARIANCE_CONFIG" --format github >> "$GITHUB_OUTPUT"
 
     # Saved keys end in the run, so no key is exact and the newest prefix match
-    # wins: this commit's accept first, then the newest on the line. A pull
+    # wins: this commit's accept first, then the newest on the line, then the
+    # newest on another mainline, for a line nobody accepted on. A pull
     # request searches its own cache scope before its base's, which is how an
     # accept made on it outranks what the base painted since.
     - if: ${{ steps.carry.outputs.baselines-key != '' }}
@@ -217,12 +272,38 @@ runs:
         key: ${{ steps.carry.outputs.baselines-key }}
         restore-keys: ${{ steps.carry.outputs.baselines-restore-keys }}
 
+    # Before anything compares, because the run meets an LFS pointer only at a
+    # subject whose document moved: one that did not is settled from its `.json`
+    # sidecar without its image being read, so a checkout that skipped the LFS
+    # fetch would pass green until somebody edits a component. `--baselines`
+    # reads the store's first bytes and nothing else, no browser and no font, and
+    # exits 2 on a pointer; this step then fails, every step that compares or
+    # writes is skipped, and the verdict reports 2. Only for a store in the
+    # checkout: a remote store and ephemeral retention keep nothing here.
+    - id: doctor
+      if: ${{ steps.carry.outputs.baselines-root != '' }}
+      name: refuse a checkout of LFS pointers
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      env:
+        VARIANCE_COMMAND: ${{ inputs.command }}
+        VARIANCE_CONFIG: ${{ inputs.config }}
+      run: |
+        set -uo pipefail
+        # shellcheck disable=SC2086
+        if $VARIANCE_COMMAND doctor --config "$VARIANCE_CONFIG" --baselines; then exit 0; else code=$?; fi
+        # Any refusal here means the run did not happen, so the verdict reads 2
+        # whatever doctor exited with; a crash must not read as "changes".
+        echo "exit-code=2" >> "$GITHUB_OUTPUT"
+        exit "$code"
+
     # `--exit-zero-on-changes` because this run is not asking: the person has
     # already decided. It suppresses 1 and never 2, so a run whose browser did
     # not launch still fails here rather than accepting an empty report. The
-    # gate below then compares against what was promoted, and the store is kept
-    # only when that comes back green.
-    - if: ${{ inputs.accept == 'true' }}
+    # gate below then compares against what was promoted, which is how a subject
+    # that does not render the same way twice is found.
+    - id: promote
+      if: ${{ inputs.accept == 'true' }}
       name: promote what this run proposes
       shell: bash
       working-directory: ${{ inputs.working-directory }}
@@ -290,9 +371,10 @@ runs:
         VARIANCE_COMMAND: ${{ inputs.command }}
         VARIANCE_CONFIG: ${{ inputs.config }}
         VARIANCE_REPORT: ${{ steps.carry.outputs.report }}
+        VARIANCE_PROJECT: ${{ steps.carry.outputs.project }}
       run: |
         set -euo pipefail
-        page="$(dirname "$VARIANCE_REPORT")/variance-report.html"
+        page="$(dirname "$VARIANCE_REPORT")/variance-report-$VARIANCE_PROJECT.html"
         # `--exit-zero-on-changes`: this step writes a page, and the verdict is
         # the run step's. It suppresses 1 and never 2.
         # shellcheck disable=SC2086
@@ -325,33 +407,39 @@ runs:
     # comment with no pictures is still the whole verdict.
     - id: images
       name: publish the images the comment shows
-      if: ${{ inputs.image-ref != '' && inputs.comment == 'true' && steps.run.outputs.exit-code == '1' }}
+      if: ${{ inputs.image-ref-prefix != '' && inputs.comment == 'true' && steps.run.outputs.exit-code == '1' }}
       shell: bash
       env:
         GITHUB_TOKEN: ${{ inputs.github-token }}
         VARIANCE_REPORT: ${{ steps.carry.outputs.report }}
-        VARIANCE_IMAGE_REF: ${{ inputs.image-ref }}
+        VARIANCE_IMAGE_REF_PREFIX: ${{ inputs.image-ref-prefix }}
+        VARIANCE_PROJECT: ${{ steps.carry.outputs.project }}
+        VARIANCE_BRANCH: ${{ github.head_ref }}
       run: |
         set -uo pipefail
         skip() { echo "::warning::the comment shows no images: $1"; exit 0; }
 
+        [ -n "$VARIANCE_BRANCH" ] || skip "there is no pull request branch to name the images ref for"
+        [ -n "$VARIANCE_PROJECT" ] || skip "carry named no project to name the images ref for"
+        VARIANCE_IMAGE_REF="$VARIANCE_IMAGE_REF_PREFIX/$VARIANCE_PROJECT/images/$VARIANCE_BRANCH"
         [ -n "$GITHUB_TOKEN" ] || skip "no github-token to push $VARIANCE_IMAGE_REF with"
 
         here="$(dirname "$VARIANCE_REPORT")"
         repo="$(mktemp -d)"
         paths="$repo/paths"
-        # Before and after, only where the report holds both, since a subject
-        # with one of them is never pictured; and never a path that leaves the
-        # report's directory.
+        # What the comment shows of each subject: the change, cropped, where the
+        # report has one, and otherwise the before and after, only where it holds
+        # both, since a subject with one of them is never pictured. Never a path
+        # that leaves the report's directory.
         node -e '
           const report = JSON.parse(require("node:fs").readFileSync(process.argv[1], "utf8"));
+          const inside = (path) => typeof path === "string" && !path.split("/").includes("..");
           for (const { images } of report.observations ?? []) {
-            const pair = [images?.before, images?.after];
-            if (pair.every((path) => typeof path === "string" && !path.split("/").includes("..")))
-              console.log(pair.join("\n"));
+            const shown = inside(images?.change) ? [images.change] : [images?.before, images?.after];
+            if (shown.every(inside)) console.log(shown.join("\n"));
           }
         ' "$VARIANCE_REPORT" > "$paths" || skip "the report could not be read"
-        [ -s "$paths" ] || skip "the report names no before and after images"
+        [ -s "$paths" ] || skip "the report names no image of a change"
 
         git init -q --bare "$repo/git"
         export GIT_DIR="$repo/git" GIT_WORK_TREE="$here"
@@ -386,8 +474,9 @@ runs:
 
         # The marker, asked for separately, because the poster needs it in the
         # one case where there is no body to read it out of: a clean run, where
-        # a *previous* docket has to be found. It is a constant this build
-        # carries, so this costs a process and reads no report.
+        # a *previous* docket has to be found. It names the config's project, so
+        # two configs on one pull request keep a comment each; this reads the
+        # config and no report.
         #
         # $VARIANCE_COMMAND is unquoted so `node path/to/bin.js` splits.
         # shellcheck disable=SC2086
@@ -416,6 +505,7 @@ runs:
         # a value carrying a quote would become shell syntax.
         GITHUB_TOKEN: ${{ inputs.github-token }}
         VARIANCE_MARKER: ${{ steps.render.outputs.marker }}
+        VARIANCE_ADOPT_UNKEYED: ${{ inputs.adopt-unkeyed-comment }}
       run: |
         # In a container job `github.action_path` is the runner's host path; the
         # container mounts the same tree elsewhere. `GITHUB_WORKSPACE` is the
@@ -426,7 +516,8 @@ runs:
         here="$(dirname "$(dirname "$GITHUB_WORKSPACE")")${here#"$host_root"}"
         node "$here/post-comment.mjs" \
           --body-file "$RUNNER_TEMP/variance-comment.md" \
-          --marker "$VARIANCE_MARKER"
+          --marker "$VARIANCE_MARKER" \
+          --adopt-unkeyed "$VARIANCE_ADOPT_UNKEYED"
 
     - name: commit regenerated baselines
       if: ${{ inputs.commit-baselines == 'true' && steps.run.outputs.exit-code != '2' }}
@@ -436,6 +527,7 @@ runs:
         VARIANCE_COMMAND: ${{ inputs.command }}
         VARIANCE_CONFIG: ${{ inputs.config }}
         VARIANCE_BASELINES: ${{ steps.carry.outputs.baselines-root }}
+        VARIANCE_PATHSPECS: ${{ steps.carry.outputs.baselines-pathspecs }}
         VARIANCE_MESSAGE: ${{ inputs.commit-message }}
         VARIANCE_BRANCH: ${{ github.head_ref }}
       run: |
@@ -474,7 +566,32 @@ runs:
         $VARIANCE_COMMAND accept --config "$VARIANCE_CONFIG" --all \
           --message-file "$message" --message "$VARIANCE_MESSAGE"
 
-        git add -- "$VARIANCE_BASELINES"
+        # The paths `baselines.path` renders, never the root: collocated, the
+        # root is the repository. Listed first, because `git add` refuses a
+        # pathspec that matches nothing and the old layout's usually does not.
+        # `--cached` lists a pair `accept` retired, so it is staged as a
+        # deletion beside the file it moved to, and git shows a rename.
+        # A CLI older than this action prints no pathspecs, and an empty one
+        # matches the whole checkout, so that CLI's root is staged as before.
+        if [ -z "$VARIANCE_PATHSPECS" ]; then
+          git add -- "$VARIANCE_BASELINES"
+        else
+          # A read loop, not `mapfile`: a self-hosted macOS runner's bash is 3.2.
+          pathspecs=()
+          while IFS= read -r spec; do
+            if [ -n "$spec" ]; then pathspecs+=("$spec"); fi
+          done <<< "$VARIANCE_PATHSPECS"
+          listed="$(mktemp)"
+          if [ "${#pathspecs[@]}" -gt 0 ]; then
+            git ls-files -z --cached --others --exclude-standard -- "${pathspecs[@]}" > "$listed"
+          fi
+          # Only a list with something in it: `git add` given no pathspec at
+          # all stages the whole tree. Literal, because a listed file name is
+          # a name, and `Primary[1]` read as a pattern is another file.
+          if [ -s "$listed" ]; then
+            git --literal-pathspecs add -A --pathspec-from-file="$listed" --pathspec-file-nul
+          fi
+        fi
 
         if git diff --cached --quiet; then
           echo "no baseline changed; nothing to commit"
@@ -483,10 +600,11 @@ runs:
 
         # One commit, containing image artifacts and the sidecars without which an
         # image is not a baseline — the sidecar carries the width, the scale, and
-        # the document digest that `settle` compares against on the next run. A
-        # staged path that is neither is a bug in this step, and it stops here
+        # the document digest that `settle` compares against on the next run —
+        # and, for `lfs`, the `.gitattributes` line that tracks them. A staged
+        # path that is none of these is a bug in this step, and it stops here
         # rather than riding into a contributor's branch.
-        unexpected="$(git diff --cached --name-only | grep -Ev '\.(png|json)$' || true)"
+        unexpected="$(git diff --cached --name-only | grep -Ev '(\.(png|json)|(^|/)\.gitattributes)$' || true)"
         if [ -n "$unexpected" ]; then
           echo "::error::refusing to commit non-artifact paths staged under the baseline store"
           echo "$unexpected"
@@ -514,10 +632,13 @@ runs:
     # Saved under this commit and this run, so the next comparison restores this
     # store and not an older one. An Actions cache key is never overwritten,
     # which is why the key names the run: accepting the same commit twice must
-    # keep the second. Only after a green gate, so an accept is kept once a
-    # comparison against it agreed.
+    # keep the second. Kept whatever the gate found: the accept is the person's
+    # answer, and a subject that rendered differently on the gate's pass is that
+    # subject's defect, named by the red check, not a reason to drop every other
+    # subject's baseline. `!cancelled()`, so a report, an image or a comment
+    # step that failed after the gate cannot drop the accept either.
     - id: keep
-      if: ${{ inputs.accept == 'true' && steps.run.outputs.exit-code == '0' }}
+      if: ${{ !cancelled() && inputs.accept == 'true' && steps.promote.outcome == 'success' }}
       name: what the host keeps
       shell: bash
       working-directory: ${{ inputs.working-directory }}
@@ -529,7 +650,8 @@ runs:
         # shellcheck disable=SC2086
         $VARIANCE_COMMAND carry save --config "$VARIANCE_CONFIG" --format github >> "$GITHUB_OUTPUT"
 
-    - if: ${{ steps.keep.outputs.baselines-key != '' }}
+    - id: saved
+      if: ${{ !cancelled() && steps.keep.outputs.baselines-key != '' }}
       name: keep the accepted baselines for every run after this one
       uses: actions/cache/save@v4
       with:
@@ -545,7 +667,10 @@ runs:
       if: ${{ always() }}
       shell: bash
       env:
-        CODE: ${{ steps.run.outputs.exit-code }}
+        CODE: ${{ steps.run.outputs.exit-code || steps.doctor.outputs.exit-code }}
+        KEPT: ${{ steps.saved.outcome == 'success' }}
+        EXIT_ZERO_ON_CHANGES: ${{ inputs.exit-zero-on-changes }}
+        REPORT: ${{ steps.carry.outputs.report }}
         # Where the reader goes next. A push has no pull request, so pointing at
         # a comment there sends them looking for something that was never written.
         WHERE: >-
@@ -558,13 +683,39 @@ runs:
             echo "nothing needs review."
             ;;
           1)
-            echo "::error::variance found changes that need review; $WHERE."
+            if [ "$KEPT" = true ]; then
+              # The run accepted, and kept it: what failed, failed against
+              # this commit's own accept.
+              echo "::error::variance kept what this run accepted, and the comparison after it still failed: a subject that does not render the same way twice, an observation that errored, or a subject not observed; $WHERE."
+            elif [ "$EXIT_ZERO_ON_CHANGES" = true ]; then
+              # A change is the reviewer's to look at whenever they get to it;
+              # a subject the run could not observe is a hole in what it says,
+              # often a server that died mid-run, and stays red. Of the
+              # conditions `exitFor` turns into 1, the holes are a `failed`
+              # subject, an `error` diagnostic and a report that does not say
+              # what it observed or skipped; an unreadable one is a hole too.
+              # An unabsorbed instability is left a change on purpose: on an
+              # ordinary run that subject is already `changed`.
+              if node -e '
+                const report = JSON.parse(require("node:fs").readFileSync(process.argv[1], "utf8"));
+                const hole = report.observations === undefined || report.notObserved === undefined ||
+                  report.notObserved.some((entry) => entry.kind === "failed") ||
+                  report.observations.some(({ diagnostics }) => (diagnostics ?? []).some((d) => d.severity === "error"));
+                process.exit(hole ? 1 : 0);
+              ' "${REPORT:-}" 2>/dev/null; then
+                echo "::warning::variance found changes that need review; $WHERE."
+                exit 0
+              fi
+              echo "::error::variance could not observe every subject: a subject failed, an observation errored, or the report does not say what it skipped; $WHERE."
+            else
+              echo "::error::variance found changes that need review; $WHERE."
+            fi
             exit 1
             ;;
           2)
             # Not a finding about the change: no verdict was reached and no
             # subject was observed.
-            echo "::error::variance could not run (exit 2); see the variance run step."
+            echo "::error::variance could not run (exit 2); see the doctor or the variance run step above."
             exit 2
             ;;
           '')

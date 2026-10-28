@@ -40,6 +40,7 @@ import information from "../../../docs/information.md?raw";
 import instruments from "../../../docs/instruments.md?raw";
 import journeys from "../../../docs/journeys.md?raw";
 import jvm from "../../../docs/jvm.md?raw";
+import lateContent from "../../../docs/late-content.md?raw";
 import testStories from "../../../docs/test-stories.md?raw";
 import lexicon from "../../../docs/lexicon.md?raw";
 import locate from "../../../docs/locate.md?raw";
@@ -48,6 +49,7 @@ import nativeCode from "../../../docs/native-code.md?raw";
 import observability from "../../../docs/observability.md?raw";
 import boundaries from "../../../docs/boundaries.md?raw";
 import orientation from "../../../docs/orientation.md?raw";
+import techStack from "../../../docs/tech-stack.md?raw";
 import ownFewerTests from "../../../docs/own-fewer-tests.md?raw";
 import optimizeATest from "../../../docs/optimize-a-test.md?raw";
 import parting from "../../../docs/parting.md?raw";
@@ -60,13 +62,16 @@ import replacing from "../../../docs/replacing.md?raw";
 import reasoning from "../../../docs/reasoning.md?raw";
 import runRelevantWork from "../../../docs/run-relevant-work.md?raw";
 import scale from "../../../docs/scale.md?raw";
+import testAnEdit from "../../../docs/test-an-edit.md?raw";
 import testLevelCoverage from "../../../docs/test-level-coverage.md?raw";
+import casePreconditions from "../../../docs/case-preconditions.md?raw";
 import scenarios from "../../../docs/scenarios.md?raw";
 import sensitivity from "../../../docs/sensitivity.md?raw";
 import changesBeforeAndBeyond from "../../../docs/changes-before-and-beyond.md?raw";
 import selecting from "../../../docs/selecting.md?raw";
 import selectionTanstackQuery from "../../../docs/selection-tanstack-query.md?raw";
 import selectionZod from "../../../docs/selection-zod.md?raw";
+import sharding from "../../../docs/sharding.md?raw";
 import sharing from "../../../docs/sharing.md?raw";
 import sourceIndex from "../../../docs/source-index.md?raw";
 import sourceStructures from "../../../docs/source-structures.md?raw";
@@ -92,6 +97,7 @@ import understandInterface from "../../../docs/understand-interface.md?raw";
 import vantage from "../../../docs/vantage.md?raw";
 import variations from "../../../docs/variations.md?raw";
 import aBTesting from "../../../docs/a-b-testing.md?raw";
+import visualReviewCost from "../../../docs/visual-review-cost.md?raw";
 
 export interface ProductDocument {
   slug: string;
@@ -102,6 +108,7 @@ export interface ProductDocument {
 const documents = [
   ["overview", index, "docs/README.md"],
   ["orientation", orientation, "docs/orientation.md"],
+  ["tech-stack", techStack, "docs/tech-stack.md"],
   ["boundaries", boundaries, "docs/boundaries.md"],
   ["tests", tests, "docs/tests.md"],
   ["changed", changed, "docs/changed.md"],
@@ -109,10 +116,12 @@ const documents = [
   ["evidence-field", evidenceField, "docs/evidence-field.md"],
   ["great-data", greatData, "docs/great-data.md"],
   ["adjacent-possible", adjacentPossible, "docs/adjacent-possible.md"],
+  ["visual-review-cost", visualReviewCost, "docs/visual-review-cost.md"],
   ["extend-what-you-use", extendWhatYouUse, "docs/extend-what-you-use.md"],
   ["better-tests", betterTests, "docs/better-tests.md"],
   ["own-fewer-tests", ownFewerTests, "docs/own-fewer-tests.md"],
   ["test-level-coverage", testLevelCoverage, "docs/test-level-coverage.md"],
+  ["case-preconditions", casePreconditions, "docs/case-preconditions.md"],
   ["run-relevant-work", runRelevantWork, "docs/run-relevant-work.md"],
   ["understand-execution", understandExecution, "docs/understand-execution.md"],
   ["understand-interface", understandInterface, "docs/understand-interface.md"],
@@ -153,12 +162,14 @@ const documents = [
   ["placement", placement, "docs/placement.md"],
   ["history", history, "docs/history.md"],
   ["stabilization", stabilization, "docs/stabilization.md"],
+  ["late-content", lateContent, "docs/late-content.md"],
   ["flakiness", flakiness, "docs/flakiness.md"],
   ["framework", framework, "docs/framework.md"],
   ["framework-reference", frameworkReference, "docs/framework-reference.md"],
   ["parting", parting, "docs/parting.md"],
   ["source", source, "docs/source.md"],
   ["changes-before-and-beyond", changesBeforeAndBeyond, "docs/changes-before-and-beyond.md"],
+  ["test-an-edit", testAnEdit, "docs/test-an-edit.md"],
   ["selecting", selecting, "docs/selecting.md"],
   ["coverage-test-selection", coverageTestSelection, "docs/coverage-test-selection.md"],
   ["how-selection-scales", howSelectionScales, "docs/how-selection-scales.md"],
@@ -198,6 +209,7 @@ const documents = [
   ["metrics", metrics, "docs/metrics.md"],
   ["native-code", nativeCode, "docs/native-code.md"],
   ["performance", performance, "docs/performance.md"],
+  ["sharding", sharding, "docs/sharding.md"],
   ["sharing", sharing, "docs/sharing.md"],
   ["cache", cache, "docs/cache.md"],
   ["on-dependencies", onDependencies, "docs/on-dependencies.md"],

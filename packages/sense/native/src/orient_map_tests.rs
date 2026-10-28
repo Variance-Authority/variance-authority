@@ -78,7 +78,9 @@ fn publish(index: &str) {
                 format!(r#"{{"value": "{value}", "kind": "imports", "line": 1, "bindings": [{{"imported": "make", "local": "make", "type": false, "line": 1}}]}}"#)
             })
             .collect();
-        parses.push(format!(r#"["{digest}\u0000.ts\u0000+", {{"requests": [{}]}}]"#, requests.join(", ")));
+        // Every file holds ten lines of code but the tools family's, whose parses stored no size.
+        let size = if family == "tools" { String::new() } else { r#", "size": {"bytes": 200, "lines": 10}"#.to_owned() };
+        parses.push(format!(r#"["{digest}\u0000.ts\u0000+", {{"requests": [{}]{size}}}]"#, requests.join(", ")));
     }
     let document = format!(r#"{{"records": [{}], "parses": [{}], "deletedRecords": [], "deletedParses": []}}"#, records.join(", "), parses.join(", "));
     let segment = merged(&[], &Delta::of(vec![document]).unwrap());
@@ -91,7 +93,7 @@ fn stored(name: &str) -> (Fixture, String, super::Stored) {
     publish(&index);
     let chain = read_chain(&index).unwrap().expect("a published chain");
     let layers: Vec<Layer> = chain.segments.iter().map(|bytes| Layer::open(bytes).unwrap()).collect();
-    let read = read(&root.0.to_string_lossy(), &layers, Some(&paths), HashSet::new);
+    let read = read(&root.0.to_string_lossy(), &layers, Some(&paths), crate::resolve::Tsconfig::Auto, HashSet::new);
     let (made, pages, placed) = fold(&read).ok().expect("named packages to fold");
     let digest = super::manifest_digest(&index).unwrap();
     let stored = super::Stored { format: super::FORMAT, index: digest, listed: None, unmarked: false, made: Some(made), unmade: None, pages, placed };
@@ -172,7 +174,7 @@ fn inode(path: &str) -> u64 {
 fn outside_git_the_map_is_folded_from_the_indexed_files_and_the_manifests_beside_them() {
     let (_root, root, index) = indexed("walked");
     // A scan that could not list with git: the map asks git nothing either.
-    let prepared = prepare_orient_map(&root, &index, Some(true)).unwrap().expect("an index");
+    let prepared = prepare_orient_map(&root, &index, Some(true), crate::resolve::Tsconfig::Auto).unwrap().expect("an index");
     assert!(prepared.walked && !prepared.unmarked && !prepared.relisted && prepared.unmade.is_none());
     let map = prepared.map.expect("a folded map");
     assert_eq!((map.packages, map.areas, map.levels, map.layers, map.unread), (20, 4, 1, 6, 0));
@@ -182,8 +184,8 @@ fn outside_git_the_map_is_folded_from_the_indexed_files_and_the_manifests_beside
 #[test]
 fn every_package_reads_back_with_its_layer_and_what_it_takes() {
     let (_root, root, index) = indexed("placed");
-    prepare_orient_map(&root, &index, Some(true)).unwrap().expect("an index");
-    let answer = crate::orient_map::orient_layers(index).unwrap().expect("a kept map");
+    prepare_orient_map(&root, &index, Some(true), crate::resolve::Tsconfig::Auto).unwrap().expect("an index");
+    let answer = crate::orient_map_layers::orient_layers(index).unwrap().expect("a kept map");
     assert!(answer.current && answer.unmade.is_none());
     let packages = answer.packages.expect("a folded map");
     let layer = |name: &str| packages.iter().find(|package| package.package == name).unwrap();
@@ -197,19 +199,39 @@ fn every_package_reads_back_with_its_layer_and_what_it_takes() {
 }
 
 #[test]
+fn every_package_reads_back_with_the_lines_its_shipped_files_pull_in() {
+    let (_root, root, index) = indexed("closures");
+    prepare_orient_map(&root, &index, Some(true), crate::resolve::Tsconfig::Auto).unwrap().expect("an index");
+    let packages = crate::orient_map_layers::orient_layers(index.clone()).unwrap().unwrap().packages.unwrap();
+    let size = |name: &str| {
+        let package = packages.iter().find(|package| package.package == name).unwrap();
+        (package.lines, package.own, package.files, package.unsized_files)
+    };
+    assert_eq!(size("@t/data-0"), (10.0, 10.0, 1, 0));
+    // Each member takes every member before it, so the last pulls in the family.
+    assert_eq!(size("@t/data-4"), (50.0, 10.0, 5, 0));
+    assert_eq!(size("@t/server-1"), (30.0, 10.0, 3, 0));
+    // A file with no stored size is counted as unsized, never as empty.
+    assert_eq!(size("@t/tools-2"), (0.0, 0.0, 0, 3));
+    let shipped = crate::orient_map_shipped::orient_shipped(index).unwrap().expect("the shipped list, kept beside the map");
+    assert!(shipped.current);
+    assert_eq!(shipped.files.len(), 20);
+}
+
+#[test]
 fn a_checkout_with_nothing_to_fold_says_why_and_keeps_no_map() {
     let (fixture, root, index) = indexed("unmade");
-    assert!(prepare_orient_map(&root, &index, None).unwrap().unwrap().map.is_some());
+    assert!(prepare_orient_map(&root, &index, None, crate::resolve::Tsconfig::Auto).unwrap().unwrap().map.is_some());
     for (directory, _) in packages() {
         std::fs::write(fixture.0.join(directory).join("package.json"), "{}").unwrap();
     }
     std::fs::write(fixture.0.join("package.json"), r#"{"name": "@t/root"}"#).unwrap();
-    let prepared = prepare_orient_map(&root, &index, None).unwrap().unwrap();
+    let prepared = prepare_orient_map(&root, &index, None, crate::resolve::Tsconfig::Auto).unwrap().unwrap();
     assert_eq!((prepared.map.is_none(), prepared.unmade.as_deref()), (true, Some("the root's is the only named manifest")));
     let answer = orient_map_page(index.clone(), None).unwrap().expect("the reason, kept beside the index");
     assert_eq!((answer.page.is_none(), answer.layers, answer.unmade.as_deref()), (true, None, Some("the root's is the only named manifest")));
     std::fs::write(fixture.0.join("package.json"), "{}").unwrap();
-    let prepared = prepare_orient_map(&root, &index, None).unwrap().unwrap();
+    let prepared = prepare_orient_map(&root, &index, None, crate::resolve::Tsconfig::Auto).unwrap().unwrap();
     assert_eq!(prepared.unmade.as_deref(), Some("no manifest names a package"));
 }
 
@@ -227,7 +249,7 @@ fn in_git_an_unchanged_index_and_unchanged_manifests_keep_the_map_unfolded() {
     assert_eq!(inode(&map_path(&index)), folded, "nothing moved, so nothing was written");
     assert_eq!(again.map.map(|map| (map.packages, map.areas)), Some((20, 4)));
     // With no scan to carry, git lists the checkout for the map, and says so.
-    let alone = prepare_orient_map(&root, &index, None).unwrap().unwrap();
+    let alone = prepare_orient_map(&root, &index, None, crate::resolve::Tsconfig::Auto).unwrap().unwrap();
     assert!(alone.relisted && !alone.walked);
     assert_eq!(inode(&map_path(&index)), folded);
     // A manifest git holds a new blob for folds the map again.
@@ -235,4 +257,63 @@ fn in_git_an_unchanged_index_and_unchanged_manifests_keep_the_map_unfolded() {
     git(&root, &["add", "-A"]);
     carried(&crate::git_tree(root.clone()).unwrap(), &root, &index).unwrap().unwrap();
     assert_ne!(inode(&map_path(&index)), folded);
+}
+
+#[test]
+fn a_package_is_taken_for_what_its_importers_take_and_not_what_an_export_type_passes_on() {
+    let root = std::env::temp_dir().join(format!("sense-orient-map-{}-republished", std::process::id()));
+    let _ = std::fs::remove_dir_all(&root);
+    for (directory, name) in [("packages/a", "@t/a"), ("packages/b", "@t/b")] {
+        std::fs::create_dir_all(root.join(directory).join("src")).unwrap();
+        std::fs::write(root.join(directory).join("package.json"), format!(r#"{{"name": "{name}"}}"#)).unwrap();
+    }
+    std::fs::write(root.join("package.json"), r#"{"private": true}"#).unwrap();
+    let _root = Fixture(root.clone());
+    let a = "packages/a/src/index.ts";
+    let b = "packages/b/src/index.ts";
+    // `import { make } from '@t/a'; export type { Make } from '@t/a'`: one request takes, the other passes on.
+    let requests = [
+        r#"{"value": "@t/a", "kind": "imports", "line": 1, "bindings": [{"imported": "make", "local": "make", "type": false, "line": 1}]}"#,
+        r#"{"value": "@t/a", "kind": "type", "line": 2, "republishes": true, "bindings": [{"imported": "Make", "local": "Make", "type": true, "line": 2}]}"#,
+    ];
+    let document = format!(
+        r#"{{"records": [["{a}", {{"record": {{"file": "{a}", "digest": "da"}}, "witnesses": [], "targets": []}}], ["{b}", {{"record": {{"file": "{b}", "digest": "db"}}, "witnesses": [], "targets": ["{a}", "{a}"]}}]], "parses": [["da\u0000.ts\u0000+", {{"requests": []}}], ["db\u0000.ts\u0000+", {{"requests": [{}]}}]], "deletedRecords": [], "deletedParses": []}}"#,
+        requests.join(", ")
+    );
+    let segment = merged(&[], &Delta::of(vec![document]).unwrap());
+    let layers = [Layer::open(&segment).unwrap()];
+    let paths: Vec<String> = ["package.json", "packages/a/package.json", a, "packages/b/package.json", b].iter().map(|path| (*path).to_owned()).collect();
+
+    let read = read(&root.to_string_lossy(), &layers, Some(&paths), crate::resolve::Tsconfig::Auto, HashSet::new);
+
+    let at = read.packages.iter().position(|package| package.name == "@t/a").unwrap();
+    assert_eq!(read.head[at], ["make"]);
+}
+
+#[test]
+fn a_package_held_whole_is_taken_for_the_names_read_off_it_and_not_off_its_default() {
+    let root = std::env::temp_dir().join(format!("sense-orient-map-{}-through-default", std::process::id()));
+    let _ = std::fs::remove_dir_all(&root);
+    for (directory, name) in [("packages/a", "@t/a"), ("packages/b", "@t/b")] {
+        std::fs::create_dir_all(root.join(directory).join("src")).unwrap();
+        std::fs::write(root.join(directory).join("package.json"), format!(r#"{{"name": "{name}"}}"#)).unwrap();
+    }
+    std::fs::write(root.join("package.json"), r#"{"private": true}"#).unwrap();
+    let _root = Fixture(root.clone());
+    let a = "packages/a/src/index.ts";
+    let b = "packages/b/src/index.ts";
+    // `import * as a from '@t/a'; a.make; a.default.inner`: `inner` is the default's.
+    let request = r#"{"value": "@t/a", "kind": "imports", "line": 1, "bindings": [{"imported": "*", "local": "a", "type": false, "line": 1}]}"#;
+    let members = r#"[{"request": 0, "name": "make", "line": 2}, {"request": 0, "name": "default", "line": 3}, {"request": 0, "name": "inner", "line": 3, "throughDefault": true}]"#;
+    let document = format!(
+        r#"{{"records": [["{a}", {{"record": {{"file": "{a}", "digest": "da"}}, "witnesses": [], "targets": []}}], ["{b}", {{"record": {{"file": "{b}", "digest": "db"}}, "witnesses": [], "targets": ["{a}"]}}]], "parses": [["da\u0000.ts\u0000+", {{"requests": []}}], ["db\u0000.ts\u0000+", {{"requests": [{request}], "members": {members}}}]], "deletedRecords": [], "deletedParses": []}}"#
+    );
+    let segment = merged(&[], &Delta::of(vec![document]).unwrap());
+    let layers = [Layer::open(&segment).unwrap()];
+    let paths: Vec<String> = ["package.json", "packages/a/package.json", a, "packages/b/package.json", b].iter().map(|path| (*path).to_owned()).collect();
+
+    let read = read(&root.to_string_lossy(), &layers, Some(&paths), crate::resolve::Tsconfig::Auto, HashSet::new);
+
+    let at = read.packages.iter().position(|package| package.name == "@t/a").unwrap();
+    assert_eq!(read.head[at], ["default", "make"]);
 }

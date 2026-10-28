@@ -1,8 +1,36 @@
-<!--
-Write for a reviewer who has never seen this repository.
-1. What this change is and what problem it solves, in words they already know.
-2. What it shows: the result, with a number.
-3. What it does not show, and what you want them to challenge.
-Describe the change as merged, not against earlier drafts: no "now", "down from" or "used to".
-Before sending, a reader given only this text must be able to say what the PR is.
--->
+## Problem
+
+<!-- What was wrong or missing, in one or two sentences, apart from the fix.
+Link the failing run, issue or line that shows it. -->
+
+## Solution
+
+<!-- What changed, in one or two sentences in the project's own concepts, no
+paths: what a concept now is, does, or where it is held. -->
+
+## Blocks
+
+<!-- One row per block the change touches: a unit that changes for one reason.
+Mark: Upgrade (modified), Extract (separated out so callers share it), Ghost
+(new: nothing existing carries it), Acquire (a dependency brought in),
+Deconstruct (removed). A Ghost or Acquire names what existing code it ruled
+out, and why. Pinned by: the test that fails without the block, or the command
+and result that show it. A block that changes how a record is carried, indexed
+by case, or read by a selection or a comparison also names the contract clause
+it keeps and the carry journey that exercises it, and quotes that test's
+failing assertion on the code before the fix. -->
+
+| Mark | Block | Change | Pinned by |
+| --- | --- | --- | --- |
+|  |  |  |  |
+
+<!-- When the change crosses packages, add a mermaid `flowchart TB` of the
+touched packages: label a dependency it adds `+` and one it removes `−`. -->
+
+## Assumptions
+
+<!-- Delete when empty. Each choice between plausible alternatives, with the
+alternative, and each review finding set aside, with why. One line each. -->
+
+<!-- Last: the output of `yarn variance review --since origin/main --format
+handover`, unedited. Review bots read it before CI has run. -->

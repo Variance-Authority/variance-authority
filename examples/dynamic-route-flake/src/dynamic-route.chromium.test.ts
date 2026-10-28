@@ -9,7 +9,6 @@ import {
   componentInstances,
   composeSubjects,
   formatSource,
-  indexSource,
   isolateRegions,
   locateInstability,
   mergeSourceIndexes,
@@ -23,6 +22,7 @@ import { buildDocket } from '@variance-authority/core/judge';
 import { normalize } from '@variance-authority/core/rules';
 import { createHarness, type Harness } from '@variance-authority/playwright';
 import { comparePngs } from '@variance-authority/png';
+import { indexDeclarations } from '@variance-authority/sense';
 import { pageAgentBundle } from '../test/page-agent-bundle.js';
 
 const BROWSER_AVAILABLE = (() => {
@@ -34,8 +34,8 @@ const VIEWPORT = { width: 260, height: 120, deviceScaleFactor: 1, colorScheme: '
 const SUBJECT = 'route/product-card';
 const CONTROL = 'route/product-card-control';
 const SOURCE = mergeSourceIndexes([
-  indexSource('src/price-tag.tsx', readFileSync(join(HERE, 'price-tag.tsx'), 'utf8')),
-  indexSource('src/dynamic-image.tsx', readFileSync(join(HERE, 'dynamic-image.tsx'), 'utf8')),
+  indexDeclarations('src/price-tag.tsx', readFileSync(join(HERE, 'price-tag.tsx'), 'utf8')),
+  indexDeclarations('src/dynamic-image.tsx', readFileSync(join(HERE, 'dynamic-image.tsx'), 'utf8')),
 ]);
 
 if (!BROWSER_AVAILABLE) {
@@ -122,6 +122,8 @@ beforeAll(async () => {
     attributeRegions(isolateRegions(activeComparison.mask).regions, changed, {
       scale: VIEWPORT.deviceScaleFactor,
       origin: active.origin,
+      before: baseline,
+      beforeOrigin: before.origin,
     }),
     activeCauses,
   );
@@ -132,6 +134,8 @@ beforeAll(async () => {
     attributeRegions(isolateRegions(repeatComparison.mask).regions, repeat, {
       scale: VIEWPORT.deviceScaleFactor,
       origin: again.origin,
+      before: changed,
+      beforeOrigin: active.origin,
     }),
   );
 }, 120_000);

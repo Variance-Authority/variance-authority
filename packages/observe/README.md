@@ -1,10 +1,11 @@
-<p align="center"><img src="https://variance-authority.dev/mark.svg" alt="Variance Authority mark" width="72"></p>
+| The two sides were painted under different machine identities — <p align="center"><img src="https://variance-authority.dev/mark.svg" alt="Variance Authority mark" width="72"></p>
 
 # @variance-authority/observe
 
 > Compare render documents or rasters and receive one Variance Authority observation, whatever produced the images.
 
 Part of [Variance Authority](https://variance-authority.dev).
+Point your coding agent at [`llms.txt`](https://variance-authority.dev/llms.txt).
 
 ## What this is for
 
@@ -62,8 +63,8 @@ import { readFileSync } from 'node:fs';
 import { observeRasters, summarizeObservation } from '@variance-authority/observe';
 import { foreignRaster } from '@variance-authority/png';
 
-// Pixels are machine-bound, so you name what painted them. Any string, as long
-// as it is the same string for images that are comparable.
+// Two images are compared only when one identity painted both, so you name
+// what painted them. Any string, as long as it is the same for both images.
 const painter = { painter: 'ios-simulator-17.4' };
 
 const observation = await observeRasters(
@@ -113,16 +114,24 @@ regions the sentence counts are clusters of adjacent changed pixels, found by
 geometry alone. To get components and file lines instead of coordinates, take
 the baseline path below and supply a snapshot.
 
-Change one of the two painter strings and the same call returns `incomparable`
-rather than a large diff blamed on the wrong thing:
+Change one of the two painter strings and the same call still compares the
+pixels, and names the painter that moved as the cause before the diff:
 
 ```
-ios:checkout: incomparable — `ios:checkout` was given two images from different
-painters: declared:ios-simulator-17.4 (…, 1x, no fonts declared, no
-stabilization recorded, no rasterization recipe recorded) and
-declared:figma-export (…); pixels are machine-bound, so the two are not
-comparable
+ios:checkout: changed — the before image and the after image were painted under
+different identities (renderer, engine, platform declared:ios-simulator-17.4 →
+declared:figma-export); 192 pixels differ across 2 regions
 ```
+
+The observation carries the same cause as `signals.identity: 'machine'` and
+`signals.moved`, one entry per field that moved, before image first.
+
+The reason names only the fields that differ. When those are only the recipe —
+the stabilization or rasterization digest, which an upgrade of this package or a
+changed renderer option moves on an unchanged machine — it says so, and says
+whether the document is the one the other side was painted from. A side that
+recorded no recipe digest is refused as a recipe one side did not record, since
+nothing shows the machine is the same.
 
 ## Compare against an approved baseline
 
@@ -195,9 +204,10 @@ const candidate = await store.renderCache.get(
 );
 ```
 
-The baseline lookup asks under `renderer.identityFor(document)`. A baseline
-found under any other identity comes back `incomparable`; it is never diffed and
-blamed on the subject.
+The baseline lookup looks under `renderer.identityFor(document)` first. A
+baseline found under any other identity is diffed all the same, and the identity
+that moved is named as the cause, so a font stack is never blamed on the
+subject.
 
 ## Choose the entrypoint
 
@@ -224,14 +234,23 @@ this package.
 
 | Verdict | Meaning | What to do |
 | --- | --- | --- |
-| `unchanged` | Comparable images, no changed pixels. | Continue without review. |
-| `changed` | A comparable image differs. `regions` gives as much attribution as the snapshot and source you supplied allow. | Present the evidence and require review. |
-| `new` | No baseline exists for this key and this renderer. | Review and explicitly approve or reject. Not green. |
-| `incomparable` | The two sides were painted under incompatible identities — a baseline from another renderer, or two rasters from two declared painters. | Align the renderer inputs or keep a separate baseline. Do not accept the noise as a component change. |
+| `unchanged` | No changed pixels beyond the default policy's tolerance: antialiasing, and a colour change of up to 1%. `because` counts any pixels it forgave. | Continue without review. |
+| `changed` | The image differs. `regions` gives as much attribution as the snapshot and source you supplied allow. | Present the evidence and require review. |
+| `new` | No baseline exists for this key. | Review and explicitly approve or reject. Not green. |
 | `ignored` | Pixels changed, and every one fell inside a declared exclusion or sensitivity. | Continue, and record that the green result rested on a rule. |
 
-`unchanged` is never available for `incomparable`: a difference that could not
-be observed is not reported as no difference.
+Any of the first two can carry a moved identity as its cause.
+`signals.identity` is `machine` when the two sides were painted by different
+machines — a baseline from another renderer, engine, platform, scale or font
+set, or two rasters from two declared painters (images handed in with the name
+of the tool that made them) — and `recipe` when only variance-authority's recipe
+digest moved, as an upgrade does. `signals.moved` lists each field with both
+values, and `because` opens with the same list. A `changed` subject under a
+moved machine may be the machine and not your code: compare where the baseline
+was painted, or keep a separate baseline for this machine. Under a moved recipe,
+review the new images and adopt them with `variance accept --all`;
+`signals.document` says whether your document moved too. An `unchanged` subject
+under a moved identity is evidence the move did not touch it.
 
 ## What else an observation reports
 
@@ -251,8 +270,8 @@ sensitivity is declared against: a rule that absorbs `texture` and `token`
 still reports a `geometry` change, and `relaxed` names the rule, the level and
 the bands it actually absorbed here.
 
-A `moved` entry also says how the component changed when both sides can say
-it. `grew` is the change in width and height that every instance of the
+A `moved` entry also records how the component changed when both sides
+measured it. `grew` is the change in width and height that every instance of the
 component agrees on. `changed` lists each declared property whose values
 differ, with the values before and after: `padding-left` from `18px` to
 `24px`, or a custom property such as `--accent` under its own name.
@@ -281,8 +300,8 @@ ordering measures displacement rather than blame:
 Each line is a cause and, where one exists, a file and line — because `Toggle`
 is an identifier and `src/app/cart.tsx:42` is an edit. A coordinate appears only
 where nothing could be named. The ordering caveat is printed rather than
-assumed: an `Observation` has only one snapshot, so nothing here knows which
-component was edited and which was merely pushed by a neighbour, and area
+assumed: an `Observation` has only one snapshot, so nothing here can determine
+which component was edited and which was merely pushed by a neighbour, and area
 measures displacement.
 
 ## When integration fails
@@ -290,9 +309,9 @@ measures displacement.
 - **Everything is `new`.** Confirm the baseline key and
   `renderer.identityFor(document)` match the values in use when the approved
   baseline was written.
-- **Everything is `incomparable`.** Compare the reported identities. Browser,
-  platform, scale, font declarations and stabilization inputs partition
-  baselines on purpose.
+- **Everything is `changed` with a moved identity.** Compare the reported
+  identities. Browser, platform, scale, font declarations and stabilization
+  inputs are part of the identity on purpose; pin one painter for every run.
 - **Regions have coordinates but no components.** Supply the semantic snapshot
   from the same render.
 - **Components have no source lines.** Supply a matching `SourceIndex`.
@@ -320,4 +339,4 @@ directly; this package is assembled from nothing else.
 
 ---
 
-**[@variance-authority/observe](https://variance-authority.dev/reference/packages/observe)** is part of [Variance Authority](https://variance-authority.dev) — [documentation](https://variance-authority.dev/docs) · MIT
+**[@variance-authority/observe](https://variance-authority.dev/reference/packages/observe)** is part of [Variance Authority](https://variance-authority.dev) — [documentation](https://variance-authority.dev/docs) · [GitHub](https://github.com/Variance-Authority/variance-authority/tree/main/packages/observe) · MIT

@@ -6,7 +6,6 @@ import { decodeTestCoverage } from './format.js';
 import SelectionReporter from './jest-reporter.js';
 import { createTransformer, type JestTransformRequest } from './jest-transform.js';
 import {
-  jestStore,
   RUN_DIRECTORY_VARIABLE,
   SELECTION_GLOBALS,
   SELECTION_REPORTER,
@@ -16,9 +15,9 @@ import {
   withJourneyCoverage,
   withTestSelection,
 } from './jest.js';
-import { readRecord } from './instrumented-modules.js';
+import { deriveModules, moduleId } from './captured-modules.js';
 import journalFormat from './journal-format.cjs';
-import { EVALUATING, instrumentationId } from '../instrument/index.js';
+import { EVALUATING } from '../instrument/index.js';
 
 const { encodeJournal } = journalFormat;
 
@@ -53,6 +52,7 @@ describe('withJourneyCoverage for Jest', () => {
         root: '/repo',
         transformer: '@swc/jest',
         exclude: ['/repo/test/environment.ts'],
+        cadence: false,
       }],
     });
     expect(configured.setupFiles).toEqual([SELECTION_GLOBALS]);
@@ -63,14 +63,15 @@ describe('withJourneyCoverage for Jest', () => {
     ]);
   });
 
-  it('runs the project environment through one that requires the trace once per worker', () => {
+  it('runs the project environment through one that requires the trace once per worker', async () => {
     const rootDir = resolve(import.meta.dirname, '../..');
     const configured = withJourneyCoverage(
       { rootDir, testEnvironmentOptions: { customExportConditions: ['node'] } },
       { journeyFile: 'journeys.bin', trace: '<rootDir>/test/sentry.cjs' },
     );
 
-    expect(configured.testEnvironment).toBe(TRACE_ENVIRONMENT);
+    expect(configured.testEnvironment).toMatch(/jest-environments\/v1%3A[0-9a-f]+\.mjs$/);
+    expect(await readFile(configured.testEnvironment as string, 'utf8')).toContain(TRACE_ENVIRONMENT);
     expect(configured.testEnvironmentOptions).toEqual({
       customExportConditions: ['node'],
       varianceAuthority: {
@@ -82,6 +83,8 @@ describe('withJourneyCoverage for Jest', () => {
     expect(() => withJourneyCoverage({ rootDir }, { journeyFile: 'journeys.bin', trace: '@sentry/node' }))
       .toThrow(/is not a path/);
   });
+
+  it.todo('marks the modules `unprobed` names as loaded, as withTestSelection does — needs `unprobed` on JestJourneyCoverageOptions');
 });
 
 async function project(): Promise<string> {
@@ -141,10 +144,12 @@ function transformOptions(root: string, id = 'project'): JestTransformRequest {
 }
 
 describe('withTestSelection for Jest', () => {
-  it('composes with the setup files, reporters, and transforms the configuration already has', () => {
+  it('composes with the setup files, reporters, and transforms the configuration already has', async () => {
+    const root = await mkdtemp(resolve(tmpdir(), 'variance-jest-environment-config-'));
+    temporary.push(root);
     const configured = withTestSelection(
       {
-        rootDir: '/repo',
+        rootDir: root,
         testEnvironment: '<rootDir>/test/environment.ts',
         setupFiles: ['<rootDir>/test/polyfills.js'],
         setupFilesAfterEnv: ['<rootDir>/test/setup.ts'],
@@ -163,27 +168,27 @@ describe('withTestSelection for Jest', () => {
       'default',
       ['jest-junit', { outputDirectory: 'reports' }],
       [SELECTION_REPORTER, {
-        root: '/repo',
-        coverageFile: '/repo/coverage.bin',
+        root,
+        coverageFile: resolve(root, 'coverage.bin'),
         preconditions: [
-          '/repo/test/environment.ts',
-          '/repo/test/polyfills.js',
-          '/repo/test/setup.ts',
-          '/repo/tsconfig.json',
+          resolve(root, 'test/environment.ts'),
+          resolve(root, 'test/polyfills.js'),
+          resolve(root, 'test/setup.ts'),
+          resolve(root, 'tsconfig.json'),
         ],
-        declared: ['/repo/tsconfig.json'],
+        declared: [resolve(root, 'tsconfig.json')],
       }],
     ]);
     expect(configured.transform).toEqual({
       '\\.tsx?$': [SELECTION_TRANSFORM, {
-        root: '/repo',
+        root,
         transformer: ['@swc/jest', { jsc: { parser: { syntax: 'typescript' } } }],
-        exclude: ['/repo/test/environment.ts', '/repo/tsconfig.json'],
+        exclude: [resolve(root, 'test/environment.ts'), resolve(root, 'tsconfig.json')],
       }],
       '\\.css$': [SELECTION_TRANSFORM, {
-        root: '/repo',
+        root,
         transformer: 'jest-transform-css',
-        exclude: ['/repo/test/environment.ts', '/repo/tsconfig.json'],
+        exclude: [resolve(root, 'test/environment.ts'), resolve(root, 'tsconfig.json')],
       }],
     });
   });
@@ -211,6 +216,8 @@ describe('withTestSelection for Jest', () => {
         displayName: 'node',
         rootDir: '/repo/packages/node',
         transform: { '\\.[jt]sx?$': [SELECTION_TRANSFORM, { root: '/repo', transformer: 'babel-jest' }] },
+        // The sandbox learns its project's name from here, for the case ids.
+        globals: { 'variance-authority.project': 'node' },
         setupFiles: [SELECTION_GLOBALS, '<rootDir>/setup.js'],
         setupFilesAfterEnv: [SELECTION_SETUP],
       },
@@ -219,6 +226,7 @@ describe('withTestSelection for Jest', () => {
         testEnvironment: 'jsdom',
         rootDir: '/repo',
         transform: { '\\.tsx?$': [SELECTION_TRANSFORM, { root: '/repo', transformer: '@swc/jest' }] },
+        globals: { 'variance-authority.project': 'dom' },
         setupFiles: [SELECTION_GLOBALS],
         setupFilesAfterEnv: [SELECTION_SETUP],
       },
@@ -242,6 +250,39 @@ describe('withTestSelection for Jest', () => {
       'default',
       [SELECTION_REPORTER, { root: '/repo', coverageFile: '/repo/coverage.bin', preconditions: [], mode: 'entries' }],
     ]);
+  });
+
+  it('hands every transform the modules named unprobed, as globs under rootDir', () => {
+    const configured = withTestSelection(
+      { rootDir: '/repo', transform: { '\\.tsx?$': '@swc/jest' } },
+      { coverageFile: 'coverage.bin', unprobed: ['src/page/**', '/elsewhere/world.ts'] },
+    );
+
+    expect(configured.transform).toEqual({
+      '\\.tsx?$': [SELECTION_TRANSFORM, { root: '/repo', transformer: '@swc/jest', unprobed: ['/repo/src/page/**', '/elsewhere/world.ts'] }],
+    });
+  });
+
+  it('keeps a negated unprobed glob negated when it resolves it under rootDir', () => {
+    const configured = withTestSelection(
+      { rootDir: '/repo', transform: { '\\.tsx?$': '@swc/jest' } },
+      { coverageFile: 'coverage.bin', unprobed: ['src/page/**', '!src/page/keep.ts'] },
+    );
+
+    expect(configured.transform).toEqual({
+      '\\.tsx?$': [SELECTION_TRANSFORM, { root: '/repo', transformer: '@swc/jest', unprobed: ['/repo/src/page/**', '!/repo/src/page/keep.ts'] }],
+    });
+  });
+
+  it('tells every transform to leave test files uncut when `cadence` is off', () => {
+    const configured = withTestSelection(
+      { rootDir: '/repo', transform: { '\\.tsx?$': '@swc/jest' } },
+      { coverageFile: 'coverage.bin', cadence: false },
+    );
+
+    expect(configured.transform).toEqual({
+      '\\.tsx?$': [SELECTION_TRANSFORM, { root: '/repo', transformer: '@swc/jest', cadence: false }],
+    });
   });
 
   it('refuses a project named by path rather than instrumenting half the run', () => {
@@ -278,7 +319,7 @@ describe('withTestSelection for Jest', () => {
 });
 
 describe('the Jest transformer', () => {
-  it("runs the wrapped transformer first, places probes on its output, and writes the module's record", async () => {
+  it("places probes on the project's text, runs the wrapped transformer on it, and names that text in the probes", async () => {
     const root = await project();
     const options = transformOptions(root);
     const path = resolve(root, 'src/pick.js');
@@ -291,27 +332,27 @@ describe('the Jest transformer', () => {
 
     expect(code).toContain('const flag = true;');
     expect(code).toContain('globalThis.__VA__');
-    expect(code).toContain(JSON.stringify('src/pick.js'));
-    const record = await readRecord(
-      jestStore(options.config.cacheDirectory, options.config.id),
-      'src/pick.js',
-    );
-    expect(record).toEqual(expect.objectContaining({ file: 'src/pick.js', instrumented: true }));
-    expect(record!.blocks.length).toBeGreaterThanOrEqual(4);
+    const id = moduleId('src/pick.js', SOURCE);
+    expect(code).toContain(JSON.stringify(id));
+    await writeFile(path, SOURCE);
+    const module = (await deriveModules(root, [id], undefined)).get(id);
+    expect(module).toEqual(expect.objectContaining({ file: 'src/pick.js', instrumented: true }));
+    expect(module!.blocks.length).toBeGreaterThanOrEqual(4);
   });
 
-  it('places only module and function probes under the entries recipe, in a record of its own', async () => {
+  it('places only module and function probes under the entries recipe', async () => {
     const root = await project();
     const options = transformOptions(root);
     const path = resolve(root, 'src/pick.js');
     const transformer = await createTransformer({ root, mode: 'entries' });
 
-    transformer.process!(SOURCE.replace('__PLACEHOLDER__', '1'), path, options);
+    const text = SOURCE.replace('__PLACEHOLDER__', '1');
+    transformer.process!(text, path, options);
 
-    const store = jestStore(options.config.cacheDirectory, options.config.id);
-    expect(await readRecord(store, 'src/pick.js')).toBeUndefined();
-    const record = await readRecord(store, 'src/pick.js', instrumentationId('entries'));
-    expect(record!.blocks.map((block) => block.kind)).toEqual(['module', 'function']);
+    await writeFile(path, text);
+    const id = moduleId('src/pick.js', text);
+    const module = (await deriveModules(root, [id], 'entries')).get(id);
+    expect(module!.blocks.map((block) => block.kind)).toEqual(['module', 'function']);
   });
 
   it('keys the cache by the wrapped transformer and its options, so a changed option is a new text and a new record', async () => {
@@ -343,7 +384,6 @@ describe('the Jest transformer', () => {
     expect(byGlob.code).toBe(SOURCE);
     expect(byRegex.code).toBe(SOURCE);
     expect(product.code).toContain('globalThis.__VA__');
-    await expect(stat(resolve(root, 'cache', 'variance-authority-test-selection'))).resolves.toBeDefined();
   });
 
   it('offers no synchronous process over a transformer that has none', async () => {
@@ -383,20 +423,16 @@ describe('the Jest transformer', () => {
     const { code } = transformer.process!(SOURCE, path, options);
     expect(code).toContain('const flag = true;');
     expect(code).not.toContain('globalThis.__VA__');
-    await expect(readRecord(jestStore(options.config.cacheDirectory, options.config.id), 'src/pick.js'))
-      .resolves.toBeUndefined();
   });
 });
 
 describe('the Jest reporter', () => {
-  it('names the run before workers fork, folds the journals against the records, and lands the snapshot', async () => {
+  it('names the run before workers fork, cuts the modules the journals name from the checkout, and lands the snapshot', async () => {
     const root = await project();
     const options = transformOptions(root);
     const coverageFile = resolve(root, 'coverage.bin');
-    const path = resolve(root, 'src/pick.js');
-    const transformer = await createTransformer({ root });
-    transformer.process!(SOURCE, path, options);
-    const id = 'src/pick.js';
+    await writeFile(resolve(root, 'src/pick.js'), SOURCE);
+    const id = moduleId('src/pick.js', SOURCE);
     for (const name of ['alpha', 'beta', 'gamma']) await writeFile(resolve(root, `test/${name}.case.js`), `// ${name}\n`);
 
     const reporter = new SelectionReporter(undefined, { root, coverageFile, preconditions: [] });
@@ -447,47 +483,5 @@ describe('the Jest reporter', () => {
     expect(testsOf(1)).toEqual(['test/alpha.case.js', 'test/beta.case.js']);
     expect(testsOf(2)).toEqual(['test/alpha.case.js']);
     expect(testsOf(3)).toEqual(['test/beta.case.js']);
-  });
-
-  it('records a file two projects transformed into different regions as one the build could not read', async () => {
-    // Two projects, two option sets, one file: each project's store numbers its
-    // own blocks. Folding both journals' ordinals against either store would put
-    // one project's tests in the other's regions. Refusing the module widens; a
-    // wrong region skips.
-    const root = await project();
-    const coverageFile = resolve(root, 'coverage.bin');
-    const path = resolve(root, 'src/pick.js');
-    const transformer = await createTransformer({ root });
-    const texts = [SOURCE, `${SOURCE}\nfunction extra() { return pick(2); }\n`];
-    const projects = texts.map((text, index) => {
-      const options = { ...transformOptions(root, `project-${index}`), configString: `project-${index}` };
-      transformer.process!(text, path, options);
-      return options.config;
-    });
-    const id = 'src/pick.js';
-    for (const name of ['alpha', 'beta']) await writeFile(resolve(root, `test/${name}.case.js`), `// ${name}\n`);
-
-    const reporter = new SelectionReporter(undefined, { root, coverageFile, preconditions: [] });
-    reporter.onRunStart();
-    const runDirectory = process.env[RUN_DIRECTORY_VARIABLE]!;
-    await mkdir(runDirectory, { recursive: true });
-    for (const [name, file] of [['a', 'alpha'], ['b', 'beta']] as const) {
-      await writeFile(
-        resolve(runDirectory, `${name}.va`),
-        encodeJournal(resolve(root, `test/${file}.case.js`), new Map([[id, counters([0, 1], [])]])),
-      );
-    }
-    await reporter.onRunComplete(new Set(projects.map((config) => ({ config }))), {
-      testResults: ['alpha', 'beta'].map((name) => ({
-        testFilePath: resolve(root, `test/${name}.case.js`),
-        skipped: false,
-        testResults: [{ status: 'passed' }],
-      })),
-    });
-
-    const coverage = decodeTestCoverage(await readFile(coverageFile));
-    expect(coverage.modules).toEqual([
-      { file: 'src/pick.js', sourceDigest: expect.stringMatching(/^v1:/), instrumented: false, blocks: [] },
-    ]);
   });
 });

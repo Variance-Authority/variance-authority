@@ -2,12 +2,13 @@
 
 # @variance-authority/playwright-test
 
-> Add a source-aware visual observation to a Playwright test that already knows how to get the app into the state.
+> Add a source-aware visual observation to a Playwright test that already gets the app into the state.
 
 Part of [Variance Authority](https://variance-authority.dev).
+Point your coding agent at [`llms.txt`](https://variance-authority.dev/llms.txt).
 
-Your Playwright test already knows how to navigate, authenticate, mount data and
-wait for the application. This package adds one call to that test. The call
+Your Playwright test already navigates, authenticates, mounts data and
+waits for the application. This package adds one call to that test. The call
 screenshots a locator, compares the image against the baseline you approved, and
 fails with the components behind the changed pixels:
 
@@ -18,7 +19,7 @@ ordering measures displacement rather than blame:
   511px — Stack
   86px — Toggle
       in checkbox "Mark as done"
-      src/ds/components.tsx:107
+      examples/todomvc/src/ds/components.tsx:107
 ```
 
 A **subject** is one named UI state you asked for and can ask for again —
@@ -36,11 +37,12 @@ two can assert on the same page in the same test. Three things are different
 here:
 
 - **The failure message names components.** Where the engine or a source index
-  can say so, it also names the file and line behind them — the sample above is
-  the whole message, with no image opened.
+  supplies them, it also names the file and line behind them — the sample above
+  is the whole message, with no image opened.
 - **A baseline records the browser, platform and scale it was painted under.**
-  A baseline recorded elsewhere returns `incomparable` rather than a wall of
-  differences you would have to read through.
+  A baseline recorded elsewhere is compared, and the failure opens with what
+  moved — engine, platform, scale — rather than leaving a wall of differences
+  you would have to read through.
 - **The document, the pixels and the browser's accessibility tree are three
   separate results.** A role or accessible name that changed without repainting
   anything still returns `changed` — with Playwright's own ARIA snapshots from
@@ -129,42 +131,44 @@ defaults the field to `missing` when no flag is supplied, and treating the
 default as approval would write a baseline from the same failed run that reported
 it unreviewed.
 
+Both adopt every changed image, whatever moved it. After an upgrade of this
+package moves its render recipe, every subject is compared with the recipe named
+as the cause, and either flag adopts the ones that changed once you have looked
+at them.
+
 Use an explicit `subjectId` for long-lived baselines. When it is omitted, the id
 comes from the test title path; renaming the test then produces `new` instead of
 silently comparing against a baseline that may describe another scenario.
 
 ## Name the file behind a changed region
 
-Attribution names a component. Turning `Toggle` into `src/ds/components.tsx:107`
+Attribution names a component. Turning `Toggle` into `examples/todomvc/src/ds/components.tsx:107`
 is a separate hop, and there are three ways it happens.
 
 **Nothing to do, on Chromium.** The page agent keeps the component functions
-React actually called, and the session asks Chromium over CDP where each one was
-compiled from, mapping the answer back through the served source maps to a
-repository file. This is why the sample at the top of this page has a file on it
-with no configuration. It speaks only for components that rendered. On WebKit and
+React actually called, and the session queries Chromium over CDP for where each
+one was compiled from, mapping the answer back through the served source maps to
+a repository file. This is why the sample at the top of this page has a file on
+it with no configuration. It covers only components that rendered. On WebKit and
 Firefox there is no equivalent, the reader notes it once, and nothing is added.
 
 **A `SourceIndex`, for everything else.** A `SourceIndex` is plain data — a map
-from component name to the files that declare it — and building one is the
-caller's job, because `@variance-authority/core` performs no I/O. Read your
-component files and index them:
+from component name to the files and lines that declare it — and you hand it
+over:
 
 ```ts
-import { readFileSync } from 'node:fs';
-import {
-  indexSource,
-  mergeSourceIndexes,
-  type SourceIndex,
-} from '@variance-authority/core/attribute';
+import type { SourceIndex } from '@variance-authority/core/attribute';
 
 // Repository-relative paths, so the report is portable between machines and CI.
-const files = ['src/ds/components.tsx', 'src/checkout/Stack.tsx'];
-
-export const source: SourceIndex = mergeSourceIndexes(
-  files.map((file) => indexSource(file, readFileSync(file, 'utf8'))),
-);
+// `line` is the first line of the statement that declares the component.
+export const source: SourceIndex = {
+  Toggle: [{ file: 'src/ds/components.tsx', line: 107, via: 'function' }],
+  Stack: [{ file: 'src/checkout/Stack.tsx', line: 12, via: 'const' }],
+};
 ```
+
+Write it by hand, or have a build step write it. `via` says which kind of
+statement declared the name: `function`, `class` or `const`.
 
 `@variance-authority/core` ships as a dependency of this package; install it
 directly to import from it:
@@ -197,13 +201,13 @@ ordering measures displacement rather than blame:
       src/checkout/Stack.tsx:12
   86px — Toggle
       in checkbox "Mark as done"
-      src/ds/components.tsx:107
+      examples/todomvc/src/ds/components.tsx:107
 ```
 
-The ordering is by changed area and the message says so: an `Observation` names
-no causes, so area measures displacement — the container that merely reflowed
-sorts above the component that was edited. Do not read it as cause-first
-attribution.
+The ordering is by changed area and the message prints that: an `Observation`
+names no causes, so area measures displacement — the container that merely
+reflowed sorts above the component that was edited. Do not read it as
+cause-first attribution.
 
 ## Choose where pixels are made
 
@@ -213,7 +217,7 @@ render cache. The adapter preserves the acquisition base URL but does not archiv
 resource bytes, so a remote renderer must be able to load equivalent resources.
 
 For a browser the suite already pins, capture the caller-owned locator in place.
-Configure Chromium with the exported text-rendering arguments, then declare the
+Configure Chromium with the exported rasterization arguments, then declare the
 same launch recipe to the session:
 
 ```ts
@@ -291,11 +295,12 @@ by.
 | `subjectId` | The baseline should survive test-title changes. | The test title path. A renamed implicit id becomes `new`. |
 | `subjectKind` | The subject is not a navigated route. | `route`. |
 | `fonts` | Renderer identity must include an asserted font stack. | Omitted and reported as missing identity evidence. Values are `family/weight/style/hash`. |
-| `source` | Failure output should resolve components to `file:line` on an engine that cannot be asked — WebKit, Firefox, or a component that did not render. | Omitted; regions can still name components. A `SourceIndex`, built as above. |
+| `source` | Failure output should resolve components to `file:line` on an engine that cannot be queried — WebKit, Firefox, or a component that did not render. | Omitted; regions can still name components. A `SourceIndex`, built as above. |
 | `loading` | The subtree's *fallback* is the state you intend to review. | `false`. Waits for nothing, and throws if the subtree turns out to have settled (stopped showing its fallback). |
 | `suspenseTimeoutMs` | The subtree legitimately needs longer than five seconds to arrive. | `5000`. `0` skips the wait and keeps the reading. |
-| `wiring` | Off for a page that is not React, where walking the fiber tree visits every node and finds nothing. | `true`. Reads props, context, hook cells and keys, so *a prop changed* can be said about a subtree whose markup did not. Its own band; turning it off changes no stored digest. |
+| `wiring` | Off for a page that is not React, where walking the fiber tree visits every node and finds nothing. | `true`. Reads props, context, hook cells and keys, so *a prop changed* can be reported about a subtree whose markup did not. Its own band; turning it off changes no stored digest. |
 | `holdings` | Application values behind the nodes are evidence you want kept. | `false`. Changes `structureHash` — an inert wrapper survives the collapse — so both sides of a comparison must be read the same way. |
+| `stabilize` | The state your test left behind is the subject: a hovered menu, a focused field. | The standard collection recipe, which takes the pointer off the page and releases focus before each observation, and gives focus back once the observation and its screenshot are taken, so your test types where it left off. Name a list without `no-hover` or `no-focus` to keep that state: `DEFAULT_STABILIZE.filter((id) => id !== 'no-hover')`. Reduced motion and a fixed clock are set before your page loads: under `varianceFixtures` by the fixture, as `varianceStabilize` and `varianceNow` say. On a page the fixture never handed your test, such as one you opened from your own `browser.newContext()`, call `await driveBeforeTest(page)` before `page.goto()`; it sets both as the fixture does. The fixed clock is `Date` alone: timers, animation frames and `performance` keep running, and a `page.clock.install()` your test makes replaces it, so leave `freeze-clock` out with `test.use({ varianceStabilize: DEFAULT_STABILIZE.filter((id) => id !== 'freeze-clock') })` when your test owns the clock; otherwise the reading still records `freeze-clock`. Leave it out too when your test waits on a debounce or throttle timed with `Date.now()`, such as lodash's `debounce`: under a fixed `Date` it never fires. |
 | `sensitivity` | This subject is not asserted on in full — a themed embed, a route under an active rebrand. | Undeclared: everything is asserted on. Takes the rule that applies here, already matched: `{ rule, reason, level }`. `level` is `strict`, `layout` (asserts on `a11y` and `geometry`) or `content` (asserts on `a11y` and `content`); the rest are absorbed however large they are, and the verdict is `ignored` with the rule's id in it — which is why it is not a threshold. |
 
 ### `createVariance(page, within, options)`
@@ -304,10 +309,17 @@ Everything a session owns for its lifetime, as opposed to what one observation
 decides. A one-shot `observe` accepts `baselines` and `materialization` too, and
 opens and closes the rest itself.
 
+A session reads and paints in the timezone and locale your page runs in. The
+page and its context are yours, so a context that sets no `timezoneId` runs in
+your machine's timezone, and a page read on your laptop and the same page read
+on a runner in UTC have different environment keys: the image is compared with
+the moved timezone named as the cause. Open the context with `timezoneId: 'UTC'` and `locale: 'en-US'`
+to read it as a suite under `varianceFixtures` does.
+
 | Option | Use it when | Default and boundary |
 | --- | --- | --- |
 | `baselines` | Baselines belong somewhere other than the default directory. | `.variance/baselines`. Ignored when `store` is supplied. |
-| `store` | Baselines do not live in a directory at all — a remote store, a fixture, a cache. | A durable directory store over `baselines`. |
+| `store` | Baselines do not live in a directory at all — a remote store, a fixture, a cache. | A durable directory store over `baselines`, whose render cache is `renders/` in [the cache](https://variance-authority.dev/docs/cache), pruned when the session closes, once per process. |
 | `renderer` | The suite already owns a renderer and its lifetime. | One is created and closed with the session. A supplied renderer is never closed by `close()`. |
 | `bundle` | The suite deliberately builds its own page agent. | The package's bundled agent. A custom bundle must install itself both in the current document and on future navigations. |
 | `tests` | The next run should be able to skip specs whose code nothing touched. | `false`. Requires the application under test to be built with `testSelectionProbes()` from `@variance-authority/sense/journal`; without a collector in the page the session says so on stderr and records nothing. |
@@ -318,8 +330,9 @@ opens and closes the rest itself.
 
 A verdict names the components and counts the pixels; a reviewer still asks to
 see it. Point `evidence` at a directory and every subject a person stops on --
-`changed`, `incomparable`, and `ignored` -- leaves a `.before.png`, an
-`.after.png` and a `.diff.png` behind, and the observation says where they went.
+`changed` and `ignored` -- leaves a `.before.png`, an
+`.after.png` and a `.diff.png` behind, and the observation records where they
+were written.
 
 The file name is the subject id percent-encoded, so the evidence for one subject
 sits in one flat directory even when its id reads like a path: `cart/empty`
@@ -348,11 +361,8 @@ test('the cart states', async ({ page }, testInfo) => {
 ```
 
 `unchanged` and `new` write nothing: there is nothing to look at in the first and
-nothing to compare against in the second. Neither does a subject whose baseline
-the run refused to compare against -- an `incomparable` verdict leaves the
-candidate alone rather than a diff against an image from another environment.
-Two images of different sizes leave the pair and no diff, because they have no
-common canvas and the sizes are the whole finding.
+nothing to compare against in the second. A subject that changed size gets a diff on the after image: rows inserted
+above the content are marked, and the content they pushed down is compared where it moved to.
 
 Off by default on the direct path, and off is a real choice: the images are the
 largest thing a run can produce, and a suite that reads the verdict in CI and
@@ -384,13 +394,13 @@ const variance = await createVariance(page, {
 | Field | Use it when | Default and boundary |
 | --- | --- | --- |
 | `id` | Observations do not each name a `subjectId`. | None. An observation with neither is refused rather than given an invented address. |
-| `colorScheme`, `deviceScaleFactor` | Ever. Both partition the baseline. | `light` and `1`. |
-| `baseURL` | Recording should know where the page is served. | Omitted; a service under test then sees the execution from the first observation rather than the first request. |
+| `colorScheme`, `deviceScaleFactor` | Ever. The scale factor is part of the identity a baseline records, so a change names it as the cause. Neither is in the baseline's path: two projects that differ only in these share one baseline, so give their observations distinct `subjectId`s. | `light` and `1`. |
+| `baseURL` | Recording should use the URL the page is served from. | Omitted; a service under test then sees the execution from the first observation rather than the first request. |
 | `owner` | The run records which spec covered which source. | Omitted; the run records no execution against a file. |
 | `accepting` | This run is the one promoting candidates to baselines. | `false`. Under `TestInfo` it is `--update-snapshots=all\|changed` and nothing else — `missing` is the flag's absence. |
 
-`runOf(testInfo)` is the same reading, exported for a suite that wants to take
-Playwright's answer and override one field.
+`runOf(testInfo)` is the same reading, exported for a suite that takes
+Playwright's answer and overrides one field.
 
 #### An Rstest suite
 
@@ -425,14 +435,14 @@ The three are passed separately because Rstest requires a test body's first
 parameter to be an object pattern, so there is no whole context to hand over.
 `expect` is the one the body was handed, which saves importing a second.
 `id` is the test's title path, `owner` is the spec relative to the project root,
-the raster partition — colour scheme, scale factor and base URL — is read off
+the raster settings — colour scheme, scale factor and base URL — are read off
 the `playwright` fixture's `contextOptions`, whatever `definePlaywrightConfig`
 resolved them to, and `accepting` is `rstest run -u` — Rstest's default writes
 snapshots that have none yet, which is an absence and not an approval.
 
 An Rstest test that runs in `node` or `jsdom` and starts no browser is the other
 adoption: it writes a capture with
-[`@variance-authority/unit-test`](../unit-test/README.md) and a later CLI run
+[`@variance-authority/unit-test`](https://variance-authority.dev/reference/packages/unit-test) and a later CLI run
 paints it. Nothing in this package is on that path.
 
 `materialization` selects how pixels are produced; its `kind` field picks the
@@ -446,9 +456,17 @@ running, so a menu that has just opened or a snackbar sliding in will disagree
 with itself between two reads. `settleAttempts` is how many times it is given to
 come to rest, `3` by default; the confirming read of a failed attempt is the next
 attempt's acquisition, so a retry costs a screenshot pair and no extra
-round-trip. Set it to `1` for a suite that wants a subject which moves at all to
-be a failure. A subject that never holds still is still refused, and the refusal
-says how many attempts bought nothing.
+round-trip. Set it to `1` to make a subject which moves at all a
+failure. A subject that never holds still is still refused, and the refusal
+prints how many attempts bought nothing.
+
+Comparing the two reads misses a subject that changed and changed back between
+them, so the page also records each change to the subject's elements,
+attributes and text from the first read to the confirming one. Any change counts
+as movement, except inside a `data-variance-ignore` region or a write that sets
+the value already there, and the refusal names the element and attribute or text
+that changed. The record stops at a shadow root: a change inside one is caught
+only when it is still there at the confirming read.
 
 ## Record what each spec executed
 
@@ -476,11 +494,14 @@ That covers a story running inside Storybook's `#storybook-preview-iframe` and a
 second tab opened with `context.newPage()`. A document the test replaced is
 gone by then: a second `goto`, a `reload()`, a frame the application removed,
 or a page that closed or crashed. What it executed after its last read is lost,
-so the spec is recorded as incomplete and the next selection runs it.
+so the spec is recorded as incomplete and the next selection runs it. A spec
+[cut statement by statement](#record-which-spec-line-reached-each-region) is
+also read before each statement, so what is lost is only what the document did
+during the statement that replaced it.
 `pushState` and hash changes keep the same document and lose nothing. A context
 the spec creates for itself with `browser.newContext()` is not read: open pages
 from the test's own `context`, or hand one to `createVariance`.
-[`cases/playwright-storybook-case`](../../cases/playwright-storybook-case/README.md)
+[`cases/playwright-storybook-case`](https://github.com/Variance-Authority/variance-authority/blob/main/cases/playwright-storybook-case/README.md)
 runs each of these shapes against a built Storybook.
 
 ### Fold what the workers recorded
@@ -504,13 +525,13 @@ export default defineConfig({
 ```
 
 It is worth installing for a single-worker run too: a worker that finds no
-staging directory merges for itself and says so on stderr, and one that does
+staging directory merges for itself and prints that on stderr, and one that does
 contribute costs a file write it would have spent on the merge anyway.
 
 The reporter takes the same values the fixture was given, and they have to
-match — the workers stage crossings recorded against one root and one build's
-records, and a mismatch is not an error anybody sees but a record written under
-paths no later run will ask about. `withTestSelection` is the way to say them
+match — the workers stage crossings recorded against one root, and a mismatch
+is not an error anybody sees but a record written under paths no later run will
+look up. `withTestSelection` is the way to set them
 once: it sets `varianceExecution` on the configuration and on each of its
 projects, and adds the reporter with the same values.
 
@@ -522,7 +543,7 @@ import { withTestSelection } from '@variance-authority/playwright-test';
 export default defineConfig(
   withTestSelection(
     { projects: [{ name: 'chromium', use: devices['Desktop Chrome'] }] },
-    { label: 'app', preconditions: ['playwright/fixtures.ts'] },
+    { preconditions: ['playwright/fixtures.ts'] },
   ),
 );
 ```
@@ -537,36 +558,178 @@ to an array of one.
 | Option | Purpose | Default |
 | --- | --- | --- |
 | `root` | A directory in the repository. Recorded paths are relative to the checkout that contains it. | The cwd. |
-| `label` | Matches the `label` given to `testSelectionProbes()`. | `build` |
-| `cacheRoot` | Where that build wrote its block records. | [The cache](https://variance-authority.dev/docs/cache). |
+| `cacheRoot` | Where the coverage layers live. | [The cache](https://variance-authority.dev/docs/cache). |
 | `suite` | The suite this run is, as the root `variance.config.json` declares it under `suites`. Required once any suite is declared. Cannot be combined with `coverageFile`. | None. |
 | `coverageFile` | The coverage index this run merges into. A relative path is read from `root`. | The repository-keyed file in the cache. |
 | `mode` | The probe recipe, matching the `mode` given to `testSelectionProbes()`. | `presence` |
 | `preconditions` | Files whose contents are a precondition of every observation this run records. | None. |
-| `executionFile` | Where the execution index goes: which individual test covered which region. A relative path is read from `root`. | Beside the snapshot: `<coverage file>.cases.bin`. A name ending `.json` writes JSON instead. |
+| `cadence` | Whether each spec is cut statement by statement, so a case records which of its lines reached each region. Read by `withTestSelection`. | `true` |
 
 `mode` has to be the same answer everywhere one coverage index is written:
 a snapshot names the recipe its ordinals were cut by, and a merge discards a
 layer cut by another one, so a build probing under `entries` and a reporter
 folding under `presence` would each wipe the other every run.
 
-Every run writes the execution index beside the coverage index. The index
+Every run writes the execution index into the coverage index, as a section of
+the same file, so both travel together. The index
 answers *which tests walk this branch* — the question `variance covering` and
-`@variance-authority/distill` are asked — and it is a row per test per region.
+`@variance-authority/distill` answer — and it is a row per test per region.
 Selection does not read it: a spec file is the smallest thing
 Playwright can be asked to run, and the file-level record already names that.
 What a declared head executed is joined to the test that sent the request, so a
 branch that only ever ran in a service still names its test.
+
+### Place a shard by whole files
+
+Under `--shard k/n`, the reporter places the shard by whole spec files, and
+Playwright's own split does not run. Playwright splits by test group, and under
+`fullyParallel` a group is one test, so one file's tests would run in two
+shards and each shard would record part of the file. Each file goes to one
+shard, by the time it took on the last recorded run. When the record has no
+times, every file is priced the same, so the shards are balanced by file count.
+Every shard computes the same placement from
+the same record, as [sharding](https://variance-authority.dev/docs/sharding) shows for Vitest and Jest,
+and prints one line on stderr before the first test:
+
+```text
+variance-authority: shard 1/2 by file count: 2 of 3 files; no times at …/coverage.bin: nothing is recorded there
+```
+
+The placement runs on the collected suite, after `--project`, `--grep` and
+`.only`. A file that several projects run, or that `repeatEach` repeats, goes
+with all its copies to one shard. A setup or teardown project is not placed:
+Playwright runs it in every shard that keeps a test that depends on it, and each
+of those shards records it, so combining the shards' records refuses its files
+as run by two shards. A project none of whose files are in this shard is left
+out whole, so its setup does not run for nothing. A shard left no file passes.
+
+Three things decide whether the placement runs:
+
+- **Playwright 1.62 or newer.** Older versions give the reporter no way to see
+  the suite before Playwright splits it, so `withTestSelection` refuses a run
+  that asks for a shard when the configuration is evaluated, before any test
+  starts, whether `--shard` is on the command line or `shard` is in the
+  configuration. It exits non-zero with `variance-authority: refusing shard
+  k/n: Playwright <version> would split it test by test`, and the version it
+  needs. A run with no shard runs as usual.
+- **The reporter is in the run.** `--reporter` on the command line replaces
+  every reporter your configuration names, this one included, so a sharded run
+  whose `--reporter` does not name `@variance-authority/playwright-test/reporter`
+  is refused the same way. Name it there too, as in
+  `--reporter=dot,@variance-authority/playwright-test/reporter`, or name extra
+  reporters in the configuration. A path that resolves to the reporter, as
+  Playwright resolves `--reporter` from the working directory, names it too.
+  A tool that starts Playwright through its API
+  and replaces the reporters is not seen: the shard is then split by
+  Playwright, test by test, with no line.
+- **`--shard` is on the command line or `shard` in the configuration.** Without
+  either, the reporter places nothing.
+
+`PWTEST_SHARD_WEIGHTS` is ignored for placement: Playwright applies the weights
+only in its own split, which the placement turns off, and the recorded times
+weigh each shard. Playwright still validates the variable as it reads the
+command line, and refuses a weight that is not a non-negative number.
+
+A configuration that names `@variance-authority/playwright-test/reporter` in
+`reporter` itself, without `withTestSelection`, is not refused below
+Playwright 1.62, and Playwright splits its shards test by test.
+
+### Record which spec line reached each region
+
+A case's crossings name the regions its test reached, not the statement that
+reached each one. Under `withTestSelection` every case also records, for each
+region, the line of the spec whose statement first reached it: the
+[lines Sense records](https://variance-authority.dev/reference/packages/sense#record-which-test-line-reached-a-region)
+under every other runner, read by the same answers.
+
+`withTestSelection` adds a Babel plugin to the `babelPlugins` Playwright
+compiles every spec with. The plugin puts an awaited call in front of each
+statement of an async test or hook body, and the call drains every frame of
+every page the test opened before the statement runs. What a drain finds is
+charged to the statement before it, and what the teardown drain finds to the
+last one. The page runs on its own clock, so a region it enters while a later
+statement runs is charged to that later statement: a request `click` started
+and the page answered during the next `expect` lands on the `expect`. A body
+declared in another file, such as a page object's method, is not waited on, and
+what it reached is charged to the spec statement that called it. A statement
+in `beforeEach` or `afterEach` is recorded as the case's own line. Lines keep
+their numbers and Babel's map names the file as you wrote it, so an inline
+aria snapshot lands where you wrote it.
+
+Each statement waits at most a second for its drain. One held up longer by the
+page, as an open `alert` holds every evaluation until the test answers it, lets
+the statement go on, and from there the case's regions are recorded without a
+line. Its crossings are recorded either way, unless the page still holds the
+drain when the test ends: the teardown drain would wait on it too, so it is
+skipped and the case is recorded incomplete, which the next selection runs. A
+drain is not a step, so the report, the trace and the inspector show none of
+them, and a wait shows in the trace only as a gap of up to a second before the
+statement.
+
+The plugin requires Sense's compiled `dist/`, and Playwright compiles every
+file outside `node_modules` it loads as CommonJS, which a workspace-linked
+Sense is not. So `withTestSelection` also adds that directory to
+`build.external`, after any globs your configuration already lists there.
+
+Over a probed Storybook build, seven specs across two workers, the lines add
+224 bytes to a 9,296-byte record, 2.4%, and over seven runs the suite took
+2.22–2.32 s with the cut and 2.25–2.36 s without it. On a synthetic suite of 40
+tests of 20 statements each, every click entering five of 88 regions, they add
+4.7 KB to a record of 24.8 KB without them, 18.9%: that record holds nothing
+but lines-dense cases, so the share is the high end. Over three runs with one
+worker, it took 18.6–18.7 s with the cut and 18.7–19.9 s without it.
+
+Because a document is drained before the statement that replaces it, what it
+reached is in the case's crossings; with `cadence: false` only the teardown
+drain reads the page, and a document a `goto` replaced is gone by then.
+
+Pass `cadence: false` to compile your specs as Playwright would and write no
+lines.
+
+### Keep what each test looked at
+
+Extend your `test` with `varianceFixtures`, then with `eyesFixtures` from
+[`@variance-authority/eyes/playwright`](https://variance-authority.dev/reference/packages/eyes),
+and the record also keeps each test's Eyes journal: which elements it queried,
+operated and read, and the React component behind each one.
+
+The journal is kept under the same case id as the test's crossings, and under
+its attempt, `testInfo.retry + 1`, so a retried test keeps both.
+`variance distill --test '<case id>'` reads the two together.
+
+### Read what a snapshot was taken under
+
+A snapshot taken with `variance(locator)` names the case it was taken in: the
+spec file, the declaration path and `testInfo.testId`, the case id the record
+keeps. It also carries the preconditions the case had recorded with
+[`variancePrecondition`](https://variance-authority.dev/reference/packages/sense#record-the-state-each-test-ran-under) by then,
+each with the `file:line` of the call that recorded it. A call after the
+snapshot is on the case's row and not on the snapshot.
+
+```text
+receipt--ff-on: taken in tests/checkout.spec.ts > mocked > photographs the receipt, ran under flag=ff-on (tests/checkout.spec.ts:40), network=mocked (tests/checkout.spec.ts:27)
+```
+
+The observation carries the case as `case`. The line after the subject closes a
+failing `toBeUnchanged` message, and the whole line is a `variance` annotation
+in Playwright's report under the test, passing or not. Without
+`varianceExecution` nothing records them: no annotation is added, and a failing
+message reads *preconditions unmeasured* rather than *no preconditions recorded*.
 
 ### Optional fixture composition
 
 | Fixture | Purpose | Default |
 | --- | --- | --- |
 | `varianceBaselines` | Directory of durable baselines. | `.variance/baselines` |
-| `varianceRenderer` | Renderer shared by one Playwright worker. | A Playwright renderer created and closed by the fixture. |
-| `varianceStore` | Baseline and render-cache implementation. | Durable directory store using `varianceBaselines`. |
+| `varianceBaselinePath` | Where each baseline goes under `varianceBaselines`, as a template. `{title}` is the `describe` titles, `{name}` the test's title or the `subjectId` after its last `/`, `{file}` and `{dir}` the spec file, `{project}` the Playwright project's `name`. `createVariance` and `observe` take the same template as `baselinePath`. | `{title}/{name}-{engine}` |
+| `varianceRenderer` | Renderer this test's page is painted by. | The worker's renderer for the timezone and locale the page runs in, from `varianceRenderers`. |
+| `varianceRenderers` | Renderers one Playwright worker holds, one per timezone and locale its pages ran in. | Playwright renderers launched on first use and closed by the fixture. |
+| `timezoneId` | Playwright's own option, the timezone the test's page opens in. | `UTC` when neither your config nor `test.use` sets one, rather than your machine's, so your laptop and CI read a page under one key. A value you set is used as it is. Playwright Test already opens the page in `en-US` when you set no `locale`. The default reaches every test that uses these fixtures, including one that never calls `variance`, so its own date assertions read `UTC`. |
+| `varianceStore` | Baseline and render-cache implementation. | Durable directory store using `varianceBaselines`, whose render cache is `renders/` in [the cache](https://variance-authority.dev/docs/cache), pruned once in each worker. |
 | `varianceBundle` | Page agent installed before application code runs. | The package's bundled agent. |
-| `varianceExecution` | Record what each spec executed, for the next run's selection. | `false`. Accepts `true` or `{ root, label, cacheRoot, suite, coverageFile, executionFile, heads, origin }`, and is set like any Playwright option: `use: { varianceExecution: true }`. |
+| `varianceStabilize` | The tricks set on the test's `page` before the test body runs, by id. | `undefined`, which is the standard collection recipe: `reduced-motion` and `freeze-clock` are set. Name a list without `freeze-clock` when your test sets `page.clock` itself, or waits on a debounce or throttle that times itself with `Date.now()`, such as lodash's `debounce`: under a fixed `Date` no time passes for it and it never fires. An observation's own `stabilize` cannot undo what was set before the page loaded. |
+| `varianceNow` | The instant `freeze-clock` fixes `Date` at. | `2024-06-15T12:00:00.000Z`. An ISO 8601 instant with its zone; anything else fails the test before its body runs. |
+| `varianceExecution` | Record what each spec executed, for the next run's selection. | `false`. Accepts `true` or `{ root, cacheRoot, suite, coverageFile, heads, origin }`, and is set like any Playwright option: `use: { varianceExecution: true }`. |
 | `varianceEvents` | Whether services behind the page announce, and where the driver leaves its return address. | `{}`. Accepts `heads` (the services that report for themselves, described below) and `origin`. The browser half needs neither. |
 | `varianceWire` | The worker's end of the loopback listener the page and any reporting service answer on. | A listener on an ephemeral port, opened and closed by the fixture. |
 | `varianceVantage` | Where this worker reports what it is doing, for a process watching the run. | Whatever `VARIANCE_AUTHORITY_VANTAGE` names, and `undefined` when nothing does. |
@@ -575,13 +738,13 @@ branch that only ever ran in a service still names its test.
 
 The fixture above records the page. A suite that drives its application through
 that application's own API executes product source in a second process, and
-nothing in the page knows it happened — so a change to a route handler runs every
+nothing in the page records it — so a change to a route handler runs every
 spec forever, no matter how well the browser half is watched.
 
 A **head** is a service that reports its own crossings. `heads` names them. Each
 one runs `collectJourneys()` from `@variance-authority/sense/journey` under the
-same name its build gave `testSelectionProbes()`, and one environment block is
-the whole of the configuration on that side:
+name `heads` lists for it, and one environment block is the whole of the
+configuration on that side:
 
 ```ts
 // playwright.config.ts
@@ -607,7 +770,7 @@ to be able to tell apart. The fixture puts it on the browser context before the
 spec navigates, beside the address this worker is listening on. The browser
 attaches both to every same-origin request, so nothing in the application is
 touched to send them, and the spec file's *name* never leaves the runner.
-`VARIANCE_AUTHORITY_JOURNEYS` says only that the service is under a run — any
+`VARIANCE_AUTHORITY_JOURNEYS` only marks the service as under a run — any
 value will do, because where to report is a fact about the request rather than
 about the environment. `origin` overrides the origin the cookies are scoped to
 and defaults to the project's `baseURL`.
@@ -617,10 +780,10 @@ listener the announcements below use, under the same journey, and the run's only
 artifact is the coverage index this worker merges into at teardown.
 
 A handler's work can outlast its response: a streamed body, a write behind, a
-log flushed after `end()`. The head says a request opened before the handler
-runs, so at teardown the worker waits up to five seconds for every opened
-request to report. One still open at that point retires the run the same way a
-silent head does, and the reason names the head.
+log flushed after `end()`. The head reports that a request opened before the
+handler runs, so at teardown the worker waits up to five seconds for every
+opened request to report. One still open at that point retires the run the same
+way a silent head does, and the reason names the head.
 
 Nothing above happens when `heads` is empty, which is the default and the
 ordinary case. A suite driving one application has one instrumented process, and
@@ -631,16 +794,16 @@ extra: it can be left out of one CI job, the service can fail to start, and a
 service built without probes looks exactly like a service that executed nothing.
 So a declared head that reports nothing all run — or one reporting a different
 probe recipe than the driver records — retires **every** observation the run
-made, page included. The crossings are still written; what they lose is the right
-to justify a skip, and the next `--since` runs the whole suite and prints the
-reason. A run half of whose evidence never arrived narrows nothing, because a
-spec skipped on the say-so of a service that was not watching is the one failure
-this category cannot detect afterwards.
+made, page included. The crossings are still written; what they lose is the
+right to justify a skip, and the next `--since` runs the whole suite and prints
+the reason. A run half of whose evidence never arrived narrows nothing, because
+a spec skipped on the report of a service that was not recording is the one
+failure this category cannot detect afterwards.
 
 ## Wait for a decision, not for a repaint
 
 `events` is the driver half of `@variance-authority/event`. Where `variance`
-asks what the screen looks like, this answers *when the code decided*, which is
+reads what the screen looks like, this answers *when the code decided*, which is
 the question a screen cannot answer at all for the branch that draws nothing:
 **the modal is not shown** and **the modal is not shown yet** look identical, and
 waiting longer never separates them.
@@ -682,11 +845,11 @@ against announcements already heard, so one written a line too late still
 resolves rather than hanging.
 
 `events` is an `EventLog`: `happened` waits for coordinates in any phase,
-`finished` waits for the end of a process `vaStart` opened, `saw` asks without
-waiting, `seen` is everything in arrival order, and `pending` is what started and
-never ended. A wait that does not settle prints what the run did announce, in
-order, or says that nothing was announced at all — which is a setup fact, not a
-product defect, and is worded as one.
+`finished` waits for the end of a process `vaStart` opened, `saw` checks without
+waiting, `seen` is everything in arrival order, and `pending` is what started
+and never ended. A wait that does not settle prints what the run did announce,
+in order, or prints that nothing was announced at all — which is a setup fact,
+not a product defect, and is worded as one.
 
 ### Hearing a service announce
 
@@ -697,7 +860,7 @@ above puts on the browser context, and the fixture mints one for events when
 nothing else has.
 
 The service runs `collectEvents()` from `@variance-authority/event/collect`, and
-one environment block tells both ends that heads are in play:
+one environment block, which both ends read, puts heads in play:
 
 ```ts
 // playwright.config.ts
@@ -720,15 +883,15 @@ whatever the page talks to, so a head answers the execution it is serving as it
 serves it.
 
 It is one listener for both instruments. Announcements and coverage accounts are
-two things said about the same execution, so they arrive over one connection
+two records of the same execution, so they arrive over one connection
 ([`@variance-authority/wire`](https://variance-authority.dev/reference/packages/wire)) under one journey, and this end
-reads only which of the two was speaking. A page reports through a function the
+reads only which of the two sent it. A page reports through a function the
 worker exposed and a service reports through a socket; nothing below routes on
 which, which is why a server the suite starts in-process needs no configuration
 at all.
 
 `heads` overrides whether services are expected — it defaults to whether
-`VARIANCE_AUTHORITY_EVENTS` is set, which is how the service was told — and
+`VARIANCE_AUTHORITY_EVENTS` is set, which is how the service is configured — and
 `origin` overrides the origin both cookies are scoped to, defaulting to the
 project's `baseURL`.
 
@@ -785,11 +948,12 @@ VARIANCE_AUTHORITY_VANTAGE=http://127.0.0.1:54321 npx playwright test
 ```
 
 With it unset, nothing happens and the run pays one environment read per worker
-— the same bargain the heads make above. With it set, the watcher is told each
-test as it opens, each announcement as it is recorded rather than at teardown, the
-listener's remarks, and how each test ended. The process on the other end is
-[`@variance-authority/vantage`](https://variance-authority.dev/reference/packages/vantage), on the same
-connection the announcements already use, and none of it is written down.
+— the same bargain the heads make above. With it set, the watcher receives each
+test as it opens, each announcement as it is recorded rather than at teardown,
+the listener's remarks, and how each test ended. The process on the other end is
+[`@variance-authority/vantage`](https://variance-authority.dev/reference/packages/vantage),
+on the same connection the announcements already use, and none of it is written
+down.
 
 The lifecycle half is automatic, so a listing has no holes: a test that
 destructures nothing still opens and closes, and a suite that takes no
@@ -884,19 +1048,19 @@ the time it is read throws as well.
 
 - **`new`:** no baseline exists for this subject id. Run once with
   `--update-snapshots=all`, look at the image it stored, then rerun normally.
-- **`incomparable`:** a baseline exists under another renderer identity. Align
-  browser, platform, scale, and asserted fonts instead of accepting the wall of
-  changes.
+- **`changed` with a moved identity first:** the baseline was painted under
+  another renderer identity. Align browser, platform, scale, and asserted fonts
+  instead of accepting the wall of changes.
 - **Changed regions name components but no files:** the engine could not be
-  asked — this is WebKit, Firefox, or a component that did not render. Pass a
+  queried — this is WebKit, Firefox, or a component that did not render. Pass a
   `SourceIndex` as `source` to `observe`, `session.observe`, or
   `assertUnchanged`.
 - **“variance needs a viewport and this page has none”:** the Playwright page
   uses a null viewport. Configure a fixed viewport so two runs have a declared
   size.
 - **The message lists a large container first:** it is ordered by changed area,
-  and says so. Area measures displacement, not blame: a container that merely
-  reflowed outranks the component that was edited.
+  and the message names that ordering. Area measures displacement, not blame: a
+  container that merely reflowed outranks the component that was edited.
 - **“was still waiting when it was read”:** the named Suspense boundary never
   resolved. Fix what it awaits, or pass `loading: true` if the fallback is what
   you intend to review.
@@ -906,8 +1070,9 @@ the time it is read throws as well.
 
 ## Boundaries
 
-This package does not merge Playwright shards into one report. Playwright's
-`--shard` can still run the tests, but each shard owns its own result set.
+This package does not merge Playwright shards into one report: each shard
+writes its own result set. Combine the shards' records with
+`variance journeys combine`, from `@variance-authority/cli`.
 
 Use a different package when a Playwright test isn't the right place to start:
 for a Storybook inventory use `@variance-authority/storybook-collector`; for a
@@ -918,4 +1083,4 @@ followed by a later renderer, use `@variance-authority/unit-test`.
 
 ---
 
-**[@variance-authority/playwright-test](https://variance-authority.dev/reference/packages/playwright-test)** is part of [Variance Authority](https://variance-authority.dev) — [documentation](https://variance-authority.dev/docs) · MIT
+**[@variance-authority/playwright-test](https://variance-authority.dev/reference/packages/playwright-test)** is part of [Variance Authority](https://variance-authority.dev) — [documentation](https://variance-authority.dev/docs) · [GitHub](https://github.com/Variance-Authority/variance-authority/tree/main/packages/playwright-test) · MIT

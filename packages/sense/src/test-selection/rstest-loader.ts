@@ -2,10 +2,15 @@
  * The recording half of the Rstest seam, as an Rspack loader.
  *
  * Rstest builds the suite with Rspack and runs what it built, so the place a
- * module can be instrumented is a loader rather than a plugin hook. Declared
- * `enforce: 'post'`, it receives what SWC made of a `.ts` file plus the map
- * that says where each line came from — the same situation a Vite plugin at
- * `enforce: 'post'` is in, and {@link recordedFrame} already answers it.
+ * module can be instrumented is a loader rather than a plugin hook. This one is
+ * declared `enforce: 'pre'`, so it receives the file as it is on disk, before
+ * SWC, and it cuts the test files the run cuts, on that text, so a case says
+ * which of their lines was running. A module gets its probes from the
+ * [`enforce: 'post'` loader](./rstest-after-loader.ts), after the project's
+ * own loaders, so a compiler that reads syntax never reads them, unless its
+ * file names its own map, a build's output: a loader that reads that map
+ * answers in the build's sources, never the file, so its probes go in here, by
+ * {@link placeModule}.
  *
  * A loader is loaded by path and given options, never handed the object the
  * configuration built, so the run it belongs to cannot be closed over. It is
@@ -19,12 +24,12 @@
  * reporter's empty-record note is what the user reads.
  */
 
-import { readFileSync } from 'node:fs';
-import { instrument } from '../instrument/index.js';
-import { cleanId, projectPath } from './instrumented-modules.js';
-import { coverageBlock } from './coverage-rows.js';
-import { recordedFrame, type TransformSourceMap } from './source-lines.js';
-import { runOf } from './selection-run.js';
+import { cadence, type CutSourceMap } from '../instrument/cadence.js';
+import { placeModule } from './captured-modules.js';
+import { cleanId } from './instrumented-modules.js';
+import { AFTER_LOADER, unprobedFiles } from './rstest-loaders.js';
+import { namesItsMap } from './source-lines.js';
+import { runOf, type SelectionRun } from './selection-run.js';
 
 /** What the loader asks of the options its rule carries. */
 export interface SelectionLoaderOptions {
@@ -36,73 +41,55 @@ export interface SelectionLoaderOptions {
 export interface SelectionLoaderContext {
   /** The file on disk, without a bundler's query suffix. */
   readonly resourcePath: string;
+  /** Every loader that runs on this file, by absolute path, where the bundler says. */
+  readonly loaders?: readonly { readonly path: string }[];
   readonly getOptions: () => SelectionLoaderOptions;
-  readonly callback: (
-    error: null,
-    code: string,
-    map?: TransformSourceMap | undefined,
-  ) => void;
+  readonly callback: (error: Error | null, code?: string, map?: CutSourceMap) => void;
 }
 
 /**
- * Place probes on one module Rspack is about to bundle, and record what they
- * mean.
+ * Cut one test file Rspack is about to bundle, and probe one whose file names
+ * its own map, or every module the run probes `before-transforms`.
  *
- * A module this run has no business in — the seam's own setup shim, anything
- * the `include` predicate refuses, a build whose snapshot names no run — is
- * handed back exactly as it arrived, map and all.
+ * Any other module — one the run does not cut, the seam's own setup shim, a
+ * build whose snapshot names no run — is handed back exactly as it arrived.
  */
-function instrumentModule(
-  this: SelectionLoaderContext,
-  code: string,
-  map?: TransformSourceMap,
-): void {
+function instrumentModule(this: SelectionLoaderContext, code: string): void {
   const file = cleanId(this.resourcePath);
   const run = runOf(this.getOptions().coverageFile);
-  // This seam's own setup module installs the probe log; instrumented,
-  // its own header would ask for the log before the module has installed
-  // it. It is a file under the project root like any other, so it is excluded
-  // by path rather than by the shape of its name.
-  if (run === undefined || run.shims.has(file) || !run.include(file)) {
-    this.callback(null, code, map);
+  // This seam's own setup module is a file under the project root like any
+  // other, so it is excluded by path rather than by the shape of its name.
+  // So does every module, with `before-transforms`: no loader ahead of this one has read it.
+  const first = run !== undefined && (run.placement === 'before-transforms' || namesItsMap(code));
+  if (run === undefined || run.shims.has(file)) {
+    this.callback(null, code);
     return;
   }
-
-  // The digest is of the text on disk, which is what the block lines are
-  // coordinates in once SWC's map is read back through — and of `code`, which
-  // is what SWC made of it, when there is no map and the lines stay where they
-  // were left.
-  const { extentOf, sourceDigest, file: wrote } = recordedFrame(code, map, file, (at) =>
-    readFileSync(at, 'utf8'),
-  );
-
-  // Under its path, the same one every other seam instruments under, so a journal
-  // reads the same whoever produced it.
-  const name = projectPath(run.root, wrote);
-  const moduleId = name;
-  const done = instrument(code, name, moduleId, { mode: run.mode });
-  if (done === undefined) {
-    run.modules.set(moduleId, {
-      file: name,
-      id: moduleId,
-      sourceDigest,
-      instrumented: false,
-      blocks: [],
-    });
-    this.callback(null, code, map);
+  // Every module is the probes loader's to reach, after the project's own: a
+  // configuration that carries this loader without it fails here, where Rspack
+  // names the loaders a file runs through, and otherwise at the run's end.
+  if (this.loaders !== undefined && !this.loaders.some((loader) => loader.path === AFTER_LOADER)) {
+    this.callback(unprobedFiles(run.root, [file]));
     return;
   }
+  run.awaiting.add(file);
+  if (!first && !cutting(run, file)) {
+    this.callback(null, code);
+    return;
+  }
+  const captured = first ? placeModule(run.root, file, code, run.include, run.unprobed, run.mode) : undefined;
+  if (captured !== undefined) run.modules.set(captured.module.id, captured.module);
+  const probed = captured?.code ?? code;
+  // The cut keeps every line where it was, and its map moves the columns
+  // back, so an inline snapshot is written into the call the test wrote.
+  const cut = cutting(run, file) ? cadence(probed, file) : undefined;
+  if (cut === undefined) this.callback(null, probed);
+  else this.callback(null, cut.code, cut.map);
+}
 
-  run.modules.set(moduleId, {
-    file: name,
-    id: moduleId,
-    sourceDigest,
-    instrumented: true,
-    blocks: done.blocks.map((block) => coverageBlock(code, block, extentOf)),
-  });
-  // Without the map it arrived with: the probes moved every line below the
-  // first of them, and a map that says otherwise is worse than none.
-  this.callback(null, done.code);
+/** Whether the run cuts `file`: a test file, while cuts are on. */
+function cutting(run: SelectionRun, file: string): boolean {
+  return run.cases && run.cadence?.(file) === true;
 }
 
 // Named here and exported as the default, because a loader is named by path:

@@ -18,7 +18,7 @@ beforeEach(() => {
 
 describe('the public journey artifact commands', () => {
   it('finalizes a named artifact without reading project configuration', async () => {
-    finalize.mockResolvedValue({ tests: 65, modules: 374, crossings: 60_015, renumbered: [] });
+    finalize.mockResolvedValue({ tests: 65, modules: 374, crossings: 60_015 });
     const out: string[] = [];
     const code = await main(['journeys', 'finalize', 'artifacts/journeys.bin'], {
       out: (text) => out.push(text),
@@ -36,7 +36,6 @@ describe('the public journey artifact commands', () => {
       tests: 3,
       modules: 2,
       crossings: 4,
-      renumbered: [],
       unclaimed: ['billing-7f.vac'],
       unrecorded: ['com.acme.Tax', 'com.acme.Rate'],
       silent: ['notes'],

@@ -46,6 +46,8 @@ const FIXTURES: Readonly<Record<string, string>> = {
     'label: for (let i = 0; i < 3; i++) { do { continue label } while (f()) }\nfor (const k in o) if (k) g();\nfor await (const x of y) z();\n',
   'functions.js':
     'export default function () { return async () => { await (async function named() { await 1 })() } }\nexport const h = function* () { yield 1 };\nnew Thing(() => 1, function () {});\na.b.c = () => 1;\nx ||= () => 2;\n',
+  'crossing.ts':
+    'function probe() { if (x) return 1 }\nexport async function read(page) {\n  const a = await page.evaluate(() => { if (y) return 2 });\n  return page.$eval("a", (el) => el.id) ?? page.evaluate(probe) ?? (() => 3)();\n}\n',
   'empty.ts': '',
   'only-comment.ts': '// nothing\n',
   'directive-only.js': '"use strict";\n',
@@ -59,12 +61,20 @@ describe('the walk', () => {
   it.each(Object.keys(FIXTURES).flatMap((file) => MODES.map((mode) => [file, mode] as const)))(
     'answers %s (%s) as committed',
     (file, mode) => {
-      const answered = spliced(FIXTURES[file]!, file, mode);
+      const whole = spliced(FIXTURES[file]!, file, mode);
+      // Whether the text is a module says how a caller opens it, and is no part of the walk's identity.
+      const answered = whole && (({ module: _, ...rest }) => rest)(whole);
 
       expect(answered === undefined ? null : { ...answered, blocks: answered.blocks.map((block) => ({ ...block })) })
         .toEqual(GOLDEN[`${file} (${mode})`]);
     },
   );
+
+  it('says a text that neither imports nor exports is a script, as CommonJS is', () => {
+    expect(spliced('module.exports = () => 1;\n', 'lib.js', 'presence')!.module).toBe(false);
+    expect(spliced('module.exports = () => 1;\n', 'lib.cjs', 'presence')!.module).toBe(false);
+    expect(spliced('export const f = () => 1;\n', 'lib.js', 'presence')!.module).toBe(true);
+  });
 
   it('spells a regular expression as `String(value)` does', () => {
     expect(spliced(FIXTURES['regexp-key.js']!, 'regexp-key.js', 'presence')!.blocks[1]!.name).toBe('/x/');

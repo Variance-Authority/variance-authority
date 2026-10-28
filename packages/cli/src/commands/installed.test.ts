@@ -1,8 +1,9 @@
-import { mkdir, mkdtemp, writeFile } from 'node:fs/promises';
+import { execFileSync } from 'node:child_process';
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { installDiff, installedDepends, type DiffPoint } from './installed.js';
+import { installDiff, installDiffOfPatch, installDiffs, installedDepends, patchPreimages, type DiffPoint } from './installed.js';
 
 /**
  * Reading the install at two revisions.
@@ -48,7 +49,7 @@ describe('what a diff did to the install', () => {
     const at = await repository(BUMPED);
     const diff = await installDiff(pointAt(at, BEFORE), [], at);
 
-    expect(diff).toEqual({ packages: ['lodash'], manifests: ['yarn.lock', 'package.json'], moved: [] });
+    expect(diff).toEqual({ lockfile: 'yarn.lock', packages: ['lodash'], manifests: ['yarn.lock', 'package.json'], moved: [] });
   });
 
   it('names nothing when the file was rewritten and the install is the same', async () => {
@@ -58,7 +59,7 @@ describe('what a diff did to the install', () => {
     // The reason the lockfile is a source and never a changed path. Read as a
     // changed file this diff repaints the suite; read as an install it is
     // nothing at all.
-    expect(diff).toEqual({ packages: [], manifests: ['yarn.lock', 'package.json'], moved: [] });
+    expect(diff).toEqual({ lockfile: 'yarn.lock', packages: [], manifests: ['yarn.lock', 'package.json'], moved: [] });
   });
 
   it('claims the manifests either way, so they are not counted twice', async () => {
@@ -92,9 +93,34 @@ describe('what a diff did to the install', () => {
     expect(await installDiff(pointAt(at, BEFORE), [], at)).toBeUndefined();
   });
 
-  it('answers nothing when the revision could not be resolved', async () => {
+  it('refuses when the revision could not be resolved, because a lockfile is here and nothing says what it was', async () => {
     const at = await repository(BEFORE);
-    expect(await installDiff(undefined, [], at)).toBeUndefined();
+    const diff = await installDiff(undefined, [], at);
+
+    expect(diff && 'whole' in diff && diff.whole).toContain('from a commit git could not resolve here');
+  });
+
+  it('names the commit the lockfile was missing at', async () => {
+    const at = await repository(BEFORE);
+    const diff = await installDiff(pointAt(at, undefined), [], at);
+
+    expect(diff && 'whole' in diff && diff.whole).toContain('not in the tree at abc1234, where this install is compared from');
+  });
+
+  it('reads the working tree once, however many commits it is compared from', async () => {
+    const at = await repository(BUMPED);
+    const [bumped, same, missing] = await installDiffs(
+      [
+        { point: pointAt(at, BEFORE), changed: [] },
+        { point: pointAt(at, BUMPED), changed: [] },
+        { point: undefined, changed: [] },
+      ],
+      at,
+    );
+
+    expect(bumped).toEqual({ lockfile: 'yarn.lock', packages: ['lodash'], manifests: ['yarn.lock', 'package.json'], moved: [] });
+    expect(same).toEqual({ lockfile: 'yarn.lock', packages: [], manifests: ['yarn.lock', 'package.json'], moved: [] });
+    expect(missing && 'whole' in missing).toBe(true);
   });
 });
 
@@ -133,14 +159,62 @@ describe('which changed manifests the install does not speak for', () => {
     const repo = await workspace({ ...MANIFEST, exports: { '.': './src/index.ts' } });
     const diff = await installDiff(at(repo), ['packages/ds/package.json'], repo);
 
-    expect(diff).toEqual({ packages: [], manifests: ['yarn.lock', 'package.json'], moved: ['packages/ds/package.json'] });
+    expect(diff).toEqual({ lockfile: 'yarn.lock', packages: [], manifests: ['yarn.lock', 'package.json'], moved: ['packages/ds/package.json'] });
   });
 
   it('sets aside a manifest whose change is a script and a dependency range', async () => {
     const repo = await workspace({ ...MANIFEST, scripts: { build: 'tsc -b' }, dependencies: { lodash: '^4.17.22' } });
     const diff = await installDiff(at(repo), ['packages/ds/package.json'], repo);
 
-    expect(diff).toEqual({ packages: [], manifests: ['yarn.lock', 'package.json'], moved: [] });
+    expect(diff).toEqual({ lockfile: 'yarn.lock', packages: [], manifests: ['yarn.lock', 'package.json'], moved: [] });
+  });
+
+  // A manifest's `type` is not the lockfile's business, so a patch that moves
+  // it leaves the lockfile alone, and the move is still read off the patch.
+  it('carries a manifest a handed-in patch moved, though it left every lockfile alone', async () => {
+    const repo = await workspace(MANIFEST);
+    const git = (...args: string[]) => execFileSync('git', ['-C', repo, ...args], { encoding: 'utf8' });
+    git('init', '-q');
+    git('add', '.');
+    git('-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-qm', 'base');
+    await writeFile(join(repo, 'packages/ds/package.json'), text({ ...MANIFEST, type: 'module' }), 'utf8');
+
+    expect(await installDiffOfPatch(git('diff'), repo)).toEqual({ packages: [], manifests: ['package.json'], moved: ['packages/ds/package.json'] });
+  });
+
+  // Each uncommitted end stands alone: a manifest gone from disk since the
+  // patch was taken costs its own after end, not every other one's.
+  it('reads a patched manifest whose neighbour is gone from disk', async () => {
+    const repo = await workspace(MANIFEST);
+    await mkdir(join(repo, 'packages/ui'), { recursive: true });
+    await writeFile(join(repo, 'packages/ui/package.json'), text({ name: 'ui' }), 'utf8');
+    const git = (...args: string[]) => execFileSync('git', ['-C', repo, ...args], { encoding: 'utf8' });
+    git('init', '-q');
+    git('add', '.');
+    git('-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-qm', 'base');
+    await writeFile(join(repo, 'packages/ds/package.json'), text({ ...MANIFEST, scripts: { build: 'tsc -b' } }), 'utf8');
+    await writeFile(join(repo, 'packages/ui/package.json'), text({ name: 'ui', type: 'module' }), 'utf8');
+    const patch = git('diff');
+    await rm(join(repo, 'packages/ui/package.json'));
+
+    // `ds` moved only a script, so it is read and set aside; `ui` has no after end to read.
+    expect(await installDiffOfPatch(patch, repo)).toEqual({ packages: [], manifests: ['package.json'], moved: ['packages/ui/package.json'] });
+  });
+
+  it('answers for a patch read from below the top of the checkout', async () => {
+    const repo = await workspace(MANIFEST);
+    const git = (...args: string[]) => execFileSync('git', ['-C', repo, ...args], { encoding: 'utf8' });
+    git('init', '-q');
+    git('add', '.');
+    git('-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-qm', 'base');
+    await writeFile(join(repo, 'packages/ds/package.json'), text({ ...MANIFEST, type: 'module' }), 'utf8');
+
+    // Read from `packages`, the patch's paths name nothing under it, so no after end is found.
+    expect(await installDiffOfPatch(git('diff'), join(repo, 'packages'))).toEqual({
+      packages: [],
+      manifests: ['package.json'],
+      moved: ['packages/ds/package.json'],
+    });
   });
 
   it('carries a manifest the base did not have, since it makes a package', async () => {
@@ -178,5 +252,17 @@ jsdom@^20.0.0:
   it('is empty, not a refusal, where there is no install to read', async () => {
     const at = await mkdtemp(join(tmpdir(), 'va-install-'));
     expect(await installedDepends(at)).toEqual([]);
+  });
+});
+
+describe('the text a patch names before it', () => {
+  // Git leaves a directory outside any repository before reading its stdin, and
+  // a pipe it closed on more ids than the pipe holds is that failure, not a crash.
+  it('is empty outside a repository, however many blobs the patch names', async () => {
+    const away = await mkdtemp(join(tmpdir(), 'va-no-repo-'));
+    const id = (at: number) => at.toString(16).padStart(40, '1');
+    const patch = Array.from({ length: 20_000 }, (_, at) => `diff --git a/f${at} b/f${at}\nindex ${id(at)}..${id(at + 1)} 100644\n`).join('');
+
+    expect(await patchPreimages(patch, away)).toEqual(new Map());
   });
 });

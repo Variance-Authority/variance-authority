@@ -1,4 +1,4 @@
-import { mkdtemp, writeFile } from 'node:fs/promises';
+import { mkdtemp } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -6,14 +6,16 @@ import { readFlags } from '../args.js';
 import { parseCoveringArgs } from '../covering-args.js';
 import { OperatorError } from '../exit.js';
 import { flagsFor, synopsisFor } from '../usage.js';
-import { caseLayerFiles, encodeExecutionIndex } from '@variance-authority/sense/test-selection';
+import { encodeExecutionIndex, writeTestCoverage } from '@variance-authority/sense/test-selection';
 import { covering, formatCovering } from './covering.js';
 import { keepCases } from './covering-scope.js';
+import { INSTRUMENTATION_ID } from '@variance-authority/sense/instrument';
 
 const INDEX = {
   tests: [
     { id: 'total.test.ts > discounts', file: 'total.test.ts', name: 'discounts' },
     { id: 'flow.test.tsx > checks out', file: 'flow.test.tsx', name: 'checks out' },
+    { id: 'e2e/cart.test.ts > empties', file: 'e2e/cart.test.ts', name: 'empties' },
   ],
   modules: [{
     file: 'src/total.ts',
@@ -30,14 +32,14 @@ const INDEX = {
   }],
 };
 
-/** An index as a run leaves it, with the last run named beside it when given. */
+/** A record keeping the index as a run leaves it, with the last run named in it when given. */
 async function recorded(last?: { readonly cases: readonly string[]; readonly commit?: string }): Promise<string> {
   const dir = await mkdtemp(join(tmpdir(), 'variance-covering-scope-'));
-  const file = join(dir, 'cases.bin');
-  await writeFile(file, encodeExecutionIndex(INDEX));
-  if (last !== undefined) {
-    await writeFile(caseLayerFiles(file).last, JSON.stringify({ at: '2026-09-25T00:00:00.000Z', files: [], ...last }));
-  }
+  const file = join(dir, 'coverage.bin');
+  await writeTestCoverage(file, { version: 3, instrumentation: INSTRUMENTATION_ID, tests: [], modules: [] }, {
+    index: encodeExecutionIndex(INDEX),
+    ...(last === undefined ? {} : { last: Buffer.from(JSON.stringify({ at: '2026-09-25T00:00:00.000Z', files: [], ...last })) }),
+  });
   return file;
 }
 
@@ -70,18 +72,26 @@ describe('a test read alone', () => {
     expect(answer.scope).toEqual({ cases: 'flow.test.tsx', tests: ['flow.test.tsx > checks out'] });
   });
 
-  it('refuses a test file the index holds no case of, and points at the spelling it does', async () => {
+  it.each(['app/e2e/cart.test.ts', 'e2e/flow.test.tsx'])(
+    'refuses `%s`, a test file the index holds no case of, and names no other path',
+    async (cases) => {
+      const execution = await recorded();
+
+      const asked = covering(parse(['--file', 'src/total.ts', '--cases', cases, '--execution', execution]));
+
+      await expect(asked).rejects.toThrow(/names no test file the index holds a case of\.$/);
+      await expect(asked).rejects.not.toThrow(/`(e2e\/cart|flow)\.test\.tsx?`/);
+    },
+  );
+
+  it('refuses `last` when no run named itself in the record', async () => {
     const execution = await recorded();
 
-    await expect(covering(parse(['--file', 'src/total.ts', '--cases', 'e2e/flow.test.tsx', '--execution', execution])))
-      .rejects.toThrow(/names no test file.*`flow.test.tsx`/);
-  });
+    const asked = covering(parse(['--file', 'src/total.ts', '--cases', 'last', '--execution', execution]));
 
-  it('refuses `last` when no run named itself beside the index', async () => {
-    const execution = await recorded();
-
-    await expect(covering(parse(['--file', 'src/total.ts', '--cases', 'last', '--execution', execution])))
-      .rejects.toThrow(OperatorError);
+    await expect(asked).rejects.toThrow(OperatorError);
+    await expect(asked).rejects.toThrow(`from the record \`${execution}\`, and it names none, so which of its cases the last run wrote is not recorded. Without \`--cases\`, the answer reads every case the record holds.`);
+    await expect(asked).rejects.not.toThrow(/run a test file|ask again/);
   });
 
   it('renumbers the crossings of the cases it keeps', () => {

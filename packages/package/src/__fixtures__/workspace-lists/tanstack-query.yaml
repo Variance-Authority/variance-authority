@@ -1,0 +1,12 @@
+linkWorkspacePackages: true
+preferWorkspacePackages: true
+
+packages:
+  - 'packages/*'
+  - 'integrations/*'
+  - 'examples/vue/*'
+  - '!examples/vue/2*'
+  - '!examples/vue/nuxt*'
+
+overrides:
+  '@tanstack/query-core': 'workspace:*'

@@ -2,7 +2,7 @@ import {
   acquireDocument,
   assetsFor,
   collect,
-  stabilizeForObservation,
+  stabilizeAsRequested,
 } from '@variance-authority/dom';
 import {
   awaitHydration,
@@ -14,9 +14,9 @@ import {
   digestPass,
   wiringOf,
 } from '@variance-authority/react';
-import type { HydrationSettlement, SuspenseSettlement } from '@variance-authority/react';
-import { recipeOf } from '@variance-authority/core/format';
-import type { RawCapture, RenderDocument, Viewport } from '@variance-authority/core/format';
+import type { AwaitedArrival, CommitTap, HydrationSettlement, SuspenseSettlement } from '@variance-authority/react';
+import { stepClock } from '@variance-authority/core/format';
+import type { PageRegion, RawCapture, RenderDocument, Step, Viewport } from '@variance-authority/core/format';
 
 /**
  * The browser half for a route, which is the cheapest mount there is.
@@ -32,7 +32,8 @@ import type { RawCapture, RenderDocument, Viewport } from '@variance-authority/c
  * story about which of them was looking at what.
  */
 
-export interface AcquireRequest {
+/** What a reading asks of the agent. Its region is the one the driver opened the page in, for the environment key. */
+export interface AcquireRequest extends PageRegion {
   readonly subjectId: string;
   readonly viewport: Viewport;
   readonly engine: string;
@@ -69,6 +70,15 @@ export interface AcquireRequest {
   readonly stabilize?: readonly string[];
 
   /**
+   * The driver tricks the driver applied to this page, by id.
+   *
+   * The page cannot emulate a media feature, fix its own clock or move the
+   * pointer, so a trick that needs one of those holds only when the driver says
+   * it did it. The rest are left out of the recorded recipe. Absent is none.
+   */
+  readonly driven?: readonly string[];
+
+  /**
    * How long to wait for the subject's Suspense boundaries, in milliseconds.
    *
    * The wire is settled by the driver before this runs, which is a different
@@ -89,15 +99,16 @@ export interface AcquireRequest {
   readonly wiring?: boolean;
 
   /**
-   * How long to wait for React to commit into a server-rendered document, in
-   * milliseconds. Absent means the adapter's own default.
+   * The global a driver installed to say whether anything the page requested is
+   * still arriving, and to wait for it when something is. Absent when the
+   * driver watches nothing, and then a subject React cannot finish on its own
+   * is read as it stands.
    *
-   * Separate from `suspense` because it precedes it: a boundary is React's
-   * record of work in flight, and a document with no fiber in it yet has no
-   * record of anything. Paid only by a subject that is not hydrated when the
-   * driver looks — a page already committed returns on the first read.
+   * Asked by the hydration wait, which precedes `suspense`: a boundary is
+   * React's record of work in flight, and a document with no fiber in it yet
+   * has no record of anything.
    */
-  readonly hydration?: { readonly timeoutMs?: number };
+  readonly arrival?: string;
 
   /**
    * Read held state as evidence. Absent means *off*, and that asymmetry is the
@@ -144,13 +155,19 @@ export interface Acquired {
    * Whether React had committed into the document by the time it was read.
    *
    * Absent when the run turned `wiring` off, which is the run saying it never
-   * expected a fiber. Present and `hydrated: false` is the honest shape of a
-   * capture with no provenance in it: a page this adapter cannot read, or one
-   * that took longer to hydrate than the budget allowed. Either way the reader
-   * of a report with no `file:line` on it can tell which of the two it has,
-   * instead of inferring a production build.
+   * expected a fiber. Reported rather than acted on here, like `suspense`: the
+   * driver refuses a page still `hydrating`, and turns `unrooted` — a page no
+   * React root was found on — into a diagnostic, so the reader of a report with
+   * no `file:line` on it can tell why instead of inferring a production build.
    */
   readonly hydration?: HydrationSettlement;
+
+  /**
+   * How long each step in the page took, in the order they ran: the hydration
+   * and Suspense waits, each stabilization wait by id, `frames`, and `read`.
+   * Absent from an agent older than this field.
+   */
+  readonly steps?: readonly Step[];
 }
 
 /**
@@ -170,8 +187,43 @@ function rootOf(selectors: readonly string[]): Element {
   throw new Error(`no story root among ${selectors.join(', ')}`);
 }
 
-export async function acquire(request: AcquireRequest): Promise<string> {
+/**
+ * The hydration wait's question to the driver: is anything still arriving.
+ *
+ * An arrival is not yet a page that has run what arrived: the response is in,
+ * and the promise it settles, the ping and the render it schedules are tasks
+ * still queued. So the answer is given once the page has gone idle, and the
+ * question is asked once it has, so that a request a task was about to send
+ * has been sent.
+ */
+function outstandingFor(arrival: string | undefined): { outstanding?: (of: AwaitedArrival) => Promise<boolean> } {
+  const ask = arrival === undefined ? undefined : (globalThis as unknown as Record<string, unknown>)[arrival];
+  if (typeof ask !== 'function') return {};
+  return {
+    outstanding: async (of) => {
+      await idle();
+      if (!(await (ask as (of: AwaitedArrival) => Promise<boolean>)(of))) return false;
+      await idle();
+      return true;
+    },
+  };
+}
+
+/**
+ * Resolve when the page has no task left to run. WebKit has no idle callback,
+ * and there it is the next task instead: everything queued before it has run,
+ * which is the part of idle the wait needs.
+ */
+function idle(): Promise<void> {
+  return new Promise((resolve) => {
+    if (typeof globalThis.requestIdleCallback === 'function') globalThis.requestIdleCallback(() => resolve());
+    else setTimeout(resolve, 0);
+  });
+}
+
+export async function acquire(tap: CommitTap, request: AcquireRequest): Promise<string> {
   const root = rootOf(request.roots);
+  const steps = stepClock(() => performance.now());
 
   // Before the Suspense read, because a document React has not committed into
   // holds no boundary to read: `awaitSuspense` would answer `unobserved` — the
@@ -186,7 +238,7 @@ export async function acquire(request: AcquireRequest): Promise<string> {
   const hydration =
     request.wiring === false
       ? undefined
-      : await awaitHydration(root, request.hydration ?? {});
+      : await steps.time('hydration', async () => awaitHydration(root, { tap, ...outstandingFor(request.arrival) }));
 
   // First of everything else, because it decides what the rest of it is looking at.
   // The driver has already settled the wire, which is a different fact: a
@@ -194,28 +246,29 @@ export async function acquire(request: AcquireRequest): Promise<string> {
   // a promise, a retry and a commit. Ahead of stabilization deliberately —
   // content that arrives late brings its own images and fonts, and a
   // `waitForImages` that ran before them waited for the skeleton's.
-  const suspense = await awaitSuspense(root, request.suspense ?? {});
+  const suspense = await steps.time('suspense', async () => awaitSuspense(root, request.suspense ?? {}));
 
   // Before anything is read, and by default. An animation in flight moves
   // `transform` and `opacity`, both of which the semantic representation
   // carries — so an unstabilized collection reports a fade as a regression with
   // a component and a file attached. See `docs/stabilization.md`.
-  const held = await stabilizeForObservation(
-    root.ownerDocument,
-    request.stabilize === undefined ? {} : { recipe: recipeOf(request.stabilize) },
-  );
+  const held = await stabilizeAsRequested(root.ownerDocument, request, steps);
 
   // Narrowed to this route's own subtree, and handed to **both** keys. The
   // document's key is the one `settle` reads: a document that omitted the assets
   // would produce the digest the baseline was painted from even after a logo's
   // bytes moved, and the run would skip the render and report `unchanged` — the
   // exact false verdict hashing the bytes was added to close.
-  const assets = request.assets === undefined ? {} : assetsFor(root, request.assets);
+  const sent = request.assets;
+  const assets = sent === undefined ? {} : await steps.time('assets', () => assetsFor(root, sent));
 
   const shared = {
     subject: { id: request.subjectId, kind: 'route' as const },
     viewport: request.viewport,
     ...(request.fonts !== undefined ? { fonts: request.fonts } : {}),
+    // The preference the driver emulated, declared, so `@media` reads it as
+    // the browser answers it rather than as unknown.
+    ...(held.features !== undefined ? { features: held.features } : {}),
     ...(Object.keys(assets).length > 0 ? { assets } : {}),
   };
 
@@ -225,10 +278,12 @@ export async function acquire(request: AcquireRequest): Promise<string> {
   // saving: two indexes built either side of a lazily-inserted `<style>` would
   // describe two different documents, and the run would compare an image of one
   // against the names of the other.
-  const document = { ...acquireDocument(root, shared), baseUrl: root.ownerDocument.baseURI };
-  const capture = collect(root, {
+  const document = await steps.time('document', () => ({ ...acquireDocument(root, shared), baseUrl: root.ownerDocument.baseURI }));
+  const capture = await steps.time('capture', () => collect(root, {
     ...shared,
     engine: request.engine,
+    ...(request.timezoneId !== undefined ? { timezoneId: request.timezoneId } : {}),
+    ...(request.locale !== undefined ? { locale: request.locale } : {}),
     portalsOf: portalContentOf,
     // One memo for this collection: `provenanceOf` walks the owner chain of
     // every node, so without it each boundary's props are digested once per
@@ -243,7 +298,7 @@ export async function acquire(request: AcquireRequest): Promise<string> {
     ...(request.holdings === true ? { holdingOf } : {}),
     ...(held.digest !== undefined ? { stabilization: held.digest } : {}),
     ...(request.ignore !== undefined ? { ignore: request.ignore } : {}),
-  });
+  }));
 
   return JSON.stringify({
     document,
@@ -251,6 +306,7 @@ export async function acquire(request: AcquireRequest): Promise<string> {
     stabilization: held.ids,
     suspense,
     ...(hydration !== undefined ? { hydration } : {}),
+    steps: steps.taken,
   });
 }
 

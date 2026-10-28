@@ -58,7 +58,7 @@ assert
 ```
 
 The outside initiator is an entanglement to investigate, not a verdict. Eyes
-identifies the structural component instance; it does not claim which setter,
+identifies the structural component instance; it does not identify which setter,
 callback, or source statement scheduled the work.
 
 Every target is copied while its DOM node and Fiber [attribution](attribution.md) are still live.
@@ -117,8 +117,7 @@ fixtures into the suite's existing extension. Neither replaces the runner's
 `test`, `expect`, configuration, or lifecycle.
 
 The [`@variance-authority/eyes` integration reference](../packages/eyes)
-contains the installation, phase markers, journal publication, and React-hook
-timing for both adapters. Once an archive exists, use
-[`variance distill`](distill.md) for the deterministic reading or
-[`variance_distill`](agent-questions.md#distill-one-test) when the archive is
-supplied through MCP.
+contains the installation, phase markers, where each journal goes, and
+React-hook timing for both adapters. A recorded Playwright run keeps each
+attempt's journal in its record, beside what the test executed; once it has,
+use [`variance distill`](distill.md) for the deterministic reading.

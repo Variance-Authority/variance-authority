@@ -1,19 +1,34 @@
 import { existsSync } from 'node:fs';
-import { mkdir, mkdtemp, utimes, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, utimes, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
-import { describe, expect, test } from 'vitest';
+import { afterEach, describe, expect, test } from 'vitest';
+import { applyPrune, writeFetchedMainline } from '@variance-authority/sense/test-selection';
+import { main } from '../bin.js';
 import {
   CACHE_PRUNE_REASONS,
   COMMITS_BEHIND,
   planCachePrune,
   pruneCacheWhenDue,
+  prunedExit,
   prunedLines,
+  pruneNow,
   type CacheOwners,
 } from './prune-cache.js';
 import { cacheFinding, formatCache } from './doctor-cache.js';
+import { EXIT_CLEAN, EXIT_OPERATOR } from '../exit.js';
 
 const DAY = 24 * 60 * 60 * 1000;
+/** Past the largest pid Linux or macOS hands out, so no process has it. */
+const NO_PROCESS = 2 ** 22 + 1;
+/** The cache a run of this tool uses, named for the run rather than by the repository. */
+const CACHE_VARIABLE = 'VARIANCE_AUTHORITY_CACHE';
+const cacheBefore = process.env[CACHE_VARIABLE];
+
+afterEach(() => {
+  if (cacheBefore === undefined) delete process.env[CACHE_VARIABLE];
+  else process.env[CACHE_VARIABLE] = cacheBefore;
+});
 const NOW = Date.UTC(2026, 8, 27);
 
 async function put(path: string, age: number): Promise<string> {
@@ -60,6 +75,21 @@ describe('planCachePrune', () => {
     const plan = await planCachePrune({ cacheRoot }, owners({ [commit(1)]: false, [commit(2)]: false, [commit(3)]: 0 }));
 
     expect(plan.remove.map((entry) => [entry.path, entry.reason])).toEqual([[old, 'off-line']]);
+  });
+
+  test('the mainline record a suite\'s fetched.json names stays, however far out of reach its commit is', async () => {
+    const cacheRoot = await mkdtemp(resolve(tmpdir(), 'va-prune-cache-'));
+    const read = join(cacheRoot, 'share', 'read', 'unit');
+    const named = await put(join(read, commit(1), 'coverage.bin'), 15 * DAY).then(dirname);
+    await utimes(named, (NOW - 15 * DAY) / 1000, (NOW - 15 * DAY) / 1000);
+    const other = await put(join(read, commit(2), 'coverage.bin'), 15 * DAY).then(dirname);
+    await utimes(other, (NOW - 15 * DAY) / 1000, (NOW - 15 * DAY) / 1000);
+    await put(join(read, commit(3), 'coverage.bin'), 0);
+    await writeFetchedMainline(cacheRoot, 'unit', { mainline: 'main', commit: commit(1), fetched: new Date(NOW).toISOString() });
+
+    const plan = await planCachePrune({ cacheRoot }, owners({ [commit(1)]: false, [commit(2)]: false, [commit(3)]: 0 }));
+
+    expect(plan.remove.map((entry) => [entry.path, entry.reason])).toEqual([[other, 'off-line']]);
   });
 
   test('a commit git cannot answer for is kept, and said, until it is 30 days old', async () => {
@@ -114,6 +144,31 @@ test('pruneCacheWhenDue prunes once a day and says what it took', async () => {
   expect(existsSync(join(cacheRoot, 'scans'))).toBe(true);
 });
 
+test('a prune that could not remove an entry names it and the error, and exits as the operator\'s to fix', async () => {
+  const cacheRoot = join(await mkdtemp(resolve(tmpdir(), 'va-prune-cache-')), 'cache');
+  const scans = join(cacheRoot, 'scans');
+  await put(join(scans, 'scan.bin'), 0);
+  const plan = await planCachePrune({ cacheRoot }, owners({}));
+  // Between the plan and its removal the cache became a file: no path through
+  // it resolves, for any user on any platform.
+  await rm(cacheRoot, { recursive: true });
+  await writeFile(cacheRoot, 'x');
+
+  const pruned = { selection: undefined, commits: await applyPrune(plan) };
+
+  expect(prunedLines(pruned)).toBe(
+    `cache: could not remove ${scans}, a directory nothing writes any more: ${pruned.commits.unremoved[0]?.error}\n`,
+  );
+  expect(pruned.commits.unremoved[0]?.error).toMatch(/^ENOTDIR\b/u);
+  expect(prunedExit(pruned)).toBe(EXIT_OPERATOR);
+
+  await rm(cacheRoot);
+  await put(join(scans, 'scan.bin'), 0);
+  const again = await pruneNow({ cacheRoot });
+  expect(existsSync(scans)).toBe(false);
+  expect(prunedExit(again)).toBe(EXIT_CLEAN);
+});
+
 test('doctor reports what the next prune removes, by rule, and what it keeps and why', () => {
   const lines = formatCache(
     cacheFinding({
@@ -131,11 +186,33 @@ test('doctor reports what the next prune removes, by rule, and what it keeps and
   expect(lines).toEqual([
     'cache: 20.0 MiB besides renders',
     '  /cache',
-    '  a run prunes it once a day; `variance doctor --prune` prunes it now',
+    '  `variance run` prunes it once a day; `variance prune` prunes it now',
     '  the next prune removes 10.0 MiB:',
     '    1 directory nothing writes any more, 8.0 MiB',
     `    2 commits more than ${COMMITS_BEHIND} behind HEAD, 2.0 MiB`,
     '  kept, because the rule for them could not be checked:',
     '    1: a commit this clone does not hold; kept until 30 days old',
   ]);
+});
+
+test('`variance prune` removes what other runs left now, though the cache was pruned a minute ago, and says what it freed', async () => {
+  const cacheRoot = await mkdtemp(resolve(tmpdir(), 'va-prune-command-'));
+  process.env[CACHE_VARIABLE] = cacheRoot;
+  // A layer of a checkout that is still there, holding the scratch of a run
+  // whose process has exited, in a cache whose daily prune is not due.
+  const layer = join(cacheRoot, 'test-selection', 'elsewhere');
+  await mkdir(layer, { recursive: true });
+  await writeFile(join(layer, 'checkout.json'), JSON.stringify({ checkout: cacheRoot, primary: cacheRoot }));
+  await writeFile(join(cacheRoot, 'test-selection', '.pruned'), '');
+  const dead = join(layer, `.run-${NO_PROCESS}-left`);
+  await mkdir(dead);
+  const hoursAgo = (Date.now() - 2 * 60 * 60 * 1000) / 1000;
+  await utimes(dead, hoursAgo, hoursAgo);
+  let out = '';
+
+  const code = await main(['prune'], { out: (text) => { out += text; }, err: (text) => { out += text; } });
+
+  expect(code).toBe(0);
+  expect(existsSync(dead)).toBe(false);
+  expect(out).toBe(`cache: freed 0.0 MiB in ${join(cacheRoot, 'test-selection')}: 1 run whose process is gone\n`);
 });

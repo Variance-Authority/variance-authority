@@ -21,12 +21,13 @@ npx playwright install chromium
 
 [Your first run](start.md) has the config and the collector that command reads.
 
-That command covers the subjects the CLI renders. For an existing test suite,
+That command covers the subjects the CLI renders. For an existing Vitest or
+Jest suite,
 [`@variance-authority/sense`](https://variance-authority.dev/reference/packages/sense)
-exports recording and selection APIs and installs no command: it does not
-inventory your test hosts or execute the files it selects, so the current test
-inventory, runner identity and invocation for each kind of test stay with your
-repository.
+wraps the runner configuration you already have: the run records itself, and
+with `VARIANCE_AUTHORITY_SINCE` set the runner leaves out the test files your
+edit did not reach. [Run the tests an edit needs](test-an-edit.md) is that
+loop.
 
 ## One decision, four readings
 
@@ -59,9 +60,9 @@ that stamps the name onto the element, which is the same step
 [attribution](composition.md) needs anyway.
 
 That second reading is what lets a change to a file reach a **route** at all. A
-URL names a page, and nothing in the page's address says which components render
-there. What says it is the page having been seen rendering them — so the join is
-empirical, and it is exactly as current as the last render you approved.
+URL names a page, and nothing in the page's address shows which components
+render there. What shows it is the page having been seen rendering them — so the
+join is empirical, and it is exactly as current as the last render you approved.
 
 Together the two answer at the grain of a file: this change is inside
 `Button.tsx`, and these subjects were last seen rendering `Button`.
@@ -81,7 +82,7 @@ evidence they are read from.
 The execution index answers below that grain, at the region. Three stories mount
 the same component and one of them clicks Remove; the body of that handler is a
 place the other two have never been inside, though all three import the same
-file. Nothing read from the source tells them apart, because the difference is
+file. Nothing read from the source distinguishes them, because the difference is
 not in the tree — it is in what each execution did with it. Use that reading when
 file-level reach is too coarse to be worth acting on, and read
 [the path an execution took](journeys.md) for what it costs to record.
@@ -92,24 +93,27 @@ For rendered subjects, use [test selection](selecting.md) when the outcome is a
 smaller run. It owns `--since`, the conservative rules that widen the set, and
 the report of what was excluded.
 
-To find out what your own runner could have skipped on a recent change, record
-one run with the Vitest or Jest integration installed, then ask:
+For your own Vitest or Jest suite, record one run with the integration
+installed, then set the variable on the next one:
 
 ```bash
 npx vitest run
-npx variance select --format json
+VARIANCE_AUTHORITY_SINCE= npx vitest run
 ```
 
-`select` prints a **skip** list, never a run list: stdout is paths and
+[Run the tests an edit needs](test-an-edit.md) owns that loop.
+`npx variance select --format json` prints the same reading for a runner the
+integration does not wrap, or a program that decides for itself. `select` prints a **skip** list, never a run list: stdout is paths and
 nothing else, and an empty answer runs your whole suite rather than none of it.
-It reads no `variance.config.json`, so a repository that uses Variance Authority
-for nothing else can still ask. The
+It needs no `variance.config.json`, so a repository that uses Variance Authority
+for nothing else can still ask; with one, it reads the declared suites and what
+each rests on [before reach](changes-before-and-beyond.md#how-a-change-before-reach-is-declared). The
 [CLI reference](https://variance-authority.dev/reference/packages/cli) has the
 other output formats and the conditions under which it declines to narrow.
 
-Use [distance](distance.md) when an integration already owns the current test
-inventory and runner dispatch, but feedback order matters. Distance orders the
-measured part of a selection; it does not discover or execute the suite.
+Use [distance](distance.md) when feedback order matters: it orders a selection
+by the import hops between the edit and each test, and a wrapped run takes one
+range of them at a time.
 
 Use [source reach](source.md) when the source scan itself is the question:
 which requests were found, how they resolved, what could not be determined, or

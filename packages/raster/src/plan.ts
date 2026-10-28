@@ -19,8 +19,9 @@ import { DEFAULT_POLICY, type DiffPolicy } from './policy.js';
  * What it buys is the thing a hand-written identity cannot: **swapping a tool
  * moves the address of everything downstream.** Change the comparator, retune
  * the clustering, bump the ruleset, and the plan digest moves — so a baseline
- * produced by the old composition is `incomparable` with a run produced by the
- * new one, rather than being compared and the difference blamed on a component.
+ * produced by the old composition compared with a run produced by the new one
+ * names the composition as the cause, rather than blaming the difference on a
+ * component.
  * That failure is not hypothetical: an identity listing the machine, the scale
  * and the fonts is blind to every one of those changes.
  */

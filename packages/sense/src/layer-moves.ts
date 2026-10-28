@@ -10,6 +10,11 @@
  * counted under one cause, found by following the dependency that moved it
  * down to a cause, so the counts add up to the total.
  *
+ * A package whose own dependencies changed and whose layer did not is **held**.
+ * Between causes, held packages and the packages that appeared or vanished,
+ * every dependency a package started or stopped taking is told once, whether
+ * or not a layer moved.
+ *
  * It performs no I/O: it compares two lists a code map kept.
  */
 
@@ -30,16 +35,36 @@ export interface LayerCause {
   readonly carried: readonly string[];
 }
 
+/** One package whose own dependencies changed and whose layer did not. */
+export interface LayerHeld {
+  readonly package: string;
+  readonly layer: number;
+  /** Packages it started importing, in code-unit order. */
+  readonly added: readonly string[];
+  /** Packages it stopped importing, in code-unit order. */
+  readonly removed: readonly string[];
+}
+
+/** A package in only one of the two maps, with its layer and every package it takes there. */
+export interface LayerPresence {
+  readonly package: string;
+  readonly layer: number;
+  /** In code-unit order: every edge it brought, or took away. */
+  readonly takes: readonly string[];
+}
+
 /** The layer moves between two code maps: the causes with what each carried, and the packages that only appeared or vanished. */
 export interface LayerMoves {
   /** Largest cascade first, then the largest move, then name. */
   readonly causes: readonly LayerCause[];
   /** Movers whose dependencies did not change: the sum of every cause's `carried`. */
   readonly carried: number;
+  /** Packages in both maps whose dependencies changed and whose layer held, in code-unit order. */
+  readonly held: readonly LayerHeld[];
   /** In the head map and not the base: they have no earlier layer to move from. */
-  readonly appeared: readonly string[];
+  readonly appeared: readonly LayerPresence[];
   /** In the base map and not the head. */
-  readonly vanished: readonly string[];
+  readonly vanished: readonly LayerPresence[];
 }
 
 function byCodeUnit(a: string, b: string): number {
@@ -55,14 +80,27 @@ function without(names: readonly string[], others: readonly string[]): string[] 
 export function layerMoves(base: readonly PackageLayer[], head: readonly PackageLayer[]): LayerMoves {
   const before = new Map(base.map((entry) => [entry.package, entry]));
   const after = new Map(head.map((entry) => [entry.package, entry]));
-  const appeared = head.filter((entry) => !before.has(entry.package)).map((entry) => entry.package).sort(byCodeUnit);
-  const vanished = base.filter((entry) => !after.has(entry.package)).map((entry) => entry.package).sort(byCodeUnit);
+  const presence = (entry: PackageLayer): LayerPresence => ({
+    package: entry.package,
+    layer: entry.layer,
+    takes: [...entry.takes].sort(byCodeUnit),
+  });
+  const appeared = head.filter((entry) => !before.has(entry.package)).map(presence).sort((a, b) => byCodeUnit(a.package, b.package));
+  const vanished = base.filter((entry) => !after.has(entry.package)).map(presence).sort((a, b) => byCodeUnit(a.package, b.package));
 
   const moved = new Map<string, { from: PackageLayer; to: PackageLayer }>();
+  const held: LayerHeld[] = [];
   for (const to of head) {
     const from = before.get(to.package);
-    if (from !== undefined && from.layer !== to.layer) moved.set(to.package, { from, to });
+    if (from === undefined) continue;
+    if (from.layer !== to.layer) moved.set(to.package, { from, to });
+    else {
+      const added = without(to.takes, from.takes);
+      const removed = without(from.takes, to.takes);
+      if (added.length > 0 || removed.length > 0) held.push({ package: to.package, layer: to.layer, added, removed });
+    }
   }
+  held.sort((a, b) => byCodeUnit(a.package, b.package));
 
   const changed = (name: string): boolean => {
     const { from, to } = moved.get(name)!;
@@ -129,5 +167,5 @@ export function layerMoves(base: readonly PackageLayer[], head: readonly Package
       Math.abs(b.to - b.from) - Math.abs(a.to - a.from) ||
       byCodeUnit(a.package, b.package),
   );
-  return { causes, carried: causes.reduce((sum, cause) => sum + cause.carried.length, 0), appeared, vanished };
+  return { causes, carried: causes.reduce((sum, cause) => sum + cause.carried.length, 0), held, appeared, vanished };
 }

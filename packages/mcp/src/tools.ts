@@ -15,6 +15,8 @@ import { locate } from './tools/locate.js';
 import { summarize } from './tools/summary.js';
 import { attention } from './tools/attention.js';
 import { costs } from './tools/costs.js';
+import { concerns } from './tools/concerns.js';
+import { decisions } from './tools/decisions.js';
 import { distillTool, observability } from './tools/observability.js';
 import { presentations, type PresentationEvidence } from './tools/presentations.js';
 import { scenarios, type ScenarioEvidence } from './tools/scenarios.js';
@@ -101,10 +103,11 @@ import { variations } from './tools/variations.js';
  * records before knowing whether `--all` is what it wants.
  */
 
-export type { Served, Tool, ToolInvocation } from './tools/tool.js';
+export type { FileSet, Served, Tool, ToolInvocation } from './tools/tool.js';
 // The tree a start point is resolved against, exported for the hosts that have
 // a repository to read: a tool cannot walk one, so somebody outside has to.
-export { readTree, treeAtWorkspace, treeFromRelations, treeOf, type Tree, type TreeOptions } from './tools/tree.js';
+export { readTree, treeAtWorkspace, treeFromRelations, treeOf, type Chains, type Link, type Tree, type TreeOptions } from './tools/tree.js';
+export { namesOf, type DeclaredName, type FileNames, type ImportedName, type SourceNames } from './tools/names.js';
 export { decodeSourceTree, encodeSourceTree } from './tools/source-tree-format.js';
 // `treeOf` takes these, so a host that builds a tree out of a scan it already
 // ran has to be able to name them. Exporting the function without its argument
@@ -124,15 +127,19 @@ export {
 } from './tools/start-point.js';
 export type { StateDifference };
 
-// A refusal names the closest thing that exists, and both binaries refuse the
-// same way: the CLI a flag or a question, a tool a path.
-export { didYouMean, nearest } from './tools/nearest.js';
-
 // The tool-authoring contract, not an implementation detail of this set. A
 // server over another subject writes tools against the same interface, and the
 // first thing any tool does with a model's argument is refuse it or narrow it.
 export { NO_ARGS, stringArg };
 export { notObservedSentence } from './tools/subject.js';
+// A long part of an answer, capped and counted the same way in every server.
+export { cappedRows } from './tools/capped.js';
+// How many rows a listing shows, read and refused the same way in every server.
+export { limitOf, notShown } from './tools/limit.js';
+// How rare a word is in a population, the one integer every word ranking multiplies by a field weight.
+export { heldWeight, rarity } from './tools/rarity.js';
+// How an answer names an input, a tool or a question, on the surface it was asked on.
+export { flagOf, spellingOf, verbOf, type Spelling } from './tools/spelling.js';
 export { diffState };
 
 /** The source-to-named-test tool set for an MCP server over an execution index. */
@@ -229,6 +236,28 @@ export function eyesToolByName(name: string): Tool<EyesArchive> | undefined {
  */
 export const COSTS_TOOLS = [costs] as const;
 export type { CostsSubject, SubjectCost } from './tools/costs.js';
+
+/**
+ * What review settled on a review deployment, and what reviewers suspect. Its
+ * own subject, because a decision or a concern is a fact about the deployment
+ * rather than about a run, and the host reads it with the share token — which
+ * reads, and never decides. Each tool names the route it is read from, so a
+ * host reads every one the same way.
+ */
+export const REVIEW_TOOLS = [decisions, concerns] as const;
+export { concernsQuery } from './tools/concerns.js';
+export type {
+  ConcernsQuery,
+  ConcernsSubject,
+  ReviewConcern,
+  ReviewConcernEvent,
+  ReviewConcernRegion,
+  ReviewConcernState,
+  ReviewConcernTally,
+} from './tools/concerns.js';
+export { decisionsQuery } from './tools/decisions.js';
+export type { DecisionsQuery, DecisionsSubject, ReviewDecision, ReviewDecisionEntry } from './tools/decisions.js';
+export type { Reviewed, ReviewTool } from './tools/review.js';
 
 /** Retained scenario executions, including witnessed Arrange state and Act outcomes. */
 export const SCENARIO_TOOLS = [scenarios, diff as Tool<ScenarioEvidence>] as const;

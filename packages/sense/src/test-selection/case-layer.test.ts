@@ -1,47 +1,12 @@
-import { describe, expect, it } from 'vitest';
-import { layerCaseIndex, type CaseRunFiles } from './case-layer.js';
+import { describe, expect, it, vi } from 'vitest';
+import { index, ran, read } from './__fixtures__/case-indexes.js';
+import { layerCaseIndex } from './case-layer.js';
+import { caseMotion } from './case-motion.js';
+import type { Said } from './case-said.js';
+import { coverageChange } from './coverage-count.js';
 import { CrossingSets } from './crossing-sets.js';
 import { decodeExecutionIndex } from './execution-format.js';
 import { encodeSetExecutionIndex, type SetExecutionModule } from './execution-set-format.js';
-
-/** A region, the cases that called it by id, and whether it ran at load. */
-type Region = readonly [name: string, callers: readonly string[], loaded?: boolean, kind?: string];
-
-/** Spell a case index the way a fold writes one, from cases and the regions they called. */
-function index(cases: readonly string[], modules: Record<string, readonly Region[]>): Buffer {
-  const tests = cases.map((id) => ({ id, file: id.split(' > ')[0]!, name: id.split(' > ')[1]! }));
-  const sets = new CrossingSets(tests.length);
-  sets.intern([]);
-  const at = new Map(cases.map((id, position) => [id, position]));
-  const spelled: SetExecutionModule[] = Object.entries(modules).map(([file, regions]) => ({
-    file,
-    blocks: regions.map(([name, , , kind = 'function'], line) => ({
-      kind, name, path: name, startLine: line + 1, endLine: line + 1, source: true,
-    })),
-    called: Uint32Array.from(regions, ([, callers]) => sets.intern(callers.map((id) => at.get(id)!))),
-    loaded: Uint8Array.from(regions, ([, , loaded]) => (loaded ? 1 : 0)),
-  }));
-  return encodeSetExecutionIndex({ tests, modules: spelled, sets: sets.pool() });
-}
-
-/** Read an index back as the cases each region names, by file and region name. */
-function read(bytes: Uint8Array): { cases: string[]; regions: Record<string, Record<string, string[]>> } {
-  const decoded = decodeExecutionIndex(bytes);
-  return {
-    cases: decoded.tests.map((test) => test.id),
-    regions: Object.fromEntries(decoded.modules.map((module) => [
-      module.file,
-      Object.fromEntries(module.blocks.map((block) => [
-        `${block.name}${block.loaded ? ' (loaded)' : ''}`,
-        block.crossings.map((crossing) => decoded.tests[crossing.test]!.id),
-      ])),
-    ])),
-  };
-}
-
-function ran(files: readonly string[], finished: readonly string[] = files, absent: readonly string[] = []): CaseRunFiles {
-  return { ran: new Set(files), finished: new Set(finished), present: (file) => !absent.includes(file) };
-}
 
 const suite = index(
   ['a.test.ts > one', 'a.test.ts > two', 'b.test.ts > three'],
@@ -90,7 +55,7 @@ describe('layerCaseIndex', () => {
     });
   });
 
-  it('lands carried cases on the regions recorded now by address and kind, and drops the rest', () => {
+  it('lands carried cases on the regions the edit left alone, where it places them, and drops the rest', () => {
     const fresh = index(['a.test.ts > one', 'a.test.ts > two'], {
       'src/shared.ts': [
         ['added', ['a.test.ts > two']],
@@ -99,7 +64,9 @@ describe('layerCaseIndex', () => {
       ],
     });
 
-    const { merged } = layerCaseIndex(suite, fresh, ran(['a.test.ts']));
+    // One line written in front of the first region: the two held ones stand a line lower.
+    const written = { hunks: [{ oldStart: 0, oldCount: 0, newStart: 1, newCount: 1 }] };
+    const { merged } = layerCaseIndex(suite, fresh, { ...ran(['a.test.ts']), edit: () => written });
 
     expect(read(merged).regions['src/shared.ts']).toEqual({
       added: ['a.test.ts > two'],
@@ -131,8 +98,226 @@ describe('layerCaseIndex', () => {
   it('writes the run alone, and no before, when there is no index to lay it over', () => {
     const fresh = index(['a.test.ts > one'], { 'src/shared.ts': [['entry', ['a.test.ts > one']]] });
 
-    const alone = { merged: fresh, last: ['a.test.ts > one'] };
-    expect(layerCaseIndex(undefined, fresh, ran(['a.test.ts']))).toEqual(alone);
-    expect(layerCaseIndex(Buffer.from('not an index'), fresh, ran(['a.test.ts']))).toEqual(alone);
+    const alone = { merged: fresh, last: ['a.test.ts > one'], announced: ['a.test.ts > one'] };
+    for (const previous of [undefined, Buffer.from('not an index')]) {
+      const { cases, ...layers } = layerCaseIndex(previous, fresh, ran(['a.test.ts']));
+      expect(layers).toEqual(alone);
+      expect(cases()).toEqual(['a.test.ts > one']);
+    }
+  });
+
+  it('reads no string of a case or region the run did not touch, and asks once a file whether it is present', () => {
+    const fresh = index(['a.test.ts > one'], { 'src/shared.ts': [['entry', ['a.test.ts > one']]] });
+    const layered = (files: number, each: number): { readonly decoded: number; readonly asked: number } => {
+      // The kept cases take turns across the files, so no two neighbours share one.
+      const kept = Array.from({ length: files * each }, (_, at) => `kept-${at % files}.test.ts > case ${at}`);
+      const held = index([...kept, 'a.test.ts > one'], {
+        'src/shared.ts': [['entry', ['a.test.ts > one']]],
+        ...Object.fromEntries(kept.map((id, at) => [`src/kept-${at}.ts`, [['entry', [id]], ['idle', []]]])),
+      });
+      let asked = 0;
+      const decode = vi.spyOn(TextDecoder.prototype, 'decode');
+      try {
+        layerCaseIndex(held, fresh, { ...ran(['a.test.ts']), present: () => (asked += 1) > 0 });
+        return { decoded: decode.mock.calls.length, asked };
+      } finally {
+        decode.mockRestore();
+      }
+    };
+
+    expect(layered(4, 100)).toEqual(layered(4, 3));
+    const more = layered(5, 3);
+    const fewer = layered(4, 3);
+    expect(more.asked - fewer.asked).toBe(1);
+    expect(more.decoded - fewer.decoded).toBe(1);
+  });
+
+  it('reads no precondition of a case the run did not touch, however many spellings the index holds', () => {
+    const fresh = index(['a.test.ts > one'], { 'src/shared.ts': [['entry', ['a.test.ts > one']]] });
+    const decoded = (untouched: number): number => {
+      const kept = Array.from({ length: untouched }, (_, at) => `kept.test.ts > case ${at}`);
+      // Each case says it in its own body, so no two share a spelling.
+      const said = (id: string): Said => JSON.stringify({ said: [['fixture:flag', JSON.stringify(id), `kept.test.ts:${kept.indexOf(id) + 2}`, 65535]] });
+      const held = index([...kept, 'a.test.ts > one'], {
+        'src/shared.ts': [['entry', ['a.test.ts > one', ...kept]]],
+      }, said);
+      const decode = vi.spyOn(TextDecoder.prototype, 'decode');
+      try {
+        const { merged } = layerCaseIndex(held, fresh, ran(['a.test.ts']));
+        const count = decode.mock.calls.length;
+        expect(decodeExecutionIndex(merged).tests.filter((test) => test.said !== undefined)).toHaveLength(untouched);
+        return count;
+      } finally {
+        decode.mockRestore();
+      }
+    };
+
+    expect(decoded(400)).toBe(decoded(10));
+  });
+
+  it('reads no module of the landing\'s base that no shard of it recorded', () => {
+    const fresh = index(['a.test.ts > one'], { 'src/shared.ts': [['entry', ['a.test.ts > one']]] });
+    const decoded = (untouched: number): number => {
+      const kept = Array.from({ length: untouched }, (_, at) => `kept.test.ts > case ${at}`);
+      const base = index([...kept, 'a.test.ts > one'], {
+        'src/shared.ts': [['entry', ['a.test.ts > one']]],
+        ...Object.fromEntries(kept.map((id, at) => [`src/kept-${at}.ts`, [['entry', [id]], ['idle', []]]])),
+      });
+      const files = { ...ran(['a.test.ts']), sameText: () => true, base, sameBeforeText: new Set(['src/shared.ts']) };
+      const decode = vi.spyOn(TextDecoder.prototype, 'decode');
+      try {
+        layerCaseIndex(base, fresh, files);
+        return decode.mock.calls.length;
+      } finally {
+        decode.mockRestore();
+      }
+    };
+
+    expect(decoded(400)).toBe(decoded(10));
   });
 });
+
+/** A region at one line, the cases that called it, and its name when it is not the callback's. */
+type Cut = readonly [line: number, callers: readonly string[], name?: string];
+
+/** One module cut at the lines given, each region a one-line callback its callers entered. */
+function cutAt(cases: readonly string[], file: string, regions: readonly Cut[]): Buffer {
+  const tests = cases.map((id) => ({ id, file: id.split(' > ')[0]!, name: id.split(' > ')[1]! }));
+  const sets = new CrossingSets(tests.length);
+  sets.intern([]);
+  const at = new Map(cases.map((id, position) => [id, position]));
+  const module: SetExecutionModule = {
+    file,
+    // `lines.map(...)` callbacks of one function: one name, one path, told apart by occurrence.
+    blocks: regions.map(([line, , name = 'warningBlocks/map.arg0']) => ({
+      kind: 'function', name, path: 'entry', startLine: line, endLine: line, source: true,
+    })),
+    called: Uint32Array.from(regions, ([, callers]) => sets.intern(callers.map((id) => at.get(id)!))),
+    loaded: new Uint8Array(regions.length),
+  };
+  return encodeSetExecutionIndex({ tests, modules: [module], sets: sets.pool() });
+}
+
+describe('a module the index holds at an older text than the snapshot', () => {
+  const one = 'blocks.test.ts > warns';
+  // The index cut `blocks.ts` before a line was written above the function;
+  // the snapshot re-cut its rows to the text after, and the run recorded that
+  // same text, so every region stands one line lower than the index says.
+  const held = cutAt([one], 'src/blocks.ts', [[414, []], [415, [one]], [416, []]]);
+  const fresh = cutAt([one], 'src/blocks.ts', [[415, []], [416, [one]], [417, []]]);
+  const same = { ...ran(['blocks.test.ts']), sameText: () => true };
+
+  it('cuts the before layer at the lines the run recorded, so a line written above the region moves no case', () => {
+    const { merged, before, unlined } = layerCaseIndex(held, fresh, same);
+
+    const moved = caseMotion(decodeExecutionIndex(before!), decodeExecutionIndex(merged), { diff: new Map() });
+    expect(moved.regions).toEqual([]);
+    expect(unlined).toBeUndefined();
+  });
+
+  it('keeps the lines the index was cut at when nobody says the run recorded the text the snapshot names', () => {
+    expect(linesOf(layerCaseIndex(held, fresh, ran(['blocks.test.ts'])).before)).toEqual([414, 415, 416]);
+  });
+
+  it('asks of the landing\'s base, not the index laid over, whether its cut is the text the run recorded', () => {
+    const files = { ...same, base: held };
+
+    expect(linesOf(layerCaseIndex(fresh, fresh, files).before)).toEqual([414, 415, 416]);
+    expect(linesOf(layerCaseIndex(fresh, fresh, { ...files, sameBeforeText: new Set<string>() }).before)).toEqual([414, 415, 416]);
+    expect(linesOf(layerCaseIndex(fresh, fresh, { ...files, sameBeforeText: new Set(['src/blocks.ts']) }).before)).toEqual([415, 416, 417]);
+  });
+
+  it('leaves out a region the recorded cut has no address for, since no line of the newer text holds it', () => {
+    const gone = cutAt([one], 'src/blocks.ts', [[414, []], [415, [one]], [416, []], [418, [one], 'warningBlocks/removed']]);
+
+    expect(linesOf(layerCaseIndex(gone, fresh, same).before)).toEqual([415, 416, 417]);
+  });
+
+  it('names a module whose two texts seat their regions apart as unlined, and leaves its lines as they were cut', () => {
+    // A callback written in front of the others renumbers every seat behind it.
+    const seated = cutAt([one], 'src/blocks.ts', [[414, [], 'anon#0'], [415, [one], 'anon#1']]);
+    const reseated = cutAt([one], 'src/blocks.ts', [[415, [], 'anon#0'], [416, [], 'anon#1'], [417, [one], 'anon#2']]);
+
+    const { before, unlined } = layerCaseIndex(seated, reseated, same);
+
+    expect(unlined).toEqual(['src/blocks.ts']);
+    expect(linesOf(before)).toEqual([414, 415]);
+  });
+
+  it('lands a case of a file the run did not run only where the numbering agrees, when the index stands at a text numbered apart', () => {
+    const other = 'other.test.ts > keeps';
+    // `other` entered the second callback, which a callback written in front made `anon#2`.
+    const seated = cutAt([one, other], 'src/blocks.ts', [[414, [], 'anon#0'], [415, [other], 'anon#1']]);
+    const reseated = cutAt([one], 'src/blocks.ts', [[415, [], 'anon#0'], [416, [], 'anon#1'], [417, [one], 'anon#2']]);
+
+    const { merged } = layerCaseIndex(seated, reseated, same);
+
+    const regions = decodeExecutionIndex(merged).modules[0]!.blocks;
+    const tests = decodeExecutionIndex(merged).tests;
+    const entered = regions.filter((block) => block.crossings.some((crossing) => tests[crossing.test]!.id === other));
+    expect(entered.map((block) => block.name)).not.toContain('anon#1');
+  });
+
+  it('lands a held callback on the one at its lines when its cut lacks a sibling written before it', () => {
+    const other = 'other.test.ts > keeps';
+    const [filter, map] = ['changelogOf/filter.arg0', 'changelogOf/map.arg0'];
+    // The index's cut kept only the second `map` callback, so its address is the first.
+    const lacking = cutAt([one, other], 'src/changelog.ts', [[273, [one, other], filter], [283, [one, other], map]]);
+    const whole = cutAt([one], 'src/changelog.ts', [[273, [one], filter], [276, [], map], [283, [one], map]]);
+
+    const { merged, before, unlined } = layerCaseIndex(lacking, whole, same);
+
+    const change = coverageChange(decodeExecutionIndex(lacking), decodeExecutionIndex(merged), { diff: new Map() });
+    expect(change.lost).toBe(0);
+    expect(change.testFiles).toEqual([]);
+    expect(linesOf(before)).toEqual([273, 283]);
+    expect(unlined).toBeUndefined();
+  });
+
+  it('lands a held callback on neither sibling when a comment on its own line leaves its lines nothing to match, and keeps the rest', () => {
+    const other = 'other.test.ts > keeps';
+    const [filter, map] = ['changelogOf/filter.arg0', 'changelogOf/map.arg0'];
+    const lacking = cutAt([one, other], 'src/changelog.ts', [[273, [one, other], filter], [283, [one, other], map]]);
+    const whole = cutAt([one], 'src/changelog.ts', [[273, [one], filter], [276, [], map], [283, [one], map]]);
+    // A comment written on the second callback's own line: nothing that runs moved.
+    const comment = { hunks: [{ oldStart: 283, oldCount: 1, newStart: 283, newCount: 1 }], reading: 'none' as const };
+
+    const { merged } = layerCaseIndex(lacking, whole, { ...ran(['blocks.test.ts']), edit: () => comment });
+
+    // The index holds `map` once and the run twice, so the address names neither.
+    const regions = decodeExecutionIndex(merged).modules[0]!.blocks;
+    const tests = decodeExecutionIndex(merged).tests;
+    expect(regions.map((block) => [block.startLine, block.crossings.map((crossing) => tests[crossing.test]!.id)])).toEqual([
+      [273, [one, other]],
+      [276, []],
+      [283, [one]],
+    ]);
+  });
+
+  it('names a module unlined when a held callback finds no sibling at its lines in a cut that lacks one', () => {
+    const other = 'other.test.ts > keeps';
+    const map = 'changelogOf/map.arg0';
+    // The run's cut lacks the first callback: lacking, or the text moved under a name that says it did not.
+    const whole = cutAt([one, other], 'src/changelog.ts', [[276, [other], map], [283, [one], map]]);
+    const lacking = cutAt([one], 'src/changelog.ts', [[283, [one], map]]);
+
+    const { merged, unlined } = layerCaseIndex(whole, lacking, same);
+
+    expect(unlined).toEqual(['src/changelog.ts']);
+    expect(decodeExecutionIndex(merged).modules[0]!.blocks.map((block) => block.crossings.length)).toEqual([1]);
+  });
+
+  it('names nothing unlined when the index already stands at the lines the run recorded', () => {
+    const extra = cutAt([one], 'src/blocks.ts', [[415, []], [416, [one]], [417, []], [418, [one], 'warningBlocks/build-only']]);
+
+    const { before, unlined } = layerCaseIndex(extra, fresh, same);
+
+    expect(unlined).toBeUndefined();
+    expect(linesOf(before)).toEqual([415, 416, 417, 418]);
+  });
+});
+
+/** The lines a layer's one module stands its regions on. */
+function linesOf(layer: Uint8Array | undefined): number[] {
+  return decodeExecutionIndex(layer!).modules[0]!.blocks.map((block) => block.startLine);
+}

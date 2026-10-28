@@ -35,14 +35,16 @@ import {
   type BeforeReach,
   type Relations,
 } from '@variance-authority/core/relate';
-import { readingLines, type ExecutionNarrowing } from '@variance-authority/sense/test-selection';
+import { ignoredBy, readingLines, type ExecutionNarrowing } from '@variance-authority/sense/test-selection';
 import type { ReachReport } from '@variance-authority/report';
 import { OperatorError } from '../exit.js';
 import { affectedSubjects, type Affected } from './affected.js';
 import { keyFor, type Plan } from './collector.js';
 import { unenteredSubjects } from './journey.js';
-import { movedPackages, withMovedPackages, withoutManifests, type InstallDiff } from './installed.js';
-import { many } from './reach.js';
+import { withoutManifests, type InstallDiff } from './installed.js';
+import { beyondOf, withWhole } from './select-beyond.js';
+import { many } from './prose-counts.js';
+import { ignoredSaid } from './reach.js';
 import { reachOf } from './reach-subjects.js';
 import type { ObserveContext, RunDeps, RunOptions } from './run-context.js';
 
@@ -110,7 +112,7 @@ export interface Selection {
  */
 export async function selectionFor(
   plan: Plan,
-  context: ObserveContext,
+  context: Pick<ObserveContext, 'config' | 'deps' | 'renderer'>,
   options: RunOptions,
 ): Promise<Selection | undefined> {
   const { config, deps, renderer } = context;
@@ -163,9 +165,9 @@ export async function selectionFor(
   // selector and the report must refuse for the same reason, and two walks
   // would let one of them refuse while the other explained.
   const before =
-    relations === undefined || config.source.before === undefined
+    relations === undefined || config.before === undefined
       ? undefined
-      : beforeReach(relations, config.source.before, { sensed: config.source.dirs });
+      : beforeReach(relations, config.before, { sensed: config.source.dirs });
 
   const dirsFor = async (ref: string): Promise<readonly string[] | undefined> =>
     config.source?.changes !== undefined && deps.changedProjects !== undefined
@@ -206,6 +208,7 @@ export async function selectionFor(
           ...(changedDirs === undefined ? {} : { changedDirs }),
           ...(explains.install === undefined ? {} : { install: explains.install }),
           ...(explains.movedExports === undefined ? {} : { movedExports: explains.movedExports }),
+          ...(options.ignore === undefined ? {} : { ignore: options.ignore }),
         });
 
   if (options.since === undefined) {
@@ -220,6 +223,7 @@ export async function selectionFor(
 
   const { ref, diff } = options.since;
   const planned = plan.subjects.map((each) => each.subject.id);
+  const ignored = ignoredBy(options.ignore, options.since.changed);
 
   const answer = affectedSubjects({
     planned,
@@ -233,6 +237,7 @@ export async function selectionFor(
     ...(narrowDirs === undefined ? {} : { changedDirs: narrowDirs }),
     ...(options.since.install === undefined ? {} : { install: options.since.install }),
     ...(options.since.movedExports === undefined ? {} : { movedExports: options.since.movedExports }),
+    ...(options.ignore === undefined ? {} : { ignore: options.ignore }),
   });
 
   // Absent all the way down: no diff text, no reader, or a reader that found no
@@ -277,16 +282,28 @@ export async function selectionFor(
       ...(journey?.skipped ?? []).map((entry): [string, string] => [entry.subject, because(entry)]),
     ]),
     notes: [
+      ...(journal?.probes === undefined ? [] : [journal.probes]),
+      // Said once for the run: a file the suite ignores moves only a module that declares it.
+      ...(ignored.length === 0 ? [] : [`${ignoredSaid(ignored)}, so only a \`/// <depends>\` on it selects`]),
       ...notesFor(
         ref,
         { ...answer, skipped, kept },
         journey,
         {
           unread: journal?.unread ?? [],
+          declined: journal?.declined ?? [],
           stale: journal?.stale ?? [],
         },
         before,
       ),
+      // Declared but not walked: what an entry loads is found down the graph,
+      // and a run with none reads the declaration as nothing rather than guess.
+      ...(relations === undefined && config.before !== undefined
+        ? [
+            '`before` was not read: what its entries load is walked down the file graph, and ' +
+              '`source.relations` is off, so a change to what this run rests on narrowed it like any other file.',
+          ]
+        : []),
       // What the parser made of each changed file: the files the structural
       // ground did not seed from, then the journal's reading. A file both read
       // as `none` is said once.
@@ -308,7 +325,7 @@ export async function selectionFor(
  *
  * Two of its refusals are about evidence the journal never had. An install that
  * could not be compared may have moved any package, and no line of the diff
- * shows it. A diff that moves what the run rests on — `source.before` — moves a
+ * shows it. A diff that moves what the run rests on — `before` — moves a
  * file nothing imports, which the journal holds no row for and so answers with
  * nobody. A journal consulted after either would rule out every subject the
  * structural ground had just kept, over a change it never saw.
@@ -332,8 +349,9 @@ function beyondTheJournal(install: InstallDiff | undefined, answer: Affected): b
  * reading left a path under `source.dirs` unread — a README outside them is not
  * in any graph the scan could build.
  *
- * A bumped package is answered by its importers as well, so a reading that
- * carries one is handed a graph from the start. With no scanner to build one the
+ * A bumped package is read as the files that import it, changed whole, and only
+ * the graph can say which files those are, so a reading that carries one is
+ * handed a graph from the start. With no scanner to build one the
  * journal is not consulted at all: it would hear nothing of the bump, and the
  * structural ground has already said it could not place it.
  */
@@ -343,21 +361,18 @@ async function journalOf(
   relations: Relations | undefined,
   install: Extract<InstallDiff, { readonly moved: unknown }> | undefined,
   dirs: readonly string[],
-): Promise<ExecutionNarrowing | undefined> {
-  const packages = install?.packages ?? [];
+): Promise<(ExecutionNarrowing & { readonly probes?: string }) | undefined> {
   const read = async (graph?: Relations) => {
-    // A package whose manifest moved is every file of it, changed whole, and
-    // only the graph can say which files those are.
-    const moved = graph === undefined ? { files: [], unplaced: [] } : movedPackages(graph, install);
-    const narrowing = await deps.readJourney?.(withMovedPackages(diff, moved.files), graph, packages);
+    const beyond = beyondOf(graph, install);
+    const narrowing = await deps.readJourney?.(withWhole(diff, beyond.files), graph);
     // The lockfile and the manifests beside it are unread by the journal and
     // answered by the install comparison, which has already said what moved.
     return narrowing === undefined
       ? undefined
-      : { ...narrowing, unread: [...withoutManifests(narrowing.unread, install?.manifests ?? []), ...moved.unplaced].sort() };
+      : { ...narrowing, unread: [...withoutManifests(narrowing.unread, install?.manifests ?? []), ...beyond.unplaced].sort() };
   };
   if (relations !== undefined) return read(relations);
-  const needsGraph = packages.length > 0 || (install?.moved.length ?? 0) > 0;
+  const needsGraph = (install?.packages.length ?? 0) > 0 || (install?.moved.length ?? 0) > 0;
   if (deps.scanRelations === undefined) return needsGraph ? undefined : read();
   if (needsGraph) return read(await deps.scanRelations(dirs));
   const first = await read();
@@ -390,7 +405,7 @@ function notesFor(
     readonly unwatched?: readonly string[];
   },
   journey: { readonly skipped: readonly unknown[]; readonly whole?: string } | undefined,
-  journal: { readonly unread: readonly string[]; readonly stale: readonly string[] },
+  journal: { readonly unread: readonly string[]; readonly declined: readonly string[]; readonly stale: readonly string[] },
   before: BeforeReach | undefined,
 ): readonly string[] {
   const ruled = answer.skipped.length + (journey?.skipped.length ?? 0);
@@ -399,6 +414,7 @@ function notesFor(
   const unwatched = kept.length === 0 ? (answer.unwatched ?? []) : [];
   const { stale } = journal;
   const unentered = journal.unread;
+  const { declined } = journal;
 
   const unread = before?.unread ?? [];
 
@@ -406,7 +422,7 @@ function notesFor(
     ...(unread.length === 0
       ? []
       : [
-          `\`source.before\` names ${many(unread.length, 'file')} the scan does not hold ` +
+          `\`before\` names ${many(unread.length, 'file')} the scan does not hold ` +
             `(${unread.slice(0, 3).join(', ')}${unread.length > 3 ? ', …' : ''}), so ` +
             `${unread.length === 1 ? 'it covers its own path' : 'each covers its own path'} and ` +
             'nothing below it. That is the whole answer for a `.nvmrc` or a CI workflow, which ' +
@@ -442,16 +458,22 @@ function notesFor(
             `(${unentered.slice(0, 3).join(', ')}${unentered.length > 3 ? ', …' : ''}), so ` +
             `${unentered.length === 1 ? 'it kept' : 'they kept'} no subject in the run.`,
         ]),
+    ...(declined.length === 0
+      ? []
+      : [
+          `the suite declines relations, so ${many(declined.length, 'changed file')} its record did not measure ` +
+            `(${declined.slice(0, 3).join(', ')}${declined.length > 3 ? ', …' : ''}) kept no subject in the run.`,
+        ]),
     ...(stale.length === 0
       ? []
       : [
-          `the recording was not cut from the text ${many(stale.length, 'changed file')} ` +
-            `${stale.length === 1 ? 'has' : 'have'} at the commit it names ` +
+          `the recording was cut from a text of ${many(stale.length, 'changed file')} that neither ` +
+            `the commit it names nor the cache holds ` +
             `(${stale.slice(0, 3).join(', ')}${stale.length > 3 ? ', …' : ''}), so ` +
             `${stale.length === 1 ? 'its line numbers mean' : 'their line numbers mean'} ` +
             'something else here and every subject that covered ' +
-            `${stale.length === 1 ? 'it' : 'them'} is kept. Record once over a clean tree to narrow ` +
-            'by region again.',
+            `${stale.length === 1 ? 'it' : 'them'} is kept. The next run that loads ` +
+            `${stale.length === 1 ? 'it' : 'them'} records ${stale.length === 1 ? 'it' : 'them'} again.`,
         ]),
     ...(ruled === 0
       ? []

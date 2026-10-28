@@ -1,9 +1,9 @@
 // compass: variance-authority.cli
 
-import { identityDigest, type RenderIdentity } from '@variance-authority/core/format';
+import { atWidth, identityDigest, type RenderIdentity } from '@variance-authority/core/format';
 import type { BaselineKey, RasterStore } from '@variance-authority/raster';
 import { keyFor, type PlannedSubject } from './collector.js';
-import { many } from './reach.js';
+import { many } from './prose-counts.js';
 
 /** How the caller turns a planned subject into the identity it will be rendered at. */
 export type IdentityOf = (planned: PlannedSubject) => RenderIdentity;
@@ -29,32 +29,40 @@ export type IdentityOf = (planned: PlannedSubject) => RenderIdentity;
  * that were *observed*, this would report the entire saving of a narrowed run
  * as a suite of abandoned baselines, on the run whose whole point was to skip
  * them.
+ *
+ * **Nor about widths the run never read.** A story's widths live in its own
+ * parameters and are read at its visit, so a visited story is asked about by
+ * the subjects its visit realized, and `unvisited` — every story a narrowed or
+ * sharded run did not reach — counts a baseline at any width of it as planned.
  */
 export async function unplanned(
   store: RasterStore,
   subjects: readonly PlannedSubject[],
   identityOf: IdentityOf,
+  unvisited: readonly PlannedSubject[] = [],
 ): Promise<readonly string[]> {
   const list = store.unplanned;
   if (list === undefined) return [];
 
-  // Grouped by identity because that is the partition the store is asked about:
-  // a suite planned at two widths is two renderer identities and two directories
-  // of approved images, and asking about one with the other's keys would report
-  // every subject in the suite as unplanned at the width it is not.
-  const groups = new Map<string, { identity: RenderIdentity; keys: BaselineKey[] }>();
-  for (const planned of subjects) {
+  // Grouped by identity because the store renders `{engine}` and finds
+  // identity-directory baselines from it: a suite planned on two engines is two
+  // sets of files, and asking about one with the other's keys would report every
+  // subject in the suite as unplanned on the engine it is not.
+  type Group = { identity: RenderIdentity; keys: BaselineKey[]; widths: ((width: number) => BaselineKey)[] };
+  const groups = new Map<string, Group>();
+  const groupOf = (planned: PlannedSubject): Group => {
     const identity = identityOf(planned);
-    const key = keyFor(planned);
     const digest = identityDigest(identity);
-    const group = groups.get(digest) ?? { identity, keys: [] };
-    group.keys.push(key);
+    const group = groups.get(digest) ?? { identity, keys: [], widths: [] };
     groups.set(digest, group);
-  }
+    return group;
+  };
+  for (const planned of subjects) groupOf(planned).keys.push(keyFor(planned));
+  for (const planned of unvisited) groupOf(planned).widths.push((width) => keyFor(atWidth(planned, width)));
 
   const names = new Set<string>();
   for (const group of groups.values()) {
-    for (const name of await list.call(store, group.keys, group.identity)) names.add(name);
+    for (const name of await list.call(store, group.keys, group.identity, group.widths)) names.add(name);
   }
   return [...names].sort();
 }
@@ -68,6 +76,10 @@ export async function unplanned(
  * named anywhere else in the run. Truncating the list would reproduce the
  * silence in a shorter form.
  *
+ * Each is named by its path under the baseline root, without the extension,
+ * because the path is what a person deletes or moves, and under a
+ * `baselines.path` template it already says which story and which variant.
+ *
  * Both readings are named because a record does not say which suite approved
  * it. Neither is a verdict, and neither is a reason to delete an image before
  * the operator knows which one holds.
@@ -75,7 +87,7 @@ export async function unplanned(
 export function unplannedNote(names: readonly string[]): string | undefined {
   if (names.length === 0) return undefined;
   return (
-    `the baseline store holds ${many(names.length, 'approved subject')} this run did not plan: ` +
+    `the baseline store holds ${many(names.length, 'approved baseline')} this run did not plan: ` +
     `${names.join(', ')}. Either the collector stopped listing them or a second suite shares ` +
     'this baseline root.'
   );
@@ -94,10 +106,11 @@ export async function unplannedNotes(
   store: RasterStore,
   subjects: readonly PlannedSubject[],
   identityOf: IdentityOf,
+  unvisited: readonly PlannedSubject[] = [],
 ): Promise<readonly string[]> {
   let names: readonly string[];
   try {
-    names = await unplanned(store, subjects, identityOf);
+    names = await unplanned(store, subjects, identityOf, unvisited);
   } catch (error) {
     return [
       'the baseline store could not be asked what it holds, so a subject dropped from the plan ' +

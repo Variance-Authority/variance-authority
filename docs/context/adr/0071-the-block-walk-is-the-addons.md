@@ -6,7 +6,7 @@
 block walk**, and only for it: the scan keeps its TypeScript implementation as
 the oracle.
 **Relates to:**
-[`packages/sense/native/src/instrument_walk.rs`](../../../packages/sense/native/src/instrument_walk.rs),
+[`packages/sense/native/instrument/src/walk.rs`](../../../packages/sense/native/instrument/src/walk.rs),
 [`packages/sense/src/instrument/spliced.ts`](../../../packages/sense/src/instrument/spliced.ts),
 [`packages/sense/src/instrument/__fixtures__/spliced-golden.ts`](../../../packages/sense/src/instrument/__fixtures__/spliced-golden.ts)
 

@@ -1,4 +1,4 @@
-import { profileById, type ProfileId, type Viewport } from '@variance-authority/core/format';
+import { profileById, type PageRegion, type ProfileId, type Viewport } from '@variance-authority/core/format';
 import type { Retention } from '@variance-authority/raster';
 import {
   fail,
@@ -12,9 +12,9 @@ import {
   text,
   type ParseOptions,
 } from './config-values.js';
+import { parseBaselines, type BaselinesConfig } from './config-baselines.js';
 import {
   parseAlone,
-  parseBaselines,
   parseFonts,
   parseHistory,
   parseRenderer,
@@ -22,7 +22,6 @@ import {
   parseSubjects,
   parseViewport,
   type AloneConfig,
-  type BaselinesConfig,
   type HistoryConfig,
   type ReviewConfig,
   type RemoteRendererConfig,
@@ -32,14 +31,15 @@ import { parseShare, type ShareConfig } from './config-share.js';
 import { parseBlanks, type BlankConfig } from './config-blank.js';
 import { parseSource, type ChangeConfig, type SourceConfig } from './config-source.js';
 import { parseIgnores, type IgnoreConfig } from './config-ignore.js';
-import { parseNames, type NamesConfig } from './config-names.js';
+import type { NameGrammar } from '@variance-authority/sense/test-selection';
+import { parseNames } from './config-names.js';
 import { parseSensitivities, type SensitivityConfig } from './config-sensitivity.js';
-import { parseSuitesAt, type DeclaredSuite } from './config-suites.js';
-import { parseEntrypointsAt } from './config-entrypoints.js';
+import { parseRestsOn, type RestsOn } from './config-suites.js';
+import { parseRegion } from './config-region.js';
+import { parseDeclaredAt } from './config-declared.js';
 import { checkCarriers, parsePlacement, type Carrier } from './config-placement.js';
 
-export type { BlankConfig, ChangeConfig, IgnoreConfig, NamesConfig, SensitivityConfig, SourceConfig };
-export type { AxisConfig } from './config-names.js';
+export type { BlankConfig, ChangeConfig, IgnoreConfig, SensitivityConfig, SourceConfig };
 
 /**
  * The configuration file, and the rule that nothing else configures a run.
@@ -88,20 +88,17 @@ export { DEFAULT_REPORT_PATH, type Carrier } from './config-placement.js';
 export { ConfigError } from './config-values.js';
 export type { ParseOptions } from './config-values.js';
 export { DEFAULT_ALONE_LIMIT } from './config-sections.js';
+export type { BaselinesConfig, DirectoryBaselines, LfsBaselines, RemoteBaselines } from './config-baselines.js';
 export type {
   AloneConfig,
-  BaselinesConfig,
-  DirectoryBaselines,
   HistoryConfig,
-  LfsBaselines,
   ListSubjects,
-  RemoteBaselines,
   ReviewConfig,
   StorybookSubjects,
   SubjectsConfig,
 } from './config-sections.js';
 
-export interface Config {
+export interface Config extends RestsOn, PageRegion {
   /**
    * Names this project in a shared history store.
    *
@@ -145,7 +142,7 @@ export interface Config {
    * scan understands, so a change it finds no component in forces a whole run; a
    * changed file outside them is one nobody claimed could move a render, and
    * narrowing past it is the operator's own statement of where their components
-   * are ([`docs/selecting.md`](../../../docs/selecting.md)).
+   * are ([`docs/selecting.md`](https://variance-authority.dev/docs/selecting)).
    */
   readonly source?: SourceConfig;
 
@@ -281,7 +278,7 @@ export interface Config {
    * baseline (`checkout--default`), an axis with a vocabulary (`green`,
    * `glass`), and therefore the difference between two names of the same length.
    */
-  readonly names?: NamesConfig;
+  readonly names?: NameGrammar;
 
   /**
    * Which PNG decoder the raster tier uses.
@@ -294,14 +291,13 @@ export interface Config {
   readonly decoder?: 'auto' | 'pngjs' | 'sharp';
 
   /**
-   * How many subjects may be in the raster tier at once. Defaults to 1.
+   * How many subjects may be in the raster tier at once, split evenly across
+   * the worlds and rounded up, so at least one per world. Defaults to 1.
    *
-   * Only the expensive half goes wide. Collection stays strictly serial however
-   * high this is set, because the collector owns one standing world (ADR-0009)
-   * and mounting two subjects into one document would let each decide the
-   * other's verdict. What parallelises is rendering, decoding, comparing and
-   * writing — which is also where the time is, by roughly an order of magnitude
-   * over collecting.
+   * This widens rendering, decoding, comparing and writing, never collection:
+   * a standing world (ADR-0009) collects one subject at a time, and mounting two
+   * subjects into one document would let each decide the other's verdict. How
+   * many worlds collect side by side is `workers`.
    *
    * Each lane holds a browser page and the decoded pixels of two images, so
    * this is a memory decision as much as a speed one. The report does not
@@ -313,13 +309,17 @@ export interface Config {
 
   /**
    * How many standing worlds collect at once, each from the collector's
-   * `openWorker` with its own serial lane. Defaults to 1. Files go to workers
-   * whole, longest recorded first, and a worker that finishes takes the next.
+   * `openWorker` with its own serial lane. Files go to workers whole, longest
+   * recorded first, and a worker that finishes takes the next.
+   *
+   * Absent, half the logical cores, at least one and at most a declared
+   * `concurrency`, leaving the rest to decoding, comparing and a local server
+   * under test; never more worlds than there are files. A collector with no
+   * `openWorker` collects in one world, and warns only when this was declared.
+   * Set 1 for a server that cannot take concurrent pages. The report names the
+   * worlds it used; no verdict or observation order depends on the count.
    */
   readonly workers?: number;
-
-  /** The suites the repository runs, and their kinds; read from the root file only. */
-  readonly suites?: readonly DeclaredSuite[];
 }
 
 /**
@@ -361,7 +361,7 @@ const TOP_LEVEL = [
   'workers',
   'cacheRoot',
   'suites',
-  'entrypoints',
+  'entrypoints', 'tiers', 'typescript', 'before', 'timezoneId', 'locale',
 ] as const;
 
 /**
@@ -431,14 +431,14 @@ export function parseConfig(value: unknown, options: ParseOptions): Config {
   const { report, images, reportCarry } = parsePlacement(root, options);
   const intent = optionalText(root, 'intent', options);
   const cacheRoot = path(root, 'cacheRoot', options);
-  const suites = root['suites'] === undefined ? undefined : parseSuitesAt(root['suites'], options);
-  checkCarriers({ share, reportCarry, suites }, options);
+  const rests = parseRestsOn(root, options);
+  checkCarriers({ share, reportCarry, suites: rests.suites }, options);
   const alone = root['alone'] === undefined ? undefined : parseAlone(root['alone'], options);
   const ignore = root['ignore'] === undefined ? undefined : parseIgnores(root['ignore'], options);
   const blank = root['blank'] === undefined ? undefined : parseBlanks(root['blank'], options);
   const names = root['names'] === undefined ? undefined : parseNames(root['names'], options);
   const sensitivity = root['sensitivity'] === undefined ? undefined : parseSensitivities(root['sensitivity'], options);
-  if (root['entrypoints'] !== undefined) parseEntrypointsAt(root['entrypoints'], options);
+  parseDeclaredAt(root, options);
 
   const concurrency = root['concurrency'] === undefined ? undefined : integer(root, 'concurrency', 'concurrency', options);
   const workers = root['workers'] === undefined ? undefined : integer(root, 'workers', 'workers', options);
@@ -494,6 +494,7 @@ export function parseConfig(value: unknown, options: ParseOptions): Config {
     ...(decoder === undefined ? {} : { decoder: decoder as NonNullable<Config['decoder']> }),
     ...(concurrency === undefined ? {} : { concurrency }),
     ...(workers === undefined ? {} : { workers }),
-    ...(suites === undefined ? {} : { suites }),
+    ...rests,
+    ...parseRegion(root, options),
   };
 }

@@ -2,18 +2,23 @@ import { said } from '../here.js';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import type { HistoryStore } from '@variance-authority/history';
-import { createHttpHistoryStore } from '@variance-authority/history/client';
 import type { PngDecoder } from '@variance-authority/png';
-import { cacheRootFor, type ExecutionNarrowing } from '@variance-authority/sense/test-selection';
-import { createEphemeralStore, type RasterStore } from '@variance-authority/raster';
-import { createRemoteStore } from '@variance-authority/remote/store';
-import { createDurableStore } from '@variance-authority/store/durable';
-import { createLfsStore } from '@variance-authority/store/lfs';
+import {
+  cacheRootFor,
+  type ExecutionNarrowing,
+  type Stand,
+  type StandQuestion,
+  type TestDistance,
+  type Precision,
+  type Unmeasured,
+} from '@variance-authority/sense/test-selection';
+import type { RasterStore } from '@variance-authority/raster';
 import type { Relations } from '@variance-authority/core/relate';
 import type { Config } from '../config.js';
 import type { JourneyReading } from './journeys.js';
 import { OperatorError } from '../exit.js';
-import { suiteRecord } from './suite-record.js';
+import { probesGap, probesNote } from './probes-gap.js';
+import { selectingRecord, suiteRecord } from './suite-record.js';
 
 /**
  * The machine-shaped things a run needs before it can start: a decoder, a store,
@@ -69,36 +74,9 @@ export async function decoderFor(config: Config): Promise<PngDecoder | undefined
 }
 
 /**
- * Where the render cache goes: in the cache, never beside the baselines.
- *
- * A durable store is also a render cache, keyed by document digest. Left where
- * the baselines are, the cache of an LFS store lands inside a tracked, LFS-routed
- * directory and is committed exactly like a baseline — and unlike a baseline it
- * gains an entry for every edit and is worthless the moment the next one lands.
- * The repository then grows without bound with images nobody will ever look at,
- * and the quota that was bought for baselines pays for them.
- *
- * **Why the location is allowed to fall back to the environment, when nothing
- * else is.** The config file refuses inferred values because they change what is
- * observed. This one cannot: the cache is content-addressed by document digest
- * under an identity digest, so a lookup either finds an image painted from this
- * exact document by this exact machine or finds nothing. A wrong location, a
- * stale entry, or a cache shared between projects can therefore cost a re-render
- * and can never produce a wrong image, so `cacheRootFor` may answer from
- * `VARIANCE_AUTHORITY_CACHE` when the repository names no `cacheRoot`.
- *
- * *What it costs.* A directory the baselines do not reach, which is why it
- * prunes itself rather than waiting to be found. See {@link sweepRenderCache},
- * which every run applies.
- */
-export function renderCacheRoot(config: Pick<Config, 'cacheRoot'>): string {
-  return join(cacheOf(config), 'renders');
-}
-
-/**
  * Where suite indexes are kept: this run's, and any a share handed over.
  *
- * In the cache, on the same argument as the render cache above and with one
+ * In the cache, on the same argument as `renderCacheRoot` in `renders.ts`, and one
  * more. An index is addressed by the commit it was written at, so a wrong
  * location costs a fetch and never an answer; and because the address is a
  * commit rather than a branch, a checkout that moves between branches
@@ -151,45 +129,146 @@ export function cacheOf(config: Pick<Config, 'cacheRoot'>): string {
  * With `relations`, a changed file the journal holds no row for is asked of
  * the graph: its importers, and theirs, until one is a test or has a row with
  * probes behind it. Without, that file stays `unread`, which keeps no subject
- * in the run and is named in its notes. `packages` are the names the install
- * comparison says moved, and they are answered by the measured files that
- * import them, so they are only heard when `relations` is given too.
+ * in the run and is named in its notes. A bumped package arrives in `diff` as
+ * the files that import it, changed whole.
  *
  * Every changed module is checked against the text it was recorded from before
  * its line ranges are read, because a snapshot is recorded by being *run* and a
  * suite is run over a dirty tree far more often than a clean one. Without that
  * check the hunks of this diff are charged to whatever region happens to sit at
  * those numbers now — a different region, belonging to different subjects, or to
- * none at all, which is an exclusion nobody checked.
+ * none at all, which is an exclusion nobody checked. A module recorded over an
+ * edit is read from the text the landing kept, in the cache layers of
+ * `checkout`: the directory the record was found from, spelled as it was then.
+ * The cache is keyed by that spelling, and the top of the checkout as git
+ * spells it resolves symbolic links, so it can name a layer nothing wrote.
  */
 export async function journeyAgainst(
   root: string,
   diff: string,
   relations?: Relations,
-  packages: readonly string[] = [],
   /** A snapshot somewhere other than this repository's cache — one named by `--execution`. */
   at?: string,
+  checkout: string = root,
+  /**
+   * What the suite declares: `unmeasured: 'nothing'` for one that declines
+   * relations, so a file its record did not measure selects nobody, and its
+   * precision, and the changed files it ignores.
+   */
+  suite: {
+    readonly unmeasured?: Unmeasured | undefined;
+    readonly precision?: Precision | undefined;
+    readonly ignore?: readonly string[] | undefined;
+  } = {},
 ): Promise<ExecutionNarrowing | undefined> {
+  return (await recordAgainst(root, diff, { relations, at, checkout, ...suite }))?.narrowing;
+}
+
+/**
+ * {@link journeyAgainst} over the record `suite` selects from, with what it
+ * declares. A suite at `file` or `symbol` precision reads the import
+ * graph, so `scan` builds one when the caller had none to hand over. A record
+ * cut under probes this build does not place carries the note that says so.
+ */
+export async function suiteJourney(
+  root: string,
+  diff: string,
+  relations: Relations | undefined,
+  suite: string | undefined,
+  scan: () => Promise<Relations>,
+): Promise<(ExecutionNarrowing & { readonly probes?: string }) | undefined> {
+  const { file, ...declared } = await selectingRecord(root, suite);
+  const { byRelations } = await import('@variance-authority/sense/test-selection');
+  const graph = relations ?? (byRelations(declared.precision) ? await scan() : undefined);
+  const narrowing = await journeyAgainst(root, diff, graph, file, root, declared);
+  // A record cut under other probes narrows as it holds it, and says what that
+  // leaves open, as a note in the run's list, which ends its notes itself.
+  const gap = narrowing === undefined ? undefined : await probesGap(file, root, suite);
+  return narrowing === undefined || gap === undefined ? narrowing : { ...narrowing, probes: probesNote(gap).replace(/\.$/, '') };
+}
+
+/**
+ * {@link journeyAgainst}, and with `distances` how far the change travelled to
+ * each test it selected, from the same decode of the snapshot.
+ */
+export async function recordAgainst(
+  root: string,
+  diff: string,
+  options: {
+    readonly relations?: Relations | undefined;
+    readonly at?: string | undefined;
+    readonly checkout?: string | undefined;
+    readonly unmeasured?: Unmeasured | undefined;
+    /** The suite's `ignore` globs; absent ignores nothing. */
+    readonly ignore?: readonly string[] | undefined;
+    /** The suite's precision; absent reads regions. */
+    readonly precision?: Precision | undefined;
+    readonly distances?: boolean;
+    /**
+     * `false` for a diff whose new side is not the text the landing kept a
+     * text against: a module recorded over an edit then reads `stale` and is
+     * charged whole, rather than read from the kept text to that side.
+     */
+    readonly keptTexts?: false;
+    /**
+     * `false` for a diff that is the whole change as given, a patch handed in:
+     * a module recorded over a kept text it does not name is left unread,
+     * rather than read as an edit undone since.
+     */
+    readonly undone?: false;
+  },
+): Promise<{ readonly narrowing: ExecutionNarrowing; readonly distances?: readonly TestDistance[] } | undefined> {
+  const { relations, at, checkout = root, unmeasured, ignore, precision } = options;
   const selection = await import('@variance-authority/sense/test-selection');
   const file = at ?? (await suiteRecord(root));
   const sourceAt = selection.textAtRecording(root, selection.changedLines(diff).keys());
+  const asked = {
+    sourceAt,
+    ...(options.keptTexts === false
+      ? {}
+      : {
+          keptText: selection.keptTexts(checkout),
+          ...(options.undone === false ? {} : { keptDigests: selection.keptDigests(checkout) }),
+        }),
+    root,
+    ...(relations === undefined ? {} : { relations }),
+    ...(unmeasured === undefined ? {} : { unmeasured }),
+    ...(ignore === undefined ? {} : { ignore }),
+    ...(precision === undefined ? {} : { precision }),
+  };
 
   try {
-    return await selection.narrowByExecution(file, diff, {
-      sourceAt,
-      root,
-      ...(relations === undefined ? {} : { relations }),
-      ...(packages.length === 0 ? {} : { packages }),
-    });
+    return options.distances === true
+      ? await selection.distanceByExecution(file, diff, asked)
+      : { narrowing: await selection.narrowByExecution(file, diff, asked) };
   } catch (error) {
-    if (isMissing(error)) return undefined;
+    // A record whose run instrumented nothing measured nothing: it narrows nothing, as no record does.
+    if (isMissing(error) || error instanceof selection.RecordWithoutCoverage) return undefined;
     throw new OperatorError(
       `the recorded execution journal at ${said(file)} could not be read: ${messageOf(error)}. ` +
-        'Delete it and run once without `--since` to record a new one; a run that ignored it ' +
-        'would look exactly like a run that never had one.',
+        'A run that ignored it would look exactly like a run that never had one.',
       { cause: error },
     );
   }
+}
+
+/**
+ * The journal asked once per stand, each answer kept for the tests standing
+ * there. A journal that is gone by the time it is asked again answers
+ * `undefined`, the way a journal that was never there does.
+ */
+export async function recordPerStand(
+  stands: readonly Stand[],
+  ask: (question: StandQuestion) => ReturnType<typeof recordAgainst>,
+): ReturnType<typeof recordAgainst> {
+  const selection = await import('@variance-authority/sense/test-selection');
+  let missing = false;
+  const answer = await selection.askPerStand(stands, async (question) => {
+    const asked = await ask(question);
+    if (asked === undefined) missing = true;
+    return asked ?? { narrowing: { whole: [], entered: [], unread: [], stale: [], because: [] } };
+  });
+  return missing ? undefined : answer;
 }
 
 /**
@@ -222,12 +301,12 @@ export async function recordedJourneys(
   } catch (error) {
     // The path either way. An operator whose build carries no probes has to be
     // told where the file this wanted would have been, and that is precisely the
-    // reading with no snapshot to carry it.
-    if (isMissing(error)) return { at: file };
+    // reading with no snapshot to carry it. A record whose run instrumented
+    // nothing carries none either.
+    if (isMissing(error) || error instanceof selection.RecordWithoutCoverage) return { at: file };
     throw new OperatorError(
       `the recorded execution journal at ${file} could not be read: ${messageOf(error)}. ` +
-        'Delete it and run once to record a new one; a reading that skipped it would look ' +
-        'exactly like a repository that never recorded anything.',
+        'A reading that skipped it would look exactly like a repository that never recorded anything.',
       { cause: error },
     );
   }
@@ -294,9 +373,10 @@ export function isMissing(error: unknown): boolean {
  * with no record configured must not hash three hundred snapshots in order to
  * hand them to something that discards them.
  */
-export function historyFor(config: Config): HistoryStore | undefined {
+export async function historyFor(config: Config): Promise<HistoryStore | undefined> {
   if (config.history === undefined) return undefined;
 
+  const { createHttpHistoryStore } = await import('@variance-authority/history/client');
   return createHttpHistoryStore({
     endpoint: config.history.endpoint,
     token: config.history.token,
@@ -312,7 +392,10 @@ export function historyFor(config: Config): HistoryStore | undefined {
  * layout rather than reimplementing the identity partition.
  */
 export async function storeFor(config: Config): Promise<RasterStore> {
-  if (config.retention === 'ephemeral') return createEphemeralStore();
+  if (config.retention === 'ephemeral') {
+    const { createEphemeralStore } = await import('@variance-authority/raster');
+    return createEphemeralStore();
+  }
 
   const baselines = config.baselines;
   if (baselines === undefined) {
@@ -323,35 +406,43 @@ export async function storeFor(config: Config): Promise<RasterStore> {
   }
 
   switch (baselines.kind) {
-    case 'directory':
+    case 'directory': {
+      const { createDurableStore } = await import('@variance-authority/store/durable');
+      const { renderCacheRoot } = await import('./renders.js');
       // Same rule as the LFS arm below, and for the same reason: every on-disk
       // placement in `docs/placement.md` is a directory the operator commits, so
-      // the tracked root holds baselines and nothing else. See
+      // nothing but baselines is written under the tracked root. See
       // {@link renderCacheRoot}.
       return createDurableStore(baselines.root, {
         cacheRoot: renderCacheRoot(config),
-        ...(baselines.layout !== undefined ? { layout: baselines.layout } : {}),
+        ...(baselines.path !== undefined ? { path: baselines.path } : {}),
         // The operator's, unlike the cache root above. A record that is not
         // there costs the run evidence a verdict may turn on, so where it goes
         // is a decision this process is not entitled to make on its own.
         ...(baselines.records !== undefined ? { recordRoot: baselines.records } : {}),
       });
-    case 'lfs':
+    }
+    case 'lfs': {
+      const { createLfsStore } = await import('@variance-authority/store/lfs');
+      const { renderCacheRoot } = await import('./renders.js');
       return createLfsStore({
         root: baselines.root,
-        // The tracked root holds baselines and nothing else. See
+        // Nothing but baselines is written under the tracked root. See
         // {@link renderCacheRoot} for why this is not the operator's decision to
         // make in the config file and why it is safe for it not to be.
         cacheRoot: renderCacheRoot(config),
         ...(baselines.pattern !== undefined ? { pattern: baselines.pattern } : {}),
-        ...(baselines.layout !== undefined ? { layout: baselines.layout } : {}),
+        ...(baselines.path !== undefined ? { path: baselines.path } : {}),
         ...(baselines.records !== undefined ? { recordRoot: baselines.records } : {}),
       });
-    case 'remote':
+    }
+    case 'remote': {
+      const { createRemoteStore } = await import('@variance-authority/remote/store');
       return createRemoteStore({
         endpoint: baselines.endpoint,
         ...(baselines.token !== undefined ? { token: baselines.token } : {}),
       });
+    }
   }
 }
 

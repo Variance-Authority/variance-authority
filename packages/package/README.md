@@ -5,6 +5,7 @@
 > Read a TypeScript workspace API surface as data: every entrypoint a manifest opens and what each one exports, for release and breaking-change checks.
 
 Part of [Variance Authority](https://variance-authority.dev).
+Point your coding agent at [`llms.txt`](https://variance-authority.dev/llms.txt).
 
 This package supplies one of those readings, and it is the one that never
 renders anything. It reads a TypeScript workspace's public API as data: a
@@ -42,13 +43,17 @@ What it reads to find your packages:
 
 | Question | Answer |
 | --- | --- |
-| Which packages are in the workspace | The root `package.json` `workspaces` field, as an array or as `{ "packages": [...] }`. A path, or a glob ending in `/*`; anything more elaborate throws. |
-| pnpm or Bun workspace files | Not read. A `pnpm-workspace.yaml` with no root `workspaces` field reads as a workspace with no members. |
+| Which packages are in the workspace | The root package, then the root `package.json` `workspaces` field, as an array or as `{ "packages": [...] }`, in the order it is written. Each entry is a glob for directories, read as pnpm reads it: the package is the `package.json` inside a matched directory. So a symbolic link to a package directory is a package, a wildcard does not match a directory name that starts with a dot, and an entry starting with `!` leaves out the package in each directory it matches but not the packages nested below it. |
+| A `pnpm-workspace.yaml` | Its `packages:` list, read the same way when the root `package.json` lists no `workspaces`. A directory whose manifest is a `package.yaml` is a package too. |
+| A member list that is not a list of globs | Throws an error naming the file: a `pnpm-workspace.yaml` that is not YAML or not a mapping, and a `workspaces` or `packages:` entry that is empty or is not a string. |
 | A repository with one package and no `workspaces` | Read as a single package. This is a supported case, not a degenerate one. |
 | A repository with no root `package.json` | Publishes nothing, which is an answer rather than an error. `readHelp` still reads every name the source exports. |
 | `private: true` | The only filter. A private package is skipped. |
+| The shape of `exports` | Read as Node reads it. A string, an array of fallbacks, and an object with no key that starts with `.` all open the one subpath `.`. An object whose keys all start with `.` lists subpaths. An object that mixes the two throws an error naming the manifest, because Node refuses to load it. |
+| A custom condition | Taken when the package's `tsconfig.json`, through its `extends` chain, names it in `customConditions` and it is written before `types`. `"@zod/source": "./src/index.ts"` opens that source, not a declaration file only a build writes. |
+| A wildcard target with no extension | `"./v4/locales/*": "./src/v4/locales/*"` opens one subpath per TypeScript file the pattern matches, written with the extension that file is emitted as: `src/v4/locales/fr.ts` is `./v4/locales/fr.js`. |
 | TypeScript `paths` aliases | Not followed. A re-export through an alias records the name with the kind `foreign` rather than the kind behind it. |
-| A built `dist` | Never opened. A `types` target of `./dist/index.d.ts` is mapped back through that package's own `rootDir` and `outDir` to `src/index.ts`. |
+| A built `dist` | Opened only when nothing maps it back to source. A `types` target of `./dist/index.d.ts` is mapped back through that package's own `rootDir` and `outDir` to `src/index.ts`. A declaration file with no such pair to map it through is read from disk, and so is the `dist/index.d.ts` beside a bare `./dist/index.js` export in a package whose tsconfig names no `outDir`. For those subpaths, the answer depends on whether the package was built. |
 
 ```bash
 npm install --save-dev @variance-authority/package
@@ -109,7 +114,7 @@ what kind of thing it is.
 
 ## Rank names and find undocumented exports
 
-`readHelp` is the same walk with two more questions asked of it: what was
+`readHelp` is the same walk with two more readings taken: what was
 written above each name — its **doc**, the block comment attached to the
 declaration — and which packages import it. Names come back ordered by how
 many packages import them, so the ones most consumers depend on sort first.
@@ -185,12 +190,23 @@ help.exported.filter((named) => named.name.includes('Viewport'));
 ```
 
 `help.deep` is the other half of the same reading: every specifier that imports
-a workspace package past what its `exports` map opens — an import that depends
-on internals the manifest never promised to keep stable.
+a workspace package past the entry its manifest declares (its `exports` map, or
+without one its `types`, `typings` or `main`). Such an import depends on internals the
+manifest never promised to keep stable. A subpath `exports`
+names exactly is not one of them, even when its source could not be read: that
+subpath is listed in `help.unreadable` instead. Each import carries the names it
+takes, and `to`, the file the specifier resolves to, when the reading resolved
+it: the index's scan does, `readHelp` on its own does not.
 
 ```json
-[{ "specifier": "@acme/parser/src/parse.js", "by": "@acme/app", "at": "packages/app/src/deepuse.ts", "line": 1 }]
+[{ "specifier": "@acme/parser/src/parse.js", "by": "@acme/app", "at": "packages/app/src/deepuse.ts", "line": 1,
+   "names": [{ "name": "parse", "by": "@acme/app", "at": "packages/app/src/deepuse.ts", "line": 1, "type": false, "kind": "source" }] }]
 ```
+
+`help.byPath` has the same shape, for a package whose manifest declares none of
+`exports`, `main`, `types` or `typings`. Such a package has no entry to reach past, so
+every import of it names a file, and these imports are the whole of what other
+packages use from it.
 
 `help.unreadable` names files whose imports could not be enumerated. Empty is
 the expected answer.
@@ -337,11 +353,13 @@ A site is an import, not a call. `readHelp` records the line a name was brought
 into a file on, and where it is used inside that file is a question for a
 language server.
 
-What neither reads is `dist`. An emitted `.d.ts` states what a compiler
+Both read source before `dist`. An emitted `.d.ts` states what a compiler
 inferred; source states what somebody wrote, so `export const jsxDEV =
 runtime.jsxDEV` reads as a `const` where the emitted declaration would state a
-full type. Reading the other one costs a build as a precondition and pays in
-stale output.
+full type. Reading the emitted file costs a build as a precondition and pays in
+stale output, so a `.d.ts` in `dist` is read only when the package's tsconfig
+gives no way back to the source, as the table under
+[Requirements](#requirements) lists.
 
 ## What it refuses
 
@@ -361,12 +379,14 @@ silently producing a smaller surface:
 
 - `export default` an identifier, a call or a literal — `export default thing`
   throws ``src/index.ts default-exports a `Identifier`, which nothing here names``.
-- A workspace glob more elaborate than a path or `dir/*`.
-- A `types` target that maps to no file, or that sits under a package with no
-  `rootDir`/`outDir` pair to map it back through.
+- A member list that is not a list of globs, as the table under
+  [Requirements](#requirements) lists.
+- An `exports` object that mixes subpaths and conditions.
+- A `types` declaration file in a package with no `tsconfig.json`, or one that
+  neither maps back to a source file nor is on disk.
 - A name re-exported from a module that does not publish it.
 - A file that does not parse.
 
 ---
 
-**[@variance-authority/package](https://variance-authority.dev/reference/packages/package)** is part of [Variance Authority](https://variance-authority.dev) — [documentation](https://variance-authority.dev/docs) · MIT
+**[@variance-authority/package](https://variance-authority.dev/reference/packages/package)** is part of [Variance Authority](https://variance-authority.dev) — [documentation](https://variance-authority.dev/docs) · [GitHub](https://github.com/Variance-Authority/variance-authority/tree/main/packages/package) · MIT

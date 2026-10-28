@@ -24,6 +24,7 @@ describe('a changed module with no row, asked of the files that import it', () =
 
     expect(narrowByExecutionFromView(view(), diff('src/rules.ts'), { relations })).toEqual({
       whole: testFiles,
+      incomplete: [],
       entered: ['test/aaa.test.ts'],
       unread: [],
       stale: [],
@@ -53,10 +54,60 @@ describe('a changed module with no row, asked of the files that import it', () =
 
     expect(narrowByExecutionFromView(view(), diff('src/rules.ts'), { relations })).toEqual({
       whole: testFiles,
+      incomplete: [],
       entered: ['test/alpha.test.ts', 'test/beta.test.ts'],
       unread: [],
       stale: [],
       readings: [],
+      because: [
+        { test: 'test/alpha.test.ts', via: [{ kind: 'importer', trail }] },
+        { test: 'test/beta.test.ts', via: [{ kind: 'importer', trail }] },
+      ],
+    });
+  });
+
+  it('walks a cycle back to the changed module once, and stops at the row behind it', () => {
+    const relations = relationsOf({
+      relations: [
+        imports('src/between.ts', 'src/rules.ts'),
+        imports('src/rules.ts', 'src/between.ts'),
+        imports('src/decide.ts', 'src/between.ts'),
+      ],
+    });
+    const trail = ['src/rules.ts', 'src/between.ts', 'src/decide.ts'];
+
+    expect(narrowByExecutionFromView(view(), diff('src/rules.ts'), { relations })).toMatchObject({
+      entered: ['test/alpha.test.ts', 'test/beta.test.ts'],
+      because: [
+        { test: 'test/alpha.test.ts', via: [{ kind: 'importer', trail }] },
+        { test: 'test/beta.test.ts', via: [{ kind: 'importer', trail }] },
+      ],
+    });
+  });
+
+  it('does not ask a changed module that imports itself about itself', () => {
+    const relations = relationsOf({
+      relations: [imports('src/rules.ts', 'src/rules.ts'), imports('test/aaa.test.ts', 'src/rules.ts')],
+    });
+
+    expect(narrowByExecutionFromView(view(), diff('src/rules.ts'), { relations })).toMatchObject({
+      entered: ['test/aaa.test.ts'],
+      because: [{ test: 'test/aaa.test.ts', via: [{ kind: 'importer', trail: ['src/rules.ts', 'test/aaa.test.ts'] }] }],
+    });
+  });
+
+  it('explains a test by the shortest chain when two reach its row', () => {
+    const relations = relationsOf({
+      relations: [
+        imports('src/between.ts', 'src/rules.ts'),
+        imports('src/decide.ts', 'src/between.ts'),
+        imports('src/decide.ts', 'src/rules.ts'),
+      ],
+    });
+    const trail = ['src/rules.ts', 'src/decide.ts'];
+
+    expect(narrowByExecutionFromView(view(), diff('src/rules.ts'), { relations })).toMatchObject({
+      entered: ['test/alpha.test.ts', 'test/beta.test.ts'],
       because: [
         { test: 'test/alpha.test.ts', via: [{ kind: 'importer', trail }] },
         { test: 'test/beta.test.ts', via: [{ kind: 'importer', trail }] },
@@ -189,6 +240,62 @@ describe('a changed module with no row, asked of the files that import it', () =
     });
   });
 
+  it('answers an importer two changed modules reach with a trail from each, and cuts each by its own mocks', () => {
+    // rules and limits both reach legacy, which carries no probes, and through
+    // it decide's row and aaa's test file. Every file on the way is read once
+    // per walk that reaches it, and each walk keeps its own trail; beta mocked
+    // limits, so the limits walk does not reach it and the rules walk does.
+    const unparsed: TestCoverage = {
+      ...coverage,
+      tests: coverage.tests.map((test) =>
+        test.file === 'test/aaa.test.ts'
+          ? { ...test, preconditions: [...test.preconditions, { name: 'src/legacy.js', digest: 'source:legacy' }] }
+          : test,
+      ),
+      modules: [
+        ...coverage.modules,
+        { file: 'src/legacy.js', sourceDigest: 'source:legacy', instrumented: false, blocks: [] },
+      ],
+    };
+    const relations = relationsOf({
+      relations: [
+        imports('src/legacy.js', 'src/limits.ts'),
+        imports('src/legacy.js', 'src/rules.ts'),
+        imports('src/decide.ts', 'src/legacy.js'),
+        imports('test/aaa.test.ts', 'src/legacy.js'),
+      ],
+      shadows: new Map([['test/beta.test.ts', ['src/limits.ts']]]),
+    });
+    const through = (changed: string, last: string) => ({ kind: 'importer', trail: [changed, 'src/legacy.js', last] });
+
+    expect(
+      narrowByExecutionFromView(
+        openTestCoverage(encodeTestCoverage(unparsed)),
+        `${diff('src/rules.ts')}\n${diff('src/limits.ts')}`,
+        { relations },
+      ),
+    ).toMatchObject({
+      entered: testFiles,
+      unread: [],
+      because: [
+        {
+          test: 'test/aaa.test.ts',
+          via: [
+            through('src/limits.ts', 'test/aaa.test.ts'),
+            through('src/rules.ts', 'test/aaa.test.ts'),
+            { kind: 'importer', trail: ['src/limits.ts', 'src/legacy.js'] },
+            { kind: 'importer', trail: ['src/rules.ts', 'src/legacy.js'] },
+          ],
+        },
+        {
+          test: 'test/alpha.test.ts',
+          via: [through('src/limits.ts', 'src/decide.ts'), through('src/rules.ts', 'src/decide.ts')],
+        },
+        { test: 'test/beta.test.ts', via: [through('src/rules.ts', 'src/decide.ts')] },
+      ],
+    });
+  });
+
   it('selects a changed test file by its own precondition, and a test that imports it by the import', () => {
     // Nothing probes a test file, so aaa is selected by its own precondition.
     // beta imports it, which loads everything it declares.
@@ -235,6 +342,7 @@ describe('a changed module with no row, asked of the files that import it', () =
 
     expect(narrowByExecutionFromView(view(), diff, { relations })).toEqual({
       whole: testFiles,
+      incomplete: [],
       entered: ['test/alpha.test.ts'],
       unread: [],
       stale: [],

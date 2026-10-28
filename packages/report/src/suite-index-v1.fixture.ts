@@ -1,0 +1,36 @@
+import type { SuiteIndex } from './suite-index.js';
+
+/**
+ * A suite index as version 1 wrote it, byte for byte: what a cache or a
+ * published baseline still holds from before landmarks, `declaredIn`, coverage
+ * and provenance were written down.
+ */
+export const V1_BYTES = Buffer.from(
+  'DAgAAHsiZm9ybWF0IjoidmFyaWFuY2UtYXV0aG9yaXR5LXN1aXRlLWluZGV4IiwidmVyc2lvbiI6MSwic2VjdGlvbnMiOlt7Im5hbWUiOiJzdHJpbmdzLmJsb2IiLCJvZmZzZXQiOjAsImxlbmd0aCI6NTMsIndpZHRoIjoxfSx7Im5hbWUiOiJzdHJpbmdzLm9mZiIsIm9mZnNldCI6NTYsImxlbmd0aCI6MzIsIndpZHRoIjo0fSx7Im5hbWUiOiJpbmRleC5jb21taXQiLCJvZmZzZXQiOjg4LCJsZW5ndGgiOjQsIndpZHRoIjo0fSx7Im5hbWUiOiJzdWJqZWN0cy5uYW1lIiwib2Zmc2V0Ijo5NiwibGVuZ3RoIjo0LCJ3aWR0aCI6NH0seyJuYW1lIjoiY29tcG9uZW50cy5uYW1lIiwib2Zmc2V0IjoxMDQsImxlbmd0aCI6NCwid2lkdGgiOjR9LHsibmFtZSI6ImNvbXBvbmVudHMuaW5zdGFuY2VzIiwib2Zmc2V0IjoxMTIsImxlbmd0aCI6NCwid2lkdGgiOjR9LHsibmFtZSI6ImNvbXBvbmVudHMudmFyaWFudHMiLCJvZmZzZXQiOjEyMCwibGVuZ3RoIjo0LCJ3aWR0aCI6NH0seyJuYW1lIjoiY29tcG9uZW50cy5yZW5kZXJpbmdzIiwib2Zmc2V0IjoxMjgsImxlbmd0aCI6NCwid2lkdGgiOjR9LHsibmFtZSI6ImNvbXBvbmVudHMuc3ViamVjdHMiLCJvZmZzZXQiOjEzNiwibGVuZ3RoIjo4LCJ3aWR0aCI6NH0seyJuYW1lIjoiY29tcG9uZW50LXN1YmplY3RzLnZhbHVlIiwib2Zmc2V0IjoxNDQsImxlbmd0aCI6NCwid2lkdGgiOjR9LHsibmFtZSI6ImNvbXBvbmVudHMuZXhhbXBsZXMiLCJvZmZzZXQiOjE1MiwibGVuZ3RoIjo4LCJ3aWR0aCI6NH0seyJuYW1lIjoiY29tcG9uZW50LWV4YW1wbGVzLnZhbHVlIiwib2Zmc2V0IjoxNjAsImxlbmd0aCI6NCwid2lkdGgiOjR9LHsibmFtZSI6ImNvbXBvbmVudHMud2l0aGluIiwib2Zmc2V0IjoxNjgsImxlbmd0aCI6OCwid2lkdGgiOjR9LHsibmFtZSI6ImNvbXBvbmVudC13aXRoaW4udmFsdWUiLCJvZmZzZXQiOjE3NiwibGVuZ3RoIjowLCJ3aWR0aCI6NH0seyJuYW1lIjoiY29tcG9uZW50cy5jcmVhdGVkLWJ5Iiwib2Zmc2V0IjoxNzYsImxlbmd0aCI6OCwid2lkdGgiOjR9LHsibmFtZSI6ImNvbXBvbmVudC1jcmVhdGVkLWJ5LnZhbHVlIiwib2Zmc2V0IjoxODQsImxlbmd0aCI6MCwid2lkdGgiOjR9LHsibmFtZSI6ImNvbXBvbmVudHMucmVuZGVycyIsIm9mZnNldCI6MTg0LCJsZW5ndGgiOjgsIndpZHRoIjo0fSx7Im5hbWUiOiJjb21wb25lbnQtcmVuZGVycy52YWx1ZSIsIm9mZnNldCI6MTkyLCJsZW5ndGgiOjAsIndpZHRoIjo0fSx7Im5hbWUiOiJjb21wb25lbnRzLnRva2VucyIsIm9mZnNldCI6MTkyLCJsZW5ndGgiOjgsIndpZHRoIjo0fSx7Im5hbWUiOiJjb21wb25lbnQtdG9rZW5zLnZhbHVlIiwib2Zmc2V0IjoyMDAsImxlbmd0aCI6MCwid2lkdGgiOjR9LHsibmFtZSI6ImxleGljb24ucHJlc2VudCIsIm9mZnNldCI6MjAwLCJsZW5ndGgiOjEsIndpZHRoIjoxfSx7Im5hbWUiOiJsZXhpY29uLnZlcnNpb24iLCJvZmZzZXQiOjIwOCwibGVuZ3RoIjo0LCJ3aWR0aCI6NH0seyJuYW1lIjoibGV4aWNvbi5maWVsZHMiLCJvZmZzZXQiOjIxNiwibGVuZ3RoIjoxMiwid2lkdGgiOjR9LHsibmFtZSI6ImxleGljb24tc3ViamVjdHMubmFtZSIsIm9mZnNldCI6MjMyLCJsZW5ndGgiOjQsIndpZHRoIjo0fSx7Im5hbWUiOiJsZXhpY29uLXN1YmplY3RzLmJvdW5kYXJpZXMiLCJvZmZzZXQiOjI0MCwibGVuZ3RoIjo0LCJ3aWR0aCI6NH0seyJuYW1lIjoibGV4aWNvbi1zdWJqZWN0cy5lbnRyaWVzIiwib2Zmc2V0IjoyNDgsImxlbmd0aCI6OCwid2lkdGgiOjR9LHsibmFtZSI6ImVudHJpZXMuZmllbGQiLCJvZmZzZXQiOjI1NiwibGVuZ3RoIjoxMiwid2lkdGgiOjR9LHsibmFtZSI6ImVudHJpZXMudGVybXMiLCJvZmZzZXQiOjI3MiwibGVuZ3RoIjoxNiwid2lkdGgiOjR9LHsibmFtZSI6ImVudHJpZXMudGVybXMtcHJlc2VudCIsIm9mZnNldCI6Mjg4LCJsZW5ndGgiOjMsIndpZHRoIjoxfSx7Im5hbWUiOiJlbnRyaWVzLmVsaWRlZCIsIm9mZnNldCI6Mjk2LCJsZW5ndGgiOjEyLCJ3aWR0aCI6NH0seyJuYW1lIjoidGVybXMudmFsdWUiLCJvZmZzZXQiOjMxMiwibGVuZ3RoIjo4LCJ3aWR0aCI6NH1dfQAAOWYxYzBiM2FTdW1tYXJ5VG90YWxjaGVja291dC9zdW1tYXJ5ZXhhbXBsZW5hbWVzcm9sZXMAAAAAAAAACAAAAA8AAAAUAAAAJAAAACsAAAAwAAAANQAAAAAAAAAAAAAAAwAAAAAAAAABAAAAAAAAAAEAAAAAAAAAAQAAAAAAAAABAAAAAAAAAAAAAAABAAAAAwAAAAAAAAAAAAAAAQAAAAMAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABAAAAAAAAAAEAAAAAAAAABAAAAAUAAAAGAAAAAAAAAAMAAAAAAAAAAgAAAAAAAAAAAAAAAwAAAAAAAAABAAAAAgAAAAAAAAAAAAAAAQAAAAIAAAACAAAAAQEBAAAAAAD///////////////8AAAAAAQAAAAIAAAA=',
+  'base64',
+);
+
+/** What those bytes say, and nothing they do not. */
+export const V1_INDEX: SuiteIndex = {
+  commit: '9f1c0b3a',
+  subjects: ['checkout/summary'],
+  components: [
+    {
+      component: 'Summary',
+      subjects: ['checkout/summary'],
+      instances: 1,
+      examples: ['checkout/summary'],
+      within: [],
+      createdBy: [],
+      renders: [],
+      tokens: [],
+      variants: 1,
+      renderings: 1,
+    },
+  ],
+  lexicon: {
+    version: 1,
+    fields: ['example', 'names', 'roles'],
+    subjects: [{ subject: 'checkout/summary', boundaries: 2, terms: { example: ['Summary'], names: ['Total'], roles: [] } }],
+  },
+};

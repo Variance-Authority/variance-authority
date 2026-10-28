@@ -19,9 +19,9 @@ import { assetsFor, referencedAssets } from './assets.js';
 
 let dom: JSDOM;
 
-function subtree(html: string): Element {
+function subtree(html: string, url = 'https://shop.example/story/index.html'): Element {
   dom = new JSDOM(`<!doctype html><html><body><main id="subject">${html}</main></body></html>`, {
-    url: 'https://shop.example/story/index.html',
+    url,
   });
   const root = dom.window.document.querySelector('#subject');
   if (root === null) throw new Error('no subject root');
@@ -55,6 +55,26 @@ describe('the assets a subtree references', () => {
       'https://shop.example/story/a@2x.png',
       'https://shop.example/story/a@3x.png',
     ]);
+  });
+
+  it('splits a srcset on ASCII whitespace only, and ends a descriptor at the first closing parenthesis', () => {
+    // HTML's rule: a no-break space is part of a URL, and the parenthesis state
+    // a descriptor opens ends at its first `)`, so the comma after it separates.
+    const root = subtree('<img srcset="a\u00a0b.png 1x, c.png (x)) 2x, d.png 3x">');
+    expect(referencedAssets(root)).toEqual([
+      'https://shop.example/story/a%C2%A0b.png',
+      'https://shop.example/story/c.png',
+      'https://shop.example/story/d.png',
+    ]);
+  });
+
+  it('reads a data: candidate as one URL, though it holds a comma', () => {
+    // A URL in a srcset is a run of non-whitespace, so the comma inside a
+    // `data:` URL is part of it. Read as a separator, it left `iVBORw0` behind
+    // to resolve as a file next to the page, which no page asked for.
+    const root = subtree('<img srcset="data:image/png;base64,iVBORw0 1x, a@2x.png 2x">');
+
+    expect(referencedAssets(root)).toEqual(['https://shop.example/story/a@2x.png']);
   });
 
   it('still reads attributes when the suite replaced getComputedStyle', () => {
@@ -135,7 +155,26 @@ describe('narrowing an observation to a subject', () => {
         'https://shop.example/logo.png': 'v1:aaa',
         'https://cdn.example/other.png': 'v1:bbb',
       }),
-    ).toEqual({ 'https://shop.example/logo.png': 'v1:aaa' });
+    ).toEqual({ '/logo.png': 'v1:aaa' });
+  });
+
+  it('keys an asset from the page origin by its path, so the served port is no part of it', () => {
+    // A collector serves a build on whatever port the machine had free. Keyed by
+    // the absolute URL, one build served twice is two environments.
+    const keyed = (origin: string) => {
+      const root = subtree('<img src="/logo.png">', `${origin}/index.html`);
+      return assetsFor(root, { [`${origin}/logo.png`]: 'v1:aaa' });
+    };
+
+    expect(keyed('http://127.0.0.1:4001')).toEqual(keyed('http://127.0.0.1:4002'));
+  });
+
+  it('keeps the absolute URL of an asset another origin serves', () => {
+    const root = subtree('<img src="https://cdn.example/other.png">');
+
+    expect(assetsFor(root, { 'https://cdn.example/other.png': 'v1:bbb' })).toEqual({
+      'https://cdn.example/other.png': 'v1:bbb',
+    });
   });
 
   it('invents no entry for a URL nobody observed', () => {
@@ -145,7 +184,7 @@ describe('narrowing an observation to a subject', () => {
     const root = subtree('<img src="/logo.png"><img src="/uncached.png">');
 
     expect(assetsFor(root, { 'https://shop.example/logo.png': 'v1:aaa' })).toEqual({
-      'https://shop.example/logo.png': 'v1:aaa',
+      '/logo.png': 'v1:aaa',
     });
   });
 });

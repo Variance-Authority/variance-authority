@@ -42,7 +42,7 @@ baseline costs you the comparison.
   decides.
 - **Branch line** — the line of any other branch, `branch/<name>`.
 - **Entry** — one file a run publishes to a line. Its name states its format
-  version, such as `suite-index-v1`, and it names the commit it was derived at.
+  version, such as `suite-index-v2`, and it names the commit it was derived at.
 - **Record** — the entries a line has now, which may come from several runs.
 - **Manifest** — the file of a line that lists its entries: each entry's name,
   commit and digest.
@@ -60,17 +60,19 @@ baseline costs you the comparison.
 
 | Entry | What it is | Published when |
 | --- | --- | --- |
-| `suite-index-v1` | the [suite index](lexicon.md#where-it-is-kept) of the run | the run report has a [composition](composition.md) section and names a commit |
+| `suite-index-v2` | the [suite index](lexicon.md#where-it-is-kept) of the run | the run report has a [composition](composition.md) section and names a commit |
 | `subject-costs-v1` | what each subject took to collect, in whole milliseconds, and the file that declares it | the run report timed a subject, and is not one shard of a sharded build |
 | `report-v1` | the run report byte for byte, and a table from each image path it names to that image's digest | `report.carry` is `"share"` |
-| `suite-v1/<suite>` | that suite's execution record, as this machine recorded it | the suite's `carry` is `"share"`, and its execution record here was recorded at the run report's commit |
+| `suite-v1/<suite>` | that suite's execution record, as this machine recorded it | the suite's `carry` is `"share"`, its execution record here was recorded at the run report's commit, and the line is a branch's: a mainline takes it only from [`share --suite`](#a-suite-with-no-run-report) |
 
-Every publish includes `suite-index-v1`, which is what `variance share` reads,
-and the other entries are published only beside it. A run report has no
-composition section, the part that says which subjects mounted which
-components, when it comes from a raster-only capture (an image with no markup
-behind it), a run under `"retention": "ephemeral"` (two revisions compared with
-no baseline stored), or one shard of a sharded build. It gives no suite index, and a publish of it writes nothing and exits 0.
+Every publish includes `suite-index-v2`, which is what `variance share` reads,
+and the other entries are published only beside it. A line that still holds
+`suite-index-v1` is read too, until a publish writes `suite-index-v2` over it,
+by the rules in [What a line keeps](#what-a-line-keeps). A run report has no
+composition section, the part that records which subjects mounted which
+components, when it comes from a run that read no markup (a raster-only
+capture, or a run whose collector gave only images), or from one shard of a
+sharded build. It gives no suite index, and a publish of it writes nothing and exits 0.
 
 An image is stored once per share, under `images/<digest>`, and every record
 names it by digest.
@@ -99,7 +101,7 @@ where `suites` declares your test suites and `subjects` what a run captures:
   The [runner integration](execution-record.md#one-record-for-each-suite) you
   run the suite under writes it; `variance run` does not. When it was
   recorded at another commit, names no commit, or does not read, the publish
-  leaves that suite out, publishes the rest of the run, and says why:
+  leaves that suite out, publishes the rest of the run, and prints why:
 
   ```text
   left out suite-v1/stories: its record at <path> was recorded at 5d0c…, not at 3f1c….
@@ -114,13 +116,20 @@ The suite index is one binary file with four things in it:
 | --- | --- |
 | the census | which component was mounted in how many subjects, and which subject shows each one with the fewest other components around it |
 | the subject denominator | the ids of the subjects that contributed a capture: the total each census count is divided by |
-| the [lexicon](lexicon.md) | per subject, the words and names read off it, in the nine fields [the lexicon lists](lexicon.md#what-the-run-writes-down) |
+| the [lexicon](lexicon.md) | per subject, the words and names read off it, in the nine fields [the lexicon lists](lexicon.md#what-the-run-writes-down), its [landmarks](lexicon.md#the-same-pass-writes-the-arrangement), and the file each component is declared in |
 | the commit | the revision all of the above was read at |
 
 A suite index lists only the subjects its own run captured: two runs that
 capture the same subjects at one commit write the same bytes. A sharded build's
 index is composed from every shard's part, so it lists what one run over the
-whole suite would have.
+whole suite would have. A field the run did not read is left out, and a field it
+read and found empty is kept empty, so the index never claims a subject has no
+names when nobody looked.
+
+An index built with [`variance collect`](../packages/cli/README.md#collect-the-suite-index-without-a-visual-run),
+the command that reads the same facts with no screenshot, holds two more: what
+became of every subject the plan named — collected, failed, excluded or
+unreached — and the plan, build and reading settings it was composed from.
 
 ### What it exposes
 
@@ -147,12 +156,12 @@ images/<digest>     every image a record names, stored once
 
 There is no history. Your branches are brought up to date with a mainline
 before they merge, by a merge queue, a required up-to-date branch or a rebase,
-so the question your checkout asks is *what is mainline now, and how far am I
+so the question for your checkout is *what is mainline now, and how far am I
 from it*, and every lookup prints that distance.
 
 **A publish replaces only the entries it offers.** Two jobs that publish
 different suites at one commit leave both `suite-v1` entries on the line. Each
-also offers `suite-index-v1`, and `report-v1` when the report is shared, so the
+also offers `suite-index-v2`, and `report-v1` when the report is shared, so the
 line keeps those two from the job that published last: for a sharded run, the
 last shard's, covering that shard's subjects only. For an entry the line
 already has:
@@ -162,7 +171,7 @@ already has:
   finishing last:
 
   ```text
-  kept suite-index-v1: the line holds it at 9ab2…, which descends from this run's commit.
+  kept suite-index-v2: the line holds it at 9ab2…, which descends from this run's commit.
   ```
 
   Git answers descent for every kind of share. When the held entry is from
@@ -172,7 +181,7 @@ already has:
   entry replaces the held one:
 
   ```text
-  replaced suite-index-v1 without knowing whether the held commit was newer: git could not answer.
+  replaced suite-index-v2 without knowing whether the held commit was newer: git could not answer.
   ```
 
   After a force-push nothing descends, and the next publish replaces the entry.
@@ -184,7 +193,7 @@ already has:
   replace it:
 
   ```text
-  kept suite-index-v2: the line holds it in a newer format, at 9ab2….
+  kept suite-index-v3: the line holds it in a newer format, at 9ab2….
   ```
 
 In git, in a directory every writer mounts, or in an `http` store that sends an
@@ -268,7 +277,7 @@ When nothing answers — no `share.mainlines`, no remote `HEAD` and no event:
 
 `share.remote` names the remote the mainlines are on, `origin` unless you set
 it. The remote's `HEAD`, the distance a lookup prints and the descent a publish
-asks about are all read from it.
+checks are all read from it.
 
 ## Publishing
 
@@ -345,12 +354,12 @@ A share published only from those CIs therefore has no mainline line, and
 The publish prints what it did, and where:
 
 ```text
-wrote suite-index-v1, report-v1, subject-costs-v1 to mainline main in refs/variance on origin.
+wrote suite-index-v2, report-v1, subject-costs-v1 to mainline main in refs/variance on origin.
 ```
 
 The store is named as `<namespace> on <remote>` for a `git` share, `the
-directory <root>`, or `the endpoint <url>`. A publish the store did not take
-says why, with the same reasons a lookup gives:
+directory <root>`, or `the endpoint <url>`. For a publish the store did not
+take, the CLI prints why, with the same reasons a lookup gives:
 
 ```text
 nothing published to branch feat/cart in the endpoint https://variance.example.com/share: https://variance.example.com/share/branch/feat/cart/manifest.json: HTTP 403.
@@ -364,11 +373,12 @@ left out 2 image(s) the report names and this machine could not read, the first 
 ```
 
 The same publish gives the line `subject-costs-v1`: what each subject took to
-collect, under the same commit. `npx variance run --shard k/n` reads it back from
-the mainline to split the suite evenly, and a run with `workers` reads it to take
-the slowest files first. `npx variance ask costs` reads the same line to tell you,
-or an agent, which files and subjects the suite spends its time on; see
-[the command-line questions](agent-cli.md#find-where-the-suites-time-goes).
+collect, under the same commit. `npx variance run --shard k/n` reads it back
+from the mainline to split the suite evenly, and a run reads it to give its
+slowest files to its [workers](../packages/cli#configuration) first.
+`npx variance ask costs` reads the same line to show you, or an agent, which
+files and subjects the suite spends its time on;
+see [the command-line questions](agent-cli.md#find-where-the-suites-time-goes).
 
 ### A sharded build
 
@@ -393,14 +403,15 @@ npx variance share --publish shard-1/report.json shard-2/report.json shard-3/rep
 
 ```text
 suite index at 3f1c…bd, composed from 3 shard(s): <cache>/suite/checkout-ui/3f1c…bd.bin
-wrote suite-index-v1, subject-costs-v1 to mainline main in refs/variance on origin.
+wrote suite-index-v2, subject-costs-v1 to mainline main in refs/variance on origin.
 ```
 
 Keep each part beside its run report when you move the reports between jobs.
-The command publishes nothing, and names the file, when a run report has no part
-beside it, when a shard is missing, or when you name one shard's run report
-alone. A build that does not shard publishes from its own run and needs no extra
-job.
+The command publishes nothing, and says why, when a run report
+has no part beside it, when a part cannot be read, when a shard is missing or
+named twice, when you name one shard's run report alone, and when the reports
+mix an unsharded run with shards or name two unsharded runs. A build that does
+not shard publishes from its own run and needs no extra job.
 
 ## Looking up mainline's record
 
@@ -436,20 +447,25 @@ so the next command reads it from disk.
   than your merge base.
 - `N commit(s) past the merge base with this checkout` — the record is newer.
 - `at a distance this clone cannot count` — your clone has no
-  `refs/remotes/<remote>/<mainline>`, does not have the record's commit (a
-  shallow clone often does not), or neither commit descends from the other. The
-  lookup still answers.
+  `refs/remotes/<remote>/<mainline>`, does not have the record's commit, or
+  neither commit descends from the other. A shallow clone that has both
+  commits gets this too when its history between them is cut: `git rev-list
+  --count` stops at the cut and prints a smaller number, so a count whose walk
+  reaches the cut is not printed. The lookup still answers. To get the number,
+  check out every commit and no trees: `fetch-depth: 0` with `filter: tree:0`
+  on `actions/checkout`, as [a CI checkout needs](selecting.md#what-a-ci-checkout-needs). No fixed depth is enough, because both commits change
+  while the branch is open.
 
 A distance *past* the merge base means your mainline has changed since you
 branched: update your branch to measure against it.
 
-**A lookup that finds nothing says why**, as `mainline <name>: <why>.`, because
-each reason needs a different action:
+**A lookup that finds nothing prints why**, as `mainline <name>: <why>.`,
+because each reason needs a different action:
 
 | The message says | What to do |
 | --- | --- |
 | `nothing is published there` | publish from a push to that mainline |
-| `it holds suite-index-v2, a format this version does not read` | upgrade the CLI |
+| `it holds suite-index-v3, a format this version does not read` | upgrade the CLI |
 | `no share is configured` | add a `share` section |
 | `nothing answered from config, remote-head, event` | set `share.mainlines`, or run `git remote set-head origin --auto` |
 | HTTP 401 or 403, git's authentication error, or a token variable that is not set | check the credential on this machine |
@@ -468,14 +484,14 @@ is:
    run report this process cannot open is still yours, and the error says why.
 2. **Your branch's line.** The branch is `GITHUB_HEAD_REF` on a pull request,
    `GITHUB_REF_NAME` on a GitHub Actions branch run, or your checkout's branch.
-   It is not asked on a mainline, on a detached checkout, or on a pull request
+   It is not read on a mainline, on a detached checkout, or on a pull request
    from a fork, where a line of that name belongs to a branch of the base
    repository.
 3. **The mainline your checkout is measured against**, chosen as in [Looking
    up](#looking-up-mainlines-record).
 
 A run report you name on the command line is read, or refused, and the share
-is not asked.
+is not read.
 
 Every answer read from the share opens with a sentence starting `report:` that
 says which line it came from. From a branch line:
@@ -535,15 +551,15 @@ report: this checkout's own run, compared with the report the previous answer re
 ```
 
 **When no line answers, `ask` exits 2 and `serve` does not start.** Both list
-each line asked, with what it answered:
+each line read, with its result:
 
 ```text
 there is no run report at /work/web/.variance/report.json, which is where `report` in your configuration points, and the share holds none for this checkout:
   branch feat/cart: nothing is published there
-  mainline main: it holds only suite-index-v1
+  mainline main: it holds only suite-index-v2
 ```
 
-*it holds only suite-index-v1* means CI publishes to that line without
+*it holds only suite-index-v2* means CI publishes to that line without
 `report.carry` set to `"share"`.
 
 Without a `share` section, the same message ends with *`variance run` writes it
@@ -565,25 +581,69 @@ because a record of your own branch would measure the change against itself.
   at your `HEAD` started with no execution record here, as in a fresh clone.
   The lines your tests ran still come from your own record; the mainline's gives
   the commit to diff from. With no run of the suite here, it reads nothing and
-  asks you to run the suite or pass `--since`.
+  prints that you need to run the suite or pass `--since`.
 
-Your checkout's own execution record always comes first. The mainline's is kept
-at `<cache>/share/read/<suite>/<commit>/coverage.bin`, apart from every record a
-run writes, so it is never read as your checkout's own. The answer says which
-one it read:
+Records are read in this order:
+
+1. **Your checkout's own execution record.** In a git worktree, that is the
+   worktree's own, not the primary checkout's.
+2. **The mainline's record.** It is kept at
+   `<cache>/share/read/<suite>/<commit>/coverage.bin`, apart from every record a
+   run writes, so it is never read as your checkout's own. The mainline keeps
+   only its newest record, and the nearest one you can use is at your `HEAD`'s
+   merge base with the mainline. A record fetched at or past that merge base
+   is read without asking the remote again, and so is one fetched while your
+   merge base was the one it is now. After a pull or a rebase moves it, the
+   remote is asked once. The result that the line has none for you stands for
+   10 minutes, with the time of that result. When the remote does not answer,
+   the record fetched earlier is read, and the answer prints when it was
+   fetched and why it was not fetched again.
+3. **In a worktree, the primary checkout's record**, only when no mainline
+   record was ever fetched on this machine. It is what that checkout last ran,
+   so the answer names it as the offline fallback and prints why the mainline's
+   was not read.
+
+The answer prints which one it read:
 
 ```text
 record of "stories": read from mainline main, published at 3f1c9a2…, 2 commit(s) behind the merge base with this checkout; kept at <cache>/share/read/stories/3f1c9a2…/coverage.bin
 ```
 
+`variance share --suite <name>` queries the remote now, whenever the last fetch
+was. Your test runner's integration queries it only under `--shard`, for the
+times it [places the shard by](sharding.md#turn-it-on-in-a-vitest-jest-or-playwright-config). When its first run
+in a checkout has no record to land on, it copies the mainline record last
+fetched on this machine into the checkout's own place, with the runs record
+that came with it, and prints that it did. None of those runs are the
+checkout's own, so `variance review` finds no run listed until your first one,
+which starts your change at that commit. With none fetched, a worktree's
+first run copies the primary checkout's, and prints that it did.
+
+That copy stays the mainline's. Your runs are laid over it, and beside the
+checkout's record a ledger, `coverage.layer.json`, lists the test files your
+runs observed and the commit each ran at, with the working tree's git tree when
+it had uncommitted edits. When `select` or `variance share --suite` reads a
+newer mainline record whose commit your HEAD contains, the checkout's record
+moves onto it: every test file you did not run reads the newer record, and a
+file you ran keeps your rows if it ran at that commit or after it. A newer
+record of a commit your branch does not contain changes nothing, so long work
+keeps the record it started from until you merge or rebase. The answer names
+both:
+
+```text
+record of "unit": read from this checkout's own, over mainline main at 3f1c9a2…, 4 commit(s) before HEAD; 2 test file(s) ran here, every other is the mainline's: test/cart.test.ts, test/total.test.ts at 8e01b44…
+```
+
 A [miss](#when-a-share-fails), or an execution record that names no commit or
 was recorded at a commit other than the one it was published at, is not used,
 and the `record of "<suite>":` line says why. With no execution record, `select`
-runs every test file, and `review` asks for `--since`.
+runs every test file, and `review` requires `--since`.
 
-`select` diffs from the commit the mainline's execution record names, so one
-behind or past your merge base adds mainline's changes in between to yours: a
-wider run, never a narrower one. `review` diffs from the merge base of that
+`select` diffs from the commit the mainline's execution record names, so a
+record behind or past your merge base adds mainline's changes in between to
+yours: a wider run, never a narrower one. In CI, [merge the pull request with
+that commit](#a-pull-request-that-runs-the-mainlines-changes-too) and the diff
+is the pull request's alone. `review` diffs from the merge base of that
 commit and `HEAD`. It compares the cases, the tests each test file declares,
 with the ones the mainline published only when that merge base is the published
 commit. For a record past your merge base it is not, and `review` compares them
@@ -615,16 +675,22 @@ record](#a-suite-your-checkout-has-not-recorded).
 
 - `variance share --publish` with no run report at the path, or one that does
   not parse;
+- `variance share --publish` over shard reports when a suite part beside one
+  cannot be read, for example
+  `nothing published: shard-2/report.suite-part.json is not a suite part this version reads.`;
 - a run report whose commit is not a commit id, for example
-  `cannot publish suite-index-v1: "HEAD" is not a commit`;
+  `cannot publish suite-index-v2: "HEAD" is not a commit`;
 - a config the CLI refuses, such as `"mainlines": []`, a `share` carrier with no
   `share` section, a `method` other than `PUT` or `POST`, or a `namespace`
   outside `refs/`;
 - `variance ask` when no line has a run report for your checkout, and
-  `variance serve`, which does not start.
+  `variance serve`, which does not start;
+- `variance share --suite <name> --publish` on a mainline that wrote nothing,
+  for a miss or a record it left out. Every checkout measures from that line's
+  record, so an older one left in place has to show in CI.
 
-Because `variance share` exits 0 on a miss, a publish that stopped working does
-not turn CI red.
+Apart from that last case, `variance share` exits 0 on a miss, so a publish
+that stopped working does not turn CI red.
 Watch the distance `npx variance share` prints: a mainline record forty commits
 behind your merge base is one nothing has published to since.
 
@@ -674,10 +740,16 @@ Tribunal deployment is an `http` share.
   fetches commits and trees, and an image only when something opens it, so a
   publish over a record that names a thousand images downloads none of them and
   sends only the images the remote does not have. A publish pushes with
-  `--force-with-lease`.
-- **It authenticates with your global and system git configuration**, and with
+  `--force-with-lease`. When the remote refuses the push, the publish reads
+  where the line is now. A line at another commit than the one the publish read
+  is another writer's, and the publish reads it again. A line that has not
+  moved means the remote refused the push for another reason, and the publish
+  reports git's message.
+- **It authenticates with your global and system git configuration**, with
   the `http.extraheader` your clone has for that remote, which is where
-  `actions/checkout` writes its token. A credential helper set only in your
+  `actions/checkout` writes its token, and with git configuration in the
+  `GIT_CONFIG_COUNT` environment variables, which is how one CI step can give
+  git a token the clone does not keep. A credential helper set only in your
   clone's `.git/config` is not used. Git never prompts, and each git command
   is stopped after 60 s.
 - **A lookup reuses a fetched line for 60 s**, so ten lookups in a minute fetch
@@ -710,8 +782,9 @@ laptop has.
   `/` part. `root` resolves against the config file's directory.
 - **A publish locks the line** with a `.lock` directory and waits up to 5 s for
   another writer's lock. A wait that ends without the lock is a conflict: it
-  uses one of the 8 attempts, and the publish reads the line again. A lock
-  older than 60 s is taken over, and 8 waits take 40 s, so behind a dead
+  uses one of the 8 attempts, and the publish reads the line again. A writer
+  keeps its lock fresh while it writes; a lock left unrefreshed for 60 s is a
+  dead writer's and is taken over, and 8 waits take 40 s, so behind a dead
   writer's lock less than 20 s old a publish ends with *the line moved under 8
   writes in a row*. Every file is written as a `.part` file and renamed into
   place.
@@ -772,35 +845,101 @@ long: `<url>: HTTP 422: <reason>`.
 
 ### A Tribunal deployment
 
-A Tribunal deployment serves a share at `<deployment>/share`. Set `endpoint` to
-that URL, for example `https://variance.example.com/share`.
+A Tribunal deployment serves a share at `<deployment>/share`. Declare it as an
+[HTTP endpoint](#an-http-endpoint) with that URL, and the token in an
+environment variable:
 
-**Check the deployment's API first.** The share needs `"api": 3` or higher:
+```json
+{
+  "share": {
+    "kind": "http",
+    "endpoint": "https://variance.example.com/share",
+    "token": { "env": "VARIANCE_SHARE_TOKEN" }
+  }
+}
+```
+
+**Set `VARIANCE_SHARE_TOKEN` to one of the deployment's own tokens.** Whoever
+runs the deployment sets each token when they start it, and gives you the one
+your machine needs. The names below are the deployment's settings, not yours:
+
+- **In CI, where a run publishes**, the ingest token. The deployment sets it as
+  `VARIANCE_TRIBUNAL_INGEST_TOKEN` on Node, the `INGEST_TOKEN` secret on
+  Cloudflare, or `ingestToken` in `createTribunal`. It publishes and reads.
+- **On a machine that only reads**, such as a laptop running `variance ask`, the
+  share token. The deployment sets it as `VARIANCE_TRIBUNAL_SHARE_TOKEN`,
+  `SHARE_TOKEN` or `shareToken`. It reads `/share/` and `GET /version`, and a
+  publish with it answers 403 before any byte is stored. It also reads what
+  review settled — the changelog of approved baselines, every decision, and the
+  concerns reviewers raised — for `variance changelog`, `variance ask decisions`
+  and `variance ask concerns`, and it never decides or raises a concern.
+- **The review token is refused under `/share/`** with 403. It is the token a
+  reviewer approves and rejects with, and nothing that reads a share holds it.
+
+**Then check the deployment's API.** The share needs `"api": 3` or higher, and
+reading what review settled needs `"api": 5`:
 
 ```bash
 curl -s -H "Authorization: Bearer $VARIANCE_SHARE_TOKEN" https://variance.example.com/version
 ```
 
 ```text
-{"service":"variance-authority-tribunal","api":3,"schema":18}
+{"service":"variance-authority-tribunal","api":6,"schema":21}
 ```
+
+`/version` answers any of the deployment's tokens and refuses any other with
+401, so this answer also shows that your token is one the deployment knows.
+
+On a laptop, then read CI's latest run on your mainline, as
+[looking up mainline's record](#looking-up-mainlines-record) describes:
+
+```bash
+npx variance share
+```
+
+It prints `mainline <name> evaluated at <commit>…`, or a line that says why it
+found nothing. Then read what review settled, which only the share token and
+the review token can do. The review token is the one a reviewer decides with,
+and your machine is not given it:
+
+```bash
+npx variance ask decisions --subject cart/empty
+```
+
+Name any subject your project reviews. The command reads the deployment that
+your `review.endpoint` — the one
+[`variance push`](https://variance-authority.dev/reference/packages/cli) sends
+runs to — or your `remote` `baselines.endpoint` names, when your
+`share.endpoint` is under it. A checkout that declares only `share` has neither,
+and the command says so instead of guessing. It prints the decisions on that
+subject, a line saying there are none, or why the deployment refused: a 403 that
+names the ingest token when the variable holds CI's token, or a 404 when the
+deployment serves an API older than 5.
+
+`npx variance ask concerns --build <id>` reads, the same way, which renders
+reviewers flagged as suspect on the subjects that build showed:
+
+```bash
+npx variance ask concerns --build ci-42
+```
+
+```text
+https://variance.example.com: 1 concern seen in build ci-42, in the order they were raised.
+build ci-42, over every subject it showed: 1 open, 0 investigating, 0 resolved.
+
+  #7  open  cart/empty  ci-42  "The border is clipped"
+      region 154,85 24x18 on Button
+      evidence the right border
+      2026-08-21T09:40:00Z  open  reviewer  "the right edge is cut"
+```
+
+An agent reads the same answers through `variance serve`, as the
+`variance_decisions` and `variance_concerns` tools, with the same token.
 
 An older deployment answers 404 under `/share/`. A lookup then prints *nothing
 is published there*, and a publish writes nothing. `variance push` to that
-deployment prints the API it serves and asks you to redeploy it, when your
+deployment prints the API it serves and that you need to redeploy it, when your
 `share.endpoint` is under the deployment's address.
-
-**Set the environment variable your `token` setting names to one of the
-deployment's own tokens:**
-
-- **In CI, where a run publishes**, the ingest token: `VARIANCE_TRIBUNAL_INGEST_TOKEN`
-  on a Node deployment, the `INGEST_TOKEN` secret on Cloudflare, or
-  `ingestToken` in `createTribunal`. It publishes and reads.
-- **On a machine that only reads**, such as a laptop running `variance ask`, the
-  share token: `VARIANCE_TRIBUNAL_SHARE_TOKEN`, `SHARE_TOKEN` or `shareToken`.
-  It reads `/share/` and `GET /version`, and a publish with it answers 403
-  before any byte is stored.
-- **The review token is refused under `/share/`** with 403.
 
 Share objects are stored under `<project>/share/` in the deployment's bucket,
 where `<project>` is the deployment's own: `VARIANCE_TRIBUNAL_PROJECT` on Node,
@@ -844,15 +983,224 @@ jobs:
 - **`variance run` needs no `--run` or `--commit` here.** It reads
   `GITHUB_RUN_ID` and `GITHUB_SHA`.
 - **`if: always()` publishes a run that exits 1** because it found changes, and
-  that is the run your checkout most wants to read. A run that exits 2 without
+  that is the run your checkout most needs to read. A run that exits 2 without
   writing a run report makes the publish step exit 2 too.
 - **A pull request from a fork and a merge-queue run publish nothing**, and the
-  step says so and exits 0.
+  step prints that and exits 0.
 - **`suite-v1/stories` is published only when an earlier step ran the `stories`
-  suite** under its [runner integration](execution-record.md#one-record-for-each-suite).
+  suite** under its [runner
+  integration](execution-record.md#one-record-for-each-suite), and only to a
+  branch line. This step cannot determine which test files the runner collects,
+  so a push to a mainline leaves the suite out and prints that you need to pass
+  `--collected`, which [`share --suite`](#a-suite-with-no-run-report) takes.
 - **Jobs that run different suites on one line** each keep their own
-  `suite-v1/<name>`, while `report-v1` and `suite-index-v1` are one per line,
+  `suite-v1/<name>`, while `report-v1` and `suite-index-v2` are one per line,
   from the job that published last.
+
+### A suite with no run report
+
+`share --publish` publishes what a run report names, so a repository that runs
+only a unit suite has nothing for it to read. `share --suite <name>` takes the
+suite and the share from the root `variance.config.json` instead, and publishes
+that suite's execution record alone:
+
+```json
+{
+  "suites": { "unit": { "kind": "unit", "carry": "share" } },
+  "share": { "kind": "git", "mainlines": ["main"] }
+}
+```
+
+Two jobs keep the token that can write away from the code under test. The
+test job runs the suite on every event and, on a push, passes its record on as
+an artifact. The publish job runs only on a push to your mainline, and it is
+the only job with `contents: write`:
+
+```yaml
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          filter: tree:0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci
+      - run: npx vitest run
+      - uses: actions/upload-artifact@v4
+        if: ${{ !cancelled() && github.event_name == 'push' }}
+        with:
+          name: variance-record-unit
+          path: node_modules/.cache/variance-authority/test-selection
+          include-hidden-files: true
+          retention-days: 1
+
+  publish:
+    needs: test
+    if: ${{ !cancelled() && github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci
+      - uses: actions/download-artifact@v4
+        with:
+          name: variance-record-unit
+          path: node_modules/.cache/variance-authority/test-selection
+      - run: npx vitest list --filesOnly > "$RUNNER_TEMP/collected.txt"
+      - name: publish the record
+        env:
+          TOKEN: ${{ github.token }}
+        run: |
+          auth="$(printf 'x-access-token:%s' "$TOKEN" | base64 | tr -d '\n')"
+          echo "::add-mask::$auth"
+          export GIT_CONFIG_COUNT=1
+          export GIT_CONFIG_KEY_0="http.$GITHUB_SERVER_URL/.extraheader"
+          export GIT_CONFIG_VALUE_0="AUTHORIZATION: basic $auth"
+          npx variance share --suite unit --publish --collected "$RUNNER_TEMP/collected.txt"
+```
+
+```text
+wrote suite-v1/unit to mainline main in refs/variance on origin.
+```
+
+- **The artifact path is the [cache](cache.md)'s default location.** The
+  record's directory inside it is named for the checkout's absolute path, and
+  that path is the same on every runner of one workflow, so the publish job
+  finds the record where the test job wrote it. Download it after `npm ci`,
+  which removes `node_modules`. When you set `cacheRoot`, use that directory
+  instead.
+- **`persist-credentials: false` keeps the token out of the clone.** The
+  publish step gives it to git through `GIT_CONFIG_*` variables, for that step
+  alone, so the install and the build never run beside it.
+- **`--collected` is the runner's list of the test files it collects**, one
+  path per line, relative to the repository root or absolute. With Jest it is
+  `npx jest --listTests`.
+
+It publishes to the line the run belongs to, as `--publish` does, and leaves
+the record out when it was recorded at a commit other than `HEAD`:
+
+```text
+nothing published: suite-v1/unit is left out: its record at <path> was recorded at 5d0c…, not at 3f1c….
+```
+
+Every checkout measures from the mainline's record, so a mainline takes only a
+record of the whole suite. The runs record beside the execution record is
+published with it, and it has to show that every test file the runner collects
+ran at `HEAD`. A file the record still lists but the runner no longer collects
+does not count, and the publish retires it: its row, what it crossed and its
+cases leave the published record, and the command counts what it retired and
+names one:
+
+```text
+retired 2 test file(s) from suite-v1/unit that the suite no longer collects, test/checkout.browser.test.ts among them.
+```
+
+A push that ran a selection is left out, the line keeps the record it had, and
+the command exits 2:
+
+```text
+nothing published: suite-v1/unit is left out: its record at <path> is not a whole run: 3 test file(s) the suite collects last ran before 3f1c…, test/cart.test.ts among them.
+```
+
+Without `--collected` nothing records which files are the suite's tests, so a
+mainline publish is refused:
+
+```text
+nothing published: suite-v1/unit is left out: its record at <path> is not a whole run: the runner was not asked which test files it collects, so nothing says the run covered all of them: pass `--collected`.
+```
+
+A branch line takes the record whatever ran, because nothing measures from it
+but that branch.
+
+Without `--publish` it reads the mainline's record the way `select` does, and
+prints the [`record of "unit":` line](#a-suite-your-checkout-has-not-recorded).
+`--suite` takes no `--config`, `--mainline` or report, because those name the
+other form's inputs.
+
+### A pull request that runs the mainline's changes too
+
+When a pull request runs more tests than its change should, read the
+`record of "<name>":` line `select` prints on stderr. When it names a miss, such as nothing published,
+the mainline has no record of the suite and `select` runs every test file:
+publish one, as the section above does. When it reads
+`read from mainline <name>, published at <commit>`, the extra tests are the
+mainline's.
+
+GitHub checks a pull request out as its head merged into the base branch's
+tip. The mainline's record is at an older commit whenever the mainline gained
+a commit after its last publish, so every commit in between is in the diff
+`select` measures, charged to your pull request. One that touches a file every
+test enters runs every test.
+
+Merge the head with the record's commit instead, and the diff is the pull
+request alone. With `--format github`, `share --suite <name>` prints that
+commit as a step output, `commit=<sha>`, and `commit=` when the mainline has
+no record of the suite; the `record of "<name>":` line goes to stderr:
+
+```yaml
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          filter: tree:0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci
+      - id: record
+        if: github.event_name == 'pull_request'
+        run: npx variance share --suite unit --format github >> "$GITHUB_OUTPUT"
+      - name: merge with the record's commit
+        if: steps.record.outputs.commit != ''
+        env:
+          COMMIT: ${{ steps.record.outputs.commit }}
+          HEAD_COMMIT: ${{ github.event.pull_request.head.sha }}
+        run: |
+          later=$(git show -s --format=%ct "$COMMIT" "$HEAD_COMMIT" | sort -n | tail -n 1)
+          git checkout --quiet --detach "$COMMIT"
+          GIT_AUTHOR_NAME=ci GIT_AUTHOR_EMAIL=ci@localhost \
+          GIT_COMMITTER_NAME=ci GIT_COMMITTER_EMAIL=ci@localhost \
+          GIT_AUTHOR_DATE="$later +0000" GIT_COMMITTER_DATE="$later +0000" \
+            git merge --no-ff --no-edit -m "Merge $HEAD_COMMIT into $COMMIT" "$HEAD_COMMIT" \
+            || { git merge --abort; git checkout --quiet --detach "$GITHUB_SHA"; }
+          git diff --quiet "$GITHUB_SHA" HEAD -- package-lock.json || npm ci
+      - run: npx vitest run
+```
+
+- **The run tests your change on the record's commit, not on the base tip.**
+  What the mainline gained since is checked where your branch is brought up to
+  date before it merges: the merge queue, the required up-to-date branch or the
+  rebase. A merge queue checks it only as far as the tests it runs; one that runs
+  part of the suite leaves the rest to the whole run on the mainline after the
+  merge.
+- **A head that conflicts with the record's commit stays on GitHub's merge**,
+  and the run measures what the mainline gained since the record as well.
+- **Shards read the commit once and share it.** A publish can land between
+  two jobs of one run, and two jobs that each ask can merge with two commits.
+  Read it in one job, pass `commit` to the others as a job output, and every
+  shard makes the same merge: the author, committer, date and message are
+  fixed. Shards then record at one commit, and their records fold into one.
+- **The install runs again only when the lockfile differs** from GitHub's
+  merge, because the merge can take a different one.
 
 ## S3 and Google Cloud Storage
 
@@ -881,8 +1229,8 @@ credentials stay out of it. For Google Cloud Storage, the two steps are
 - **On a runner that starts empty, every sync downloads everything under the
   prefix**, which grows with every branch: nothing deletes, and a bucket
   lifecycle rule is the collector.
-- **A mainline publish asks git about descent**, so the job needs fetch access
-  to `share.remote`, which git gets as it does [for a `git`
+- **A mainline publish queries git about descent**, so the job needs fetch
+  access to `share.remote`, which git gets as it does [for a `git`
   share](#the-repositorys-own-refs). Without it, the publish prints *replaced …
   git could not answer*.
 
@@ -895,7 +1243,9 @@ A lookup on your checkout needs only the config CI uses:
   `aws s3 sync` download step before you ask, or make `.variance-share` a link
   to a mount your team shares.
 - **With `kind: "http"`**, set the environment variable your `token` setting
-  names to a token that reads.
+  names to a token that reads: on a [Tribunal
+  deployment](#a-tribunal-deployment), the share token. The share token cannot
+  publish, so the publish below needs a store your machine may write to.
 
 `npx variance share --publish` from a branch writes that branch's line, and a
 colleague's `variance ask` on the same branch reads it when their checkout has

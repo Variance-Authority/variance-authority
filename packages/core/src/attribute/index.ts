@@ -33,7 +33,6 @@ export type { AttributedRegion, AttributionOptions, RankedRegion } from './regio
 export {
   resolveSource,
   formatSource,
-  indexSource,
   mergeSourceIndexes,
   overlaySourceIndex,
 } from './source.js';
@@ -81,6 +80,9 @@ export type {
 } from './composition.js';
 
 export type { Divergence, DivergenceParting } from './divergence.js';
+
+export { piecesOf } from './subject-pieces.js';
+export type { Residue, SubjectPieces, SubjectShare } from './subject-pieces.js';
 
 export { lexiconOf, lexiconOfValues, lexiconValuesOf, structureOf, withExamples, LEXICON_CAP } from './lexicon.js';
 export { LANDMARK_CAP } from './landmark.js';

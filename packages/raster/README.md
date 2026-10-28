@@ -5,6 +5,7 @@
 > Measure a difference that was never zero, watch it drift, and refuse to photograph a subject that will not hold still.
 
 Part of [Variance Authority](https://variance-authority.dev).
+Point your coding agent at [`llms.txt`](https://variance-authority.dev/llms.txt).
 
 ## What this is for
 
@@ -16,7 +17,7 @@ never agreed, a font stack that is always slightly off, a compression pass that
 always softens an edge — none of those has to be eliminated before you can watch
 it, because what gets measured is the disagreement rather than either side of
 it. `observeDifference` records the difference as it stands today;
-`compareDifferenceObservations` tells you how it changed since you last recorded
+`compareDifferenceObservations` reports how it changed since you last recorded
 it.
 
 **Keeping severity and amount apart.** A pixel count collapses them into one
@@ -235,7 +236,7 @@ observation outlive several generations of the policy reading it.
 ### Choosing your severity levels
 
 `severityLevels` is required and has no default, because a level is a policy and
-the library cannot know yours. Two ways to pick:
+the library cannot infer yours. Two ways to pick:
 
 - **From a threshold you already run.** `YIQ_DISTANCE` performs the same
   arithmetic as `pixelmatch`, divided by its own maximum, so
@@ -271,7 +272,7 @@ throws.
 and so does a `data` array whose length is not `width * height * 4`. A subject
 that grew by a row is a finding, and compositing it onto a union box would
 decide on your behalf that it was not one — align or resize upstream, where
-something knows whether the change was intended.
+you can decide whether the change was intended.
 
 The one transform available is opt-in. `flattenOnto` names an opaque colour —
 `observeDifference({ normalization: { flattenOnto: { red, green, blue } } })`
@@ -294,7 +295,7 @@ policy for whether a renderer's antialiasing counts as a change at all.
 ## Decide whether a subject is worth photographing
 
 `gateStability` takes documents of one subject that ought to be identical and
-tells you whether to render. A `documentDigest` comes from
+returns whether to render. A `documentDigest` comes from
 `@variance-authority/core/format`, over the same `RenderDocument` you would
 render:
 
@@ -359,7 +360,7 @@ gateStability([
 
 `SemanticSnapshot` is defined in `@variance-authority/core/format` and is
 produced by whatever collected the page. Without one the gate can refuse to
-render but cannot say what to fix.
+render but cannot name what to fix.
 
 ## Contracts the rest of the pipeline is written against
 
@@ -377,7 +378,7 @@ packages named in the table above.
 - **`Renderer`** — `identity`, `identityFor(document)`, `render(document)`,
   `close()`. `identityFor` is a method rather than something callers derive,
   because the key a baseline is stored under and the key it is looked up under
-  have to be one value, and only the renderer knows how it will stamp one.
+  have to be one value, and only the renderer defines how it will stamp one.
   `identityAtScale` is the shared implementation for renderers that vary only
   by device scale factor; `describeIdentity` renders an identity as the sentence
   a refusal prints.
@@ -402,8 +403,9 @@ packages named in the table above.
   never throws. Wrap yours in `neverFails(cache)` at construction and that stays
   true whatever it is built on.
 - **`DiffPolicy`** — `{ id, threshold, includeAA }`. `DEFAULT_POLICY` is
-  `threshold: 0.1, includeAA: false`, which forgives antialiasing and is what a
-  real deployment runs, because text edges are otherwise permanently red.
+  `threshold: 0.01, includeAA: false`. It forgives antialiasing, because text
+  edges are otherwise permanently red, and a colour change of up to 1%, because
+  a browser can paint the same story one level per channel apart.
   `STRICT_POLICY` is `threshold: 0, includeAA: true`. Report both and "zero
   pixels changed" can be told apart from "zero pixels changed *after
   forgiveness*". `RasterComparison` and `CompareOptions` are the shapes a
@@ -412,14 +414,14 @@ packages named in the table above.
   returned for region isolation.
 - **`settle(...)`** — the question asked before any pixel is paid for: given the
   baseline alone, does this subject need an image? Returns either
-  `{ kind: 'settled', verdict: 'unchanged' | 'incomparable', because }` or
+  `{ kind: 'settled', verdict: 'unchanged', because }` or
   `{ kind: 'render', because }`.
 - **`defaultPlan(options)`, `DEFAULT_PLAN`, `defaultPlanIdentity(options)`** — a
   plan is the ordered list of tool declarations a pipeline runs, and its combined
   digest is the key everything the pipeline produces is stored under. Swap a
   tool and that digest changes, so a baseline made by the old arrangement is
-  reported `incomparable` rather than compared and the difference blamed on a
-  component. `defaultPlan` takes `policy` (which `DiffPolicy` the comparison
+  compared with the arrangement named as the cause, rather than the difference
+  blamed on a component. `defaultPlan` takes `policy` (which `DiffPolicy` the comparison
   step declares), `cell` (the grid size in pixels at which neighbouring changed
   pixels are counted as one place, default `8`, exported as `DEFAULT_CELL`), and
   `stabilization` (see below). `defaultPlanIdentity()` returns the digest
@@ -447,4 +449,4 @@ need — `/difference` alone pulls in none of the store, renderer or plan code.
 
 ---
 
-**[@variance-authority/raster](https://variance-authority.dev/reference/packages/raster)** is part of [Variance Authority](https://variance-authority.dev) — [documentation](https://variance-authority.dev/docs) · MIT
+**[@variance-authority/raster](https://variance-authority.dev/reference/packages/raster)** is part of [Variance Authority](https://variance-authority.dev) — [documentation](https://variance-authority.dev/docs) · [GitHub](https://github.com/Variance-Authority/variance-authority/tree/main/packages/raster) · MIT

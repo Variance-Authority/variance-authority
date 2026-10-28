@@ -1,6 +1,10 @@
 import type { SourceIndex } from '@variance-authority/core/attribute';
 import type { Observation } from '@variance-authority/observe';
+import type { SnapshotCase } from './arranged.js';
 import { describeObservation } from './docket.js';
+
+/** An observation, with the case it was taken in where it was taken in one. */
+type Taken = Observation & { readonly case?: SnapshotCase };
 
 /**
  * The matcher takes an {@link Observation}, not a `Locator`.
@@ -19,7 +23,7 @@ export interface UnchangedOptions {
 }
 
 /** A matcher function suites may compose into an expect they already own. */
-export function toBeUnchanged(observation: Observation, options: UnchangedOptions = {}) {
+export function toBeUnchanged(observation: Taken, options: UnchangedOptions = {}) {
   return {
     pass: observation.verdict === 'unchanged',
     message: () =>
@@ -41,7 +45,7 @@ export const varianceMatchers = { toBeUnchanged };
 
 /** Assert without replacing the suite's existing `expect`. */
 export function assertUnchanged(
-  observation: Observation,
+  observation: Taken,
   options: UnchangedOptions = {},
 ): void {
   if (observation.verdict !== 'unchanged') {

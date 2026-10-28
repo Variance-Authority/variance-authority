@@ -12,11 +12,11 @@ This page runs them in order against a project that already collects subjects, e
 nothing moved.
 
 This page assumes you already have a **collector** — the module that mounts each
-UI state and says when it is ready to be captured. The CLI never navigates, logs
-in, or starts your application; that boundary is the collector's. If you do not
-have one, pick the shipped adapter for the harness you already run — Storybook,
-Playwright, served routes, Jest or Vitest — from
-[the first-observation guide](start.md), and come back here for the review loop.
+UI state and signals when it is ready to be captured. The CLI never navigates,
+logs in, or starts your application; that boundary is the collector's. If you do
+not have one, pick the shipped adapter for the harness you already run —
+Storybook, Playwright, served routes, Jest or Vitest — from [the
+first-observation guide](start.md), and come back here for the review loop.
 
 ## Confirm the collector's shape
 
@@ -68,7 +68,7 @@ run re-read a changed subject in a world nothing else has touched, and
 
 ## Start the application the collector talks to
 
-The CLI knows no URL. Nothing in `variance.config.json` names an origin, a port,
+The CLI reads no URL. Nothing in `variance.config.json` names an origin, a port,
 or a server, so start whatever your collector talks to before you run anything,
 and let the collector own the address:
 
@@ -119,7 +119,8 @@ collector, the baselines and the report. Unknown keys are refused by name.
 | --- | --- |
 | `project` | the name rows are filed under in a shared history service. Required even with no `history` configured, because rows written under a name nobody chose cannot be re-attributed later. |
 | `profile` | how much of the page is observed: `chromium` for a full render, or `jsdom` for structure only, with no layout engine and no animation clock. Not the same choice as `browser`, which names the engine that paints — `chromium` (the default), `firefox` or `webkit`. |
-| `viewport` | `width` and `height`, plus optional `deviceScaleFactor` (default `1`) and `colorScheme` (default `light`). The scale factor is part of the identity a baseline is stored under, so a run at another scale reports `incomparable`. Size and colour scheme are not: changing either compares against the same baseline and reports `changed`. |
+| `viewport` | `width` and `height`, plus optional `deviceScaleFactor` (default `1`) and `colorScheme` (default `light`). The scale factor is part of the identity a baseline is stored under, so a run at another scale names the scale as the cause of what it reports. Size and colour scheme are not: changing either compares against the same baseline and reports `changed` with no identity moved. |
+| `timezoneId`, `locale` | The timezone the page's clock reads in and the language it formats dates and numbers for, as an IANA timezone and a BCP 47 tag. They default to `UTC` and `en-US`, never the machine's, so one build formats one date the same way on your laptop and in CI. Change either and every subject names the moved recipe as the cause of what it reports; review the changes and adopt them with `accept --all` ([run, review, accept, rerun](#run-review-accept-rerun)). |
 | `retention` | `durable` compares against a baseline image saved by an earlier run, and requires `baselines`. `ephemeral` compares two images produced inside the same run and keeps neither, and refuses `baselines`. |
 | `subjects` | where subjects come from. See the three kinds below. |
 | `baselines` | where approved images are kept: `directory`, `lfs` or `remote`. |
@@ -146,12 +147,14 @@ in different directions:
 
 | `baselines.kind` | where images live | keys |
 | --- | --- | --- |
-| `directory` | a path in the repository, committed like any other file. | `root`, `layout`, `records` |
-| `lfs` | the same, tracked through Git LFS. | `root`, `pattern`, `layout`, `records` |
+| `directory` | a path in the repository, committed like any other file. | `root`, `path`, `records` |
+| `lfs` | the same, tracked through Git LFS. | `root`, `pattern`, `path`, `records` |
 | `remote` | a service, not committed; a run that cannot connect to it stops. | `endpoint`, `token` |
 
 `directory` and `lfs` are committed, so a repository that gitignores `root`
-reports every subject `new` forever without ever erroring. `records` moves the
+reports every subject `new` forever without ever erroring. `path` names each
+image under `root`, `{title}/{name}-{engine}` unless you set it, so a reviewer
+reads the story or test from the file name. `records` moves the
 `.json` records away from the images, which is what keeps a class name or a build
 id from producing a diff on every edit that moved no pixel.
 [Baseline placement](placement.md) covers the trade in full.
@@ -186,21 +189,25 @@ on what your config selected, before the first expensive run:
   is indistinguishable from the real file from inside a page, so doctor prints a
   known limit instead of a verdict;
 - **baselines** — the kind, the identities already in the store, and
-  `NOT COMPARABLE HERE` when nothing in it was painted by a machine like this one;
+  `PAINTED ELSEWHERE` when nothing in it was painted by a machine like this one;
 - **renders** — the size of the render cache and where it is;
 - **cache** — the size of the rest of [the cache](cache.md), which entries the
   next prune removes and under which rule, and which it keeps because git or
-  the process table could not answer. `variance doctor --prune` runs that
-  prune now;
+  the process table could not answer. `variance prune` runs that prune now;
 - **history** — configured or none.
 
-Doctor exits `2` for exactly two findings: no renderer could be opened here, and
-no baseline in the store is comparable here. Both are yours to fix before
-running. For a missing renderer, read the launch error it prints — usually an
-uninstalled browser binary or a missing system library. For an incomparable
-store, either point `renderer` at a machine running the identity the baselines
-were written under, or switch to `retention: "ephemeral"`, where both images are
-painted in the same run. Everything else, missing fonts included, exits `0`.
+Doctor exits `2` for one finding: no renderer could be opened here. Read the
+launch error it prints — usually an uninstalled browser binary or a missing
+system library. A store painted elsewhere is a warning, not a refusal: a run
+compares every subject against another machine's image and names the machine as
+the cause of whatever moved. To keep the machine out of the diff, point
+`renderer` at a machine running the identity the baselines were written under,
+or switch to `retention: "ephemeral"`, where both images are painted in the same
+run. Doctor compares identity digests, and the digest covers the recipe as well
+as the machine: the stabilization and rasterization digests, which an upgrade of
+variance-authority or a changed renderer option moves. A run's reason names the
+fields that moved. When only the recipe moved, review the changes and adopt them
+with `accept --all` below. Everything else, missing fonts included, exits `0`.
 
 ## Run, review, accept, rerun
 
@@ -253,9 +260,10 @@ cannot be read is refused by name rather than replaced.
 The rerun exits `0` once the subject is `unchanged` and nothing else is open.
 
 `accept --all` promotes every candidate in the report with one command —
-subjects that are `new` and subjects that are `changed`, identically, whether or
-not anyone opened the page. Name ids explicitly in anything unattended, and keep
-`--all` for the moment you have just reviewed the whole report yourself.
+subjects that are `new` and subjects that are `changed`, whatever moved them,
+identically, whether or not anyone opened the page. Name ids explicitly in
+anything unattended, and keep `--all` for the moment you have just reviewed the
+whole report yourself.
 `accept --message-file` writes a commit message describing the promotion, which
 `variance changelog` reads back later.
 
@@ -265,11 +273,10 @@ A run gives every subject one verdict:
 
 | verdict | what it means |
 | --- | --- |
-| `unchanged` | the stored baseline and the new capture were comparable, and nothing differs. |
+| `unchanged` | the stored baseline and the new capture were compared, and nothing differs beyond the default policy's tolerance: antialiasing, and a colour change of up to 1%. |
 | `changed` | pixels moved. The report names the region, the component and the `file:line`. |
 | `new` | the subject was captured and no approved baseline exists. |
 | `ignored` | pixels moved, and every one of them fell inside a subtree your `ignore` rules excluded. |
-| `incomparable` | the comparison was refused because the two images were not made under the same renderer identity — engine, platform, scale factor, fonts or stabilization. The report names which. Never read it as zero difference. |
 
 A subject the run could not observe at all gets no verdict. It is listed
 separately as excluded, failed or unreached, with a sentence saying why.
@@ -282,11 +289,10 @@ Three exit codes, and a verdict never shares one with a crash:
 | `1` | the run completed and found something a person must decide about. |
 | `2` | the run did not happen as configured — bad config, missing browser, a store the run could not connect to. Never a statement about your UI. |
 
-Six things take a completed run to `1`:
+Five things take a completed run to `1`:
 
-- a `changed` verdict;
+- a `changed` verdict, whatever its cause;
 - a `new` verdict;
-- an `incomparable` verdict;
 - a subject the run meant to observe and could not;
 - a subject that was read twice with nothing changed in between and disagreed
   with itself, outside what it declared it asserts on;

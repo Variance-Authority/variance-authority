@@ -1,6 +1,5 @@
 import {
-  createHarness,
-  observeNetwork,
+  createObservedHarness,
   type Harness,
   type HarnessOptions,
   type NetworkObservation,
@@ -28,10 +27,10 @@ import { AGENT_GLOBAL } from '@variance-authority/playwright/agent';
 
 export interface RouteWorldRecipe {
   /**
-   * Everything `createHarness` needs, except the hook this module owns.
+   * Everything `createHarness` needs, except the hook `createObservedHarness` owns.
    *
    * `prepare` is excluded because the network observation has to be installed
-   * before the first navigation and this is the file that knows it — a caller
+   * before the first navigation and `createObservedHarness` installs it — a caller
    * free to supply its own hook could open the two worlds with two different
    * observers, which is the one difference that would look exactly like
    * pollution.
@@ -43,8 +42,8 @@ export interface RouteWorldRecipe {
    *
    * Absent is `network: false`, and it belongs to the recipe rather than being
    * defaulted here: a world that watched the wire compared against one that did
-   * not would produce two different environment keys and report `incomparable`
-   * where the run asked about order.
+   * not would produce two different environment keys and blame the wire for
+   * every change where the run asked about order.
    */
   readonly network?: NetworkOptions;
 }
@@ -54,6 +53,9 @@ export interface RouteWorld {
 
   /** The engine string that goes into every subject's key, from the browser itself. */
   readonly engine: string;
+
+  /** The timezone and locale the page was opened in, as they go into every subject's key. */
+  readonly region: Harness['region'];
 
   /** Absent exactly when {@link RouteWorldRecipe.network} was. */
   readonly network?: NetworkObservation;
@@ -70,31 +72,33 @@ export interface RouteWorld {
    */
   ensureAgent(): Promise<void>;
 
+  /**
+   * The driver tricks applied before the first navigation, which hold for
+   * every reading after it: nothing but this world moves the pointer.
+   *
+   * The ids go to the page agent, which keeps the driver tricks it was told
+   * about and drops the rest, so a reading's recipe is the one that held.
+   */
+  readonly driven: readonly string[];
+
   close(): Promise<void>;
 }
 
 /**
- * Launch a browser, open a page, and watch what it is served.
+ * Open a page, and watch what it is served.
  *
- * The whole world: a fresh browser process, a fresh context and a fresh page.
- * Not a fresh *context* on the running browser, which would be cheaper and would
+ * A run's worlds are pages in one leased browser, each in a context of its own:
+ * a route reading resets its observation per navigation, which only the
+ * uncached wire keeps complete (see `NetworkOptions.cache`). A recipe whose
+ * harness asks for `isolated` gets the whole world — a fresh browser process, a
+ * fresh context and a fresh page. Not a fresh *context* on the running browser,
+ * which would be cheaper and would
  * be answering a smaller question — a leak through a shared browser process is
  * rarer than a leak through a shared origin and it is the harder one to find by
  * hand, so the reading that costs a launch is the one worth having.
  */
 export async function openWorld(recipe: RouteWorldRecipe): Promise<RouteWorld> {
-  let network: NetworkObservation | undefined;
-
-  const harness = await createHarness({
-    ...recipe.harness,
-    ...(recipe.network === undefined
-      ? {}
-      : {
-          prepare: async (page): Promise<void> => {
-            network = await observeNetwork(page, recipe.network as NetworkOptions);
-          },
-        }),
-  });
+  const { harness, network } = await createObservedHarness(recipe.harness, recipe.network);
 
   const page = harness.page;
   let agentInstalled = false;
@@ -105,6 +109,7 @@ export async function openWorld(recipe: RouteWorldRecipe): Promise<RouteWorld> {
   return {
     page,
     engine: harness.engine,
+    region: harness.region,
     ...(network !== undefined ? { network } : {}),
 
     async ensureAgent(): Promise<void> {
@@ -123,9 +128,14 @@ export async function openWorld(recipe: RouteWorldRecipe): Promise<RouteWorld> {
       agentInstalled = true;
     },
 
+    driven: harness.driven,
+
     async close(): Promise<void> {
-      await network?.close();
-      await harness.close();
+      try {
+        await network?.close();
+      } finally {
+        await harness.close();
+      }
     },
   };
 }

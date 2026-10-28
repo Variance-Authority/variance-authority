@@ -15,11 +15,19 @@ enough to fit under it. Nothing records what a given run's tolerance absorbs.
 
 There *is* a per-pixel colour threshold — `DiffPolicy.threshold`, `pixelmatch`'s
 YIQ distance — and it is the one number that decides whether two pixel values
-count as different at all. It is not anonymous: every comparison is reported
-under both `default` and `strict`, so "zero pixels changed" can be told apart
-from "zero pixels changed *after forgiveness*", and the policy id is folded into
-the plan's digest. Quoting only the forgiving policy is the single most common
-way to lie with a pixel measurement, which is why neither is quoted alone.
+count as different at all. The default policy counts a pixel whose colour changed
+by more than 1% of the largest difference that metric measures (black to white
+is 97% of it), and forgives antialiasing.
+`pixelmatch`'s own default is 10%, and at 10% a border colour changed from
+`#2f3437` to `#3a4043` counts as no change.
+
+The threshold is not anonymous. Every comparison is reported under both `default`
+and `strict`, and the policy id is folded into the plan's digest. When `strict`
+counts pixels that `default` forgave, the reason for a green verdict gives the
+number: *no pixels differ beyond the tolerance of the default policy, which
+forgave 37 pixels as antialiasing or as a colour change of at most 1%*. Quoting
+only the forgiving policy is the single most common way to lie with a pixel
+measurement, which is why neither is quoted alone.
 
 An ignore is the opposite in every respect that matters.
 
@@ -28,7 +36,7 @@ An ignore is the opposite in every respect that matters.
 | Scope | the whole image | one named place, or one difference shape |
 | Author | whoever chose the default | you, in your config, by name |
 | Reason | none is recorded | required — a rule without one is refused |
-| What it hides | anything that fits under the number | exactly what it says, counted every run |
+| What it hides | anything that fits under the number | exactly what it names, counted every run |
 | When it stops | never | the first run it absorbs nothing, it is reported |
 | Verdict it produces | `unchanged` | `ignored`, which is a different word |
 
@@ -88,8 +96,8 @@ same artifact anywhere in a subject digests the same.
 
 There are two, and `variance run` publishes and matches the *pixel* one — the
 change mask cropped to its own bounding box, resampled onto a fixed grid, with
-its aspect and its magnitude bucketed alongside. It knows shape and size and
-knows nothing about which component produced it, so two unrelated components
+its aspect and its magnitude bucketed alongside. It records shape and size and
+nothing about which component produced it, so two unrelated components
 whose residue looks alike collide. The *semantic* fingerprint, which does include
 the component, is `fingerprintOfRoot` and applies where two documents are
 compared — the library path, not the binary's.
@@ -282,7 +290,7 @@ that renders it. What it does not get is a `reason`, an expiry, or a line in the
 per-rule ledger, because none of those live in markup. Prefer the config for
 anything you intend to keep.
 
-## What the run tells you back
+## What the run prints
 
 Every run prints an ignore ledger, including when everything is green.
 
@@ -294,7 +302,7 @@ IGNORED — 1284 pixel(s) absorbed by 3 rule(s); 12 subject(s) differed only the
   [dead] support-widget — matched nothing in any subject (vendor iframe)
 ```
 
-Each line asks for a different action:
+Each line needs a different action:
 
 | Line | What happened | What to do |
 |---|---|---|
@@ -303,7 +311,7 @@ Each line asks for a different action:
 | `[dead]` … `matched nothing in any subject` | the selector resolved nowhere | fix or delete it — you believe something is silenced and it is not |
 | `[expired]` | past its `until` | the differences are being reported again; decide again |
 | `[unworn]` | the rule is scoped to tags no subject in this run has | check the spelling against the run's vocabulary, which the line offers |
-| … `none of which was compared this run` | it found its element, and no subject with that tag was compared | nothing yet — this run says nothing either way |
+| … `none of which was compared this run` | it found its element, and no subject with that tag was compared | nothing yet — this run gives no evidence either way |
 
 Coordinate masks cannot distinguish a rule whose target did not change from one
 whose target disappeared, which is why a masked suite rots silently.
@@ -375,7 +383,7 @@ Matching a fingerprint alone does not authorize promotion.
 | A selected subject is already `unchanged`, with no unabsorbed instability | Report that it is already the baseline; promote nothing |
 | A selected, changed subject does not reproduce in a clean world | Refuse: the candidate depends on shared state |
 | A selected subject has no candidate image, or its image or sidecar cannot be read | Refuse: approval never renders a replacement |
-| Captures are incomparable | No comparison image is produced, so there is no candidate to promote |
+| The candidate was painted under another identity than the baseline | Apply the same checks; the moved identity is the change's cause, not a reason to refuse |
 
 The command reports refusals by subject and promotes eligible subjects. Review
 additional changes before accepting a refused subject by name. A fingerprint
@@ -396,8 +404,12 @@ absent from the run may have been copied from another report.
   counted in a register of its own.
 - **It cannot change what is rendered.** Ignores sit outside the environment key,
   so editing one never invalidates a baseline — and never changes an image.
-- **It cannot silence a size change.** A subject that resized is reported whatever
-  its exclusions cover, because the canvas itself changed.
+- **It cannot silence a size change or content that moved.** An ignore hides
+  the pixels inside its region, not the layout around it. When the region grows
+  taller, everything under it moves down the page, and the subject is reported
+  `changed` whatever its exclusions cover, as it is when the subject resizes.
+  The reason names the rows inserted or removed and how far the rest moved. Give
+  the region a fixed height if its size is noise, or accept the new layout.
 - **It cannot hide from the ledger.** There is no quiet ignore.
 
 ## Coming from somewhere else

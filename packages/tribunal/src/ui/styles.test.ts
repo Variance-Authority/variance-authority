@@ -46,6 +46,27 @@ describe('REVIEW_STYLES', () => {
     expect([...counted].filter(([, times]) => times > 1).map(([selector]) => selector)).toEqual([]);
   });
 
+  it('draws a link that is a control in the page’s ink, not the browser’s link blue', () => {
+    // The pills and the build heading are links wherever they go somewhere and
+    // buttons wherever they switch something, and only the button half had a
+    // colour. *The run* on the docket, every build heading, the rail's rows and
+    // the change page's list of renders came out in the browser's blue or its
+    // visited purple — the one colour on the page the stylesheet did not choose.
+    expect(RULES.find((rule) => rule.selector === ':where(.va-app a)')?.body).toContain('color: var(--va-accent)');
+    for (const selector of ['.va-mode', '.va-build-open', '.va-row-link', '.va-where-subject']) {
+      const body = RULES.find((rule) => rule.selector === selector)?.body ?? '';
+      expect({ selector, body }).toEqual({ selector, body: expect.stringContaining('color: var(--va-ink)') });
+      expect({ selector, body }).toEqual({ selector, body: expect.stringContaining('text-decoration: none') });
+    }
+  });
+
+  it('parts the unattributed approvals from the changes only where both are drawn', () => {
+    // The rule is a divider. On the section itself it divided the page's heading
+    // from nothing whenever no shape grouped an approval.
+    expect(RULES.find((rule) => rule.selector === '.va-ungrouped')?.body ?? '').not.toContain('border-top');
+    expect(RULES.find((rule) => rule.selector === '.va-changes + .va-ungrouped')?.body).toContain('border-top');
+  });
+
   it('keeps the name of a comparison mode on one line, whatever it is called', () => {
     // The labels are set in small uppercase mono with letter spacing, so `side by
     // side` is three words the pill will break across three lines the moment the
@@ -129,7 +150,7 @@ describe('REVIEW_STYLES', () => {
     // back into smoothing.
     expect(renderings.length).toBeGreaterThan(1);
     for (const rule of renderings) expect(rule.body).toContain('image-rendering: pixelated');
-    for (const selector of ['.va-plate img', '.va-side-by-side img']) {
+    for (const selector of ['.va-plate img', '.va-side-by-side img', '.va-variation-side img']) {
       expect(RULES.find((rule) => rule.selector === selector)?.body).toContain('pixelated');
     }
   });

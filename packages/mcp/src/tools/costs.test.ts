@@ -37,12 +37,23 @@ describe('variance_costs', () => {
   it('stops at the limit and says how many it left', () => {
     const answer = costs.run(SUBJECT, { limit: 1 });
     expect(answer).toContain('  and 1 more file');
-    expect(answer).toContain('  and 3 more subjects; `--limit` lists more');
+    expect(answer).toContain('  and 3 more subjects; a higher `limit` lists them');
+  });
+
+  it('names `limit` as a shell takes it when a shell asked', () => {
+    const answer = costs.run(SUBJECT, { limit: '1' }, { shell: 'variance ask' });
+    expect(answer).toContain('  and 3 more subjects; a higher `--limit` lists them');
+    expect(() => costs.run(SUBJECT, { limit: 'many' }, { shell: 'variance ask' })).toThrow(/^`--limit` takes a whole number of rows/);
   });
 
   it('says a run timed nothing rather than printing empty tables, and refuses a limit below one', () => {
     expect(costs.run({ from: 'The report run.json', subjects: [] }, {})).toBe('The report run.json timed no subject.');
     expect(() => costs.run(SUBJECT, { limit: 0 })).toThrow(/at least 1/);
+  });
+
+  it('reads `limit` as every listing does: digits from the shell, and the same refusal', () => {
+    expect(costs.run(SUBJECT, { limit: '1' })).toContain('  and 3 more subjects; a higher `limit` lists them');
+    expect(() => costs.run(SUBJECT, { limit: 'many' })).toThrow(/^`limit` takes a whole number of rows/);
   });
 
   it('leaves the file table out when no subject names a file', () => {

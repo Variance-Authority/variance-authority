@@ -2,6 +2,7 @@
 
 **Status:** accepted
 **Date:** 2026-08-06
+**Amended by:** [ADR-0088](0088-a-page-is-read-as-nobody-is-using-it.md) — four driver tricks join the collection recipe; reduced motion reaches a page that honours it
 **Extends:** ADR-0001 (core holds no DOM), ADR-0003 (normalization and the allowlist), ADR-0011 (environment keys partition baselines)
 
 ## Context

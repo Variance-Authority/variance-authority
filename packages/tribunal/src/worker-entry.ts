@@ -47,7 +47,7 @@ export interface TribunalEnv {
    * Scopes every row and object.
    *
    * A deployment setting today, which is exactly what
-   * [spec 0014](../../../docs/specs/0014-hosted-who-the-caller-is-and-what-the-bill-counts.md)
+   * [spec 0014](https://github.com/Variance-Authority/variance-authority/blob/main/docs/specs/0014-hosted-who-the-caller-is-and-what-the-bill-counts.md)
    * says has to change before a second tenant exists: the credential should
    * establish the project, and no route should accept one. Harmless while a
    * deployment serves one project, and the whole of the problem at two.
@@ -80,6 +80,11 @@ function tribunalFor(env: TribunalEnv): Tribunal {
   return made;
 }
 
+/**
+ * The module a Worker deployment names as its `main`, or re-exports from its
+ * own: `export { default } from '@variance-authority/tribunal/worker-entry'`.
+ * One `fetch`, over the tribunal built from that request's environment.
+ */
 export default {
   async fetch(request: Request, env: TribunalEnv): Promise<Response> {
     try {

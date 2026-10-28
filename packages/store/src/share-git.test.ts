@@ -1,10 +1,11 @@
 import { execFileSync } from 'node:child_process';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { variancePrecondition } from '@variance-authority/sense/precondition';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { findEntry, publishLine, readLine, type ShareEntry } from '@variance-authority/core/share';
-import { createGitLineCell, gitDescends } from './share-git.js';
+import { createGitLineCell, gitDescends, headerEnv } from './share-git.js';
 
 const MAIN = { kind: 'mainline', name: 'release/2.0' } as const;
 const REF = 'refs/variance/mainline/release/2.0';
@@ -23,6 +24,7 @@ const descends = async (): Promise<boolean> => false;
  * protocol a hosted remote does, filters and leases included.
  */
 describe('createGitLineCell', () => {
+  beforeEach(() => variancePrecondition('fixture', { remote: 'accepts' }));
   let home = '';
   let url = '';
   let remote = '';
@@ -89,7 +91,65 @@ describe('createGitLineCell', () => {
     expect(read.manifest.entries.map((held) => held.name)).toEqual(['report-v1', 'suite-v1/app', 'suite-v1/web']);
   });
 
+  // The lease above is checked against what the remote advertised. A remote
+  // that moves while the pack uploads — a hosted remote, while another run's
+  // publish lands — refuses at its own ref update instead, `[remote rejected]`.
+  it('re-reads and keeps both entries when another cache wrote while the push was in flight', async () => {
+    const image = async (): Promise<Uint8Array> => ascii('png');
+    await publishLine(cellAt('slow'), MAIN, [entry('suite-v1/web', 'aaaa', 'web')], { descends, image });
+    const before = git(remote, 'rev-parse', REF).trim();
+    await publishLine(cellAt('fast'), MAIN, [entry('suite-v1/app', 'aaaa', 'app')], { descends, image });
+    const landed = git(remote, 'rev-parse', REF).trim();
+    git(remote, 'update-ref', REF, before);
+    const hook = join(remote, 'hooks', 'pre-receive');
+    await writeFile(
+      hook,
+      [
+        '#!/bin/sh',
+        'unset GIT_QUARANTINE_PATH GIT_OBJECT_DIRECTORY GIT_ALTERNATE_OBJECT_DIRECTORIES',
+        `git update-ref ${REF} ${landed}`,
+        'rm -f "$0"',
+        '',
+      ].join('\n'),
+      { mode: 0o755 },
+    );
+
+    const result = await publishLine(cellAt('slow'), MAIN, [entry('report-v1', 'aaaa', 'r')], { descends, image });
+    expect(result).toMatchObject({ written: ['report-v1'], attempts: 2 });
+    const read = await readLine(cellAt('reader'), MAIN);
+    if ('kind' in read) throw new Error(read.kind);
+    expect(read.manifest.entries.map((held) => held.name)).toEqual(['report-v1', 'suite-v1/app', 'suite-v1/web']);
+  });
+
+  it('reports a push the remote refuses while the line stands where it was read', async () => {
+    variancePrecondition('fixture', { remote: 'refuses' });
+    const image = async (): Promise<Uint8Array> => ascii('png');
+    await publishLine(cellAt('a'), MAIN, [entry('suite-v1/web', 'aaaa', 'web')], { descends, image });
+    const before = git(remote, 'rev-parse', REF).trim();
+    await writeFile(join(remote, 'hooks', 'pre-receive'), '#!/bin/sh\necho "declined by policy" >&2\nexit 1\n', { mode: 0o755 });
+
+    const result = await publishLine(cellAt('a'), MAIN, [entry('report-v1', 'aaaa', 'r')], { descends, image });
+    expect(result).toMatchObject({ kind: 'unreachable', detail: expect.stringMatching(/pre-receive hook declined.*declined by policy/) });
+    expect(git(remote, 'rev-parse', REF).trim()).toBe(before);
+  });
+
+  it('reports the refused push when the remote cannot say where the line is after it', async () => {
+    variancePrecondition('fixture', { remote: 'refuses' });
+    const image = async (): Promise<Uint8Array> => ascii('png');
+    await publishLine(cellAt('a'), MAIN, [entry('suite-v1/web', 'aaaa', 'web')], { descends, image });
+    const gone = join(home, 'gone.git');
+    await writeFile(
+      join(remote, 'hooks', 'pre-receive'),
+      `#!/bin/sh\necho "declined by policy" >&2\nmv "${remote}" "${gone}"\nexit 1\n`,
+      { mode: 0o755 },
+    );
+
+    const result = await publishLine(cellAt('a'), MAIN, [entry('report-v1', 'aaaa', 'r')], { descends, image });
+    expect(result).toMatchObject({ kind: 'unreachable', detail: expect.stringMatching(/pre-receive hook declined.*declined by policy/) });
+  });
+
   it('tells nothing published from a remote that cannot be reached', async () => {
+    variancePrecondition('fixture', { remote: 'unreachable' });
     expect(await readLine(cellAt('a'), MAIN)).toEqual({ kind: 'absent' });
     const gone = createGitLineCell({ url: `file://${join(home, 'nowhere.git')}`, gitDir: join(home, 'c') });
     expect(await readLine(gone, MAIN)).toMatchObject({ kind: 'unreachable' });
@@ -112,5 +172,33 @@ describe('createGitLineCell', () => {
     expect(await descent(first, first)).toBe(false);
     expect(await descent('f'.repeat(40), first)).toBeUndefined();
     expect(await gitDescends({ url, gitDir: join(home, 'b') }, 'gone')(second, first)).toBeUndefined();
+  });
+});
+
+describe('headerEnv', () => {
+  const URL = 'https://github.com/Variance-Authority/variance-authority';
+  const HEADER = 'AUTHORIZATION: basic dG9rZW4=';
+  const given = (key: string, value = HEADER): NodeJS.ProcessEnv => ({
+    GIT_CONFIG_COUNT: '1',
+    GIT_CONFIG_KEY_0: key,
+    GIT_CONFIG_VALUE_0: value,
+  });
+  const added = { GIT_CONFIG_COUNT: '2', GIT_CONFIG_KEY_1: 'http.extraheader', GIT_CONFIG_VALUE_1: HEADER };
+
+  it('does not give git a header the environment already gives it for the share URL', () => {
+    expect(headerEnv(HEADER, URL, given('http.https://github.com/.extraheader'))).toEqual({});
+    expect(headerEnv(HEADER, URL, given('http.extraHeader'))).toEqual({});
+    expect(headerEnv(HEADER, URL, {})).toEqual({
+      GIT_CONFIG_COUNT: '1',
+      GIT_CONFIG_KEY_0: 'http.extraheader',
+      GIT_CONFIG_VALUE_0: HEADER,
+    });
+  });
+
+  it('gives it when the same value sits under another URL or another key', () => {
+    expect(headerEnv(HEADER, URL, given('http.https://other.example/.extraheader'))).toEqual(added);
+    expect(headerEnv(HEADER, URL, given('http.https://github.com/Variance.extraheader'))).toEqual(added);
+    expect(headerEnv(HEADER, URL, given('core.sshCommand'))).toEqual(added);
+    expect(headerEnv(HEADER, URL, given('http.https://github.com/.extraheader', 'AUTHORIZATION: basic b3RoZXI='))).toEqual(added);
   });
 });

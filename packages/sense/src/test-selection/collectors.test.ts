@@ -1,6 +1,8 @@
 import { createRequire } from 'node:module';
 import { describe, expect, it } from 'vitest';
-import { EVALUATING, PROBE_RUNTIME } from '../instrument/index.js';
+import { EVALUATING, probeRuntime } from '../instrument/index.js';
+import preconditions from './case-preconditions.cjs';
+import caseOwner from './case-owner.cjs';
 import journals from './journal-format.cjs';
 
 /**
@@ -23,8 +25,8 @@ const FILE = 'file.test.js';
 
 /**
  * What a region's journal entry means, kept the plain way: one number per
- * region, nonzero once entered, carrying {@link EVALUATING} once entered while
- * any module was evaluating, and a module's own block marked in every bucket
+ * region, 1 once entered while no module was evaluating and 2 once entered
+ * while one was, and a module's own block marked the same way in every bucket
  * that touched it. The engine keeps none of this; the journal it writes has to
  * be the one this writes.
  */
@@ -40,9 +42,33 @@ class Model {
       row = new Uint32Array(count);
       this.current.set(id, row);
     }
-    row[0]! |= 1;
-    row[ordinal]! |= this.depth > 0 ? EVALUATING | 1 : 1;
+    const way = this.depth > 0 ? 2 : 1;
+    row[0]! |= way;
+    row[ordinal]! |= way;
   }
+}
+
+/** The ways a region was entered as the file's journal reads them: entered, and whether ever while evaluating. */
+function counters(presence: Presence): Presence {
+  return new Map([...presence].map(([id, row]) => [id, row.map((ways) => (ways === 0 ? 0 : ways & 2 ? EVALUATING | 1 : 1))]));
+}
+
+/** A case's frame from the ways each region was entered, as the probe log reads out. */
+function frame(name: string, presence: Presence): Buffer {
+  const ids = [...presence.keys()];
+  const sorted: number[] = [];
+  const start: number[] = [];
+  const end: number[] = [];
+  for (const row of presence.values()) {
+    start.push(sorted.length);
+    row.forEach((ways, ordinal) => {
+      if (ways & 1) sorted.push(ordinal << 1);
+      if (ways & 2) sorted.push((ordinal << 1) | 1);
+    });
+    end.push(sorted.length);
+  }
+  const rows = ids.map((_, row) => row);
+  return journals.encodeLog(name, { rows, start: Int32Array.from(start), end: Int32Array.from(end), sorted: Int32Array.from(sorted), ids });
 }
 
 /** A small deterministic generator, so a failure names its seed. */
@@ -97,7 +123,7 @@ function drive(mode: 'flat' | 'sequential' | 'continuations', seed: number, stor
     const again = loaded.length > 0 && next(6) === 0 ? loaded[next(loaded.length)]! : undefined;
     const id = again?.id ?? `m${loaded.length}`;
     const count = again?.count ?? 2 + next(60);
-    const runtime = PROBE_RUNTIME.replace('.r("",0)', `.r(${JSON.stringify(id)},${count})`);
+    const runtime = probeRuntime(id, count);
     model.depth += 1;
     model.touch(id, count, 0);
     const text = `${runtime}__run(__va);__vaE();return __va;`;
@@ -118,16 +144,18 @@ function drive(mode: 'flat' | 'sequential' | 'continuations', seed: number, stor
     const { modules } = collector.finish(FILE);
     return {
       engine: journals.encodeJournal(FILE, modules, sealed),
-      model: journals.encodeJournal(FILE, model.current, sealedModel),
+      model: journals.encodeJournal(FILE, counters(model.current), counters(sealedModel)),
       frames: [undefined, undefined],
       stories: undefined,
+      registered: [collector.registered(), loaded.map((module) => module.id)] as const,
     };
   }
 
   const union: Presence = new Map();
-  const fold = (name: string, presence: Presence): void => {
-    if (presence.size === 0) return;
-    frames.push(journals.encodeJournal(name, presence));
+  // Every case writes a frame; the file's own bucket only when it entered something.
+  const fold = (name: string, presence: Presence, always = false): void => {
+    if (presence.size === 0 && !always) return;
+    frames.push(frame(name, presence));
     for (const [id, row] of presence) {
       let into = union.get(id);
       if (into === undefined || into.length !== row.length) {
@@ -135,12 +163,11 @@ function drive(mode: 'flat' | 'sequential' | 'continuations', seed: number, stor
         union.set(id, into);
       }
       for (let at = 0; at < row.length; at += 1) {
-        const value = row[at]!;
-        if (value !== 0) into[at]! |= value & EVALUATING ? EVALUATING | 1 : 1;
+        into[at]! |= row[at]!;
       }
     }
   };
-  fold(journals.packCase(FILE, '', ''), sealedModel);
+  fold(caseOwner.packCase(FILE, '', ''), sealedModel);
   const ambient: Presence = new Map();
   model.current = ambient;
   const scope = holder[CASE_SCOPE] as Scope;
@@ -150,7 +177,7 @@ function drive(mode: 'flat' | 'sequential' | 'continuations', seed: number, stor
   model.told = [];
   for (let index = 0; index < 60; index += 1) {
     work(next(20), 0);
-    const key = journals.packCase(FILE, `case ${index % 45}`, String(index % 45));
+    const key = caseOwner.packCase(FILE, `case ${index % 45}`, String(index % 45));
     const presence: Presence = new Map();
     const before = model.told;
     model.told = [];
@@ -162,17 +189,19 @@ function drive(mode: 'flat' | 'sequential' | 'continuations', seed: number, stor
     told.set(key, model.told.length > 0 ? [before, model.told] : [[], []]);
     model.told = [];
     model.current = ambient;
-    // The case returned, so its frame is named as one that finished.
-    fold(journals.settledCase(key, false), presence);
+    // The case returned, so its frame is named as one that finished, and as
+    // one a recorder listened to that said nothing.
+    fold(preconditions.packHeard(caseOwner.settledCase(key, false), { said: [], read: [], misused: [] }), presence, true);
   }
   work(next(20), 0);
-  fold(journals.packCase(FILE, '', ''), ambient);
+  fold(caseOwner.packCase(FILE, '', ''), ambient);
   const done = collector.finish(FILE);
   return {
     engine: journals.encodeJournal(FILE, done.modules, sealed),
-    model: journals.encodeJournal(FILE, union, sealedModel),
+    model: journals.encodeJournal(FILE, counters(union), counters(sealedModel)),
     frames: [journals.packFrames(done.frames ?? []), journals.packFrames(frames)],
     stories: [new Map([...written].map(([key, bytes]) => [key, spoken(bytes)])), told] as const,
+    registered: [collector.registered(), loaded.map((module) => module.id)] as const,
   };
 }
 
@@ -199,12 +228,31 @@ describe('the recording a file writes', () => {
   it.each(['flat', 'sequential', 'continuations'] as const)(
     'is byte for byte the journal of every region entered, and which were entered while evaluating: %s',
     (mode) => {
+      let twice = 0;
       for (const seed of [1, 7, 42, 1009, 65_537]) {
         const { engine, model, frames } = drive(mode, seed);
         expect(Buffer.from(engine).equals(Buffer.from(model)), `.va, seed ${seed}`).toBe(true);
         if (frames[0] !== undefined) {
           expect(Buffer.from(frames[0]).equals(Buffer.from(frames[1]!)), `.vac, seed ${seed}`).toBe(true);
+          for (const written of journals.unpackFrames(frames[0])) {
+            const ids = journals.decodeJournal(written).modules.map((module) => module.id);
+            if (new Set(ids).size < ids.length) twice += 1;
+          }
         }
+      }
+      // A case entered some module both while one evaluated and after, so the
+      // frames carry the second row that says so.
+      if (mode !== 'flat') expect(twice).toBeGreaterThan(0);
+    },
+  );
+
+  it.each(['flat', 'sequential', 'continuations'] as const)(
+    'registers every module whose probes ran, once, whichever bucket it wrote into: %s',
+    (mode) => {
+      for (const seed of [1, 7, 42]) {
+        const [registered, loaded] = drive(mode, seed).registered;
+        expect(new Set(registered), `seed ${seed}`).toEqual(new Set(loaded));
+        expect(registered.length, `seed ${seed}`).toBe(new Set(registered).size);
       }
     },
   );
@@ -223,11 +271,32 @@ describe('the recording a file writes', () => {
     },
   );
 
+  it.each([
+    ['flat', false], ['sequential', false], ['continuations', false], ['sequential', true], ['continuations', true],
+  ] as const)(
+    'logs a module marked loaded by its one line as the header logs a module that ran none of its regions: %s, story %s',
+    (mode, story) => {
+      const holder: Record<PropertyKey, unknown> = {};
+      const collector = mode === 'flat'
+        ? collectors.flat(holder)
+        : collectors.scoped(holder, mode === 'continuations', story ? () => {} : undefined);
+      // The header's mark, and the one line `loads` writes in its place.
+      new Function('globalThis', `${probeRuntime('header', 1)}__vaE();`)(holder);
+      new Function('globalThis', 'globalThis.__VA__.m("line");')(holder);
+
+      const sealed = collector.seal(FILE);
+
+      expect(sealed.get('line')).toEqual(sealed.get('header'));
+      expect(sealed.get('line')).toEqual(new Uint32Array([EVALUATING | 1]));
+      expect(collector.registered()).toEqual(['header', 'line']);
+    },
+  );
+
   it('marks a region entered outside an evaluation again when a later evaluation enters it', () => {
     const holder: Record<PropertyKey, unknown> = {};
     const collector = collectors.flat(holder);
     const load = (id: string, run: (own: Probe) => void): Probe => {
-      const runtime = PROBE_RUNTIME.replace('.r("",0)', `.r("${id}",5)`);
+      const runtime = probeRuntime(id, 5);
       const text = `${runtime}__run(__va);__vaE();return __va;`;
       return new Function('globalThis', '__run', text)(holder, run) as Probe;
     };
@@ -254,7 +323,7 @@ describe('how a case settles', () => {
     const holder: Record<PropertyKey, unknown> = {};
     const collector = collectors.scoped(holder, true);
     const scope = holder[CASE_SCOPE] as Scope;
-    const key = (name: string) => journals.packCase(FILE, name, name);
+    const key = (name: string) => caseOwner.packCase(FILE, name, name);
     scope.enter(key('returned'), () => {});
     expect(() => scope.enter(key('threw'), () => { throw new Error('no'); })).toThrow('no');
     await expect(scope.enter(key('rejected'), () => Promise.reject(new Error('no')))).rejects.toThrow('no');
@@ -262,16 +331,15 @@ describe('how a case settles', () => {
     void scope.enter(key('abandoned'), () => new Promise(() => {}));
 
     const frames = journals.unpackFrames(journals.packFrames(collector.finish(FILE).frames ?? []));
-    const settled = frames.map((frame) => journals.unpackCase(journals.decodeJournal(frame).testFile))
+    const settled = frames.map((frame) => caseOwner.unpackCase(journals.decodeJournal(frame).testFile))
       .filter((unpacked) => unpacked.name !== '')
       .map((unpacked) => [unpacked.name, unpacked.stopped]);
 
-    // No case crossed anything, so only the ones that stopped wrote a frame:
-    // a frame is how a reader learns the journey was cut short.
-    expect(settled).toEqual([['threw', true], ['rejected', true], ['abandoned', true]]);
+    // No case crossed anything, and each still wrote a frame: the case index
+    // names every case that ran, and a frame is how a reader learns the
+    // journey was cut short.
+    expect(settled).toEqual([['returned', false], ['threw', true], ['rejected', true], ['abandoned', true]]);
   });
-
-  it.todo('writes a frame for a case that returned without crossing anything, so the case index names every case that ran and `variance covering --cases` reads a test file whose cases entered nothing instead of refusing it — needs `close` in `collectors.cts` to keep the frame of every settled case');
 
   it('names a case that handed out a journey by both its settling and its journey', () => {
     const holder: Record<PropertyKey, unknown> = {};
@@ -279,16 +347,16 @@ describe('how a case settles', () => {
     const scope = holder[CASE_SCOPE] as Scope & { journey(): string | undefined };
     let journey: string | undefined;
     // Nothing crossed in-process: the journey alone is what makes the frame.
-    scope.enter(journals.packCase(FILE, 'called', 'called'), () => {
+    scope.enter(caseOwner.packCase(FILE, 'called', 'called'), () => {
       journey = scope.journey();
     });
 
     const [frame] = journals.unpackFrames(journals.packFrames(collector.finish(FILE).frames ?? []));
     const owner = journals.decodeJournal(frame!).testFile;
-    expect(journals.unpackCase(owner)).toMatchObject({ name: 'called', stopped: false });
-    expect(journals.journeyOf(owner)).toBe(journey);
+    expect(caseOwner.unpackCase(owner)).toMatchObject({ name: 'called', stopped: false });
+    expect(caseOwner.journeyOf(owner)).toBe(journey);
     // A part frame has no case and no settling, and names the journey in the same field.
-    expect(journals.journeyOf(journals.packJourney(journals.packCase('', '', ''), journey!))).toBe(journey);
+    expect(caseOwner.journeyOf(caseOwner.packJourney(caseOwner.packCase('', '', ''), journey!))).toBe(journey);
   });
 
   it('runs every case inside the trace its realm was handed, whose id is the journey its frame names', () => {
@@ -313,7 +381,7 @@ describe('how a case settles', () => {
     const scope = holder[CASE_SCOPE] as Scope & { journey(): string | undefined };
     let inside: string | undefined;
     // The case never asks for its journey: the trace is what carries it.
-    expect(scope.enter(journals.packCase(FILE, 'quotes', 'quotes'), () => {
+    expect(scope.enter(caseOwner.packCase(FILE, 'quotes', 'quotes'), () => {
       inside = running;
       return 'answered';
     })).toBe('answered');
@@ -323,7 +391,51 @@ describe('how a case settles', () => {
     expect(carried[0]!.journey).toMatch(/^[0-9a-f]{32}$/);
     expect(inside).toBe(carried[0]!.journey);
     const [frame] = journals.unpackFrames(journals.packFrames(collector.finish(FILE).frames ?? []));
-    expect(journals.journeyOf(journals.decodeJournal(frame!).testFile)).toBe(carried[0]!.journey);
+    expect(caseOwner.journeyOf(journals.decodeJournal(frame!).testFile)).toBe(carried[0]!.journey);
   });
 });
 
+describe('what a case said it arranged', () => {
+  const PRECONDITION = Symbol.for('variance-authority.test-selection.precondition');
+  const said = (frame: Uint8Array) => {
+    const owner = journals.decodeJournal(frame).testFile;
+    const field = preconditions.heardField(owner);
+    const items = field === undefined ? undefined : (JSON.parse(field) as { said: [string, unknown, string, number][] }).said;
+    return [caseOwner.unpackCase(owner).name, items?.map(([name, value, , level]) => [name, value, level])];
+  };
+
+  it('travels in the frame of the case that said it, and a case that only said something still writes one', () => {
+    const holder: Record<PropertyKey, unknown> = {};
+    const collector = collectors.scoped(holder, false);
+    const scope = holder[CASE_SCOPE] as Scope & {
+      phase(where: { kind: 'each'; depth: number } | undefined): void;
+    };
+    const say = holder[PRECONDITION] as (dimension: unknown, record: unknown, called: Error) => void;
+    scope.phase({ kind: 'each', depth: 1 });
+    say('fixture', { network: 'mocked' }, new Error());
+    scope.phase(undefined);
+    scope.enter(caseOwner.packCase(FILE, 'checkout > pays', '0'), () => say('fixture', { flag: 'ff-on' }, new Error()));
+    expect(() => scope.enter(caseOwner.packCase(FILE, 'refunds > pays', '1'), () => {
+      throw new Error('stopped, so it writes a frame, and said nothing');
+    })).toThrow('stopped');
+
+    const frames = journals.unpackFrames(journals.packFrames(collector.finish(FILE).frames ?? []));
+    expect(frames.map(said).filter(([name]) => name !== '')).toEqual([
+      ['checkout > pays', [['fixture:network', '"mocked"', 1], ['fixture:flag', '"ff-on"', preconditions.CASE_LEVEL]]],
+      // Listened to and silent: an empty list, not an unmeasured case.
+      ['refunds > pays', []],
+    ]);
+  });
+
+  it('throws for a call its case makes after it settled, from work it left behind', async () => {
+    const holder: Record<PropertyKey, unknown> = {};
+    collectors.scoped(holder, true);
+    const scope = holder[CASE_SCOPE] as Scope;
+    const say = holder[PRECONDITION] as (dimension: unknown, record: unknown, called: Error) => void;
+    let late: Promise<void> | undefined;
+    await scope.enter(caseOwner.packCase(FILE, 'pays', '0'), async () => {
+      late = new Promise((settle) => setTimeout(settle, 5)).then(() => say('fixture', { network: 'mocked' }, new Error()));
+    });
+    await expect(late).rejects.toThrow(/ran outside a running case/);
+  });
+});

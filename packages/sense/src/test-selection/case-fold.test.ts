@@ -1,4 +1,3 @@
-import { existsSync } from 'node:fs';
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
@@ -6,18 +5,20 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { digestString } from '../digest.js';
 import { EVALUATING, type ModuleId } from '../instrument/index.js';
 import { native, nativeAvailable } from '../native.js';
-import { caseLayerFiles, foldCaseRun, inspectCaseRun, writeCaseIndex } from './case-fold.js';
-import {
-  AMBIENT,
-  executionIndexFrom,
-  packCase,
-  packFrames,
-  readCaseJournals,
-} from './cases.js';
+import { foldCaseRun, freshCases, inspectCaseRun } from './case-fold.js';
+import { layCases, lastCaseRunOf } from './case-landing.js';
+import type { CaseSections } from './case-record.js';
+import { AMBIENT, packCase, packFrames } from './cases.js';
+import { rowOf } from './case-said.js';
 import { decodeExecutionIndex } from './execution-format.js';
+import { NO_OWNER } from './format-layout.js';
+import { openSetExecutionIndex } from './execution-set-format.js';
+import eyesFrames from './eyes-frame.cjs';
 import type { CapturedModule } from './instrumented-modules.js';
+import type { ExecutionIndex } from './reverse.js';
+import preconditions from './case-preconditions.cjs';
 import journalFormat from './journal-format.cjs';
-import { frameRecord, segmentHeader } from './record-format.js';
+import { nativeModule } from './jest-journey-artifact.js';
 
 const temporary: string[] = [];
 
@@ -52,12 +53,36 @@ function counters(length: number, called: readonly number[], loaded: readonly nu
   return values;
 }
 
+/** What a reader asks an index for: who entered each region anything reached, and whether a load reached it. */
+function reach(index: ExecutionIndex): Record<string, { readonly entered: readonly string[]; readonly loaded?: true }> {
+  const held: Record<string, { entered: string[]; loaded?: true }> = {};
+  for (const module of index.modules) {
+    for (const [ordinal, block] of module.blocks.entries()) {
+      if (block.crossings.length === 0 && block.loaded !== true) continue;
+      const entered = block.crossings.map((crossing) => index.tests[crossing.test]!.id);
+      held[`${module.file}#${ordinal}`] = block.loaded === true ? { entered, loaded: true } : { entered };
+    }
+  }
+  return held;
+}
+
 async function directory(): Promise<string> {
   const root = await mkdtemp(resolve(tmpdir(), 'variance-authority-case-fold-'));
   temporary.push(root);
   const cases = resolve(root, 'cases');
   await mkdir(cases);
   return cases;
+}
+
+/** `src/branch.ts`, three regions. */
+function branchModule(): CapturedModule {
+  const blocks = captured('src/branch.ts', 'src/branch.ts', 3).blocks;
+  const module: CapturedModule = {
+    ...captured('src/branch.ts', 'src/branch.ts', 3),
+    sourceDigest: digestString('source'),
+    blocks: blocks.map((block) => ({ ...block, digest: digestString(`block-${block.ordinal}`) })),
+  };
+  return module;
 }
 
 describe('the bounded case fold', () => {
@@ -83,15 +108,42 @@ describe('the bounded case fold', () => {
     const run = await inspectCaseRun(cases, '/repo');
     const folded = await foldCaseRun(run, modules, 64);
     const decoded = decodeExecutionIndex(folded.bytes);
-    const previous = executionIndexFrom(await readCaseJournals(cases, '/repo'), modules);
 
-    expect(decoded).toEqual(previous);
+    expect(decoded.tests.map((test) => test.id)).toEqual([
+      'test/branch.test.ts > calls alpha', 'test/branch.test.ts > loads beta',
+    ]);
+    // The file's ambient call is every case's; the load is no case's.
+    expect(reach(decoded)).toEqual({
+      'src/branch.ts#0': { entered: ['test/branch.test.ts > calls alpha', 'test/branch.test.ts > loads beta'] },
+      'src/branch.ts#1': { entered: ['test/branch.test.ts > calls alpha'] },
+      'src/branch.ts#2': { entered: [], loaded: true },
+    });
     expect(folded.passes).toBe(1);
     expect(folded.crossings).toBe(3);
-    expect(decoded.modules[0]?.blocks[2]).toMatchObject({ loaded: true, crossings: [] });
   });
 
-  it('joins a case written twice, across workers and passes, as the object fold does', async () => {
+  it('names each region\'s owner among the regions it keeps, past one the transform wrote', async () => {
+    const cases = await directory();
+    await writeFile(resolve(cases, 'worker.vac'), packFrames([
+      journalFormat.encodeJournal(
+        packCase('/repo/test/branch.test.ts', 'calls deep', '1'),
+        new Map([['src/branch.ts', counters(4, [0, 1, 2, 3])]]),
+      ),
+    ]));
+    const [root, , below, deepest] = captured('src/branch.ts', 'src/branch.ts', 4).blocks;
+    // A helper the transform prepended has no lines, and owns the region below it.
+    const helper = { ordinal: 1, kind: 'function', digest: 'helper', name: 'helper', path: 'helper', source: false, testFiles: [], owner: 0 };
+    const module: CapturedModule = {
+      ...captured('src/branch.ts', 'src/branch.ts', 4),
+      blocks: [root!, helper, { ...below!, owner: 1 }, { ...deepest!, owner: 2 }],
+    };
+
+    const folded = await foldCaseRun(await inspectCaseRun(cases, '/repo'), new Map([['src/branch.ts', module]]), 64);
+
+    expect(openSetExecutionIndex(folded.bytes)!.modules[0]!.owner).toEqual(Uint32Array.from([NO_OWNER, 0, 1]));
+  });
+
+  it('joins a case written twice, across workers and passes', async () => {
     // `settles` wrote its frame, then work that outlived it wrote a second one
     // under the same coordinate, which calls what the first only loaded.
     const cases = await directory();
@@ -110,37 +162,116 @@ describe('the bounded case fold', () => {
 
     const run = await inspectCaseRun(cases, '/repo');
     const folded = await foldCaseRun(run, modules, 8);
-    const previous = executionIndexFrom(await readCaseJournals(cases, '/repo'), modules);
+    const decoded = decodeExecutionIndex(folded.bytes);
 
-    expect(previous.tests.map((test) => test.id)).toEqual([
+    expect(decoded.tests.map((test) => test.id)).toEqual([
       'test/early.test.ts > first', 'test/late.test.ts > other', 'test/late.test.ts > settles',
     ]);
-    expect(decodeExecutionIndex(folded.bytes)).toEqual(previous);
+    // `settles` is one case: its second frame calls what its first only loaded.
+    expect(reach(decoded)).toEqual({
+      'src/early.ts#0': { entered: ['test/late.test.ts > settles'], loaded: true },
+      'src/early.ts#1': { entered: ['test/late.test.ts > other'], loaded: true },
+      'src/late.ts#0': { entered: ['test/late.test.ts > settles'] },
+      'src/late.ts#2': { entered: ['test/late.test.ts > settles'], loaded: true },
+    });
     expect(folded.passes).toBeGreaterThan(1);
 
-    const written = resolve(cases, '..', 'cases.bin');
-    const spelled = resolve(cases, '..', 'cases.json');
-    await writeCaseIndex(written, cases, '/repo', modules, { tests: [] });
-    await writeCaseIndex(spelled, cases, '/repo', modules, { tests: [] });
-    expect(decodeExecutionIndex(await readFile(written))).toEqual(previous);
-    expect(JSON.parse(await readFile(spelled, 'utf8'))).toEqual(previous);
-    // The first write has nothing to lay over: the run is the index and the last
+    const first = layCases({}, (await freshCases(cases, '/repo', modules, { tests: [] }))!.fresh, '/repo', { tests: [] });
+    expect(decodeExecutionIndex(first.index!)).toEqual(decoded);
+    // The first lay has nothing to lay over: the run is the index and the last
     // run both, and there is no before.
-    expect(JSON.parse(await readFile(caseLayerFiles(written).last, 'utf8')))
-      .toMatchObject({ files: [], cases: previous.tests.map((test) => test.id) });
-    expect(existsSync(caseLayerFiles(written).before)).toBe(false);
+    expect(lastCaseRunOf(first)).toMatchObject({ files: [], cases: decoded.tests.map((test) => test.id) });
+    expect(first.before).toBeUndefined();
 
     // The same run again lands over the first, and keeps what it replaced: every
     // case of a file whose cases the journals carry, announced or not.
-    await writeCaseIndex(written, cases, '/repo', modules, {
+    const again = (await freshCases(cases, '/repo', modules, {
       tests: [{ file: 'test/early.test.ts', complete: true }],
       commit: 'abc',
+    }))!;
+    const second = layCases(first, again.fresh, '/repo', again.run);
+    expect(decodeExecutionIndex(second.index!)).toEqual(decoded);
+    expect(decodeExecutionIndex(second.before!).tests.map((test) => test.id))
+      .toEqual(decoded.tests.map((test) => test.id));
+    expect(lastCaseRunOf(second)).toMatchObject({ commit: 'abc', files: ['test/early.test.ts'] });
+  });
+
+  it('names what Eyes handed each case beside its crossings, and a case that watched and crossed nothing', async () => {
+    const cases = await directory();
+    const crossed = packCase('/repo/test/eyes.test.ts', 'crosses', '1');
+    const watched = packCase('/repo/test/eyes.test.ts', 'watches', '2');
+    await writeFile(resolve(cases, 'worker.vac'), packFrames([
+      journalFormat.encodeJournal(crossed, new Map([['src/branch.ts', counters(3, [0, 1])]])),
+      eyesFrames.encodeEyesFrame({ case: crossed, attempt: 1, journal: { steps: ['arrange'] } }),
+      eyesFrames.encodeEyesFrame({ case: crossed, attempt: 2, journal: { steps: ['act'] } }),
+      // Opened and never handed over: watched, with no journal.
+      eyesFrames.encodeEyesFrame({ case: watched, attempt: 1 }),
+    ]));
+    const modules = new Map<ModuleId, CapturedModule>([['src/branch.ts', captured('src/branch.ts', 'src/branch.ts', 3)]]);
+
+    const run = await inspectCaseRun(cases, '/repo');
+
+    expect(run.tests.map((test) => test.id)).toEqual(['test/eyes.test.ts > crosses', 'test/eyes.test.ts > watches']);
+    expect(run.eyes).toEqual({
+      watched: ['test/eyes.test.ts > crosses', 'test/eyes.test.ts > watches'],
+      journals: [
+        { case: 'test/eyes.test.ts > crosses', attempt: 1, journal: { steps: ['arrange'] } },
+        { case: 'test/eyes.test.ts > crosses', attempt: 2, journal: { steps: ['act'] } },
+      ],
     });
-    expect(decodeExecutionIndex(await readFile(written))).toEqual(previous);
-    expect(decodeExecutionIndex(await readFile(caseLayerFiles(written).before)).tests.map((test) => test.id))
-      .toEqual(previous.tests.map((test) => test.id));
-    expect(JSON.parse(await readFile(caseLayerFiles(written).last, 'utf8')))
-      .toMatchObject({ commit: 'abc', files: ['test/early.test.ts'] });
+    // A journal is no case frame: the fold credits only what the case frame crossed.
+    const folded = await foldCaseRun(run, modules, 64);
+    expect(reach(decodeExecutionIndex(folded.bytes))).toEqual({
+      'src/branch.ts#0': { entered: ['test/eyes.test.ts > crosses'] },
+      'src/branch.ts#1': { entered: ['test/eyes.test.ts > crosses'] },
+    });
+  });
+
+  it('lays what each case said on its row, joined across its frames and named from the checkout', async () => {
+    const cases = await directory();
+    const file = '/repo/test/pay.test.ts';
+    const level = preconditions.CASE_LEVEL;
+    const owner = (name: string, said?: Parameters<typeof preconditions.packHeard>[1]['said']) =>
+      said === undefined ? packCase(file, name, name) : preconditions.packHeard(packCase(file, name, name), { said: said });
+    const entered = new Map([['src/pay.ts', counters(2, [1])]]);
+    await writeFile(resolve(cases, 'a.vac'), packFrames([
+      journalFormat.encodeJournal(owner('mocked', [
+        ['fixture:network', '"live"', `${file}:3`, 0],
+        ['fixture:network', '"mocked"', 'file:///repo/test/pay.test.ts:9', level],
+      ]), entered),
+      // A retry of the same case that said something else: the same contradiction.
+      journalFormat.encodeJournal(owner('flips', [['fixture:flag', '"ff-on"', `${file}:12`, level]]), entered),
+      journalFormat.encodeJournal(owner('flips', [['fixture:flag', '"ff-off"', `${file}:12`, level]]), new Map()),
+      journalFormat.encodeJournal(owner('silent', []), entered),
+      // Written by a recording that never listened.
+      journalFormat.encodeJournal(owner('unheard'), entered),
+    ]));
+    const modules = new Map<ModuleId, CapturedModule>([['src/pay.ts', captured('src/pay.ts', 'src/pay.ts', 2)]]);
+
+    const folded = decodeExecutionIndex((await foldCaseRun(await inspectCaseRun(cases, '/repo'), modules, 64)).bytes);
+
+    // A retry's second frame reached nothing, and the case is still one row.
+    expect(reach(folded)).toEqual({
+      'src/pay.ts#1': {
+        entered: ['test/pay.test.ts > flips', 'test/pay.test.ts > mocked', 'test/pay.test.ts > silent', 'test/pay.test.ts > unheard'],
+      },
+    });
+    // Every item is kept, the overridden one too, each site named from the checkout.
+    expect(folded.tests.find((test) => test.name === 'mocked')?.said).toBe(JSON.stringify({
+      said: [
+        ['fixture:network', '"live"', 'test/pay.test.ts:3', 0],
+        ['fixture:network', '"mocked"', 'test/pay.test.ts:9', level],
+      ],
+    }));
+    expect(Object.fromEntries(folded.tests.map((test) => [test.name, rowOf(test)]))).toEqual({
+      flips: [
+        { name: 'fixture:flag', value: 'ff-off', site: 'test/pay.test.ts:12', level },
+        { name: 'fixture:flag', value: 'ff-on', site: 'test/pay.test.ts:12', level },
+      ],
+      mocked: [{ name: 'fixture:network', value: 'mocked', site: 'test/pay.test.ts:9', level }],
+      silent: [],
+      unheard: undefined,
+    });
   });
 
   it('represents a four-million-crossing run without allocating one entry per crossing', async () => {
@@ -179,69 +310,43 @@ describe('the bounded case fold', () => {
     expect((await readFile(resolve(cases, 'journeys.bin'))).byteLength).toBe(folded.bytes.byteLength);
   }, 30_000);
 
-  it.runIf(nativeAvailable())('agrees with the native compressed fold', async () => {
+  it.runIf(nativeAvailable())('refuses a repeated name numbered onto a case literally named so, as the native fold does', async () => {
     const cases = await directory();
-    const store = resolve(cases, '..', 'store');
-    await mkdir(store);
-    const module: CapturedModule = {
-      ...captured('src/branch.ts', 'src/branch.ts', 3),
-      sourceDigest: digestString('source'),
-      blocks: captured('src/branch.ts', 'src/branch.ts', 3).blocks.map((block) => ({
-        ...block,
-        digest: digestString(`block-${block.ordinal}`),
-      })),
-    };
-    await writeFile(
-      resolve(store, 'one.rec'),
-      Buffer.concat([segmentHeader('sense:instrument/presence-v5'), frameRecord(module)]),
-    );
-    await writeFile(resolve(cases, 'worker.vac'), packFrames([
-      journalFormat.encodeJournal(
-        packCase('/repo/test/branch.test.ts', 'alpha', '1'),
-        new Map([['src/branch.ts', counters(3, [0, 1])]]),
-      ),
-      journalFormat.encodeJournal(
-        packCase('/repo/test/branch.test.ts', 'beta', '2'),
-        new Map([['src/branch.ts', counters(3, [0, 2])]]),
-      ),
-    ]));
+    const module = branchModule();
+    const branch = (name: string, id: string) =>
+      journalFormat.encodeJournal(packCase('/repo/test/branch.test.ts', name, id), new Map([['src/branch.ts', counters(3, [0])]]));
+    await writeFile(resolve(cases, 'worker.vac'), packFrames([branch('pays', '0'), branch('pays', '1'), branch('pays#1', '2')]));
+    const refusal = 'cannot number the cases of test/branch.test.ts: "pays#1" is the name of one case and the number of a repeated "pays". Rename one of them.';
 
-    const run = await inspectCaseRun(cases, '/repo');
-    const oracle = await foldCaseRun(run, new Map([['src/branch.ts', module]]), 64);
-    const answered = native()!.foldJourney!(
-      cases,
-      '/repo',
-      [store],
-      'sense:instrument/presence-v5',
-      1,
-    );
-
-    expect(decodeExecutionIndex(answered.bytes)).toEqual(decodeExecutionIndex(oracle.bytes));
-    expect(answered).toMatchObject({ tests: 2, modules: 1, crossings: 4 });
+    await expect(inspectCaseRun(cases, '/repo')).rejects.toThrow(refusal);
+    expect(() => native()!.foldJourney!(cases, '/repo', [nativeModule(module)], 1)).toThrow(refusal);
   });
 
   it('keeps the base under every invocation at one commit, and names it until a file runs again', async () => {
     const cases = await directory();
     const root = resolve(cases, '..');
-    const index = resolve(root, 'cases.bin');
     // The fold retires a test file the checkout no longer holds, so each one is there.
     await mkdir(resolve(root, 'test'));
     for (const file of ['a', 'b', 'c']) await writeFile(resolve(root, 'test', `${file}.test.ts`), '');
     const modules = new Map<ModuleId, CapturedModule>([['src/x.ts', captured('src/x.ts', 'src/x.ts', 3)]]);
     let journals = 0;
+    let sections: CaseSections = {};
     // One run: each test file's one case calls one branch of `src/x.ts`.
     const run = async (commit: string, calls: Readonly<Record<string, number>>): Promise<void> => {
       const from = resolve(root, `run-${journals++}`);
       await mkdir(from);
       await writeFile(resolve(from, 'w.vac'), packFrames(Object.entries(calls).map(([file, branch]) =>
         journalFormat.encodeJournal(packCase(resolve(root, 'test', file), 'case', '1'), new Map([['src/x.ts', counters(3, [branch])]])))));
-      await writeCaseIndex(index, from, root, modules, {
+      const fresh = (await freshCases(from, root, modules, {
         tests: Object.keys(calls).map((file) => ({ file: `test/${file}`, complete: true })),
         commit,
-      });
+      }))!;
+      // Every invocation records `src/x.ts` from one text, so no edit moves a region between them.
+      sections = layCases(sections, fresh.fresh, root, { ...fresh.run, modules: [{ file: 'src/x.ts', sourceDigest: 'v1:x' }] },
+        undefined, new Map([['src/x.ts', 'v1:x']]));
     };
     const before = async (): Promise<Record<string, number[]>> => {
-      const held = decodeExecutionIndex(await readFile(caseLayerFiles(index).before));
+      const held = decodeExecutionIndex(sections.before!);
       const entered: Record<string, number[]> = {};
       for (const [at, test] of held.tests.entries()) {
         entered[test.file] = held.modules.flatMap((module) =>
@@ -249,7 +354,7 @@ describe('the bounded case fold', () => {
       }
       return entered;
     };
-    const last = async () => JSON.parse(await readFile(caseLayerFiles(index).last, 'utf8'));
+    const last = async () => lastCaseRunOf(sections)!;
 
     await run('base', { 'a.test.ts': 1, 'b.test.ts': 2 });
     await run('head', { 'a.test.ts': 2 });
@@ -273,5 +378,60 @@ describe('the bounded case fold', () => {
     await run('next', { 'b.test.ts': 0 });
     expect(await before()).toEqual({ 'test/b.test.ts': [1] });
     expect(await last()).toMatchObject({ commit: 'next', before: 'head', files: ['test/b.test.ts'] });
+  });
+
+  it('names the files no index held a base for, until a run at the commit runs them again', async () => {
+    // TanStack Query's first cycle: a whole run into an empty cache, then the
+    // selected files again at the same commit. Only the files run again have a
+    // run before them; the rest were never laid over anything.
+    const cases = await directory();
+    const root = resolve(cases, '..');
+    await mkdir(resolve(root, 'test'));
+    for (const file of ['a', 'b']) await writeFile(resolve(root, 'test', `${file}.test.ts`), '');
+    const modules = new Map<ModuleId, CapturedModule>([['src/x.ts', captured('src/x.ts', 'src/x.ts', 3)]]);
+    let journals = 0;
+    let sections: CaseSections = {};
+    const run = async (commit: string, calls: Readonly<Record<string, number>>): Promise<void> => {
+      const from = resolve(root, `run-${journals++}`);
+      await mkdir(from);
+      await writeFile(resolve(from, 'w.vac'), packFrames(Object.entries(calls).map(([file, branch]) =>
+        journalFormat.encodeJournal(packCase(resolve(root, 'test', file), 'case', '1'), new Map([['src/x.ts', counters(3, [branch])]])))));
+      const fresh = (await freshCases(from, root, modules, {
+        tests: Object.keys(calls).map((file) => ({ file: `test/${file}`, complete: true })),
+        commit,
+      }))!;
+      sections = layCases(sections, fresh.fresh, root, fresh.run);
+    };
+    const last = async () => lastCaseRunOf(sections)!;
+
+    await run('head', { 'a.test.ts': 1, 'b.test.ts': 1 });
+    expect(sections.before).toBeUndefined();
+    expect(await last()).toMatchObject({ files: ['test/a.test.ts', 'test/b.test.ts'], unbased: ['test/a.test.ts', 'test/b.test.ts'] });
+
+    await run('head', { 'a.test.ts': 2 });
+    expect(await last()).toMatchObject({ files: ['test/a.test.ts', 'test/b.test.ts'], unbased: ['test/b.test.ts'] });
+
+    await run('head', { 'b.test.ts': 2 });
+    expect((await last()).unbased).toBeUndefined();
+
+    // A new commit lays over the index, so every file it runs has a base.
+    await run('next', { 'a.test.ts': 1 });
+    expect((await last()).unbased).toBeUndefined();
+
+    // Shards landed into a fresh cache: the second brings files the first
+    // never ran, and nothing before this commit recorded them either.
+    sections = {};
+    await run('shards', { 'a.test.ts': 1 });
+    await run('shards', { 'b.test.ts': 1 });
+    expect(await last()).toMatchObject({ files: ['test/a.test.ts', 'test/b.test.ts'], unbased: ['test/a.test.ts', 'test/b.test.ts'] });
+
+    // The index still began at this commit after every unbased file has run
+    // again, so a file a later run brings for the first time has no base.
+    sections = {};
+    await run('rerun', { 'a.test.ts': 1 });
+    await run('rerun', { 'a.test.ts': 2 });
+    expect((await last()).unbased).toBeUndefined();
+    await run('rerun', { 'b.test.ts': 1 });
+    expect(await last()).toMatchObject({ unbased: ['test/b.test.ts'] });
   });
 });

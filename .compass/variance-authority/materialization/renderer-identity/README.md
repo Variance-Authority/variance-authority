@@ -5,7 +5,7 @@
 ## Responsibility
 
 Names every input that can reach a pixel, as one value, so that a comparison
-across two of them is refused instead of taken.
+across two of them names what moved as the cause of what it finds.
 
 ## Bounded context
 
@@ -17,7 +17,7 @@ In: the engine and its build, the platform, the declared fonts, the digest of th
 **stabilization recipe** the page is held still with, and the digest of the
 ordered rasterization arguments — the launch flags and the screenshot options, in
 the order they were given. Out: a **renderer identity**, the sentence that
-describes one for a reader of a refusal, and the same identity rebuilt field by
+describes one for a reader of a comparison, and the same identity rebuilt field by
 field off a wire or a disk.
 
 ## Depends on
@@ -34,22 +34,24 @@ Nothing in this block. Its inputs are facts about a machine and a document.
   being told it, and checks every raster against the identity it predicted
 - [`in-place-raster`](../in-place-raster/README.md) — states an identity for
   pixels this block did not paint
-- [`retention`](../../retention/README.md) — partitions the store by it, so the
-  wrong prior image is not where the lookup looks
+- [`retention`](../../retention/README.md) — partitions the store by it, so a
+  lookup reads its own identity's baseline first and names what moved when it
+  reads another's
 
 ## Boundary
 
-It is not a check somebody calls. A mismatch partitions storage structurally, so
-the wrong image is not found rather than found and rejected. Changing the ordered
-launch recipe changes the identity: text rasterization is pinned by flags that
-are part of what painted the image, and a run that swapped them and compared
-anyway would present font rasterization as a component regression, with a
-component and a file attached.
+It is not a check somebody calls, and it never refuses a comparison. Two images
+painted under different identities are compared, and the fields that moved are
+named as the cause, so a moved identity is never mistaken for a component
+regression. Changing the ordered launch recipe changes the identity: text
+rasterization is pinned by flags that are part of what painted the image, and a
+run that swapped them without saying so would present font rasterization as a
+component regression, with a component and a file attached.
 
 Every field belongs, including the optional ones, and every reconstruction off a
 wire must rebuild all of them — a field that is written and silently dropped on
 the way back produces a write key and a lookup key that differ, and the run then
-reports **incomparable** in a sentence naming the same machine on both sides.
+names a moved identity whose two sides are the same machine.
 For the same reason a present field of the wrong type is refused rather than
 dropped.
 
@@ -57,7 +59,7 @@ The scale is the field that is not a fact about the machine. It belongs to the
 document — one renderer serves several viewports in one run — so the machine
 identity carries a placeholder and `identityFor(document)` folds in the
 document's own. Confusing the two makes a lookup keyed on the machine's
-value find a sibling identity above 1x and call every subject incomparable, and
+value find a sibling identity above 1x and blame every subject on the scale, and
 in the other direction compares a 1x image against a 2x one. Scale therefore has
 no default anywhere it is consumed — a caller converting device pixels back to
 CSS pixels states it, and what a silent 1x does to a report belongs to

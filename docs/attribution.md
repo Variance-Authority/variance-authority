@@ -26,7 +26,7 @@ still answer. A run with no layout engine reports every region `unattributed`,
 and a build that emits no call site still names the component.
 
 Causality runs one way through all of it — code to semantic to raster — and the
-system never infers cause from pixels. Every serialized node already remembers
+system never infers cause from pixels. Every serialized node already records
 which components produced it, so by the time a change is observed its author is
 *known* rather than reconstructed.
 
@@ -48,7 +48,7 @@ what tells a scattered text change from a solid block of repaint.
 
 Regions come back largest first, capped at 32, and the cap is *reported*:
 `truncated` counts the regions dropped and `truncatedPixels` the change in them.
-A capped list that does not say it was capped reads as complete coverage, and the
+A capped list that does not report its cap reads as complete coverage, and the
 reader has no way to know the difference.
 
 ## What is there
@@ -89,6 +89,39 @@ innermost box — the one the browser painted on top, and the one somebody edite
 — so a report over a design system names the component and not the wrapper
 around it.
 
+### What left, and what arrived
+
+A pixel comparison has two sides, and a change that replaces an element paints
+over both: the old element's place and the new one's. Replacing todomvc's
+checkbox with a styled div changes a 20×18 region. 71% of it lies inside the old
+input's box and 88.75% inside the new div's, so neither box contains it and the
+region falls to the row around both.
+
+So `before`, which the caller must state, is the snapshot of the revision the
+pixels are compared against. Each node in this snapshot is joined against the
+union of its own box and the box its counterpart had there. Which node is its
+counterpart is the differ's answer, not a second one: the matcher that pairs
+nodes for `diffSnapshots` pairs them here. It pairs by content and identity first, so a
+path that a sibling inserted ahead renumbered still pairs. An element whose
+author rendered a different one in its place pairs too, when it is the only one
+that author replaced under that parent. Two replaced together stay unpaired,
+because either could be either, and a box another component left at the same
+place is never joined.
+
+A stored baseline keeps that snapshot as `snapshot`, gzipped and in base64. On
+todomvc's populated list the tree is 163,032 bytes of JSON and 8,211 packed.
+
+`undefined` is an answer, and the observation says what it cost. A baseline
+accepted before it kept a snapshot is joined against this render's boxes alone,
+and a changed verdict adds that the baseline records no snapshot of its nodes,
+and that an accepting run records one on a revision where the subject is
+unchanged. An accepting run re-stamps every unchanged baseline that kept none,
+so one accepting run on a clean revision records them all. Until it does, a
+run renders each such subject even when its document has not moved, rather
+than settling it on the digest, so there is an image to re-stamp. Two images handed in
+directly get the same sentence, without the remedy: no accept rewrites a file
+somebody passed in.
+
 ### When nothing contains it
 
 A region no box contains is reported `unattributed`, and this is rarer than it
@@ -119,7 +152,7 @@ They diverge exactly where an element is passed as a prop:
 `<Card title={<h3>Invoice</h3>} />` gives the `<h3>` `createdBy: Page` and
 `owners[0]: Card`. Attribution needs the author, so `component` is `createdBy`
 falling back to the enclosure. The enclosure is reported separately as `owner`,
-and only when it says something the author does not — an `owner` repeating the
+and only when it differs from the author — an `owner` repeating the
 author is noise in every report that prints it.
 
 Both are kept because the two names are written in different places: a
@@ -157,7 +190,7 @@ There are two kinds of answer here and they are not interchangeable:
   rendered more than once, it is the only one of the two that distinguishes the
   instances.
 
-### What each build already knows
+### What each build already records
 
 Do not instrument a development build by default. React already supplies the
 exact call site in every common development configuration.
@@ -204,11 +237,11 @@ rather than a heuristic: **the first frame that resolves to a file the project
 wrote.** Frame zero is always React, because React constructed the error. Frame
 one is the author in an ordinary build and a custom JSX runtime in a build that
 has one — and nothing needs to know which, because Emotion resolves into
-`node_modules` and the component does not. An application module with *no* map is
-not a vendor frame, but it is not an answer either: a position in the text a
-server sent is a position in the repository only if a map says so, so a served
-frame with no map is refused. A frame that names a file on disk is kept as it
-stands, because a Node runner applies maps to `Error.stack` itself and its
+`node_modules` and the component does not. An application module with *no* map
+is not a vendor frame, but it is not an answer either: a position in the text a
+server sent is a position in the repository only if a map records it, so a
+served frame with no map is refused. A frame that names a file on disk is kept
+as it stands, because a Node runner applies maps to `Error.stack` itself and its
 coordinates arrive already original.
 
 The work is per call site, not per node, which is why a whole page costs a
@@ -235,21 +268,22 @@ the origin, the cookies and the dev server's module graph are already correct.
 A call site says who *wrote* an element. The other question a report needs
 answered is where the component that rendered it is *declared*, and the scan
 below answers it by name: every declaration in the configured directories that
-spells `Button`, ambiguous when two do. The page knows something better than a
-name. The fiber points at the function React called, and the engine knows where
-every function it compiled begins — V8 exposes it as `[[FunctionLocation]]`, a
-script and a position, read over the debugger protocol.
+spells `Button`, ambiguous when two do. The page holds something better than a
+name. The fiber points at the function React called, and the engine records
+where every function it compiled begins — V8 exposes it as
+`[[FunctionLocation]]`, a script and a position, read over the debugger
+protocol.
 
 So the page agent keeps every component function provenance names, keyed by
-identity and never serialized, and the collector asks Chromium about each one
+identity and never serialized, and the collector queries Chromium for each one
 after a subject is read. The position is in the served module, which is the same
 coordinate a stack frame names, so it goes through the same maps and the same
-vendor rule as a call site. What comes back is a source index whose refs say
+vendor rule as a call site. What comes back is a source index whose refs carry
 `via: 'engine'`, and it is laid over the scan rather than merged with it: a name
 the engine located replaces the scan's candidates for it, and a name the engine
 never met keeps them. That is what turns an ambiguous name into one file,
-because the engine only knows about a component that rendered, which is exactly
-the one the report is about.
+because the engine only has a location for a component that rendered, which is
+exactly the one the report is about.
 
 The engine's answer is written into the run's own `source` and the composed
 report's `files` field, and `@variance-authority/playwright-test` lays it over
@@ -258,12 +292,16 @@ on another engine the reader answers nothing and the scan stands as it did.
 
 ### The fallback nobody configures
 
-`indexSource` reads a file and returns a map from component name to where it is
-declared, recognised as a function, a `const`, a class or a declaration, with
-*how* it was recognised noted so a bad match is debuggable. It is what a
-repository that has configured nothing still gets, and it answers with a
-declaration, which is coarser than a call site and enough to open the right
-file.
+The fallback is a map from component name to where it is declared, with *how*
+it was recognised noted so a bad match is debuggable. `variance run` and
+`variance collect` build it from the directories `source.dirs` names, and the
+Storybook and route collectors from the ones they are given, each from every
+module's parse with `indexDeclarations` in [Sense](../packages/sense): a
+function, a class or a `const` or `let` binding among the module's own
+top-level statements, named with a capital, at the line of its statement. A
+declaration a comment or a string spells is not one, and neither is a name
+bound inside a function. A declaration is coarser than a call site, and
+enough to open the right file.
 
 A name may map to several files, and that is not an error to be resolved by
 picking one. Two components genuinely can share a name, and silently choosing the
@@ -275,13 +313,13 @@ is reported instead.
 `rankRegions` exists because of a measurement. A **tier** is a level of
 observation: the structure-and-style reading of a document, which any DOM host
 produces, and the painted image, which only a browser can. Replacing a checkbox
-with a styled div on the todomvc corpus changes 1530 pixels in 5 regions, which
+with a styled div on the todomvc corpus changes 1853 pixels in 5 regions, which
 attribute geometrically and rank by area as:
 
 ```
-  933px  Text      <- changed, and reflowed
-  511px  Stack     <- only reflowed
-   86px  Toggle    <- the edit
+ 1055px  Text      <- changed, and reflowed
+  614px  Stack     <- only reflowed
+  184px  Toggle    <- the edit
 ```
 
 Every one of those attributions is correct — the pixels really are inside those
@@ -311,7 +349,7 @@ that resolved those by picking the nearest node would produce confident
 attributions of exactly the kind an agent then acts on.
 
 **A rect that was never observed is never inferred.** Without a layout engine
-there is no geometry, so there is no join, and every region says so.
+there is no geometry, so there is no join, and every region reports that.
 
 **A component name is not a file.** It is resolved against an index built by
 reading source, and where two files declare the name, both are reported.

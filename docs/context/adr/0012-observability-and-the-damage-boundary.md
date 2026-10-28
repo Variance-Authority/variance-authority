@@ -2,6 +2,8 @@
 
 **Status:** accepted
 **Date:** 2026-08-02
+**Amended by:** [ADR-0088](0088-a-page-is-read-as-nobody-is-using-it.md) — runtime substitution of `Date` alone, in every default collection recipe; §3, no trick held in jsdom though a focus ring or a printed date is observable there
+**Amended by:** [ADR-0090](0090-a-moved-identity-is-a-cause-not-a-verdict.md) — §4: a baseline stabilised one way and a run stabilised another are compared, with the recipe named as the cause
 **Extends:** ADR-0010 (tier-specific environment keys), ADR-0011 (retention)
 
 ## Context

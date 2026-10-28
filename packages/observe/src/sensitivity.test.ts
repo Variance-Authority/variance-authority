@@ -55,10 +55,11 @@ const MACHINE: RenderIdentity = {
 
 const VIEWPORT: Viewport = { width: 60, height: 60, deviceScaleFactor: 1, colorScheme: 'light' };
 
-/** 60×60, white, with an optional black square. */
-function image(square: { x: number; y: number; size: number } | null): string {
+/** 60×60, white unless tinted, with an optional black square. */
+function image(square: { x: number; y: number; size: number } | null, background = 0xff): string {
   const png = new PNG({ width: 60, height: 60 });
-  png.data.fill(0xff);
+  png.data.fill(background);
+  for (let index = 3; index < png.data.length; index += 4) png.data[index] = 0xff;
 
   if (square !== null) {
     for (let y = square.y; y < square.y + square.size; y += 1) {
@@ -247,10 +248,11 @@ async function secondRun(
   baseline: Page,
   now: Page,
   level?: Level,
+  painted: string = MARK,
 ): ReturnType<typeof observeAgainstBaseline> {
   const store: RasterStore = durableStore();
   const document = documentFor('route/home');
-  const renderer = rendererFor(new Map([['route/home', MARK]]));
+  const renderer = rendererFor(new Map([['route/home', painted]]));
 
   await store.put(KEY, {
     documentDigest: 'v1:whatever-the-previous-run-painted',
@@ -298,6 +300,17 @@ describe('a rebrand across a route, which is what `layout` exists for', () => {
     expect(observation.because).toContain('token');
     expect(observation.because).toContain('asserts on layout');
     expect(observation.because).toContain('a route asserts the page assembles');
+  });
+
+  it('names what the default policy forgave before what the route absorbed', async () => {
+    // The background one level darker: the strict policy counts it, the default
+    // does not, and the relaxed sentence owes the same disclosure as any green.
+    const observation = await secondRun({}, REBRAND, 'layout', image({ x: 30, y: 30, size: 8 }, 0xfe));
+
+    expect(observation.verdict).toBe('ignored');
+    expect(observation.because).toMatch(
+      /^pixels differ beyond the tolerance of the default policy, which forgave 3,536 pixels as antialiasing or as a colour change of at most 1%, and every band that moved \(/,
+    );
   });
 
   it('pays for no isolation, which is why a relaxed route is cheap', async () => {

@@ -1,4 +1,4 @@
-import { writeFile } from 'node:fs/promises';
+import { readFile, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { createContext, runInContext } from 'node:vm';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -25,6 +25,7 @@ import {
   forgetThePage,
   inRoot,
 } from './__fixtures__/browser-page.js';
+import { inTurn, TURNS_TEST_TIMEOUT_MS } from './__fixtures__/lock-turns.js';
 
 afterEach(forgetThePage);
 
@@ -36,8 +37,8 @@ describe('a browser run records what it executed', () => {
       const module = resolve(root, 'price.js');
       await writeFile(module, SOURCE, 'utf8');
 
-      const plugin = testSelectionProbes({ root, cacheRoot });
-      const transformed = plugin.transform(SOURCE, module)!;
+      const plugin = testSelectionProbes({ root });
+      const transformed = plugin.transform.handler(SOURCE, module)!;
 
       const realm = evaluate(transformed.code);
       realm.price(20);
@@ -73,14 +74,14 @@ describe('a browser run records what it executed', () => {
     await inRoot(async (root) => {
       const module = resolve(root, 'price.js');
       await writeFile(module, SOURCE, 'utf8');
-      const transformed = testSelectionProbes({ root, cacheRoot: resolve(root, 'cache') })
-        .transform(SOURCE, module)!;
+      const transformed = testSelectionProbes({ root })
+        .transform.handler(SOURCE, module)!;
 
       // Each collector is a module of its own bundle, so each gets a scope.
       const page = createContext({});
       const collector = `{${executionCollectorSource()}}`;
       runInContext(collector, page);
-      runInContext(transformed.code.replace(/^import "[^"]+";/, ''), page);
+      runInContext(transformed.code.replace(/\n;import "[^"]+";$/, ''), page);
       runInContext(collector, page);
       runInContext('__browser_test_price(20)', page);
 
@@ -89,6 +90,27 @@ describe('a browser run records what it executed', () => {
       ) as ExecutionJournal;
       expect(journal.modules).toHaveLength(1);
       expect(journal.modules[0]!.hits.length).toBeGreaterThan(0);
+    });
+  });
+
+  it('charges every drain of a reused page under the loads recipe with the modules the page already loaded', async () => {
+    // A page reused between stories evaluates a module once, so its mark runs
+    // for the first story alone; a later story that imports it runs nothing.
+    await inRoot(async (root) => {
+      const module = resolve(root, 'price.js');
+      await writeFile(module, SOURCE, 'utf8');
+      const transformed = testSelectionProbes({ root, mode: 'loads' }).transform.handler(SOURCE, module)!;
+
+      const page = createContext({});
+      runInContext(`{${executionCollectorSource('loads')}}`, page);
+      runInContext(transformed.code.replace(/\n;import "[^"]+";$/, ''), page);
+      const files = (call: string) =>
+        (JSON.parse(runInContext(`JSON.stringify(globalThis[${JSON.stringify(EXECUTION_GLOBAL)}].${call}() ?? null)`, page)) as ExecutionJournal | null)?.modules.map((entry) => entry.id.split('@')[0]);
+
+      expect(files('drain')).toEqual(['price.js']);
+      expect(files('drain')).toEqual(['price.js']);
+      files('reset');
+      expect(files('drain')).toEqual(['price.js']);
     });
   });
 
@@ -105,8 +127,8 @@ describe('a browser run records what it executed', () => {
       const module = resolve(root, 'price.js');
       await writeFile(module, SOURCE, 'utf8');
 
-      const plugin = testSelectionProbes({ root, cacheRoot });
-      const transformed = plugin.transform(SOURCE, module)!;
+      const plugin = testSelectionProbes({ root });
+      const transformed = plugin.transform.handler(SOURCE, module)!;
 
       const realm = evaluate(transformed.code);
       realm.price(20);
@@ -146,8 +168,8 @@ describe('a browser run records what it executed', () => {
       const module = resolve(root, 'price.js');
       await writeFile(module, SOURCE, 'utf8');
 
-      const plugin = testSelectionProbes({ root, cacheRoot });
-      const transformed = plugin.transform(SOURCE, module)!;
+      const plugin = testSelectionProbes({ root });
+      const transformed = plugin.transform.handler(SOURCE, module)!;
 
       // The module evaluates once, inside the first subject's window — which is
       // exactly the attribution that would be a lie if it were kept.
@@ -173,6 +195,31 @@ describe('a browser run records what it executed', () => {
     });
   });
 
+  it('marks a module it cannot parse, so an edit to it selects every subject that loaded it', async () => {
+    await inRoot(async (root) => {
+      const cacheRoot = resolve(root, 'cache');
+      const coverageFile = resolve(root, 'coverage.bin');
+      const broken = 'export const = ;\n';
+      const module = resolve(root, 'broken.js');
+      await writeFile(module, broken, 'utf8');
+
+      const transformed = testSelectionProbes({ root }).transform.handler(broken, module);
+
+      expect(transformed?.code.startsWith(broken)).toBe(true);
+      expect(transformed?.code.endsWith(`\n;import "variance-authority:execution-collector";`)).toBe(true);
+      // The module's own text throws wherever it runs; what follows it is the mark.
+      const realm = evaluate(transformed!.code.replace(broken, ''));
+      await recordExecution({
+        root,
+        cacheRoot,
+        coverageFile,
+        subjects: [{ owner: 'story:broken--loaded', journal: realm.collector.drain() }],
+      });
+
+      expect(await selectTestFiles(coverageFile, diffAt('broken.js', 1))).toEqual(['story:broken--loaded']);
+    });
+  });
+
   it('gives every region entered during module initialization every subject the page served', async () => {
     await inRoot(async (root) => {
       const cacheRoot = resolve(root, 'cache');
@@ -180,8 +227,8 @@ describe('a browser run records what it executed', () => {
       const module = resolve(root, 'price.js');
       await writeFile(module, INITIALIZING, 'utf8');
 
-      const plugin = testSelectionProbes({ root, cacheRoot });
-      const transformed = plugin.transform(INITIALIZING, module)!;
+      const plugin = testSelectionProbes({ root });
+      const transformed = plugin.transform.handler(INITIALIZING, module)!;
 
       // `label(1)` runs once, while the module evaluates, inside the first
       // subject's window. The second subject never calls it and depends on it.
@@ -226,8 +273,8 @@ describe('a browser run records what it executed', () => {
       const module = resolve(root, 'price.js');
       await writeFile(module, INITIALIZING, 'utf8');
 
-      const plugin = testSelectionProbes({ root, cacheRoot });
-      const transformed = plugin.transform(INITIALIZING, module)!;
+      const plugin = testSelectionProbes({ root });
+      const transformed = plugin.transform.handler(INITIALIZING, module)!;
 
       const realm = evaluate(transformed.code);
       realm.price(20);
@@ -278,8 +325,8 @@ describe('a browser run records what it executed', () => {
       await writeFile(module, SOURCE, 'utf8');
       await writeFile(resolve(root, 'preview.js'), 'export const decorators = [];\n', 'utf8');
 
-      const plugin = testSelectionProbes({ root, cacheRoot });
-      const transformed = plugin.transform(SOURCE, module)!;
+      const plugin = testSelectionProbes({ root });
+      const transformed = plugin.transform.handler(SOURCE, module)!;
       const realm = evaluate(transformed.code);
       realm.price(20);
       const premium = realm.collector.drain();
@@ -320,8 +367,8 @@ describe('a browser run records what it executed', () => {
       const module = resolve(root, 'price.js');
       await writeFile(module, SOURCE, 'utf8');
 
-      const plugin = testSelectionProbes({ root, cacheRoot });
-      const transformed = plugin.transform(SOURCE, module)!;
+      const plugin = testSelectionProbes({ root });
+      const transformed = plugin.transform.handler(SOURCE, module)!;
       const realm = evaluate(transformed.code);
       realm.price(20);
       const journal = realm.collector.drain();
@@ -336,34 +383,31 @@ describe('a browser run records what it executed', () => {
     });
   });
 
-  it('records over an index it can no longer read', async () => {
-    // Refusing would take the index lock inside a runner's teardown and stop
-    // every later run from recording anything until somebody deleted the file
-    // by hand. What is lost is evidence this machine could not read anyway.
+  it('refuses an index it cannot read, naming it, rather than recording over it', async () => {
+    // One build reads what it wrote, so an index it cannot read is another
+    // build's: recording over it would drop that build's evidence unseen.
     await inRoot(async (root) => {
       const cacheRoot = resolve(root, 'cache');
       const coverageFile = resolve(root, 'coverage.bin');
       const module = resolve(root, 'price.js');
       await writeFile(module, SOURCE, 'utf8');
 
-      const plugin = testSelectionProbes({ root, cacheRoot });
-      const transformed = plugin.transform(SOURCE, module)!;
+      const plugin = testSelectionProbes({ root });
+      const transformed = plugin.transform.handler(SOURCE, module)!;
       const realm = evaluate(transformed.code);
       realm.price(20);
       const journal = realm.collector.drain();
       await writeFile(coverageFile, 'half a copy of something else', 'utf8');
 
-      const recorded = await recordExecution({
+      const recording = recordExecution({
         root,
         cacheRoot,
         coverageFile,
         subjects: [{ owner: 'story:price--premium', journal }],
       });
 
-      expect(recorded).toMatchObject({ recorded: true, subjects: 1 });
-      expect(await selectTestFiles(coverageFile, diffAt('price.js', PREMIUM_LINE))).toEqual([
-        'story:price--premium',
-      ]);
+      await expect(recording).rejects.toThrow(new RegExp(`${coverageFile}.*It was written by another build, so it is left as it was and this run lays nothing over it; deleting it is the operator's\\.$`, 'su'));
+      expect(await readFile(coverageFile, 'utf8')).toBe('half a copy of something else');
     });
   });
 
@@ -374,8 +418,8 @@ describe('a browser run records what it executed', () => {
       const module = resolve(root, 'price.js');
       await writeFile(module, SOURCE, 'utf8');
 
-      const plugin = testSelectionProbes({ root, cacheRoot });
-      const transformed = plugin.transform(SOURCE, module)!;
+      const plugin = testSelectionProbes({ root });
+      const transformed = plugin.transform.handler(SOURCE, module)!;
 
       const realm = evaluate(transformed.code);
       realm.price(20);
@@ -384,15 +428,16 @@ describe('a browser run records what it executed', () => {
       const plain = realm.collector.drain();
 
       // Two Playwright workers are two processes over one index. Unlocked, the
-      // later rename would carry only what its own reader saw.
-      const [first, second] = await Promise.all([
-        recordExecution({
+      // later rename would carry only what its own reader saw. Both start at
+      // once and both find the index held; they are let in one at a time.
+      const [first, second] = await inTurn(coverageFile, [
+        () => recordExecution({
           root,
           cacheRoot,
           coverageFile,
           subjects: [{ owner: 'tests/premium.spec.ts', journal: premium }],
         }),
-        recordExecution({
+        () => recordExecution({
           root,
           cacheRoot,
           coverageFile,
@@ -410,7 +455,7 @@ describe('a browser run records what it executed', () => {
         'tests/premium.spec.ts',
       ]);
     });
-  });
+  }, TURNS_TEST_TIMEOUT_MS);
 
   it('lets a story file select the story, through a precondition nothing enters', async () => {
     await inRoot(async (root) => {
@@ -420,8 +465,8 @@ describe('a browser run records what it executed', () => {
       await writeFile(module, SOURCE, 'utf8');
       await writeFile(resolve(root, 'price.stories.js'), 'export default {};\n', 'utf8');
 
-      const plugin = testSelectionProbes({ root, cacheRoot });
-      const transformed = plugin.transform(SOURCE, module)!;
+      const plugin = testSelectionProbes({ root });
+      const transformed = plugin.transform.handler(SOURCE, module)!;
       const realm = evaluate(transformed.code);
       realm.price(20);
 

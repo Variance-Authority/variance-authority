@@ -31,27 +31,27 @@ costs the repository whatever the run cost. At the shape this is built for that
 is not a slow path. It is an impossible one:
 
 - **Recording.** `crossingsOf` at
-  `packages/sense/src/test-selection/instrumented-modules.ts:377` returns
+  `packages/sense/src/test-selection/instrumented-modules.ts:93` returns
   `Map<ModuleId, Map<ordinal, Set<string>>>` — one entry per region a test
   entered, holding test paths as strings. Thirty-one test files of a
   40,000-module shape cost 2.5 GB; five hundred exhaust a twelve-gigabyte heap.
-  The shipped reporters call it: `selection-fold.ts:83` and `jest-reporter.ts:97`.
+  The shipped reporters call it: `packages/sense/src/test-selection/selection-fold.ts:83` and `packages/sense/src/test-selection/jest-reporter.ts:97`.
 - **Publishing.** `layeredCoverage` no longer decodes the snapshot to that
-  model — `format-layer.ts:238-260` copies an untouched module's rows column to
-  column as integers, and `:335-350` remaps each carried crossing set once per
+  model — `packages/sense/native/src/record_coverage_layer.rs:188` copies an untouched module's rows column to
+  column as integers, and `:225-233` remaps each carried crossing set once per
   distinct set rather than once per region. What it still does is open and
   rewrite *every* column and re-intern the *whole* pool to replace ten modules
   of 200,000, which costs 3.1 s and 1,111 MB. The defect is that the cost is
   proportional to the file rather than to the change, not that a model is built.
 
 Both are the same defect at two ends, and it is a defect rather than a limit:
-the fold that does not have it is already in the repository, unwired.
-`foldRun` at `packages/sense/src/test-selection/run-fold.ts:84` reads the same
-fixture's 103 million module rows and 826 million crossings inside 450 MB by
-keeping frames on disk and handing back a set id per region against a pool. It
-has no caller, and its own docblock says the shipped path *used to be*
-`readJournals` then `crossingsOf`, in the past tense, about a thing both
-reporters still do.
+a fold that does not have it was built and measured. `foldCrossingColumns` read
+the same fixture's 103 million module rows and 826 million crossings inside
+450 MB by keeping frames on disk and handing back a set id per region against a
+pool. Nothing called it, so it was deleted unwired, and
+`git log -S foldCrossingColumns` finds it. What remains in the tree is the half
+it stood on: `foldCrossings` in `crossing-fold.ts`, which does the slicing and
+the interning.
 
 ## What would discharge it
 
@@ -59,9 +59,9 @@ reporters still do.
 `packages/sense/src/test-selection/index.ts:96` is `readonly string[]` and
 becomes a `SetId` into a `CrossingSets` pool carried beside the modules. This is
 the one change, and it is not local: `journal.ts`, `vitest.ts`,
-`jest-reporter.ts`, `merge.ts` and `format-layer.ts` all construct that field, so
+`jest-reporter.ts` and `format-layer.ts` all construct that field, so
 they move together or not at all. `coverageModule()` at
-`instrumented-modules.ts:338` is where the array is built today and where the
+`packages/sense/src/test-selection/coverage-rows.ts:18` is where the array is built today and where the
 interning belongs.
 
 The pool is not new work — `crossing-sets.ts` is built, tested, and already what
@@ -70,9 +70,9 @@ the format writes and reads. What is unbuilt is the pool reaching the encoder
 in and re-interned on the way out, so the win ADR-0061 measured is paid for and
 then thrown away.
 
-**2. The reporters fold rather than collect.** `foldRun` becomes the path both
-reporters take, and `foldCrossings` takes one `CrossingSets` instead of
-interning two. A reporter's peak is then set by the slice budget it was given
+**2. The reporters fold rather than collect.** `foldCrossings` becomes the path
+both reporters take, reached from `readJournals`'s directory rather than its
+decoded rows, and it takes one `CrossingSets` instead of interning two. A reporter's peak is then set by the slice budget it was given
 and by the pool, neither of which is the repository's crossing count.
 
 **Why a slice budget rather than a smaller object:** the frames are on disk
@@ -97,7 +97,7 @@ both halves are needed. *Across* test files the reader unions: a test file the
 overlay does not mention keeps the snapshot's answer, and a test file neither
 holds is unknown and runs. *Within* one test file the overlay supersedes — a
 later recording of a test file is the truth about that file, which is what
-layering already does at `format-layer.ts:262-266`. Nothing is subtracted in
+layering already does at `packages/sense/native/src/record_coverage_layer.rs:120-127`. Nothing is subtracted in
 either direction, so an overlay lost between the run and the query costs a full
 run and can never cost a skipped test.
 
@@ -140,10 +140,10 @@ journal.
 **6. Something retires what the repository no longer holds.** Every item above
 bounds the cost of a *run*. Nothing bounds the cost of the *file*. A module
 deleted from the repository is carried verbatim with all of its crossings —
-`test-selection/merge.ts:415` carries it because nothing at the path says the rows are about a
-file that is gone, and `format-layer.ts:248` pushes every unclaimed row onward —
+the lay carries it because nothing at the path says the rows are about a
+file that is gone: `packages/sense/native/src/record_coverage_layer.rs` pushes every unclaimed row onward —
 and a test file that no longer exists keeps its row and its `complete` flag
-(`format-layer.ts:263-265`). So the snapshot is monotonically non-shrinking over
+(`packages/sense/native/src/record_coverage_layer.rs:355-362`). So the snapshot is monotonically non-shrinking over
 a repository's life, and the 600 MB ceiling is approached from this side too,
 by a repository that never grew.
 

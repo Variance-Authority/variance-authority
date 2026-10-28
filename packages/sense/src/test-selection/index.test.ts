@@ -22,6 +22,7 @@ describe('narrowByExecution', () => {
     // the thing being excluded, and observed it whole.
     expect(narrowByExecutionFromView(openTestCoverage(encodeTestCoverage(coverage)), diff)).toEqual({
       whole: testFiles,
+      incomplete: [],
       entered: ['test/alpha.test.ts'],
       unread: [],
       stale: [],
@@ -67,7 +68,7 @@ describe('narrowByExecution', () => {
     ]);
   });
 
-  it('leaves a partial observation out of `whole` while it stays in `entered`', () => {
+  it('leaves a partial observation out of `whole`, names it `incomplete`, and keeps it in `entered`', () => {
     // An upper bound cannot justify an exclusion and is perfectly good grounds
     // for running something. The two lists are asymmetric on purpose.
     const partial: TestCoverage = {
@@ -79,6 +80,7 @@ describe('narrowByExecution', () => {
 
     expect(narrowByExecutionFromView(openTestCoverage(encodeTestCoverage(partial)), diff)).toMatchObject({
       whole: ['test/aaa.test.ts', 'test/beta.test.ts'],
+      incomplete: ['test/alpha.test.ts'],
       entered: ['test/alpha.test.ts'],
       unread: [],
     });

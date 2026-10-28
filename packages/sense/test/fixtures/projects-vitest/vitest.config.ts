@@ -8,5 +8,27 @@ const root = fileURLToPath(new URL('.', import.meta.url));
 const source = resolve(root, 'src');
 const coverageFile = process.env['VARIANCE_AUTHORITY_COVERAGE'];
 if (coverageFile === undefined) throw new Error('VARIANCE_AUTHORITY_COVERAGE is required');
+// A selection handed in by the test that runs this fixture: the files to skip,
+// as JSON. Absent, nothing is handed in and every file runs.
+const skip = process.env['FIXTURE_SKIP'];
+// The cases to skip in the files that run, as JSON of file to names. Absent,
+// every file that runs, runs whole.
+const cases = process.env['FIXTURE_CASES'];
+// A refusal the selection makes when it is read, as `selectSuite` refuses a record it cannot read.
+const refusal = process.env['FIXTURE_REFUSE'];
 
-export default withTestSelection({ root, test: {} }, { coverageFile, include: (file) => file.startsWith(source) });
+export default withTestSelection({ root, test: {} }, {
+  coverageFile,
+  include: (file) => file.startsWith(source),
+  ...(skip === undefined
+    ? {}
+    : { selection: async () => ({
+      whole: new Set<string>(JSON.parse(skip)),
+      skip: new Set<string>(JSON.parse(skip)),
+      ...(cases === undefined ? {} : { cases: new Map<string, string[]>(Object.entries(JSON.parse(cases))) }),
+      notes: [],
+    }) }),
+  ...(refusal === undefined
+    ? {}
+    : { selection: async () => { throw new Error(refusal); } }),
+});

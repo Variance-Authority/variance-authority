@@ -19,6 +19,12 @@ depend on.
 <p>Choose exact text search, indexed source relations, or observed subject search from the evidence you already have.</p>
 <em>Orient before you change code →</em>
 </a>
+<a class="doc-link-card doc-link-card--compact" href="tech-stack.md">
+<span>Tech stack</span>
+<strong>Use the packages you installed</strong>
+<p>See which packages a file can already import, find one by the job it does, and read its signature and shipped agent skills at the installed version.</p>
+<em>Ask the tech stack →</em>
+</a>
 <a class="doc-link-card doc-link-card--compact" href="boundaries.md">
 <span>Structure</span>
 <strong>See what your imports build</strong>
@@ -31,17 +37,29 @@ depend on.
 <p>Stop a Playwright test at a line you chose and inspect the page and announced work while that exact test is still running.</p>
 <em>Interrogate the test →</em>
 </a>
-<a class="doc-link-card doc-link-card--compact" href="selecting.md">
+<a class="doc-link-card doc-link-card--compact" href="test-an-edit.md">
 <span>Selection</span>
 <strong>Run the tests this edit affects</strong>
-<p>Combine source relationships with recorded execution to select affected test files and explain every selection.</p>
+<p>Set one variable and the Vitest or Jest run you already call leaves out every test file that never executed the code you changed.</p>
 <em>Focus the next run →</em>
+</a>
+<a class="doc-link-card doc-link-card--compact" href="sharding.md">
+<span>Sharding</span>
+<strong>Split the suite across CI jobs</strong>
+<p>Give each shard of a Vitest or Jest run its files by the time they took last run, so the shards finish together, and start only as many as are worth their setup.</p>
+<em>Split the suite →</em>
 </a>
 <a class="doc-link-card doc-link-card--compact" href="test-level-coverage.md">
 <span>Coverage</span>
 <strong>Know which test covers this line</strong>
 <p>Keep the relation a coverage percentage is folded from: for each named test case, the regions of your source it ran.</p>
 <em>Record test-level coverage →</em>
+</a>
+<a class="doc-link-card doc-link-card--compact" href="case-preconditions.md">
+<span>Coverage</span>
+<strong>Know which state each covering test ran under</strong>
+<p>Record a flag, a mocked response or a fixture on each test, then keep only the tests that ran a line with sale prices mocked or the flag on.</p>
+<em>Record the state each test ran under →</em>
 </a>
 <a class="doc-link-card doc-link-card--compact" href="distill.md">
 <span>Test reduction</span>
@@ -101,7 +119,8 @@ Each path needs different evidence:
   [Rstest](start-rstest.md), or [a custom collector](start-custom.md). [Observe
   one state](start.md) takes a single UI state through capture, review, and
   explicit acceptance before you decide how much of the suite belongs in the
-  workflow.
+  workflow. [What visual review costs](visual-review-cost.md) argues why
+  that suite is cheaper to run and less work to keep here than as screenshots.
 - Source discovery needs only a readable TypeScript checkout.
 - Test selection and reduction need an [execution record](execution-record.md), which a
   Node runner or a [JVM test suite](jvm.md) writes.

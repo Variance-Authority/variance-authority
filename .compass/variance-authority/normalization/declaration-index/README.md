@@ -51,13 +51,26 @@ degrades to the component name it already had; a capitalized top-level function
 that is not a component can be matched, and can only surface if attribution
 already named that identifier.
 
+`sense` fills it, reading the names off the module's parse: the functions,
+classes and `const` or `let` bindings of its own top-level statements whose
+name starts with a capital, each at its statement's line. A declaration a
+comment, a string or a template spells is not one, a name bound inside a
+function is that function's, and a file the parser cannot read declares
+nothing. The CLI and the Storybook and route collectors index that
+way. `core` has no parser and builds no index; a caller without `sense` writes
+the map as plain data.
+
 It ranks nothing, opens nothing, and never decides which of several
 declarations is the one that moved.
 
 ## Implementation coordinates
 
-- `packages/core/src/attribute/source.ts` — `indexSource`,
-  `mergeSourceIndexes`, `resolveSource`, `formatSource`, `SourceIndex`
+- `packages/core/src/attribute/source.ts` — `mergeSourceIndexes`,
+  `resolveSource`, `formatSource`, `SourceIndex`
+- `packages/sense/native/src/declarations.rs` — `declarations`, the components
+  a module declares, read off its parsed tree
+- `packages/sense/src/declarations.ts` — `indexDeclarations`, those names at
+  their lines, as a `SourceIndex`
 
 ## Diagram
 

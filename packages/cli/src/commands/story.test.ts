@@ -7,7 +7,7 @@ import { parseArgs } from '../bin.js';
 import { formatStory, story } from './story.js';
 
 const place = (file: string, name: string, startLine: number, endLine: number, kind: Place['kind'] = 'function') =>
-  ({ token: { place: { file, name, kind, startLine, endLine }, entered: 1, arms: [] as Arm[] } });
+  ({ token: { place: { file, name, kind, at: `${file}#${name === '' ? 'module' : `${name}/entry`}`, startLine, endLine }, entered: 1, arms: [] as Arm[] } });
 
 const ROUTE: Route = {
   file: 'src/cart.test.ts',
@@ -65,6 +65,13 @@ const APP: Route = {
 const PACKAGES = { 'src/cart.test.ts': 'app', 'src/app.ts': 'app', 'ui/src/button.ts': '@acme/ui' };
 
 describe('a story read as a route', () => {
+  it('names the files it drew as the file alone, and what it lacks for them, with nothing to run', () => {
+    const text = formatStory({ route: { ...ROUTE, unresolved: ['src/tax.ts'] } }, 'text');
+
+    expect(text).toContain('\n  1 file is drawn as the file alone: the recording holds no regions for it at this text\n');
+    expect(text).not.toMatch(/next run|run of the suite/);
+  });
+
   it('reads a short route step by step, with the arms each stop went into drawn as the code nests them and how many times a loop went round', () => {
     expect(formatStory({ route: ROUTE }, 'text')).toBe(
       [
@@ -92,7 +99,7 @@ describe('a story read as a route', () => {
     const again: Route = {
       ...ROUTE,
       route: [...ROUTE.route, removeItem],
-      untaken: [{ place: { file: 'src/cart.ts', name: 'Cart/removeItem', kind: 'function', startLine: 12, endLine: 30 }, arms: never }],
+      untaken: [{ place: { file: 'src/cart.ts', name: 'Cart/removeItem', kind: 'function', at: 'src/cart.ts#Cart/removeItem/entry', startLine: 12, endLine: 30 }, arms: never }],
     };
     const text = formatStory({ route: again }, 'text').split('\n');
     // The code after the loop is not drawn: going on past a construct is what it does.
@@ -120,7 +127,7 @@ describe('a story read as a route', () => {
       before: [],
       route: [checkout([], 1), place('src/save.ts', 'save', 1, 3), checkout([{ path: 'if#0/then', startLine: 13, endLine: 15, times: 1 }], 0)],
       files: ['src/checkout.ts', 'src/save.ts'],
-      untaken: [{ place: { file: 'src/checkout.ts', name: 'checkout', kind: 'function', startLine: 10, endLine: 16 }, arms: [{ path: 'if#0/else', startLine: 15, endLine: 15 }] }],
+      untaken: [{ place: { file: 'src/checkout.ts', name: 'checkout', kind: 'function', at: 'src/checkout.ts#checkout/entry', startLine: 10, endLine: 16 }, arms: [{ path: 'if#0/else', startLine: 15, endLine: 15 }] }],
       interleaved: 0,
     };
     const text = formatStory({ route }, 'text').split('\n');
@@ -134,6 +141,30 @@ describe('a story read as a route', () => {
     ]);
   });
 
+  it('draws two declarations of one name in a file each with the arms it never went into', () => {
+    const handle = (at: string, startLine: number, endLine: number) =>
+      ({ token: { place: { file: 'src/route.ts', name: 'handle', kind: 'function' as const, at, startLine, endLine }, entered: 1, arms: [] as Arm[] } });
+    const route: Route = {
+      ...ROUTE,
+      before: [],
+      route: [handle('src/route.ts#handle/entry', 1, 5), handle('src/route.ts#handle~2/entry', 7, 11)],
+      files: ['src/route.ts'],
+      untaken: [
+        { place: handle('src/route.ts#handle/entry', 1, 5).token.place, arms: [{ path: 'if#0/then', startLine: 2, endLine: 3 }] },
+        { place: handle('src/route.ts#handle~2/entry', 7, 11).token.place, arms: [{ path: 'if#0/then', startLine: 9, endLine: 10 }] },
+      ],
+      interleaved: 0,
+    };
+    const text = formatStory({ route }, 'text').split('\n');
+    expect(text.slice(text.indexOf('  1  handle  route.ts:1-5'))).toEqual([
+      '  1  handle  route.ts:1-5',
+      '       if 2  then ✗',
+      '  2  handle  route.ts:7-11',
+      '       if 9  then ✗',
+      '',
+    ]);
+  });
+
   it('draws a long route at the finest level that fits, and names the level below and how to reach it', () => {
     const long: Route = { ...ROUTE, before: [], route: [...through('src/a.ts', 150), ...through('src/b.ts', 150, 150)], interleaved: 0 };
     expect(formatStory({ route: long }, 'text')).toBe(
@@ -141,7 +172,7 @@ describe('a story read as a route', () => {
         'story  src/cart.test.ts > cart > removes the last item',
         '  goes through 5 files in 300 steps',
         '  drawn by files: by declarations it would be 7798 characters, and a story is kept under 5000;',
-        '  narrow it with --in <package or file> or --around <step>, or read every step with --whole',
+        '  narrow it with --in <file>, --package <name> or --around <step>, or read every step with --whole',
         '',
         '  src/a.ts  steps 1-150',
         '  src/b.ts  steps 151-300',
@@ -157,8 +188,8 @@ describe('a story read as a route', () => {
         'story  src/cart.test.ts > cart > removes the last item',
         '  goes through 2 files in 302 steps',
         '  drawn by steps: by every step it would be 8882 characters, and a story is kept under 5000;',
-        '  narrow it with --in <package or file> or --around <step>, or read every step with --whole',
-        '  passed through @acme/ui, one line for each series of steps in a row there; open one with --in <package>',
+        '  narrow it with --in <file>, --package <name> or --around <step>, or read every step with --whole',
+        '  passed through @acme/ui, one line for each series of steps in a row there; open one with --package <name>',
         ...KEY,
         '',
         '  in src: app.ts',
@@ -171,8 +202,8 @@ describe('a story read as a route', () => {
     );
   });
 
-  it('opens a package with --in, and picks the level again inside what it opened', () => {
-    const opened = JSON.parse(formatStory({ route: APP, packages: PACKAGES, zoom: { in: '@acme/ui' } }, 'json'));
+  it('opens a package with --package, and picks the level again inside what it opened', () => {
+    const opened = JSON.parse(formatStory({ route: APP, packages: PACKAGES, zoom: { package: '@acme/ui' } }, 'json'));
     expect(opened).toMatchObject({ package: 'app', reading: { level: 'files' }, finer: { level: 'declarations' } });
     expect(opened.reading.files.map((file: { package: string }) => file.package)).toEqual(['app', '@acme/ui']);
     // Back and forth into three hundred files of the design system fits no level finer than its packages.
@@ -191,10 +222,10 @@ describe('a story read as a route', () => {
   });
 
   it('reads the steps through one file with the step either side, and names the steps it leaves out', () => {
-    expect(formatStory({ route: ROUTE, zoom: { in: 'cart.test' } }, 'text')).toBe(
+    expect(formatStory({ route: ROUTE, zoom: { in: 'src/cart.test.ts' } }, 'text')).toBe(
       [
         ...HEAD,
-        '  the steps through the package or file matching `cart.test`, and the step either side of each run of them',
+        '  the steps through the file `src/cart.test.ts`, and the step either side of each run of them',
         ...KEY,
         ...FILES,
         '  before the test',
@@ -205,8 +236,18 @@ describe('a story read as a route', () => {
         '',
       ].join('\n'),
     );
-    expect(formatStory({ route: ROUTE, zoom: { in: 'basket' } }, 'text')).toBe(
-      [...HEAD, '', '  the test goes through no package or file matching `basket`', ''].join('\n'),
+    // A file is its whole path: one whose path holds what was asked is another file.
+    expect(formatStory({ route: ROUTE, zoom: { in: 'cart.test' } }, 'text')).toBe(
+      [...HEAD, '', '  the test does not go through the file `cart.test`', ''].join('\n'),
+    );
+  });
+
+  it('reads a package only from --package, by its name', () => {
+    expect(formatStory({ route: APP, packages: PACKAGES, zoom: { in: '@acme/ui' } }, 'text')).toContain(
+      '  the test does not go through the file `@acme/ui`',
+    );
+    expect(formatStory({ route: APP, packages: PACKAGES, zoom: { package: '@acme' } }, 'text')).toContain(
+      '  the test does not go through the package `@acme`',
     );
   });
 
@@ -269,6 +310,36 @@ describe('a story read as a route', () => {
     ]);
   });
 
+  it('keeps what the code printed at a step when a loop handed the function more than the lines a step shows', () => {
+    const handed = Array.from({ length: 6 }, (_, row) => `handed row=${row}`);
+    const said: Route = {
+      ...ROUTE,
+      before: [],
+      route: [{ token: { ...place('src/cart.ts', 'Cart/removeItem', 12, 30).token, said: [...handed, 'console.log removing A1'] } }],
+      files: ['src/cart.ts'],
+      interleaved: 0,
+    };
+    const text = formatStory({ route: said, reading: { of: 1, written: Date.UTC(2026, 8, 27, 12) } }, 'text').split('\n');
+    expect(text.slice(-9)).toEqual([
+      '  1  Cart/removeItem  cart.ts:12-30',
+      '       » handed row=0',
+      '       » handed row=1',
+      '       » handed row=2',
+      '       » handed row=3',
+      '       » handed row=4',
+      '       » console.log removing A1',
+      '       » and 1 more line',
+      '',
+    ]);
+  });
+
+  it('says, in place of the --compare hint, which side a reading drawn alone has nothing to compare with', () => {
+    const unmatched = 'nothing to compare it with: every one of the 2 readings kept passed, and none threw';
+    const text = formatStory({ route: ROUTE, reading: { of: 2, unmatched } }, 'text').split('\n');
+    expect(text.slice(0, 4)).toEqual([...HEAD.slice(0, 2), '  the newest of 2 readings', `  ${unmatched}`]);
+    expect(JSON.parse(formatStory({ route: ROUTE, reading: { of: 2, unmatched } }, 'json'))).toMatchObject({ readings: 2, unmatched });
+  });
+
   it('gives the reading, its level and the numbered steps as json', () => {
     const { before: _before, route: _route, untaken: _untaken, ...head } = ROUTE;
     expect(JSON.parse(formatStory({ route: ROUTE, zoom: { around: 5 } }, 'json'))).toEqual({
@@ -294,8 +365,12 @@ describe('a story read as a route', () => {
     });
   });
 
-  it('takes one of --in, --around and --whole', () => {
+  it('takes one of --in, --package, --around and --whole', () => {
     expect(parseArgs(['story', '--around', '4'])).toMatchObject({ command: 'story', zoom: { around: 4 } });
+    expect(parseArgs(['story', '--package', '@acme/ui'])).toMatchObject({ command: 'story', zoom: { package: '@acme/ui' } });
+    expect(() => parseArgs(['story', '--in', 'src/cart.ts', '--package', '@acme/ui'])).toThrow(
+      '--in and --package each choose how much of the route to read; name one',
+    );
     expect(() => parseArgs(['story', '--in', 'cart', '--whole'])).toThrow(
       '--in and --whole each choose how much of the route to read; name one',
     );

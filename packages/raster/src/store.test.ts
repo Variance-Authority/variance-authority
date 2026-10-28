@@ -159,8 +159,8 @@ describe('a record that claims to be a raster', () => {
     // field is *dropped*". `stabilization` was absent from the codec, so an
     // identity survived being written and came back shortened — `accept` then
     // stored a baseline under one digest and the next `run` looked it up under
-    // another, reporting `incomparable` on every subject forever, in a sentence
-    // that named the same machine on both sides.
+    // another, naming a moved identity as the cause on every subject forever, in
+    // a sentence that named the same machine on both sides.
     //
     // Field-by-field rather than `toEqual` on the whole record, so that adding a
     // field to `RenderIdentity` and forgetting the codec fails here rather than

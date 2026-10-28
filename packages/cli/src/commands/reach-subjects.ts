@@ -13,7 +13,8 @@ import type { ReachReport, SubjectReach } from '@variance-authority/report';
 import type { BeforeReach, Relations } from '@variance-authority/core/relate';
 
 import { NO_INSTALL_DIFF, type InstallDiff } from './installed.js';
-import { affectedComponents, listed, many, refused, type MovedExports } from './reach.js';
+import { affectedComponents, refused, type MovedExports } from './reach.js';
+import { listed, many } from './prose-counts.js';
 
 export interface ReachInput {
   /** The ref the diff was taken against, in the operator's own words. */
@@ -42,6 +43,9 @@ export interface ReachInput {
    * file that moved nothing seeds nothing. Absent is *no reading was taken*.
    */
   readonly movedExports?: MovedExports;
+
+  /** The suite's `ignore` globs, read as the run's selector reads them. */
+  readonly ignore?: readonly string[];
 
   /**
    * Component names each planned subject's stored baseline recorded.
@@ -75,6 +79,7 @@ export function reachOf(input: ReachInput): ReachReport {
     input.install ?? NO_INSTALL_DIFF,
     input.before,
     input.movedExports ?? new Map(),
+    input.ignore,
   );
 
   if (refused(walk)) {

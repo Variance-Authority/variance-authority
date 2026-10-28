@@ -21,7 +21,8 @@
  *
  * Every name lives in exactly one of them; nothing is reachable from two paths.
  * This entrypoint holds only what belongs to no group: the artifact a capture is
- * written to.
+ * written to, and the name a refusal offers when one was mistyped.
  */
 
 export * from './artifact.js';
+export { didYouMean, nearest } from './nearest.js';

@@ -65,6 +65,10 @@ describe('the ledger is discovered', () => {
     expect(COMMENTS.length).toBeGreaterThan(5);
   });
 
+  it.each(['.mts', '.cts', '.cjs'])('reads %s modules for markers too', (extension) => {
+    expect(tracked().some((file: string) => file.endsWith(extension))).toBe(true);
+  });
+
   it('finds todo tests', () => {
     expect(TODOS.length).toBeGreaterThan(5);
   });
@@ -146,7 +150,7 @@ describe('the reader is reachable', () => {
     scripts: Record<string, string>;
   };
 
-  it('is a script, because AGENTS.md tells people to run it', () => {
+  it('is a script, because the change reference tells people to run it', () => {
     expect(manifest.scripts['unrun']).toBe('node tools/unrun.mjs');
   });
 

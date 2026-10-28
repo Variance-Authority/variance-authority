@@ -35,11 +35,11 @@
 export { assemble, SUBJECT_PATH } from './assemble.js';
 export type { AssembleOptions } from './assemble.js';
 
-export { familiesOf, identityAtScale, describeIdentity } from './renderer.js';
-export type { Renderer } from './renderer.js';
+export { describeIdentity, familiesOf, identityAtScale, identityCause, recipeOnly } from './renderer.js';
+export type { ComparedSides, IdentityCause, Renderer } from './renderer.js';
 
 export { DEFAULT_POLICY, STRICT_POLICY } from './policy.js';
-export type { DiffPolicy, RasterComparison, CompareOptions } from './policy.js';
+export type { DiffPolicy, RasterComparison, CompareOptions, RowAlignment, RowSpan } from './policy.js';
 
 export {
   REFUSAL,
@@ -53,10 +53,11 @@ export type {
   RasterStore,
   RenderCache,
   Retention,
-  BaselineKey,
   Found,
   Described,
+  Relocated,
 } from './store.js';
+export { testBaselineKey, type BaselineKey } from './key.js';
 export { createEphemeralStore } from './ephemeral.js';
 export type { EphemeralStoreOptions } from './ephemeral.js';
 export { rasterFrom, sidecarFrom } from './codec.js';

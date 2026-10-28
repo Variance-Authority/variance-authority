@@ -1,8 +1,11 @@
 import {
   COLLECT_RECIPE,
+  featuresOf,
+  forDriver,
   forTier,
   recipeCss,
   recipeDigest,
+  recipeOf,
   settleRecipe,
   tierOfProfile,
   tierReaches,
@@ -10,6 +13,7 @@ import {
   type ObservationProfile,
   type Recipe,
   type SettleTarget,
+  type StepClock,
   type Tier,
 } from '@variance-authority/core/format';
 import { detectProfile } from './profile.js';
@@ -73,8 +77,29 @@ export interface Stabilized {
    */
   readonly digest: Digest | undefined;
 
+  /**
+   * The media features the held recipe made the browser report, for
+   * `collect`'s `features`, or absent when it made it report none.
+   *
+   * Collection resolves `@media` against declared features rather than asking
+   * the browser, so a preference the driver emulated has to be declared here or
+   * it is read as unknown. Only a trick the host drove counts.
+   */
+  readonly features?: Readonly<Record<string, string>>;
+
   /** Remove the injected sheet. Rarely wanted — see {@link stabilizeForObservation}. */
   readonly release: () => void;
+
+  /**
+   * Give focus back to the element `no-focus` took it from.
+   *
+   * A host that reads a page somebody goes on using — a test that types after
+   * it observes, an agent that keeps working in its browser — calls this once
+   * the reading, and any photograph of it, is taken. Does nothing when the
+   * recipe held no `no-focus`, when nothing was focused, when the element has
+   * left the document, or when something else took focus in the meantime.
+   */
+  readonly refocus: () => void;
 }
 
 export interface StabilizeOptions {
@@ -107,6 +132,53 @@ export interface StabilizeOptions {
    * claim about the reading.
    */
   readonly tier?: Tier;
+
+  /**
+   * The driver tricks the host applied to this page before it was read.
+   *
+   * Reduced motion, a fixed clock and the pointer off the page are applied by
+   * the browser driver, not by anything this document can do to itself. A trick
+   * in the recipe that the host did not drive is left out of the ids and the
+   * digest, so a reading never records a hold it did not have. Absent means
+   * the host drove nothing.
+   */
+  readonly driven?: readonly string[];
+
+  /**
+   * Where each wait is taken as a step: the recipe's settles by id, and
+   * `frames` for the two frames after a new sheet. Absent takes nothing.
+   */
+  readonly steps?: StepClock;
+}
+
+/** What a host asks of {@link stabilizeAsRequested}, in the shape it crosses into the page. */
+export interface StabilizeRequest {
+  /** The recipe by id. Absent is the collection recipe. */
+  readonly stabilize?: readonly string[];
+  /** As {@link StabilizeOptions.tier}. */
+  readonly tier?: Tier;
+  /** As {@link StabilizeOptions.driven}. */
+  readonly driven?: readonly string[];
+}
+
+/**
+ * {@link stabilizeForObservation} for a request that reached the page as data.
+ *
+ * A page agent receives the recipe as ids, because an intervention carries
+ * functions and cannot be serialized. Rejects on an id nothing answers to, as
+ * `recipeOf` throws.
+ */
+export async function stabilizeAsRequested(
+  document: Document,
+  request: StabilizeRequest,
+  steps?: StepClock,
+): Promise<Stabilized> {
+  return stabilizeForObservation(document, {
+    ...(steps === undefined ? {} : { steps }),
+    ...(request.stabilize === undefined ? {} : { recipe: recipeOf(request.stabilize) }),
+    ...(request.tier === undefined ? {} : { tier: request.tier }),
+    ...(request.driven === undefined ? {} : { driven: request.driven }),
+  });
 }
 
 /**
@@ -140,11 +212,16 @@ export async function stabilizeForObservation(
     asked !== undefined && tierReaches(ceiling, asked) && tierReaches(asked, available)
       ? asked
       : available;
-  const recipe = forTier(options.recipe ?? COLLECT_RECIPE, tier);
+  const recipe = forDriver(forTier(options.recipe ?? COLLECT_RECIPE, tier), options.driven ?? []);
 
   if (recipe.length === 0) {
-    return { ids: [], digest: undefined, release: () => undefined };
+    return { ids: [], digest: undefined, release: () => undefined, refocus: () => undefined };
   }
+
+  // Before the settle steps, because `no-focus` is one of them.
+  const focused = recipe.some((intervention) => intervention.governs === 'focus')
+    ? deepestFocused(document)
+    : undefined;
 
   const css = recipeCss(recipe);
   const style = existingSheet(document) ?? insertSheet(document);
@@ -153,7 +230,7 @@ export async function stabilizeForObservation(
 
   // Applied before the settle steps, so a font that arrives late lands into a
   // page whose animations are already pinned rather than starting one.
-  await settleRecipe(recipe, localTarget());
+  await settleRecipe(recipe, localTarget(), options.steps);
 
   // Two frames, because one is not enough to be sure. The first flushes the
   // style change; the second is when a compositor-driven animation that was
@@ -176,12 +253,20 @@ export async function stabilizeForObservation(
   // The condition is *the CSS is unchanged* rather than a counter somebody has
   // to keep correct, so the saving is a property of the sheet being idempotent
   // and not of anybody remembering to reset something.
-  if (!already) await settleFrames(view);
+  if (!already) {
+    await (options.steps === undefined ? settleFrames(view) : options.steps.time('frames', async () => settleFrames(view)));
+  }
 
+  const features = featuresOf(recipe);
   return {
     ids: recipe.map((intervention) => intervention.id),
     digest: recipeDigest(recipe),
+    ...(features === undefined ? {} : { features }),
     release: () => style.remove(),
+    refocus: () => {
+      if (focused === undefined || !focused.isConnected || deepestFocused(document) !== undefined) return;
+      focused.focus({ preventScroll: true });
+    },
   };
 
   /**
@@ -195,6 +280,17 @@ export async function stabilizeForObservation(
   function localTarget(): SettleTarget {
     return { evaluate: async <T,>(fn: () => T | Promise<T>): Promise<T> => await fn() };
   }
+}
+
+/**
+ * The element holding focus, through open shadow roots, or undefined when
+ * nothing but the body does.
+ */
+function deepestFocused(document: Document): HTMLElement | SVGElement | undefined {
+  let focused = document.activeElement;
+  while (focused?.shadowRoot?.activeElement != null) focused = focused.shadowRoot.activeElement;
+  if (focused === null || focused === document.body || focused === document.documentElement) return undefined;
+  return 'focus' in focused ? (focused as HTMLElement | SVGElement) : undefined;
 }
 
 function existingSheet(document: Document): HTMLStyleElement | null {

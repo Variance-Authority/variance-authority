@@ -1,49 +1,128 @@
 # Distill a test, then verify the reduction
 
-`variance distill` reads no config and no report. The two paths are its whole
-input, so it answers in a checkout that has never configured this tool. At least
-one of `--eyes` and `--execution` is required. `--format json` returns the same
-reading as data, and the `variance_distill` MCP tool returns the same
-deterministic reading.
+`variance distill` reads no report, and from the root `variance.config.json`
+only the declared suites, to find the record `--suite` names; a checkout that
+has never configured this tool gets the same answer. Its input is one record:
+the one `covering` reads, the declared suite's `--suite` names, or the file
+`--execution` names. `--test` takes a case id or a whole title,
+and `--file` the test file's path, relative to `--root` or absolute; give either
+or both. `--file` names that file alone: a recorded path that contains it or
+ends in it is another file, and a path outside `--root` is refused. More than
+one fitting case is refused with their ids. `--file` alone reads the file instead:
+the modules it loaded, from the record's coverage rows, that no case entered
+and those only some of its cases entered. Each module no case entered is
+listed under the import that made the file load it — the topmost import every
+path to it runs through, in the test file or a module it used — or as shared by
+two imports, or as reached by no static import. The fix is that import, never a
+mock of the listed path. It needs a recorded run, not `--execution` JSON, and is
+withheld when a case stopped or the file's coverage row is incomplete; run the
+file again. Name neither `--test` nor `--file`, and distill reads every test
+file of the record the same way, or with `--from <dir>` every one under a
+directory named from the repository root or from `/`, and ranks each import by the lines it loads
+for nothing, counted once in every test file it reaches: the heaviest import
+across a package or a suite. With no `--suite`, that reading takes every
+declared suite and names one that has not recorded. `--root` (default: the working
+directory) is the root the record's paths are relative to. `--format json`
+returns the same reading as data; for a file, the text names ten imports and
+three modules a group, and the JSON every module with its `cause`; for many
+files, the text names ten imports, and the JSON every import with its modules
+and test files. The `variance_distill` MCP tool returns the
+same deterministic reading of one case, and needs its test id; the file reading
+is the CLI's.
 
 ```bash
-variance distill --test checkout-submits --eyes eyes.json --execution execution.json
+variance distill --file test/checkout.test.tsx --test 'checkout > submits'
 ```
 
-## The two input files
+## How much each test file loads for nothing
 
-**`eyes.json`** is what `writeEyesArchive` wrote (see [producers](producers.md)).
-Version `1`, one entry per test, `complete` a boolean the producer set, and
-`attention` a sequence of `eyes-phase`, `react-commit`, `react-tap-refused` and
-`document-event` entries:
+A scope reading opens with where its time went, from the phases the runner
+timed for each test file: `prepare`, `environment`, `setup`, `collect` and
+`cases`, summed in milliseconds. `collect` — importing the test file and every
+module it loads — is the part that is not a test. Jest records no `prepare`. A
+file whose loading — every phase before `cases`, summed — is longer than its
+`cases` is listed as load-bound; start there, because what it costs before its
+first case is more than what it tests. In `--format json` this is `time`, with
+every load-bound file in `loadBound` as `{ file, loading, cases }`.
 
-```json
-{
-  "eyesVersion": 1,
-  "tests": [
-    {
-      "id": "checkout-submits",
-      "title": "checkout submits",
-      "file": "src/checkout.test.tsx",
-      "complete": true,
-      "attention": [{ "kind": "eyes-phase", "phase": "act", "sequence": 1 }]
-    }
-  ]
-}
+`--format jsonl` writes the scope reading one line a test file instead: its
+suite, its `cases`, what it `loaded` (modules that declare a function, other
+than itself, and their lines), and the part of that no case of it entered as
+`unentered`. Its optional `time` object gives the recorded `prepare`, `environment`,
+`setup`, `collect` and `cases` phases in milliseconds. A phase the runner did
+not time is absent; a measured zero stays `0`. With no recorded phases, `time`
+is absent. Timings remain available when `unentered` is withheld. These are
+elapsed times in each worker; summing files counts concurrent workers
+separately and does not measure CI wall time. Read them beside `unentered` to
+choose a file to investigate: unused lines do not measure time saved by a
+change. A file whose cases cannot say what it did without has `withheld`
+with the reason instead of `unentered`. A suite that kept no record is named on
+stderr. `--test` and `--file` refuse it. Percentiles across a suite are a `jq`
+away; this one gives the share of what each file loaded that no case entered,
+by modules and by lines:
+
+```bash
+variance distill --format jsonl | jq -s '
+  def pct($p): .[(($p / 100) * length | ceil) - 1];
+  def share(f): map(select(.unentered and .loaded.modules > 0) | f) | sort
+    | {files: length, P50: pct(50), P75: pct(75), P90: pct(90), P99: pct(99)};
+  group_by(.suite) | map({suite: .[0].suite,
+    modules: share(.unentered.modules / .loaded.modules),
+    lines: share(if .loaded.lines == 0 then 0 else .unentered.lines / .loaded.lines end)})'
 ```
 
-`complete` is the producer's own statement that the journal closed cleanly, and
-nothing else. `complete: false` requires a `because` string saying why. It is
+A module that declares no function is not counted: it ran all it has when it
+loaded, so no case could have done without it. `unentered` is the most that
+Jest's inline requires, or any lazy import, could stop a file paying.
+
+The CLI decodes each record whole, which costs about thirty times its file on
+the heap. When a record is too large for that, write the same rows from the
+record where it lies, through its own readers.
+`recordedExecutionFile(root, suite)` from `@variance-authority/cli` names the
+record the CLI reads. From `@variance-authority/sense/test-selection`:
+
+- `openCoverageFile(record)` gives each module's regions, numbered by
+  `BLOCK_KINDS`, and the test files that loaded its top level:
+  `blockLoadedSet` of its `module` region, and `testComplete` for whether each
+  test file's row is whole.
+- `openSetColumns(caseSectionsAt(record, ['index']).index)` gives each case's
+  file and how it settled (`testStopped`, `1` finished), and, by `blockCalled`,
+  the cases that crossed each region after its module loaded. An absent section,
+  or `undefined` from an index written in the older row spelling, means the
+  record keeps no cases you can read this way: stop and use the CLI.
+
+Count the rows the way distill does. A candidate is an instrumented module with
+a `function` region from source, loaded by the file and not the file itself. A
+module is entered when a case of the file crossed one of its regions other than
+`module`. A file is withheld when it has no case, its coverage row is not
+complete, or any case did not finish. Join the two readers on the test file's
+path, walk one module at a time, and hold a few counters a test file. Before
+trusting the script, check that it writes the rows
+`variance distill --from <dir> --format jsonl` writes for one directory.
+
+## The record
+
+A Vitest, Jest, rstest or Playwright run wrapped in `withTestSelection` writes
+the case index `covering` reads into its record. A Playwright run whose `test`
+also composes `eyesFixtures` writes each attempt's Eyes journal into the same
+record, keyed by the case and its attempt, numbered from 1. See
+[producers](producers.md).
+
+A journal is `complete` and a sequence of `eyes-phase`, `react-commit`,
+`react-tap-refused`, `document-event`, `rtl-query` and `playwright-locator`
+entries. `complete` is the producer's own flag that the journal closed cleanly,
+and nothing else. `complete: false` has a `because` field with the reason. It is
 **not** a judgement about whether `attention` has anything in it.
 
-**`execution.json`** is an `ExecutionIndex`: a `tests` array the crossings index
-into by position, and a `modules` array of files with lexical blocks. Every
-block needs `kind`, `name` (empty for a module root), `path`, `startLine`,
-`endLine`, `source`, and `crossings` of `{test, distance}`:
+`--execution` also takes an `ExecutionIndex` as JSON, from a tool that already
+records per-test crossings. JSON carries no journals. It is a `tests` array the
+crossings index into by position, and a `modules` array of files with lexical
+blocks. Every block needs `kind`, `name` (empty for a module root), `path`,
+`startLine`, `endLine`, `source`, and `crossings` of `{test, distance}`:
 
 ```json
 {
-  "tests": [{ "id": "checkout-submits", "file": "src/checkout.test.tsx", "name": "checkout submits" }],
+  "tests": [{ "id": "src/checkout.test.tsx > checkout submits", "file": "src/checkout.test.tsx", "name": "checkout submits" }],
   "modules": [
     {
       "file": "src/checkout.ts",
@@ -59,33 +138,28 @@ block needs `kind`, `name` (empty for a module root), `path`, `startLine`,
 }
 ```
 
-Under Vitest, a run wrapped in `withTestSelection` writes the index `covering`
-reads, and `--execution` takes that file as it is. Outside Vitest, supply it
-from a runner, debugger, editor integration or collector that already records
-per-test crossings, or run `distill` with `--eyes` alone.
-
-Those two files, through the command above, answer:
+A record holding that case and one complete, empty journal answers:
 
 ```
-checkout submits — src/checkout.test.tsx [checkout-submits]
-Eyes journal: complete.
+checkout submits — src/checkout.test.tsx [src/checkout.test.tsx > checkout submits]
+Eyes journal, attempt 1: complete.
 0 target snapshot(s); 0 had no live React Fiber.
 
-act:
-  components: none attributed by Eyes
-  source: none attributed by Eyes
+Addressed surface: measured empty.
 
 React update initiators: unavailable; no commit evidence was recorded.
 
 Runtime phase attribution: unavailable; ExecutionIndex retains test crossings, not AAA intervals.
-Runtime journey: 1 source file(s) entered by exact test id.
+Runtime journey: 1 source file(s) covered by exact case id.
   depth 0 — src/checkout.ts
 Covered with no addressed target attributed to the same file: 1.
   distillation opportunity at depth 0 — src/checkout.ts
 
-Loaded but not entered: 0 module(s).
+Loaded but not covered: 0 module(s).
   measured empty
 ```
+
+Two fixed paragraphs follow, the substitution rule and the opportunity rule.
 
 ## The loop, one opportunity at a time
 
@@ -116,15 +190,15 @@ named lines, and compare each with the witness line for line:
   under `outside` on the second reading and not the first fails the condition.
 
 `React update initiators: unavailable; no commit evidence was recorded` means
-none of the three can be decided. Discard the edit rather than keep it on an
-unavailable reading.
+the third condition cannot be decided. Discard the edit rather than keep it on
+an unavailable reading.
 
-Never batch opportunities into one experiment: a passing test would not say
+Never batch opportunities into one experiment: a passing test would not show
 which substitution was justified. A file the test ran with no addressed
 attribution is a queue for counterfactual checks, not permission to mock it.
 
-A plain test or a fake component is valid input. With execution evidence and no
-Eyes archive, report the source the test ran, and call the opportunity
+A plain test or a fake component is valid input. With a record that keeps no
+Eyes journal, report the source the test ran, and call the opportunity
 comparison and attention unavailable. An Eyes journal whose test has
 `complete: true` and an empty `attention` array permits the comparison: the
 producer closed cleanly and measured nothing, which is a reading.
@@ -133,17 +207,14 @@ denominator.
 
 ## Read the evidence literally
 
-- `PerformedWork` component names say which render bodies ran.
-  `memoizedUpdaters` paths say which live component instances started an update.
-  Neither proves which source statement scheduled it.
+- `PerformedWork` component names list the render bodies that ran.
+  `memoizedUpdaters` paths list the live component instances that started an
+  update. Neither proves which source statement scheduled it.
 - A missing updater field means the renderer did not expose it. An empty updater
   list means the set was measured and empty.
 - Updater paths keep name, key and props digest. Eyes owner paths keep name and
   props digest, so their overlap uses those shared frames. A name match alone
   does not place an updater inside an addressed target.
-- A source file the test ran with no addressed target is a distillation
-  opportunity. It is not proof that the code is unrelated, mockable or
-  removable.
 - Join evidence only on producer identities the tool accepts. Do not fall back
   from a stable test id to a title or a file path.
 

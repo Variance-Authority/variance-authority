@@ -23,9 +23,15 @@
  * It is worth installing for a single-worker run too: a worker that finds no
  * staging directory merges for itself and says so, and one that does contribute
  * costs a file write it would have spent on the merge anyway.
+ *
+ * Under `--shard k/n` it also places the shard, by whole files
+ * (`whole-file-shard.ts`), and turns Playwright's own split off. Below
+ * Playwright 1.62 nothing calls `preprocess`, so Playwright's split runs:
+ * `withTestSelection` refuses such a run when the configuration is evaluated,
+ * and a configuration that names this reporter without it is not refused.
  */
 
-import type { FullConfig, Reporter } from '@playwright/test/reporter';
+import type { Reporter } from '@playwright/test/reporter';
 import {
   closeStage,
   foldStage,
@@ -35,14 +41,13 @@ import {
   type InstrumentMode,
 } from '@variance-authority/sense/journal';
 import {
-  cacheRootFor,
-  prunedLine,
-  pruneWhenDue,
+  landingTimes,
   recordFileFor,
   repositoryRoot,
 } from '@variance-authority/sense/test-selection';
 import { dirname, resolve } from 'node:path';
 import { randomUUID } from 'node:crypto';
+import { placeWholeFiles, type Preprocess } from './whole-file-shard.js';
 
 /**
  * Where the folded record goes. The same values the fixtures were given.
@@ -58,9 +63,7 @@ export interface ExecutionReporterOptions {
    * relative to the checkout it sits in, never to it.
    */
   readonly root?: string;
-  /** Matches the `label` given to `testSelectionProbes()`. Defaults to `build`. */
-  readonly label?: string;
-  /** Where that build wrote its records. Defaults to the repository's cache. */
+  /** Where the coverage layers live. Defaults to the repository's cache. */
   readonly cacheRoot?: string;
   /** The coverage index. Defaults to the repository's cache. */
   readonly coverageFile?: string;
@@ -83,12 +86,6 @@ export interface ExecutionReporterOptions {
    * without this a commit that edits one selects nothing at all.
    */
   readonly preconditions?: readonly string[];
-  /**
-   * Where the execution index — which individual test entered which region —
-   * goes. Defaults beside the snapshot: `<coverage file>.cases.bin`;
-   * a name ending `.json` is written as JSON instead, at the size JSON costs.
-   */
-  readonly executionFile?: string;
 }
 
 /**
@@ -105,20 +102,19 @@ export default class implements Reporter {
   // the workers stage beside this snapshot, so the fold has to write the same one.
   readonly #coverageFile: string | undefined;
   readonly #snapshot: string;
-  readonly #executionFile: string | undefined;
+  readonly #start: string;
   #directory: string | undefined;
 
   constructor(options: ExecutionReporterOptions = {}) {
     this.#options = options;
     const start = resolve(options.root ?? process.cwd());
+    this.#start = start;
     this.#root = repositoryRoot(start);
     this.#coverageFile =
       options.coverageFile === undefined ? undefined : resolve(start, options.coverageFile);
     // Before any worker starts, so a suite the configuration does not declare
     // fails the run rather than the fold at its end.
     this.#snapshot = recordFileFor(this.#root, start, options);
-    this.#executionFile =
-      options.executionFile === undefined ? undefined : resolve(start, options.executionFile);
   }
 
   /** Reporters print nothing here; the only lines are refusals, and those go to stderr. */
@@ -126,7 +122,18 @@ export default class implements Reporter {
     return false;
   }
 
-  onBegin(_config: FullConfig): void {
+  /** Playwright 1.62 and newer: place a `--shard` by whole files, before Playwright would split it. */
+  async preprocess(params: Preprocess): Promise<void> {
+    const times = landingTimes(this.#snapshot, {
+      root: this.#root,
+      from: this.#start,
+      ...(this.#options.suite === undefined ? {} : { suite: this.#options.suite }),
+      byFile: this.#coverageFile !== undefined,
+    });
+    await placeWholeFiles(params, this.#root, times, (line) => process.stderr.write(`${line}\n`));
+  }
+
+  onBegin(): void {
     // Before the first worker is forked, because a worker inherits the
     // environment as it stood when it started and has no other way to be told.
     // Beside the snapshot, so a suite that redirected its index redirects this
@@ -144,7 +151,6 @@ export default class implements Reporter {
       const record = await recordExecution({
         root: this.#root,
         subjects: staged.subjects,
-        ...(this.#options.label === undefined ? {} : { label: this.#options.label }),
         ...(this.#options.cacheRoot === undefined ? {} : { cacheRoot: this.#options.cacheRoot }),
         ...(this.#coverageFile === undefined ? {} : { coverageFile: this.#coverageFile }),
         ...(this.#options.suite === undefined ? {} : { suite: this.#options.suite }),
@@ -152,13 +158,9 @@ export default class implements Reporter {
         ...(this.#options.preconditions === undefined
           ? {}
           : { preconditions: this.#options.preconditions }),
-        ...(staged.heads === undefined || staged.heads.length === 0
-          ? {}
-          : { heads: staged.heads }),
         ...(staged.cases !== undefined && staged.cases.length > 0
           ? { cases: staged.cases }
           : {}),
-        ...(this.#executionFile === undefined ? {} : { executionFile: this.#executionFile }),
       });
       if (!record.recorded) {
         process.stderr.write(
@@ -178,8 +180,5 @@ export default class implements Reporter {
     } finally {
       await closeStage(directory);
     }
-    // After the fold has let go of the index, and at most once a day.
-    const pruned = prunedLine(await pruneWhenDue(this.#options.cacheRoot ?? cacheRootFor(this.#root)));
-    if (pruned !== '') process.stderr.write(`${pruned}\n`);
   }
 }

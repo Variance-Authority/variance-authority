@@ -1,4 +1,5 @@
 import { EXIT_CLEAN, exitFor } from '../exit.js';
+import { projectSegment } from '../project-segment.js';
 import type { CliRunReport } from './run.js';
 import { docketOf } from './docket.js';
 import {
@@ -7,13 +8,16 @@ import {
   coverageBlocks,
   driftBlocks,
   foldBlocks,
-  leadBlocks,
   metaBlocks,
+  moveBlocks,
   skippedBlocks,
   warningBlocks,
   withoutCauseBlocks,
 } from './comment-blocks.js';
 import { picturesOf } from './comment-images.js';
+import { leadBlocks } from './comment-lead.js';
+import { unstableBlocks } from './comment-unstable.js';
+import { clampComment, COMMENT_CHARACTERS } from './comment-text.js';
 
 /**
  * The run report as a pull-request comment — the docket, put where acting on it
@@ -63,7 +67,7 @@ import { picturesOf } from './comment-images.js';
  * and a comment with a green check teaches them the comment is advisory.
  *
  * **The marker is in the body.** The poster finds its own previous comment by
- * searching for {@link COMMENT_MARKER} and rewrites that one, because a new
+ * searching for its project's {@link commentMarker} and rewrites that one, because a new
  * comment per run buries the current state under a history nobody reads. Matching
  * on the *body* rather than on the author is what makes this work under any
  * token — a GITHUB_TOKEN posts as `github-actions[bot]`, a PAT posts as a person,
@@ -82,35 +86,47 @@ import { picturesOf } from './comment-images.js';
  * ## Pure, and deliberately so
  *
  * Report in, string out. No network, no octokit, no clock, no filesystem — and no
- * runtime import beyond `../exit.js` and the siblings this file was cut into,
- * none of which import anything either. That is not tidiness: it is what lets the
+ * runtime import beyond `../exit.js`, `../project-segment.js` and the siblings
+ * this file was cut into, none of which import anything else either. That is not tidiness: it is what lets the
  * composite action render the body in a Node process that never loads a browser
  * driver, and what lets every claim above be a unit test over a hand-built report
  * instead of a job on a real pull request.
  *
- * ## The four files
+ * ## The files
  *
  * `docket.ts` folds the report into review items and counts what it
- * refuses to list; `comment-blocks.ts` turns that docket into markdown;
- * `comment-images.ts` spells the address of a picture the operator published;
- * `comment-text.ts` holds the two primitives both of them write through, so the
- * fold and the render can never escape a component name differently. This file
- * keeps the one decision the other two must not be allowed to make — whether a
- * comment exists at all.
+ * refuses to list; `comment-lead.ts` writes the first screen,
+ * `comment-unstable.ts` the subjects that disagreed with themselves, and
+ * `comment-blocks.ts` everything after them; `comment-images.ts` spells the
+ * address of a picture the operator published; `comment-text.ts` holds the two
+ * primitives they all write through, so the fold and the render can never
+ * escape a component name differently. This file keeps the one decision none of
+ * them may make — whether a comment exists at all.
  */
 
 /**
- * The string the poster searches for, and the reason it may never change
- * casually.
+ * The string the poster searches for to find this project's comment, and the
+ * reason it may never change casually.
  *
  * An HTML comment, so it is invisible in the rendered body and survives a round
- * trip through GitHub's markdown. Versioned, because the day this format changes
- * incompatibly the honest move is to leave the old comment where it is and start
- * a new one rather than rewrite a body whose shape the new renderer never
- * produced — but note what that costs: every open pull request then carries two
- * dockets, and the stale one has no way to say it is stale.
+ * trip through GitHub's markdown. Keyed by the config's `project`, because a
+ * repository running two gates runs two posters on one pull request, and each
+ * has to find its own comment and leave the other's alone. The project is
+ * spelled by `projectSegment`, as carry spells it for the ref the pictures go
+ * to, so no project can close the HTML comment early, and the space before
+ * `-->` ends it, so no project's marker is a prefix of another's: `storybook`
+ * does not find `storybook-case`.
+ *
+ * Versioned, because the day this format changes incompatibly the honest move
+ * is to start a new comment rather than rewrite a body whose shape the new
+ * renderer never produced. `v1` carried no project. The poster takes a `v1`
+ * comment over when told to, and the action tells it to unless the job says it
+ * never wrote one, so an open pull request keeps one comment through the
+ * upgrade.
  */
-export const COMMENT_MARKER = '<!-- variance-authority: pr-docket v1 -->';
+export function commentMarker(project: string): string {
+  return `<!-- variance-authority: pr-docket v2 project=${projectSegment(project)} -->`;
+}
 
 /**
  * Where each list stops, and therefore where the comment starts saying so.
@@ -140,10 +156,12 @@ export const DEFAULT_LIMITS: CommentLimits = {
   subjects: 3,
   notObserved: 20,
   drift: 10,
-  characters: 65_536,
+  characters: COMMENT_CHARACTERS,
 };
 
 export interface CommentOptions {
+  /** The config's `project`, whose {@link commentMarker} the body carries. */
+  readonly project: string;
   readonly report: CliRunReport;
   /**
    * Where the full report and the images went.
@@ -197,8 +215,10 @@ export function renderComment(options: CommentOptions): string {
   const pictures = picturesOf(report, options.imageRoot);
 
   const blocks = [
-    COMMENT_MARKER,
+    commentMarker(options.project),
     ...leadBlocks(docket, options, pictures),
+    ...unstableBlocks(docket, limits),
+    ...moveBlocks(docket, limits),
     ...warningBlocks(report, docket),
     ...driftBlocks(report, limits),
     ...coverageBlocks(report, docket, limits),
@@ -214,31 +234,9 @@ export function renderComment(options: CommentOptions): string {
   return clamp(blocks.join('\n\n'), limits.characters);
 }
 
-/**
- * Cut the body to fit, and say by how much.
- *
- * GitHub does not truncate an over-long comment, it rejects the request — so the
- * real choice is between a body that states what it dropped and no comment at
- * all. The marker is the first line, so head-truncation always leaves the poster
- * able to find and update this comment on the next run; a tail-truncating
- * implementation would strand it and start duplicating.
- *
- * The room reserved for the notice is computed against the largest number it
- * could ever state, so the notice can only get shorter than the space kept for
- * it. Slightly wasteful and provably safe, which is the correct trade for a
- * length check whose failure mode is a rejected API call nobody sees.
- */
+/** The docket cut to fit, saying that the run report itself is whole. */
 function clamp(body: string, characters: number): string {
-  if (body.length <= characters) return body;
-
-  const notice = (dropped: number): string =>
+  return clampComment(body, characters, (dropped) =>
     `\n\n> ${dropped} character(s) of this docket are not shown: the body exceeded the ` +
-    `${characters}-character comment limit. Nothing was dropped from the run report itself.`;
-
-  const room = Math.max(0, characters - notice(body.length).length);
-  const cut = body.slice(0, room);
-  const lastBreak = cut.lastIndexOf('\n');
-  const head = lastBreak > 0 ? cut.slice(0, lastBreak) : cut;
-
-  return head + notice(body.length - head.length);
+    `${characters}-character comment limit. Nothing was dropped from the run report itself.`);
 }

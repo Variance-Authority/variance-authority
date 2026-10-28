@@ -5,6 +5,7 @@
 > Turn a built or already-served Storybook into Variance Authority subjects.
 
 Part of [Variance Authority](https://variance-authority.dev).
+Point your coding agent at [`llms.txt`](https://variance-authority.dev/llms.txt).
 
 ## What this is for
 
@@ -34,7 +35,7 @@ This is the Storybook adapter, not the `variance` binary. The binary lives in
 | Module format | ESM only. Every `@variance-authority/*` package sets `"type": "module"`; `require()` will not load them. |
 | Browser | Chromium, installed through Playwright. The binaries do not arrive with an `npm install`. |
 | Storybook | Exercised against Storybook 10 with `@storybook/react-vite`. Index versions `3`, `4` and `5` are read, and the story root is looked for at `#storybook-root` (Storybook 7 and later) and then `#root` (before it). Storybook 8.3 and later emit `storyFinished`, which this package waits for; it falls back to `storyRendered` when the event is absent. |
-| Builder | Collection reads `index.json` and drives the preview channel, so it does not know or care whether Vite or Webpack 5 built the Storybook. Two optional precision features are Vite plugins with no Webpack equivalent, and are named as such where they appear below: `@variance-authority/jsx-source` and the `tests` option. |
+| Builder | Collection reads `index.json` and drives the preview channel, so it works the same whether Vite, Webpack 5 or Rspack built the Storybook. The `tests` option records under all three. `@variance-authority/jsx-source` is a Vite plugin with no Webpack or Rspack equivalent. |
 | React | Required for component attribution, the `wiring` band and the Suspense wait. The reading is of the expando `react-dom` writes on host nodes — `__reactFiber$` on React 17 and later, `__reactInternalInstance$` on React 16 — so there is no React version to match and none is imported. The suite runs against React 19. |
 
 A Storybook whose renderer is not React still collects: documents, pixels,
@@ -64,7 +65,7 @@ the build.
 
 ### 2. Write the collector module
 
-The collector is the module that tells the run how to find and read your
+The collector is the module that defines how the run finds and reads your
 stories. Create it anywhere in your project and default-export the factory.
 
 ```js
@@ -76,8 +77,8 @@ export default storybookCollector({
 });
 ```
 
-`source.dirs` is a list of directory paths — not globs — resolved against the
-directory you run `variance` from. The scan reads `.tsx`, `.jsx`, `.ts` and
+`source.dirs` is a list of directory paths — not globs — each absolute or
+resolved against the directory you run `variance` from. The scan reads `.tsx`, `.jsx`, `.ts` and
 `.js`, skips `node_modules`, `dist`, `storybook-static` and any path containing
 `.test.`, `.spec.` or `.stories.`, and indexes where each component is
 *declared*. Without it the report still names components and resolves none of
@@ -146,8 +147,9 @@ full form is:
 npx variance accept [--config <path>] <subject>... | --all | --shape <fingerprint>[,...] [--message-file <path> [--message <text>]]
 ```
 
-Keep `--all` for the first run and for deliberate re-baselines; it cannot tell a
-story nobody looked at from one that changed. After setup, name subject ids:
+Keep `--all` for the first run and for deliberate re-baselines; it does not
+separate a story nobody looked at from one that changed. After setup, name
+subject ids:
 
 ```bash
 npx variance accept --config variance.config.json story:checkout--empty story:checkout--one-item
@@ -172,7 +174,7 @@ rendered by playwright-chromium (chromium@131, darwin/arm64, 1x)
 [changed] story:checkout--empty — Button: 1356 pixel(s) differ across 2 region(s) in Button
 [changed] story:checkout--one-item — Button: 1356 pixel(s) differ across 2 region(s) in Button
 
-not observed: 2 subject(s) — 0 the run could not see, 2 excluded by configuration, 0 not reached by this change
+not observed: 2 subject(s) — 0 the run could not see, 2 excluded on purpose, 0 not reached by this change
   [excluded] story:checkout--docs-only: excluded by tag `no-variance`
 ```
 
@@ -207,12 +209,14 @@ Everything below is passed to `storybookCollector(...)` in the module from step
 | `source` | Reports should resolve component names to `file:line`. | Omitted; component names remain available. An empty or mistyped scan is refused. |
 | `baseUrl` | Storybook is already running, e.g. `http://localhost:6006`. | Omitted; the directory containing `subjects.index` is served on loopback for the run. |
 | `headless` | You need to watch collection while debugging. | `true`. |
+| `stabilize` | A story is about its hover, focus, motion or the current date, or your preview has its own determinism strategy. | The standard collection recipe, which also takes the pointer off the page, releases focus, asks for reduced motion and fixes `Date`; `[]` records an untouched story. A list replaces the recipe: start from the exported `DEFAULT_STABILIZE` and filter out what you want read, as in `DEFAULT_STABILIZE.filter((id) => id !== 'no-hover')`. |
+| `now` | Your stories print a date and you want one other than the default. | `2024-06-15T12:00:00.000Z`. An ISO 8601 instant with its zone; anything else is refused before a browser opens. |
 | `network` | Asset bytes at stable URLs must participate in render identity. | `true`; set `false` only when asset URLs are already content-addressed. |
 | `hashAssets` | Your asset URLs already contain their own content hash. | `true`. Read only while `network` is on, so GIF freezing and blanking survive it — this, not `network: false`, is the setting for a content-addressed build. |
 | `wiring` | Your preview's renderer is not React. | `true`. Reads props, context, hook cells and keys into a band of its own; turning it off changes no stored digest. |
 | `holdings` | Application values behind the nodes are evidence you want read. | `false`. Changes `structureHash` — an inert wrapper survives the collapse — so both sides of a comparison must be read the same way. |
 | `roots` | Your preview mounts somewhere other than the standard roots. | `['#storybook-root', '#root']`, tightest match first. |
-| `tests` | The next run should be able to skip stories whose code nothing touched. | `false`. Requires a Vite-built preview that includes `testSelectionProbes()`; see below. |
+| `tests` | The next run should be able to skip stories whose code nothing touched. | `false`. Requires this package in the Storybook's `addons` and `storybook build --test`; see below. |
 
 A **band** is the severity category a change is filed under. Loudest first:
 `a11y`, `geometry`, `token`, `content`, `texture`. A role or accessible name that
@@ -228,6 +232,16 @@ source and page-agent shapes.
 One navigation serves the whole suite rather than one navigation per story, and
 addon chrome stays outside the selected story root, so it never covers the
 subject document.
+
+A parallel run starts one Chromium. Each worker is another page in it, in one
+browser context with the first, so its preview boots from the HTTP cache rather
+than fetching the bundle again; the pages share cookies and storage, as stories
+in one preview already share a document. Across workers, what a story finds left
+behind depends on scheduling: which worker read which story before it decides the
+cookies, storage and service workers, msw's among them, that it meets. When you
+let the collector serve the build, it answers with `cache-control: immutable` so
+every asset stays cached for the run. A story read again to rule out its
+neighbours gets a browser of its own.
 
 ## Readiness and loading
 
@@ -341,25 +355,66 @@ for builds that already use Emotion, theme-ui or another custom JSX runtime.
 
 With `tests`, a run records which blocks of your code each story crossed, so the
 next run can skip a story whose code your diff did not reach. The recording is
-done by a Vite plugin in the preview build:
-
-```bash
-npm install --save-dev @variance-authority/sense
-```
+done by probes in the preview build, which this package adds as a Storybook
+addon to `storybook build --test` and a dev server:
 
 ```js
 // .storybook/main.js
-import { testSelectionProbes } from '@variance-authority/sense/journal';
-
 export default {
   stories: ['../src/**/*.stories.@(js|jsx|ts|tsx)'],
-  framework: { name: '@storybook/react-vite', options: {} },
-  viteFinal: async (config) => ({
-    ...config,
-    plugins: [...(config.plugins ?? []), testSelectionProbes({ label: 'storybook' })],
-  }),
+  framework: { name: 'storybook-react-rsbuild', options: {} },
+  addons: ['@variance-authority/storybook-collector'],
 };
 ```
+
+Storybook loads the addon through its preset,
+`@variance-authority/storybook-collector/preset`, which you never import
+yourself. The preset reads the builder Storybook runs. Under Vite it adds
+`testSelectionProbes()` from `@variance-authority/sense/journal`; under Rspack,
+through `rsbuildFinal`, and Webpack 5, through `webpackFinal`, it adds a plugin
+that lists `testSelectionRule()`, a loader at `enforce: 'post'`, first among the
+rules once the build's config is final, so it runs after every post loader of
+yours, the ones your `main.js` hooks add included: Storybook runs an addon's
+hooks before yours. Either way the probes go in after
+every compiler your build runs, so an extractor such as `@compiled/react` reads
+your file as you wrote it, and each probe is placed where the source map says
+that code went. Where the build writes no map the loaders can read, as
+`storybook build --test` does, the preset hands the loaders their maps and the
+build still writes no `.map` file. The preset asks Storybook which build it
+is: `test`, which `--test` sets, or `configType` of `DEVELOPMENT`, which a dev
+server sets. Any other `storybook build`, the one you publish, gets nothing
+from the addon: build it with `--test` for the run that records. If you added
+`testSelectionRule()` to the Storybook's builder config by hand, or
+`testSelectionProbes()` in a `viteFinal` of your own, remove it: two would
+probe each other's probes, so the build stops and says "remove your
+testSelectionRule(); the addon places it", or the same of
+`testSelectionProbes()`. One your `vite.config` lists is already in the config
+when the addon runs, and the addon keeps it rather than add a second; if you
+also gave the addon a `mode`, `include` or `placement` that differs from it, the
+build stops and names the option, since the addon's would be dropped. Under
+Rsbuild the addon adds its plugin as a function at the end of `tools.rspack`:
+an `rsbuildFinal` of yours that assigns `tools.rspack` outright, rather than
+adding to the list, drops it, and the build runs without probes. The Vite
+config `@storybook/addon-vitest` loads your presets for, inside Vitest, gets
+nothing from the addon either: that run is a Vitest run, and the Vitest seam
+records it where you configured one.
+
+Each loader that rewrites a file must return a source map composed with its
+input map. Enabling `devtool` gives the probes a map only where that chain is
+intact. A refusal saying there is no map back to the file means that chain is
+missing; one saying the map carries text different from the file on disk means
+the map describes another transform's input. The refusal lists the loader chain
+when the bundler provides it. Check map composition in those upstream loaders
+while keeping the probes after the compilers. Removing a file through `include`
+also removes it from recorded coverage.
+
+Pass the probes' options as the addon's: `{ name:
+'@variance-authority/storybook-collector', options: { mode: 'entries' } }`.
+`include` decides which modules are your source, every file outside
+`node_modules` and `dist` that is not a test or a config by default; `root` is a
+directory in the repository, the cwd by default. `placement:
+'before-transforms'` places the probes in each file as read, ahead of every
+compiler; a Storybook that runs an extractor keeps the default.
 
 ```js
 // variance/storybook.mjs
@@ -367,19 +422,21 @@ import { storybookCollector } from '@variance-authority/storybook-collector';
 
 export default storybookCollector({
   source: { dirs: ['src'] },
-  tests: { label: 'storybook' },
+  tests: true,
 });
 ```
 
-`tests` accepts `true` or an options object: `label` must match the one the
-preview's `testSelectionProbes()` was given, and `cacheRoot` and `coverageFile`
-override the repository-keyed cache paths for the block records and the coverage
-index. `suite` names the suite this run is, when the root `variance.config.json`
+`tests` accepts `true` or an options object: `cacheRoot` and `coverageFile`
+override the repository-keyed cache paths for the coverage layers and the
+coverage index. The preview's probes report each module's file and a digest of
+the text they were placed on, and the run cuts that file again from your
+checkout, so the preview's build writes nothing the run has to find. `suite` names the suite this run is, when the root `variance.config.json`
 declares its suites under `suites`; it is required once any suite is declared,
-and cannot be combined with `coverageFile`. `root` is the directory Storybook ran in, the cwd by default: story paths
-and a relative `coverageFile` or `executionFile` are read from it, and every
-path the run records is relative to the repository that contains it.
-Without a collector in the page, the run says so on stderr and records nothing.
+and cannot be combined with `coverageFile`. `root` is the directory Storybook
+ran in, the cwd by default: story paths and a relative `coverageFile` are read
+from it, and every path the run records is relative to the repository that
+contains it. Without a collector in the page, the run prints that on stderr and
+records nothing.
 
 `mode` is the probe recipe, and it has to be the one the preview was built
 under: a snapshot names the recipe its ordinals were cut by, and a merge
@@ -387,17 +444,17 @@ discards a layer cut by another one, so a preview probing under `entries` and a
 run folding under `presence` would each wipe the other. `preconditions` names
 files whose contents are a precondition of every story's observation — a
 `preview.js` that decides what renders belongs there, because a change to it
-invalidates every reading and no crossing will ever say so. `heads` and
-`commit` stamp the snapshot with the branch tips this recording stands on and
-the commit it was taken at, which is what lets a later run tell a stale layer
-from a current one.
+invalidates every reading and no crossing will ever record it. `commit`
+stamps the snapshot with the commit it was taken at, the checkout's `HEAD` by
+default, which is what lets a later run separate a stale layer from a current
+one.
 
 A story is its own owner in the recorded index — Storybook is an execution
 surface this tool drives one subject at a time — and a story that did not render
 still contributes its crossings while never justifying a later skip.
 
 Every run also writes the execution index: one row per story per region,
-beside the coverage index, or wherever `executionFile` points. That is the file
+inside the coverage index. That is the file
 `variance covering` and `@variance-authority/distill` read to answer *which
 stories walk this branch*.
 
@@ -406,6 +463,23 @@ so the per-story grain a unit runner needs an async scope for is already here:
 the index names each row by where the story is declared — its file, its
 `title/name` — which is the coordinate a person reads in the sidebar and the one
 a diff touches.
+
+Each story's row also says where the browser spent it, timed by the page on its
+own clock rather than by the test driving it, under the phase names a test
+file's row uses. `prepare` is the document's start until the preview is ready:
+the navigation, the runtime, the project annotations and the index. A document
+pays it once, so only the first story read on it carries it, and a story the
+preview switched to reads 0, as the second test in one file pays no worker
+start. `collect` is importing the story's file and everything it loads, and then
+unmounting the story shown before it: Storybook does that in between and signals
+nothing for it. No file is imported before its first story comes up — the
+story's parameters are read from the file the preview loads to show it — so the
+first story of each file carries that file's import, and the stories after it
+read only the unmount. `cases` is the render, from loaders through the play function to
+`afterEach`, or to the phase it ended on when it errored or was aborted. Each
+width a story is read at is its own row, with its own figures; the widths share
+one visit on one page, so the first carries the import and the others are the
+same story shown again at another size.
 
 ## When integration fails
 
@@ -431,8 +505,9 @@ a diff touches.
   URL already identifies the bytes.
 - **The browser is missing:** run `npx playwright install chromium`, then
   `npx variance doctor` again.
-- **A rerun reports `incomparable`:** the approved image was stored under a
-  different identity than this machine produces. `npx variance doctor` lists the
+- **A rerun reports every story `changed`, a moved identity first:** the
+  approved image was stored under a different identity than this machine
+  produces. `npx variance doctor` lists the
   identities the baseline root stores.
 
 ## Boundaries
@@ -444,4 +519,4 @@ navigation, mounting and readiness.
 
 ---
 
-**[@variance-authority/storybook-collector](https://variance-authority.dev/reference/packages/storybook-collector)** is part of [Variance Authority](https://variance-authority.dev) — [documentation](https://variance-authority.dev/docs) · MIT
+**[@variance-authority/storybook-collector](https://variance-authority.dev/reference/packages/storybook-collector)** is part of [Variance Authority](https://variance-authority.dev) — [documentation](https://variance-authority.dev/docs) · [GitHub](https://github.com/Variance-Authority/variance-authority/tree/main/packages/storybook-collector) · MIT

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseConfig } from './config.js';
+import { ConfigError, parseConfig } from './config.js';
 
 /**
  * The section that says what a subject id is made of.
@@ -70,6 +70,18 @@ describe('the names section', () => {
 
   it('refuses a section that configures nothing', () => {
     expect(() => withNames({ axes: [] })).toThrow(/non-empty array of axes/);
+  });
+
+  it('refuses in the config file\'s own shape, naming the file and the field', () => {
+    // The rules are read in sense; the operator still gets a config refusal.
+    let error: unknown;
+    try {
+      withNames({ axes: [{ axis: 'scheme', values: 'light' }] });
+    } catch (thrown) {
+      error = thrown;
+    }
+    expect(error).toBeInstanceOf(ConfigError);
+    expect(error).toMatchObject({ field: 'names.axes[0].values', message: expect.stringContaining('variance.config.json') });
   });
 
   it('refuses a misspelled key by name', () => {

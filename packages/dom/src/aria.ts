@@ -1,4 +1,5 @@
 import type { RawAria } from '@variance-authority/core/format';
+import { liveChecked } from './form-state.js';
 
 /**
  * Role, accessible name, and state.
@@ -410,12 +411,9 @@ export function stateOf(element: Element): Record<string, string | boolean | num
     if (element.hasAttribute(name)) state[name] = true;
   }
 
-  // `checked` on a live input reflects user interaction; the attribute records
-  // only the initial value, which diverges the moment anything is clicked.
-  if (element instanceof element.ownerDocument.defaultView!.HTMLInputElement) {
-    const input = element as HTMLInputElement;
-    if (input.type === 'checkbox' || input.type === 'radio') state['checked'] = input.checked;
-  }
+  // A click moves the property; the attribute keeps how the markup started.
+  const checked = liveChecked(element);
+  if (checked !== undefined) state['checked'] = checked;
 
   const tag = element.tagName.toLowerCase();
   if (/^h[1-6]$/.test(tag) && state['level'] === undefined) {

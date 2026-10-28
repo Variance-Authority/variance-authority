@@ -12,12 +12,18 @@
 // compass: variance-authority.reach
 
 import { randomUUID } from 'node:crypto';
-import { mkdir, readFile, rename, stat, writeFile } from 'node:fs/promises';
+import { statSync } from 'node:fs';
+import { link, mkdir, readFile, rename, stat, unlink, writeFile } from 'node:fs/promises';
 import { dirname, relative, resolve, sep } from 'node:path';
 import { layeredFiles, repositoryLayers } from './cache-layers.js';
+import { commitRunsFile, readCommitRuns, type CommitRuns } from './commit-runs.js';
+import { caseSectionsOf, sharedRecord } from './case-record.js';
 import { decodeExecutionTests } from './execution-format.js';
 import { openSetExecutionIndex } from './execution-set-format.js';
-import { openTestCoverage } from './format-view.js';
+import { RecordWithoutCoverage } from './format-validation.js';
+import { openTestCoverage, type TestCoverageView } from './format-view.js';
+import { layFetchedMainline, lastFetchedMainline, type LastFetched } from './mainline-layer.js';
+import { writeOwnLayer } from './own-layer.js';
 import { declaredSuite } from './suites.js';
 
 export interface RecordLocationOptions {
@@ -80,70 +86,284 @@ export function recordFileFor(
 }
 
 /**
- * Give a checkout the repository's snapshot to build its own on top of.
+ * A base the first run here was not laid on: it was written under other probes
+ * than the run's, so the run cannot be laid over it (`layRecord`).
+ */
+export interface PassedOver {
+  /** The record passed over. */
+  readonly file: string;
+  /** The probes it was written under. */
+  readonly instrumentation: string;
+  /** The probes the run records under. */
+  readonly run: string;
+}
+
+/**
+ * Which record a checkout's first run was laid on, when {@link seedTestCoverage}
+ * laid one, and the bases it passed over on the way; `nothing` when it passed
+ * over every base there was.
+ */
+export type Seeded =
+  | { readonly from: 'mainline'; readonly record: LastFetched }
+  | {
+      readonly from: 'primary';
+      /** The primary checkout's record that was copied. */
+      readonly file: string;
+      /** The suite, when the root config gives it to the share and so a mainline record was looked for first. */
+      readonly shared?: string;
+      /** The mainline record passed over before it, when one was. */
+      readonly passed?: readonly [PassedOver];
+    }
+  | { readonly from: 'nothing'; readonly passed: readonly [PassedOver, ...PassedOver[]] };
+
+/**
+ * Give a checkout the base to build its own record on top of, before its first
+ * run lands.
  *
  * A worktree cut this morning is a checkout of a repository that has been
  * recording for months, and with a cache directory of its own it would inherit
  * none of that: the first run in it re-instruments a world already sitting on
- * disk a directory away. So before the first run, the base is copied up — once,
- * and only when this checkout has nothing of its own, because after that the
- * checkout's own snapshot is the base plus everything its branch has recorded,
- * and the base is the staler of the two.
+ * disk. So before the first run the base is copied up — once, and only when
+ * this checkout has nothing of its own, because after that the checkout's own
+ * record is the base plus everything its branch has recorded.
+ *
+ * The base is the one every reader measures from, in the same order:
+ *
+ * 1. **The mainline's record, as last fetched on this machine**, for a suite
+ *    the root config gives to the share: the coverage record, its case index
+ *    and the runs record the publishing run wrote, unaltered — see
+ *    {@link lastFetchedMainline}. This applies in the primary checkout too,
+ *    whenever its own layer is empty.
+ * 2. **The primary checkout's record**, in a worktree, when no mainline record
+ *    was fetched here or the fetched one does not read. For a suite given to
+ *    the share this is an offline fallback, and {@link noteSeeded} says so.
  *
  * A copy rather than a read-through join, because the write path already layers:
- * `layeredCoverage` folds a run into a whole snapshot, so a worktree that starts
+ * `layeredCoverage` folds a run into a whole snapshot, so a checkout that starts
  * from a copy of the base and lands its runs on that copy holds exactly what a
  * two-layer read would have computed, without paying for the join on every read
  * or pinning the base while it works.
  *
- * A suite's record is seeded from the same suite's under the base, and never
- * from another suite's or from the repository's one record: those were cut by
- * another build.
+ * A suite's record is seeded from the same suite's, and never from another
+ * suite's or from the repository's one record: those were cut by another build.
+ *
+ * A base written under other probes than `instrumentation`, the probes of the
+ * run about to land, is not copied either: the run could not be laid over it,
+ * and a worktree seeded with it would fail every run until somebody deleted the
+ * copy — and the next run would seed it again. It is passed over for the next
+ * base and named in what this returns, so {@link noteSeeded} says so. A run that
+ * lays no coverage passes `undefined`, and lays over a base under any probes.
  *
  * A base this build cannot read is not copied and not an error. That is the same
  * answer {@link recordedCommit} gives, for the same reason: a snapshot written
  * by another layout is a snapshot this run has no claim on, and one stale base
  * must not be able to fail every worktree of the repository at once. The run
- * proceeds with no index and records one.
+ * proceeds with the next base, or with no index, and records one.
  *
- * Does nothing at all when the caller named its own file, or in the primary
- * checkout, where the two layers are one directory.
+ * The primary checkout's snapshot is seeded with a runs record beside it, which
+ * says where each of its tests last ran: see {@link seedCommitRuns}.
+ *
+ * Does nothing at all when the caller named its own file. Returns what it laid,
+ * or `undefined` when it laid nothing. A run that {@link recordsAlone} does not
+ * ask.
  */
 export async function seedTestCoverage(
   file: string,
   root: string,
+  instrumentation: string | undefined,
   cacheRoot?: string,
-): Promise<void> {
+): Promise<Seeded | undefined> {
   const layers = repositoryLayers(root, cacheRoot);
-  if (layers.top === layers.base) return;
   // A caller that named its own file owns it, and it is not a layer of
   // anything: there is no base beneath a path somebody passed in.
   const inside = relative(layers.top, file).split(sep).join('/');
-  if (inside !== 'coverage.bin' && !/^suites\/[^/]+\/coverage\.bin$/u.test(inside)) return;
-  await seedFrom(layers.base, inside, file, (bytes) => void openTestCoverage(bytes));
-  // The case index is a second record beside the snapshot, and the run folds
-  // into whatever it finds there, replacing the cases of the files it ran. With
-  // nothing seeded the first run in a worktree would write a partial index that
-  // then stands for the whole suite.
-  await seedFrom(layers.base, `${inside}.cases.bin`, `${file}.cases.bin`, (bytes) => {
-    if (openSetExecutionIndex(bytes) === undefined) decodeExecutionTests(bytes);
+  if (inside !== 'coverage.bin' && !/^suites\/[^/]+\/coverage\.bin$/u.test(inside)) return undefined;
+  const suite = /^suites\/([^/]+)\//u.exec(inside)?.[1];
+  const shared = suite === undefined ? undefined : declaredSuite(root, suite)?.carry === 'share' ? suite : undefined;
+  // A checkout with a record of its own has its base, and no other is asked.
+  if (present(file)) return undefined;
+  let mainline: PassedOver | undefined;
+  if (shared !== undefined) {
+    const record = lastFetchedMainline(root, shared, cacheRoot);
+    if (record !== undefined) {
+      mainline = passedOver(record.coverage, await readFile(record.coverage).catch(() => undefined), instrumentation);
+      if (mainline === undefined && (await layFetchedMainline(record, file))) return { from: 'mainline', record };
+    }
+  }
+  const passed = mainline === undefined ? undefined : ([mainline] as const);
+  const nothing = (): Seeded | undefined => (passed === undefined ? undefined : { from: 'nothing', passed });
+  if (layers.top === layers.base) return nothing();
+  let snapshot: TestCoverageView | undefined;
+  let primary: PassedOver | undefined;
+  // The cases come in the record, and the run folds into whatever it finds
+  // there, replacing the cases of the files it ran: with none seeded, the first
+  // run in a worktree would write a partial index that then stands for the
+  // whole suite. The base's last run, and what that run laid over, are the
+  // base's and stay there; the worktree's first run is the first it has. A
+  // base whose run instrumented nothing holds cases and no coverage: its cases
+  // are seeded all the same, and the copy is as unmeasured as the base, with no
+  // runs record beside it, since no test stands at a commit nothing measured.
+  const seeded = await seedFrom(layers.base, inside, file, (bytes) => {
+    try {
+      snapshot = openTestCoverage(bytes);
+    } catch (error) {
+      if (!(error instanceof RecordWithoutCoverage)) throw error;
+    }
+    primary = passedOver(resolve(layers.base, inside), bytes, instrumentation);
+    if (primary !== undefined) return undefined;
+    const { index } = caseSectionsOf(bytes);
+    if (index !== undefined && openSetExecutionIndex(index) === undefined) decodeExecutionTests(index);
+    return sharedRecord(bytes);
   });
+  if (primary !== undefined) return { from: 'nothing', passed: [...(passed ?? []), primary] };
+  if (!seeded) return nothing();
+  if (snapshot !== undefined) await seedCommitRuns(file, resolve(layers.base, inside), snapshot);
+  // The primary checkout's record is no milestone: nothing is pinned, and no
+  // fetch moves it. Its tests are not this checkout's.
+  await writeOwnLayer(file, { ran: [] });
+  return {
+    from: 'primary',
+    file: resolve(layers.base, inside),
+    ...(shared === undefined ? {} : { shared }),
+    ...(passed === undefined ? {} : { passed }),
+  };
+}
+
+/**
+ * The record at `file`, as `bytes`, when a run under `instrumentation` cannot
+ * be laid over it for its probes: the check `layRecord` makes first.
+ * Nothing for a record that measured nothing, which a run lands over as it is,
+ * for one this build cannot read or that is gone, which the caller refuses on
+ * its own terms, and for a run that lays no coverage.
+ */
+function passedOver(file: string, bytes: Uint8Array | undefined, instrumentation: string | undefined): PassedOver | undefined {
+  if (bytes === undefined || instrumentation === undefined) return undefined;
+  let written: string;
+  try {
+    written = openTestCoverage(bytes).instrumentation;
+  } catch {
+    return undefined;
+  }
+  return written === instrumentation ? undefined : { file, instrumentation: written, run: instrumentation };
+}
+
+/**
+ * Whether a run records the files it ran and nothing else, on no base: one
+ * shard of a run that selects nothing.
+ *
+ * Such a shard is a part of one whole run, and the fan-in folds the parts over
+ * the base, refusing a test file two parts both hold. A shard placed by
+ * recorded time has read the suite's times, and that read can fetch the
+ * mainline's record into the shard's cache, where {@link seedTestCoverage}
+ * would lay it under the shard's run. Every part would then carry every row of
+ * the base. A selected shard is not a part of a whole: it records over the
+ * base its selection was cut from, and its record is not folded with another's.
+ */
+export function recordsAlone(sharded: boolean, selected: boolean): boolean {
+  return sharded && !selected;
+}
+
+/**
+ * Say which base a run was laid on, where the run prints: once, when a
+ * checkout's first run lands, with each base passed over for its probes. Silent
+ * when nothing was laid or passed over, and for the primary checkout's record
+ * under a suite the share does not carry, where it is the only base there is.
+ */
+export function noteSeeded(seeded: Seeded | undefined): void {
+  if (seeded === undefined) return;
+  if (seeded.from !== 'mainline') {
+    for (const passed of seeded.passed ?? []) {
+      console.warn(
+        `variance-authority did not lay this checkout's first record on ${passed.file}: it was written under the probes ` +
+          `\`${passed.instrumentation}\` and this run records under \`${passed.run}\`, so the run cannot be laid over it. ` +
+          (seeded.from === 'nothing' ? 'The run records its own from nothing.' : 'The next base was asked.'),
+      );
+    }
+  }
+  if (seeded.from === 'nothing') return;
+  if (seeded.from === 'mainline') {
+    const { record } = seeded;
+    console.warn(
+      `variance-authority laid this checkout's first record of "${record.suite}" from mainline ${record.mainline}, ` +
+        `published at ${record.commit} and fetched ${record.fetched}${record.runs === undefined ? ', with no runs record' : ''}; kept at ${record.coverage}.`,
+    );
+    return;
+  }
+  if (seeded.shared === undefined) return;
+  console.warn(
+    `variance-authority laid this worktree's first record of "${seeded.shared}" from the primary checkout's, at ${seeded.file}: ` +
+      `no mainline record of it has been fetched on this machine, or the one fetched does not read. ` +
+      `\`variance share --suite ${seeded.shared}\` fetches it.`,
+  );
+}
+
+/**
+ * Lay a runs record beside a snapshot just copied from the base, saying where
+ * each of its tests last ran.
+ *
+ * The primary checkout's record is the recording of `main` as of its last run,
+ * and it is what every worktree starts from, so a test the worktree has not run
+ * last ran where that record says it did. The runs record beside it says that
+ * per test, and it is carried rather than worked out again: `commit`, `over`,
+ * `files` and `standing` as the base wrote them. Without it the worktree's first
+ * partial run finds no record to carry `standing` forward from, and until a run
+ * observes every test, a test it did not run is read from the worktree's own
+ * first commit — which skips it after a change it never ran against.
+ *
+ * A copy, and nothing added to it: an entry the base marked assumed stays
+ * marked, and a test the base's record does not place is read from the base's
+ * `over`, as the base reads it. The worktree's first run lists that test at the
+ * copy's `over`, marked assumed, as the base's next run would (see `landRun`).
+ *
+ * Nothing is seeded when the base has no runs record, or one naming another
+ * commit than its snapshot — a landing replaced the snapshot and listed no
+ * run. A snapshot names the commit of its latest run, not of every test in it,
+ * so a seed built from it would record a guess. The worktree's reading then
+ * says, on the line under the one naming whose record it read, how many tests
+ * it could not place and where it read them from.
+ *
+ * `runs` is 0, so the worktree's first run at the same commit is not counted
+ * as another run of the base's — see `landRun` — and a review still finds that
+ * no run of this checkout has listed itself.
+ *
+ * The record is linked into place rather than renamed over it, so a runs record
+ * already beside the snapshot when the link is made is kept. That protects this
+ * file only: the snapshot and its case index are copied by {@link seedFrom}.
+ */
+async function seedCommitRuns(file: string, base: string, snapshot: TestCoverageView): Promise<void> {
+  const commit = snapshot.commit;
+  if (commit === undefined) return;
+  let held: CommitRuns | undefined;
+  try {
+    held = await readCommitRuns(base);
+  } catch {
+    // A record this build cannot parse says nothing about this snapshot.
+    return;
+  }
+  if (held?.commit !== commit) return;
+  const at = new Date().toISOString();
+  const record: CommitRuns = { ...held, first: at, latest: at, runs: 0 };
+  await writeCoverageOnce(commitRunsFile(file), Buffer.from(`${JSON.stringify(record, null, 2)}\n`));
 }
 
 /**
  * Copy `name` from under `base` to `target` unless `target` is already there,
- * and unless `opens` refuses the bytes. No base and an unreadable one are the
- * same answer: nothing to inherit.
+ * as `opens` returns the bytes. A base `opens` returns nothing for is not
+ * copied. No base and an unreadable one are the same answer: nothing to
+ * inherit. Says whether it copied.
  */
 async function seedFrom(
   base: string,
   name: string,
   target: string,
-  opens: (bytes: Uint8Array) => void,
-): Promise<void> {
+  opens: (bytes: Uint8Array) => Uint8Array | undefined,
+): Promise<boolean> {
+  // FIXME: the check and the copy are two steps, so two first writes in one
+  // worktree can both find `target` missing, and the later copy replaces a
+  // snapshot the earlier one already landed a run on.
   try {
     await stat(target);
-    return;
+    return false;
   } catch (error) {
     if (!missing(error)) throw error;
   }
@@ -151,41 +371,70 @@ async function seedFrom(
     const bytes = await readFile(resolve(base, name));
     // Opening parses the section index and nothing else, which is the whole of
     // what "this build can read it" means and costs a fraction of a decode.
-    opens(bytes);
-    await writeCoverageBytes(target, bytes);
+    const opened = opens(bytes);
+    if (opened === undefined) return false;
+    await writeCoverageBytes(target, opened);
+    return true;
   } catch {
     // No base, or one this build has no claim on. Either way there is nothing
     // to inherit and the run records its own.
+    return false;
   }
 }
 
 /**
  * The nearest snapshot a checkout can read, without writing anything.
  *
- * A reader asks what is known, and in a worktree that has not run yet what is
- * known is the repository's. Reading is not first use — a question about the
- * index should not cost the asker a copy of it — so this resolves rather than
- * seeds, and the copy happens when a run lands, which is the moment the
- * checkout acquires something of its own to keep.
+ * A reader asks what is known, and in a checkout that has not run yet what is
+ * known is the base its first run would be laid on, in the order
+ * {@link seedTestCoverage} lays it: this checkout's own record, else the
+ * mainline's as last fetched on this machine, else, in a worktree, the primary
+ * checkout's. Reading is not first use — a question about the index should not
+ * cost the asker a copy of it — so this resolves rather than seeds, and the copy
+ * happens when a run lands, which is the moment the checkout acquires something
+ * of its own to keep.
  *
- * The path is returned even when neither layer holds a file, so a caller that
- * wants to say which file it could not read has one to name.
+ * The path is returned even when no layer holds a file, so a caller that wants
+ * to say which file it could not read has one to name: this checkout's own.
  */
 export async function readableTestCoverage(
   root: string,
   options: RecordLocationOptions = {},
 ): Promise<string> {
-  const files = layeredFiles(repositoryLayers(root, options.cacheRoot), recordPath(root, options.suite));
-  for (const file of files) {
-    try {
-      await stat(file);
-      return file;
-    } catch (error) {
-      if (!missing(error)) throw error;
-    }
-  }
+  return nearestTestCoverage(root, options);
+}
 
-  return files[0]!;
+/**
+ * {@link readableTestCoverage} for a caller that cannot wait, and the one rule
+ * every reader finds a recording by.
+ *
+ * The cases a reader opens are the ones in this snapshot, never the nearest
+ * layer's that has some: cases answer for the record they were laid in. A
+ * record that keeps none has no recorded cases, and the layer under it is not
+ * asked.
+ */
+export function nearestTestCoverage(root: string, options: RecordLocationOptions = {}): string {
+  const inside = recordPath(root, options.suite);
+  const [own, ...under] = layeredFiles(repositoryLayers(root, options.cacheRoot), inside);
+  if (present(own!)) return own!;
+  // The fetched record is the base only when the first run here would lay it:
+  // one this build does not read is passed over, as seeding passes it over.
+  const suite = /^suites\/([^/]+)\//u.exec(inside)?.[1];
+  const fetched = suite === undefined ? undefined : lastFetchedMainline(root, suite, options.cacheRoot);
+  if (fetched !== undefined) return fetched.coverage;
+  for (const file of under) if (present(file)) return file;
+
+  return own!;
+}
+
+function present(file: string): boolean {
+  try {
+    statSync(file);
+    return true;
+  } catch (error) {
+    if (!missing(error)) throw error;
+    return false;
+  }
 }
 
 /**
@@ -202,6 +451,23 @@ export async function writeCoverageBytes(file: string, bytes: Uint8Array): Promi
   const temporary = `${file}.${process.pid}-${randomUUID()}.tmp`;
   await writeFile(temporary, bytes);
   await rename(temporary, file);
+}
+
+/**
+ * {@link writeCoverageBytes} for a file somebody else may be writing: the bytes
+ * are linked into place, never over it, so whoever wrote the path first keeps
+ * it and a reader still never sees a partial file.
+ *
+ * Only for a file that may go unwritten. A link that fails for any reason is
+ * not an error: the path is already somebody's, or the file system has no hard
+ * links (FAT, exFAT, SMB, some FUSE mounts). A reader finding no file says so.
+ */
+async function writeCoverageOnce(file: string, bytes: Uint8Array): Promise<void> {
+  await mkdir(dirname(file), { recursive: true });
+  const temporary = `${file}.${process.pid}-${randomUUID()}.tmp`;
+  await writeFile(temporary, bytes);
+  await link(temporary, file).catch(() => {});
+  await unlink(temporary).catch(() => {});
 }
 
 function missing(error: unknown): boolean {

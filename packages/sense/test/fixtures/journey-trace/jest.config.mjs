@@ -28,7 +28,6 @@ export default withJourneyCoverage(
   {
     journeyFile,
     parts: [parts],
-    heads: ['checkout', 'pricing'],
     preconditions: ['jest.config.mjs'],
     // The application's tracing, initialized once per worker as it would be
     // for any test, and told to carry each case's journey.

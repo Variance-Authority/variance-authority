@@ -4,6 +4,7 @@ import type { Observation } from '@variance-authority/observe';
 import { decode, diffImage } from '@variance-authority/png';
 import { fileNameFor, pictured, type Raster } from '@variance-authority/core/format';
 import type { BaselineKey, RasterStore } from '@variance-authority/raster';
+import type { SnapshotCase } from './arranged.js';
 
 /**
  * Where the three images a person looks at were written.
@@ -32,8 +33,7 @@ export interface Evidence {
 /**
  * Which verdicts are worth a pair.
  *
- * `changed` and `incomparable` are what a person stops on. `ignored` joins them
- * for the reason the report writer takes it: the verdict means pixels *did*
+ * `changed` is what a person stops on. `ignored` joins it for the reason the report writer takes it: the verdict means pixels *did*
  * differ and every one fell inside a mask somebody wrote, which makes it the one
  * verdict where the question is about the mask rather than the render -- and
  * "has this ignore grown over a regression?" is answerable from a `before` and a
@@ -43,7 +43,7 @@ export interface Evidence {
  * nothing to compare against in the second.
  */
 function worthLooking(verdict: Observation['verdict']): boolean {
-  return verdict === 'changed' || verdict === 'incomparable' || verdict === 'ignored';
+  return verdict === 'changed' || verdict === 'ignored';
 }
 
 /**
@@ -92,27 +92,27 @@ export async function writeEvidence(
   // occupied nothing when it was recorded, and the candidate is the whole story.
   const before = stored === undefined || !pictured(stored) ? undefined : stored;
   // No stored image means nothing to subtract from, and a diff against nothing
-  // is the candidate painted red. Omitted rather than written: an `incomparable`
-  // subject whose baseline came from another environment has no `before` *here*
-  // even though one exists in the store, and inventing one would show a reviewer
-  // a comparison the run refused to make.
+  // is the candidate painted red, so it is omitted rather than written.
   if (before === undefined) return { after };
 
   const beforePath = `${base}.before.png`;
   const diff = `${base}.diff.png`;
   const beforeBytes = decode(before.bytes);
   await writeFile(beforePath, beforeBytes);
-  // Two images of different sizes have no common canvas, so there is no diff to
-  // draw -- the pair itself is the evidence, and it is the whole finding.
-  if (observation.comparison?.dimensionsChanged === true) return { before: beforePath, after };
+  // A pair of different sizes has a diff too: rows of the same width are aligned
+  // and drawn on the after image, and any other pair on the box that holds both.
   await writeFile(diff, diffImage(beforeBytes, afterBytes));
 
   return { before: beforePath, after, diff };
 }
 
-/** An observation, and where its images were written when evidence was asked for. */
+/**
+ * An observation, and where its images were written when evidence was asked for.
+ * Taken through the runner's fixture, it names the case it was taken in.
+ */
 export interface Observed extends Observation {
   readonly evidence?: Evidence;
+  readonly case?: SnapshotCase;
 }
 
 /**

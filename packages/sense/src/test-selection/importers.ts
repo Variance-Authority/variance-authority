@@ -1,16 +1,10 @@
 import {
-  EDGE_KINDS,
-  RUNTIME_EDGES,
-  dependentsOf,
-  idOf,
-  nodeAt,
-  trailOf,
-  type NodeId,
-  type Relations,
+  EDGE_KINDS, NOTHING, RUNTIME_EDGES, WHOLE, carried, dependentsOf, idOf, nodeAt, trailOf, type NodeId, type Relations,
 } from '@variance-authority/core/relate';
 import type { TestCoverageView } from './format-view.js';
 import { findModules, findTest, testsGovernedBy } from './lookup.js';
-import { disownedIn } from './shadowed.js';
+import type { ExecutionNarrowingOptions } from './narrowing.js';
+import type { Disowned } from './shadowed.js';
 
 /**
  * Answering a changed file the record holds no row for from the files that
@@ -28,8 +22,8 @@ import { disownedIn } from './shadowed.js';
  * The scan answers which files those are without anybody naming an extension:
  * an import of anything that is not a module is an `asset` edge, and a module
  * is never the target of one. So a changed file is walked to its dependents
- * through `asset` edges only. That reaches the stylesheets that import the
- * stylesheet and the modules that import those, and stops there by itself.
+ * through `asset` edges only, which reaches the stylesheets that import it and
+ * the modules that import those, and stops there by itself.
  * Each module reached answers for itself: one with a row selects every test
  * that entered it, one without selects nobody, and neither changes what the
  * chain beside it selects.
@@ -52,100 +46,22 @@ import { disownedIn } from './shadowed.js';
  * record's to answer, and where the record has no row to answer it with, the
  * edge is absent, which selects nothing.
  *
- * A test the snapshot says *holds* the changed file — it is a precondition of
- * the test, under any of its names — is left to the preconditions, which
- * already select it.
+ * A file a moved value's reading could not read, holding no row and no test,
+ * is walked the same way from itself (`wholes`): it may read or hand on the
+ * value anywhere, and everything that imports it loads it, so every test that
+ * loaded it is what can be said. A row without probes of its own is asked of
+ * the table, as one on the way is.
  *
- * What stays `unread` is a changed path the graph does not hold, and it is a
- * report, never a widening. A file the graph holds that no measured chain
- * leaves is connected to nothing the suite ran, and mostly for a reason — it
- * is documentation, tooling, a fixture, a configuration. What a harness loads
- * without importing is not this walk's to find: the Vitest seam writes every
- * setup file the configuration names, and every file its `preconditions`
- * option lists, as a precondition of every test (`vitest.ts`), so a change to
- * one selects the whole suite through the table. A configuration file nothing
- * imports is declared the same way, and so is a fixture a test reads with `fs`.
+ * A test the snapshot says *holds* the changed file, under any of its names,
+ * is left to the preconditions, which already select it.
+ *
+ * What stays `unread` is a changed path the graph does not hold: a report,
+ * never a widening. A held file no measured chain leaves is connected to
+ * nothing the suite ran — documentation, tooling, a fixture, a configuration.
+ * What a harness loads without importing is the seam's to declare: every setup
+ * file and every `preconditions` entry is a precondition of every test
+ * (`vitest.ts`), and so is a fixture a test reads with `fs`.
  */
-export interface ExecutionNarrowingOptions {
-  /**
-   * The file graph a scan produced, so a changed file with no instrumented row
-   * is answered by the nearest files that import it and have one.
-   */
-  readonly relations?: Relations;
-  /**
-   * Packages whose installed version moved, by name.
-   *
-   * The far end of the same line. A bumped dependency is not a changed path —
-   * the lockfile that records it is one, and it is the wrong one: a workspace
-   * version rewrite repaints hundreds of its lines and moves no installed
-   * byte, while a transitive bump three levels down moves real code and may
-   * touch no line a diff would show as interesting. So the install is compared
-   * at the two revisions and what arrives here is the answer: these packages
-   * are not the packages that were there.
-   *
-   * A package has no row of its own — nothing instrumented `node_modules` —
-   * so it is answered the way an asset is, by walking to the files that import
-   * it. Unlike an asset that walk follows every runtime edge, because there is
-   * no row further along to be more precise than it: the question *which tests
-   * entered a module that imports this* is the whole of what the record can
-   * say. `type` edges are not walked, so `import type { Theme } from '@mui/material'`
-   * selects nothing on a `@mui/material` bump, which is right — the import is
-   * erased before anything runs.
-   *
-   * A name is never `unread`. One the graph does not hold is imported by
-   * nothing here, and one whose importers the record never measured is
-   * imported by nothing the suite ran: either way nothing it does can be
-   * observed here, and it selects nobody. Each measured importer answers for
-   * itself, however many beside it were never measured.
-   *
-   * Names, not instances. Which copy of a package a resolver handed a
-   * particular importer is not answerable without reproducing that resolver,
-   * and a selector that guessed would skip on the guess.
-   */
-  readonly packages?: readonly string[];
-  /**
-   * Every name the snapshot may hold a graph file under. Identity when absent.
-   *
-   * A package's own tests load its `src`; every other package loads its built
-   * output, and the snapshot records each name as its own row. Both rows are one
-   * file to the graph, which knows only the source name, so a changed file and
-   * every importer reached from it are looked up under every name given here.
-   */
-  readonly knownAs?: (file: string) => readonly string[];
-  /**
-   * A module's source as it stood at the position the snapshot names, so the
-   * line ranges the snapshot holds can be checked against the ones the diff is
-   * written in.
-   *
-   * A recording cuts its line ranges from the text on disk at the moment the
-   * suite ran, and labels the whole snapshot with `git rev-parse HEAD`. Those
-   * two agree only when the tree was clean, and a suite is *recorded by being
-   * run*: in the loop this is most wanted in — a developer's, an agent's — the
-   * tree is never clean, so the ranges are the working tree's and the label
-   * says the commit's. Every hunk a later diff produces is then charged to
-   * whatever region happens to occupy those numbers now, which is a different
-   * region, belonging to different tests, or to none.
-   *
-   * Given this, each changed module is asked for its text at the commit on the
-   * label and the answer is hashed against `modules.source`, which the recorder
-   * already wrote for exactly this text. A module whose two do not agree is
-   * charged whole — its own crossings, the widest honest answer — and named in
-   * `stale`. Without this the frame is taken on trust, and a caller that skips
-   * anything on that trust is trusting a number nobody checked.
-   *
-   * `undefined` for a file the commit does not hold is the same disagreement:
-   * the snapshot has a row for a file that did not exist there.
-   */
-  readonly sourceAt?: (file: string, commit: string | undefined) => string | undefined;
-  /**
-   * The checkout every name is relative to, so a package's manifest can say
-   * that loading a module does something (`sideEffects`). Without it, no
-   * manifest is asked, and loading a module is assumed only to declare what it
-   * exports.
-   */
-  readonly root?: string;
-}
-
 /** One chain of imports from a changed file or a moved package to the file whose row selected a test. */
 export interface ImporterReason {
   readonly kind: 'importer';
@@ -156,7 +72,7 @@ export interface ImporterReason {
 export interface ImporterAnswer {
   /** Test rows selected, each with every chain that selected it. */
   readonly selected: ReadonlyMap<number, readonly ImporterReason[]>;
-  /** Changed paths the graph does not hold; every one of them when there is no graph. */
+  /** Changed paths the graph does not hold; every one of them when there is no graph, or the suite declines it. */
   readonly unread: readonly string[];
   /**
    * The tests holding the names the caller asked about beside this question,
@@ -174,6 +90,10 @@ export interface ImporterAnswer {
    * names it asked for.
    */
   readonly governed: GovernedTests;
+  /** Test rows that loaded a file the caller asked to have answered whole → those files. */
+  readonly wholes: ReadonlyMap<number, readonly string[]>;
+  /** In a suite that declines relations, modules declaring an ignored file that no row holds and no test declares. */
+  readonly unheld: readonly string[];
 }
 
 /** Tests holding a set of names, and the names no test declared. */
@@ -182,43 +102,67 @@ export interface GovernedTests {
   readonly tests: ReadonlyMap<number, readonly string[]>;
   /** Asked-for names no test declared. */
   readonly unread: readonly string[];
+  /** Asked-for names every test declaring them ran over in the text they arrive at. */
+  readonly ranOver: ReadonlySet<string>;
 }
 
 const ASSET = EDGE_KINDS.indexOf('asset');
-/** The edge kinds a runtime loads through, as a byte lookup over `EDGE_KINDS`. */
-const LOADS = new Uint8Array(EDGE_KINDS.length);
-for (const kind of RUNTIME_EDGES) LOADS[EDGE_KINDS.indexOf(kind)] = 1;
 
-/**
- * `rowed` is every name the caller answered from an instrumented row: a changed
- * file holding one under any of its names is the row's, and is not walked.
- */
+/** What the caller asks the importer walk, beside the suite's options. */
+export interface ImporterAsk {
+  /** The changed files, under the names the change gives them, ignored ones included. */
+  readonly changed: readonly string[];
+  /**
+   * The changed files the suite ignores (`ignoredChange`): walked through the
+   * modules that declare they read them (`/// <depends>`), and through nothing else.
+   */
+  readonly ignored: ReadonlySet<string>;
+  /**
+   * Every name the caller answered from an instrumented row: a changed file
+   * holding one under any of its names is the row's, and is not walked.
+   */
+  readonly rowed: ReadonlySet<string>;
+  /**
+   * The caller's `disownedIn` over the same coverage and `options.relations`:
+   * a chain that ends at a module a test mocked does not reach that test, for
+   * the reason a region of it does not (`shadowed.ts`).
+   */
+  readonly disowned: Disowned | undefined;
+  /** Names the caller asks the precondition table about beside the walk's own (`ImporterAnswer.governed`). */
+  readonly also?: ReadonlySet<string>;
+  /** Every file the caller could not read and holds no row for, to be answered by every test that loaded it. */
+  readonly wholes?: readonly string[];
+  /**
+   * The digest of the text each rowless changed name arrives at: a test that
+   * ran that text is not governed by the name (`testsGovernedBy`).
+   */
+  readonly arrived?: ReadonlyMap<string, string>;
+}
+
+/** The walk from each changed file with no row to the nearest files the record holds, with the one read of the precondition table. */
 export function answerByImporters(
   coverage: TestCoverageView,
-  changed: readonly string[],
-  rowed: ReadonlySet<string>,
+  { changed, ignored: ignoring, rowed, disowned, also = new Set(), wholes = [], arrived = new Map() }: ImporterAsk,
   options: ExecutionNarrowingOptions,
-  also: ReadonlySet<string> = new Set(),
 ): ImporterAnswer {
   const { relations } = options;
-  const moved = options.packages ?? [];
-  if (relations === undefined || (changed.length === 0 && moved.length === 0)) {
-    return { selected: new Map(), unread: changed, governed: testsGovernedBy(coverage, [...also]) };
+  // A suite that declines relations still follows what a module declares it reads of an ignored file.
+  const declines = options.unmeasured === 'nothing';
+  if (relations === undefined || changed.length + wholes.length === 0 || (declines && ignoring.size === 0)) {
+    return { selected: new Map(), unread: changed.filter((file) => !ignoring.has(file)), governed: testsGovernedBy(coverage, [...also], arrived), wholes: new Map(), unheld: [] };
   }
   const knownAs = options.knownAs ?? ((file: string): readonly string[] => [file]);
-  // A chain that ends at a module a test mocked does not reach
-  // that test, for the reason a region of it does not (`shadowed.ts`).
-  const disowned = disownedIn(coverage, relations);
   // Every test a walk reached, with what reached it — held rather than
   // selected, because whether the chain is worth reporting depends on the
   // preconditions the test carries, and those are not read until the walks have
   // finished naming every file worth asking the table about. `from` is the
   // changed module a runtime walk started at, for the mock cut; the other walks
-  // leave it to the row.
+  // leave it to the row. `whole` is the file a walk answering one whole began at.
   interface Reached {
     readonly reason: ImporterReason;
     readonly seed: readonly string[];
     readonly from: string | undefined;
+    readonly whole?: string;
   }
   const reached: Array<Reached & { readonly test: number }> = [];
   // A module the build read but could not instrument has a row with no blocks
@@ -226,11 +170,14 @@ export function answerByImporters(
   // those are asked for by name once the walks are done.
   const governing = new Map<string, Reached[]>();
 
+  // What a file answers is the same whichever walk reached it — its rows under
+  // the same names, their crossings, the mocks that disown them — and a file
+  // behind many changed files is reached by every one of their walks. So it is
+  // read once, and each walk replays the answer under its own trail.
+  const answers = new Map<NodeId, FileAnswer>();
+
   /**
-   * Reads one file a walk reached under every name it may be held by: a test
-   * row, a row with probes behind it however few tests crossed them, or a row
-   * without probes, whose tests the table names once the walks are done. A
-   * name with none of those selects nobody.
+   * Reads one file a walk reached (`answerOf`), for the walk that reached it.
    *
    * True when a test or a row with probes answered, which is where a module's
    * chain stops.
@@ -240,52 +187,28 @@ export function answerByImporters(
     trail: readonly string[],
     seed: readonly string[],
     from: string | undefined,
+    whole?: string,
   ): boolean => {
     const node = nodeAt(relations, id);
     if (node === undefined || node.kind !== 'file') return false;
-    const reason: ImporterReason = { kind: 'importer', trail };
-    let answered = false;
-    for (const name of knownAs(node.name)) {
-      const test = findTest(coverage, name);
-      if (test !== undefined) {
-        reached.push({ test, reason, seed, from });
-        answered = true;
-      }
-      for (const module of findModules(coverage, name)) {
-        if (coverage.moduleInstrumented.at(module) !== 1) {
-          governing.set(name, [...(governing.get(name) ?? []), { reason, seed, from }]);
-          continue;
-        }
-        answered = true;
-        // A module's regions usually share one set, so the ids are deduplicated
-        // before their members are: the repeat is the common case and reading it
-        // again would be the whole module's crossings over again. The set a
-        // block was loaded by rides along, because a load a mock explains is
-        // disowned and a call is not, so each block that shares a set asks once.
-        const sets = new Map<number, number>();
-        for (
-          let block = coverage.moduleBlocks.at(module);
-          block < coverage.moduleBlocks.at(module + 1);
-          block += 1
-        ) {
-          const key = coverage.blockSet.at(block) * 0x1_0000_0000 + coverage.blockLoadedSet.at(block);
-          if (!sets.has(key)) sets.set(key, block);
-        }
-        const seen = new Set<number>();
-        for (const block of sets.values()) {
-          for (const entered of coverage.crossings.members(coverage.blockSet.at(block))) {
-            if (seen.has(entered)) continue;
-            if (disowned?.(node.name, entered, block) === true) continue;
-            seen.add(entered);
-            reached.push({ test: entered, reason, seed, from });
-          }
-        }
-      }
+    let answer = answers.get(id);
+    if (answer === undefined) {
+      answer = answerOf(coverage, knownAs(node.name), node.name, disowned);
+      answers.set(id, answer);
     }
-    return answered;
+    const reason: ImporterReason = { kind: 'importer', trail };
+    const entry: Reached = whole === undefined ? { reason, seed, from } : { reason, seed, from, whole };
+    for (const test of answer.tests) reached.push({ test, ...entry });
+    for (const name of answer.governs) {
+      const entries = governing.get(name);
+      if (entries === undefined) governing.set(name, [entry]);
+      else entries.push(entry);
+    }
+    return answer.answered;
   };
 
   const unread: string[] = [];
+  const readers: string[] = [];
   // One mark and one parent per node for every module walk, cleared behind each.
   const walk = {
     mask: new Uint8Array(relations.names.length),
@@ -293,21 +216,26 @@ export function answerByImporters(
   };
   for (const file of changed) {
     const id = idOf(relations, 'file', file);
-    if (id === undefined) {
-      unread.push(file);
+    const ignored = ignoring.has(file);
+    if (id === undefined || (declines && !ignored)) {
+      if (!ignored) unread.push(file);
       continue;
     }
     const seed = knownAs(file);
-    if (importedAsAsset(relations, id)) {
-      // A module that declares it reads the file is a step to it as much as
-      // one that imports it: nothing else in its syntax names the file.
-      const traversal = dependentsOf(relations, [id], { through: ['asset', 'depends'] });
+    if (ignored || importedAsAsset(relations, id)) {
+      // A module that declares it reads the file is a step to it as much as one that
+      // imports it, and the one step an ignored file keeps: nothing else names it.
+      const traversal = dependentsOf(relations, [id], { through: ignored ? ['depends'] : ['asset', 'depends'] });
       for (const other of traversal.nodes) {
-        // The file itself, and a file something imports as an asset: the second
-        // is a step on the way to the module that carries it, and the walk went
-        // on through it.
+        // The file itself, and an asset something imports: a step to the module that carries it, walked through.
         if (other === id || importedAsAsset(relations, other)) continue;
-        read(other, trailOf(traversal, other).map((step) => relations.names[step]!), seed, undefined);
+        const trail = trailOf(traversal, other).map((step) => relations.names[step]!);
+        if (read(other, trail, seed, undefined) || !ignored || answers.get(other)?.governs.length !== 0) continue;
+        // A reader of an ignored file no row holds goes where any unmeasured file goes: on to its importers, or named.
+        const name = relations.names[other]!;
+        for (const known of knownAs(name)) governing.set(known, [...(governing.get(known) ?? []), { reason: { kind: 'importer', trail }, seed, from: undefined }]);
+        if (declines && !readers.includes(name)) readers.push(name);
+        else if (!declines) importersUntil(relations, other, walk, (next, rest) => read(next, [...trail, ...rest.slice(1).map((step) => relations.names[step]!)], seed, name));
       }
     } else if (!seed.some((name) => rowed.has(name))) {
       importersUntil(relations, id, walk, (other, trail) =>
@@ -315,23 +243,15 @@ export function answerByImporters(
       );
     }
   }
-
-  // The same walk from the other end of the line. A package is a node like any
-  // other and carries no row, so what the record can say about a bump is what
-  // its importers say — and unlike an asset chain there is nothing further
-  // along to be more precise, so every runtime edge is followed. A name the
-  // graph does not hold reaches nothing: nothing here imports it.
-  for (const name of moved) {
-    const id = idOf(relations, 'package', name);
-    if (id === undefined) continue;
-    const traversal = dependentsOf(relations, [id]);
-    for (const other of traversal.nodes) {
-      // Packages the walk passed through on its way up from a transitive
-      // dependency, and the components a reached file declares: steps, not
-      // ends. Only a file can have been measured.
-      if (other === id || nodeAt(relations, other)?.kind !== 'file') continue;
-      read(other, trailOf(traversal, other).map((step) => relations.names[step]!), [name], undefined);
-    }
+  // A file answered whole is its own first step: a test that holds it, or a row
+  // of it without probes, loaded it. No test declares it as a changed file, so
+  // nothing is left to the preconditions.
+  for (const file of declines ? [] : wholes) {
+    const id = idOf(relations, 'file', file);
+    if (id === undefined || read(id, [file], [], file, file)) continue;
+    importersUntil(relations, id, walk, (other, trail) =>
+      read(other, trail.map((step) => relations.names[step]!), [], file, file),
+    );
   }
 
   // The one read: which tests hold a changed file, which hold a module the
@@ -339,16 +259,22 @@ export function answerByImporters(
   // could not answer from a row.
   const held = testsGovernedBy(coverage, [
     ...new Set([...changed.flatMap((file) => [...knownAs(file)]), ...governing.keys(), ...also]),
-  ]);
+  ], arrived);
 
   const selected = new Map<number, ImporterReason[]>();
-  const keep = (test: number, { reason, seed, from }: Reached): void => {
+  const whole = new Map<number, string[]>();
+  const keep = (test: number, { reason, seed, from, whole: file }: Reached): void => {
     // A test that declares the changed file itself is already selected by its
     // preconditions, and a chain that reached it would only say so again.
     if ((held.tests.get(test) ?? []).some((name) => seed.includes(name))) return;
     // A test that mocked the changed module, or the file it loaded it through,
     // never ran it.
     if (from !== undefined && disowned?.(from, test) === true) return;
+    if (file !== undefined) {
+      const files = whole.get(test) ?? [];
+      if (!files.includes(file)) whole.set(test, [...files, file]);
+      return;
+    }
     const reasons = selected.get(test) ?? [];
     // One walk reaching a test through two rows of one module is one reason.
     if (reasons.includes(reason)) return;
@@ -362,20 +288,86 @@ export function answerByImporters(
     }
   }
 
-  return { selected, unread: unread.sort(codeUnitOrder), governed: asked(held, also) };
+  const unheld = readers.filter((name) => knownAs(name).every((known) => held.unread.includes(known)));
+  return { selected, unread: unread.sort(codeUnitOrder), governed: asked(held, also), wholes: whole, unheld: unheld.sort(codeUnitOrder) };
+}
+
+/** What one file a walk reached answers, before a walk's trail is put on it. */
+interface FileAnswer {
+  /** A test or a row with probes answered, so a module's chain stops here. */
+  readonly answered: boolean;
+  /** Test rows reached, in the order they were read: each name's test row, then its rows' crossings. */
+  readonly tests: readonly number[];
+  /** Names of rows without probes, whose tests the precondition table names. */
+  readonly governs: readonly string[];
+}
+
+/**
+ * Reads one file under every name it may be held by: a test row, a row with
+ * probes behind it however few tests crossed them, or a row without probes,
+ * whose tests the table names once the walks are done. A name with none of
+ * those selects nobody.
+ *
+ * `file` is the graph's name, the one shadows are written in.
+ */
+function answerOf(
+  coverage: TestCoverageView,
+  names: readonly string[],
+  file: string,
+  disowned: Disowned | undefined,
+): FileAnswer {
+  const tests: number[] = [];
+  const governs: string[] = [];
+  let answered = false;
+  for (const name of names) {
+    const test = findTest(coverage, name);
+    if (test !== undefined) {
+      tests.push(test);
+      answered = true;
+    }
+    for (const module of findModules(coverage, name)) {
+      if (coverage.moduleInstrumented.at(module) !== 1) {
+        governs.push(name);
+        continue;
+      }
+      answered = true;
+      // A module's regions usually share one set, so the ids are deduplicated
+      // before their members are: the repeat is the common case and reading it
+      // again would be the whole module's crossings over again. The set a
+      // block was loaded by rides along, because a load a mock explains is
+      // disowned and a call is not, so each block that shares a set asks once.
+      const sets = new Map<number, number>();
+      for (let block = coverage.moduleBlocks.at(module); block < coverage.moduleBlocks.at(module + 1); block += 1) {
+        const key = coverage.blockSet.at(block) * 0x1_0000_0000 + coverage.blockLoadedSet.at(block);
+        if (!sets.has(key)) sets.set(key, block);
+      }
+      const seen = new Set<number>();
+      for (const block of sets.values()) {
+        for (const entered of coverage.crossings.members(coverage.blockSet.at(block))) {
+          if (seen.has(entered)) continue;
+          if (disowned?.(file, entered, block) === true) continue;
+          seen.add(entered);
+          tests.push(entered);
+        }
+      }
+    }
+  }
+  return { answered, tests, governs };
 }
 
 /** The part of one read of the precondition table that answers a caller's own names. */
 function asked(held: GovernedTests, names: ReadonlySet<string>): GovernedTests {
-  if (names.size === 0) return { tests: new Map(), unread: [] };
-
   const tests = new Map<number, readonly string[]>();
   for (const [test, carried] of held.tests) {
     const mine = carried.filter((name) => names.has(name));
     if (mine.length > 0) tests.set(test, mine);
   }
 
-  return { tests, unread: held.unread.filter((name) => names.has(name)) };
+  return {
+    tests,
+    unread: held.unread.filter((name) => names.has(name)),
+    ranOver: new Set([...held.ranOver].filter((name) => names.has(name))),
+  };
 }
 
 /**
@@ -393,22 +385,14 @@ function importersUntil(
   walk: { readonly mask: Uint8Array; readonly via: Int32Array },
   answers: (id: NodeId, trail: readonly NodeId[]) => boolean,
 ): void {
-  const { offset, target, kind } = relations.dependents;
-  const queue: NodeId[] = [seed];
-  const traversal = { ...walk, nodes: queue };
-  walk.mask[seed] = 1;
-  for (let head = 0; head < queue.length; head += 1) {
-    const node = queue[head]!;
-    if (node !== seed && answers(node, trailOf(traversal, node))) continue;
-    for (let edge = offset[node]!; edge < offset[node + 1]!; edge += 1) {
-      const next = target[edge]!;
-      if (LOADS[kind[edge]!] !== 1 || walk.mask[next] === 1) continue;
-      walk.mask[next] = 1;
-      walk.via[next] = node;
-      queue.push(next);
-    }
-  }
-  for (const node of queue) {
+  const traversal = { ...walk, nodes: [] };
+  const { entered } = carried(
+    relations.dependents,
+    [[seed, WHOLE]],
+    { hand: (node) => (answers(node, trailOf(traversal, node)) ? NOTHING : WHOLE) },
+    { ...walk, through: RUNTIME_EDGES },
+  );
+  for (const node of entered) {
     walk.mask[node] = 0;
     walk.via[node] = -1;
   }

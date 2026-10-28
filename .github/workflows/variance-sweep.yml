@@ -89,11 +89,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # For the reason written at the same step in `variance.yml`.
+      - name: trust the workspace
+        shell: bash
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
       - shell: bash
         run: corepack enable && yarn install --immutable
 
-      - shell: bash
-        run: yarn build
+      - uses: ./.github/actions/build
 
       # The subject has to exist before it can be collected twice. Storybook's own
       # build produces the `index.json` the collector reads, and `storybook-static/`

@@ -70,6 +70,7 @@ function probesWith(
       };
     },
     exists: async () => exists,
+    pointers: async () => [],
     partitions: async () => partitions,
     // Nothing cached. The cache is reported, never diagnosed: it holds only
     // images this machine can repaint.
@@ -84,6 +85,7 @@ function refusingProbes(): DoctorProbes {
       throw new Error('Executable does not exist at /ms-playwright/chromium/chrome');
     },
     exists: async () => true,
+    pointers: async () => [],
     partitions: async () => [],
     // Nothing cached. The cache is reported, never diagnosed: it holds only
     // images this machine can repaint.
@@ -207,6 +209,16 @@ describe('formatDiagnosis', () => {
     expect(text).toContain('exit code unaffected');
   });
 
+  it('prints the typescript finding, and a warning in it moves no exit code', async () => {
+    const diagnosis = {
+      ...(await doctor(configOf(), probesWith([]))),
+      typescript: { declared: false as const, under: '', configs: ['tsconfig.json'], conditioned: ['tsconfig.json'], mapped: [], based: [] },
+    };
+
+    expect(formatDiagnosis(diagnosis)).toContain('typescript: tsconfig off\n  1 tsconfig file in the repository');
+    expect(exitForDiagnosis(diagnosis)).toBe(exitForDiagnosis(await doctor(configOf(), probesWith([]))));
+  });
+
   it('does not claim a limit for a probe that never ran', async () => {
     const text = formatDiagnosis(await doctor(configOf(), refusingProbes()));
 
@@ -291,7 +303,7 @@ describe('machineProbes partitions', () => {
     ]);
   });
 
-  it('finds partitions a `beside` layout put next to the components', async () => {
+  it('finds partitions the layout before `baselines.path` put next to the components', async () => {
     // A scan one level deep answers "this root holds nothing" for a root full of
     // baselines, and a doctor that is wrong in the direction of fine is worse
     // than no doctor.
@@ -321,6 +333,41 @@ describe('machineProbes partitions', () => {
     expect(await machineProbes(configOf()).partitions(root)).toEqual([
       { identity, baselines: 3, colonSpelled: 2 },
     ]);
+  });
+
+  it('counts baselines at the paths `baselines.path` names, by the identity each record names', async () => {
+    // The readable layout names no machine in a directory: the identity is in
+    // the record. A scan of directory names alone answers "this root holds
+    // nothing" for a root full of baselines.
+    const root = await rootWith([`Button/Primary-chromium.png`, `Card/Wide-chromium.png`, 'notes.json']);
+    await writeFile(join(root, 'Button/Primary-chromium.json'), JSON.stringify({ identity: IDENTITY }), 'utf8');
+    await writeFile(
+      join(root, 'Card/Wide-chromium.json'),
+      JSON.stringify({ identity: { ...IDENTITY, platform: 'darwin/arm64' } }),
+      'utf8',
+    );
+    await mkdir(join(root, `Card/${partition}`), { recursive: true });
+    await writeFile(join(root, `Card/${partition}/Old.png`), '', 'utf8');
+
+    expect(await machineProbes(configOf()).partitions(root)).toEqual([
+      { identity, baselines: 2 },
+      { identity: other, baselines: 1 },
+    ]);
+  });
+
+  it('does not count a record under `node_modules` or a dot-directory, which no accept wrote', async () => {
+    // A root of `.` holds the whole repository: an installed package or a
+    // `.git` object store that happens to sit at a template path is not a baseline.
+    const root = await rootWith([
+      'Button/Primary-chromium.png',
+      'node_modules/Card/Wide-chromium.png',
+      '.cache/Card/Wide-chromium.png',
+    ]);
+    for (const record of ['Button/Primary-chromium', 'node_modules/Card/Wide-chromium', '.cache/Card/Wide-chromium']) {
+      await writeFile(join(root, `${record}.json`), JSON.stringify({ identity: IDENTITY }), 'utf8');
+    }
+
+    expect(await machineProbes(configOf()).partitions(root)).toEqual([{ identity, baselines: 1 }]);
   });
 
   it('reports nothing for a root that is not there', async () => {

@@ -10,6 +10,7 @@ import {
 } from '@variance-authority/react';
 import { capture } from '@variance-authority/unit-test/capture';
 import { expect } from 'vitest';
+import { getCurrentTest } from 'vitest/suite';
 import { OBSERVE_COMMAND, type Observed, type ObserveRequest, type Sensitivity } from './protocol.js';
 
 /**
@@ -103,6 +104,8 @@ export interface VarianceOptions {
 /** Sends one request to the Node half and returns what it answered. */
 export type Deliver = (request: ObserveRequest) => Promise<Observed>;
 
+// FIXME: an observation here names no case and carries no preconditions; the
+// Playwright fixture's does (spec 0093, "A snapshot taken inside a case").
 /**
  * Observe one mounted subject against its stored baseline.
  *
@@ -162,6 +165,9 @@ export async function observeSubject(
   // node, so without it each boundary's props are digested once per descendant.
   const pass = digestPass();
 
+  // FIXME: no timezone or locale reaches the capture, so the environment key
+  // is the same for a tab opened in Tokyo and one opened in UTC (see the FIXME
+  // on `painting` in node.ts).
   const artifact = await capture(root, {
     subject,
     viewport: viewportOf(root.ownerDocument),
@@ -175,6 +181,10 @@ export async function observeSubject(
     ...(held.digest === undefined ? {} : { stabilization: held.digest }),
   });
 
+  // The test goes on using this page, and a field it focused before it
+  // observed is still the one it types into after.
+  held.refocus();
+
   // TODO: portalled content is not read here. `portalContentOf` finds the
   // subtrees React rendered outside this element — a dialog, a tooltip, a
   // toast — and `capture` has no seam to take them through, so a subject whose
@@ -182,6 +192,7 @@ export async function observeSubject(
 
   return await deliver({
     artifact: { ...artifact, stabilization: held.ids },
+    ...(options.subjectId === undefined ? titlePathOfRunner() : {}),
     ...(options.sensitivity === undefined ? {} : { sensitivity: options.sensitivity }),
   });
 }
@@ -204,6 +215,24 @@ function elementOf(target: VarianceSubject): Element {
     return (target as LocatedSubject).element();
   }
   return target as Element;
+}
+
+/**
+ * The titles the running test was declared under and its own, outermost first,
+ * read from the runner's task rather than split back out of its name: Vitest
+ * joins them with ` > `, and a title may contain that too.
+ *
+ * Absent outside a test, where the subject id was refused anyway, and the
+ * Node half then files the baseline by the id.
+ */
+function titlePathOfRunner(): { titlePath?: readonly string[] } {
+  const task = getCurrentTest();
+  if (task === undefined) return {};
+  const titles = [task.name];
+  for (let suite = task.suite; suite !== undefined && suite !== task.file; suite = suite.suite) {
+    if (suite.name !== '') titles.unshift(suite.name);
+  }
+  return { titlePath: titles };
 }
 
 /**

@@ -10,9 +10,10 @@
  * configuration names by path:
  *
  * - [`jest-transform.ts`](./jest-transform.ts) wraps the project's own
- *   transformer, places probes on its output, and writes what the ordinals mean
- *   to an inventory keyed by the same cache key Jest stores the text under. A
- *   warm run pays neither the transform nor the parse.
+ *   transformer and places probes on the file as Jest read it, before the
+ *   project's transformer runs. A warm run pays neither the transform nor the
+ *   parse, and nothing about what the probes mean is written: the fold cuts
+ *   each file again from the text its probes report.
  * - [`jest-setup.cts`](./jest-setup.cts) runs inside each test file's sandbox,
  *   gives every instrumented module the log it writes into, and writes one
  *   journal per test file to disk in `afterAll`. Nothing crosses the worker's IPC channel,
@@ -22,12 +23,23 @@
  *   a test-selection run still folds its file-level journals into its snapshot.
  */
 
+import { environmentEntry } from './jest-environment-entry.js';
+import { randomUUID } from 'node:crypto';
 import { createRequire } from 'node:module';
-import { resolve } from 'node:path';
+import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { InstrumentMode } from '../instrument/index.js';
+import { probesRegions } from '../instrument/identity.js';
+import type { ProbePlacement } from './instrumented-modules.js';
+import { configuredPath, environmentPaths, projectRoot, setupPaths } from './jest-config-paths.js';
+import { placingSequencer } from './jest-placing.js';
+import { projectNamed } from './jest-projects.js';
+import { selectingFilter } from './jest-selection.js';
 import { recordFileFor } from './record-location.js';
 import { repositoryRoot } from './repository-root.js';
+import { notingRead } from './record-base.js';
+import { landingTimes, selectionFrom } from './selection-environment.js';
+import type { SuiteSelection } from './suite-selection.js';
 
 export interface JestTestSelectionOptions {
   /**
@@ -56,11 +68,31 @@ export interface JestTestSelectionOptions {
    */
   readonly preconditions?: readonly string[];
   /**
-   * `presence` probes every arrival region; `entries` probes modules and
-   * functions only, and costs a fraction of it. Both record which functions
-   * ran before the file's first test.
+   * Globs naming product source no probe may sit in: a module whose functions
+   * cross into a page as text, where the first probe would throw. Relative
+   * globs resolve against the root, as `preconditions` do; a module matches
+   * under the path Jest hands the transform or the source its map names, and
+   * a glob that opens on `!` leaves out what it matches, as in `testMatch`. Each
+   * is marked as loaded at its end instead of probed, and an edit to it
+   * selects every test that loaded it.
+   */
+  readonly unprobed?: readonly string[];
+  /**
+   * `presence`, the default, probes every arrival region; `entries` probes
+   * modules and functions only, so a suite reads it no finer than
+   * `function-use`. Both record which functions ran before the file's first
+   * test. `loads` probes nothing: each module runs with one line after its own
+   * text, the record says which files each test loaded, and a change to a file
+   * selects every test that loaded it. Under it `cadence` is off, whatever it
+   * says.
    */
   readonly mode?: InstrumentMode;
+  /**
+   * Where the probes go: after the project's transformer, through the map it
+   * returns, the default; or `before-transforms`, in the file as read, one
+   * parse and no map, for a suite whose transformer only strips types or JSX.
+   */
+  readonly placement?: ProbePlacement;
   /**
    * Follow each case through the async context, and name the cases whose work
    * outlived them.
@@ -87,10 +119,20 @@ export interface JestTestSelectionOptions {
    */
   readonly continuations?: boolean;
   /**
-   * Where the per-case execution index goes. Defaults to `<coverageFile>.cases.bin`;
-   * a name ending `.json` is written as JSON instead, at the size JSON costs.
+   * Whether each statement of a test or a hook is cut, so the record says which
+   * line of the test first reached each region its case entered. On by default.
+   * The cut is one call per statement the test runs, and it reaches the record
+   * only as a line per case; turn it off to record a suite exactly as it ran
+   * before cuts existed.
    */
-  readonly executionFile?: string;
+  readonly cadence?: boolean;
+  /**
+   * The selection this run is handed, read once when Jest first filters what
+   * it found. A `filter` drops what it may skip after the project's own, and
+   * stderr says `selected N of M`. Absent, `VARIANCE_AUTHORITY_SINCE` asks for
+   * the one `variance select` reads, and with that unset every file runs.
+   */
+  readonly selection?: () => Promise<SuiteSelection>;
 }
 
 /** Record per-test journeys from Jest without creating a test-selection snapshot. */
@@ -111,15 +153,10 @@ export interface JestJourneyCoverageOptions {
   readonly continuations?: boolean;
   /**
    * Directories where processes beyond a fence write what they ran under a
-   * case's journey id: part frames (`.vac`) and the inventories they name
-   * (`.rec`). Read when the run is finalized, never while it runs.
+   * case's journey id, as part frames (`.vac`). Read when the run is
+   * finalized, never while it runs.
    */
   readonly parts?: readonly string[];
-  /**
-   * Labels of Node services instrumented with `testSelectionProbes`, whose
-   * inventories sit in the checkout's record store under that label.
-   */
-  readonly heads?: readonly string[];
   /**
    * A module whose export is the application's tracing, told to carry each
    * case's journey as its trace id: `module.exports = sentry(Sentry)` after
@@ -154,8 +191,14 @@ export interface SelectionTransformerConfig {
   readonly transformer?: string | readonly [string, Record<string, unknown>];
   /** Absolute paths Jest evaluates before `setupFiles` can install the probe collector. */
   readonly exclude?: readonly string[];
+  /** Absolute globs naming the modules marked as loaded rather than probed. */
+  readonly unprobed?: readonly string[];
   /** The probe recipe; `presence` when absent. */
   readonly mode?: InstrumentMode;
+  /** Where the probes go; `after-transforms` when absent. */
+  readonly placement?: ProbePlacement;
+  /** Whether test files are cut, statement by statement; they are unless this is `false`. */
+  readonly cadence?: boolean;
 }
 
 /** What the reporter is handed. */
@@ -174,8 +217,8 @@ export interface SelectionReporterConfig {
   readonly mode?: InstrumentMode;
   /** Whether that recording follows each case through the async context, and names the runaways. */
   readonly continuations?: boolean;
-  /** Where the per-case execution index goes; `<coverageFile>.cases.bin` when absent. */
-  readonly executionFile?: string;
+  /** Whether the run drops what a selection skips. A shard of a run that does not records alone. */
+  readonly selected?: true;
 }
 
 /** What the reporter is handed when it records journeys and nothing else. */
@@ -185,7 +228,6 @@ interface JourneyReporterConfig {
   readonly mode?: InstrumentMode;
   readonly continuations?: boolean;
   readonly parts?: readonly string[];
-  readonly heads?: readonly string[];
 }
 
 /** The variable the reporter sets before workers fork, and the setup file reads. */
@@ -222,6 +264,16 @@ export const CONTINUATIONS_VARIABLE = 'VARIANCE_AUTHORITY_TEST_SELECTION_CONTINU
  */
 export const STORY_DIRECTORY_VARIABLE = 'VARIANCE_AUTHORITY_TEST_SELECTION_STORY';
 
+/**
+ * The global a project's sandbox reads its own name from, set in that project's
+ * `globals` and read by `jest-setup.cts` when it names a case.
+ *
+ * Through `globals` because a worker learns which project it runs a file for
+ * from nothing else the sandbox can reach: `expect.getState()` names the file
+ * and the case, and the same file under two projects is the same path.
+ */
+const PROJECT_GLOBAL = 'variance-authority.project';
+
 /** Jest's pattern for the modules it transforms when nothing is configured. */
 const DEFAULT_PATTERN = '\\.[jt]sx?$';
 
@@ -232,7 +284,7 @@ export const SELECTION_TRANSFORM = here('./jest-transform.js');
 export const SELECTION_GLOBALS = here('./jest-globals.cjs');
 export const SELECTION_SETUP = here('./jest-setup.cjs');
 export const SELECTION_REPORTER = here('./jest-reporter.js');
-/** The environment a configuration with a `trace` runs its own environment through. */
+/** The host bridge a cached environment entry loads before the project environment. */
 export const TRACE_ENVIRONMENT = here('./jest-trace-environment.cjs');
 
 /**
@@ -271,8 +323,14 @@ export function withTestSelection(
   const inline = inlineProjects(config);
   const mode = options.mode;
   const declared = (options.preconditions ?? []).map((file) => resolve(rootDir, file));
+  // A negated glob stays negated: `!` is Jest's, not part of the path.
+  const unprobed = options.unprobed?.map((glob) =>
+    glob.startsWith('!') ? `!${resolve(rootDir, glob.slice(1))}` : resolve(rootDir, glob));
+  const placing = { mode, unprobed, placement: options.placement };
+  // Under `loads` no region is probed for a line of a test to have reached first.
+  const cadence = options.cadence !== false && probesRegions(mode);
   const projects = inline?.map((project) =>
-    instrumented(project, root, projectRoot(project, rootDir), mode, declared));
+    traced(instrumented(project, root, projectRoot(project, rootDir), placing, declared, cadence), projectRoot(project, rootDir), undefined));
   const preconditions = [
     ...environmentPaths(config, rootDir),
     ...setupPaths(config, rootDir),
@@ -287,16 +345,25 @@ export function withTestSelection(
     ...(declared.length === 0 ? {} : { declared }),
     ...(mode === undefined ? {} : { mode }),
     ...(options.continuations === true ? { continuations: true } : {}),
-    ...(options.executionFile === undefined
-      ? {}
-      : { executionFile: resolve(rootDir, options.executionFile) }),
   };
+  const suite = options.suite === undefined ? {} : { suite: options.suite };
+  // Each reading notes the record it read against the record this run lands in, which names it.
+  const asked = options.selection ?? selectionFrom(process.env, { root, from: rootDir, ...suite });
+  const selection = asked && notingRead(coverageFile, asked);
+  const times = landingTimes(coverageFile, { root, from: rootDir, ...suite, byFile: options.coverageFile !== undefined });
 
   return {
-    ...(projects === undefined ? instrumented(config, root, rootDir, mode, declared) : config),
+    ...(projects === undefined ? traced(instrumented(config, root, rootDir, placing, declared, cadence), rootDir, undefined) : config),
     rootDir: config.rootDir ?? rootDir,
     ...(projects === undefined ? {} : { projects }),
-    reporters: [...(config.reporters ?? ['default']), [SELECTION_REPORTER, { ...reporter }]],
+    ...(selection === undefined ? {} : selectingFilter(config, {
+      root, rootDir, selection, cutFile: resolve(dirname(coverageFile), `.cut-${process.pid}-${randomUUID()}.json`),
+    })),
+    ...placingSequencer(config, { root, rootDir, times }),
+    reporters: [...(config.reporters ?? ['default']), [SELECTION_REPORTER, {
+      ...reporter,
+      ...(selection === undefined ? {} : { selected: true }),
+    }]],
   };
 }
 
@@ -317,7 +384,7 @@ export function withJourneyCoverage(
     throw new Error(`trace ${JSON.stringify(options.trace)} is not a path: name the module that exports your tracing, as ./… or <rootDir>/…`);
   }
   const journeyProject = (project: JestConfig, at: string): JestConfig =>
-    traced(instrumented(project, root, at, options.mode, declared), at, trace);
+    traced(instrumented(project, root, at, { mode: options.mode, unprobed: undefined }, declared, false), at, trace);
   const projects = inline?.map((project) => journeyProject(project, projectRoot(project, rootDir)));
   const reporter: JourneyReporterConfig = {
     root,
@@ -325,7 +392,6 @@ export function withJourneyCoverage(
     ...(options.mode === undefined ? {} : { mode: options.mode }),
     ...(options.continuations === true ? { continuations: true } : {}),
     ...(options.parts === undefined ? {} : { parts: options.parts.map((part) => resolve(rootDir, part)) }),
-    ...(options.heads === undefined ? {} : { heads: [...options.heads] }),
   };
 
   return {
@@ -343,8 +409,8 @@ export function withJourneyCoverage(
  * as a file.
  */
 function traced(config: JestConfig, rootDir: string, trace: string | undefined): JestConfig {
-  if (trace === undefined) return config;
   const named = config.testEnvironment ?? 'node';
+  if (trace === undefined && ['node', 'jsdom', 'jest-environment-node', 'jest-environment-jsdom'].includes(named)) return config;
   const [path] = configuredPath(named, rootDir);
   const require = createRequire(resolve(rootDir, 'package.json'));
   let environment = path;
@@ -358,8 +424,8 @@ function traced(config: JestConfig, rootDir: string, trace: string | undefined):
   const options = (config['testEnvironmentOptions'] ?? {}) as Record<string, unknown>;
   return {
     ...config,
-    testEnvironment: TRACE_ENVIRONMENT,
-    testEnvironmentOptions: { ...options, varianceAuthority: { environment, trace } },
+    testEnvironment: environmentEntry(repositoryRoot(rootDir), environment, TRACE_ENVIRONMENT),
+    testEnvironmentOptions: { ...options, varianceAuthority: { environment, ...(trace === undefined ? {} : { trace }) } },
   };
 }
 
@@ -386,18 +452,19 @@ function instrumented(
   config: JestConfig,
   root: string,
   rootDir: string,
-  mode: InstrumentMode | undefined,
+  { mode, unprobed, placement }: {
+    readonly mode: InstrumentMode | undefined;
+    readonly unprobed: readonly string[] | undefined;
+    readonly placement?: ProbePlacement | undefined;
+  },
   declared: readonly string[],
+  cadence: boolean,
 ): JestConfig {
   const configured = config.transform === undefined
     ? { [DEFAULT_PATTERN]: 'babel-jest' }
     : Object.keys(config.transform).length === 0
       ? { [DEFAULT_PATTERN]: undefined }
       : config.transform;
-  // FIXME: A custom environment's repository-owned dependency closure still
-  // runs before `setupFiles` and is therefore probed before the collector exists.
-  // The configured entry is safe; the closure needs an owner before this can
-  // claim environments composed from other workspace packages.
   const exclude = [...new Set([...environmentPaths(config, rootDir), ...declared])];
   const transform = Object.fromEntries(
     Object.entries(configured).map(([pattern, transformer]): [string, readonly [string, Record<string, unknown>]] => [
@@ -408,64 +475,23 @@ function instrumented(
           root,
           ...(transformer === undefined ? {} : { transformer }),
           ...(exclude.length === 0 ? {} : { exclude }),
+          ...(unprobed === undefined ? {} : { unprobed }),
           ...(mode === undefined ? {} : { mode }),
+          ...(placement === undefined ? {} : { placement }),
+          ...(cadence ? {} : { cadence: false }),
         },
       ],
     ]),
   );
 
+  const project = projectNamed(config['displayName']);
   return {
     ...config,
     rootDir,
     transform,
+    ...(project === undefined ? {} : { globals: { ...(config['globals'] as object | undefined), [PROJECT_GLOBAL]: project } }),
     setupFiles: [SELECTION_GLOBALS, ...(config.setupFiles ?? [])],
     setupFilesAfterEnv: [...(config.setupFilesAfterEnv ?? []), SELECTION_SETUP],
   };
 }
 
-/** A project's `rootDir`, absolute, with the top level's `<rootDir>` spelled out; the top level's own when it has none. */
-function projectRoot(project: JestConfig, root: string): string {
-  return resolve(root, (project.rootDir ?? '.').replace(/^<rootDir>\/?/, ''));
-}
-
-/**
- * The setup entries that are files of the project's, as absolute paths.
- *
- * Jest resolves a setup entry the way `require` would: `<rootDir>/…`, `./…`
- * and `/…` are paths, and anything else — `jest-canvas-mock`, `dotenv/config`
- * — is a package. A package is not a precondition a diff can carry, and
- * reading it as a path is a missing file that fails the reporter and loses the
- * run's snapshot entirely.
- */
-function setupPaths(config: JestConfig, rootDir: string): readonly string[] {
-  return [...(config.setupFiles ?? []), ...(config.setupFilesAfterEnv ?? [])]
-    .flatMap((file) => configuredPath(file, rootDir));
-}
-
-/** A custom environment runs before `setupFiles`, so it is an input and never probed source. */
-function environmentPaths(config: JestConfig, rootDir: string): readonly string[] {
-  return config.testEnvironment === undefined ? [] : configuredPath(config.testEnvironment, rootDir);
-}
-
-/** Resolve one configuration entry only when it names a file rather than a package. */
-function configuredPath(file: string, rootDir: string): readonly string[] {
-  return file.startsWith('<rootDir>') || file.startsWith('.') || file.startsWith('/')
-    ? [resolve(rootDir, file.replace(/^<rootDir>\/?/, ''))]
-    : [];
-}
-
-/**
- * Where one Jest project keeps its module records, inside Jest's own cache.
- *
- * Inside the cache directory so that `jest --clearCache` discards the
- * transformed text and the records of what its ordinals mean together, and
- * under the project id so two projects that transform one file differently do
- * not take turns overwriting each other. `id` is Jest's own hash of the project
- * configuration, which is exactly the question a store has to answer: which
- * build produced this text.
- */
-export function jestStore(cacheDirectory: string, id = 'project'): string {
-  return resolve(cacheDirectory, 'variance-authority-test-selection', id);
-}
-
-export { mergeCoverage } from './merge.js';

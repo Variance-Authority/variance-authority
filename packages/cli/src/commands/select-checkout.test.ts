@@ -1,15 +1,18 @@
 import { execFileSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { digestString } from '@variance-authority/core/format';
+import { INSTRUMENTATION_ID } from '@variance-authority/sense/instrument';
 import {
+  landRun,
   testCoverageFile,
   writeTestCoverage,
   type TestCoverage,
 } from '@variance-authority/sense/test-selection';
-import { selectOutput } from './select-command.js';
+import { selectOutput, selectSuite } from './select-command.js';
 import { indexOutput } from './index-command.js';
 
 /**
@@ -55,9 +58,23 @@ describe('reading this checkout', () => {
     mkdirSync(join(file, '..'), { recursive: true });
     writeFileSync(file, 'this is not a snapshot');
 
-    await expect(selectOutput({ cwd: root, format: 'plain' })).rejects.toThrow(
-      /could not be read/,
+    const refused = selectOutput({ cwd: root, format: 'plain' });
+    await expect(refused).rejects.toThrow(
+      /could not be read: .*\. A run that ignored it would look exactly like a run that never had one\./su,
     );
+    await expect(refused).rejects.not.toThrow(/[Dd]elete it|run once|record a new one/);
+  });
+
+  it('refuses a readable snapshot that names no commit when no change is given', async () => {
+    // Its line ranges are coordinates in no text, so there is nothing to measure
+    // a diff from, and the refusal says so rather than calling it unreadable.
+    const root = mkdtempSync(join(tmpdir(), 'va-select-uncommitted-'));
+    const { commit: _, ...uncommitted } = snapshot('c0ffee');
+    await writeTestCoverage(testCoverageFile(root), uncommitted);
+
+    const refused = selectOutput({ cwd: root, format: 'plain' });
+    await expect(refused).rejects.toThrow(/names no commit.*`--since <ref>`/su);
+    await expect(refused).rejects.not.toThrow(/record the suite|run the suite/i);
   });
 
   it('skips the test files a real journal and a real diff rule out', async () => {
@@ -75,7 +92,33 @@ describe('reading this checkout', () => {
     expect(said.err).toContain('skipping 2 of 3 test files recorded whole');
     // The frame check ran and agreed: the module was read at its line ranges
     // rather than charged whole for being unrecognisable.
-    expect(said.err).not.toContain('recorded from a different text');
+    expect(said.err).not.toContain('was recorded from a text');
+  });
+
+  it('hands a runner the same reading as sets: the suite recorded whole, and the files it may skip', async () => {
+    const { root, head } = checkout();
+    await writeTestCoverage(testCoverageFile(root), snapshot(head));
+    writeFileSync(join(root, 'src/widget.ts'), SOURCE.replace("return 'b';", "return 'c';"));
+    process.chdir(root);
+
+    await indexOutput({ cwd: root });
+    const selected = await selectSuite({ root });
+
+    expect([...selected.skip]).toEqual(['test/alpha.test.ts', 'test/gamma.test.ts']);
+    expect([...selected.whole]).toEqual(['test/alpha.test.ts', 'test/beta.test.ts', 'test/gamma.test.ts']);
+    expect(selected.declined).toBeUndefined();
+    // The record it chose them from, which a shard's record names (`record-base.ts`).
+    expect(selected.read).toBe(`sha256:${createHash('sha256').update(readFileSync(testCoverageFile(root))).digest('hex')}`);
+  });
+
+  it('hands a runner nothing to skip, and which reading declined, where nothing was recorded', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'va-select-bare-'));
+
+    const selected = await selectSuite({ root });
+
+    expect(selected.skip.size).toBe(0);
+    expect(selected.declined).toBe(`no execution journal at ${testCoverageFile(root)}`);
+    expect(selected.read).toBeUndefined();
   });
 
   it('reads a snapshot named by path, as a recorder in another runtime writes one', async () => {
@@ -136,8 +179,150 @@ describe('reading this checkout', () => {
     // still skipped: a stale frame is a fact about one module's line numbers, so
     // it widens over that module's observers and no further.
     expect(said.out).toBe('test/gamma.test.ts\n');
-    expect(said.err).toContain('1 changed module was recorded from a different text');
-    expect(said.err).toContain('src/widget.ts');
+    expect(said.err).toContain(
+      "1 changed module was recorded from a text the journal's own commit does not hold and the cache did not keep",
+    );
+    expect(said.err).toContain('the next run that loads it records it again');
+    expect(said.err).not.toContain('clean tree');
+  });
+
+  it('reads a change against the text a run recorded over an edit, once the edit is reverted', async () => {
+    // The ordinary loop: edit, run the suite, revert. The run lands over an
+    // edit that moved every line of `widget.ts` down one, so the commit it names
+    // does not hold the text its line numbers count; the landing keeps that
+    // text. A later edit to `other` is read from it, and only `beta` entered
+    // `other`.
+    const { root, head } = checkout();
+    const edited = `// scratch\n${SOURCE}`;
+    writeFileSync(join(root, 'src/widget.ts'), edited);
+    const recorded = snapshot(head);
+    const [module] = recorded.modules;
+    await landRun(testCoverageFile(root), {
+      ...recorded,
+      modules: [{
+        ...module!,
+        sourceDigest: digestString(edited),
+        // The module still starts at line 1; everything inside it moved down one.
+        blocks: module!.blocks.map((block) =>
+          ({ ...block, startLine: block.kind === 'module' ? 1 : block.startLine + 1, endLine: block.endLine + 1 })),
+      }],
+    }, root);
+
+    writeFileSync(join(root, 'src/widget.ts'), SOURCE.replace("return 'b';", "return 'c';"));
+    process.chdir(root);
+
+    await indexOutput({ cwd: root });
+    const said = await selectOutput({ cwd: root, format: 'plain' });
+
+    expect(said.out).toBe('test/alpha.test.ts\ntest/gamma.test.ts\n');
+    expect(said.err).toContain('skipping 2 of 3 test files recorded whole');
+    expect(said.err).not.toContain('was recorded from a text');
+  });
+
+  it('runs a test a partial run did not observe, over a body edited since it ran', async () => {
+    // `alpha` runs at the commit and enters `widget`. `widget`'s body is edited
+    // and not committed, and a run of `beta` alone lands over the edit. `beta`
+    // loads the module but not `widget`, so nothing has run the edited body.
+    const { root, head } = checkout();
+    await landRun(testCoverageFile(root), snapshot(head), root);
+
+    const edited = SOURCE.replace("return 'a';", "return 'A';");
+    writeFileSync(join(root, 'src/widget.ts'), edited);
+    const recorded = snapshot(head);
+    const [module] = recorded.modules;
+    await landRun(testCoverageFile(root), {
+      ...recorded,
+      tests: recorded.tests.filter((test) => test.file === 'test/beta.test.ts'),
+      modules: [{
+        ...module!,
+        sourceDigest: digestString(edited),
+        blocks: module!.blocks.map((block) => ({
+          ...block,
+          digest: block.name === 'widget' ? digestString('widget, edited') : block.digest,
+          testFiles: block.testFiles.filter((test) => test === 'test/beta.test.ts'),
+        })),
+      }],
+    }, root);
+    process.chdir(root);
+
+    await indexOutput({ cwd: root });
+    const said = await selectOutput({ cwd: root, format: 'plain' });
+
+    expect(said.out).not.toContain('test/alpha.test.ts');
+    expect(said.out).toContain('test/gamma.test.ts');
+  });
+
+  it('runs a test a partial run did not observe, over a body edited in a module the run never loaded', async () => {
+    // As above, but `gamma` alone runs, loading `src/elsewhere.ts` and not
+    // `widget.ts`: the landing re-cuts `widget.ts` onto the edited text and
+    // keeps that text. Under the seam's recipe, since another one mislays the
+    // module and demotes every test on it whether the re-cut would or not.
+    const { root, head } = checkout({ 'src/elsewhere.ts': ELSEWHERE });
+    const recorded = bySeam(snapshot(head));
+    await landRun(testCoverageFile(root), recorded, root);
+
+    writeFileSync(join(root, 'src/widget.ts'), SOURCE.replace("return 'a';", "return 'A';"));
+    await landRun(testCoverageFile(root), {
+      ...recorded,
+      tests: recorded.tests.filter((test) => test.file === 'test/gamma.test.ts'),
+      modules: [{ file: 'src/elsewhere.ts', sourceDigest: digestString(ELSEWHERE), instrumented: true, blocks: [
+        { ordinal: 0, kind: 'module', digest: digestString('elsewhere'), name: '', path: 'module', startLine: 1, endLine: 1, source: true, testFiles: ['test/gamma.test.ts'] },
+      ] }],
+    }, root);
+    process.chdir(root);
+
+    await indexOutput({ cwd: root });
+    const said = await selectOutput({ cwd: root, format: 'plain' });
+
+    // `gamma` ran the text standing now; `alpha` never ran the edited body.
+    expect(said.out).toContain('test/gamma.test.ts');
+    expect(said.out).not.toContain('test/alpha.test.ts');
+  });
+
+  it('charges nothing for a comment deleted above the first statement, beside a changed body', async () => {
+    // The recorder starts a module's region at its first statement, so no
+    // region holds the comment above it, and deleting the comment ran nothing.
+    const licensed = `// Licensed under MIT.\n${SOURCE}`;
+    const { root, head } = checkout({ 'src/widget.ts': licensed });
+    const recorded = snapshot(head);
+    const [module] = recorded.modules;
+    await writeTestCoverage(testCoverageFile(root), {
+      ...recorded,
+      modules: [{ ...module!, sourceDigest: digestString(licensed), blocks: below(module!.blocks, 1) }],
+    });
+
+    writeFileSync(join(root, 'src/widget.ts'), SOURCE.replace("return 'b';", "return 'c';"));
+    process.chdir(root);
+
+    await indexOutput({ cwd: root });
+    const said = await selectOutput({ cwd: root, format: 'plain' });
+
+    expect(said.out).toBe('test/alpha.test.ts\ntest/gamma.test.ts\n');
+    expect(said.err).toContain('skipping 2 of 3 test files recorded whole');
+  });
+
+  it('charges nothing for a comment a run recorded over, once the comment is reverted beside a changed body', async () => {
+    // The loop from the case above it, with the module's region where the
+    // recorder puts it: at the first statement, below the comment. Against the
+    // kept text, reverting the comment deletes a line no region holds.
+    const { root, head } = checkout();
+    const edited = `// scratch\n${SOURCE}`;
+    writeFileSync(join(root, 'src/widget.ts'), edited);
+    const recorded = snapshot(head);
+    const [module] = recorded.modules;
+    await landRun(testCoverageFile(root), {
+      ...recorded,
+      modules: [{ ...module!, sourceDigest: digestString(edited), blocks: below(module!.blocks, 1) }],
+    }, root);
+
+    writeFileSync(join(root, 'src/widget.ts'), SOURCE.replace("return 'b';", "return 'c';"));
+    process.chdir(root);
+
+    await indexOutput({ cwd: root });
+    const said = await selectOutput({ cwd: root, format: 'plain' });
+
+    expect(said.out).toBe('test/alpha.test.ts\ntest/gamma.test.ts\n');
+    expect(said.err).toContain('skipping 2 of 3 test files recorded whole');
   });
 
   it('skips a test that mocked the changed module, where it entered only while the module evaluated', async () => {
@@ -199,7 +384,27 @@ describe('reading this checkout', () => {
     expect(said.err).not.toContain('records nothing about');
     expect(said.err).toContain('skipping 3 of 3 test files recorded whole');
   });
+
+  it('says a runner format is deprecated, and names the variable that replaces it', async () => {
+    const { root, head } = checkout();
+    await writeTestCoverage(testCoverageFile(root), snapshot(head));
+    process.chdir(root);
+    await indexOutput({ cwd: root });
+
+    const vitest = await selectOutput({ cwd: root, format: 'vitest' });
+    const jest = await selectOutput({ cwd: root, format: 'jest' });
+    const plain = await selectOutput({ cwd: root, format: 'plain' });
+
+    expect(vitest.err.split('\n')[0]).toBe(
+      '`--format vitest` is deprecated: set VARIANCE_AUTHORITY_SINCE, and a config wrapped by `withTestSelection` ' +
+        'drops the skipped files inside the runner, with no path on its command line',
+    );
+    expect(jest.err.split('\n')[0]).toContain('`--format jest` is deprecated: set VARIANCE_AUTHORITY_SINCE');
+    expect(plain.err).not.toContain('deprecated');
+  });
 });
+
+const ELSEWHERE = 'export const elsewhere = 1;\n';
 
 const SOURCE = [
   'export function widget(): string {',
@@ -232,6 +437,24 @@ function checkout(files: Readonly<Record<string, string>> = {}): { root: string;
   return { root, head: git(['rev-parse', 'HEAD']) };
 }
 
+/** The snapshot under the seam's recipe, each row at the address that recipe's cut gives it. */
+function bySeam(recorded: TestCoverage): TestCoverage {
+  return {
+    ...recorded,
+    instrumentation: INSTRUMENTATION_ID,
+    modules: recorded.modules.map((module) => ({
+      ...module,
+      blocks: module.blocks.map((block) =>
+        block.kind === 'module' ? { ...block, name: '' } : { ...block, path: 'entry' }),
+    })),
+  };
+}
+
+/** Every region `lines` further down, the module's own included, as a comment above the first statement puts them. */
+function below(blocks: TestCoverage['modules'][number]['blocks'], lines: number): TestCoverage['modules'][number]['blocks'] {
+  return blocks.map((block) => ({ ...block, startLine: block.startLine + lines, endLine: block.endLine + lines }));
+}
+
 /**
  * One module, two functions, three tests — and the third entered nothing at all,
  * which is what makes the skip list bigger than the diff.
@@ -252,41 +475,9 @@ function snapshot(commit: string): TestCoverage {
         sourceDigest: digestString(SOURCE),
         instrumented: true,
         blocks: [
-          {
-            ordinal: 0,
-            kind: 'module',
-            digest: digestString('module'),
-            name: 'widget.ts',
-            path: 'module',
-            startLine: 1,
-            endLine: 8,
-            source: true,
-            testFiles: ['test/alpha.test.ts', 'test/beta.test.ts'],
-          },
-          {
-            ordinal: 1,
-            kind: 'function',
-            owner: 0,
-            digest: digestString('widget'),
-            name: 'widget',
-            path: 'widget',
-            startLine: 1,
-            endLine: 3,
-            source: true,
-            testFiles: ['test/alpha.test.ts'],
-          },
-          {
-            ordinal: 2,
-            kind: 'function',
-            owner: 0,
-            digest: digestString('other'),
-            name: 'other',
-            path: 'other',
-            startLine: 5,
-            endLine: 7,
-            source: true,
-            testFiles: ['test/beta.test.ts'],
-          },
+          { ordinal: 0, kind: 'module', digest: digestString('module'), name: 'widget.ts', path: 'module', startLine: 1, endLine: 8, source: true, testFiles: ['test/alpha.test.ts', 'test/beta.test.ts'] },
+          { ordinal: 1, kind: 'function', owner: 0, digest: digestString('widget'), name: 'widget', path: 'widget', startLine: 1, endLine: 3, source: true, testFiles: ['test/alpha.test.ts'] },
+          { ordinal: 2, kind: 'function', owner: 0, digest: digestString('other'), name: 'other', path: 'other', startLine: 5, endLine: 7, source: true, testFiles: ['test/beta.test.ts'] },
         ],
       },
     ],

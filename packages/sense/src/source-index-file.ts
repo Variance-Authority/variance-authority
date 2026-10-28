@@ -1,5 +1,6 @@
 import { isDeepStrictEqual } from 'node:util';
 import type { Digest } from '@variance-authority/core/format';
+import { OtherSegmentVersion } from '@variance-authority/core/segment';
 import type { Parsed, ParseKey } from './cache.js';
 import { native as addon, nativeRefusal } from './addon.js';
 import { BadLogPath, emptyImmutableLog, openImmutableLog, type ImmutableLog } from './immutable-log.js';
@@ -19,16 +20,19 @@ export type { IndexedRecord, StoredSourceIndex } from './source-index-format.js'
 const EMPTY: StoredSourceIndex = { parses: new Map(), records: new Map(), directories: new Map() };
 
 /**
- * What opening a chain found: a whole one, none, or one that could only be read
- * up to a segment that was missing, corrupt or foreign.
+ * What opening a chain found: a whole one, none, one that could only be read up
+ * to a segment that was missing, corrupt or foreign, or one read up to a
+ * segment another release wrote in its own format version.
  */
-export type SourceIndexState = 'published' | 'missing' | 'damaged';
+export type SourceIndexState = 'published' | 'missing' | 'damaged' | 'other-version';
 
 /** One opened generation and the writer that appends to the chain it came from. */
 export interface SourceIndexFile {
-  /** The committed generation, or the valid prefix of it when `state` is `damaged`. */
+  /** The committed generation, or the valid prefix of it when `state` is `damaged` or `other-version`. */
   readonly stored: StoredSourceIndex;
   readonly state: SourceIndexState;
+  /** The format version the unread segment names, when `state` is `other-version`. */
+  readonly written?: number;
   /** The committed chain's segment digests that were read: the generation's identity. */
   readonly generation: readonly Digest[];
   /**
@@ -43,20 +47,17 @@ export interface SourceIndexFile {
   ): Promise<string | undefined>;
 }
 
-/**
- * A parse layer already encoded by the native cold scanner, and the keys it
- * still answers for: a parse JavaScript harvested since is deleted from them,
- * and written with the rest of JavaScript's parses.
- */
+/** A parse layer already encoded by the native cold scanner, and the keys it answers for. */
 export interface EncodedParseLayer {
   readonly bytes: Uint8Array;
-  readonly keys: { has(key: ParseKey): boolean; delete(key: ParseKey): unknown };
+  readonly keys: { has(key: ParseKey): boolean };
 }
 
 interface Opened {
   readonly stored: StoredSourceIndex;
   readonly log: ImmutableLog;
   readonly state: SourceIndexState;
+  readonly written?: number;
 }
 
 /** A missing, foreign, incomplete, or corrupt chain is an empty cache. */
@@ -79,6 +80,7 @@ export async function openSourceIndexFile(path: string): Promise<SourceIndexFile
   return {
     stored: opened.stored,
     state: opened.state,
+    ...(opened.written === undefined ? {} : { written: opened.written }),
     generation: opened.log.digests,
     async save(next, encodedParses, graph) {
       const current = await baseline(path, opened);
@@ -120,7 +122,7 @@ async function baseline(path: string, opened: Opened): Promise<Opened> {
     // A legacy one-segment file has no manifest to compare, and this publish is
     // the thing that gives it one.
     return !committed.legacy && !opened.log.legacy && same(committed.digests, opened.log.digests)
-      ? { stored: opened.stored, log: committed, state: opened.state }
+      ? { ...opened, log: committed }
       : await load(committed);
   } catch (error) {
     miss(error);
@@ -249,12 +251,26 @@ function same(left: readonly Digest[], right: readonly Digest[]): boolean {
 }
 
 async function load(read: ImmutableLog): Promise<Opened> {
-  const decoded: StoredSourceIndex[] = [];
-  for (const bytes of read.segments) {
+  // Newest first, so a layer decodes only the rows no later one decided: an
+  // update that read every file again would otherwise hold the graph once per
+  // layer. A segment that does not read still ends the chain there, so what was
+  // decoded above it is dropped and the layers below are read as the last.
+  let decoded: StoredSourceIndex[] = [];
+  let decided = { parses: new Set<ParseKey>(), records: new Set<string>(), directories: new Set<string>() };
+  // The segment that stopped the read, when it is one another release wrote:
+  // the same rebuild as a damaged one, for a reason the reader is told apart.
+  let written: number | undefined;
+  for (let at = read.segments.length - 1; at >= 0; at -= 1) {
     try {
-      decoded.push(decodeSourceIndex(bytes));
-    } catch {
-      break;
+      const part = decodeSourceIndex(read.segments[at]!, decided);
+      decoded.unshift(part);
+      decide(decided.parses, part.parses, part.deletedParses);
+      decide(decided.records, part.records, part.deletedRecords);
+      decide(decided.directories, part.directories, part.deletedDirectories);
+    } catch (error) {
+      written = error instanceof OtherSegmentVersion ? error.written : undefined;
+      decoded = [];
+      decided = { parses: new Set(), records: new Set(), directories: new Set() };
     }
   }
   const log = read.keep(decoded.length);
@@ -273,7 +289,8 @@ async function load(read: ImmutableLog): Promise<Opened> {
   const config = decoded.at(-1)?.config;
   return {
     log,
-    state: !log.committed ? 'missing' : log.dropped > 0 ? 'damaged' : 'published',
+    state: !log.committed ? 'missing' : log.dropped === 0 ? 'published' : written === undefined ? 'damaged' : 'other-version',
+    ...(written === undefined ? {} : { written }),
     stored: {
       parses: orderedMap(parseLayers),
       ...(config === undefined ? {} : { config }),
@@ -281,6 +298,11 @@ async function load(read: ImmutableLog): Promise<Opened> {
       records: orderedMap(recordLayers),
     },
   };
+}
+
+function decide<K>(decided: Set<K>, puts: ReadonlyMap<K, unknown>, deletes: ReadonlySet<K> | undefined): void {
+  for (const key of puts.keys()) decided.add(key);
+  for (const key of deletes ?? []) decided.add(key);
 }
 
 function segment(

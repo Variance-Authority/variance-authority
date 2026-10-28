@@ -1,4 +1,5 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { variancePrecondition } from '@variance-authority/sense/precondition';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type {
   Raster,
   RenderDocument,
@@ -95,6 +96,7 @@ afterEach(async () => {
 });
 
 describe('rendering somewhere else', () => {
+  beforeEach(() => variancePrecondition('fixture', { network: 'loopback', remote: 'accepts' }));
   it('carries the document across the wire without losing any of it', async () => {
     const local = echoRenderer();
     server = await serveRenderer(local);
@@ -133,6 +135,7 @@ describe('rendering somewhere else', () => {
   });
 
   it('reports a render failure as a failure, never as a blank image', async () => {
+    variancePrecondition('fixture', { remote: 'fails' });
     // A renderer that answers a broken document with an empty PNG produces a
     // comparison saying the whole subject changed, and the report then blames
     // whichever component sits under the pixels.
@@ -153,6 +156,7 @@ describe('rendering somewhere else', () => {
   });
 
   it('fails a request that hangs rather than stalling the run', async () => {
+    variancePrecondition('fixture', { remote: 'hangs' });
     server = await serveRenderer({
       identity: PINNED,
       identityFor: () => PINNED,
@@ -210,6 +214,7 @@ describe('rendering somewhere else', () => {
   });
 
   it('fails one document in a batch without failing the rest', async () => {
+    variancePrecondition('fixture', { remote: 'fails' });
     // A malformed subject travelling with fifteen good ones must not turn the
     // fifteen into failures the operator has to re-run to find innocent.
     const renderer = echoRenderer();
@@ -235,10 +240,11 @@ describe('rendering somewhere else', () => {
   });
 
   it('refuses a raster the far end rendered under a different identity', async () => {
+    variancePrecondition('fixture', { remote: 'garbled' });
     // Silence here is the expensive failure: the caller has already keyed its
     // baseline lookup on the predicted identity, so storing a raster stamped
     // with another one files the image where nothing reads it, and every later
-    // run calls the subject new or incomparable while the endpoint looks fine.
+    // run calls the subject new, or blames a moved identity, while the endpoint looks fine.
     server = await serveRenderer(stubbornRenderer(1));
     const remote = await connectRenderer({ endpoint: server.url });
 

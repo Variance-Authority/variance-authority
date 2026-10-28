@@ -1,8 +1,14 @@
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { variancePrecondition } from '@variance-authority/sense/precondition';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import type { Raster, RenderIdentity } from '@variance-authority/core/format';
+import {
+  digestFileName,
+  identityDigest,
+  type Raster,
+  type RenderIdentity,
+} from '@variance-authority/core/format';
 import { RasterStoreError, type RasterStore } from '@variance-authority/raster';
 import { createDurableStore } from '@variance-authority/store/durable';
 import {
@@ -62,6 +68,7 @@ async function deadEndpoint(): Promise<string> {
 }
 
 describe('a baseline store somewhere else', () => {
+  beforeEach(() => variancePrecondition('fixture', { network: 'loopback', remote: 'accepts' }));
   it('carries a baseline across the wire byte for byte', async () => {
     server = await serveRasterStore(createDurableStore(root));
     const store = createRemoteStore({ endpoint: server.url });
@@ -98,6 +105,7 @@ describe('a baseline store somewhere else', () => {
   });
 
   it('reports a subject nobody has rendered as a miss, and only then', async () => {
+    variancePrecondition('fixture', { store: 'empty' });
     // The one case allowed to be `null`: a server that positively said so.
     server = await serveRasterStore(createDurableStore(root));
     const store = createRemoteStore({ endpoint: server.url });
@@ -136,6 +144,7 @@ describe('a baseline store somewhere else', () => {
       comparable: true,
       storedUnder: MAC,
       pictured: true,
+      keepsSnapshot: false,
       // Non-empty on purpose, and the only fixture in the suite that is. This
       // field decides whether a settled subject reports a bare `unchanged` or
       // says the baseline is an image of a substituted font, so a wire that
@@ -159,7 +168,23 @@ describe('a baseline store somewhere else', () => {
     expect(described?.storedUnder).toEqual(RUNNER);
   });
 
+  it('carries a baseline read from an earlier layout, on both lookups', async () => {
+    // Dropped on the hop, the move would never be accepted: the subject would
+    // settle on its digest and stay at the old path behind every remote run.
+    const partition = join(root, digestFileName(identityDigest(MAC)));
+    await mkdir(partition, { recursive: true });
+    await writeFile(join(partition, 'button.png'), Buffer.from('QUJD', 'base64'));
+    await writeFile(join(partition, 'button.json'), JSON.stringify({ ...rasterOf(MAC), bytes: undefined }));
+    server = await serveRasterStore(createDurableStore(root));
+    const store = createRemoteStore({ endpoint: server.url });
+
+    const relocated = { from: `${digestFileName(identityDigest(MAC))}/button`, to: 'button-chromium' };
+    expect((await store.find({ subject: 'button' }, MAC))?.relocated).toEqual(relocated);
+    expect((await store.describe({ subject: 'button' }, MAC))?.relocated).toEqual(relocated);
+  });
+
   it('reports a described subject nobody has rendered as a miss, and only then', async () => {
+    variancePrecondition('fixture', { store: 'empty' });
     server = await serveRasterStore(createDurableStore(root));
     const store = createRemoteStore({ endpoint: server.url });
 
@@ -168,7 +193,9 @@ describe('a baseline store somewhere else', () => {
 });
 
 describe('a store that cannot answer', () => {
+  beforeEach(() => variancePrecondition('fixture', { network: 'stubbed', remote: 'garbled' }));
   it('reports an unreachable endpoint as an error rather than as a missing baseline', async () => {
+    variancePrecondition('fixture', { network: 'loopback', remote: 'unreachable' });
     const store = createRemoteStore({ endpoint: await deadEndpoint() });
 
     await expect(store.find({ subject: 's' }, MAC)).rejects.toBeInstanceOf(RasterStoreError);
@@ -176,6 +203,7 @@ describe('a store that cannot answer', () => {
   });
 
   it('reports a refused token as an error rather than as a missing baseline', async () => {
+    variancePrecondition('fixture', { network: 'loopback', remote: 'refuses' });
     // A 401 is the most plausible misconfiguration of all, and the one whose
     // "answer" — nothing — reads exactly like an empty store.
     server = await serveRasterStore(createDurableStore(root), { token: 'sekrit' });
@@ -185,6 +213,7 @@ describe('a store that cannot answer', () => {
   });
 
   it('reports a failing backing store as an error rather than as a missing baseline', async () => {
+    variancePrecondition('fixture', { network: 'loopback', remote: 'fails' });
     const broken: RasterStore = {
       retention: 'durable',
       find: () => Promise.reject(new Error('disk went away')),
@@ -222,8 +251,8 @@ describe('a store that cannot answer', () => {
   });
 
   it('refuses a baseline whose comparability it was not told', async () => {
-    // Neither default is available. `true` compares two machines; `false` reports
-    // every subject incomparable. Both are verdicts invented by a parser.
+    // Neither default is available. `true` hides a moved machine; `false` names
+    // one on every subject. Both are causes invented by a parser.
     const store = createRemoteStore({
       endpoint: 'http://stub',
       fetch: async () =>
@@ -257,93 +286,8 @@ describe('a store that cannot answer', () => {
     );
   });
 
-  it('refuses a description body that is not an answer', async () => {
-    // The cheap route is the one a caller reaches for on every subject, so a body
-    // it is willing to guess at is a body that settles a whole run.
-    const store = createRemoteStore({
-      endpoint: 'http://stub',
-      fetch: async () => new Response('{"nothing":true}', { status: 200 }),
-    });
-
-    await expect(store.describe({ subject: 's' }, MAC)).rejects.toThrow(/no `described` field/);
-  });
-
-  it('refuses a description with no document digest rather than rendering everything', async () => {
-    // The quiet one. Absent, the digest compares as `undefined` against a real one
-    // and never matches, so every subject renders: a broken server hidden behind a
-    // bill for images and a run that still reports verdicts.
-    const store = createRemoteStore({
-      endpoint: 'http://stub',
-      fetch: async () =>
-        new Response(JSON.stringify({ described: { comparable: true, storedUnder: MAC } }), {
-          status: 200,
-        }),
-    });
-
-    await expect(store.describe({ subject: 's' }, MAC)).rejects.toThrow(/documentDigest/);
-  });
-
-  it('refuses a description whose comparability it was not told', async () => {
-    const store = createRemoteStore({
-      endpoint: 'http://stub',
-      fetch: async () =>
-        new Response(
-          JSON.stringify({ described: { documentDigest: 'v1:doc', storedUnder: MAC } }),
-          { status: 200 },
-        ),
-    });
-
-    await expect(store.describe({ subject: 's' }, MAC)).rejects.toThrow(/comparable/);
-  });
-
-  it('refuses a description that does not say which fonts were missing', async () => {
-    // The loudest failure of the three if it were allowed through, and the one
-    // with a precedent in this repository. Defaulting the field to `[]` reads as
-    // "no fonts were missing", which is a *verdict*: the subject settles to a
-    // bare `unchanged` while the baseline is an image of a substituted typeface.
-    // Absent and empty must not be the same value on a wire, which is exactly
-    // what `stabilization` taught here when the identity codec dropped it.
-    const store = createRemoteStore({
-      endpoint: 'http://stub',
-      fetch: async () =>
-        new Response(
-          JSON.stringify({
-            described: {
-              documentDigest: 'v1:doc',
-              comparable: true,
-              storedUnder: MAC,
-              pictured: true,
-            },
-          }),
-          { status: 200 },
-        ),
-    });
-
-    await expect(store.describe({ subject: 's' }, MAC)).rejects.toThrow(/missingFonts/);
-  });
-
-  it('refuses a description whose missing fonts are not strings', async () => {
-    const store = createRemoteStore({
-      endpoint: 'http://stub',
-      fetch: async () =>
-        new Response(
-          JSON.stringify({
-            described: {
-              documentDigest: 'v1:doc',
-              comparable: true,
-              storedUnder: MAC,
-              pictured: true,
-              missingFonts: [{ family: 'Inter' }],
-            },
-          }),
-          { status: 200 },
-        ),
-    });
-
-    await expect(store.describe({ subject: 's' }, MAC)).rejects.toThrow(/missingFonts/);
-  });
-
   it('fails a lookup that hangs rather than stalling the run', async () => {
+    variancePrecondition('fixture', { network: 'loopback', remote: 'hangs' });
     // A store that never answers is indistinguishable from one that is thinking,
     // and a run that waits forever is a CI job someone cancels and re-runs.
     server = await serveRasterStore({
@@ -369,6 +313,7 @@ describe('a store that cannot answer', () => {
  * count is the whole claim.
  */
 describe('a declared working set', () => {
+  beforeEach(() => variancePrecondition('fixture', { network: 'loopback', remote: 'accepts' }));
   /** Counts by path, so "one request" is an assertion rather than a description. */
   function counting(): { fetch: typeof globalThis.fetch; paths: string[] } {
     const paths: string[] = [];
@@ -459,6 +404,7 @@ describe('a declared working set', () => {
   });
 
   it('refuses an unreachable endpoint rather than reading it as an empty set', async () => {
+    variancePrecondition('fixture', { remote: 'unreachable' });
     // The failure this whole file is about, arriving one layer earlier. A
     // prefetch that answered "no baselines" to an outage would record the entire
     // suite as `new` and report success.

@@ -3,6 +3,7 @@ import { mkdtemp, readdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
+import type { CaptureArtifact } from '@variance-authority/core';
 import { capture } from './capture.js';
 import { captureFiles, readCapture, writeCapture } from './archive.js';
 import { captureCollector } from './collector.js';
@@ -50,6 +51,20 @@ describe('browserless capture archive', () => {
     expect(collected).toMatchObject({
       ok: true,
       document: { resources: {}, subject: { id: 'button/save' } },
+    });
+  });
+
+  it('names the step that writes the captures when a run plans before it', async () => {
+    // `variance run` before the unit tests: the collector's plan is the first
+    // thing the CLI calls, and the CLI exits 2 with this message only when the
+    // error carries the operator marker. Without it the run reports a defect in
+    // the tool.
+    const directory = join(tmpdir(), 'variance-unit-never-captured');
+    const collector = await captureCollector({ directory })({ config: { viewport: VIEWPORT } });
+
+    await expect(collector.plan()).rejects.toMatchObject({
+      varianceOperatorError: true,
+      message: expect.stringContaining('Your unit tests write it through `writeCapture`, and none has written a capture to this directory.'),
     });
   });
 
@@ -150,6 +165,11 @@ describe('browserless capture archive', () => {
     await writeFile(sourcePath, JSON.stringify(malformedSource), 'utf8');
     await expect(readCapture(sourcePath)).rejects.toThrow('invalid source index');
 
+    const unknownVia = { ...artifact, source: { Button: [{ file: 'src/Button.tsx', line: 1, via: 'declared' }] } };
+    const viaPath = join(directory, 'via.va-capture.json');
+    await writeFile(viaPath, JSON.stringify(unknownVia), 'utf8');
+    await expect(readCapture(viaPath)).rejects.toThrow('invalid source index');
+
     const malformedAttempt = { ...artifact, attempt: { retry: 0, repeat: -1 } };
     const attemptPath = join(directory, 'attempt.va-capture.json');
     await writeFile(attemptPath, JSON.stringify(malformedAttempt), 'utf8');
@@ -168,6 +188,103 @@ describe('browserless capture archive', () => {
     const nodePath = join(directory, 'node.va-capture.json');
     await writeFile(nodePath, JSON.stringify(malformedNested), 'utf8');
     await expect(readCapture(nodePath)).rejects.toThrow('invalid semantic snapshot');
+  });
+
+  it.todo(
+    'keys a capture by the timezone and locale jsdom formatted its text in — needs a declared pair the jsdom run is started in, since the Node process reads the host',
+  );
+
+  it('reads why a node was read only in part, and refuses a reason that is not words', async () => {
+    const artifact = await capture(mount('<button>Save</button>'), {
+      subject: 'button/unread',
+      viewport: VIEWPORT,
+    });
+    const directory = await mkdtemp(join(tmpdir(), 'variance-unit-'));
+    temporary.push(directory);
+    const marked = structuredClone(artifact) as unknown as {
+      snapshot: { root: { unread: unknown } };
+    };
+
+    marked.snapshot.root.unread = 'no layout engine to resolve counter()';
+    const readPath = join(directory, 'unread.va-capture.json');
+    await writeFile(readPath, JSON.stringify(marked), 'utf8');
+    expect((await readCapture(readPath)).snapshot?.root.unread).toBe(
+      'no layout engine to resolve counter()',
+    );
+
+    marked.snapshot.root.unread = 42;
+    const refusedPath = join(directory, 'unread-number.va-capture.json');
+    await writeFile(refusedPath, JSON.stringify(marked), 'utf8');
+    await expect(readCapture(refusedPath)).rejects.toThrow('invalid semantic snapshot');
+  });
+});
+
+/**
+ * A Vitest browser page is served on whatever port the runner had free, and
+ * `@variance-authority/vitest-browser` captures through `capture` here. The
+ * port is an accident of the run, so it is no part of an asset key and no part
+ * of the environment those keys are folded into.
+ */
+describe('an asset the page serves', () => {
+  const ICON = new TextEncoder().encode('<svg xmlns="http://www.w3.org/2000/svg" width="1" height="1"/>');
+
+  async function servedFrom(origin: string): Promise<CaptureArtifact> {
+    document.head.innerHTML = `<base href="${origin}/">`;
+    return capture(mount('<img src="/icon.svg" alt="">'), {
+      subject: 'icon',
+      viewport: VIEWPORT,
+      resolveResource: async () => ({ contentType: 'image/svg+xml', bytes: ICON }),
+    });
+  }
+
+  const documentOf = (artifact: CaptureArtifact) =>
+    artifact.material.kind === 'document' ? artifact.material.document : undefined;
+
+  it('keys it by its path, so the port it was served on moves no key and no environment', async () => {
+    const first = await servedFrom('http://127.0.0.1:4001');
+    const second = await servedFrom('http://127.0.0.1:4002');
+
+    expect(documentOf(first)?.assets).toEqual(documentOf(second)?.assets);
+    expect(Object.keys(documentOf(first)?.assets ?? {})).toEqual(['/icon.svg']);
+    expect(first.snapshot?.environment.digest).toBe(second.snapshot?.environment.digest);
+    // The renderer asks for the bytes by the URL the page resolved.
+    expect(Object.keys(documentOf(first)?.resources ?? {})).toEqual([
+      'http://127.0.0.1:4001/icon.svg',
+    ]);
+  });
+
+  it('reads back a capture whose asset is keyed by its path', async () => {
+    const artifact = await servedFrom('http://127.0.0.1:4001');
+    const keyedByPath = structuredClone(artifact) as unknown as {
+      material: { document: { assets: Record<string, string> } };
+    };
+    keyedByPath.material.document.assets = {
+      '/icon.svg': Object.values(keyedByPath.material.document.assets)[0]!,
+    };
+    const directory = await mkdtemp(join(tmpdir(), 'variance-unit-'));
+    temporary.push(directory);
+    const path = join(directory, 'icon.va-capture.json');
+    await writeFile(path, JSON.stringify(keyedByPath), 'utf8');
+
+    expect((await readCapture(path)).material).toMatchObject({
+      document: { assets: { '/icon.svg': expect.any(String) } },
+    });
+  });
+
+  it('refuses a path key whose bytes the capture does not hold', async () => {
+    const artifact = await servedFrom('http://127.0.0.1:4001');
+    const unheld = structuredClone(artifact) as unknown as {
+      material: { document: { assets: Record<string, string> } };
+    };
+    unheld.material.document.assets = {
+      '/other.svg': Object.values(unheld.material.document.assets)[0]!,
+    };
+    const directory = await mkdtemp(join(tmpdir(), 'variance-unit-'));
+    temporary.push(directory);
+    const path = join(directory, 'unheld.va-capture.json');
+    await writeFile(path, JSON.stringify(unheld), 'utf8');
+
+    await expect(readCapture(path)).rejects.toThrow('no matching archived resource for /other.svg');
   });
 });
 

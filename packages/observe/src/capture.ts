@@ -2,18 +2,21 @@ import type { CaptureArtifact } from '@variance-authority/core';
 import { hashComponents } from '@variance-authority/core/attribute';
 import type { Raster } from '@variance-authority/core/format';
 import {
-  describeIdentity,
+  identityCause,
   type BaselineKey,
   type RasterStore,
   type Renderer,
 } from '@variance-authority/raster';
 import { declaredIgnores } from './decide.js';
 import {
+  documentMoved,
   observeAgainstBaseline,
-  observeRasters,
   type CompareInputs,
   type Observation,
+  withCause,
+  withRelocation,
 } from './observe.js';
+import { decideRasters } from './unpictured.js';
 
 /** A stored-baseline observation whose candidate may already be a raster. */
 export interface ObserveCaptureOptions extends CompareInputs {
@@ -65,10 +68,15 @@ export async function observeCaptureAgainstBaseline(
   }
 
   const snapshot = inputs.snapshot;
-  const { components: _staleComponents, accessibility: _staleAccessibility, ...pixels } =
-    artifact.material.raster;
+  const {
+    components: _staleComponents,
+    accessibility: _staleAccessibility,
+    snapshot: _staleSnapshot,
+    ...pixels
+  } = artifact.material.raster;
   void _staleComponents;
   void _staleAccessibility;
+  void _staleSnapshot;
   const candidate: Raster =
     {
       ...pixels,
@@ -76,8 +84,9 @@ export async function observeCaptureAgainstBaseline(
       ...(inputs.accessibility === undefined ? {} : { accessibility: inputs.accessibility }),
     };
   const found = await options.store.find(key, candidate.identity);
-  // The render cache owns pixels. Component hashes describe the semantic
-  // snapshot of this observation and must not leak into a later cache hit.
+  // The render cache owns pixels. Component hashes and the packed tree describe
+  // the semantic snapshot of this observation and must not leak into a later
+  // cache hit.
   await options.store.renderCache.put(pixels);
   const declared = declaredIgnores(snapshot, candidate.identity.deviceScaleFactor);
   const declaredField = declared === undefined ? {} : { ignored: declared };
@@ -94,20 +103,13 @@ export async function observeCaptureAgainstBaseline(
     };
   }
 
-  if (!found.comparable) {
-    return {
-      subject: artifact.subject.id,
-      verdict: 'incomparable',
-      because:
-        'a baseline exists but was rendered by ' +
-        `${describeIdentity(found.storedUnder)}, and this run is ` +
-        `${describeIdentity(candidate.identity)}; pixels are machine-bound, so the two are not comparable`,
-      regions: [],
-      rendered: false,
-      missingFonts: candidate.missingFonts,
-      ...declaredField,
-    };
-  }
-
-  return await observeRasters(artifact.subject.id, found.raster, candidate, inputs);
+  return withRelocation(
+    withCause(
+      await decideRasters(artifact.subject.id, found.raster, candidate, false, inputs, 'baseline'),
+      identityCause(found.storedUnder, candidate.identity),
+      documentMoved(found.raster, candidate),
+    ),
+    found.relocated,
+    documentMoved(found.raster, candidate),
+  );
 }

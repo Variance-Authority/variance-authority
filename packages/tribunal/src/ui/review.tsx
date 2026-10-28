@@ -71,7 +71,7 @@ export { JourneysPanel, familiesOf, type JourneyFamily, type JourneyRow } from '
 export { BuildList, CoverageLine } from './builds.js';
 export { OriginsPanel } from './origins.js';
 export { SubjectPanel } from './subject.js';
-export { Variations } from './variations.js';
+export { type Pictures, Variations } from './variations.js';
 export { Prose } from './shell.js';
 export { originsOf, type Appearance, type Origin, type Origins } from './grouping.js';
 export { Look, frameOf, sightings, type Frame, type Sighting } from './look.js';

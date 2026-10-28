@@ -23,7 +23,6 @@ fn graph(files: &[(&str, &str)]) -> Graph {
         targets: Vec::new(),
         calls_from: Vec::new(),
         fell_back: 0,
-        aliased: 0,
         tree: None,
     };
     for (file, text) in files {
@@ -82,6 +81,34 @@ fn an_export_star_fan_out_routes_a_name_only_to_the_file_that_declares_it() {
 }
 
 #[test]
+fn a_name_two_stars_answer_and_a_default_behind_a_star_reach_no_declaration() {
+    let graph = graph(&[
+        ("a.ts", "import made, { twice, once } from './barrel';\ntwice();\nmade();\nonce();\n"),
+        ("barrel.ts", "export * from './b';\nexport * from './c';\n"),
+        ("b.ts", "export function twice() {}\nexport default function made() {}\n"),
+        ("c.ts", "export function twice() {}\nexport function once() {}\n"),
+    ]);
+    let parsed = graph.parsed(0).unwrap();
+    let targets: Vec<Target> = parsed.calls.iter().map(|call| graph.target_of(0, call.from, &call.callee, call.callback)).collect();
+    assert!(matches!(targets[0], Target::External), "two stars that reach different declarations leave the name ambiguous: {:?}", targets[0]);
+    assert!(matches!(targets[1], Target::External), "no star passes `default`: {:?}", targets[1]);
+    assert!(matches!(targets[2], Target::Fn { file: 3, func: 1, how: How::Import }), "one star answers alone: {:?}", targets[2]);
+}
+
+#[test]
+fn a_name_behind_a_star_to_no_file_of_the_checkout_reaches_no_declaration() {
+    let graph = graph(&[
+        ("a.ts", "import { run, own } from './barrel';\nrun();\nown();\n"),
+        ("barrel.ts", "export * from 'package';\nexport * from './b';\nexport { own } from './b';\n"),
+        ("b.ts", "export function run() {}\nexport function own() {}\n"),
+    ]);
+    let parsed = graph.parsed(0).unwrap();
+    let targets: Vec<Target> = parsed.calls.iter().map(|call| graph.target_of(0, call.from, &call.callee, call.callback)).collect();
+    assert!(matches!(targets[0], Target::External), "a star the checkout cannot read may export the name too: {:?}", targets[0]);
+    assert!(matches!(targets[1], Target::Fn { file: 2, func: 1, how: How::Import }), "a named `export … from` decides before the stars: {:?}", targets[1]);
+}
+
+#[test]
 fn a_local_name_resolves_to_the_declaration_whose_scope_holds_the_call() {
     let graph = graph(&[("a.ts", "function f() {}\nfunction g() {\n  function f() {}\n  f();\n}\nf();\n")]);
     let parsed = graph.parsed(0).unwrap();
@@ -116,4 +143,81 @@ fn a_file_moved_since_the_commit_is_read_under_the_path_the_commit_had() {
     let missing = text_at(root.to_str().unwrap(), "0123456789abcdef0123456789abcdef01234567").unwrap_err();
     assert_eq!(missing, "commit 0123456789ab is not in this checkout's object store");
     std::fs::remove_dir_all(&root).unwrap();
+}
+
+/// A clone of a five-file history made with `--filter=<filter>`, holding only
+/// what its checkout needed, so the five texts at the first commit are on the
+/// server alone. The server's `upload-pack` appends a line to `requests` for
+/// every request it answers; with `refuse_first`, it refuses the first one made
+/// after the clone.
+#[cfg(unix)]
+fn partial_clone(name: &str, filter: &str, refuse_first: bool) -> (std::path::PathBuf, String, std::path::PathBuf, String) {
+    use std::os::unix::fs::PermissionsExt;
+    let base = std::env::temp_dir().join(format!("sense-journeys-{name}-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&base);
+    let (source, clone) = (base.join("source"), base.join("clone"));
+    std::fs::create_dir_all(&source).unwrap();
+    let base = std::fs::canonicalize(base).unwrap();
+    let text = |at: usize, then: bool| format!("export const at{at} = {};\n", if then { at + 1 } else { (at + 1) * 10 });
+    for at in 0..5 {
+        std::fs::write(source.join(format!("f{at}.ts")), text(at, true)).unwrap();
+    }
+    git(&source, &["init", "--quiet"]);
+    git(&source, &["config", "uploadpack.allowFilter", "true"]);
+    git(&source, &["config", "uploadpack.allowAnySHA1InWant", "true"]);
+    git(&source, &["add", "-A"]);
+    git(&source, &["commit", "--quiet", "-m", "then"]);
+    let then = git(&source, &["rev-parse", "HEAD"]);
+    for at in 0..5 {
+        std::fs::write(source.join(format!("f{at}.ts")), text(at, false)).unwrap();
+    }
+    git(&source, &["commit", "--quiet", "-am", "now"]);
+
+    let requests = base.join("requests");
+    let serve = base.join("serve");
+    let refuse = if refuse_first { "[ \"$(wc -l < \"$log\")\" -eq 1 ] && exit 1\n" } else { "" };
+    let script = format!("#!/bin/sh\nlog='{}'\necho request >> \"$log\"\n{refuse}exec git upload-pack \"$@\"\n", requests.display());
+    std::fs::write(&serve, script).unwrap();
+    std::fs::set_permissions(&serve, std::fs::Permissions::from_mode(0o755)).unwrap();
+    let url = format!("file://{}", base.join("source").display());
+    git(&base, &["clone", "--quiet", &format!("--filter={filter}"), &url, clone.to_str().unwrap()]);
+    git(&clone, &["config", "remote.origin.uploadpack", serve.to_str().unwrap()]);
+    std::fs::write(&requests, "").unwrap();
+    let expected = (0..5).map(|at| text(at, true)).collect::<Vec<_>>().join("");
+    (clone, then, requests, expected)
+}
+
+#[cfg(unix)]
+fn read_in_order(texts: &HashMap<String, Option<String>>) -> String {
+    (0..5).map(|at| texts[&format!("f{at}.ts")].clone().unwrap_or_default()).collect()
+}
+
+#[cfg(unix)]
+#[test]
+fn a_partial_clone_fetches_the_texts_at_the_commit_in_one_request() {
+    let (clone, then, requests, expected) = partial_clone("prefetch", "blob:none", false);
+    let texts = text_at(clone.to_str().unwrap(), &then).unwrap();
+    assert_eq!(read_in_order(&texts), expected);
+    assert_eq!(std::fs::read_to_string(&requests).unwrap().lines().count(), 1, "one request for five blobs");
+    std::fs::remove_dir_all(clone.parent().unwrap()).unwrap();
+}
+
+#[cfg(unix)]
+#[test]
+fn a_refused_prefetch_still_reads_every_text_one_request_at_a_time() {
+    let (clone, then, requests, expected) = partial_clone("refused", "blob:none", true);
+    let texts = text_at(clone.to_str().unwrap(), &then).unwrap();
+    assert_eq!(read_in_order(&texts), expected, "a failed prefetch is not a missing text");
+    assert_eq!(std::fs::read_to_string(&requests).unwrap().lines().count(), 6, "the refused request, then one per blob");
+    std::fs::remove_dir_all(clone.parent().unwrap()).unwrap();
+}
+
+#[cfg(unix)]
+#[test]
+fn a_treeless_clone_fetches_the_trees_and_then_the_texts_in_two_requests() {
+    let (clone, then, requests, expected) = partial_clone("treeless", "tree:0", false);
+    let texts = text_at(clone.to_str().unwrap(), &then).unwrap();
+    assert_eq!(read_in_order(&texts), expected);
+    assert_eq!(std::fs::read_to_string(&requests).unwrap().lines().count(), 2, "one request for the trees, one for the blobs");
+    std::fs::remove_dir_all(clone.parent().unwrap()).unwrap();
 }

@@ -9,10 +9,10 @@ is in flight, and expect that account to end when the watcher does.
 New here? Start with [your first run](start.md).
 
 Use this when a test hangs and the runner's timeout tells you only what the
-test *wanted*. Once a run has finished, ask its output instead:
+test was waiting for. Once a run has finished, ask its output instead:
 [distill a completed test](distill.md) says what one test can show, and the
 [execution record](execution-record.md) — the file a run writes naming which
-source each test covered — says what ran.
+source each test covered — records what ran.
 
 ## Report the run from your tests
 
@@ -119,7 +119,7 @@ unmatched start is the place to continue diagnosis.
 
 The watcher's state is limited in four ways:
 
-- **The watcher keeps a bounded number of entries.** It says when older ones
+- **The watcher keeps a bounded number of entries.** It reports when older ones
   were dropped, so you can tell *nothing was announced* from *the beginning was
   forgotten*.
 - Its state does not alter the suite's retained evidence.

@@ -12,8 +12,8 @@ New here? Start with [your first run](start.md).
 
 Two words repeat below. A **subject** is one named UI state you asked for and
 can ask for again, under an id you choose — `cart/empty`, or
-`story:checkout--empty`. A **collector** is a module you write that tells a run
-which subjects exist and how to set each one up; the first two sections below
+`story:checkout--empty`. A **collector** is a module you write that gives a run
+the subjects that exist and how to set each one up; the first two sections below
 need no collector, because the test you already have creates the state itself.
 
 ## Alongside `expect(page).toHaveScreenshot()`
@@ -52,7 +52,7 @@ test('the cart survives an empty basket', async ({ page }, testInfo) => {
 ```
 
 `assertUnchanged` is a plain assertion helper, not a replacement for
-Playwright's `expect`. A test that wants to decide for itself can read
+Playwright's `expect`. A test that decides for itself can read
 `observation.verdict` and `observation.regions` instead.
 
 By default the call keeps the document it acquired and repaints it through the
@@ -66,8 +66,8 @@ hands the agreeing image to the same comparison.
 - a changed region names the component that drew it — and, on Chromium, the
   `file:line` it was declared at — in the failure message, with no image opened;
 - an image painted under a different browser, platform, scale factor or font
-  stack comes back `incomparable`, naming what differs, rather than as a wall of
-  red pixels;
+  stack is compared and names what moved as the cause, rather than leaving a
+  wall of red pixels unexplained;
 - the document, the pixels and the accessibility tree are three separate
   results, so a role or accessible name that changed without repainting anything
   still comes back `changed`;

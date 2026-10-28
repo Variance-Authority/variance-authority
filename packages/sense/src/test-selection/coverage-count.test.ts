@@ -5,6 +5,9 @@ import type { ExecutionBlock, ExecutionIndex, ExecutionModule } from './reverse.
 const A = { id: 'a.test.ts > one', file: 'a.test.ts', name: 'one', stopped: false };
 const B = { id: 'b.test.ts > two', file: 'b.test.ts', name: 'two', stopped: false };
 
+/** No file changed between the two texts. */
+const UNCHANGED = { diff: new Map() };
+
 function block(name: string, tests: readonly number[], extra: Partial<ExecutionBlock> = {}): ExecutionBlock {
   return {
     kind: 'function', name, path: 'entry', startLine: 1, endLine: 3, source: true,
@@ -112,7 +115,7 @@ describe('what changed one suite\'s count', () => {
       module('src/new.ts', block('shiny', [1])),
     );
 
-    const change = coverageChange(base, now);
+    const change = coverageChange(base, now, UNCHANGED);
     const [was] = countCoverage([{ index: base }]).suites;
     const [is] = countCoverage([{ index: now }]).suites;
 
@@ -131,7 +134,7 @@ describe('what changed one suite\'s count', () => {
     const base = index(module('src/total.ts', block('apply', [0])));
     const now = index(module('src/total.ts', block('apply', [0], { kind: 'method' })));
 
-    const change = coverageChange(base, now);
+    const change = coverageChange(base, now, UNCHANGED);
 
     expect(change).toMatchObject({ gained: 0, lost: 0, written: { regions: 1, run: 1 }, deleted: { regions: 1, run: 1 } });
     expect(sums(change)).toEqual({ run: 0, regions: 0 });
@@ -141,7 +144,7 @@ describe('what changed one suite\'s count', () => {
     const base = index(module('src/total.ts', block('apply', [0, 1])));
     const now: ExecutionIndex = { tests: [A, { ...B, stopped: true }], modules: [module('src/total.ts', block('apply', []))] };
 
-    const change = coverageChange(base, now);
+    const change = coverageChange(base, now, UNCHANGED);
 
     expect(change).toMatchObject({ hidden: 1, lost: 0 });
     expect(sums(change).run).toBe(-1);

@@ -1,5 +1,5 @@
 // compass: variance-authority/runtime/attention
-import type { ExecutionIndex } from '@variance-authority/sense/test-selection';
+import { saidAcross, type ExecutionIndex, type ExecutionTest } from '@variance-authority/sense/test-selection';
 
 /** Validate the runner-independent execution JSON accepted by the CLI. */
 export function parseExecutionIndex(value: unknown): ExecutionIndex {
@@ -9,10 +9,17 @@ export function parseExecutionIndex(value: unknown): ExecutionIndex {
   }
   const tests = root['tests'].map((value, at) => {
     const test = object(value, `execution test ${at}`);
+    const stopped = test['stopped'];
+    if (stopped !== undefined && typeof stopped !== 'boolean') throw new Error(`execution test ${at} stopped must be boolean`);
     return {
       id: string(test['id'], `execution test ${at} id`),
       file: string(test['file'], `execution test ${at} file`),
       name: string(test['name'], `execution test ${at} name`),
+      // Absent is a case whose settling nobody saw, or that no runner timed; neither is `false` or `0`.
+      ...(stopped === undefined ? {} : { stopped }),
+      ...(test['duration'] === undefined ? {} : { duration: integer(test['duration'], `execution test ${at} duration`, true) }),
+      // Empty is a case heard to say nothing; absent is one nobody listened to.
+      ...(test['preconditions'] === undefined ? {} : { said: parsePreconditions(test['preconditions'], at) }),
     };
   });
   const modules = root['modules'].map((value, at) => {
@@ -24,6 +31,24 @@ export function parseExecutionIndex(value: unknown): ExecutionIndex {
     };
   });
   return { tests, modules };
+}
+
+/** The preconditions as a frame field spells them, `{"said":[[name, value, site, level], …]}` with each value as JSON text, joined by the addon as every writer joins them. */
+function parsePreconditions(value: unknown, testAt: number): NonNullable<ExecutionTest['said']> {
+  if (!Array.isArray(value)) throw new Error(`execution test ${testAt} preconditions must be an array`);
+  const said = value.map((value, at) => {
+    const where = `execution test ${testAt} precondition ${at}`;
+    const item = object(value, where);
+    const held = item['value'];
+    if (held === undefined) throw new Error(`${where} value is missing`);
+    return [
+      string(item['name'], `${where} name`),
+      JSON.stringify(held),
+      string(item['site'], `${where} site`),
+      integer(item['level'], `${where} level`, true),
+    ];
+  });
+  return saidAcross(JSON.stringify({ said }), undefined).said!;
 }
 
 function parseBlock(

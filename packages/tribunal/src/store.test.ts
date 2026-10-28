@@ -192,21 +192,43 @@ describe('a baseline split across D1 and R2', () => {
     expect(found?.storedUnder.platform).toBe('linux/x64');
   });
 
-  it('prefers this identity over another that also has the subject', async () => {
-    // Both exist. Answering with the sibling would report `incomparable` for a
-    // subject this very machine has a baseline for — a suite that goes red on a
-    // machine that is entirely able to compare.
-    await store().put({ subject: 's' }, raster(RUNNER, BLACK));
-    await store().put({ subject: 's' }, raster(MAC, WHITE));
+  it('reads the last accept on this engine family, whichever machine made it', async () => {
+    // Both rows exist. A file-backed store keeps one file per engine family,
+    // which holds the last accept, and this store answers as that file does.
+    let at = Date.parse('2026-01-01T00:00:00Z');
+    const ticking = (): ReturnType<typeof createBucketStore> => createBucketStore({ db, bucket, project: 'p', now: () => new Date((at += 1000)) });
+    await ticking().put({ subject: 's' }, raster(RUNNER, BLACK));
+    await ticking().put({ subject: 's' }, raster(MAC, WHITE));
 
-    const found = await store().find({ subject: 's' }, MAC);
-
+    const found = await ticking().find({ subject: 's' }, MAC);
     expect(found?.comparable).toBe(true);
     expect(found?.raster.bytes).toBe(WHITE);
+
+    await ticking().put({ subject: 's' }, raster(RUNNER, BLACK));
+    expect((await ticking().find({ subject: 's' }, MAC))?.storedUnder.platform).toBe('linux/x64');
   });
 });
 
 describe('the cheap lookup and the full one agree', () => {
+  it('says whether the baseline kept its snapshot, without returning it', async () => {
+    const snapshot = 'v1:H4sIAAAAAAAAA6tWKkktLlGyUlAqzy/KSVGqBQBNnvU3EgAAAA==';
+    await store().put({ subject: 'kept' }, { ...raster(MAC), snapshot });
+    await store().put({ subject: 'bare' }, raster(MAC));
+
+    const kept = await store().describe({ subject: 'kept' }, MAC);
+    expect(kept?.keepsSnapshot).toBe(true);
+    expect(JSON.stringify(kept)).not.toContain(snapshot);
+    expect((await store().describe({ subject: 'bare' }, MAC))?.keepsSnapshot).toBe(false);
+  });
+
+  it('does not count a snapshot of another format as kept', async () => {
+    // `decide` cannot read it, so a run that settled on it would never record
+    // the one it can.
+    await store().put({ subject: 'old' }, { ...raster(MAC), snapshot: 'v0:H4sIAAAAAAAAA6uuBQBDv6ajAgAAAA==' });
+
+    expect((await store().describe({ subject: 'old' }, MAC))?.keepsSnapshot).toBe(false);
+  });
+
   it('describes without moving the image', async () => {
     await store().put({ subject: 's' }, raster(MAC));
 
@@ -216,6 +238,7 @@ describe('the cheap lookup and the full one agree', () => {
       documentDigest: raster(MAC).documentDigest,
       comparable: true,
       pictured: true,
+      keepsSnapshot: false,
       storedUnder: MAC,
       missingFonts: [],
     });

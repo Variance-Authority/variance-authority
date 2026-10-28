@@ -1,4 +1,5 @@
 import { AGENT_GLOBAL, type CaptureRequest } from '@variance-authority/playwright/agent';
+import { watchStoryTiming } from '@variance-authority/storybook';
 import { AGENT_VERSION, acquire, declared, type AcquireRequest } from './page-agent.js';
 
 /**
@@ -24,9 +25,15 @@ async function acquireFor(request: CaptureRequest): Promise<string> {
     viewport: request.viewport,
     engine: request.engine,
     ...(request.fonts !== undefined ? { fonts: request.fonts } : {}),
+    ...(request.timezoneId !== undefined ? { timezoneId: request.timezoneId } : {}),
+    ...(request.locale !== undefined ? { locale: request.locale } : {}),
     roots: STORY_ROOTS,
   });
 }
+
+// Before the preview's own scripts, which is the only moment the document's
+// load can be timed from: the preview is ready long before a driver asks.
+watchStoryTiming();
 
 (globalThis as unknown as Record<string, unknown>)[AGENT_GLOBAL] = {
   version: AGENT_VERSION,

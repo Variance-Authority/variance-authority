@@ -96,7 +96,7 @@ export { formatReport } from './commands/report.js';
 export type { ReportFormat, ReportOptions } from './commands/report.js';
 
 export { ASKED, ask, questions } from './commands/ask.js';
-export { QUESTIONS, argumentsOf, questionFor, questionOf, takes } from './commands/asking.js';
+export { QUESTIONS, argumentsOf, questionFor, takes } from './commands/asking.js';
 export type { Argument, Question } from './commands/asking.js';
 export { readVantage, watch, watching } from './commands/watch.js';
 export type { Watching } from './commands/watch.js';
@@ -121,7 +121,7 @@ export type { PushDeps, PushOptions, PushResult, Withheld } from './commands/pus
 export { serve } from './commands/serve.js';
 export type { ServeOptions } from './commands/serve.js';
 
-export { COMMENT_MARKER, DEFAULT_LIMITS, renderComment } from './commands/comment.js';
+export { DEFAULT_LIMITS, commentMarker, renderComment } from './commands/comment.js';
 export type { CommentLimits, CommentOptions } from './commands/comment.js';
 
 export { doctor, fontProbeDocument, machineProbes } from './commands/doctor.js';
@@ -135,6 +135,44 @@ export type {
   Partition,
   RendererFinding,
 } from './commands/doctor.js';
+
+/**
+ * The record a checkout measures a change from — its own, else its mainline's
+ * as CI published it or as last fetched here, else the primary checkout's — for
+ * a runner outside this CLI that reads it.
+ */
+export {
+  layMainline,
+  mainlinePassedOver,
+  suiteBase,
+  type MainlineLaid,
+  type MainlinePassedOver,
+} from './commands/suite-base.js';
+/**
+ * A sharded suite's shards landed on its record, and the landing said without
+ * the reading: what a CI fan-in prints.
+ */
+export { landSuite } from './commands/journeys-command.js';
+/**
+ * The record `distill`, `covering` and `review` read for a suite, or for a
+ * repository that declares none: the nearest that holds a run's cases, refused
+ * as `unrecorded` when no run kept any. A script reading a record through the
+ * sense readers starts here, so its numbers are the CLI's.
+ */
+export { recordedExecutionFile } from './commands/execution-input.js';
+export type { SuiteBase, SuiteBaseOptions } from './commands/suite-base.js';
+export { mainlineMissed, mainlineRead, primaryRead, readMissedMainline, writeMissedMainline } from './commands/mainline-base.js';
+export type { MainlineMissed, MainlineRecord, MissedMainline } from './commands/mainline-base.js';
+
+/**
+ * The selection `variance select` prints, as the sets a runner's seam drops
+ * from: `withTestSelection` in `@variance-authority/sense` reads it when
+ * `VARIANCE_AUTHORITY_SINCE` is set.
+ */
+export { selectSuite } from './commands/select-command.js';
+export { suiteTimes, type TimesRequest } from './commands/suite-times.js';
+export type { SuiteReading, SuiteRequest } from './commands/select-suite.js';
+export type { Leg } from './commands/select-leg.js';
 
 /**
  * The renderer the config asks for, from the package the config belongs to.

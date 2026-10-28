@@ -5,6 +5,7 @@
 > Carry the file and line that wrote a JSX element as far as the rendered DOM node.
 
 Part of [Variance Authority](https://variance-authority.dev).
+Point your coding agent at [`llms.txt`](https://variance-authority.dev/llms.txt).
 
 ## What this is for
 
@@ -250,8 +251,8 @@ development JSX emission — it is what makes the transform emit a call site at
 all. Turning it on in a production build is supported: a call site is data the
 compiler emitted, so unlike a component name it survives minification.
 
-Where the setting lives is the one thing to get right, because the build does
-not tell you when you miss:
+Where the setting lives is the one thing to get right, because the build
+reports nothing when you miss:
 
 | your transform | automatic JSX | development emission |
 |---|---|---|
@@ -261,11 +262,11 @@ not tell you when you miss:
 | `tsc` | `"jsx": "react-jsxdev"` | included in that value |
 
 A Vite config accepts whichever keys it is given and reads only the ones its own
-major knows, so an `esbuild` block on Vite 8 — or an `oxc` block on Vite 7 — is
-not a build error, not a warning, and not a log line. The plugin still installs,
-the bundle still runs, every subject still renders, and every report names the
-line a component is declared on rather than the line that wrote the element. It
-fails in the direction that looks like it worked.
+major supports, so an `esbuild` block on Vite 8 — or an `oxc` block on Vite 7 —
+is not a build error, not a warning, and not a log line. The plugin still
+installs, the bundle still runs, every subject still renders, and every report
+names the line a component is declared on rather than the line that wrote the
+element. It fails in the direction that looks like it worked.
 
 So read the result rather than the config.
 
@@ -356,7 +357,7 @@ component and the file it is declared in — one answer for every element the
 component renders.
 
 The path is absolute here because that is what the transform wrote. The
-collector knows the repository root and makes it relative on the way into a
+collector has the repository root and makes it relative on the way into a
 report, so a location is repository-relative by the time you read it — and
 absolute only when it was compiled from outside that root.
 
@@ -489,4 +490,4 @@ happens.
 
 ---
 
-**[@variance-authority/jsx-source](https://variance-authority.dev/reference/packages/jsx-source)** is part of [Variance Authority](https://variance-authority.dev) — [documentation](https://variance-authority.dev/docs) · MIT
+**[@variance-authority/jsx-source](https://variance-authority.dev/reference/packages/jsx-source)** is part of [Variance Authority](https://variance-authority.dev) — [documentation](https://variance-authority.dev/docs) · [GitHub](https://github.com/Variance-Authority/variance-authority/tree/main/packages/jsx-source) · MIT

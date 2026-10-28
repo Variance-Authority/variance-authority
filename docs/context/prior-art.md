@@ -38,9 +38,13 @@ computed separately.
 
 **SCOTCH+** (Qusef, Bavota, Oliveto, De Lucia, Binkley) replaces *last call
 before assert* with a **dynamic backward slice from the assertion statements**.
-It is the strictly better form of the same intuition, and it is the one within
-reach here: our probes already record how a block was reached, so the stack
-standing at an assertion is available rather than inferred from call order.
+It is the strictly better form of the same intuition, and it needs the stack
+standing at each assertion, which the recording does not hold: a journey keeps
+the places a case visited, not how it reached them
+([ADR-0056](adr/0056-a-journey-is-the-places-visited.md)).
+[Spec 0100](../specs/0100-a-case-ends-where-it-decides.md) proposes what the
+recording can carry instead: the rarest region a case reaches, and the test
+line that reached it.
 
 **Ghafari et al. (SCAM 2015)** named the *focal method* — the method under
 assertion — and that vocabulary is what the later corpora standardized on.
@@ -62,7 +66,10 @@ outperformed method-level in practice**, because tracking finer dependencies
 costs more than the extra selection saves. Our selection output is test-file
 paths and the runner executes every test inside a selected file; Ekstazi says
 that is likely the right engineering answer rather than a limitation, and puts
-the burden on a measurement to say otherwise.
+the burden on a measurement to say otherwise. Our `loads` recipe records at
+its grain without its smart checksums: a change to a comment or to whitespace
+selects every test file that loaded the module, where Ekstazi's checksum
+leaves debug information out and selects nothing.
 
 **STARTS** (Legunsen, Shi, Marinov) is the static class-firewall counterpart,
 evaluated head to head against Ekstazi, and found static selection competitive
@@ -79,6 +86,60 @@ predicts.
 its interesting move is not selection. It **schedules** by a cost/benefit model,
 and it carries a per-target flakiness rate as a property of the test rather than
 of the run — which is what [`history.md`](../history.md) does per subject.
+
+### Dominators, and where a region begins
+
+The node every path to another node has to pass through is its **dominator**.
+Prosser named the relation for flow diagrams (1959), **Lowry and Medlock**
+(*Object code optimization*, CACM 1969) gave the first algorithm, **Lengauer
+and Tarjan** (TOPLAS 1979) the near-linear one, and **Cooper, Harvey and
+Kennedy** (*A Simple, Fast Dominance Algorithm*, 2001) the iterative one.
+Immediate dominators form a tree, so a dominator owns the subtree behind it.
+
+The nearest use to ours is the heap. Eclipse MAT and Chrome DevTools build a
+dominator tree over the object graph and report an object's **shallow size**
+against its **retained size**: what it holds itself, and what would go with
+it. A file's own lines against the region behind it is the same pair over an
+import graph. Reading it with tests as entries, and checking it against what
+the tests executed, is
+[spec 0092](../specs/0092-a-choke-point-is-read-twice.md). STARTS' class
+firewall walks the same graph to widen a selection; a dominator bounds how far
+an edit inside its region can widen.
+
+### Load cost: what a request brings in
+
+**Joe Armstrong** named the shape in his interview in Peter Seibel's *Coders
+at Work* (2009). You ask for a banana and get the gorilla holding it, and the
+jungle with it. He meant objects that carry their environment with them, and a
+module that imports its world does the same.
+
+The browser tools measure the cost per file and stop there. The **Chrome
+DevTools Coverage** panel reports the used and unused bytes of each script and
+stylesheet. It records the page load and keeps recording through the
+interactions that follow, until you stop it, so it holds initial and later
+load as one sum. **Lighthouse**'s unused-JavaScript audit reads V8 coverage per
+script and flags any script with more than 20 KiB unused. A standard Lighthouse
+run measures the page load only. Neither names the import that brought a byte
+in. The bundle readers, **webpack-bundle-analyzer**, **source-map-explorer** and
+**Statoscope**, size what a build shipped, and Wix's **Import Cost** shows the
+bundled size of a package beside the line that imports it. All of them measure
+bytes shipped, not what a test or a session used.
+
+The barrel is the measured case. **Marvin Hagemeister** (*The barrel file
+debacle*, 2023) showed that loading cost grows with the number of modules a
+re-export file pulls in, and that test runners, which don't tree-shake, pay the
+most. **Atlassian** (*How We Achieved 75% Faster Builds by Removing Barrel
+Files*, 2025) removed barrels from the Jira frontend. They report 75% fewer
+build minutes per commit, and unit tests selected per change fell from about
+1,600 to 200. Removing barrels sharpened selection as much as it saved loading.
+**Next.js** answers it in the bundler: `optimizePackageImports` (Vercel, 2023)
+rewrites an import through a barrel package to the modules it uses.
+
+[Spec 0095](../specs/0095-an-import-spills-what-the-test-never-used.md)
+attributes a test file's unused load to the import that owns it.
+[Spec 0097](../specs/0097-a-consumer-pays-for-what-it-loads.md) reads it per
+lazy import and per moment: what a test file or a page paid up front, and what
+it paid later.
 
 ### Predictive test selection, and why it is not the model here
 
@@ -170,7 +231,44 @@ went further than we have on one axis: they name the responsible **CSS property*
 where we stop at a component, a band and a `file:line`. Anyone building
 culprit-naming for a moved component hash should read them first. The commercial
 row — Percy, Chromatic, Argos, Applitools — is
-[`compare-visual-review.md`](../compare-visual-review.md) and stays there.
+[`compare-visual-review.md`](../compare-visual-review.md) and stays there,
+but for what it does, by default, to a page nobody is using.
+
+### A page nobody is using
+
+What the three hosted services do about the pointer, focus, time and motion, by
+default, as their own documentation states it:
+
+| | Hover | Focus | Clock | Reduced motion | CSS animation | Script animation |
+| --- | --- | --- | --- | --- | --- | --- |
+| **Chromatic** ([animations](https://www.chromatic.com/docs/animations/), [media features](https://www.chromatic.com/docs/media-features/), [hover and focus](https://www.chromatic.com/docs/hoverfocus/)) | Not reset | Not released. A focus ring outside the story's root is trimmed; the author pads the story | Not frozen. No option; the author mocks `Date` in the preview, with `isChromatic()` to tell the two apart | Off. `prefersReducedMotion: 'reduce'`, per story or per test | Paused at the last frame, `pauseAnimationAtEnd` | Not touched; the author turns the library's animations off |
+| **Percy** ([dynamic data](https://www.browserstack.com/docs/percy/stabilize-screenshots/dynamic-data), [animations](https://www.browserstack.com/docs/percy/stabilize-screenshots/animations), [hover](https://www.browserstack.com/docs/percy/common-issue/hover-state), [pseudo-classes](https://www.browserstack.com/docs/percy/percy-snapshot-config/configure-pseudo-class)) | Never captured: the DOM is serialized and painted again elsewhere | Captured only for selectors named in the pseudo-class configuration, and only if the element already holds it | Not frozen. The author freezes it, with `cy.clock` or MockDate | Not mentioned | Frozen at render, server-side | Not touched; the author turns the library's animations off |
+| **Argos** ([Playwright SDK](https://argos-ci.com/docs/reference/playwright), [date and time](https://argos-ci.com/docs/learn/reliability-and-flakiness/flaky-tests/stabilize-date-and-time)) | Hover effects disabled, `disableHover`, on by default | Not released; carets are hidden, `hideCarets` | Not frozen. The author hides the date or installs Playwright's clock | Not mentioned | Not among the documented `stabilize` options | Not mentioned |
+
+None fixes the clock, the one that offers reduced motion leaves it off, and only
+Argos turns hover off. None of the three names timezone or locale. The
+default here fixes `Date`, asks for reduced motion, and reads with the pointer
+off the page and nothing focused, and because a reading is compared by its
+environment key, the fixed instant is part of the key
+([ADR-0088](adr/0088-a-page-is-read-as-nobody-is-using-it.md)). What it
+fixes is `Date` alone: Playwright's own fixed clock replaces the timers and
+frames too, and is the reason it is not the mechanism.
+
+### How far a pixel's colour moves before it counts
+
+Every tool below counts a pixel through `pixelmatch`'s YIQ metric, and they
+disagree by a factor of twenty on where a change starts:
+
+| | Default `threshold` |
+| --- | --- |
+| **Playwright** `toHaveScreenshot`, 1.62.1 | `0.2` |
+| **`pixelmatch`** itself | `0.1` |
+| **jest-image-snapshot** ([README](https://github.com/americanexpress/jest-image-snapshot#optional-configuration)), 6.5.2 | `0.01` |
+
+At `0.1`, a border colour moved from `#2f3437` to `#3a4043` is no change at all.
+The default here is jest-image-snapshot's `0.01`, and
+[ADR-0026](adr/0026-ignored-is-not-unchanged.md) holds the measurements that
+chose it.
 
 ## Coverage adequacy
 
@@ -188,7 +286,7 @@ to clear a threshold are the standard observation.
 **Mutation testing** is the field's answer, and it is the strong one. Inject a
 fault, see whether the suite notices; the mutation score covers execution *and*
 assertion where coverage covers only execution. **Petrović, Ivanković, Fraser &
-Just** (ICSE-SEIP 2021) is the industrial datapoint: Google runs it inside code
+Just** (TSE 2022) is the industrial datapoint: Google runs it inside code
 review, surfacing a selected sample of mutants in changed code as review
 findings rather than as a batch score, because the full analysis is too
 expensive to run whole. **Stryker** (JavaScript) and **PIT** (Java) are the
@@ -207,6 +305,20 @@ and report the methods in neither. Its **testwise coverage** upload format is
 per-test coverage as an interchange artifact at method granularity — the closest
 published thing to our record's rows, and the evidence that a per-test format is
 a thing somebody already needed.
+
+**Combinatorial coverage measurement** (Kuhn et al., NIST IR 7878, 2012, and
+NIST's CCM tool) measures the share of t-way combinations of configuration
+values a test set arranged. It is the field's reading of *was anonymous ×
+timeout ever tested*, taken over the inputs alone: it cannot say whether the
+combination reached the code it was arranged for. **QuickCheck's `classify`,
+`label` and `cover`** (and Hypothesis's `event`) report which labelled
+scenarios the passing cases held, and `cover` fails a run whose scenario is
+under-represented: the closest existing form of *why did the others pass*,
+over generated inputs and without the code they reached. **Trace queries**
+(TraceQL, Honeycomb) filter spans by attribute with conjunction and negation,
+over production traces rather than a suite's cases. A witness in
+[spec 0103](../specs/0103-a-behaviour-names-the-cases-that-witnessed-it.md)
+joins the arranged state, the case's name and the region on one case.
 
 **Per-test coverage exists as a feature and not as a metric.** JetBrains IDEs
 track it and answer *show tests covering line*; **Parasoft Jtest** records
@@ -287,6 +399,96 @@ per question; Compass's is staleness, which its own `growth-and-drift.md` says
 no structural comparison sees. The rule for both: **derive what an owner knows;
 declare only what no owner knows.**
 
+**Crossing facts about files** is a query language's job, and the field has
+two ends of it. Code search — Sourcegraph's `file:`, `content:` and
+`type:symbol` filters, GitHub code search's `path:` and `symbol:` qualifiers —
+combines facts with `AND`, `OR` and `NOT`, but each fact is about the file's
+own text or path; none of them is *reachable from this file along the
+imports*. Relational code databases — CodeQL's QL, Meta's Glean with Angle,
+Datalog engines such as Soufflé used for program analysis — express any join,
+reachability included, at the price of a language the asker must write and a
+database the build must extract. `variance ask discover` sits between:
+fixed operands (reach, imports by name, declarations, path, text), each read
+whole from the index the other questions already read, crossed and subtracted,
+with no `or` and no user-written query. `variance ask intersection` takes the
+same step one level up: its operands are whole questions, each read uncapped,
+which is the composition a query language gives for free and a fixed set of
+questions has to name.
+
+## Architecture that keeps what matters
+
+The field that asks which facts about a codebase deserve to be remembered, and
+what may be forgotten. It splits by who decides what matters: a model, a
+person, or a measurement.
+
+**Archify** (`tt-a1i/archify`) is the model. An LLM writes the whole
+architecture as JSON, following prose defaults ("led by the main user
+journey", "accurately named subsystems"), and stops when every responsibility
+has a source it cites. No count of nodes is a target or a ceiling. Code only
+validates and renders, and `archify compare` diffs two snapshots by exact id.
+Git is read only to check that a cited path and line exist: no history, no
+co-change, nothing that ran. Its own benchmark scored 8 of 15 first passes as
+usable.
+
+**CodeScene** (Tornhill) is the person plus a measurement. Components are
+declared as file globs; hotspots (change frequency × size, cut at the knee of
+the distribution) and change coupling are recomputed at that grain, so a
+ripple between components is kept and a file edge is dropped. Its published
+figures are a vendor's. The independent version is Xiao, Cai and Kazman
+(ICSE 2016, seven Apache projects): the top five architectural debts sit in
+8–25% of the error-prone files and take 20–61% of maintenance effort.
+
+**Architecture recovery has no ground truth to win against.** Garcia, Ivkovic
+and Medvidovic (ASE 2013) and Lutellier et al. (ICSE 2015) scored six to nine
+clustering techniques against expert architectures: the best reach MoJoFM
+41–77, the winner flips in four of five cases with the dependency input
+(symbol-level beats include-level by 7–12%), and one ground truth costs about
+a hundred expert hours. Le et al. (arXiv 2102.09835) judge recovery by what it
+predicts instead: smells on a recovered architecture predict future issue- and
+change-proneness at 70–95% precision and recall, and the directory tree scores
+10–20% below the recovered view.
+
+**Imports are a minority of what changes together.** Oliva and Gerosa found 91%
+of co-change links join files with no structural dependency, and a dependent
+co-changes with its dependency about 32% of the time. Beck and Diehl (EMSE
+2013) found co-change alone clusters worse than structure, because it is
+sparser, and the two combined better than either. Silva, Valente and Maia show
+what co-change costs to read: dropping commits over ten packages and edges of
+weight one keeps 14–22% of commits.
+
+**Forgetting is a policy that can be measured.** FixCache (Kim et al., ICSE
+2007) keeps 10% of files, loads a fixed file with what changed beside it,
+evicts the least recently used, and catches 73–95% of faults across seven
+projects. Generative Agents (Park et al., 2023) score a memory by recency,
+importance and relevance, decay recency from the last access, and consolidate
+when summed importance crosses a threshold; consolidation was the largest
+single step in its ablation. Graphiti (Zep, arXiv 2501.13956) marks a
+contradicted fact with the time it stopped holding instead of deleting it.
+
+**Two results against the obvious product.** Google deployed Time-Weighted
+Risk (TWR), a ranking of files by bug-fixing commits weighted toward recent
+ones, as an annotation on bug-prone files in code review (Lewis et al., ICSE
+2013); FixCache did not scale to its repository and was not deployed. After
+four weeks the annotation was demoted to a lint warning shown only to
+reviewers with warnings enabled, and the study found no statistically
+significant change in review time or comment counts: developers wanted a flag
+that said what to do and why. Rahman et al. (FSE 2011) found the cache barely beat ordering files by closed
+bug count. A ranking keeps its reason beside it and is measured against the
+naive count.
+
+**What it means here.** Two positions follow, and neither is built:
+
+- Structure read from imports alone, as
+  [spec 0096](../specs/0096-a-change-says-what-it-did-to-the-structure.md)
+  first defined it, reads the minority signal. The facts worth keeping sit
+  where the signals disagree: an import nothing executes, a crossing at runtime
+  with no import, files that change together with neither, a declared edge
+  nothing carries. Only this project records what ran.
+- The predictive-selection rejection above stands for selection, which needs a
+  cause. Co-change as a measure of what matters needs no cause, and its decay on
+  reorganization is the forgetting such a memory wants. The two do not
+  contradict, and a page that uses co-change says which of the two it is doing.
+
 ## Where the field contradicts us
 
 | Our position | Who measured otherwise | What it costs us |
@@ -297,6 +499,7 @@ declare only what no owner knows.**
 | The corpus is enough to argue from | Methods2Test: ground truth at a scale in-house corpora do not reach | Named in [spec 0022](../specs/0022-evidence-from-code-this-project-did-not-write.md) already |
 | Naming the witnesses beats counting the lines | Schuler & Zeller, Petrović et al.: execution is the weak half either way | True against a percentage, not against an oracle-aware measure; say which |
 | An index saves the agent's exploration | SWE-grep: trained parallel grep matches frontier retrieval in about four turns, with no index | The claim needs an agent benchmark in tool calls and tokens before a product page quotes it |
+| Structure is the import graph, rolled up | Oliva & Gerosa: 91% of co-change links have no structural dependency | Spec 0096's first definition of an edge; a structure reading names which signal it read |
 
 None of those is a refutation of a shipped behaviour. Each is a reason a
 sentence on a product page needs a measurement behind it before it is quoted as

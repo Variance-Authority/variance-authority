@@ -1,6 +1,7 @@
 import type { ComponentBands } from '@variance-authority/core/attribute';
 import type { AccessibilitySnapshot, RenderIdentity } from '@variance-authority/core/format';
 import type { FindingRecord } from './finding-record.js';
+import type { NotObserved } from './not-observed.js';
 import type { RegionRecord } from './region-record.js';
 import type { CompositionReport } from './composition.js';
 import type { IgnoreLedger, SensitivityLedger } from './declarations.js';
@@ -228,25 +229,6 @@ export interface RunReport {
   readonly journeys?: JourneysReport;
 }
 
-/**
- * Why a subject is in the report without an observation.
- *
- * Three kinds, because they mean different things about whether anyone should
- * act. `excluded` is a decision the operator made and wrote down; `failed` is a
- * hole in coverage, and collapsing the two makes every exclusion permanently red
- * or a crash on subject 41 look chosen. `unreached` is neither: the run read the
- * diff against what each baseline records having rendered and concluded this
- * change cannot arrive. Calling that a decision reports one nobody made.
- */
-export type NotObservedKind = 'excluded' | 'failed' | 'unreached';
-
-export interface NotObserved {
-  readonly subject: string;
-  readonly kind: NotObservedKind;
-  /** One sentence, ready to print, naming what was not looked at and why. */
-  readonly because: string;
-}
-
 export interface ObservationRecord {
   readonly subject: string;
 
@@ -258,7 +240,7 @@ export interface ObservationRecord {
    * of its green was earned and how much was declared — a question `unchanged`
    * absorbs and can never answer again.
    */
-  readonly verdict: 'unchanged' | 'changed' | 'new' | 'incomparable' | 'ignored';
+  readonly verdict: 'unchanged' | 'changed' | 'new' | 'ignored';
   readonly because: string;
 
   /**
@@ -274,6 +256,19 @@ export interface ObservationRecord {
   readonly signals?: {
     readonly document?: 'unchanged' | 'changed';
     /**
+     * Set when the two images were painted under different render identities:
+     * `recipe` when only this tool's recipe digests moved, `machine` for anything
+     * else. The cause of whatever the comparison found, never a reason to skip
+     * it (ADR-0090).
+     */
+    readonly identity?: 'recipe' | 'machine';
+    /**
+     * Each identity field that moved, as `field before → after`, stored side
+     * first. Present with {@link identity}; the key a review groups an
+     * avalanche by.
+     */
+    readonly moved?: readonly string[];
+    /**
      * `unobservable` when the subject occupies no pixels — there was nothing to
      * measure, as against `unchanged`, which is a measurement that found nothing
      * moved. A reader that saw `unchanged` would take the image as evidence it
@@ -281,12 +276,26 @@ export interface ObservationRecord {
      */
     readonly pixels?: 'unchanged' | 'changed' | 'unobservable';
     readonly accessibility?: {
-      readonly verdict: 'unchanged' | 'changed' | 'incomparable';
+      readonly verdict: 'unchanged' | 'changed';
       readonly before?: AccessibilitySnapshot;
       readonly after?: AccessibilitySnapshot;
     };
     /** Rendered relationship consequences, independent of render impact and verdict. */
     readonly presentation?: PresentationSignalRecord;
+    /**
+     * `unrecorded` when the run collected a snapshot and the baseline kept none
+     * that unpacks. An unchanged subject carrying it is re-stamped by an
+     * accepting run, so the baseline can say where its nodes were the day
+     * something changes.
+     */
+    readonly snapshot?: 'unrecorded';
+    /**
+     * Set when the baseline was read from where the layout before
+     * `baselines.path` kept it: `from` that path, `to` the one the template
+     * renders. An unchanged subject carrying it is re-stamped by an accepting
+     * run, which moves the baseline and shows the move as a rename.
+     */
+    readonly relocated?: { readonly from: string; readonly to: string };
   };
 
   /**
@@ -456,6 +465,12 @@ export interface ObservationRecord {
     readonly after?: string;
     readonly diff?: string;
     /**
+     * The change at its own size: each of the largest regions cropped with the
+     * rows around it, before beside after with the change marked. Absent
+     * when no region was isolated, and then `before` and `after` are the picture.
+     */
+    readonly change?: string;
+    /**
      * The candidate's sidecar — document digest, component hashes, ARIA tree.
      *
      * Written for every subject, and for a subject that occupies no pixels it is
@@ -470,6 +485,7 @@ export interface ObservationRecord {
 // Re-exported so a reader importing the report's shape gets the shapes its
 // fields are made of, without having to know which file each one was argued in.
 export type { FindingRecord } from './finding-record.js';
+export type { NotObserved, NotObservedKind } from './not-observed.js';
 export type {
   PresentationEffectEvidence,
   PresentationEffectRecord,
@@ -479,4 +495,4 @@ export type {
 } from './presentation-record.js';
 export type { ChurnRecord, DriftRecord, FlakinessRecord } from './history-records.js';
 export type { RegionRecord } from './region-record.js';
-export type { VariationRecord } from './variation.js';
+export type { VariationRecord, VariationStep } from './variation.js';

@@ -3,19 +3,18 @@ import type { Comparison, Place, StoryEntry } from '@variance-authority/sense/st
 import { parseArgs } from '../bin.js';
 import { compareStory, formatComparison } from './story-compare.js';
 
-const REMOVE: Place = { file: 'src/cart.ts', name: 'removeItem', kind: 'function', startLine: 12, endLine: 30 };
-const PRICE: Place = { file: 'src/cart.ts', name: 'price', kind: 'function', startLine: 32, endLine: 36 };
+const REMOVE: Place = { file: 'src/cart.ts', name: 'removeItem', kind: 'function', at: 'src/cart.ts#removeItem/entry', startLine: 12, endLine: 30 };
+const PRICE: Place = { file: 'src/cart.ts', name: 'price', kind: 'function', at: 'src/cart.ts#price/entry', startLine: 32, endLine: 36 };
 
 const COMPARISON: Comparison = {
   file: 'src/cart.test.ts',
   name: 'cart > removes the last item',
   sides: [{ name: 'passed', readings: 3, stopped: 0 }, { name: 'threw', readings: 2, stopped: 2 }],
-  places: [
-    { side: 'passed', items: [{ place: REMOVE, path: 'for#0/body/if#0/then', startLine: 19, endLine: 19, constructLine: 19 }] },
-    { side: 'threw', items: [] },
+  only: [
+    { sides: ['passed'], places: [{ place: REMOVE, path: 'for#0/body/if#0/then', startLine: 19, endLine: 19, constructLine: 19 }], said: [] },
+    { sides: ['threw'], places: [], said: ['console.log stock 0'] },
   ],
-  said: [{ side: 'passed', items: [] }, { side: 'threw', items: ['console.log stock 0'] }],
-  reversed: [[{ said: 'eyes click on button "Save" in SaveBar' }, { place: PRICE }]],
+  orders: [{ pair: [{ said: 'eyes click on button "Save" in SaveBar' }, { place: PRICE }], before: ['passed'], after: ['threw'] }],
   unsteady: { places: 1, said: 4, order: 37 },
   single: false,
 };
@@ -51,12 +50,12 @@ describe('readings of one case compared', () => {
   });
 
   it('names both arms of an `if` by the line the `if` is named by, not by the line the `else` an absent one is given starts on', () => {
-    const checkout: Place = { file: 'src/checkout.ts', name: 'checkout', kind: 'function', startLine: 10, endLine: 16 };
+    const checkout: Place = { file: 'src/checkout.ts', name: 'checkout', kind: 'function', at: 'src/checkout.ts#checkout/entry', startLine: 10, endLine: 16 };
     const arms: Comparison = {
       ...COMPARISON,
-      places: [
-        { side: 'passed', items: [{ place: checkout, path: 'if#0/else', startLine: 15, endLine: 15, constructLine: 13 }] },
-        { side: 'threw', items: [{ place: checkout, path: 'if#0/then', startLine: 13, endLine: 15, constructLine: 13 }] },
+      only: [
+        { sides: ['passed'], places: [{ place: checkout, path: 'if#0/else', startLine: 15, endLine: 15, constructLine: 13 }], said: [] },
+        { sides: ['threw'], places: [{ place: checkout, path: 'if#0/then', startLine: 13, endLine: 15, constructLine: 13 }], said: [] },
       ],
     };
     const text = formatComparison(arms, 'text').split('\n');
@@ -68,40 +67,48 @@ describe('readings of one case compared', () => {
     const none: Comparison = {
       ...COMPARISON,
       sides: [{ name: 'slow', readings: 1, stopped: 0 }, { name: 'fast', readings: 2, stopped: 1 }],
-      places: [{ side: 'slow', items: [] }, { side: 'fast', items: [] }],
-      said: [{ side: 'slow', items: [] }, { side: 'fast', items: [] }],
-      reversed: [],
+      only: [],
+      orders: [],
       unsteady: { places: 0, said: 0, order: 0 },
       single: true,
     };
     expect(formatComparison(none, 'text').split('\n')).toEqual([
       'compare  src/cart.test.ts > cart > removes the last item',
       '  slow (1 reading) against fast (2 readings, 1 threw)',
-      '  one reading on a side: what differs below may be a run that went another way, not the side;',
-      '  run the case again under each label, or until it has passed and thrown more than once',
+      '  one reading on a side: what differs below may be a run that went another way, not the side',
       '',
       '  nothing separates the sides: whatever differs between them differs between readings of one side too',
       '',
     ]);
   });
 
-  it('names what a side is missing before reading anything', () => {
-    expect(() => compareStory('/checkout', [entry(undefined, false)], 'last')).toThrow(
-      '--compare last needs two readings of this case, and 1 is kept; run it again',
-    );
-    expect(() => compareStory('/checkout', [entry(undefined, false), entry(undefined, false)], 'outcome')).toThrow(
-      '--compare outcome needs readings that passed and readings that threw, and of 2 kept 2 passed and 0 threw; run the case until it has done both',
-    );
-    expect(() => compareStory('/checkout', [entry('slow'), entry(undefined)], { labels: ['slow', 'fast'] })).toThrow(
-      'no reading of this case is labelled fast; the labels kept are 1, slow',
-    );
+  it('draws the side there is when the other holds no reading, and says which is missing', () => {
+    const passed = entry(undefined, false);
+    const slow = entry('slow');
+    expect(compareStory('/checkout', [passed], 'last')).toEqual({
+      alone: passed,
+      unmatched: 'nothing to compare it with: this is the only reading of this case kept',
+    });
+    expect(compareStory('/checkout', [passed, entry(undefined, false)], 'outcome')).toEqual({
+      alone: passed,
+      unmatched: 'nothing to compare it with: every one of the 2 readings kept passed, and none threw',
+    });
+    const threw = entry(undefined, true);
+    expect(compareStory('/checkout', [threw], 'outcome')).toEqual({
+      alone: threw,
+      unmatched: 'nothing to compare it with: the one reading kept threw, and none passed',
+    });
+    expect(compareStory('/checkout', [entry(undefined), slow], { labels: ['slow', 'fast'] })).toEqual({
+      alone: slow,
+      unmatched: 'nothing to compare it with: no reading of this case is labelled fast; the labels kept are 1, slow',
+    });
   });
 
   it('takes the sides from --compare, and refuses a zoom or a label beside it', () => {
     expect(parseArgs(['story', '--compare', 'outcome'])).toMatchObject({ command: 'story', compare: 'outcome' });
     expect(parseArgs(['story', '--compare', '1,slow'])).toMatchObject({ compare: { labels: ['1', 'slow'] } });
     expect(parseArgs(['story', '--label', 'slow'])).toMatchObject({ label: 'slow' });
-    expect(() => parseArgs(['story', '--compare', 'slow'])).toThrow('--compare takes last, outcome, or two labels as <a>,<b>, not `slow`');
+    expect(() => parseArgs(['story', '--compare', 'slow'])).toThrow('--compare takes last, outcome, or two labels or more as <a>,<b>,…, not `slow`');
     expect(() => parseArgs(['story', '--compare', 'last', '--whole'])).toThrow('--compare reads no route, so --whole has nothing to narrow');
     expect(() => parseArgs(['story', '--compare', 'last', '--label', 'slow'])).toThrow('--label picks the reading to read');
   });

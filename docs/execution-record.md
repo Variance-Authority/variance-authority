@@ -1,7 +1,7 @@
 # The execution record
 
 This page is the reference for the file your suite writes when it runs. The
-record says **which parts each test actually covered**, so a changed line can
+record holds **which parts each test actually covered**, so a changed line can
 select from witnessed execution instead of every test a static import graph can
 reach. Blocks, the coverage file, and journals make that distinction queryable.
 
@@ -15,7 +15,10 @@ joins with.
 Throughout, `T` is the number of tests the record lists, `M` the number of
 modules, `B` the number of blocks in one module, `P` the total number of
 preconditions, and `C` the number of crossings, one per test that executed a
-block.
+block. A precondition on this page is a file a test's answer depends on. The
+state a test ran under, such as a feature flag or what a mock returns, is
+recorded as a [case precondition](case-preconditions.md), which never selects a
+test.
 
 ## Where the file is, and what to do with it
 
@@ -39,15 +42,13 @@ Two cases need an ignore entry, and you create both. Set `cacheRoot` to a path
 inside the checkout, and ignore that directory as [the cache](cache.md) page
 shows. Or pass `coverageFile` to a runner integration to put the snapshot at a
 path you name, typically inside the repository so CI can upload it as an
-artifact, and ignore that path. The same run writes a second file at
-`<coverageFile>.cases.bin`, under the same rule.
+artifact, and ignore that path. The record carries the run's cases too, so
+there is no second file to upload.
 
-Two more things live under that directory. Each instrumenting build keeps a
-store of module records under a `<label>` of its own, and a run in progress keeps a
+One more thing lives under that directory: a run in progress keeps a
 `.run-<pid>-<uuid>` directory there until its reporter folds the journals and
-removes it. The Jest seam keeps its record store under Jest's own
-`cacheDirectory` instead, so a cached transform and the meaning of its ordinals
-are discarded together.
+removes it. An instrumenting build writes nothing there; what an ordinal means
+is cut again from the source file whenever a run is read.
 
 Delete any of it and you pay one full run. A missing, foreign or corrupt file is
 read as an absent record rather than an empty one, so a selector widens to the
@@ -73,8 +74,7 @@ from the runner, because a Playwright suite can be `e2e` or `visual` and only
 you know which one you meant.
 
 Each declared suite has its own record, at
-`<repository-digest>/suites/<name>/coverage.bin`, with its `.cases.bin` and its
-runs log beside it. Name the suite in the runner integration with the `suite`
+`<repository-digest>/suites/<name>/coverage.bin`, with its runs log beside it. Name the suite in the runner integration with the `suite`
 option, and `testCoverageFile(root, { suite })` returns its path. A Playwright
 run then never replaces what the unit suite recorded, and each record keeps the
 commit its own suite last ran at. The [source index](source-index.md)
@@ -92,11 +92,16 @@ for one runner, so each reads one suite's record: the one `--suite <name>`
 names, or the only one declared. With more than one declared and no `--suite`,
 they stop and list the suites.
 
-`variance covering` asks the other question, which suites saw this code, so it
+`variance covering` asks the other question, which suites ran this code, so it
 reads every declared suite's record and answers under each suite's name and
-kind. A suite that never loaded the file says so, and so does a suite with no
-recording yet. A payment module your unit suite walked and your visual suite
-never loaded reads as exactly that. `--suite <name>` asks one record alone.
+kind, unit suites first. Suites that never loaded the file are named together
+after the answers, a suite with no recording yet says so, and a suite whose
+record is older than the file says that, with the commit it recorded at. A
+suite that loaded the file without instrumenting it names the test files that
+loaded it, which are the ones a
+change to it selects, and no line. A payment module your unit suite
+walked and your visual suite never loaded reads as exactly that. `--suite
+<name>` asks one record alone.
 
 ## What each host records
 
@@ -119,16 +124,16 @@ None of the Node seams asks you to change a runner option to record cases, and t
 snapshot's bytes do not depend on them — the case axis is a second file beside
 it. A test file that runs in a page, under Vitest or Rstest browser mode, is
 recorded per file only: that run writes no case index and prints a warning.
-[Own fewer tests](own-fewer-tests.md#ask-which-tests-claim-a-line) is the
+[Own fewer tests](own-fewer-tests.md#ask-which-tests-cover-a-line) is the
 question that reads it.
 
 Two answers are properties of this file rather than of a host, so they read the
 same under every host:
 
 - **A run that transformed nothing still records what its tests covered.** When
-  every module came from a warm cache, what a region means is already stored per
-  module under a content key, and a run joins those records rather than
-  producing them.
+  every module came from a warm cache, each probe still reports its file and a
+  digest of the text it was placed on, and the run cuts that file again from
+  the checkout to learn what each region means.
 - **An observation that did not finish is dropped from the pool.** It is not
   counted as a miss, so nothing a host retries or interrupts can justify a skip.
 
@@ -160,10 +165,11 @@ for (const module of coverage.modules) {
 
 `readTestCoverage` decodes the whole file into `TestCoverage`, the model the
 rest of this page describes: tests with their preconditions, modules with their
-blocks, and on each block the test files that crossed it. Budget a second and
-three hundred megabytes of heap for a repository-scale snapshot — thirty times
-the file it came from — because the model is made of objects where the file is
-made of columns.
+blocks, and on each block the test files that crossed it. The model is made of
+objects where the file is made of columns, so its heap is many times the file:
+about a second and three hundred megabytes for a ten-megabyte record, and four
+and a half minutes and over five gigabytes for a 77 MB record of 200,000
+modules.
 
 When you want one module's regions rather than the repository's, open the file
 instead of decoding it. `openCoverageFile(file)` parses the section index and
@@ -173,6 +179,12 @@ ask)` is the same open with that close already written for you. Opening costs a
 millisecond and half a megabyte resident, and answering a diff through the view
 is single-digit milliseconds.
 
+A region's `blockKind` in that view is a position in `BLOCK_KINDS`. The cases
+are a section of their own: `caseSectionsAt(file, ['index']).index` reads it,
+and `openSetColumns` opens it as columns — each case's file and how it settled,
+and for each region the set of cases that crossed it after its module loaded —
+with no string decoded until you ask for it.
+
 ## What you can import
 
 These names are the package's published surface. Import them, and the shapes
@@ -180,9 +192,9 @@ they return are the ones this page describes.
 
 | Import from | Names |
 |---|---|
-| `@variance-authority/sense/instrument` | `instrument`, `instrumentationId`, `instrumentModeOf`, `INSTRUMENTATION_ID`, `EVALUATING`; types `Block`, `BlockKind`, `Instrumented`, `InstrumentOptions`, `ModuleId` |
-| `@variance-authority/sense/test-selection` | `testCoverageFile`, `readableTestCoverage`, `seedTestCoverage`, `readTestCoverage`, `writeTestCoverage`, `writeCoverageBytes`, `openCoverageFile`, `askCoverageFile`, `selectTestFiles`, `narrowByExecution`, `mergeCoverage`, `foldTestCoverage`, `changedLines`, `coveringTests`, `coveringTestsInFile`, `recordedCommit`, `cacheLayers`, `cacheRootFor`, `CACHE_CONFIG`, `repositoryLayers`, `layeredFiles`; types `CacheLayers`, `TestCoverage`, `CoverageModule`, `CoverageBlock`, `CoverageTest`, `CoveragePrecondition`, `CoverageFile`, `CoverageShard`, `ExecutionIndex` |
-| `@variance-authority/sense/journal` | `testSelectionProbes`, `drainExecution`, `recordExecution`, `joinObservations`, `EXECUTION_GLOBAL`; types `ExecutedModule`, `ExecutionJournal`, `EvaluatingPage`, `ObservedSubject` |
+| `@variance-authority/sense/instrument` | `instrument`, `instrumentationId`, `instrumentModeOf`, `probeRecipe`, `probeRuntime`, `INSTRUMENTATION_ID`, `EVALUATING`; types `Block`, `BlockKind`, `Instrumented`, `InstrumentOptions`, `ModuleId` |
+| `@variance-authority/sense/test-selection` | `testCoverageFile`, `readableTestCoverage`, `seedTestCoverage`, `readTestCoverage`, `writeTestCoverage`, `writeCoverageBytes`, `openCoverageFile`, `askCoverageFile`, `BLOCK_KINDS`, `caseSectionsAt`, `openSetColumns`, `selectTestFiles`, `narrowByExecution`, `landedCoverage`, `combineRecords`, `changedLines`, `coveringTests`, `coveringTestsInFile`, `recordedCommit`, `cacheLayers`, `cacheRootFor`, `CACHE_CONFIG`, `repositoryLayers`, `layeredFiles`; types `CacheLayers`, `TestCoverage`, `CoverageModule`, `CoverageBlock`, `CoverageTest`, `CoveragePrecondition`, `CoverageFile`, `CombinedRecord`, `CombinedShard`, `ExecutionIndex`, `SetColumns`, `TestColumns`, `StringTable` |
+| `@variance-authority/sense/journal` | `testSelectionProbes`, `testSelectionRule`, `drainExecution`, `recordExecution`, `joinObservations`, `moduleId`, `afterHook`, `EXECUTION_GLOBAL`; types `AfterHook`, `ExecutedModule`, `ExecutionJournal`, `EvaluatingPage`, `HookedPlugin`, `ObservedSubject`, `ProbePlacement`, `TestSelectionProbeOptions`, `TestSelectionRuleOptions` |
 | `@variance-authority/sense/journey` | `collectJourneys`, `stitchJourneys`, `mintJourney`, `journeyOf`, `JOURNEY_COOKIE`, `JOURNEY_VARIABLE`, `JOURNEY_HEAD_VARIABLE`; types `JourneyAccount`, `JourneyReport`, `StitchedJourneys` |
 
 Nothing else on this page is importable. Where the sections below describe the
@@ -193,13 +205,12 @@ those entry points, not functions you can call.
 
 | Structure | Primary key | Identity across runs | Lives |
 |---|---|---|---|
-| block | `(module path, ordinal)` | `kind`, `name`, `path` | module record, coverage |
-| module | file path | the same | module record, coverage |
+| block | `(module path, ordinal)` | `kind`, `name`, `path` | coverage, and the source file it is cut from |
+| module | file path | the same | coverage, and the source file it is cut from |
 | test | test file path, or a story id | the same | coverage |
 | case | test file path and the case's declaration path under it | the runner's id where it hands one over, otherwise the same pair | the case index, with the duration its runner reported |
 | precondition | `name` and `digest` together | the same pair | coverage, per test |
 | crossing | `(block, test)` | the same pair | coverage |
-| module record | module id under a build label | the instrumentation id | the label's store |
 | worker journal | one test file in one worker | none, folded on read | the run directory |
 | page journal | one drain of one page | none, folded on read | the driver's memory |
 | journey account | one delivery from one head | none, stitched by journey id | the wire, then the driver's memory |
@@ -325,7 +336,7 @@ array of eight slots, not one per function.
 
 Across test files the ordinals are the join key. Every worker that ran this
 module reports hits against the same eight slots, and the fold unions them per
-ordinal into the block's `testFiles`. `foldTestCoverage` unions the records of a
+ordinal into the block's `testFiles`. `combineRecords` unions the records of a
 sharded run the same way, and refuses two shards that record the module under
 two source digests, because their slot 4 would be two places.
 
@@ -333,9 +344,9 @@ two source digests, because their slot 4 would be two places.
 
 An ordinal is a slot in one instrumented version of a module, and it is not
 what keeps evidence across an edit. What keeps it is the region's address: the
-declaration name path and the structural path inside it, which say where the
+declaration name path and the structural path inside it, which record where the
 region sits in the module's tree rather than where it sits in the module's
-text. `mergeCoverage` moves a crossing from the previous record onto the
+text. Laying one record over another (`landedCoverage`) moves a crossing from the previous record onto the
 region with the same address, and the digests take no part in that.
 
 So renumbering is not invalidation. Inserting
@@ -354,19 +365,24 @@ deleted still has crossings above it, and a diff at the place that function
 was reaches it through them. Only a test that loses every crossing in a module
 is demoted to incomplete and selected whole next time.
 
-**A digest that changed is selection's business, not the merge's.** It says the
-region's own text changed, and the tests to run are the ones recorded against
-that region — which is the crossing. Reading a digest as a reason to discard
-the crossing would throw away the evidence the change is about to be answered
-with, and reading the owners' digests too made any edit at a module's top level
-retire every crossing in the file.
+**A digest that changed keeps the crossing and demotes a test the run did not
+observe.** It shows that the region's own text changed, and the tests to run are
+the ones recorded against that region — which is the crossing. Reading a digest
+as a reason to discard the crossing would throw away the evidence the change is
+about to be answered with, and reading the owners' digests too made any edit at
+a module's top level retire every crossing in the file. But the re-recorded rows
+hold the text the run read, and selection reads a later change from that text,
+so the edit between the text a carried test ran over and this one is in no diff
+it will read. Each test on such a region that the run did not observe is
+demoted to incomplete; a test the run observed was recorded again over the new
+text.
 
-| edit | crossings kept | the kept test's row |
+| edit, under a run that did not observe the test | crossings kept | the kept test's row |
 |---|---|---|
-| function added inside `total` | every one | whole |
-| function added at module level | every one | whole |
-| body of one `if` arm edited | every one | whole |
-| `total` renamed | those of the root and `label` | whole |
+| function added inside `total` | every one | incomplete, if it entered `total` |
+| function added at module level | every one | incomplete, if it loaded the module |
+| body of one `if` arm edited | every one | incomplete, if it entered that arm |
+| `total` renamed | those of the root and `label` | incomplete, if it entered `total` |
 
 **A module the run did not load** stays in the record, and its rows are lines
 of the text it had when it was recorded. When that text has since changed, the
@@ -375,6 +391,21 @@ moved onto the region with its address, so the rows are in coordinates the
 next diff will be in. A module whose text cannot be read as source has no
 table to place them in: it stays as it was, and every test that covered
 it is demoted.
+
+**The case index follows the edit, not the address.** The rows keep a crossing
+by the region's address because the digests catch a mispair. The case index
+holds no digest, so the only evidence it has of what an edit touched is the edit
+itself: the `git diff -U0` hunks between the text it was cut from and the text
+you recorded. A region the hunks leave alone keeps its cases, at the lines the
+hunks place it. A region they touch carries none, so its tests count as changed
+and selection runs them; the module and every region around an edited one are
+touched with it. A region the edit wrote has no recorded cases of its own and
+takes those of the untouched region around it. Two regions that share a name,
+such as two `useEffect(() => …)` callbacks, are told apart by where the text
+puts them, and never by their order or their name: delete the first, write a new
+one behind the second, and the cases of the old second stay with the body that
+survives. When either text cannot be found, the whole file counts as changed and
+selection widens to every case that touched it.
 
 ### From a crossing back to a line
 
@@ -448,6 +479,7 @@ parent has rows: child rows for parent `i` are `[off[i], off[i + 1])`.
 | tests | `tests.path` | the test file path, sorted by code unit |
 | tests | `tests.complete` | one byte, `1` when every case in the file ran and passed |
 | tests | `tests.duration` | the whole milliseconds the test runner reported for the file, `0xffffffff` when it reported none |
+| tests | `tests.phases` | five words a file, the whole milliseconds of its prepare, environment, setup, collect and cases phases, `0xffffffff` for a phase the runner did not time |
 | tests | `tests.preconditions` | range into the precondition rows |
 | preconditions | `preconditions.name`, `preconditions.digest` | a path the test's answer depends on, and the digest it had |
 | modules | `modules.path`, `modules.source` | the module path, sorted by code unit, and the digest of its source |
@@ -462,12 +494,41 @@ parent has rows: child rows for parent `i` are `[off[i], off[i + 1])`.
 | sets | `sets.blob`, `sets.off` | the pool both of those name: one copy of each distinct set of tests, however many regions name it |
 
 **Durations.** `tests.duration` is the runner's own figure for the file, never a
-second clock: Vitest's file result, Jest's `perfStats.runtime`, Rstest's file
-duration, Playwright's `testInfo.duration` summed over the file's tests, or the
+second clock: Vitest's file result, which is its cases alone, Jest's
+`perfStats.runtime`, which spans the file's run, Rstest's file duration,
+Playwright's `testInfo.duration` summed over the file's tests, or the
 `duration` you pass to `startRecording().finish()`. A file the runner reported
-nothing for stores the sentinel, and a reader answers it as
-absent, not as zero. When two projects record the same file, its duration is
-their sum, and it is absent if either is.
+nothing for stores the sentinel, and a reader answers it as absent, not as
+zero. When two projects record the same file, its duration is their sum, and it
+is absent if either is.
+
+**Phases.** `tests.phases` splits a file's time into what is part of a test
+and what is not: readying the file in its worker, the test environment, the
+setup files, collecting the file — importing it and everything it loads — and
+running its cases with their hooks. Vitest reports all five. Jest's `perfStats`
+times the environment and the setup files, and the setup module marks where
+collecting ended — when jest-circus starts the file's run, before any hook — on
+a clock the test's fake timers do not replace, so the rest splits into collect
+and cases there; Jest readies no file apart from those, so its prepare is
+absent. A mark outside the file's own span splits nothing, and the file has no
+collect or cases. A story is timed by its page: `prepare` is the document's
+start until the preview is ready, navigation included, which only the first
+story read on the document pays, so every later one reads 0; `collect` is
+importing the story's file and unmounting the story shown before it; and `cases`
+is the render through `afterEach`, or to the phase it ended on when it errored,
+was aborted or was read before `afterEach` finished. Phases are summed across
+projects and readings as durations are. A record written before phases were kept
+opens with every file unphased.
+
+**A file's cost.** What running a file cost is the larger of its duration and
+its phases summed. Each counts part of the same run: Jest's runtime spans the
+file's run with the gaps between phases, and Vitest's duration is only the last
+of its five phases. So a Vitest file that spends 5.4 s importing and 33 ms in
+its cases costs 5.4 s, not 33 ms, and a Jest file costs its runtime unless its
+phases add up to more. A file without phases costs its duration, and a file
+with neither is untimed. Two projects' figures are summed before the larger is
+taken, so the cost is that of both runs. `variance ask slowest-tests` ranks
+files by this cost and a sharded run places them by it.
 
 The case index beside the snapshot carries the same figure for each case, in a
 `tests.duration` column of its own: Vitest's task result, Jest's assertion
@@ -477,10 +538,21 @@ Playwright's figure covers the test body, its `beforeEach` hooks and the
 fixtures set up for it, and not its `afterEach` hooks or fixture teardown, which
 run after Playwright has set it. A retried case is timed as the sum of its
 attempts, the same way a file recorded by two projects is. A case is joined to
-the runner's report by the id the runner gave it, or by its declaration path under the file where the
-runner gives none. A path the file declares twice cannot say which of the two it
-is, so neither is timed. A case index written before cases carried durations
-opens with every case untimed.
+the runner's report by the id the runner gave it, or by its declaration path
+under the file where the runner gives none. A path the file declares twice
+cannot be matched to one of the two cases, so neither is timed. A case index
+written before cases carried durations opens with every case untimed.
+
+The case index also carries what each case said, its
+[case preconditions](case-preconditions.md), in a `tests.said` section. Each
+distinct `(name, value, site, level)` is one item, and the cases that said it are
+a set in the same pool the crossings use, so a value every case of a file says
+costs one item and a set the record usually holds already. The section stores
+every item, an overridden one too, and a case's row is resolved when it is read.
+One more set names the cases a recorder listened to: a case outside it is
+unmeasured, a case inside it and under no item said nothing. A case index
+without the section, including one written before it existed, opens with every
+case unmeasured.
 
 A Storybook run is its own runner, so its figure is the time the run spent on
 each story, from its first collection to its decision: the same time
@@ -489,8 +561,7 @@ recorded on the story's row and on its case, once however many times the story
 was read, and a story the run did not time is recorded without one.
 
 `variance ask slowest-tests` lists the slowest recorded files and the slowest
-recorded cases, anywhere or under the paths you name, and `yarn test:since`
-adds up the recorded cost of the files it selects.
+recorded cases, anywhere or under the paths you name.
 
 **Runs.** A section over sixty-four kilobytes is cut into runs — four thousand
 and ninety-six rows of a column, five hundred and twelve strings of the blob —
@@ -547,12 +618,12 @@ What makes the model expensive is repetition rather than size. A path is named
 again by every region of its module and again by every crossing that covered
 one, so a decode keeps one string per id and hands that one to every use of it.
 Decoding each use on its own costs twice the time and close to three times the
-heap, for a model that says exactly the same thing.
+heap, for a model that holds exactly the same values.
 
 **Location.** [Where the file is](#where-the-file-is-and-what-to-do-with-it),
-above. Beside the snapshot, each instrumenting build keeps what it instrumented
-as one record per module in a store named by that build's `<label>`; the
-ordinals in the snapshot mean nothing without it.
+above. Nothing beside the snapshot gives its ordinals their meaning: each
+module row names its file and the digest of the text its regions were cut from,
+and a reader cuts that text again.
 
 ## Keys
 
@@ -565,18 +636,45 @@ a duplicate.
 **Module.** The module's repository-relative path, with `modules.source` as
 the digest it must still have for its blocks to mean anything.
 
-**Module id.** The module's repository-relative path, and what an instrumented
-module reports itself as: the transform writes it into the emitted code as a
-literal. Every seam instruments under the same path, so a journal reads the same
-whichever runner wrote it, and every artifact joins another by that path with
-no table between them.
+**Module id.** A probe reports its module as `path@digest`: the
+repository-relative path of the file the transform was handed, and the first 32
+hexadecimal characters of the SHA-256 of the text the regions were cut from.
+`moduleId(path, code)` from `@variance-authority/sense/journal` builds it, for a
+driver that writes its own journal. The build writes nothing else down.
+Placing probes is deterministic, so one text, one path and one recipe give one
+set of ordinals, and every reader cuts the module again from the checkout:
+
+- **The file has the text the digest names.** The reader cuts it exactly as the
+  transform did, and every ordinal means the region it meant in the build. Text
+  the transform could not parse ran with one mark at its end instead of probes,
+  and the reader fails on it too, so the module is recorded as not
+  instrumented, as below.
+- **The file has other text.** The module is recorded as not instrumented: its
+  file is still named, with no regions. Every subject that ran it depends on
+  that file's text whole, so a change to it selects those subjects.
+- **The file is gone, or the id names no file under the root.** The module is
+  left out. The test that ran it is recorded incomplete, so a later run never
+  skips it.
+- **The digest has a `~` in front of it, as `path@~digest`.** The module ran
+  with one mark at the end of its text and no probe inside it: a module the
+  [`unprobed` option](../packages/sense/README.md) names, because its functions
+  run where a probe has nothing to report to, such as a page, or a module a
+  Jest transformer that places its own probes handed back with none in it. The
+  reader cuts no regions and records the module as not instrumented, so a
+  change to it selects every subject that loaded it.
+
+So a transform reads nothing from the rest of the build: ten changed files out
+of two hundred thousand are rebuilt in parallel, in any order, by processes that
+never meet, and two builds over one repository, such as a Storybook preview and
+the application a Playwright suite drives, need no name to keep their ordinals
+apart.
 
 **Block, within a file.** `(module row, ordinal)`. Ordinals are unique within
 a module and the first block is the module root.
 
 **Block, across files.** `name`, `path` and `kind`: the address, and what kind
-of region sits at it. `mergeCoverage` matches `name` and `path`, and then asks
-the one remaining question, whether the kinds agree. Nothing above the block
+of region sits at it. The lay matches `name` and `path`, and then checks
+the one remaining condition, whether the kinds agree. Nothing above the block
 is part of the match and neither is its digest, so a block keeps its crossings through every edit that leaves it where
 it is. A block with no match in the new table is gone, and what was recorded
 against it is dropped.
@@ -603,7 +701,7 @@ The tests that crossed a block are the rows `crossings.test[blocks.tests[b]
 The tests a changed uninstrumented file governs come from a walk of every
 precondition row once, O(P), returning the tests by row with the names that
 matched. A file no precondition names comes back as unread, which is the signal
-that the record does not know it.
+that the record has no row for it.
 
 The preconditions of a test are the rows `tests.preconditions[t] ..
 tests.preconditions[t + 1]`, O(preconditions of that test).
@@ -632,7 +730,7 @@ flowchart TD
 
 A file with no row is read first, with every export counted as changed; the
 dashed branch is what that reading cannot answer. A precondition selects on any
-change to its file's text, whatever the reading says.
+change to its file's text, whatever the reading found.
 
 `selectTestFiles` performs the trace one changed file at a time. Each step
 below is one stage of that call.
@@ -660,23 +758,30 @@ below is one stage of that call.
    nothing. `bodies` — what the module does as it loads and every binding's
    value are equal — charges the regions around the lines and never the
    module's own region. `values` charges the same regions, and every region
-   that reads a binding whose value moved: in the file, and in each direct
-   importer on a runtime edge, further only through a re-export. A read at
+   that reads a binding whose value moved: in the file, under its own name or
+   through an import that brings it back, and in each direct importer on a
+   runtime edge, further only through a re-export. A read at
    load charges that module, and an importer that hands a namespace on whole
    charges its module. An import that binds a name is a use by the functions
    that read it, so an import added to a file charges those functions and not
    the file's loaders. When you pass `root`, the `package.json` each changed
    file sits under, and of every file an added or removed import loads at any
-   depth that the file did not already load, is asked for its `sideEffects`: a
+   depth that the file did not already load, is read for its `sideEffects`: a
    declared file, or an importer that starts or stops loading one, is `load`,
    and its reading lists the declared files in `effects`. A test that crossed the
    changed module through no importer the graph holds is listed in `unseen` and
-   charged nothing. `load` charges the lines as step 4 does. Under `bodies`
+   charged nothing. An importer whose text cannot be read charges its module,
+   or, with no row, every test step 6's walk finds behind it. A `load` the
+   parser gave charges the lines as step 4 does, and a line outside every
+   function is in the module's own region, which every test that loaded the
+   file ran; a `load` that `sideEffects` declared charges the module. Under
+   `bodies`
    or `values`, text inserted in a gap no region spans charges nothing. A file
    without `sourceAt`, whose hunks do not apply to the recorded text, whose
    text does not parse, or on a machine without the scanner's native addon is
-   charged by its lines, and `readings` says which. Two parses per side per
-   changed file, and one parse per importer of a moved value.
+   charged by its lines, and `readings` records which. Two parses per side per
+   changed file, and one parse per importer of a moved value, plus one more each
+   time another path reaches that importer with a name no earlier path brought.
 4. **Lines to blocks.** Each charged line costs one scan of the module's
    blocks, O(B). Every synthesized region containing the line is charged. Source
    regions containing it are grouped by span, and the narrowest group is
@@ -688,38 +793,38 @@ below is one stage of that call.
    its lines, but only when no region of another kind has its span: every line
    of an awaited expression is evaluated before the await settles. A line no source region contains
    charges every block of the module.
-5. **Blocks to tests.** Each charged block's crossings, O(C of those blocks),
-   of every row recorded under the path — two builds that read one module are
-   two rows, and the answer is all of them. Every changed path is also asked of
-   the precondition table, O(P), whatever its rows say: a row answers which
-   tests covered which regions, a precondition says the observation is void if
-   the file's text changes at all, and the two are not the same sentence. A row
-   does buy the path out of *unread*, which is why a module nothing declares is
-   still measured.
+5. **Blocks to tests.** Each charged block's crossings, O(C of those blocks), of
+   every row recorded under the path — two builds that read one module are two
+   rows, and the answer is all of them. Every changed path is also looked up in
+   the precondition table, O(P), whatever its rows hold: a row records which
+   tests covered which regions, a precondition marks the observation void if the
+   file's text changes at all, and the two are not the same fact. A row does buy
+   the path out of *unread*, which is why a module nothing declares is still
+   measured.
 6. **Files with no row.** Hand the relations graph in through
    `options.relations` and a changed module with no instrumented row under any
    of its names is read as step 3 reads one with a row, with every export
    counted as changed. What that reading cannot answer — no `sourceAt`, a text
    that does not parse, a `load` verdict — and every file with no row that is
-   not a module is asked of the graph, which walks to the files that import it.
-   A file something imports as an asset — a stylesheet, an image, a JSON file,
-   where no probe can sit — is walked along `asset` and `depends` edges only,
-   through the stylesheets that import it to the modules that import or declare
-   those. A
-   module is walked along every runtime edge and never `type`, and each chain
-   stops at the first test file or module with probes; a module without probes
-   measured nothing, so the chain goes on past it. Each file a walk stops at
-   answers for itself: a test selects itself, a module with probes selects the
-   tests that crossed it, and a module without probes selects the tests that
-   declare it. A file with no row selects nobody and takes nothing from the
-   chains beside it. A test that mocked the changed module, or a file between
-   the two, is cut there. A bumped package is walked from its node along every
-   runtime edge to every file that imports it at any distance, and each answers
-   the same way. A file with no row selects nobody even when a test declares
-   it: a declaration selects on a change to the declared file's own text, and a
-   walk asks for no such change. O(n + m) on the graph per changed file.
-7. **Unread.** A changed path is read when *some* name the caller says the
-   snapshot may list it under has a module row, a precondition or a node in
+   not a module is looked up in the graph, which walks to the files that import
+   it. A file something imports as an asset — a stylesheet, an image, a JSON
+   file, where no probe can sit — is walked along `asset` and `depends` edges
+   only, through the stylesheets that import it to the modules that import or
+   declare those. A module is walked along every runtime edge and never `type`,
+   and each chain stops at the first test file or module with probes; a module
+   without probes measured nothing, so the chain goes on past it. Each file a
+   walk stops at answers for itself: a test selects itself, a module with probes
+   selects the tests that crossed it, and a module without probes selects the
+   tests that declare it. A file with no row selects nobody and takes nothing
+   from the chains beside it. A test that mocked the changed module, or a file
+   between the two, is cut there. A bumped package is walked from its node along
+   every runtime edge to every file that imports it at any distance, and each
+   answers the same way. A file with no row selects nobody even when a test
+   declares it: a declaration selects on a change to the declared file's own
+   text, and a walk selects on no such change. O(n + m) on the graph per changed
+   file.
+7. **Unread.** A changed path is read when *some* name the caller passes for
+   it has a module row, a precondition or a node in
    the graph. One file is often two names — a package's own suite loads `src`,
    every other package loads the built twin — and each name selects the tests
    its own rows and declarations name; a name the snapshot has nothing under
@@ -744,8 +849,9 @@ every block a test crossed is O(C) over the whole record. `ExecutionIndex` is
 the same data in the shape a collector or an editor integration supplies: each
 block lists the tests that crossed it with the call-stack depth from the test to
 the block. Pass one to `coveringTests` to ask by line or by function name, at
-O(M) to find the module and O(B²) to keep only the innermost regions of the
-line.
+O(M) to find the module and O(B) to place the line in its regions. A line answers
+with the regions a change to it would select: the innermost region holding it,
+and the enclosing one when the line opens a branch and holds its condition.
 
 ## Tracing a block to its place
 
@@ -764,26 +870,30 @@ the observation instead of keeping it over text nobody has seen.
 
 ## Journals
 
-Every runner seam records what one process saw and leaves the fold to the
+Every runner seam records what one process observed and leaves the fold to the
 writer. Read this section when you are wiring a runner yourself; a suite using
 the shipped Vitest, Jest, Rstest, Playwright or Storybook seams never sees one.
 Three journal shapes exist, and each includes a list of `ExecutedModule`; the
-record that gives their ordinals meaning is the fourth shape here:
+[module id](#keys) after them gives their ordinals meaning:
 
 ```json
-{ "id": "src/cart/total.ts", "hits": [0, 1, 2, 3, 5, 6], "shared": [0], "loaded": [0, 1] }
+{ "id": "src/cart/total.ts@9b2f6e0c4a7d1e58b3c09f2a6d4e7b10", "hits": [0, 1, 2, 3, 5, 6], "shared": [0], "loaded": [0, 1] }
 ```
 
-`id` is the path the module was instrumented under, `hits` the ordinals whose counter was above zero, ascending,
+`id` is the module id the module was instrumented under, `hits` the ordinals whose counter was above zero, ascending,
 and `shared` the subset of `hits` whose counter had the `EVALUATING` bit set.
 `loaded`, in the worker journal only, is the subset of `hits` whose counter was
 already above zero in the snapshot the setup file took before the file's first
 test: regions covered as a consequence of loading. Presence only: the counts
 never leave the process. The ordinals index the recipe the build instrumented
-under — `sense:instrument/presence-v5`, or `sense:instrument/entries-v2` when
+under — `sense:instrument/presence-v6`, or `sense:instrument/entries-v3` when
 the seam was asked for `mode: 'entries'`, which numbers the module and each
-function and nothing between — and every reader refuses a journal, record or
-snapshot cut under the other.
+function and nothing between. Under `mode: 'loads'`, `sense:instrument/loads-v1`,
+a module has no ordinals: its id is spelled `path@~digest`, it is recorded with
+no blocks, and its arrival is the only hit it reports. A run refuses to fold a journal, or lay itself
+over a snapshot, cut under another recipe. A reader answers from such a
+snapshot as it holds it, and names both recipes and the regions the difference
+leaves unanswered.
 
 **Worker journal.** Written by the setup file of a Vitest, Jest or Rstest
 worker in its `afterAll`, one per test file, as `<pid>-<uuid>.va` under the
@@ -793,80 +903,29 @@ increment and writes the ordinals out as the gaps between them, so a worker pays
 one pass over each array and the reporter reads bytes.
 
 ```
-journal  "VAJRN" | version | test file | modules | module | module | …
-module   1 | path | hits | shared | loaded
+journal  "VAJRN" | version | test file | collected | modules | module | module | …
+module   1 | id | hits | shared | loaded
 hits     count | gap | gap | …
 ```
 
-A module is written as `1 | path`, and a reader refuses any other tag as a
-damaged frame. Counts, ids and gaps are varints and text is a length and its UTF-8; ordinals
+`collected` is the moment, in epoch milliseconds as an eight-byte double, the
+file finished collecting, and zero where nothing marked it. A module is written
+as `1 | id`, and a reader refuses any other tag as a damaged frame. Counts, ids and gaps are varints and text is a length and its UTF-8; ordinals
 rise within a module, so a region costs one byte. A run of eight thousand test
 files over two hundred thousand modules reports sixteen million module rows. As
-frames each row is its module's path and its ordinals as gaps, which is under
+frames each row is its module's id and its ordinals as gaps, which is under
 half the bytes of the same rows as JSON, and nothing is rendered or parsed as
 text on the way. No checksum: one process writes a journal and
 closes it, one reader opens it once that process is gone, and the only damage
 available to it is a tail that never arrived — which a decode obliged to land
 exactly on the end of the frame refuses for nothing.
 
-The reporter reads the record each id names, folds every journal's `hits` into
+The reporter cuts each module an id names again from the checkout, folds every journal's `hits` into
 crossings and its `loaded` ordinals the same way over the other column, merges
 into the coverage file, and removes the run directory. A
 shared ordinal is credited to every test file that consumed the module; under
 isolation each file consumed its own evaluation and the credit goes to nobody
 else.
-
-**Module record.** One module as bytes, appended by whoever transformed it to a
-segment it alone holds open:
-
-```
-segment  "VAREC" | version | instrumentation id | frame | frame | …
-frame    length  | FNV-1a of the payload | payload, padded to eight
-payload  id 4 | flags 4 | blocks 4 | dictionary 4 | source digest 16 |
-         dictionary strings, the module's path first, then one column per
-         field: kind, owner, name, path, startLine, endLine, source bits, digest
-```
-
-The id is `0xffffffff`, which says the module is named by its path, and a
-reader skips a frame holding anything else. The path is the first string of
-the dictionary, at a fixed offset from the start of the payload, so a reader places
-a frame without decoding it: a scan for one module reads four bytes and, at
-most, one string. The rest of the strings a
-record uses — its block names, its block paths — are interned within the frame
-and referenced by index; everything after them is a run of fixed-width
-little-endian values at a computable offset, so a reader takes a slice where a
-parser would take a pass. A module the parser refused has no blocks and says so
-in its flags, which is what makes a consumer widen instead of trusting an empty
-table.
-
-A frame contains everything it needs, which is what lets a writer append and
-return. A reader stops at the first frame that runs past the end of the file,
-so a process killed mid-append loses that module and not the segment, and a
-byte a filesystem lost silently fails the frame's own checksum rather than
-arriving as a block table. A module transformed twice appends twice, and the
-later frame is the one a reader takes.
-
-On this repository's source, at 33.1 blocks per module, a record is 1,841 bytes
-where the same record as JSON is 6,603. At two hundred thousand modules that is
-351 MB in a handful of segments against 1,563 MB in two hundred thousand files,
-and the JSON store's largest single document would not have been readable at
-all: `readFile(…, 'utf8')` throws past 512 MB. That ceiling is why the source
-index uses shared binary sections instead of one text document.
-
-Nothing collects the records into a document and nothing has to: a transform
-writes the module it just cut and knows nothing about the rest of the build,
-which is what lets ten changed files out of two hundred thousand be rebuilt in
-parallel, in any order, by processes that never meet, and lets the other
-hundred and ninety nine thousand nine hundred and ninety keep firing probes
-that still mean what they meant.
-
-`label` separates two builds over one repository, a Storybook preview and the
-application a Playwright suite drives, because an ordinal means something only
-against the record that minted it. A driven run has nowhere else to read its
-block table from, so a page journal's ordinals mean nothing without the store
-the build wrote. When one run reads several stores, a module two of them store
-with different source digests is recorded as not instrumented: its ordinals
-mean two things.
 
 **Page journal.** The collector that `testSelectionProbes` hoists in front of
 every instrumented module installs the page factory and exposes itself on
@@ -888,23 +947,23 @@ covered under that id. [`journeys.md`](journeys.md) is their page. The type
 ```json
 {
   "version": 1,
-  "instrumentation": "sense:instrument/presence-v5",
+  "instrumentation": "sense:instrument/presence-v6",
   "head": "api",
   "scope": "journey",
   "lost": 0,
-  "modules": [ { "file": "src/routes/cart.js", "hits": [0, 1, 4], "shared": [0] } ]
+  "modules": [ { "id": "src/routes/cart.js@4e0a91c37b2d58f6a1c9e3b07d5f2a84", "hits": [0, 1, 4], "shared": [0] } ]
 }
 ```
 
-`head` is the label the service's build instrumented under, so the driver
-knows which store the ordinals index. `scope` is `journey` for crossings
-made inside a request that carried a journey cookie and `process` for
-everything the process did outside any journey, its own initialization for
-instance, which the driver folds into every subject. `lost` counts the
-earlier accounts this head could not deliver, and a positive count marks the
-run incomplete. The account names neither the journey nor the subject: the id
-travels on
-the wire, and only the driver owns the map from journey to subject.
+`head` is the name the service reports under, the name a driver declares in
+`heads`. Each module's `id` is a [module id](#keys), so the driver cuts the
+service's modules again from the checkout the way it cuts the page's. `scope` is `journey` for crossings
+made inside a request that carried a journey cookie and `process` for everything
+the process did outside any journey, its own initialization for instance, which
+the driver folds into every subject. `lost` counts the earlier accounts this
+head could not deliver, and a positive count marks the run incomplete. The
+account names neither the journey nor the subject: the id travels on the wire,
+and only the driver owns the map from journey to subject.
 
 **The wire.** One execution is one opaque UUID minted by the driver, carried
 in the cookie `variance-authority-journey`, and the address a head delivers
@@ -915,7 +974,7 @@ both off the request's `Cookie` header, runs the handler inside an
 delivers the account as a JSON `POST` to `<return>/journeys`, three attempts,
 or through the `__VAW__` sink function when the driver is in the same realm.
 The head installs nothing unless `VARIANCE_AUTHORITY_JOURNEYS` is set, and
-names itself from `VARIANCE_AUTHORITY_HEAD` when not told otherwise.
+names itself from `VARIANCE_AUTHORITY_HEAD` when no name is passed.
 `stitchJourneys` joins every account bearing one id to the subject the driver
 minted it for, counts an account under an id the driver never minted as
 unclaimed, and marks the whole run incomplete when a declared head stayed
@@ -932,37 +991,44 @@ journal sizes).
 
 **Append from a driven run.** Call `recordExecution` with the drained subjects
 in memory, one per owner, with the journey accounts already joined through
-`joinObservations`. It reads from the store of the
-build and of every declared head the record of each module the subjects
-reported, refuses when it can identify none of them or when one names another
-instrumentation id, and folds under `<coverage>.lock`. The lock is
+`joinObservations`. It cuts each module the subjects reported again from the
+checkout, refuses when none of them is a file under the root or when one names
+another instrumentation id, and folds under `<coverage>.lock`. The lock is
 exclusive-create, waited on for ten seconds at a 25 ms poll, and considered
-stale after sixty. Two stores that disagree on one module's source digest
-record it as not instrumented. A module missing from every store is dropped,
+stale after sixty. A module whose file no longer has the text its id names is
+recorded as not instrumented. A module whose file is gone is dropped,
 and the subject that covered it is recorded incomplete, because a subject whose
 crossings cannot all be placed is one a later run may not skip. The fold is
 O(hits) over every subject's journal plus O(modules reported) to build the
 rows.
 
-**Merge with the previous record.** `mergeCoverage` brings forward what the run
-did not observe. When the instrumentation id differs the previous record is
-dropped whole. A test the run observed replaces its previous row. A test the
+**Lay over the previous record.** The native addon's lay brings forward what
+the run did not observe, column to column, without decoding either record. A
+previous record under another instrumentation id, or one this build cannot
+read, is refused with the reason and left where it is: one build records under
+one set of probes and reads what it wrote, so either is another build's. A test the run observed replaces its previous row. A test the
 run did not observe keeps its row, unless no region it crossed survives in the
-new table, in which case it is demoted to incomplete and re-runs on its
-next selection. An unobserved module whose text on disk changed has its rows
+new table or a region it crossed has a new digest, in which case it is demoted
+to incomplete and re-runs on its next selection. An unobserved module whose text on disk changed has its rows
 re-cut over that text, one parse per such module, and only a module whose text
-cannot be parsed demotes every test that crossed it. Both sides are indexed
+cannot be parsed demotes every test that crossed it. The cases the index holds
+of a module whose rows moved are laid onto the same cut by address and kind,
+so the index answers at the lines the rows hold. A module
+none of whose cases land there leaves the index, as a module no run kept
+cases of is absent from it. Both sides are indexed
 before the walk — modules by path, blocks by their address, name path and
 structural path together — so the cost is O(M_prev + M_cur) plus
 O(B_prev + B_cur) for each matched module, and the file is sorted on the way
 out.
 
-**Fold shards.** `foldTestCoverage` unions the records of a
-sharded run, in any order, O(sum of shard sizes). It refuses shards with
-differing instrumentation or commit, a test in two shards, and a module with
+**Fold shards.** `combineRecords` unions the records of a sharded run, coverage
+and case parts, in the native addon: O(sum of shard bytes), reading nothing but
+the shards. The shards are taken in code-unit order of their paths, so the
+record is the same bytes whatever order they are named in. It refuses shards
+with differing instrumentation or commit, a test in two shards, and a module with
 two source digests. Where shards disagree about whether a module could be
 read, the instrumented rows answer: a shard that could not instrument a module
-says nothing about the tests another shard watched run it, and the tests that
+has no rows for the tests another shard recorded running it, and the tests that
 loaded the uninstrumented copy already declare it as a precondition. An
 uninstrumented row stands only where no shard measured the module, and the
 answer is the same whichever shard is read first.
@@ -972,6 +1038,17 @@ ordinal, deduplicates preconditions and crossings, and builds one dictionary:
 O(r log r) for `r` rows and strings. It writes under a scratch name and renames
 into place, so a reader opening the path sees the previous snapshot or this one
 and never the bytes between.
+
+**A run that instruments nothing.** A run that keeps its cases and instruments
+no module still writes the file, with the case sections and none of the
+coverage sections: no strings, snapshot, tests, modules, blocks or sets. A
+record already at the path keeps its coverage as it was, under the new run's
+cases. A run that keeps no cases and instruments nothing writes nothing. A
+file whose probes fired where nothing could place them is the exception: it is
+recorded incomplete, which selects it on the next run, and that row lands as
+coverage does. Such a record moves the way any record does: a new
+worktree seeds from it, and landing it as a shard with `variance journeys` lays
+its cases over the target's without folding any coverage, so it narrows nothing wherever it lands.
 
 ## What a reader refuses
 
@@ -999,11 +1076,22 @@ such a column by the row goes straight through, on the bargain the crossings
 already make — what a bad bound could do to a reader walking rows is refused by
 the column the bound indexes, and a pair that runs backwards is a loop that does
 not execute. `blocks.tests` has no check of its own for that reason: selection
-reads two of its rows per region it asked about and never the column, and a
+reads two of its rows per region it looks up and never the column, and a
 bound either lands in the crossings or is refused by them.
 
 Any of those becomes an absent record rather than an empty one, so a corrupt
 file costs you one full run and never a narrowed one.
+
+A file that holds case sections and no coverage section opens as a record
+without coverage, `RecordWithoutCoverage`, and not as a record of tests that
+reach nothing. Selection narrows nothing over it: `variance select` skips
+nothing and prints that the record holds no coverage, and `variance run --since`
+runs every test file. A run writes one when it keeps its cases and instruments
+no module. It travels like any record: `variance share` publishes it under the
+commit its cases were recorded at, and a worktree fetches it from the mainline
+and lays it under its first run, still narrowing nothing. A file that holds some
+of the coverage sections and not the others is refused as broken.
+`withoutCoverage` answers from the header alone.
 
 One older layout is read rather than refused: the one written before
 `tests.duration` existed, which the JVM agent still writes. It opens with every
@@ -1031,9 +1119,9 @@ test, is refused at open.
 | tests covering a line | O(M + B²) | `coveringTests` |
 | fold worker journals | O(journal bytes) | the reporter of a runner seam |
 | record drained subjects | O(hits + modules reported) | `recordExecution` |
-| merge with the previous record | O(M_prev + M_cur + Σ B) | `mergeCoverage` |
-| re-cut an unobserved module's rows | O(module length) | `mergeCoverage`, per changed module |
-| fold shards | O(Σ shard rows) | `foldTestCoverage` |
+| lay over the previous record | O(M_prev + M_cur + Σ B) | `landedCoverage` |
+| re-cut an unobserved module's rows | O(module length) | `landedCoverage`, per changed module |
+| fold shards | O(Σ shard bytes) | `combineRecords` |
 | encode | O(r log r) | `writeTestCoverage` |
 
 **Further:** [`selecting.md`](selecting.md) for what a run does with the

@@ -12,6 +12,8 @@
  *   node scripts/snapshot-scale.mjs fold [dir] [modules] [tests] [blocks]
  *   node scripts/snapshot-scale.mjs record [-] [modules] [tests] [blocks]
  *   node scripts/snapshot-scale.mjs build [file] [modules] [tests] [blocks]
+ *   node scripts/snapshot-scale.mjs shards [dir] [modules] [tests] [blocks]
+ *   node scripts/snapshot-scale.mjs combine [dir]
  *   node scripts/snapshot-scale.mjs layer [file]
  *   node scripts/snapshot-scale.mjs select [file]
  *
@@ -34,7 +36,7 @@
  */
 
 import { writeFileSync, readFileSync, statSync, mkdirSync, readdirSync, rmSync } from 'node:fs';
-import { layerTestCoverage } from '../dist/test-selection/format-layer.js';
+import { layCoverage } from '../dist/test-selection/format-layer.js';
 import { openTestCoverage } from '../dist/test-selection/format-view.js';
 import { selectTestFilesFromView } from '../dist/test-selection/select.js';
 import { crossingsOf } from '../dist/test-selection/instrumented-modules.js';
@@ -42,6 +44,7 @@ import { coverageModule } from '../dist/test-selection/coverage-rows.js';
 import { foldCrossings } from '../dist/test-selection/crossing-fold.js';
 import journalFormat from '../dist/test-selection/journal-format.cjs';
 import { encodeTestCoverage } from '../dist/test-selection/format.js';
+import { combineRecords } from '../dist/test-selection/index.js';
 import { buildSnapshot } from './snapshot-scale-build.mjs';
 import {
   BARRELS,
@@ -56,6 +59,7 @@ import {
   UTILS,
   barrelGraph,
   count,
+  gate,
   mb,
   names,
   pad,
@@ -69,6 +73,28 @@ import {
 
 if (MODE === 'build') buildSnapshot();
 
+// The sixteen shard records a sharded CI run of this suite leaves, which
+// `variance journeys combine` folds back into the snapshot's crossings.
+if (MODE === 'shards') buildSnapshot(16);
+
+// Those shards combined into one record, through the addon. The gate: the
+// process exits non-zero when its peak resident size is above the ceiling.
+if (MODE === 'combine') {
+  const shards = readdirSync(FILE)
+    .filter((name) => /^shard-\d+\.bin$/.test(name))
+    .sort()
+    .map((name) => `${FILE}/${name}`);
+  const into = `${FILE}/combined.bin`;
+  rmSync(into, { force: true });
+  const started = Date.now();
+  const combined = combineRecords(shards, into);
+  console.log(
+    `combine: ${shards.length} shards into ${count(combined.tests)} tests, ${count(combined.modules)} modules, ` +
+      `${count(combined.crossings)} crossings in ${secs(Date.now() - started)}, ${mb(statSync(into).size)} on disk`,
+  );
+  gate();
+}
+
 
 if (MODE === 'layer') {
   const previous = readFileSync(FILE);
@@ -76,7 +102,7 @@ if (MODE === 'layer') {
   console.log(`read: ${mb(statSync(FILE).size)} snapshot`);
   const current = rerecorded(MODULES * BLOCKS);
   const laying = Date.now();
-  const out = layerTestCoverage(previous, current);
+  const out = layCoverage(previous, current);
   watch();
   console.log(
     `layered: ${count(RERECORDED)} of ${count(MODULES)} modules re-recorded, ` +

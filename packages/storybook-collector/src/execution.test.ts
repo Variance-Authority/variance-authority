@@ -9,7 +9,7 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, resolve } from 'node:path';
 import {
-  testSelectionProbes,
+  moduleId,
   type EvaluatingPage,
   type ExecutionJournal,
 } from '@variance-authority/sense/journal';
@@ -18,7 +18,7 @@ import { describe, expect, it } from 'vitest';
 import { createStoryRecorder } from './execution.js';
 import { decodeExecutionIndex } from '@variance-authority/sense/test-selection';
 
-const INSTRUMENTATION = 'sense:instrument/presence-v5';
+const INSTRUMENTATION = 'sense:instrument/presence-v6';
 const SOURCE = ['export function price(amount) {', '  return amount * 2;', '}'].join('\n');
 
 const INDEX = {
@@ -48,7 +48,7 @@ function pageReporting(journal: ExecutionJournal): EvaluatingPage {
 
 const journal = (...hits: number[]): ExecutionJournal => ({
   instrumentation: INSTRUMENTATION,
-  modules: [{ id: 'price.js', hits, shared: [] }],
+  modules: [{ id: moduleId('price.js', SOURCE), hits, shared: [] }],
 });
 
 async function inRoot(
@@ -57,9 +57,7 @@ async function inRoot(
   const root = await mkdtemp(resolve(tmpdir(), 'variance-storybook-execution-'));
   try {
     const cacheRoot = resolve(root, 'cache');
-    const module = resolve(root, 'price.js');
-    await writeFile(module, SOURCE, 'utf8');
-    testSelectionProbes({ root, cacheRoot }).transform(SOURCE, module);
+    await writeFile(resolve(root, 'price.js'), SOURCE, 'utf8');
     const index = resolve(root, 'index.json');
     await writeFile(index, JSON.stringify(INDEX), 'utf8');
     await run({ root, cacheRoot, coverageFile: resolve(root, 'coverage.bin'), index });
@@ -80,7 +78,7 @@ describe('a Storybook run records what each story executed', () => {
       await recorder.note(pageReporting(journal(1)), 'story:price--plain', true);
       await recorder.close();
 
-      const written = decodeExecutionIndex(await readFile(`${coverageFile}.cases.bin`));
+      const written = decodeExecutionIndex(await readFile(coverageFile));
       // By its declaration, which is what a person reads in the sidebar and
       // what a diff touches — not by the id Storybook slugged from it.
       expect(written.tests.map((test) => test.name).sort()).toEqual([
@@ -102,7 +100,7 @@ describe('a Storybook run records what each story executed', () => {
       await recorder.note(pageReporting(journal(1)), 'story:price--plain', true);
       await recorder.close(new Map([['story:price--premium', 340]]));
 
-      const cases = decodeExecutionIndex(await readFile(`${coverageFile}.cases.bin`)).tests;
+      const cases = decodeExecutionIndex(await readFile(coverageFile)).tests;
       expect(Object.fromEntries(cases.map((test) => [test.name, test.duration]))).toEqual({
         'Price/Premium': 340,
         'Price/Plain': undefined,
@@ -111,6 +109,38 @@ describe('a Storybook run records what each story executed', () => {
       expect(Object.fromEntries(files.map((test) => [test.file, test.duration]))).toEqual({
         'story:price--premium': 340,
         'story:price--plain': undefined,
+      });
+    });
+  });
+
+  it('records where the browser spent a story: the preview load once, the story file, the render', async () => {
+    await inRoot(async ({ root, cacheRoot, coverageFile, index }) => {
+      const recorder = await createStoryRecorder(index, { root, cacheRoot, coverageFile });
+      // The first story on a document carries the preview's load; a story the
+      // preview switched to paid nothing for it.
+      await recorder.note(pageReporting(journal(0)), 'story:price--premium', true, { ready: 900, collect: 40, cases: 12 });
+      await recorder.note(pageReporting(journal(1)), 'story:price--plain', true, { ready: 0, collect: 5, cases: 3 });
+      await recorder.close();
+
+      const files = (await readTestCoverage(coverageFile)).tests;
+      expect(Object.fromEntries(files.map((test) => [test.file, test.phases]))).toEqual({
+        'story:price--premium': { prepare: 900, collect: 40, cases: 12 },
+        'story:price--plain': { prepare: 0, collect: 5, cases: 3 },
+      });
+    });
+  });
+
+  it('records each width a story is read at as its own row, with its own figures', async () => {
+    await inRoot(async ({ root, cacheRoot, coverageFile, index }) => {
+      const recorder = await createStoryRecorder(index, { root, cacheRoot, coverageFile });
+      await recorder.note(pageReporting(journal(0)), 'story:price--premium@375', true, { ready: 900, collect: 40, cases: 12 });
+      await recorder.note(pageReporting(journal(0)), 'story:price--premium@1280', true, { ready: 0, collect: 30, cases: 10 });
+      await recorder.close();
+
+      const files = (await readTestCoverage(coverageFile)).tests;
+      expect(Object.fromEntries(files.map((test) => [test.file, test.phases]))).toEqual({
+        'story:price--premium@375': { prepare: 900, collect: 40, cases: 12 },
+        'story:price--premium@1280': { prepare: 0, collect: 30, cases: 10 },
       });
     });
   });
@@ -126,11 +156,9 @@ describe('a Storybook run records what each story executed', () => {
       const root = resolve(checkout, 'packages/ui');
       await mkdir(resolve(root, 'src'), { recursive: true });
       const cacheRoot = resolve(checkout, 'cache');
-      const module = resolve(root, 'price.js');
-      await writeFile(module, SOURCE, 'utf8');
+      await writeFile(resolve(root, 'price.js'), SOURCE, 'utf8');
       await writeFile(resolve(root, 'src/Price.stories.tsx'), 'export default {};\n', 'utf8');
-      testSelectionProbes({ root, cacheRoot }).transform(SOURCE, module);
-      const index = resolve(root, 'storybook-static/index.json');
+        const index = resolve(root, 'storybook-static/index.json');
       await mkdir(dirname(index), { recursive: true });
       const entry = INDEX.entries['price--premium'];
       await writeFile(
@@ -146,10 +174,9 @@ describe('a Storybook run records what each story executed', () => {
         root,
         cacheRoot,
         coverageFile: 'coverage.bin',
-        executionFile: 'cases.bin',
       });
       await recorder.note(
-        pageReporting({ instrumentation: INSTRUMENTATION, modules: [{ id: 'packages/ui/price.js', hits: [0], shared: [] }] }),
+        pageReporting({ instrumentation: INSTRUMENTATION, modules: [{ id: moduleId('packages/ui/price.js', SOURCE), hits: [0], shared: [] }] }),
         'story:price--premium',
         true,
       );
@@ -159,7 +186,7 @@ describe('a Storybook run records what each story executed', () => {
       expect(test?.preconditions.map((precondition) => precondition.name)).toContain(
         'packages/ui/src/Price.stories.tsx',
       );
-      const written = decodeExecutionIndex(await readFile(resolve(root, 'cases.bin')));
+      const written = decodeExecutionIndex(await readFile(coverageFile));
       expect(written.tests.map((each) => each.file)).toEqual(['packages/ui/src/Price.stories.tsx']);
     } finally {
       await rm(checkout, { recursive: true, force: true });

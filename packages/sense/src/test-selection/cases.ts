@@ -38,10 +38,10 @@
  * promise, a timer, a streamed response — is outside every bracket by then. Its
  * crossings are charged to whichever case happens to be open, and to no case at
  * all when none is. That direction is the one
- * [`selecting.md`](../../../../docs/selecting.md) forbids: a case credited with
+ * [`selecting.md`](https://variance-authority.dev/docs/selecting) forbids: a case credited with
  * less than it reached is a case a change can skip.
  *
- * This is the wall [ADR-0056](../../../../docs/context/adr/0056-a-journey-is-the-places-visited.md)
+ * This is the wall [ADR-0056](https://github.com/Variance-Authority/variance-authority/blob/main/docs/context/adr/0056-a-journey-is-the-places-visited.md)
  * already hit — *a bracket that opens at entry and closes at exit closes around
  * somebody else's work* — and the same wall
  * [`journey.ts`](./journey.ts) climbed for services, whose answer is reused here
@@ -80,7 +80,7 @@
  * cannot hold two, so a second `enter` while one is open is an error naming
  * both, and a continuation that arrives after its case closed is charged to the
  * ambient bucket, which every case in the file is given — over-inclusive, which
- * is the direction [`selecting.md`](../../../../docs/selecting.md) permits, and
+ * is the direction [`selecting.md`](https://variance-authority.dev/docs/selecting) permits, and
  * silent.
  *
  * `continuations` is the mode that stops it being silent. The variable becomes
@@ -105,7 +105,7 @@
  * `beforeAll`, `beforeEach`, `afterEach` and whatever a floating promise does
  * after its case settled run outside any case scope. Their crossings go to the
  * **ambient** bucket and are given to *every* case in the file, which is the
- * over-inclusion [`selecting.md`](../../../../docs/selecting.md) already argues
+ * over-inclusion [`selecting.md`](https://variance-authority.dev/docs/selecting) already argues
  * for. A case is never credited with less than it reached; it is sometimes
  * credited with more.
  *
@@ -116,15 +116,21 @@
  * ({@link ExecutionBlock.loaded}).
  */
 
-import { readFile, readdir } from 'node:fs/promises';
-import { resolve } from 'node:path';
 import type { ModuleId } from '../instrument/index.js';
+import caseOwner from './case-owner.cjs';
 import journalFormat from './journal-format.cjs';
 import type { CapturedModule } from './instrumented-modules.js';
-import { codeUnitOrder, isMissing, projectPath } from './instrumented-modules.js';
+import { codeUnitOrder } from './instrumented-modules.js';
+import { NO_OWNER } from './format-layout.js';
+import { heldAround } from './region-around.js';
 import { UNTIMED, type CaseDurations } from './case-durations.js';
+import { saidAcross, type Said } from './case-said.js';
 import type { ExecutionBlock, ExecutionCrossing, ExecutionIndex, ExecutionTest } from './reverse.js';
 import { isWritten } from './written-lines.js';
+import type { CaseLines } from './case-lines.js';
+import type { CoverageBlock, WrittenLines } from './index.js';
+import type { SetExecutionModule } from './execution-set-format.js';
+import { linesAcross, linesOverIndex, type ReachedLines } from './reached-lines.js';
 
 /**
  * Where the worker half hands the case scope to the runner half.
@@ -149,9 +155,9 @@ export const AMBIENT = '';
  * and a test name cannot contain.
  *
  * Both writers of a case frame are CommonJS inside somebody else's sandbox, so
- * the pair lives beside the codec and is answered for here.
+ * the pair lives in `case-owner.cts` and is answered for here.
  */
-export const packCase = journalFormat.packCase;
+export const packCase = caseOwner.packCase;
 
 export interface UnpackedCase {
   readonly file: string;
@@ -159,11 +165,13 @@ export interface UnpackedCase {
   readonly name: string;
   /** Unique within the worker; empty for the ambient bucket. */
   readonly id: string;
+  /** The project that ran the case; absent when the run names none. */
+  readonly project?: string;
   /** Whether the case's body threw, rejected or never settled; absent when the frame does not say. */
   readonly stopped?: boolean;
 }
 
-export const unpackCase: (packed: string) => UnpackedCase = journalFormat.unpackCase;
+export const unpackCase: (packed: string) => UnpackedCase = caseOwner.unpackCase;
 
 /**
  * Case frames as one file, each behind its own length.
@@ -182,6 +190,8 @@ export interface CaseJournal {
   readonly file: string;
   readonly name: string;
   readonly id: string;
+  /** The project that ran the case; absent when the run names none. */
+  readonly project?: string;
   /** How this frame's case settled; see {@link ExecutionTest.stopped}. */
   readonly stopped?: boolean;
   /**
@@ -189,11 +199,101 @@ export interface CaseJournal {
    * carried them on the case itself rather than in a report at the run's end.
    */
   readonly duration?: number;
+  /**
+   * What the case said it arranged, each site named from the checkout; absent
+   * where the frame's writer never listened.
+   */
+  readonly said?: Said;
   readonly modules: readonly {
     readonly id: ModuleId;
     readonly hits: readonly number[];
     readonly shared: readonly number[];
   }[];
+  /**
+   * The test line that first reached each region the case entered, where its
+   * driver cut the test file (spec 0100); absent where it did not.
+   */
+  readonly lines?: readonly ReachedLines[];
+}
+
+/** Where a case is, and the runner's id for it: what a run tells two cases apart by. */
+export interface CaseCoordinate {
+  readonly file: string;
+  readonly name: string;
+  readonly id: string;
+  /**
+   * The project that ran the case: the runner's name for one configured run of
+   * the file — a Vitest or Jest project, a Playwright project. Absent when the
+   * run names none.
+   */
+  readonly project?: string;
+}
+
+/** One key per case of a run, for a map from a coordinate to anything. */
+export function caseKey(coordinate: CaseCoordinate): string {
+  const key = `${coordinate.file}\0${coordinate.name}\0${coordinate.id}`;
+  return coordinate.project === undefined ? key : `${key}\0${coordinate.project}`;
+}
+
+/** `cases` in the order the index numbers them: by file, then name, then project, then the runner's id. */
+export function inCaseOrder<Case extends CaseCoordinate>(cases: Iterable<Case>): Case[] {
+  // Ordered before they are numbered, so the index reads the same whichever
+  // worker finished first and whichever order the frames landed on disk.
+  return [...cases].sort((left, right) =>
+    codeUnitOrder(left.file, right.file) ||
+    codeUnitOrder(left.name, right.name) ||
+    codeUnitOrder(left.project ?? '', right.project ?? '') ||
+    codeUnitOrder(left.id, right.id),
+  );
+}
+
+/**
+ * The id the case index gives each of a run's cases, by {@link caseKey}.
+ *
+ * A name is the coordinate, so the identity is the name and not the runner's
+ * positional id — which moves when a case is inserted above it. Two cases in
+ * one file may share a name; the repeat is numbered, in {@link inCaseOrder}, so
+ * the second is `name#1` rather than indistinguishable. Every writer of an
+ * index, and everything that joins a case by its id, numbers through here; the
+ * native fold numbers with `CaseIds` in `case_id.rs`, in the same words.
+ *
+ * A case run by a named project carries that name, as the runners print it:
+ * `|compiled| test/a.test.ts > pays`. A project is one configured run of a
+ * file — Vitest's and Jest's `projects`, Playwright's `projects` — so a file
+ * two projects both run is two cases, not a repeat. The name is the case's own,
+ * carried on its frame by the seam that ran it, never read from which other
+ * projects the run took: a run filtered to one project, or a shard holding one
+ * copy, gives the copy the id a full run gives it. A run that names no project
+ * adds nothing, and the number is left for the repeats inside one project.
+ *
+ * A suite whose second `pays` would take the id of a case named `pays#1` is
+ * refused: one id cannot hold two cases' journeys.
+ */
+export function caseIds(cases: Iterable<CaseCoordinate>): ReadonlyMap<string, string> {
+  const ordered = inCaseOrder(cases);
+  const seen = new Map<string, number>();
+  const ids = new Map<string, string>();
+  // The name of the case holding each id handed out.
+  const held = new Map<string, string>();
+  for (const coordinate of ordered) {
+    const key = caseKey(coordinate);
+    if (ids.has(key)) continue;
+    const { file, name, project } = coordinate;
+    const prefix = project === undefined ? `${file} > ` : `|${project}| ${file} > `;
+    const named = `${prefix}${name}`;
+    const repeat = seen.get(named) ?? 0;
+    seen.set(named, repeat + 1);
+    const id = repeat === 0 ? named : `${named}#${repeat}`;
+    const holder = held.get(id);
+    if (holder !== undefined) {
+      const literal = id.slice(prefix.length);
+      const numbered = holder === literal ? name : holder;
+      throw new Error(`cannot number the cases of ${file}: "${literal}" is the name of one case and the number of a repeated "${numbered}". Rename one of them.`);
+    }
+    held.set(id, name);
+    ids.set(key, id);
+  }
+  return ids;
 }
 
 /**
@@ -213,6 +313,20 @@ export function executionIndexFrom(
   modules: ReadonlyMap<ModuleId, CapturedModule>,
   durations: CaseDurations = UNTIMED,
 ): ExecutionIndex {
+  return ownedExecutionIndexFrom(journals, modules, durations).index;
+}
+
+/**
+ * {@link executionIndexFrom}, with the owners of each module it keeps, in the
+ * order of `index.modules`: what `encodeOwnedSetExecutionIndex` writes beside
+ * it. Two ids can share a file, a source and the build its map projects onto
+ * it, so a module's owners are found by its place, not its file.
+ */
+export function ownedExecutionIndexFrom(
+  journals: readonly CaseJournal[],
+  modules: ReadonlyMap<ModuleId, CapturedModule>,
+  durations: CaseDurations = UNTIMED,
+): { readonly index: ExecutionIndex; readonly owners: readonly Uint32Array[]; readonly lines?: readonly (CaseLines | undefined)[] } {
   const ambient = new Map<string, CaseJournal[]>();
   // A case is written when it settles, so work that outlived it arrives as a
   // second frame under the same coordinate: one case, joined here.
@@ -222,44 +336,33 @@ export function executionIndexFrom(
       ambient.set(journal.file, [...(ambient.get(journal.file) ?? []), journal]);
       continue;
     }
-    const key = `${journal.file}\0${journal.name}\0${journal.id}`;
+    const key = caseKey(journal);
     const first = byCase.get(key);
     byCase.set(key, first === undefined ? journal : {
       ...first,
       modules: [...first.modules, ...journal.modules],
       ...settledAcross(first.stopped, journal.stopped),
       ...timedAcross(first.duration, journal.duration),
+      ...saidAcross(first.said, journal.said),
+      ...linesAcross(first.lines, journal.lines),
     });
   }
   const cases = [...byCase.values()];
 
-  // Ordered before they are numbered, so the index reads the same whichever
-  // worker finished first and whichever order the frames landed on disk.
-  const ordered = [...cases].sort((left, right) =>
-    codeUnitOrder(left.file, right.file) ||
-    codeUnitOrder(left.name, right.name) ||
-    codeUnitOrder(left.id, right.id),
-  );
-
-  // A name is the coordinate, so the identity is the name and not the runner's
-  // positional id — which moves when a case is inserted above it. Two cases in
-  // one file may share a name; the repeat is numbered, in the order above, so
-  // the second is `name#1` rather than indistinguishable.
-  const seen = new Map<string, number>();
+  const ordered = inCaseOrder(cases);
+  const ids = caseIds(ordered);
   const tests: ExecutionTest[] = ordered.map((journal) => {
-    const coordinate = `${journal.file} > ${journal.name}`;
-    const repeat = seen.get(coordinate) ?? 0;
-    seen.set(coordinate, repeat + 1);
     // One owner or the other: a driver that carries the time on the case has no
     // end-of-run report to join, and a runner that reports at the end writes
     // frames that carry none.
     const duration = durations(journal.file, journal.name, journal.id) ?? journal.duration;
     return {
-      id: repeat === 0 ? coordinate : `${coordinate}#${repeat}`,
+      id: ids.get(caseKey(journal))!,
       file: journal.file,
       name: journal.name,
       ...(journal.stopped === undefined ? {} : { stopped: journal.stopped }),
       ...(duration === undefined ? {} : { duration }),
+      ...(journal.said === undefined ? {} : { said: journal.said }),
     };
   });
 
@@ -292,10 +395,12 @@ export function executionIndexFrom(
     .filter(([id]) => crossings.has(id) || loaded.has(id))
     .sort(([left], [right]) => codeUnitOrder(left, right));
 
-  return {
-    tests,
-    modules: rows
-      .map(([id, module]) => ({
+  const kept = rows
+    .map(([id, module]) => ({
+      id,
+      ordinals: module.blocks.filter(isWritten).map((block) => block.ordinal),
+      owner: keptOwners(module.blocks),
+      module: {
         file: module.file,
         // An index is read by place: every reader asks it for a line or prints
         // one. A region the transform wrote without an origin has no place, so
@@ -312,9 +417,43 @@ export function executionIndexFrom(
             .sort((left, right) => left - right)
             .map((test): ExecutionCrossing => ({ test, distance: 0 })),
         })),
-      }))
-      .sort((left, right) => codeUnitOrder(left.file, right.file)),
+      },
+    }))
+    .sort((left, right) => codeUnitOrder(left.module.file, right.module.file));
+  const index = { tests, modules: kept.map(({ module }) => module) };
+  const owners = kept.map(({ owner }) => owner);
+  if (!ordered.some((journal) => journal.lines !== undefined)) return { index, owners };
+  const lined = kept.map(({ id, ordinals, module }) => ({ id, ordinals, blocks: module.blocks }));
+  return { index, owners, lines: linesOverIndex(ordered.map((journal) => journal.lines), lined) };
+}
+
+/** A region of a module's row, as much of it as the case index keeps. */
+export type CutRegion = Pick<CoverageBlock, 'ordinal' | 'owner' | 'kind' | 'name' | 'path' | 'source'> & WrittenLines;
+
+/**
+ * The cut a case index holds of a module's row: the regions with a place, at
+ * their lines, and each one's owner among them. A region the transform wrote
+ * without an origin has no place, so the index has no row for it.
+ */
+export function indexCut(blocks: readonly CutRegion[]): Pick<SetExecutionModule, 'blocks'> & { readonly owner: Uint32Array } {
+  return {
+    blocks: blocks.filter(isWritten).map(({ kind, name, path, startLine, endLine, source }) => ({ kind, name, path, startLine, endLine, source })),
+    owner: keptOwners(blocks),
   };
+}
+
+/**
+ * Each written region's owner, as its position among the written regions: the
+ * owner its row names, or the nearest one up its owners that was written where
+ * the transform wrote that one. {@link NO_OWNER} where none up to the module
+ * root was.
+ */
+export function keptOwners(blocks: readonly (Pick<CoverageBlock, 'ordinal' | 'owner'> & WrittenLines)[]): Uint32Array {
+  const byOrdinal = new Map(blocks.map((block) => [block.ordinal, block]));
+  const keptAt = new Map<number, number>();
+  for (const block of blocks) if (isWritten(block)) keptAt.set(block.ordinal, keptAt.size);
+  const kept = heldAround<number, number>((ordinal) => byOrdinal.get(ordinal)?.owner, (ordinal) => keptAt.get(ordinal), NO_OWNER);
+  return Uint32Array.from(blocks.filter(isWritten), (block) => (block.owner === undefined ? NO_OWNER : kept(block.owner)));
 }
 
 /**
@@ -352,39 +491,4 @@ export function countCrossings(index: ExecutionIndex): number {
   let total = 0;
   for (const module of index.modules) for (const block of module.blocks) total += block.crossings.length;
   return total;
-}
-
-/**
- * The case frames a run left, joined back to the files they belong to.
- *
- * Each `.vac` file is one test file's buckets — the ambient one and a frame per
- * case — and each frame names itself with the packed coordinate. Nothing here
- * decides what a case reached; that is {@link executionIndexFrom}'s job.
- */
-export async function readCaseJournals(
-  directory: string,
-  root: string,
-): Promise<readonly CaseJournal[]> {
-  let names: readonly string[];
-  try {
-    names = await readdir(directory);
-  } catch (error) {
-    if (isMissing(error)) return [];
-    throw error;
-  }
-  const journals: CaseJournal[] = [];
-  for (const name of names) {
-    for (const frame of unpackFrames(await readFile(resolve(directory, name)))) {
-      const read = journalFormat.decodeJournal(frame);
-      const { file, name: caseName, id, stopped } = unpackCase(read.testFile);
-      journals.push({
-        file: projectPath(root, file),
-        name: caseName,
-        id,
-        ...(stopped === undefined ? {} : { stopped }),
-        modules: read.modules,
-      });
-    }
-  }
-  return journals;
 }

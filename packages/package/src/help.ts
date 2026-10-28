@@ -3,7 +3,8 @@ import type { Declaration } from './declare.js';
 import { type Offering, type OfferingOptions, readOfferings } from './manifest.js';
 import { createReader, namesReachedBy, type Names } from './reach.js';
 import { type Mention, type Readmes, readMention, readmes } from './mention.js';
-import { type Deep, type Named, type Usage, type UsageOptions, type Use, readUsage } from './use.js';
+import { type Deep, type Named, type Usage, type UsageOptions, type Use } from './use.js';
+import { readUsage } from './read-usage.js';
 
 /**
  * What a workspace publishes, what it says about it, and what uses it.
@@ -61,6 +62,15 @@ export interface Entry {
    */
   readonly sites: readonly Use[];
   /**
+   * Every place that reads this name off the module's `default`:
+   * `(await import('m')).default.x`.
+   *
+   * Kept apart from `sites`, and counted in neither `usedBy` nor `uses`:
+   * `default` holds the name only when the module is CommonJS, and for an ES
+   * module that does not export it there, the line reads something else.
+   */
+  readonly throughDefault: readonly Use[];
+  /**
    * Where the nearest README names this, for a name with no doc comment.
    *
    * Present only when `doc` is absent and the prose exists. Never merged into
@@ -76,6 +86,13 @@ export interface Opening {
   /** The file the manifest points at, relative to the workspace root. */
   readonly source: string;
   readonly entries: readonly Entry[];
+  /**
+   * Every place this subpath's module goes on whole where the reading does not
+   * follow it — passed to a call, returned, stored. Each may read any name of
+   * it, and none is known to, so it is a fact of the module, held once here,
+   * and no use of any entry.
+   */
+  readonly whole: readonly Use[];
 }
 
 /** One published package. */
@@ -83,14 +100,32 @@ export interface Documented {
   readonly name: string;
   /** The manifest keys `OFFERED` names, present-or-absent, verbatim. */
   readonly declared: Readonly<Record<string, unknown>>;
+  /** Whether the manifest declares an entry — `exports`, `main`, `types` or `typings` — whether or not any of it was opened. */
+  readonly entry: boolean;
   readonly openings: readonly Opening[];
 }
 
 /** A workspace, read three ways and joined. */
 export interface Help {
   readonly packages: readonly Documented[];
-  /** Specifiers reaching into a package past what its `exports` map opens. */
+  /** Specifiers naming a file of a package past every specifier its manifest declares: deep imports. */
   readonly deep: readonly Deep[];
+  /**
+   * Specifiers a published manifest declares that the reading could not follow
+   * to a source file, such as a `main` naming a build output the checkout does
+   * not hold. Each names the entry exactly, so none is deep.
+   */
+  readonly unfollowed: readonly Deep[];
+  /**
+   * Specifiers naming a file of a package that declares no entry — no
+   * `exports`, `main`, `types` or `typings` — private or not.
+   *
+   * Such a package is a folder and a boundary, and these imports are its whole
+   * surface: which of its files other packages import, and which names they
+   * take. Nothing is listed from its files that nobody imports, because nothing
+   * is declared to list.
+   */
+  readonly byPath: readonly Deep[];
   /**
    * Every name the repository's own files export, published or not.
    *
@@ -130,21 +165,47 @@ export interface HelpOptions extends OfferingOptions, UsageOptions {
  * `uses`. Both halves of that are deliberate: a package's own tests import its
  * barrel constantly, so counting them as consumers would make every name look
  * load-bearing, and dropping them entirely would lose the fact that the name is
- * exercised at all.
+ * exercised at all. A read off the module's `default` is kept apart, in
+ * `throughDefault`: it reads the name only when the module is CommonJS.
  */
-function reachedFrom(usage: Usage, key: string, name: string, owner: string): Pick<Entry, 'usedBy' | 'uses' | 'sites'> {
-  const uses = usage.names.get(key)?.get(name) ?? [];
+export function reachedFrom(usage: Usage, key: string, name: string, owner: string): Pick<Entry, 'usedBy' | 'uses' | 'sites' | 'throughDefault'> {
+  const held = usage.names.get(key)?.get(name) ?? [];
+  const uses = held.filter((use) => use.through?.throughDefault !== true);
   const by: string[] = [];
   for (const use of uses) {
     if (use.by !== owner && !by.includes(use.by)) by.push(use.by);
   }
-  return { usedBy: by, uses: uses.length, sites: uses };
+  return { usedBy: by, uses: uses.length, sites: uses, throughDefault: held.filter((use) => use.through?.throughDefault === true) };
+}
+
+/** Every place the module behind `key` goes on whole, recorded as the name `*`. */
+export function passedOn(usage: Usage, key: string): readonly Use[] {
+  return usage.names.get(key)?.get('*') ?? [];
+}
+
+/**
+ * The places outside `owner` that may read `entry` and are no use of it: reads
+ * off the module's `default`, and the module passed on whole. A name with none
+ * of `usedBy` and some of these is unknown, not unused.
+ */
+export function undecided(owner: string, held: Pick<Opening, 'whole'>, entry: Pick<Entry, 'throughDefault'>): readonly Use[] {
+  return [...entry.throughDefault, ...held.whole].filter((use) => use.by !== owner);
+}
+
+/** Where the places `undecided` returns may read a name: `may be read in 2 places: 1 off …, 1 passing …`. */
+export function mayBeRead(places: readonly Use[]): string {
+  const off = places.filter((use) => use.through?.throughDefault === true).length;
+  const parts = [
+    ...(off > 0 ? [`${off} off the module's \`default\``] : []),
+    ...(places.length > off ? [`${places.length - off} passing the module on whole`] : []),
+  ];
+  return `may be read in ${places.length} ${places.length === 1 ? 'place' : 'places'}: ${parts.join(', ')}`;
 }
 
 function entryOf(
   name: string,
   kinds: ReadonlyMap<string, Declaration>,
-  reached: Pick<Entry, 'usedBy' | 'uses' | 'sites'>,
+  reached: Pick<Entry, 'usedBy' | 'uses' | 'sites' | 'throughDefault'>,
   found: (at: string) => Mention | undefined,
 ): Entry {
   // The kinds of one name are one thing declared once — an interface merged with
@@ -214,6 +275,7 @@ export function assembleHelp(
   const packages = offerings.map((offering) => ({
     name: offering.name,
     declared: offering.declared,
+    entry: offering.entry,
     openings: offering.entrypoints.map((entry) => {
       const key = `${offering.name} ${entry.subpath}`;
       const entries = [...namesOf(entry.source)]
@@ -226,13 +288,15 @@ export function assembleHelp(
             b.uses - a.uses ||
             (a.name < b.name ? -1 : a.name > b.name ? 1 : 0),
         );
-      return { subpath: entry.subpath, source: relative(where, entry.source), entries };
+      return { subpath: entry.subpath, source: relative(where, entry.source), entries, whole: passedOn(usage, key) };
     }),
   }));
 
   return {
     packages,
     deep: usage.deep,
+    byPath: usage.byPath,
+    unfollowed: usage.unfollowed,
     exported: usage.exported,
     unreadable: [...offerings.flatMap((offering) => offering.unreadable ?? []), ...usage.unreadable],
   };
@@ -272,9 +336,10 @@ export function undocumented(help: Help): readonly Entry[] {
  * two live one import apart rather than one package apart: rendering needs
  * nothing a reading does not already need.
  */
-export { opening, writeGaps, writeIndex, writeLlms } from './write.js';
+export { opening, PARAGRAPH_BREAK, writeGaps, writeIndex, writeLlms } from './write.js';
 export type { Page } from './write.js';
-export { readUsage, usageFrom, kindOf } from './use.js';
+export { gatheringUsage, kindOf, usageFrom } from './use.js';
+export { readUsage } from './read-usage.js';
 export type {
   Bound,
   Named,
@@ -282,14 +347,16 @@ export type {
   Exported,
   Recorded,
   Requested,
+  Taken,
   Through,
   Usage,
   UsageOptions,
   Use,
   UseKind,
 } from './use.js';
-export { ownership, readOfferings, requested } from './manifest.js';
-export type { Entrypoint, Offering, OfferingOptions } from './manifest.js';
+export { ownership, readImportTargets, readOfferings, readWorkspaceManifests, requested } from './manifest.js';
+export { landing, type ImportTargets } from './entry.js';
+export type { Entrypoint, Offering, OfferingOptions, WorkspaceManifests } from './manifest.js';
 export { readMention, readmes } from './mention.js';
 export type { Mention, Readmes } from './mention.js';
 export type { Declaration, DeclarationKind } from './declare.js';

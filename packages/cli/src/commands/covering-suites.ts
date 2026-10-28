@@ -18,15 +18,18 @@
 
 import {
   declaredSuites,
+  SUITE_KINDS,
   testCoverageFile,
   type DeclaredSuite,
   type SuiteKind,
 } from '@variance-authority/sense/test-selection';
 import type { ParsedCovering } from '../covering-args.js';
-import { messageOf } from '../config-values.js';
 import { OperatorError, type RefusalKind } from '../exit.js';
 import { heldText } from './covering-frame.js';
 import { covering, formatCovering, type Covering, type CoveringFormat } from './covering.js';
+import { graphOnce, type Graph } from './gap-selection.js';
+import { evidenceGapText, GapRefusal, type EvidenceGap } from './evidence-gap.js';
+import { asOperator, nothingRecorded } from './suite-record.js';
 
 /** One suite's answer, or why its record could not give one. */
 export type SuiteAnswer =
@@ -34,12 +37,14 @@ export type SuiteAnswer =
   | {
       readonly suite: string;
       readonly kind: SuiteKind;
-      /** Present when a program can act on the refusal: `unrecorded`, or `unloaded` for a file the suite never loaded. */
+      /** Present when a program can act on the refusal: `unrecorded`, `unloaded` for a file the suite never loaded, or `older` for one its record predates. */
       readonly refused?: RefusalKind;
       readonly reason: string;
+      /** The run that would answer the question the refusal leaves open, when one would (`evidence-gap.ts`). */
+      readonly gap?: EvidenceGap;
     };
 
-/** The question asked of every declared suite, in declaration order. */
+/** The question asked of every declared suite, the nearest kind first (`nearestFirst`). */
 export interface CoveringSuites {
   readonly file?: string;
   readonly since?: string;
@@ -69,14 +74,13 @@ export async function coveringAnswer(request: ParsedCovering): Promise<Covering 
     ? { ...request, held: (await heldText(request)) ?? '' }
     : request;
   const suites: SuiteAnswer[] = [];
-  for (const one of declared) suites.push(await askSuite(asked, one));
+  // One file graph for every suite: each reads its own record, and all of them the same checkout.
+  const graph = graphOnce(request.root);
+  for (const one of nearestFirst(declared)) suites.push(await askSuite(asked, one, graph));
   if (suites.every((answer) => 'refused' in answer && answer.refused === 'unrecorded')) {
-    throw new OperatorError(
-      `nothing is recorded in \`${request.root}\`: none of the suites it declares, ${
-        declared.map((one) => `"${one.name}"`).join(', ')
-      }, has a per-case index. Run a suite with \`withTestSelection\` and ask again.`,
-      { kind: 'unrecorded' },
-    );
+    const refused = nothingRecorded(request.root, declared.map((one) => one.name));
+    const gap = joined(suites.flatMap((answer) => ('gap' in answer && answer.gap !== undefined ? [answer.gap] : [])));
+    throw gap === undefined ? refused : new GapRefusal(refused.message, { kind: 'unrecorded', gap });
   }
 
   return {
@@ -86,35 +90,91 @@ export async function coveringAnswer(request: ParsedCovering): Promise<Covering 
   };
 }
 
-async function askSuite(request: ParsedCovering, suite: DeclaredSuite): Promise<SuiteAnswer> {
+/** Every gap the answer leaves open: its own, or each suite's, nearest kind first. */
+export function answerGaps(answer: Covering | CoveringSuites): readonly EvidenceGap[] {
+  const gaps = 'suites' in answer ? answer.suites.map((one) => one.gap) : [answer.gap];
+  return gaps.filter((gap) => gap !== undefined);
+}
+
+/**
+ * The gaps of suites none of which recorded a run, as one: each suite's fetch,
+ * and one first run of every suite the share does not hold.
+ */
+function joined(gaps: readonly EvidenceGap[]): EvidenceGap | undefined {
+  const [first] = gaps;
+  if (first === undefined) return undefined;
+  const wired = gaps.flatMap((gap) => (gap.run === undefined ? [] : [gap.run.suite]));
+  const named = wired.filter((suite) => suite !== undefined);
+  const run = wired.length === 0 ? undefined : named.length > 1 ? { suites: named } : named.length === 1 ? { suite: named[0]! } : {};
+  const { run: _, cost: __, ...rest } = first;
+  return { ...rest, ...(run === undefined ? {} : { run }), next: gaps.flatMap((gap) => gap.next) };
+}
+
+/**
+ * The declared suites in the order the kinds are listed, unit first, and by
+ * name within a kind. The reader asks which tests judge a change, and the
+ * nearest judge is the one run first; a suite named `chromium` sorting ahead
+ * of `unit` would bury the unit tests under every end-to-end journey.
+ */
+function nearestFirst(declared: readonly DeclaredSuite[]): readonly DeclaredSuite[] {
+  return [...declared].sort((a, b) => SUITE_KINDS.indexOf(a.kind) - SUITE_KINDS.indexOf(b.kind));
+}
+
+async function askSuite(request: ParsedCovering, suite: DeclaredSuite, graph: Graph): Promise<SuiteAnswer> {
   const named = { suite: suite.name, kind: suite.kind };
   try {
-    return { ...named, ...(await covering({ ...request, suite: suite.name })) };
+    return { ...named, ...(await covering({ ...request, suite: suite.name }, graph)) };
   } catch (error) {
     if (!(error instanceof OperatorError)) throw error;
-    return { ...named, ...(error.kind === undefined ? {} : { refused: error.kind }), reason: error.message };
+    return {
+      ...named,
+      ...(error.kind === undefined ? {} : { refused: error.kind }),
+      reason: error.message,
+      ...(error instanceof GapRefusal ? { gap: error.gap } : {}),
+    };
   }
 }
 
-/** Say either answer in the shape the caller asked for. */
+/**
+ * Say either answer in the shape the caller asked for.
+ *
+ * Once any suite answered, the answers come first. A suite that has never run
+ * follows them, and one that never loaded the file is named on the closing line
+ * without its record's path or size: the reader came for the answer, and a
+ * suite that tests other code is the common case, not a finding. Every other
+ * refusal keeps its place and its whole sentence. When no suite answered,
+ * every refusal is printed in full, since a wrong path is then the likely
+ * cause. JSON carries every refusal whole either way. Under `refs` no gap is
+ * said: the list is for a runner, and {@link answerGaps} hands the gaps to the
+ * caller for the person.
+ */
 export function formatCoveringAnswer(answer: Covering | CoveringSuites, format: CoveringFormat): string {
   if (!('suites' in answer)) return formatCovering(answer, format);
   if (format === 'json') return `${JSON.stringify(answer, undefined, 2)}\n`;
 
-  return answer.suites
-    .map((one) => {
-      const head = `${one.suite} (${one.kind}):`;
-      if ('reason' in one) return `${head} ${one.reason}\n`;
-      const body = formatCovering(one, format);
-      return `${head}\n${format === 'refs' ? body : body.replace(/^(?=.)/gmu, '  ')}`;
-    })
-    .join('\n');
-}
+  const named = (one: SuiteAnswer): string => `${one.suite} (${one.kind})`;
+  const say = (one: SuiteAnswer): string => {
+    const head = `${named(one)}:`;
+    const gap = one.gap === undefined || format === 'refs' ? '' : `${evidenceGapText(one.gap).replace(/^/gmu, '  ')}\n`;
+    if ('reason' in one) return `${head} ${one.reason}\n${gap}`;
+    const body = formatCovering(one, format);
+    return `${head}\n${format === 'refs' ? body : body.replace(/^(?=.)/gmu, '  ')}`;
+  };
+  if (answer.suites.every((one) => 'reason' in one)) return answer.suites.map(say).join('\n');
 
-function asOperator<T>(read: () => T): T {
-  try {
-    return read();
-  } catch (error) {
-    throw new OperatorError(messageOf(error), { cause: error });
+  const unrecorded = (one: SuiteAnswer): boolean => 'reason' in one && one.refused === 'unrecorded';
+  const away = (one: SuiteAnswer): boolean =>
+    'reason' in one && one.refused === 'unloaded';
+  const said = [
+    ...answer.suites.filter((one) => !unrecorded(one) && !away(one)),
+    ...answer.suites.filter(unrecorded),
+  ].map(say);
+  const unloaded = answer.suites.filter(away).map(named);
+  if (unloaded.length > 0) {
+    said.push(
+      `Not loaded by ${unloaded.join(', ')}: a run that never loaded the file has no answer about it, ` +
+        'which is not the same as no test covering it.\n',
+    );
   }
+  return said.join('\n');
 }

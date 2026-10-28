@@ -46,9 +46,14 @@ interface Line {
   readonly number: number;
 }
 
-/** Parse the whole document as one block map. */
-export function readYaml(text: string): YamlMap {
-  const lines = linesOf(text);
+/**
+ * Parse one document as one block map.
+ *
+ * `firstLine` is the line of the file the text starts on, for a document that
+ * is not the first in its file, so a refusal names the line an operator opens.
+ */
+export function readYaml(text: string, firstLine = 1): YamlMap {
+  const lines = linesOf(text, firstLine - 1);
   const [map, next] = blockAt(lines, 0, lines[0]?.indent ?? 0);
   if (next < lines.length) {
     throw new Unreadable(`line ${lines[next]!.number}: indentation steps out past the document`);
@@ -87,10 +92,11 @@ export function unquoted(value: string): string {
 /** YAML's own first characters, none of which a lockfile writer emits unquoted. */
 const INDICATORS = new Set(['&', '*', '!', '|', '>', '%', '@', '`']);
 
-function linesOf(text: string): readonly Line[] {
+function linesOf(text: string, offset: number): readonly Line[] {
   const lines: Line[] = [];
 
-  for (const [index, raw] of text.split('\n').entries()) {
+  for (const [at, raw] of text.split('\n').entries()) {
+    const index = at + offset;
     const indent = raw.length - raw.trimStart().length;
     const body = raw.slice(indent);
     if (body === '' || body.startsWith('#')) continue;

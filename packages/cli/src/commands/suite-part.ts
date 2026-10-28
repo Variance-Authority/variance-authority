@@ -1,5 +1,4 @@
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
-import { dirname } from 'node:path';
+import { readFile } from 'node:fs/promises';
 import {
   withExamples,
   type ComponentInstance,
@@ -7,8 +6,11 @@ import {
   type LexiconValues,
   type SubjectComposition,
 } from '@variance-authority/core/attribute';
+import { canonicalize, type CanonicalValue } from '@variance-authority/core/format';
 import type { SuiteIndex } from '@variance-authority/report/suite-index';
 import type { Config } from '../config.js';
+import { OperatorError } from '../exit.js';
+import { settle } from '../settle.js';
 import { writeSuiteIndex } from '@variance-authority/report/file';
 import { UNCOVERED } from './merge.js';
 import { censusOf, examplesOf, lexiconReportFrom, type LexiconReading } from './compose.js';
@@ -55,22 +57,32 @@ interface PartSubject {
 
 /**
  * The part a shard writes, from the plan-indexed compositions and the lexicon
- * it read over them. `reading.values` follows the non-null slots in order.
+ * it read over them. `reading.values` follows the compositions in order. A
+ * position holds every subject its visit read — a story at each of its widths —
+ * so it may hold more than one.
  */
 export function suitePartOf(
-  compositions: readonly (SubjectComposition | null)[],
+  compositions: readonly (readonly SubjectComposition[])[],
   reading: LexiconReading | undefined,
   commit: string | undefined,
   shard?: { readonly index: number; readonly total: number },
 ): SuitePart {
   const subjects: PartSubject[] = [];
-  let read = 0;
-  compositions.forEach((composition, position) => {
-    if (composition === null) return;
-    const lexicon = reading?.values[read++];
-    if (lexicon === undefined) return;
-    subjects.push({ position, subject: composition.subject, instances: composition.instances, lexicon });
-  });
+  // No reading is no snapshot read, and no subject is composed; a reading is
+  // one value per composition, and one that is not would hand every position
+  // after the gap another subject's names.
+  if (reading !== undefined) {
+    const total = compositions.reduce((sum, held) => sum + held.length, 0);
+    if (reading.values.length !== total) {
+      throw new Error(`suitePartOf was given ${String(reading.values.length)} lexicon values for ${String(total)} compositions`);
+    }
+    let read = 0;
+    compositions.forEach((held, position) => {
+      for (const composition of held) {
+        subjects.push({ position, subject: composition.subject, instances: composition.instances, lexicon: reading.values[read++]! });
+      }
+    });
+  }
   return {
     version: 1,
     ...(commit === undefined ? {} : { commit }),
@@ -82,25 +94,37 @@ export function suitePartOf(
   };
 }
 
-export async function writeSuitePart(reportPath: string, part: SuitePart): Promise<void> {
-  const path = suitePartPath(reportPath);
-  await mkdir(dirname(path), { recursive: true });
-  await writeFile(path, `${JSON.stringify(part)}\n`);
+/** A part as it is written: canonical, so equal parts are equal bytes. */
+export function encodeSuitePart(part: SuitePart): Uint8Array {
+  return new TextEncoder().encode(`${canonicalize(part as unknown as CanonicalValue)}\n`);
 }
 
-/** The part beside a report, or nothing when there is none to read. */
-export async function readSuitePart(reportPath: string): Promise<SuitePart | undefined> {
+export async function writeSuitePart(reportPath: string, part: SuitePart): Promise<void> {
+  await settle(suitePartPath(reportPath), encodeSuitePart(part));
+}
+
+/**
+ * The part at `path`; nothing when no file is there; otherwise why it is not
+ * `what` this version reads. Its shape is trusted past the version: the merge
+ * checks what a part says against every other part before composing.
+ */
+export async function openSuitePart(path: string, what = 'a suite part'): Promise<SuitePart | string | undefined> {
   let text: string;
   try {
-    text = await readFile(suitePartPath(reportPath), 'utf8');
+    text = await readFile(path, 'utf8');
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException).code;
+    if (code === 'ENOENT') return undefined;
+    return `${path} could not be read${code === undefined ? `: ${(error as Error).message}` : ` (${code})`}`;
+  }
+  let part: Partial<SuitePart>;
+  try {
+    part = JSON.parse(text) as Partial<SuitePart>;
   } catch {
-    return undefined;
+    return `${path} is not JSON`;
   }
-  const part = JSON.parse(text) as Partial<SuitePart>;
-  if (part.version !== 1 || typeof part.planned !== 'number' || !Array.isArray(part.subjects)) {
-    throw new Error(`${suitePartPath(reportPath)} is not a suite part this version reads`);
-  }
-  return part as SuitePart;
+  const whole = part.version === 1 && typeof part.planned === 'number' && Array.isArray(part.subjects);
+  return whole ? (part as SuitePart) : `${path} is not ${what} this version reads`;
 }
 
 /**
@@ -116,12 +140,17 @@ export function composeSuiteIndex(parts: readonly SuitePart[], commit: string): 
   const planned = new Set(parts.map((part) => part.planned));
   if (planned.size > 1) return `the shards planned ${[...planned].join(' and ')} subjects; they are not one build`;
 
-  const rows = parts.flatMap((part) => part.subjects).sort((left, right) => left.position - right.position);
-  for (let i = 1; i < rows.length; i += 1) {
-    if (rows[i]!.position === rows[i - 1]!.position) {
-      return `${rows[i]!.subject} was composed by two shards; they are not one build`;
+  // A position is one planned subject, and every subject its visit realized
+  // came from the one shard that owns it.
+  const owner = new Map<number, SuitePart>();
+  for (const part of parts) {
+    for (const row of part.subjects) {
+      const held = owner.get(row.position);
+      if (held !== undefined && held !== part) return `${row.subject} was composed by two shards; they are not one build`;
+      owner.set(row.position, part);
     }
   }
+  const rows = parts.flatMap((part) => part.subjects).sort((left, right) => left.position - right.position);
   if (rows.length === 0) return undefined;
 
   const present = rows.map(({ subject, instances }) => ({ subject, instances }));
@@ -137,17 +166,27 @@ export function composeSuiteIndex(parts: readonly SuitePart[], commit: string): 
   return { commit, subjects: census.subjects, components: census.components, lexicon };
 }
 
-/** Which `k/n` are absent or repeated, when every part names one. */
-function missingShards(parts: readonly SuitePart[]): string | undefined {
-  const shards = parts.map((part) => part.shard);
-  if (shards.some((shard) => shard === undefined)) return undefined;
-  const totals = new Set(shards.map((shard) => shard!.total));
+/**
+ * Whether the parts are one cut of one build: every shard of one count, each
+ * once, or a single unsharded part. A `--subjects` slice names no shard either,
+ * and is refused by its caller before it gets here.
+ */
+export function missingShards(parts: readonly SuitePart[]): string | undefined {
+  const unsharded = parts.filter((part) => part.shard === undefined).length;
+  const shards = parts.flatMap((part) => (part.shard === undefined ? [] : [part.shard]));
+  if (unsharded > 1) return 'two unsharded parts were given; they are not one build';
+  if (unsharded === 1 && shards.length > 0) {
+    return `an unsharded part was given with shard ${String(shards[0]!.index)}/${String(shards[0]!.total)}; they are not one build`;
+  }
+  if (shards.length === 0) return undefined;
+  const totals = new Set(shards.map((shard) => shard.total));
   if (totals.size > 1) return `the shards were cut ${[...totals].map((n) => `${String(n)} ways`).join(' and ')}`;
   const total = [...totals][0]!;
-  const held = shards.map((shard) => shard!.index);
+  const held = shards.map((shard) => shard.index);
   const absent = Array.from({ length: total }, (_, i) => i + 1).filter((index) => !held.includes(index));
   if (absent.length > 0) return `shard ${absent.map((index) => `${String(index)}/${String(total)}`).join(', ')} is missing`;
-  if (held.length > total) return `a shard of ${String(total)} was named twice`;
+  const twice = held.find((index, i) => held.indexOf(index) !== i);
+  if (twice !== undefined) return `shard ${String(twice)}/${String(total)} was given twice`;
   return undefined;
 }
 
@@ -156,13 +195,15 @@ function missingShards(parts: readonly SuitePart[]): string | undefined {
  *
  * Every shard scanned the same source, and each laid over it what its own
  * engine located for the components it rendered. So a component's answer is
- * taken from a shard that rendered it, and from the first shard otherwise.
+ * taken from the lowest-numbered shard that rendered it, and from the
+ * lowest-numbered shard otherwise — never from the order the parts were named
+ * in, which is a shell glob's.
  */
 function declaredOf(parts: readonly SuitePart[]): { readonly declaredIn?: Record<string, readonly string[]> } {
   if (parts.every((part) => part.declaredIn === undefined)) return {};
   const declaredIn: Record<string, readonly string[]> = {};
   const settled = new Set<string>();
-  for (const part of parts) {
+  for (const part of [...parts].sort((left, right) => firstOf(left) - firstOf(right))) {
     const rendered = new Set(part.subjects.flatMap((row) => row.instances.map((instance) => instance.component)));
     for (const [component, files] of Object.entries(part.declaredIn ?? {})) {
       if (settled.has(component)) continue;
@@ -175,13 +216,19 @@ function declaredOf(parts: readonly SuitePart[]): { readonly declaredIn?: Record
   return { declaredIn };
 }
 
+/** Where a part sorts among its build's: its shard, or the first position it holds. */
+function firstOf(part: SuitePart): number {
+  return part.shard?.index ?? part.subjects[0]?.position ?? Number.MAX_SAFE_INTEGER;
+}
+
 /**
  * `share --publish` over every shard's report: compose the index, keep it, and
  * publish it with the merged report's costs.
  *
  * `merged` is the reports already merged, which has refused shards of
  * different builds. What is refused here is what only the parts can show: a
- * shard that is missing, and one whose report has no part beside it.
+ * shard that is missing, one whose report has no part beside it, and a part
+ * this version cannot read.
  */
 export async function publishComposed(
   config: Config,
@@ -197,8 +244,11 @@ export async function publishComposed(
 
   const parts: SuitePart[] = [];
   for (const path of reports) {
-    const part = await readSuitePart(path);
+    const part = await openSuitePart(suitePartPath(path));
     if (part === undefined) return [`nothing published: ${path} has no ${suitePartPath(path)} beside it.`];
+    // A part that is there and cannot be read is a file the operator has to
+    // replace, as a run report that does not parse is.
+    if (typeof part === 'string') throw new OperatorError(`nothing published: ${part}.`);
     parts.push(part);
   }
 

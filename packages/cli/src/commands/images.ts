@@ -8,8 +8,8 @@ import {
   type RenderDocument,
   type SemanticSnapshot,
 } from '@variance-authority/core/format';
-import type { Observation } from '@variance-authority/observe';
-import { decode, diffImage } from '@variance-authority/png';
+import { packSnapshot, type Observation } from '@variance-authority/observe';
+import { changeImages, decode } from '@variance-authority/png';
 import type { BaselineKey, RasterStore, Renderer } from '@variance-authority/raster';
 import type { ObservationRecord } from '@variance-authority/report';
 import type { Config } from '../config.js';
@@ -71,13 +71,16 @@ export async function images(
   const cached = await candidateRaster(deps.store, document, renderer);
   if (cached === null) return {};
 
-  // The hashes are attached here rather than read back out of the cache. They
-  // describe the snapshot this run collected, and the cache is keyed by the
-  // document — so a cache hit is the right *image* and says nothing about whose
-  // components it was written beside (ADR-0027, and `withComponents`).
+  // The hashes and the packed tree are attached here rather than read back out
+  // of the cache. They describe the snapshot this run collected, and the cache
+  // is keyed by the document — so a cache hit is the right *image* and says
+  // nothing about whose components it was written beside (ADR-0027, and
+  // `withComponents`).
   const raster: Raster = {
     ...cached,
-    ...(snapshot === undefined ? {} : { components: hashComponents(snapshot) }),
+    ...(snapshot === undefined
+      ? {}
+      : { components: hashComponents(snapshot), snapshot: packSnapshot(snapshot) }),
     // Written on the candidate, which is the file `accept` promotes. That is the
     // whole path by which a defect found today becomes a defect the next run can
     // call standing: nothing inspects a baseline, because a baseline is a PNG.
@@ -95,7 +98,7 @@ export async function images(
     //
     // What it costs: a baseline promoted from this sidecar records no
     // accessibility evidence, so a later run that does have a snapshot calls the
-    // axis `incomparable` rather than `unchanged`. That is the safe direction —
+    // axis `changed` rather than `unchanged`. That is the safe direction —
     // the alternative is a stale tree asserted as current — which is why this is
     // a gap and not a defect. Closing it means the collector acquiring the
     // snapshot; every layer downstream of here already carries it.
@@ -148,7 +151,7 @@ export async function images(
   // for every subject in order to serve the few that write a diff would have
   // given back exactly what `describe` was adopted to save.
   //
-  // After the verdict check on purpose: `unchanged`, `new` and `incomparable`
+  // After the verdict check on purpose: `unchanged` and `new`
   // never write a `before.png`, so for them this read would be pure waste.
   const stored = (await deps.store.find(key, renderer.identityFor(document)))?.raster;
   // A baseline that occupies no pixels is not a `before` anybody can look at, and
@@ -163,10 +166,20 @@ export async function images(
   }
 
   await deps.writeArtifact(`${base}.before.png`, decode(before.bytes));
-  await deps.writeArtifact(
-    `${base}.diff.png`,
-    diffImage(decode(before.bytes), decode(raster.bytes)),
+  // The difference and the crops of it come from one alignment, cut where the
+  // comparison isolated its regions, so the picture a comment shows is the
+  // change at its own size rather than two pages scaled to a column. It names
+  // the subject and each side's source itself, since a person who taps it in a
+  // comment sees it without the comment around it.
+  const { diff, change } = changeImages(
+    decode(before.bytes),
+    decode(raster.bytes),
+    observation.isolation?.regions ?? [],
+    undefined,
+    { subject: id, before: 'baseline', after: 'this run' },
   );
+  await deps.writeArtifact(`${base}.diff.png`, diff);
+  if (change !== undefined) await deps.writeArtifact(`${base}.change.png`, change);
 
   return {
     images: {
@@ -174,6 +187,7 @@ export async function images(
       before: relative(reportDir, `${base}.before.png`),
       after: relative(reportDir, `${base}.after.png`),
       diff: relative(reportDir, `${base}.diff.png`),
+      ...(change === undefined ? {} : { change: relative(reportDir, `${base}.change.png`) }),
     },
   };
 }

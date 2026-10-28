@@ -11,7 +11,9 @@
  *
  * The addon answers with one verdict per file, and each charges differently:
  *
- * - `none`: the runtime text is equal. Nothing is charged.
+ * - `none`: the runtime text is equal. Nothing is charged. A `none` marked
+ *   `kept` is not the addon's: the selection found the diff's new side equal
+ *   to the text the record was taken over, and asked no parser.
  * - `bodies`: what the module does as it loads is equal, and every binding it
  *   makes holds the same value. The regions the lines map to are charged,
  *   without the module's own region.
@@ -37,7 +39,8 @@
  *
  * A file the recording holds no row for — new, or never instrumented — has no
  * regions to charge, so every name it exports counts as moved and its readers
- * answer for it (`readRowless`).
+ * answer for it (`readRowless`). One that names no export, as a CommonJS
+ * module's `module.exports` does not, is left to its importers, answered whole.
  *
  * A file that could not be read is charged as it always was, and the reading
  * says why. A file in no module language — a Rust or Python file the graph
@@ -45,19 +48,21 @@
  */
 
 import { extname } from 'node:path';
-import { EDGE_KINDS, RUNTIME_EDGES, idOf, nodeAt, type NodeId, type Relations } from '@variance-authority/core/relate';
+import { NOTHING, WHOLE, idOf, type NodeId, type Relations } from '@variance-authority/core/relate';
 import { native } from '../addon.js';
-import type { NativeModuleReaders } from '../native.js';
+import type { NativeModuleReaders, NativeScanner } from '../native.js';
 import { MODULE_EXTENSIONS } from '../read.js';
-import { blocksAround, gapInside, moduleRegion, regionOf } from './blocks-around.js';
+import { blocksAround, gapInside, moduleRegion, outsideRegions, regionOf } from './blocks-around.js';
 import type { LineRange } from './diff-lines.js';
 import { declaredEffects } from './effects.js';
-import { frameOf, type Frame } from './frame.js';
+import { commitFrame, frameOf, type Frame } from './frame.js';
 import type { TestCoverageView } from './format-view.js';
-import { importedAsAsset, type ExecutionNarrowingOptions } from './importers.js';
+import { walkImporters } from './importer-walk.js';
+import { importedAsAsset } from './importers.js';
+import type { ExecutionNarrowingOptions } from './narrowing.js';
 import { findModules, findTest } from './lookup.js';
 import { applied, hunksOf } from './patch.js';
-import type { SelectionReason } from './select.js';
+import type { SelectionReason } from './narrowing.js';
 
 /** What the reading made of one changed file, or why it made nothing. */
 export type FileReading =
@@ -78,6 +83,14 @@ export type FileReading =
        * it started or stopped binding loads, directly or through what it imports.
        */
       readonly effects?: readonly string[];
+      /**
+       * A `none` the parser never decided: the record kept the text it was
+       * taken over, and the diff's new side is that text (`rebasedChange`).
+       * It says nothing of a test carried from an earlier text: the landing
+       * demoted each that ran an edited region, and it is selected as
+       * incomplete. Absent for every verdict the parser gave.
+       */
+      readonly kept?: true;
     }
   | {
       readonly file: string;
@@ -89,9 +102,14 @@ export type FileReading =
        * `addon`: no native scanner on this machine.
        * `language`: not a JavaScript or TypeScript module, the only language
        * the verdict reads.
+       * `exports`: a file with no row that names no export to follow, as a
+       * CommonJS module's `module.exports` does not: its importers answer whole.
        */
-      readonly unread: 'source' | 'hunk' | 'parse' | 'addon' | 'language';
+      readonly unread: 'source' | 'hunk' | 'parse' | 'addon' | 'language' | 'exports';
     };
+
+/** Whether the change may reach a test through the file: every reading but a `none` the parser decided. */
+export const reachesThrough = (reading: FileReading): boolean => reading.verdict !== 'none' || reading.kept === true;
 
 /** What the reading needs from the query it runs inside. */
 export interface ReadingContext {
@@ -103,10 +121,12 @@ export interface ReadingContext {
   readonly charge: (file: string, block: number, reason: SelectionReason) => void;
   /** Select one test file directly. */
   readonly pick: (test: number, reason: SelectionReason) => void;
+  /** Select every test that loaded a file with no row: the graph's walk over its importers names them. */
+  readonly whole: (file: string, reason: Extract<SelectionReason, { readonly kind: 'reader' }>) => void;
 }
 
 /** Where a changed value was read: the reason for one charge. */
-type Reader = (name: string, at: string, block?: number) => SelectionReason;
+type Reader = (name: string, at: string, block?: number) => Extract<SelectionReason, { readonly kind: 'reader' }>;
 
 /**
  * Read one changed file whose frame was proved, and charge what the verdict
@@ -153,6 +173,11 @@ export function readChange(
         // proved it loads nothing, and a value it moves is charged to its
         // readers below, so nothing recorded ran the text itself.
         if (range.added !== undefined && !gapInside(coverage, first, end, range)) continue;
+        // A line no region holds, the module's included, is above the first
+        // statement or below the last: a deleted license comment, or the top
+        // of the file an insertion opens. The frame proved this is the text the
+        // regions were cut from, so nothing recorded ran the line either.
+        if (outsideRegions(coverage, first, end, range)) continue;
         for (const block of blocksAround(coverage, first, end, range)) {
           if (!moduleRegion(coverage, block)) context.charge(file, block, regionOf(coverage, name, block));
         }
@@ -187,26 +212,12 @@ export function readRowless(
   context: ReadingContext,
   file: string,
 ): { readonly reading: FileReading; readonly charged: boolean } | undefined {
-  const { coverage, options, knownAs } = context;
-  const { relations, sourceAt } = options;
-  if (relations === undefined || sourceAt === undefined) return undefined;
-  const names = knownAs(file);
-  const id = firstId(relations, [...names, file]);
-  if (id === undefined || importedAsAsset(relations, id)) return undefined;
-  if (!MODULE_EXTENSIONS.includes(extname(file))) return { reading: { file, unread: 'language' }, charged: false };
-  const scanner = native();
-  if (scanner?.moduleVerdict === undefined || scanner.moduleReaders === undefined) {
-    return { reading: { file, unread: 'addon' }, charged: false };
-  }
+  const subject = rowlessSubject(context, file);
+  if (subject === undefined || 'unread' in subject) return subject && { reading: subject, charged: false };
+  const { coverage } = context;
+  const { names, sourceAt, scanner } = subject;
 
-  let frame: Frame = { name: relations.names[id]!, text: '' };
-  for (const name of names) {
-    const text = sourceAt(name, coverage.commit);
-    if (text !== undefined) {
-      frame = { name, text };
-      break;
-    }
-  }
+  const frame = commitFrame(coverage, names, subject.name, sourceAt);
   const patched = applied(frame.text, context.hunks.get(file) ?? []);
   if (patched === undefined) return { reading: { file, unread: 'hunk' }, charged: false };
   const verdict = scanner.moduleVerdict(frame.name, frame.text, patched.after);
@@ -219,15 +230,53 @@ export function readRowless(
   if (effects.length > 0) return { reading: { file, verdict: 'load', names: [], effects }, charged: false };
 
   const exports = [...new Set([...now.interface, ...verdict.gone])];
+  // Nothing named means no reader can be asked about it, not that nothing reads
+  // it. A test answers for itself, whatever it exports.
+  if (exports.length === 0 && names.every((name) => findTest(coverage, name) === undefined)) {
+    return { reading: { file, unread: 'exports' }, charged: false };
+  }
   readValues(context, file, frame, new Map(), { ...verdict, exports }, now);
   return { reading, charged: true };
+}
+
+/** The names `readRowless` asks `sourceAt` for `file`'s recorded text under: none when it reads no text. */
+export function rowlessNames(context: ReadingContext, file: string): readonly string[] {
+  const subject = rowlessSubject(context, file);
+  return subject === undefined || 'unread' in subject ? [] : subject.names;
+}
+
+/** What `readRowless` reads `file` with, why it reads nothing, or `undefined` when no reading applies. */
+function rowlessSubject(
+  context: ReadingContext,
+  file: string,
+):
+  | { readonly names: readonly string[]; readonly name: string; readonly sourceAt: SourceAt; readonly scanner: ModuleScanner }
+  | Extract<FileReading, { readonly unread: unknown }>
+  | undefined {
+  const { relations, sourceAt } = context.options;
+  if (relations === undefined || sourceAt === undefined) return undefined;
+  const names = context.knownAs(file);
+  const id = firstId(relations, [...names, file]);
+  if (id === undefined || importedAsAsset(relations, id)) return undefined;
+  if (!MODULE_EXTENSIONS.includes(extname(file))) return { file, unread: 'language' };
+  const scanner = native();
+  if (!readsModules(scanner)) return { file, unread: 'addon' };
+  return { names, name: relations.names[id]!, sourceAt, scanner };
+}
+
+type ModuleScanner = NativeScanner & Required<Pick<NativeScanner, 'moduleVerdict' | 'moduleReaders'>>;
+type SourceAt = NonNullable<ExecutionNarrowingOptions['sourceAt']>;
+
+function readsModules(scanner: NativeScanner | undefined): scanner is ModuleScanner {
+  return scanner?.moduleVerdict !== undefined && scanner.moduleReaders !== undefined;
 }
 
 /**
  * Charge a changed value to its readers: in the declaring file, and one file
  * deep through every direct importer — further only where an importer hands
- * the value on. Returns the tests that loaded the declaring file through no
- * importer followed, when importers were followed from a file with a row.
+ * the value on, and back into the declaring file where an import brings it
+ * there. Returns the tests that loaded the declaring file through no importer
+ * followed, when importers were followed from a file with a row.
  */
 function readValues(
   context: ReadingContext,
@@ -264,22 +313,17 @@ function readValues(
     return undefined;
   }
 
+  // The declaring file, asked as an importer of its own names, speaks for no
+  // test: every test that loaded it crossed its rows, whatever edge it came by.
   const covered = new Set<number>();
-  const visited = new Set<NodeId>([id]);
-  let wave: Array<{ readonly id: NodeId; readonly moved: ReadonlyMap<string, string> }> = [{ id, moved }];
-  while (wave.length > 0) {
-    const next: typeof wave = [];
-    for (const step of wave) {
-      for (const importer of directImporters(relations, step.id)) {
-        const node = nodeAt(relations, importer);
-        if (node === undefined || node.kind !== 'file' || visited.has(importer)) continue;
-        visited.add(importer);
-        const passed = readImporter(context, node.name, step.moved, verdict.gone, reader, covered);
-        if (passed.size > 0) next.push({ id: importer, moved: passed });
-      }
-    }
-    wave = next;
-  }
+  const declaring = relations.names[id];
+  walkImporters(relations, id, moved, (importer, carried) => {
+    const audience = importer === declaring ? new Set<number>() : covered;
+    if (carried !== WHOLE) return readImporter(context, importer, carried, verdict.gone, reader, audience);
+    // It reads the file, not a name: every name in it moved for it.
+    answerWhole(context, importer, measured(context, importer, audience), (at, block) => reader(first!, at, block));
+    return NOTHING;
+  });
 
   // A test that loaded the declaring file through no importer the reading
   // followed reached it by an edge the graph does not hold. It is named, not
@@ -313,38 +357,22 @@ function readImporter(
   covered: Set<number>,
 ): ReadonlyMap<string, string> {
   const { coverage, options, knownAs } = context;
-  const rowsOf = new Map<string, readonly number[]>();
-  let test: number | undefined;
-  for (const name of knownAs(importer)) {
-    test ??= findTest(coverage, name);
-    const rows = findModules(coverage, name).filter((module) => coverage.moduleInstrumented.at(module) === 1);
-    if (rows.length > 0) rowsOf.set(name, rows);
-  }
-  if (rowsOf.size === 0 && test === undefined) return readUnmeasured(importer, moved, options, coverage.commit);
-  if (test !== undefined) covered.add(test);
-  for (const rows of rowsOf.values()) {
-    for (const module of rows) {
-      for (let block = coverage.moduleBlocks.at(module); block < coverage.moduleBlocks.at(module + 1); block += 1) {
-        for (const entered of coverage.crossings.members(coverage.blockSet.at(block))) covered.add(entered);
-      }
-    }
-  }
-
+  const { rowsOf, test } = measured(context, importer, covered);
   const origin = (name: string): string => moved.get(name) ?? name;
   const [first] = moved.keys();
   // A test file carries no row, so its text needs no frame: nothing is charged
   // by its line numbers, only the test itself.
-  const frame = rowsOf.size === 0 ? undefined : frameOf(coverage, knownAs(importer), rowsOf, options.sourceAt);
+  const frame = rowsOf.size === 0 ? undefined : frameOf(coverage, knownAs(importer), rowsOf, options.sourceAt, options.keptText);
   const text =
     frame === undefined ? options.sourceAt?.(importer, coverage.commit) : typeof frame === 'string' ? undefined : frame.text;
   const found = text === undefined ? null : native()!.moduleReaders!(importer, text, [...moved.keys()], true);
 
   if (found === null) {
-    // Not proved, or not parsed: the importer as a whole is what can be said.
-    if (rowsOf.size === 0) context.pick(test!, reader(origin(first!), importer));
-    else chargeModule(context, importer, rowsOf, (at, block) => reader(origin(first!), at, block));
+    // Not proved, no text, or not parsed: the importer as a whole is what can be said.
+    answerWhole(context, importer, { rowsOf, test }, (at, block) => reader(origin(first!), at, block));
     return new Map();
   }
+  if (rowsOf.size === 0 && test === undefined) return readUnmeasured(found, moved);
 
   // An import of a name the declaring file no longer exports fails at load.
   const loads = [
@@ -367,23 +395,51 @@ function readImporter(
   return passed;
 }
 
+/** An importer's instrumented rows under each of its names, and its test when it is one, marked `covered`. */
+function measured(context: ReadingContext, importer: string, covered: Set<number>) {
+  const { coverage, knownAs } = context;
+  const rowsOf = new Map<string, readonly number[]>();
+  let test: number | undefined;
+  for (const name of knownAs(importer)) {
+    test ??= findTest(coverage, name);
+    const rows = findModules(coverage, name).filter((module) => coverage.moduleInstrumented.at(module) === 1);
+    if (rows.length > 0) rowsOf.set(name, rows);
+  }
+  if (test !== undefined) covered.add(test);
+  for (const rows of rowsOf.values()) {
+    for (const module of rows) {
+      for (let block = coverage.moduleBlocks.at(module); block < coverage.moduleBlocks.at(module + 1); block += 1) {
+        for (const entered of coverage.crossings.members(coverage.blockSet.at(block))) covered.add(entered);
+      }
+    }
+  }
+  return { rowsOf, test };
+}
+
 /**
- * An importer with no row and no test: nothing it runs can be charged, so a
- * read of a moved name anywhere in it moves every name it exports, and its
- * own importers are asked in turn. One that reads none of them hands on only
- * what it re-exports. A text that cannot be had or parsed hands on nothing, and
- * the tests behind it are left to `unseen`.
+ * An importer answered as a whole: every test that loaded its row, the test it
+ * is, or — with neither — every test the graph says loaded it.
  */
-function readUnmeasured(
+function answerWhole(
+  context: ReadingContext,
   importer: string,
-  moved: ReadonlyMap<string, string>,
-  options: ExecutionNarrowingOptions,
-  commit: TestCoverageView['commit'],
-): ReadonlyMap<string, string> {
-  const text = options.sourceAt?.(importer, commit);
-  const found = text === undefined ? null : native()!.moduleReaders!(importer, text, [...moved.keys()], true);
+  { rowsOf, test }: ReturnType<typeof measured>,
+  reason: (at: string, block?: number) => ReturnType<Reader>,
+): void {
+  if (rowsOf.size > 0) chargeModule(context, importer, rowsOf, reason);
+  else if (test === undefined) context.whole(importer, reason(importer));
+  else context.pick(test, reason(importer));
+}
+
+/**
+ * An importer with no row and no test, read: nothing it runs can be charged, so
+ * a read of a moved name anywhere in it moves every name it exports, and its
+ * own importers are asked in turn. One that reads none of them hands on only
+ * what it re-exports. One that could not be read is answered whole instead, by
+ * every test that loaded it, and hands on nothing: what imports it loads it.
+ */
+function readUnmeasured(found: NativeModuleReaders, moved: ReadonlyMap<string, string>): ReadonlyMap<string, string> {
   const passed = new Map<string, string>();
-  if (found === null) return passed;
   const origin = (name: string): string => moved.get(name) ?? name;
   const read = found.reads[0]?.name ?? found.load[0] ?? (found.untraced ? [...moved.keys()][0] : undefined);
   if (read !== undefined) for (const name of found.interface) passed.set(name, origin(read));
@@ -441,16 +497,3 @@ function firstId(relations: Relations, names: readonly string[]): NodeId | undef
   }
   return undefined;
 }
-
-/** The files that load this one at runtime, one edge away: a type-only import loads nothing. */
-function directImporters(relations: Relations, id: NodeId): readonly NodeId[] {
-  const { offset, target, kind } = relations.dependents;
-  const importers: NodeId[] = [];
-  for (let edge = offset[id]!; edge < offset[id + 1]!; edge += 1) {
-    if (LOADS[kind[edge]!] === 1 && target[edge] !== id) importers.push(target[edge]!);
-  }
-  return importers;
-}
-
-const LOADS = new Uint8Array(EDGE_KINDS.length);
-for (const kind of RUNTIME_EDGES) LOADS[EDGE_KINDS.indexOf(kind)] = 1;

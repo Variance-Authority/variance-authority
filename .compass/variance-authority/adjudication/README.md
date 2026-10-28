@@ -9,7 +9,7 @@ sentence: a **verdict**, a **cause**, and a place.
 
 This block is where the system stops describing and starts asserting. It holds
 the whole distance between *5482 pixels moved* and *`Toggle` moved, at
-`src/ds/components.tsx:107`, in `main → region "Todos" → item 2 of 3`* — the
+`examples/todomvc/src/ds/components.tsx:107`, in `main → region "Todos" → item 2 of 3`* — the
 arithmetic that says what differs, the exclusions the adopter declared, the join
 that gives a difference a name and a location, the ordering that separates a
 **cause** from its collateral, and the single word the run commits to. Every one
@@ -80,9 +80,8 @@ component regressed.
 #### What I need from it
 
 An image of a **render document** produced under a stated identity, at a stated
-scale, so that a change mask can be taken over two images that are comparable by
-construction; and the identity itself, so a mismatch is reported as
-`incomparable` rather than compared anyway.
+scale, so that a change mask can be taken over the two images; and the identity
+itself, so a mismatch is compared and carried as the cause of whatever moved.
 
 #### What would make me leave
 

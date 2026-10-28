@@ -26,9 +26,19 @@ export const DOCKET_STYLES = `
 /* Changes or subjects: the two ways to work a build, as two addresses rather
    than as a piece of component state. */
 .va-switch { background: var(--va-sunken); border-radius: 9px; display: flex; flex: none; gap: 0.15rem; margin-bottom: 0.5rem; padding: 0.2rem; }
-.va-switch .va-mode { flex: 1; text-align: center; text-decoration: none; }
+.va-switch .va-mode { flex: 1; text-align: center; }
 .va-switch .va-mode.va-on { background: var(--va-accent-soft); color: var(--va-accent); font-weight: 650; }
 .va-switch .va-mode.va-off { color: var(--va-ink-3); cursor: not-allowed; }
+
+/* The tasks above the switch: each kind of work with its count, one pressed at
+   a time. A task with nothing in it is drawn and dimmed, not dropped, so the four
+   stay where the reader learned them. */
+.va-tasks { display: grid; flex: none; gap: 0.1rem; grid-template-columns: 1fr 1fr; margin-bottom: 0.5rem; }
+.va-tasks .va-rail-group { grid-column: 1 / -1; padding-top: 0.2rem; }
+.va-task { align-items: center; background: none; border: 1px solid transparent; border-radius: 8px; color: var(--va-ink-2); display: flex; font-size: 0.8rem; gap: 0.4rem; justify-content: space-between; padding: 0.35rem 0.55rem; text-align: left; }
+.va-task:hover:not(:disabled) { background: var(--va-sunken); color: var(--va-ink); }
+.va-task.va-on { background: var(--va-accent-soft); border-color: var(--va-accent); color: var(--va-accent); font-weight: 650; }
+.va-task:disabled { color: var(--va-ink-3); cursor: default; opacity: 0.6; }
 
 .va-rail-head { align-items: center; display: flex; flex: none; flex-wrap: wrap; gap: 0.4rem; padding: 0 0.15rem 0.5rem; }
 .va-rail-tally { color: var(--va-ink-3); font-size: 0.76rem; margin-right: auto; }
@@ -94,7 +104,7 @@ export const DOCKET_STYLES = `
 /* One change, in a row a reviewer scans a column of. The name is the only thing
    at full contrast; everything else on the row is there to be skipped. */
 .va-row { margin-bottom: 0.1rem; }
-.va-row-link { align-items: baseline; border: 1px solid transparent; border-radius: 8px; column-gap: 0.5rem; display: grid; grid-template-columns: minmax(0, 1fr) auto; padding: 0.35rem 0.5rem; row-gap: 0.05rem; text-decoration: none; }
+.va-row-link { align-items: baseline; border: 1px solid transparent; border-radius: 8px; color: var(--va-ink); column-gap: 0.5rem; display: grid; grid-template-columns: minmax(0, 1fr) auto; padding: 0.35rem 0.5rem; row-gap: 0.05rem; text-decoration: none; }
 .va-row-link:hover { background: var(--va-sunken); }
 .va-row.va-here .va-row-link { background: var(--va-accent-soft); border-color: var(--va-accent); }
 .va-row-name { font-size: 0.88rem; font-weight: 550; grid-area: 1 / 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -220,7 +230,7 @@ export const DOCKET_STYLES = `
 .va-where { display: grid; gap: 0.15rem; margin-top: 0.5rem; }
 .va-where-row { align-items: baseline; border-radius: 8px; column-gap: 0.6rem; display: grid; grid-template-columns: minmax(6rem, 15rem) auto auto minmax(0, 1fr) auto; padding: 0.35rem 0.5rem; }
 .va-where-row:hover { background: var(--va-sunken); }
-.va-where-subject { font-size: 0.88rem; font-weight: 550; grid-column: 1; overflow: hidden; text-overflow: ellipsis; text-decoration: none; white-space: nowrap; }
+.va-where-subject { color: var(--va-ink); font-size: 0.88rem; font-weight: 550; grid-column: 1; overflow: hidden; text-overflow: ellipsis; text-decoration: none; white-space: nowrap; }
 .va-where-size { grid-column: 2; text-align: right; }
 .va-where-row .va-mark { grid-column: 3; }
 .va-where-with { grid-column: 4; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

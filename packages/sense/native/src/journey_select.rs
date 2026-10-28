@@ -2,8 +2,10 @@
 //!
 //! The rules are `narrowByJourneys` (`test-selection/execution-select.ts`), which
 //! stays as the reading when no addon reached the machine and as the oracle this
-//! is tested against. A changed line is charged to the innermost region holding
-//! it and selects the cases that entered that region. A file named whole, a file
+//! is tested against. A changed line is charged as `chargeLine`
+//! (`test-selection/blocks-around.ts`) charges it — the innermost region holding
+//! it, and the region around it too when the line opens a region and carries
+//! its text — and selects the cases that entered a charged region. A file named whole, a file
 //! with no row, and a region that ran while its module evaluated are answered by
 //! the file graph, plus the record's own entrants wherever it holds a row. A
 //! changed test file selects itself, and a path neither knows is `unread`. A
@@ -14,9 +16,10 @@
 //! runs, and module evaluation — the one box where a runner evaluates the real
 //! module to shape a mock — is the region's `loaded` flag, credited to no case
 //! and answered by the graph, which is where the mocks are.
-//! A package whose install moved changes no line, so it is answered by the
-//! graph: every test file whose imports reach it, and every case the record saw
-//! enter a module that does.
+//! A bumped package arrives as the files that import it, changed whole
+//! (`beyondReach`), and is answered as they are. A suite that declines relations
+//! asks the graph nothing about a file with no row: a test file still selects
+//! itself, and any other is `declined` (`test-selection/route.ts`).
 //!
 //! Only the regions a change lands on have their sets expanded, and each test is
 //! looked at once per module, so the cost follows the change and not the day of
@@ -28,7 +31,7 @@ use napi_derive::napi;
 
 use crate::journey_graph::{Graph, JourneyGraph};
 use crate::journey_query::JourneyChange;
-use crate::journey_read::{innermost_at, overlaps, pairs, Journey, Region};
+use crate::journey_read::{charge_line, holds_any, pairs, Journey, Region};
 
 #[napi(object)]
 pub struct JourneySelection {
@@ -38,6 +41,8 @@ pub struct JourneySelection {
     pub entered: Vec<String>,
     /// Changed paths neither the record nor the graph knows.
     pub unread: Vec<String>,
+    /// Changed paths with no row, in a suite that declines relations; empty otherwise.
+    pub declined: Vec<String>,
 }
 
 struct Selecting<'a> {
@@ -116,13 +121,14 @@ impl<'a> Selecting<'a> {
         let journey = self.journey;
         let settled = read == Some("bodies");
         let candidates: Vec<Region> =
-            journey.regions(module)?.into_iter().filter(|region| overlaps(region, ranges)).collect();
+            journey.regions(module)?.into_iter().filter(|region| holds_any(region, ranges)).collect();
+        let kinds = candidates.iter().map(|region| journey.text(region.kind)).collect::<Result<Vec<_>, _>>()?;
         let mut chosen: Vec<Region> = Vec::new();
-        let mut innermost = Vec::new();
+        let mut charged = Vec::new();
         for (start, end) in ranges {
             for line in (*start).max(1)..=*end {
-                innermost_at(&candidates, line, &mut innermost);
-                chosen.extend(&innermost);
+                charge_line(&candidates, &kinds, line, &mut charged);
+                chosen.extend(&charged);
             }
         }
         chosen.sort_unstable_by_key(|region| region.at);
@@ -142,26 +148,13 @@ impl<'a> Selecting<'a> {
         }
         Ok(None)
     }
-
-    fn bumped(&mut self, name: &str) -> Result<(), String> {
-        let Some(files) = self.graph.as_ref().and_then(|graph| graph.package_importers(name)) else { return Ok(()) };
-        for file in files {
-            if let Some(test) = self.held.get(file).copied() {
-                self.entered.insert(test);
-            }
-            if let Some(module) = self.journey.module_of(file)? {
-                self.every_entrant(module)?;
-            }
-        }
-        Ok(())
-    }
 }
 
 fn select(
     file: &str,
     changed: &[JourneyChange],
     graph: Option<&JourneyGraph>,
-    packages: &[String],
+    declines: bool,
 ) -> Result<JourneySelection, String> {
     let journey = Journey::open(file)?;
     let tests = journey.test_file_names()?;
@@ -174,32 +167,42 @@ fn select(
         seen: vec![false; journey.tests()],
     };
     let mut unread = Vec::new();
+    let mut declined = Vec::new();
     for change in changed {
         let ranges = pairs(&change.ranges);
         let module = journey.module_of(&change.file)?;
+        if module.is_none() && declines {
+            // A test file the record holds a case of selects itself, which is
+            // all the record says of a file it has no row for.
+            match selecting.held.get(change.file.as_str()).copied() {
+                Some(test) => {
+                    selecting.entered.insert(test);
+                }
+                None => declined.push(change.file.clone()),
+            }
+            continue;
+        }
         if let Some(file) = selecting.change(&change.file, &ranges, module, change.read.as_deref())? {
             unread.push(file);
         }
-    }
-    for name in packages {
-        selecting.bumped(name)?;
     }
     Ok(JourneySelection {
         whole: selecting.held.iter().map(|test| (*test).to_owned()).collect(),
         entered: selecting.entered.iter().map(|test| (*test).to_owned()).collect(),
         unread,
+        declined,
     })
 }
 
 /// The test files `changed` needs, read off the journey file at `file` and,
-/// when given, the file graph; `packages` are the names whose install moved.
-/// Unsorted: the caller orders by code unit.
+/// when given, the file graph. `declines` is a suite that asks the graph
+/// nothing about a file with no row. Unsorted: the caller orders by code unit.
 #[napi(catch_unwind)]
 pub fn select_journeys(
     file: String,
     changed: Vec<JourneyChange>,
     graph: Option<JourneyGraph>,
-    packages: Option<Vec<String>>,
+    declines: Option<bool>,
 ) -> napi::Result<JourneySelection> {
-    select(&file, &changed, graph.as_ref(), &packages.unwrap_or_default()).map_err(napi::Error::from_reason)
+    select(&file, &changed, graph.as_ref(), declines == Some(true)).map_err(napi::Error::from_reason)
 }

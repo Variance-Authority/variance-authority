@@ -44,70 +44,82 @@ exercises the same behaviour. Initialization may supply something the test
 needs, and a component can influence the result without being directly used.
 Distill identifies candidates; the confirming run establishes which ones can go.
 
-Replace `<recorded-test-id>` below with the `id` of an entry in the evidence
-file's `tests` array.
+Name the case with `--test` and the file that declares it with `--file`.
+`--test` takes the recorded id or the case's whole title, `checkout > submits`;
+`--file` takes the test file's path, relative to the checkout or absolute, and
+names that file alone:
 
 ```bash
-variance distill \
-  --test '<recorded-test-id>' \
-  --eyes .variance/eyes.json \
-  --execution .variance/execution.json
+variance distill --file test/checkout.spec.ts --test 'checkout > submits'
 ```
 
-With Eyes evidence, `--test` also accepts a unique test title, such as
-`'checkout submits'`, or a title fragment that matches only one test. Distill
-resolves it to the Eyes ID and looks up that exact ID in the [execution record](execution-record.md).
-With execution evidence alone, supply the recorded ID.
+When more than one case fits, Distill prints the ids of up to five of them and
+stops. Pass one of those ids to `--test`. `--file` without `--test` reads the
+whole file: what it loaded, and how many of its cases entered each module
+([below](#imports-a-file-loads-for-few-of-its-cases)). Name neither, and Distill
+reads every test file, or with `--from <dir>` every one under a folder or a
+package, says how much of their time went to loading rather than to the tests
+([below](#where-a-folders-test-time-went)), and ranks the imports they load for
+nothing ([below](#imports-a-folder-a-suite-or-the-repository-loads-for-nothing)).
+
+Distill reads the record your last recorded run wrote, `coverage.bin`, and finds
+it the way [test selection](selecting.md) does. With more than one declared
+suite, name the one to read with `--suite <name>`; a reading of many test files
+with no suite named reads every declared suite. Pass `--execution <path>` to
+read another record, or a case index another tool exported as JSON. Whatever
+names the case, Distill finds it in the record's case index and reads the
+journals and the covered source by its id.
 
 The command is deterministic. The same inputs produce the same ordering and
 the same answer; it does not open a browser, run a test, or edit source.
 
-## Both recordings must key the test the same way
+## One record holds both readings
 
-With both files supplied, Distill joins them on **exact id**. It does not fall
+A run that records with [Sense](../packages/sense/README.md) and watches its
+page with [Eyes](eyes.md) writes both readings into the same record, keyed by
+the same case. Sense keys a case by its coordinate: the project-relative test
+file, then the describe path and the test name, joined by ` > `. A case that a
+named project ran leads with that project's name between bars.
+
+```text
+test/checkout.spec.ts > checkout > submits
+|chromium| test/checkout.spec.ts > checkout > submits
+```
+
+That is the id `--test` takes. Distill looks it up exactly. It does not fall
 back to a title or a file, because a title is not unique and a file contains
-many cases, and a guessed join would put one test's attention beside another's
-execution.
-
-[Sense](../packages/sense/README.md) keys a case by its coordinate: the
-project-relative test file, then the describe path and the test name, joined by
-` > `.
+many cases, and a guessed match would put one test's attention beside another's
+execution:
 
 ```text
-test/checkout.test.tsx > checkout > submits
+The record holds no case with id checkout submits. No title or file join was guessed.
+It records 214 case id(s), of which:
+  test/checkout.spec.ts > checkout > submits
+  ...
 ```
 
-So that is the id to give [Eyes](eyes.md) when you open each test's journal. The
-per-test hook in the [distill
-README](../packages/distill/README.md#both-halves-must-use-the-same-test-id)
-builds it. A runner's own positional id — `875862714_0` — is unique within the
-run and archives without complaint, but matches nothing in the execution index:
+A case Playwright retried keeps a journal for every attempt, numbered from 1,
+and Distill prints each one. An opportunity is a file no attempt addressed.
+
+A record whose run did not use Eyes still answers what the case entered, and
+reports that the attention half is missing:
 
 ```text
-Runtime journey: supplied, but it contains no test with exact id 875862714_0.
-No title or file join was guessed.
+Distillation opportunities: unavailable; the record keeps no Eyes journals; the run did not opt into Eyes.
 ```
 
-The refusal goes on to list a few of the ids the index does store, so the two
-shapes can be compared where the failure appears. Two cases in one file that
-share a coordinate are numbered, the second as `<coordinate>#1`.
+The journals stay in the record on the machine that ran the test. They leave it
+only with the record: through `variance share`, or through a host cache the
+config gives the suite to. Both name the journals among what they upload.
 
-## Both recordings must name source from the same root
+## Both readings name source from the same root
 
-Eyes names a component's source with the path the bundler handed over, which is
-absolute. Sense names a covered module relative to the project root. Distill
-brings the two to one shape against `--root`, which defaults to the directory
-you run it in. Pass `--root <path>` when you run it from somewhere else:
-
-```bash
-variance distill --test '<recorded-test-id>' \
-  --eyes .variance/eyes.json \
-  --execution .variance/execution.json \
-  --root /path/to/project
-```
-
-When the root cannot reconcile the two — no addressed source file matches any
-covered module — you get no opportunity list at all:
+Eyes names a component's source relative to the repository root, the way Sense
+names a covered module. A JSON index another tool exported may name its modules
+from somewhere else; Distill brings the two to one shape against `--root`, which
+defaults to the directory you run it in. When the root cannot reconcile them —
+no addressed source file matches any covered module — you get no opportunity
+list at all:
 
 ```text
 Distillation opportunities: unavailable; none of the 1 addressed source file(s)
@@ -118,8 +130,7 @@ Comparing paths that disagree in shape would report every covered file as an
 opportunity, including the component the test addressed, so the reading names
 what it could not establish instead. Where only some addressed files fail to
 match, the list stands and the leftovers are printed under **Addressed source
-this run never covered** — usually a module nothing instrumented, and otherwise
-the same root mismatch showing in part.
+this run never covered**: usually a module nothing instrumented.
 
 ## The three readings
 
@@ -178,9 +189,9 @@ stack was when it covered them. The field shows a real number only from a
 producer that tracks call depth, so read `depth 0` as "not recorded here" rather
 than as "called directly".
 
-An opportunity is not permission to mock, replace, or delete the file.
-[Static reachability](source.md) describes what the test could load; execution
-says what it covered; attention says what it addressed. None says what the test
+An opportunity is not permission to mock, replace, or delete the file. [Static
+reachability](source.md) describes what the test could load; execution records
+what it covered; attention records what it addressed. None records what the test
 would still witness after a substitution.
 
 ## Imports nothing ever calls
@@ -210,7 +221,7 @@ it, and `unentered` names the declarations the test never reached.
 Loaded but not covered: 1 module(s).
   src/heavy-chart.tsx — the import ran its top level and this test covered nothing below it
     never covered: HeavyChart (lines 5-8)
-    substitution to try: vi.mock('src/heavy-chart.tsx') — jest.mock and sb.mock say the same thing
+    substitution to try: mock src/heavy-chart.tsx in this test's file; loading it is all this test used of it. Stand in for what it exports: an automock loads the module to read its shape
 ```
 
 This is a stronger reading than an opportunity and still not a verdict. Mocking
@@ -219,11 +230,184 @@ handler, installs a polyfill, or builds a singleton is one the test may depend
 on. Write the mock, rerun the exact test, and compare the witness before you
 keep it.
 
+## Imports a file loads for few of its cases
+
+A runner evaluates a test file's imports once, when it loads the file, before
+its first case. That cost belongs to the file, not to any one case, and it is
+paid whether or not a case uses what was loaded. A dialog that opens on a click
+loads its whole tree with the file, even when no case clicks. Name the file
+alone to see that cost; the output opens with:
+
+```bash
+variance distill --file test/dialog.test.tsx
+```
+
+```text
+test/dialog.test.tsx: 3 case(s); 4 loaded module(s) declare functions.
+
+Loaded, and entered by no case: 2 module(s), 960 line(s).
+  src/dialog.tsx imports src/heavy-editor.ts: 1 module(s), 900 line(s)
+    src/heavy-editor.ts — 900 line(s)
+  src/dialog.tsx imports src/fancy-error.tsx: 1 module(s), 60 line(s)
+    src/fancy-error.tsx — 60 line(s)
+
+Loaded, and entered by some cases only: 1 module(s), 40 line(s).
+  src/confirm-dialog.tsx — 40 line(s), entered by 1 of 3 case(s)
+```
+
+Each module no case entered is listed under the import that made the file load
+it: the topmost import every path from the test file to the module runs
+through, with nothing behind it that a case entered. Removing that import frees
+everything listed under it. The import is often not in the test file: above,
+the test imports the dialog, and the dialog imports the editor. The file graph
+is read from the checkout and walks imports, re-exports, and dynamic imports
+whose specifier is a quoted string. An import that is dynamic only reads as `lazily
+imports`: what is listed under it was loaded when the import ran, not when the
+file did. Two groups take what no one import accounts for:
+
+- **No one import brings these in alone.** Two imports reach the module, or the
+  only one that does also brings in code a case entered. The line names the
+  nearest file every path to the module runs through, which is where to look.
+- **No import the graph reads reaches these from the test file.** An import
+  or `require` whose specifier is not a quoted string, or the runner's own setup,
+  brought the module in.
+
+An import the record says the file never evaluated — a module mocked with a
+factory — is not walked; an automocked module was evaluated, and is.
+
+The text names the ten heaviest imports and the three largest modules under
+each group, ten of those only some cases entered, and sums the rest on one line; `--format json` lists every module
+with its cause.
+
+A module listed is evidence; the fix is at its import. Delete that
+import, or mock it with a factory, when nothing behind it is used. Where the
+test file's subject reads the import only in functions no case ran, the reading
+proposes the mock: the module, the file that would stop loading it, and every value it
+exports for a stand-in. It names no runner's call; write the mock the way your
+runner mocks a module. When part
+of it is, import past the barrel inside its own package, or from an entry its
+package declares; move it to the code that uses it when only some
+cases do. Which case calls a module does not change what the file loads: only
+the import graph does, through a lazy import or a file of its own. Mocking a listed module by its own path
+ties the test to a file its code never names. An error boundary's fallback is
+the usual example: imported by every case, rendered by none, because no error
+happened.
+
+The reading also holds the file's own mocks against the file graph, whatever
+the record says. A mock of a module the file does not load, directly or through
+anything it imports, is an error: it replaces nothing, so delete it. A mock of
+a module more than two imports away, past what the file's subject imports, is a
+warning that names the file importing it: the mock replaces an internal of
+code the test never names. The distance is the shortest trail along the imports
+a runtime evaluates; a type-only import loads nothing.
+
+The reading counts a module only when it declares a function below its top
+level. A barrel or a file of constants runs all it has when it loads, and a read
+of a constant is not recorded, so the record cannot say the file did without it.
+The reading needs the coverage rows of a recorded run, not a case index from
+`--execution`. A record that keeps no cases for the file, a case that stopped
+or did not say whether it finished, and an incomplete coverage row — a
+filtered, cancelled or stopped run, or source changed since the run — each read
+as unmeasured: an entry the run never got to is not an entry the file did
+without. Running the file again records a row the reading can use.
+As with every finding here, rerun the file after the change: a top level can
+register something a case depends on.
+
+## Where a folder's test time went
+
+Before you cut an import, find out whether loading is what your tests cost.
+Name no case and no file, and Distill opens with the time the runner measured
+for each test file under the scope, split into what is part of a test and what
+is not:
+
+```bash
+variance distill --from packages/distill
+```
+
+```text
+packages/distill in suite unit: 6 test file(s), each read.
+
+Where the time went, as the runner timed 6 of the 6 test file(s): 3964 ms.
+  prepare, the worker readying the file: 242 ms, 6%
+  environment: 0 ms, 0%
+  setup files: 119 ms, 3%
+  collect, importing the test file and everything it loads: 3447 ms, 87%
+  cases: 156 ms, 4%
+Loading took longer than the cases in 6 test file(s): 3808 ms against 156 ms.
+  packages/distill/src/charge.test.ts: 635 ms loading, 34 ms in its cases
+  packages/distill/src/file.test.ts: 635 ms loading, 24 ms in its cases
+  packages/distill/src/mocks.test.ts: 635 ms loading, 14 ms in its cases
+  packages/distill/src/own.test.ts: 635 ms loading, 33 ms in its cases
+  packages/distill/src/scope.test.ts: 635 ms loading, 35 ms in its cases
+  and 1 more
+```
+
+Only `cases` is your tests: the cases and their hooks. `collect` is importing
+the test file and running its top level, which is where its modules load.
+"Loading" in the last lines is everything before the first case: `prepare`,
+`environment`, `setup` and `collect` summed. Vitest reports all five
+phases. Jest reports the environment and the setup files, and the recording
+marks the moment jest-circus starts each file's run, so a Jest file has every phase
+but `prepare`. A phase no file reported is left out rather than shown as zero,
+and a file without both a `collect` and a `cases` time is left out of every
+sum, which is why the head says how many of the files were timed.
+
+A test file whose loading took longer than its cases spends most of its time
+before it tests anything, and usually in what it imports. Each one is named, the longest loading first, the line
+before the names sums them, and the next reading says which imports those are.
+Files that load side by side wait on one another's imports, so in a parallel
+run their `collect` times come out close together, as they do above.
+
+## Imports a folder, a suite or the repository loads for nothing
+
+One test file shows you what its own imports cost. The import worth removing
+first is usually one many test files share: a barrel that puts a hundred unused
+lines into forty test files costs four thousand, paid once in each. The same
+command reads every test file on its own, as `--file` would, and after the time
+gathers what each loaded for nothing under the import that brought it in:
+
+```text
+Loaded, and entered by no case of the test file that loaded it: 951 module load(s), 198296 line(s).
+  packages/sense/src/test-selection/kept-install.ts imports packages/sense/src/lock/read.ts: 6 module(s) in 6 test file(s), 4476 line(s)
+  packages/sense/src/test-selection/index.ts imports packages/sense/src/test-selection/select.ts: 3 module(s) in 6 test file(s), 4218 line(s)
+  ...
+  No one import brings these in alone: 103 module(s) in 6 test file(s), 119268 line(s)
+```
+
+An import's lines count once in every test file it reaches, because each file
+evaluates its imports anew, and so does a module: 951 module loads is the sum
+over the six files. Only what no case of the loading file entered is gathered;
+a module some cases used belongs to the file's own reading. The text names the
+ten heaviest imports and sums the rest, then the modules no one import brings
+in alone and those no static import reaches, as a file's reading names them
+([above](#imports-a-file-loads-for-few-of-its-cases)); `--format json` lists
+every import with its modules and the test files it reaches. Lines are the size
+of what loaded, not its time: the time is the `collect` above, measured per
+file and not per import. The fix is at the import named, as it is for one file,
+and every test file the import reaches stops paying.
+
+You choose the scope:
+
+- **`--from <dir>`** reads the test files under a directory, a folder or a
+  package, named from the repository root or from `/`. A directory outside the
+  checkout is refused.
+- **`--suite <name>`** alone reads every test file of one suite.
+- **Nothing** reads every test file of every declared suite, and names a
+  declared suite that has not recorded. On a small project that is one answer
+  for the whole suite; on a large one, start from a package.
+
+A test file the record cannot answer for — no cases kept, a case that stopped,
+an incomplete coverage row — is withheld and named, as it would be read alone.
+A record of a filtered run withholds most of its files; the full run your
+mainline records answers for all of them. Read one of the test files with
+`--file` for the modules under each import, and for those only some of its
+cases used.
+
 ## One capability, three entrances
 
 | Entrance | Use it when | Invocation |
 | --- | --- | --- |
-| CLI | the evidence is in portable files | `variance distill --test <id> --eyes <path> --execution <path>` |
+| CLI | the run recorded in this checkout, or a record you name | `variance distill [--file <path> [--test <name>] \| --test <name> \| --from <dir>] [--suite <name> \| --execution <path>]` |
 | [MCP](agent-questions.md#distill-one-test) | a producer already supplies Eyes and Sense evidence to a connection | `variance_distill {"test":"<id>"}` |
 | [`variance-authority` skill](../packages/cli#ask-the-agent-answers-without-an-agent-protocol) | an agent must turn opportunities into a smaller verified test | install the skill shipped by `@variance-authority/cli` |
 
@@ -254,7 +438,7 @@ With a complete empty Eyes journal, the addressed surface is measured empty and
 the comparison can proceed. Neither case is printed as zero Fiber usage.
 
 The current reading counts addressed target paths and covered files. It does
-not claim a percentage of the Fiber tree: unmounted, hidden, lazy and
+not report a percentage of the Fiber tree: unmounted, hidden, lazy and
 never-observed branches have different denominators, and a DOM target does not
 establish that every ancestor or descendant participates in the assertion.
 

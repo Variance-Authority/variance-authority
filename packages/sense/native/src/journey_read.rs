@@ -17,10 +17,11 @@ use std::cell::OnceCell;
 use std::collections::HashMap;
 use std::fs;
 
-use crate::journey_format;
+use crate::case_said::{self, Heard};
 use crate::journey_lazy::{Handle, Lazy};
-use crate::journey_stitch::decode_set;
+use crate::crossing_sets::decode_set;
 use crate::order;
+use crate::record_layout::LAYOUT;
 
 /// One region of a module, as the columns spell it.
 #[derive(Clone, Copy)]
@@ -45,6 +46,12 @@ struct Columns {
     test_names: Handle,
     /// `tests.stopped`, absent in a file written before cases carried it.
     test_settled: Option<Handle>,
+    /// `tests.said`, absent where no case was listened to.
+    said: Option<Handle>,
+    /// `tests.read`, absent where no case was listened to, as in a record from before breadcrumbs.
+    read: Option<Handle>,
+    /// `tests.misused`, absent where no case was listened to for reads.
+    misused: Option<Handle>,
     module_files: Handle,
     module_blocks: Handle,
     kinds: Handle,
@@ -75,9 +82,11 @@ impl Journey {
         Journey::of(file, bytes)
     }
 
-    /// The journey file `file` held as `bytes`, for a caller that has read them.
+    /// The journey file `file` held as `bytes`, for a caller that has read them:
+    /// a coverage record's case index, or a case index on its own.
     pub fn of(file: &str, bytes: Vec<u8>) -> Result<Journey, String> {
-        let lazy = Lazy::new(bytes, journey_format::FORMAT)
+        let bytes = crate::journey_columns::recorded_cases(bytes);
+        let lazy = Lazy::new(bytes, LAYOUT.cases.format)
             .map_err(|error| format!("cannot read journey file {file}: {error}"))?;
         let columns = Columns {
             strings: lazy.column("strings.blob", 1)?,
@@ -86,6 +95,9 @@ impl Journey {
             test_files: lazy.column("tests.file", 4)?,
             test_names: lazy.column("tests.name", 4)?,
             test_settled: if lazy.has("tests.stopped") { Some(lazy.column("tests.stopped", 1)?) } else { None },
+            said: if lazy.has(case_said::SAID_SECTION) { Some(lazy.column(case_said::SAID_SECTION, 1)?) } else { None },
+            read: if lazy.has(case_said::READ_SECTION) { Some(lazy.column(case_said::READ_SECTION, 1)?) } else { None },
+            misused: if lazy.has(case_said::MISUSED_SECTION) { Some(lazy.column(case_said::MISUSED_SECTION, 1)?) } else { None },
             module_files: lazy.column("modules.file", 4)?,
             module_blocks: lazy.column("modules.blocks", 4)?,
             kinds: lazy.column("blocks.kind", 4)?,
@@ -176,6 +188,14 @@ impl Journey {
         self.columns.test_settled.map(|column| self.lazy.byte(column, test)).transpose()
     }
 
+    /// What each case said it arranged and the code read, `None` for a case
+    /// nobody listened to.
+    pub fn heard(&self) -> Result<Vec<Option<Heard>>, String> {
+        let bytes = |column: Option<Handle>| column.map(|column| self.lazy.all_bytes(column)).transpose();
+        let (said, read, misused) = (bytes(self.columns.said)?, bytes(self.columns.read)?, bytes(self.columns.misused)?);
+        case_said::read([said.as_deref(), read.as_deref(), misused.as_deref()], self.tests, |set| self.members(set))
+    }
+
     /// Each test's file, by test index.
     pub fn test_file_names(&self) -> Result<Vec<&str>, String> {
         (0..self.tests).map(|test| self.test_file(test)).collect()
@@ -256,29 +276,72 @@ pub(crate) fn overlaps(region: &Region, ranges: &[(u32, u32)]) -> bool {
     region.source && ranges.iter().any(|(start, end)| region.start <= *end && *start <= region.end)
 }
 
-/// The source regions innermost at `line` among `candidates`, by the rule
-/// `innermostAt` in `reverse.ts` states: a region holding the line that holds
-/// no other region holding it, unless the two share a span.
-pub(crate) fn innermost_at(candidates: &[Region], line: u32, into: &mut Vec<Region>) {
+/// Whether a region, with source or without, holds a line of one of the
+/// inclusive `ranges`: the regions `charge_line` may charge for them. A region
+/// written without an origin holds no line at both ends, so it holds none.
+pub(crate) fn holds_any(region: &Region, ranges: &[(u32, u32)]) -> bool {
+    let to = region.start.max(region.end);
+    ranges.iter().any(|(start, end)| region.start <= *end && *start <= to)
+}
+
+/// Add to `into` the regions among `candidates` an edit to `line` charges, by
+/// the rule `chargeLine` in `blocks-around.ts` states, in their order among
+/// `candidates`: the narrowest regions with source holding the line, the next
+/// ones out while a charged region's text on the line sits beside theirs, any
+/// region whose own text is on the line, and every region without source on
+/// it. `kinds[at]` is the kind of `candidates[at]`. Nothing, as
+/// `blocksChargedAt` answers, when no region with source holds the line.
+pub(crate) fn charge_line(candidates: &[Region], kinds: &[&str], line: u32, into: &mut Vec<Region>) {
     into.clear();
     if line < 1 {
         return;
     }
-    let holds = |region: &Region| region.source && region.start <= line && line <= region.end;
-    for region in candidates {
-        if !holds(region) {
+    let mut found: Vec<usize> = Vec::new();
+    let mut around: Vec<usize> = Vec::new();
+    for (at, region) in candidates.iter().enumerate() {
+        if region.start > line || region.start.max(region.end) < line {
             continue;
         }
-        let inner = candidates.iter().any(|other| {
-            other.at != region.at
-                && holds(other)
-                && region.start <= other.start
-                && region.end >= other.end
-                && (region.start != other.start || region.end != other.end)
-        });
-        if !inner {
-            into.push(*region);
+        if region.source {
+            around.push(at);
+        } else {
+            found.push(at);
         }
+    }
+    if around.is_empty() {
+        return;
+    }
+    let span = |at: usize| i64::from(candidates[at].end) - i64::from(candidates[at].start);
+    around.sort_by_key(|at| span(*at));
+    let mut index = 0;
+    let mut outwards = true;
+    while index < around.len() {
+        let width = span(around[index]);
+        let mut next = index;
+        while next < around.len() && span(around[next]) == width {
+            next += 1;
+        }
+        let group = &around[index..next];
+        let beside_resume = group.iter().all(|at| kinds[*at] == "resume");
+        let shares = group.iter().any(|at| shares_line(&candidates[*at], kinds[*at], line, beside_resume));
+        if outwards || shares {
+            found.extend_from_slice(group);
+        }
+        outwards = shares;
+        index = next;
+    }
+    found.sort_unstable();
+    found.dedup();
+    into.extend(found.into_iter().map(|at| candidates[at]));
+}
+
+/// Whether the region's text on `line` sits beside a wider region's, by the
+/// rule `sharesLine` in `blocks-around.ts` states.
+fn shares_line(region: &Region, kind: &str, line: u32, unaccompanied: bool) -> bool {
+    match kind {
+        "module" | "continuation" => false,
+        "resume" => unaccompanied,
+        _ => region.start == line || (kind == "function" && region.end == line),
     }
 }
 

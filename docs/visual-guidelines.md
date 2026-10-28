@@ -113,7 +113,7 @@ there and is never spent on chrome: it marks the cause, and nothing else.
 | `--va-warn` | `#e0a458` | Amber: changed, pending, not observed |
 | `--va-warn-bg` | `#2a2118` | Field behind an amber pill or panel |
 | `--va-warn-ink` | `#f0c48a` | Text on that field |
-| `--va-bad` | `#e5695c` | Red: refused, incomparable, unstable, failed |
+| `--va-bad` | `#e5695c` | Red: refused, unstable, failed |
 | `--va-bad-bg` | `#2c1b18` | Field behind a red pill or panel |
 | `--va-bad-ink` | `#f3a99e` | Text on that field |
 
@@ -231,9 +231,11 @@ BlinkMacSystemFont, "Segoe UI", Inter, Helvetica, Arial, sans-serif`), at weight
 300 for `VARIANCE` and 500 for `AUTHORITY`. No font file is bundled for it;
 reproduce the wordmark by using that asset.
 
-Product-facing prose uses Inter, with JetBrains Mono for code and captions —
-both bundled at `site/public/fonts/` and declared as `--font-sans` and
-`--font-mono` in `site/app/globals.css` and as `--va-sans` and `--va-mono` in
+Product-facing prose uses Inter, with JetBrains Mono for code and captions.
+The site bundles both at `site/public/fonts/` and declares them as
+`--font-sans` and `--font-mono` in `site/app/globals.css`. The review surface
+ships the same files in `packages/tribunal/fonts/`, declared by its `fonts.css`,
+and names them as `--va-sans` and `--va-mono` in
 `packages/tribunal/src/ui/styles.ts`. Illustrations use little or no text. When a label is necessary, use a short functional term such as
 `baseline`, `current` or `review`; the geometry must carry the explanation.
 

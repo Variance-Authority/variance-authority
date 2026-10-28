@@ -86,7 +86,7 @@ That is the first wall, and everything below is what it takes to get under it.
 ## A tree per file is a tree that has to cross back
 
 Parsing in 155 ms is only useful if nothing between the file and the parse
-costs more than the parse. In JavaScript it does, and the same files say by how
+costs more than the parse. In JavaScript it does, and the same files show by how
 much. Doing the whole stage — read every module, parse it, pull every specifier
 out of the tree — over 27,748 of them costs **1,997 ms** written in TypeScript
 and **276 ms** written in Rust. Both sides are given the same file list in the

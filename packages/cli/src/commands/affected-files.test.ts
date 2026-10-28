@@ -33,6 +33,14 @@ describe('every file a diff affects', () => {
     expect(affected.seeded).toBe(1);
   });
 
+  it('counts a changed file once when the changed directory holds it too', () => {
+    const affected = affectedFiles(GRAPH, ['src/lib/parse.py'], ROOTS, ['src/lib']);
+    if (refused(affected)) throw new Error(affected.whole);
+
+    expect(affected.seeded).toBe(2);
+    expect(affected.how).toContain('from 2 changed files');
+  });
+
   it('answers a file nothing imports with that file, and not with nothing', () => {
     // The case the whole command turns on. `alone.py` reaches no importer, and
     // the honest answer is *this one file* — which a runner can be handed. An
@@ -46,9 +54,9 @@ describe('every file a diff affects', () => {
 
   it('does not walk an edge that is erased before anything runs', () => {
     // `typed.py` imports `alone.py` under `if TYPE_CHECKING:`, and the same
-    // distinction is `import type` in TypeScript. The walk defaults to
-    // `RUNTIME_EDGES`, so a file that only names another for its types is not
-    // something a change to that other file can move at run time.
+    // distinction is `import type` in TypeScript. Selection asks what a run
+    // loads and names `RUNTIME_EDGES`, so a file that only names another for its
+    // types is not something a change to that other file can move at run time.
     const affected = affectedFiles(GRAPH, ['src/lib/alone.py'], ROOTS);
     if (refused(affected)) throw new Error(affected.whole);
 

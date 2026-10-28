@@ -50,7 +50,7 @@
  * beside the answer; it does not change the answer.
  */
 
-import { many } from './reach.js';
+import { many } from './prose-counts.js';
 
 export interface JourneyInput {
   /** Subjects the structural ground would observe, by id. */
@@ -98,7 +98,7 @@ export function unenteredSubjects(input: JourneyInput): Journeyed {
       whole:
         'the recorded execution journal holds no whole observation of any subject in this run, ' +
         'so it cannot say which of them covered the changed code',
-      because: 'the execution journal said nothing about this run’s subjects',
+      because: 'the execution journal has no entry for this run’s subjects',
     };
   }
 

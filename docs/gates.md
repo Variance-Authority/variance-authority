@@ -30,19 +30,18 @@ npm install --save-dev @variance-authority/cli
 `npx variance run` exits `0` when nothing needs review, `1` when it found
 something a person must look at, and `2` when the run did not happen as
 configured — a missing browser, a store it cannot open. A finding and a crash
-never share a code, so a red build says which of the two it is before anybody
+never share a code, so a red build shows which of the two it is before anybody
 opens it. Gate on the integer; nothing parses the output.
 
 Each state the run compares gets a **verdict** — the per-subject outcome
-(`unchanged`, `changed`, `new`, `incomparable` or `ignored`). Five things take
+(`unchanged`, `changed`, `new` or `ignored`). Four things take
 the run to `1`:
 
 | The run exits `1` when | Because |
 | --- | --- |
-| a subject is `changed` | pixels moved outside what you excluded |
-| a subject is `incomparable` | the baseline was painted under a different browser, platform, scale factor or font stack, so the comparison was refused rather than reported as agreement |
+| a subject is `changed` | pixels moved outside what you excluded, whatever the cause — a baseline painted under a different browser, platform, scale factor or font stack is compared, and the identity that moved is named first |
 | a subject the run meant to observe failed | a subject that cannot be observed does not silently pass |
-| two readings of one subject, seconds apart, disagreed and the subject's own declaration did not absorb that | otherwise the verdict is decided by whichever reading came first |
+| two readings in a row of one subject disagreed and the subject's own declaration did not absorb that | otherwise the verdict is decided by whichever reading came first |
 | an observation reports an `error` diagnostic | the run looked at less than the subject — a stylesheet it could not read, say — so the images agree about something smaller than what you asked for |
 
 Four things deliberately do not take it there:
@@ -70,7 +69,7 @@ Percy, Argos and Chromatic each sell one subscription that bundles browser
 capture, comparison and a hosted review page, with a managed browser fleet and
 a support contract behind it. Here there is no subscription and no fleet: the
 same three jobs run as a library and a CLI inside your own build. A
-**collector** — the adapter that knows one host, such as a built Storybook or a
+**collector** — the adapter written for one host, such as a built Storybook or a
 served application — finds the **subjects** that host has. A subject is one
 named UI state you asked for and can ask for again, identified by a stable id
 like `story:checkout--empty`.
@@ -113,12 +112,12 @@ track review or flake history.
 | Requirement | Fit |
 | --- | --- |
 | Additive Playwright capture | **yes** — native `test` and `expect` stay with Playwright |
-| In-place page screenshot | **yes** — the page is screenshotted, then re-read; if nothing drifted between the two reads, that screenshot becomes the candidate raster, and its pixels are compared against the baseline. A subject that keeps repainting exhausts a retry budget and is refused instead of compared |
+| In-place page screenshot | **yes** — the page is screenshotted, then re-read; if nothing drifted between the two reads, that screenshot becomes the candidate raster, and its pixels are compared against the baseline. The page also records each change to the subject's elements, attributes and text between the two reads, so a state that came and went while the screenshots were taken is retried like one that stayed; inside a shadow root, only a change still there at the second read is seen. A subject that keeps repainting exhausts a retry budget and is refused instead of compared |
 | Deferred render instead | **yes** — the same adapter can emit a document |
-| Existing raster library input | **yes** — `observeRasters` and raster `CaptureArtifact`; a foreign image declares its painter, and two painters return `incomparable` rather than a wall of red |
+| Existing raster library input | **yes** — `observeRasters` and raster `CaptureArtifact`; a foreign image declares its painter, and two painters are compared with the painter named as the cause of the red |
 | Arbitrary PNG CLI upload | **no** — the CLI has no ingest workflow |
-| Renderer identity | **yes** — engine, platform, scale, fonts, stabilization, and launch recipe partition baselines |
-| Hosted comments, reviewers, and flake register | **no** — those are Argos product capabilities |
+| Renderer identity | **yes** — engine, platform, scale, fonts, stabilization, and launch recipe are recorded with every baseline, and the ones that moved are named as the cause |
+| Hosted comments, reviewers, and flake register | **partial** — [`@variance-authority/tribunal`](https://variance-authority.dev/reference/packages/tribunal) keeps concerns, each a reviewer's signed doubt about a render with its region, evidence and every step taken on it, beside the decisions; hosted comment threads and a flake register are Argos's |
 
 **Summary:** Good fit when the team already owns the test browser and wants to
 operate the reporting workflow. Argos remains the better fit when hosted review

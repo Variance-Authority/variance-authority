@@ -76,8 +76,10 @@ is what paints the pages a run compares, and it is installed the same way
 whether or not you use Variance Authority's Playwright integration. If your
 suite already runs `npx playwright install chromium`, you are done.
 
-One thing your image does decide: pixels made on different machines are not
-comparable to each other, so where you paint is a choice with consequences.
+One thing your image does decide: pixels made on different machines differ, and
+a run names the identity fields that moved between them as the cause of every
+such change, so where you paint
+is a choice with consequences.
 [Placement](placement.md) covers it.
 
 ### When a binary does not arrive
@@ -89,7 +91,7 @@ platform's entries in it. Both leave the JavaScript wrappers in place and the
 
 - **Decoding degrades.** The default `decoder: "auto"` catches the failed load
   and uses `pngjs` — the same verdicts, a slower run. `decoder: "sharp"` fails
-  the run by name and says the addon would not load.
+  the run by name and prints that the addon would not load.
 - **Parsing does not degrade.** oxc has no fallback, so a command that builds
   the source index fails rather than building a smaller one.
 - **Scanning does not degrade.** The addon lists the files a scan opens and
@@ -100,6 +102,12 @@ platform's entries in it. Both leave the JavaScript wrappers in place and the
   tree-sitter grammars, it still reads JavaScript, TypeScript and stylesheets,
   and records every Python, Rust, Java, Kotlin and Swift file as unknown, with
   that reason.
+- **Component indexing does not degrade.** The `file:line` index that
+  `variance run`, `variance collect` and the Storybook and route collectors
+  build from `source.dirs` reads each file through the addon, so on a machine
+  without it the index fails at its first file and names why the addon did not
+  load. A platform outside the four indexes once you build the addon from the
+  checkout with `cargo`.
 - **Recording does not degrade.** The probes a test run records through are
   placed by the addon and by nothing else, so a run on a machine without it
   fails at its first module and names the package that did not load. A

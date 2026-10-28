@@ -129,11 +129,11 @@ finding id must belong to the selected owner and depth.
 ### Inspect an alignment across wrappers
 
 `inspectPresentationAlignment(report, ownerId, memberIds, kind)` is for a visual
-flow the product knows about even when implementation wrappers separate its
+flow the product defines even when implementation wrappers separate its
 members. It requires at least two distinct nodes inside one owner and returns the
 selected coordinate, overall spread, and each member's deviation.
 
-Member selection is the caller's product claim. Shared ancestry or a matching
+Member selection is the caller's product decision. Shared ancestry or a matching
 role does not authorize flattening both a wrapper and its nested control into
 the same peer set. The reading remains measurement and never creates a finding
 or an acceptability threshold.
@@ -246,15 +246,17 @@ identity and information-count deltas.
 
 Presence remains meaningful:
 
-- A missing report, or a side without layout findings, produces
-  `incomparable` with the missing side named and no effects.
+- A missing report, or a side without layout findings, produces `changed`
+  with the missing side named and no effects. A reading without layout
+  findings has not measured the layout, so neither side having layout
+  findings produces no signal.
 - A present empty effects list means both sides were measured and no
   relationship consequence changed.
-- An absent presentation signal means no producer measured that subject.
+- An absent presentation signal means nothing measured that subject's layout.
 
 Presentation consequence, renderer impact, and the visual-regression **verdict**
 — the run's answer for one subject, such as `unchanged`, `changed` or
-`incomparable` — remain separate axes. Storing a signal applies no policy and
+`new` — remain separate axes. Storing a signal applies no policy and
 never changes that verdict.
 
 ## Authority and limits

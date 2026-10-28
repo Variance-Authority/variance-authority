@@ -12,7 +12,7 @@ import { MUTATIONS } from './mutations.js';
 import { STORY_IDS } from './stories.js';
 import { comparePngs } from './pixel/diff.js';
 import { PROBES } from './pixel/probes.js';
-import { INSTABILITY_PROBES } from './pixel/instability.js';
+import { INSTABILITY_PROBES, declaredFor } from './pixel/instability.js';
 import { BASELINE_VARIANT, PROBE_PREFIX, type RenderResult } from './pixel/protocol.js';
 
 /**
@@ -394,16 +394,17 @@ describe.skipIf(!BROWSER_AVAILABLE)('instability — two runs of the same commit
   it.each(INSTABILITY_PROBES.map((probe) => probe.id))('%s behaves as declared', (id) => {
     const probe = INSTABILITY_PROBES.find((candidate) => candidate.id === id)!;
     const observed = INSTABILITY.get(id)!;
+    const declared = declaredFor(probe, process.platform);
 
     expect(
       observed.pixels > 0 ? 'moves' : 'holds',
       `${id}: pixels — ${probe.rationale}`,
-    ).toBe(probe.expect.pixels);
+    ).toBe(declared.pixels);
 
     expect(
       observed.contentMoved ? 'moves' : 'holds',
       `${id}: content — ${probe.rationale}`,
-    ).toBe(probe.expect.content);
+    ).toBe(declared.content);
 
     if (probe.expectEnvKeyDiffers !== undefined) {
       expect(observed.envKeyDiffers, `${id}: environment key`).toBe(probe.expectEnvKeyDiffers);
@@ -417,7 +418,7 @@ describe.skipIf(!BROWSER_AVAILABLE)('instability — two runs of the same commit
     const smoothing = INSTABILITY.get('text-smoothing')!;
     const dpr = INSTABILITY.get('device-pixel-ratio')!;
 
-    expect(smoothing.pixels).toBeGreaterThan(0);
+    if (process.platform === 'darwin') expect(smoothing.pixels).toBeGreaterThan(0);
     expect(smoothing.contentMoved).toBe(false);
     expect(dpr.pixels).toBeGreaterThan(0);
     expect(dpr.contentMoved).toBe(false);

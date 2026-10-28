@@ -4,7 +4,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { main } from '../bin.js';
-import { EXIT_CLEAN, EXIT_OPERATOR } from '../exit.js';
+import { EXIT_CLEAN, EXIT_OPERATOR, OperatorError } from '../exit.js';
+import { deletedAt } from './reach-command.js';
 
 /**
  * `variance reach` end to end, in a checkout of four languages and no config.
@@ -318,3 +319,53 @@ describe('a workspace that exports source under a custom condition', () => {
     ]);
   });
 });
+
+describe('a file the diff deletes', () => {
+  // A module converted from JavaScript with hand-written types to TypeScript:
+  // the pair goes, one file arrives, and the importer's request lands on it.
+  const PAIR = {
+    'src/theme.js': 'export function createTheme() {\n  return {};\n}\n',
+    'src/theme.d.ts': 'export interface Theme {}\nexport declare function createTheme(): Theme;\n',
+    'src/app.ts': "import { createTheme } from './theme';\nexport const theme = createTheme();\n",
+    'src/app.test.ts': "import { theme } from './app';\nvoid theme;\n",
+  };
+
+  it('walks on from the rest of the diff, and names the deleted files on stderr', async () => {
+    const root = checkout(PAIR);
+    git(root, ['rm', '--quiet', 'src/theme.js', 'src/theme.d.ts']);
+    commit(root, { 'src/theme.ts': 'export interface Theme {}\nexport function createTheme(): Theme {\n  return {};\n}\n' }, 'convert');
+
+    const said = await reach(['reach', '--since', 'HEAD~1']);
+
+    expect(said.code).toBe(EXIT_CLEAN);
+    expect(said.out.trim().split('\n').sort()).toEqual(['src/app.test.ts', 'src/app.ts', 'src/theme.ts']);
+    expect(said.err).toMatch(/2 deleted since `HEAD~1`[^\n]*src\/theme\.d\.ts and src\/theme\.js/);
+  });
+
+  it('exits 2 and writes nothing to stdout when the diff only deletes', async () => {
+    const root = checkout(PAIR);
+    git(root, ['rm', '--quiet', 'src/theme.d.ts']);
+    git(root, ['commit', '--quiet', '-m', 'drop the declaration']);
+
+    const said = await reach(['reach', '--since', 'HEAD~1']);
+
+    expect(said.code).toBe(EXIT_OPERATOR);
+    expect(said.out).toBe('');
+    expect(said.err).toMatch(/deletes 1 file and changes nothing that exists/);
+  });
+
+  it('refuses as an operator error, naming the base and the checkout, when git cannot list the deletions', async () => {
+    const root = checkout(PAIR);
+    const listing = deletedAt({ repository: root, base: 'no-such-base', at: async () => undefined });
+
+    await expect(listing).rejects.toBeInstanceOf(OperatorError);
+    await expect(listing).rejects.toThrow(/deleted since `no-such-base` in .*va-reach-[^:]*: fatal: /);
+  });
+});
+
+it.todo(
+  'a file the diff renames is walked once, under its new path, and is not named as deleted — needs a `git mv` fixture under `a file the diff deletes`',
+);
+it.todo(
+  'the deleted files and the changed files come from one `--name-status` diff against one merge base — needs `changedSince` in `since.ts` to return the deletions it read',
+);

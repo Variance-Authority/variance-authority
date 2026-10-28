@@ -1,6 +1,6 @@
 {
   "name": "@variance-authority/server",
-  "version": "0.12.0",
+  "version": "0.21.0",
   "description": "A self-hosted HTTP history service for Variance Authority observations and approvals.",
   "keywords": [
     "variance-authority",
@@ -53,5 +53,8 @@
   "dependencies": {
     "@variance-authority/core": "workspace:^",
     "@variance-authority/history": "workspace:^"
+  },
+  "devDependencies": {
+    "@variance-authority/sense": "workspace:^"
   }
 }

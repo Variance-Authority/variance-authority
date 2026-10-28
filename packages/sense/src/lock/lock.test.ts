@@ -234,6 +234,14 @@ describe.each(FIXTURES)('%s as %s', (file, text, format) => {
   });
 });
 
+describe.each(FIXTURES)('a bump in %s as %s', (file, text) => {
+  it('moves the one package whose resolution moved', () => {
+    const before = readLockfile(file, text);
+    const after = readLockfile(file, text.replaceAll('24.1.0', '24.1.1'));
+    expect(changedPackages(before, after)).toEqual(['jsdom']);
+  });
+});
+
 describe('what moved', () => {
   it('is nothing when the same text is read twice', () => {
     const before = readLockfile('yarn.lock', YARN_CLASSIC);

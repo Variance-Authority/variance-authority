@@ -3,9 +3,10 @@ import type { Observed } from './evidence.js';
 import { createDeclarationReader } from '@variance-authority/playwright';
 import { createPlaywrightRenderer } from '@variance-authority/playwright/renderer';
 import type { RasterStore, Renderer } from '@variance-authority/raster';
-import { createDurableStore } from '@variance-authority/store/durable';
 import { bundlePageAgent } from './bundle.js';
 import { observeLocator } from './fixture.js';
+import { regionOf } from './in-place.js';
+import { checkoutStore } from './render-cache.js';
 import type { MaterializationOptions, VarianceOptions } from './options.js';
 import {
   createExecutionRecorder,
@@ -17,6 +18,11 @@ import { asRun, type VarianceRun } from './run.js';
 export interface CreateVarianceOptions {
   /** Defaults to `.variance/baselines`. */
   readonly baselines?: string;
+  /**
+   * Where each baseline goes under `baselines`, as `baselines.path` in the
+   * config spells it. Defaults to `{title}/{name}-{engine}`.
+   */
+  readonly baselinePath?: string;
   /** Supply an existing renderer when the suite already owns its lifetime. */
   readonly renderer?: Renderer;
   /** Supply an existing store when baselines do not live in a directory. */
@@ -35,7 +41,7 @@ export interface CreateVarianceOptions {
   readonly tests?: boolean | ExecutionRecording;
   /**
    * Directory to write the compared images into, for every subject a person
-   * would stop on -- `changed`, `incomparable`, and `ignored`.
+   * would stop on -- `changed` and `ignored`.
    *
    * Off by default, and off is a real choice: the images are the largest thing a
    * run can produce, and a suite that reads the verdict in CI and never opens a
@@ -47,6 +53,11 @@ export interface CreateVarianceOptions {
 export interface DirectObservationOptions extends VarianceOptions {
   /** Defaults to `.variance/baselines`. */
   readonly baselines?: string;
+  /**
+   * Where each baseline goes under `baselines`, as `baselines.path` in the
+   * config spells it. Defaults to `{title}/{name}-{engine}`.
+   */
+  readonly baselinePath?: string;
   /** Defaults to deferred document rendering. */
   readonly materialization?: MaterializationOptions;
   /**
@@ -59,7 +70,7 @@ export interface DirectObservationOptions extends VarianceOptions {
   readonly tests?: boolean | ExecutionRecording;
   /**
    * Directory to write the compared images into, for every subject a person
-   * would stop on -- `changed`, `incomparable`, and `ignored`.
+   * would stop on -- `changed` and `ignored`.
    *
    * Off by default, and off is a real choice: the images are the largest thing a
    * run can produce, and a suite that reads the verdict in CI and never opens a
@@ -99,7 +110,14 @@ export async function createVariance(
   if (owner !== undefined) await recorder!.join(page, owner, run.baseURL);
   const bundle = options.bundle ?? (await bundlePageAgent());
   const materialization = options.materialization ?? { kind: 'deferred' };
-  const store = options.store ?? createDurableStore(options.baselines ?? '.variance/baselines');
+  const owned = options.store === undefined
+    ? checkoutStore(
+        options.baselines ?? '.variance/baselines',
+        options.baselinePath,
+        projectsOf(within),
+      )
+    : undefined;
+  const store = options.store ?? owned!.store;
   const ownsRenderer = materialization.kind === 'deferred' && options.renderer === undefined;
   let closed = false;
 
@@ -115,10 +133,13 @@ export async function createVariance(
   if (!installed) await page.evaluate(bundle);
 
   // Open an owned renderer only after page setup can no longer fail. Before
-  // this point no session exists whose `close` the caller could reach.
+  // this point no session exists whose `close` the caller could reach. It
+  // paints in the timezone and locale this page runs in. The page is the
+  // caller's, opened before this call, so its region is theirs too; nothing
+  // here can pin it, and a context that set no `timezoneId` runs in the host's.
   const renderer =
     materialization.kind === 'deferred'
-      ? options.renderer ?? (await createPlaywrightRenderer())
+      ? options.renderer ?? (await createPlaywrightRenderer(await regionOf(page)))
       : options.renderer;
 
   const declared = createDeclarationReader(page, { global: AGENT });
@@ -156,8 +177,20 @@ export async function createVariance(
       await declared.close();
       await recorder?.close();
       if (ownsRenderer) await renderer!.close();
+      await owned?.sweep();
     },
   };
+}
+
+/**
+ * The config's project names, when the runner built the `TestInfo`: a run
+ * descriptor carries none, and nor does a `TestInfo` assembled by hand outside
+ * the runner, which is a shape this entry point accepts.
+ */
+function projectsOf(within: TestInfo | VarianceRun): readonly string[] | undefined {
+  if (!('project' in within)) return undefined;
+  const projects = within.config.projects as readonly { readonly name: string }[] | undefined;
+  return projects?.map((project) => project.name);
 }
 
 /** Observe one locator without extending or replacing Playwright's test API. */
@@ -169,6 +202,7 @@ export async function observe(
 ): Promise<Observed> {
   const session = await createVariance(page, within, {
     ...(options.baselines === undefined ? {} : { baselines: options.baselines }),
+    ...(options.baselinePath === undefined ? {} : { baselinePath: options.baselinePath }),
     ...(options.materialization === undefined
       ? {}
       : { materialization: options.materialization }),

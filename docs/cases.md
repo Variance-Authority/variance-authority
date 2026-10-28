@@ -17,7 +17,7 @@ npx variance run --config variance.config.json
 npx variance accept --config variance.config.json cart/empty
 ```
 
-Start with the harness that already knows how to get the app into that state
+Start with the harness that already gets the app into that state
 and declare it ready. Keep that lifecycle where it works, then choose what to
 capture and where to render it. A Storybook or route host does not require
 local rendering, and a Playwright host does not require in-place pixels.
@@ -38,7 +38,7 @@ reject the result.
 ## Built or served Storybook
 
 Use `@variance-authority/storybook-collector` when your stories are already the
-catalogue of states worth reviewing. A **collector** is the package that knows
+catalogue of states worth reviewing. A **collector** is the package written for
 one host: it finds the subjects there, drives the host to each one, and hands
 the run what it captured. This one runs beside Storybook, reads its index,
 reuses a single preview, applies each story's viewport before mount, waits for
@@ -71,8 +71,8 @@ Choose it when:
 
 The collector is not a crawler: it never follows a link from one page to
 another. A sitemap or a built directory may supply the route list instead of an
-explicit map. You still get told when a page drops out — the run names it as a
-subject the baseline store knows and this run did not plan — but the removal
+explicit map. The run still reports when a page drops out — it names it as a
+subject the baseline store holds and this run did not plan — but the removal
 itself never shows up in a diff you review. List the routes explicitly when
 dropping one should be a reviewable change.
 
@@ -119,7 +119,7 @@ Choose it when:
 - capturing in one process and painting in another is acceptable.
 
 Nothing inside jsdom decides a verdict — the run's answer for a subject, such as
-`new`, `unchanged`, `changed` or `incomparable`. The verdict comes from the
+`new`, `unchanged`, `changed` or `ignored`. The verdict comes from the
 later run that paints the capture. jsdom also has no layout engine, so a changed
 pixel region on this path is reported without the component that drew it. To
 keep a real engine inside the test instead, use
@@ -133,7 +133,7 @@ to compare two PNGs you already have, or `observeCaptureAgainstBaseline` to
 compare one against the baseline a store keeps for that subject id. No browser
 is started on this path.
 
-Choose it when another system you trust already paints the images and can say
+Choose it when another system you trust already paints the images and can report
 what painted them. Without a matching capture of the DOM, you get changed pixel
 regions and nothing else: no component, no ignored regions and no `file:line`.
 This is a library path — the CLI will not ingest loose PNGs.

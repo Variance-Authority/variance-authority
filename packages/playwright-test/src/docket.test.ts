@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { indexSource } from '@variance-authority/core/attribute';
-import type { AttributedRegion } from '@variance-authority/core/attribute';
+import type { AttributedRegion, SourceIndex } from '@variance-authority/core/attribute';
 import type { Observation } from '@variance-authority/observe';
 import { describeObservation } from './docket.js';
 
@@ -32,7 +31,9 @@ function observation(overrides: Partial<Observation> = {}): Observation {
   };
 }
 
-const SOURCE = indexSource('src/ds/components.tsx', 'export function Toggle() {\n  return null;\n}\n');
+const SOURCE: SourceIndex = {
+  Toggle: [{ file: 'src/ds/components.tsx', line: 1, via: 'function' }],
+};
 
 describe('describeObservation', () => {
   it('says the subject and the verdict, with no regions to show', () => {
@@ -75,5 +76,25 @@ describe('describeObservation', () => {
     );
 
     expect(message).toContain('in checkbox "Mark as done"');
+  });
+
+  it('closes with the case the snapshot was taken in and what it had arranged', () => {
+    const message = describeObservation({
+      ...observation(),
+      case: {
+        file: 'tests/checkout.spec.ts',
+        name: 'mocked > pays',
+        id: 'abc-123',
+        preconditions: [{ name: 'network', value: 'mocked', site: 'tests/checkout.spec.ts:12', level: 0xffff }],
+      },
+    });
+
+    expect(message.split('\n').at(-1)).toBe(
+      'taken in tests/checkout.spec.ts > mocked > pays, ran under network=mocked (tests/checkout.spec.ts:12)',
+    );
+  });
+
+  it('says nothing of a case for a snapshot taken outside one', () => {
+    expect(describeObservation(observation({ verdict: 'new', because: 'no baseline' }))).not.toContain('taken in');
   });
 });

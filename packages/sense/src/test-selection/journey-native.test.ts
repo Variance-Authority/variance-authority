@@ -2,7 +2,10 @@ import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { relationsOfFiles, type FileRecord, type Relations } from '@variance-authority/core/relate';
+import { beyondReach, relationsOfFiles, type FileRecord, type Relations } from '@variance-authority/core/relate';
+import { codeUnitOrder } from '@variance-authority/core/segment';
+import { blocksChargedAt } from './blocks-around.js';
+import { rowOf } from './case-said.js';
 import { CrossingSets } from './crossing-sets.js';
 import type { LineRange } from './diff-lines.js';
 import { decodeExecutionIndex } from './execution-format.js';
@@ -112,14 +115,20 @@ const BUMPS: readonly (readonly [string, readonly string[]])[] = [
   ['a package nothing names', ['nowhere']],
 ];
 
+/** A bump as the selector hears it: the files it changed, each changed whole. */
+function bumpedFiles(relations: Relations | undefined, packages: readonly string[]): Map<string, readonly LineRange[]> {
+  if (relations === undefined) return new Map();
+  return new Map(beyondReach(relations, { packages, moved: [] }).files.map((file) => [file, []]));
+}
+
 describe('selecting off a journey file in the addon', () => {
   const index = decodeExecutionIndex(readFileSync(FILE));
 
   for (const [graph, relations] of [['mocks', mocked], ['no mocks', plain], ['no graph', undefined]] as const) {
     for (const [what, packages] of BUMPS) {
       it(`answers ${what} bumped as narrowByJourneys does, with ${graph}`, async () => {
-        const options = { ...(relations === undefined ? {} : { relations: relations as Relations }), packages };
-        const changed = new Map<string, readonly LineRange[]>();
+        const options = relations === undefined ? {} : { relations: relations as Relations };
+        const changed = bumpedFiles(options.relations, packages);
         expect(await selectJourneyFile(FILE, changed, options)).toEqual(narrowByJourneys(index, changed, options));
       });
     }
@@ -127,7 +136,7 @@ describe('selecting off a journey file in the addon', () => {
 
   it('traces a bump through the install to the files importing it, and to every case the record saw enter one', async () => {
     const bumped = async (name: string) =>
-      (await selectJourneyFile(FILE, new Map(), { relations: mocked, packages: [name] }))?.entered;
+      (await selectJourneyFile(FILE, bumpedFiles(mocked, [name]), { relations: mocked }))?.entered;
     // `card.test.ts` reaches `http.ts` only through its mock of `api.ts`, and
     // one of its cases called `send` anyway: the call is the record's word.
     expect(await bumped('ky-core')).toEqual(['test/card.test.ts', 'test/plain.test.ts', 'test/wire.test.ts']);
@@ -144,6 +153,72 @@ describe('selecting off a journey file in the addon', () => {
       });
     }
   }
+
+  for (const [graph, relations] of [['mocks', mocked], ['no graph', undefined]] as const) {
+    for (const [what, changed] of CHANGES) {
+      it(`answers ${what} as narrowByJourneys does in a suite that declines relations, with ${graph}`, async () => {
+        const options = { ...(relations === undefined ? {} : { relations: relations as Relations }), unmeasured: 'nothing' as const };
+        expect(await selectJourneyFile(FILE, changed, options)).toEqual(narrowByJourneys(index, changed, options));
+      });
+    }
+  }
+
+  it('leaves out a file the suite ignores, as narrowByJourneys does', async () => {
+    const changed = new Map<string, readonly LineRange[]>([['src/http.ts', [{ start: 2, end: 2 }]], ['src/card.ts', [{ start: 2, end: 2 }]]]);
+    const options = { relations: plain, ignore: ['src/http.ts'] };
+    const selected = await selectJourneyFile(FILE, changed, options);
+
+    expect(selected).toEqual(narrowByJourneys(index, changed, options));
+    expect(selected).toMatchObject({ entered: ['test/plain.test.ts'], ignored: ['src/http.ts'] });
+  });
+
+  // `http.ts` imports the picture; `card.ts`, which holds a row, and `solo.ts`, which holds none, declare they read its bytes.
+  const reading = relationsOfFiles(
+    RECORDS.map((record) =>
+      record.file === 'src/http.ts'
+        ? { ...record, edges: [{ to: 'src/logo.png', kind: 'asset' as const }] }
+        : record.file === 'src/card.ts' || record.file === 'src/solo.ts'
+          ? { ...record, edges: [...(record.edges ?? []), { to: 'src/logo.png', kind: 'depends' as const }] }
+          : record,
+    ),
+    { depends },
+  );
+
+  it('still follows a `/// <depends>` on a file the suite ignores, by the row or past a module with none, and no asset edge, as narrowByJourneys does', async () => {
+    const changed = new Map<string, readonly LineRange[]>([['src/logo.png', []]]);
+    const options = { relations: reading, ignore: ['**/*.png'] };
+    const selected = await selectJourneyFile(FILE, changed, options);
+
+    expect(selected).toEqual(narrowByJourneys(index, changed, options));
+    expect(selected).toMatchObject({ entered: ['test/other.test.ts', 'test/plain.test.ts'], unread: [], ignored: ['src/logo.png'] });
+  });
+
+  it('declines a module that declares an ignored file and holds no row in a suite that declines relations, as narrowByJourneys does', async () => {
+    const changed = new Map<string, readonly LineRange[]>([['src/logo.png', []]]);
+    const options = { relations: reading, ignore: ['**/*.png'], unmeasured: 'nothing' as const };
+    const selected = await selectJourneyFile(FILE, changed, options);
+
+    expect(selected).toEqual(narrowByJourneys(index, changed, options));
+    expect(selected).toMatchObject({ entered: ['test/plain.test.ts'], declined: ['src/solo.ts'] });
+  });
+
+  it('still follows a `/// <depends>` from a module the suite ignores as well, as narrowByJourneys does', async () => {
+    const changed = new Map<string, readonly LineRange[]>([['src/logo.png', []], ['src/card.ts', []]]);
+    const options = { relations: reading, ignore: ['src/**'] };
+    const selected = await selectJourneyFile(FILE, changed, options);
+
+    expect(selected).toEqual(narrowByJourneys(index, changed, options));
+    expect(selected).toMatchObject({ entered: ['test/other.test.ts', 'test/plain.test.ts'], ignored: ['src/card.ts', 'src/logo.png'] });
+  });
+
+  it('declines a file the journey has no row for when the suite declines relations', async () => {
+    const changed = new Map<string, readonly LineRange[]>([['src/solo.ts', []], ['test/other.test.ts', []], ['nowhere.ts', []]]);
+    expect(await selectJourneyFile(FILE, changed, { relations: plain, unmeasured: 'nothing' })).toMatchObject({
+      entered: ['test/other.test.ts'],
+      unread: [],
+      declined: ['nowhere.ts', 'src/solo.ts'],
+    });
+  });
 
   for (const [graph, relations] of [['mocks', mocked], ['no mocks', plain], ['no graph', undefined]] as const) {
     for (const [what, changed, read] of READ) {
@@ -177,12 +252,70 @@ describe('selecting off a journey file in the addon', () => {
     expect((await selectJourneyFile(FILE, changed, { relations: plain, read }))?.entered).toEqual(['test/other.test.ts']);
   });
 
-  it('charges a line to the innermost region, and holds every case to what it entered, mocks or not', async () => {
+  it('charges a line to the regions an edit to it reaches, and holds every case to what it entered, mocks or not', async () => {
     const at = async (file: string, line: number) =>
       (await selectJourneyFile(FILE, new Map([[file, lines(line)]]), { relations: mocked }))?.entered;
-    expect(await at('src/api.ts', 4)).toEqual(['test/plain.test.ts']);
-    expect(await at('src/api.ts', 3)).toEqual(['test/card.test.ts', 'test/plain.test.ts', 'test/wire.test.ts']);
+    // `nested` is one line inside `get`, so the line is `get`'s text too.
+    expect(await at('src/api.ts', 4)).toEqual(['test/card.test.ts', 'test/plain.test.ts', 'test/wire.test.ts']);
+    expect(await at('src/api.ts', 5)).toEqual(['test/card.test.ts', 'test/plain.test.ts', 'test/wire.test.ts']);
     expect(await at('src/http.ts', 2)).toEqual(['test/card.test.ts', 'test/plain.test.ts', 'test/wire.test.ts']);
+  });
+
+  describe('a line that opens a branch', () => {
+    // 1 function decide(ready, score) {
+    // 2   if (ready) {
+    // 3     go();
+    // 4   } else if (score > 1) {
+    // 5     bonus();
+    // 6   }                          ← the `else` nobody wrote
+    // 7   return done;
+    // 8 }
+    const cases = [
+      { id: 'ready > a', file: 'test/ready.test.ts', name: 'a' },
+      { id: 'score > a', file: 'test/score.test.ts', name: 'a' },
+      { id: 'neither > a', file: 'test/neither.test.ts', name: 'a' },
+    ];
+    const sets = new CrossingSets(cases.length);
+    const file = join(mkdtempSync(join(tmpdir(), 'journey-native-')), 'journeys.bin');
+    writeFileSync(file, encodeSetExecutionIndex({
+      tests: cases,
+      modules: [{
+        file: 'src/decide.ts',
+        blocks: [
+          region('module', '', 1, 8),
+          region('function', 'decide', 1, 8),
+          region('branch', 'decide/if.then', 2, 4),
+          region('branch', 'decide/if.else', 4, 6),
+          { ...region('branch', 'decide/if.else.else', 6, 6), source: false },
+        ],
+        called: Uint32Array.of(sets.intern([]), sets.intern([0, 1, 2]), sets.intern([0]), sets.intern([1]), sets.intern([2])),
+        loaded: Uint8Array.of(0, 0, 0, 0, 0),
+      }],
+      sets: sets.pool(),
+    }));
+    const index = decodeExecutionIndex(readFileSync(file));
+    const blocks = index.modules[0]!.blocks;
+    const at = (line: number) => new Map([['src/decide.ts', lines(line)]]);
+
+    it('selects the cases that evaluated its condition and never took it', async () => {
+      const everyCase = ['test/neither.test.ts', 'test/ready.test.ts', 'test/score.test.ts'];
+      expect((await selectJourneyFile(file, at(2)))?.entered).toEqual(everyCase);
+      expect(narrowByJourneys(index, at(2)).entered).toEqual(everyCase);
+      expect((await selectJourneyFile(file, at(4)))?.entered).toEqual(everyCase);
+      expect(narrowByJourneys(index, at(4)).entered).toEqual(everyCase);
+      expect((await selectJourneyFile(file, at(3)))?.entered).toEqual(['test/ready.test.ts']);
+      expect((await selectJourneyFile(file, at(6)))?.entered).toEqual(['test/neither.test.ts', 'test/score.test.ts']);
+    });
+
+    for (let line = 1; line <= 8; line += 1) {
+      it(`selects on line ${line} every case \`variance covering --line\` names, in the addon and without it`, async () => {
+        const named = blocksChargedAt(blocks, line)
+          .flatMap((block) => block.crossings.map((crossing) => index.tests[crossing.test]!.file));
+        const covering = [...new Set(named)].sort(codeUnitOrder);
+        expect(narrowByJourneys(index, at(line)).entered).toEqual(covering);
+        expect(await selectJourneyFile(file, at(line))).toEqual(narrowByJourneys(index, at(line)));
+      });
+    }
   });
 
   it('lets a mock cut only what ran while the module evaluated, which the graph answers', async () => {
@@ -240,5 +373,29 @@ describe('projecting a journey file onto a change', () => {
     expect(projected?.index.modules.map((module) => module.file)).toEqual(['src/api.ts']);
     expect(projected?.index.modules[0]?.blocks.map((block) => block.crossings.map((crossing) => crossing.test)))
       .toEqual([[], [0, 1, 2], [4]]);
+  });
+
+  it('carries what each case said it arranged, and nothing for a case nobody listened to', async () => {
+    const network = { name: 'fixture:network', value: 'mocked', site: 'test/card.test.ts:3', level: 0 };
+    const sets = new CrossingSets(3);
+    const file = join(mkdtempSync(join(tmpdir(), 'journey-native-')), 'journeys.bin');
+    writeFileSync(file, encodeSetExecutionIndex({
+      tests: [
+        { id: 'card > a', file: 'test/card.test.ts', name: 'a', said: JSON.stringify({ said: [['fixture:network', '"mocked"', 'test/card.test.ts:3', 0]] }) },
+        { id: 'card > b', file: 'test/card.test.ts', name: 'b', said: '{"said":[]}' },
+        { id: 'card > c', file: 'test/card.test.ts', name: 'c' },
+      ],
+      modules: [{
+        file: 'src/api.ts',
+        blocks: [region('function', 'get', 1, 4)],
+        called: Uint32Array.of(sets.intern([0, 1, 2])),
+        loaded: Uint8Array.of(0),
+      }],
+      sets: sets.pool(),
+    }));
+
+    const projected = await projectJourneyFile(file, new Map([['src/api.ts', lines(2)]]));
+
+    expect(projected?.index.tests.map(rowOf)).toEqual([[network], [], undefined]);
   });
 });

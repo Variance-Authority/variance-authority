@@ -8,5 +8,16 @@
   "fixed": [["@variance-authority/*"]],
   "linked": [],
   "privatePackages": false,
-  "ignore": []
+  "ignore": [],
+  "changedFilePatterns": [
+    "**",
+    "!**/*.test.*",
+    "!**/*.check.*",
+    "!**/*.measure.*",
+    "!**/*_tests.rs",
+    "!test/**",
+    "!**/__fixtures__/**",
+    "!README.md",
+    "!CHANGELOG.md"
+  ]
 }

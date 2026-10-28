@@ -1,0 +1,325 @@
+/**
+ * Move a checkout's record onto a newer milestone, keeping the tests it ran.
+ *
+ * A checkout's record is the milestone it was laid on with its own runs
+ * folded in, and its ledger (`own-layer.ts`) says which tests are whose. When
+ * a fetch brings a newer snapshot of the mainline, the record is rebuilt from
+ * that snapshot's bytes with this checkout's tests laid over it, the way a
+ * run's are: their rows, their crossings, their cases and their cases' Eyes
+ * journals replace the milestone's, and every other test is the new
+ * milestone's, unaltered.
+ *
+ * Only forward along HEAD's history. The new snapshot must be an ancestor of
+ * HEAD and descend from the pinned one; a snapshot of a commit this branch
+ * does not contain is someone else's base, and a pin git cannot place is
+ * kept. A test this checkout ran over a state that does not descend from the
+ * new milestone ran over older code than it, and the milestone answers for it.
+ *
+ * The milestone's own files are read and never written.
+ */
+
+// compass: variance-authority.reach
+
+import { execFileSync } from 'node:child_process';
+import { readFile, rm } from 'node:fs/promises';
+import { carriedSources } from './carried-sources.js';
+import { followRowsIn } from './case-cuts.js';
+import { textsIn, textsOf, type ModuleTexts } from './case-landing.js';
+import { caseSectionsOf, withCaseSections } from './case-record.js';
+import { layerCaseIndex } from './case-layer.js';
+import { commitRunsFile, readCommitRuns, writeCommitRuns, type CommitRuns, type StandingEntry } from './commit-runs.js';
+import { linesOf } from './case-lines.js';
+import { decodeSetExecutionIndex, encodeOwnedSetExecutionIndex, openSetColumns, openSetExecutionIndex } from './execution-set-format.js';
+import { layEyes, readableEyes } from './eyes-record.js';
+import { decodeTestCoverage } from './format.js';
+import { layCoverage } from './format-layer.js';
+import { openTestCoverage, wholeCoverage } from './format-view.js';
+import { editsBetween, type EditOf } from './region-edit.js';
+import { withIndexLock } from './index-lock.js';
+import type { TestCoverage } from './index.js';
+import { codeUnitOrder } from './instrumented-modules.js';
+import { installKey, type KeptInstall } from './kept-install.js';
+import type { LastFetched } from './mainline-layer.js';
+import { readOwnLayer, writeOwnLayer, type OwnLayer, type OwnState } from './own-layer.js';
+import { writeCoverageBytes } from './record-location.js';
+
+/** What {@link repinOwnLayer} did, and why it left the pin when it did. */
+export type Repin =
+  | { readonly repinned: true; readonly from: string; readonly to: string; readonly kept: readonly string[]; readonly dropped: readonly string[] }
+  | { readonly repinned: false; readonly why: RepinRefusal };
+
+/** Why {@link repinOwnLayer} left the record on the milestone it stands on. */
+export type RepinRefusal =
+  /** The record has no ledger, or the ledger names no milestone: there is nothing to move. */
+  | 'unpinned'
+  /** The record already stands on this milestone. */
+  | 'current'
+  /** The fetched snapshot is of another mainline than the pinned one. */
+  | 'other-mainline'
+  /** HEAD does not contain the fetched snapshot's commit. */
+  | 'not-ancestor'
+  /** The fetched snapshot does not descend from the pinned one: it is older, or on another line. */
+  | 'behind'
+  /** Git could not say: a shallow clone, or a commit this clone lacks. */
+  | 'unknown'
+  /** Another process holds the record. */
+  | 'busy'
+  /** The record or the snapshot does not read in this build. */
+  | 'unreadable';
+
+/**
+ * Re-base the record at `coverageFile` in the checkout at `root` onto `record`
+ * when the rules above allow, under the record's lock. The ledger is written
+ * last: a process killed before it leaves the old ledger beside the new
+ * record, which only over-claims tests as this checkout's.
+ */
+export async function repinOwnLayer(coverageFile: string, record: LastFetched, root: string): Promise<Repin> {
+  const layer = await readOwnLayer(coverageFile);
+  const refused = refusal(layer, record, root);
+  if (refused !== undefined) return { repinned: false, why: refused };
+  const locked = await withIndexLock(coverageFile, () => repin(coverageFile, record, root, layer!));
+  return locked.held ? locked.value : { repinned: false, why: 'busy' };
+}
+
+function refusal(layer: OwnLayer | undefined, record: LastFetched, root: string): RepinRefusal | undefined {
+  const pinned = layer?.pinned;
+  if (pinned === undefined) return 'unpinned';
+  if (pinned.commit === record.commit) return 'current';
+  if (pinned.mainline !== record.mainline) return 'other-mainline';
+  const contained = ancestor(root, record.commit, 'HEAD');
+  if (contained === undefined) return 'unknown';
+  if (!contained) return 'not-ancestor';
+  const ahead = ancestor(root, pinned.commit, record.commit);
+  if (ahead === undefined) return 'unknown';
+  return ahead ? undefined : 'behind';
+}
+
+async function repin(coverageFile: string, record: LastFetched, root: string, layer: OwnLayer): Promise<Repin> {
+  let ownBytes: Buffer;
+  let own: TestCoverage;
+  let milestone: Buffer;
+  let instrumentation: string;
+  let texts: ModuleTexts;
+  try {
+    ownBytes = await readFile(coverageFile);
+    own = decodeTestCoverage(ownBytes);
+    milestone = await readFile(record.coverage);
+    // A milestone the layer cannot open whole would be laid as nothing, and
+    // the record would lose every row this checkout did not run.
+    const whole = wholeCoverage(milestone);
+    if (whole === undefined) return { repinned: false, why: 'unreadable' };
+    // Rows recorded under other probes cannot be laid over the milestone's:
+    // it answers for every test.
+    instrumentation = whole.view.instrumentation;
+    texts = textsIn(whole.view);
+  } catch {
+    return { repinned: false, why: 'unreadable' };
+  }
+  // A state git cannot place is answered by the milestone: a wider read,
+  // never one that skips. So is a test the ledger lists and the record holds
+  // no row of, which a run under other probes left behind.
+  const held = new Set(own.tests.map((test) => test.file));
+  const states = instrumentation !== own.instrumentation ? [] : layer.ran
+    .filter((state) => ancestor(root, record.commit, state.commit) === true)
+    .map((state) => ({ ...state, files: state.files.filter((file) => held.has(file)) }))
+    .filter((state) => state.files.length > 0);
+  const kept = new Set(states.flatMap((state) => state.files));
+  const dropped = [...new Set(layer.ran.flatMap((state) => state.files))].filter((file) => !kept.has(file));
+  // Under the milestone's probes, so a subset of nothing lays the milestone as it is.
+  const subset = { ...ownSubset(own, kept), instrumentation };
+  const bytes = layCoverage(milestone, subset, await carriedSources(root, milestone, subset));
+
+  const ownCases = caseSectionsOf(ownBytes);
+  const milestoneCases = caseSectionsOf(milestone);
+  const view = openTestCoverage(bytes);
+  // The milestone's rows of a module this checkout did not record may have been
+  // re-cut to the text on disk; the cases held for it are laid onto the same cut.
+  // The milestone's cases were cut at its texts and this checkout's at its own;
+  // the cases land through the edit between them.
+  const edits = editsBetween(root, undefined, [record.commit, own.commit]);
+  const ownTexts = textsOf(own);
+  const laid = repinnedCases(milestoneCases.index, ownCases.index, kept, (file) => {
+    const [from, to] = [texts.get(file), ownTexts.get(file)];
+    return from === undefined || to === undefined ? undefined : edits(file, from, to);
+  });
+  const cases = laid === undefined ? undefined : followRowsIn({ index: laid }, view, texts, edits).index;
+  const eyes = repinnedEyes(milestoneCases.eyes, ownCases, cases, kept);
+  const recorded = Array.from(view.testPath.all(), (path) => view.string(path));
+  const runs = repinnedRuns(await readCommitRuns(coverageFile), own.commit, record, states, recorded, kept);
+
+  // The snapshot first: its new rows beside the old runs record read the
+  // milestone's tests from the old pin, which only widens, where the new runs
+  // record beside the old rows would read changes since the old pin as
+  // nobody's. The cases go in the same write; the last run and what it laid
+  // over describe a run over the old pin and go with it.
+  await writeCoverageBytes(coverageFile, withCaseSections(bytes, {
+    ...(cases === undefined ? {} : { index: cases }),
+    ...(eyes === undefined ? {} : { eyes }),
+  }));
+  if (runs === undefined) await rm(commitRunsFile(coverageFile), { force: true });
+  else await writeCommitRuns(commitRunsFile(coverageFile), runs);
+  await writeOwnLayer(coverageFile, { pinned: { mainline: record.mainline, commit: record.commit }, ran: states });
+  return { repinned: true, from: layer.pinned!.commit, to: record.commit, kept: [...kept], dropped };
+}
+
+/**
+ * The rows of `own` that `tests` answer for, as a run of those tests would
+ * have laid them: their test rows, and every module with only their
+ * crossings. A module none of them entered is left out, so the milestone's
+ * row of it stands.
+ */
+function ownSubset(own: TestCoverage, tests: ReadonlySet<string>): TestCoverage {
+  const modules = own.modules.flatMap((module) => {
+    const blocks = module.blocks.map((block) => ({
+      ...block,
+      testFiles: block.testFiles.filter((test) => tests.has(test)),
+      ...(block.loadedBy === undefined ? {} : { loadedBy: block.loadedBy.filter((test) => tests.has(test)) }),
+    }));
+    const entered = blocks.some((block) => block.testFiles.length > 0 || (block.loadedBy?.length ?? 0) > 0);
+    return entered ? [{ ...module, blocks }] : [];
+  });
+  return { ...own, tests: own.tests.filter((test) => tests.has(test.file)), modules };
+}
+
+/**
+ * The milestone's case index with the cases of `tests` laid over it from the
+ * record's own. Without either there is nothing this checkout's cases could
+ * be laid on, and the record carries none. `edit` gives, of a module, the edit
+ * from the text the milestone cut it at to the text this checkout did.
+ */
+export function repinnedCases(
+  milestone: Uint8Array | undefined,
+  own: Uint8Array | undefined,
+  tests: ReadonlySet<string>,
+  edit?: EditOf,
+): Uint8Array | undefined {
+  const opened = own === undefined ? undefined : openSetExecutionIndex(own);
+  if (own === undefined || opened === undefined || tests.size === 0) return milestone;
+  const index = decodeSetExecutionIndex(own);
+  // Crossings name a case by its position, so the kept cases are renumbered.
+  const at = new Map<number, number>();
+  const cases = index.tests.filter((test, position) => {
+    if (!tests.has(test.file)) return false;
+    at.set(position, at.size);
+    return true;
+  });
+  // A module no kept case entered keeps the milestone's layout of it. One that
+  // is kept keeps its regions in place, so the owners it recorded still hold;
+  // they are carried by place, as two cuts of one file can stand side by side.
+  const kept = index.modules.flatMap((module, place) => {
+    const blocks = module.blocks.map((block) => ({
+      ...block,
+      crossings: block.crossings.flatMap((crossing) => {
+        const test = at.get(crossing.test);
+        return test === undefined ? [] : [{ ...crossing, test }];
+      }),
+    }));
+    return blocks.some((block) => block.crossings.length > 0) ? [{ module: { ...module, blocks }, owner: opened.modules[place]?.owner, place }] : [];
+  });
+  // A kept case's lines name its modules by place, so they follow the kept modules.
+  const table = openSetColumns(own)?.testLines;
+  const moved = new Map(kept.map(({ place }, to) => [place, to]));
+  const lines = table === undefined ? undefined : [...at.keys()].map((position) => {
+    const held = linesOf(table, position);
+    return held === undefined ? undefined : {
+      ...held,
+      segments: new Map([...held.segments].flatMap(([place, segment]) => {
+        const to = moved.get(place);
+        return to === undefined ? [] : [[to, segment] as const];
+      })),
+    };
+  });
+  const fresh = encodeOwnedSetExecutionIndex({ tests: cases, modules: kept.map(({ module }) => module) }, kept.map(({ owner }) => owner), lines);
+  return layerCaseIndex(milestone, fresh, { ran: tests, finished: tests, present: () => true, ...(edit === undefined ? {} : { edit }) }).merged;
+}
+
+/**
+ * The Eyes section once the record stands on the milestone: the journals of
+ * the cases of `tests` are the record's own, as a run of them would have laid
+ * them, and every other case's are the milestone's. A case the repinned index
+ * no longer holds has none, and a section that does not read is none.
+ */
+function repinnedEyes(
+  milestone: Uint8Array | undefined,
+  own: { readonly index?: Uint8Array; readonly eyes?: Uint8Array },
+  merged: Uint8Array | undefined,
+  tests: ReadonlySet<string>,
+): Uint8Array | undefined {
+  const index = merged === undefined ? undefined : openSetExecutionIndex(merged);
+  if (index === undefined) return undefined;
+  const ran = own.index === undefined || openSetExecutionIndex(own.index) === undefined
+    ? []
+    : decodeSetExecutionIndex(own.index).tests.filter((test) => tests.has(test.file)).map((test) => test.id);
+  const ours = new Set(ran);
+  const held = readableEyes(own.eyes);
+  const fresh = held === undefined ? undefined : {
+    watched: held.watched.filter((id) => ours.has(id)),
+    journals: held.journals.filter((row) => ours.has(row.case)),
+  };
+  return layEyes(milestone, fresh, () => index.tests.map((test) => test.id), ran);
+}
+
+/**
+ * The runs record once the record stands on `record`: the runs at its commit
+ * as they were, its change now starting at the new milestone, each kept test
+ * standing where it last ran, on the install the record said it ran on there,
+ * and every other test at the milestone, where the publishing run ran the
+ * whole suite.
+ */
+function repinnedRuns(
+  held: CommitRuns | undefined,
+  commit: string | undefined,
+  record: LastFetched,
+  states: readonly OwnState[],
+  recorded: readonly string[],
+  kept: ReadonlySet<string>,
+): CommitRuns | undefined {
+  if (held === undefined) return undefined;
+  const files = held.files.filter((file) => kept.has(file));
+  const here = new Set(files);
+  const milestone = recorded.filter((file) => !kept.has(file));
+  // The install each test ran on where it stands, as the runs record said it.
+  // A test the ledger places at a commit no entry names it at keeps none, and
+  // is compared from that commit.
+  const ranOn = new Map<string, KeptInstall>();
+  for (const entry of held.standing ?? []) {
+    if (entry.assumed || entry.installed === undefined) continue;
+    for (const file of entry.files) ranOn.set(`${entry.commit} ${file}`, entry.installed);
+  }
+  const keyOf = (installed: KeptInstall | undefined) => (installed === undefined ? '' : installKey(installed));
+  const standing: StandingEntry[] = [];
+  if (milestone.length > 0) standing.push({ commit: record.commit, files: milestone });
+  for (const state of states) {
+    const byInstall = new Map<string, { installed: KeptInstall | undefined; files: string[] }>();
+    for (const file of state.files.filter((one) => !here.has(one))) {
+      const installed = ranOn.get(`${state.commit} ${file}`);
+      const group = byInstall.get(keyOf(installed)) ?? { installed, files: [] };
+      group.files.push(file);
+      byInstall.set(keyOf(installed), group);
+    }
+    for (const { installed, files: rest } of byInstall.values()) {
+      const install = installed === undefined ? {} : { installed };
+      const same = standing.find((entry) =>
+        entry.commit === state.commit && entry.assumed === undefined && keyOf(entry.installed) === keyOf(installed));
+      if (same === undefined) standing.push({ commit: state.commit, files: rest, ...install });
+      else standing.splice(standing.indexOf(same), 1, { commit: same.commit, files: [...same.files, ...rest].sort(codeUnitOrder), ...install });
+    }
+  }
+  // At the snapshot's own commit, which repairs a runs record a crash left
+  // naming another. The install the record kept differed from the commit it
+  // named; moved to another commit, it would be compared from the wrong one,
+  // so it is dropped and the install is compared from the new commit.
+  if (commit === undefined || commit === held.commit) return { ...held, over: record.commit, files, standing };
+  const { installed: _measuredElsewhere, ...rest } = held;
+  return { ...rest, commit, over: record.commit, files, standing };
+}
+
+/** Whether `older` is an ancestor of `newer` in `root`, or `undefined` when git cannot say. */
+function ancestor(root: string, older: string, newer: string): boolean | undefined {
+  try {
+    execFileSync('git', ['merge-base', '--is-ancestor', older, newer], { cwd: root, stdio: 'ignore' });
+    return true;
+  } catch (error) {
+    return (error as { status?: number }).status === 1 ? false : undefined;
+  }
+}

@@ -34,7 +34,8 @@ export interface Run {
   readonly gap?: readonly [number, number];
 }
 
-interface Hunk {
+/** One `@@` hunk of one file: where it starts on the old side, how many old lines, and its body. */
+export interface Hunk {
   readonly at: number;
   readonly count: number;
   readonly lines: readonly string[];
@@ -79,6 +80,16 @@ export function hunksOf(diff: string): ReadonlyMap<string, readonly Hunk[]> {
   }
 
   return byFile;
+}
+
+/**
+ * The hunks that move `file`, or `undefined` when the change gives none: its
+ * lines then say where the file moved and not what it became, and no text can
+ * be arrived at from them.
+ */
+export function hunksFor(hunks: ReadonlyMap<string, readonly Hunk[]>, file: string): readonly Hunk[] | undefined {
+  const own = hunks.get(file);
+  return own === undefined || own.length === 0 ? undefined : own;
 }
 
 /**

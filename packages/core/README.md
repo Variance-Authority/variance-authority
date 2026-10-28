@@ -5,6 +5,7 @@
 > The Variance Authority format, rules, comparison, attribution and verdicts. Pure data in, pure data out, no DOM and no I/O.
 
 Part of [Variance Authority](https://variance-authority.dev).
+Point your coding agent at [`llms.txt`](https://variance-authority.dev/llms.txt).
 
 ## What this is for
 
@@ -158,12 +159,14 @@ specifier exports only the capture artifact.
 | `core/relate` | what rests on what: a file graph in adjacency form, the components a change reaches, and a closure digest over each one |
 | `core/segment` | columnar bytes: named columns, interned strings, and the validation a decode performs before it believes a file |
 | `core/share` | leaving those bytes where another machine finds them, as the latest of a mainline or a branch |
+| `core/shard` | which shard runs which group of a suite, by recorded time, and how many shards it is worth: `shardCount` weighs each shard's `setup` against the time it saves, within a `budget` or up to a `max`, with `workers` running a shard's groups at once |
 
 Five of those are the order an answer travels through: `format`, `rules`,
-`compare`, `attribute`, `judge`. `plan` and `relate` are asked before anything
+`compare`, `attribute`, `judge`. `plan` and `relate` run before anything
 is captured — one decides which baselines a run can use, the other which
 subjects are worth reading. `segment` and `share` are how a derived answer
-is written down and handed to another machine.
+is written down and handed to another machine. `shard` splits one run across
+several.
 
 ## The four words the output uses
 
@@ -172,9 +175,9 @@ structure and declared style; `chromium` adds layout and pixels. A profile that
 cannot measure a box cannot decide pixels either.
 
 An **identity** is the content hash that addresses a result, derived from the
-whole plan — ruleset version, viewport, policy, interventions. Two runs are
-comparable only when their identities match, so changing any part of the plan
-changes which baselines the run can see.
+whole plan — ruleset version, viewport, policy, interventions. Two runs share
+a result only when their identities match, so changing any part of the plan
+changes the address its result is stored under.
 
 A **band** is the kind of change a delta is, and which band a delta lands in
 decides how loudly it is reported. Change frequency and change importance run
@@ -185,13 +188,13 @@ are five, loudest first:
 | band | what changed | example delta kinds |
 |---|---|---|
 | `a11y` | a role, accessible name, description or ARIA state | `role-changed`, `name-changed`, `state-changed` |
-| `geometry` | boxes appeared, vanished, moved or resized | `node-added`, `node-moved`, `rect-changed`, `attribute-changed` |
-| `token` | style values changed while structure stayed the same | `style-changed`, `token-changed` |
+| `geometry` | boxes appeared, vanished, moved, resized or were replaced | `node-added`, `node-moved`, `tag-changed`, `rect-changed`, `attribute-changed` |
+| `token` | style values changed while structure stayed the same | `style-changed`, `token-changed`, except on a pair across two tags, where they are `geometry` |
 | `content` | text changed and nothing else did | `text-changed` |
 | `texture` | sub-semantic rendering variance | `raster-residue` |
 
-`bandOf(kind)` performs that assignment and is the default rather than the
-answer — policy may promote or demote per project, subject, region or
+`bandOf(kind, { retagged })` performs that assignment and is the default
+rather than the answer — policy may promote or demote per project, subject, region or
 component. `loudestBand(bands)` collapses a set to the loudest one present, and
 returns `null` for an empty set so that *nothing changed* and *something changed
 at the quietest band* stay apart.
@@ -229,7 +232,10 @@ const after = normalize(recapture);
 const diff = diffSnapshots(before, after);           // deltas and roots, no verdict
 
 const places = isolateRegions(mask, { cell: 8 });    // pixels → regions
-const named = attributeRegions(places.regions, after, { scale: 2 });
+const named = attributeRegions(places.regions, after, {
+  scale: 2,
+  before,                                            // where the pixels it replaced were
+});
 ```
 
 `diffSnapshots` returns `identical`, the flat `deltas`, the `roots` a docket
@@ -243,6 +249,20 @@ runner.
 screenshot at 1x and every region lands in the top-left quadrant with the wrong
 component named — a full, plausible, entirely wrong report.
 
+`before` is required too: the snapshot of the revision the pixels are compared
+against, or `undefined` when nobody kept it. A change that replaces an element
+paints over the old box and the new one, so each node is joined against its own
+box and the box of the node the differ's matcher pairs it with. A stored baseline
+carries that snapshot packed, as its `snapshot`; `unpackSnapshot` in
+`@variance-authority/observe` reads it back.
+
+Each box that left is placed by where it was in its own image. A screenshot
+clipped to the subject starts at the subject's root, and `beforeOrigin` is the
+before image's top-left corner in page CSS pixels. It defaults to the before
+snapshot's root, as `origin` defaults to this render's. When you pass `origin`
+and a `before` snapshot, pass `beforeOrigin` too, or the call throws: the page
+can move what you clipped to between the two shots.
+
 Rendered comparisons throw when the two subjects differ, or when their
 observation profiles differ.
 
@@ -251,10 +271,11 @@ observation profiles differ.
 | call | useful controls |
 |---|---|
 | `normalize` | `collapseWrappers` removes layout-only wrapper boundaries, `digestText` includes text content, and `sourceRoot` relativizes source locations |
-| `isolateRegions` / `attributeRegions` | `cell` and `limit` bound mask work; `origin` and `containment` describe the coordinate origin and how much a node must contain a region |
+| `isolateRegions` / `attributeRegions` | `cell` and `limit` bound mask work; `origin` and `containment` describe the coordinate origin and how much a node must contain a region; `inserted` names the rows the after image added, and a region inside them goes to the tightest box whose rows span it |
 | `fingerprintOfMask` | `grid` controls the shape sample and `coverage` the minimum occupied share |
 | `compareLocales` / ignore validation | `slack` permits a declared locale distance; `sites` supplies resolved ignore locations and `now` evaluates expiry |
 | `buildDocket` / dependency reach | `sampleSize` limits review examples; `through` selects graph edge kinds, `avoid` names nodes a walk never covers, and `shadows` lists per file the modules its run never loads, so `affectedBy` leaves out a file every trail to which crosses one of its own shadows; `depends` adds the install — which package rests on which — so a dependency bump is a seed like any other and affects only the files that import it; `uses` names what each import binds and each re-export republishes, and `moved` lists per seed the exports its change changed, so `affectedBy` covers only the files that import one of them |
+| `carried` | the walk under every reach question, with your own step per importer: `through` and `avoid` as above; `mask` and `via` take arrays you already hold, so a caller that walks again writes into the same marks and trail; `seedsHold` set to `false` lets a seed take back what a cycle carries to it, for a file that reads its own names through an importer |
 | `beforeReach` | `sensed` names the directories the scan already answers for, and the descent from a declared entry point stops at the first file under one of them rather than dragging the repository's own source in behind the harness |
 | `sharedClosures` | `floor` drops a shared subtree below a node count |
 | `lexiconOf` | `examples`, `declaredIn` and `regions` supply what the instances cannot: which components a subject is the example of, the files declaring each component, and the regions its journey covered |
@@ -263,8 +284,8 @@ observation profiles differ.
 
 ## Which input changed
 
-`compare` says what changed. `judge` says whether anyone should mind. Between
-them, `partingOf` says which input changed.
+`compare` finds what changed. `judge` decides whether anyone should mind.
+Between them, `partingOf` finds which input changed.
 
 Given two snapshots with holdings — the inputs a collector recorded at each
 component boundary — it walks the boundaries for the shallowest one whose inputs
@@ -293,7 +314,7 @@ run that recorded no component provenance gets `unread` instead.
 What a suite is made of is a fact about a commit rather than about a run.
 `core/segment` writes such a thing as columns — equal facts encode to equal
 bytes, which is what lets a transport skip an upload — and `core/share` keeps
-the latest of those bytes on a line. A checkout asks *what is mainline now*,
+the latest of those bytes on a line. A checkout looks up *what is mainline now*,
 and a line answers that: one mainline or one branch, holding the latest entry
 of each kind — the run report, one record per suite — and the images those
 entries name, by digest.
@@ -329,7 +350,7 @@ appended to. `headers` is sent on every request, which is where a bucket's
 `Authorization` or a deployment's token goes. `method` is the verb a write uses
 — `PUT` for a bucket, `POST` for a deployment that routes on it. `timeoutMs`
 is how long one request may take, reading its body included, before the store
-is `unreachable` with a message that says it timed out; it is 60 000 when you
+is `unreachable` with a message naming the timeout; it is 60 000 when you
 leave it out. A presigned base needs only the endpoint. `memoryLineCell()`
 holds a line in this process, for tests and for a run that shares with itself.
 
@@ -343,7 +364,7 @@ A publish replaces only the entries it carries, so suites from different jobs
 land on one line. On a mainline, a held entry whose commit descends from yours
 stays: that is an older run finishing last. A held entry in a newer format stays
 on any line. A line reports why it missed — `absent`, `newer`, `refused`,
-`unreachable` or `unreadable` — because each asks you for a different action.
+`unreachable` or `unreadable` — because each needs a different action from you.
 Everything a line holds can be derived again, so a miss costs you the
 derivation. [Sharing an evaluation](https://variance-authority.dev/docs/sharing)
 is the operator's side of it.
@@ -361,4 +382,4 @@ the comparison is refused rather than reported as a difference in the product.
 
 ---
 
-**[@variance-authority/core](https://variance-authority.dev/reference/packages/core)** is part of [Variance Authority](https://variance-authority.dev) — [documentation](https://variance-authority.dev/docs) · MIT
+**[@variance-authority/core](https://variance-authority.dev/reference/packages/core)** is part of [Variance Authority](https://variance-authority.dev) — [documentation](https://variance-authority.dev/docs) · [GitHub](https://github.com/Variance-Authority/variance-authority/tree/main/packages/core) · MIT

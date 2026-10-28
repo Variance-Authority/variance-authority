@@ -1,3 +1,5 @@
+import { rootCommitted } from './root-state.js';
+
 /**
  * Access to React's fiber tree from a DOM node.
  *
@@ -340,7 +342,11 @@ function rawFiber(node: object): Fiber | null {
 export function currentFiber(fiber: Fiber): Fiber | null {
   const root = rootOf(fiber);
   if (root === null) return null;
+  return currentUnder(fiber, root);
+}
 
+/** {@link currentFiber} once the walk to the top has been made. */
+function currentUnder(fiber: Fiber, root: Fiber): Fiber {
   const fiberRoot = root.stateNode as { current?: Fiber } | null | undefined;
   // Shape we do not recognise: prefer possibly-stale data over no data, since a
   // one-render-old props digest still names the right component.
@@ -377,6 +383,45 @@ export function findFiber(node: Node): Fiber | null {
   return currentFiber(raw);
 }
 
+/**
+ * The `FiberRoot` the fiber on this node belongs to, whichever buffer it is in.
+ *
+ * Read off the raw expando, not the current fiber, on purpose: a host node
+ * React completed during a render it has not committed carries a
+ * work-in-progress fiber, and that fiber still leads to the root whose state
+ * says the commit has not happened. Null when the node carries no fiber, or
+ * its fiber is detached from any root.
+ */
+export function fiberRootOf(node: Node): object | null {
+  const raw = rawFiber(node as unknown as object);
+  if (raw === null) return null;
+  const top = rootOf(raw);
+  const root = top?.stateNode;
+  return typeof root === 'object' && root !== null ? root : null;
+}
+
+/**
+ * The committed fiber for a DOM node, `'uncommitted'` when the root it belongs
+ * to has not committed, or null if React never touched it.
+ *
+ * {@link findFiber} answers with a fiber for a node React completed during a
+ * render it has not committed — the whole document, while a shell that suspends
+ * holds hydration — because the work-in-progress fiber has no alternate to fall
+ * back on. Anything read off it is a render that may never reach the screen: a
+ * hydration React gives up on is thrown away and rendered again on the client.
+ * What a component *is* and what it was *holding* are read only from here, so a
+ * node like that reports why it has none instead of reporting one.
+ */
+export function findCommittedFiber(node: Node): Fiber | 'uncommitted' | null {
+  const raw = rawFiber(node as unknown as object);
+  if (raw === null) return null;
+  const top = rootOf(raw);
+  if (top === null) return null;
+  const root = top.stateNode;
+  if (typeof root === 'object' && root !== null && !rootCommitted(root)) return 'uncommitted';
+  return currentUnder(raw, top);
+}
+
 /** True when the node was rendered by React, regardless of tree liveness. */
 export function hasFiber(node: Node): boolean {
   return rawFiber(node as unknown as object) !== null;
@@ -400,4 +445,32 @@ export function findReactContainers(scope: ParentNode): Element[] {
     }
   }
   return found;
+}
+
+/**
+ * The HostRoot fiber React cached on a container, resolved to current.
+ *
+ * A container is usually an element, and is the `Document` itself for an
+ * application that hydrates the whole page (`hydrateRoot(document, …)`), which
+ * is why this takes any object rather than an `Element`.
+ *
+ * `markContainerAsRoot` writes the fiber once, at mount, and never re-points it
+ * — the same double-buffering hazard `currentFiber` documents for host nodes. An
+ * unresolved read here would walk the *stale* tree, where a boundary's
+ * `memoizedState` is one commit behind, and report a spinner that has already
+ * gone away.
+ */
+export function containerFiber(node: object): Fiber | null {
+  const record = node as unknown as Record<string, unknown>;
+  for (const key of Object.keys(record)) {
+    if (!key.startsWith(CONTAINER_KEY_PREFIX)) continue;
+    const fiber = record[key] as Fiber | null | undefined;
+    if (!fiber) return null;
+    try {
+      return currentFiber(fiber);
+    } catch {
+      return null;
+    }
+  }
+  return null;
 }

@@ -1,9 +1,11 @@
 import { execFileSync } from 'node:child_process';
+import { realpathSync } from 'node:fs';
 import { mkdtemp, mkdir, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { openImmutableLog } from './immutable-log.js';
+import { native } from './addon.js';
+import { openImmutableLog, readImmutableLog } from './immutable-log.js';
 import {
   publishedSources,
   readPublishedSources,
@@ -13,6 +15,7 @@ import {
 } from './published.js';
 import { scanRelations } from './scan.js';
 import { sourceIndexPath } from './source-index.js';
+import { SOURCE_INDEX_VERSION } from './source-index-format.js';
 
 /**
  * One step publishes the index; a reader reads it and scans nothing.
@@ -90,6 +93,33 @@ describe('the published source index', () => {
     }
   });
 
+  it('says which step it is on, and when each one ends, while it updates', async () => {
+    const at = index('progress');
+    const told: string[] = [];
+    const progress = (step: string): (() => void) => {
+      told.push(`start ${step}`);
+      return () => told.push(`end ${step}`);
+    };
+    const listed = realpathSync(root);
+
+    await updateSourceIndex(root, { index: at, progress });
+    // With no index to update, the whole checkout is read, and the last step says so.
+    expect(told.slice(-2)).toEqual([
+      `start reading every file of ${root}, because there is no index to update`,
+      `end reading every file of ${root}, because there is no index to update`,
+    ]);
+
+    told.length = 0;
+    await updateSourceIndex(root, { index: at, progress });
+    // The git listing is its own step: on a large checkout it is most of the update.
+    expect(told).toEqual([
+      `start listing ${listed} with git`,
+      `end listing ${listed} with git`,
+      'start reading the files that changed since the last index',
+      'end reading the files that changed since the last index',
+    ]);
+  });
+
   it('answers a narrower scope with the records a scan of that scope would read', async () => {
     const at = index('within');
     await updateSourceIndex(root, { index: at });
@@ -99,6 +129,21 @@ describe('the published source index', () => {
     expect(sourcesWithin(records, root, ['lib'])).toEqual(await scanRelations({ root, dirs: ['lib'] }));
     expect(sourcesWithin(records, root, ['lib'], ['app/index.ts']).map((record) => record.file))
       .toEqual(['app/index.ts', 'app/lens.ts', 'lib/alone.ts', 'lib/unit.ts']);
+  });
+
+  it('keeps an index over the directories it is given, warm, cold or started from another', async () => {
+    const at = index('dirs');
+    const cold = await updateSourceIndex(root, { index: at, dirs: ['lib'] });
+    expect(cold).toMatchObject({ was: 'missing', files: 2, reread: 2 });
+    expect((await readPublishedSources(at)).records).toEqual(await scanRelations({ root, dirs: ['lib'] }));
+
+    // A wider scope over the same index reads only what the narrower one had not.
+    expect(await updateSourceIndex(root, { index: at, dirs: ['app'] })).toMatchObject({ files: 4, reread: 3 });
+    expect((await readPublishedSources(at)).records).toEqual(await scanRelations({ root, dirs: ['app'] }));
+
+    const started = index('dirs-started');
+    expect(await updateSourceIndex(root, { index: started, dirs: ['app'], primary: at }))
+      .toMatchObject({ was: 'missing', from: at, files: 4, reread: 0 });
   });
 
   it('keeps one index for a checkout, however the path to it is spelled', async () => {
@@ -207,6 +252,45 @@ describe('the published source index', () => {
       .rejects.toThrow(/is damaged, and reads only up to its first bad segment/);
 
     const read = await publishedSources(root, { ...options, ci: false });
+    expect(read.state).toBe('published');
+    expect(read.records).toEqual(await scanRelations({ root, dirs: ['.'] }));
+  });
+
+  it('tells an index written in another format version from a damaged one, rebuilds it on a workstation, and refuses it in CI', async () => {
+    // The chain an earlier release published: the same segments under a format
+    // version this reader does not read, every digest of them whole.
+    const current = index('current');
+    await updateSourceIndex(root, { index: current });
+    // 0.14.0 wrote 15, a number as wide as this reader's, so the header keeps its length.
+    const written = `"version":${SOURCE_INDEX_VERSION},`;
+    const older = readImmutableLog(current).map((segment) => {
+      const header = segment.indexOf(written);
+      expect(header).toBeGreaterThan(0);
+      expect(header).toBeLessThan(4 + segment.readUInt32LE(0));
+      return Buffer.concat([
+        segment.subarray(0, header),
+        Buffer.from('"version":15,'),
+        segment.subarray(header + written.length),
+      ]);
+    });
+    const at = index('older');
+    expect(native()!.appendSourceIndex(at, [], false, older)).toBeNull();
+    expect((await readPublishedSources(at)).state).toBe('other-version');
+
+    const said: string[] = [];
+    const options = { step: 'variance index', announce: (line: string) => said.push(line), index: at };
+    const refused = publishedSources(root, { ...options, ci: true });
+    await expect(refused).rejects.toBeInstanceOf(SourceIndexUnpublished);
+    await expect(refused).rejects.toThrow(
+      `the source index at ${at} was written in format version 15, and this release reads version ${SOURCE_INDEX_VERSION}. ` +
+      'In CI the index is a step of the pipeline: run `variance index` with this release before this command.',
+    );
+
+    const read = await publishedSources(root, { ...options, ci: false });
+    expect(said).toEqual([
+      `the source index at ${at} was written in format version 15, and this release reads version ${SOURCE_INDEX_VERSION}; ` +
+      'rebuilding it from the checkout, which is what `variance index` does.',
+    ]);
     expect(read.state).toBe('published');
     expect(read.records).toEqual(await scanRelations({ root, dirs: ['.'] }));
   });

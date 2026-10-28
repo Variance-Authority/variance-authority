@@ -1,7 +1,7 @@
 {
   "name": "@variance-authority/playwright-test",
-  "version": "0.12.0",
-  "description": "Add a source-aware visual observation to a Playwright test that already knows how to reach the state.",
+  "version": "0.21.0",
+  "description": "Add a source-aware visual observation to a Playwright test that already gets the app into the state.",
   "keywords": [
     "variance-authority",
     "visual-regression",
@@ -57,6 +57,7 @@
     "@variance-authority/png": "workspace:*",
     "@variance-authority/raster": "workspace:^",
     "@variance-authority/react": "workspace:^",
+    "@variance-authority/report": "workspace:^",
     "@variance-authority/sense": "workspace:^",
     "@variance-authority/store": "workspace:^",
     "@variance-authority/vantage": "workspace:^",
@@ -64,5 +65,8 @@
   },
   "peerDependencies": {
     "@playwright/test": ">=1.49 <2"
+  },
+  "devDependencies": {
+    "pngjs": "^7.0.0"
   }
 }

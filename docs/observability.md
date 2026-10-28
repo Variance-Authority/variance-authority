@@ -6,12 +6,12 @@ that is a story, a route, a fixture or a value — and that bit is pass or fail.
 Read this page to decide which of the other things a run can keep are worth
 keeping, and what each one is and is not evidence of.
 
-The execution that produced that bit knew more. It knew which elements the test
+The execution that produced that bit had more: which elements the test
 addressed, which components rendered, which instance scheduled each render, and
 which branch a service took while the page was waiting on it. Teardown is
 normally the end of all of it. `Unable to find element` names a question without
 naming the button, the component that owned it, the code that put it there, or
-the update that removed it — and the process that knew all four has exited by the
+the update that removed it — and the process that had all four has exited by the
 time the line is printed.
 
 ## What this page means by the word
@@ -75,9 +75,12 @@ export const attention = watch(screen);
 `attention.log.seen` reads the current journal, `attention.log.drain()` takes its
 entries, and `attention.close()` restores every method once no watcher remains.
 `within()` and the queries returned by `render()` are different bound objects and
-stay outside this entrypoint. To scope a journal to one runner-identified test
-instead of the whole file, `watchTest(screen, identity)` from the same module
-pairs the log, the identity and the drain in one object.
+stay outside this entrypoint. To scope a journal to one test instead of the
+whole file, `watchTest(screen)` from the same module pairs the log and the drain
+in one object, and its `close` returns the journal. Under a recording Vitest, Jest
+or Rstest run, `close` also hands the journal to the case the test is, under
+its attempt, and the record keeps it. `watchTest(screen, identity)` keeps the journal under the identity
+you give it instead.
 
 ### A live view: name the address in the environment
 
@@ -112,36 +115,52 @@ finished](vantage.md) is the page for what you can then ask it.
 ### Journeys: the flag and the build change
 
 The flag is `tests: true` in the Storybook collector's options, or
-`use: { varianceExecution: true }` in `playwright.config.ts`. The build change is
-`testSelectionProbes()` in the Vite config that bundles your product source:
+`use: { varianceExecution: true }` in `playwright.config.ts`. The build change,
+for a Storybook, is the collector in its addons, whichever builder runs it:
+
+```js
+// .storybook/main.js
+export default {
+  addons: ['@variance-authority/storybook-collector'],
+};
+```
+
+For the app your Playwright suite drives, it is `testSelectionProbes()` in the
+Vite config that bundles your product source, or `testSelectionRule()` in the
+`module.rules` of an Rspack or webpack one:
 
 ```bash
 npm install --save-dev @variance-authority/sense
 ```
 
 ```ts
-// .storybook/main.js — or the Vite config of the app your suite drives
+// vite.config.ts
 import { testSelectionProbes } from '@variance-authority/sense/journal';
 
 export default {
-  viteFinal: (config) => ({
-    ...config,
-    plugins: [...config.plugins, testSelectionProbes({ label: 'storybook' })],
-  }),
+  plugins: [testSelectionProbes()],
 };
 ```
 
-`testSelectionProbes(options?: TestSelectionProbeOptions)` takes five optional
+`testSelectionProbes(options?: TestSelectionProbeOptions)` takes six optional
 fields: `root` (a directory in the repository, defaults to the current directory;
 recorded paths are relative to the checkout that contains it), `include`
-(which transformed modules count as product source), `label` (defaults to
-`build`, and separates two bundlers over one repository), `cacheRoot` (where
-the module records go, defaulting to [the cache](cache.md)), and `mode` (`presence`,
+(which transformed modules count as product source), `mode` (`presence`,
 the default, probes every arrival region; `entries` probes modules and functions
-only). Every seam that shares a coverage file needs the same `mode`: a record
-cut by one mode is discarded when the other merges over it. Give a Storybook preview
-and the application a Playwright suite drives different labels — one label for
-both answers a block ordinal with whichever build wrote its inventory last.
+only; `loads` probes nothing and marks each module as loaded), `placement` (`after-transforms`, the default, places the probes in what
+your compilers wrote; `before-transforms` places them in each file as read),
+and `journeys` with `label` (install a journey head named `label`,
+`build` by default, before anything the build instrumented runs). The addon
+takes the same `root`, `mode`, `include` and `placement` as its options. Every seam
+that shares a coverage file needs the same `mode`: a record cut by one mode is
+discarded when the other merges over it.
+
+The build writes nothing beside its output. Each probe reports the module's
+repository-relative file and a digest of the text its regions were cut from, and
+the driver reads that file from your checkout and cuts it into regions again. A
+file whose text no longer matches the digest is recorded as not instrumented,
+so a preview built from an older checkout widens selection instead of
+narrowing it.
 
 The flag alone records nothing: with `tests` on and no probes in the preview, the
 run prints one line to stderr saying so and continues, and the next `--since`
@@ -156,11 +175,10 @@ than empty when the reading was never taken.
 The instrumented build writes more than an uninstrumented one, and the driver
 does one extra thing at teardown.
 
-- **Extra artifacts.** Each instrumenting build keeps a store of module records
-  under its own `<label>`. A run in progress keeps a `.run-<pid>-<uuid>`
-  directory next to them until the reporter folds the journals into the
-  snapshot and removes it. All of this sits in the
-  cache directory rather than your work tree.
+- **Extra artifacts.** A run in progress keeps a `.run-<pid>-<uuid>`
+  directory in [the cache](cache.md) until the reporter folds the journals into
+  the snapshot and removes it. The instrumenting build writes nothing beside
+  its own output, and nothing lands in your work tree.
 - **Extra wall clock, at teardown.** Nothing in a head or a page writes a file
   during the run; the driver merges every journal into one snapshot after the
   suite finishes. [The execution record](execution-record.md) gives the cost of a
@@ -216,16 +234,16 @@ it was already going to send and nothing in your application is touched to carry
 them. A service built with probes reads both off the request's `Cookie` header,
 runs the handler in an `AsyncLocalStorage` scope keyed by the journey, and when
 that scope settles delivers what it covered as a JSON `POST` to
-`<return>/journeys` over loopback `http`. Only the driver knows
-`journey → subject`, so only the driver can join, and a report cannot claim an
+`<return>/journeys` over loopback `http`. Only the driver has the mapping
+`journey → subject`, so only the driver can join, and a report cannot add an
 execution by writing one down: the execution is in the address the report
 arrived on, never in the body.
 
 Two specs running at once, against one service process, inside one module, come
 back apart — the scope is the execution rather than a time window, so nothing is
 charged to whichever subject happened to be open. You can then read _this spec
-covered that branch of that service and the other spec never did_, with the
-service never told what a spec is.
+covered that branch of that service and the other spec never did_, and
+nothing about specs is ever sent to the service.
 
 ## Declaring a head
 
@@ -266,11 +284,12 @@ export function handled(cookie, run) {
 
 `collectJourneys` takes its name from `VARIANCE_AUTHORITY_HEAD` and turns itself
 on from `VARIANCE_AUTHORITY_JOURNEYS`, so that `env` block is the whole of the
-configuration on the service side. Told neither, it installs nothing and `enter`
-is the identity function — which is why the call above ships to production
-rather than sitting behind a build flag. The name must match the `label` that
-service's build gave `testSelectionProbes()`; an ordinal means something only
-against the record that minted it.
+configuration on the service side. With neither set, it installs nothing and
+`enter` is the identity function — which is why the call above ships to
+production rather than sitting behind a build flag. Each module the head
+reports names its file and the digest of the text its probes were placed on, and
+the driver cuts that file again from your checkout to learn what each ordinal
+means.
 
 `heads` is empty by default, and empty is the ordinary case. A Storybook preview
 or a Vitest file is one process, the realm that executes is the realm that is
@@ -310,8 +329,8 @@ would have run except the ones the record positively proves the change did not
 reach: a file recorded as complete, whose journey contains none of the changed
 regions. A test recorded partially, a module it loaded that no probe could sit
 in, a record older than the lines it describes — none of those qualify, and each
-one widens the run rather than narrowing it. A changed file the record says
-nothing about is named in the message and keeps no test in the run by itself.
+one widens the run rather than narrowing it. A changed file the record has no
+measurement for is named in the message and keeps no test in the run by itself.
 [Running less of the suite](selecting.md) is the page
 for that decision; [the path an execution took](journeys.md) is the page for the
 record it reads.
@@ -389,8 +408,8 @@ ways to give the next job something to read:
 - **Name the path yourself and upload it.** Pass `coverageFile` to the Vitest,
   Jest or Playwright integration to put the snapshot at a path you choose,
   typically inside the repository so CI can upload it as an artifact, and ignore
-  that path in git. The same run writes a second file at
-  `<coverageFile>.cases.bin`, under the same rule.
+  that path in git. The record carries the run's cases too, so there is no
+  second file to upload.
 
 A missing, foreign or corrupt file is read as an absent record rather than an
 empty one, so a job that restored nothing runs the whole suite. Deleting the

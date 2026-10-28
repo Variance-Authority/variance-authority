@@ -62,7 +62,7 @@ variance run --flakes
 ```
 
 ```
-[unstable] story:case-surface--ticking: … differ: Clock src/ds.jsx:118
+[unstable] story:case-surface--ticking: … differ: Clock cases/storybook-case/src/ds.jsx:118
   (geometry, token, content)
 ```
 
@@ -85,7 +85,7 @@ config key for one — so the last column is where each shows up in what you rea
 | Kind | Takes | Gives | Needs | You meet it when |
 |---|---|---|---|---|
 | **acquire** | a live tree | capture material — a document or an in-place raster | a DOM or browser | a subject is reported failed with the sentence your collector refused it with |
-| **prepare** | a subject | a subject that reads the same twice | varies; each declares its own | a baseline made under a different recipe comes back `incomparable` rather than as a diff |
+| **prepare** | a subject | a subject that reads the same twice | varies; each declares its own | a baseline made under a different recipe comes back with its diff and the recipe named as the cause |
 | **render** | a document | pixels | a browser, here or elsewhere | `variance doctor` prints the renderer as `available` or `NOT AVAILABLE` with the launch error |
 | **hash** | anything | an identity | nothing | a run finishes having painted nothing, because the digests matched |
 | **compare** | two of a kind | a difference | nothing | the verdict on a subject is `changed` and a diff image lands beside the report |
@@ -152,19 +152,20 @@ neither can change which CSS rules match or what they declare.
 
 **2. Anything that could change the answer is part of the result's identity.**
 The machine, the engine, the scale factor, the fonts, the tricks applied. Two
-results whose identities differ come back as one word:
+results whose identities differ are still compared, and the verdict carries the
+cause first:
 
 ```
-incomparable
+changed — engine chromium@131 → chromium@132
 ```
 
-The report names which part of the identity differs. It never means zero
-difference, and it is never rendered as a diff — a difference in conditions
-reported as a difference in your product is a confident wrong answer.
+The report names which part of the identity moved, before any component. A
+difference in conditions reported as a difference in your product, with nothing
+said about the conditions, is a confident wrong answer.
 
 **3. Not measured, measured as zero, and unobservable are three states.** The run
 prints which of the three it is rather than collapsing any two into a pass. When
-a reading was never taken, the answer says so on its own line:
+a reading was never taken, the answer prints that on its own line:
 
 ```
 Read: id, example, names, text, components, createdBy, files, roles, tokens. Not read: regions (no execution journal was read).
@@ -197,6 +198,8 @@ before anything else.**
 | `report` | nothing | what a run leaves behind, so several readers can share one shape |
 | `history` | nothing | what a row may contain, what the numbers mean, what to say with no store |
 | `ioc` | nothing | the seam a module declares its own state reset through, and the per-test hook a suite drives it with |
+| `isolator` | `ioc`; its `node` entrypoint additionally needs a Node runtime, its `react` entrypoint React 19 | an experimental build transform that gives every module-level variable a module writes, and every object it keeps, one value per session, so ioc's per-test hook resets state no module declared |
+| `reads` | nothing | the files an element showed, said on the element, so a recorded page run keeps them for the next run's selection |
 | `wire` | nothing; the driver's end of it needs a Node runtime and a loopback socket | one id per execution and one address to answer on, whether the participant is the page, a service in another process, or a server the suite started inside itself |
 | `event` | nothing; its `collect` entrypoint additionally needs a Node runtime and a loopback socket | announcements a running system makes about its own decisions, and the log a test waits on |
 | `vantage` | nothing; its `attach` entrypoint additionally needs a Node runtime and a loopback socket | what a run is saying while it is still saying it, in a process that outlives the test |
@@ -242,7 +245,7 @@ so it pulls in no Playwright and nothing Node-only.
 ## Your logs will be noisy, on purpose
 
 Every fallback is reported as a fallback. A run that could not do the expensive
-thing and did the cheap thing instead says so on the line, rather than answering
-a weaker question under the same heading. Do not filter those lines out: they are
-the difference between a green build that checked what you asked for and one that
-checked less.
+thing and did the cheap thing instead prints that on the line, rather than
+answering a weaker question under the same heading. Do not filter those lines
+out: they are the difference between a green build that checked what you asked
+for and one that checked less.

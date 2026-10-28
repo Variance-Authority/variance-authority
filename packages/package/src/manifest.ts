@@ -1,5 +1,10 @@
-import { existsSync, globSync, readFileSync, readdirSync } from 'node:fs';
+import { existsSync, globSync, readFileSync, statSync } from 'node:fs';
 import { dirname, join, posix, resolve } from 'node:path';
+import { parse as parseYaml } from 'yaml';
+import { type ImportTargets, declaresEntry, entrySubpaths, importTargets, isPublished } from './entry.js';
+import { members } from './members.js';
+
+export { requested } from './exports.js';
 
 /**
  * What a workspace publishes, read from the manifests rather than from a build.
@@ -48,6 +53,8 @@ export interface Offering {
   readonly name: string;
   readonly dir: string;
   readonly declared: Readonly<Record<string, unknown>>;
+  /** Whether the manifest declares an entry, by {@link declaresEntry}: read from the whole manifest, whichever keys `declared` records. */
+  readonly entry: boolean;
   readonly entrypoints: readonly Entrypoint[];
   /** Published subpaths whose source could not be established. */
   readonly unreadable?: readonly string[];
@@ -61,24 +68,18 @@ export interface OfferingOptions {
 }
 
 /**
- * A specifier as the pair a manifest can answer.
- *
- * `@variance-authority/core/plan` is a package and a subpath, and only the
- * package half has a manifest to ask. Written as one string because that is what
- * a lookup key wants and because the space cannot occur in either half.
+ * A manifest or a tsconfig, as the object it holds; a `package.yaml` member is
+ * YAML. A tsconfig is JSONC whatever it is named, so a config an `extends`
+ * chain reaches — Kibana's `tsconfig.base.json` — is read as `tsconfig: true`.
  */
-export function requested(specifier: string): string {
-  const parts = specifier.split('/');
-  const name = specifier.startsWith('@') ? parts.slice(0, 2).join('/') : (parts[0] ?? specifier);
-  return `${name} .${specifier.slice(name.length)}`;
-}
-
-function read(path: string): Record<string, unknown> {
+function read(path: string, tsconfig = path.endsWith('tsconfig.json')): Record<string, unknown> {
   const source = readFileSync(path, 'utf8');
+  const yaml = path.endsWith('.yaml');
   try {
-    return JSON.parse(path.endsWith('tsconfig.json') ? jsonc(source) : source) as Record<string, unknown>;
+    const held: unknown = yaml ? parseYaml(source) : JSON.parse(tsconfig ? jsonc(source) : source);
+    return (held ?? {}) as Record<string, unknown>;
   } catch (error) {
-    throw new Error(`${path} is not readable JSON: ${error instanceof Error ? error.message : String(error)}`);
+    throw new Error(`${path} is not readable ${yaml ? 'YAML' : 'JSON'}: ${error instanceof Error ? error.message : String(error)}`);
   }
 }
 
@@ -130,55 +131,6 @@ function jsonc(source: string): string {
     cleaned += char;
   }
   return cleaned;
-}
-
-/**
- * Every manifest the root's `workspaces` field reaches.
- *
- * Only a literal path and a trailing `/*` are understood, because those are what
- * a workspace field almost always holds and a half-implemented glob that quietly
- * matches the wrong set is worse than one that says it cannot. A repository with
- * no `workspaces` at all is one package, and that is the interesting case for
- * anybody who is not a monorepo.
- *
- * A repository with no root manifest publishes nothing, and that is an answer
- * rather than an error. Plenty of checkouts are not npm projects at all — a
- * Swift application with a landing page under it, a service with a web client in
- * a subdirectory — and the question *where is the thing that does X* is asked of
- * those more often than of a monorepo. Nothing is published there, so nothing is
- * on the published half of an answer, and everything the source exports is still
- * read.
- */
-function members(root: string): readonly string[] {
-  if (!existsSync(join(root, 'package.json'))) return [];
-
-  const { workspaces } = read(join(root, 'package.json'));
-  const globs = Array.isArray(workspaces)
-    ? (workspaces as string[])
-    : (((workspaces as { packages?: string[] } | undefined)?.packages ?? []) as string[]);
-
-  if (globs.length === 0) return [join(root, 'package.json')];
-
-  const found: string[] = [];
-  for (const glob of globs) {
-    if (!glob.includes('*')) {
-      const manifest = join(root, glob, 'package.json');
-      if (existsSync(manifest)) found.push(manifest);
-      continue;
-    }
-
-    if (!glob.endsWith('/*')) {
-      throw new Error(`workspace glob \`${glob}\` is neither a path nor \`dir/*\`, which is all this reads`);
-    }
-
-    const parent = join(root, glob.slice(0, -2));
-    if (!existsSync(parent)) continue;
-    for (const name of readdirSync(parent).sort()) {
-      const manifest = join(parent, name, 'package.json');
-      if (existsSync(manifest)) found.push(manifest);
-    }
-  }
-  return found;
 }
 
 /**
@@ -295,6 +247,74 @@ function declarationsOf(condition: unknown): string | undefined {
   return undefined;
 }
 
+/**
+ * The declaration file written beside a bare JavaScript export, or `undefined`
+ * when there is none.
+ *
+ * `"./src/index.js"` with `src/index.d.ts` next to it is how a package whose
+ * source is JavaScript publishes hand-written types, and the sibling is what
+ * TypeScript itself resolves that path to. It is authored, not emitted, so it is
+ * the source: nothing is mapped back through a tsconfig. A wildcard is returned
+ * as a pattern and the glob in {@link openedBy} keeps only the files that exist.
+ * With no declaration beside it, the TypeScript source of the same stem —
+ * `src/index.ts`, then `src/index.tsx` — is the file TypeScript resolves a `.js`
+ * path to, which is how a package whose `main` names the file its source compiles
+ * to is read without a build.
+ *
+ * Only for JavaScript that is source. Under the package's `outDir` the file
+ * beside it was emitted, and exists only when the build ran; an answer read
+ * from it would change with whether somebody had built.
+ */
+// FIXME: a package with no tsconfig `outDir` that builds into `dist` beside a
+// bare `./dist/index.js` export opens the emitted `dist/index.d.ts` whenever a
+// build has run, so the answer changes with whether somebody built. Open the
+// sibling only when the repository tracks it; a condition object with no
+// `types` is not read this way at all.
+function besideOf(dir: string, condition: unknown): string | undefined {
+  if (typeof condition !== 'string') return undefined;
+  const found = /\.(m|c)?js$/.exec(condition);
+  if (found === null || emittedInto(dir, condition)) return undefined;
+  const stem = condition.slice(0, found.index);
+  const declaration = `${stem}.d.${found[1] ?? ''}ts`;
+  if (declaration.includes('*')) return declaration;
+  const sources = found[1] === undefined ? [`${stem}.ts`, `${stem}.tsx`] : [`${stem}.${found[1]}ts`];
+  return [declaration, ...sources].find((candidate) => existsSync(join(dir, candidate)));
+}
+
+/** Whether `target` sits under the `outDir` the package's own tsconfig declares. */
+function emittedInto(dir: string, target: string): boolean {
+  const config = join(dir, 'tsconfig.json');
+  if (!existsSync(config)) return false;
+  const outDir = (read(config) as { compilerOptions?: { outDir?: unknown } }).compilerOptions?.outDir;
+  return typeof outDir === 'string' && posix.normalize(target).startsWith(posix.normalize(`${outDir}/`));
+}
+
+const EMITTED_AS: Readonly<Record<string, string>> = { ts: 'js', tsx: 'js', mts: 'mjs', cts: 'cjs' };
+
+/**
+ * The subpaths a pattern whose target ends in its wildcard opens in source.
+ *
+ * `"./v4/locales/*": { "@zod/source": "./src/v4/locales/*" }` leaves the
+ * extension to the specifier, so a consumer writes `zod/v4/locales/fr.js` and
+ * TypeScript opens `src/v4/locales/fr.ts` for it. Each TypeScript source file
+ * the pattern matches is one subpath, spelt with the extension it is emitted
+ * as. A pattern that matches no source, such as `./dist/*` in a checkout that
+ * was never built, opens nothing.
+ */
+function namedWithExtension(dir: string, subpath: string, condition: unknown): readonly Entrypoint[] {
+  if (typeof condition !== 'string' || !condition.endsWith('*') || !subpath.endsWith('*')) return [];
+  if ((condition.match(/\*/g)?.length ?? 0) !== 1 || (subpath.match(/\*/g)?.length ?? 0) !== 1) return [];
+  const before = condition.replace(/^\.\//, '').slice(0, -1);
+  return globSync(`${before}*.{ts,tsx,mts,cts}`, { cwd: dir })
+    .filter((matched) => !/\.d\.[mc]?ts$/.test(matched))
+    .sort()
+    .map((matched) => {
+      const found = /\.(ts|tsx|mts|cts)$/.exec(matched)!;
+      const capture = `${matched.slice(before.length, found.index)}.${EMITTED_AS[found[1]!]}`;
+      return { subpath: subpath.replace('*', capture), source: join(dir, matched) };
+    });
+}
+
 function openedBy(dir: string, subpath: string, types: string): readonly Entrypoint[] {
   if (!types.includes('*')) return [{ subpath, source: sourceOf(dir, types) }];
   if ((types.match(/\*/g)?.length ?? 0) !== 1 || (subpath.match(/\*/g)?.length ?? 0) !== 1) {
@@ -315,6 +335,96 @@ function openedBy(dir: string, subpath: string, types: string): readonly Entrypo
 }
 
 /**
+ * The export conditions the package's own `tsconfig.json` adds:
+ * `compilerOptions.customConditions`, through its `extends` chain.
+ *
+ * A workspace that exports source under a condition of its own — Zod's
+ * `"@zod/source": "./src/index.ts"`, TanStack's `"@tanstack/custom-condition"` —
+ * says so to TypeScript here, and TypeScript owns what that specifier means
+ * inside the repository. The nearest config that sets the option wins, and
+ * `null` or `[]` clears it, as `tsc` reads it.
+ */
+function customConditionsOf(dir: string): ReadonlySet<string> {
+  const chain = (path: string, seen: ReadonlySet<string>): readonly string[] | undefined => {
+    if (seen.has(path)) return undefined;
+    const config = read(path, true) as { extends?: unknown; compilerOptions?: { customConditions?: unknown } };
+    const own = config.compilerOptions?.customConditions;
+    if (own !== undefined) {
+      return Array.isArray(own) ? own.filter((value): value is string => typeof value === 'string') : [];
+    }
+    const bases = typeof config.extends === 'string' ? [config.extends] : Array.isArray(config.extends) ? config.extends : [];
+    for (const base of [...bases].reverse()) {
+      const found = typeof base === 'string' ? extendedFile(dirname(path), base) : undefined;
+      const inherited = found === undefined ? undefined : chain(found, new Set([...seen, path]));
+      if (inherited !== undefined) return inherited;
+    }
+    return undefined;
+  };
+  const config = join(dir, 'tsconfig.json');
+  return new Set(existsSync(config) ? (chain(config, new Set()) ?? []) : []);
+}
+
+/** The config an `extends` entry names: a path, or a package under a `node_modules` above. */
+function extendedFile(directory: string, specifier: string): string | undefined {
+  const isFile = (path: string) => statSync(path, { throwIfNoEntry: false })?.isFile() === true;
+  const candidates = (at: string) => [at, `${at}.json`, join(at, 'tsconfig.json')];
+  if (specifier.startsWith('.') || specifier.startsWith('/')) {
+    return candidates(resolve(directory, specifier)).find(isFile);
+  }
+  for (let at = directory; ; at = dirname(at)) {
+    const found = candidates(join(at, 'node_modules', specifier)).find(isFile);
+    if (found !== undefined) return found;
+    if (dirname(at) === at) return undefined;
+  }
+}
+
+/**
+ * The branch of a condition TypeScript takes under the `custom` conditions.
+ *
+ * Keys are read in the order the manifest writes them, as Node and TypeScript
+ * read them: the first custom condition is taken unless `types` comes before
+ * it. An array of fallbacks is its first entry that names something to open.
+ * With no custom condition the condition is returned as written, and
+ * {@link declarationsOf} finds its declarations.
+ */
+function followed(dir: string, condition: unknown, custom: ReadonlySet<string>): unknown {
+  if (Array.isArray(condition)) {
+    return condition
+      .map((entry) => followed(dir, entry, custom))
+      .find((entry) => besideOf(dir, entry) !== undefined || declarationsOf(entry) !== undefined);
+  }
+  if (typeof condition !== 'object' || condition === null) return condition;
+  for (const [key, value] of Object.entries(condition)) {
+    if (key === 'types') return condition;
+    if (custom.has(key)) return followed(dir, value, custom);
+  }
+  return condition;
+}
+
+/** The workspace packages an import between packages is followed into, as {@link importTargets} reads them. */
+export function readImportTargets(root: string): ImportTargets {
+  return importTargets(members(resolve(root), read).map((path) => read(path)));
+}
+
+/** What the manifests of a workspace say, from one read of each. */
+export interface WorkspaceManifests {
+  /** As {@link readOfferings} reads them. */
+  readonly offerings: readonly Offering[];
+  /** As {@link readImportTargets} reads them. */
+  readonly targets: ImportTargets;
+}
+
+/**
+ * {@link readOfferings} and {@link readImportTargets} at once. A workspace can
+ * list thousands of members, and each of the two lists them and reads every
+ * manifest for itself.
+ */
+export function readWorkspaceManifests(root: string, options: OfferingOptions = {}): WorkspaceManifests {
+  const manifests = members(resolve(root), read).map((path) => [path, read(path)] as const);
+  return { offerings: offeringsOf(manifests, options), targets: importTargets(manifests.map(([, manifest]) => manifest)) };
+}
+
+/**
  * Every published package of a workspace, and the source each entrypoint opens.
  *
  * `private: true` is the only filter, and it is the manifest's own word for *do
@@ -324,12 +434,18 @@ function openedBy(dir: string, subpath: string, types: string): readonly Entrypo
  * either invent a source or drop the subpath.
  */
 export function readOfferings(root: string, options: OfferingOptions = {}): readonly Offering[] {
+  return offeringsOf(members(resolve(root), read).map((path) => [path, read(path)] as const), options);
+}
+
+function offeringsOf(
+  manifests: readonly (readonly [path: string, manifest: Record<string, unknown>])[],
+  options: OfferingOptions,
+): readonly Offering[] {
   const offered = options.offered ?? OFFERED;
   const found: Offering[] = [];
 
-  for (const path of members(resolve(root))) {
-    const manifest = read(path);
-    if (manifest['private'] === true || typeof manifest['name'] !== 'string') continue;
+  for (const [path, manifest] of manifests) {
+    if (!isPublished(manifest)) continue;
 
     const dir = dirname(path);
     const declared: Record<string, unknown> = {};
@@ -337,10 +453,26 @@ export function readOfferings(root: string, options: OfferingOptions = {}): read
 
     const entrypoints: Entrypoint[] = [];
     const unreadable: string[] = [];
-    const exports = (manifest['exports'] ?? {}) as Record<string, unknown>;
-    for (const [subpath, condition] of Object.entries(exports)) {
-      const types = declarationsOf(condition);
-      if (types === undefined) continue;
+    let subpaths: readonly (readonly [string, unknown])[] = [];
+    try {
+      subpaths = entrySubpaths(path, manifest);
+    } catch (error) {
+      if (options.tolerant !== true) throw error;
+      unreadable.push(`${manifest['name']} — ${error instanceof Error ? error.message : String(error)}`);
+    }
+    const custom = customConditionsOf(dir);
+    for (const [subpath, written] of subpaths) {
+      const condition = followed(dir, written, custom);
+      const authored = besideOf(dir, condition);
+      if (authored !== undefined && !authored.includes('*')) {
+        entrypoints.push({ subpath, source: join(dir, authored) });
+        continue;
+      }
+      const types = authored ?? declarationsOf(condition);
+      if (types === undefined) {
+        entrypoints.push(...namedWithExtension(dir, subpath, condition));
+        continue;
+      }
       try {
         entrypoints.push(...openedBy(dir, subpath, types));
       } catch (error) {
@@ -353,6 +485,7 @@ export function readOfferings(root: string, options: OfferingOptions = {}): read
       name: manifest['name'],
       dir,
       declared,
+      entry: declaresEntry(manifest),
       entrypoints,
       ...(unreadable.length === 0 ? {} : { unreadable }),
     });

@@ -5,6 +5,7 @@
 > A persistent Playwright harness and renderer for Variance Authority: one browser per run, documents turned into rasters.
 
 Part of [Variance Authority](https://variance-authority.dev).
+Point your coding agent at [`llms.txt`](https://variance-authority.dev/llms.txt).
 
 ## What this package does
 
@@ -101,7 +102,7 @@ fixture:button chromium@151.0.7922.34 784
 
 Your own bundle replaces the stub: it reads the real subject, serializes a
 `RawCapture`, and tears the previous subject down before each capture. The
-harness cannot do that teardown — it does not know what the previous subject
+harness cannot do that teardown — it has no record of what the previous subject
 installed. If you do not own page-side code of that kind, use
 `@variance-authority/playwright-test`.
 
@@ -116,7 +117,7 @@ three transports later.
 | `.` | the harness and the network observation | needs `playwright` |
 | `@variance-authority/playwright/renderer` | `createPlaywrightRenderer` | the renderer alone, without the harness |
 | `@variance-authority/playwright/agent` | `PageAgent`, `CaptureRequest`, `AGENT_GLOBAL` | **must not** need `playwright` — it is bundled into the page |
-| `@variance-authority/playwright/engines` | `declaredEngines`, `requireEngines`, `engineStatus` | which engines a run is asked to use, and whether this machine has them |
+| `@variance-authority/playwright/engines` | `declaredEngines`, `requireEngines`, `engineStatus` | which engines a run is configured to use, and whether this machine has them |
 
 `playwright/agent` is published separately because it runs inside the browser:
 it is injected as a classic script, and importing Playwright behind it would put
@@ -133,7 +134,7 @@ cost **7.5 ms a capture against 205 ms** when each capture launched a browser
 first: 27x, reproduced across three runs. Absolute numbers vary with the
 machine; the ratio is the reason for the shape.
 
-The harness knows nothing about subjects, stories or frameworks, so the same
+The harness has no code for subjects, stories or frameworks, so the same
 harness serves a fixture page, a Storybook, or a route.
 
 `capture` is sequential by contract. Two concurrent calls would render two
@@ -147,15 +148,23 @@ subjects into one document and let one decide the other's verdict.
 | `bundle` | required | IIFE source installing a `PageAgent` at `AGENT_GLOBAL`. Not ESM: a module evaluates asynchronously, so the harness would poll instead of failing the moment the bundle is broken |
 | `viewport` | required | width, height, scale, colour scheme |
 | `fonts` | optional | families this capture is asserted to have; when it is omitted the capture records that nothing was asserted |
-| `features` | optional | environment facts recorded with the capture |
+| `features` | optional | environment facts recorded with the capture. A `prefers-reduced-motion` declared here is the value `stabilize` asks the browser for |
 | `assets` | optional | asset digests recorded with the capture |
 | `subjectId` | `fixture:<subject>` | how a subject name becomes a capture id |
+| `timezoneId`, `locale` | `UTC`, `en-US` | the timezone the page's clock reads in and the language it formats for. Pinned rather than taken from the host, so a date read on two machines is one date, and written to the environment key of every capture. Give the renderer the same pair: it is the renderer that carries them in `RenderIdentity` |
 | `headless` | `true` | set false to watch a case that is behaving oddly |
+| `warm` | `false` | open the page in a context shared with every other warm harness on the same browser — the same engine, headless flag and launch arguments — and of the same viewport and region. The context holds the HTTP cache, so your second page boots from what the first fetched; the pages also share cookies and storage, which is why you ask for it |
+| `isolated` | `false` | launch a browser of the harness's own. Every other harness leases one browser per launch recipe and the last to close it closes it, so a run with workers and a renderer starts one Chromium |
+| `stabilize` | none | a stabilization recipe whose driver tricks — `no-hover`, `reduced-motion`, `freeze-clock` — are applied before the first navigation. The ids it applied are `harness.driven`, for the page agent to keep in the recipe it records; with `reduced-motion` applied the capture declares `prefers-reduced-motion: reduce` unless `features` declares its own |
 | `prepare` | none | run against the page *before* its first navigation. This is where `observeNetwork` attaches: a watcher installed after `goto` has already missed every asset the document pulled in, and the alternative pays a second page load per run to observe the first one |
 
 `prepare` is a hook rather than a `network` option: the harness only owns the
 browser, so decisions about the environment key — like asset hashing — stay in
 the page, not the harness.
+
+`createObservedHarness(options, network)` is that hook already written: it
+starts `observeNetwork` in `prepare` when `network` is given, and returns the
+harness with the observation, which you close before the harness.
 
 ## What the page was actually served
 
@@ -190,15 +199,16 @@ This closes a false `unchanged` a page cannot see about itself: a logo
 re-exported at the same URL is the same markup, the same CSS and the same
 document, so every comparison tier — DOM, CSS, layout — settles and the run
 reports that nothing changed, even though the served image is different bytes.
-Only the party that watched the network response knows otherwise.
+Only a reading of the network response shows the difference.
 
 | option | default | what it decides |
 |---|---|---|
 | `hashAssets` | `true` | fold asset bodies into the environment key. Off is a real position for a build whose URLs are content-addressed already: the URL is then the identity, and hashing the bytes again buys a read and nothing else |
-| `hashCeilingBytes` | 8 MiB | above this an asset is recorded as `size:<n>` rather than by content. A ceiling, not a cliff — the weaker claim still changes the key when the file changes, and says in the value that it is weaker. Skipping it silently would leave a hole in the key, and a hole in this key is a false `unchanged` |
+| `hashCeilingBytes` | 8 MiB | above this an asset is recorded as `size:<n>` rather than by content. A ceiling, not a cliff — the weaker record still changes the key when the file changes, and marks in the value that it is weaker. Skipping it silently would leave a hole in the key, and a hole in this key is a false `unchanged` |
 | `freezeAnimatedImages` | `true` | serve animated GIFs as their first frame, on the wire rather than in the page |
-| `blank` | none | `BlankRule[]`: images served as nothing, at their own size. The stronger relative of an ignore mask, and stronger because it happens *first* — a mask hides pixels after the page has fetched the image, laid out around it and folded its bytes into the key. It knows the URL and the intrinsic size, and does not know the DOM |
+| `blank` | none | `BlankRule[]`: images served as nothing, at their own size. The stronger relative of an ignore mask, and stronger because it happens *first* — a mask hides pixels after the page has fetched the image, laid out around it and folded its bytes into the key. It reads the URL and the intrinsic size, and does not read the DOM |
 | `retainResources` | `false` | keep the bytes, not just the digest, so the document can be painted somewhere with no route to this origin. Retention rather than acquisition: every hashed body is already fetched and buffered long enough to digest, so a portable document costs a map and not a second crawl |
+| `cache` | `false` | leave the browser's HTTP cache on. Requests are held through the DevTools protocol rather than Playwright's routing, which turns the cache off, so a page in a context another page filled is answered from memory and every answer still passes the observation. An image the same page already shows is drawn again without a request, so turn it on only when you never call `reset`. Chromium only |
 
 `retainResources` keeps **what was served** — the blank an image became, the
 single frame a GIF was truncated to. Keeping what *arrived* would paint a
@@ -210,15 +220,16 @@ ledgers rather than counts — blanking is the one intervention here that can hi
 a real regression, so an operator who blanked more than they meant to can read
 back exactly what disappeared.
 
-## Where a component is declared, asked of the engine
+## Where a component is declared, read from the engine
 
 A source scan answers a name: every declaration in the configured directories
-that spells `Button`, and when two do, the name is ambiguous and the report says
-so. The page has something better than a name. The fiber points at the function
-React called, and V8 knows where every function it compiled begins. So the page
-agent keeps the functions it met, and `createDeclarationReader(page)` asks
-Chromium over CDP for each one's `[[FunctionLocation]]`, then maps the position
-through the served module's source map to a repository file and line.
+that spells `Button`, and when two do, the name is ambiguous and the report
+prints that. The page has something better than a name. The fiber points at the
+function React called, and V8 records where every function it compiled begins.
+So the page agent keeps the functions it met, and
+`createDeclarationReader(page)` queries Chromium over CDP for each one's
+`[[FunctionLocation]]`, then maps the position through the served module's
+source map to a repository file and line.
 
 Excerpt — `page` is `harness.page`, `scanned` is the `SourceIndex` your scan
 produced, and `overlaySourceIndex` comes from
@@ -235,16 +246,16 @@ const source = overlaySourceIndex(scanned, engine);
 await declared.close();
 ```
 
-`read()` is incremental: the registry in the page only grows, each read asks
-about what is new and returns the union, and a registry rebuilt by a navigation
-starts the count over. `stats` counts what was asked and what mapped to a file
+`read()` is incremental: the registry in the page only grows, each read queries
+what is new and returns the union, and a registry rebuilt by a navigation
+starts the count over. `stats` counts what was queried and what mapped to a file
 the project wrote; the vendor rule is the call-site resolver's, so a component
 declared in `node_modules` is not an answer.
 
 Chromium only. On WebKit and Firefox `newCDPSession` throws, the reader notes it
 once, and `read()` answers the empty index for the rest of the page's life.
-Nothing downstream tells that from a page with no components, and the scan still
-stands underneath.
+Nothing downstream separates that from a page with no components, and the scan
+still stands underneath.
 
 Options: `global` names the global the agent is installed at, `AGENT_GLOBAL`
 unless the bundle chose another. `fetchModule` supplies the fetch for served
@@ -276,9 +287,9 @@ const engines = requireEngines(declaredEngines()); // ['chromium', 'webkit']
 
 `requireEngines` throws and names the engine when a declared one is not
 installed, because the alternative is a result that changes with the machine: a
-laptop missing WebKit measures one engine, reports green, and says nothing about
-the claim it did not check. On a machine with Chromium and no WebKit, that throw
-reads:
+laptop missing WebKit measures one engine, reports green, and prints nothing
+about the engine it did not check. On a machine with Chromium and no WebKit,
+that throw reads:
 
 ```
 declared engine not installed: webkit (this machine has chromium)
@@ -290,26 +301,27 @@ A machine with no browsers at all returns empty, which is the one case a caller
 may skip on.
 
 `VARIANCE_ENGINES=chromium,webkit` overrides the list for a single run. It
-changes what is asked for, not the rule — whatever it names still has to exist.
+changes the list, not the rule — whatever it names still has to exist.
 
 A `RenderDocument` is engine-independent, so **a second engine costs a second
 paint and no second collection**. What that paint costs differs sharply by
 engine and by subject; the table below is the size of it.
 
 The engine is part of `RenderIdentity`, which keys the baseline store: a WebKit
-baseline lands in its own directory, and a Chromium run that finds one reports
-`incomparable`, naming both engines. The supplied stabilization recipe targets
+baseline lands in its own directory, and a Chromium run compared against one
+names both engines as the cause. The supplied stabilization recipe targets
 Chromium — use `prepare` for engine-specific controls needed by Firefox or
 WebKit.
 
 ### Only Chromium can be told how to paint text
 
-`CHROMIUM_RASTER_ARGS` — `--disable-lcd-text`, `--font-render-hinting=none` —
-makes Chromium's text independent of host defaults, and there is no equivalent
-for Firefox or WebKit. Their text is painted the way the host paints text.
-WebKit's one lever is the page's own `-webkit-font-smoothing`, which is not a
-substitute: it changes 4,204 pixels of a 500x160 subject, so it changes the
-subject rather than the conditions the subject is photographed under.
+Two of `CHROMIUM_RASTER_ARGS`, `--disable-lcd-text` and
+`--font-render-hinting=none`, make Chromium's text independent of host defaults,
+and there is no equivalent for Firefox or WebKit. Their text is painted the way
+the host paints text. WebKit's one lever is the page's own
+`-webkit-font-smoothing`, which is not a substitute: it changes 4,204 pixels of
+a 500x160 subject, so it changes the subject rather than the conditions the
+subject is photographed under.
 
 On macOS none of this bites. The system has had no subpixel antialiasing since
 10.14, all four candidate flags are no-ops, and every engine paints greyscale
@@ -320,12 +332,13 @@ the flags are load-bearing for Chromium and absent for the other two. Measured i
 are unaffected because the flags were never passed to them.
 
 **So a WebKit or Firefox raster is comparable only to one from the same host.**
-`RenderIdentity` includes `platform`, so a laptop's baseline and a container's are
-separate baselines and a run says `incomparable` rather than comparing them. That
-is the safe failure, not a solution: neither answers for the other. If rasters are
-produced in a container, produce them only there — a local WebKit renderer records
-baselines nothing will ever compare against, and pays the raster tier for them.
-The semantic tier is unaffected and stays local.
+`RenderIdentity` includes `platform`, so a laptop's baseline and a container's
+are separate baselines, and a run compared across them names the platform as the
+cause of every change. That is a named failure, not a solution: neither answers
+for the other.
+If rasters are produced in a container, produce them only there — a local WebKit
+renderer records baselines nothing will ever compare against, and pays the
+raster tier for them. The semantic tier is unaffected and stays local.
 
 The container is cheap, which is not what people assume. Measured on an Apple M4
 Max (16 cores, 64 GB) under Docker Desktop 29.0.1 with Playwright 1.62.1,
@@ -454,11 +467,11 @@ const renderer = await createPlaywrightRenderer();
 const raster = await renderer.render(document);
 ```
 
-Chromium launches with `--disable-lcd-text` and `--font-render-hinting=none` by
-default. An explicit ordered `launchArgs` list replaces that default. Headless
-mode and the ordered launch recipe are hashed into
-`RenderIdentity.rasterization`, so changing font rasterization settings
-partitions baselines instead of appearing as a product diff.
+Chromium launches with `--disable-lcd-text`, `--font-render-hinting=none` and
+`--disable-partial-raster` by default. An explicit ordered `launchArgs` list
+replaces that default. Headless mode and the ordered launch recipe are hashed
+into `RenderIdentity.rasterization`, so changing font rasterization settings
+is named as the cause instead of appearing as a product diff.
 
 A resource-closed document is rendered without network access: archived resource
 bytes satisfy matching requests and every unresolved request is aborted. A
@@ -476,10 +489,11 @@ browser.
 |---|---|---|
 | `browser` | `chromium` | which engine paints. Part of `RenderIdentity` |
 | `headless` | `true` | set false to watch a render |
+| `timezoneId`, `locale` | `UTC`, `en-US` | the timezone and language the page is painted in. Part of `RenderIdentity`. Set them to what the collector read in, or a formatted date paints differently from the one that was read |
 | `launchArgs` | `CHROMIUM_RASTER_ARGS` on Chromium, none elsewhere | launch flags that may affect pixels. The exact ordered list is folded into the identity |
-| `fonts` | none | what this machine is **asserted** to have, as `family/weight/style/hash`. A page can ask whether a family resolves and cannot read the bytes behind it, so this is a declaration — and it is what makes a baseline from a different font stack `incomparable` rather than `changed` |
+| `fonts` | none | what this machine is **asserted** to have, as `family/weight/style/hash`. A page can ask whether a family resolves and cannot read the bytes behind it, so this is a declaration — and it is what names a different font stack as the cause when a baseline from one reads `changed` |
 | `waitForFonts` | `true` | wait on `document.fonts.ready` before painting |
-| `stabilization` | the raster recipe | which tricks hold the page still. Folded into the identity, so a baseline made under one recipe and a run under another are `incomparable` |
+| `stabilization` | the raster recipe, which also releases focus | which tricks hold the page still. Folded into the identity, so a baseline made under one recipe and a run under another are compared with the recipe named as the cause. Every document is painted under it, whatever recipe it was collected under |
 | `assemble` | `AssembleOptions` defaults | how the document is turned into a page |
 | `concurrency` | `1` | how many documents may be painted at once. Above 1 each render leases its own page, because `setContent` replaces a page's whole document. Worth having: the raster tier is where a run's time is |
 
@@ -499,4 +513,4 @@ with `harness.pageErrors()`.
 
 ---
 
-**[@variance-authority/playwright](https://variance-authority.dev/reference/packages/playwright)** is part of [Variance Authority](https://variance-authority.dev) — [documentation](https://variance-authority.dev/docs) · MIT
+**[@variance-authority/playwright](https://variance-authority.dev/reference/packages/playwright)** is part of [Variance Authority](https://variance-authority.dev) — [documentation](https://variance-authority.dev/docs) · [GitHub](https://github.com/Variance-Authority/variance-authority/tree/main/packages/playwright) · MIT

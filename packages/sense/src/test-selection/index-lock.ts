@@ -115,6 +115,19 @@ export function noteABusyIndex(coverageFile: string): void {
 }
 
 /**
+ * The same, for the case index beside a snapshot this run already wrote. The
+ * snapshot has the run's files, so "nothing" would be false: what is missing is
+ * its cases, and a reader who asks which cases walk a line gets the last run
+ * that laid them.
+ */
+export function noteABusyCaseIndex(caseFile: string): void {
+  console.warn(
+    `variance-authority recorded this run's files, but not its cases: another process is holding ` +
+      `${caseFile}.lock, and the cases were dropped rather than merged over whatever it is writing.`,
+  );
+}
+
+/**
  * Hold the index, or give up.
  *
  * `wx` is the exclusion — one creator wins on every filesystem this runs on —
@@ -154,6 +167,12 @@ async function takeIndexLock(coverageFile: string): Promise<string | undefined> 
  */
 export const LOCK_WAIT_MS = 10_000;
 export const LOCK_POLL_MS = 25;
+// FIXME: staleness is the lock file's mtime, and a holder never touches it
+// again. A landing holds the snapshot's lock while it lays every shard's cases,
+// so a landing longer than this has its lock broken by the next runner that
+// waits on it: both then write the snapshot, and the holder's `finally` removes
+// the lock the other took. Refresh the mtime while `merge` runs, or break only a
+// lock whose pid is gone.
 const LOCK_STALE_MS = 60_000;
 
 async function lockAge(lock: string): Promise<number | undefined> {

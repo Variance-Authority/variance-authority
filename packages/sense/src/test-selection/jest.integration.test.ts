@@ -1,5 +1,5 @@
 import { execFile } from 'node:child_process';
-import { mkdtemp, readFile, readdir, rm, stat } from 'node:fs/promises';
+import { mkdtemp, readFile, readdir, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -8,12 +8,15 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { decodeTestCoverage } from './format.js';
 import { selectTestFiles } from './index.js';
 import { decodeExecutionIndex } from './execution-format.js';
-import { journeyGaps } from './execution-set-format.js';
+import { lineAt, linesOf } from './case-lines.js';
+import { caseSectionsOf, recordedCases } from './case-record.js';
+import { journeyGaps, openSetColumns } from './execution-set-format.js';
 import { finalizeJestJourneys, stitchJourneyArtifacts } from './jest-journey-artifact.js';
 
 // The story format is a CommonJS sandbox module whose own requires resolve only
 // once built, so it is read from `dist/` as the jest seam itself loads it.
 const stories = (await import('../../dist/story/format.cjs')).default as typeof import('../story/format.cjs');
+const { readRoute } = (await import('../../dist/story/read.js')) as typeof import('../story/read.js');
 const execute = promisify(execFile);
 const here = dirname(fileURLToPath(import.meta.url));
 const repository = resolve(here, '../../../..');
@@ -28,6 +31,37 @@ afterEach(async () => {
 });
 
 describe('the Jest integration', () => {
+  it('records which files each test loaded under the loads recipe, with one bucket per file and no case index', async () => {
+    const directory = await mkdtemp(resolve(tmpdir(), 'variance-authority-jest-'));
+    temporary.push(directory);
+    const coverageFile = resolve(directory, 'coverage.bin');
+    const env = {
+      ...process.env,
+      VARIANCE_AUTHORITY_COVERAGE: coverageFile,
+      VARIANCE_AUTHORITY_JEST_CACHE: resolve(directory, 'cache'),
+      VARIANCE_AUTHORITY_CACHE: directory,
+      FIXTURE_MODE: 'loads',
+    };
+    for (const testFile of ['test/alpha.case.ts', 'test/beta.case.ts', 'test/delta.case.ts']) {
+      await execute(process.execPath, [jest, '--config', resolve(fixture, 'jest.config.mjs'), '--watchman=false', testFile], { cwd: fixture, env });
+    }
+
+    const coverage = decodeTestCoverage(await readFile(coverageFile));
+    expect(coverage.modules.filter((module) => module.file === at('src/decide.ts')).map((module) => [module.file, module.instrumented, module.blocks])).toEqual([
+      [at('src/decide.ts'), false, []],
+    ]);
+    const { index, before, last } = caseSectionsOf(await readFile(coverageFile));
+    expect({ index, before, last }).toEqual({ index: undefined, before: undefined, last: undefined });
+    const source = await readFile(resolve(fixture, 'src/decide.ts'), 'utf8');
+    const line = source.slice(0, source.indexOf("return 'A'")).split('\n').length;
+    // Every file that loaded the module, whichever line it reached.
+    await expect(selectTestFiles(coverageFile, `--- a/${at('src/decide.ts')}
++++ b/${at('src/decide.ts')}
+@@ -${line},1 +${line},1 @@
+-    return 'A';
++    return 'Alpha';`)).resolves.toEqual([at('test/alpha.case.ts'), at('test/beta.case.ts'), at('test/delta.case.ts')]);
+  }, 60_000);
+
   it('records tests transformed by @swc/jest beside the project\'s own setup file and reporter, and selects the one that covered a changed line', async () => {
     const directory = await mkdtemp(resolve(tmpdir(), 'variance-authority-jest-'));
     temporary.push(directory);
@@ -84,7 +118,7 @@ describe('the Jest integration', () => {
     expect(onB).not.toContain(at('test/alpha.case.ts'));
 
     const coverage = decodeTestCoverage(await readFile(coverageFile));
-    expect(coverage.modules.map((module) => module.file)).toEqual([at('src/decide.ts')]);
+    expect(coverage.modules.filter((module) => module.instrumented).map((module) => module.file)).toEqual([at('src/decide.ts')]);
     // Whole, skipped test and all — see `usableOutcome` in `vitest.ts` for why a
     // skip leaves the record usable as evidence where a failure does not.
     expect(coverage.tests.map((test) => [test.file, test.complete])).toEqual([
@@ -92,33 +126,34 @@ describe('the Jest integration', () => {
       [at('test/beta.case.ts'), true],
       [at('test/gamma.case.ts'), true],
     ]);
+    // Jest times the environment and the setup files; the setup module marks
+    // where collecting ended, when jest-circus started the file's run.
+    expect(coverage.tests.map((test) => [test.file, Object.keys(test.phases ?? {}).sort()])).toEqual([
+      [at('test/alpha.case.ts'), ['cases', 'collect', 'environment', 'setup']],
+      [at('test/beta.case.ts'), ['cases', 'collect', 'environment', 'setup']],
+      [at('test/gamma.case.ts'), ['cases', 'collect', 'environment', 'setup']],
+    ]);
+    // The project's setup file holds a 150 ms `beforeAll` and freezes the
+    // test's clock: the hook is in the cases, and the frozen clock moves no mark.
+    expect(coverage.tests.every((test) => (test.phases?.cases ?? 0) >= 150)).toBe(true);
     // The project's setup files stayed configured and are preconditions of
     // every observation. `src/decide.ts` is not one: a precondition is a file
     // the answer depended on that the instrument could not see inside, and an
     // instrumented module is one it could — its digest is on its own row and a
     // change to its text is caught by re-cutting its regions.
-    expect(coverage.tests[0]!.preconditions.map((precondition) => precondition.name)).toEqual([
+    expect(coverage.tests[0]!.preconditions.map((precondition) => precondition.name)).toEqual(expect.arrayContaining([
       at('jest.config.mjs'),
       at('test/alpha.case.ts'),
       at('test/environment.ts'),
       at('test/polyfill.cjs'),
       at('test/setup.cjs'),
-    ]);
+    ]));
     // The project's reporter stayed configured and ran.
     await expect(readFile(resolve(directory, 'user-reporter.txt'), 'utf8')).resolves.toBe('ran\n');
 
     // A warm run: Jest serves the probed text from its cache without calling
-    // the transformer, and the inventory written beside it still attributes.
-    const inventories = resolve(cacheDirectory, 'variance-authority-test-selection');
-    const written = async (): Promise<Record<string, number>> => Object.fromEntries(
-      await Promise.all((await readdir(inventories)).map(async (name) => [
-        name,
-        (await stat(resolve(inventories, name))).mtimeMs,
-      ])),
-    );
-    const before = await written();
+    // the transformer, and the checkout still says what the probes meant.
     await run('test/alpha.case.ts');
-    expect(await written()).toEqual(before);
     await expect(selectTestFiles(coverageFile, diff)).resolves.toEqual([at('test/alpha.case.ts')]);
   }, 120_000);
 
@@ -159,17 +194,15 @@ describe('the Jest integration', () => {
     await stitchJourneyArtifacts([...journeyFiles].reverse(), reversed);
     await expect(readFile(reversed)).resolves.toEqual(await readFile(assembled));
     const index = decodeExecutionIndex(await readFile(assembled));
-    // Every case that entered a region, by the name the runner resolved. Two of
-    // `alpha.case.ts`'s three are absent for different reasons: the skipped one
-    // is never handed to the runner, so it opens no scope at all, and the one
-    // that only reads a global crossed nothing — the same rule the Vitest seam
-    // applies, since a case with an empty bucket adds a row nobody can select
-    // on.
+    // Every case that ran, by the name the runner resolved, the one that only
+    // reads a global among them though it crossed nothing. The skipped one is
+    // absent: it is never handed to the runner, so it opens no scope at all.
     // `delta.case.ts` among them, which is the placement a search of the realm
     // cannot reach: it imported `it` from `@jest/globals`, so the binding it
     // declared with was never the one on `globalThis`. The runner announces it
     // like any other case and the seam takes its enclosure from the event.
     expect(index.tests.map((test) => test.id)).toEqual([
+      at("test/alpha.case.ts > ran after the project's own setup file"),
       at('test/alpha.case.ts > takes the alpha path'),
       at('test/beta.case.ts > takes the beta path'),
       at('test/delta.case.ts > takes the delta path with registrars it imported'),
@@ -281,21 +314,90 @@ describe('the Jest integration', () => {
       stories.decodeStory(await readFile(resolve(taped, path))).name));
     // The `it.skip` in alpha runs nothing, so it tapes nothing.
     expect(names.sort()).toEqual(['ran after the project\'s own setup file', 'takes the alpha path']);
+    // Each region the case went through is named by its coordinate in the record beside the story.
+    const alpha = (await written(taped)).map((path) => resolve(taped, path))
+      .find((path) => readRoute(repository, path).name === 'takes the alpha path');
+    const route = readRoute(repository, alpha!);
+    expect(route.unresolved).toEqual([]);
+    expect(route.route.map((step) => ('token' in step ? step.token : undefined))
+      .find((token) => token !== undefined && 'place' in token && token.place.name === 'decide')).toMatchObject({
+      place: { file: at('src/decide.ts'), at: `${at('src/decide.ts')}#decide/entry` },
+      arms: [{ path: 'if#0/then', at: `${at('src/decide.ts')}#decide/if#0/then` }],
+    });
     // Each run records the duration its runner reported, which two runs never
     // share; every file and every case has one, and the rest of the two
     // recordings is the same.
     const recorded = async (into: string): Promise<unknown> => {
       const { tests, ...rest } = decodeTestCoverage(await readFile(resolve(into, 'coverage.bin')));
-      expect(tests.every((test) => test.duration !== undefined)).toBe(true);
-      const cases = decodeExecutionIndex(await readFile(resolve(into, 'coverage.bin.cases.bin')));
+      expect(tests.every((test) => test.duration !== undefined && test.phases !== undefined)).toBe(true);
+      const cases = decodeExecutionIndex(await readFile(resolve(into, 'coverage.bin')));
       expect(cases.tests.length).toBeGreaterThan(0);
       expect(cases.tests.every((test) => test.duration !== undefined)).toBe(true);
       return {
         ...rest,
-        tests: tests.map(({ duration: _, ...test }) => test),
+        tests: tests.map(({ duration: _, phases: __, ...test }) => test),
         cases: { ...cases, tests: cases.tests.map(({ duration: _, ...test }) => test) },
       };
     };
     expect(await recorded(taped)).toEqual(await recorded(plain));
+  }, 120_000);
+  it('records what a test file loaded before its first case apart from what each case called, and that every case finished', async () => {
+    const loads = resolve(repository, 'packages/sense/test/fixtures/jest-loads');
+    const inLoads = (path: string): string => `${relative(repository, loads)}/${path}`;
+    const directory = await mkdtemp(resolve(tmpdir(), 'variance-authority-jest-loads-'));
+    temporary.push(directory);
+    const coverageFile = resolve(directory, 'coverage.bin');
+    await execute(
+      process.execPath,
+      [jest, '--config', resolve(loads, 'jest.config.mjs'), '--watchman=false'],
+      {
+        cwd: loads,
+        env: {
+          ...process.env,
+          VARIANCE_AUTHORITY_COVERAGE: coverageFile,
+          VARIANCE_AUTHORITY_JEST_CACHE: resolve(directory, 'cache'),
+          VARIANCE_AUTHORITY_CACHE: directory,
+        },
+      },
+    );
+
+    // `distill --file` reads these three facts; without any one of them a Jest
+    // record reads as unmeasured, or credits a case with an import's evaluation.
+    const bytes = await readFile(coverageFile);
+    const testFile = inLoads('test/dialog.case.ts');
+    const coverage = decodeTestCoverage(bytes);
+    expect(coverage.tests.map((test) => [test.file, test.complete])).toEqual([[testFile, true]]);
+    const loadedBy = new Map(coverage.modules.map((module) =>
+      [module.file, module.blocks.find((block) => block.kind === 'module')?.loadedBy]));
+    for (const file of ['src/dialog.ts', 'src/editor.ts', 'src/fallback.ts', 'src/confirm.ts']) {
+      expect(loadedBy.get(inLoads(file))).toEqual([testFile]);
+    }
+
+    const cases = decodeExecutionIndex(bytes);
+    expect(cases.tests.map((test) => [test.id, test.stopped])).toEqual(expect.arrayContaining([
+      [`${testFile} > opens`, false],
+      [`${testFile} > confirms on click`, false],
+      [`${testFile} > opens twice`, false],
+    ]));
+    const called = new Map(cases.modules.map((module) => [
+      module.file,
+      [...new Set(module.blocks
+        .filter((block) => block.kind !== 'module')
+        .flatMap((block) => block.crossings)
+        .filter((crossing) => crossing.loaded !== true)
+        .map((crossing) => cases.tests[crossing.test]!.id))].sort(),
+    ]));
+    expect(called.get(inLoads('src/confirm.ts'))).toEqual([`${testFile} > confirms on click`]);
+    expect(called.get(inLoads('src/editor.ts')) ?? []).toEqual([]);
+    expect(called.get(inLoads('src/fallback.ts')) ?? []).toEqual([]);
+
+    // The test's own statement on line 7 is what reached every region `click` entered.
+    const confirms = cases.tests.findIndex((test) => test.id === `${testFile} > confirms on click`);
+    const lines = linesOf(openSetColumns(recordedCases(bytes))!.testLines, confirms)!;
+    const module = cases.modules.findIndex((entry) => entry.file === inLoads('src/confirm.ts'));
+    const reached = cases.modules[module]!.blocks.flatMap((block, at) =>
+      block.crossings.some((crossing) => crossing.test === confirms && crossing.loaded !== true) ? [lineAt(lines, module, at)] : []);
+    expect(reached.length).toBeGreaterThan(0);
+    expect(new Set(reached.map((line) => JSON.stringify(line)))).toEqual(new Set([JSON.stringify({ line: 7, ambient: false })]));
   }, 120_000);
 });

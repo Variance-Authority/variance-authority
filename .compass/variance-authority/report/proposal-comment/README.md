@@ -4,8 +4,8 @@
 
 ## Responsibility
 
-Renders the **docket** as one comment on a change proposal, found by a marker in
-its own body and rewritten in place.
+Renders the **docket** as one comment per project on a change proposal, found
+by a marker in its own body that names the project, and rewritten in place.
 
 ## Bounded context
 
@@ -54,6 +54,8 @@ The marker lives in the body rather than in the author, because the same rule
 has to work whether the credential posts as a bot or as a person, and a rule
 keyed on either starts duplicating silently when the operator changes it. The
 cost is stated: anyone who can comment can write the marker and have it adopted.
+The marker names the config's `project`, because two configs gating one
+proposal run two posters, and each has to find its own comment.
 
 Nothing is capped silently. Every list has a limit, because a comment the host
 refuses to render is a comment nobody reads, and every limit states what it hid
@@ -67,7 +69,11 @@ itself.
 
 ## Implementation coordinates
 
-- `packages/cli/src/commands/comment.ts` — `renderComment`, `COMMENT_MARKER`, `DEFAULT_LIMITS`
+- `packages/cli/src/commands/comment.ts` — `renderComment`, `commentMarker`, `DEFAULT_LIMITS`
+- `packages/cli/src/commands/comment-lead.ts` — the first screen: heading, lead
+  cause, and accept only when `promotionOf` would promote a subject
+- `packages/cli/src/commands/comment-unstable.ts` — the subjects that disagreed
+  with themselves, from `unstableOf`
 - `packages/cli/src/commands/comment-blocks.ts` — the blocks and the clamps
 - `packages/cli/src/commands/comment-text.ts` — the two primitives the fold and
   the render both write through

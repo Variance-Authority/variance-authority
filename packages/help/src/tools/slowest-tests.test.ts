@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { formatSlowest, limitOf, scopeOf, SLOWEST, slowestTests, spent } from './slowest-tests.js';
+import { formatSlowest, scopeOf, slowestTests, spent } from './slowest-tests.js';
 
 const ANYWHERE = { unrecorded: [] };
-const NO_CASES = { recording: '/cache/coverage.bin.cases.bin', unread: 'nothing is recorded there' };
+const NO_CASES = { recording: '/cache/coverage.bin', unread: 'nothing is recorded there' };
 const CASES_UNREAD =
-  'Slowest recorded test cases: none read from /cache/coverage.bin.cases.bin, nothing is recorded there. ' +
+  'Slowest recorded test cases: none read from /cache/coverage.bin, nothing is recorded there. ' +
   'A recorded test run writes it.';
 
 describe('the slowest recorded test files, as printed', () => {
@@ -21,7 +21,7 @@ describe('the slowest recorded test files, as printed', () => {
         untimed: 2,
         scope: ANYWHERE,
         cases: {
-          recording: '/cache/suites/unit/coverage.bin.cases.bin',
+          recording: '/cache/suites/unit/coverage.bin',
           slowest: [{ file: 'test/b.test.ts', name: 'reads > twice', duration: 900 }],
           timed: 8,
           untimed: 0,
@@ -29,12 +29,12 @@ describe('the slowest recorded test files, as printed', () => {
         },
       },
     ])).toBe([
-      'Slowest recorded test files, suite unit, as their runner reported them, from /cache/suites/unit/coverage.bin:',
+      'Slowest recorded test files, suite unit, as their runner timed them, from /cache/suites/unit/coverage.bin:',
       '  1.3 s  test/b.test.ts',
       '  40 ms  test/a.test.ts',
       '2 of 5 timed file(s) shown; 2 recorded file(s) have no duration.',
       '',
-      'Slowest recorded test cases, suite unit, as their runner reported them, from /cache/suites/unit/coverage.bin.cases.bin:',
+      'Slowest recorded test cases, suite unit, as their runner timed them, from /cache/suites/unit/coverage.bin:',
       '  900 ms  test/b.test.ts  reads > twice',
       '1 of 8 timed case(s) shown.',
     ].join('\n'));
@@ -67,7 +67,7 @@ describe('the slowest recorded test files, as printed', () => {
     }], { from: ['test'], to: ['src/read.ts', 'src/gone.ts'] });
 
     expect(answer.split('\n').slice(0, 4)).toEqual([
-      'Slowest recorded test files, under test, that entered src/read.ts or src/gone.ts, as their runner reported them, from /cache/coverage.bin:',
+      'Slowest recorded test files, under test, that entered src/read.ts or src/gone.ts, as their runner timed them, from /cache/coverage.bin:',
       '  40 ms  test/b.test.ts',
       '1 of 1 timed file(s) shown.',
       'Unrecorded: `src/gone.ts` has no row in /cache/coverage.bin, which says nothing about whether a test enters it.',
@@ -94,16 +94,8 @@ describe('the slowest recorded test files, as printed', () => {
 });
 
 describe('how many rows it lists', () => {
-  it('defaults when asked for no number, and takes one from the wire or the shell', () => {
-    expect(limitOf({})).toBe(SLOWEST);
-    expect(limitOf({ limit: 3 })).toBe(3);
-    expect(limitOf({ limit: '7' })).toBe(7);
-  });
-
-  it('refuses a count that is not a whole number of rows', () => {
-    for (const limit of [0, -1, 2.5, 'many', '']) {
-      expect(() => limitOf({ limit })).toThrow(/takes a whole number of rows/);
-    }
+  it('refuses a count that is not a whole number of rows, before it reads anything', () => {
+    expect(() => slowestTests.run(undefined, { limit: 0 }, {})).toThrow(/takes a whole number of rows/);
   });
 
   it('declares the limit it reads in the schema the CLI and the server publish', () => {

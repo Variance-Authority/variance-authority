@@ -118,24 +118,78 @@ describe('what may become a baseline', () => {
     expect(promotion).toEqual({ kind: 'promotable', from: 'images/story%3Aa.after.png' });
   });
 
-  it('sends an incomparable baseline somewhere different from a missing render', () => {
-    const incomparable = promotionOf({
+  it('refuses a subject the run recorded no image for', () => {
+    const unrendered = promotionOf(changed('story:b', { images: {} }));
+    expect(unrendered.kind === 'refused' && unrendered.because).toContain('the run recorded no image for it');
+  });
+
+  it('promotes a change painted under another machine or recipe like any other change', () => {
+    // An upgrade or a migration moves many subjects at once; the identity that
+    // moved is their cause, and accepting them is the same act as accepting any
+    // change (ADR-0090).
+    for (const identity of ['machine', 'recipe'] as const) {
+      const moved: ObservationRecord = {
+        subject: 'story:a',
+        verdict: 'changed',
+        because: 'painted under another identity; 12 pixels differ',
+        changedPixels: 12,
+        regions: [],
+        images: { after: 'images/story%3Aa.after.png' },
+        signals: { document: 'unchanged', identity, moved: ['engine chromium@131 → chromium@132'] },
+      };
+      expect(promotionOf(moved)).toEqual({ kind: 'promotable', from: 'images/story%3Aa.after.png' });
+    }
+  });
+
+  it('re-stamps an unchanged subject under a moved identity, so the cause is named once', () => {
+    // Left under the old identity, the subject names the same upgrade on every
+    // run after it was accepted, and the avalanche never ends.
+    const unmoved: ObservationRecord = {
       subject: 'story:a',
-      verdict: 'incomparable',
-      because: 'baseline from another machine',
+      verdict: 'unchanged',
+      because: 'painted under another recipe; no pixels differ',
       changedPixels: 0,
       regions: [],
-    });
-    const unrendered = promotionOf(changed('story:b', { images: {} }));
+      images: { after: 'images/story%3Aa.after.png' },
+      signals: { identity: 'recipe', moved: ['rasterization e5ed66c6 → 865368fe'] },
+    };
+    expect(promotionOf(unmoved)).toEqual({ kind: 'promotable', from: 'images/story%3Aa.after.png' });
 
-    // Opposite causes: one is a decision about machines, the other is a re-run.
-    // One sentence would serve neither.
-    expect(incomparable.kind === 'refused' && incomparable.because).toContain(
-      'its baseline belongs to another machine',
-    );
-    expect(unrendered.kind === 'refused' && unrendered.because).toContain(
-      'the run recorded no image for it',
-    );
+    // Without an image to re-stamp from it is still the baseline, not a refusal.
+    const { images, ...imageless } = unmoved;
+    void images;
+    expect(promotionOf(imageless).kind).toBe('already-baseline');
+  });
+
+  it('re-stamps an unchanged subject whose baseline kept no snapshot, so it records one', () => {
+    // Nothing was joined, so no sentence complained; the first change after it
+    // would be attributed against one render, and the baseline would never say
+    // where its nodes were.
+    const unrecorded: ObservationRecord = {
+      subject: 'story:a',
+      verdict: 'unchanged',
+      because: 'no pixels differ',
+      changedPixels: 0,
+      regions: [],
+      images: { after: 'images/story%3Aa.after.png' },
+      signals: { document: 'unchanged', snapshot: 'unrecorded' },
+    };
+    expect(promotionOf(unrecorded)).toEqual({ kind: 'promotable', from: 'images/story%3Aa.after.png' });
+  });
+
+  it('re-stamps an unchanged subject read from an earlier layout, so accepting moves it', () => {
+    // Left alone, the baseline stays at a path no reviewer can read, and every
+    // run reads it from there again.
+    const relocated: ObservationRecord = {
+      subject: 'story:a',
+      verdict: 'unchanged',
+      because: 'no pixels differ',
+      changedPixels: 0,
+      regions: [],
+      images: { after: 'images/story%3Aa.after.png' },
+      signals: { document: 'unchanged', relocated: { from: 'v1-abc/story-a', to: 'A/Primary-chromium' } },
+    };
+    expect(promotionOf(relocated)).toEqual({ kind: 'promotable', from: 'images/story%3Aa.after.png' });
   });
 });
 

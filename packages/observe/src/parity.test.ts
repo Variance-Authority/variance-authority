@@ -20,6 +20,7 @@ import {
   DEFAULT_POLICY,
   identityAtScale,
   neverFails,
+  type BaselineKey,
   type RasterStore,
   type Renderer,
 } from '@variance-authority/raster';
@@ -139,6 +140,14 @@ afterEach(async () => {
   );
 });
 
+/**
+ * A subject's key with the file that declares it, so a store that places by
+ * `{dir}` can file it and one that does not still reads the subject alone.
+ */
+function at(subject: string): BaselineKey {
+  return { subject, file: 'src/ui/Button.stories.tsx', title: 'Ui/Button', name: subject };
+}
+
 async function directory(): Promise<string> {
   const made = await mkdtemp(join(tmpdir(), 'va-parity-'));
   directories.push(made);
@@ -151,6 +160,17 @@ const IMPLEMENTATIONS: readonly { readonly name: string; open(): Promise<RasterS
     name: 'durable',
     async open(): Promise<RasterStore> {
       return createDurableStore(await directory());
+    },
+  },
+  {
+    // The same store with every baseline beside the file that declares its
+    // subject, under a readable name. Where the image sits is the one thing a
+    // template changes, so it is the one thing that may not move a verdict.
+    name: 'durable, beside the code',
+    async open(): Promise<RasterStore> {
+      return createDurableStore(await directory(), {
+        path: '{dir}/__baselines__/{file}/{title}/{name}-{engine}',
+      });
     },
   },
   {
@@ -175,7 +195,10 @@ const IMPLEMENTATIONS: readonly { readonly name: string; open(): Promise<RasterS
     async open(): Promise<RasterStore> {
       const db = await createSqliteD1();
       databases.push(db);
-      return createBucketStore({ db, bucket: createMemoryR2(), project: 'parity' });
+      // A clock that moves between accepts, as one does between two runs: the
+      // last accept is told apart by when it was made.
+      let tick = Date.parse('2026-01-01T00:00:00Z');
+      return createBucketStore({ db, bucket: createMemoryR2(), project: 'parity', now: () => new Date((tick += 1000)) });
     },
   },
 ];
@@ -194,14 +217,14 @@ const SCENARIOS: readonly Scenario[] = [
     name: 'a subject that did not move',
     verdict: 'unchanged',
     changed: 0,
-    prepare: (store) => store.put({ subject: 's' }, baseline(MAC)),
+    prepare: (store) => store.put(at('s'), baseline(MAC)),
     document: SAME,
   },
   {
     name: 'a subject that moved',
     verdict: 'changed',
     changed: 100,
-    prepare: (store) => store.put({ subject: 's' }, baseline(MAC)),
+    prepare: (store) => store.put(at('s'), baseline(MAC)),
     document: EDITED,
   },
   {
@@ -213,9 +236,9 @@ const SCENARIOS: readonly Scenario[] = [
   },
   {
     name: 'a baseline from another machine',
-    verdict: 'incomparable',
-    changed: undefined,
-    prepare: (store) => store.put({ subject: 's' }, baseline(RUNNER)),
+    verdict: 'unchanged',
+    changed: 0,
+    prepare: (store) => store.put(at('s'), baseline(RUNNER)),
     document: SAME,
   },
 ];
@@ -229,7 +252,7 @@ describe('switching where baselines are kept', () => {
         const store = await implementation.open();
         await scenario.prepare(store);
 
-        const observation = await observeAgainstBaseline(scenario.document, { subject: 's' }, {
+        const observation = await observeAgainstBaseline(scenario.document, at('s'), {
           renderer: renderer(MAC),
           store,
         });
@@ -243,6 +266,7 @@ describe('switching where baselines are kept', () => {
       const expected = { verdict: scenario.verdict, changed: scenario.changed };
       expect(answers).toEqual({
         durable: expected,
+        'durable, beside the code': expected,
         'git-LFS': expected,
         remote: expected,
         bucket: expected,
@@ -260,13 +284,13 @@ describe('switching where baselines are kept', () => {
 
     for (const implementation of IMPLEMENTATIONS) {
       const store = await implementation.open();
-      await store.put({ subject: 'mine' }, baseline(MAC));
-      await store.put({ subject: 'theirs' }, baseline(RUNNER));
+      await store.put(at('mine'), baseline(MAC));
+      await store.put(at('theirs'), baseline(RUNNER));
 
       answers[implementation.name] = {
-        mine: await store.describe({ subject: 'mine' }, MAC),
-        theirs: await store.describe({ subject: 'theirs' }, MAC),
-        neither: await store.describe({ subject: 'never-seen' }, MAC),
+        mine: await store.describe(at('mine'), MAC),
+        theirs: await store.describe(at('theirs'), MAC),
+        neither: await store.describe(at('never-seen'), MAC),
       };
     }
 
@@ -276,6 +300,7 @@ describe('switching where baselines are kept', () => {
         comparable: true,
         storedUnder: MAC,
         pictured: true,
+        keepsSnapshot: false,
         missingFonts: [],
       },
       theirs: {
@@ -283,12 +308,14 @@ describe('switching where baselines are kept', () => {
         comparable: false,
         storedUnder: RUNNER,
         pictured: true,
+        keepsSnapshot: false,
         missingFonts: [],
       },
       neither: null,
     };
     expect(answers).toEqual({
       durable: expected,
+      'durable, beside the code': expected,
       'git-LFS': expected,
       remote: expected,
       bucket: expected,
@@ -332,6 +359,7 @@ describe('switching where baselines are kept', () => {
     const expected = { miss: null, wrote: 'resolved', hit: documentDigest(SAME) };
     expect(answers).toEqual({
       durable: expected,
+      'durable, beside the code': expected,
       'git-LFS': expected,
       remote: expected,
       bucket: expected,
@@ -351,34 +379,70 @@ describe('switching where baselines are kept', () => {
 
     for (const implementation of IMPLEMENTATIONS) {
       const store = await implementation.open();
-      await store.put({ subject: 'substituted' }, { ...baseline(MAC), missingFonts: ['Inter'] });
-      answers[implementation.name] = (await store.describe({ subject: 'substituted' }, MAC))
+      await store.put(at('substituted'), { ...baseline(MAC), missingFonts: ['Inter'] });
+      answers[implementation.name] = (await store.describe(at('substituted'), MAC))
         ?.missingFonts;
     }
 
     expect(answers).toEqual({
       durable: ['Inter'],
+      'durable, beside the code': ['Inter'],
       'git-LFS': ['Inter'],
       remote: ['Inter'],
       bucket: ['Inter'],
     });
   });
 
-  it('explains an incomparable baseline by naming the machine that wrote it', async () => {
-    // The verdict alone is not the deliverable. A wrong-machine run has to be one
-    // sentence with a platform in it, or it is a mass failure nobody can attribute
-    // — which is the whole reason `find` looks under other identities at all.
+  it('reads the last accept on this engine family when two machines both accept', async () => {
+    // A laptop accepts, then CI accepts the same subject. A file keeps one
+    // baseline per engine family, so the laptop now reads CI's, names the
+    // machine as the cause, and compares. A store that kept both and preferred
+    // the laptop's own would answer `unchanged` where the file answers with
+    // CI's image. Another engine's later accept is not this family's.
+    const WEBKIT: RenderIdentity = { ...MAC, renderer: 'playwright-webkit', engine: 'webkit@18.2' };
+    const answers: Record<string, unknown> = {};
+
     for (const implementation of IMPLEMENTATIONS) {
       const store = await implementation.open();
-      await store.put({ subject: 's' }, baseline(RUNNER));
+      await store.put(at('s'), baseline(MAC));
+      await store.put(at('s'), baseline(RUNNER));
+      await store.put(at('s'), baseline(WEBKIT));
 
-      const observation = await observeAgainstBaseline(SAME, { subject: 's' }, {
+      const found = await store.describe(at('s'), MAC);
+      answers[implementation.name] = { comparable: found?.comparable, storedUnder: found?.storedUnder };
+    }
+
+    const expected = { comparable: false, storedUnder: RUNNER };
+    expect(answers).toEqual({
+      durable: expected,
+      'durable, beside the code': expected,
+      'git-LFS': expected,
+      remote: expected,
+      bucket: expected,
+    });
+  });
+
+  // FIXME: the bucket store's rows and the remote store's keys carry no
+  // `project`, so two Playwright projects under `{project}` share one baseline
+  // there while a file store keeps two.
+  it.todo('two projects under {project} keep two baselines on every backend — needs `project` in the bucket row and the remote key');
+
+  it('names the machine that wrote a baseline from another machine as the cause', async () => {
+    // The verdict alone is not the deliverable. A wrong-machine run has to carry
+    // the platform that moved, or an avalanche is a mass failure nobody can
+    // attribute — which is the whole reason `find` looks under other identities.
+    for (const implementation of IMPLEMENTATIONS) {
+      const store = await implementation.open();
+      await store.put(at('s'), baseline(RUNNER));
+
+      const observation = await observeAgainstBaseline(SAME, at('s'), {
         renderer: renderer(MAC),
         store,
       });
 
       expect(observation.because).toContain('linux/x64');
       expect(observation.because).toContain('darwin/arm64');
+      expect(observation.signals?.identity).toBe('machine');
     }
   });
 
@@ -391,7 +455,7 @@ describe('switching where baselines are kept', () => {
     const store = createRemoteStore({ endpoint: await deadEndpoint() });
 
     await expect(
-      observeAgainstBaseline(SAME, { subject: 's' }, { renderer: painter, store }),
+      observeAgainstBaseline(SAME, at('s'), { renderer: painter, store }),
     ).rejects.toBeInstanceOf(RasterStoreError);
 
     expect(painter.calls).toBe(0);

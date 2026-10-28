@@ -1,4 +1,6 @@
+import { restamps } from '@variance-authority/core/judge';
 import type { ObservationRecord } from './format.js';
+import { isUnstable } from './unstable.js';
 
 /**
  * Whether a promotion would land, decided before anything is promoted.
@@ -58,7 +60,7 @@ export type Promotion =
  * diagnostic that makes this refusable at all.
  */
 export function promotionOf(observation: ObservationRecord): Promotion {
-  if (observation.unstable !== undefined && observation.unstable.absorbed === undefined) {
+  if (isUnstable(observation)) {
     return {
       kind: 'refused',
       because:
@@ -68,6 +70,14 @@ export function promotionOf(observation: ObservationRecord): Promotion {
   }
 
   if (observation.verdict === 'unchanged') {
+    // Unchanged under a moved identity is re-stamped under this run's: left
+    // under the old one, it names the same upgrade on every later run. So is
+    // one whose baseline kept no snapshot: left alone, the first change after
+    // it is joined against one render.
+    const from = observation.images?.after ?? observation.images?.record;
+    if (restamps(observation.signals) && from !== undefined) {
+      return { kind: 'promotable', from };
+    }
     return {
       kind: 'already-baseline',
       because: 'it did not change, so it already is the baseline; nothing to accept',
@@ -89,7 +99,7 @@ export function promotionOf(observation: ObservationRecord): Promotion {
   // the only thing missing is the half a camera would have produced.
   const from = observation.images?.after ?? observation.images?.record;
   if (from === undefined) {
-    return { kind: 'refused', because: noImage(observation) };
+    return { kind: 'refused', because: noImage() };
   }
 
   return { kind: 'promotable', from };
@@ -157,23 +167,8 @@ export function whyNotWhole(observation: ObservationRecord): string {
       'would baseline that as well; accept this subject by name once you have read it';
 }
 
-/**
- * Why a subject has no image, phrased around what to do next.
- *
- * The two causes are opposite and a single message would serve neither. A
- * settlement means nothing was rendered *because nothing needed to be*; an
- * incomparable baseline means the comparison was refused, and the fix is a
- * decision about machines rather than about this subject.
- */
-function noImage(observation: ObservationRecord): string {
-  if (observation.verdict === 'incomparable') {
-    return (
-      'its baseline belongs to another machine, so the run refused to compare and produced ' +
-      'no image. Delete that baseline and re-run here to record one for this machine, or ' +
-      'run where the baseline was written — accepting across identities is the failure the ' +
-      'partition exists to prevent'
-    );
-  }
+/** Why a subject has no image, phrased around what to do next. */
+function noImage(): string {
   return (
     'the run recorded no image for it. Re-run on this machine so the candidate exists; ' +
     'this command promotes an image that was already reviewed and never renders one'

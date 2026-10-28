@@ -41,7 +41,6 @@ function build(id: string): BuildSummary {
       changed: 1,
       new: 0,
       ignored: 0,
-      incomparable: 0,
       unstable: 0,
       failed: 0,
     },
@@ -67,6 +66,9 @@ function clientThat(builds: () => Promise<readonly BuildSummary[]>): ReviewClien
     lastChanged: refuse,
     decide: refuse,
     sweep: refuse,
+    concerns: refuse,
+    raise: refuse,
+    moveConcern: refuse,
     imageUrl: () => '',
     imageBlob: refuse,
   };
@@ -88,6 +90,9 @@ function historyClient(flakiness: () => Promise<Flakiness>): ReviewClient {
     lastChanged: refuse,
     decide: refuse,
     sweep: refuse,
+    concerns: refuse,
+    raise: refuse,
+    moveConcern: refuse,
     imageUrl: () => '',
     imageBlob: refuse,
   };

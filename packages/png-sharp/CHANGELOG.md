@@ -1,5 +1,45 @@
 # @variance-authority/png-sharp
 
+## 0.21.0
+
+Lockstep release — nothing in this package changed. Every `@variance-authority/*` package shares one version.
+
+## 0.20.0
+
+Lockstep release — nothing in this package changed. Every `@variance-authority/*` package shares one version.
+
+## 0.19.0
+
+Lockstep release — nothing in this package changed. Every `@variance-authority/*` package shares one version.
+
+## 0.18.0
+
+Lockstep release — nothing in this package changed. Every `@variance-authority/*` package shares one version.
+
+## 0.17.1
+
+Lockstep release — nothing in this package changed. Every `@variance-authority/*` package shares one version.
+
+## 0.17.0
+
+Lockstep release — nothing in this package changed. Every `@variance-authority/*` package shares one version.
+
+## 0.16.0
+
+Lockstep release — nothing in this package changed. Every `@variance-authority/*` package shares one version.
+
+## 0.15.0
+
+Lockstep release — nothing in this package changed. Every `@variance-authority/*` package shares one version.
+
+## 0.14.0
+
+Lockstep release — nothing in this package changed. Every `@variance-authority/*` package shares one version.
+
+## 0.13.0
+
+Lockstep release — nothing in this package changed. Every `@variance-authority/*` package shares one version.
+
 ## 0.12.0
 
 Lockstep release — nothing in this package changed. Every `@variance-authority/*` package shares one version.

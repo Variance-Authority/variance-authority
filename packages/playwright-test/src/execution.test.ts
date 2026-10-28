@@ -5,21 +5,32 @@ import type { Page, TestInfo } from '@playwright/test';
 import {
   closeStage,
   foldStage,
+  moduleId,
   openStage,
-  testSelectionProbes,
   type ExecutionJournal,
 } from '@variance-authority/sense/journal';
-import { readTestCoverage } from '@variance-authority/sense/test-selection';
-import { describe, expect, it } from 'vitest';
+import { caseIndexOf, coveringTests, readTestCoverage } from '@variance-authority/sense/test-selection';
+import { describe, expect, it, vi } from 'vitest';
 import { varianceCompletedFixtures } from './completed.js';
 import {
   createExecutionRecorder,
   testOf,
   type ExecutionRecorder,
 } from './execution.js';
-import { decodeExecutionIndex } from '@variance-authority/sense/test-selection';
+import { decodeExecutionIndex, rowOf } from '@variance-authority/sense/test-selection';
+import { variancePrecondition } from '@variance-authority/sense/precondition';
+import type { PreconditionStanding } from '@variance-authority/sense/journal';
+import { caseKey } from './test-coordinate.js';
 
-const INSTRUMENTATION = 'sense:instrument/presence-v5';
+// These drive the fixture with a `TestInfo` cut to what recording reads, which
+// carries none of the worker internals a hook's describe is read from; that
+// read is the real run in `preconditions.chromium.test.ts`, and is cut here.
+vi.mock('./preconditions.js', async (original) => ({
+  ...(await original<typeof import('./preconditions.js')>()),
+  enterDescribes: async () => {},
+}));
+
+const INSTRUMENTATION = 'sense:instrument/presence-v6';
 
 /** A page that hands over whatever the test says it entered, once per drain. */
 function pageReporting(...journals: readonly (ExecutionJournal | undefined)[]): Page {
@@ -40,16 +51,12 @@ async function inRoot(run: (root: string) => Promise<void>): Promise<void> {
   }
 }
 
-/** One real instrumented module's record, so ordinals mean something. */
+/** One real module on disk, so the ordinals its id names mean something. */
 async function instrumented(
   root: string,
 ): Promise<{ cacheRoot: string; id: string; ordinals: number[] }> {
-  const cacheRoot = resolve(root, 'cache');
-  const module = resolve(root, 'price.js');
-  await writeFile(module, SOURCE, 'utf8');
-  const plugin = testSelectionProbes({ root, cacheRoot });
-  plugin.transform(SOURCE, module);
-  return { cacheRoot, id: 'price.js', ordinals: [0, 1] };
+  await writeFile(resolve(root, 'price.js'), SOURCE, 'utf8');
+  return { cacheRoot: resolve(root, 'cache'), id: moduleId('price.js', SOURCE), ordinals: [0, 1] };
 }
 
 /**
@@ -79,7 +86,7 @@ async function ended(
     file: resolve(root, owner),
     status,
     project: { name: 'chromium' },
-    titlePath: ['chromium', owner, 'the one test'],
+    titlePath: [owner, 'the one test'],
     testId: `${owner}-1`,
     ...(duration === undefined ? {} : { duration }),
   } as unknown as TestInfo);
@@ -294,12 +301,88 @@ describe('a worker that is one of several', () => {
       );
       await recorder.close();
 
-      const index = decodeExecutionIndex(await readFile(`${coverageFile}.cases.bin`));
+      const index = decodeExecutionIndex(await readFile(coverageFile));
       expect(index.tests.map((test) => test.name).sort()).toEqual([
         'pays with a new card',
         'pays with a saved card',
       ]);
       expect([...new Set(index.tests.map((test) => test.file))]).toEqual([owner]);
+    });
+  });
+
+  // `price` is region 1. The page's top level calls it once as the module
+  // evaluates, and the case calls it again. Whether the evaluation fell in the
+  // case's window, in a drain of its own, or in an earlier drain of the case,
+  // the case's call is the case's.
+  it('credits a case with what it called in a module that evaluated inside it, as an eager load does', async () => {
+    const evaluating = { instrumentation: INSTRUMENTATION, modules: [{ id: '', hits: [0, 1], shared: [0, 1] }] };
+    const calling = { instrumentation: INSTRUMENTATION, modules: [{ id: '', hits: [1], shared: [] }] };
+    const inline = { instrumentation: INSTRUMENTATION, modules: [{ id: '', hits: [0, 1], shared: [0, 1], again: [1] }] };
+    const windows = {
+      eager: [[evaluating, false], [calling, true]],
+      inline: [[inline, true]],
+      'read twice': [[evaluating, true], [calling, true]],
+    } as const;
+    const readings: Record<string, readonly string[]> = {};
+    for (const [mode, drains] of Object.entries(windows)) {
+      await inRoot(async (root) => {
+        const coverageFile = resolve(root, 'coverage.bin');
+        const { cacheRoot, id } = await instrumented(root);
+        const owner = 'tests/checkout.spec.ts';
+        const recorder = createExecutionRecorder({ root, cacheRoot, coverageFile });
+        for (const [journal, inCase] of drains) {
+          const modules = journal.modules.map((module) => ({ ...module, id }));
+          await recorder.note(
+            pageReporting({ ...journal, modules }),
+            owner,
+            inCase ? { name: 'pays with a saved card', id: 'one' } : undefined,
+          );
+        }
+        await recorder.close();
+        const index = decodeExecutionIndex((await caseIndexOf(coverageFile))!);
+        readings[mode] = coveringTests(index, { file: 'price.js', line: 2 }).map((test) => test.name);
+      });
+    }
+    expect(readings).toEqual({
+      eager: ['pays with a saved card'],
+      inline: ['pays with a saved card'],
+      'read twice': ['pays with a saved card'],
+    });
+  });
+
+  // Each drain is taken as a statement of the test begins, and charges what the
+  // page reached since the drain before it to the statement that ran then. A
+  // region keeps the first line that reached it; what was reached before the
+  // first statement carries none, and the index reads it as ambient.
+  it('keeps the test line that first reached each region of a case drained per statement', async () => {
+    await inRoot(async (root) => {
+      const { cacheRoot, id } = await instrumented(root);
+      const directory = resolve(root, '.stage');
+      openStage(directory);
+      try {
+        const recorder = createExecutionRecorder({ root, cacheRoot, coverageFile: resolve(root, 'coverage.bin') });
+        const owner = 'tests/checkout.spec.ts';
+        const subject = { name: 'pays with a saved card', id: 'one' };
+        const other = 'sign-in.js';
+        const window = (modules: ExecutionJournal['modules']) => pageReporting({ instrumentation: INSTRUMENTATION, modules });
+        await recorder.note(window([{ id: other, hits: [3], shared: [] }]), owner, subject);
+        await recorder.note(window([{ id, hits: [0], shared: [] }]), owner, subject, 4);
+        await recorder.note(window([{ id, hits: [0, 1], shared: [] }, { id: other, hits: [3, 5], shared: [] }]), owner, subject, 6);
+        await recorder.note(window([{ id, hits: [1], shared: [] }]), owner, { name: 'pays with a new card', id: 'two' });
+        await recorder.close();
+
+        const staged = await foldStage(directory);
+        const lines = Object.fromEntries((staged.cases ?? []).map((observed) => [observed.name, observed.lines]));
+        expect(lines).toEqual({
+          'pays with a saved card': [
+            { id, hits: [0, 1], lines: [4, 6] },
+            { id: other, hits: [5], lines: [6] },
+          ],
+          'pays with a new card': undefined,
+        });
+      } finally {
+        await closeStage(directory);
+      }
     });
   });
 
@@ -322,20 +405,76 @@ describe('a worker that is one of several', () => {
       }
       await recorder.close();
 
-      const index = decodeExecutionIndex(await readFile(`${coverageFile}.cases.bin`));
+      const index = decodeExecutionIndex(await readFile(coverageFile));
       expect(index.tests.map((one) => one.duration)).toEqual([200]);
       expect((await readTestCoverage(coverageFile)).tests[0]!.duration).toBe(200);
+    });
+  });
+
+  it('lays what a case said, in its beforeEach and its body, on its row, and a case that only said something is a case', async () => {
+    await inRoot(async (root) => {
+      const coverageFile = resolve(root, 'coverage.bin');
+      const { cacheRoot, id } = await instrumented(root);
+      const owner = 'tests/checkout.spec.ts';
+      const pays = { name: 'pays', id: 'one' };
+      const refunds = { name: 'refunds', id: 'two' };
+
+      let standing: PreconditionStanding = { at: 'beforeEach', key: caseKey(owner, pays.id), depth: 1 };
+      const recorder = createExecutionRecorder({ root, cacheRoot, coverageFile }, undefined, () => standing);
+      variancePrecondition('fixture', { network: 'live' });
+      standing = { at: 'case', key: caseKey(owner, pays.id) };
+      variancePrecondition('fixture', { network: 'mocked' });
+      await recorder.note(
+        pageReporting({ instrumentation: INSTRUMENTATION, modules: [{ id, hits: [0], shared: [] }] }),
+        owner,
+        pays,
+      );
+      recorder.mark(owner, true, pays);
+      standing = { at: 'case', key: caseKey(owner, refunds.id) };
+      variancePrecondition('fixture', { seeded: true });
+      recorder.mark(owner, true, refunds);
+      await recorder.close();
+
+      const index = decodeExecutionIndex(await readFile(coverageFile));
+      expect(index.tests.map((one) => [one.name, rowOf(one)?.map(({ name, value, level }) => [name, value, level])]))
+        .toEqual([['pays', [['fixture:network', 'mocked', 0xffff]]], ['refunds', [['fixture:seeded', true, 0xffff]]]]);
+      expect(rowOf(index.tests[0]!)![0]!.site).toMatch(/execution\.test\.ts:\d+$/);
     });
   });
 
   it('names a test by where it is declared, not by the runner position for it', () => {
     expect(
       testOf({
-        titlePath: ['chromium', 'tests/checkout.spec.ts', 'checkout', 'pays with a saved card'],
+        titlePath: ['tests/checkout.spec.ts', 'checkout', 'pays with a saved card'],
         project: { name: 'chromium' },
         file: resolve(process.cwd(), 'tests/checkout.spec.ts'),
         testId: 'abc123',
       } as unknown as TestInfo),
-    ).toEqual({ name: 'checkout > pays with a saved card', id: 'abc123' });
+    ).toEqual({ name: 'checkout > pays with a saved card', id: 'abc123', project: 'chromium' });
+  });
+
+  it('names a test by the position of its titles, whatever they spell', () => {
+    // A project that runs one spec, named after it, and a describe that names
+    // the file too: Playwright's `titlePath` is the file, then the describes,
+    // then the title, and none of them is dropped for resembling another.
+    expect(
+      testOf({
+        titlePath: ['checkout.spec.ts', 'checkout.spec.ts', 'pays'],
+        project: { name: 'checkout.spec.ts' },
+        file: resolve(process.cwd(), 'checkout.spec.ts'),
+        testId: 'abc123',
+      } as unknown as TestInfo),
+    ).toEqual({ name: 'checkout.spec.ts > pays', id: 'abc123', project: 'checkout.spec.ts' });
+  });
+
+  it('names no project for a test of the unnamed one', () => {
+    expect(
+      testOf({
+        titlePath: ['tests/checkout.spec.ts', 'pays'],
+        project: { name: '' },
+        file: resolve(process.cwd(), 'tests/checkout.spec.ts'),
+        testId: 'abc123',
+      } as unknown as TestInfo),
+    ).toEqual({ name: 'pays', id: 'abc123' });
   });
 });

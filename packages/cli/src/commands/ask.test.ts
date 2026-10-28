@@ -1,14 +1,13 @@
 import { mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import type { RenderIdentity } from '@variance-authority/core/format';
 import type { VantageState } from '@variance-authority/vantage';
 import type { VantageReading } from '@variance-authority/vantage/attach';
 import { HELP_TOOLS, type Help } from '@variance-authority/help/tools';
-import { TOOLS, VANTAGE_TOOLS, toolByName, vantageToolByName } from '@variance-authority/mcp/tools';
+import { TOOLS, VANTAGE_TOOLS, toolByName, vantageToolByName, verbOf } from '@variance-authority/mcp/tools';
 import { ASKED, ask, askSource, questions, type Sourced } from './ask.js';
-import { questionOf } from './asking.js';
 import type { CliRunReport } from './run.js';
 
 const IDENTITY: RenderIdentity = {
@@ -73,9 +72,9 @@ describe('the questions', () => {
     // The whole claim of this command: an agent that cannot host a server is not
     // holding a smaller product. A tool added to either MCP set and not to this
     // list would make that false silently, in the one direction nobody checks.
-    expect(listed('ABOUT THE LAST RUN')).toEqual(TOOLS.map(questionOf));
-    expect(listed('ABOUT A SUITE THAT IS STILL RUNNING')).toEqual(VANTAGE_TOOLS.map(questionOf));
-    expect(listed('ABOUT THE WORKSPACE SOURCE')).toEqual(HELP_TOOLS.map(questionOf));
+    expect(listed('ABOUT THE LAST RUN')).toEqual(TOOLS.map(verbOf));
+    expect(listed('ABOUT A SUITE THAT IS STILL RUNNING')).toEqual(VANTAGE_TOOLS.map(verbOf));
+    expect(listed('ABOUT THE WORKSPACE SOURCE')).toEqual(HELP_TOOLS.map(verbOf));
   });
 
   it('lists the question that is both under both, because it answers about both', () => {
@@ -86,7 +85,7 @@ describe('the questions', () => {
   });
 
   it('names each question after its tool, without the transport in the name', () => {
-    expect(questionOf(toolByName('variance_trace_component')!)).toBe('trace-component');
+    expect(verbOf(toolByName('variance_trace_component')!)).toBe('trace-component');
   });
 
   it('answers without a report, because nothing about a run decides what may be asked', () => {
@@ -100,6 +99,7 @@ const WORKSPACE: Help = {
     {
       name: '@example/alpha',
       declared: {},
+      entry: true,
       openings: [
         {
           subpath: '.',
@@ -115,13 +115,17 @@ const WORKSPACE: Help = {
               usedBy: ['@example/beta'],
               uses: 1,
               sites: [],
+              throughDefault: [],
             },
           ],
+          whole: [],
         },
       ],
     },
   ],
   deep: [],
+  unfollowed: [],
+  byPath: [],
   exported: [],
   unreadable: [],
 };
@@ -367,10 +371,36 @@ describe('a question about a suite that is still running', () => {
     expect(await ask(about('run-signals', { state: RUNNING }))).toBe(`${expected}\n`);
   });
 
+  it('reads `--file` from the checkout it is asked in, as an editor copies the path', async () => {
+    const asked = await ask(about('run-signals', { state: RUNNING }, { file: join(process.cwd(), 'cart.spec.ts') }));
+
+    expect(asked).toContain('cart adds an item');
+  });
+
+  it('reads a relative `--file` from the directory it is asked in, as a shell does', async () => {
+    const root = process.cwd();
+    const inPackage: VantageState = { ...RUNNING, tests: RUNNING.tests.map((one) => ({ ...one, file: 'packages/cli/cart.spec.ts' })) };
+    const started = vi.spyOn(process, 'cwd').mockReturnValue(join(root, 'packages/cli'));
+
+    try {
+      const asked = await ask(about('run-signals', { state: inPackage }, { file: './cart.spec.ts' }));
+      expect(asked).toContain('cart adds an item');
+    } finally {
+      started.mockRestore();
+    }
+  });
+
   it('reads the run without touching the report, which may not exist at all', async () => {
     // A watcher is asked while the suite is going. There is no report yet, and
     // falling back to one would answer about the run before this one.
     expect(await ask(about('self', { state: RUNNING }))).toContain('http://127.0.0.1:4100');
+  });
+
+  it('names `limit` as a shell takes it, from the watcher and from the timed run alike', async () => {
+    const two: VantageState = { ...RUNNING, tests: [...RUNNING.tests, { ...RUNNING.tests[0]!, id: 't-2', ordinal: 1 }] };
+    expect(await ask(about('run-signals', { state: two }, { limit: 1 }))).toContain('a higher `--limit` lists them');
+    const timed = { from: 'The report run.json', subjects: [{ subject: 'story:a', ms: 2 }, { subject: 'story:b', ms: 1 }] };
+    expect(await ask({ question: 'costs', costs: () => Promise.resolve(timed), limit: 1 })).toContain('a higher `--limit` lists them');
   });
 
   it('compares against the reading the watcher handed out last', async () => {
@@ -383,6 +413,17 @@ describe('a question about a suite that is still running', () => {
     );
     expect(await ask(about('diff', { state: RUNNING }))).toContain(
       'No previous invocation was recorded',
+    );
+  });
+
+  it('refuses a report named beside a watcher, because the watcher is what answers', async () => {
+    // `diff` reads a report when no watcher is named, so the word is a report
+    // here, and answering from the watcher would leave it unread without a word.
+    await expect(ask(about('diff', { state: RUNNING }, { reports: ['shard-a.json'] }))).rejects.toThrow(
+      '`shard-a.json` is a report, and `variance ask diff` was asked of the watcher at `http://127.0.0.1:4100`',
+    );
+    await expect(ask(about('run-signals', { state: RUNNING }, { reports: ['bogus'] }))).rejects.toThrow(
+      '`bogus` is not an argument `variance ask run-signals` takes',
     );
   });
 

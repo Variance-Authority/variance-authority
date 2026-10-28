@@ -25,10 +25,10 @@
  * persistence is worth in wall-clock terms, and how to reproduce it.
  */
 
-export { createHarness, captureOnce } from './harness.js';
+export { createHarness, createObservedHarness, captureOnce } from './harness.js';
 export type { Harness, HarnessOptions } from './harness.js';
 
-export { unresizable, unwidened, widthsOf, type WidthPlanned } from './viewport.js';
+export { pinnedRegion, unresizable, unwidened, widthsOf, type WidthPlanned } from './viewport.js';
 export { observeNetwork } from './network.js';
 export type { BlankedAsset, NetworkObservation, NetworkOptions } from './network.js';
 
@@ -41,4 +41,5 @@ export { fetchModules } from './modules.js';
 export { createDeclarationReader } from './declarations.js';
 export type { DeclarationReader, DeclarationReaderOptions, DeclarationStats } from './declarations.js';
 
-export { acquireFromAgent } from './acquire.js';
+export { UnansweredAssets, acquireFromAgent } from './acquire.js';
+export { ARRIVAL_GLOBAL, watchArrivals } from './arrivals.js';

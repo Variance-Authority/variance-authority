@@ -21,9 +21,9 @@
  * `diffImage`, which writes the file in the report, delegates to it too. The
  * padding rule and the policy come from one place, so a reviewer's mask and a
  * report's mask cannot disagree about a threshold, an anti-aliasing rule, or
- * what a grown capture does to the union box. Two ends computing the same thing
- * from their own copy of the arithmetic is silent breakage; two ends calling one
- * function is not.
+ * which rows of a grown capture are paired with which. Two ends computing the
+ * same thing from their own copy of the arithmetic is silent breakage; two ends
+ * calling one function is not.
  *
  * ## Colour management is turned off, deliberately
  *
@@ -37,6 +37,7 @@
 import { useEffect, useState } from 'react';
 import { differencePixels, type DecodedImage, type PixelDifference } from '@variance-authority/png/mask';
 import type { ReviewClient } from './client.js';
+import { messageOf, type Loaded } from './shell.js';
 
 /** What this needs of a subject: its name, and what the build actually kept. */
 export interface Comparable {
@@ -60,22 +61,32 @@ export function hasDifference(subject: Comparable): boolean {
 }
 
 /**
- * A URL for the difference mask, computed if the build did not keep one.
+ * The difference mask's URL, computed if the build did not keep one.
  *
- * `undefined` while it is being made, and while `wanted` is false — nothing is
- * decoded for a mode nobody opened. The object URL is revoked when the subject
- * changes or the component unmounts; two full-page captures is real memory and
- * leaving it to the collector means holding every subject a reviewer walked
- * past.
+ * Loading and failed are separate states because they ask opposite things of a
+ * reviewer: one is worth waiting for, and the other never arrives. A failure's
+ * `why` is the rejection's own message, such as which capture the service
+ * refused.
+ *
+ * A mask the build kept is ready from the start, wanted or not: it is a URL, and
+ * nothing is fetched until an image asks for it. Otherwise `undefined` while
+ * `wanted` is false, and for a subject with nothing to compare: nothing is
+ * decoded for a mode nobody opened. The object URL is revoked when the
+ * subject changes or the component unmounts; two full-page captures is real
+ * memory and leaving it to the collector means holding every subject a reviewer
+ * walked past.
  */
-export function useDifferenceUrl(
+export function useDifference(
   client: ReviewClient,
   build: string,
   subject: Comparable,
   wanted = true,
-): string | undefined {
+): Loaded<string> | undefined {
   const stored = subject.has.diff ? client.imageUrl(build, subject.subject, 'diff') : undefined;
-  const [made, setMade] = useState<string>();
+  // Held with the subject it is for: the effect that clears it runs after the
+  // frame that switched subject, and that frame would show the last one's state.
+  const key = `${build}\u0000${subject.subject}`;
+  const [made, setMade] = useState<{ readonly key: string; readonly difference: Loaded<string> }>();
 
   const computable = stored === undefined && wanted && hasDifference(subject);
 
@@ -89,12 +100,11 @@ export function useDifferenceUrl(
       (blob) => {
         if (dropped) return;
         url = URL.createObjectURL(blob);
-        setMade(url);
+        setMade({ key, difference: { state: 'ready', value: url } });
       },
-      () => {
-        // Left undefined: the caller draws nothing rather than a broken frame,
-        // and the two captures are still one click away in every other mode.
-        if (!dropped) setMade(undefined);
+      (error: unknown) => {
+        if (dropped) return;
+        setMade({ key, difference: { state: 'failed', why: messageOf(error) } });
       },
     );
 
@@ -105,7 +115,9 @@ export function useDifferenceUrl(
     };
   }, [client, build, subject.subject, computable]);
 
-  return stored ?? made;
+  if (stored !== undefined) return { state: 'ready', value: stored };
+  if (!computable) return undefined;
+  return made?.key === key ? made.difference : { state: 'loading' };
 }
 
 /** Both captures, decoded, differenced and encoded — the whole of the work. */

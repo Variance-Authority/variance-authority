@@ -1,9 +1,11 @@
 import { mkdtempSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { availableParallelism, tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { defineConfig } from 'vitest/config';
+import { defineConfig, mergeConfig } from 'vitest/config';
 import { withTestSelection } from '@variance-authority/sense/vitest';
-import { probeable } from './tools/page-side.mjs';
+import { nativeSources } from './tools/native-sources.mjs';
+import { marked, probeable } from './tools/page-side.mjs';
+import { MARKERS, PLACES, excludeOf, includeOf } from './tools/slices.mjs';
 
 /** This file's directory, so the exclusions read the same from any cwd. */
 const ROOT = import.meta.dirname;
@@ -61,6 +63,7 @@ const ROOT = import.meta.dirname;
  * test sits from that module has a path the scanner has actually read.
  */
 const PRODUCT = /[/\\](?:packages|examples|cases)[/\\][^/\\]+[/\\]src[/\\]/;
+const SITE = /[/\\]site[/\\]app[/\\]/;
 const BUILT = /[/\\]packages[/\\][^/\\]+[/\\]dist[/\\]/;
 const MODULE = /\.[cm]?[jt]sx?$/;
 /** A probe in a test file would record the test observing itself. */
@@ -70,30 +73,48 @@ const TEST = /\.(?:test|spec)\.[cm]?[jt]sx?$/;
  * Everything the runner transforms, minus the modules that cannot hold a probe.
  *
  * The subtraction is `tools/page-side.mjs`, which explains itself and names its
- * own check. Nothing is subtracted quietly: every entry there is a module whose
- * functions leave this process, and the list exists because the alternative —
+ * own check. Nothing is subtracted quietly: every entry there is a module that
+ * is sent to a page whole, or the probe runtime itself — a module that sends
+ * only its own functions keeps its probes outside them — and the list exists
+ * because the alternative —
  * a probe that tolerates its own absence — was tried and rejected.
  */
-const instrumentable = (file: string) =>
-  (PRODUCT.test(file) || BUILT.test(file)) && MODULE.test(file) && !TEST.test(file) && probeable(ROOT, file);
+const source = (file: string) => (PRODUCT.test(file) || SITE.test(file) || BUILT.test(file)) && MODULE.test(file) && !TEST.test(file);
+const instrumentable = (file: string) => source(file) && probeable(ROOT, file);
 
 /**
- * The suite without the recording, exported so it can be run without it.
- *
- * `tools/uninstrumented.config.mts` is this and nothing else, and it is the arm
- * [journal 0027](docs/context/journal/0027-what-instrumentation-costs.md)
- * compares against — the one measurement that has to be able to take the probes
- * away. Exported rather than restated, so the two arms cannot drift into
- * measuring different suites.
+ * The page-side modules that are still loaded here, marked as loaded rather
+ * than probed: an edit to one selects every test that loaded it, which a
+ * reading of its importers alone cannot promise.
  */
-export const suite = defineConfig({
+const unprobed = (file: string) => source(file) && marked(ROOT, file);
+
+/**
+ * What a site test mocks and the root does not install: the site has its own
+ * install, which no slice here runs, so a site module importing one of these
+ * resolves only to the mock its test declares.
+ */
+const SITE_ONLY = ['next/link', 'next/navigation', 'react-markdown', 'rehype-raw', 'remark-gfm'];
+
+/**
+ * What every slice runs under.
+ *
+ * The site is outside the workspaces and keeps its own install, but its tests
+ * run here, on the root one: the suite's CI job installs nothing in `site/`. So a module a site
+ * test loads resolves from the root manifest or not at all, and the root
+ * declares the site's rendering dependencies as `devDependencies` at the site's
+ * own ranges. The framework is the exception: `next/link` and
+ * `next/navigation` are interfaces each site test mocks, and the plugin below
+ * only lets their names resolve so the mock has something to replace.
+ */
+const shared = defineConfig({
+  plugins: [{
+    name: 'site-framework-test-interfaces',
+    resolveId(id, importer) {
+      if (importer && SITE.test(importer) && SITE_ONLY.includes(id)) return id;
+    },
+  }],
   test: {
-    include: [
-      'packages/*/src/**/*.test.{ts,tsx}',
-      'packages/*/test/**/*.test.ts',
-      'examples/*/src/**/*.test.{ts,tsx}',
-      'cases/*/src/**/*.test.{js,ts,tsx}',
-    ],
     // `node` is the default; corpus fixtures opt into jsdom per-file with a
     // `// @vitest-environment jsdom` docblock, so the DOM-free packages stay
     // DOM-free (ADR-0001) and nothing accidentally acquires a `document`.
@@ -105,6 +126,11 @@ export const suite = defineConfig({
     // machine held seven thousand of them. The recording is folded in the main
     // process, which does not read `env`, so it still lands in the real cache.
     env: { VARIANCE_AUTHORITY_CACHE: mkdtempSync(join(tmpdir(), 'va-test-cache-')) },
+    // A temporary directory of each test's own, so the machine's index turn a
+    // test takes is its own and no other test's or developer's index waits on
+    // it, or it on them. The file says why a turn made the recording depend on
+    // scheduling. Each of the others says what it keeps from a test.
+    setupFiles: ['tools/temporary-per-test.ts', 'tools/no-selection-in-tests.ts', 'tools/no-ci-run-in-tests.ts'],
   },
   esbuild: {
     jsx: 'automatic',
@@ -117,23 +143,99 @@ export const suite = defineConfig({
   },
 });
 
+/** The cores this machine offers, which every worker count below is a share of. */
+const CORES = availableParallelism();
+
 /**
- * What the instrument is pointed at, exported so a second arm can record the
- * same suite under different options without restating any of it.
+ * The slices of the suite, in the order `yarn test` runs them, each declared
+ * under `suites` in the root `variance.config.json` and each with a record of
+ * its own.
+ *
+ * They were one run until the run starved the machine it ran on. A file in the
+ * integration slice starts a process: the CLI out of `dist`, or a whole Jest,
+ * rstest or Vitest over a fixture, each of which picks its own worker count. A
+ * file in the chromium slice launches a browser. Run beside four hundred
+ * in-process files at one fork a core, a pull request's `yarn verify` held a
+ * load average three times the core count. Apart, each slice is given the
+ * number of files at once its files can afford, and a slow run says which kind
+ * of test was slow.
+ *
+ * - `unit`: in the test's own process. It may start a program that answers
+ *   and exits, such as `git`, and not Node or a browser; `tools/in-process.ts`
+ *   names the programs and fails a test that starts anything else.
+ * - `integration`: `*.integration.test.*`. Starts a process of ours or a test
+ *   runner over a fixture. What that process executes is not in this record:
+ *   the probes are in this process, so the record says which modules the test
+ *   itself entered on its way to starting it.
+ * - `chromium`: `*.chromium.test.*`. Launches Chromium, directly or through
+ *   Playwright. A file with no Chromium installed reports itself skipped.
  */
-export const selection = {
+export const SLICES = {
+  unit: { workers: undefined },
+  // A file here is two processes at least, and a runner it starts is more.
+  integration: { workers: Math.max(1, Math.floor(CORES / 4)) },
+  // A browser is a handful of processes, each busy while a page renders.
+  chromium: { workers: Math.max(1, Math.floor(CORES / 8)) },
+} as const;
+
+export type SliceName = keyof typeof SLICES;
+
+/** One slice as a Vitest config, without the recording. */
+export function slice(name: SliceName) {
+  const { workers } = SLICES[name];
+  return mergeConfig(shared, {
+    test: {
+      include: includeOf(name),
+      exclude: excludeOf(name),
+      ...(MARKERS[name] === undefined ? { setupFiles: ['tools/in-process.ts'] } : {}),
+      ...(workers === undefined ? {} : { maxWorkers: workers, minWorkers: 1 }),
+    },
+  });
+}
+
+/**
+ * Every slice in one run, without the recording, at the most careful slice's
+ * worker count. `tools/coverage.config.mts` counts what the whole suite
+ * executes in its own processes, which no single slice can answer.
+ */
+export const whole = mergeConfig(shared, {
+  test: { include: PLACES, maxWorkers: SLICES.chromium.workers, minWorkers: 1 },
+});
+
+/**
+ * The unit slice without the recording, exported so it can be run without it.
+ *
+ * `tools/uninstrumented.config.mts` is this and nothing else, and it is the arm
+ * [journal 0027](docs/context/journal/0027-what-instrumentation-costs.md)
+ * compares against — the one measurement that has to be able to take the probes
+ * away. Exported rather than restated, so the two arms cannot drift into
+ * measuring different suites.
+ */
+export const suite = slice('unit');
+
+/**
+ * What the instrument is pointed at in one slice, exported so a second arm can
+ * record the same slice under different options without restating any of it.
+ */
+export const selectionOf = (name: SliceName) => ({
   root: ROOT,
   // The suite this run is, as the root `variance.config.json` declares it.
-  suite: 'unit',
+  suite: name,
   include: instrumentable,
+  unprobed,
   // What governs every observation rather than any one of them. The seam
-  // declares this file and the local modules it imports, and
-  // `tools/test-since.mjs` reads the manifests and the lockfile as the install
-  // they record. What is left is the compiler settings the built half is
-  // emitted under, which no import names. Editing a precondition retires every
-  // inherited crossing. A fixture or a workflow has no row of its own, and
-  // selects nothing until it is declared here.
-  preconditions: ['tsconfig.base.json'],
-};
+  // declares the config file Vite loaded and the local modules it imports, and
+  // the selection reads the manifests and the lockfile as the install they
+  // record. What is left is what no import names: the compiler settings
+  // the built half is emitted under, and the crate the native addon is built
+  // from, which Node loads with `dlopen` and every instrumented module passed
+  // through (`tools/native-sources.mjs` says why that is every test). Editing a
+  // precondition retires every inherited crossing. A fixture or a workflow has
+  // no row of its own, and selects nothing until it is declared here.
+  preconditions: ['tsconfig.base.json', ...nativeSources(ROOT)],
+});
+
+/** The unit slice's, which `tools/native-sources.check.ts` holds to the crate. */
+export const selection = selectionOf('unit');
 
 export default withTestSelection(suite, selection);

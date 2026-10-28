@@ -49,7 +49,7 @@ hosted-service features there before buying; both change independently.
 | --- | --- | --- | --- | --- | --- | --- |
 | Acquisition | Playwright screenshots the page or locator inside the running test | SDK captures the DOM and its resources, or Automate captures the running browser | Storybook or E2E archive | Host adapters open a page and Playwright produces screenshots | Classic SDK captures in place; Ultrafast Grid captures a DOM snapshot | Storybook, routes and unit tests keep a render document; Playwright keeps a document or takes a screenshot in place |
 | Pixel placement | Caller-owned browser | Percy cloud, or the Automate browser | Capture Cloud | Caller-owned browser | Caller browser or Ultrafast Grid | Caller-owned browser, local renderer, or a renderer you host |
-| Review | PNG files in your repository, reviewed in the pull request that changes them | Hosted dashboard and approval workflow | Hosted UI Test and UI Review | Hosted test review, comments, and flake history | Eyes Test Manager | `tribunal`, a review service you deploy — builds, docket, region overlays, recorded decisions, which `variance push` posts runs to; or no service at all, and the same evidence as JSON, HTML, CLI output or MCP |
+| Review | PNG files in your repository, reviewed in the pull request that changes them | Hosted dashboard and approval workflow | Hosted UI Test and UI Review | Hosted test review, comments, and flake history | Eyes Test Manager | `tribunal`, a review service you deploy — builds, docket, region overlays, recorded decisions, concerns a reviewer raises without deciding, which `variance push` posts runs to; or no service at all, and the same evidence as JSON, HTML, CLI output or MCP |
 | Browser breadth | Whatever your Playwright projects run | Managed desktop and mobile coverage | Managed browser and mode matrix | Whatever the caller's capture suite runs | Managed grid plus mobile products | Whatever the caller's capture suite runs; the CLI paints with Chromium, Firefox or WebKit (§3.2) |
 | Source [attribution](attribution.md) | Test name and snapshot path | DOM and CSS root-cause aids | Story identity and dependency tracing | Spec and story metadata | DOM and CSS root-cause aids | Pixel region → component → `file:line`, when the capture supplies [matching provenance](attribution.md) |
 | Compared against | The committed snapshot file | The approved baseline | The approved baseline | The approved baseline | The approved baseline | The baseline. Also, within a single run: two related states, compared for the gap between them; and one input rendered twice, compared for the point where the two renderings diverge |
@@ -89,7 +89,8 @@ subjects × viewports × browsers × modes × selected builds
 
 The same multiplication drives the other bill. Every comparison that survives to
 a person is a decision somebody makes, and a suite that surfaces more than it
-should is a standing assignment rather than a test run.
+should is a standing assignment rather than a test run. [What visual review
+costs](visual-review-cost.md) argues both bills on their own page.
 
 What separates the products is where intelligence sits relative to the spend.
 Perceptual match levels and hosted review queues read a comparison that has
@@ -188,8 +189,9 @@ Choose it when the suite should own pixels but the vendor should own review and
 history.
 
 Its Chromium examples use both `--disable-lcd-text` and
-`--font-render-hinting=none`; Variance's Chromium renderer uses the same defaults
-and records the ordered launch recipe in renderer identity.
+`--font-render-hinting=none`; Variance's Chromium renderer uses the same two,
+adds `--disable-partial-raster` so a shot does not depend on what the page
+painted before it, and records the ordered launch recipe in renderer identity.
 
 Sources: [Playwright quickstart](https://argos-ci.com/docs/quickstart/playwright),
 [Vitest quickstart](https://argos-ci.com/docs/quickstart/vitest-quickstart),
@@ -250,8 +252,8 @@ durable comparison path.
 the three and defaults to `chromium`; `npx playwright install <engine>` is what
 adds one. The engine is part of the renderer identity a baseline is filed under,
 so approving a Chromium baseline does not approve the WebKit one — a run that
-meets a baseline painted by another engine reports the pair `incomparable` and
-names both engines instead of diffing them.
+meets a baseline painted by another engine diffs the pair and names both
+engines as the cause of whatever moved.
 
 Two capabilities are Chromium's alone, and that is a position rather than a gap
 to be closed:
@@ -263,13 +265,13 @@ to be closed:
 - **The engine-located half of source attribution is Chromium's only.** It reads
   `[[FunctionLocation]]` over the Chrome DevTools Protocol, which Chromium alone
   provides; under the other two engines the source scan answers on its own, with
-  its candidates unnarrowed, and the run claims nothing it could not see.
+  its candidates unnarrowed, and the run records nothing it could not observe.
 
 The stabilization recipe is likewise written against Chromium's behaviour.
 
 Renderer identity covers engine, platform, scale, fonts, stabilization, and the
-rasterization recipe, which is why the pair above is reported rather than
-compared.
+rasterization recipe, which is why the pair above is compared with the moved
+fields named as its cause.
 
 The resulting adopter surfaces are compositions rather than separate products:
 
@@ -342,7 +344,8 @@ two readings of one input. The order is load-bearing — `again` runs first,
 because `alone`'s inference is *the clean reading differs from the shared one,
 so the world changed it*, which is only evidence once two readings of one world
 are known to agree. A run re-collects at most `alone.limit` changed subjects
-this way.
+this way: the first to change in the order it takes them, whatever the number
+of worlds.
 
 Because a document keeps a hash per component per band, the answer is not
 "this subject is flaky", which is a page to re-examine. It is a component and a
@@ -415,12 +418,14 @@ sign-in, and no permission model — the adapter you mount it behind authenticat
 the person and attaches the capability to each request. A designer clicking
 approve is a deployment you configure, not a seat you buy.
 
-**Approved baselines from another tool do not transfer.** A baseline here is a
-PNG plus a sidecar of per-component, per-band hashes, filed under the identity of
-the renderer that painted it. Images approved in a hosted service come with
-neither. `observeRasters` will compare two foreign images that declare the same
-painter, but a foreign image against a locally rendered candidate is
-`incomparable`.
+**Approved baselines from another tool are not imported into the store.** A
+baseline here is a PNG plus a sidecar of per-component, per-band hashes, filed
+under the identity of the renderer that painted it. Images approved in a hosted
+service come with neither, so the store has nothing to file them under. Their
+pixels are still comparable: `observeRasters` compares any two images, and when
+they come from different painters it names the painter that changed as the cause
+of whatever it finds. A different machine or browser is a reason to align the
+setup, not a reason to leave the image out.
 
 So your first run reports `new` on every subject, and that is the adoption moment
 rather than a failure: nothing has been compared yet. Open the report, check the

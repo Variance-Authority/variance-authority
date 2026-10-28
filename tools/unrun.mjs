@@ -44,7 +44,7 @@ const REPOSITORY = 'variance-authority';
  * workflow step nobody runs is exactly the shape this ledger is for. Markdown is
  * not: prose is the medium this mechanism exists to replace.
  */
-const SCANNED = /\.(ts|tsx|js|jsx|mjs|cjs|rs|sh|yml|yaml)$/;
+const SCANNED = /\.(ts|tsx|mts|cts|js|jsx|mjs|cjs|rs|sh|yml|yaml)$/;
 
 /** This file and its checker spell the markers in order to find them. */
 const SELF = new Set(['tools/unrun.mjs', 'tools/unrun.check.ts']);
@@ -196,7 +196,7 @@ function wrap(text, width) {
 
 export function report(found) {
   const files = new Set(found.map((marker) => marker.file));
-  // No legend: AGENTS.md defines the three markers, and a reader of this report
+  // No legend: .agents/references/change.md defines the three markers, and a reader of this report
   // is one who has already written them.
   const out = [`unrun: ${found.length} gaps in ${files.size} files`];
 

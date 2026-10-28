@@ -1,11 +1,11 @@
 # Inspect presentation relationships during a UI edit
 
-You make a UI edit and the screenshot changes, which tells you the interface
-changed without saying what changed about the way it reads. One repeated row may
+You make a UI edit and the screenshot changes, which shows that the interface
+changed, but not what changed about the way it reads. One repeated row may
 have drifted from its peers, a heading may no longer stand apart from its body,
 or two groups may have become hard to tell apart even though every word is still
 present. Measure those relationships before the edit and again after it, and a
-person or a coding agent can say whether the edit did what it claimed.
+person or a coding agent can say whether the edit did what it was meant to do.
 
 New here? Start with [your first run](start.md).
 

@@ -104,11 +104,14 @@ function Sentence({
     <>
       <Marked say={movement.because} />
       {movement.standing === undefined ? null : (
-        <span className={movement.standing === 'flake' ? ' va-mark va-alarm' : ' va-mark va-note'}>
-          {movement.standing === 'flake'
-            ? 'this render already failed to read the same way twice'
-            : 'nobody has read this render twice yet'}
-        </span>
+        <>
+          {' · '}
+          <span className={movement.standing === 'flake' ? 'va-mark va-alarm' : 'va-mark va-note'}>
+            {movement.standing === 'flake'
+              ? 'this render already failed to read the same way twice'
+              : 'nobody has read this render twice yet'}
+          </span>
+        </>
       )}
       {linked ? (
         <>

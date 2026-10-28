@@ -3,6 +3,16 @@ import type { ScreenshotOptions, Viewport } from '@variance-authority/core/forma
 import { SUBJECT_PATH } from '@variance-authority/raster';
 
 /**
+ * The longest side, in device pixels, of a subject this package photographs.
+ *
+ * Chromium's largest texture side, and past any image a person reviews: a
+ * subject that long is a document, and its change is read as text. Not a
+ * setting. A subject past it is refused with its size, never clipped,
+ * because a clipped image claims a review of pixels nobody saw.
+ */
+export const MAX_CAPTURE_PIXELS = 16_384;
+
+/**
  * The subject's pixels and its box, by the cheapest route that produces the same
  * bytes the element path produces.
  *
@@ -79,6 +89,15 @@ export async function captureSubject(
   const box = await subject.boundingBox();
 
   if (box === null || box.width === 0 || box.height === 0) return { bytes: null, box: null };
+
+  const width = Math.ceil(box.width * viewport.deviceScaleFactor);
+  const height = Math.ceil(box.height * viewport.deviceScaleFactor);
+  if (width > MAX_CAPTURE_PIXELS || height > MAX_CAPTURE_PIXELS) {
+    throw new Error(
+      `the subject is ${width}×${height} device pixels, past the ${MAX_CAPTURE_PIXELS}-pixel side a capture ` +
+        'is allowed, so it was not photographed: bound it with a tighter root, or exclude the page',
+    );
+  }
 
   if (within(box, viewport) && (await page.evaluate(probeAxisAligned, selector))) {
     return { bytes: await page.screenshot({ ...options, clip: outward(box) }), box };

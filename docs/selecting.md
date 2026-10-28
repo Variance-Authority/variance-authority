@@ -2,13 +2,17 @@
 
 A change to a few lines should not run every test that imports the file. With
 [**execution recording**](execution-record.md), [Variance Authority](README.md)
-knows **which parts each test actually covered**. It selects the tests that
+records **which parts each test actually covered**. It selects the tests that
 reached those lines and shows when no test did —
-[what a record knows that no graph can](#what-a-record-knows-that-no-graph-can).
+[what a record shows that no graph can](#what-a-record-shows-that-no-graph-can).
+
+For a Vitest or Jest suite, [run the tests an edit needs](test-an-edit.md) puts
+that selection inside the runner you already call.
 
 Suppose one changed component reaches **two subjects in a 300-subject suite**.
 Selection observes those two when the evidence supports that decision. Any
-uncertainty widens the run, and the report explains why.
+uncertainty widens the run, and the report explains why. A suite you do not yet
+trust that far [declares a coarser precision](#how-precisely-a-suite-selects).
 
 Selection reads the record across tests. [Distill](distill.md) reads the same
 evidence inside one test, looking for work its promise does not need.
@@ -32,7 +36,7 @@ A change still has to travel from a file to a component, and for that there is
 [an optional file graph](#the-expensive-row-and-what-retires-it) read from the
 source itself — a scan, not a build. It answers only that half: a subject is
 skipped when its own baseline records none of the components the change reached,
-and never because the graph said so.
+and never on the graph alone.
 
 The graph is a parse of the repository. The component list is written beside the
 approved image by the capture that was already reading it, and what that capture
@@ -40,7 +44,7 @@ needs is a name on each element: React puts it on the fiber and costs you
 nothing, and every other framework needs a build step that stamps it, which is
 the same step [attribution](composition.md) needs anyway.
 
-For a route that list is the only link there is. A URL says nothing about what
+For a route that list is the only link there is. A URL does not identify what
 renders at it, so a change travels from a file to a page by way of the page
 having been seen rendering that component — and the answer is exactly as current
 as the last render you approved.
@@ -64,11 +68,15 @@ numbered.
 
 A recording is made by *running* the suite, so the text its line numbers were
 cut from is whatever was on disk at that moment, while the position written on
-it is `git rev-parse HEAD`. Those agree on a clean tree and nowhere else. Each
-changed module is hashed against the text it stands at in the commit the index
-names, and one whose two do not agree is charged **whole** — every subject that
-ever covered it — and named in the run's notes. Recording once over a clean tree
-is what narrows by region again.
+it is `git rev-parse HEAD`. Those agree on a clean tree and nowhere else, so
+the run that records over an edit also keeps the text of every module git calls
+dirty, in [the cache](cache.md), named by its hash. Each changed module is hashed
+against the text it stands at in the commit the index names, and one whose two
+do not agree is read from the text that run kept instead: the change is the
+diff from what the tests ran over to what is on disk now. A module whose
+recorded text was not kept — edited again while the suite ran, or the cache
+cleared since — is charged **whole**, every subject that ever covered it, and
+named in the run's notes; the next run that loads it records it again.
 
 ```mermaid
 sequenceDiagram
@@ -89,10 +97,82 @@ sequenceDiagram
   Note over R,X: every other test the record observed whole is skipped
 ```
 
-Each party answers the question it owns. Git says what changed, the parser says
-what the change does, the graph says who uses it, and the record says which tests
-ran there. When one of them cannot answer, the run falls back to a coarser
+Each party answers the question it owns. Git answers what changed, the parser
+what the change does, the graph who uses it, and the record which tests ran
+there. When one of them cannot answer, the run falls back to a coarser
 answer, such as the changed lines instead of the edit, and names the file.
+A system that already knows what changed can skip git and [ask one
+stage](#ask-one-stage-without-a-diff) directly.
+
+## What a CI checkout needs
+
+Selection reads three things from git, and a checkout of one commit can answer
+none of them:
+
+- **The merge base** of `HEAD` and your mainline. `variance run --since <ref>`
+  diffs from it.
+- **The commit the record was made at.** `variance select` diffs from it,
+  because the record's line ranges are numbered in that commit's text. A record
+  published from the mainline can be any number of commits behind your branch
+  point.
+- **How many commits apart those two are.**
+  [Looking up a published record](sharing.md#looking-up-mainlines-record)
+  counts them, and the count decides whether the record is usable.
+
+When git cannot list the diff, the run stops with an error instead of
+narrowing, because an unreadable diff and an empty one look the same and an
+empty one skips every test.
+
+**Fetch every commit, and no trees.** On GitHub Actions:
+
+```yaml
+- uses: actions/checkout@v4
+  with:
+    fetch-depth: 0
+    filter: tree:0
+```
+
+With plain git, that is `git clone --filter=tree:0 <url>`. The clone has the
+full commit graph, so the merge base and the count are exact, and it has the
+trees and files of the commit it checked out. Git fetches the other trees and
+files on the first command that reads them: a diff requests everything it reads
+in one request. A checkout of a material-ui pull request, measured from one
+laptop:
+
+| What the checkout fetches | Time | `.git` |
+| --- | --- | --- |
+| every commit, tree and file | 42.6 s | 762 MB |
+| every commit and tree, no files (`filter: blob:none`) | 22.5 s | 297 MB |
+| every commit, no trees (`filter: tree:0`) | 20.0 s | 252 MB |
+| the latest commit only (the default `fetch-depth: 1`) | 14.7 s | 231 MB |
+
+On Kibana, whose full history is 17.7 GB, the `tree:0` checkout takes 79 s and
+596 MB, and a depth-1 checkout with `blob:none` takes 97 s and 489 MB.
+
+**The clone keeps its credential.** Every tree git fetches later uses the
+remote's credential, so in a private repository leave `persist-credentials` at
+its default. The job's code can then read the token, so give that job a token
+that can only read, such as `permissions: contents: read`.
+
+**On a pull request, two commits are enough for `run --since`.** The
+`pull_request` event checks out the merge of your branch into the mainline,
+and that commit's first parent is the mainline's tip. With `fetch-depth: 2`,
+`variance run --since HEAD^1` diffs exactly your branch's changes. On Kibana
+that checkout fetches 8 MB in 3.2 s. It has no merge base and no record's
+commit, so it cannot use a published record.
+
+A fixed depth is never safe, because both commits change while the pull request
+is open: the mainline gains commits, and every publish names a new record. The
+other ways to fetch less give a wrong answer or cost more:
+
+- **A depth computed from the compare API** finds the merge base, but a shallow
+  clone counts only the commits it has: 109 where the history has 133 on
+  material-ui, 415 where it has 698 on Kibana.
+- **`--shallow-since` the merge base's date** cuts commits from a branch that
+  merged its mainline in, and the merge base is lost.
+- **Deepening until the merge base appears** is correct only when it also
+  checks that no shallow cut hides a newer common ancestor. On Kibana it took 4
+  to 13 fetches and 13 to 62 s.
 
 ## What a change to a module's top level runs
 
@@ -134,7 +214,7 @@ selected: nothing it ran reads `LIMIT`.
 | A comment that sets no JSX pragma, a type outside a decorated class, formatting | Nothing |
 | A new function | Nothing, until a change calls it |
 | A function body | The subjects that entered the changed regions |
-| A top-level value, such as `LIMIT = 10` becoming `20` | Those, and every subject that entered a function reading `LIMIT`, in the file or in a file that imports it |
+| A top-level value, such as `LIMIT = 10` becoming `20` | Every subject that entered code reading `LIMIT`, in the file or in a file that imports it. A call the module makes as it loads is such code, so a value passed to one reaches every subject that loaded the file |
 | Anything that runs as the module loads, a JSX pragma such as `@jsxImportSource`, which decides what every element compiles to, and a type in a decorated class, which `emitDecoratorMetadata` writes into the class as it is defined | Every subject that loaded the file |
 
 A read is followed one file deep, through each file that imports the value, and
@@ -175,30 +255,353 @@ So every uncertainty resolves toward observing:
 | Its baseline records no component list | Observed. Absent is *unknown*, never *renders nothing* |
 | A changed file under `source.dirs` declares no component | **The whole suite runs.** A stylesheet, a token file or a shared helper repaints subjects without naming itself in any of them. This is the row [a file graph retires](#the-expensive-row-and-what-retires-it) |
 | The diff reaches components and **no baseline records any of them** | Narrowed, and **named**: the run prints what it reached and could not match. The one row that does not resolve toward observing, and the one [`source.unrendered` controls](#a-change-nothing-has-been-seen-rendering) |
-| The diff touched nothing under `source.dirs` | The whole suite runs, and says so |
+| The diff touched nothing under `source.dirs` | The whole suite runs, and prints that it did |
 | The index was recorded over a dirty tree | Each module whose recorded text is not the text at the index's own commit is charged whole, and named. Its line numbers are coordinates in a text that is not this one |
 | `git` could not list the diff | The run refuses. An empty diff read as "nothing changed" would narrow to nothing and report success |
 | `--since` with no `source.dirs` | The run refuses, for the same reason |
 
 The last three produce an explicit warning or stop. A run that stays whole
-without saying so looks exactly like a selector that found nothing affected,
-although those facts require different next steps.
+without printing that it did looks exactly like a selector that found nothing
+affected, although those facts require different next steps.
 
 These rows read the baselines and the file graph. When the suite also keeps an
-[execution record](execution-record.md), the record reads the same diff next
-and removes every subject it recorded whole that the diff did not reach, the
+[execution record](execution-record.md), the record reads the same diff next and
+removes every subject it recorded whole that the diff did not reach, the
 subjects the two whole-suite rows kept included. It also keeps every subject it
 recorded entering the changed lines, including one whose baseline names none of
 the components the change reached, so the run prints the subjects it kept that
-way. A changed module it has no row for, such as a new file, is read as a
-module with a row is, with every export counted as changed: the subjects that
-entered a function reading one of them are selected. A path that reading cannot
-answer, such as a stylesheet, a module whose loading does something, or a text
-that does not parse, is answered by the measured files that import it, and one
-nothing measured imports keeps no subject in the run. Two refusals stand over the record, because it
-never saw what they are about — a change to a file named in
-[`source.before`](changes-before-and-beyond.md#how-a-change-before-reach-is-declared),
+way. A changed module it has no row for, such as a new file, is read as a module
+with a row is, with every export counted as changed: the subjects that entered a
+function reading one of them are selected. A path that reading cannot answer,
+such as a stylesheet, a module whose loading does something, a module that
+exports no name it can follow, such as one that assigns `module.exports`, or a
+text that does not parse, is answered by the measured files that import it, and
+one nothing measured imports keeps no subject in the run. A suite that declares
+[`"relations":
+false`](changes-before-and-beyond.md#how-a-change-before-reach-is-declared) does
+not consult the graph: a file its record did not measure keeps no subject in
+that suite's run, and the run names it declined. A suite can also list globs
+under
+[`ignore`](changes-before-and-beyond.md#what-a-suite-ignores),
+such as a unit suite's stylesheets and images. A changed file that matches
+selects only the tests that declared it, by a precondition or a
+`/// <depends>`, and the run lists it as ignored. Two refusals stand over the
+record, because it never saw what they are about — a change to a file named in
+[`before`](changes-before-and-beyond.md#how-a-change-before-reach-is-declared),
 and an install that could not be compared.
+
+## How precisely a suite selects
+
+By default a test is skipped unless it entered the code a changed line is in.
+You may not trust that on the first day: a skipped test is a cost you cannot
+see. So a suite declares its `precision`, and each step trusts the record a
+little more. The coarse steps read what a test imports, through the file graph;
+the fine steps read what it loaded and entered, from the record.
+
+Each finer step drops the tests that went less far into the changed code. Take
+one changed line inside `Query.fetch` in `query.ts`, and five test files:
+
+```mermaid
+flowchart LR
+  all["5 test files"] --> file["file, symbol, file-use<br/>run the 4 that imported and loaded query.ts"]
+  file --> fn["function-use<br/>runs the 2 that entered Query.fetch"]
+  fn --> region["region-use, the default<br/>runs the 1 that entered<br/>the changed line's region"]
+  all -.-> d0["1 never imported query.ts"]
+  file -.-> d1["2 never entered Query.fetch:<br/>one imports the package index,<br/>one calls Query.setData"]
+  fn -.-> d2["1 called fetch<br/>and took the other branch"]
+  classDef chosen fill:#ff4a19,stroke:#ff4a19,color:#181b1d
+  classDef dropped stroke:#756d67,color:#8f8580
+  class region chosen
+  class d0,d1,d2 dropped
+```
+
+A suite declares its step in the configuration:
+
+```json
+{ "suites": { "unit": { "kind": "unit", "precision": "file" } } }
+```
+
+Each step runs a test on its own evidence, answers fully from a record at
+least as fine as that evidence, and rests on its own assumption:
+
+| `precision` | A test runs when | The `mode` to record | What it assumes |
+|---|---|---|---|
+| `file` | it imports a changed file, directly or through other files, or it loaded one | any `mode` | nothing the record has to see: the import graph finds every test that imports the change |
+| `symbol` | it imports an export whose behaviour the change altered, directly or through other files, or it loaded a changed file | any `mode` | the graph tells which exports a change altered |
+| `file-use` | it loaded a changed file | `loads` or finer | nothing more than `file` where every static import loads, as under Jest and Vitest; it runs fewer only where a module [loads where it is used](#from-file-to-file-use-load-a-module-where-it-is-used) |
+| `function-use` | it entered the function a changed line is in | `entries` or finer | every test file that needs a module evaluates it in [a module graph of its own](#a-record-needs-a-module-graph-per-test-file), every runner project the suite runs loads the probes, and cases run one at a time unless `continuations` is on |
+| `region-use`, the default | it entered the region a changed line is in | `presence` | the same |
+
+A changed value runs the tests that read it, as [a change to a module's top
+level](#what-a-change-to-a-modules-top-level-runs) describes. `region-use`
+runs the tests that entered the region reading it. `function-use` widens each
+region to the function that holds it, so it runs every test that entered a
+function reading the value, at any line of that function. At both steps a
+change that runs as the module loads runs every test that loaded the file.
+
+Choose the step by where your suite comes from and how much of the record you
+trust:
+
+- **Start at `file`** if your suite comes from a graph selector such as `nx
+  affected`. It runs every test that imports a changed file.
+- **Declare `file-use`** to run what `file` runs, read from the record: where
+  Jest or Vitest loads every static import, the two run the same tests. It runs
+  fewer only once your modules load where they are used, and then it runs only
+  the tests that loaded them.
+- **Declare `region-use` once every project the suite runs records regions**,
+  as [below](#record-as-finely-as-you-select).
+
+In [TanStack
+Query](selection-tanstack-query.md#two-lines-at-each-precision), a one-line
+edit to `query.ts` runs this many of its 188 test files at each step, next to
+running them all, with the default, `region-use`, last:
+
+```mermaid
+---
+config:
+  xyChart:
+    height: 250
+---
+xychart-beta horizontal
+  accTitle: Test files one edit to query.ts runs in TanStack Query, at each precision
+  x-axis ["every test file", "file", "symbol", "file-use", "function-use", "region-use"]
+  y-axis "test files, of 188" 0 --> 188
+  bar [0, 0, 0, 0, 0, 9]
+  bar [0, 149, 149, 149, 83, 0]
+  bar [188, 0, 0, 0, 0, 0]
+  bar [0, 0, 0, 0, 0, 0]
+```
+
+`file`, `symbol` and `file-use` tie here because Vitest loads every module a
+test file imports. [From `file` to
+`file-use`](#from-file-to-file-use-load-a-module-where-it-is-used) says how to
+split them, and [from `file-use` to
+`region-use`](#from-file-use-to-region-use-read-inside-the-file) what the finer
+steps read.
+
+### Record as finely as you select
+
+`precision` is how much of the record a suite trusts. The recording's `mode` is
+how much the record holds, and it sets what the run pays. A step finer than the
+record answers with what the record has: on a `loads` record, `region-use` runs
+what `file-use` runs, and on an `entries` record, what `function-use` runs. So
+choose the two together, and record at the step you declare. `precision` is
+the suite's, in the configuration above; `mode` is an option of the
+`withTestSelection` you already wrap the runner in, under Vitest, Jest and
+Rstest alike:
+
+```ts
+export default withTestSelection(defineConfig({ test: {} }), { mode: 'loads' });
+```
+
+| `mode` | What each module gets | The record holds | The finest step it answers | Added to the run |
+|---|---|---|---|---|
+| `loads` | one line after its text; nothing is parsed | the modules each test file loaded, and no cases | `file-use` | about 3% |
+| `entries` | a probe at the module and at each function body | the functions each case entered | `function-use` | about 7% |
+| `presence`, the default | a probe in every region: function body, branch arm, loop body, handler | the regions each case entered | `region-use` | about 9% |
+
+The run is this repository's unit suite under Vitest on an Apple M4 Max, each
+arm the mean of two rounds against the same suite run with no recording. On
+it, what `entries` and `presence` add over `loads` lands in Vitest's transform
+and collect phases, where each module is parsed and its probes placed.
+
+Four more options decide what a case carries besides its regions, and where the
+probes go:
+
+| option | default | what it changes |
+|---|---|---|
+| `cadence` | on | each region's record names the line of the test statement that first reached it, which says what each statement of a test added; the transform puts a call before every test statement, and its cost stays inside the run's own spread |
+| `continuations` | off | a case keeps the work it started after it returns, for a suite whose work outlives its cases or that runs them concurrently |
+| `placement` | `'after-transforms'` | `'before-transforms'` probes each file as read, ahead of your transforms: one parse and no source map, for a run whose transforms only strip types or JSX |
+| `unprobed` | none | the modules you name, such as one whose functions a test hands to `page.evaluate`, run with the `loads` line and no probe inside a finer recording, so a change to one selects every test that loaded it, as at `file-use`. Jest takes globs, Vitest and Rstest a predicate |
+
+A `loads` record has no cases, so `cadence`, `continuations` and stories do not
+apply to it. A run fails rather than lay itself over a record made under another
+`mode`, so when you change `mode`, give the run a new `coverageFile` or delete
+the old record. Each option and its edges are in
+[Sense](../packages/sense/README.md#options-on-the-vitest-seam).
+
+### A record needs a module graph per test file
+
+The record learns that a test used a module by watching the module run, and a
+module runs its top level once per module graph. So `function-use` and
+`region-use` rest on each test file getting a graph of its own: every file that needs a module then
+evaluates it, and the record charges the module to that file. A graph shared by
+several test files breaks that.
+
+A graph per test file is the default of every runner Sense wraps:
+
+| Runner | Its default | What shares a graph across test files |
+|---|---|---|
+| Vitest | `isolate: true`, in Node and in browser mode | `isolate: false`, or `--no-isolate` |
+| Rstest | `isolate: true` | `isolate: false` |
+| Jest | a module registry per test file | nothing in its configuration |
+
+Under a shared graph, the second file to need a module finds it already
+evaluated. When that file only reads a value the module computed, nothing in
+the module runs for it:
+
+```mermaid
+flowchart TB
+  subgraph own["a graph per test file: both files are seen"]
+    direction LR
+    a1["a.test.ts"] -->|evaluates| c1["limits.ts"]
+    b1["b.test.ts"] -->|evaluates| c2["limits.ts"]
+  end
+  subgraph shared["one graph for both files: b.test.ts is not seen"]
+    direction LR
+    a2["a.test.ts"] -->|evaluates| c3["limits.ts"]
+    b2["b.test.ts"] -.->|reads the cached value| c3
+  end
+  own ~~~ shared
+  classDef unseen stroke:#756d67,color:#8f8580
+  class b2 unseen
+```
+
+What the record then holds depends on its `mode`:
+
+- **`loads`** charges each file with every module the graph already held, so
+  no test is missed, but a file that imports little runs for changes it never
+  used, and which files those are depends on the order the runner chose.
+- **`entries` and `presence`** still charge each case with every function and
+  region it entered. One kind of file goes unseen: a file that only reads a
+  value another file's evaluation left, such as `b.test.ts` above reading a
+  constant from `limits.ts`. A change to `limits.ts` runs `a.test.ts` and skips
+  `b.test.ts`. A memoized result shared across files is the same gap inside a
+  function, as [a result a cache returned](#a-result-a-cache-returned) shows.
+
+How each mode records a shared graph is in
+[Sense](../packages/sense/README.md#options-on-the-vitest-seam).
+So a shared graph costs a `loads` record precision and a finer record
+soundness. `file` and `symbol` read the import graph, which watches nothing
+run, so they find every test that imports a change whatever graph the runner
+shares. If your suite shares a graph across test files and records `entries` or
+`presence`, declare `symbol`, or give each file its own graph again.
+
+A page reused between subjects shares one graph the same way: Playwright gives
+each test a new page unless you keep one, and the [Storybook
+collector](cases.md#built-or-served-storybook) shows every story in one
+preview. The page record leans the other way: whatever runs while a module
+evaluates is charged to every subject on the page, so a change to a module's
+top level runs every subject the page showed, and none is skipped.
+
+### From `file` to `file-use`: load a module where it is used
+
+`file` is the step for a suite that comes from a graph selector such as `nx
+affected`: it runs what the graph runs, and adds what the record saw load.
+`file-use` drops the graph and keeps what coverage says. The two differ only
+where a test imports a file without loading it, and a runner such as Vitest or
+Jest loads every static import. A module loads where it is used through an
+inline or lazy `require` or a dynamic `import()`. Loading is not using:
+[distill](../packages/distill/README.md) separates the files a test loaded from
+the ones it ran a function in. On most codebases the two steps run the same
+tests, and the size of both answers depends on your imports, not on the
+selector. A module that an index file re-exports is loaded by every test that
+imports the index, and `file-use` counts each of those tests as a user of it.
+`symbol` narrows `file` to the exports a change altered, but a test that loaded
+the file still runs, so it ties with `file` wherever imports load.
+
+In [TanStack
+Query](selection-tanstack-query.md#what-the-index-costs-file-use), `query-core`'s
+index re-exports `hydration.ts`. The last bar is the test files that call a
+function in it, about what `file-use` would run if the module loaded only where
+it is called:
+
+```mermaid
+---
+config:
+  xyChart:
+    height: 200
+---
+xychart-beta horizontal
+  accTitle: Test files that load hydration.ts in TanStack Query, and the ones that call a function in it
+  x-axis ["every test file", "file", "file-use", "file-use, loaded where used"]
+  y-axis "test files, of 188" 0 --> 188
+  bar [0, 0, 0, 21]
+  bar [0, 149, 149, 0]
+  bar [188, 0, 0, 0]
+  bar [0, 0, 0, 0]
+```
+
+Load the module at its first use instead. Under Jest, a lazy `require` does it:
+a `require` inside the function that needs the module, or Babel's CommonJS
+transform with its `lazy` option, evaluates the module when the code first
+reads it. A test that loaded the module is then a test that used it, and an
+edit to the module runs those tests and no others. The change saves twice: a
+test that does not use the module stops paying to evaluate it, and an edit to
+the module stops selecting that test.
+
+Under Vitest, Vite's module runner evaluates every module asynchronously, so a
+load at first use returns a Promise and a synchronous export cannot keep its
+signature. The runner also compiles TC39's `import defer` to an ordinary
+import, which evaluates at load. There, import past the index instead: from the
+module itself inside its own package, or from an entry the package declares.
+
+[Distill](distill.md) lists where to start. For every test file, it names each
+module the file loaded and no case of it ran, under the import that loaded it.
+On [TanStack Query](selection-tanstack-query.md#what-the-index-costs-file-use),
+47% of the lines its unit tests load are in such modules, and the heaviest of
+them come through one index file. Atlassian reports the same effect from
+removing barrel files in Jira: unit tests selected per change fell from about
+1,600 to 200 (*How We Achieved 75% Faster Builds by Removing Barrel Files*).
+
+### From `file-use` to `region-use`: read inside the file
+
+`function-use` and `region-use` read inside a changed file, so they run fewer
+tests from the first run wherever a module is loaded widely and used narrowly, without the
+import work above. That work is still what makes `file-use`, the step that
+rests on the least, run fewer tests, as the [chart
+above](#how-precisely-a-suite-selects) shows on TanStack Query. They read the
+regions the instrumentation recorded, so they are as exact as that instrumentation: every
+project the suite runs has to load it, as
+[TanStack Query's setup](selection-tanstack-query.md#what-it-took-to-fit)
+shows.
+
+### What every step reads
+
+Every step reads the same record and the same file graph; a step changes what
+is read, not what is recorded. What is recorded is the recording's own setting,
+[above](#record-as-finely-as-you-select). The graph and the record miss
+different tests: the graph takes loading a module to
+declare its exports and nothing more, which the `sideEffects` field overrides,
+and a runner config can load a file that no import names. So `file` and
+`symbol` add what the graph reaches to what `file-use` runs, rather than
+replace it, and each step runs every test a finer step runs: a finer step only
+drops tests, and a coarser one never skips one the finer step would run. At
+`file`, `symbol` and `file-use` a changed file counts whatever the edit was, a
+comment included.
+
+A suite that declares [`"relations":
+false`](changes-before-and-beyond.md#how-a-change-before-reach-is-declared)
+declines the graph, so it cannot declare `file` or `symbol`, and the config is
+refused. To see what each step would select for your change, run `variance
+select` once per step, as [TanStack
+Query](selection-tanstack-query.md#two-lines-at-each-precision) does for two
+lines.
+
+A [journey](journeys.md) file you hand to `variance select --execution` is read
+by its regions, whatever the suite declares: naming the file asks for that
+reading.
+
+## Ask one stage without a diff
+
+`variance run --since` asks git for the diff, then runs every stage of
+selection on it in a fixed order: it traces what an install moved and what
+the harness rests on, sets aside the files the suite ignores,
+routes each file to the record or the graph, charges the regions the changed
+lines fall in, reads the preconditions, and walks the importers of a file the
+record never measured. If your system already knows which files moved, you can
+call one of those stages yourself from the JavaScript API, passing the files
+and lines as values. You can ask which tests loaded a list of paths, which
+tests entered a range you made up at `function-use`, or which tests a file
+the record never measured reaches through its importers. Reading what an
+edit does, which the parser answers, needs both texts of the file: pass the
+text at the recorded commit as `sourceAt`, and the hunks that move it. Lines
+with no hunks are charged as given. No stage reads git, and none reads
+the checkout unless you pass `root`,
+so the refusals [above](#where-selection-widens) do not apply, and a
+simulation needs no checkout. [Sense](../packages/sense/README.md#ask-one-stage-alone)
+lists every stage and what it answers.
 
 ## What a skipped subject looks like
 
@@ -226,8 +629,8 @@ The directories remain a **declaration about scope** where no graph edge brings
 a file in. A changed file inside them that the scan did not read is a gap and
 forces a whole run. A changed file outside them is ignored when another in-scope
 change gives selection an answer; when the whole diff is outside the graph or
-the declared directories, the run is whole because the diff says nothing about
-which component changed. That is why `README.md` beside a component edit does
+the declared directories, the run is whole because the diff names no changed
+component. That is why `README.md` beside a component edit does
 not widen the run, while a diff containing only `README.md` does unless an
 execution record is kept.
 
@@ -266,7 +669,7 @@ facts wearing one shape:
 Nothing in the selector separates them: both are components declared in files no
 subject imports. An observation surface narrower than the source tree is the
 ordinary state of a repository, not a defect to infer around — so the run narrows,
-and **says which components it could not match**:
+and **prints which components it could not match**:
 
 ```
 `--since HEAD~1` ruled out every subject: it reaches 1 component no baseline
@@ -324,16 +727,16 @@ reaches no component and does not force the whole suite, with a graph or
 without one, and the run names it in the sentence under its answer. A file that
 was added, deleted or does not parse is a change whatever the edit was.
 
-The graph trusts the text, and the text is wrong in one known way: a test that
-calls `vi.mock('./api')` imports `./api` by the letter and runs none of it. The
-scan reads those calls off test, story and setup files as it goes, and the
-mocked module is taken out of the graph as seen from that file at every level —
-the test is not selected by a change to the module it replaced, nor by one to
-anything only that module reaches. A `source.taints` table says the same for
-what no reader can see, a framework's own import notation, in the other
+The graph takes the text as written, and the text is wrong in one known way: a
+test that calls `vi.mock('./api')` imports `./api` by the letter and runs none
+of it. The scan reads those calls off test, story and setup files as it goes,
+and the mocked module is taken out of the graph as seen from that file at every
+level — the test is not selected by a change to the module it replaced, nor by
+one to anything only that module reaches. A `source.taints` table declares the
+same for what no reader can see, a framework's own import notation, in the other
 direction as well: `+` rows for imports the text does not write.
 
-It is arranged to over-include in exactly the same direction, and has three
+It is built to over-include in exactly the same direction, and has three
 refusals of its own:
 
 | Situation | What happens |
@@ -343,22 +746,22 @@ refusals of its own:
 | The files it did reach declare no component | The whole suite runs. That is also exactly what a changed file declaring a component the scan failed to recognise looks like |
 | A file's own imports could not all be read — `import('./' + name)`, a `require` this could not read as a literal, a parse that did not finish | The edges it could read are walked. The one it could not is left to the [execution record](execution-record.md), which sees the module load whatever expression named it |
 | A relative specifier resolves nowhere | The same: the specifier is recorded with the file's reason, and the edge is the record's to answer |
-| A bare specifier resolves nowhere | It becomes an edge to a [package node](changes-before-and-beyond.md#what-a-bumped-package-reaches) under the name it asked for and does not widen the graph. Whether the package is installed here decides nothing about which files import it. If it names repository source through an alias or build plugin, configure that mapping or supply the package boundary through the project graph |
+| A bare specifier resolves nowhere | It becomes an edge to a [package node](changes-before-and-beyond.md#what-a-bumped-package-reaches) under its bare name and does not widen the graph. Whether the package is installed here decides nothing about which files import it. If it names repository source through an alias or build plugin, configure that mapping or supply the package boundary through the project graph |
 
 The graph walks what is written. A specifier built at runtime has no written
 target, and seeding every such file on every diff would make the run as wide as
 the codebase's least legible corner. Recorded coverage has no such blind spot:
 a module that loads under a test is in that test's record however it was
-named. The file's reason stays on its record, so the scan can say which files
+named. The file's reason stays on its record, so the scan can list which files
 hide an edge.
 
 What the scan reads, and where it stops, is
 [`packages/sense`](../packages/sense). The graph itself is data: fold the records
-into it, walk it, ask it things. The traversals live in
+into it, walk it, query it. The traversals live in
 [`core/relate`](../packages/core/README.md#entrypoints) and open nothing, so a repository
 that already computes its own dependency graph can feed this from that instead.
 
-## What `nx` and `turbo` know that a scan cannot
+## What `nx` and `turbo` compute that a scan cannot
 
 A specifier scan stops at a package boundary when the package's `tsconfig` does
 not name both `outDir` and `rootDir`, or emits no code. `@scope/design-system`
@@ -391,11 +794,11 @@ that line, the record answers 10. Across sixty commits, `nx affected` selects
 
 Nx is not wrong about any of it: every one of those 168 files sits in a package
 that depends on the edited one. Only 149 of them load the edited module at all,
-and a manifest cannot say which of those ever ran the line.
+and a manifest does not record which of those ever ran the line.
 
 `turbo` needs the `task` because its filter answers *what would run*, not
 *what changed*; naming it is how you say which pipeline's inputs match what a
-render depends on. `nx` answers about projects without being told.
+render depends on. `nx` answers about projects without that setting.
 
 **A tool that fails stops the run.** An empty project list is a legitimate answer
 meaning *this diff crosses no package boundary*, so a missing binary and a quiet
@@ -407,7 +810,7 @@ all.
 
 A run reads from left to right: the harness starts it, the tests it started
 run your code, and your code goes out into what the install provides. Selection
-lives in the middle stretch, where a file has a name the record knows. A
+lives in the middle stretch, where a file has a name the record contains. A
 config file nothing imports and a bumped package you never wrote sit outside it,
 and they widen a run for opposite reasons —
 [changes before and beyond](changes-before-and-beyond.md) is the page about
@@ -421,8 +824,8 @@ known, and each removes a layer:
 
 - **`git` names every file's content without opening one.** A blob's name *is*
   the hash of its bytes, so `git ls-tree` plus `git status` is the entire walk.
-- **A digest names the parse.** The parse cache is keyed by content and by what
-  the file's name said about reading it, so it can never go stale: two files
+- **A digest names the parse.** The parse cache is keyed by content and by the
+  parse settings the file's name selects, so it can never go stale: two files
   with one key had one content read one way, on any machine, in any branch, in
   any year.
 - **A digest plus resolution configuration and witness directories names the
@@ -438,13 +841,13 @@ known, and each removes a layer:
 |---|---|
 | Naming every file's content | 95 ms, and nothing opened |
 | A cold scan | 3002 ms |
-| Parses remembered | 657 ms |
-| Records remembered too | 236 ms |
+| Parses cached | 657 ms |
+| Records cached too | 236 ms |
 | The run after a one-file edit | 236 ms — the edit is inside the noise |
 
 ```mermaid
 xychart-beta horizontal
-  accTitle: Milliseconds to scan 30,500 files, by what the caches remember
+  accTitle: Milliseconds to scan 30,500 files, by what the caches store
   x-axis ["nothing, a cold scan", "the parses", "the records too", "the records, after a one-file edit"]
   y-axis "ms" 0 --> 3100
   bar [0, 657, 236, 236]
@@ -520,7 +923,7 @@ xychart-beta horizontal
 That is the setting `--coverage` gives you, not a pessimistic one.
 `Profiler.startPreciseCoverage` takes two independent flags — a counter per
 region rather than a bit, and block ranges rather than function entries — and
-Vitest's provider asks for both. Node's inspector exposes no cheaper mode;
+Vitest's provider requests both. Node's inspector exposes no cheaper mode;
 the best-effort one is d8's.
 
 A probe fires only when its code runs, so what you pay tracks what your tests
@@ -576,21 +979,21 @@ like gigabytes before it is written. What the record does instead, what it
 measures at two hundred thousand modules, and how much of it one answer opens
 is in [addressing scale](scale.md).
 
-## What a record knows that no graph can
+## What a record shows that no graph can
 
 Everything above reasons about **reach**: which components a change touches, and
 which subjects have been seen rendering them. Reach is a property of the source,
 and a scan is the right instrument for it. Which *lines* a subject went through
 while it painted is not a property of the source at all — three stories mounting
 one component, with one import graph and one set of files, take three different
-paths through it — so nothing above can be asked the question, however good the
+paths through it — so nothing above can answer the question, however good the
 graph gets.
 
 A build instrumented with `testSelectionProbes()` from
 `@variance-authority/sense/journal` records those paths: for every observed
 subject, the regions of each module it crossed while it was painted. That is
 what [`packages/playwright-test`](../packages/playwright-test) narrows specs
-with, and it answers one question about a suite that a diff never asks:
+with, and it answers one question about a suite that a diff cannot answer:
 
 ```bash
 variance journeys
@@ -613,20 +1016,20 @@ as well. **`unentered`** is a region with source of its own that nobody in the
 pool covered at all, and that is the row below.
 
 Two things bound it, and both are printed, not assumed. The journal
-**accumulates across runs**, so the pool is the subjects this run's report names;
-`--all` asks for the record on purpose, and a checkout with no report to read
-gets the record *with the sentence saying so*. And an observation the journal
-recorded as truncated is **dropped from the pool** rather than counted as having
-missed anything — a recording that stopped early proves no absence — with a count
-of what was dropped, because a pool of two that should have been three reads as
-agreement.
+**accumulates across runs**, so the pool is the subjects this run's report
+names; `--all` requests the whole record on purpose, and a checkout with no
+report to read gets the whole record *and a printed line that names the
+fallback*. And an observation the journal recorded as truncated is **dropped
+from the pool** rather than counted as having missed anything — a recording that
+stopped early proves no absence — with a count of what was dropped, because a
+pool of two that should have been three reads as agreement.
 
 ## Where the taints and the record disagree
 
-A taint says what a file's run reaches. The record says what it did. A checkout
-that has both — taints from the mock reader or a table, a journal from an
-instrumented run — can check one against the other, and every disagreement is a
-fact about one of them.
+A taint declares what a file's run reaches. The record shows what it did. A
+checkout that has both — taints from the mock reader or a table, a journal from
+an instrumented run — can check one against the other, and every disagreement is
+a fact about one of them.
 
 ```ts
 import { auditTaints } from '@variance-authority/sense/taint';
@@ -638,33 +1041,35 @@ for (const { test, module, kind, taints } of auditTaints(coverage, relations, ta
 
 | kind | what it found |
 |---|---|
-| `shadowed-but-entered` | a module the test shadows, which the record says the test covered: the mock did not take, or the taint is wrong about it |
+| `shadowed-but-entered` | a module the test shadows, which the record shows the test covered: the mock did not take, or the taint is wrong about it |
 | `reachable-but-not-entered` | a module the test reaches on the graph with none of its shadows in the way, which nobody covered for that test: an import the run never loads, or a mock no taint names yet |
-| `added-but-not-entered` | a module a `+` row said the test imports beyond its text, which the record never saw the test in: the addition names the wrong file |
+| `added-but-not-entered` | a module a `+` row declared the test imports beyond its text, which the record never shows the test entering: the addition names the wrong file |
 
 None of them is a verdict. Each is the coordinate to look at, and where a taint
-said the thing the record disagrees with, the row names **which taints** said
-it — a table somebody wrote by hand and a reader over the source are corrected in
-different places. The middle row has none: that trail is one the scan drew
-and no taint touched.
+declared the thing the record disagrees with, the row names **which taints**
+declared it — a table somebody wrote by hand and a reader over the source are
+corrected in different places. The middle row has none: that trail is one the
+scan drew and no taint touched.
 
-Two things bound what a row may claim, and both are structural. Only an
-**instrumented** module testifies — one with no probes was covered by nobody the
-record can see, which is silence rather than absence. And only a **complete**
-observation testifies to absence, so the middle question is not asked of a test
+Two things bound what a row may report, and both are structural. Only an
+**instrumented** module counts as evidence — one with no probes has no coverage
+the record can measure, which is unmeasured rather than absent. And only a
+**complete** observation counts as evidence of absence, so the middle row is not
+computed for a test
 whose recording stopped early: a run that ended mid-flight proves nothing about
 where it never got to.
 
-It wants both sides to exist, which is what makes it the last thing to set up
-rather than the first: a record comes from a [journey](journeys.md), and taints come from a
-reader or a table. With one side alone there is nothing to disagree with.
+The audit needs both sides to exist, which is what makes it the last thing to
+set up rather than the first: a record comes from a [journey](journeys.md), and
+taints come from a reader or a table. With one side alone there is nothing to
+disagree with.
 
 ## What the record does not show
 
 Selection skips a test when the record shows that the test did not run the code
 you changed. The record lists what ran. It cannot list code that would run now
 but did not run when the test was recorded, so a change to that code skips the
-test. This happens in two ways:
+test. This happens in four ways:
 
 - [**A branch no run has taken.**](#a-branch-no-run-has-taken) A subject that
   has never rendered `Button` is not selected by a change to `Button`, even when
@@ -672,6 +1077,13 @@ test. This happens in two ways:
 - [**A result a cache returned.**](#a-result-a-cache-returned) Memoization
   changes which code runs, so the record sees nothing in a case the cache
   answered, and a change to the function selects only the case that ran it.
+- [**A value another test file evaluated.**](#a-record-needs-a-module-graph-per-test-file)
+  Under a module graph shared across test files, a file that only reads what an
+  earlier file's evaluation left runs nothing in the module, so the record lists
+  nothing a change to it could select.
+- [**A file no code names.**](#a-file-no-code-names) A page that shows a
+  document read at build time runs the renderer, not the document, so the
+  record lists nothing a change to the document could select.
 
 [The first run](#the-first-run) is the opposite case. Nothing is recorded, so
 nothing is skipped.
@@ -695,10 +1107,11 @@ that decides to render `Button`, that component is in the subject's baseline,
 and so that edit selects the subject. What is left is a branch that no run
 takes at all.
 
-To find those branches, read [`unentered`](#what-a-record-knows-that-no-graph-can).
-It lists the regions, in modules a subject loaded, that no subject in the pool
-ran. It selects nothing. It shows you the branches your subjects have never
-taken, so you can add a subject that takes one.
+To find those branches, read
+[`unentered`](#what-a-record-shows-that-no-graph-can). It lists the regions, in
+modules a subject loaded, that no subject in the pool ran. It selects nothing.
+It shows you the branches your subjects have never taken, so you can add a
+subject that takes one.
 
 ### A result a cache returned
 
@@ -729,12 +1142,12 @@ Which cases share a cache depends on how long the cache lives:
 
 - **Cases in one file share it.** Only the first case that calls with a given
   argument runs the function.
-- **Files in one module graph share it.** This is Vitest with `--no-isolate`,
-  or any runner that evaluates a module once per process. A later file calls
+- **Files in one module graph share it**, which no runner does by
+  [default](#a-record-needs-a-module-graph-per-test-file). A later file calls
   only the memoizer, which the record does not instrument, so nothing in the
   module is recorded for its cases.
-- **A file with its own module graph starts empty.** This is the default in
-  Vitest and Jest. The first case in each file runs the function.
+- **A file with its own module graph starts empty**, as under every runner's
+  default. The first case in each file runs the function.
 - **A cache per render or per request starts empty for each case.** React's
   `useMemo`, `memo` and `cache` are empty when a case renders, so the function
   runs and the record shows it.
@@ -753,6 +1166,74 @@ on the case that ran before it: run it alone and it runs the function. That is
 order dependence, and [test order and shared state](flakiness.md#test-order-and-shared-state)
 is where you find and fix it.
 
+### A file no code names
+
+A page renders a Markdown file the build read. The code that ran is the
+renderer, not the file: no region of the file runs. So the record lists the
+renderer for the pages that ran it, and the file for none of them. A change to
+one document selects no page through the record; in a suite with
+`"relations": false` it selects nothing, and the `notes` of `variance select`
+name the document as a changed file the record did not measure.
+
+[`@variance-authority/route-collector`](../packages/route-collector/README.md)
+records both halves of a page when its `tests` option names a suite declared
+under `suites` in `variance.config.json`:
+
+```js
+routeCollector({ sitemap, tests: { suite: 'site' } });
+```
+
+The code half comes from probes: one Vite plugin in the client and server
+builds, and one wrapper around the server's request handler. The code a page
+ran is recorded only when it runs for the visit being photographed, so a
+prerendered page, or a page a cache returned, records no renderer, and a change
+to the renderer selects none of those pages. Photograph a build with the probes
+in, prerendering off and every page cache off, and keep your usual build for
+production; the run takes its baselines from the build it photographs. The
+[route collector's reference](../packages/route-collector/README.md#photographing-only-the-pages-an-edit-reached)
+lists that build step by step.
+
+The file half comes from the element that shows a file, which can name it.
+Install [`@variance-authority/reads`](../packages/reads/README.md) as a
+dependency, and spread the props it returns on every element that shows a
+file's text, with the file's path from the repository root:
+
+```tsx
+import { reads } from '@variance-authority/reads';
+
+// The page for one document.
+<article {...reads(page.sourcePath)}>{page.body}</article>
+
+// An index entry that shows a document's first lines.
+<li {...reads(entry.sourcePath)}>{entry.excerpt}</li>
+```
+
+The first renders `data-variance-reads="docs/tests.md"` on the page for
+`docs/tests.md`. `reads()` takes several paths when one element shows several
+files. The attribute is in the HTML whether the page was prerendered or not.
+
+A [`/// <depends>`](#where-sourcedirs-starts-the-answer) directive charges a
+file to every test that loads the module it sits in, so in a renderer every
+document shares it would select every page for any one document. The attribute
+selects the pages that showed the file.
+
+Each page is recorded with the code it ran and every file an element on it
+named, with the digest of each file's text. A later `variance run --since`
+compares those digests, and a page whose named file changed is photographed. On
+a site of 142 pages, an uncommitted edit to one paragraph of `docs/tests.md`
+and `variance run --since HEAD --suite site` print:
+
+```
+`--since HEAD` ruled out 139 subjects: 0 by what the diff declares and reaches, 139 by what the last run recorded as covered.
+```
+
+The second count is the record's: 139 pages ran no changed code and showed no
+changed file. The three pages left are the page for `docs/tests.md` and the two
+index pages that show its first lines. The attribute names a whole file, so a
+change to the last paragraph of a document also selects an index page that
+shows only the beginning. An edit to the shared index component on the same
+site selects the four pages that render it.
+
 ### The first run
 
 No test has a record and no subject has a baseline yet, so nothing can be ruled
@@ -761,18 +1242,16 @@ run.
 
 ---
 
-**Further:** [`distance.md`](distance.md) for the API that measures how far the
+**Further:** [asking one stage without a diff](#ask-one-stage-without-a-diff) for a system that already holds the changed files · [`distance.md`](distance.md) for the API that measures how far the
 change travelled to selected test files, and the inventory and runner work an
-integration still owns ·
-[`flows.md`](flows.md) for where baselines live ·
+integration still owns · [`flows.md`](flows.md) for where baselines live ·
 [`source.md`](source.md) for how the scan reads a file, resolves a specifier and
-remembers both ·
-[`execution-record.md`](execution-record.md) for the keys, lookups, traces
-and costs of the coverage file ·
-[`distill.md`](distill.md) for using that record to make one test smaller ·
-[`packages/sense`](../packages/sense/README.md#correct-what-a-files-text-claims-to-import) for the taint
-tables themselves ·
-[`packages/sense`](../packages/sense) for what the scan reads and where it stops ·
-[`packages/cli`](../packages/cli) for the rest of the command line ·
-[`compare-visual-review.md §2`](compare-visual-review.md#chromatic) for what TurboSnap does that this
-does not.
+records both · [`execution-record.md`](execution-record.md) for the keys,
+lookups, traces and costs of the coverage file · [`distill.md`](distill.md) for
+using that record to make one test smaller ·
+[`packages/sense`](../packages/sense/README.md#correct-what-a-files-text-declares-it-imports)
+for the taint tables themselves · [`packages/sense`](../packages/sense) for what
+the scan reads and where it stops · [`packages/cli`](../packages/cli) for the
+rest of the command line · [`compare-visual-review.md
+§2`](compare-visual-review.md#chromatic) for what TurboSnap does that this does
+not.

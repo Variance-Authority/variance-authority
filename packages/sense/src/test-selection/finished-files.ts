@@ -14,18 +14,17 @@
  * against whichever the project installed.
  */
 
-import { readFile, readdir } from 'node:fs/promises';
-import { resolve } from 'node:path';
-import { digestString } from '../digest.js';
+import type { Digest } from '../digest.js';
 import type { ModuleId } from '../instrument/index.js';
 import journalFormat from './journal-format.cjs';
 import {
-  isMissing,
   projectPath,
+  readWritten,
   type CapturedModule,
   type ReadJournal,
 } from './instrumented-modules.js';
-import type { CoveragePrecondition, CoverageTest } from './index.js';
+import type { CoveragePrecondition, CoverageTest, FilePhases } from './index.js';
+import { reportedDuration, reportedPhases, summedPhases } from './reported-time.js';
 import type { ExecutedModule } from './probes.js';
 import { BROWSER_JOURNAL } from './worker-source.js';
 import type { RunnerContext, RunnerProject } from './governing-config.js';
@@ -44,6 +43,11 @@ export interface RunnerTask {
   readonly meta?: object;
   /** Vitest 2's name for the project that ran the file. */
   readonly projectName?: string;
+  /** Vitest 2's milliseconds for a file's phases before its first case, when it measured them; its cases are `result.duration`. */
+  readonly prepareDuration?: number;
+  readonly environmentLoad?: number;
+  readonly setupDuration?: number;
+  readonly collectDuration?: number;
 }
 
 /**
@@ -70,18 +74,26 @@ export interface ReportedModule {
   readonly meta?: () => object;
   /** The project that ran it, whose Vite server loaded its configuration. */
   readonly project?: RunnerProject;
-  /** Vitest 3 and 4: `duration` is every test and hook in the module, as the runner timed them. */
-  readonly diagnostic?: () => { readonly duration?: number } | undefined;
+  /**
+   * Vitest 3 and 4: `duration` is every test and hook in the module, as the
+   * runner timed them, and the rest are the phases before its first case.
+   */
+  readonly diagnostic?: () => {
+    readonly duration?: number;
+    readonly prepareDuration?: number;
+    readonly environmentSetupDuration?: number;
+    readonly setupDuration?: number;
+    readonly collectDuration?: number;
+  } | undefined;
 }
 
 /**
- * The one outcome that is indistinguishable from a clean run and is not one.
+ * The one outcome that looks like a clean run and is not one.
  *
- * A run that transformed no product module writes a snapshot saying every test
- * reaches nothing, and `narrowByExecution` reads that as an answer: every later
- * selection narrows to the empty set, the CI job runs no tests, and it passes.
- * Nothing else in this seam fails, so the first sign of it is a green pipeline
- * that stopped testing.
+ * A run that transformed no product module records no coverage: `landRun`
+ * lands its cases and leaves the coverage the record held as it was, so the
+ * run narrows no later selection. Nothing else in this seam fails, and a run
+ * that was meant to measure and did not is otherwise silent.
  *
  * Said rather than thrown, because zero is legitimate: a run filtered down to
  * one test file that imports no source has nothing to instrument. The two
@@ -98,7 +110,7 @@ export function noteAnEmptyRecord(
   if (instrumented > 0 || testFiles === 0) return;
   console.warn(
     `variance-authority instrumented 0 modules across ${testFiles} test file(s); ` +
-      `selection from this snapshot will select nothing. ${unreached}`,
+      `this run recorded no coverage, so it narrows no later selection. ${unreached}`,
   );
 }
 
@@ -119,13 +131,10 @@ export interface FinishedFile {
   readonly configs?: readonly string[];
   /** Milliseconds the runner reported for the file; absent when it reported none. */
   readonly duration?: number;
+  /** The phases the runner reported for it before its first case; absent when it reported none. */
+  readonly phases?: FilePhases;
   /** Every case the runner reported in it; absent when it reported none. */
   readonly cases?: readonly FinishedCase[];
-}
-
-/** The runner's duration for a file, as a field to spread; nothing here times a file. */
-export function reportedDuration(value: unknown): Pick<FinishedFile, 'duration'> {
-  return typeof value === 'number' && Number.isFinite(value) && value >= 0 ? { duration: value } : {};
 }
 
 /** What a page's two drains carry: before the first test, and after it. */
@@ -308,16 +317,16 @@ export function runnerSkipped(context: RunnerContext | undefined, reason?: strin
 
 /**
  * The same reading for a runner that reports a file as one status and its tests
- * as a flat list of them.
- *
- * Rstest is that runner: `onTestRunEnd` hands a result per file whose `results`
- * are its leaves, with no tree between them. The file's own status carries what
- * {@link stopped} reads out of a task tree — a `beforeAll` that throws leaves
- * the file failed and every test in it skipped — so asking it first refuses the
- * thrown-fixture case for the same reason and with the same consequence.
+ * as a flat list of them: Rstest's `results`, and Jest's statuses in these
+ * words. The file's own status carries what {@link stopped} reads out of a task
+ * tree — a `beforeAll` that throws leaves the file failed and every test in it
+ * skipped — so asking it first refuses the thrown-fixture case for the same
+ * reason. Where the runner may have skipped a
+ * test on its own, only a pass is an outcome.
  */
-export function statusesComplete(file: string, tests: readonly string[]): boolean {
-  return usableOutcome(file) && tests.length > 0 && tests.every(usableOutcome);
+export function statusesComplete(file: string, tests: readonly string[], runnerSkipped: boolean): boolean {
+  return usableOutcome(file) && tests.length > 0
+    && tests.every((state) => (runnerSkipped ? state === 'pass' : usableOutcome(state)));
 }
 
 export function reportedComplete(module: ReportedModule, runnerSkipped: boolean): boolean {
@@ -377,23 +386,27 @@ export function oneRowPerFile(
       : seen.duration === undefined || file.duration === undefined
       ? undefined
       : seen.duration + file.duration;
+    const phases = seen === undefined ? file.phases : summedPhases(seen.phases, file.phases).phases;
     byPath.set(path, {
       filepath: seen?.filepath ?? file.filepath,
       complete: (seen?.complete ?? true) && file.complete,
       ...(configs === undefined ? {} : { configs }),
       ...(duration === undefined ? {} : { duration }),
+      ...(phases === undefined ? {} : { phases }),
     });
   }
   return [...byPath.values()];
 }
 
-export async function coverageTest(
+export function coverageTest(
   task: FinishedFile,
   root: string,
   preconditionFiles: readonly string[],
+  /** Every file's text digest, from `textDigests`, read once for the whole run. */
+  digests: ReadonlyMap<string, Digest>,
   journals: readonly ReadJournal[],
   modules: ReadonlyMap<ModuleId, CapturedModule>,
-): Promise<CoverageTest> {
+): CoverageTest {
   const file = projectPath(root, task.filepath);
   // By name, because the same fact can arrive more than once: a file two
   // projects both ran left a journal under each of them, and the modules those
@@ -406,7 +419,7 @@ export async function coverageTest(
   for (const input of [task.filepath, ...preconditionFiles]) {
     require({
       name: projectPath(root, input),
-      digest: digestString(await readFile(input, 'utf8')),
+      digest: digests.get(input)!,
     });
   }
   // Whether this file left a journal at all. A file with every test skipped is
@@ -443,6 +456,7 @@ export async function coverageTest(
     complete: task.complete && recorded,
     preconditions: [...preconditions.values()],
     ...reportedDuration(task.duration),
+    ...(task.phases === undefined ? {} : { phases: task.phases }),
   };
 }
 
@@ -455,6 +469,8 @@ export async function coverageTest(
 interface WrittenFile extends RunnerTask {
   readonly filepath: string;
   readonly runnerSkipped?: boolean;
+  /** The file's phases, under the names {@link FilePhases} gives them. */
+  readonly phases?: { readonly [phase in keyof FilePhases]?: unknown };
 }
 
 /**
@@ -462,36 +478,23 @@ interface WrittenFile extends RunnerTask {
  * reads the same tree.
  *
  * Empty when no runner of this seam's wrote any: the project brought its own,
- * or no file ran.
+ * or no file ran. In the order of what the trees hold, which is the same
+ * whichever worker finished first.
  */
 export async function readFinished(directory: string): Promise<readonly FinishedFile[]> {
-  let names: readonly string[];
-  try {
-    names = await readdir(directory);
-  } catch (error) {
-    if (isMissing(error)) return [];
-    throw error;
-  }
-  const trees = await Promise.all(names.map(async (name) =>
-    JSON.parse(await readFile(resolve(directory, name), 'utf8')) as readonly WrittenFile[]));
+  const trees = (await readWritten(directory)).map((bytes) =>
+    JSON.parse(bytes.toString('utf8')) as readonly WrittenFile[]);
   // A tree that does not say is read as one the runner may have cut.
   return trees.flat().map((file) => ({
     filepath: file.filepath,
     complete: taskComplete(file, file.runnerSkipped !== false),
     ...reportedDuration(file.result?.duration),
+    ...reportedPhases(file.phases ?? {}),
     ...taskCases(file),
   }));
 }
 
+/** The journals a run's workers wrote, in the order of what they hold. */
 export async function readJournals(directory: string): Promise<readonly ReadJournal[]> {
-  let names: readonly string[];
-  try {
-    names = await readdir(directory);
-  } catch (error) {
-    if (isMissing(error)) return [];
-    throw error;
-  }
-  return Promise.all(
-    names.map(async (name) => journalFormat.decodeJournal(await readFile(resolve(directory, name)))),
-  );
+  return (await readWritten(directory)).map((bytes) => journalFormat.decodeJournal(bytes));
 }

@@ -31,11 +31,13 @@ export interface DiffPolicy {
 }
 
 /**
- * `pixelmatch`'s own defaults, which is what a VR tool ships with.
+ * `pixelmatch`'s own defaults.
  *
- * This is the number quoted as "what a pixel differ would report". Anything
- * stricter would be a configuration nobody survives in practice; anything looser
- * would be us choosing the pixel arm's sensitivity for it.
+ * This is the number quoted as "what a pixel differ would report". Tools that
+ * wrap `pixelmatch` ship other thresholds, from Playwright's `0.2` to
+ * jest-image-snapshot's `0.01`, and the product's own default is `0.01`
+ * (ADR-0026). The arm takes the library's rather than choosing its sensitivity
+ * for it.
  */
 export const DEFAULT_POLICY: DiffPolicy = { id: 'default', threshold: 0.1, includeAA: false };
 

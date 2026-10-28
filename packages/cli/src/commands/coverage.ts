@@ -19,25 +19,37 @@ import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import {
   askCoverageFile,
+  coverageAtDistance,
   countCoverage,
+  coverageByOwner,
   coverageChange,
+  coverageFanIn,
   declaredSuites,
+  earnedCoverage,
+  readableTestCoverage,
   recordedCommit,
   sharedPreconditions,
   testCoverageFile,
+  testHops,
   type CountedSuite,
   type CoverageCount,
   type DeclaredSuite,
+  type EarnedCoverage,
+  type FanIn,
+  type OwnedFile,
   type SuiteChange,
   type SuiteKind,
+  type TestHops,
 } from '@variance-authority/sense/test-selection';
 import type { ParsedCoverage } from '../coverage-args.js';
-import { messageOf } from '../config-values.js';
 import { OperatorError } from '../exit.js';
+import { carriedOver, diffFromBase } from './base-diff.js';
 import { baseCommit } from './covering-motion.js';
 import { coverageSource, harnessReach, readSource, within, type CoverageSource, type MissedEntry, type Scoped } from './coverage-source.js';
 import { readExecutionIndex, recordedExecutionFile } from './execution-input.js';
 import { mainlineBase, mainlineMissed } from './mainline-base.js';
+import { relationsFor } from './source-graph.js';
+import { asOperator, nothingRecorded } from './suite-record.js';
 
 /** One suite's record and its base, or why it has neither. */
 export interface CoverageSuite {
@@ -48,8 +60,8 @@ export interface CoverageSuite {
   readonly from?: string;
   /** The commit the record was made at, when it says. */
   readonly recorded?: string;
-  /** Where the base came from, when the suite has one. */
-  readonly base?: { readonly from: string; readonly commit?: string; readonly change: SuiteChange };
+  /** Where the base came from, the commit it was recorded at, and what changed the count since. */
+  readonly base?: { readonly from: string; readonly commit: string; readonly change: SuiteChange };
   /** Why the suite has no base. Absent when it has one, and when it has no record to compare. */
   readonly baseMissed?: string;
 }
@@ -69,9 +81,51 @@ export interface Coverage {
   readonly sourceMissed?: string;
   /** Each package with `--packages`, or each directory the root config declares entry points for, counted over its own files and over everything it reaches. Absent with `--from`. */
   readonly entries?: readonly (CoverageEntry | MissedEntry)[];
+  /**
+   * With `--packages`, every recorded file but a test file, with how many of
+   * its regions its own package's tests ran and how many only other packages'
+   * tests did. A file in no listed package belongs to `.`, the root. Test
+   * files are left out, so these regions are fewer than the count above.
+   */
+  readonly ownership?: readonly OwnedFile[];
+  /**
+   * With `--packages`, each suite's regions in and out, and every suite's
+   * joined: in when a test of the region's own package called into it from at
+   * most one import hop, out when any other test did. Test files are left out,
+   * as in `ownership`.
+   */
+  readonly earned?: EarnedCoverage;
+  /**
+   * With `--fan-in`, how many test files called into each region and each
+   * file, per kind and per file, over the same regions and band as the count
+   * above.
+   */
+  readonly fanIn?: FanIn;
+  /**
+   * With `--at-distance`, the band every count above was narrowed to: a region
+   * counts as run only when the nearest test file that ran it, across every
+   * suite, is within the band of the region's module, so the bands partition
+   * what ran. `to` is absent for an open end. `unplaced` names the test files
+   * no walk could measure; `unmeasured` counts the regions only they ran, which
+   * no band holds.
+   */
+  readonly atDistance?: { readonly from: number; readonly to?: number; readonly unplaced: readonly string[]; readonly unmeasured: number };
+  /**
+   * The files changed since the commit every base was recorded at, when no
+   * counted suite loads any of them and no suite's count changed. Absent
+   * whenever git or a record cannot say so, and whenever the change is
+   * anything else: the whole count is then the answer.
+   */
+  readonly unloadedChange?: UnloadedChange;
 }
 
-/** Count the records the request names, and compare them with their bases. */
+/** A change no suite loads: the files git says changed, and since which commit. */
+export interface UnloadedChange {
+  readonly since: string;
+  /** In code-unit order. */
+  readonly files: readonly string[];
+}
+
 /** One directory counted on its own. */
 export interface CoverageEntry {
   readonly from: string;
@@ -79,6 +133,7 @@ export interface CoverageEntry {
   readonly uses: CoverageSource;
 }
 
+/** Count the records the request names, and compare them with their bases. */
 export async function coverage(request: ParsedCoverage): Promise<Coverage> {
   const declared = asOperator(() => declaredSuites(request.root));
   const asked = request.suite === undefined ? declared : declared?.filter((one) => one.name === request.suite);
@@ -97,55 +152,91 @@ export async function coverage(request: ParsedCoverage): Promise<Coverage> {
     throw new OperatorError(`\`--from ${request.from}\` is answered by the source index, and ${reading.missed}`);
   }
   const scope = 'missed' in reading ? undefined : reading.scope;
+  // The import graph, when a band or the in and out count asks how far each test is.
+  const relations = request.atDistance !== undefined || ('ownerOf' in reading && reading.ownerOf !== undefined)
+    ? await relationsFor(request.root, ['.'], [], [])
+    : undefined;
   const suites: CoverageSuite[] = [];
   const now: CountedSuite[] = [];
   const bases: CountedSuite[] = [];
   const harness = new Set<string>();
+  // Every file a counted suite loads: the modules it instrumented, its test
+  // files, and what every test rests on. Unscoped, because `--from` narrows
+  // the count, not what the suites load.
+  const loaded = new Set<string>();
   for (const one of counted) {
     const named = one === undefined ? {} : { suite: one.name, kind: one.kind };
-    const from = await recordOf(request.root, one?.name);
+    // The record and everything read beside it come from one cache layer: the
+    // nearest that holds it, which in a checkout that has not run is the
+    // mainline's as last fetched here, else, in a worktree, the primary
+    // checkout's.
+    const record = await readableTestCoverage(request.root, { suite: one?.name });
+    const from = await recordOf(request.root, one?.name, record);
     if (from === undefined) {
       suites.push(named);
       continue;
     }
-    const index = within(await readExecutionIndex(from), scope);
-    const recorded = await recordedCommit(testCoverageFile(request.root, { suite: one?.name }));
-    for (const entry of restsOn(testCoverageFile(request.root, { suite: one?.name }))) harness.add(entry);
+    const whole = await readExecutionIndex(from);
+    for (const module of whole.modules) loaded.add(module.file);
+    for (const test of whole.tests) loaded.add(test.file);
+    const index = within(whole, scope);
+    const recorded = await recordedCommit(record);
+    for (const entry of restsOn(record)) harness.add(entry);
     now.push({ ...(one === undefined ? {} : { name: one.name, kind: one.kind }), index });
-    const found = await baseOf(request, one);
+    const found = request.atDistance === undefined
+      ? await baseOf(request, one)
+      : { missed: 'no base: `--at-distance` measures import hops on the graph of the tree as it is now, and the base ran on another' };
     if ('missed' in found) {
       suites.push({ ...named, from, ...(recorded === undefined ? {} : { recorded }), baseMissed: found.missed });
       continue;
     }
     const base = within(await readExecutionIndex(found.from), scope);
+    const { commit, diff } = await diffFromBase(found.commit, request.root, found);
     bases.push({ ...(one === undefined ? {} : { name: one.name, kind: one.kind }), index: base });
     suites.push({
       ...named,
       from,
       ...(recorded === undefined ? {} : { recorded }),
-      base: { from: found.from, ...(found.commit === undefined ? {} : { commit: found.commit }), change: coverageChange(base, index) },
+      base: {
+        from: found.from,
+        commit,
+        change: coverageChange(base, index, { diff, ...(await carriedOver(record, request.root)) }),
+      },
     });
   }
 
   if (now.length === 0) {
-    throw new OperatorError(
-      declared === undefined
-        ? `nothing is recorded in \`${request.root}\`: no run left a per-case index. Run the suite with \`withTestSelection\` and ask again.`
-        : `nothing is recorded in \`${request.root}\`: none of the suites it declares, ${
-            counted.map((one) => `"${one!.name}"`).join(', ')
-          }, has a per-case index. Run a suite with \`withTestSelection\` and ask again.`,
-      { kind: 'unrecorded' },
-    );
+    throw nothingRecorded(request.root, declared === undefined ? undefined : counted.map((one) => one!.name));
   }
+  // Every suite at once: a region is in the band of its nearest test in any of them.
+  const walked: TestHops | undefined = relations === undefined ? undefined : testHops(now.map((one) => one.index), { relations });
+  // In and out are a distance split of their own: out is any other test, so they count every crossing, band or not.
+  const unbanded = [...now];
+  const narrowed = request.atDistance === undefined || walked === undefined
+    ? { indexes: now.map((one) => one.index), unplaced: [], unmeasured: 0 }
+    : coverageAtDistance(now.map((one) => one.index), request.atDistance, walked);
+  narrowed.indexes.forEach((index, at) => (now[at] = { ...now[at]!, index }));
   const at = await head(request.root);
   const count = countCoverage(now);
   const indexes = now.map((one) => one.index);
   const reach = 'missed' in reading ? undefined : harnessReach(reading.records, [...harness].sort());
+  for (const entry of harness) loaded.add(entry);
+  const unloadedChange = await changeNoSuiteLoads(request.root, suites, loaded);
   return {
     ...(at === undefined ? {} : { at }),
     count,
     suites,
     ...(bases.length === now.length ? { base: countCoverage(bases) } : {}),
+    ...(unloadedChange === undefined ? {} : { unloadedChange }),
+    ...(request.fanIn === true ? { fanIn: coverageFanIn(now) } : {}),
+    ...(request.atDistance === undefined ? {} : {
+      atDistance: {
+        from: request.atDistance.from,
+        ...(request.atDistance.to === Number.MAX_SAFE_INTEGER ? {} : { to: request.atDistance.to }),
+        unplaced: narrowed.unplaced,
+        unmeasured: narrowed.unmeasured,
+      },
+    }),
     ...('missed' in reading
       ? { sourceMissed: reading.missed }
       : {
@@ -159,12 +250,15 @@ export async function coverage(request: ParsedCoverage): Promise<Coverage> {
               };
               return { from: entry.from, own: counted(entry.own), uses: counted(entry.uses) };
             }),
+            ...(reading.ownerOf === undefined ? {} : {
+              ownership: coverageByOwner(now, reading.ownerOf),
+              ...(walked === undefined ? {} : { earned: earnedCoverage(unbanded, reading.ownerOf, walked) }),
+            }),
           }),
         }),
   };
 }
 
-/** The per-case index a run left for a suite, or `undefined` when none did. */
 /**
  * What every test in the recording rests on, or nothing when the recording
  * cannot be opened: the count over the case index stands without it, and the
@@ -178,9 +272,10 @@ function restsOn(file: string): readonly string[] {
   }
 }
 
-async function recordOf(root: string, suite: string | undefined): Promise<string | undefined> {
+/** The per-case index a run left for a suite, or `undefined` when none did. */
+async function recordOf(root: string, suite: string | undefined, record: string): Promise<string | undefined> {
   try {
-    return await recordedExecutionFile(root, suite);
+    return await recordedExecutionFile(root, suite, record);
   } catch (error) {
     if (error instanceof OperatorError && error.kind === 'unrecorded') return undefined;
     throw error;
@@ -191,10 +286,10 @@ async function recordOf(root: string, suite: string | undefined): Promise<string
 async function baseOf(
   request: ParsedCoverage,
   suite: DeclaredSuite | undefined,
-): Promise<{ readonly from: string; readonly commit?: string } | { readonly missed: string }> {
+): Promise<{ readonly from: string; readonly commit?: string; readonly name: string } | { readonly missed: string }> {
   if (request.against !== undefined) {
     const commit = await baseCommit(request.against);
-    return { from: request.against, ...(commit === undefined ? {} : { commit }) };
+    return { from: request.against, ...(commit === undefined ? {} : { commit }), name: `The base \`${request.against}\`` };
   }
   const shared = await mainlineBase(request.root, suite);
   if (shared === undefined) {
@@ -208,7 +303,48 @@ async function baseOf(
   if (shared.cases === undefined) {
     return { missed: `no base: mainline ${shared.mainline} published no per-case index of "${shared.suite}"${shared.casesUnread === undefined ? '' : `: ${shared.casesUnread}`}` };
   }
-  return { from: shared.cases, commit: shared.commit };
+  return { from: shared.cases, commit: shared.commit, name: `The record mainline ${shared.mainline} published of "${shared.suite}"` };
+}
+
+/**
+ * The files changed since the one commit every base was recorded at, when no
+ * counted suite loads any of them and no suite's count changed. Git says what
+ * changed, the working tree included; the records say what the suites load.
+ * A declared suite with no record, bases at two commits, a git that cannot
+ * answer, no changed file, or one changed file a suite loads: each leaves the
+ * answer to the whole count.
+ */
+async function changeNoSuiteLoads(
+  root: string,
+  suites: readonly CoverageSuite[],
+  loaded: ReadonlySet<string>,
+): Promise<UnloadedChange | undefined> {
+  const bases = suites.map((suite) => suite.base);
+  if (bases.length === 0 || bases.some((base) => base === undefined || !unchanged(base.change))) return undefined;
+  const commits = new Set(bases.map((base) => base!.commit));
+  const [since] = commits;
+  // Every base's commit is an object name `diffFromBase` found in this clone, so
+  // nothing that could be read as an option reaches git.
+  if (commits.size !== 1 || since === undefined) return undefined;
+  let names: string;
+  try {
+    // `-z`: without it git quotes a path with unusual characters, and a quoted
+    // path never matches the name a record lists.
+    names = (await promisify(execFile)('git', ['diff', '--name-only', '--no-renames', '-z', since], { cwd: root })).stdout;
+  } catch {
+    return undefined;
+  }
+  const files = names.split('\0').filter((file) => file !== '').sort();
+  if (files.length === 0 || files.some((file) => loaded.has(file))) return undefined;
+  return { since, files };
+}
+
+/** Whether a suite's count is the base's, part for part. */
+function unchanged(change: SuiteChange): boolean {
+  return change.gained === 0 && change.lost === 0 && change.hidden === 0 && change.thinned === 0 && change.unmeasured === 0 &&
+    change.written.regions === 0 && change.deleted.regions === 0 &&
+    change.arrived.files.length === 0 && change.departed.files.length === 0 &&
+    change.testFiles.every((file) => file.entered.length === 0 && file.left.length === 0);
 }
 
 async function head(root: string): Promise<string | undefined> {
@@ -216,13 +352,5 @@ async function head(root: string): Promise<string | undefined> {
     return (await promisify(execFile)('git', ['rev-parse', 'HEAD'], { cwd: root })).stdout.trim();
   } catch {
     return undefined;
-  }
-}
-
-function asOperator<T>(read: () => T): T {
-  try {
-    return read();
-  } catch (error) {
-    throw new OperatorError(messageOf(error), { cause: error });
   }
 }

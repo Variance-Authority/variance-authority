@@ -17,6 +17,8 @@ import {
   type Renderer,
 } from '@variance-authority/raster';
 import { observeAgainstBaseline } from './observe.js';
+import { packSnapshot } from './packed.js';
+import { renderOnce } from './render-once.js';
 
 /**
  * Cause-first ranking on the durable path (spec 0017).
@@ -343,6 +345,24 @@ describe('a warm render cache', () => {
 
     expect(observation.causes).toBeUndefined();
   });
+
+  it('does not hand on the snapshot an entry kept, which is no more this render’s than its hashes', async () => {
+    // A before side rendered through the cache is joined against the tree it
+    // carries. One kept from an earlier snapshot of the same bytes would join
+    // this run's regions against nodes that were renamed since.
+    const store = createEphemeralStore();
+    const document = documentFor('page');
+    await store.renderCache.put({
+      ...rasterOf(document, image(46), snapshotOf('4px', 30)),
+      identity: MACHINE,
+      snapshot: packSnapshot(snapshotOf('4px', 30)),
+    });
+
+    const { raster, rendered } = await renderOnce(rendererPainting(image(46)), store, document);
+
+    expect(rendered).toBe(false);
+    expect(raster).not.toHaveProperty('snapshot');
+  });
 });
 
 describe('what the run leaves for the next one', () => {
@@ -414,5 +434,44 @@ describe('what the cause list drops, and the band record keeps', () => {
 
     expect(observation.causes).toBeUndefined();
     expect(observation.moved).toBeUndefined();
+  });
+});
+
+describe('a baseline read from where an earlier layout kept it', () => {
+  const relocated = { from: 'v1-abc/story-page', to: 'story-page/page-chromium' };
+
+  function storeRelocating(baseline: Raster): RasterStore {
+    return {
+      ...createEphemeralStore(),
+      async find() {
+        return { raster: baseline, comparable: true, storedUnder: MACHINE, relocated };
+      },
+    };
+  }
+
+  it('is compared, and the move is its cause rather than `new`', async () => {
+    // An upgrade that renamed every baseline would otherwise report the whole
+    // suite as never seen, and a reviewer would accept three hundred `new`
+    // subjects without a single comparison behind them.
+    const observation = await observeAgainstBaseline(documentFor('page'), KEY, {
+      renderer: rendererPainting(image(30)),
+      store: storeRelocating(rasterOf(documentFor('page'), image(30))),
+    });
+
+    expect(observation.verdict).toBe('unchanged');
+    expect(observation.because).toMatch(
+      /^the baseline was read from v1-abc\/story-page.*story-page\/page-chromium/,
+    );
+    expect(observation.signals?.relocated).toEqual(relocated);
+  });
+
+  it('still names what changed', async () => {
+    const observation = await observeAgainstBaseline(documentFor('page'), KEY, {
+      renderer: rendererPainting(image(46)),
+      store: storeRelocating(rasterOf(documentFor('page'), image(30))),
+    });
+
+    expect(observation.verdict).toBe('changed');
+    expect(observation.signals?.relocated).toEqual(relocated);
   });
 });

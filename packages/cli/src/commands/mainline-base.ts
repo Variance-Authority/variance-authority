@@ -1,33 +1,67 @@
 // compass: variance-authority.reach
 /**
- * The record a base reader reads when this checkout recorded none: the one its
- * mainline published.
+ * The mainline's record of a suite: fetched, kept where every reader and every
+ * runner seam on this machine finds it, and reused until a nearer one can exist.
  *
- * `review` and `select` measure a change from a base. A base taken from the
- * branch's own record would measure the change against itself, so the
- * mainline is the only line read. This checkout's own recording wins whenever
- * there is one, and the mainline is asked only for a suite the root config
- * gives to the share: `select` asks when this checkout has no recording of the
- * suite, and `review` when the runs here were laid over no recording and no
- * `--since` names a base.
+ * `review` and `select` measure a change from a base, and a base taken from the
+ * branch's own record would measure the change against itself, so the mainline
+ * is the only line read. It is asked only for a suite the root config gives to
+ * the share. `suiteBase` orders it against this checkout's own record and the
+ * primary checkout's.
  *
  * The bytes go into a read layer of their own, `share/read/<suite>/<commit>/`
- * in the cache, beneath every layer a run writes. A run never records over it,
- * and a reader of this checkout's recording never finds it there, so the
- * record the mainline published is never read as the record this checkout ran.
+ * in the cache, beneath every layer a run writes, and a `fetched.json` beside
+ * the commit directories names the one fetched last. That file is where the
+ * fetch hands the record to the runner seams in
+ * `@variance-authority/sense/test-selection`: a checkout's first run lays that
+ * copy under its own layer and lands on it, so a plain `yarn test` measures
+ * from the same record this reads. A run never records over the read layer.
  * It is addressed by commit, like every record in the cache, so a second read
  * of the same commit writes the same bytes to the same place.
+ *
+ * A fetch costs a round trip to the remote, and on a network that hangs, the
+ * whole of the store's timeout. The best base is the record at `HEAD`'s merge
+ * base with the mainline, and the line holds only its newest record, so asking
+ * can only help while the record fetched last is behind that merge base. The
+ * record fetched last, by this checkout or by the primary checkout it was cut
+ * from, stands without asking while the reader's mainline is the one it was
+ * fetched from and either it is at or past the merge base, or the line was
+ * asked at this same merge base. A merge base moves on a pull or a rebase, so
+ * that is when the line is asked again; every reader of a checkout, and every
+ * job of a CI run, which all share one merge base, reads the same record. When
+ * the line does not answer, the record fetched last is still the base, and the
+ * note says why it was not refreshed.
+ *
+ * A line that gave no record, because it could not be reached, held none, or
+ * held one this version cannot keep, names no commit to place that answer by.
+ * It stands for {@link MISS_STANDS_MS}, and the note says when it was given.
+ * `variance share --suite <name>` always asks.
  */
 
-import { rm } from 'node:fs/promises';
+import { readFileSync } from 'node:fs';
+import { mkdir, rm, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
-import type { DeclaredSuite, RootConfig } from '@variance-authority/sense/test-selection';
+import type { DeclaredSuite, LastFetched, RootConfig } from '@variance-authority/sense/test-selection';
 import { parseShare } from '../config-share.js';
 import { ConfigError, messageOf } from '../config-values.js';
-import type { Env } from '../share-lines.js';
+import { distanceFrom, readerMainline, type Env } from '../share-lines.js';
 import { executionIndexOf } from './execution-input.js';
-import { shareRoot } from './resources.js';
+import { CACHE_PRUNE_REASONS, checkoutOwners, pruneCacheWhenDue } from './prune-cache.js';
 import { describeDistance, describeMiss, mainlineSuite, type MainlineMiss } from './share.js';
+
+/**
+ * How long the line's answer that it gave no record stands without asking the
+ * remote again.
+ *
+ * A record is placed by its commit; a miss has none, so a clock places it. Long
+ * enough that an edit loop of `yarn test:since` on a network that hangs waits
+ * once, and short enough that a remote back in reach is read in the same
+ * sitting.
+ */
+export const MISS_STANDS_MS = 10 * 60_000;
+
+/** Where a checkout notes that the line was asked and gave no record, beside `fetched.json`. */
+const MISSED = 'missed.json';
 
 /** The mainline's record of one suite, written where this checkout reads it. */
 export interface MainlineRecord {
@@ -39,10 +73,24 @@ export interface MainlineRecord {
   readonly distance?: number;
   /** The coverage record, in the read layer. */
   readonly coverage: string;
-  /** Its per-case index, when the run that published it wrote one and it reads. */
+  /** The record again, when it carries a case index that reads. */
   readonly cases?: string;
   /** Why the per-case index it published is not kept, when it published one that does not read. */
   readonly casesUnread?: string;
+  /** The runs record the publishing run wrote, beside the record, when the entry carried one. */
+  readonly runs?: string;
+  /** When it was fetched, as an ISO time: now, unless it is the record fetched earlier. */
+  readonly fetched: string;
+  /**
+   * Present when it is the record fetched earlier: reused without asking, or
+   * kept because the mainline gave no record, now or, as `asked` says, earlier
+   * within {@link MISS_STANDS_MS}. It is reused when it is at or past `HEAD`'s
+   * merge base with the mainline (`nearest`), or else when the line was asked
+   * at this same merge base (`asked`).
+   */
+  readonly earlier?: { readonly reused: 'nearest' | 'asked' } | { readonly unanswered: MainlineMiss; readonly asked?: string };
+  /** What the fetch's daily prune of this cache took, when it took something. */
+  readonly pruned?: string;
 }
 
 /** Why the mainline gave no record: which mainline was asked, when one was known, and the share's answer. */
@@ -54,9 +102,30 @@ export interface MainlineMissed {
   readonly holds?: readonly string[];
   /** `false` when the root config's `share` section stopped the read before the share was asked. */
   readonly shareAsked?: false;
+  /** When the line gave this answer, as an ISO time, when it was earlier within {@link MISS_STANDS_MS} and not now. */
+  readonly asked?: string;
+}
+
+/** The line's answer that it gave no record: which mainline, when, and why. */
+export interface MissedMainline {
+  readonly mainline: string;
+  /** When the line was asked, as an ISO time. */
+  readonly at: string;
+  readonly miss: MainlineMiss;
+  readonly holds?: readonly string[];
 }
 
 export type MainlineBase = MainlineRecord | MainlineMissed;
+
+/** How a base reader asks. */
+export interface MainlineAsk {
+  readonly env?: Env;
+  readonly cacheRoot?: string;
+  /** Ask the remote whatever was fetched and whenever: `variance share --suite <name>`. */
+  readonly refetch?: boolean;
+  /** The clock, for a test. */
+  readonly now?: number;
+}
 
 /**
  * The record `declared`'s mainline published, or why there is none.
@@ -66,12 +135,13 @@ export type MainlineBase = MainlineRecord | MainlineMissed;
  * stops the read — a share section this machine cannot use, a record that
  * cannot be kept, bytes this version does not read — is a miss the reader
  * names, because the reader still has an answer without the record: `select`
- * runs every test, and `review` asks for `--since`.
+ * runs every test, and `review` asks for `--since`. When a record was fetched
+ * earlier, a miss is not the answer: that record is, and it carries the miss.
  */
 export async function mainlineBase(
   root: string,
   declared: DeclaredSuite | undefined,
-  here: { readonly env?: Env } = {},
+  here: MainlineAsk = {},
 ): Promise<MainlineBase | undefined> {
   if (declared?.carry !== 'share') return undefined;
   const suite = declared.name;
@@ -85,40 +155,172 @@ export async function mainlineBase(
     if (!(error instanceof ConfigError)) throw error;
     return { suite, miss: { kind: 'unconfigured', detail: error.message }, shareAsked: false };
   }
-  const place = { ...(share === undefined ? {} : { share }), cacheRoot: selection.cacheRootFor(root) };
-  const found = await mainlineSuite(place, suite, { ...here, cwd: root });
-  if ('miss' in found) return { suite, ...found };
-  const unread = (detail: string): MainlineMissed => ({ suite, mainline: found.mainline, miss: { kind: 'unreadable', detail } });
+  const cacheRoot = here.cacheRoot ?? selection.cacheRootFor(root);
+  const place = { ...(share === undefined ? {} : { share }), cacheRoot };
+  const env = here.env ?? process.env;
+  const now = here.now ?? Date.now();
+  const readRoot = selection.mainlineReadRoot(cacheRoot, suite);
+  // Both caches when the caller named none, as a runner seam reads them.
+  const last = selection.lastFetchedMainline(root, suite, here.cacheRoot);
 
-  const layer = join(shareRoot(place), 'read', suite, found.commit);
-  const coverage = join(layer, 'coverage.bin');
-  const kept = await keep(selection.writeCoverageBytes, coverage, found.coverage);
-  if (kept !== undefined) return unread(`the record published at ${found.commit} could not be kept at ${coverage}: ${kept}`);
-  const refused = refusal(selection.askCoverageFile, coverage, found.commit);
-  if (refused !== undefined) {
-    await rm(layer, { recursive: true, force: true });
-    return unread(refused);
-  }
-
-  // Beside the record, under the name every reader of a record looks for its cases by.
-  const cases = `${coverage}.cases.bin`;
-  let casesUnread: string | undefined;
-  if (found.cases !== undefined) {
-    casesUnread = decodes(found.cases);
-    if (casesUnread === undefined) {
-      const failed = await keep(selection.writeCoverageBytes, cases, found.cases);
-      if (failed !== undefined) casesUnread = `its per-case index could not be kept at ${cases}: ${failed}`;
+  // The mainline chosen here, and `HEAD`'s merge base with it, are asked once
+  // for every distance measured below, and the fetch keeps the merge base.
+  const chosen = await readerMainline(place, env, root);
+  const named = 'missing' in chosen ? undefined : chosen;
+  const baseOf = (mainline: string) => (named?.name === mainline ? named.base : undefined);
+  if (here.refetch !== true) {
+    const mainline = named?.name;
+    if (last !== undefined && last.mainline === mainline) {
+      const distance = await distanceFrom(place, last.mainline, last.commit, root, named?.base);
+      // At or past the merge base, nothing the line could hold is nearer it.
+      // Behind it, the line was asked here already when the merge base is the
+      // one it was asked at, the clone naming none then and now included.
+      const reused = distance !== undefined && distance <= 0 ? 'nearest' : last.base === named?.base ? 'asked' : undefined;
+      if (reused !== undefined) return earlier(last, { reused }, distance);
+    }
+    const noted = readMissedMainline(readRoot);
+    if (noted !== undefined && noted.mainline === mainline && now - Date.parse(noted.at) < MISS_STANDS_MS) {
+      if (last !== undefined) return measured(place, root, last, { unanswered: noted.miss, asked: noted.at }, baseOf(last.mainline));
+      return { suite, mainline: noted.mainline, miss: noted.miss, ...(noted.holds === undefined ? {} : { holds: noted.holds }), asked: noted.at };
     }
   }
+
+  const asked = new Date(now).toISOString();
+  const at = named === undefined ? {} : { mainline: named.name, ...(named.base === undefined ? {} : { base: named.base }) };
+  const found = await mainlineSuite(place, suite, { env, cwd: root, ...at });
+  if ('miss' in found) {
+    // With no mainline, or no credential, the line was not asked: that is this
+    // environment's answer, not the line's, and the next reader in the same
+    // environment finds it the same way, or in a fixed one finds the line.
+    if (found.mainline !== undefined && found.miss.kind !== 'unconfigured') {
+      const { miss, holds } = found;
+      await noteMissed(readRoot, { mainline: found.mainline, at: asked, miss, ...(holds === undefined ? {} : { holds }) });
+    }
+    if (last !== undefined) return measured(place, root, last, { unanswered: found.miss }, baseOf(last.mainline));
+    return { suite, ...found };
+  }
+  const unread = async (detail: string): Promise<MainlineMissed> => {
+    const miss: MainlineMiss = { kind: 'unreadable', detail };
+    await noteMissed(readRoot, { mainline: found.mainline, at: asked, miss });
+    return { suite, mainline: found.mainline, miss };
+  };
+
+  const layer = join(readRoot, found.commit);
+  const coverage = join(layer, 'coverage.bin');
+  // The cases travel in the record. An index that does not read is dropped
+  // from it, so no reader of the kept record meets it.
+  let index: Uint8Array | undefined;
+  try {
+    index = selection.caseSectionsOf(found.coverage).index;
+  } catch (error) {
+    return await unread(`the record published at ${found.commit} does not read: ${messageOf(error)}`);
+  }
+  const casesUnread = index === undefined ? undefined : decodes(index);
+  const record = casesUnread === undefined ? selection.sharedRecord(found.coverage) : selection.withCaseSections(found.coverage, {});
+  const kept = await keep(selection.writeCoverageBytes, coverage, record);
+  if (kept !== undefined) return await unread(`the record published at ${found.commit} could not be kept at ${coverage}: ${kept}`);
+  // A record of cases alone was published by a run that instrumented no module.
+  // The share kept the run that names its commit off the line, and the publisher
+  // checked that commit against the entry's, so the entry's stands for it. No
+  // reader measures a diff from it: each says it holds no coverage.
+  const refused = selection.withoutCoverage(coverage) ? undefined : refusal(selection.askCoverageFile, coverage, found.commit);
+  if (refused !== undefined) {
+    await rm(layer, { recursive: true, force: true });
+    return await unread(refused);
+  }
+
+  // The runs record, beside the record under the name every reader looks for
+  // it by, so a reader asks where each test last ran of the run that published
+  // it. An entry without one leaves none there. A reader says what it read in
+  // place of an answer the runs could not give, carried or not: when there are
+  // none, when they are another commit's, and when they do not list a test.
+  const runsFile = selection.commitRunsFile(coverage);
+  let runs: string | undefined;
+  if (found.runs === undefined) await rm(runsFile, { force: true });
+  else if ((await keep(selection.writeCoverageBytes, runsFile, found.runs)) === undefined) runs = runsFile;
+
+  // Named last, once every file it names is in place, so a seam that reads the
+  // name finds them.
+  const fetched = asked;
+  const base = baseOf(found.mainline);
+  await selection.writeFetchedMainline(cacheRoot, suite, { mainline: found.mainline, commit: found.commit, fetched, ...(base === undefined ? {} : { base }) });
+  await rm(join(readRoot, MISSED), { force: true });
+  // Each fetch of a new commit adds a directory here, and a fetch is where
+  // they are made, so it is where they are taken back: once a day, by the rule
+  // `planCachePrune` states, never the one just named.
+  const pruned = selection.prunedLine(await pruneCacheWhenDue({ cacheRoot }, checkoutOwners(root, now)), CACHE_PRUNE_REASONS);
   return {
     suite,
     mainline: found.mainline,
     commit: found.commit,
     ...(found.distance !== undefined ? { distance: found.distance } : {}),
     coverage,
-    ...(found.cases !== undefined && casesUnread === undefined ? { cases } : {}),
+    ...(index !== undefined && casesUnread === undefined ? { cases: coverage } : {}),
     ...(casesUnread !== undefined ? { casesUnread } : {}),
+    ...(runs === undefined ? {} : { runs }),
+    fetched,
+    ...(pruned === '' ? {} : { pruned }),
   };
+}
+
+/** The record fetched earlier, as a base, measured against this checkout now. */
+async function measured(
+  place: Parameters<typeof distanceFrom>[0],
+  root: string,
+  last: LastFetched,
+  why: NonNullable<MainlineRecord['earlier']>,
+  base: string | undefined,
+): Promise<MainlineRecord> {
+  return earlier(last, why, await distanceFrom(place, last.mainline, last.commit, root, base));
+}
+
+/** The record fetched earlier, as a base, `distance` commits behind this checkout's merge base. */
+async function earlier(last: LastFetched, why: NonNullable<MainlineRecord['earlier']>, distance: number | undefined): Promise<MainlineRecord> {
+  const { keepsCases } = await import('@variance-authority/sense/test-selection');
+  return {
+    suite: last.suite,
+    mainline: last.mainline,
+    commit: last.commit,
+    ...(distance !== undefined ? { distance } : {}),
+    coverage: last.coverage,
+    ...(keepsCases(last.coverage) ? { cases: last.coverage } : {}),
+    ...(last.runs === undefined ? {} : { runs: last.runs }),
+    fetched: last.fetched,
+    earlier: why,
+  };
+}
+
+/**
+ * The line's answer that it gave no record, as `readRoot` keeps it, or
+ * `undefined` when it keeps none that reads.
+ */
+export function readMissedMainline(readRoot: string): MissedMainline | undefined {
+  let value: Partial<MissedMainline>;
+  try {
+    value = JSON.parse(readFileSync(join(readRoot, MISSED), 'utf8')) as Partial<MissedMainline>;
+  } catch {
+    return undefined;
+  }
+  const miss = value.miss as { kind?: unknown; detail?: unknown } | undefined;
+  const reads = typeof miss?.kind === 'string' && (miss.detail === undefined || typeof miss.detail === 'string');
+  if (typeof value.mainline !== 'string' || typeof value.at !== 'string' || Number.isNaN(Date.parse(value.at)) || !reads) return undefined;
+  const holds = Array.isArray(value.holds) && value.holds.every((name) => typeof name === 'string') ? value.holds : undefined;
+  return { mainline: value.mainline, at: value.at, miss: value.miss as MainlineMiss, ...(holds === undefined ? {} : { holds }) };
+}
+
+/** Keep the line's answer that it gave no record under `readRoot`, where {@link readMissedMainline} reads it. */
+export async function writeMissedMainline(readRoot: string, missed: MissedMainline): Promise<void> {
+  await mkdir(readRoot, { recursive: true });
+  await writeFile(join(readRoot, MISSED), `${JSON.stringify(missed)}\n`);
+}
+
+/** Best effort: a cache that cannot hold the note costs the next reader one more ask, and nothing else. */
+async function noteMissed(readRoot: string, missed: MissedMainline): Promise<void> {
+  try {
+    await writeMissedMainline(readRoot, missed);
+  } catch {
+    // Nothing to do: see above.
+  }
 }
 
 /** Write `bytes` at `path`, or the error that stopped them being kept there. */
@@ -182,7 +384,7 @@ function decodes(bytes: Uint8Array): string | undefined {
  * Read from the root file because that is where the suites are declared: the
  * CLI refuses a suite given to a share in a file with no `share` section.
  */
-function rootShare(config: RootConfig | undefined) {
+export function rootShare(config: RootConfig | undefined) {
   const value = config?.value['share'];
   if (config === undefined || value === undefined) return undefined;
   return parseShare(value, { source: config.file, baseDir: dirname(config.file) });
@@ -190,31 +392,54 @@ function rootShare(config: RootConfig | undefined) {
 
 /**
  * The note that says the mainline's record was read: which mainline, which
- * commit, how far off, and where it is kept. It is the first note, after the
+ * commit, how far off, and where it is kept, and for the record fetched
+ * earlier, when that was and why it stands. It is the first note, after the
  * reader's own verdict.
  */
 export function mainlineRead(read: MainlineRecord): string {
-  return `record of "${read.suite}": read from mainline ${read.mainline}, published at ${read.commit}, ` +
+  const when = read.earlier === undefined
+    ? ''
+    : 'reused' in read.earlier
+      ? `, fetched at ${read.fetched}` + (read.earlier.reused === 'nearest'
+        ? ' and kept: the line holds nothing nearer the merge base'
+        : ' and kept: the line was asked at this merge base')
+      : `, fetched at ${read.fetched}, because the mainline was not read now: ${describeMiss(read.earlier.unanswered)}` +
+        answeredAt(read.earlier.asked);
+  return `record of "${read.suite}": read from mainline ${read.mainline}, published at ${read.commit}${when}, ` +
     `${describeDistance(read.distance)}; kept at ${read.coverage}` +
-    (read.casesUnread === undefined ? '' : `; ${read.casesUnread}`);
+    (read.casesUnread === undefined ? '' : `; ${read.casesUnread}`) +
+    (read.pruned === undefined ? '' : `; ${read.pruned}`);
 }
 
 /**
- * The note a reader gives when this checkout has no record and the mainline's
- * was not read. "None either" only when the share answered that it holds none:
- * a refusal or an unreachable share says nothing about what was published. The
- * line is named the way `variance share` names it, and a share section that
- * stopped the read says so instead, because then no line was asked.
+ * The note a reader gives when the mainline's record was not read and none was
+ * fetched earlier. "None either" only when the share answered that it holds
+ * none: a refusal or an unreachable share says nothing about what was
+ * published. The line is named the way `variance share` names it, and a share
+ * section that stopped the read says so instead, because then no line was
+ * asked.
  */
 export function mainlineMissed(missed: MainlineMissed): string {
   const said = describeMiss(missed.miss, missed.holds);
   if (missed.shareAsked === false) return `record of "${missed.suite}": the share was not asked; ${said}`;
   const opening = missed.miss.kind === 'absent' ? 'the share has none either' : "the mainline's was not read";
   const line = missed.mainline === undefined ? 'no mainline' : `mainline ${missed.mainline}`;
-  return `record of "${missed.suite}": ${opening}; ${line}: ${said}`;
+  return `record of "${missed.suite}": ${opening}; ${line}: ${said}${answeredAt(missed.asked)}`;
 }
 
-/** The note a reader gives when this checkout's own record won over the mainline's. */
-export function checkoutRead(suite: string): string {
-  return `record of "${suite}": read from this checkout; the mainline's is read only when this checkout has none`;
+/** When the line's answer was given, for one given earlier within {@link MISS_STANDS_MS}. */
+function answeredAt(asked: string | undefined): string {
+  return asked === undefined ? '' : `; that was the line's answer at ${asked}, which stands for ${String(MISS_STANDS_MS / 60_000)} minutes`;
+}
+
+/**
+ * The note a reader gives when it fell back to the primary checkout's record:
+ * this worktree has recorded none, the mainline's was not read now and none was
+ * fetched earlier on this machine. It names the file and why the mainline's is
+ * not it.
+ */
+export function primaryRead(suite: string, file: string, missed: MainlineMissed | undefined): string {
+  const why = missed === undefined ? '' : `; ${mainlineMissed(missed).slice(`record of "${suite}": `.length)}`;
+  return `record of "${suite}": read from the primary checkout's, at ${file}, as the offline fallback: ` +
+    `this worktree has recorded none, and no mainline record of it was fetched on this machine${why}`;
 }

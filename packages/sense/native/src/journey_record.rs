@@ -1,48 +1,39 @@
 use std::collections::{HashMap, HashSet};
-use std::fs;
-use std::path::{Path, PathBuf};
-use std::sync::Arc;
-use std::time::UNIX_EPOCH;
+
+use napi_derive::napi;
 
 use crate::journey_journal::ModuleId;
 use crate::order;
 
-const MAGIC: [u8; 8] = [0x56, 0x41, 0x52, 0x45, 0x43, 0x00, 0x00, 0x01];
-const FRAME_HEADER: usize = 8;
-const RECORD_HEADER: usize = 32;
-/// The id field of a frame whose module is named by its path, which is every frame
-/// written; a frame holding anything else is filed under a number and skipped.
-const BY_PATH: u32 = u32::MAX;
-const KINDS: [&str; 8] = [
-    "module",
-    "function",
-    "branch",
-    "continuation",
-    "resume",
-    "loop",
-    "case",
-    "handler",
-];
+/// The owner of a region that has none: the module root's, as `blocks.owner` spells it.
+pub const NO_OWNER: u32 = u32::MAX;
 
+/// One region of a module, as the transform that placed its probes cut it.
+#[napi(object)]
 #[derive(Clone, PartialEq, Eq, Hash)]
 pub struct Block {
     pub kind: String,
     pub name: String,
     pub path: String,
+    /// Zero for a region with no line of any file.
     pub start_line: u32,
     pub end_line: u32,
     pub source: bool,
 }
 
+/// One module a run's cases named, cut again from the checkout.
+#[napi(object)]
 #[derive(Clone)]
 pub struct Module {
+    /// What its probes report.
     pub id: ModuleId,
+    /// The repository-relative file its regions' lines are in.
     pub file: String,
-    pub digest: [u8; 16],
+    /// In ordinal order; empty for a module whose ordinals cannot be read.
     pub blocks: Vec<Block>,
-    /// The blocks each journal ordinal lands on, when two builds numbered this
-    /// file's regions differently; empty when an ordinal is its own block.
-    pub lands: Vec<Vec<u32>>,
+    /// Each region's owner, as its position among `blocks`, always before it,
+    /// or [`NO_OWNER`]; absent where the cut that made the module named none.
+    pub owners: Option<Vec<u32>>,
 }
 
 /// The regions every inventory of one file holds, and where each inventory's
@@ -51,6 +42,36 @@ pub struct Reconciled {
     pub blocks: Vec<Block>,
     /// `lands[inventory][region]` is the reconciled block that region reads as.
     pub lands: Vec<Vec<u32>>,
+    /// Each reconciled block's owner among them, from the inventory the order
+    /// came from; absent when that inventory names none.
+    pub owners: Option<Vec<u32>>,
+}
+
+/// Each kept region's owner, as its position among the kept regions: the
+/// nearest region up its owners that was kept, or [`NO_OWNER`] where none up
+/// to the module root was. `kept[at]` is the region's position when kept.
+pub fn kept_owners(owners: &[u32], kept: &[Option<u32>]) -> Vec<u32> {
+    let mut answer = Vec::with_capacity(kept.len());
+    for (at, place) in kept.iter().enumerate() {
+        if place.is_none() {
+            continue;
+        }
+        let mut owner = owners.get(at).copied().unwrap_or(NO_OWNER);
+        let mut below = at;
+        // An owner is always before its region, so the walk ends.
+        let held = loop {
+            if owner == NO_OWNER || owner as usize >= below {
+                break NO_OWNER;
+            }
+            if let Some(Some(position)) = kept.get(owner as usize) {
+                break *position;
+            }
+            below = owner as usize;
+            owner = owners.get(below).copied().unwrap_or(NO_OWNER);
+        };
+        answer.push(held);
+    }
+    answer
 }
 
 /// Read several inventories of one source text at the regions they share.
@@ -63,28 +84,40 @@ pub struct Reconciled {
 /// inventory and regions of one inventory nest — so every case that ran the
 /// line is credited where the change will look.
 // TODO: keep each build's own regions and read a case's ordinals against the build that cut them — needs the case journal to name that build.
-pub fn reconcile(inventories: &[&[Block]]) -> Reconciled {
+///
+/// `owners[inventory]` are that inventory's owners, by position, where known;
+/// the reconciled owners are the base inventory's, read at the regions kept.
+pub fn reconcile(inventories: &[&[Block]], owners: &[Option<&[u32]>]) -> Reconciled {
     let mut blocks: Vec<Block> = Vec::new();
-    let mut at: HashMap<&Block, u32> = HashMap::new();
+    let mut at: HashMap<(&Block, u32), u32> = HashMap::new();
+    let keyed: Vec<Vec<(&Block, u32)>> = inventories.iter().map(|blocks| repeats(blocks)).collect();
     // The order comes from one inventory chosen by content, so the answer is
     // the same whichever store or shard happened to be read first.
-    let base = inventories.iter().copied().min_by(|left, right| inventory_order(left, right));
+    let base_at = (0..inventories.len()).min_by(|left, right| inventory_order(inventories[*left], inventories[*right]));
+    let base = base_at.map(|chosen| inventories[chosen]);
+    let mut reconciled_owners = None;
     if let Some(base) = base {
-        let held: Vec<HashSet<&Block>> = inventories.iter().map(|blocks| blocks.iter().collect()).collect();
-        for block in base {
-            if !at.contains_key(block) && held.iter().all(|other| other.contains(block)) {
-                at.insert(block, blocks.len() as u32);
-                blocks.push(block.clone());
+        let held: Vec<HashSet<&(&Block, u32)>> = keyed.iter().map(|keys| keys.iter().collect()).collect();
+        let mut kept = Vec::with_capacity(base.len());
+        for key in repeats(base) {
+            if held.iter().all(|other| other.contains(&key)) {
+                at.insert(key, blocks.len() as u32);
+                kept.push(Some(blocks.len() as u32));
+                blocks.push(key.0.clone());
+            } else {
+                kept.push(None);
             }
         }
+        let base_owners = base_at.and_then(|chosen| owners.get(chosen).copied().flatten());
+        reconciled_owners = base_owners.map(|known| kept_owners(known, &kept));
     }
     let shared = blocks.len();
     let mut whole = None;
     let mut lands = Vec::with_capacity(inventories.len());
-    for inventory in inventories {
+    for (inventory, keys) in inventories.iter().zip(&keyed) {
         let mut landed = Vec::with_capacity(inventory.len());
-        for block in inventory.iter() {
-            let target = match at.get(block).copied().or_else(|| enclosing(&blocks[..shared], block)) {
+        for (block, key) in inventory.iter().zip(keys) {
+            let target = match landing(&at, &blocks[..shared], block, key) {
                 Some(target) => target,
                 None => *whole.get_or_insert_with(|| {
                     blocks.push(whole_file(inventories, base.and_then(<[Block]>::first)));
@@ -95,7 +128,46 @@ pub fn reconcile(inventories: &[&[Block]]) -> Reconciled {
         }
         lands.push(landed);
     }
-    Reconciled { blocks, lands }
+    if let Some(known) = reconciled_owners.as_mut() {
+        // The whole file, where one was added, encloses every region and has no owner.
+        known.resize(blocks.len(), NO_OWNER);
+    }
+    Reconciled { blocks, lands, owners: reconciled_owners }
+}
+
+/// Where each region of `inventories` lands in `table`, one file's own cut:
+/// [`reconcile`]'s rule with the table kept whole, so a reading cut apart from
+/// the file is read in the file's regions rather than the file in the
+/// readings'. A region nothing in the table encloses is still the file's code,
+/// and lands on the table's first region, the one a cut spans the file with;
+/// a table with none has no place for anything.
+#[napi(catch_unwind)]
+pub fn land_regions(table: Vec<Block>, inventories: Vec<Vec<Block>>) -> Vec<Vec<Option<u32>>> {
+    let file = if table.is_empty() { None } else { Some(0) };
+    let at: HashMap<(&Block, u32), u32> =
+        repeats(&table).into_iter().enumerate().map(|(position, key)| (key, position as u32)).collect();
+    inventories
+        .iter()
+        .map(|inventory| {
+            let keys = repeats(inventory);
+            inventory.iter().zip(&keys).map(|(block, key)| landing(&at, &table, block, key).or(file)).collect()
+        })
+        .collect()
+}
+
+/// The region `block` reads as among `shared`: the one of its shape and place
+/// among repeats, and otherwise the innermost source region enclosing it.
+fn landing(at: &HashMap<(&Block, u32), u32>, shared: &[Block], block: &Block, key: &(&Block, u32)) -> Option<u32> {
+    at.get(key).copied().or_else(|| enclosing(shared, block))
+}
+
+/// Each region with the number of regions of its shape up to it: two callbacks
+/// handed to one call on one line share every field, and only their place in
+/// the order the recipe cut them says which is which. Keyed by shape alone, the
+/// second would land on the first. `addressKey` numbers repeats the same way.
+fn repeats(blocks: &[Block]) -> Vec<(&Block, u32)> {
+    let mut seen: HashMap<&Block, u32> = HashMap::new();
+    blocks.iter().map(|block| (block, *seen.entry(block).and_modify(|nth| *nth += 1).or_insert(1))).collect()
 }
 
 fn enclosing(shared: &[Block], block: &Block) -> Option<u32> {
@@ -146,296 +218,6 @@ fn whole_file(inventories: &[&[Block]], first: Option<&Block>) -> Block {
     }
 }
 
-/// Every block one ordinal may name, across the inventories that hold it.
-fn by_ordinal(lands: &[Vec<u32>]) -> Vec<Vec<u32>> {
-    let count = lands.iter().map(Vec::len).max().unwrap_or(0);
-    (0..count)
-        .map(|ordinal| {
-            let mut targets: Vec<u32> = lands.iter().filter_map(|landed| landed.get(ordinal).copied()).collect();
-            targets.sort_unstable();
-            targets.dedup();
-            targets
-        })
-        .collect()
-}
-
-struct Answer {
-    raw: Arc<Vec<u8>>,
-    frame: Frame,
-}
-
-#[derive(Clone, Copy)]
-struct Frame {
-    at: usize,
-    length: usize,
-    checksum: u32,
-}
-
-pub fn read_records(
-    stores: &[String],
-    wanted: &HashSet<ModuleId>,
-    instrumentation: &str,
-) -> Result<HashMap<ModuleId, Module>, String> {
-    read_held(stores, wanted, Some(instrumentation))
-}
-
-/// Read the inventories a part names, whatever recipe cut them: a service
-/// beyond the fence records under its own instrument, and the part frame names
-/// each module by the checkout's number or by its path.
-pub fn read_part_records(
-    stores: &[String],
-    wanted: &HashSet<ModuleId>,
-) -> Result<HashMap<ModuleId, Module>, String> {
-    read_held(stores, wanted, None)
-}
-
-fn read_held(
-    stores: &[String],
-    wanted: &HashSet<ModuleId>,
-    instrumentation: Option<&str>,
-) -> Result<HashMap<ModuleId, Module>, String> {
-    let held: Vec<HashMap<ModuleId, Module>> = stores
-        .iter()
-        .map(|store| read_store(Path::new(store), wanted, instrumentation))
-        .collect::<Result<_, _>>()?;
-    let mut found = HashMap::new();
-    for id in wanted {
-        let answers: Vec<&Module> = held.iter().filter_map(|store| store.get(id)).collect();
-        let Some(first) = answers.first() else {
-            continue;
-        };
-        let mut module = (*first).clone();
-        if answers.iter().any(|candidate| candidate.digest != module.digest) {
-            module.blocks.clear();
-        } else if answers.iter().any(|candidate| candidate.blocks != module.blocks) {
-            // One source text, cut apart by two transforms: the digest vouches
-            // for the lines and not for the ordinals.
-            let inventories: Vec<&[Block]> = answers.iter().map(|answer| answer.blocks.as_slice()).collect();
-            let reconciled = reconcile(&inventories);
-            module.lands = by_ordinal(&reconciled.lands);
-            module.blocks = reconciled.blocks;
-        }
-        found.insert(id.clone(), module);
-    }
-    Ok(found)
-}
-
-/// With no `instrumentation`, a segment under any recipe is read.
-fn read_store(
-    store: &Path,
-    wanted: &HashSet<ModuleId>,
-    instrumentation: Option<&str>,
-) -> Result<HashMap<ModuleId, Module>, String> {
-    let mut files = segment_files(store)?;
-    files.sort_by(|left, right| {
-        left.0
-            .cmp(&right.0)
-            .then_with(|| order::code_unit(&left.1.to_string_lossy(), &right.1.to_string_lossy()))
-    });
-    let mut answers: HashMap<ModuleId, Answer> = HashMap::new();
-    for (_, file) in files {
-        let raw = Arc::new(fs::read(file).map_err(|error| error.to_string())?);
-        let Some(from) = segment_header(&raw, instrumentation) else {
-            continue;
-        };
-        for frame in frames(&raw, from) {
-            let payload = &raw[frame.at..frame.at + frame.length];
-            let Some(id) = record_id(payload)? else {
-                continue;
-            };
-            if wanted.contains(&id) {
-                answers.insert(
-                    id,
-                    Answer {
-                        raw: Arc::clone(&raw),
-                        frame,
-                    },
-                );
-            }
-        }
-    }
-    let mut found = HashMap::new();
-    for (id, answer) in answers {
-        if let Some(module) = decode_record(&answer.raw, answer.frame)? {
-            found.insert(id, module);
-        }
-    }
-    Ok(found)
-}
-
-fn segment_files(store: &Path) -> Result<Vec<(u128, PathBuf)>, String> {
-    let entries = match fs::read_dir(store) {
-        Ok(entries) => entries,
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(Vec::new()),
-        Err(error) => return Err(error.to_string()),
-    };
-    let mut files = Vec::new();
-    for entry in entries.filter_map(Result::ok) {
-        let path = entry.path();
-        if path.extension().and_then(|value| value.to_str()) != Some("rec") {
-            continue;
-        }
-        let modified = entry
-            .metadata()
-            .and_then(|metadata| metadata.modified())
-            .ok()
-            .and_then(|time| time.duration_since(UNIX_EPOCH).ok())
-            .map_or(0, |duration| duration.as_nanos());
-        files.push((modified, path));
-    }
-    Ok(files)
-}
-
-fn segment_header(raw: &[u8], instrumentation: Option<&str>) -> Option<usize> {
-    if raw.get(0..MAGIC.len())? != MAGIC {
-        return None;
-    }
-    let length = word(raw, MAGIC.len()).ok()? as usize;
-    let end = MAGIC.len() + 4 + length;
-    let recipe = std::str::from_utf8(raw.get(MAGIC.len() + 4..end)?).ok()?;
-    instrumentation
-        .is_none_or(|wanted| recipe == wanted)
-        .then_some(aligned(end, 8))
-}
-
-fn frames(raw: &[u8], mut at: usize) -> Vec<Frame> {
-    let mut found = Vec::new();
-    while at + FRAME_HEADER + RECORD_HEADER <= raw.len() {
-        let Ok(length) = word(raw, at).map(|value| value as usize) else {
-            break;
-        };
-        let Ok(checksum) = word(raw, at + 4) else {
-            break;
-        };
-        let payload = at + FRAME_HEADER;
-        if length < RECORD_HEADER || payload + length > raw.len() {
-            break;
-        }
-        found.push(Frame {
-            at: payload,
-            length,
-            checksum,
-        });
-        at = payload + aligned(length, 8);
-    }
-    found
-}
-
-/// The path a frame names its module by, or none for a frame filed under a
-/// number, which no journal can ask for.
-fn record_id(payload: &[u8]) -> Result<Option<ModuleId>, String> {
-    if word(payload, 0)? != BY_PATH {
-        return Ok(None);
-    }
-    first_string(payload).map(Some)
-}
-
-fn first_string(payload: &[u8]) -> Result<String, String> {
-    let at = RECORD_HEADER;
-    if word(payload, at)? == 0 {
-        return Err(damaged());
-    }
-    let length = word(payload, at + 4)? as usize;
-    text(payload, at + 8, length)
-}
-
-fn decode_record(raw: &[u8], frame: Frame) -> Result<Option<Module>, String> {
-    let payload = &raw[frame.at..frame.at + frame.length];
-    if checksum(payload) != frame.checksum {
-        return Ok(None);
-    }
-    let count = word(payload, 8)? as usize;
-    let dictionary = word(payload, 12)? as usize;
-    let mut digest = [0; 16];
-    digest.copy_from_slice(payload.get(16..32).ok_or_else(damaged)?);
-    let mut strings = Vec::new();
-    let mut at = RECORD_HEADER;
-    let entries = word(payload, at)? as usize;
-    at += 4;
-    for _ in 0..entries {
-        let length = word(payload, at)? as usize;
-        strings.push(text(payload, at + 4, length)?);
-        at += aligned(4 + length, 4);
-    }
-
-    at = RECORD_HEADER + dictionary;
-    let bits = (count + 7) >> 3;
-    let kind = take(&mut at, aligned(count, 4));
-    let _owner = take(&mut at, count * 4);
-    let name = take(&mut at, count * 4);
-    let path = take(&mut at, count * 4);
-    let start = take(&mut at, count * 4);
-    let end = take(&mut at, count * 4);
-    let source = take(&mut at, aligned(bits, 4));
-    let _digest = take(&mut at, count * 16);
-    if at > payload.len() {
-        return Ok(None);
-    }
-
-    let mut blocks = Vec::with_capacity(count);
-    for index in 0..count {
-        let kind_id = *payload.get(kind + index).ok_or_else(damaged)? as usize;
-        let name_id = word(payload, name + index * 4)? as usize;
-        let path_id = word(payload, path + index * 4)? as usize;
-        blocks.push(Block {
-            kind: KINDS.get(kind_id).unwrap_or(&"continuation").to_string(),
-            name: strings.get(name_id).cloned().unwrap_or_default(),
-            path: strings.get(path_id).cloned().unwrap_or_default(),
-            start_line: word(payload, start + index * 4)?,
-            end_line: word(payload, end + index * 4)?,
-            source: payload
-                .get(source + (index >> 3))
-                .is_some_and(|value| value & (1 << (index & 7)) != 0),
-        });
-    }
-    let file = strings.first().cloned().ok_or_else(damaged)?;
-    if word(payload, 0)? != BY_PATH {
-        return Ok(None);
-    }
-    Ok(Some(Module {
-        id: file.clone(),
-        file,
-        digest,
-        blocks,
-        lands: Vec::new(),
-    }))
-}
-
-fn take(at: &mut usize, width: usize) -> usize {
-    let start = *at;
-    *at += width;
-    start
-}
-
-fn checksum(payload: &[u8]) -> u32 {
-    payload
-        .iter()
-        .fold(2_166_136_261_u32, |hash, byte| (hash ^ u32::from(*byte)).wrapping_mul(16_777_619))
-}
-
-fn text(raw: &[u8], at: usize, length: usize) -> Result<String, String> {
-    std::str::from_utf8(raw.get(at..at + length).ok_or_else(damaged)?)
-        .map(str::to_owned)
-        .map_err(|_| damaged())
-}
-
-fn word(raw: &[u8], at: usize) -> Result<u32, String> {
-    let bytes: [u8; 4] = raw
-        .get(at..at + 4)
-        .ok_or_else(damaged)?
-        .try_into()
-        .map_err(|_| damaged())?;
-    Ok(u32::from_le_bytes(bytes))
-}
-
-fn aligned(value: usize, to: usize) -> usize {
-    (value + to - 1) & !(to - 1)
-}
-
-fn damaged() -> String {
-    "not a variance-authority instrument record".to_owned()
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -459,10 +241,19 @@ mod tests {
         let branch = block("branch", "", 4, 6);
         let one = [module.clone(), outer.clone(), inner.clone()];
         let two = [module.clone(), outer.clone(), branch, inner.clone()];
-        let reconciled = reconcile(&[&one, &two]);
+        let reconciled = reconcile(&[&one, &two], &[None, None]);
         assert!(reconciled.blocks == [module, outer, inner]);
         assert_eq!(reconciled.lands, [vec![0, 1, 2], vec![0, 1, 1, 2]]);
-        assert_eq!(by_ordinal(&reconciled.lands), [vec![0], vec![1], vec![1, 2], vec![2]]);
+    }
+
+    #[test]
+    fn two_regions_of_one_shape_stay_two() {
+        let (module, callback) = (block("module", "", 1, 5), block("function", "pick/find.arg0", 2, 2));
+        let one = [module.clone(), callback.clone(), callback.clone()];
+        let two = [module.clone(), callback.clone(), callback.clone(), block("branch", "", 4, 4)];
+        let reconciled = reconcile(&[&one, &two], &[None, None]);
+        assert!(reconciled.blocks == [module, callback.clone(), callback]);
+        assert_eq!(reconciled.lands, [vec![0, 1, 2], vec![0, 1, 2, 0]]);
     }
 
     #[test]
@@ -470,10 +261,67 @@ mod tests {
         let shared = block("function", "shared", 2, 4);
         let one = [block("module", "a", 1, 10), shared.clone()];
         let two = [block("module", "b", 1, 12), shared.clone()];
-        let reconciled = reconcile(&[&one, &two]);
+        let reconciled = reconcile(&[&one, &two], &[None, None]);
         assert_eq!(reconciled.blocks.len(), 2);
         let whole = &reconciled.blocks[1];
         assert_eq!((whole.start_line, whole.end_line, whole.source), (1, 12, true));
         assert_eq!(reconciled.lands, [vec![1, 0], vec![1, 0]]);
+    }
+
+    #[test]
+    fn a_reading_lands_on_the_files_own_cut_which_stays_whole() {
+        let module = block("module", "", 1, 20);
+        let outer = block("function", "outer", 2, 10);
+        let callback = block("function", "outer/map.arg0", 4, 7);
+        let table = vec![module.clone(), outer.clone(), callback.clone()];
+        // The build's map ends the callback a line early, which still lands in it, and adds a helper past the file's end.
+        let build = vec![module.clone(), outer, block("function", "outer/map.arg0", 4, 6), block("function", "helper", 21, 21)];
+        assert_eq!(land_regions(table.clone(), vec![table, build]), [
+            vec![Some(0), Some(1), Some(2)],
+            vec![Some(0), Some(1), Some(2), Some(0)],
+        ]);
+        assert_eq!(land_regions(Vec::new(), vec![vec![module]]), [vec![None]]);
+    }
+
+    #[test]
+    fn the_order_comes_from_one_inventory_whichever_comes_first() {
+        let module = block("module", "", 1, 20);
+        let one = [module.clone(), block("function", "a", 2, 10)];
+        let two = [module.clone(), block("function", "b", 2, 10)];
+        for inventories in [[&one[..], &two[..]], [&two[..], &one[..]]] {
+            let reconciled = reconcile(&inventories, &[None, None]);
+            assert!(reconciled.blocks == [module.clone()]);
+            assert_eq!(reconciled.lands, [vec![0, 0], vec![0, 0]]);
+        }
+    }
+
+    #[test]
+    fn a_file_whose_only_source_regions_run_backwards_spans_no_source_lines() {
+        let (one, two) = ([block("module", "", 5, 3)], [block("module", "", 6, 3)]);
+        let whole = &reconcile(&[&one, &two], &[None, None]).blocks[0];
+        assert_eq!((whole.start_line, whole.end_line, whole.source), (5, 3, false));
+    }
+
+    #[test]
+    fn a_kept_region_takes_its_nearest_kept_owner() {
+        // 0 holds 1, 1 holds 2, 2 holds 3; 2 is not kept, so 3 is held by 1.
+        let kept = [Some(0), Some(1), None, Some(2)];
+        assert_eq!(kept_owners(&[NO_OWNER, 0, 1, 2], &kept), [NO_OWNER, 0, 1]);
+        assert_eq!(kept_owners(&[NO_OWNER, 0, 1, 2], &[None, Some(0), None, Some(1)]), [NO_OWNER, 0]);
+    }
+
+    #[test]
+    fn a_reconciled_region_takes_the_nearest_owner_both_hold() {
+        let module = block("module", "", 1, 20);
+        let outer = block("function", "outer", 2, 10);
+        let branch = block("branch", "", 4, 6);
+        let inner = block("function", "inner", 5, 5);
+        let one = [module.clone(), outer.clone(), inner.clone()];
+        let two = [module.clone(), outer.clone(), branch, inner.clone()];
+        let (one_owners, two_owners) = ([NO_OWNER, 0, 1], [NO_OWNER, 0, 1, 2]);
+        let reconciled = reconcile(&[&two, &one], &[Some(&two_owners), Some(&one_owners)]);
+        assert!(reconciled.blocks == [module, outer, inner]);
+        assert_eq!(reconciled.owners, Some(vec![NO_OWNER, 0, 1]));
+        assert_eq!(reconcile(&[&two, &one], &[Some(&two_owners), None]).owners, None);
     }
 }

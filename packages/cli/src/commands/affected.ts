@@ -1,11 +1,13 @@
 import {
-  indexSource,
   mergeSourceIndexes,
   type SourceIndex,
 } from '@variance-authority/core/attribute';
 import type { BeforeReach, Relations } from '@variance-authority/core/relate';
+import { indexDeclarations } from '@variance-authority/sense';
+import { ignoredBy } from '@variance-authority/sense/test-selection';
 import type { InstallDiff } from './installed.js';
-import { affectedComponents, listed, many, refused, within, type MovedExports } from './reach.js';
+import { affectedComponents, ignoredSaid, refused, within, type MovedExports } from './reach.js';
+import { listed, many } from './prose-counts.js';
 
 /**
  * Which subjects an edit could possibly have changed — and, far more carefully,
@@ -20,8 +22,8 @@ import { affectedComponents, listed, many, refused, within, type MovedExports } 
  *
  * This derives it from the baselines instead. A stored baseline records the
  * components the document that painted it actually rendered
- * ([ADR-0018](../../../../docs/context/adr/0018-a-component-hash-covers-its-own-nodes.md),
- * [ADR-0027](../../../../docs/context/adr/0027-a-baseline-carries-what-its-document-said.md)),
+ * ([ADR-0018](https://github.com/Variance-Authority/variance-authority/blob/main/docs/context/adr/0018-a-component-hash-covers-its-own-nodes.md),
+ * [ADR-0027](https://github.com/Variance-Authority/variance-authority/blob/main/docs/context/adr/0027-a-baseline-carries-what-its-document-said.md)),
  * so *what this subject is made of* is a fact the last run established rather
  * than one a build tool predicts. It needs no plugin, no stats file and no
  * second graph.
@@ -177,6 +179,12 @@ export interface AffectedInput {
    * Absent is *no reading was taken*, and every changed file is a change.
    */
   readonly movedExports?: MovedExports;
+
+  /**
+   * The suite's `ignore` globs. A changed file they match moves none of its
+   * subjects, but through a module that declares it with a `/// <depends>`.
+   */
+  readonly ignore?: readonly string[];
 }
 
 export interface Affected {
@@ -196,7 +204,7 @@ export interface Affected {
   readonly whole?: string;
 
   /**
-   * The `source.before` files this diff moves, when they are why the run is
+   * The `before` files this diff moves, when they are why the run is
    * whole — carried from the walk that refused, for a later ground that must
    * not narrow past the same refusal.
    */
@@ -255,8 +263,8 @@ export function affectedSubjects(input: AffectedInput): Affected {
 
   const narrowing =
     relations === undefined
-      ? byDeclaration(changed, changedDirs, source, roots, moved, input.movedExports ?? new Map())
-      : byRelation(changed, changedDirs, relations, roots, install, input.before, input.movedExports ?? new Map());
+      ? byDeclaration(changed, changedDirs, source, roots, moved, input.movedExports ?? new Map(), ignoredBy(input.ignore, changed))
+      : byRelation(changed, changedDirs, relations, roots, install, input.before, input.movedExports ?? new Map(), input.ignore);
 
   if ('whole' in narrowing) return everything(narrowing.whole, narrowing.rests);
   const { touched, how } = narrowing;
@@ -331,6 +339,7 @@ function byDeclaration(
   roots: readonly string[],
   moved: readonly string[],
   movedExports: MovedExports,
+  ignored: readonly string[],
 ): Narrowing {
   // Reading the install is only half the answer; the other half is *which files
   // import that package*, and that is the graph. Without one, a bumped package
@@ -345,12 +354,21 @@ function byDeclaration(
     };
   }
 
-  // A file that changes nothing that runs moves no component and forces no
-  // whole run, whatever it declares.
+  // A file that changes nothing that runs, or one the suite ignores, moves no
+  // component and forces no whole run, whatever it declares. With no graph,
+  // no module is known to declare an ignored file with a `/// <depends>`.
   const still = changed.filter((file) => movedExports.get(file)?.length === 0);
-  const inside = changed.filter((file) => within(file, roots) && !still.includes(file));
-  if (still.length === changed.length && changedDirs.length === 0) {
-    return { touched: new Set(), how: `${listed(still)} ${still.length === 1 ? 'changes' : 'change'} nothing that runs` };
+  const quiet = changed.filter((file) => still.includes(file) || ignored.includes(file));
+  const inside = changed.filter((file) => within(file, roots) && !quiet.includes(file));
+  if (quiet.length === changed.length && changedDirs.length === 0) {
+    const unignored = still.filter((file) => !ignored.includes(file));
+    return {
+      touched: new Set(),
+      how: [
+        ...(unignored.length === 0 ? [] : [`${listed(unignored)} ${unignored.length === 1 ? 'changes' : 'change'} nothing that runs`]),
+        ...(ignored.length === 0 ? [] : [ignoredSaid(ignored)]),
+      ].join(', and '),
+    };
   }
   const declaring = declaringFiles(source);
 
@@ -409,11 +427,12 @@ function byRelation(
   install: InstallDiff | undefined,
   before: BeforeReach | undefined,
   movedExports: MovedExports,
+  ignore: readonly string[] | undefined,
 ): Narrowing {
   // The same call the report makes. Two walks would let the run skip a subject
   // for one reason and print another, and the printed one is what a reviewer
   // acts on.
-  const reach = affectedComponents(relations, changed, changedDirs, roots, install, before, movedExports);
+  const reach = affectedComponents(relations, changed, changedDirs, roots, install, before, movedExports, ignore);
   if (refused(reach)) {
     return { whole: reach.whole, ...(reach.rests === undefined ? {} : { rests: reach.rests }) };
   }
@@ -468,10 +487,10 @@ function declaringFiles(source: SourceIndex): ReadonlySet<string> {
  *
  * Takes contents rather than paths for the same reason `affectedSubjects` takes
  * values: the walk belongs to whoever owns the disk, and the rule — how a file
- * becomes an index — has one owner in `core`.
+ * becomes an index — has one owner, the module reader in `sense`.
  */
 export function indexOf(files: ReadonlyMap<string, string>): SourceIndex {
   return mergeSourceIndexes(
-    [...files.entries()].map(([file, contents]) => indexSource(file, contents)),
+    [...files.entries()].map(([file, contents]) => indexDeclarations(file, contents)),
   );
 }

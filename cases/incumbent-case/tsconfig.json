@@ -14,6 +14,7 @@
     { "path": "../../packages/core" },
     { "path": "../../packages/dom" },
     { "path": "../../packages/playwright" },
-    { "path": "../../packages/react" }
+    { "path": "../../packages/react" },
+    { "path": "../../packages/sense" }
   ]
 }

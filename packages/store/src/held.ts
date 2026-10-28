@@ -1,100 +1,123 @@
 // compass: variance-authority.retention
 
 import { readdir } from 'node:fs/promises';
-import { basename, join, relative, sep } from 'node:path';
+import { join } from 'node:path';
 import type { Digest } from '@variance-authority/core/format';
 import { orAbsent } from './absent.js';
-import { identityOfPartition } from './placement.js';
+import { identityOfPartition } from './legacy.js';
+import type { BaselineKey } from '@variance-authority/raster';
+import type { BaselinePathTemplate } from './path-template.js';
 
 /**
  * What a file-backed store holds and the plan did not name (ADR-0063).
  *
- * Split from `durable.ts` for `placement.ts`'s reason: nothing here decides a
- * verdict. It is a directory walk and a naming rule, and the one thing it is
- * allowed to be wrong about — a name it could not decode — it reports as the
- * characters that are actually on disk.
+ * Split from `durable.ts` because nothing here decides a verdict: it is a
+ * directory walk and a naming rule.
  */
 
-/**
- * The names this identity holds under the root, less the paths already planned.
- */
-export async function held(
-  root: string,
-  digest: Digest,
-  planned: ReadonlySet<string>,
-): Promise<readonly string[]> {
-  const found = await records(root, digest);
-  return found
-    .filter((path) => !planned.has(path))
-    .map((path) => nameOf(root, digest, path))
-    .sort();
+export interface HeldQuery {
+  /** The template this store places by. */
+  readonly template: BaselinePathTemplate;
+  /** The engine family asking, as the template spells it into a path. */
+  readonly engine: string;
+  /** The identity asking, whose old-layout partitions are its own. */
+  readonly digest: Digest;
+  /** Paths under the root, without extension, that the plan addresses. */
+  readonly planned: ReadonlySet<string>;
+  /** Whether a path is a width of a subject whose widths this run never learned. */
+  readonly widened?: (path: string) => boolean;
 }
 
 /**
- * Every record this identity holds under the root, as full `.json` paths.
+ * The paths of every width of these subjects, as one question per path.
  *
- * One walk serves both layouts: `flat` puts the identity partitions directly
- * under the root and `beside` scatters them among the subjects' own
- * directories, and in both cases the thing being looked for is a directory
- * named for this digest — in either spelling `placement.ts` reads — with
- * records directly inside it. A directory that is some *other* machine's
- * partition is not descended into — its contents are baselines this run is not
- * entitled to an opinion about — and a directory that is not a partition at all
- * is a `beside` subject folder, so it is.
- *
- * `by-document` is the render cache, which lives inside the identity partition
- * when the cache root was not split off. It is not read here for the same
- * reason nothing else reads it as a baseline: it is keyed by document digest,
- * so every entry is a file with no subject name in it at all.
- *
- * Records rather than images, for the reason `durable.ts` scans records when it
- * looks for a subject's other identities: a subject with no pixels has a
- * sidecar and no PNG, and a scan of the images would report that subject as one
- * nobody ever approved.
+ * Each subject's widths are one pattern from the template. Bucketed by the path
+ * with its numbers blanked, so a held path is tried against the patterns that
+ * could match it rather than against every story in the suite.
  */
-async function records(root: string, digest: Digest): Promise<readonly string[]> {
-  const entries = await orAbsent(() => readdir(root, { withFileTypes: true }), root);
-  if (entries === null) return [];
+export function anyWidthOf(
+  template: BaselinePathTemplate,
+  engine: string,
+  subjects: readonly ((width: number) => BaselineKey)[],
+): (path: string) => boolean {
+  const buckets = new Map<string, RegExp[]>();
+  for (const at of subjects) {
+    const pattern = template.widths(at, engine);
+    if (pattern === undefined) continue;
+    const bucket = blanked(template.render(at(0), engine));
+    buckets.set(bucket, [...(buckets.get(bucket) ?? []), pattern]);
+  }
+  return (path) => buckets.get(blanked(path))?.some((pattern) => pattern.test(path)) ?? false;
+}
 
+function blanked(path: string): string {
+  return path.replace(/\d+/g, '0');
+}
+
+/**
+ * The names held under the root that no planned key addresses, in code-unit order.
+ *
+ * Two kinds are held. A record at a path the template renders for this engine
+ * is named by that path, which is already the name a person reads. A record in
+ * this identity's partition of the old layout is named by its directories and
+ * its decoded leaf, the partition left out because the caller knows which
+ * renderer it asked about.
+ *
+ * Records rather than images: a subject approved with no pixels has a record
+ * and no image, and a scan of images would report it as never approved.
+ */
+export async function held(root: string, query: HeldQuery): Promise<readonly string[]> {
   const found: string[] = [];
+  await walk(root, '', query, found);
+  return found.sort();
+}
+
+/**
+ * One walk serves both kinds, because a template with `{dir}` places baselines
+ * anywhere in the repository and an old `beside` partition could be anywhere
+ * too.
+ *
+ * Not descended into: `node_modules`, a directory whose name starts with `.`
+ * unless the template names it, another identity's partition — baselines this
+ * run is not entitled to an opinion about — and `by-document`, the render
+ * cache, which is keyed by document digest and names no subject.
+ */
+async function walk(directory: string, under: string, query: HeldQuery, found: string[]): Promise<void> {
+  const entries = await orAbsent(() => readdir(directory, { withFileTypes: true }), directory);
+  if (entries === null) return;
+  const named = query.template.source.split('/');
   for (const entry of entries) {
-    const path = join(root, entry.name);
-    if (!entry.isDirectory()) continue;
-    const identity = identityOfPartition(entry.name);
-    if (identity === digest) {
-      const inside = await orAbsent(() => readdir(path, { withFileTypes: true }), path);
-      for (const record of inside ?? []) {
-        if (record.isFile() && record.name.endsWith('.json')) found.push(join(path, record.name));
-      }
+    const path = under === '' ? entry.name : `${under}/${entry.name}`;
+    if (entry.isFile()) {
+      if (!entry.name.endsWith('.json')) continue;
+      const stem = path.slice(0, -'.json'.length);
+      if (!query.template.matches(stem, query.engine) || query.planned.has(stem)) continue;
+      if (query.widened?.(stem) !== true) found.push(stem);
       continue;
     }
-    if (identity !== undefined) continue;
-    found.push(...(await records(path, digest)));
+    if (!entry.isDirectory() || entry.name === 'node_modules' || entry.name === 'by-document') continue;
+    if (entry.name.startsWith('.') && !named.includes(entry.name)) continue;
+    const identity = identityOfPartition(entry.name);
+    if (identity === undefined) {
+      await walk(join(directory, entry.name), path, query, found);
+      continue;
+    }
+    if (identity !== query.digest) continue;
+    const inside = await orAbsent(() => readdir(join(directory, entry.name), { withFileTypes: true }), directory);
+    for (const record of inside ?? []) {
+      if (!record.isFile() || !record.name.endsWith('.json')) continue;
+      const leaf = record.name.slice(0, -'.json'.length);
+      if (query.planned.has(`${path}/${leaf}`)) continue;
+      found.push(under === '' ? decoded(leaf) : `${under}/${decoded(leaf)}`);
+    }
   }
-  return found;
 }
 
 /**
- * The name an operator will recognise, recovered from the path that holds it.
- *
- * The identity segment comes out because the caller already knows which
- * renderer it asked about, and the directories above it stay: under `beside`
- * they are the subject id's own segments, and dropping them would report
- * `primary` for three different components.
- *
- * The leaf is decoded, because `flat` percent-encodes the whole id into it. A
- * leaf too long for a filename was truncated and given a digest, and decoding
- * one can fail on the half of an escape the cut left behind — so a name that
- * will not decode is reported as it is spelled on disk, which is still the
- * thing to go and look at.
+ * The old flat layout percent-encoded the whole id into the leaf, and cut a
+ * long one short with a digest, which can leave half an escape. A name that
+ * will not decode is reported as it is spelled on disk.
  */
-function nameOf(root: string, digest: Digest, path: string): string {
-  const parts = relative(root, path.slice(0, -'.json'.length)).split(sep);
-  const named = parts.filter((part) => identityOfPartition(part) !== digest);
-  const leaf = named.at(-1) ?? basename(path);
-  return [...named.slice(0, -1), decoded(leaf)].join('/');
-}
-
 function decoded(name: string): string {
   try {
     return decodeURIComponent(name);

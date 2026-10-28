@@ -50,7 +50,7 @@ function fencedCode(text: string): string {
  * file absent from here is held to the rule outright, and a file in here may only
  * ever lose entries.
  *
- * One entry, and it records a gap rather than an excuse. The CLI's collector path
+ * The first entry records a gap rather than an excuse. The CLI's collector path
  * has four surfaces — Playwright Test, unit captures, Storybook, routes — and
  * none of them is *fixtures you render yourself*. `examples/agent-claim` is the
  * first example to take that path, and it renders both revisions of its own
@@ -60,10 +60,15 @@ function fencedCode(text: string): string {
  * agent, not a re-export bolted onto a box named for a test runner the example
  * does not use.
  *
+ * The same gap is why it names `@variance-authority/sense`: it indexes its own
+ * source with `indexDeclarations`, the walk the Storybook and route collectors
+ * do behind their `source` option, because no surface offers that walk to a
+ * collector that renders its own fixtures.
+ *
  * Delete the entry when that surface exists, or when the example moves onto one.
  */
 const REACH_THROUGH_DEBT: Readonly<Record<string, readonly string[]>> = {
-  'examples/agent-claim/collector/index.mjs': ['@variance-authority/playwright'],
+  'examples/agent-claim/collector/index.mjs': ['@variance-authority/playwright', '@variance-authority/sense'],
   // `provenanceOf`, `wiringOf` and `holdingOf` are optional capture callbacks
   // that only a React adopter passes, and `unit-test` declares no React
   // dependency. Re-exporting them would mean depending on `react` to forward
@@ -71,18 +76,19 @@ const REACH_THROUGH_DEBT: Readonly<Record<string, readonly string[]>> = {
   // instead. The fix is a surface that pairs a capture with a framework reader,
   // not a dependency added to keep one import out of a page.
   '@variance-authority/unit-test README': ['@variance-authority/react'],
-  // Both are build-tool plugins a reader puts in `.storybook/main.js`, not code
-  // the collector could import on their behalf: `jsx-source/vite` is what keeps
-  // component names and source lines through a production Storybook build, and
-  // `testSelectionProbes()` is what lets a run skip stories nothing touched.
-  // The page used to name them in prose and show no config, which left the
-  // reader assembling the plugin array from a description. The fix is a
-  // `@variance-authority/storybook-collector/vite` that composes both behind
-  // one import, not a page that goes back to describing them.
-  '@variance-authority/storybook-collector README': [
-    '@variance-authority/jsx-source',
-    '@variance-authority/sense',
-  ],
+  // A build-tool plugin a reader puts in `.storybook/main.js`, not code the
+  // collector could import on their behalf: `jsx-source/vite` is what keeps
+  // component names and source lines through a production Storybook build.
+  // The probes no longer need naming: the addon adds them under every builder.
+  // The fix is a `@variance-authority/storybook-collector/vite` that composes
+  // the plugin behind the collector's own import.
+  '@variance-authority/storybook-collector README': ['@variance-authority/jsx-source'],
+  // Two halves for a served application: `testSelectionProbes()` goes in its
+  // Vite config and `collectJourneys()` wraps its server's request handler, so
+  // a recorded page run knows what each page ran. Neither is code the
+  // collector runs; the application does. The fix is a composing entry on
+  // `@variance-authority/route-collector`, as the Storybook entry above names.
+  '@variance-authority/route-collector README': ['@variance-authority/sense'],
 };
 
 describe('adopter-facing code knows one package', () => {

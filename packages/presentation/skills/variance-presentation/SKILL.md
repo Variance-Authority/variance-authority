@@ -200,13 +200,23 @@ Options:
   `presentation`.
 - `title`: optional human-facing subject title.
 - `fonts`: font identities the caller has independently established.
-- `suspense.timeoutMs`: settlement bound for React Suspense before sensing.
+- `suspense.timeoutMs`: bound on React Suspense under the subject; a boundary
+  still pending at it rejects the call instead of sensing the fallback.
+- `loading`: `true` senses the fallback of a subject that is its loading state;
+  a subject with no boundary pending then rejects the call.
 - `stabilize`: optional intervention ids replacing the default recipe entirely.
   The ids this build knows are `hold-animations`, `pin-animations`,
-  `hide-caret`, `hide-scrollbars`, `hide-presentational-images`,
-  `wait-for-fonts` and `wait-for-images`; an unknown id throws and lists them.
+  `hide-caret`, `hide-scrollbars`, `hide-presentational-images`, `no-hover`,
+  `no-focus`, `reduced-motion`, `freeze-clock`, `wait-for-fonts` and
+  `wait-for-images`; an unknown id throws and lists them. `no-hover`,
+  `reduced-motion` and `freeze-clock` need a browser driver, which this call
+  does not have, so they are dropped from the recorded recipe; set them on the
+  page with `page.mouse.move(-1, -1)`, and with `driveBeforeTest(page)` from
+  `@variance-authority/playwright-test` before `page.goto()`, which sets reduced
+  motion and fixes `Date` alone. `no-focus` blurs whatever holds
+  focus, so refocus before typing again.
   The default recipe is `pin-animations`, `hide-scrollbars`, `hide-caret`,
-  `wait-for-fonts`, and — in place of `wait-for-images` — an internal wait that
+  `no-focus`, `wait-for-fonts`, and — in place of `wait-for-images` — an internal wait that
   settles only images inside the subject and its portals. Passing `stabilize`
   loses that narrowing, so pass it only to change stabilization, never to
   restate the default. Use `[]` only when the caller owns a static document,
@@ -243,9 +253,9 @@ findings [
 ]
 ```
 
-The browser agent waits for Suspense, settles images inside the subject and its
-portals rather than unrelated document images, applies the other collection
-interventions, collects computed style and layout, reads Playwright's ARIA
+The browser agent waits for Suspense and refuses a subject still showing a
+fallback, settles images inside the subject and its portals rather than
+unrelated document images, applies the other collection interventions, collects computed style and layout, reads Playwright's ARIA
 snapshot for the subject and portals, analyzes the plain capture, and then
 optionally paints from the returned report. It does not capture a PNG. Do not
 use an empty stabilization recipe to make a live page faster; it is a
@@ -681,7 +691,8 @@ declared findings are unioned with the report's own.
 
 It returns a `PresentationSignalRecord` from `@variance-authority/report`, which
 is exactly what `ObservationRecord.signals.presentation` accepts — assign it
-there, unchanged. Nothing intermediate holds it: this function produces the
+there, unchanged. It returns `undefined` when neither side was measured; leave
+the member out then. Nothing intermediate holds it: this function produces the
 record and the run's observation carries it.
 
 ```
@@ -698,12 +709,13 @@ record and the run's observation carries it.
                  "before": { "finding": "F3", "measurements": { … } } } ] }
 ```
 
-`verdict` is `changed`, `unchanged`, or `incomparable`; each effect's
-`transition` is `introduced`, `resolved`, or `persisted`. A missing report, or
-one with no layout findings at all, is `incomparable` and never clean:
+`verdict` is `changed` or `unchanged`; each effect's `transition` is
+`introduced`, `resolved`, or `persisted`. A missing report, or one with no
+layout findings at all, is `changed`, names the missing side, carries no
+effects, and is never clean. With neither side read for layout, there is no signal:
 
 ```
-{"verdict":"incomparable","because":"the baseline supplied no presentation reading",
+{"verdict":"changed","because":"the baseline supplied no presentation reading",
  "after":"v1:a841d3a4cac87c9d248174c38d291756"}
 ```
 

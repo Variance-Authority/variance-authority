@@ -36,17 +36,24 @@ describe('presentation evidence in agent report answers', () => {
     expect(text).toContain('content preserved');
   });
 
-  it('counts measured and incomparable subjects separately', () => {
+  it('counts a side with no reading as changed, apart from the compared subjects', () => {
     const report = reportOf([
       observation('underwriter', SIGNAL),
-      observation('unknown', { verdict: 'incomparable', because: 'the baseline supplied no reading' }),
+      observation('unknown', { verdict: 'changed', because: 'the baseline supplied no presentation reading' }),
     ]);
 
     expect(presentationSummary(report)).toEqual([
       expect.stringContaining('1 introduced, 0 resolved, 0 persisted'),
     ]);
-    expect(presentationSummary(report)[0]).toContain('1 compared, 1 incomparable');
+    expect(presentationSummary(report)[0]).toContain('across 2 changed subject(s); 1 compared, 1 read on one side only');
     expect(presentationSummary(report)[0]).toContain('Independent of the regression verdict');
+  });
+
+  it('names the side that supplied no reading', () => {
+    expect(describePresentation({
+      verdict: 'changed',
+      because: 'the baseline supplied no presentation reading',
+    })).toEqual(['presentation: changed — the baseline supplied no presentation reading']);
   });
 });
 

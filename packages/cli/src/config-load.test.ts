@@ -80,6 +80,16 @@ describe('loadConfig and the suites', () => {
     await expect(loadConfig(file)).rejects.toThrow(/`suites` is read from the variance\.config\.json at the repository root/);
   });
 
+  it('refuses `before` in a file below the repository root, which `variance select` does not read', async () => {
+    const at = await repository();
+    const member = resolve(at, 'packages', 'app');
+    await mkdir(member, { recursive: true });
+    const file = resolve(member, 'variance.config.json');
+    await writeFile(file, JSON.stringify({ ...VALID, before: ['.nvmrc'] }));
+
+    await expect(loadConfig(file)).rejects.toThrow(/`before` is read from the variance\.config\.json at the repository root/);
+  });
+
   it('refuses `entrypoints` in a file below the repository root, which `coverage --from` does not read', async () => {
     const at = await repository();
     const member = resolve(at, 'packages', 'app');
@@ -88,6 +98,26 @@ describe('loadConfig and the suites', () => {
     await writeFile(file, JSON.stringify({ ...VALID, entrypoints: { 'packages/app': ['src/main.tsx'] } }));
 
     await expect(loadConfig(file)).rejects.toThrow(/`entrypoints` is read from the variance\.config\.json at the repository root/);
+  });
+
+  it('refuses `tiers` in a file below the repository root, which `variance layers` does not read', async () => {
+    const at = await repository();
+    const member = resolve(at, 'packages', 'app');
+    await mkdir(member, { recursive: true });
+    const file = resolve(member, 'variance.config.json');
+    await writeFile(file, JSON.stringify({ ...VALID, tiers: [200000, 1000] }));
+
+    await expect(loadConfig(file)).rejects.toThrow(/`tiers` is read from the variance\.config\.json at the repository root/);
+  });
+
+  it('refuses `typescript` in a file below the repository root, which no scan reads', async () => {
+    const at = await repository();
+    const member = resolve(at, 'packages', 'app');
+    await mkdir(member, { recursive: true });
+    const file = resolve(member, 'variance.config.json');
+    await writeFile(file, JSON.stringify({ ...VALID, typescript: { tsconfig: false } }));
+
+    await expect(loadConfig(file)).rejects.toThrow(/`typescript` is read from the variance\.config\.json at the repository root/);
   });
 
   it('gives a config below the root the suites its repository declares', async () => {
@@ -99,6 +129,72 @@ describe('loadConfig and the suites', () => {
     await writeFile(file, JSON.stringify(VALID));
 
     expect((await loadConfig(file)).suites?.map((suite) => suite.name)).toEqual(['stories', 'unit']);
+  });
+
+  it('gives a config below the root what its repository declares before reach', async () => {
+    const at = await repository();
+    await writeFile(resolve(at, 'variance.config.json'), JSON.stringify({ before: ['.nvmrc', '.github/workflows'] }));
+    const member = resolve(at, 'packages', 'app');
+    await mkdir(member, { recursive: true });
+    const file = resolve(member, 'variance.config.json');
+    await writeFile(file, JSON.stringify(VALID));
+
+    expect((await loadConfig(file)).before).toEqual(['.nvmrc', '.github/workflows']);
+  });
+
+  describe('a suite carried by the share', () => {
+    const CARRIED = { unit: { kind: 'unit', carry: 'share' } };
+    const SHARE = { kind: 'git', mainlines: ['main'] };
+
+    async function member(at: string): Promise<string> {
+      const dir = resolve(at, 'packages', 'app');
+      await mkdir(dir, { recursive: true });
+      const file = resolve(dir, 'variance.config.json');
+      await writeFile(file, JSON.stringify(VALID));
+
+      return file;
+    }
+
+    it('loads a config below the root with no `share` of its own, when the root has the share its suites carry to', async () => {
+      const at = await repository();
+      await writeFile(resolve(at, 'variance.config.json'), JSON.stringify({ suites: CARRIED, share: SHARE }));
+
+      expect((await loadConfig(await member(at))).suites).toEqual([{ name: 'unit', kind: 'unit', carry: 'share' }]);
+    });
+
+    it('refuses the root config when its suites carry to a share it has no section for', async () => {
+      const at = await repository();
+      const file = resolve(at, 'variance.config.json');
+      await writeFile(file, JSON.stringify({ ...VALID, suites: CARRIED }));
+
+      await expect(loadConfig(file)).rejects.toThrow(
+        '`suites.unit.carry` is "share", and the file has no `share` section to carry it; add one',
+      );
+    });
+
+    it('refuses a config below the root by naming the root, whose suites carry to a share it has no section for', async () => {
+      const at = await repository();
+      await writeFile(resolve(at, 'variance.config.json'), JSON.stringify({ suites: CARRIED }));
+
+      const refused = await loadConfig(await member(at)).then(() => undefined, (error: unknown) => error);
+      expect(refused).toBeInstanceOf(Error);
+      expect((refused as Error).message).toMatch(/variance\.config\.json: `suites\.unit\.carry` is "share", and the file has no `share` section/);
+      expect((refused as Error).message).not.toContain('packages/app');
+    });
+
+    it('refuses a config below the root that has a `share` of its own, when the root has none for its suites to carry to', async () => {
+      // The member's section carries the member's own report; the root's suites
+      // are published through the root's section, so holding one here is no
+      // answer for them.
+      const at = await repository();
+      await writeFile(resolve(at, 'variance.config.json'), JSON.stringify({ suites: CARRIED }));
+      const file = await member(at);
+      await writeFile(file, JSON.stringify({ ...VALID, share: SHARE }));
+
+      await expect(loadConfig(file)).rejects.toThrow(
+        '`suites.unit.carry` is "share", and the file has no `share` section to carry it; add one',
+      );
+    });
   });
 
   it('refuses a kind outside the closed list, naming the field', async () => {

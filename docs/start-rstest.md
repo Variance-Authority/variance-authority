@@ -178,7 +178,7 @@ npx playwright install chromium
 
 `@rstest/playwright` is Rstest's own fixture package: it launches a browser and
 hands the test body a `page`. `@variance-authority/playwright-test` is the
-observation, and `/rstest` is the small adapter that reads what Rstest knows
+observation, and `/rstest` is the small adapter that reads what Rstest records
 about the test from the values the body destructures.
 
 ### Configure the browser once
@@ -202,14 +202,16 @@ export default defineConfig({
 });
 ```
 
-`CHROMIUM_RASTER_ARGS` are the flags that make Chromium's text rasterization
-deterministic. Pass them here *and* to the observation below: the browser has to
-be launched with them, and the run has to declare that it was, because renderer
-identity is what decides whether two images may be compared at all.
+`CHROMIUM_RASTER_ARGS` are the flags that make Chromium's rasterization
+deterministic: its text, and a shot that does not depend on what the page
+painted before it. Pass them here *and* to the observation below: the browser
+has to be launched with them, and the run has to declare that it was, because
+renderer identity is what decides whether a difference between two images is the code's.
 
 `colorScheme` and `deviceScaleFactor` are read off this config by the adapter
-and become part of the partition a baseline is stored under. Changing either
-puts every subject into a partition where nothing has been approved yet.
+and become part of the renderer identity a baseline records. Changing either
+compares every subject with the old image and names the moved value as the
+cause, until you accept.
 
 ### Observe inside the test
 
@@ -249,7 +251,7 @@ somewhere else.
 `runOf` takes three of the values the body destructures rather than one context,
 because Rstest requires a test body's first parameter to be an object pattern —
 a non-destructured parameter is refused before the test runs. From those three
-it reads everything the run needs to know about itself:
+it reads everything the run needs about itself:
 
 | What it reads | Where it comes from |
 | --- | --- |

@@ -1,7 +1,7 @@
 /**
  * `@variance-authority/sense/journal` — the same instrument, over a wire.
  *
- * [Spec 0028](../../../../docs/specs/0028-the-instrument.md) states the rule this
+ * [Spec 0028](https://github.com/Variance-Authority/variance-authority/blob/main/docs/specs/0028-the-instrument.md) states the rule this
  * file discharges: *a browser needs a different transport, not a different
  * instrument.* A browser is the case that exists, and not the boundary this
  * draws. What the Vitest seam has and this does not is a recorder that ran the
@@ -16,11 +16,12 @@
  * Three parts, and each is somebody's:
  *
  * 1. **The plugin** ({@link testSelectionProbes}, next door in `probes.ts` with
- *    the rest of the build half) belongs in the adopter's own build — a
- *    Storybook `viteFinal`, an application dev server. It instruments
- *    product source, hoists a collector in front of it, and writes each module's
- *    block record down under the id it instrumented that module with, for a run
- *    that has not started yet.
+ *    the rest of the build half) belongs in the adopter's own build — an
+ *    application's `vite.config.ts` or dev server; a Storybook takes it through
+ *    the `@variance-authority/storybook-collector` addon. It instruments
+ *    product source and hoists a collector in front of it. Its probes report the
+ *    file and the digest of the text they were placed on, and nothing else is
+ *    written down.
  * 2. **The collector** is a string, evaluated in the instrumented realm. No Node
  *    built-ins, no imports, no bundler assumptions — the same constraint that
  *    made the emitted runtime portable in the first place.
@@ -36,7 +37,7 @@
  * that also read it are not selected. So every region entered while a module
  * was evaluating — its root, a helper the top level called — is attributed to
  * **every subject the run drained**, over-including in the direction
- * [`selecting.md`](../../../../docs/selecting.md) already argues for. The page
+ * [`selecting.md`](https://variance-authority.dev/docs/selecting) already argues for. The page
  * marks those regions itself ([`instrument`](../instrument/index.ts)); the
  * join only reads the mark.
  */
@@ -45,8 +46,9 @@ import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { digestString } from '../digest.js';
 import { instrumentationId, type InstrumentMode, type ModuleId } from '../instrument/index.js';
-import { executionIndexFrom } from './cases.js';
-import { executionIndexBytes } from './execution-format.js';
+import { ownedExecutionIndexFrom } from './cases.js';
+import { eyesOfCases } from './eyes-record.js';
+import { encodeOwnedSetExecutionIndex } from './execution-set-format.js';
 import {
   caseJournals,
   joinObservations,
@@ -63,14 +65,13 @@ import {
   codeUnitOrder,
   isMissing,
   projectPath,
-  readRecords,
-  recordStores,
 } from './instrumented-modules.js';
+import { deriveModules } from './captured-modules.js';
 import { coverageModule } from './coverage-rows.js';
 import { recordFileFor } from './record-location.js';
 import {
+  noteSeeded,
   seedTestCoverage,
-  writeCoverageBytes,
   type CoveragePrecondition,
   type CoverageTest,
   type TestCoverage,
@@ -85,19 +86,42 @@ export {
   type ExecutionJournal,
   type InstrumentingPlugin,
   type TestSelectionProbeOptions,
-  type TransformingContext,
 } from './probes.js';
+export {
+  testSelectionRule,
+  type ProbesLoaderOptions,
+  type TestSelectionRule,
+  type TestSelectionRuleOptions,
+} from './probes-rule.js';
 
 /** What a module reports itself as, for a driver that writes its own journal. */
 export type { ModuleId };
+export { moduleId } from './captured-modules.js';
+
+/** Replacing one hook of a resolved Vite plugin, keeping its `order` and `filter`. */
+export { afterHook, type AfterHook, type HookedPlugin } from './plugin-hooks.js';
 
 /** The probe recipe both halves of this seam have to agree on. */
 export type { InstrumentMode };
 
+/** Where the probes go: after the project's transforms, or ahead of them. */
+export type { ProbePlacement } from './instrumented-modules.js';
+
 // What a driver observed, and how a run recorded by several processes is
 // joined: both are the journal seam's surface, and neither is this file's
 // subject, which is the one call that turns a journal into the index.
-export { joinObservations, type ObservedCase, type ObservedSubject } from './observed.js';
+export {
+  enterModules,
+  enteredModules,
+  joinObservations,
+  modulesEntered,
+  type EnteredModules,
+  type ObservedCase,
+  type ObservedSubject,
+} from './observed.js';
+export type { ObservedEyes } from './eyes-record.js';
+export { listenForPreconditions, type PreconditionListener, type PreconditionStanding } from './precondition-listener.js';
+export { preconditionText, SAID_NOTHING, saidAcross, type CasePrecondition, type Said } from './case-said.js';
 export {
   STAGE_VARIABLE,
   closeStage,
@@ -108,6 +132,24 @@ export {
   type StagedExecution,
 } from './stage.js';
 export { drainExecution, type EvaluatingPage } from './drain.js';
+// The driver's half of a journey. It opens a socket, so it is here, beside the
+// recorders, and not on the bundle-safe `journey` entry a Worker imports.
+export {
+  SETTLING_MS,
+  driveJourneys,
+  type JourneyCookie,
+  type JourneyDriver,
+  type MintedJourney,
+} from './journey-driver.js';
+// One row per subject a visual run drove, page and heads joined: the recorder
+// a story run and a page run share.
+export {
+  createSubjectRecorder,
+  type SubjectNote,
+  type SubjectRecorder,
+  type SubjectRecording,
+  type SubjectSurface,
+} from './subject-recorder.js';
 
 
 export interface RecordExecutionOptions {
@@ -115,14 +157,11 @@ export interface RecordExecutionOptions {
   readonly root: string;
   readonly subjects: readonly ObservedSubject[];
   /**
-   * Where the record stores live. Defaults to the repository's cache, `cacheRootFor(root)`.
-   *
-   * Matches {@link testSelectionProbes}'s `cacheRoot`, and is worth setting only
-   * to keep one run's records out of the cache another run reads.
+   * Where the coverage layers live. Defaults to the repository's cache,
+   * `cacheRootFor(root)`, and is worth setting only to keep one run's layers
+   * out of the cache another run reads.
    */
   readonly cacheRoot?: string;
-  /** Matches {@link testSelectionProbes}'s `label`. Defaults to `build`. */
-  readonly label?: string;
   /** Persisted coverage index. Defaults to the repository's cache. */
   readonly coverageFile?: string;
   /**
@@ -131,19 +170,6 @@ export interface RecordExecutionOptions {
    * `coverageFile`.
    */
   readonly suite?: string;
-  /**
-   * Other builds this same run drove, by the label each instrumented under.
-   *
-   * Their stores join this call rather than getting one of their own, because a
-   * second call describing the same subjects looks to the merge like a second
-   * run and retires the first's evidence for every owner they share. Where two
-   * stores hold one module and disagree about the text it was cut from, that
-   * module is recorded as **not instrumented** — the builds transformed it
-   * differently, so no ordinal in it means one thing, and unknown widens where
-   * a guess would skip. Every subject that entered it declares it instead, so
-   * the widening is those subjects' and not the whole run's.
-   */
-  readonly heads?: readonly string[];
   /**
    * Where this recording stands. Defaults to the checkout's `HEAD`, which is the
    * answer in every case except a caller that already knows better.
@@ -179,11 +205,6 @@ export interface RecordExecutionOptions {
    * with whoever pays for the file.
    */
   readonly cases?: readonly ObservedCase[];
-  /**
-   * Where the execution index goes. Defaults beside the snapshot, as the Vitest
-   * seam's does: `<coverage file>.cases.bin`, or JSON for a `.json` name.
-   */
-  readonly executionFile?: string;
 }
 
 /** What a run learned, or why it learned nothing. */
@@ -193,21 +214,19 @@ export interface ExecutionRecord {
   readonly because?: string;
   readonly coverageFile: string;
   readonly subjects: number;
-  /** Where the execution index went, for a run that was asked for one. */
-  readonly executionFile?: string;
-  /** How many cases that index names. */
+  /** How many cases the run laid into the record, for a run that was asked for them. */
   readonly cases?: number;
 }
 
 /**
- * Join drained journals to the block records they name and merge them into the index.
+ * Join drained journals to the modules they name and merge them into the index.
  *
  * A journal reports ids, and the id is what the join is: every module the page
- * entered says which record describes it, so the driver asks the stores for
- * those and nothing else. No build has to have ended, and no process ever holds
- * a module it did not instrument.
+ * entered names its file and the text its probes were placed on, so the driver
+ * cuts that text again from the checkout, and only those. No build has to have
+ * ended, and nothing the build learned is kept for the run.
  *
- * It refuses in one direction only. A reported module no store can identify, a
+ * It refuses in one direction only. A run none of whose modules is in the checkout, a
  * record from another probe recipe, a journal from a page whose collector
  * predates this driver — each records nothing and says so, which costs the next
  * run its full suite. The opposite failure, half a journal written as though it
@@ -227,11 +246,6 @@ export async function recordExecution(
   const subjects = joinObservations([options.subjects]);
   const instrumentation = instrumentationId(options.mode);
   const coverageFile = recordFileFor(root, root, options);
-  // One entry per label, each read across its layers: a worktree's own records
-  // after the primary checkout's for the same build. Labels are the peers.
-  const stores = [...new Set([options.label, ...(options.heads ?? [])])].map((label) =>
-    recordStores(root, label, options.cacheRoot),
-  );
 
   const foreign = subjects.find(
     (subject) => subject.journal.instrumentation !== instrumentation,
@@ -250,22 +264,20 @@ export async function recordExecution(
 
   // Only the modules the journals name. A module nothing entered this run keeps
   // whatever the index already says about it, which is the merge's job and not
-  // this call's, and asking the store for the rest would be reading a whole
-  // build back out of a place that never holds one.
+  // this call's.
   const ids = new Set(
     subjects.flatMap((subject) => subject.journal.modules.map((module) => module.id)),
   );
-  const byId = await readRecords(stores, ids, instrumentation);
+  const byId = await deriveModules(root, ids, options.mode);
   if (ids.size > 0 && byId.size === 0) {
     return {
       recorded: false,
       coverageFile,
       subjects: 0,
       because:
-        `no source identity for any of the ${ids.size} modules the run reported, in ` +
-        `${stores.join(', ')}: add \`testSelectionProbes()\` to the build this run drives, ` +
-        `build it with the same version of this package, and give it the same \`mode\` this ` +
-        `fold reads records under (${instrumentation})`,
+        `none of the ${ids.size} modules the run reported is a file under ${root}: the build ` +
+        `this run drives was made from another checkout, or with another version of ` +
+        `\`testSelectionProbes()\``,
     };
   }
 
@@ -289,8 +301,8 @@ export async function recordExecution(
       if (known === undefined) continue;
       const evaluating = new Set(module.shared);
       if (!known.instrumented) {
-        // Two peer stores cut this path from different texts, so `readRecords`
-        // handed it back with no blocks and no ordinal in it means one thing.
+        // The file has moved on since the build placed these probes, so no
+        // ordinal in it means what it meant then.
         // One thing can still be said about it honestly, and it is the thing
         // `jest-reporter.ts` already says for a module its transformer never
         // instrumented: this subject depends on that file's text, whole.
@@ -366,6 +378,7 @@ export async function recordExecution(
         complete: whole,
         preconditions: [...held].map(([name, digest]) => ({ name, digest })),
         ...(subject.duration === undefined ? {} : { duration: subject.duration }),
+        ...(subject.phases === undefined ? {} : { phases: subject.phases }),
       };
     })
     .sort((left, right) => codeUnitOrder(left.file, right.file));
@@ -394,9 +407,24 @@ export async function recordExecution(
   // earlier worker's whole contribution — silently, and in the unsafe direction.
   // A worktree layers onto the repository's months of recording rather than
   // onto nothing. A no-op here and after the first run.
-  await seedTestCoverage(coverageFile, root, options.cacheRoot);
+  noteSeeded(await seedTestCoverage(coverageFile, root, current.instrumentation, options.cacheRoot));
+  // In the record, never beside it, and only for a driver that asked. A file the
+  // coverage says ran to the end has its cases replaced, and the rest of the
+  // suite's cases stay. A Storybook row is a story, not a file, so its cases are
+  // laid over by id and never replaced by file.
+  const observed = options.cases ?? [];
+  const eyes = eyesOfCases(observed);
+  const owned = observed.length === 0 ? undefined : ownedExecutionIndexFrom(caseJournals(observed), byId);
+  const cases =
+    owned === undefined
+      ? undefined
+      : {
+          fresh: encodeOwnedSetExecutionIndex(owned.index, owned.owners, owned.lines),
+          run: { tests, ...(commit === undefined ? {} : { commit }) },
+          ...(eyes === undefined ? {} : { eyes }),
+        };
   const merged = await withIndexLock(coverageFile, async () => {
-    await landRun(coverageFile, current, root);
+    await landRun(coverageFile, current, root, options.cacheRoot, cases);
     markCheckout(repositoryRoot(root), options.cacheRoot);
   });
   if (!merged.held) {
@@ -415,27 +443,11 @@ export async function recordExecution(
   // Vitest and Jest seams say it.
   noteAnEmptyRecord(subjects.length, byId.size);
 
-  // Beside the snapshot, never inside it, and only for a driver that asked. A
-  // run that records cases writes the same bytes into the snapshot as one that
-  // does not; what it adds is a second file, and a reader that never opens it
-  // is unaffected by its size.
-  if (options.cases === undefined || options.cases.length === 0) {
-    return { recorded: true, coverageFile, subjects: subjects.length };
-  }
-  const executionFile =
-    options.executionFile === undefined
-      ? `${coverageFile}.cases.bin`
-      : resolve(root, options.executionFile);
-  const journals = caseJournals(options.cases);
-  // Replaced whole, as the snapshot is: a worker killed mid-write would
-  // otherwise leave an index the next `--since` cannot decode.
-  await writeCoverageBytes(executionFile, executionIndexBytes(executionFile, executionIndexFrom(journals, byId)));
   return {
     recorded: true,
     coverageFile,
     subjects: subjects.length,
-    executionFile,
-    cases: options.cases.length,
+    ...(cases === undefined ? {} : { cases: observed.length }),
   };
 }
 

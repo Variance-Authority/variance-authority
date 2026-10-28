@@ -28,9 +28,9 @@ Here:
   skips a story whose approved image records none of the components your diff
   touched — decided from what the last run actually rendered, not from a module
   graph. See [test selection](selecting.md).
-- **A difference can be told from a flake.** [Parting](parting.md) reads two
-  renderings of one story and names the input that changed, or says every input
-  agreed and the output changed anyway.
+- **A difference can be distinguished from a flake.** [Parting](parting.md)
+  reads two renderings of one story and names the input that changed, or reports
+  that every input agreed and the output changed anyway.
 
 [Comparison](compare-visual-review.md) sets the four hosted products side by side.
 
@@ -63,10 +63,10 @@ export default storybookCollector({
 
 ### `source.dirs`
 
-A built Storybook ships bundled code. The browser can tell the run which
-component produced an element, but not which file that component is written in,
-so the collector scans your source tree instead and indexes where each component
-is declared.
+A built Storybook ships bundled code. The browser can give the run the component
+that produced an element, but not which file that component is written in, so
+the collector scans your source tree instead and indexes where each component is
+declared.
 
 The value is a list of directory paths — not globs — resolved against the
 directory you run `variance` from, or absolute. The scan reads `.tsx`, `.jsx`,
@@ -78,7 +78,7 @@ run is refused, naming the directories it walked. Get it wrong in the small — 
 package left out of the list — and the components declared there keep their
 names in the report and resolve to no file.
 
-### A story that is not ready when Storybook says it is
+### A story that is not ready when Storybook signals it is
 
 Most stories are complete when Storybook emits `storyRendered`. A story that
 keeps fetching or mounting after that signal needs a selector your application
@@ -97,9 +97,11 @@ export default storybookCollector({
 If the selector never appears, collection fails naming the story and the
 selector, rather than photographing a spinner. React Suspense is handled without
 a marker: the collector waits for every boundary under the story root to settle,
-and reports a story still showing its fallback as not collected.
+and reports a story still showing its fallback as not collected. Work an effect
+starts is not waited for, and [content that loads late](late-content.md) shows
+how to put it under Suspense instead.
 
-### What a story says about itself
+### What a story declares about itself
 
 A story states how it is read in `parameters.variance`, the same place it
 already states its layout and its backgrounds. Storybook merges parameters from
@@ -123,12 +125,16 @@ export const Dense = {
 | `viewport` | Any of `width`, `height`, `deviceScaleFactor` and `colorScheme`, laid over the run's `viewport`. The story keeps its subject id and its approved image. |
 | `widths` | The story is read once at each width, as `<story id>@<width>`, and each width has its own approved image. Put `widths` in `preview.ts` when every story in a design system should be seen at every breakpoint. A component library usually leaves it out, and each story is read once. |
 
-The collector reads these values from the built preview before the first story
-is read. A key it does not know, or a value it cannot use, such as a width
-written as `'1280px'`, leaves that story out of the run, and the report names
-the key. Reading the story at the run's size would hide the breakpoint you
-asked for. If the preview cannot list its stories at all, the run reads every
-story at the run's `viewport` and prints a warning saying no parameters applied.
+The collector reads these values when it reaches the story, from the file the
+preview loads to show it, so no story file is imported before its story comes
+up and each file's import is timed on the first story that needed it. Every
+width is read on that same page: a story at three widths costs one visit, not
+three. A key the collector does not recognise, or a value it cannot use, such
+as a width written as `'1280px'`, leaves that story out of the run, and the
+report names the key. Reading the story at the run's size would hide the
+breakpoint you asked for. If the preview cannot give a story's parameters, the
+run reads that story at the run's `viewport` and prints a warning saying its
+parameters did not apply.
 
 ## Write the run config
 
@@ -157,11 +163,12 @@ directory rather than the working directory.
 | --- | --- |
 | `project` | The label this project's rows are filed under in a shared history store. Required even with no history configured, because rows written under a project nobody chose cannot be re-attributed later. |
 | `profile` | What the run is *capable* of observing: `chromium` resolves computed style, layout and pixels; `jsdom` resolves structure, ARIA and declared style only, and paints nothing. A Storybook loop paints, so it is `chromium`. This is not the engine — that is `browser`, one of `chromium`, `firefox`, `webkit`, defaulting to `chromium`, and the `npx playwright install` above installs its binary. |
-| `viewport` | `width` and `height` in CSS pixels, plus optional `deviceScaleFactor` (default `1`) and `colorScheme`, `light` or `dark` (default `light`). This is the size every story is read at unless the story's own `parameters.variance` says otherwise. |
+| `viewport` | `width` and `height` in CSS pixels, plus optional `deviceScaleFactor` (default `1`) and `colorScheme`, `light` or `dark` (default `light`). This is the size every story is read at unless the story's own `parameters.variance` sets another. |
+| `timezoneId`, `locale` | The timezone a story's clock reads in and the language its dates and numbers are formatted for. Unset, every story reads in `UTC` and `en-US` rather than in the timezone and language of whichever machine ran it. Set once for the whole run. A story painted under another pair names the moved pair as the cause of what it reports, and a story that formats a date or a number moved its document too. Review the changes and adopt them with `accept --all` ([the first loop](#run-the-first-loop)). |
 | `retention` | `durable` compares against an image a previous run stored, and requires `baselines`. `ephemeral` renders both sides inside one run and keeps neither, and then `baselines` must be absent — a config that sets both is refused rather than silently storing nothing. |
 | `subjects.kind` | `storybook` reads a built story index. The alternatives are `list`, where you write the subject ids down yourself, and `collector`, where the collector module discovers them. |
 | `baselines.kind` | Where approved images live: `directory` is files you commit, `lfs` is the same files through the Git LFS filter, `remote` is a deployment and a token with nothing in the repository. No default — see [baseline placement](placement.md). |
-| `fonts` | Fonts this machine is asserted to have, each as `family/weight/style/hash`. The hash is of the font bytes and is yours to supply, because a page can ask whether a family resolves and can never read the file behind it. With `[]` you assert nothing, so two machines with different cuts of Inter produce the same identity, compare, and report the difference as a component regression. Naming them makes that a refused comparison instead. `variance doctor` measures the asserted families and lists the ones it could not find. |
+| `fonts` | Fonts this machine is asserted to have, each as `family/weight/style/hash`. The hash is of the font bytes and is yours to supply, because a page can ask whether a family resolves and can never read the file behind it. With `[]` you assert nothing, so two machines with different cuts of Inter produce the same identity, compare, and report the difference as a component regression. Naming them makes the fonts the named cause instead. `variance doctor` measures the asserted families and lists the ones it could not find. |
 | `report` | Where `run` writes, and where `report` and `accept` read. Defaults to `.variance/report.json`. |
 
 ### Commit the approved images
@@ -231,19 +238,20 @@ variance accept --config variance.config.json --all
 git add -- .variance/baselines
 ```
 
-Keep `--all` for that first run and for deliberate re-baselines. It cannot tell
-a story nobody has looked at from one that changed, so after setup name subject
-ids, or use `--shape <fingerprint>` to promote one category of difference
-wherever it accounts for the whole change and refuse by name any story where
-something else changed too.
+Keep `--all` for that first run and for deliberate re-baselines. It cannot
+distinguish a story nobody has looked at from one that changed, so after setup
+name subject ids, or use `--shape <fingerprint>` to promote one category of
+difference wherever it accounts for the whole change and refuse by name any
+story where something else changed too.
 
 ## Running this in CI
 
 The image a browser paints depends on the machine that painted it. Every
 approved image is stored under an identity digest of the renderer, engine,
-platform, device scale factor and fonts, and an image stored under a different
-identity is not diffed against — the run reports `incomparable`, and `doctor`
-exits `2` listing the identities the root does have images for.
+platform, device scale factor and fonts. An image stored under a different
+identity is still diffed against, with the moved identity named as the cause of
+every change, and `doctor` exits `2` listing the identities the root does have
+images for.
 
 So your laptop and CI never compare against different identities — pick one
 painter and use it for both:
@@ -258,10 +266,10 @@ painter and use it for both:
 ## Go deeper
 
 Against a built Storybook, component names arrive minified: a run names the
-cause `Ce` because the bundler renamed it and nothing in the browser remembers
-otherwise. Two decisions follow, and both are optional.
+cause `Ce` because the bundler renamed it and nothing in the browser keeps
+the original name. Two decisions follow, and both are optional.
 
-- **Keep component names in the build**, so the report says `Button`. Vite 8
+- **Keep component names in the build**, so the report prints `Button`. Vite 8
   spells it `build.rolldownOptions.output.keepNames`; Vite 7 and below spell it
   `esbuild.keepNames`.
 - **Install `@variance-authority/jsx-source`**, if the report must point at the
@@ -273,7 +281,7 @@ Then:
 - [attribution](attribution.md) — how a changed region becomes a component and a
   `file:line`, and what each hop needs to succeed.
 - [parting](parting.md) — which input changed between two readings, and how a
-  flake is told apart from an edit.
+  flake is distinguished from an edit.
 - [baseline placement](placement.md) — `directory`, `lfs` and `remote`, and what
   each costs.
 - [test selection](selecting.md) — the top-level `source` block and

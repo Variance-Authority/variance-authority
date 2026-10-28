@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { BuildDetail, BuildSummary, SubjectView } from '../review-types.js';
 import type { ReviewClient } from './client.js';
 import { BuildPage } from './docket.js';
+import type { Route } from './route.js';
 
 /**
  * The line the build page opens on, held to what it is allowed to say.
@@ -39,7 +40,7 @@ function build(id: string, subjects: readonly SubjectView[]): BuildDetail {
     at: '2026-06-01T12:00:00.000Z',
     identity: { renderer: 'playwright-chromium', engine: 'chromium@131' } as never,
     retention: 'durable',
-    verdicts: { changed: 1, unchanged: 0, new: 0, incomparable: 0, unstable: 0, ignored: 0, failed: 0 },
+    verdicts: { changed: 1, unchanged: 0, new: 0, unstable: 0, ignored: 0, failed: 0 },
     decided: 0,
     pending: 1,
     coverage: { stated: true, failed: 0, excluded: 0, unreached: 0 },
@@ -50,6 +51,7 @@ function build(id: string, subjects: readonly SubjectView[]): BuildDetail {
     composition: null,
     causes: [],
     variations: [],
+    sameImage: [],
     reach: null,
     journeys: null,
     // Builds 5 and 6 of the example repository, and 6 is the one with a run
@@ -75,9 +77,13 @@ afterEach(() => {
 });
 
 /** A client answering the two calls the build page and its crossing make. */
-function clientThat(now: BuildDetail, earlier: BuildDetail): ReviewClient {
+function clientThat(
+  now: BuildDetail,
+  earlier: BuildDetail,
+  concerns: ReviewClient['concerns'] = async () => ({ concerns: [], tally: { open: 0, investigating: 0, resolved: 0 } }),
+): ReviewClient {
   const refuse = (): never => {
-    throw new Error('the build page reads the build list and two builds, nothing else');
+    throw new Error('the build page reads the build list, two builds and its concerns, nothing else');
   };
 
   return {
@@ -90,15 +96,20 @@ function clientThat(now: BuildDetail, earlier: BuildDetail): ReviewClient {
     lastChanged: refuse,
     decide: refuse,
     sweep: refuse,
+    concerns,
     imageUrl: () => '',
   } as unknown as ReviewClient;
 }
 
-async function open(now: BuildDetail, earlier: BuildDetail): Promise<string> {
+async function open(
+  now: BuildDetail,
+  earlier: BuildDetail,
+  concerns?: ReviewClient['concerns'],
+): Promise<string> {
   await act(async () => {
     root.render(
       <BuildPage
-        client={clientThat(now, earlier)}
+        client={clientThat(now, earlier, concerns)}
         reviewer="marina"
         route={{ page: 'build', build: now.build }}
         go={() => undefined}
@@ -130,6 +141,63 @@ describe('the opening line counts only what there is something to count', () => 
 
     expect(text).toContain('nothing here is a difference it also carried');
     expect(text).not.toMatch(/\b0 /);
+  });
+
+  it('heads a build with no change filed by that, never by saying nothing changed', async () => {
+    // No change is filed for a first run, whose every render is new, nor for a
+    // render that moved with no component named as its cause. *Nothing in this
+    // build changed* was the heading over both.
+    const fresh = subject({ subject: 'story:new', verdict: 'new', regions: [], has: { before: false, after: true, diff: false } });
+    const unclaimed = subject({ subject: 'story:unclaimed', regions: [{ x: 0, y: 0, width: 10, height: 10, pixels: 100, cause: true }] });
+
+    for (const subjects of [[fresh], [unclaimed]]) {
+      const text = await open(build('6', subjects), build('5', []));
+
+      expect(text).toContain('No change to work through');
+      expect(text).not.toContain('Nothing in this build changed');
+    }
+  });
+
+  it('counts a subject the earlier run did not have as new, not as one that moved', async () => {
+    // A subject absent from the earlier run has nothing there to have moved from,
+    // so *moved for the first time* says a comparison happened that did not.
+    const fresh = subject({
+      subject: 'story:new',
+      verdict: 'new',
+      regions: [],
+      has: { before: false, after: true, diff: false },
+    });
+    const text = await open(build('6', [fresh]), build('5', []));
+
+    expect(text).toContain('Against build 5: 1 subject is new to this run.');
+    expect(text).not.toContain('moved for the first time');
+  });
+});
+
+describe('the header counts the concerns the build showed', () => {
+  it('counts what stands, and only when something was ever flagged', async () => {
+    const asked: unknown[] = [];
+    await open(build('6', [subject()]), build('5', [subject()]), async (query) => {
+      asked.push(query);
+      return { concerns: [], tally: { open: 2, investigating: 1, resolved: 0 } };
+    });
+
+    expect(asked).toEqual([{ seenIn: '6' }]);
+    // Concerns, and it says so: the Open task beside it counts renders, and a
+    // bare "2 open" over a task saying "Open 1" would read as a mistake.
+    expect(host.querySelector('.va-topbar .va-concern-tally')?.textContent).toBe(
+      'concerns: 2 open · 1 investigating · 0 resolved',
+    );
+  });
+
+  it('says it could not read them, never that there are none', async () => {
+    await open(build('6', [subject()]), build('5', [subject()]), () =>
+      Promise.reject(new Error('GET /review/concerns answered 404')),
+    );
+
+    const line = host.querySelector('.va-topbar .va-concern-tally');
+    expect(line?.textContent).toBe('concerns unread');
+    expect(line?.getAttribute('title')).toContain('answered 404');
   });
 });
 
@@ -195,5 +263,192 @@ describe('a build that has not arrived still wears its chrome', () => {
       'Builds',
     );
     expect(host.querySelector('.va-failure button')?.textContent).toBe('retry');
+  });
+});
+
+describe('a subject page names the earlier build that kept its image', () => {
+  it('opens that build’s page for the same subject', async () => {
+    HTMLElement.prototype.scrollTo = () => undefined;
+    const now = build('6', [
+      subject({
+        repeats: {
+          count: 1,
+          builds: [{ build: '5', at: '2026-06-01T11:00:00.000Z', decision: null }],
+        },
+      }),
+    ]);
+    const visited: Route[] = [];
+    await act(async () => {
+      root.render(
+        <BuildPage
+          client={clientThat(now, build('5', []))}
+          reviewer="marina"
+          route={{ page: 'subject', build: '6', subject: 'story:card' }}
+          go={(route) => visited.push(route)}
+        />,
+      );
+    });
+
+    const link = host.querySelector<HTMLAnchorElement>('a[href="/builds/5/subjects/story%3Acard"]');
+    act(() => link?.click());
+
+    expect(visited).toEqual([{ page: 'subject', build: '5', subject: 'story:card' }]);
+  });
+});
+
+describe('the bar on a subject walks the rail it sits beside', () => {
+  it('numbers the render in the rail’s order and goes to the row below it', async () => {
+    // Listed smallest first, so a bar that walked the build's own order would
+    // call the larger one second and send the reviewer back up the rail.
+    const small = subject({ subject: 'story:small', changedPixels: 10 });
+    const large = subject({ subject: 'story:large', changedPixels: 900 });
+    const now = build('6', [small, large]);
+    const went: Route[] = [];
+    Element.prototype.scrollTo = () => undefined;
+
+    await act(async () => {
+      root.render(
+        <BuildPage
+          client={{ ...clientThat(now, build('5', [])), imageBlob: () => new Promise(() => undefined) }}
+          reviewer="marina"
+          route={{ page: 'subject', build: '6', subject: 'story:large' }}
+          go={(route) => went.push(route)}
+        />,
+      );
+    });
+    const bar = host.querySelector('.va-actionbar')!;
+    await act(async () =>
+      [...bar.querySelectorAll('button')].find((each) => each.textContent?.startsWith('Next'))!.click(),
+    );
+
+    expect(bar.textContent).toContain('1 of 2');
+    expect(went).toEqual([{ page: 'subject', build: '6', subject: 'story:small' }]);
+  });
+});
+
+describe('an approval on a subject page reads the concerns again', () => {
+  it('asks for the build’s concerns once more, since an approval can open one', async () => {
+    // Approving an image an earlier build rejected opens a concern. A page that
+    // read the build again and not its concerns would keep the old tally.
+    Element.prototype.scrollTo = () => undefined;
+    let asked = 0;
+    const now = build('6', [subject()]);
+    const client = {
+      ...clientThat(now, build('5', []), async () => {
+        asked += 1;
+        return { concerns: [], tally: { open: 0, investigating: 0, resolved: 0 } };
+      }),
+      imageBlob: () => new Promise(() => undefined),
+      decide: async () => ({ decision: 'approved', by: 'marina', at: '2026-06-01T12:01:00.000Z', concern: 1 }),
+    } as unknown as ReviewClient;
+
+    await act(async () => {
+      root.render(
+        <BuildPage
+          client={client}
+          reviewer="marina"
+          route={{ page: 'subject', build: '6', subject: 'story:card' }}
+          go={() => undefined}
+        />,
+      );
+    });
+    const before = asked;
+    const approve = [...host.querySelectorAll('button')].find((each) => each.textContent?.trim().startsWith('Approve'));
+    await act(async () => approve!.click());
+
+    expect(asked).toBeGreaterThan(before);
+  });
+
+  it('shows the concern the approval opened in the subject’s own trail', async () => {
+    // The card beside the decision reads its subject's trail once, on arrival.
+    // An approval that opened a concern there and left the card as it was
+    // would tell the reviewer nothing happened.
+    Element.prototype.scrollTo = () => undefined;
+    let decided = false;
+    const opened = {
+      id: 1,
+      build: '6',
+      subject: 'story:card',
+      title: 'Approved the image build 5 rejected',
+      evidence: [],
+      by: 'marina',
+      at: '2026-06-01T12:01:00.000Z',
+      state: 'open',
+      events: [],
+    };
+    const now = build('6', [subject()]);
+    const client = {
+      ...clientThat(now, build('5', []), async () => ({
+        concerns: decided ? [opened] : [],
+        tally: { open: decided ? 1 : 0, investigating: 0, resolved: 0 },
+      })),
+      imageBlob: () => new Promise(() => undefined),
+      decide: async () => {
+        decided = true;
+        return { decision: 'approved', by: 'marina', at: '2026-06-01T12:01:00.000Z', concern: 1 };
+      },
+    } as unknown as ReviewClient;
+
+    await act(async () => {
+      root.render(
+        <BuildPage
+          client={client}
+          reviewer="marina"
+          route={{ page: 'subject', build: '6', subject: 'story:card' }}
+          go={() => undefined}
+        />,
+      );
+    });
+    const approve = [...host.querySelectorAll('button')].find((each) => each.textContent?.trim().startsWith('Approve'));
+    await act(async () => approve!.click());
+
+    expect(host.querySelector('.va-subject')?.textContent).toContain('Approved the image build 5 rejected');
+  });
+
+  it('keeps the trail read after the decision when the first read answers last', async () => {
+    // The card's first read can still be on the wire when the decision lands.
+    // Answering last, it would put back the trail from before the approval.
+    Element.prototype.scrollTo = () => undefined;
+    let first: ((answer: unknown) => void) | undefined;
+    let reads = 0;
+    const opened = {
+      id: 1,
+      build: '6',
+      subject: 'story:card',
+      title: 'Approved the image build 5 rejected',
+      evidence: [],
+      by: 'marina',
+      at: '2026-06-01T12:01:00.000Z',
+      state: 'open',
+      events: [],
+    };
+    const tally = { open: 0, investigating: 0, resolved: 0 };
+    const now = build('6', [subject()]);
+    const client = {
+      ...clientThat(now, build('5', []), (query: { subject?: string }) => {
+        if (query.subject === undefined) return Promise.resolve({ concerns: [], tally });
+        reads += 1;
+        if (reads === 1) return new Promise((resolve) => (first = resolve));
+        return Promise.resolve({ concerns: [opened], tally });
+      }),
+      imageBlob: () => new Promise(() => undefined),
+      decide: async () => ({ decision: 'approved', by: 'marina', at: '2026-06-01T12:01:00.000Z', concern: 1 }),
+    } as unknown as ReviewClient;
+
+    await act(async () => {
+      root.render(
+        <BuildPage
+          client={client}
+          reviewer="marina"
+          route={{ page: 'subject', build: '6', subject: 'story:card' }}
+          go={() => undefined}
+        />,
+      );
+    });
+    const approve = [...host.querySelectorAll('button')].find((each) => each.textContent?.trim().startsWith('Approve'));
+    await act(async () => approve!.click());
+    await act(async () => first!({ concerns: [], tally }));
+
+    expect(host.querySelector('.va-subject')?.textContent).toContain('Approved the image build 5 rejected');
   });
 });

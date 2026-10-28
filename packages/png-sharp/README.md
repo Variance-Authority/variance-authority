@@ -5,6 +5,7 @@
 > Faster PNG decoding for Variance Authority through sharp, for runtimes that can load a native addon.
 
 Part of [Variance Authority](https://variance-authority.dev).
+Point your coding agent at [`llms.txt`](https://variance-authority.dev/llms.txt).
 
 ## What this is for
 
@@ -131,7 +132,7 @@ Replace the two generated buffers with `readFileSync('before.png')` and
 ```
 
 `changed` is counted once per policy: `default` forgives antialiasing and a
-0.1 channel threshold, `strict` forgives nothing. Both are reported so that
+colour change of up to 1%, `strict` forgives nothing. Both are reported so that
 "zero pixels changed" can be told apart from "zero pixels changed after
 forgiveness". `total` is the pixels on the compared canvas — the union of the
 two boxes, so a size change is a difference in the padded rows rather than a
@@ -220,4 +221,4 @@ change on every pixel after the first row.
 
 ---
 
-**[@variance-authority/png-sharp](https://variance-authority.dev/reference/packages/png-sharp)** is part of [Variance Authority](https://variance-authority.dev) — [documentation](https://variance-authority.dev/docs) · MIT
+**[@variance-authority/png-sharp](https://variance-authority.dev/reference/packages/png-sharp)** is part of [Variance Authority](https://variance-authority.dev) — [documentation](https://variance-authority.dev/docs) · [GitHub](https://github.com/Variance-Authority/variance-authority/tree/main/packages/png-sharp) · MIT

@@ -28,18 +28,22 @@ import type { NativeGitTree } from './native.js';
 import type { RecordCache } from './reuse.js';
 import { scanCount } from './scan.js';
 import { realPath } from './resolve.js';
+import { placesOf, stepped, type Progress } from './progress.js';
 import { openSourceIndex, primarySourceIndexPath, sourceIndexPath } from './source-index.js';
 import { updateNatively } from './native-update.js';
 import { markCheckout } from './test-selection/cache-layers.js';
 import { openSourceIndexFile, seedSourceIndex, type SourceIndexState } from './source-index-file.js';
+import { SOURCE_INDEX_VERSION } from './source-index-format.js';
 import { usesOf } from './uses.js';
 
 /** One published generation, opened for reading. */
 export interface PublishedSources {
   /** The index file that was read. */
   readonly path: string;
-  /** Whether it was whole, absent, or readable only up to a bad segment. */
+  /** Whether it was whole, absent, or readable only up to a bad segment or one of another format version. */
   readonly state: SourceIndexState;
+  /** The format version the unread segment names, when `state` is `other-version`. */
+  readonly written?: number;
   /** Every file the last update read, sorted by path compared by code unit. */
   readonly records: readonly FileRecord[];
   /**
@@ -70,6 +74,7 @@ export async function readPublishedSources(path: string): Promise<PublishedSourc
   return {
     path,
     state: file.state,
+    ...(file.written === undefined ? {} : { written: file.written }),
     records: [...stored.records.values()]
       .map((held) => held.record)
       .sort((left, right) => left.file < right.file ? -1 : left.file > right.file ? 1 : 0),
@@ -110,6 +115,18 @@ export interface SourceUpdateOptions {
   readonly index?: string;
   /** `false` reads each file's bytes from the working tree, as `scanRelations` takes it. */
   readonly packs?: boolean;
+  /** Told each step as it starts and ends: the git listing, then the read of what changed. */
+  readonly progress?: Progress;
+  /**
+   * The directories below `root` the index covers, as `scanRelations` takes
+   * them: what they hold and what it reaches. The whole of `root` when absent.
+   */
+  readonly dirs?: readonly string[];
+  /**
+   * The generation a missing `index` starts from, when it names one of its own.
+   * The primary checkout's, from `primarySourceIndexPath`, when `index` is absent.
+   */
+  readonly primary?: string;
 }
 
 /** What one update read and what it published. */
@@ -117,6 +134,8 @@ export interface SourceUpdate {
   readonly path: string;
   /** What the index was before this update. */
   readonly was: SourceIndexState;
+  /** The format version the index was written in, when `was` is `other-version`. */
+  readonly written?: number;
   /**
    * What the file system refused when this update wrote the index. Present only
    * then: the counts describe the scan, and the index on disk is what it was.
@@ -142,9 +161,11 @@ export interface SourceUpdate {
 /**
  * Absorb what moved in the checkout into its source index, as one appended layer.
  *
- * The scope is the whole checkout, whoever asks. A reader's question is narrower
- * than that and is answered by filtering what was published; an index whose
- * scope followed its last caller would be right for one reader at a time.
+ * The scope is the index's, whoever asks: the whole checkout, or for an index a
+ * workspace keeps over what its member list names, the `dirs` that list names.
+ * A reader's question is narrower than that and is answered by filtering what
+ * was published; an index whose scope followed its last caller would be right
+ * for one reader at a time.
  */
 export async function updateSourceIndex(
   root: string,
@@ -154,7 +175,8 @@ export async function updateSourceIndex(
   const path = options.index ?? sourceIndexPath(where);
   // The addon answers from the chain in place; only what it declines is decoded here.
   // It reads Git's object store, so a caller that asked for the working tree is not its to answer.
-  const natively = options.packs === false ? undefined : await updateNatively(realPath(where), path);
+  const dirs = options.dirs ?? ['.'];
+  const natively = options.packs === false ? undefined : await updateNatively(realPath(where), path, options.progress, dirs);
   if (natively !== undefined) {
     if (options.index === undefined) markCheckout(realPath(where));
     return {
@@ -170,17 +192,19 @@ export async function updateSourceIndex(
   // that same open rather than off a second one.
   let source = await openSourceIndex(path);
   const was = source.state;
+  const written = source.written;
   // A worktree's first update starts from the primary checkout's generation and
   // pays only for what differs between the two checkouts.
-  const primary = options.index === undefined && was === 'missing'
+  const primary = was !== 'missing' ? undefined : options.index === undefined
     ? primarySourceIndexPath(where)
-    : undefined;
+    : options.primary;
   const from = primary !== undefined && seedSourceIndex(path, primary) ? primary : undefined;
   if (from !== undefined) source = await openSourceIndex(path);
   // Counted on the record cache, not the parse cache: a cold scan attaches its
   // native parse layer to the parse cache object itself, and a wrapper there
   // would publish without it.
   const reused = new Set<string>();
+  const adopt = source.reuse.adopt?.bind(source.reuse);
   const reuse: RecordCache = {
     under: (shape) => source.reuse.under(shape),
     get: (file, digest) => {
@@ -193,25 +217,38 @@ export async function updateSourceIndex(
       if (found !== undefined) reused.add(file);
       return found;
     },
-    set: (record, witnesses, targets) => source.reuse.set(record, witnesses, targets),
-    ...(source.reuse.adopt === undefined ? {} : { adopt: source.reuse.adopt.bind(source.reuse) }),
+    // A record found and then built again was not reused: the scan found it no
+    // longer holds, as a decline for size does once the file fits.
+    set: (record, witnesses, targets) => {
+      reused.delete(record.file);
+      source.reuse.set(record, witnesses, targets);
+    },
+    ...(adopt === undefined ? {} : {
+      adopt: (graph) => {
+        for (const file of reused) if (graph.has(file)) reused.delete(file);
+        adopt(graph);
+      },
+    }),
   };
   // Counted rather than collected: the update publishes the records through
   // `reuse` and reports how many, and a cold closure the addon holds is never
   // turned into objects for either.
-  const { files, listing } = await scanCount({
+  const { files, listing } = await stepped(options.progress, `reading every file of ${placesOf(where, dirs)}, ${
+    was === 'missing' ? 'because there is no index to update' : 'because the index could not be updated in place'
+  }`, () => scanCount({
     root: where,
-    dirs: ['.'],
+    dirs,
     cache: source.cache,
     reuse,
     ...(options.packs === undefined ? {} : { packs: options.packs }),
-  });
+  }));
   const refused = await source.save();
   // The checkout's own index names its checkout, so the cache can tell when it is gone.
   if (options.index === undefined) markCheckout(realPath(where));
   return {
     path,
     was,
+    ...(written === undefined ? {} : { written }),
     ...(refused === undefined ? {} : { refused }),
     files,
     reread: files - reused.size,
@@ -241,9 +278,10 @@ export interface PublishedSourcesOptions {
 /**
  * The published generation, or the reason there is none.
  *
- * Whole: returned as read. Missing or damaged in CI: refused, naming the step
- * the pipeline lacks. Missing or damaged anywhere else: updated once — from the
- * valid prefix, when there is one — with a line saying so, then read.
+ * Whole: returned as read. Missing, damaged, or written in another format
+ * version in CI: refused, naming the step the pipeline lacks. Any of them
+ * anywhere else: updated once — from the valid prefix, when there is one — with
+ * a line saying which of them it was, then read.
  */
 export async function publishedSources(
   root: string,
@@ -255,14 +293,18 @@ export async function publishedSources(
 
   const what = read.state === 'missing'
     ? `no source index is published at ${path}`
-    : `the source index at ${path} is damaged, and reads only up to its first bad segment`;
+    : read.state === 'other-version'
+      ? `the source index at ${path} was written in format version ${String(read.written)}, ` +
+        `and this release reads version ${String(SOURCE_INDEX_VERSION)}`
+      : `the source index at ${path} is damaged, and reads only up to its first bad segment`;
   if (options.ci) {
-    throw new SourceIndexUnpublished(
-      `${what}. In CI the index is a step of the pipeline: restore the cache that holds it, ` +
-      `then run \`${options.step}\` before this command.`,
-    );
+    throw new SourceIndexUnpublished(read.state === 'other-version'
+      ? `${what}. In CI the index is a step of the pipeline: run \`${options.step}\` with this release before this command.`
+      : `${what}. In CI the index is a step of the pipeline: restore the cache that holds it, ` +
+        `then run \`${options.step}\` before this command.`);
   }
-  options.announce(`${what}; updating it from the checkout, which is what \`${options.step}\` does.`);
+  const doing = read.state === 'other-version' ? 'rebuilding' : 'updating';
+  options.announce(`${what}; ${doing} it from the checkout, which is what \`${options.step}\` does.`);
   await updateSourceIndex(root, {
     index: path,
     ...(options.packs === undefined ? {} : { packs: options.packs }),

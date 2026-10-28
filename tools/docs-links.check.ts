@@ -2,6 +2,7 @@ import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync, statSync } from 'node:fs';
 import { dirname, join, resolve, relative } from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { SOURCE, commentsOf } from './comments.js';
 import { MARKDOWN, ROOT, lineOf, prose } from './markdown.js';
 
 /**
@@ -25,7 +26,7 @@ import { MARKDOWN, ROOT, lineOf, prose } from './markdown.js';
  */
 
 /** Top-level directories that make a backticked path a claim about this repository. */
-const REPO_DIRS = ['packages/', 'examples/', 'cases/', 'docs/', 'tools/', 'docker/', '.github/'];
+const REPO_DIRS = ['packages/', 'examples/', 'cases/', 'docs/', 'tools/', 'docker/', '.github/', '.agents/'];
 
 /**
  * Paths and references that name something outside this repository.
@@ -35,6 +36,10 @@ const REPO_DIRS = ['packages/', 'examples/', 'cases/', 'docs/', 'tools/', 'docke
  */
 const FOREIGN: Readonly<Record<string, string>> = {
   'tests/home.spec.ts': "an incumbent's spec file, quoted from its output",
+  'src/shapes/props.ts': "a reader's own module, quoted from a sample answer of uses",
+  'src/shapes/use.ts': "a reader's own module, quoted from a sample answer of uses",
+  'src/shapes/fit.ts': "a reader's own module, quoted from a sample answer of uses",
+  'announcement.spec.mjs': "Playwright's list reporter naming a spec relative to its testDir, quoted from a run",
   'cart.spec.ts': "a reader's own spec file, quoted from a transcript about it",
   'tests/checkout.spec.ts': "a reader's own spec file, quoted from a watcher transcript",
   'tests/cart.spec.ts': "a reader's own spec file, quoted from a watcher transcript",
@@ -46,22 +51,48 @@ const FOREIGN: Readonly<Record<string, string>> = {
   'src/dispatch/CarrierPicker.tsx': "a reader's own component, quoted from a sample answer",
   'src/dispatch/PickupWindow.tsx': "a reader's own component, quoted from a sample answer",
   'src/checkout/Stack.tsx': "a reader's own component, quoted from a sample answer",
+  'src/checkout/total.test.ts': "a reader's own test file, quoted from a sample answer",
   'src/app/cart.tsx': "a reader's own component, quoted from a sample answer",
   'src/checkout/total.ts': "a reader's own module, quoted from a sample review",
   'cart.test.ts': "a reader's own test file, quoted from a sample test story",
+  'src/Checkout.tsx': "a reader's own component, quoted from a sample role check",
+  'src/testing/users.ts': "a reader's own fixture module, quoted from a sample role check",
+  'src/format.ts': "a reader's own module, quoted from a sample role check",
   'cart.ts': "a reader's own module, quoted from a sample test story",
   'price.ts': "a reader's own module, quoted from a sample test story",
   'format.ts': "a reader's own module, quoted from a sample test story",
+  'theme.tsx': "a reader's own component, quoted from a sample test story",
+  'panel.tsx': "a reader's own component, quoted from a sample test story",
   'src/cart.ts': "a reader's own module, quoted from a sample comparison of readings",
   'checkout.ts': "a reader's own module, quoted from a sample test story",
+  'src/cart/checkout.ts': "a reader's own module, quoted from a sample test composition",
+  'src/cart/total.ts': "a reader's own module, quoted from a sample test composition",
   'src/checkout.ts': "a reader's own module, quoted from a sample comparison of readings",
   'src/price.ts': "a reader's own module, quoted from a sample comparison of readings",
+  'src/env.ts': "a reader's own module, quoted from a sample tech-stack answer",
+  'src/mode.ts': "a reader's own module, quoted from a sample isolator warning",
+  'apps/app/src/checkout.ts': 'the workspace ask-packages-deep.test.ts builds, quoted from its answers',
+  'apps/app/src/total.ts': 'the workspace ask-packages-deep.test.ts builds, quoted from its answers',
+  'packages/lib/src/internal/math.ts': 'the workspace ask-packages-deep.test.ts builds, quoted from its answers',
+  'packages/lib/src/other.ts': 'the workspace ask-uses-namesakes.test.ts builds, quoted from its answers',
+  'packages/kit/src/money/rates.ts': 'the workspace ask-passed-on.test.ts builds, quoted from its answers',
+  'packages/kit/src/money/tax.ts': 'the workspace ask-packages-fixture.ts builds, quoted from an answer of ask-passed-on.test.ts',
   'save-bar.tsx': "a reader's own component, quoted from a sample test story",
+  'packages/query-core/src/hydration.ts': "TanStack Query's own module, named by the case study",
+  'packages/query-core/src/index.ts': "TanStack Query's own module, named by the case study",
   'packages/query-core/src/query.ts': "TanStack Query's own module, named by the case study",
+  'packages/query-devtools/src/contexts/PiPContext.tsx': "TanStack Query's own module, named by the case study",
   'packages/zod/src/v4/locales/ru.ts': "Zod's own module, named by the case study",
   'packages/resolution/attw.test.ts':
     'a test file in the Zod fork, named for why the record will not speak for it',
   'packages/docs/content/api.mdx': 'a file in the Zod fork, read by one of its tests through `fs`',
+  'test/total.test.ts': "a reader's own test file, quoted from a sample answer about case preconditions",
+  'test/refund.test.ts': "a reader's own test file, quoted from a sample answer about case preconditions",
+  'test/flags.ts': "a reader's own test helper, quoted from a sample answer about case preconditions",
+  'test/prices.ts': "a reader's own test helper, quoted from a sample answer about case preconditions",
+  'src/flags.ts': "a reader's own module, quoted from a sample answer about case preconditions",
+  'test/cleanup.test.ts': "a reader's own test file, quoted from a sample warning about case preconditions",
+  'test/misplaced.test.ts': "a reader's own test file, quoted from a sample error about case preconditions",
 };
 
 
@@ -214,90 +245,6 @@ describe('every path named in prose exists', () => {
   });
 });
 
-/**
- * Where else a path gets named: source, CI workflows, shell scripts.
- *
- * Close to the list `tools/unrun.mjs` scans for markers, and for its reason — a
- * comment is a comment whether it opens with `//` or `#`, and CI and the
- * container harness are where the stalest ones sit, because nobody rereads a
- * workflow the way they reread a page. Wider by a config's `.mts` and by the
- * `Dockerfile`, which carry comments about this tree and no markers.
- *
- * Not that file's own `tracked()`, which drops `tools/unrun.mjs` and
- * `tools/unrun.check.ts` so their spelled-out markers do not register as
- * markers. Both are full of paths, and skipping them would be a hole in this
- * rule rather than a feature of it.
- */
-const SOURCE: readonly string[] = execFileSync(
-  'git',
-  [
-    'ls-files',
-    '*.ts',
-    '*.tsx',
-    '*.mts',
-    '*.js',
-    '*.jsx',
-    '*.mjs',
-    '*.cjs',
-    '*.sh',
-    '*.yml',
-    '*.yaml',
-    '*Dockerfile',
-  ],
-  { cwd: ROOT, encoding: 'utf8' },
-)
-  .trim()
-  .split('\n')
-  .filter((file) => existsSync(join(ROOT, file)));
-
-/** Files whose comments open with `#` and run to the end of the line. */
-const HASH = /(?:\.(?:sh|ya?ml)|Dockerfile)$/;
-
-/**
- * One file with everything that is not a comment blanked out.
- *
- * The inverse of `prose()`, which blanks markdown's fences so a prose rule
- * cannot read an example. Spaces rather than deletion, so `lineOf` still counts
- * the lines the file actually has and a failure names the line an editor opens.
- *
- * String literals are stepped over, because `'https://…'` carries a `//` and a
- * scanner that opened a comment there would read the rest of a line of code as
- * prose. A regex literal holding a lone quote can still confuse that; what it
- * costs is a comment left unread, never a path invented.
- */
-function commentsOf(file: string): string {
-  const text = readFileSync(join(ROOT, file), 'utf8');
-  const kept = Array.from(text, (char) => (char === '\n' ? '\n' : ' '));
-  const keep = (from: number, to: number): void => {
-    for (let at = from; at < to; at += 1) kept[at] = text[at]!;
-  };
-
-  if (HASH.test(file)) {
-    let at = 0;
-    for (const line of text.split('\n')) {
-      if (/^[ \t]*#/.test(line)) keep(at, at + line.length);
-      at += line.length + 1;
-    }
-    return kept.join('');
-  }
-
-  for (let at = 0; at < text.length; at += 1) {
-    const opener = text.slice(at, at + 2);
-    const quote = text[at]!;
-
-    if (opener === '//' || opener === '/*') {
-      const end = opener === '//' ? text.indexOf('\n', at) : text.indexOf('*/', at + 2);
-      const stop = end === -1 ? text.length : opener === '//' ? end : end + 2;
-      keep(at, stop);
-      at = stop - 1;
-    } else if (quote === "'" || quote === '"' || quote === '`') {
-      at += 1;
-      while (at < text.length && text[at] !== quote) at += text[at] === '\\' ? 2 : 1;
-    }
-  }
-  return kept.join('');
-}
-
 describe('every path named in a comment exists', () => {
   const CLAIMED = new Map(SOURCE.map((file) => [file, pathsIn(commentsOf(file))] as const));
 
@@ -308,6 +255,10 @@ describe('every path named in a comment exists', () => {
     // below all pass, having read nothing.
     expect(SOURCE.length).toBeGreaterThan(100);
     expect([...CLAIMED.values()].flat().length).toBeGreaterThan(50);
+  });
+
+  it.each(['.mts', '.cts', '.cjs'])('reads the comments of %s modules too', (extension) => {
+    expect(SOURCE.some((file) => file.endsWith(extension))).toBe(true);
   });
 
   it.each(SOURCE)('%s', (file) => {
@@ -332,20 +283,24 @@ describe('every file:line reference lands where it says', () => {
   );
 
   /**
-   * The file a reference names, resolved the way a reader would resolve it.
-   *
-   * Relative to the document first, then from the repository root, then by unique
-   * suffix — a case's README says `src/surface.tsx` about its own tree, and the
-   * index one directory up says the same words about the same file.
+   * The file a reference names: relative to the document, or from the
+   * repository root. A path that is neither names no file, however many tracked
+   * files end the same way — two paths are two files.
    */
   function locate(file: string, path: string): string | null {
     const beside = relative(ROOT, resolve(dirname(join(ROOT, file)), path));
     if (TRACKED.has(beside)) return beside;
-    if (TRACKED.has(path)) return path;
-
-    const suffix = [...TRACKED].filter((tracked) => tracked.endsWith(`/${path}`));
-    return suffix.length === 1 ? suffix[0]! : null;
+    return TRACKED.has(path) ? path : null;
   }
+
+  it('names no file for a path that only ends like one', () => {
+    // `cases/storybook-case/src/ds.jsx` is tracked and is the only file ending in
+    // `src/ds.jsx`. Neither beside a page in docs/ nor at the root is there one.
+    expect([...TRACKED].filter((tracked) => tracked.endsWith('/src/ds.jsx'))).toEqual([
+      'cases/storybook-case/src/ds.jsx',
+    ]);
+    expect(locate('docs/architecture.md', 'src/ds.jsx')).toBeNull();
+  });
 
   it.each(MARKDOWN)('%s', (file) => {
     const text = readFileSync(join(ROOT, file), 'utf8');

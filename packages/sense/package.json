@@ -1,6 +1,6 @@
 {
   "name": "@variance-authority/sense",
-  "version": "0.12.0",
+  "version": "0.21.0",
   "description": "Which components and tests a source change reaches: test selection and impact analysis from a versioned index of a checkout.",
   "keywords": [
     "variance-authority",
@@ -49,6 +49,14 @@
       "types": "./dist/test-selection/index.d.ts",
       "default": "./dist/test-selection/index.js"
     },
+    "./cache-root": {
+      "types": "./dist/test-selection/cache-root.d.ts",
+      "default": "./dist/test-selection/cache-root.js"
+    },
+    "./side-effects": {
+      "types": "./dist/side-effects.d.ts",
+      "default": "./dist/side-effects.js"
+    },
     "./journal": {
       "types": "./dist/test-selection/journal.d.ts",
       "default": "./dist/test-selection/journal.js"
@@ -56,6 +64,10 @@
     "./journey": {
       "types": "./dist/test-selection/journey.d.ts",
       "default": "./dist/test-selection/journey.js"
+    },
+    "./precondition": {
+      "types": "./dist/test-selection/precondition.d.ts",
+      "default": "./dist/test-selection/precondition.js"
     },
     "./story": {
       "types": "./dist/story/index.d.ts",
@@ -68,6 +80,14 @@
     "./rstest": {
       "types": "./dist/test-selection/rstest.d.ts",
       "default": "./dist/test-selection/rstest.js"
+    },
+    "./probes-loader": {
+      "types": "./dist/test-selection/probes-loader.d.ts",
+      "default": "./dist/test-selection/probes-loader.js"
+    },
+    "./rstest-after-loader": {
+      "types": "./dist/test-selection/rstest-after-loader.d.ts",
+      "default": "./dist/test-selection/rstest-after-loader.js"
     },
     "./rstest-loader": {
       "types": "./dist/test-selection/rstest-loader.d.ts",
@@ -100,15 +120,19 @@
     "!dist/**/*.d.ts.map",
     "!dist/native",
     "mark.svg",
+    "native/instrument/Cargo.toml",
+    "native/instrument/build.rs",
+    "native/instrument/src/*.rs",
+    "record-layout.json",
     "scripts/overhead.mjs",
     "scripts/probe-write.mjs"
   ],
   "scripts": {
     "build": "tsc --build && node native/build.mjs",
+    "test:native": "cargo test --manifest-path native/Cargo.toml --workspace --lib --locked && node native/consumer.mjs",
     "storage": "node scripts/storage.mjs",
     "overhead": "node scripts/overhead.mjs",
     "probe-write": "node scripts/probe-write.mjs",
-    "records": "node scripts/records.mjs",
     "coverage": "node scripts/coverage.mjs",
     "native": "node scripts/native.mjs",
     "round-trip": "node scripts/round-trip.mjs"
@@ -116,6 +140,7 @@
   "dependencies": {
     "@variance-authority/core": "workspace:^",
     "@variance-authority/wire": "workspace:^",
+    "jest-util": "^30.5.1",
     "oxc-parser": "^0.144.0",
     "oxc-resolver": "^11.24.2",
     "picomatch": "^4.0.7"
@@ -127,26 +152,44 @@
     "@variance-authority/sense-win32-x64-msvc": "workspace:*"
   },
   "peerDependencies": {
-    "vitest": "^2.1.9 || ^3.0.0 || ^4.0.0"
+    "@jest/globals": "^30.0.0",
+    "jest": "^30.0.0",
+    "jest-circus": "^30.0.0",
+    "vitest": "^2.1.9 || ^3.0.0 || ^4.0.0 || ^5.0.0"
   },
   "peerDependenciesMeta": {
+    "@jest/globals": {
+      "optional": true
+    },
+    "jest": {
+      "optional": true
+    },
+    "jest-circus": {
+      "optional": true
+    },
     "vitest": {
       "optional": true
     }
   },
   "devDependencies": {
+    "@babel/core": "^7.29.7",
     "@jest/globals": "^30.5.1",
+    "@jridgewell/remapping": "^2.3.5",
     "@opentelemetry/api": "^1.9.1",
     "@opentelemetry/context-async-hooks": "^2.11.0",
     "@opentelemetry/instrumentation": "^0.222.0",
     "@opentelemetry/instrumentation-http": "^0.222.0",
     "@opentelemetry/instrumentation-undici": "^0.32.0",
     "@opentelemetry/sdk-trace-node": "^2.11.0",
+    "@rspack/core": "^2.2.6",
     "@rstest/core": "^0.12.0",
     "@sentry/node": "^11.0.0",
     "@swc/core": "^1.16.2",
     "@swc/jest": "^0.2.39",
     "@types/picomatch": "^4.0.3",
-    "jest": "^30.5.1"
+    "babel-plugin-react-compiler": "^1.0.0",
+    "jest": "^30.5.1",
+    "magic-string": "^0.30.21",
+    "vite": "^6.0.0"
   }
 }

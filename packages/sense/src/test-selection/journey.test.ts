@@ -401,10 +401,10 @@ describe('a realm holds one head', () => {
 describe('two heads over one file', () => {
   it('add their crossings together rather than retiring each other', async () => {
     // Two builds of overlapping source is the arrangement item 7 of the spec is
-    // afraid of: one coverage index, modules keyed by file, and a separate
-    // store per head. The instrument is a pure function of the source, so the
-    // block sets agree and the merge unions them — which is the whole of why
-    // one index can hold both.
+    // afraid of: one coverage index and modules keyed by file. The instrument
+    // is a pure function of the source, so both heads name one module and the
+    // merge unions what they ran — which is the whole of why one index can
+    // hold both.
     await inRoot(async (root) => {
       const driven = await driver();
       const api = collectJourneys({ head: 'api', enabled: true });
@@ -432,11 +432,10 @@ describe('two heads over one file', () => {
 
       // One call. A second one naming these subjects would read as a second
       // run and retire what the first wrote, so the heads are joined into one
-      // observation and both stores are read for it.
+      // observation.
       const recorded = await recordExecution({
         root,
         ...apiParts.where,
-        heads: [workerParts.where.label],
         subjects: joinObservations([...stitched.heads.values()]),
       });
       expect(recorded.recorded).toBe(true);

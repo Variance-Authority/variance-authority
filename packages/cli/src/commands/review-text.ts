@@ -10,15 +10,25 @@
  * everything else.
  */
 
+import { reviewCoverageDetails, reviewCoverageSummary } from './review-coverage.js';
+import { formatCoverage } from './coverage-text.js';
 import type { ReviewFormat } from '../review-args.js';
+import { clampComment, COMMENT_CHARACTERS } from './comment-text.js';
 import { functionsIn, motionText } from './covering-motion.js';
 import { changeGraph } from './review-graph.js';
-import { caseTree, functionsMarkdown, namedList, outermost, uncoveredFunctions, uncoveredMarkdown } from './review-scope.js';
+import { changedPackagesMarkdown } from './review-changed-packages.js';
+import { installLines } from './review-install.js';
+import { caseTree, functionsMarkdown, namedList, outermost, regionKind, uncoveredFunctions, uncoveredMarkdown } from './review-scope.js';
 import { REACHES, type Reach, type Review, type ReviewFile, type ReviewRegion } from './review.js';
 import { describeDistance } from './share.js';
+import { jsonPieces } from '../json-pieces.js';
+import { reviewJson } from './review-json.js';
 
 /** The first line of the markdown, which a workflow looks for to edit its own comment. */
 export const REVIEW_MARKER = '<!-- variance-authority: review -->';
+
+/** Moved regions, and test files whose reach moved, listed in the comment before the rest are counted. */
+const MOTION_LISTED = 40;
 
 const EDITS = [
   ['none', 'no change to what runs: comments, types, formatting'],
@@ -26,6 +36,17 @@ const EDITS = [
   ['values', 'top-level values'],
   ['load', 'what the module loads'],
 ] as const;
+
+/** Each answer in a few words, for a line that names a place: the handover's pointers. */
+export const REACH_WORD: Readonly<Record<Reach, string>> = {
+  near: 'near',
+  far: 'far',
+  unplaced: 'distance not measured',
+  loaded: 'ran only while its module loaded',
+  hole: 'no case',
+  unwalked: 'no case',
+  unknown: 'no case',
+};
 
 const REACH_TEXT: Readonly<Record<Reach, string>> = {
   near: 'covered by a test that imports the file, or is the file',
@@ -37,38 +58,64 @@ const REACH_TEXT: Readonly<Record<Reach, string>> = {
   unknown: 'no case covered it, and the record cannot say whether one stopped first',
 };
 
-export function formatReview(review: Review, format: ReviewFormat): string {
-  if (format === 'json') return `${JSON.stringify(review, undefined, 2)}\n`;
+/** A review in words. JSON is {@link reviewPieces}'s: it can spell more than one string holds. */
+export function formatReview(review: Review, format: Exclude<ReviewFormat, 'json'>): string {
   return format === 'markdown' ? markdown(review) : text(review);
 }
 
+/**
+ * A review in the pieces `writePieces` writes. JSON is `review.json`'s shape,
+ * each case once ({@link reviewJson}), written as it serializes, a region at a
+ * time, so neither the answer nor a file most of the suite enters is held
+ * whole as one string.
+ */
+export function* reviewPieces(review: Review, format: ReviewFormat): Generator<string, void, undefined> {
+  if (format !== 'json') return yield formatReview(review, format);
+  // The review, its files, a file, its regions: below that, one region is one piece.
+  yield* jsonPieces(reviewJson(review), 4);
+  yield '\n';
+}
+
+/** What the record leaves open beside the answer, said before it. */
+function notes(review: Review): readonly string[] {
+  return [review.probes, review.runsUnread].filter((note) => note !== undefined);
+}
+
 function text(review: Review): string {
-  const lines = [header(review), '', ...summary(review, (code) => code)];
+  const lines = [header(review), ...notes(review).flatMap((note) => ['', note]), '', ...summary(review, (code) => code)];
   const edits = editRows(review.files);
   if (edits.length > 0) lines.push('', 'Edits:', ...edits.map(([label, count]) => `  ${count.padStart(5)}  ${label}`));
   const reach = reachRows(review.files);
   if (reach.length > 0) {
-    lines.push('', 'Changed regions (new in brackets):');
+    lines.push('', 'Changed regions (new or moved in brackets):');
     for (const [kind, all, written] of reach) lines.push(`  ${`${all}`.padStart(5)} (${written})  ${REACH_TEXT[kind]}`);
   }
   lines.push(...casesText(review.files, (code) => code));
-  lines.push(...beforeText(review, (code) => code), ...beyondText(review, (code) => code));
+  lines.push(...beforeText(review, (code) => code), ...installLines(review, (code) => code, false));
   lines.push(...motionText(review.motion));
   const detail = review.files.flatMap((file) =>
     outermost(file).filter(worthNaming).map((region) => `  ${file.file}:${region.startLine}-${region.endLine} ${
-      region.name === '' ? region.kind : `${region.kind} ${region.name}`
-    } — ${REACH_TEXT[region.reach]}${region.written ? ' (new)' : ''}`));
+      regionKind(region)
+    } — ${REACH_TEXT[region.reach]} (${editText(file.file, region)})`));
   if (detail.length > 0) lines.push('', 'Regions not covered by a test one import away:', ...detail);
+  for (const reading of review.coverage ?? []) {
+    lines.push('', 'missed' in reading ? `${reading.suite ?? 'the record'}: coverage unavailable: ${reading.missed}` : formatCoverage(reading, 'text').trimEnd());
+  }
   return `${lines.join('\n')}\n`;
+}
+
+/** A region's edit, as the text format says it. */
+function editText(file: string, region: ReviewRegion): string {
+  return region.edit !== 'moved' ? region.edit : region.movedFrom === undefined || region.movedFrom === file ? 'moved within the file' : `moved from ${region.movedFrom}`;
 }
 
 /**
  * One mark per answer, so a row in the table and a count in the per-file fold
  * read the same way: red is changed code no case covered, yellow and orange are
  * covered from further away than the file's own importers, green is covered
- * from one import away.
+ * from one import away, white ran only while its module loaded.
  */
-const MARK: Readonly<Record<Reach, string>> = {
+export const MARK: Readonly<Record<Reach, string>> = {
   near: '🟢',
   far: '🟡',
   unplaced: '🟠',
@@ -78,29 +125,49 @@ const MARK: Readonly<Record<Reach, string>> = {
   unknown: '🔴',
 };
 
+/** What each mark says, once, under the first table that uses it. */
+const LEGEND = '🟢 a test importing the file ran it · 🟡 only tests further away ran it · 🟠 tests outside the import graph ran it · ' +
+  '⚪ ran only while its module loaded · 🔴 no case ran it';
+
+/** Code this change wrote that no run has reached yet: read before it ran, so no case was expected. */
+export const FRESH_MARK = '🔵';
+
 /**
  * The comment, disclosed a level at a time. The first screen is the verdict:
  * which changed functions hold code no case ran, what the change cost against
  * the base, and how much of the suite ran. Everything a reader or an agent
- * would dig for — each location, the cases that ran each function by title,
- * the cases added — is one fold down, and what is rarely read is two. Before
+ * would dig for — each location, how many cases ran each function, the cases
+ * added — is one fold down, and what is rarely read is two. Before
  * the change has run, the same answers say what it might move.
+ *
+ * The comment is posted as it is written, so it is cut to GitHub's limit here,
+ * where the notice can say where the whole review is. One character is kept
+ * for the final line break.
  */
 function markdown(review: Review): string {
   const code = (value: string): string => `\`${value}\``;
   const mark = (region: ReviewRegion): string => MARK[region.reach];
   const ran = review.record === 'ran';
-  const lines = [REVIEW_MARKER, `### 🧭 What this change ${ran ? 'did' : 'might do'}`, '', `<sub>${header(review, code, false)}${
+  const lines = [REVIEW_MARKER, review.coverage === undefined ? `### 🧭 What this change ${ran ? 'did' : 'might do'}` : '### Test evidence', '', `<sub>${markdownHeader(review, code)}${
     ran ? '' : ' The record was made before this change, so it names the cases that stood on the changed lines.'
-  }</sub>`, ''];
-  lines.push(...calloutMarkdown(review), ...(ran ? selectionMarkdown(review, code) : []), ...lostMarkdown(review));
+  }</sub>`, '', ...notes(review).flatMap((note) => [`<sub>${note}</sub>`, ''])];
+  const changed = changedPackagesMarkdown(review.changedPackages, (reach) => MARK[reach]);
+  lines.push(...calloutMarkdown(review), ...changed);
+  if (changed.length > 0) lines.push('', `<sub>${LEGEND}</sub>`);
+  lines.push(...casesMarkdown(review.files, code));
+  lines.push(...(ran ? selectionMarkdown(review, code) : []), ...lostMarkdown(review, code));
+  if (review.coverage !== undefined) lines.push(...reviewCoverageSummary(review.coverage));
   if (review.before !== undefined && review.before.length > 0) {
     lines.push('', ...review.before.map((file) => `⚙️ ${code(file.file)} changed, and ${
       file.tests !== review.suite ? `${file.tests} of ${review.suite} test files load` : file.tests === 1 ? 'the one test file loads' : `all ${file.tests} test files load`
     } it before any import.`));
   }
-  lines.push(...beyondText(review, code));
-  lines.push(...uncoveredMarkdown(review, mark), ...functionsMarkdown(review, mark), ...casesMarkdown(review.files, code));
+  lines.push(...installLines(review, code, true));
+  const uncovered = uncoveredMarkdown(review, mark);
+  const functions = functionsMarkdown(review, mark);
+  if (changed.length === 0 && uncovered.length + functions.length > 0) lines.push('', `<sub>${LEGEND}</sub>`);
+  lines.push(...uncovered, ...functions, ...changeGraph(review));
+  if (review.coverage !== undefined) lines.push(...reviewCoverageDetails(review.coverage));
   const more: string[] = [];
   const said: string[] = [];
   const unrecorded = unrecordedFiles(review);
@@ -109,10 +176,7 @@ function markdown(review: Review): string {
     more.push('', `<details><summary>🗂️ ${unrecorded.length} changed file${unrecorded.length === 1 ? '' : 's'} not in the record, so not counted</summary>`, '');
     more.push(...unrecorded.map((file) => `- ${code(file)}`), '', '</details>');
   }
-  const graph = changeGraph(review);
-  if (graph.length > 0) said.push('the change graph');
-  more.push(...graph);
-  const motion = motionText(review.motion).filter((line) => line !== '');
+  const motion = motionText(review.motion, undefined, MOTION_LISTED).filter((line) => line !== '');
   if (motion.length > 0) {
     said.push('cases moved against the base');
     more.push('', '<details><summary>🔀 Cases moved against the base</summary>', '', '```', ...motion, '```', '', '</details>');
@@ -122,11 +186,13 @@ function markdown(review: Review): string {
     said.push('each changed file');
     more.push('', `<details><summary>📄 Each changed file</summary>`, '');
     more.push('| File | Edit | Regions |', '| --- | --- | --- |');
-    for (const file of files) more.push(`| ${code(file.file)} | ${editOf(file, code)} | ${marksOf(file)} |`);
+    for (const file of files) more.push(`| ${code(file.file)} | ${fileEdit(file, code)} | ${marksOf(file)} |`);
     more.push('', '</details>');
   }
-  if (more.length > 0) lines.push('', `<details><summary>📎 More: ${said.join(', ')}</summary>`, ...more, '', '</details>');
-  return `${lines.join('\n')}\n`;
+  if (more.length > 0) lines.push('', `<details><summary>Recording scope and limitations: ${said.join(', ')}</summary>`, ...more, '', '</details>');
+  return `${clampComment(lines.join('\n'), COMMENT_CHARACTERS - 1, (dropped) =>
+    `\n\n> ${dropped} characters of this review are not shown, because GitHub rejects a comment longer than ${COMMENT_CHARACTERS}. ` +
+    '`--format json` prints the whole review, and `--out` writes it to `review.json`.')}\n`;
 }
 
 /**
@@ -155,19 +221,39 @@ function calloutMarkdown(review: Review): readonly string[] {
   return ['> [!TIP]', `> Every one of the ${every} ${ran ? 'ran under a case' : 'has a case in the record'}.`];
 }
 
-/** The changed code that lost every case against the base, by function, and how much kept fewer. */
-function lostMarkdown(review: Review): readonly string[] {
+/**
+ * The changed code that lost every case against the base, by function, and how
+ * much is run by fewer cases. When no case index written by the runs names the
+ * test files they ran, there is no base to lose against, and the line says so.
+ */
+function lostMarkdown(review: Review, code: (value: string) => string): readonly string[] {
   const moved = review.motion?.moved;
-  if (moved === undefined) return [];
+  const unwritten = review.motion?.unwritten?.length ?? 0;
+  const at = runsAt(review, code);
+  const there = review.runs?.commit === undefined ? 'in them' : 'there';
+  const files = unwritten === 1 ? `the one test file run ${there}` : `the ${unwritten} test files run ${there}`;
+  const notWritten = unwritten === 0 ? [] : [`No case index was written ${at} for ${files}, so no case is compared against the base.`];
+  if (review.motion?.undiffed !== undefined) return ['', `No case is compared against the base: ${review.motion.undiffed}`, ...notWritten];
+  // A record whose last run does not read says nothing of which files a run wrote, so no file is named unwritten beside it.
+  if (review.motion?.lastRunUnread !== undefined) {
+    return ['', `Which test files a run ${at} wrote to the case index could not be read, so no case is compared against the base.`];
+  }
+  if (moved === undefined) return notWritten.length === 0 ? [] : ['', ...notWritten];
   const lost = moved.regions.filter((region) => region.motion === 'lost' || region.motion === 'hidden');
   const thinned = moved.counts.thinned;
-  const fewer = thinned === 0 ? '' : `▽ ${thinned} changed region${thinned === 1 ? '' : 's'} kept fewer cases.`;
+  const fewer = thinned === 0 ? '' : `▽ ${thinned} changed region${thinned === 1 ? ' is' : 's are'} run by fewer cases than at the base.`;
   if (lost.length === 0) return fewer === '' ? [] : ['', fewer];
-  return ['', `▼ Lost every case against the base: ${functionsIn(lost)}.${fewer === '' ? '' : ` ${fewer}`}`];
+  return ['', `▼ No longer run by any case that ran them at the base: ${functionsIn(lost)}.${fewer === '' ? '' : ` ${fewer}`}`];
+}
+
+/** Where the runs this review read were made: the commit they named, or, when they named none, only that they are these runs. */
+function runsAt(review: Review, code: (value: string) => string): string {
+  const commit = review.runs?.commit;
+  return commit === undefined ? 'in these runs' : `at ${code(commit.slice(0, 12))}`;
 }
 
 /**
- * How much of the suite ran at this commit, against how much the snapshot
+ * How much of the suite ran in the runs read, against how much the snapshot
  * holds: the two counts the review already carries, so a reader sees what a
  * selected run left out and which command chose it. A run of every file names
  * the command instead. The record keeps no durations, so no time is claimed.
@@ -177,17 +263,35 @@ function selectionMarkdown(review: Review, code: (value: string) => string): rea
   if (runs === undefined || suite === undefined || suite === 0) return [];
   const ran = runs.files.length;
   const select = code(`variance select --since ${review.from.slice(0, 12)}`);
-  if (ran >= suite) return ['', `🎯 All ${suite} test file${suite === 1 ? '' : 's'} ran at this commit. ${select} lists the ones this change reaches.`];
-  return ['', `🎯 **${ran} of ${suite} test files ran** at this commit, ${ran * 100 < suite ? 'under 1' : Math.round((100 * ran) / suite)}% of the suite; the other ${
+  const at = runsAt(review, code);
+  if (review.coverage !== undefined) {
+    const scope = review.recordedSuite === undefined ? '' : `${code(review.recordedSuite)}: `;
+    return ['', `${scope}${ran} test file${ran === 1 ? '' : 's'} ran ${at}.${ran < suite ? ` The other ${suite - ran} retain earlier recordings.` : ' Every test file in the recording ran.'}`];
+  }
+  if (ran >= suite) return ['', `🎯 All ${suite} test file${suite === 1 ? '' : 's'} ran ${at}. ${select} lists the ones this change reaches.`];
+  return ['', `🎯 **${ran} of ${suite} test files ran** ${at}, ${ran * 100 < suite ? 'under 1' : Math.round((100 * ran) / suite)}% of the suite; the other ${
     suite - ran
-  } kept the rows recorded before it. ${select} lists the files a change reaches.`];
+  } kept the rows recorded before them. ${select} lists the files a change reaches.`];
 }
 
+/** The changed files the record holds nothing of, source or not: a file the change created is named whatever it holds. */
 function unrecordedFiles(review: Review): readonly string[] {
-  return review.files
-    .filter((file) => file.recorded === false && file.cases === undefined)
-    .filter((file) => file.verdict !== undefined || file.unread !== undefined || file.created === true)
-    .map((file) => file.file);
+  return outsideRecord(review).filter((file) => isSource(file) || file.created === true).map((file) => file.file);
+}
+
+/** The changed source files the record holds nothing of, in any language a reader here reads: no function in them can be named. */
+export function unrecordedSources(review: Review): readonly string[] {
+  return outsideRecord(review).filter(isSource).map((file) => file.file);
+}
+
+/** Neither a module the record holds a row for nor a test file it holds cases of. */
+function outsideRecord(review: Review): readonly ReviewFile[] {
+  return review.files.filter((file) => file.recorded === false && file.cases === undefined && file.holdsCases !== true);
+}
+
+/** Code: what the module reader claims, and what the source index reads in any language. */
+function isSource(file: ReviewFile): boolean {
+  return file.verdict !== undefined || file.unread !== undefined || file.indexed === true;
 }
 
 function marksOf(file: ReviewFile): string {
@@ -230,6 +334,42 @@ function header(review: Review, code: (value: string) => string = (value) => val
   } recorded ${runs.files.length} test file${runs.files.length === 1 ? '' : 's'}.`;
 }
 
+/**
+ * What the review read, for a comment: the commit, the base, the runs and the
+ * recordings compared with, each by its own hash. On a pull request CI reads
+ * GitHub's merge of it, which nobody pushed, so the pull request's own head is
+ * named first, and the comment says it goes stale when that head moves.
+ */
+function markdownHeader(review: Review, code: (value: string) => string): string {
+  const short = (commit: string): string => code(commit.slice(0, 12));
+  const head = review.head;
+  const merged = head !== undefined && head.pull !== undefined && head.parents[1] === head.pull ? head.pull : undefined;
+  const reviewed = head === undefined
+    ? []
+    : head.dirty === true
+      ? [`Reviewed the working tree over ${short(head.commit)}${
+        merged === undefined ? '' : `, the merge of ${short(merged)} into ${short(head.parents[0]!)} for this run`
+      }.`]
+      : merged !== undefined
+        ? [`Reviewed ${short(merged)} (merged into ${short(head.parents[0]!)} as ${short(head.commit)} for this run).`]
+        : [`Reviewed ${short(head.commit)}.`];
+  const runs = review.runs?.commit;
+  const cases = runs === undefined || runs === head?.commit ? [] : [`Cases ran at ${short(runs)}.`];
+  const groups = new Map<string, string[]>();
+  for (const reading of review.coverage ?? []) {
+    if ('missed' in reading) continue;
+    for (const suite of reading.suites) {
+      const commit = suite.base?.commit;
+      if (commit !== undefined) groups.set(commit, [...(groups.get(commit) ?? []), suite.suite ?? 'the record']);
+    }
+  }
+  const compared = groups.size === 0
+    ? []
+    : [`Compared with the recordings at ${[...groups].map(([commit, suites]) => `${short(commit)} (${suites.join(', ')})`).join(' and ')}.`];
+  const stale = merged === undefined ? [] : [`If the pull request's head is no longer ${short(merged)}, this review describes an earlier commit.`];
+  return [...reviewed, header(review, code, false), ...cases, ...compared, ...stale].join(' ');
+}
+
 /** The counts a reviewer acts on, first. */
 function summary(review: Review, code: (value: string) => string): readonly string[] {
   const regions = review.files.flatMap(outermost);
@@ -246,15 +386,10 @@ function summary(review: Review, code: (value: string) => string): readonly stri
   }
   const uncovered = regions.filter((region) => region.reach === 'hole' || region.reach === 'unwalked' || region.reach === 'unknown');
   const far = regions.filter((region) => region.reach === 'far');
-  const written = regions.filter((region) => region.written);
   const holding = review.files.filter((file) => outermost(file).length > 0).length;
   const lines = [
-    `${regions.length} changed region${regions.length === 1 ? '' : 's'} in ${holding} file${
-      holding === 1 ? '' : 's'
-    }, ${written.length} of them new.`,
-    `- ${uncovered.length} no case covered${
-      uncovered.length === 0 ? '' : `, ${uncovered.filter((region) => region.written).length} of them new`
-    }.`,
+    `${regions.length} changed region${regions.length === 1 ? '' : 's'} in ${holding} file${holding === 1 ? '' : 's'}: ${edits(regions)}.`,
+    `- ${uncovered.length} no case covered${uncovered.length === 0 ? '' : `: ${edits(uncovered)}`}.`,
     `- ${far.length} covered only by tests further than one import away.`,
   ];
   const unplaced = regions.filter((region) => region.reach === 'unplaced').length;
@@ -262,11 +397,20 @@ function summary(review: Review, code: (value: string) => string): readonly stri
   lines.push(...absent);
   const counts = review.motion?.moved?.counts;
   if (counts !== undefined) {
-    lines.push(`- Against the base: ${counts.gained} region${counts.gained === 1 ? '' : 's'} gained cases, ${
+    lines.push(`- Against the base: ${counts.gained} region${counts.gained === 1 ? '' : 's'} newly run, ${
       counts.lost + counts.hidden
-    } lost every case, ${counts.thinned} kept fewer.`);
+    } no longer run, ${counts.thinned} run by fewer cases.`);
   }
   return lines;
+}
+
+/** How many regions each kind of edit wrote, the kinds that wrote none left out. */
+function edits(regions: readonly ReviewRegion[]): string {
+  return (['new', 'modified', 'moved'] as const)
+    .map((edit) => [edit, regions.filter((region) => region.edit === edit).length] as const)
+    .filter(([, count]) => count > 0)
+    .map(([edit, count]) => `${count} ${edit}`)
+    .join(', ');
 }
 
 function editRows(files: readonly ReviewFile[]): readonly (readonly [string, string])[] {
@@ -291,7 +435,7 @@ function reachRows(files: readonly ReviewFile[]): readonly (readonly [Reach, num
   return REACHES
     .map((reach) => {
       const matched = regions.filter((region) => region.reach === reach);
-      return [reach, matched.length, matched.filter((region) => region.written).length] as const;
+      return [reach, matched.length, matched.filter((region) => region.edit !== 'modified').length] as const;
     })
     .filter(([, all]) => all > 0);
 }
@@ -341,22 +485,7 @@ function beforeText(review: Review, code: (value: string) => string): readonly s
   ];
 }
 
-/** What the install changed, which no import in this repository shows. */
-function beyondText(review: Review, code: (value: string) => string): readonly string[] {
-  const beyond = review.beyond;
-  if (beyond === undefined) return [];
-  if ('whole' in beyond) return ['', `Installed packages: could not be compared (${beyond.whole}).`];
-  const lines: string[] = [];
-  if (beyond.packages.length > 0) {
-    lines.push('', `Installed packages changed: ${beyond.packages.map(code).join(', ')}.`);
-  }
-  if (beyond.moved.length > 0) {
-    lines.push('', `Manifests whose entry points changed: ${beyond.moved.map(code).join(', ')}.`);
-  }
-  return lines;
-}
-
-function editOf(file: ReviewFile, code: (value: string) => string): string {
+function fileEdit(file: ReviewFile, code: (value: string) => string): string {
   if (file.created === true) return 'new file';
   if (file.unread !== undefined) return `not read (${file.unread})`;
   if (file.verdict === undefined) return '';

@@ -1,32 +1,20 @@
 /**
- * The build half of the journal: probes in, inventory out.
+ * The build half of the journal: probes in.
  *
  * Everything here runs in whichever process bundles product source, and none
- * of it ever meets the run it is preparing for. That is the split the journal
- * seam exists to bridge, so it is also the split between the two files: this
- * one knows what a block means — its name, its span, the digest of the source
- * it was cut from — and knows nothing about who executed it.
- * {@link EvaluatingPage} and the join live next door.
+ * of it ever meets the run it is preparing for. Nothing has to: the probes
+ * report the file and the text they were placed on, and the join next door
+ * cuts that text again to learn what each ordinal means.
  */
+import { instrumentationId, type InstrumentMode, type ModuleId } from '../instrument/index.js';
+import { probesRegions } from '../instrument/identity.js';
 import { readFileSync } from 'node:fs';
-import {
-  instrument,
-  instrumentationId,
-  type InstrumentMode,
-  type ModuleId,
-} from '../instrument/index.js';
-import {
-  cleanId,
-  defaultInclude,
-  projectPath,
-  openRecords,
-  recordStore,
-  writeRecord,
-  type CapturedModule,
-} from './instrumented-modules.js';
-import { coverageBlock } from './coverage-rows.js';
-import { recordedFrame, type TransformSourceMap } from './source-lines.js';
+import { captureAfter, heldOriginal, type ComposedMap, placeModule } from './captured-modules.js';
+import { cleanId, defaultInclude, fileOrNone, mayTake, type ProbePlacement } from './instrumented-modules.js';
 import { repositoryRoot } from './repository-root.js';
+import { builtMap, handedTexts, namesItsMap } from './source-lines.js';
+import { type UnmappedNotes, refuseTransformsAfter, unmappedSteps, watchUnmapped } from './unmapped-transforms.js';
+import probeLists from '../instrument/probe-lists.cjs';
 import probeLog from '../instrument/probe-log.cjs';
 
 /**
@@ -40,7 +28,7 @@ export const EXECUTION_GLOBAL = '__variance_authority_execution__';
 
 /** What one module reported: the ordinals it entered, deduplicated. */
 export interface ExecutedModule {
-  /** What the module called itself: its number, or its path until it has one. */
+  /** What the module called itself: its path and the digest of its text, `path@digest`. */
   readonly id: ModuleId;
   readonly hits: readonly number[];
   /**
@@ -50,6 +38,13 @@ export interface ExecutedModule {
    * subject's and the join gives them to every subject the run drained.
    */
   readonly shared: readonly number[];
+  /**
+   * The ordinals among `shared` entered again once no module was evaluating:
+   * a function the top level called and the subject called afterwards. The
+   * subject earned these as it would had the module evaluated before its
+   * window opened. Absent where nothing was entered both ways.
+   */
+  readonly again?: readonly number[];
 }
 
 /** Everything a page entered between two drains. */
@@ -76,16 +71,8 @@ export interface TestSelectionProbeOptions {
   readonly root?: string;
   /** Decide which transformed modules are product source. */
   readonly include?: (file: string) => boolean;
-  /**
-   * Separates two bundlers over one repository. Defaults to `build`.
-   *
-   * A Storybook preview and the application a Playwright suite drives are
-   * different builds of overlapping source; one label for both would answer a
-   * block ordinal with whichever build wrote its inventory last.
-   */
+  /** The journey head this build installs, with `journeys`. Defaults to `build`. */
   readonly label?: string;
-  /** Where the module records go. Defaults to the repository's cache, `cacheRootFor(root)`. */
-  readonly cacheRoot?: string;
   /**
    * `presence` probes every arrival region; `entries` probes modules and
    * functions only, and costs a fraction of it.
@@ -97,6 +84,14 @@ export interface TestSelectionProbeOptions {
    * would each wipe the other every run.
    */
   readonly mode?: InstrumentMode;
+  /**
+   * Where the probes go. `after-transforms`, the default, runs at
+   * `enforce: 'post'` and places them through the composed map;
+   * `before-transforms` runs at `enforce: 'pre'` and places them in the file
+   * as read, one parse and no map, for a build whose transforms only strip
+   * types or JSX: a compiler that reads syntax then reads the probes.
+   */
+  readonly placement?: ProbePlacement;
   /**
    * Install the journey head before anything this build instrumented runs.
    *
@@ -110,95 +105,147 @@ export interface TestSelectionProbeOptions {
   readonly journeys?: boolean;
 }
 
-/**
- * What a bundler hands the transform hook as `this`.
- *
- * One method, because one question is asked of it: what did the text arriving
- * here look like before every plugin that ran first. Named rather than imported
- * for the reason the plugin shape below is — a package that has to install Vite
- * to describe two hooks has made Vite a dependency of the recipe.
- */
-export interface TransformingContext {
-  readonly getCombinedSourcemap: () => TransformSourceMap;
+/** The part of a Vite transform's context this reads. */
+export interface InstrumentingContext {
+  readonly getCombinedSourcemap?: () => ComposedMap;
+}
+
+/** The map a transform returns: Vite's `SourceMapInput`, one source. */
+export interface InstrumentedMap {
+  readonly version: 3;
+  readonly sources: readonly string[];
+  readonly names: readonly string[];
+  readonly mappings: string;
 }
 
 /** The subset of Vite's plugin surface this uses, so nothing here needs Vite. */
 export interface InstrumentingPlugin {
   readonly name: string;
-  readonly enforce: 'post';
+  readonly enforce: 'pre' | 'post';
+  /** The options it was made with, for a plugin that has to keep it rather than add a second. */
+  readonly api: { readonly options: TestSelectionProbeOptions };
+  /** Watch every other plugin for a rewrite with no map: {@link watchUnmapped}. */
+  readonly configResolved: (config: {
+    readonly command: string;
+    readonly plugins: readonly { readonly name: string; transform?: unknown; load?: unknown }[];
+  }) => void;
+  /**
+   * Turn a build's source maps on where it writes none, after every other
+   * plugin's `config`: Vite's own `vite:define` hands its map on only where
+   * the build writes maps.
+   */
+  readonly config: {
+    readonly order: 'post';
+    readonly handler: (
+      config: { readonly build?: { readonly sourcemap?: unknown } },
+      env: { readonly command: string },
+    ) => { build: { sourcemap: 'hidden' } } | undefined;
+  };
+  /** Forget what an earlier build in watch mode noted. */
+  readonly buildStart: () => void;
+  /** Take back the `.map` files a build wrote only because {@link config} turned its maps on. */
+  readonly generateBundle: (options: unknown, bundle: Record<string, unknown>) => void;
   readonly resolveId: (id: string) => string | null;
-  readonly load: (id: string) => string | null;
-  readonly transform: (
-    this: TransformingContext,
-    code: string,
-    id: string,
-  ) => { code: string; map: null } | null;
-}
-
-/**
- * The map from the file on disk to the text this hook received, when there is one.
- *
- * A bundler that keeps no chain throws rather than answering, and a build with
- * no prior transform has nothing to answer with. Neither says the text *is* the
- * file — only that nothing here can show where it came from — so `recordedFrame`
- * leaves the extents where the transform left them and digests that same text,
- * rather than vouching for a number line nobody read.
- */
-export function priorMap(context: TransformingContext): TransformSourceMap | undefined {
-  try {
-    const map = context.getCombinedSourcemap();
-    return typeof map?.mappings === 'string' ? map : undefined;
-  } catch {
-    return undefined;
-  }
+  readonly load: (id: string) => string | { code: string; map: object | null } | null;
+  /**
+   * Ordered `post` after the transforms, so a plain `transform` at
+   * `enforce: 'post'` runs ahead of it wherever it is listed; ordered `pre`
+   * ahead of them.
+   */
+  readonly transform: {
+    readonly order: 'pre' | 'post';
+    readonly handler: (
+      this: unknown,
+      code: string,
+      id: string,
+    ) => { code: string; map: InstrumentedMap | null } | null;
+  };
 }
 
 const VIRTUAL_COLLECTOR = 'variance-authority:execution-collector';
 const RESOLVED_COLLECTOR = `\0${VIRTUAL_COLLECTOR}`;
+/** What every probed module ends with: an import, hoisted, so the collector loads ahead of its probes. */
+const COLLECTOR = `\n;import ${JSON.stringify(VIRTUAL_COLLECTOR)};`;
 
 /**
- * Instrument a build and write down what its ordinals mean.
+ * Instrument a build.
  *
  * ```js
- * // .storybook/main.js
+ * // vite.config.ts
  * import { testSelectionProbes } from '@variance-authority/sense/journal';
  *
  * export default {
- *   viteFinal: (config) => ({
- *     ...config,
- *     plugins: [...config.plugins, testSelectionProbes({ label: 'storybook' })],
- *   }),
+ *   plugins: [testSelectionProbes()],
  * };
  * ```
  *
- * `enforce: 'post'` for the reason the Vitest seam has it: probes land on JS
- * after TypeScript is stripped, so nothing here parses a syntax `oxc` would have
- * to be taught.
+ * A Storybook takes it through `@variance-authority/storybook-collector` in
+ * its `addons`, which adds it under Vite.
+ *
+ * `enforce: 'post'`, so no transform of the project's reads a probe: a
+ * compiler that reads syntax — a CSS-in-JS extractor, a memoising compiler —
+ * would refuse probed code, or compile it into something the project does not
+ * ship. The regions are still the file's as it is on disk,
+ * the text the join cuts again and a diff is written against; the composed
+ * map says where each one's code went, and a region it carries nowhere fires
+ * when the module loads. A `vite build` that writes no map has its maps turned
+ * on for the transforms, `hidden`, and every `.map` file taken back out of the
+ * bundle, so what it writes is what it wrote before. A plugin that rewrote the file and returned no map
+ * stops the build, and the dev server, by name. `placement:
+ * 'before-transforms'` runs it at `enforce: 'pre'` instead, on the file as
+ * read, and none of that applies.
  */
 export function testSelectionProbes(
   options: TestSelectionProbeOptions = {},
 ): InstrumentingPlugin {
   const root = repositoryRoot(options.root ?? process.cwd());
   const include = options.include ?? defaultInclude;
+  const before = options.placement === 'before-transforms';
 
-  // One record per module, written as that module is transformed. A dev server
-  // has no end to write at: a Playwright suite drives a server that keeps
-  // transforming for the whole life of the run, and a driver draining the page
-  // needs the record for what it just executed. A build with a warm cache has no
-  // end either, in the sense that matters — it never holds the modules it did
-  // not transform, so it must never write a document that claims to.
-  const instrumentation = instrumentationId(options.mode);
-  const records = openRecords(recordStore(root, options.label, options.cacheRoot), instrumentation);
-  const persist = (captured: CapturedModule): void => {
-    writeRecord(records, captured);
-  };
-
+  const name = 'variance-authority:test-selection-probes';
+  let serving = false;
+  /** The modules a dev server loaded probed, because their files name their own maps. */
+  const first = new Set<string>();
+  /**
+   * The file a dev server's `load` read for each module, until its transform
+   * takes it: a module is read from disk once. Taken by the transform, and
+   * dropped when a build starts again, so nothing is held from one to the next.
+   */
+  const held = new Map<string, string>();
+  /** What the plugins this build watches noted by module, its own and no other build's. */
+  let notes: UnmappedNotes | undefined;
+  /** Whether this build writes maps only because the probes turned them on. */
+  let mapsOurs = false;
   return {
-    name: 'variance-authority:test-selection-probes',
-    enforce: 'post',
+    name,
+    enforce: before ? 'pre' : 'post',
+    api: { options },
+    // `hidden`, so no bundle names a map, and every `.map` it writes is taken back below.
+    config: { order: 'post', handler: (config, env) => {
+      mapsOurs = !before && env.command === 'build' && !config.build?.sourcemap;
+      return mapsOurs ? { build: { sourcemap: 'hidden' } } : undefined;
+    } },
+    // A build hands each plugin its own context, so a step is noted by module there.
+    configResolved: (config) => {
+      serving = config.command === 'serve';
+      // Ahead of every transform, no map is read, so no step is watched for one.
+      if (before) return;
+      notes = watchUnmapped(config.plugins, name, serving ? 'context' : 'module');
+      refuseTransformsAfter(config.plugins, name);
+    },
+    // A build in watch mode starts again: what an earlier one noted is stale.
+    buildStart: () => {
+      notes?.clear();
+      held.clear();
+    },
+    generateBundle: (_options, bundle) => {
+      if (!mapsOurs) return;
+      // The maps of what the build wrote, each named after its file; a `.map` another plugin emits stays.
+      for (const file of Object.keys(bundle)) if (!file.endsWith('.map')) delete bundle[`${file}.map`];
+    },
     resolveId: (id) => (id === VIRTUAL_COLLECTOR || id === RESOLVED_COLLECTOR ? RESOLVED_COLLECTOR : null),
     load: (id) => {
-      if (id !== RESOLVED_COLLECTOR) return null;
+      if (id !== RESOLVED_COLLECTOR) return serving && !before ? probedFirst(id) : null;
       const collector = executionCollectorSource(options.mode);
       if (options.journeys !== true) return collector;
       // Imports evaluate first, so the head owns `__VA__` before this module's
@@ -207,55 +254,73 @@ export function testSelectionProbes(
       return `import { collectJourneys } from "@variance-authority/sense/journey";\ncollectJourneys(${head});\n${collector}`;
     },
 
-    transform(code, specifier) {
+    transform: { order: before ? 'pre' : 'post', handler(code, specifier) {
       const source = cleanId(specifier);
-      if (source === RESOLVED_COLLECTOR || !include(source)) return null;
-      // The digest and the lines from one decision, so they cannot describe two
-      // texts: the file on disk when the prior chain reads the extents back into
-      // it, and `code` when there is no chain and the extents stay where the
-      // transform left them.
-      const { extentOf, sourceDigest, file: wrote } = recordedFrame(
-        code,
-        priorMap(this),
-        source,
-        (at) => readFileSync(at, 'utf8'),
-      );
-
-      // Instrumented under its path, which is all the page then reports. The path
-      // is repository-relative: a journal that named absolute paths would be a
-      // journal from the build machine's disk — unreadable on a driver that
-      // mounted the checkout somewhere else, and a leak of a layout nobody asked
-      // for. It rides in the record, once, rather than in every copy of the
-      // module the bundle ships.
-      const file = projectPath(root, wrote);
-      const done = instrument(code, file, file, options.mode === undefined ? {} : { mode: options.mode });
-      if (done === undefined) {
-        persist({ file, id: file, sourceDigest, instrumented: false, blocks: [] });
-        return null;
+      if (source === RESOLVED_COLLECTOR) return null;
+      if (before) {
+        // The collector import follows the last line, as below, so no line moves.
+        const captured = placeModule(root, source, code, include, undefined, options.mode);
+        return captured === undefined ? null : { code: `${captured.code}${COLLECTOR}`, map: null };
       }
-
-      persist({
-        file,
-        id: file,
-        sourceDigest,
-        instrumented: true,
-        blocks: done.blocks.map((block) => coverageBlock(code, block, extentOf)),
+      const text = held.get(specifier);
+      held.delete(specifier);
+      if (first.delete(specifier)) return { code: `${code}${COLLECTOR}`, map: null };
+      // Vite hands every transform its context; a caller that calls this by hand has none.
+      const context = this as InstrumentingContext | undefined;
+      const combined = context?.getCombinedSourcemap;
+      const map = typeof combined === 'function' ? () => combined.call(context) : undefined;
+      const captured = captureAfter(root, source, code, include, options.mode, map, {
+        unmapped: unmappedSteps(context, specifier, notes),
+        variant: specifier !== source,
+        original: heldOriginal(source, text),
       });
+      if (captured === undefined) return null;
 
-      // Hoisted in front of everything the module imports, and on the first line,
-      // so line numbers survive the way every other insertion in this package
-      // preserves them. An instrumented module whose collector arrived late would
-      // throw at its own module probe.
-      return { code: `import ${JSON.stringify(VIRTUAL_COLLECTOR)};${done.code}`, map: null };
-    },
+      // After the last line, so no position in the module moves and its
+      // directive prologue stays first: `"use client"` is a directive only
+      // there. An import is hoisted from wherever it is written, so the
+      // collector still evaluates before this module's body, which is where its
+      // first probe is. The module's other imports evaluate first, and every
+      // one of them that carries a probe imports the collector itself.
+      return {
+        code: `${captured.code}${COLLECTOR}`,
+        map: captured.mappings === undefined ? null : { version: 3, sources: [source], names: [], mappings: captured.mappings },
+      };
+    } },
   };
+
+  /**
+   * A file that names its own map, a build's output, loaded probed by a dev
+   * server. A dev server starts the composed map from that map, so it names
+   * the build's sources and never the file, and no placement after the
+   * transforms could join the file's regions; a build starts from the file's
+   * text, and places it after them as it does every module. The probed text
+   * is the one a dev server hands its plugins, with the comment blanked, and
+   * the file's own map goes on with it, as the dev server would have read it.
+   */
+  function probedFirst(id: string): { code: string; map: object | null } | null {
+    const file = cleanId(id);
+    // Under `node_modules`, `include` is asked first: no map there is read.
+    if (id !== file || !mayTake(file, include)) return null;
+    const disk = fileOrNone(file, (path) => readFileSync(path, 'utf8'));
+    if (disk === undefined) return null;
+    if (!namesItsMap(disk)) {
+      held.set(id, disk);
+      return null;
+    }
+    const captured = placeModule(root, file, handedTexts(disk).at(-1)!, include, undefined, options.mode, heldOriginal(file, disk));
+    if (captured === undefined) return null;
+    first.add(id);
+    return { code: captured.code, map: builtMap(disk, file, (path) => readFileSync(path, 'utf8')) ?? null };
+  }
 }
 
 /**
  * The page half, as source, because it has to cross `page.evaluate` or a bundler.
  *
- * The engine is `instrument/probe-log.cts`, sent as its own source, so a page records
- * with the code a test runner records with. A page has one bucket and never
+ * The engine is `instrument/probe-log.cts`, sent as its own source with
+ * `instrument/probe-lists.cts`, so a page records with the code a test runner
+ * records with. A page has one bucket and never
  * switches it: a drain reads it out and empties it in place.
  *
  * `globalThis.__VA__` keeps its identity for the life of the page, because
@@ -266,8 +331,13 @@ export function executionCollectorSource(mode?: InstrumentMode): string {
   const instrumentation = instrumentationId(mode);
   return `
 const engine = (${probeLog.createEngine.toString()})(false);
+const lists = ${probeLists.lists.toString()};
 const bucket = engine.open('');
 engine.use(bucket);
+// Under \`loads\` the mark is the only signal, and a page reused between
+// subjects evaluates a module once: each drain leaves the modules the page
+// holds in the bucket, so the next subject is charged with them too.
+const carries = ${JSON.stringify(!probesRegions(mode))};
 // A realm that already has a root has a collector that knows more than this
 // one: a Node head keys its buckets by journey, and a page has nowhere to put a
 // caller. Deferring is what lets one instrumented build serve a page and a
@@ -281,11 +351,13 @@ if (globalThis.__VA__ === undefined) {
     instrumentation: ${JSON.stringify(instrumentation)},
     drain() {
       // In the order the page first registered each module, drain after drain.
-      const modules = engine.lists(engine.take(bucket), true);
+      const modules = lists(engine.take(bucket), true);
+      if (carries) engine.carry();
       return { instrumentation: ${JSON.stringify(instrumentation)}, modules };
     },
     reset() {
       engine.take(bucket);
+      if (carries) engine.carry();
     },
   };
 }

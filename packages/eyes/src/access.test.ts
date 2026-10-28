@@ -44,4 +44,12 @@ describe('the attention journal', () => {
       { id: 'b', title: 'loads', complete: false, because: '', attention: [] },
     ])).toThrow(/requires a reason/);
   });
+
+  it('keeps each attempt of one test, and refuses a journal that repeats one', () => {
+    const attempt = (number: number) => ({ id: 'a', attempt: number, title: 'redraws', complete: true as const, attention: [] });
+    expect(createEyesArchive([attempt(1), attempt(2)]).tests.map((test) => test.attempt)).toEqual([1, 2]);
+    expect(() => createEyesArchive([attempt(2), attempt(2)])).toThrow('duplicate eyes test id: a, attempt 2');
+    const unnumbered = { id: 'a', title: 'redraws', complete: true as const, attention: [] };
+    expect(() => createEyesArchive([unnumbered, unnumbered])).toThrow(/^duplicate eyes test id: a$/u);
+  });
 });

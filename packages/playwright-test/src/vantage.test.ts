@@ -1,7 +1,7 @@
 import { join } from 'node:path';
 import type { TestInfo } from '@playwright/test';
 import type { TestState, Vantage, WatchedTestIdentity } from '@variance-authority/vantage';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { varianceDesk, varianceVantageFixtures } from './vantage.js';
 
 /**
@@ -37,7 +37,7 @@ function info(over: Partial<TestInfo> = {}): TestInfo {
   return {
     testId: 't-1',
     title: 'adds an item',
-    titlePath: ['chromium', join(process.cwd(), 'specs/cart.spec.ts'), 'the cart', 'adds an item'],
+    titlePath: ['specs/cart.spec.ts', 'the cart', 'adds an item'],
     file: join(process.cwd(), 'specs/cart.spec.ts'),
     workerIndex: 3,
     project: { name: 'chromium' },
@@ -80,16 +80,32 @@ describe('varianceVantageFixtures', () => {
     expect(said.closed).toEqual([{ test: 't-1', state: 'passed' }]);
   });
 
+  it('names the file from the repository root when the runner starts in a package', async () => {
+    // An agent asks about the path the repository spells; the runner's own
+    // directory is where the suite was started, not a name space.
+    const root = process.cwd();
+    const spec = join(root, 'packages/playwright-test/specs/cart.spec.ts');
+    const started = vi.spyOn(process, 'cwd').mockReturnValue(join(root, 'packages/playwright-test'));
+    const { said, vantage } = watcher();
+
+    try {
+      await watched(vantage, info({ file: spec, titlePath: ['specs/cart.spec.ts', 'the cart', 'adds an item'] }));
+    } finally {
+      started.mockRestore();
+    }
+
+    expect(said.opened[0]?.identity.file).toBe('packages/playwright-test/specs/cart.spec.ts');
+  });
+
   it('leaves the project out when the suite never named one', async () => {
     const { said, vantage } = watcher();
 
-    // An unnamed project is an empty leading entry in the path, not a missing
-    // one, and both halves of that fact are read here.
+    // An unnamed project is an empty name, and the title does not carry it.
     await watched(
       vantage,
       info({
         project: { name: '' } as TestInfo['project'],
-        titlePath: ['', 'specs/cart.spec.ts', 'the cart', 'adds an item'],
+        titlePath: ['specs/cart.spec.ts', 'the cart', 'adds an item'],
       }),
     );
 
@@ -100,9 +116,19 @@ describe('varianceVantageFixtures', () => {
   it('keeps a title that is only the test', async () => {
     const { said, vantage } = watcher();
 
-    await watched(vantage, info({ titlePath: ['chromium', 'adds an item'] }));
+    await watched(vantage, info({ titlePath: ['specs/cart.spec.ts', 'adds an item'] }));
 
     expect(said.opened[0]?.identity.title).toBe('adds an item');
+  });
+
+  it('names a test by the position of its titles, whatever they spell', async () => {
+    const { said, vantage } = watcher();
+
+    // The first entry is the file, and every entry after it is a title, even
+    // one that spells the file's leaf or the project.
+    await watched(vantage, info({ titlePath: ['specs/cart.spec.ts', 'cart.spec.ts', 'chromium', 'adds an item'] }));
+
+    expect(said.opened[0]?.identity.title).toBe('cart.spec.ts › chromium › adds an item');
   });
 
   it('carries the first lines of the failure it ended on', async () => {

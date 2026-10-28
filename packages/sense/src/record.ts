@@ -7,8 +7,9 @@
  * asked for.
  */
 
-import { readFile, stat } from 'node:fs/promises';
-import { indexSource } from '@variance-authority/core/attribute';
+import { readFileSync, statSync } from 'node:fs';
+import { lstat, readFile, stat } from 'node:fs/promises';
+import { join } from 'node:path';
 import type { FileEdge, FileRecord, PackageEdge } from '@variance-authority/core/relate';
 import type { Parsed, ParseCache } from './cache.js';
 import { digestString, type Digest } from './digest.js';
@@ -74,13 +75,15 @@ export async function recordFor(subject: RecordSubject): Promise<BuiltRecord> {
   if (read === undefined) {
     const size = await sized(absolute);
     if (size !== undefined && size > largestFile) {
+      // Declined for its bytes, so the record names them when git already
+      // has: an unchanged file is kept, not opened to be declined again. A
+      // link's object is the path it holds, not these bytes, so it names none.
+      const named = digest !== undefined && !(await linked(absolute));
       return {
         record: {
           file,
-          unknown:
-            `${file} is ${size} bytes, over the ${largestFile} this scan opens: ` +
-            'parsing it costs about fifty times that in memory, and it is almost ' +
-            'certainly built output. Raise `largestFile` to read it anyway.',
+          ...(named ? { digest } : {}),
+          unknown: `${file} is ${size} bytes, over the ${largestFile} ${TOO_LARGE}`,
         },
         witnesses: [],
       };
@@ -96,9 +99,14 @@ export async function recordFor(subject: RecordSubject): Promise<BuiltRecord> {
       };
     }
 
+    // A digest known only now can still name an entry: the parse a resolver
+    // asked for before the scan reached this file (`parsedOnce`).
     digest ??= digestString(contents);
-    read = parsedFrom(file, contents, way, language);
-    cache.set(keyFor(digest, way), read);
+    read = cache.get(keyFor(digest, way));
+    if (read === undefined) {
+      read = parsedFrom(file, contents, way, language);
+      cache.set(keyFor(digest, way), read);
+    }
   }
 
   const edges: FileEdge[] = [];
@@ -118,7 +126,7 @@ export async function recordFor(subject: RecordSubject): Promise<BuiltRecord> {
     // whole package or a whole target. `targets` stays one entry per request —
     // the source index is keyed by that alignment — and carries the first,
     // while every one of them becomes an edge.
-    const reached = resolveAll({ resolvers, root, from: absolute, request, language });
+    const reached = resolveAll({ resolvers, root, from: absolute, request, language, item: asked.item === true });
     const target = reached[0];
     targets.push(target);
     if (target === undefined) {
@@ -181,6 +189,72 @@ export async function recordFor(subject: RecordSubject): Promise<BuiltRecord> {
   };
 }
 
+/**
+ * What one file says, parsed at most once: the parse cache's entry for its
+ * digest, or a parse that the cache then holds for the record built after it.
+ *
+ * For a resolver that needs another file's parse before the scan reaches it, as
+ * a Rust `super` needs the `mod` lines of the file above. Nothing for a file
+ * that is not there, cannot be read, or is over `largestFile`, which the record
+ * built for it says.
+ */
+export function parsedOnce(input: {
+  readonly root: string;
+  readonly file: string;
+  readonly cache?: ParseCache;
+  readonly digest?: Digest | undefined;
+  readonly largestFile?: number;
+}): Parsed | undefined {
+  const { root, file, cache, largestFile } = input;
+  const way = parseWay(file);
+  const language = languageFor(way);
+  if (language === undefined) return undefined;
+  const held = input.digest === undefined ? undefined : cache?.get(keyFor(input.digest, way));
+  if (held !== undefined) return held;
+  let contents: string;
+  try {
+    if (largestFile !== undefined && statSync(join(root, file)).size > largestFile) return undefined;
+    contents = readFileSync(join(root, file), 'utf8');
+  } catch {
+    return undefined;
+  }
+  const key = keyFor(input.digest ?? digestString(contents), way);
+  const read = cache?.get(key) ?? parsedFrom(file, contents, way, language);
+  cache?.set(key, read);
+  return read;
+}
+
+/** The rest of the reason a file declined for its size is given: `too_large` in `acquire.rs` writes the same words. */
+const TOO_LARGE =
+  'this scan opens: parsing it costs about fifty times that in memory, and it is ' +
+  'almost certainly built output. Raise `largestFile` to read it anyway.';
+
+/** Whether `record` was declined for its size. */
+// TODO: a record carries a decline for size only in its reason's words; a field
+// for it would let a keep ask without matching them.
+export function declinedForSize(record: FileRecord): boolean {
+  const { file, unknown } = record;
+  return unknown !== undefined && unknown.startsWith(`${file} is `) && unknown.endsWith(TOO_LARGE);
+}
+
+/**
+ * Whether the file at `absolute` is still over `largestFile` as it is checked
+ * out, through any link. A decline is decided on these bytes and kept by Git's
+ * object name, which under a clean filter — `core.autocrlf`, LFS — names others.
+ */
+export async function stillTooLarge(absolute: string, largestFile: number): Promise<boolean> {
+  const size = await sized(absolute);
+  return size !== undefined && size > largestFile;
+}
+
+async function linked(absolute: string): Promise<boolean> {
+  try {
+    return (await lstat(absolute)).isSymbolicLink();
+  } catch {
+    return true;
+  }
+}
+
 async function sized(absolute: string): Promise<number | undefined> {
   try {
     return (await stat(absolute)).size;
@@ -189,20 +263,27 @@ async function sized(absolute: string): Promise<number | undefined> {
   }
 }
 
-/** Everything one file's bytes say before anything about where it sits. */
+/**
+ * Everything one file's bytes say before anything about where it sits.
+ *
+ * The components a file declares are the module reader's answer, read off the
+ * tree the native batch reads them off ([`declarations.rs`](../native/src/declarations.rs)),
+ * so a module reaches the same record whichever path built it.
+ */
 function parsedFrom(file: string, contents: string, way: ParseWay, language: LanguageId): Parsed {
   const read = readerFor(language)(file, contents);
-  const declares = way.declaring && indexesComponents(language)
-    ? Object.keys(indexSource(file, contents))
-    : [];
+  const declares = way.declaring && indexesComponents(language) ? read.declares ?? [] : [];
   return {
     requests: read.requests,
     ...(read.exports === undefined ? {} : { exports: read.exports }),
     ...(read.symbols === undefined ? {} : { symbols: read.symbols }),
     ...(read.mocks === undefined ? {} : { mocks: read.mocks }),
-    harvested: true,
-    ...(declares.length === 0 ? {} : { declares: declares.sort(byCodeUnit) }),
+    ...(read.harvested === true ? { harvested: true } : {}),
+    ...(declares.length === 0 ? {} : { declares }),
+    ...(read.ownUses === undefined ? {} : { ownUses: read.ownUses }),
+    ...(read.bindingMembers === undefined ? {} : { bindingMembers: read.bindingMembers }),
     ...(read.unknown === undefined ? {} : { unknown: read.unknown }),
+    ...(read.size === undefined ? {} : { size: read.size }),
   };
 }
 
@@ -223,7 +304,7 @@ function readerFor(language: LanguageId): (file: string, contents: string) => Re
  * A tree-sitter language, read by the grammar linked into the addon.
  *
  * The walk happens where the tree is and what crosses the boundary is the
- * answer ([ADR-0074](../../../docs/context/adr/0074-one-reader-per-tree-sitter-language.md)).
+ * answer ([ADR-0074](https://github.com/Variance-Authority/variance-authority/blob/main/docs/context/adr/0074-one-reader-per-tree-sitter-language.md)).
  * A binary built without the grammars claims no language, and the file is then
  * unknown with that reason rather than read some other way.
  */

@@ -1,5 +1,6 @@
 import { intern } from '@variance-authority/core/segment';
-import { blob, column, sections, validSections, type Header, type Section } from './format-layout.js';
+import { blob, column, framedHeader, sections, validSections, type Header, type Section } from './format-layout.js';
+import { recordedCases } from './case-record.js';
 import { openBlob, openBytes, openWords, resident, type Bytes } from './columns.js';
 import type {
   ExecutionBlock,
@@ -8,14 +9,8 @@ import type {
   ExecutionModule,
   ExecutionTest,
 } from './reverse.js';
-import {
-  decodeSetExecutionIndex,
-  durationColumn,
-  durationFrom,
-  executionTestsOf,
-  stoppedColumn,
-  stoppedFrom,
-} from './execution-set-format.js';
+import { decodeSetExecutionIndex, executionTestsOf } from './execution-set-format.js';
+import { durationColumn, durationFrom, stoppedColumn, stoppedFrom } from './execution-set-columns.js';
 
 /**
  * The execution index as columns, because the JSON spelling of it is the
@@ -91,6 +86,10 @@ const LOADED = 2;
  * the same bytes.
  */
 export function encodeExecutionIndex(index: ExecutionIndex): Buffer {
+  // What a case said is items over crossing sets, and this spelling has no pool to lay them in.
+  if (index.tests.some((test) => test.said !== undefined)) {
+    throw new Error('the row spelling cannot hold what a case said; write the set spelling');
+  }
   const { strings, id } = intern(dictionary(index));
 
   const encoded = strings.map((value) => Buffer.from(value, 'utf8'));
@@ -176,11 +175,40 @@ export function encodeExecutionIndex(index: ExecutionIndex): Buffer {
   );
 }
 
-/** The bytes an execution index starts with, which a JSON one never does. */
+/**
+ * Whether `bytes` are the column spelling of an execution index rather than
+ * the JSON one.
+ *
+ * Bytes framed as {@link sections} frames them are columns, whatever their
+ * first byte: that byte is the low byte of the header's length and can spell
+ * `{` or whitespace. Bytes that are not framed are JSON when they open, after
+ * an optional byte order mark and JSON whitespace, on `{`; anything else is
+ * handed to {@link decodeExecutionIndex}, which says the file is not an index
+ * rather than a JSON parser saying where it stopped.
+ */
 export function isEncodedExecutionIndex(bytes: Uint8Array): boolean {
-  // A JSON index opens with whitespace or `{`. A column one opens with the
-  // little-endian length of its header, and a header is never that short.
-  return bytes.length > 4 && bytes[0] !== 0x7b && bytes[0] !== 0x20 && bytes[0] !== 0x0a;
+  if (framedHeader(bytes) !== undefined) return true;
+  return bytes.length > 4 && bytes[jsonStart(bytes)] !== OPEN_BRACE;
+}
+
+const OPEN_BRACE = 0x7b;
+const BYTE_ORDER_MARK = [0xef, 0xbb, 0xbf] as const;
+const JSON_WHITESPACE = new Set([0x20, 0x09, 0x0a, 0x0d]);
+
+/** Where the JSON in `bytes` would begin: past a byte order mark and whitespace. */
+function jsonStart(bytes: Uint8Array): number {
+  let at = BYTE_ORDER_MARK.every((byte, offset) => bytes[offset] === byte) ? BYTE_ORDER_MARK.length : 0;
+  while (at < bytes.length && JSON_WHITESPACE.has(bytes[at]!)) at += 1;
+  return at;
+}
+
+/**
+ * Whether `bytes`, or the case index a record of them carries, are in the row
+ * spelling this file writes, read off the header alone.
+ */
+export function isRowSpelledExecutionIndex(bytes: Uint8Array): boolean {
+  const version = framedHeader(recordedCases(bytes))?.version;
+  return version === EXECUTION_FORMAT || version === UNTIMED_ROWS || version === UNFLAGGED_ROWS;
 }
 
 /**
@@ -188,7 +216,7 @@ export function isEncodedExecutionIndex(bytes: Uint8Array): boolean {
  * settled and what its runner reported it took — without decoding a region.
  */
 export function decodeExecutionTests(bytes: Uint8Array): readonly ExecutionTest[] {
-  return executionTestsOf(bytes, [EXECUTION_FORMAT, UNTIMED_ROWS, UNFLAGGED_ROWS]);
+  return executionTestsOf(recordedCases(bytes), [EXECUTION_FORMAT, UNTIMED_ROWS, UNFLAGGED_ROWS]);
 }
 
 /**
@@ -197,9 +225,10 @@ export function decodeExecutionTests(bytes: Uint8Array): readonly ExecutionTest[
  * Returns the index {@link encodeExecutionIndex} was handed, field for field,
  * the optional `loaded` included. Throws on a file this did not write, on a
  * layout version it does not know, and on a bound that does not agree with the
- * column it indexes.
+ * column it indexes. A record that carries a case index is read as that index.
  */
 export function decodeExecutionIndex(bytes: Uint8Array): ExecutionIndex {
+  bytes = recordedCases(bytes);
   const file = resident(bytes);
   if (bytes.length < 4) throw invalid();
   const headerLength = Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength).readUInt32LE(0);
@@ -366,18 +395,3 @@ function dictionary(index: ExecutionIndex): ReadonlySet<string> {
   return held;
 }
 
-/**
- * The index as the named file should hold it: columns, unless the name says
- * JSON.
- *
- * The extension is the contract because the file has a reader on the other
- * side and nothing else tells it which one to be. A default run writes
- * `<coverage file>.cases.bin`; an operator who names a `.json` path has said
- * they want to open it with something that reads JSON, and gets what they
- * asked for at the size it costs.
- */
-export function executionIndexBytes(file: string, index: ExecutionIndex): Buffer {
-  return file.endsWith('.json')
-    ? Buffer.from(JSON.stringify(index), 'utf8')
-    : encodeExecutionIndex(index);
-}

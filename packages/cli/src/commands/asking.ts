@@ -1,11 +1,16 @@
+import { didYouMean } from '@variance-authority/core';
 import { HELP_TOOLS, type Help } from '@variance-authority/help/tools';
 import {
   COSTS_TOOLS,
+  REVIEW_TOOLS,
   TOOLS,
   VANTAGE_TOOLS,
-  didYouMean,
+  flagOf,
+  verbOf,
   type CostsSubject,
+  type ReviewTool,
   type Tool,
+  type ToolInvocation,
 } from '@variance-authority/mcp/tools';
 import { OperatorError } from '../exit.js';
 
@@ -28,26 +33,8 @@ import { OperatorError } from '../exit.js';
  * spelled yet prints `<value>` and still works.
  */
 
-/**
- * The wire namespaces, one per tool set. A namespace is a fact about the
- * protocol — two servers on one client must not both offer `search` — and not a
- * word anybody types at a shell, so it is the part the question drops.
- */
-const PREFIXES = ['variance_', 'docs_'] as const;
-
 /** The part of a tool this module reads. Not `Tool`, which would drag a subject in. */
 export type Asked = Pick<Tool, 'name' | 'description' | 'inputSchema'>;
-
-/**
- * The question a tool answers, as somebody types it.
- *
- * One rule for all of them rather than a table, so a tool added to the MCP set
- * arrives here already asked, and no second list can be short by one.
- */
-export function questionOf(tool: Asked): string {
-  const prefix = PREFIXES.find((candidate) => tool.name.startsWith(candidate)) ?? '';
-  return tool.name.slice(prefix.length).replace(/_/g, '-');
-}
 
 /** A tool that answers about a suite still running, as `VANTAGE_TOOLS` types it. */
 type LiveTool = (typeof VANTAGE_TOOLS)[number];
@@ -81,6 +68,8 @@ export interface Question {
   readonly source?: Tool<Help>;
   /** Asked of the times a run recorded, or absent when it is not a question about cost. */
   readonly costs?: Tool<CostsSubject>;
+  /** Asked of what review settled, or absent when it is not a question about review. */
+  readonly review?: ReviewTool;
 }
 
 /** Every question, each knowing which subjects it answers about. */
@@ -96,17 +85,18 @@ function questionsOf(): readonly Question[] {
   }
   for (const tool of HELP_TOOLS) found.set(tool.name, { tool, source: tool });
   for (const tool of COSTS_TOOLS) found.set(tool.name, { tool, costs: tool });
+  for (const tool of REVIEW_TOOLS) found.set(tool.name, { tool, review: tool });
 
   return [...found.values()];
 }
 
 /** The question by that name, or the refusal naming the ones that exist. */
 export function questionFor(asked: string): Question {
-  const found = QUESTIONS.find((question) => questionOf(question.tool) === asked);
+  const found = QUESTIONS.find((question) => verbOf(question.tool) === asked);
   if (found !== undefined) return found;
 
   // The names are not listed here: `variance ask` lists them with what each answers.
-  const names = QUESTIONS.map((question) => questionOf(question.tool));
+  const names = QUESTIONS.map((question) => verbOf(question.tool));
   throw new OperatorError(`\`${asked}\` is not a question.${didYouMean(asked, names)}\n\`variance ask\` lists them.`);
 }
 
@@ -116,8 +106,11 @@ export interface Argument {
   readonly property: string;
   readonly placeholder: string;
   readonly required: boolean;
-  /** How the text on the command line becomes the value the tool is given. */
-  readonly kind: 'text' | 'list' | 'number';
+  /**
+   * How the text on the command line becomes the value the tool is given. A
+   * list of questions is typed as words after the question, each in quotes.
+   */
+  readonly kind: 'text' | 'list' | 'number' | 'questions';
 }
 
 /**
@@ -138,7 +131,8 @@ const PLACEHOLDER: Readonly<Record<string, string>> = {
   claims: '<path>',
   test: '<id>',
   state: '<state>',
-  file: '<text>',
+  build: '<id>',
+  file: '<path>',
   files: '<path>[,...]',
   name: '<name>',
   package: '<name>',
@@ -153,7 +147,17 @@ const PLACEHOLDER: Readonly<Record<string, string>> = {
   on: '<words>',
   from: '<path>',
   to: '<path>',
+  imports: '<module#name>',
+  declares: '<regex>',
+  path: '<regex>',
+  text: '<pattern>',
+  exceptFrom: '<path>',
+  exceptTo: '<path>',
+  exceptImports: '<module#name>',
+  exceptDeclares: '<regex>',
+  exceptPath: '<regex>',
   limit: '<n>',
+  questions: "'<question>'",
 };
 
 /** What a question takes, read off its own schema. */
@@ -165,7 +169,7 @@ export function argumentsOf(tool: Asked): readonly Argument[] {
   return Object.entries(declared).map(([property, schema]) => {
     const kind = kindOf(schema);
     return {
-      flag: `--${property.replace(/[A-Z]/g, (upper) => `-${upper.toLowerCase()}`)}`,
+      flag: flagOf(property),
       property,
       placeholder: listed(PLACEHOLDER[property], kind) ?? fallback(kind),
       required: wanted.includes(property),
@@ -179,7 +183,12 @@ function kindOf(schema: unknown): Argument['kind'] {
     typeof schema === 'object' && schema !== null
       ? (schema as Record<string, unknown>)['type']
       : undefined;
-  if (type === 'array') return 'list';
+  if (type === 'array') {
+    // Only `intersection` takes objects in a list, and each is a whole question.
+    const items = (schema as Record<string, unknown>)['items'];
+    const item = typeof items === 'object' && items !== null ? (items as Record<string, unknown>)['type'] : undefined;
+    return item === 'object' ? 'questions' : 'list';
+  }
   if (type === 'integer' || type === 'number') return 'number';
   return 'text';
 }
@@ -200,12 +209,19 @@ function requiredOf(tool: Asked): readonly string[] {
   return Array.isArray(declared) ? declared.filter((entry) => typeof entry === 'string') : [];
 }
 
+/** How an argument is typed: a flag, or for questions, the questions themselves. */
+function spelling(argument: Argument): string {
+  return argument.kind === 'questions' ? `${argument.placeholder} ${argument.placeholder}...` : argument.flag;
+}
+
 /** What a question accepts, as it appears after the question in a listing. */
 export function takes(tool: Asked): string {
   const flags = argumentsOf(tool).map((argument) =>
-    argument.required
-      ? `${argument.flag} ${argument.placeholder}`
-      : `[${argument.flag} ${argument.placeholder}]`,
+    argument.kind === 'questions'
+      ? spelling(argument)
+      : argument.required
+        ? `${argument.flag} ${argument.placeholder}`
+        : `[${argument.flag} ${argument.placeholder}]`,
   );
   return flags.length === 0 ? '' : `  ${flags.join(' ')}`;
 }
@@ -234,11 +250,7 @@ export function inputFor(
     const argument = accepted.find((entry) => entry.property === property);
     if (argument === undefined) {
       const flags = accepted.map((entry) => entry.flag);
-      throw new OperatorError(
-        `\`--${property}\` is not an argument \`variance ask ${questionOf(tool)}\` takes; it ` +
-          `takes ${flags.length === 0 ? 'none' : flags.join(', ')}` +
-          `${didYouMean(`--${property}`, flags)}`,
-      );
+      throw new OperatorError(`${notTaken(tool, `--${property}`)}.${didYouMean(`--${property}`, flags)}`);
     }
     // A list a tool declares is typed once, comma-separated, like `--files`.
     input[property] = argument.kind === 'list' && typeof value === 'string'
@@ -259,12 +271,40 @@ export function inputFor(
       : 'Ask `summary` or `changes` first for a finished run, or `run-signals` for one still ' +
         'going; each prints the ids the narrower questions take.';
     throw new OperatorError(
-      `\`variance ask ${questionOf(tool)}\` needs ` +
+      `\`variance ask ${verbOf(tool)}\` needs ` +
         `${missing.map((argument) => argument.flag).join(' and ')}. ${first}`,
     );
   }
 
   return input;
+}
+
+/**
+ * Refuse the words typed after a question that reads none of them.
+ *
+ * Every word after the question is a report path, and a question about the
+ * code, or one asked of a watcher, reads no report. Left unread, `ask packages
+ * @kbn/name` answers every package and `ask search --query rule executor`
+ * searches for `rule`, each with exit 0. So a word is refused in the sentence
+ * a flag the question does not take is refused in.
+ */
+export function refuseWords(tool: Asked, words: readonly string[] | undefined): void {
+  const word = words?.[0];
+  if (word === undefined) return;
+  // A word left over is most often the second word of a value typed unquoted.
+  const quoted = argumentsOf(tool).some((argument) => argument.kind === 'text')
+    ? ' A value of more than one word is one argument, in quotes.'
+    : '';
+  throw new OperatorError(`${notTaken(tool, word)}.${quoted}`);
+}
+
+/** That a question does not take what was typed, and what it takes instead. */
+function notTaken(tool: Asked, typed: string): string {
+  const flags = argumentsOf(tool).map(spelling);
+  return (
+    `\`${typed}\` is not an argument \`variance ask ${verbOf(tool)}\` takes; it ` +
+    `takes ${flags.length === 0 ? 'none' : flags.join(', ')}`
+  );
 }
 
 /** Greedy, on spaces, and nothing else. The descriptions are prose, not layout. */
@@ -278,4 +318,12 @@ export function wrap(text: string, width: number): readonly string[] {
   }
 
   return lines;
+}
+
+/** The command every question is asked through, which every hint in an answer is spelled for. */
+const SHELL = 'variance ask';
+
+/** What a question's tool is handed: what this command read, asked through its shell. */
+export function invocationOf<Subject>(read: Omit<ToolInvocation<Subject>, 'shell'> = {}): ToolInvocation<Subject> {
+  return { ...read, shell: SHELL };
 }

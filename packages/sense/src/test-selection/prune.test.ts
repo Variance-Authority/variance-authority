@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, stat, utimes, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, stat, utimes, writeFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
@@ -14,6 +14,7 @@ import {
   PRUNE_EVERY_MS,
   type PruneOwners,
 } from './prune.js';
+import { testCoverageFile } from './record-location.js';
 
 const DAY = 24 * 60 * 60 * 1000;
 const NOW = Date.UTC(2026, 8, 27);
@@ -145,6 +146,22 @@ describe('planPrune', () => {
     );
   });
 
+  test('a landing that died leaves its staged snapshot where prune removes it', async () => {
+    const root = await cache();
+    const checkout = await mkdtemp(resolve(tmpdir(), 'va-prune-checkout-'));
+    // The file `variance journeys <shard.bin>...` lands on when no `--into`
+    // names another: the checkout's own record, inside the cache. Its staged
+    // copy is named beside it.
+    const target = testCoverageFile(checkout, { cacheRoot: root });
+    await marker(dirname(target), checkout, checkout, DAY);
+    await put(target, DAY);
+    const staged = await put(`${target}.4242-3f0c9a52-7d1e-4b6a-9c2f-5e8d1a0b4c77.tmp`, 2 * 60 * 60 * 1000);
+
+    const plan = await planPrune(root, owners({ exists: (path) => path === checkout }));
+
+    expect(plan.remove.map((entry) => [entry.path, entry.reason])).toEqual([[staged, 'dead-run']]);
+  });
+
   test('a story older than 14 days is removed and a newer one stays', async () => {
     const root = await cache();
     const layer = join(root, 'test-selection', 'repo');
@@ -181,7 +198,29 @@ describe('applyPrune and pruneWhenDue', () => {
     expect(existsSync(gone)).toBe(false);
     expect(existsSync(kept)).toBe(true);
     expect(prunedLine(pruned)).toMatch(/^cache: freed \d+\.\d MiB in .*test-selection: 1 checkout that no longer exists$/u);
-    expect(prunedLine({ root, removed: [], freed: 0 })).toBe('');
+    expect(prunedLine({ root, removed: [], unremoved: [], freed: 0 })).toBe('');
+  });
+
+  test('an entry that could not be removed is reported with its path and the error, and is not counted as freed', async () => {
+    const root = await cache();
+    const selection = join(root, 'test-selection');
+    const stuck = join(selection, 'aaa');
+    await marker(stuck, '/gone', '/gone', DAY);
+    const plan = await planPrune(root, owners({ exists: () => false }));
+    // Between the plan and its removal the parent became a file: no path
+    // through it resolves, for any user on any platform.
+    await rm(selection, { recursive: true });
+    await writeFile(selection, 'x');
+
+    const pruned = await applyPrune(plan);
+
+    expect(pruned.removed).toEqual([]);
+    expect(pruned.freed).toBe(0);
+    expect(pruned.unremoved.map((entry) => [entry.path, entry.reason])).toEqual([[stuck, 'gone']]);
+    expect(pruned.unremoved[0]?.error).toMatch(/^ENOTDIR\b/u);
+    expect(prunedLine(pruned)).toBe(
+      `cache: could not remove ${stuck}, a checkout that no longer exists: ${pruned.unremoved[0]?.error}`,
+    );
   });
 
   test('prunes at most once a day, stamped before the walk', async () => {

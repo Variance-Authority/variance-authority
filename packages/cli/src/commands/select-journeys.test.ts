@@ -52,6 +52,17 @@ describe('selecting from a journey file', () => {
     expect(said.out).toBe('test/other.test.ts\n');
   });
 
+  // A journey reading names the tests it reached and not why; an empty list
+  // would say the record never saw them.
+  it('lists under json no reasons for a journey reading, which names none', async () => {
+    writeFileSync(join(root, 'change.patch'), patch(6));
+    const said = await selectOutput({ cwd: root, format: 'json', execution: 'journeys.bin', diff: 'change.patch', noGit: true });
+    const json = JSON.parse(said.out) as Record<string, unknown>;
+    expect(json).toMatchObject({ ground: 'read', skip: ['test/other.test.ts'] });
+    expect(json).not.toHaveProperty('selected');
+    expect(json).not.toHaveProperty('reasons');
+  });
+
   it('skips every test for a comment above a function, which sits in the region that ran as the module loaded', async () => {
     git('add', '.');
     git('commit', '-qm', 'before');
@@ -128,6 +139,93 @@ describe('selecting from a journey file', () => {
     expect(said.out).toBe('');
     expect(said.err).toContain('no install to compare');
   });
+
+  // The root config is read once per process, so a test that declares one
+  // starts from a checkout of its own that holds it from the first read.
+  it('runs every test when the patch moves a path every suite rests on', async () => {
+    root = await declaring({ before: ['.nvmrc'] });
+    writeFileSync(join(root, 'change.patch'), patch(6) + added('.nvmrc'));
+    const said = await selectOutput({ cwd: root, format: 'plain', execution: 'journeys.bin', diff: 'change.patch', noGit: true });
+    expect(said.out).toBe('');
+    expect(said.err).toContain('every suite here rests on .nvmrc');
+  });
+
+  it('runs every test when a package the declared setup loads was bumped', async () => {
+    root = await declaring({ before: ['vitest.config.ts', 'test/setup.ts'] }, {
+      'vitest.config.ts': "export default { test: { setupFiles: ['./test/setup.ts'] } };\n",
+      'test/setup.ts': "import left from 'left';\nexport const ready = left;\n",
+    });
+    git('add', '.');
+    git('commit', '-qm', 'before');
+    writeFileSync(join(root, 'yarn.lock'), lockfile('1.1.0'));
+    git('commit', '-qam', 'bump');
+    writeFileSync(join(root, 'change.patch'), git('diff', 'HEAD~1', 'HEAD'));
+    const said = await selectOutput({ cwd: root, format: 'plain', execution: 'journeys.bin', diff: 'change.patch', noGit: true });
+    expect(said.out).toBe('');
+    expect(said.err).toContain('every suite here rests on test/setup.ts');
+  });
+
+  it.todo('names the bump that moved the file the suite rests on — needs the chain `beyondReach` returns carried into the whole-run sentence');
+
+  it('runs every test when a manifest that moved changes how the declared setup loads', async () => {
+    root = await declaring({ before: ['test/setup.ts'] }, {
+      'test/setup.ts': 'export const ready = 1;\n',
+      'test/package.json': JSON.stringify({ name: 'fixture-test', type: 'commonjs' }),
+    });
+    git('add', '.');
+    git('commit', '-qm', 'before');
+    writeFileSync(join(root, 'test/package.json'), JSON.stringify({ name: 'fixture-test', type: 'module' }));
+    writeFileSync(join(root, 'change.patch'), git('diff'));
+    const said = await selectOutput({ cwd: root, format: 'plain', execution: 'journeys.bin', diff: 'change.patch', noGit: true });
+    expect(said.out).toBe('');
+    expect(said.err).toContain('rests on test/setup.ts');
+  });
+
+  it('reads the `before` of the suite `--suite` names', async () => {
+    root = await declaring({ suites: { unit: { kind: 'unit', before: ['.nvmrc'] }, e2e: { kind: 'e2e' } } });
+    writeFileSync(join(root, 'change.patch'), patch(6) + added('.nvmrc'));
+    const said = await selectOutput({ cwd: root, format: 'plain', execution: 'journeys.bin', diff: 'change.patch', noGit: true, suite: 'unit' });
+    expect(said.out).toBe('');
+    expect(said.err).toContain('the suite unit rests on .nvmrc');
+  });
+
+  // A journey file is not kept per suite, so with none named it may be any
+  // suite's, and what any of them rests on is read.
+  it('reads the `before` of every suite when several are declared and none is named', async () => {
+    root = await declaring({ suites: { unit: { kind: 'unit', before: ['.nvmrc'] }, e2e: { kind: 'e2e' } } });
+    writeFileSync(join(root, 'change.patch'), patch(6) + added('.nvmrc'));
+    const said = await selectOutput({ cwd: root, format: 'plain', execution: 'journeys.bin', diff: 'change.patch', noGit: true });
+    expect(said.out).toBe('');
+    expect(said.err).toContain('every suite here rests on .nvmrc');
+  });
+
+  // `src/format.ts` has no module in the journey file, and `test/other.test.ts` imports it.
+  const unmeasured = ['diff --git a/src/format.ts b/src/format.ts', '--- a/src/format.ts', '+++ b/src/format.ts',
+    '@@ -2,1 +2,1 @@', '-export const format = left;', '+export const format = String(left);', ''].join('\n');
+
+  it('runs the first tests that import a file the journey file did not measure', async () => {
+    root = await declaring({ suites: { unit: { kind: 'unit' } } });
+    writeFileSync(join(root, 'change.patch'), unmeasured);
+    const said = await selectOutput({ cwd: root, format: 'plain', execution: 'journeys.bin', diff: 'change.patch', noGit: true, suite: 'unit' });
+    expect(said.out).toBe('test/branch.test.ts\n');
+  });
+
+  it('runs none of them in a suite that declines relations, and names the file declined', async () => {
+    root = await declaring({ suites: { unit: { kind: 'unit', relations: false } } });
+    writeFileSync(join(root, 'change.patch'), unmeasured);
+    const said = await selectOutput({ cwd: root, format: 'plain', execution: 'journeys.bin', diff: 'change.patch', noGit: true, suite: 'unit' });
+    expect(said.out).toBe('test/branch.test.ts\ntest/other.test.ts\n');
+    expect(said.err).toContain('the suite declines relations, so 1 changed file its record did not measure (src/format.ts)');
+  });
+
+  async function declaring(config: unknown, files: Readonly<Record<string, string>> = {}): Promise<string> {
+    const at = project();
+    writeFileSync(join(at, 'variance.config.json'), JSON.stringify(config));
+    for (const [file, text] of Object.entries(files)) writeFileSync(join(at, file), text);
+    process.chdir(at);
+    await indexOutput({ cwd: at, noGit: true });
+    return at;
+  }
 
   function git(...args: string[]): string {
     return execFileSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', ...args], { cwd: root, encoding: 'utf8' });

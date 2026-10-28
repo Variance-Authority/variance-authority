@@ -3,7 +3,7 @@ import type { AddressInfo } from 'node:net';
 import { createTribunalRoutes, type Capability } from '../next.js';
 import type { Tribunal } from '../worker.js';
 import { isPagePath } from '../ui/route.js';
-import { reviewPage, uiAsset } from './ui-assets.js';
+import { reviewPage, uiAsset, uiFont, UI_FONTS_PATH } from './ui-assets.js';
 
 /**
  * The socket: `node:http` in, {@link Tribunal.fetch} out.
@@ -14,7 +14,7 @@ import { reviewPage, uiAsset } from './ui-assets.js';
  * Nothing here knows what a build is; every route, every refusal and every status
  * code is the same code a Cloudflare deployment runs.
  *
- * Shaped after [`server/http.ts`](../../../server/src/http.ts): `node:http`, no
+ * Shaped after [`server/http.ts`](https://github.com/Variance-Authority/variance-authority/blob/main/packages/server/src/http.ts): `node:http`, no
  * framework, and no logic of its own beyond transport.
  *
  * ## The two decisions
@@ -131,7 +131,7 @@ export function createRequestListener(
 }
 
 /**
- * The surface and its bundle, ahead of the API.
+ * The surface, its bundle and its fonts, ahead of the API.
  *
  * Which paths are pages is not decided here. [`ui/route.ts`](../ui/route.ts)
  * holds the table, the browser reads it to turn a path into a view, and this
@@ -139,10 +139,11 @@ export function createRequestListener(
  * is two lists, and they drift in the worst direction: a link the client renders
  * happily and the server answers with a 404.
  *
- * Still no prefix match. Every pattern is anchored and none of them shares a
- * first segment with an API route; `serve.test.ts` holds the two apart rather
- * than trusting the reading, since this file must not be the reason a request
- * never reached the router.
+ * Still no prefix match for a page. Every pattern is anchored and none of them
+ * shares a first segment with an API route; `serve.test.ts` holds the two apart
+ * rather than trusting the reading, since this file must not be the reason a
+ * request never reached the router. The one prefix is the fonts', under `/ui/`
+ * where no API route lives, and it answers only the names in its table.
  */
 async function pageOrAsset(request: Request, reviewer?: string): Promise<Response | null> {
   const path = new URL(request.url).pathname;
@@ -166,6 +167,14 @@ async function pageOrAsset(request: Request, reviewer?: string): Promise<Respons
         // therefore `no-cache`: revalidate, do not re-download.
         'cache-control': 'no-cache',
       },
+    });
+  }
+
+  if (path.startsWith(UI_FONTS_PATH)) {
+    const font = await uiFont(path.slice(UI_FONTS_PATH.length));
+    if (font === null) return null;
+    return new Response(font.bytes, {
+      headers: { 'content-type': font.contentType, 'cache-control': 'no-cache' },
     });
   }
 

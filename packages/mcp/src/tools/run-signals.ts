@@ -1,4 +1,7 @@
+import { checkoutPath } from '@variance-authority/sense';
 import type { TestState, VantageState, WatchedTest } from '@variance-authority/vantage';
+import { limitOf } from './limit.js';
+import { spellingOf } from './spelling.js';
 import { heading, tally, unattached } from './vantage-lines.js';
 import type { Tool } from './tool.js';
 
@@ -22,7 +25,11 @@ export const runSignals: Tool<VantageState> = {
         enum: ['running', 'passed', 'failed', 'timedOut', 'skipped', 'interrupted'],
         description: 'Show only tests in this state.',
       },
-      file: { type: 'string', description: 'Show only tests whose spec file contains this.' },
+      file: {
+        type: 'string',
+        description:
+          'Show only tests in this spec file: its path from the repository root, as this listing spells it. Another name is another file.',
+      },
       limit: {
         type: 'integer',
         minimum: 1,
@@ -31,19 +38,20 @@ export const runSignals: Tool<VantageState> = {
     },
     additionalProperties: false,
   },
-  run(state, input) {
+  run(state, input, invocation) {
     if (state.tests.length === 0) return unattached(state);
 
     const wanted = stateArg(input);
-    const file = fileArg(input);
+    const file = fileArg(input, invocation?.root);
     const matching = state.tests.filter(
       (test) =>
         (wanted === undefined || test.state === wanted) &&
-        (file === undefined || test.file.includes(file)),
+        (file === undefined || test.file === file),
     );
     if (matching.length === 0) return nothingMatched(state, wanted, file);
 
-    const limit = limitArg(input);
+    const spell = spellingOf(invocation);
+    const limit = limitOf(input, 50, spell);
     const shown = matching.slice(Math.max(0, matching.length - limit));
     const elided = matching.length - shown.length;
 
@@ -51,7 +59,7 @@ export const runSignals: Tool<VantageState> = {
       summary(state, matching),
       '',
       ...shown.map(row),
-      ...(elided === 0 ? [] : ['', `… ${elided} earlier match(es) not listed; raise \`limit\`.`]),
+      ...(elided === 0 ? [] : ['', `… ${elided} earlier match(es) not listed; a higher \`${spell.input('limit')}\` lists them.`]),
       ...(state.forgotten === 0
         ? []
         : ['', `${state.forgotten} earlier test(s) were dropped to keep this watcher bounded.`]),
@@ -91,7 +99,7 @@ function nothingMatched(
 ): string {
   const asked = [
     ...(wanted === undefined ? [] : [`state ${wanted}`]),
-    ...(file === undefined ? [] : [`file containing ${file}`]),
+    ...(file === undefined ? [] : [`file ${file}`]),
   ].join(' and ');
   const states = [...new Set(state.tests.map((test) => test.state))].sort().join(', ');
   return `No test here matches ${asked}. ${state.tests.length} test(s) have reported, in: ${states}.`;
@@ -115,20 +123,24 @@ function stateArg(input: Readonly<Record<string, unknown>>): TestState | undefin
   return value as TestState;
 }
 
-function fileArg(input: Readonly<Record<string, unknown>>): string | undefined {
+/**
+ * The spec file asked about, spelled the way a reporter spells `test.file`.
+ *
+ * With the checkout the host was started in, `./x`, `a/../x` and an absolute
+ * path all read as the record's name, and a path outside it is refused. Without
+ * one, the argument is taken as that name already, because resolving it against
+ * this process's working directory would be guessing at a root nobody named.
+ */
+function fileArg(input: Readonly<Record<string, unknown>>, root: string | undefined): string | undefined {
   const value = input['file'];
   if (value === undefined) return undefined;
   if (typeof value !== 'string' || value === '') {
     throw new Error('`file` must be a non-empty string');
   }
-  return value;
-}
-
-function limitArg(input: Readonly<Record<string, unknown>>): number {
-  const value = input['limit'];
-  if (value === undefined) return 50;
-  if (!Number.isInteger(value) || (value as number) < 1) {
-    throw new Error('`limit` must be a positive integer');
+  if (root === undefined) return value;
+  const spelled = checkoutPath(root, value);
+  if ('outside' in spelled) {
+    throw new Error(`${value} is outside the checkout at ${root}, and the suite running there reports only files inside it.`);
   }
-  return value as number;
+  return spelled.path;
 }

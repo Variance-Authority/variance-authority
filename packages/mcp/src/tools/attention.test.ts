@@ -85,6 +85,24 @@ describe('variance_test_attention', () => {
     expect(text).toContain('DrawingPanel at src/drawing/RedrawButton.tsx:17');
   });
 
+  it('names a test by its id or whole title, never a part of it', () => {
+    expect(attention.run(ARCHIVE, { test: 'redraws the canvas' })).toContain('redraws the canvas — ');
+    for (const asked of ['redraws', 'Redraws the canvas']) {
+      expect(attention.run(ARCHIVE, { test: asked })).toBe(
+        `No Eyes test has the id or title ${asked}. 1 test(s) are recorded.`,
+      );
+    }
+  });
+
+  it('lists a title two tests share with their ids, rather than answering with either', () => {
+    const [test] = ARCHIVE.tests;
+    const twice: EyesArchive = { ...ARCHIVE, tests: [test!, { ...test!, id: 'redraw-again' }] };
+
+    expect(attention.run(twice, { test: 'redraws the canvas' })).toBe(
+      '2 Eyes tests are titled redraws the canvas; ask by id:\n  redraws the canvas [redraw-test]\n  redraws the canvas [redraw-again]',
+    );
+  });
+
   it('filters by an authored phase without classifying calls itself', () => {
     const text = attention.run(ARCHIVE, { test: 'redraw-test', phase: 'act' });
 

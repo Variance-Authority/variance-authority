@@ -18,6 +18,7 @@ export const COMMANDS = [
   'run',
   'index',
   'select',
+  'shards',
   'reach',
   'covering',
   'coverage',
@@ -36,7 +37,9 @@ export const COMMANDS = [
   'push',
   'serve',
   'doctor',
+  'prune',
   'share',
+  'collect',
   'carry',
   'comment',
 ] as const;
@@ -60,8 +63,10 @@ export const PER_COMMAND: Record<(typeof COMMANDS)[number], readonly string[]> =
     '--flakes',
     '--exit-zero-on-changes',
   ],
+  collect: ['--subjects', '--shard', '--workers', '--out'],
   index: ['--no-git', '--wait', '--follow-ups'],
-  select: ['--since', '--execution', '--diff', '--suite', '--format', '--no-git'],
+  select: ['--since', '--execution', '--diff', '--suite', '--at-distance', '--format', '--no-git'],
+  shards: ['--setup', '--budget', '--max', '--workers', '--since', '--collected', '--at-distance', '--suite', '--unrecorded', '--format'],
   reach: ['--since', '--format', '--whole-files', '--no-git'],
   covering: [
     '--file',
@@ -74,6 +79,8 @@ export const PER_COMMAND: Record<(typeof COMMANDS)[number], readonly string[]> =
     '--since',
     '--against',
     '--cases',
+    '--where',
+    '--read',
     '--execution',
     '--suite',
     '--root',
@@ -89,6 +96,7 @@ export const PER_COMMAND: Record<(typeof COMMANDS)[number], readonly string[]> =
     '--claims',
     '--test',
     '--state',
+    '--build',
     '--file',
     '--files',
     '--area',
@@ -105,6 +113,15 @@ export const PER_COMMAND: Record<(typeof COMMANDS)[number], readonly string[]> =
     '--on',
     '--from',
     '--to',
+    '--imports',
+    '--declares',
+    '--path',
+    '--text',
+    '--except-from',
+    '--except-to',
+    '--except-imports',
+    '--except-declares',
+    '--except-path',
     '--changed-file',
     '--taint-file',
     '--just-answer',
@@ -113,21 +130,22 @@ export const PER_COMMAND: Record<(typeof COMMANDS)[number], readonly string[]> =
     '--at',
     '--format',
   ],
-  distill: ['--test', '--eyes', '--execution', '--root', '--format'],
-  story: ['--file', '--name', '--label', '--in', '--around', '--whole', '--compare', '--root', '--format'],
+  distill: ['--test', '--file', '--from', '--execution', '--suite', '--root', '--format'],
+  story: ['--file', '--name', '--label', '--in', '--package', '--around', '--whole', '--compare', '--root', '--format'],
   watch: [],
   adjudicate: ['--claims', '--exit-zero-on-changes'],
   accept: ['--all', '--shape', '--message-file', '--message'],
   changelog: ['--component', '--subject', '--limit', '--since'],
-  journeys: ['--all', '--file', '--limit', '--into', '--suite'],
-  coverage: ['--against', '--suite', '--from', '--packages', '--root', '--format'],
+  journeys: ['--all', '--file', '--limit', '--into', '--suite', '--format'],
+  coverage: ['--against', '--suite', '--from', '--packages', '--at-distance', '--fan-in', '--root', '--format'],
   layers: ['--against', '--root', '--format'],
   restrictions: ['--root', '--format'],
-  review: ['--since', '--against', '--suite', '--out', '--from-run', '--artifact', '--root', '--format'],
+  review: ['--coverage', '--since', '--against', '--suite', '--out', '--from-run', '--artifact', '--root', '--format'],
   push: ['--run', '--commit', '--branch'],
   serve: ['--just-answer'],
-  doctor: ['--prune'],
-  share: ['--mainline', '--publish'],
+  doctor: ['--baselines'],
+  prune: [],
+  share: ['--mainline', '--publish', '--suite', '--collected', '--format'],
   // `--config` by name: `carry` reads a project only when one is named, so it
   // is configless for the table below and still takes the flag.
   carry: ['--config', '--format'],
@@ -137,26 +155,29 @@ export const PER_COMMAND: Record<(typeof COMMANDS)[number], readonly string[]> =
 export const USAGE = [
   'variance run     [--config <path>] [--profile jsdom|chromium] [--subjects <glob>] [--shard <k>/<n>] [--intent <text>] [--run <id> --commit <sha>] [--since <ref>] [--against <ref>] [--suite <name>] [--flakes] [--exit-zero-on-changes]',
   'variance index   [--no-git] [--wait | --follow-ups]',
-  'variance select  [--since <ref>] [--execution <journey-file> [--diff <patch>|-] | --suite <name>] [--format plain|json|vitest|jest] [--no-git]',
+  'variance select  [--since <ref>] [--execution <journey-file> [--diff <patch>|-] | --suite <name>] [--at-distance <hops>] [--format plain|json|vitest|jest] [--no-git]',
+  'variance shards  [--setup <seconds>] [--budget <seconds>] [--max <n>] [--workers <n>] [--since <ref> [--collected <file>]] [--at-distance <hops>] [--suite <name>] [--unrecorded <n>] [--format text|json]',
   'variance reach   --since <ref> [--format plain|json] [--whole-files] [--no-git]',
-  'variance covering --file <path> [--line <n>] [--function <name>] [--at-distance <hops>] [--in-package] [--hops] [--text <path>|-] | --since <ref> [--against <record>] [--cases last|<test file>] [--execution <path> | --suite <name>] [--root <path>] [--format text|refs|json]',
-  'variance coverage [--suite <name> [--against <record>]] [--from <dir> | --packages] [--root <path>] [--format text|markdown|json]',
+  'variance covering --file <path> [--line <n>|<a>-<b>] [--function <name>] [--at-distance <hops>] [--in-package] [--hops] [--text <path>|-] | --since <ref> [--against <record>] [--cases last|<test file>] [--where <name>[=<value>]]... [--read <name>[=<value>]]... [--execution <path> | --suite <name>] [--root <path>] [--format text|refs|json]',
+  'variance coverage [--suite <name> [--against <record>]] [--from <dir> | --packages] [--at-distance <hops>] [--fan-in] [--root <path>] [--format text|markdown|json]',
   'variance layers  [--against <index>] [--root <path>] [--format text|markdown|json]',
   'variance restrictions [--root <path>] [--format text|json]',
-  'variance review  [--since <ref>] [--against <record>] [--suite <name>] [--out <dir>] | --from-run <run id or URL> [--artifact <name>] [--root <path>] [--format text|markdown|json]',
+  'variance review  [--since <ref>] [--against <record>] [--suite <name>] [--coverage] [--out <dir>] | --from-run <run id or URL> [--artifact <name>] [--root <path>] [--format text|markdown|json|handover]',
   'variance report  [--config <path>] [--format text|json|html [--embed-images]] [--subject <id>] [--exit-zero-on-changes] [<report>...]',
-  'variance ask     [--config <path>] [<question>] [--subject <id>] [--subjects <id>[,...]] [--component <name>] [--rule <id>] [--shape <digest>] [--claims <path>] [--test <id>] [--state <state>] [--file <text>] [--files <path>[,...]] [--area <id>] [--name <name>] [--package <name>] [--subpath <subpath>] [--query <words>] [--under|--above|--inside|--beside|--left-of|--right-of <words>] [--on <words>] [--from <path>] [--to <path>] [--changed-file <path>] [--taint-file <path>] [--just-answer] [--limit <n>] [--offset <n>] [--at <address>] [--format text|json] [<report>...]',
-  'variance distill --test <id> [--eyes <path>] [--execution <path>] [--root <path>] [--format text|json]',
-  'variance story   [--file <text>] [--name <text>] [--label <label>] [--in <package or file> | --around <step> | --whole | --compare last|outcome|<a>,<b>] [--root <path>] [--format text|json]',
+  'variance ask     [--config <path>] [<question>] [--subject <id>] [--subjects <id>[,...]] [--component <name>] [--rule <id>] [--shape <digest>] [--claims <path>] [--test <id>] [--state <state>] [--build <id>] [--file <path>] [--files <path>[,...]] [--area <id>] [--name <name>] [--package <name>] [--subpath <subpath>] [--query <words>] [--under|--above|--inside|--beside|--left-of|--right-of <words>] [--on <words>] [--from <path>] [--to <path>] [--imports <import>] [--declares <regex>] [--path <regex>] [--text <pattern>] [--except-from|--except-to|--except-imports|--except-declares|--except-path <value>] [--changed-file <path>] [--taint-file <path>] [--just-answer] [--limit <n>] [--offset <n>] [--at <address>] [--format text|json] [<report>...]',
+  'variance distill [--test <name>] [--file <path> | --from <dir>] [--execution <path> | --suite <name>] [--root <path>] [--format text|json|jsonl]',
+  'variance story   [--file <path>] [--name <name>]... [--label <label>] [--in <file> | --package <name> | --around <step> | --whole | --compare last|outcome|<a>,<b>,…] [--root <path>] [--format text|json]',
   'variance watch',
   'variance adjudicate [--config <path>] --claims <path> [--exit-zero-on-changes] [<report>...]',
   'variance accept  [--config <path>] <subject>... | --all | --shape <fingerprint>[,...] [--message-file <path> [--message <text>]]',
-  'variance changelog [--config <path>] [--component <text>] [--subject <id>] [--limit <n>] [--since <rev>]',
-  'variance journeys [--config <path>] [--all] [--file <text>] [--limit <n>] [<shard.bin>... [--into <path>]] [--suite <name>] | finalize <journey-file> | stitch <shard.bin>... --into <journey-file>',
+  'variance changelog [--config <path>] [--component <text>] [--subject <id>] [--limit <n>] [--since <rev|instant>]',
+  'variance journeys [--config <path> | --suite <name>] [--all] [--file <path>] [--limit <n>] [<shard.bin>... [--into <path>]] | finalize <journey-file> | stitch <shard.bin>... --into <journey-file> | combine <record.bin>... --into <new-record> | inspect <record.bin> [--format text|json]',
   'variance push    [--config <path>] [--run <id>] [--commit <sha>] [--branch <name>] [<report>...]',
   'variance serve   [--config <path>] [--just-answer] # MCP over stdio',
-  'variance doctor  [--config <path>] [--prune]',
-  'variance share   [--config <path>] [--mainline <branch>] [--publish] [<report>...]',
+  'variance doctor  [--config <path>] [--baselines]',
+  'variance prune',
+  'variance share   [--config <path>] [--mainline <branch>] [--publish] [<report>...] | --suite <name> [--publish [--collected <file>] | --format text|github]',
+  'variance collect [--config <path>] [--subjects <glob>] [--shard <k>/<n>] [--workers <n>] --out <part.json> | merge <part.json>... --out <suite.index>',
   'variance carry   restore | save [--config <path>] [--format text|github]',
   'variance comment [--config <path>] [--body-file <path>] [--run-url <url>] [--to-accept <text>] [--image-root <url>] [<report>...] | --marker',
   '',
@@ -168,14 +189,16 @@ export const USAGE = [
  * The flags a command accepts, the configuration ones included where they apply.
  *
  * `watch`, `distill`, `covering`, `coverage`, `review`, `story`, `index`,
- * `select` and `reach` do not read project configuration. One holds a live
+ * `select`, `shards` and `reach` do not read project configuration. One holds a live
  * listener; the next five read evidence a run left behind, named on the command line or found
- * where a run puts it; the last three are asked by a repository whose tests another runner runs, and
- * which may have configured this tool for nothing else. `carry` is on the list
+ * where a run puts it; the last four are asked by a repository whose tests another runner runs, and
+ * which may have configured this tool for nothing else. `prune` reads the
+ * repository's cache, which the root config or `VARIANCE_AUTHORITY_CACHE` names
+ * whether or not a project is configured. `carry` is on the list
  * for the same reason and names `--config` itself: the suites it carries are
  * the repository root's, and a project is read only when one is named.
  */
-const CONFIGLESS: readonly string[] = ['watch', 'distill', 'covering', 'coverage', 'layers', 'restrictions', 'review', 'story', 'index', 'select', 'reach', 'carry'];
+const CONFIGLESS: readonly string[] = ['watch', 'distill', 'covering', 'coverage', 'layers', 'restrictions', 'review', 'story', 'index', 'select', 'shards', 'reach', 'prune', 'carry'];
 
 export function flagsFor(command: (typeof COMMANDS)[number]): readonly string[] {
   return CONFIGLESS.includes(command)
@@ -245,6 +268,9 @@ export function helpFor(command: (typeof COMMANDS)[number]): string {
       : []),
     ...(flags.includes('--follow-ups')
       ? ['--follow-ups: what that process runs; lets go of the lock the other commands wait on when it is done.']
+      : []),
+    ...(flags.includes('--workers')
+      ? ['--workers: browsers this job opens. Every shard opens its own, so 4 shards × 2 workers is 8 browser worlds.']
       : []),
     ...(flags.includes('--whole-files')
       ? ['--whole-files: walk from every changed file whole, without reading the edit; the list is never shorter.']

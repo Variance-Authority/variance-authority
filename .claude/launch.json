@@ -12,6 +12,17 @@
       ],
       "port": 3000,
       "autoPort": true
+    },
+    {
+      "name": "tribunal-storybook",
+      "runtimeExecutable": "yarn",
+      "runtimeArgs": [
+        "workspace",
+        "@variance-authority/tribunal",
+        "storybook",
+        "--no-open"
+      ],
+      "port": 6007
     }
   ]
 }

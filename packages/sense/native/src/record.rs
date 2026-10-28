@@ -15,6 +15,7 @@ use std::collections::{BTreeSet, HashSet};
 
 use serde::{Deserialize, Serialize};
 
+use crate::acquire::Outcome;
 use crate::order::code_unit;
 use crate::read::Read;
 use crate::specifier::{is_relative, kind_for, package_of, request_of};
@@ -71,12 +72,18 @@ pub struct Settling<'a> {
 /// by — Git's object name when the tree holds the file, the read digest when it
 /// does not, empty when neither — and `targets` is one entry per request,
 /// empty where the request resolved to nothing.
-pub fn built(file: &str, identity: &str, read: &Read, parsed: bool, targets: &[String], settling: &Settling) -> Indexed {
+pub fn built(file: &str, identity: &str, read: &Read, outcome: Outcome, targets: &[String], settling: &Settling) -> Indexed {
     let unknown = read.unknown.as_deref().filter(|reason| !reason.is_empty());
-    if !parsed {
+    if !outcome.parsed() {
+        // A file declined by its bytes — over the size the scan opens, or not
+        // UTF-8 — names them, so the next update keeps the record rather than
+        // opening the file to decline it again. A read that failed names
+        // nothing: what failed it may not hold next time, so it is tried again.
+        // Nor does a refusal reached through a link (`Outcome` in `acquire.rs`).
         return Indexed {
             record: FileRecord {
                 file: file.to_owned(),
+                digest: (outcome == Outcome::Declined && !identity.is_empty()).then(|| identity.to_owned()),
                 unknown: unknown.map(str::to_owned),
                 ..FileRecord::default()
             },

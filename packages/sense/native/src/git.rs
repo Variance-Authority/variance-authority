@@ -46,29 +46,14 @@ pub fn snapshot(root: &str) -> Option<Snapshot> {
     let (listing, status) = std::thread::scope(|scope| {
         let listing = scope.spawn(|| git(root, &["ls-tree", "-r", "-z", "HEAD", "--", "."], None));
         // `core.fsmonitor` and `core.untrackedCache` are left to the repository,
-        // for the reason `tree.ts` gives: they are what make this call cheap, and
-        // overriding either way spends a user's configuration on their behalf.
-        // At the top of the checkout the question is also asked in the one shape
-        // git's untracked cache answers, for the reason `tree.ts` gives.
+        // for the reason `working-tree-changes.ts` gives: they are what make this
+        // call cheap, and overriding either way spends a user's configuration on
+        // their behalf. The shape of the question is `untracked_question`'s.
         let status = scope.spawn(|| {
-            if prefix.is_empty() {
-                git(root, &["status", "--porcelain=v1", "-z", "--untracked-files=normal"], None)
-            } else {
-                git(
-                    root,
-                    &[
-                        "-c",
-                        "status.relativePaths=true",
-                        "status",
-                        "--porcelain=v1",
-                        "-z",
-                        "--untracked-files=all",
-                        "--",
-                        ".",
-                    ],
-                    None,
-                )
-            }
+            let settings = untracked_settings(root);
+            let mut args = vec!["status", "--porcelain=v1", "-z"];
+            args.extend(untracked_question(prefix, settings));
+            git(root, &args, None)
         });
         (listing.join().ok().flatten(), status.join().ok().flatten())
     });
@@ -103,12 +88,14 @@ pub fn snapshot(root: &str) -> Option<Snapshot> {
         let path = &path[1..];
         let relative = path.strip_prefix(prefix).unwrap_or(path);
         if mode == Some(b"120000".as_slice()) {
+            // FIXME: a module parsed through a link keeps the link's object name,
+            // the path it holds, so an update does not see its target change.
             links.insert(relative.to_vec());
         }
         listed.push((relative.to_vec(), oid));
     }
 
-    let (moved, unhashed) = match overlay(root, status) {
+    let (moved, unhashed) = match overlay(root, prefix, status) {
         Some((moved, unhashed)) => (Some(moved), unhashed),
         None => (None, Vec::new()),
     };
@@ -151,6 +138,66 @@ pub fn snapshot(root: &str) -> Option<Snapshot> {
     Some(Snapshot { paths, oids, regular, unhashed })
 }
 
+/// What the repository configures about its untracked files: whether git keeps
+/// an untracked cache, and `status.showUntrackedFiles`, the one mode it keeps it
+/// for. `untrackedSettings` in `working-tree-changes.ts`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct UntrackedSettings {
+    pub cached: bool,
+    pub mode: &'static str,
+}
+
+/// The three settings, read in one call; none set is git's default, and so is
+/// a git that cannot answer.
+fn untracked_settings(root: &str) -> UntrackedSettings {
+    let pattern = r"^(core\.untrackedcache|feature\.manyfiles|status\.showuntrackedfiles)$";
+    settings_of(&git(root, &["config", "-z", "--get-regexp", pattern], None).unwrap_or_default())
+}
+
+/// `git config -z --get-regexp` output as the settings it names, read in
+/// order so a later file wins, as git reads it. `settingsOf` in
+/// `working-tree-changes.ts`.
+pub(crate) fn settings_of(listed: &[u8]) -> UntrackedSettings {
+    let truthy = |value: &[u8]| matches!(value, b"true" | b"yes" | b"on" | b"1");
+    let falsy = |value: &[u8]| matches!(value, b"false" | b"no" | b"off" | b"0" | b"");
+    let (mut cache, mut many_files, mut mode) = (None, false, "normal");
+    for entry in listed.split(|byte| *byte == 0).filter(|entry| !entry.is_empty()) {
+        // The key alone is a setting written with no value, which git reads as true.
+        let (key, value) = match entry.iter().position(|byte| *byte == b'\n') {
+            Some(newline) => (&entry[..newline], entry[newline + 1..].to_ascii_lowercase()),
+            None => (entry, b"true".to_vec()),
+        };
+        match key {
+            b"core.untrackedcache" => cache = Some(truthy(&value)),
+            b"feature.manyfiles" => many_files = truthy(&value),
+            b"status.showuntrackedfiles" => {
+                mode = if value == b"all" { "all" } else if falsy(&value) { "no" } else { "normal" };
+            }
+            _ => {}
+        }
+    }
+    UntrackedSettings { cached: cache.unwrap_or(many_files), mode }
+}
+
+/// How `status` is asked for the untracked files below `prefix`.
+///
+/// Git answers from its untracked cache only in the mode the repository
+/// configures, and only with no pathspec, for the measurements
+/// `untrackedQuestion` in `working-tree-changes.ts` gives. Where git keeps the
+/// cache, the whole checkout is asked in its configured mode and the overlay
+/// drops what lies beside the root; where it does not, the pathspec is what
+/// keeps the walk to the root.
+pub(crate) fn untracked_question(prefix: &[u8], settings: UntrackedSettings) -> Vec<&'static str> {
+    if settings.cached && settings.mode != "no" {
+        return vec![if settings.mode == "all" { "--untracked-files=all" } else { "--untracked-files=normal" }];
+    }
+    if prefix.is_empty() {
+        vec!["--untracked-files=normal"]
+    } else {
+        vec!["--untracked-files=all", "--", "."]
+    }
+}
+
 /// Whether `HEAD` names a branch nobody has committed to yet.
 ///
 /// Asked only after `ls-tree` has failed, so a checkout with history never pays
@@ -169,10 +216,16 @@ type Moved = HashMap<Vec<u8>, Option<Oid>>;
 /// hashed nothing, or `None` when git did not answer and every committed digest
 /// is withdrawn with it.
 ///
+/// Porcelain status spells every path from the top of the checkout, wherever it
+/// runs, and ignores `status.relativePaths`. So each path loses `prefix` here,
+/// the scan root's place in the checkout, to match the listing's names, and a
+/// path beside the root is dropped: a rename across the root is a deletion or
+/// an addition on the root's side.
+///
 /// Failure removes the disagreeing paths rather than leaving them: a stale
 /// digest on an edited file is a subject nobody observes, and no digest at all
 /// is a file the scan hashes for itself.
-fn overlay(root: &str, status: Option<Vec<u8>>) -> Option<(Moved, Vec<Vec<u8>>)> {
+fn overlay(root: &str, prefix: &[u8], status: Option<Vec<u8>>) -> Option<(Moved, Vec<Vec<u8>>)> {
     let status = status?;
 
     let fields: Vec<&[u8]> = status.split(|byte| *byte == 0).collect();
@@ -189,15 +242,23 @@ fn overlay(root: &str, status: Option<Vec<u8>>) -> Option<(Moved, Vec<Vec<u8>>)>
         }
 
         let codes = &entry[..2];
-        let path = &entry[3..];
 
         // A rename carries its old path as the next field, and that path is gone.
         if codes.contains(&b'R') {
-            if let Some(from) = fields.get(at) {
+            if let Some(from) = fields.get(at).and_then(|from| from.strip_prefix(prefix)) {
                 moved.insert(from.to_vec(), None);
             }
             at += 1;
         }
+        // Collapsed by `normal`, the root itself, or a directory above it, is
+        // one untracked line, and every file under the root is untracked.
+        if codes == b"??" && entry.ends_with(b"/") && prefix.starts_with(&entry[3..]) {
+            collapsed.push(b".");
+            continue;
+        }
+        let Some(path) = entry[3..].strip_prefix(prefix) else {
+            continue;
+        };
 
         if codes.contains(&b'D') {
             moved.insert(path.to_vec(), None);
@@ -245,7 +306,7 @@ fn overlay(root: &str, status: Option<Vec<u8>>) -> Option<(Moved, Vec<Vec<u8>>)>
     // trailing slash, or a link to a directory or to nothing, fails the batch,
     // and a failed batch withdraws every edited file's digest with its own.
     let files: Vec<&[u8]> = dirty.iter().map(Vec::as_slice).filter(|path| is_file(root, path)).collect();
-    for (path, oid) in hash_on_disk(root, &files) {
+    for (path, oid) in hash_on_disk(root, prefix, &files) {
         moved.insert(path, Some(oid));
     }
     let unhashed = dirty.into_iter().filter(|path| moved.get(path).is_some_and(Option::is_none)).collect();
@@ -289,12 +350,18 @@ fn is_file(root: &str, path: &[u8]) -> bool {
 /// means git stopped early, on a path that went away or could not be opened
 /// after `is_file` saw it, and pairing the survivors by position would attach
 /// one file's digest to another's name; the whole batch is discarded instead.
-fn hash_on_disk(root: &str, paths: &[&[u8]]) -> Vec<(Vec<u8>, Oid)> {
+///
+/// `hash-object --stdin-paths` reads each path from the top of the checkout,
+/// wherever it runs, so each goes in behind `prefix` and comes back without it.
+/// Spelled from the top rather than absolute, a path matches `.gitattributes`
+/// as it would from a scan at the top.
+fn hash_on_disk(root: &str, prefix: &[u8], paths: &[&[u8]]) -> Vec<(Vec<u8>, Oid)> {
     if paths.is_empty() {
         return Vec::new();
     }
-    let mut stdin = Vec::with_capacity(paths.iter().map(|path| path.len() + 1).sum());
+    let mut stdin = Vec::with_capacity(paths.iter().map(|path| prefix.len() + path.len() + 1).sum());
     for path in paths {
+        stdin.extend_from_slice(prefix);
         stdin.extend_from_slice(path);
         stdin.push(b'\n');
     }
@@ -374,9 +441,15 @@ const HEX: [char; 16] = [
 /// Identity is never inherited into the child beyond what the environment
 /// already holds: these are read-only queries and write no objects.
 pub(crate) fn git(root: &str, args: &[&str], stdin: Option<Vec<u8>>) -> Option<Vec<u8>> {
+    git_with(root, args, stdin, &[])
+}
+
+/// [`git`], with variables set in the child's environment.
+pub(crate) fn git_with(root: &str, args: &[&str], stdin: Option<Vec<u8>>, env: &[(&str, &str)]) -> Option<Vec<u8>> {
     let mut command = Command::new("git");
     command
         .args(args)
+        .envs(env.iter().copied())
         .current_dir(root)
         .stdout(Stdio::piped())
         .stderr(Stdio::null())

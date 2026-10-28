@@ -8,7 +8,7 @@ Type: lifecycle
 
 A reviewer is looking at a red **subject** and has one question: which edit did
 this. The system holds the whole distance between a changed-pixel count and
-*`Toggle` moved, at `src/ds/components.tsx:107`* — and every hop in that distance
+*`Toggle` moved, at `examples/todomvc/src/ds/components.tsx:107`* — and every hop in that distance
 fails differently, so the lifecycle is worth tracing as one path rather than
 read out of any single component. It is also the path where a confident wrong
 answer is more expensive than no answer, so each hop's refusal is part of the
@@ -162,11 +162,12 @@ sequenceDiagram
   rather than a plausible position. Frames never reach a **digest** or a
   **baseline**.
 
-- Component → declaring file. `indexSource(file, contents): SourceIndex` and
+- Component → declaring file. `indexDeclarations(file, contents): SourceIndex`
+  in `packages/sense/src/declarations.ts` reads it off the parse, and
   `resolveSource(name, index): Resolution | null` in
-  `packages/core/src/attribute/source.ts`, formatted by `formatSource`. A name
-  declared in several files carries the ambiguity into the answer rather than
-  picking one.
+  `packages/core/src/attribute/source.ts` answers it, formatted by
+  `formatSource`. A name declared in several files carries the ambiguity into
+  the answer rather than picking one.
 
 - Region → record. `regionRecordOf(region, source)` in
   `packages/cli/src/commands/record.ts` is the one place the two location
@@ -297,8 +298,8 @@ sequenceDiagram
   CMP->>IDN: identityFor(document) — the identity this run would paint under
   CMP->>STO: describe(key, identity)
   STO-->>CMP: the sidecar: stored digest, comparability, fonts, marks
-  alt digests agree, or the baseline is another machine's
-    CMP-->>CMP: unchanged / incomparable — no image was read
+  alt digests agree under one identity
+    CMP-->>CMP: unchanged — no image was read
   else nothing settled it
     CMP->>STO: find(key, identity) — the prior reading, partitioned by identity
     CMP->>DEF: a document to paint
@@ -308,7 +309,7 @@ sequenceDiagram
 
   Note over AGA,ALO: only now, and in this order
   CMP->>AGA: the verdict, and what this subject is asserted on
-  AGA->>COL: collect it again — same world, seconds later
+  AGA->>COL: collect it again — same world, right after
   COL-->>AGA: a second document
   alt the two documents disagree
     AGA->>INS: two snapshots that should have agreed
@@ -359,7 +360,7 @@ sequenceDiagram
   `packages/storybook-collector/src/index.ts` and
   `packages/playwright-test/src/fixture.ts`.
 - Collector to run. `Collector.collect(subject: PlannedSubject):
-  Promise<Collected>` in `packages/cli/src/commands/collector.ts`; `Collected`
+  Promise<Collected | Visit>` in `packages/cli/src/commands/collector.ts`; `Collected`
   is a discriminated union whose failure arm is `{ ok: false, because }` — a
   value, not an exception, so one unreachable subject costs the other subjects
   nothing and is still named. Every collection in this trace, including both
@@ -384,8 +385,8 @@ sequenceDiagram
   `packages/raster/src/codec.ts` is the field-by-field rebuild every sidecar,
   wire response and cache read-back passes through — a field silently dropped
   there produces a write key and a lookup key that differ, and the run then
-  reports **incomparable** naming the same machine on both sides. This is what
-  decides which **baseline** the comparison is allowed to reach at all; a store
+  names a moved identity whose two sides are the same machine. This is what
+  decides which **baseline** the lookup reaches first; a store
   that cannot answer raises `RasterStoreError` with `REFUSAL` and never an
   absence.
 - Render only if settling did not answer. `renderOnce` in
@@ -562,7 +563,11 @@ flowchart TB
   nothing.
 - What a run rests on, to the walk that cannot see it — `beforeReach` in
   `packages/core/src/relate/before.ts` descends *along* the arrows from the
-  paths in `source.before`, stopping at the first file under `source.dirs`, and
+  paths in `before` — the top-level list, plus the suite's own for
+  `variance select`, whose `restsOf` in
+  `packages/cli/src/commands/select-before.ts` runs the whole suite on a hit —
+  stopping at the first file under `source.dirs` for a render run and nowhere
+  for `select`, and
   returns the files and packages it reached plus the declared entries the graph
   does not hold. `affectedComponents` in `packages/cli/src/commands/reach.ts`
   asks `changedBefore` before it walks anything and returns a `whole` sentence
@@ -584,7 +589,7 @@ flowchart TB
   `packages/cli/src/commands/run-select.ts` joins them into `skipped:
   ReadonlyMap<string, string>` plus `notes`, so the reason a **subject** was
   removed and the reason printed are one value.
-- Narrowing to plan — `run.ts` reads `selected.skipped.get(id)` per planned
+- Narrowing to plan — `acquire.ts` reads the `skipped` map `run.ts` passes it, through `declinedBy`, per planned
   **subject** and writes `{ kind: 'unreached', because }`, never `excluded`: the
   run derived the exclusion, so filing it as a decision would report one nobody
   made. The plan it subtracts from is `Plan` from
@@ -594,7 +599,7 @@ flowchart TB
   is a union whose failure arm is `{ ok: false, because: string }`, restated
   structurally in `packages/route-collector/src/contract.ts` and
   `packages/storybook-collector/src/contract.ts` so a surface package does not
-  pull the binary in. `run.ts` maps `!collected.ok` to `{ kind: 'failed',
+  pull the binary in. `acquire.ts` maps `!collected.ok` to `{ kind: 'failed',
   because }`.
 - Arrival to that refusal — `awaitSuspense` in `packages/react/src/arrival.ts`
   answers `settled | pending | unobserved`; `suspenseRefusal` reduces a
@@ -783,9 +788,9 @@ flowchart TB
   never trusted. Absent configuration returns `null`, which means the surface is
   not drawn; there is no anonymous view to fall back to.
 - Credential to `Granted`. `grant` in `packages/tribunal/src/worker-auth.ts`
-  digests the presented bearer and both secrets to a fixed 32 bytes and always
-  compares both, so *which token is this* costs the same either way; the answer
-  is `'ingest' | 'review' | null`. `refuseWeakTokens` refuses at construction
+  digests the presented bearer and every secret to a fixed 32 bytes and always
+  compares each, so *which token is this* costs the same either way; the answer
+  is `'ingest' | 'review' | 'share' | null`. `refuseWeakTokens` refuses at construction
   under sixteen characters or two equal values. `createTribunal` in
   `packages/tribunal/src/worker.ts` calls `grant` before the URL is even parsed,
   and `UNAUTHENTICATED` is one identical sentence for a wrong token, a missing

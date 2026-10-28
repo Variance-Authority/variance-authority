@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { SourceIndex } from '@variance-authority/core/attribute';
 import { relationsOfFiles } from '@variance-authority/core/relate';
 import type { Collected, Plan } from './run.js';
-import { narrowingFor } from './since.js';
+import { narrowingFor } from './narrowing.js';
 import {
   collectorOf,
   configOf,
@@ -263,6 +263,32 @@ describe('narrowing a run to what a diff could have changed', () => {
       expect(scanned).toBe(false);
     });
 
+    it('narrows past a file a suite declining relations did not measure, names it declined, and builds no graph', async () => {
+      let scanned = false;
+      const { report } = await runWith(CONFIG, BOTH, stored(['Button']), {
+        since: { ref: 'origin/main', changed: ['src/Button.tsx', 'src/added.ts'], diff: DIFF },
+        scanSource: async () => SOURCE,
+        scanRelations: async () => {
+          scanned = true;
+          return relationsOfFiles([]);
+        },
+        readJourney: async () => ({
+          whole: ['fixture:a', 'fixture:b'],
+          entered: ['fixture:a'],
+          unread: [],
+          declined: ['src/added.ts'],
+          stale: [],
+          because: [],
+        }),
+      });
+
+      const warnings = report.warnings?.join('\n') ?? '';
+      expect(report.observations.map((entry) => entry.subject)).toEqual(['fixture:a']);
+      expect(warnings).toContain('the suite declines relations, so 1 changed file its record did not measure (src/added.ts) kept no subject in the run');
+      expect(warnings).not.toContain('records nothing about');
+      expect(scanned).toBe(false);
+    });
+
     it('asks the graph about a file the journal records nothing about, with no graph configured', async () => {
       // A stylesheet no probe can sit in. The structural ground cannot place it
       // without a graph and keeps both subjects; a journal read without one
@@ -288,10 +314,10 @@ describe('narrowing a run to what a diff could have changed', () => {
 
     it('observes the subjects that entered an importer of a package the lockfile bumped', async () => {
       // The diff moved the lockfile and no line of source, so a journal read over
-      // the hunks alone reaches nobody. The bumped name is answered by the
-      // measured modules that import it, which needs the graph from the start.
+      // the hunks alone reaches nobody. The bump is read as the file that
+      // imports it, changed whole, and only the graph says which file that is.
       const lock = ['--- a/yarn.lock', '+++ b/yarn.lock', '@@ -1,1 +1,1 @@'].join('\n');
-      const asked: Array<readonly string[] | undefined> = [];
+      const asked: string[] = [];
 
       const { report } = await runWith(CONFIG, BOTH, stored(['Button']), {
         since: {
@@ -301,10 +327,10 @@ describe('narrowing a run to what a diff could have changed', () => {
           diff: lock,
         },
         scanSource: async () => SOURCE,
-        scanRelations: async () => relationsOfFiles([]),
-        readJourney: async (_diff, relations, packages) => {
-          asked.push(relations === undefined ? undefined : packages);
-          const answered = relations !== undefined && packages?.includes('left-pad') === true;
+        scanRelations: async () => relationsOfFiles([{ file: 'src/Button.tsx', packages: [{ to: 'left-pad', kind: 'imports' }] }]),
+        readJourney: async (diff, relations) => {
+          asked.push(relations === undefined ? 'no graph' : diff);
+          const answered = diff.includes('diff --git a/src/Button.tsx b/src/Button.tsx');
           return {
             whole: ['fixture:a', 'fixture:b'],
             entered: answered ? ['fixture:a'] : [],
@@ -315,7 +341,7 @@ describe('narrowing a run to what a diff could have changed', () => {
         },
       });
 
-      expect(asked).toEqual([['left-pad']]);
+      expect(asked).toHaveLength(1);
       expect(report.observations.map((entry) => entry.subject)).toEqual(['fixture:a']);
       // The comparison answered the lockfile, so the journal's silence about it
       // is not news.
@@ -384,7 +410,7 @@ describe('narrowing a run to what a diff could have changed', () => {
     it('observes every subject when the diff moves what the run rests on, journal or not', async () => {
       // Nothing imports a harness config, so the journal records nothing about
       // it and would rule out both subjects over the file that governs them.
-      const config = configOf({ source: { dirs: ['src'], relations: true, before: ['vitest.config.ts'] } });
+      const config = configOf({ before: ['vitest.config.ts'], source: { dirs: ['src'], relations: true } });
       const harness = ['--- a/vitest.config.ts', '+++ b/vitest.config.ts', '@@ -1,1 +1,1 @@'].join('\n');
       let asked = false;
 

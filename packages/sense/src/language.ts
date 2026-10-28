@@ -5,7 +5,7 @@
  * this file ask for* and *what does it publish* — and a specifier is a string in
  * all of them. So a language is not a second `sense`: it is a reader that fills
  * [`Read`](./read.ts) and a resolution algorithm that turns the specifiers in it
- * into paths in this tree ([ADR-0066](../../../docs/context/adr/0066-a-language-is-a-reader-not-a-sense.md)).
+ * into paths in this tree ([ADR-0066](https://github.com/Variance-Authority/variance-authority/blob/main/docs/context/adr/0066-a-language-is-a-reader-not-a-sense.md)).
  * Nothing above [`record.ts`](./record.ts) learns a new type, and the graph the
  * fold walks holds one kind of node whatever produced it.
  *
@@ -41,7 +41,7 @@ import { STYLE_EXTENSIONS } from './style.js';
  *
  * `module` is JavaScript and TypeScript in every dialect, read by `oxc` — which
  * stays, on measurement, rather than being folded into the general path
- * ([ADR-0066](../../../docs/context/adr/0066-a-language-is-a-reader-not-a-sense.md)).
+ * ([ADR-0066](https://github.com/Variance-Authority/variance-authority/blob/main/docs/context/adr/0066-a-language-is-a-reader-not-a-sense.md)).
  * `style` is the stylesheet reader. Everything after them is read through
  * tree-sitter, and is added here only once its reader and its resolution
  * algorithm both exist: an extension in this table is a promise that a file
@@ -106,11 +106,23 @@ export function languageOf(suffix: string): LanguageId | undefined {
 /**
  * Whether declarations in this language are indexed as component declarations.
  *
- * Only `module`. The component index reads JSX and the conventions around it
- * ([`core/attribute`](../../core/src/attribute)), and a Python class is not a
- * component in any sense that index means.
+ * Only `module`. The component index keeps the names a React component is
+ * written under — a capitalised function, class or binding of the module's own
+ * statements ([`declarations.rs`](../native/src/declarations.rs)) — and a Python
+ * class is not a component in any sense that index means.
  */
 export function indexesComponents(id: LanguageId): boolean {
+  return id === 'module';
+}
+
+/**
+ * Whether the scan records the members a file in this language declares.
+ *
+ * Only `module`. A member — a property, a method, a field — is read off the
+ * `oxc` parse, and no tree-sitter reader records one, so a member question
+ * answers for JavaScript and TypeScript and has to say so for the rest.
+ */
+export function readsMembers(id: LanguageId): boolean {
   return id === 'module';
 }
 

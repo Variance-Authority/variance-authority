@@ -117,6 +117,27 @@ describe('naming the shape of a tree', () => {
 
     expect((await shapeOf(files, { conditionNames: ['import'] })).config).not.toBe(before.config);
     expect((await shapeOf(files, { tsconfig: 'tsconfig.build.json' })).config).not.toBe(before.config);
+    expect((await shapeOf(files, { tsconfig: false })).config).not.toBe(before.config);
+    // Named from the checkout, so a worktree laid out alike keeps the digest.
+    expect((await shapeOf(files, { tsconfig: `${root}/tsconfig.build.json` })).config)
+      .toBe((await shapeOf(files, { tsconfig: 'tsconfig.build.json' })).config);
+    // A declined record names its bytes, so a raised limit has to let it go.
+    expect((await shapeOf(files, { largestFile: 8 })).config).not.toBe(before.config);
+  });
+
+  it('moves when the config the caller names is edited, though the listing does not hold it', async () => {
+    const at = await mkdtemp(join(tmpdir(), 'variance-reuse-named-'));
+    made.push(at);
+    await mkdir(join(at, 'config'));
+    const held = tree([['package.json', A], ['src/Button.tsx', A]]);
+    const named = async (): Promise<Digest> =>
+      (await treeShapeOf({ root: at, digests: held, options: { tsconfig: join(at, 'config/aliases.json') } })).shape.config;
+
+    await writeFile(join(at, 'config/aliases.json'), '{ "compilerOptions": { "paths": { "@/*": ["src/*"] } } }');
+    const before = await named();
+    await writeFile(join(at, 'config/aliases.json'), '{ "compilerOptions": { "paths": { "@/*": ["lib/*"] } } }');
+
+    expect(await named()).not.toBe(before);
   });
 
   it('falls back to the whole path set when no configuration bounds an alias', async () => {
@@ -326,6 +347,27 @@ describe('a scan that remembers the last one', () => {
     const records = await scanRelations({ root, dirs: ['src'], reuse });
 
     expect(records.find((record) => record.file === 'src/Clock.tsx')?.edges).toBeUndefined();
+  });
+
+  it('keeps a file it declined for its size under the same limit, and lets it go when the limit moves either way', async () => {
+    const root = await repository();
+    const { adopt: _whole, ...memory } = memoryRecordCache();
+    const built: string[] = [];
+    const reuse: RecordCache = { ...memory, set(record, witnesses, targets) { built.push(record.file); memory.set(record, witnesses, targets); } };
+    const clock = async (largestFile?: number): Promise<FileRecord | undefined> => {
+      built.length = 0;
+      const records = await scanRelations({ root, dirs: ['src'], reuse, ...(largestFile === undefined ? {} : { largestFile }) });
+      return records.find((record) => record.file === 'src/Clock.tsx');
+    };
+
+    // `Clock.tsx` is 59 bytes, over a limit of 40.
+    expect((await clock(40))?.unknown).toContain('over the 40 this scan opens');
+    expect(await clock(40)).toMatchObject({ unknown: expect.stringContaining('over the 40') });
+    expect(built).toEqual([]);
+    expect((await clock())?.edges).toEqual([{ to: 'src/time.ts', kind: 'imports' }]);
+    expect(built).toContain('src/Clock.tsx');
+    expect((await clock(40))?.unknown).toContain('over the 40 this scan opens');
+    expect(built).toContain('src/Clock.tsx');
   });
 
   it('re-resolves a file that did not move, when a file it names appears', async () => {

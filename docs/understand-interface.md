@@ -30,9 +30,9 @@ shipped — but the boundary between two records shows no more separation than
 the boundary inside one, so the six read as a single block of text. `ratio` is
 a number your test can assert on.
 
-The other two readings answer in the same shape. [Eyes](eyes.md) tells you that
+The other two readings answer in the same shape. [Eyes](eyes.md) shows you that
 your checkout test rendered a nav bar, a clock and an order form but only ever
-addressed the form, so the rest is unprotected. Framework evidence tells you
+addressed the form, so the rest is unprotected. Framework evidence shows you
 that a subject whose boundary does not follow portals is byte-identical whether
 the modal inside it is open or closed.
 

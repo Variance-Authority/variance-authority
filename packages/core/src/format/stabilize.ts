@@ -1,6 +1,9 @@
 import { digestValue, type Digest } from './hash.js';
 import { tierReaches, type Tier } from './tier.js';
-import type { Intervention, PageGlobals, ScreenshotOptions, SettleTarget } from './intervention.js';
+import { clockById, freezeClock, freezeClockAt, noFocus, noHover, reducedMotion, UNTOUCHED } from './drive.js';
+import type { Intervention, ScreenshotOptions, SettleTarget } from './intervention.js';
+import type { StepClock } from './steps.js';
+import { waitForFonts, waitForImages } from './waits.js';
 
 /**
  * Interventions as separate, nameable tricks — not a fixed set of switches.
@@ -21,8 +24,8 @@ import type { Intervention, PageGlobals, ScreenshotOptions, SettleTarget } from 
  *
  * A recipe can be filtered by tier, so the structure-and-style rung waits for
  * nothing; composed from another project's tricks alongside these; digested, so
- * a baseline made under one recipe is `incomparable` with a run made under
- * another rather than `changed`; and checked for tricks that fight each other.
+ * a run under another recipe than its baseline names the recipe as the cause;
+ * and checked for tricks that fight each other.
  *
  * ## Where the damage lands
  *
@@ -56,6 +59,7 @@ import type { Intervention, PageGlobals, ScreenshotOptions, SettleTarget } from 
 // Re-exported from here because this is where a reader arrives looking for the
 // vocabulary; [`intervention.ts`](./intervention.js) holds the declaration.
 export type { Intervention, ScreenshotOptions, SettleTarget, Trick } from './intervention.js';
+export { waitForFonts, waitForImages } from './waits.js';
 
 /**
  * Hand animations to the browser rather than emulating the hold in CSS.
@@ -174,124 +178,16 @@ export const hidePresentationalImages: Intervention = {
     '{visibility:hidden !important}',
 };
 
-export const waitForFonts: Intervention = {
-  id: 'wait-for-fonts',
-  trick: 'wait',
-  needs: 'layout',
-  governs: 'fonts',
-  because: 'waited for web fonts, whose advances change every metric on the page',
-  // Written without a module-scope helper on purpose: a settle closure is
-  // shipped to a page as source text, so anything it names by identifier is a
-  // `ReferenceError` on the far side. Types are erased and therefore free.
-  settle: async (target) => {
-    await target.evaluate(async () => {
-      const view = globalThis as unknown as PageGlobals;
-      await view.document.fonts?.ready;
-    });
-  },
-};
-
-export const waitForImages: Intervention = {
-  id: 'wait-for-images',
-  trick: 'wait',
-  needs: 'layout',
-  governs: 'images',
-  because:
-    'waited for images to decode, since their intrinsic size participates in layout, and asked ' +
-    'for the ones the browser had deferred',
-  settle: async (target) => {
-    await target.evaluate(async () => {
-      const view = globalThis as unknown as PageGlobals;
-      const pending = Array.from(view.document.images).filter((image) => !image.complete);
-
-      const arrived = Promise.all(
-        pending.map(
-          (image) =>
-            new Promise<void>((resolve) => {
-              image.addEventListener('load', () => resolve(), { once: true });
-              image.addEventListener('error', () => resolve(), { once: true });
-            }),
-        ),
-      );
-
-      // Asked for, after the listeners are attached and before anything is
-      // awaited. A `loading="lazy"` image outside the viewport has not been
-      // requested and will not be until something scrolls, so waiting on it is
-      // waiting for a decision the browser has already taken the other way.
-      //
-      // This is the same act as pinning an animation, not a different kind of
-      // thing: what the page shows stops depending on where the viewport
-      // happens to be. It matters most for the readings that need it most — a
-      // full-page capture of a long page is exactly the case where most of the
-      // images are deferred, and photographing it without them yields a picture
-      // full of empty boxes whose contents change with the browser's loading
-      // heuristics rather than with the product.
-      const asServed = pending.map((image) => image.loading);
-      for (const image of pending) image.loading = 'eager';
-
-      // Bounded, and it throws when the bound is reached.
-      //
-      // A response can stall: a CDN that never answers, an image endpoint that
-      // deadlocks under its own concurrency, an image the browser deferred and
-      // will not request from where the page is scrolled. None of those fire
-      // `load` and none fire `error`, so an unbounded wait turns one stuck
-      // request into a run that never ends and never says why — not a wrong
-      // answer, no answer.
-      //
-      // Giving up quietly would be worse than the hang in a subtler way: it
-      // photographs a page with holes in it and reports the holes as a change,
-      // inventing a regression out of the network this trick exists to hold
-      // still. Refused instead, naming what it was still waiting for, because
-      // "these two never answered" is a finding about the application.
-      //
-      // The bound is written twice — once as the delay, once in the sentence —
-      // because a settle closure is shipped to the page as source text and a
-      // constant it named would be a `ReferenceError` on the far side.
-      // Held so the loser can be cancelled. A timer left to fire after the
-      // images arrived rejects a promise nothing is waiting on any more, which
-      // the page reports as an unhandled rejection — this trick's own noise,
-      // arriving in the console of every subject it succeeded on.
-      let timer: unknown;
-
-      const expired = new Promise<never>((_, reject) => {
-        timer = view.setTimeout(() => {
-          const stuck = pending.filter((image) => !image.complete);
-          reject(
-            new Error(
-              `${stuck.length} image(s) had not loaded after 15000ms, and neither answered ` +
-                `nor failed: ${stuck.map((image) => image.currentSrc || image.src).join(', ')}`,
-            ),
-          );
-        }, 15000);
-      });
-
-      try {
-        await Promise.race([arrived, expired]);
-      } finally {
-        view.clearTimeout(timer);
-
-        // Put back, because the trick has to be invisible to the tier that
-        // reads the page after it. `loading` is a reflected attribute, so a
-        // document whose deferred images were switched to `eager` and left that
-        // way is a document that no longer matches the one the product served —
-        // and which images were still undecoded when this ran is a question
-        // about the network, so the edit lands in some readings and not others.
-        // Left in, it makes the same page at two widths disagree about its own
-        // markup: this trick filed as a finding against the application.
-        for (let index = 0; index < pending.length; index += 1) {
-          pending[index]!.loading = asServed[index]!;
-        }
-      }
-    });
-  },
-};
-
 export const INTERVENTIONS: readonly Intervention[] = [
   holdAnimations,
   pinAnimations,
   hideCaret,
   hideScrollbars,
   hidePresentationalImages,
+  noHover,
+  noFocus,
+  reducedMotion,
+  freezeClock,
   waitForFonts,
   waitForImages,
 ];
@@ -308,7 +204,18 @@ export type Recipe = readonly Intervention[];
  */
 export const SEMANTIC_RECIPE: Recipe = [];
 
-export const LAYOUT_RECIPE: Recipe = [holdAnimations, hideScrollbars, waitForFonts, waitForImages];
+// TODO: a `<script>` inside a subject root runs in the render document under the
+// real clock, which no trick in this recipe holds.
+// TODO: a document is painted under this recipe whatever recipe it was read
+// under: a `RenderDocument` carries no collection recipe to follow.
+/**
+ * What a document is painted under, and of {@link UNTOUCHED} only `no-focus`: a
+ * collected `autofocus` takes focus again. The other three have nothing but a
+ * carried script to act on: the printed date and the animation's place are in
+ * the document already, its `@media` rules were resolved when it was read, and
+ * nothing moves the pointer over it.
+ */
+export const LAYOUT_RECIPE: Recipe = [holdAnimations, hideScrollbars, noFocus, waitForFonts, waitForImages];
 
 export const RASTER_RECIPE: Recipe = [...LAYOUT_RECIPE, hideCaret];
 
@@ -347,9 +254,17 @@ export const COLLECT_RECIPE: Recipe = [
   // holding a focused input otherwise disagrees with itself between two
   // screenshots taken 600ms apart, and is refused for blinking.
   hideCaret,
+  ...UNTOUCHED,
   waitForFonts,
   waitForImages,
 ];
+
+/**
+ * The ids of {@link COLLECT_RECIPE}, as an absent `stabilize` means them. A list
+ * replaces the recipe, so one trick is turned off with this list without it:
+ * `stabilize: DEFAULT_STABILIZE.filter((id) => id !== 'freeze-clock')`.
+ */
+export const DEFAULT_STABILIZE: readonly string[] = COLLECT_RECIPE.map((intervention) => intervention.id);
 
 /**
  * Resolve a trick by the name a caller wrote down.
@@ -362,7 +277,7 @@ export const COLLECT_RECIPE: Recipe = [
  * flake it has already paid to prevent.
  */
 export function interventionById(id: string): Intervention | undefined {
-  return INTERVENTIONS.find((intervention) => intervention.id === id);
+  return INTERVENTIONS.find((intervention) => intervention.id === id) ?? clockById(id);
 }
 
 /**
@@ -380,11 +295,32 @@ export function recipeOf(ids: readonly string[]): Recipe {
     if (intervention === undefined) {
       throw new Error(
         `no stabilization trick is called \`${id}\`; this build knows ` +
-          INTERVENTIONS.map((known) => `\`${known.id}\``).join(', '),
+          INTERVENTIONS.map((known) => `\`${known.id}\``).join(', ') +
+          ', and `freeze-clock@<instant>`',
       );
     }
     return intervention;
   });
+}
+
+/**
+ * The recipe a host that drives the browser applies, checked before it opens one:
+ * `stabilize` by id, or {@link COLLECT_RECIPE} when it is absent, with its clock
+ * fixed at `now`, which travels in the clock's id and lands in the digest. Throws
+ * on an unknown id, an instant with no zone, or a `now` with no clock to fix, so
+ * the operator hears about it before a page is loaded, not at the first subject.
+ */
+export function recipeToDrive(options: { readonly stabilize?: readonly string[]; readonly now?: string }): Recipe {
+  const recipe = options.stabilize === undefined ? COLLECT_RECIPE : recipeOf(options.stabilize);
+  if (options.now === undefined) return recipe;
+  const clock = freezeClockAt(options.now);
+  if (!recipe.some((intervention) => intervention.driver?.clock !== undefined)) {
+    throw new Error(
+      `\`now\` is the instant \`freeze-clock\` fixes, and this recipe has no \`freeze-clock\`: ` +
+        'add it to `stabilize`, or leave `now` out',
+    );
+  }
+  return recipe.map((intervention) => (intervention.driver?.clock === undefined ? intervention : clock));
 }
 
 /** Only the tricks a tier can observe the effect of. */
@@ -429,9 +365,16 @@ export function recipeScreenshot(recipe: Recipe): ScreenshotOptions {
   );
 }
 
-export async function settleRecipe(recipe: Recipe, target: SettleTarget): Promise<void> {
+/**
+ * Every wait the recipe holds, in order. Each is one step on `steps`, named by
+ * the intervention's id, so a run can say which wait a slow subject spent its
+ * time in.
+ */
+export async function settleRecipe(recipe: Recipe, target: SettleTarget, steps?: StepClock): Promise<void> {
   for (const intervention of recipe) {
-    if (intervention.settle !== undefined) await intervention.settle(target);
+    const settle = intervention.settle;
+    if (settle === undefined) continue;
+    await (steps === undefined ? settle(target) : steps.time(intervention.id, async () => settle(target)));
   }
 }
 
@@ -440,7 +383,7 @@ export async function settleRecipe(recipe: Recipe, target: SettleTarget): Promis
  *
  * Sorted, so the order tricks were composed in does not change the identity —
  * only which ones are present. Folded into `RenderIdentity`, which is what makes
- * a cross-recipe comparison report `incomparable` instead of inventing a
+ * a cross-recipe comparison name the recipe as its cause instead of inventing a
  * component to blame.
  */
 export function recipeDigest(recipe: Recipe): Digest {

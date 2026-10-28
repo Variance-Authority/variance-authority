@@ -1,5 +1,142 @@
 # @variance-authority/eyes
 
+## 0.21.0
+
+Lockstep release — nothing in this package changed. Every `@variance-authority/*` package shares one version.
+
+## 0.20.0
+
+Lockstep release — nothing in this package changed. Every `@variance-authority/*` package shares one version.
+
+## 0.19.0
+
+Lockstep release — nothing in this package changed. Every `@variance-authority/*` package shares one version.
+
+## 0.18.0
+
+Lockstep release — nothing in this package changed. Every `@variance-authority/*` package shares one version.
+
+## 0.17.1
+
+Lockstep release — nothing in this package changed. Every `@variance-authority/*` package shares one version.
+
+## 0.17.0
+
+Lockstep release — nothing in this package changed. Every `@variance-authority/*` package shares one version.
+
+## 0.16.0
+
+### Patch Changes
+
+- dc7bb11: A route's components are read after React has hydrated it, and a route read before says so
+
+  The route collector waited for hydration by watching the number of nodes
+  carrying a fiber until it held still. A shell that suspends during hydration,
+  on a promise read outside any `<Suspense>`, leaves fibers on the nodes rendered
+  before it while the root is still uncommitted, so the wait ended there and the
+  nodes past it came back with no component. On a loaded machine hydration
+  finishes later, and a changed region named no component on one run and its
+  component on the next.
+
+  `awaitHydration` now reads React's record of each root on, above (up to the
+  `Document`, for an app that hydrates the whole page), under and behind the
+  subject, and waits until every one has committed. It returns `state`:
+  `hydrated`, `hydrating` or `unrooted`, with `roots`, `pending` and `waitedMs`;
+  `hydrated: boolean`, `fibers` and the `confirmations` option are gone.
+
+  A route that stops hydrating with roots uncommitted is refused with their
+  number, as a route still showing a Suspense fallback is:
+  an effect that runs after hydration can paint a different image. A route with
+  no React root is collected with a `react-root-absent` warning, so a region with
+  no component says why. A run with `wiring: false` waits for nothing and says
+  nothing.
+
+  `resolveProvenance`, `wiringOf`, `holdingOf` and `componentFiberOf` read
+  nothing off a node whose root has not committed. `resolveProvenance` returns
+  the new `UNCOMMITTED` sentinel, reason `'uncommitted'`, for it, where it used to
+  resolve the component of a render React had not committed. A root that
+  committed `null` now reads as committed. An Eyes archive accepts a target
+  recorded with that reason.
+
+## 0.15.0
+
+### Minor Changes
+
+- 0a41a23: Eyes journals travel in the record
+
+  A run that opts into Eyes writes each case's journal into `coverage.bin`, in an
+  `eyes` section keyed by the case's id and its attempt, so a journal joins its
+  case exactly and a retried case keeps every attempt. The attempt counts from 1
+  (Playwright's `retry + 1`) and is a column of its own, never part of the id. A
+  run that did not opt in writes no section. Source paths in a journal are
+  relative to the repository root, as the case index's are.
+
+  The Playwright fixture and `watchTest` hand their journal to the case the
+  recording runs, never to `testInfo.testId`. The RTL `watchTest`, given no id,
+  returns the journal and hands it to the running case where the recording seam's
+  case scope takes one. The Vitest, Jest and Rstest seams hold each attempt's case
+  from before its `beforeEach` until after its `afterEach`, so a journal closed
+  in teardown lands under that case and attempt. A run that opts in lists every case it watched in
+  the section, so a watched case that handed no journal reads apart from a case
+  whose run did not opt in. Two different journals for one case and attempt keep
+  the one whose JSON sorts first, and the run still records.
+
+  A journal stays on the machine that ran it. It leaves with the record, through
+  `variance share` or an `actions-cache` carry, and each says so: a share names
+  every suite entry whose record carried journals, and a carry save notes each
+  suite whose record goes into the cache with them. `sharedRecord` keeps the
+  section, and drops one that is unreadable or of a newer version at the
+  crossing, keeping the rest of the record. A repin keeps the journals of every
+  case its index keeps.
+
+  `variance distill` reads the checkout's own record, or the one `--execution`
+  names, and prints every attempt of the case. It refuses an id the record does
+  not hold and shows the ids it does. `--eyes` is removed, and so are the
+  `@variance-authority/eyes/collect` and `@variance-authority/eyes/reporter`
+  entries (`writeEyesArchive`, `gatherEyesArchive`, `recordEyesTest`,
+  `resetEyesJournals`, `EYES_JOURNAL_SUFFIX`, the Eyes reporter and
+  `EyesReporterOptions`). `eyesJournal` and `EyesJournal` give a test's journal,
+  and `parseEyesJournal` reads one back. In `@variance-authority/distill`,
+  `DistillInput` takes `execution` always and `eyes` as `EyesAttempt` rows, and
+  `Distillation` reports `attempts` as `AttemptAttention` in place of
+  `attention`, `joined` and `available`; `watched` names the cases a run that
+  opted in watched, and distill says which of them kept no journal. The sense
+  test-selection entry adds `keepsEyes`, `recordedEyesAt`, `recordedEyesOf`, `RecordedEyes`,
+  `ObservedEyes`, `EyesSection` and `encodeAsSetExecutionIndex`. In
+  `@variance-authority/mcp`, `serveEyesRecord` replaces `serveEyesArchive` and
+  serves the journals a record keeps, read by `readEyesRecord` off one read of
+  the record. A record a later run wrote without Eyes leaves it no journals to
+  answer from; `readEyesRecord` refuses such a record with `RecordKeepsNoEyes`.
+  `EyesArchive` carries `watched`, which `createEyesArchive` takes and
+  `parseEyesArchive` reads, so the MCP `distill` tool tells an unwatched case
+  from a watched one that kept no journal. That tool needs the runtime journey
+  and reads a case by its exact id.
+
+  Under Rstest, a case declared `it(name, options, fn)` is recorded per case, as
+  `it(name, fn)` already was.
+
+### Patch Changes
+
+- ef496ad: READMEs name what the program does
+
+  The package READMEs, and the `@variance-authority/vantage` and
+  `@variance-authority/playwright-test` descriptions, no longer write a test, a
+  record or a run as something that says, asks or knows. Each sentence names what
+  the program does: a command prints, a record holds a field, a test runs or
+  covers. Where a value is filled in from configuration or a default rather than
+  recorded, the README says so. Four renamed headings change their anchors:
+  `help`'s "Where the declaration is undocumented", `playwright`'s "Where a
+  component is declared, read from the engine", `storybook`'s "What a pass sends
+  the preview" and `sense`'s "Correct what a file's text declares it imports".
+
+## 0.14.0
+
+Lockstep release — nothing in this package changed. Every `@variance-authority/*` package shares one version.
+
+## 0.13.0
+
+Lockstep release — nothing in this package changed. Every `@variance-authority/*` package shares one version.
+
 ## 0.12.0
 
 Lockstep release — nothing in this package changed. Every `@variance-authority/*` package shares one version.

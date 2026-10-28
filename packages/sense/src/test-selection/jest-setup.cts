@@ -37,14 +37,24 @@ import globals = require('@jest/globals');
 import fs = require('node:fs');
 import crypto = require('node:crypto');
 import install = require('./jest-globals.cjs');
+import journalNames = require('./jest-journal-name.cjs');
+import caseOwner = require('./case-owner.cjs');
 import journals = require('./journal-format.cjs');
+import registry = require('./jest-registry.cjs');
 import type { ModuleId } from '../instrument/index.js';
 
-const { afterAll, beforeAll, expect } = globals;
+const { afterAll, beforeAll, beforeEach, expect } = globals;
 
 // Installed by `setupFiles` already in a configuration `withTestSelection`
 // wrote; installed here for one that named this file alone.
 const collector = install();
+
+// The project this sandbox runs the file for, from the `globals` that
+// `withTestSelection` gave it (`PROJECT_GLOBAL` in `jest.ts`): the same file
+// under two projects is the same path, and only this tells its cases, and its
+// journal, apart from the other project's.
+const named = (globalThis as Record<string, unknown>)['variance-authority.project'];
+const project = typeof named === 'string' ? named : undefined;
 
 // What had run before the file's first test: Jest evaluates the file to
 // collect its tests, then runs the hooks, so every module the file imports has
@@ -55,10 +65,32 @@ let loaded: ReadonlyMap<ModuleId, Uint32Array> = new Map();
 beforeAll(() => {
   const testFile = expect.getState().testPath;
   if (testFile === undefined) throw new Error('variance-authority could not identify the current Jest file');
+  install.environmentInputs();
   loaded = collector.seal(testFile);
 });
 
+/**
+ * Fail the file where Jest's registry holds a module whose probes registered
+ * and that the journal never entered, before the journal is written: see
+ * `jest-registry.cts`. `require` here is Jest's, and its `cache` the file's registry.
+ */
+function heldAgainstRegistry(testFile: string, modules: ReadonlyMap<ModuleId, Uint32Array>): void {
+  const root = process.env['VARIANCE_AUTHORITY_TEST_SELECTION_ROOT'];
+  if (root === undefined) {
+    throw new Error('variance-authority has no checkout root: the reporter withTestSelection adds must be configured too');
+  }
+  const missing = registry.unentered(root, Object.keys(require.cache), collector.registered(), [...modules.keys(), ...loaded.keys()]);
+  if (missing.length === 0) return;
+  throw new Error(
+    `variance-authority recorded none of these modules for ${testFile}, though Jest evaluated them and their probes ` +
+      `registered:\n  ${missing.join('\n  ')}\nThe journal would select too little, so it is not written. ` +
+      'This is a defect in variance-authority: report it with this message.',
+  );
+}
+
+const collected = markCollected();
 if (collector.scoped) openCaseScopes();
+skipTheCut();
 
 afterAll(() => {
   const runDirectory = process.env['VARIANCE_AUTHORITY_TEST_SELECTION_RUN'];
@@ -71,9 +103,11 @@ afterAll(() => {
   if (testFile === undefined) throw new Error('variance-authority could not identify the current Jest file');
 
   const stamp = `${process.pid}-${crypto.randomUUID()}`;
+  install.environmentInputs();
   const { modules, frames } = collector.finish(testFile);
+  heldAgainstRegistry(testFile, modules);
   fs.mkdirSync(runDirectory, { recursive: true });
-  fs.writeFileSync(`${runDirectory}/${stamp}.va`, journals.encodeJournal(testFile, modules, loaded));
+  fs.writeFileSync(`${runDirectory}/${journalNames.journalName(stamp, project)}`, journals.encodeJournal(testFile, modules, loaded, collected.at));
 
   const outlived = collector.runaways();
   if (outlived.length > 0) {
@@ -108,6 +142,15 @@ function openCaseScopes(): void {
   let ordinal = 0;
   const nextId = (): string => String(ordinal++);
 
+  // The first `beforeEach` of every case, registered before the file's own:
+  // what a `beforeEach` said for a case that never ran — it threw after
+  // speaking — is forgotten before the next case's hooks speak.
+  beforeEach(() => {
+    (globalThis as { [key: symbol]: { begin?: () => void } | undefined })[
+      Symbol.for('variance-authority.test-selection.cases')
+    ]?.begin?.();
+  });
+
   bracketEveryCase(nextId);
 
   const realm = globalThis as Record<string, unknown>;
@@ -120,10 +163,108 @@ function openCaseScopes(): void {
 /** A case whose body is already enclosed, so the second route leaves it alone. */
 const bracketed = new WeakSet<CaseBody>();
 
+/** A describe block as jest-circus holds it: its name and the block it nests in. */
+interface CircusBlock {
+  readonly name: string;
+  readonly parent?: CircusBlock | undefined;
+}
+
+/** A block of jest-circus's tree as `run_start` hands it, before any case runs. */
+interface CircusNode {
+  readonly type: string;
+  readonly name: string;
+  mode?: string | undefined;
+  readonly children?: readonly CircusNode[];
+}
+
+/**
+ * Mark skipped the cases the selection cut from this file, as `it.skip` would
+ * have, before the first of them runs.
+ *
+ * The filter wrote the cut in the process that read the selection, and named
+ * the file in the environment every worker forks with; see `case-cut.ts`. A
+ * case is named here as the record names it, `currentTestName`: its describes
+ * and its own name, by spaces. One the file skips already, or leaves out under
+ * `only`, keeps the mode it has. The tree is the one the handler is handed:
+ * `getState` from the sandbox's `jest-circus` reads a state of its own.
+ */
+function skipTheCut(): void {
+  const cutFile = process.env['VARIANCE_AUTHORITY_TEST_SELECTION_CUT'];
+  if (cutFile === undefined) return;
+  let circus: { addEventHandler?: unknown };
+  try {
+    circus = require('jest-circus') as { addEventHandler?: unknown };
+  } catch {
+    return;
+  }
+  const register = circus.addEventHandler;
+  if (typeof register !== 'function') return;
+  (register as (handler: (event: CircusEvent, state: { rootDescribeBlock?: CircusNode }) => void) => void)(
+    (event, state): void => {
+      if (event.name !== 'run_start' || state.rootDescribeBlock === undefined) return;
+      const testFile = expect.getState().testPath;
+      const names = testFile === undefined ? undefined : cutIn(cutFile)[testFile];
+      if (names === undefined) return;
+      const cut = new Set(names);
+      const walk = (block: CircusNode, path: readonly string[]): void => {
+        for (const child of block.children ?? []) {
+          const at = [...path, child.name];
+          if (child.type === 'test') {
+            if (child.mode === undefined && cut.has(at.join(' '))) child.mode = 'skip';
+          } else walk(child, at);
+        }
+      };
+      walk(state.rootDescribeBlock, []);
+    },
+  );
+}
+
+/**
+ * When collecting ended: jest-circus's `run_start`, after the file's tests are
+ * declared and before any hook runs, the project's own setup files' included.
+ * The reporter splits the file's time into its collect and its cases there.
+ * Read from the clock Jest's own `perfStats` stamps read: the `Date.now` Jest
+ * keeps under `jest-native-now` before anything can fake it, taken here, as
+ * jest-circus takes it, before the project's setup files run. Unmarked where
+ * the runner is not jest-circus.
+ */
+function markCollected(): { at?: number } {
+  const mark: { at?: number } = {};
+  const native = (globalThis as { [key: symbol]: unknown })[Symbol.for('jest-native-now')];
+  const now = typeof native === 'function' ? (native as () => number) : Date.now.bind(Date);
+  let circus: { addEventHandler?: unknown };
+  try {
+    circus = require('jest-circus') as { addEventHandler?: unknown };
+  } catch {
+    return mark;
+  }
+  const register = circus.addEventHandler;
+  if (typeof register !== 'function') return mark;
+  (register as (handler: (event: CircusEvent) => void) => void)((event): void => {
+    if (event.name !== 'run_start') return;
+    mark.at = now();
+  });
+  return mark;
+}
+
+/**
+ * The cut at `file`, or none when it is gone: a Jest a test starts inherits the
+ * variable, and the run that wrote the cut removes it when that run completes.
+ */
+function cutIn(file: string): Record<string, readonly string[]> {
+  try {
+    return JSON.parse(fs.readFileSync(file, 'utf8')) as Record<string, readonly string[]>;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return {};
+    throw error;
+  }
+}
+
 /** What jest-circus hands a handler: the case, with the body about to be called. */
 interface CircusEvent {
   readonly name: string;
   readonly test?: { fn?: unknown; name?: unknown } | undefined;
+  readonly hook?: { readonly type: string; readonly parent: CircusBlock } | undefined;
 }
 
 /**
@@ -136,6 +277,11 @@ interface CircusEvent {
  * A retry re-runs the same case object, whose `fn` is the enclosure from the
  * first attempt; it is left as it is and the attempt takes a fresh ordinal, the
  * same as it did when the declarer was the only route.
+ *
+ * The same handler brackets each attempt for Eyes: `test_start` opens it, before
+ * the attempt's `beforeEach`, and `test_done` closes it, after its `afterEach`,
+ * so a journal handed over in teardown still finds the case it belongs to. A
+ * case the runner skips or leaves to do ends at `test_skip` or `test_todo`.
  *
  * Doing nothing silently is the failure mode, so the caller does not rely on
  * this alone: the declarer wrapping it installs next covers the injected
@@ -157,7 +303,10 @@ function bracketEveryCase(nextId: () => string): void {
   const register = circus.addEventHandler;
   if (typeof register !== 'function') return;
 
-  (register as (handler: (event: CircusEvent) => void) => void)((event: CircusEvent): void => {
+  (register as (handler: (event: CircusEvent) => void) => void)((event): void => {
+    placeCalls(event);
+    if (event.name === 'test_start') attempt('begin');
+    if (event.name === 'test_done' || event.name === 'test_skip' || event.name === 'test_todo') attempt('leave');
     if (event.name !== 'test_fn_start') return;
     const held = event.test;
     if (held === undefined) return;
@@ -165,6 +314,52 @@ function bracketEveryCase(nextId: () => string): void {
     if (typeof body !== 'function' || bracketed.has(body as CaseBody)) return;
     held.fn = scopeCase(body as CaseBody, held.name, nextId);
   });
+}
+
+/** Open or close the attending bracket, where the realm's case scope keeps one. */
+function attempt(edge: 'begin' | 'leave'): void {
+  const scope = (globalThis as { [key: symbol]: Partial<Record<'begin' | 'leave', () => void>> | undefined })[
+    Symbol.for('variance-authority.test-selection.cases')
+  ];
+  scope?.[edge]?.();
+}
+
+/**
+ * Tell the recorder where a `variancePrecondition` call stands, from the hooks
+ * jest-circus announces, from a hook's start to its end. A `beforeEach` names
+ * no case, because the case's key is minted when its body is entered, which is
+ * right after; Jest runs one case's hooks at a time. A `beforeAll` and an
+ * `afterAll` run for no one case, and a call in one throws, as a call while the
+ * file is collected does.
+ */
+function placeCalls(event: CircusEvent): void {
+  const scope = (globalThis as { [key: symbol]: { phase?: (where: unknown) => void } | undefined })[
+    Symbol.for('variance-authority.test-selection.cases')
+  ];
+  if (scope?.phase === undefined) return;
+  switch (event.name) {
+    case 'hook_start': {
+      const { type, parent } = event.hook!;
+      scope.phase(
+        type === 'beforeEach'
+          ? { kind: 'each', depth: depthOf(parent) }
+          : type === 'afterEach'
+          ? { kind: 'after' }
+          : { kind: 'outside', because: `ran in ${type === 'beforeAll' ? 'a beforeAll' : 'an afterAll'}, which runs for no one case` },
+      );
+      return;
+    }
+    case 'hook_success':
+    case 'hook_failure':
+      scope.phase(undefined);
+  }
+}
+
+/** How many describes deep a block is; the file's own block is none. */
+function depthOf(block: CircusBlock | undefined): number {
+  let depth = 0;
+  for (let at = block; at?.parent !== undefined; at = at.parent) depth += 1;
+  return depth;
 }
 
 type Declarer = ((...args: unknown[]) => unknown) & Record<string, unknown>;
@@ -209,25 +404,28 @@ let enclosingCase = 0;
  * one case that cannot be asked: `test.concurrent` starts its body outside the
  * runner's own bracket, so the state it would read there is somebody else's.
  * The id beside it is positional and exists only to tell two cases of one name
- * apart.
+ * apart. It is taken when the case first runs and kept for its retries, which
+ * are the same case.
  *
  * The arity is restored because Jest reads it: a body declared with `done` and
  * handed over with none is a callback test the runner would never call back.
  */
 function scopeCase(body: CaseBody, declared: unknown, nextId: () => string): CaseBody {
+  let id: string | undefined;
   const run = function (this: unknown, ...args: unknown[]): unknown {
     const scope = (globalThis as { [key: symbol]: { enter: <R>(key: string, body: () => R) => R } | undefined })[
       Symbol.for('variance-authority.test-selection.cases')
     ];
     if (scope === undefined) return body.apply(this, args);
     if (enclosingCase > 0) return body.apply(this, args);
+    id ??= nextId();
     const { currentTestName: running, testPath } = expect.getState();
     const name = typeof declared === 'string' && typeof running === 'string' && running.endsWith(declared)
       ? running
       : String(declared);
     enclosingCase += 1;
     try {
-      return scope.enter(journals.packCase(testPath ?? '', name, nextId()), () => body.apply(this, args));
+      return scope.enter(caseOwner.packCase(testPath ?? '', name, id, project), () => body.apply(this, args));
     } finally {
       enclosingCase -= 1;
     }

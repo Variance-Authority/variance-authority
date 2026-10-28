@@ -42,7 +42,7 @@ pub struct IndexGraphOptions {
     pub seeds: Vec<String>,
     pub largest_file: Option<u32>,
     pub readers: Option<u32>,
-    pub tsconfig: Option<String>,
+    pub tsconfig: Option<napi::Either<String, bool>>,
     pub condition_names: Option<Vec<String>>,
     /// Whether records keep the directories that answered them, for reuse.
     pub remembering: bool,
@@ -87,7 +87,7 @@ pub(crate) fn index_graph(
             seeds: options.seeds,
             largest_file: options.largest_file,
             readers: options.readers,
-            tsconfig: options.tsconfig,
+            tsconfig: crate::resolve::Tsconfig::from_js(options.tsconfig),
             condition_names: options.condition_names,
             include_parses: false,
         },
@@ -106,15 +106,15 @@ pub(crate) fn index_graph(
     let mut records: Vec<Indexed> = (0..files.len())
         .into_par_iter()
         .map(|index| {
-            let (held, _, parsed) = &read[index];
-            built(&files[index], &identities[index], held, *parsed, &targets[index], &settling)
+            let (held, _, outcome) = &read[index];
+            built(&files[index], &identities[index], held, *outcome, &targets[index], &settling)
         })
         .collect();
     let keys = files
         .iter()
         .zip(&identities)
         .zip(&read)
-        .filter(|((_, identity), (_, _, parsed))| *parsed && !identity.is_empty())
+        .filter(|((_, identity), (_, _, outcome))| outcome.parsed() && !identity.is_empty())
         .map(|((file, identity), _)| format!("{identity}\0{}", way(file)))
         .collect();
     drop(read);

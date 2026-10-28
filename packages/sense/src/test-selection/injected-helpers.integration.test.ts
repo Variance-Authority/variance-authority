@@ -9,15 +9,14 @@ import { decodeTestCoverage } from './format.js';
 import { selectTestFiles } from './index.js';
 
 /**
- * A region the transform wrote is on no line of the file.
+ * A region the transform writes is not the author's, and is not recorded.
  *
  * `decorated.ts` holds one decorated method and then `later`. To run the
- * decorator, esbuild writes about forty lines of helpers above the author's
- * first line, and the source map gives them no origin. Counted in the generated
- * text, those helpers land on lines 4 to 47 of a 27-line file, over `later`.
- * An edit to `later` then selects the test that constructed the class and not
- * the test that called `later`. An edit to a line of `later` must reach
- * `later`'s caller and nothing else.
+ * decorator, esbuild writes about forty lines of helpers and a constructor
+ * above the author's first line. The probes go in before esbuild runs, so
+ * they reach only what the author wrote: every region is on the file's own
+ * lines, and an edit to a line of `later` reaches `later`'s caller and nothing
+ * else.
  */
 
 const execute = promisify(execFile);
@@ -55,31 +54,22 @@ const edit = (line: number, removed: string, added: string): string => `diff --g
 `;
 
 describe('a helper the transform injected', () => {
-  it('is recorded with no lines, and an edit below it reaches only the caller of what was edited', async () => {
+  it('is not recorded, and an edit to a line below where it lands reaches only the caller of what was edited', async () => {
     const coverageFile = await record();
 
-    // The premise: the helpers ran, the run test entered the method, and only
-    // the later test entered `later` — in the lines the author wrote.
+    // The premise: the run test entered the method, and only the later test
+    // entered `later` — in the lines the author wrote, and nowhere else.
     const coverage = decodeTestCoverage(await readFile(coverageFile));
     const blocks = coverage.modules.find((module) => module.file === decorated)?.blocks ?? [];
-    const helper = blocks.find((block) => block.name === '__runInitializers' && block.path === 'entry');
-    expect(helper?.testFiles).toEqual([named('test/run.test.js')]);
-    expect(helper?.startLine).toBeUndefined();
-    expect(helper?.endLine).toBeUndefined();
-    const placed = blocks
-      .filter((block) => block.startLine !== undefined)
-      .map((block) => [block.name, block.startLine, block.endLine, block.testFiles]);
-    expect(placed).toEqual([
+    expect(blocks.map((block) => [block.name, block.startLine, block.endLine, block.testFiles])).toEqual([
       ['', 1, 27, [named('test/later.test.js'), named('test/run.test.js')]],
       ['tag', 1, 5, [named('test/later.test.js'), named('test/run.test.js')]],
       ['tag/anon#0', 2, 4, [named('test/later.test.js'), named('test/run.test.js')]],
-      ['Decorated/constructor', 7, 7, [named('test/run.test.js')]],
       ['Decorated/run', 9, 11, [named('test/run.test.js')]],
       ['later', 14, 27, [named('test/later.test.js')]],
     ]);
 
-    // Line 16 is where `__runInitializers` landed, and line 24 fell between two
-    // helpers and selected nothing.
+    // Esbuild's `__runInitializers` would land on line 16, and line 24 between two of its helpers.
     await expect(selectTestFiles(coverageFile, edit(16, '  total += 1;', '  total += 100;'))).resolves.toEqual([
       named('test/later.test.js'),
     ]);

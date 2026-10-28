@@ -1,7 +1,4 @@
-import { existsSync, readFileSync, readdirSync } from 'node:fs';
-import { extname, join, relative } from 'node:path';
-import { type Parses, parseFile } from './declare.js';
-import { lineAt } from './doc.js';
+import { type ImportTargets, landing } from './entry.js';
 import { requested } from './manifest.js';
 
 /**
@@ -72,6 +69,12 @@ export interface Use {
   /** Whether the importing file is a story, a test, or ordinary source. */
   readonly kind: UseKind;
   /**
+   * The name the importing file binds it to, or passes it on as, when the
+   * import renames it with `as`: `openStrings` for
+   * `import { stringReader as openStrings }`. Absent when it keeps its name.
+   */
+  readonly local?: string;
+  /**
    * The request this name is read through when no import names it: `ns.x` off
    * `import * as ns`, or `m.x` off `import()`. `line` is where that request is
    * written, so `line` above is the read and this is the load. Absent for a
@@ -82,29 +85,74 @@ export interface Use {
 
 /**
  * A module held whole. `dynamic` is an `import()`, which loads the module when
- * that call runs rather than when the importing file loads; `namespace` is a
- * static `import * as`.
+ * that call runs rather than when the importing file loads, or an `import()`
+ * type, which loads nothing and whose use is a type; `namespace` is a static
+ * `import * as`.
  */
 export interface Through {
   readonly kind: 'dynamic' | 'namespace';
   readonly line: number;
+  /**
+   * The name is read off the module's `default`: `(await import('m')).default.x`.
+   * Under interop that is a CommonJS module's `module.exports`, so `x` is its export.
+   */
+  readonly throughDefault?: true;
+  /**
+   * The module goes, whole, somewhere the reader does not follow — passed to a
+   * call, returned, stored — so this line may read the name, and what it reads
+   * there is not recorded.
+   */
+  readonly whole?: true;
 }
 
-/** A specifier that reaches into a package past what its `exports` map opens. */
+/** One name an import by path takes, and the place that takes it. */
+export interface Taken extends Use {
+  /** The name as the other module exports it. `default` for a default import. */
+  readonly name: string;
+}
+
+/**
+ * A specifier naming a file of a workspace package, rather than an entry the
+ * package's manifest opens.
+ */
 export interface Deep {
   /** As written. */
   readonly specifier: string;
   readonly by: string;
   readonly at: string;
   readonly line: number;
+  /**
+   * The file the specifier resolves to, relative to the workspace root, as the
+   * index recorded it. Absent when the reading that made this had no resolver,
+   * or the resolver could not answer.
+   */
+  readonly to?: string;
+  /**
+   * Every name the import takes. Empty for a side-effect import, and for a
+   * module held whole that nothing reads a member of.
+   */
+  readonly names: readonly Taken[];
 }
 
 /** What a repository does with what it publishes. */
 export interface Usage {
   /** `<package> <subpath>` to imported name to every place that imports it. */
   readonly names: ReadonlyMap<string, ReadonlyMap<string, readonly Use[]>>;
-  /** Specifiers naming a workspace package at a subpath it does not open. */
+  /** Specifiers naming a file of a package that declares an entry, past every specifier it declares. */
   readonly deep: readonly Deep[];
+  /**
+   * Specifiers a published manifest declares that the reading could not follow
+   * to a source file: a `main` or an `exports` target naming a build output the
+   * checkout does not hold. None of them is deep, since each names the entry
+   * exactly; the names it takes cannot be listed, because no file was read.
+   */
+  readonly unfollowed: readonly Deep[];
+  /**
+   * Specifiers naming a file of a package that declares no entry: no `exports`,
+   * `main`, `types` or `typings`. Every import of such a package is by path, and
+   * none of them is deep.
+   */
+  readonly byPath: readonly Deep[];
   /**
    * Every place a name is exported, published or not.
    *
@@ -140,6 +188,10 @@ export interface Named {
   readonly type: boolean;
   /** Whether the exporting file is a story, a test, or ordinary source. */
   readonly kind: UseKind;
+  /** The kind of the declaration the export binds in its own file, as the parse records it (`function`, `class`, `const` …); absent for `export … from`, whose declaration is another file's. */
+  readonly declaration?: string;
+  /** The doc comment above the export statement, or above the declaration `export { x }` binds, undented; absent when there is none. */
+  readonly doc?: string;
 }
 
 export interface UsageOptions {
@@ -156,6 +208,8 @@ export interface UsageOptions {
  */
 export interface Bound {
   readonly imported: string;
+  /** The name the statement binds it to, or exports it as, when that is not `imported`. */
+  readonly local?: string;
   /** `import type { x }` and `import { type x }` alike. */
   readonly type: boolean;
   /** The 1-based line the statement binding it is written on. */
@@ -220,6 +274,10 @@ export interface Exported {
   readonly line: number;
   /** `export type { x }` and `export { type x }` alike. */
   readonly type: boolean;
+  /** The kind of the declaration the export binds in its own file, as {@link Named} carries it; absent for `export … from`. */
+  readonly declaration?: string;
+  /** The doc comment above the export statement, or above the declaration `export { x }` binds, undented; absent when there is none. */
+  readonly doc?: string;
 }
 
 /**
@@ -228,13 +286,11 @@ export interface Exported {
  * The whole of what `readUsage` does once it has the imports, and separate from
  * the reading for the reason `Recorded` exists: two callers arrive here holding
  * the same facts read two different ways, and only one of them had to walk.
+ * `targets` names the packages an import is followed into, and the ones among
+ * them that declare no entry, whose imports are listed apart from the deep ones.
  */
-export function usageFrom(opened: ReadonlySet<string>, files: Iterable<Recorded>): Usage {
-  const packages = new Set([...opened].map((key) => key.slice(0, key.indexOf(' '))));
-  const names = new Map<string, Map<string, Use[]>>();
-  const deep: Deep[] = [];
-  const exported: Named[] = [];
-  const unreadable: string[] = [];
+export function usageFrom(opened: ReadonlySet<string>, files: Iterable<Recorded>, targets: ImportTargets): Usage {
+  const usage = gatheringUsage();
 
   for (const file of files) {
     const { at, by } = file;
@@ -242,181 +298,75 @@ export function usageFrom(opened: ReadonlySet<string>, files: Iterable<Recorded>
     // and a file that parsed with one specifier this could not follow, and
     // rounding the second down to the first would drop every import the file
     // does write — which is the direction of error this whole reading avoids.
-    if (file.unknown !== undefined) unreadable.push(at);
+    if (file.unknown !== undefined) usage.unreadable.push(at);
 
     const kind = kindOf(at);
 
     for (const published of file.publishes ?? []) {
-      exported.push({ name: published.name, at, by, line: published.line, type: published.type, kind });
+      usage.exported.push({
+        name: published.name,
+        at,
+        by,
+        line: published.line,
+        type: published.type,
+        kind,
+        ...(published.declaration === undefined ? {} : { declaration: published.declaration }),
+        ...(published.doc === undefined ? {} : { doc: published.doc }),
+      });
     }
 
     for (const asked of file.requests) {
       const key = requested(asked.specifier);
-      if (!packages.has(key.slice(0, key.indexOf(' ')))) continue;
+      const lands = landing(key, opened, targets);
+      if (lands === undefined) continue;
 
-      if (!opened.has(key)) {
-        deep.push({ specifier: asked.specifier, by, at, line: asked.line });
+      if (lands !== 'opened') {
+        const taken = asked.names.map((bound) => ({ name: bound.imported, ...renamed(bound), by, at, line: bound.line, type: bound.type, kind }));
+        usage.past(lands, { specifier: asked.specifier, by, at, line: asked.line, names: taken });
         continue;
       }
 
+      for (const bound of asked.names) usage.take(key, bound.imported, { ...renamed(bound), by, at, line: bound.line, type: bound.type, kind });
+    }
+  }
+
+  return usage.read();
+}
+
+/** The `local` of a use of `bound`, when its statement renames it. */
+function renamed(bound: Bound): { readonly local?: string } {
+  return bound.local === undefined ? {} : { local: bound.local };
+}
+
+/**
+ * A `Usage` while it is gathered: the one place that says which list an import
+ * between packages is kept on. `usageFrom` fills one from recorded files, and
+ * the scan's collector fills one from the parses it already holds.
+ */
+export function gatheringUsage(): {
+  /** Keep an import that lands anywhere but in what the workspace opens, on the list its landing names. */
+  past(lands: 'byPath' | 'deep' | 'unfollowed', held: Deep): void;
+  /** Record one place that takes `name` through the opened specifier `key`. */
+  take(key: string, name: string, use: Use): void;
+  readonly exported: Named[];
+  readonly unreadable: string[];
+  read(): Usage;
+} {
+  const names = new Map<string, Map<string, Use[]>>();
+  const past = { byPath: [] as Deep[], deep: [] as Deep[], unfollowed: [] as Deep[] };
+  const exported: Named[] = [];
+  const unreadable: string[] = [];
+  return {
+    past: (lands, held) => void past[lands].push(held),
+    take(key, name, use) {
       const held = names.get(key) ?? new Map<string, Use[]>();
       names.set(key, held);
-      for (const bound of asked.names) {
-        const uses = held.get(bound.imported) ?? [];
-        held.set(bound.imported, uses);
-        uses.push({ by, at, line: bound.line, type: bound.type, kind });
-      }
-    }
-  }
-
-  return { names, deep, exported, unreadable };
-}
-
-/**
- * Directories that hold something other than source somebody wrote.
- *
- * A package's own build output is skipped by reading its `tsconfig.json`, which
- * is the authority on where that output lands; this list is for the ones no
- * manifest mentions. `dist` is on it as well as in the manifests, because a
- * directory that holds a bundler's output is not always a package with a
- * `tsconfig.json` to ask — the site's is a Next build, and reading it reports a
- * chunk's hundred minified re-exports as a hundred names somebody wrote.
- */
-const SKIP: readonly string[] = ['node_modules', 'coverage', 'build', 'dist', 'out'];
-
-const MODULES = new Set(['.ts', '.tsx', '.mts', '.cts', '.js', '.jsx', '.mjs', '.cjs']);
-
-/**
- * The name a module record entry names, on either side of the record.
- *
- * Nothing, for `import * as ns` and `export * from`: both take whatever is
- * there, so the other module is used and no single name in it is.
- */
-function nameOf(kind: string, name: string | null): string | undefined {
-  if (kind === 'Name') return name ?? undefined;
-  if (kind === 'Default') return 'default';
-  return undefined;
-}
-
-/** The build directory a package's own `tsconfig.json` declares, if it declares one. */
-function built(dir: string): string | undefined {
-  const config = join(dir, 'tsconfig.json');
-  if (!existsSync(config)) return undefined;
-  const { compilerOptions } = JSON.parse(readFileSync(config, 'utf8')) as {
-    compilerOptions?: { outDir?: string };
+      const uses = held.get(name) ?? [];
+      held.set(name, uses);
+      uses.push(use);
+    },
+    exported,
+    unreadable,
+    read: () => ({ names, ...past, exported, unreadable }),
   };
-  return compilerOptions?.outDir?.replace(/^\.\//, '').split('/')[0];
-}
-
-/**
- * Every module file under a root, each attributed to the package that owns it.
- *
- * Ownership is the nearest manifest above the file, which is what makes an
- * example directory a consumer with a name rather than an anonymous caller.
- */
-function walk(
-  dir: string,
-  owner: string,
-  skip: ReadonlySet<string>,
-  found: (file: string, owner: string) => void,
-): void {
-  let here = owner;
-  const ignore = new Set(skip);
-
-  const manifest = join(dir, 'package.json');
-  if (existsSync(manifest)) {
-    const name = (JSON.parse(readFileSync(manifest, 'utf8')) as { name?: unknown }).name;
-    if (typeof name === 'string') here = name;
-    const out = built(dir);
-    if (out !== undefined) ignore.add(out);
-  }
-
-  for (const entry of readdirSync(dir, { withFileTypes: true }).sort((a, b) =>
-    a.name < b.name ? -1 : a.name > b.name ? 1 : 0,
-  )) {
-    if (entry.name.startsWith('.') || ignore.has(entry.name)) continue;
-    const path = join(dir, entry.name);
-    if (entry.isDirectory()) walk(path, here, ignore, found);
-    else if (MODULES.has(extname(entry.name))) found(path, here);
-  }
-}
-
-/**
- * Read what a repository imports from what it publishes.
- *
- * `opened` is every `<package> <subpath>` a manifest answers, and it does double
- * duty: the package half says which specifiers are worth following at all, and
- * the whole key says which of them came through a published door.
- */
-export function readUsage(
-  root: string,
-  opened: ReadonlySet<string>,
-  options: UsageOptions = {},
-  parses: Parses = new Map(),
-): Usage {
-  const files: Recorded[] = [];
-
-  walk(root, '', new Set([...SKIP, ...(options.skip ?? [])]), (file, owner) => {
-    const at = relative(root, file);
-
-    let source;
-    try {
-      source = parseFile(parses, file, at);
-    } catch (error) {
-      files.push({ at, by: owner, requests: [], unknown: `${error instanceof Error ? error.message : String(error)}` });
-      return;
-    }
-
-    // One entry per specifier per statement. `export { a, b } from './x'` carries
-    // its specifier per entry rather than per statement, so a statement's entries
-    // can name two modules and the grouping has to be by what was named.
-    const requests = new Map<string, { line: number; names: Bound[] }>();
-
-    const requestAt = (specifier: string, offset: number) => {
-      const line = lineAt(source.writing, offset);
-      const held = requests.get(`${specifier}\u0000${line}`) ?? { line, names: [] };
-      requests.set(`${specifier}\u0000${line}`, held);
-      return held;
-    };
-
-    for (const statement of source.parsed.module.staticImports) {
-      const held = requestAt(statement.moduleRequest.value, statement.start);
-      for (const entry of statement.entries) {
-        const imported = nameOf(entry.importName.kind, entry.importName.name);
-        if (imported !== undefined) held.names.push({ imported, type: entry.isType, line: held.line });
-      }
-    }
-
-    const publishes: Exported[] = [];
-
-    for (const statement of source.parsed.module.staticExports) {
-      const line = lineAt(source.writing, statement.start);
-      for (const entry of statement.entries) {
-        // `export * from './x'` names nothing here: the set is whatever the
-        // other file publishes, and inventing a name for it would claim one
-        // this file never wrote.
-        const exported = nameOf(entry.exportName.kind, entry.exportName.name);
-        if (exported !== undefined) publishes.push({ name: exported, line, type: entry.isType });
-
-        const specifier = entry.moduleRequest?.value;
-        if (specifier === undefined) continue;
-        const held = requestAt(specifier, statement.start);
-        const imported = nameOf(entry.importName.kind, entry.importName.name);
-        if (imported !== undefined) held.names.push({ imported, type: entry.isType, line: held.line });
-      }
-    }
-
-    files.push({
-      at,
-      by: owner,
-      publishes,
-      requests: [...requests].map(([key, held]) => ({
-        specifier: key.slice(0, key.indexOf('\u0000')),
-        line: held.line,
-        names: held.names,
-      })),
-    });
-  });
-
-  return usageFrom(opened, files);
 }

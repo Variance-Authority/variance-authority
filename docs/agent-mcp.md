@@ -67,7 +67,7 @@ Ask in this order:
 - **Begin a report-file session with `variance_summary`.** It accounts for
   planned subjects that were not observed as well as for the observations that
   produced a **verdict** — the one word reported per subject: `unchanged`,
-  `changed`, `new`, `incomparable` or `ignored` — so silence cannot be mistaken
+  `changed`, `new` or `ignored` — so silence cannot be mistaken
   for a clean run.
 - **If the summary names changes, ask `variance_changes` before opening an
   individual subject.** It groups shared causes across subjects.
@@ -83,7 +83,7 @@ name the run wrote down — component, role, accessible name, visible text, file
 region, token — and each hit prints the field it matched on, so the order is
 checkable and a wrong first hit costs one more call. `variance_composition`
 with a `subject` then prints what that subject is made of. When the run recorded
-no composition, both say so rather than matching nothing.
+no composition, both print that rather than matching nothing.
 
 ## Evidence other integrations supply
 

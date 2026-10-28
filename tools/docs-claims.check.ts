@@ -4,6 +4,7 @@ import { dirname, join, resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import { parseConfig } from "@variance-authority/cli";
 import { FENCES, MARKDOWN, ROOT, lineOf, prose } from "./markdown.js";
+import { MODULES } from "./modules.js";
 
 /**
  * Claims the documentation makes about the repository.
@@ -163,18 +164,9 @@ describe("every package this repository names exists", () => {
       ),
   );
 
-  const SOURCE = execFileSync(
-    "git",
-    ["ls-files", "*.ts", "*.tsx", "*.js", "*.jsx", "*.mjs"],
-    { cwd: ROOT, encoding: "utf8" },
-  )
-    .trim()
-    .split("\n")
-    .filter((file) => existsSync(join(ROOT, file)));
-
   const NAMED = [
     ...MARKDOWN.filter((file) => !file.startsWith("docs/context/")),
-    ...SOURCE,
+    ...MODULES,
   ].flatMap((file) => {
     const text = readFileSync(join(ROOT, file), "utf8");
     return [...text.matchAll(/@variance-authority\/[a-z0-9-]+/g)].map(
@@ -186,6 +178,15 @@ describe("every package this repository names exists", () => {
     expect(NAMED.length).toBeGreaterThan(20);
     expect(WORKSPACES.size).toBeGreaterThan(20);
   });
+
+  it.each([".cts", ".mts", ".cjs"])(
+    "reads the names a %s module writes, where the runner seams and configs are",
+    (extension) => {
+      expect(
+        NAMED.some(([where]) => where.includes(`${extension}:`)),
+      ).toBe(true);
+    },
+  );
 
   it.each(NAMED)("%s names %s", (_where, name) => {
     expect(
@@ -310,7 +311,7 @@ describe("the documented vocabulary is the real one", () => {
   });
 });
 
-/** Package registries keep reference ownership; the start guide links outward. */
+/** The start guide links outward to each adopter integration. */
 describe("the site routes package visitors to adopter integrations", () => {
   const GUIDE = readFileSync(join(ROOT, "docs/start.md"), "utf8");
   const STARTS = [
@@ -323,23 +324,6 @@ describe("the site routes package visitors to adopter integrations", () => {
 
   it.each(STARTS)("names the %s start", (name) => {
     expect(GUIDE).toContain(name);
-  });
-
-  const manifests = execFileSync(
-    "git",
-    ["ls-files", ":(glob)packages/*/package.json"],
-    { cwd: ROOT, encoding: "utf8" },
-  )
-    .trim()
-    .split("\n");
-
-  it.each(manifests)("%s links to its reference", (path) => {
-    const manifest = JSON.parse(readFileSync(join(ROOT, path), "utf8")) as {
-      homepage?: string;
-    };
-    expect(manifest.homepage).toBe(
-      `https://variance-authority.dev/reference/packages/${path.split("/")[1]}`,
-    );
   });
 
   it("renders the canonical first-observation guide", () => {

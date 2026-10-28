@@ -12,14 +12,16 @@
  */
 
 import { execFile } from 'node:child_process';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { promisify } from 'node:util';
 import {
   EXECUTION_GLOBAL,
   executionCollectorSource,
+  testSelectionProbes,
   type ExecutionCollector,
+  type ExecutionJournal,
   type InstrumentMode,
 } from '../journal.js';
 
@@ -51,6 +53,16 @@ export const INITIALIZING = [
   '}',
   'const DEFAULT = label(1);',
   ...SOURCE.split('\n'),
+].join('\n');
+
+/**
+ * The same decision, called once by the top level while the module evaluates
+ * and again by whichever case reads the export: a region entered both ways.
+ */
+export const CALLED_WHILE_EVALUATING = [
+  ...SOURCE.split('\n').slice(0, -1),
+  'const DEFAULT = price(1);',
+  ...SOURCE.split('\n').slice(-1),
 ].join('\n');
 
 export const LABEL_PREMIUM_LINE = 3;
@@ -89,7 +101,7 @@ export function evaluate(transformed: string, mode?: InstrumentMode): Realm {
   try {
     new Function(executionCollectorSource(mode))();
     page = Object.getOwnPropertyDescriptor(globalThis, '__VA__')!;
-    new Function(transformed.replace(/^import "[^"]+";/, ''))();
+    new Function(transformed.replace(/\n;import "[^"]+";$/, ''))();
   } finally {
     asRunner();
   }
@@ -106,6 +118,55 @@ export function evaluate(transformed: string, mode?: InstrumentMode): Realm {
     },
     collector: global[EXECUTION_GLOBAL] as ExecutionCollector,
   };
+}
+
+/** The two branches of the fixture module, drained a case at a time. */
+export function twoCases(root: string, source = SOURCE): {
+  readonly premium: ExecutionJournal;
+  readonly plain: ExecutionJournal;
+  readonly write: () => Promise<void>;
+} {
+  const module = resolve(root, 'price.js');
+  const plugin = testSelectionProbes({ root });
+  let premium!: ExecutionJournal;
+  let plain!: ExecutionJournal;
+  return {
+    get premium() {
+      return premium;
+    },
+    get plain() {
+      return plain;
+    },
+    write: async () => {
+      await writeFile(module, source, 'utf8');
+      const realm = evaluate(plugin.transform.handler(source, module)!.code);
+      realm.price(20);
+      premium = realm.collector.drain();
+      realm.price(1);
+      plain = realm.collector.drain();
+    },
+  };
+}
+
+/**
+ * The plain case, then the premium one, on one page. The module evaluates
+ * inside the plain case's window, as a page a case opens or a lazy chunk
+ * evaluates it, or, `eager`, in a window of its own drained before either case.
+ */
+export async function casesOverOneLoad(
+  root: string,
+  source: string,
+  eager: boolean,
+): Promise<{ readonly load?: ExecutionJournal; readonly plain: ExecutionJournal; readonly premium: ExecutionJournal }> {
+  const module = resolve(root, 'price.js');
+  await writeFile(module, source, 'utf8');
+  const realm = evaluate(testSelectionProbes({ root }).transform.handler(source, module)!.code);
+  const load = eager ? realm.collector.drain() : undefined;
+  realm.price(1);
+  const plain = realm.collector.drain();
+  realm.price(20);
+  const premium = realm.collector.drain();
+  return { ...(load === undefined ? {} : { load }), plain, premium };
 }
 
 /**

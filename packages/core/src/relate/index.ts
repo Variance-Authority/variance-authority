@@ -7,7 +7,7 @@
  * to whoever owns the disk, and this is the half that has to be fast and has to
  * be provable without one.
  *
- * See [`docs/selecting.md`](../../../../docs/selecting.md) for what it is for.
+ * See [`docs/selecting.md`](https://variance-authority.dev/docs/selecting) for what it is for.
  */
 
 export {
@@ -35,6 +35,20 @@ export {
   type BeforeReach,
   type BeforeReachOptions,
 } from './before.js';
+
+export { beyondReach, type BeyondReach, type InstallMoved } from './beyond.js';
+
+export {
+  NOTHING,
+  WHOLE,
+  carried,
+  type CarriedOptions,
+  type CarriedStep,
+  type Carry,
+  type Held,
+  type Reached,
+  type Whole,
+} from './carried.js';
 
 export { type EdgeUse, type Uses } from './narrow.js';
 

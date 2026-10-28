@@ -1,6 +1,8 @@
 import type { Diagnostic, SubjectRef } from './capture.js';
 import type { Viewport } from './environment.js';
 import { digestValue, type Digest } from './hash.js';
+import { pageOrigin, withoutOrigin } from './origin.js';
+import type { PackedSnapshot } from './packed.js';
 import type { ComponentHash } from './snapshot.js';
 
 /**
@@ -142,8 +144,9 @@ export interface RenderFrame {
   readonly ancestors: readonly FrameElement[];
 
   /**
-   * Used width of the subject's parent box, in CSS pixels, when layout was
-   * observable.
+   * Used `width` of the subject's parent, in CSS pixels and in the parent's own
+   * `box-sizing`, when layout was observable. Written back on the same box, it
+   * gives the content box a percentage on the subject resolves against.
    *
    * A subject declaring `width: 100%` is a different size in a 1024px page and
    * inside a 600px panel, and nothing else in this document says which it was.
@@ -180,6 +183,7 @@ export interface FrameElement {
  * never a wrong image.
  */
 export function documentDigest(document: RenderDocument): Digest {
+  const origin = pageOrigin(document.baseUrl);
   return digestValue({
     documentVersion: document.documentVersion,
     html: document.html,
@@ -199,12 +203,16 @@ export function documentDigest(document: RenderDocument): Digest {
     inherited: { ...document.inherited },
     fonts: [...document.fonts],
     ...(document.assets ? { assets: { ...document.assets } } : {}),
-    ...(document.baseUrl !== undefined ? { baseUrl: document.baseUrl } : {}),
+    // The base and the page's own resources as paths: a collector serves the
+    // build on a free port, and a digest holding it would miss the render cache
+    // on every run. The document keeps both absolute, because the renderer
+    // resolves against them; a resource another origin serves stays absolute.
+    ...(document.baseUrl !== undefined ? { baseUrl: withoutOrigin(document.baseUrl, origin) } : {}),
     ...(document.resources !== undefined
       ? {
           resources: Object.fromEntries(
             Object.entries(document.resources).map(([url, resource]) => [
-              url,
+              withoutOrigin(url, origin),
               { ...resource },
             ]),
           ),
@@ -249,8 +257,8 @@ export interface RenderIdentity {
    * The gap itself is acceptable; a *difference* in it between two runs is not,
    * because the images then differ for a reason that is not the code and the
    * report blames whichever component sits under the pixels. Folding it in here
-   * makes that comparison `incomparable` instead, by the same mechanism that
-   * refuses a cross-machine one.
+   * names that gap as the cause of the change instead, by the same mechanism
+   * that names a moved machine.
    *
    * Optional only because a renderer may predate the field. Absent means the
    * renderer did not record what it did, which is emphatically not the same as
@@ -327,7 +335,7 @@ export interface Raster {
    * change from the components the change merely moved needs both revisions, and
    * a stored baseline is an image: without this, a run has one document and ranks
    * by area — which
-   * [journal 0013](../../../../docs/context/journal/0013-observability.md)
+   * [journal 0013](https://github.com/Variance-Authority/variance-authority/blob/main/docs/context/journal/0013-observability.md)
    * measured as backwards.
    *
    * Text, and small: one line per component boundary. It rides in the sidecar
@@ -365,6 +373,28 @@ export interface Raster {
    * defect in the suite as newly introduced on the first run after an upgrade.
    */
   readonly findingMarks?: readonly string[];
+
+  /**
+   * The semantic snapshot of the document that painted this, packed.
+   *
+   * The region join needs to know where each element was in the render the
+   * pixels are compared against. A changed region is the union of what left and
+   * what arrived, and a stored baseline is an image: without its own tree, a
+   * control replaced by a larger element changes pixels outside every box this
+   * render has, and the join names the row around it. With it, the join pairs
+   * the two renders' nodes with the matcher the semantic diff reads, so a
+   * region and a delta agree about which element a node was.
+   *
+   * Packed (see {@link PackedSnapshot}) because the tree is an order of
+   * magnitude larger than the component hashes, and it rides in every sidecar.
+   * Every store and transport carries the text as it is, and only the run that
+   * decides unpacks it.
+   *
+   * **Absent means not recorded.** A baseline written before this existed, or
+   * from a collector that supplied no snapshot, has none, and a verdict whose
+   * regions were joined without it says so.
+   */
+  readonly snapshot?: PackedSnapshot;
 }
 
 /**

@@ -4,13 +4,17 @@ import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { isTestCoverageFile } from './coverage-file.js';
 import { decodeTestCoverage, encodeTestCoverage } from './format.js';
-import { layerTestCoverage } from './format-layer.js';
+import { layCoverage } from './format-layer.js';
 import {
   DURATION,
   FORMAT,
   NO_DURATION,
+  PHASES,
+  UNCASED_FORMAT,
+  UNPHASED_FORMAT,
   UNTIMED_FORMAT,
   durationWord,
+  readableFormat,
   sections,
   type Header,
   type Stored,
@@ -86,7 +90,7 @@ describe('what the runner said a test file cost', () => {
   });
 
   it('opens a snapshot written before durations were recorded, as one whose runner timed nothing', async () => {
-    const untimed = relaid(encodeTestCoverage(coverage([5, 6, 7])), UNTIMED_FORMAT, [DURATION]);
+    const untimed = relaid(encodeTestCoverage(coverage([5, 6, 7])), UNTIMED_FORMAT, [DURATION, PHASES]);
 
     expect(openTestCoverage(untimed).testDuration).toBeUndefined();
     const decoded = decodeTestCoverage(untimed);
@@ -104,10 +108,18 @@ describe('what the runner said a test file cost', () => {
   });
 
   it('layers a run over that older snapshot into the current layout, timing only what the run timed', () => {
-    const untimed = relaid(encodeTestCoverage(coverage([])), UNTIMED_FORMAT, [DURATION]);
-    const run: TestCoverage = { ...coverage([]), tests: [{ ...coverage([]).tests[1]!, duration: 21.7 }] };
+    const untimed = relaid(encodeTestCoverage(coverage([])), UNTIMED_FORMAT, [DURATION, PHASES]);
+    const whole = coverage([]);
+    const run: TestCoverage = {
+      ...whole,
+      tests: [{ ...whole.tests[1]!, duration: 21.7 }],
+      modules: whole.modules.map((module) => ({
+        ...module,
+        blocks: module.blocks.map((block) => ({ ...block, testFiles: [TESTS[1]!] })),
+      })),
+    };
 
-    const layered = layerTestCoverage(untimed, run);
+    const layered = layCoverage(untimed, run);
 
     expect(headerOf(layered).header.version).toBe(FORMAT);
     expect(decodeTestCoverage(layered).tests.map((test) => [test.file, test.duration])).toEqual([
@@ -115,6 +127,34 @@ describe('what the runner said a test file cost', () => {
       ['test/beta.test.ts', 22],
       ['test/gamma.test.ts', undefined],
     ]);
+  });
+
+  it('layers a run over a snapshot written before the record held cases, carrying its tests', () => {
+    const uncased = relaid(encodeTestCoverage(coverage([5, 6, 7])), UNCASED_FORMAT, [PHASES]);
+    const whole = coverage([]);
+    const run: TestCoverage = { ...whole, tests: [whole.tests[1]!], modules: [] };
+
+    expect(decodeTestCoverage(layCoverage(uncased, run)).tests.map((test) => [test.file, test.duration])).toEqual([
+      ['test/alpha.test.ts', 5],
+      ['test/beta.test.ts', undefined],
+      ['test/gamma.test.ts', 7],
+    ]);
+  });
+
+  it('lays over exactly the layouts the reader opens: the addon and this package agree', () => {
+    const laysOver = (version: number): boolean => {
+      const held = relaid(encodeTestCoverage(coverage([1, 2, 3])), version, version === FORMAT ? [] : version === UNTIMED_FORMAT ? [DURATION, PHASES] : [PHASES]);
+      try {
+        layCoverage(held, coverage([]));
+        return true;
+      } catch {
+        return false;
+      }
+    };
+    const versions = [UNTIMED_FORMAT - 1, UNTIMED_FORMAT, UNCASED_FORMAT, UNPHASED_FORMAT, FORMAT, FORMAT + 1];
+
+    expect(versions.map(laysOver)).toEqual(versions.map(readableFormat));
+    expect(versions.map(laysOver)).toEqual([false, true, true, true, true, false]);
   });
 
   it('refuses a current-layout snapshot that lacks the duration section', () => {
