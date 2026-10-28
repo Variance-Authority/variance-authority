@@ -183,8 +183,7 @@ export type RecordedTests = Pick<TestCoverage, 'instrumentation' | 'commit'> & {
  *
  * `cases` is the run's own case index, laid over the cases the record holds
  * (`case-landing.ts`) and written with the coverage, in the same write. A run
- * that kept no cases carries the record's, and its landing says it laid none of
- * a file it ran in part (`landings.ts`). Either way a held module the run did
+ * that kept no cases carries the record's. Either way a held module the run did
  * not record is laid onto the cut its rows were landed at (`case-cuts.ts`). A
  * run that instrumented no module lands its cases and nothing else
  * ({@link landUncovered}), except a file it could not finish measuring: probes
@@ -241,8 +240,7 @@ export async function landRun(
   // process killed between them, leaves the snapshot at this run's commit
   // beside the record of the one before: the shape `commitRunsAfter` reads as
   // a retried landing, which the next run here repairs and nothing else does.
-  // It names the cases it laid of a file it ran in part: the ones it executed,
-  // or none when it kept no cases, whose index is the record's as it was.
+  // A run that kept no cases laid none, leaving the record's index as it was.
   const ranCases = cases === undefined ? 'none' : casesRan(laid);
   await writeCommitRuns(commitRunsFile(coverageFile), commitRunsAfter(before, held, { ...current, ...(ranCases === undefined ? {} : { laid: ranCases }) }, installed, ranOver));
   // The ledger last: it names this run's tests as this checkout's, and a
