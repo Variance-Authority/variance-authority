@@ -28,8 +28,8 @@ answer opens with `imported from node:path, which the runtime declares` and
 lists each import, marked as the runtime's. An `export … from` out of an
 installed package or a built-in module is listed as the import it is and no
 longer answered as a declaration of the workspace. Files whose imports were
-not read are named after every answer, including one with no import from
-outside, and declarations or members the source index did not read are named
+not read are counted after every answer, including one with no import from
+outside, the first three by name, and declarations or members the source index did not read are named
 rather than passed over.
 
 A Rust item's answer now says that a use from JavaScript through a native

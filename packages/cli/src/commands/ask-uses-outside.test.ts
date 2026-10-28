@@ -77,6 +77,16 @@ describe('variance ask uses over a name an installed package declares', () => {
     ]);
   }, 120_000);
 
+  it('hands the imports from outside to a crossing of questions as the files that import the name', async () => {
+    checkout(OUTSIDE);
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+
+    const both = await run(['ask', 'intersection', 'uses --name parseSync', 'discover --path deep']);
+    expect(both.err).toBe('');
+    expect(both.out).toContain('1 file in all of them.');
+    expect(both.out).toContain('packages/other/src/deep/near.ts — 1: line 1 · 2: the file');
+  }, 120_000);
+
   it('names the files whose declarations were not read after the imports from outside', async () => {
     checkout({
       ...OUTSIDE,
@@ -173,6 +183,26 @@ describe('variance ask uses --package over a name declared outside the workspace
     expect(workspace.code).toBe(EXIT_CLEAN);
     expect(workspace.out).toMatch(/^packages\/tool\/src\/view\.ts:1 — @acme\/tool; used on line 2$/m);
     expect(workspace.out).not.toContain('from thirdp');
+  }, 120_000);
+
+  it('keeps the imports through the package specifier asked, and drops the package\'s other specifiers', async () => {
+    checkout({
+      ...OUTSIDE,
+      'packages/tool/src/sub.ts': "import { parseSync } from 'thirdp/sub';\nexport const sub = parseSync('s');\n",
+      'node_modules/thirdp/sub.d.ts': 'export declare function parseSync(text: string): unknown;\n',
+      'node_modules/thirdp/sub.js': 'exports.parseSync = (t) => t;\n',
+    });
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+
+    const subpath = await run(['ask', 'uses', '--name', 'parseSync', '--package', 'thirdp/sub']);
+    expect(subpath.code).toBe(EXIT_CLEAN);
+    expect(subpath.out).toContain('`parseSync` is declared in no file of this workspace; it is imported from outside it in 1 place, out of thirdp.');
+    expect(subpath.out).toMatch(/^packages\/tool\/src\/sub\.ts:1 — @acme\/tool, from thirdp; used on line 2$/m);
+    expect(subpath.out).not.toContain('packages/other/src/deep/near.ts');
+
+    const whole = await run(['ask', 'uses', '--name', 'parseSync', '--package', 'thirdp']);
+    expect(whole.out).toContain('packages/other/src/deep/near.ts:1');
+    expect(whole.out).toContain('packages/tool/src/sub.ts:1');
   }, 120_000);
 
   it('takes a module of the runtime by its name with or without the scheme', async () => {

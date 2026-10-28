@@ -141,7 +141,7 @@ fn read_crossing<'l>(layers: &[Layer], crossing: &Crossing<'l>, name: &str, buil
         let written = text.text(parses.request_value.at(request));
         let passes_on = parses.request_republishes[request] == 1;
         for (site, local) in taken(&layers[layer], row, request, written, "", crossing.file, kind) {
-            if site.name == name { found.push(OutsideUse { package: package.to_owned(), runtime: false, passes_on, site: bound(&layers[layer], row, site, local) }); }
+            if site.name == name { found.push(OutsideUse { package: package.to_owned(), runtime: false, passes_on, site: bound(&layers[layer], row, site, if passes_on { "" } else { local }) }); }
         }
     }
     Read::Found(found)
@@ -170,7 +170,7 @@ fn runtime_uses(layers: &[Layer], crossing: &Crossing, name: &str, builtins: &Ha
         let package = if module.starts_with("node:") { module.to_owned() } else { format!("node:{module}") };
         let passes_on = parses.request_republishes[request] == 1;
         for (site, local) in taken(&layers[layer], row, request, written, "", crossing.file, kind) {
-            if site.name == name { found.push(OutsideUse { package: package.clone(), runtime: true, passes_on, site: bound(&layers[layer], row, site, local) }); }
+            if site.name == name { found.push(OutsideUse { package: package.clone(), runtime: true, passes_on, site: bound(&layers[layer], row, site, if passes_on { "" } else { local }) }); }
         }
     }
     found

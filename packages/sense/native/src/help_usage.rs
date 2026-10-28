@@ -185,8 +185,8 @@ pub(crate) fn taken<'a>(layer: &'a Layer, row: usize, request: usize, key: &str,
 
 /// `taken` with the lines the parse at `row` uses the top-level binding
 /// `local` on, as the scan recorded them with the file's parse, in line order.
-/// A member read binds nothing, `local` empty, and keeps none: its lines are
-/// not known.
+/// A member read and a name an `export … from` passes on bind nothing: the
+/// caller passes `local` empty, and they keep no lines.
 pub(crate) fn bound(layer: &Layer, row: usize, mut taken: NameUse, local: &str) -> NameUse {
     if local.is_empty() { return taken; }
     let (text, parses) = (&layer.stored, &layer.parses);

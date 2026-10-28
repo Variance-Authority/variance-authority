@@ -32,11 +32,12 @@ fn fixture(name: &str) -> Fixture {
 /// (`None` where the scan resolved it to no file), the reason its imports did
 /// not read when they did not, and its parse.
 fn file(path: &str, packages: &[&str], targets: &[Option<&str>], unknown: Option<&str>, requests: &[String]) -> (String, String) {
-    held(path, packages, targets, unknown, requests, "")
+    held(path, packages, targets, unknown, requests, "", "")
 }
 
-/// [`file`], with the members read off a module the file holds whole, as the parse writes them.
-fn held(path: &str, packages: &[&str], targets: &[Option<&str>], unknown: Option<&str>, requests: &[String], members: &str) -> (String, String) {
+/// [`file`], with the members read off a module the file holds whole and the
+/// file's uses of its own top-level bindings, as the parse writes them.
+fn held(path: &str, packages: &[&str], targets: &[Option<&str>], unknown: Option<&str>, requests: &[String], members: &str, own_uses: &str) -> (String, String) {
     let digest = format!("git:{:04x}", path.bytes().map(u32::from).sum::<u32>());
     let packages: Vec<String> = packages.iter().map(|package| format!(r#"{{"to": "{package}", "kind": "imports"}}"#)).collect();
     let targets: Vec<String> = targets.iter().map(|target| target.map_or("null".to_owned(), |to| format!("\"{to}\""))).collect();
@@ -47,7 +48,8 @@ fn held(path: &str, packages: &[&str], targets: &[Option<&str>], unknown: Option
         targets.join(", "),
     );
     let members = if members.is_empty() { String::new() } else { format!(r#", "members": [{members}]"#) };
-    let parse = format!(r#"["{digest}\u0000.ts\u0000+", {{"requests": [{}], "exports": []{members}}}]"#, requests.join(", "));
+    let own_uses = if own_uses.is_empty() { String::new() } else { format!(r#", "ownUses": [{own_uses}]"#) };
+    let parse = format!(r#"["{digest}\u0000.ts\u0000+", {{"requests": [{}], "exports": []{members}{own_uses}}}]"#, requests.join(", "));
     (record, parse)
 }
 
@@ -133,8 +135,8 @@ fn a_record_its_parse_does_not_line_up_with_is_unread_only_when_it_names_an_outs
 fn reads_a_member_off_a_module_held_whole_by_an_import_star_or_an_import_call() {
     let root = fixture("members");
     let bytes = layer(&[
-        held("src/a.ts", &["thirdp"], &[None], None, &[whole("thirdp", "imports", 1, Some("tp"))], r#"{"request": 0, "name": "parseSync", "line": 4}"#),
-        held("src/b.ts", &["thirdp"], &[None], None, &[whole("thirdp", "dynamic", 2, None)], r#"{"request": 0, "name": "parseSync", "line": 3}, {"request": 0, "name": "render", "line": 5}"#),
+        held("src/a.ts", &["thirdp"], &[None], None, &[whole("thirdp", "imports", 1, Some("tp"))], r#"{"request": 0, "name": "parseSync", "line": 4}"#, ""),
+        held("src/b.ts", &["thirdp"], &[None], None, &[whole("thirdp", "dynamic", 2, None)], r#"{"request": 0, "name": "parseSync", "line": 3}, {"request": 0, "name": "render", "line": 5}"#, ""),
     ]);
     let layer = Layer::open(&bytes).unwrap();
 
@@ -185,4 +187,27 @@ fn reads_an_import_of_a_module_the_runtime_owns_in_a_file_whose_other_imports_di
     let uses: Vec<(&str, &str)> = read.uses.iter().map(|one| (one.site.at.as_str(), one.package.as_str())).collect();
     assert_eq!(uses, [("src/a.ts", "node:path")]);
     assert_eq!(read.unread, ["src/a.ts"], "the import that did not read may still import the name");
+}
+
+#[test]
+fn a_name_passed_on_binds_nothing_so_the_files_own_uses_of_that_name_are_not_its() {
+    let root = fixture("passes-on");
+    let own = r#"{"name": "resolve", "line": 7}, {"name": "parseSync", "line": 9}"#;
+    let bytes = layer(&[
+        held("src/a.ts", &[], &[None], None, &[request("node:path", "reexports", 1, "resolve", true)], "", own),
+        held("src/b.ts", &[], &[None], None, &[request("node:path", "imports", 1, "resolve", false)], "", own),
+        held("src/c.ts", &["thirdp"], &[None], None, &[request("thirdp", "reexports", 1, "parseSync", true)], "", own),
+    ]);
+    let layer = Layer::open(&bytes).unwrap();
+    let root = root.0.to_str().unwrap();
+
+    let resolve = outside_importers(root, std::slice::from_ref(&layer), "resolve", &builtins());
+    let parse_sync = outside_importers(root, std::slice::from_ref(&layer), "parseSync", &builtins());
+
+    let lines: Vec<(&str, bool, Option<Vec<u32>>)> = resolve.uses.iter().chain(&parse_sync.uses).map(|one| (one.site.at.as_str(), one.passes_on, one.site.lines.clone())).collect();
+    assert_eq!(
+        lines,
+        [("src/a.ts", true, None), ("src/b.ts", false, Some(vec![7])), ("src/c.ts", true, None)],
+        "a.ts and c.ts declare their own `resolve` and `parseSync`; an `export … from` binds no local, so those lines are not the import's",
+    );
 }

@@ -246,8 +246,9 @@ export interface OutsideImports {
 /**
  * Every import of `name` from outside the workspace, by any file the index at
  * `index` holds: a request the scan did not resolve to a file, out of a package
- * no manifest of the workspace declares or out of an `isBuiltin` module, the
- * rule the external-dependency orientation keeps. `export … from` counts,
+ * no manifest of the workspace declares, the rule the external-dependency
+ * orientation keeps, or out of a module named in Node's `builtinModules`, with
+ * or without `node:`. `export … from` counts,
  * `export *` does not; `key` is the specifier as written. `undefined` when no
  * index was published; throws when it does not read.
  */
