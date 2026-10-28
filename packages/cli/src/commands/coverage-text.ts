@@ -10,7 +10,9 @@
  */
 
 import type { MovedRegion, TestFileMotion } from '@variance-authority/sense/test-selection';
-import { coverageParts as parts, coverageRows, coverageSum, grouped, ratio, signed } from './coverage-summary.js';
+import { fanInLines, fanInMarkdown } from './coverage-fan-in-text.js';
+import { earnedLines, earnedMarkdown, ownershipLines, ownershipMarkdown } from './coverage-owner-text.js';
+import { coverageParts as parts, coverageRows, coverageSum, grouped, ratio, signed, table } from './coverage-summary.js';
 import { functionsIn, notListed } from './covering-motion.js';
 import { text as escape } from './report-html-elements.js';
 import type { CoverageFormat } from '../coverage-args.js';
@@ -67,7 +69,7 @@ function text(answer: Coverage): string {
   if (count.load > 0) tail.push(['  ran only at load', grouped(count.load), '']);
   lines.push(...table(tail));
   if (count.unjoined > 0) lines.push(`not joined across suites: ${grouped(count.unjoined)} region${count.unjoined === 1 ? '' : 's'}`);
-  lines.push(...sourceLines(answer));
+  lines.push(...sourceLines(answer), ...ownershipLines(answer.entries ?? [], answer.ownership ?? []), ...earnedLines(answer.earned), ...fanInLines(answer.fanIn));
 
   if (base !== undefined) {
     for (const suite of answer.suites) {
@@ -91,8 +93,19 @@ function heading(answer: Coverage): string {
   const at = answer.at === undefined ? 'coverage' : `coverage at ${short(answer.at)}`;
   const regions = regionCount(answer.count.regions);
   const files = `${grouped(answer.count.files)} file${answer.count.files === 1 ? '' : 's'} the suites loaded`;
-  if (answer.base === undefined) return `${at} — ${regions} in ${files}`;
-  return `${at} against each suite's base — ${regions} (${grouped(answer.base.regions)} at the base) in ${files}`;
+  if (answer.base === undefined) return `${at} — ${regions} in ${files}${banded(answer)}`;
+  return `${at} against each suite's base — ${regions} (${grouped(answer.base.regions)} at the base) in ${files}${banded(answer)}`;
+}
+
+/** What `--at-distance` narrowed the counts to, as a clause after the heading, and the test files it could not place. */
+function banded(answer: Coverage): string {
+  const { atDistance } = answer;
+  if (atDistance === undefined) return '';
+  const { from, to, unplaced, unmeasured } = atDistance;
+  const hops = to === undefined ? `${from} or more` : from === to ? `${from}` : `${from}-${to}`;
+  const left = unplaced.length === 0 ? '' : `; ${grouped(unplaced.length)} test file${unplaced.length === 1 ? '' : 's'} not on the import graph left out`;
+  const outside = unmeasured === 0 ? '' : `; ${grouped(unmeasured)} region${unmeasured === 1 ? '' : 's'} run from no measured distance, in no band`;
+  return `, counted where the nearest test that ran the code is ${hops} import hop${hops === '1' ? '' : 's'} away${left}${outside}`;
 }
 
 /**
@@ -124,12 +137,13 @@ function markdown(answer: Coverage): string {
     '|---|--:|---|',
     ...coverageRows(answer, true),
     '',
-    `Percentages count the ${regionCount(answer.count.regions)} in ${files(answer.count.files)} the recorded suites loaded. Module-load execution is counted separately.`,
+    `Percentages count the ${regionCount(answer.count.regions)} in ${files(answer.count.files)} the recorded suites loaded${banded(answer)}. Module-load execution is counted separately.`,
     ...coverageBreakdown(answer),
   ];
   if (answer.source !== undefined || answer.sourceMissed !== undefined) {
     lines.push('', `<details><summary>${escape(breakdownLabel(answer))}: source beyond the recordings</summary>`, ...sourceMarkdown(answer), '', '</details>');
   }
+  lines.push(...ownershipMarkdown(answer.entries ?? [], answer.ownership ?? []), ...earnedMarkdown(answer.earned), ...fanInMarkdown(answer.fanIn));
   return `${lines.join('\n')}\n`;
 }
 
@@ -341,13 +355,6 @@ function countCell(now: number, was: number | undefined): string {
 function ratioCell(run: number, regions: number, wasRun: number | undefined, wasRegions: number | undefined): string {
   const now = ratio(run, regions);
   return wasRun === undefined || wasRegions === undefined ? now : `${ratio(wasRun, wasRegions)} → ${now}`;
-}
-
-/** Columns padded to the widest cell, with no trailing space. */
-function table(rows: readonly (readonly string[])[]): readonly string[] {
-  const widths: number[] = [];
-  for (const row of rows) row.forEach((cell, at) => (widths[at] = Math.max(widths[at] ?? 0, cell.length)));
-  return rows.map((row) => row.map((cell, at) => cell.padEnd(widths[at]!)).join('  ').trimEnd());
 }
 
 function regionCount(regions: number): string {

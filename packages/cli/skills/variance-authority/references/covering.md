@@ -137,6 +137,24 @@ and a short list look the same and lead to opposite decisions. A test the walk
 could not place is left out and counted. Both measure from one file, so neither
 combines with `--since`.
 
+The same band counts a whole suite: `variance coverage --at-distance 2-` counts
+only what no test within one hop ran, by the nearest test across every suite,
+over every region the suites loaded, and with `--packages` names the packages
+whose regions only another package's tests reach.
+
+`variance coverage --fan-in` asks `covering`'s question of every file at once:
+how many test files called into each region, per kind, with the files at each
+end. Test files that only loaded a file are left out, so each count is the least
+an edit runs; `covering --file` names the loaders. Read it before refactoring
+for selection or stability. The thin end is regions one test file ran: one
+deletion from unobserved. The wide end splits two ways, and each has a different
+fix: `most test files called into the file` (the code is a hub; stabilise the
+tests it sends, or narrow its callers), and `selected whole beyond what its
+median region needs` (the file sends `entered` where its median region needs `median`; that gap is
+the most a split saves, since each part still sends every test file that called
+into it). Under `--at-distance` the counts read only the band. `--format json` lists every file under
+`fanIn`; no field is a verdict.
+
 ## Read the state of every range
 
 Every range, and the answer about one line, has a `state`:

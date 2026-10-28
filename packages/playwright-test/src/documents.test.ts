@@ -59,4 +59,33 @@ describe('the `context` fixture', () => {
     expect(done).toBe(true);
     expect(recorder.marked).toEqual([false]);
   });
+
+  it('waits once for a drain the page holds, and lets every later statement through at once', async () => {
+    vi.useFakeTimers();
+    const recorder = recorderHeld();
+    const fixture = varianceDocumentFixtures.context as unknown as ContextFixture;
+    const realm = globalThis as { __VA__?: { c?: (line: number, file: string) => unknown } };
+    let release = (): void => {};
+    const torn = fixture(
+      { context: contextOfOneFrame(), varianceRecorder: recorder },
+      () => new Promise<void>((resolve) => (release = resolve)),
+      testInfo,
+    );
+    await vi.advanceTimersByTimeAsync(0);
+    const settled: number[] = [];
+    const statement = (line: number): void => {
+      void Promise.resolve(realm.__VA__?.c?.(line, SPEC)).then(() => settled.push(line));
+    };
+
+    statement(3);
+    await vi.advanceTimersByTimeAsync(1000);
+    statement(4);
+    statement(5);
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(settled).toEqual([3, 4, 5]);
+    release();
+    await vi.advanceTimersByTimeAsync(2000);
+    await torn;
+  });
 });

@@ -3,12 +3,7 @@ import type { FileRecord } from '@variance-authority/core/relate';
 import type { BlockKind } from '../instrument/index.js';
 import type { FilePhases } from './reported-time.js';
 import { deviationFromView } from './deviation.js';
-import {
-  journeyDivergences,
-  type JourneyDivergence,
-  type JourneyDivergenceOptions,
-  type JourneyRegion,
-} from './divergence.js';
+import { journeyDivergences, type JourneyDivergence, type JourneyDivergenceOptions, type JourneyRegion } from './divergence.js';
 import { decodeTestCoverage, encodeTestCoverage } from './format.js';
 import { writeCoverageBytes } from './record-location.js';
 import { withCaseSections, type CaseSections } from './case-record.js';
@@ -226,6 +221,10 @@ export {
   type SuiteChange,
   type SuiteCount,
 } from './coverage-count.js';
+export { coverageAtDistance, testHops, type CoverageAtDistance, type TestHops } from './coverage-distance.js';
+export { earnedCoverage, type EarnedCount, type EarnedCoverage } from './coverage-earned.js';
+export { coverageFanIn, type FanIn, type FanInFile, type FanInKind } from './coverage-fan-in.js';
+export { coverageByOwner, type OwnedFile } from './coverage-owner.js';
 
 /**
  * The lines of the source a region was written on, inclusive — or neither.

@@ -44,6 +44,7 @@ describe('variance ask uses over a name several files declare', () => {
     const out = await uses();
     expect(out).toMatch(/^apps\/app\/src\/hello\.ts:1 — @acme\/app$/m);
     expect(out).toContain('`greet` is exported, without being published, at packages/lib/src/other.ts:1 as well, which is another declaration.');
+    expect(out).toMatch(/^`greet` \[function\] is declared, not exported, at packages\/lib\/src\/kept\.ts:1/m);
     expect(out).toContain('`--file`, the file one of them is declared in, answers for that declaration alone.');
   });
 

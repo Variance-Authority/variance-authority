@@ -124,6 +124,8 @@ const WORKSPACE: Help = {
     },
   ],
   deep: [],
+  unfollowed: [],
+  byPath: [],
   exported: [],
   unreadable: [],
 };
