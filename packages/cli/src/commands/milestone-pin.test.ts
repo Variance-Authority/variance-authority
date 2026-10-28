@@ -22,7 +22,11 @@ import {
 } from '@variance-authority/sense/test-selection';
 import { digestString } from '@variance-authority/core/format';
 import type { Env } from '../share-lines.js';
+import { readFlags } from '../args.js';
+import { parseCoveringArgs } from '../covering-args.js';
+import { flagsFor, synopsisFor } from '../usage.js';
 import { checkoutRead } from './checkout-read.js';
+import { covering } from './covering.js';
 import { BEFORE, collectedBoth, DISCOUNTS, gitPublished, probedModule, PUSH, ranWhole, recordIn, ROUNDS } from './mainline-fixture.js';
 import { mainlineBase } from './mainline-base.js';
 import { suiteBase } from './suite-base.js';
@@ -210,6 +214,34 @@ describe('the milestone under a checkout', () => {
       over: next,
       files: ['test/total.test.ts'],
       standing: [{ commit: next, files: ['test/other.test.ts'], first: '2026-01-01T00:00:00.000Z', latest: '2026-01-01T00:00:00.000Z', runs: 1 }],
+    });
+  });
+
+  it('answers a test file standing at the new milestone over the text the publishing run ran it over, when that run landed', async () => {
+    const { ci, first, worktree, own } = await laidWorktree();
+    await landRun(own, ranAlone(first, 'test/total.test.ts'), worktree);
+    // CI ran both test files over an uncommitted text of `src/total.ts`, which its landing kept the digest of,
+    // and `discounts` entered `applyDiscount` there.
+    const next = await publishedNext(ci, async (record) => {
+      const runs = JSON.parse(await readFile(commitRunsFile(record), 'utf8')) as Record<string, unknown>;
+      await writeFile(commitRunsFile(record), JSON.stringify({ ...runs, texts: { 'src/total.ts': digestString(`${BEFORE}// on CI\n`) } }));
+      const block = { kind: 'function', name: 'applyDiscount', path: 'applyDiscount', startLine: 1, endLine: 3, source: true, crossings: [{ test: 0, distance: 0 }] };
+      await writeFile(record, withCaseSections(await readFile(record), {
+        index: encodeAsSetExecutionIndex({ tests: [DISCOUNTS], modules: [{ file: 'src/total.ts', blocks: [block] }] }),
+      }));
+    });
+    await git(worktree, 'fetch', '--quiet', 'origin');
+    await git(worktree, 'checkout', '--quiet', '--detach', next);
+    await landRun(own, ranAlone(next, 'test/other.test.ts'), worktree);
+    await refetch(worktree, next);
+    expect(await suiteBase(worktree, { env: LOCAL })).toMatchObject({ repin: { repinned: true, to: next, dropped: ['test/total.test.ts'] } });
+
+    const argv = ['--file', 'src/total.ts', '--root', worktree, '--suite', 'unit'];
+    const answer = await covering(parseCoveringArgs(readFlags(argv, 'covering', flagsFor('covering'), synopsisFor('covering'))));
+
+    expect(answer).toMatchObject({
+      frame: 'recorded',
+      ran: { stands: [{ commit: next, tests: ['test/total.test.ts'], landed: { first: '2026-01-01T00:00:00.000Z', runs: 1 }, text: 'other', other: ['src/total.ts'] }] },
     });
   });
 
