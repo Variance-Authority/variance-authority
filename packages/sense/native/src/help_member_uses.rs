@@ -5,7 +5,8 @@
 //! (`props: Props`), or an expression cast to it (`value as Props`). An object
 //! literal written as one (`const fixed: Props = { … }`, `{ … } satisfies
 //! Props`) writes each of its keys, and an annotated pattern (`({ size }:
-//! Props) =>`) destructures them. Each use records the type's name as the file
+//! Props) =>`) destructures them. A class that writes `implements Props`
+//! implements each instance member it declares by name. Each use records the type's name as the file
 //! writes it; which declaration that name is, through its import, is the
 //! query's join (`help_members.rs`), the same one `uses` makes for an import.
 //!
@@ -32,6 +33,7 @@ use crate::read::Lines;
 pub(crate) const READ: &str = "read";
 pub(crate) const WRITE: &str = "write";
 pub(crate) const DESTRUCTURE: &str = "destructure";
+pub(crate) const IMPLEMENT: &str = "implement";
 
 /// One use of a member: its name, its line, the type its value is written
 /// `of`, as the file names it, and `how` the line uses it.
@@ -185,6 +187,26 @@ impl<'a> Visit<'a> for Walker<'_> {
     fn visit_ts_satisfies_expression(&mut self, it: &TSSatisfiesExpression<'a>) {
         if let Some(of) = named(&it.type_annotation) { self.literal(&it.expression, &of); }
         walk::walk_ts_satisfies_expression(self, it);
+    }
+
+    // `class Real implements Deps` implements each instance member it names,
+    // by its name: a static one is the class's own, and a constructor, a
+    // computed key or a `#private` one implements nothing.
+    fn visit_class(&mut self, it: &Class<'a>) {
+        for implemented in &it.implements {
+            let TSTypeName::IdentifierReference(of) = &implemented.expression else { continue };
+            for element in &it.body.body {
+                let (key, computed, is_static) = match element {
+                    ClassElement::MethodDefinition(method) if method.kind != MethodDefinitionKind::Constructor => (&method.key, method.computed, method.r#static),
+                    ClassElement::PropertyDefinition(property) => (&property.key, property.computed, property.r#static),
+                    ClassElement::AccessorProperty(property) => (&property.key, property.computed, property.r#static),
+                    _ => continue,
+                };
+                if computed || is_static || matches!(key, PropertyKey::PrivateIdentifier(_)) { continue; }
+                if let Some(name) = key.static_name() { self.add(&name, key.span().start, &of.name, IMPLEMENT); }
+            }
+        }
+        walk::walk_class(self, it);
     }
 
     fn visit_assignment_expression(&mut self, it: &AssignmentExpression<'a>) {

@@ -509,7 +509,9 @@ with its `suite` and `kind`, or its `reason` with `refused` set to `unrecorded`,
 to `unloaded` for a file the suite never loaded, or to `older` for a file its
 record predates. A file the suite loaded without
 instrumenting it is answered with `preconditionOf`, the test files that loaded
-it. `--suite <name>` reads one record alone, answers in the shape a repository with one record does, and so
+it. Beside the list, `marks` cuts the file into runs of lines and gives each
+the one state the suites that ran it make together, with their names, so an
+editor paints a line once. `--suite <name>` reads one record alone, answers in the shape a repository with one record does, and so
 gives a suite's refusal in full.
 
 `--format refs` is the same answer for an agent, which pays for every repeated

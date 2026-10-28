@@ -43,9 +43,10 @@ export interface SelectionRequest {
   /**
    * The record this run lands in. A run with a region skipped reads its
    * selection from it, because that is the record its caller put in the cache
-   * the run alone writes; the suite's nearest record otherwise.
+   * the run alone writes; the suite's nearest record otherwise. Asked only
+   * when the run reads that selection.
    */
-  readonly landing?: string;
+  readonly landing?: () => string;
 }
 
 /** What `@variance-authority/cli` is asked for; its own types stay on its side of the cycle. */
@@ -130,9 +131,26 @@ function faultSelection(fault: string, since: string | undefined, request: Selec
       root: request.root,
       fault,
       ...(request.suite === undefined ? {} : { suite: request.suite }),
-      ...(request.landing === undefined ? {} : { record: request.landing }),
+      ...(request.landing === undefined ? {} : { record: request.landing() }),
     });
   };
+}
+
+/**
+ * The selection a run asks for: the one it was handed, else the environment's,
+ * noted against the record the run lands in, which names the record it read.
+ * `landing` is asked only when a selection is: a run that asks for none
+ * need not say where it lands. `undefined` when it asks for none.
+ */
+export function askedSelection(
+  handed: (() => Promise<SuiteSelection>) | undefined,
+  landing: () => string,
+  request: SelectionRequest,
+  env: NodeJS.ProcessEnv = process.env,
+  say?: (line: string) => void,
+): (() => Promise<SuiteSelection>) | undefined {
+  const asked = handed ?? selectionFrom(env, { ...request, landing }, say);
+  return asked && notingRead(landing(), asked);
 }
 
 /**

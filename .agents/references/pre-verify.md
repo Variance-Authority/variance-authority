@@ -61,18 +61,24 @@ the exact signature this project exists to tell apart from a real one.
 
 `yarn test:loop` is what the edit loop runs after every edit, before any wave:
 `tsc --build && VARIANCE_AUTHORITY_SINCE= VARIANCE_AUTHORITY_AT_DISTANCE=0-1
-vitest run`. That is the compiler, then the unit tests at distance `0-1` (the
-tests that entered the change and those one import away), measured from the
-text each test last ran over. It is the loop
+vitest run && node tools/needs.mjs`. That is the compiler, then the unit tests
+at distance `0-1` (the tests that entered the change and those one import
+away), measured from the text each test last ran over. The first two steps are
+the loop
 [`docs/test-an-edit.md`](../../docs/test-an-edit.md#the-loop-an-agent-runs-after-each-edit)
-publishes, with no script of ours in it. A type error stops it before any test;
-an edit that keeps no test exits 0 in under a second with `selected none of`
-and the seam's reading: `none (the record was taken over this text)` means the
-tests that entered the edit already ran it, and a test further than one import
-is left for `verify:near`. To see why a file was kept, ask `yarn variance select
---suite unit --at-distance 0-1`. Integration and chromium tests never run in
-it. It is not lint and not a wave: `verify:near` still runs every slice once
-the change is whole.
+publishes, with no script of ours in them. A type error stops it before any
+test; an edit that keeps no test exits 0 in under a second with `selected none
+of` and the seam's reading: `none (the record was taken over this text)` means
+the tests that entered the edit already ran it, and a test further than one
+import is left for `verify:near`. To see why a file was kept, ask `yarn variance
+select --suite unit --at-distance 0-1`. Integration and chromium tests never
+run in it. A green run ends with the needs list: for each function new on the
+branch in the package sources, the scripts a package ships and `tools/`, with
+five needs or more, the existing functions there that need what it needs.
+Tests, `site/` and `examples/` are not read. The list adds about half a second
+with its cache warm and never changes the exit code; a red run ends at the
+test, before it. It is not lint and not a wave: `verify:near` still runs every
+slice once the change is whole.
 
 ## The waves
 

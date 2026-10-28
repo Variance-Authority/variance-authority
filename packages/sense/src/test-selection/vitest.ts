@@ -18,8 +18,7 @@ import { selectionReporter } from './vitest-reporter.js';
 import { repositoryRoot } from './repository-root.js';
 import { askedForStories } from '../story/directory.js';
 import type { SuiteSelection } from './suite-selection.js';
-import { notingRead } from './record-base.js';
-import { landingTimes, selectionFrom } from './selection-environment.js';
+import { askedSelection, landingTimes } from './selection-environment.js';
 import { seedInBanner, selectingSequencer, type SequencerClass } from './vitest-sequencer.js';
 import { shardArgument } from './shard-placement.js';
 
@@ -169,9 +168,7 @@ export function withTestSelection(
   const declared = (options.preconditions ?? []).map((file) => resolve(configRoot, file));
 
   const suite = options.suite === undefined ? {} : { suite: options.suite };
-  // Each reading notes the record it read against the record this run lands in, which names it.
-  const asked = options.selection ?? selectionFrom(process.env, { root, from: configRoot, landing: coverageFile, ...suite });
-  const selection = asked && notingRead(coverageFile, asked);
+  const selection = askedSelection(options.selection, () => coverageFile, { root, from: configRoot, ...suite });
   const settle = foldRun(run, { coverageFile, shims: [setupId, runnerId] });
   const reporter = selectionReporter(run, settle);
   // Ahead of the project's reporters, so the banner the first of them prints

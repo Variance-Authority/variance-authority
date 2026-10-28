@@ -121,7 +121,7 @@ pub struct Read {
     /// Every use of a member through a value whose type the module writes.
     #[serde(rename = "memberUses", skip_serializing_if = "Vec::is_empty")]
     pub(crate) member_uses: Vec<MemberUse>,
-    /// Every line that uses a name the module declares at its top level.
+    /// Every line that uses a name the module declares at its top level or binds by an import.
     #[serde(rename = "ownUses", skip_serializing_if = "Vec::is_empty")]
     pub(crate) own_uses: Vec<OwnUse>,
     #[serde(skip_serializing_if = "Option::is_none")]

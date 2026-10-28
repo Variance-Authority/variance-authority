@@ -112,8 +112,8 @@ export async function uses(name: string): Promise<UsesAnswer> {
       namesakes.push({ at: m[1]!, uses: [] });
       into = namesakes.at(-1)!.uses;
       section = undefined;
-    } else if (line === 'Tests:') section = 'tests';
-    else if (line === 'Source:') section = 'source';
+    } else if (/^Tests(?:, from other packages|, inside \S+)?:$/u.test(line)) section = 'tests';
+    else if (/^Source(?:, from other packages|, inside \S+)?:$/u.test(line)) section = 'source';
     else if (line === 'Member declarations:') section = 'member-declarations';
     else if (/^Used in \S+, which declares it:$/u.test(line)) section = 'own-file';
     else if ((m = /^`([\w$]+)\.[\w$]+`, declared at \S+, is used in/u.exec(line))) {
@@ -122,7 +122,7 @@ export async function uses(name: string): Promise<UsesAnswer> {
     } else if (section === 'member-declarations' && (m = new RegExp(`^${AT} — ([\\w$]+)$`, 'u').exec(line))) memberOf.push(m[3]!);
     else if (section === 'member' && (m = new RegExp(`^${AT} — \\S+, (read|write)$`, 'u').exec(line))) {
       into.push({ file: m[1]!, section, container, typeOnly: false, dynamic: false, as: undefined, passedOnWhole: false, access: m[3] as 'read' | 'write' });
-    } else if (section !== undefined && section !== 'member-declarations' && (m = new RegExp(`^${AT} — [^\\s,]+(?:, [^(]+)?(?: \\((.+)\\))?$`, 'u').exec(line))) {
+    } else if (section !== undefined && section !== 'member-declarations' && (m = new RegExp(`^${AT} — [^\\s,;]+(?:, [^(;]+)?(?: \\((.+?)\\))?(?:; used on lines? [\\d, ]+(?: and \\d+ more)?)?$`, 'u').exec(line))) {
       const notes = m[3] ?? '';
       into.push({
         file: m[1]!,

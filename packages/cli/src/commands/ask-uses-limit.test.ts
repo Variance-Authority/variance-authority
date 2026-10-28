@@ -67,7 +67,7 @@ describe('variance ask uses --limit', () => {
     const { code, out, err } = await run(['ask', 'uses', '--name', 'flag', '--limit', '1']);
     expect(err).toBe('');
     expect(code).toBe(EXIT_CLEAN);
-    expect(out).toContain('Imported in 3 places.');
+    expect(out).toContain('Imported in 3 places, all inside @acme/kit.');
     expect(rust(out)).toEqual(rust(all.out).slice(0, 1));
     expect(out).toContain('… 2 more not shown; a higher `--limit` shows them.');
   });
@@ -115,7 +115,7 @@ describe('variance ask uses --limit', () => {
     const { code, out } = await run(['ask', 'uses', '--name', 'greet', '--limit', '2']);
     expect(code).toBe(EXIT_CLEAN);
     expect(sites(out)).toEqual(sites(all.out).slice(0, 2));
-    expect(sites(all.out).filter((line) => / \(as [a-d]Greet\)$/.test(line))).toHaveLength(4);
+    expect(sites(all.out).filter((line) => / \(as [a-d]Greet\); used on line 2$/.test(line))).toHaveLength(4);
     expect(out).toContain('… 3 more not shown; a higher `--limit` shows them.');
   });
 });

@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { selectionFrom, timesFrom } from './selection-environment.js';
+import { askedSelection, selectionFrom, timesFrom } from './selection-environment.js';
 
 /** The cli this checkout builds, linked into a scratch checkout as an install would. */
 const CLI = fileURLToPath(new URL('../../../cli', import.meta.url));
@@ -66,7 +66,7 @@ describe('the selection the environment asks for', () => {
       await writeFile(resolve(cli, 'package.json'), JSON.stringify({ name: '@variance-authority/cli', type: 'module', main: 'index.js' }));
       await writeFile(resolve(cli, 'index.js'), 'export async function selectFault(request) { return { notes: [request.fault, request.record] }; }');
       const landing = resolve(root, 'cache/coverage.bin');
-      const selection = selectionFrom({ VARIANCE_AUTHORITY_FAULT: 'src/a.js#3' }, { root, landing }, () => {});
+      const selection = askedSelection(undefined, () => landing, { root }, { VARIANCE_AUTHORITY_FAULT: 'src/a.js#3' }, () => {});
 
       // From the record the run lands in, which is the one its caller put there.
       expect((await selection!()).notes).toEqual(['src/a.js#3', landing]);

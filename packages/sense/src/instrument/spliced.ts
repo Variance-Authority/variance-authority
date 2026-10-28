@@ -53,7 +53,14 @@ export type InstrumentMode = 'presence' | 'entries' | 'loads';
 /** The modes that cut a module into regions. */
 export type WalkMode = Exclude<InstrumentMode, 'loads'>;
 
-/** What kind of region a probe stands in front of. */
+/**
+ * What kind of region a probe stands in front of, named for the construct that
+ * opens it: `module` a module's top level, `function` a function body, `branch`
+ * an if statement's then or else, `continuation` the statements after an if,
+ * switch, loop or try, `resume` where an await returns, `loop` a loop body,
+ * `case` a switch clause, default included, and `handler` a catch clause or a
+ * finally block.
+ */
 export type BlockKind =
   | 'module'
   | 'function'
