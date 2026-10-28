@@ -155,9 +155,12 @@ async function standingOverTwoStates(): Promise<{ worktree: string; own: string;
   const atNext = (await readCommitRuns(own))!;
   await landRun(own, ranAlone(bumped, 'test/third.test.ts'), worktree);
   const installed = { 'package-lock.json': digestString(lock) };
-  expect((await readCommitRuns(own))?.standing).toEqual([
-    { commit: next, files: ['test/other.test.ts', 'test/total.test.ts'], installed, first: atNext.first, latest: atNext.latest, runs: atNext.runs },
+  // Each run stands where it ran, with its own time, on the install it ran on.
+  expect(atNext.landings?.map((landing) => [landing.files, landing.installed])).toEqual([
+    [['test/total.test.ts'], installed],
+    [['test/other.test.ts'], installed],
   ]);
+  expect((await readCommitRuns(own))?.standing).toEqual(atNext.landings!.map((landing) => ({ commit: next, ...landing })));
   return { worktree, own, next, installed };
 }
 
@@ -201,7 +204,13 @@ describe('the milestone under a checkout', () => {
     });
     // `other` reads the new milestone's row; `total` keeps its own, which entered nothing.
     expect(crossers(await readTestCoverage(own))).toEqual(['test/other.test.ts']);
-    expect(await readCommitRuns(own)).toMatchObject({ commit: next, over: next, files: ['test/total.test.ts'] });
+    // `other` stands where the publishing run ran it, when that run landed.
+    expect(await readCommitRuns(own)).toMatchObject({
+      commit: next,
+      over: next,
+      files: ['test/total.test.ts'],
+      standing: [{ commit: next, files: ['test/other.test.ts'], first: '2026-01-01T00:00:00.000Z', latest: '2026-01-01T00:00:00.000Z', runs: 1 }],
+    });
   });
 
   it('drops the install of a runs record it moves to the snapshot\'s commit, which that install was not measured against', async () => {
@@ -253,24 +262,21 @@ describe('the milestone under a checkout', () => {
     expect(await readCommitRuns(own)).toMatchObject({ commit: bumped, standing: [{ commit: next, files: ['test/other.test.ts'], installed }] });
   });
 
-  it('stands the tests that ran at one commit on one install as one entry, over every working state they ran in', async () => {
-    const { worktree, own, next, installed } = await standingOverTwoStates();
+  it('stands the tests that ran at one commit on one install in one entry per run, each with its own time', async () => {
+    const { worktree, own, next } = await standingOverTwoStates();
     const ran = [...((await readCommitRuns(own))?.standing ?? [])].filter((entry) => entry.commit === next);
     await refetch(worktree, next);
 
     expect(await suiteBase(worktree, { env: LOCAL })).toMatchObject({ repin: { repinned: true, to: next } });
 
-    // The ledger lists `total`'s state first; the entry names both in code-unit
-    // order, and spans the time the runs of both landed.
+    // The ledger lists `total`'s state first; each run's tests keep that run's
+    // time, which no other run's spans.
+    const total = ran.find((entry) => entry.files.includes('test/total.test.ts'))!;
+    const other = ran.find((entry) => entry.files.includes('test/other.test.ts'))!;
+    expect(total).not.toBe(other);
     expect((await readCommitRuns(own))?.standing).toEqual([
-      {
-        commit: next,
-        files: ['test/other.test.ts', 'test/total.test.ts'],
-        installed,
-        first: ran.map((entry) => entry.first!).sort()[0],
-        latest: ran.map((entry) => entry.latest!).sort().at(-1),
-        runs: ran.reduce((sum, entry) => sum + entry.runs!, 0),
-      },
+      { ...total, files: ['test/total.test.ts'] },
+      { ...other, files: ['test/other.test.ts'] },
     ]);
   });
 

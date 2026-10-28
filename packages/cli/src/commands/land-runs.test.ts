@@ -116,6 +116,8 @@ describe('a landing records its fold as one run at the shards\' commit', () => {
       latest: expect.any(String),
       runs: 2,
       files: ['near.test.ts', 'other.test.ts'],
+      // Each run keeps its own time: the first is not dated by the second.
+      landings: [...before!.landings!, { files: ['other.test.ts'], first: expect.any(String), latest: expect.any(String), runs: 1 }],
       standing: [{ ...atP, files: ['far.test.ts'] }],
     });
   });

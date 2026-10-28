@@ -4,8 +4,9 @@
  * here: a selector reads the commit, `covering` the commit and the time.
  */
 
-import type { CommitRuns } from './commit-runs.js';
+import type { CommitRuns, StandingEntry } from './commit-runs.js';
 import type { KeptTexts } from './kept-texts.js';
+import { landingsOf } from './landings.js';
 
 /** Where one test last ran. */
 export interface TestPlace {
@@ -27,14 +28,20 @@ export interface TestPlace {
    * holds them (`CommitRuns.texts`). Absent when the record does not know.
    */
   readonly texts?: KeptTexts;
+  /**
+   * The later runs that ran it only in part, earliest first: its cases those
+   * runs ran are theirs, and the rest are this place's. Absent when none did.
+   */
+  readonly partly?: readonly TestPlace[];
 }
 
 /**
  * Where each of `tests` last ran, as the runs beside the snapshot at `commit`
  * recorded it.
  *
- * A test the runs at the snapshot's commit observed stands there. Any other
- * stands where `standing` lists it. Where the record does not say, the reading
+ * A test a run at the snapshot's commit finished stands where that run's
+ * landing puts it, with its time and texts. Any other stands where `standing`
+ * lists it. A later run that ran it in part is named beside its place. Where the record does not say, the reading
  * falls back, and `assumed` is the sentence that says how: a test `standing`
  * lists as assumed is read from where an earlier record assumed it, a test the
  * record does not list is read from `over`, where the runs at the snapshot's
@@ -55,39 +62,46 @@ export function testPlaces({ commit, runs, tests }: { readonly commit: string; r
     const whose = runs.commit === undefined ? 'a run outside a checkout' : `${runs.commit.slice(0, 12)}'s`;
     return { places, assumed: tests.length === 0 ? undefined : `the runs record beside the snapshot is ${whose}, not ${at}'s, ${everyTest}` };
   }
-  const ran = new Set(runs.files);
-  const here: TestPlace = {
-    commit,
-    first: runs.first,
-    latest: runs.latest,
-    ...(runs.runs > 0 ? { runs: runs.runs } : {}),
-    ...(runs.texts === undefined ? {} : { texts: runs.texts }),
-  };
+  // Each landing and each stand is one place, so a reader that groups by place
+  // groups the tests that ran together.
   const listed = new Map<string, TestPlace>();
-  for (const entry of runs.standing ?? []) {
-    const place: TestPlace = entry.assumed === true
-      ? { commit: entry.commit, assumed: true }
+  const parts = new Map<string, TestPlace[]>();
+  const ids = new Map<TestPlace, number>();
+  const place = (stand: Omit<StandingEntry, 'files'>, files: readonly string[]): void => {
+    const its: TestPlace = stand.assumed === true
+      ? { commit: stand.commit, assumed: true }
       : {
-          commit: entry.commit,
-          ...(entry.first === undefined || entry.latest === undefined ? {} : { first: entry.first, latest: entry.latest }),
-          ...(entry.runs === undefined ? {} : { runs: entry.runs }),
-          ...(entry.texts === undefined ? {} : { texts: entry.texts }),
+          commit: stand.commit,
+          ...(stand.first === undefined || stand.latest === undefined ? {} : { first: stand.first, latest: stand.latest }),
+          ...(stand.runs === undefined ? {} : { runs: stand.runs }),
+          ...(stand.texts === undefined ? {} : { texts: stand.texts }),
         };
-    for (const file of entry.files) listed.set(file, place);
-  }
+    ids.set(its, ids.size);
+    for (const file of files) listed.set(file, its);
+    for (const file of stand.partly ?? []) parts.set(file, [...(parts.get(file) ?? []), its]);
+  };
+  for (const entry of runs.standing ?? []) place(entry, entry.files);
+  for (const landing of landingsOf(runs)) place({ ...landing, commit }, landing.files);
+  // A test placed and run in part since is one place per pair, shared alike.
+  const shared = new Map<TestPlace, Map<string, TestPlace>>();
+  const withParts = (at: TestPlace, part: readonly TestPlace[] | undefined): TestPlace => {
+    if (part === undefined) return at;
+    const key = part.map((one) => ids.get(one)).join(' ');
+    const those = shared.get(at) ?? new Map<string, TestPlace>();
+    shared.set(at, those);
+    const its = those.get(key) ?? { ...at, partly: part };
+    those.set(key, its);
+    return its;
+  };
   const fallback: TestPlace = { commit: runs.over ?? commit, assumed: true };
   let unlisted = 0;
   const from = new Set<string>();
   for (const test of tests) {
-    if (ran.has(test)) {
-      places.set(test, here);
-      continue;
-    }
-    const place = listed.get(test) ?? fallback;
-    places.set(test, place);
-    if (place.assumed !== true) continue;
+    const stand = withParts(listed.get(test) ?? fallback, parts.get(test));
+    places.set(test, stand);
+    if (stand.assumed !== true) continue;
     unlisted += 1;
-    from.add(place.commit);
+    from.add(stand.commit);
   }
   if (unlisted === 0) return { places, assumed: undefined };
   const where =

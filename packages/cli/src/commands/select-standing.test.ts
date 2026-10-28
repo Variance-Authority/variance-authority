@@ -232,7 +232,7 @@ describe('a test that did not run at the journal commit', () => {
     const gone = 'e'.repeat(40);
     const runs = (await readCommitRuns(file))!;
     const standing = [{ commit: P, files: ['test/far.test.ts'] }, { commit: gone, files: ['test/near.test.ts'] }];
-    writeFileSync(commitRunsFile(file), `${JSON.stringify({ ...runs, files: [], standing }, null, 2)}\n`);
+    writeFileSync(commitRunsFile(file), `${JSON.stringify({ ...runs, files: [], landings: [], standing }, null, 2)}\n`);
 
     const said = await selectOutput({ cwd: root, format: 'plain' });
 

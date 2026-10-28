@@ -52,8 +52,9 @@ import { RecordWithoutCoverage } from './format-validation.js';
 import { openTestCoverage } from './format-view.js';
 import { codeUnitOrder } from './instrumented-modules.js';
 import type { TestCoverage } from './index.js';
-import { keepRecordedInstall, keptAfter, keptInstallOf, type KeptInstall } from './kept-install.js';
+import { keepRecordedInstall, keptInstallOf, type KeptInstall } from './kept-install.js';
 import { keepRecordedTexts, keptTextsOf, landedTree, ranOverTexts, type KeptTexts } from './kept-texts.js';
+import { agreed, landingsAfter, landingsOf, observedBy, type Landing, type RanTests } from './landings.js';
 import { ownLayerAfter, readOwnLayer, workingTree, writeOwnLayer } from './own-layer.js';
 import { recordBase, takeReadFor } from './record-base.js';
 import { standingAfter } from './standing-after.js';
@@ -95,8 +96,18 @@ export interface CommitRuns {
    * speaks for the base's runs, not for any of this checkout's.
    */
   readonly runs: number;
-  /** Every test file the runs observed, in code-unit order. */
+  /**
+   * Every test file the runs at `commit` observed, in code-unit order: each
+   * one a run finished, and each one it ran that the snapshot did not hold.
+   */
   readonly files: readonly string[];
+  /**
+   * Each run at `commit` while a test file it finished has not been finished
+   * again there, earliest first (`landings.ts`): a file's time, install and
+   * texts are the one landing's that lists it. A record without them reads as
+   * one landing of the fields above.
+   */
+  readonly landings?: readonly Landing[];
   /**
    * The commit each other test in the snapshot last ran at, each with its test
    * files in code-unit order. A test in `files` is not listed. The commits are
@@ -137,6 +148,11 @@ export interface StandingEntry {
   readonly commit: string;
   readonly files: readonly string[];
   readonly assumed?: true;
+  /**
+   * Test files these runs ran only in part, which stand elsewhere: a reader
+   * names this stand beside their place until a run finishes them.
+   */
+  readonly partly?: readonly string[];
   /** The install they ran on, as {@link CommitRuns.installed} says it; absent when not known. */
   readonly installed?: KeptInstall;
   /** The texts they ran over, as {@link CommitRuns.texts} says it; absent when not known. */
@@ -305,14 +321,13 @@ function coveredRecord(coverageFile: string, bytes: Buffer | undefined): Buffer 
 export function commitRunsAfter(
   before: RecordedTests | undefined,
   held: CommitRuns | undefined,
-  current: RecordedTests,
+  current: RanTests,
   installed?: KeptInstall,
   texts?: KeptTexts,
 ): CommitRuns {
   const prior = before?.instrumentation === current.instrumentation ? before : undefined;
   const stood = prior?.commit;
   const at = new Date().toISOString();
-  const files = current.tests.map((test) => test.file);
   // The snapshot already stands at this commit and the record says what it
   // stood at before: this run is one more at the commit, not a new change. A
   // record of no runs was seeded from the base, and the first run over it
@@ -326,10 +341,11 @@ export function commitRunsAfter(
   const retried =
     current.commit !== undefined && stood === current.commit && held?.commit !== undefined && held.commit !== current.commit;
   const over = again ? held.over : retried ? held.commit : stood;
-  const ran = again ? [...new Set([...held.files, ...files])].sort(codeUnitOrder) : files;
+  const landings = landingsAfter(again ? landingsOf(held) : [], observedBy(prior, current), at, installed, texts);
+  const ran = [...new Set(landings.flatMap((landing) => landing.files))].sort(codeUnitOrder);
   const standing = current.commit === undefined ? undefined : standingAfter(prior, held, retried ? held.commit : stood, ran);
-  const install = again ? keptAfter(held.installed, held.files, files, installed) : installed;
-  const ranOver = again ? keptAfter(held.texts, held.files, files, texts) : texts;
+  const install = agreed(landings, (landing) => landing.installed);
+  const ranOver = agreed(landings, (landing) => landing.texts);
   return {
     ...(current.commit === undefined ? {} : { commit: current.commit }),
     ...(over === undefined ? {} : { over }),
@@ -340,6 +356,7 @@ export function commitRunsAfter(
     ...(standing === undefined ? {} : { standing }),
     ...(install === undefined ? {} : { installed: install }),
     ...(ranOver === undefined ? {} : { texts: ranOver }),
+    landings,
   };
 }
 
@@ -399,10 +416,12 @@ function withKnownKept(record: CommitRuns): CommitRuns {
     const ranOver = keptTextsOf(texts);
     return { ...rest, ...(install === undefined ? {} : { installed: install }), ...(ranOver === undefined ? {} : { texts: ranOver }) };
   };
-  const standing = Array.isArray(record.standing)
-    ? record.standing.map((entry) => (typeof entry !== 'object' || entry === null ? entry : (known(entry) as StandingEntry)))
-    : record.standing;
-  return { ...(known(record) as CommitRuns), ...(standing === undefined ? {} : { standing }) };
+  const each = <T>(entries: unknown): T[] | undefined => Array.isArray(entries)
+    ? entries.map((entry) => (typeof entry !== 'object' || entry === null ? entry : known(entry)) as T)
+    : (entries as T[] | undefined);
+  const standing = each<StandingEntry>(record.standing);
+  const landings = each<Landing>(record.landings);
+  return { ...(known(record) as CommitRuns), ...(standing === undefined ? {} : { standing }), ...(landings === undefined ? {} : { landings }) };
 }
 
 /**

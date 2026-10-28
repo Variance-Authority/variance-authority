@@ -209,7 +209,7 @@ function fetchedMainlineReads(record: LastFetched): boolean {
  * whose run instrumented nothing reads, for its cases, and names no commit any
  * test stands at, so no runs record is laid beside it.
  */
-function opensFetched(
+export function opensFetched(
   coverage: Uint8Array,
   runs: Uint8Array | undefined,
 ): CommitRuns | undefined {

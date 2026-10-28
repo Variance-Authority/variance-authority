@@ -73,30 +73,6 @@ export async function keepRecordedInstall(tree: LandedTree | undefined): Promise
   return Object.fromEntries(Object.entries(kept).sort(([a], [b]) => codeUnitOrder(a, b)));
 }
 
-/**
- * What the runs at one commit ran on that the commit does not hold, an install
- * or the texts of edited modules (`kept-texts.ts`), once a run over `kept` adds
- * `files` to the runs at that commit, which ran on `held` and observed
- * `heldFiles`.
- *
- * Runs over one install keep it. A run that observed every test the earlier
- * runs did speaks for all of them, and what it ran on is the record's.
- * Otherwise the runs at this commit ran on two, and no one of them is what a
- * later change is compared from: the record names none, and a reader compares
- * from the commit, as it does for a record written before these were kept.
- */
-export function keptAfter<Kept extends KeptInstall>(
-  held: Kept | undefined,
-  heldFiles: readonly string[],
-  files: readonly string[],
-  kept: Kept | undefined,
-): Kept | undefined {
-  if (kept === undefined) return undefined;
-  if (held !== undefined && sameInstall(held, kept)) return kept;
-  const ran = new Set(files);
-  return heldFiles.every((file) => ran.has(file)) ? kept : undefined;
-}
-
 /** A shard's tests and the runs record its own landing left, as a fold of shards reads them. */
 export interface ShardRuns {
   readonly tests: { readonly commit?: string; readonly tests: readonly { readonly file: string }[] };
@@ -113,8 +89,8 @@ export interface ShardRuns {
  * that observed every test the snapshot holds, and names an install. When
  * every shard's does and all of them name one install, that is the fold's.
  * Otherwise the fold ran on an install nobody can name, as runs at one commit
- * over two installs did ({@link keptAfter}): `undefined`, which a reader
- * compares from the commit.
+ * over two installs did (`agreed` in `landings.ts`): `undefined`, which a
+ * reader compares from the commit.
  */
 export function shardsInstall(shards: readonly ShardRuns[]): KeptInstall | undefined {
   return shardsKept(shards, (runs) => runs.installed);

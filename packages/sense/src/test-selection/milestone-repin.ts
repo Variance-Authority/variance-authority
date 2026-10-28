@@ -38,8 +38,9 @@ import { editsBetween, type EditOf } from './region-edit.js';
 import { withIndexLock } from './index-lock.js';
 import type { TestCoverage } from './index.js';
 import { codeUnitOrder } from './instrumented-modules.js';
-import { landedOf, spanned, standKey } from './standing-after.js';
-import type { LastFetched } from './mainline-layer.js';
+import { agreed, landingsOf, type Landing } from './landings.js';
+import { landedOf, ranOn, standKey } from './standing-after.js';
+import { opensFetched, type LastFetched } from './mainline-layer.js';
 import { readOwnLayer, writeOwnLayer, type OwnLayer, type OwnState } from './own-layer.js';
 import { writeCoverageBytes } from './record-location.js';
 
@@ -100,10 +101,12 @@ async function repin(coverageFile: string, record: LastFetched, root: string, la
   let milestone: Buffer;
   let instrumentation: string;
   let texts: ModuleTexts;
+  let published: CommitRuns | undefined;
   try {
     ownBytes = await readFile(coverageFile);
     own = decodeTestCoverage(ownBytes);
     milestone = await readFile(record.coverage);
+    published = opensFetched(milestone, record.runs === undefined ? undefined : await readFile(record.runs));
     // A milestone the layer cannot open whole would be laid as nothing, and
     // the record would lose every row this checkout did not run.
     const whole = wholeCoverage(milestone);
@@ -145,7 +148,7 @@ async function repin(coverageFile: string, record: LastFetched, root: string, la
   const cases = laid === undefined ? undefined : followRowsIn({ index: laid }, view, texts, edits).index;
   const eyes = repinnedEyes(milestoneCases.eyes, ownCases, cases, kept);
   const recorded = Array.from(view.testPath.all(), (path) => view.string(path));
-  const runs = repinnedRuns(await readCommitRuns(coverageFile), own.commit, record, states, recorded, kept);
+  const runs = repinnedRuns(await readCommitRuns(coverageFile), own.commit, record, published, states, recorded, kept);
 
   // The snapshot first: its new rows beside the old runs record read the
   // milestone's tests from the old pin, which only widens, where the new runs
@@ -261,67 +264,86 @@ function repinnedEyes(
 
 /**
  * The runs record once the record stands on `record`: the runs at its commit
- * as they were, its change now starting at the new milestone, each kept test
- * standing where it last ran, on the install and over the texts the record
- * said it ran on there and with the time its runs landed, and every other test at the milestone, where the publishing run ran the
- * whole suite.
+ * as they were, for the tests it keeps, its change now starting at the new
+ * milestone, each kept test standing where it last ran, on the install, over
+ * the texts and with the time of the run that put it there, and every other
+ * test at the milestone, as the run that published it landed there
+ * (`published`, which a fetch keeps beside the snapshot). A test no run is
+ * known to have put where it stands holds no time, and is compared from that
+ * commit.
  */
 function repinnedRuns(
   held: CommitRuns | undefined,
   commit: string | undefined,
   record: LastFetched,
+  published: CommitRuns | undefined,
   states: readonly OwnState[],
   recorded: readonly string[],
   kept: ReadonlySet<string>,
 ): CommitRuns | undefined {
   if (held === undefined) return undefined;
-  const files = held.files.filter((file) => kept.has(file));
+  // The install and texts the record kept were measured at the commit it
+  // named; moved to another, which repairs a runs record a crash left naming
+  // another, they would be compared from the wrong one, so they are dropped
+  // and compared from the new commit.
+  const moved = commit !== undefined && commit !== held.commit;
+  const landings = landingsOf(held).flatMap((landing): Landing[] => {
+    const files = landing.files.filter((file) => kept.has(file));
+    const part = (landing.partly ?? []).filter((file) => kept.has(file));
+    if (files.length === 0 && part.length === 0) return [];
+    const { partly: _part, installed, texts, ...rest } = landing;
+    return [{
+      ...rest,
+      files,
+      ...(part.length === 0 ? {} : { partly: part }),
+      ...(moved || installed === undefined ? {} : { installed }),
+      ...(moved || texts === undefined ? {} : { texts }),
+    }];
+  });
+  const files = [...new Set(landings.flatMap((landing) => landing.files))].sort(codeUnitOrder);
   const here = new Set(files);
-  const milestone = recorded.filter((file) => !kept.has(file));
-  // What each test ran on where it stands, and when its runs landed, as the
-  // runs record said it. A test the ledger places at a commit no entry names
-  // it at keeps none of it, and is compared from that commit.
-  const ranOn = new Map<string, StandingEntry>();
+  // Where each test stands, and what it ran on there, as the runs record said
+  // it. A test the ledger places at a commit no entry names it at keeps none
+  // of it, and is compared from that commit.
+  const stood = new Map<string, StandingEntry>();
   for (const entry of held.standing ?? []) {
     if (entry.assumed) continue;
-    for (const file of entry.files) ranOn.set(`${entry.commit} ${file}`, entry);
+    for (const file of entry.files) stood.set(`${entry.commit} ${file}`, entry);
   }
-  // One entry per stand, its time spanning the entries its tests came from,
-  // each counted once: not known when any of them is.
-  const groups = new Map<string, { readonly stand: StandingEntry; readonly files: string[]; readonly from: Set<StandingEntry | undefined> }>();
-  if (milestone.length > 0) {
-    const stand = { commit: record.commit, files: [] };
-    groups.set(standKey(stand), { stand, files: [...milestone], from: new Set([undefined]) });
-  }
-  for (const state of states) {
-    for (const file of state.files.filter((one) => !here.has(one))) {
-      const from = ranOn.get(`${state.commit} ${file}`);
-      const stand: StandingEntry = {
-        commit: state.commit,
-        files: [],
-        ...(from?.installed === undefined ? {} : { installed: from.installed }),
-        ...(from?.texts === undefined ? {} : { texts: from.texts }),
-      };
-      const group = groups.get(standKey(stand)) ?? { stand, files: [], from: new Set() };
-      group.files.push(file);
-      group.from.add(from);
-      groups.set(standKey(stand), group);
+  // One entry per stand; a stand's time is the one run's that put it there.
+  const groups = new Map<string, { readonly stand: StandingEntry; readonly files: string[] }>();
+  const standAt = (stand: StandingEntry, file: string): void => {
+    const group = groups.get(standKey(stand)) ?? { stand, files: [] };
+    group.files.push(file);
+    groups.set(standKey(stand), group);
+  };
+  const milestone = new Set(recorded.filter((file) => !kept.has(file)));
+  for (const landing of published === undefined ? [] : landingsOf(published)) {
+    for (const file of landing.files.filter((one) => milestone.delete(one))) {
+      standAt({ commit: record.commit, files: [], ...ranOn(landing), ...landedOf(landing) }, file);
     }
   }
-  const standing = [...groups.values()].map(({ stand, files: its, from }) => {
-    const sources = [...from];
-    const time = sources.some((source) => source === undefined)
-      ? {}
-      : sources.slice(1).reduce((span, source) => spanned(span, landedOf(source!)), landedOf(sources[0]!));
-    return { ...stand, files: [...new Set(its)].sort(codeUnitOrder), ...time };
-  });
-  // At the snapshot's own commit, which repairs a runs record a crash left
-  // naming another. The install and texts the record kept were measured at the
-  // commit it named; moved to another, they would be compared from the wrong
-  // one, so they are dropped and compared from the new commit.
-  if (commit === undefined || commit === held.commit) return { ...held, over: record.commit, files, standing };
-  const { installed: _measuredElsewhere, texts: _ranOverElsewhere, ...rest } = held;
-  return { ...rest, commit, over: record.commit, files, standing };
+  for (const file of milestone) standAt({ commit: record.commit, files: [] }, file);
+  for (const state of states) {
+    for (const file of state.files.filter((one) => !here.has(one))) {
+      const from = stood.get(`${state.commit} ${file}`);
+      standAt({ commit: state.commit, files: [], ...(from === undefined ? {} : { ...ranOn(from), ...landedOf(from) }) }, file);
+    }
+  }
+  const standing = [...groups.values()].map(({ stand, files: its }) => ({ ...stand, files: [...new Set(its)].sort(codeUnitOrder) }));
+  const installed = agreed(landings, (landing) => landing.installed);
+  const texts = agreed(landings, (landing) => landing.texts);
+  const { installed: _installed, texts: _texts, landings: _landings, ...rest } = held;
+  return {
+    ...rest,
+    ...(commit === undefined ? {} : { commit }),
+    over: record.commit,
+    files,
+    landings,
+    standing,
+    ...(installed === undefined ? {} : { installed }),
+    ...(texts === undefined ? {} : { texts }),
+  };
 }
 
 /** Whether `older` is an ancestor of `newer` in `root`, or `undefined` when git cannot say. */

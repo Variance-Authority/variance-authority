@@ -14,17 +14,22 @@
 import type { CommitRuns, RecordedTests, StandingEntry } from './commit-runs.js';
 import { codeUnitOrder } from './instrumented-modules.js';
 import { installKey } from './kept-install.js';
+import { landingsOf } from './landings.js';
 
 /**
  * Where each test the snapshot held before this run last ran, leaving out the
  * tests `ran` observed, or `undefined` when that is not known.
  *
  * `base` is the commit this run was laid over. Only a `held` record naming it
- * knows: a test in its `files` stood there, with the record's landing time,
- * install and texts; a test its `standing` lists stood where it says; any other
- * stood at its `over`, assumed, where `test:since` read it from, and stays
- * there when a later run moves `over`. A test this run did not observe is
- * listed where it last ran, this run's own commit included.
+ * knows: a test one of its landings finished stood there, with that landing's
+ * time, install and texts (`landings.ts`); a test its `standing` lists stood
+ * where it says; any other stood at its `over`, assumed, where `test:since`
+ * read it from, and stays there when a later run moves `over`. A test this run
+ * did not observe is listed where it last ran, this run's own commit included.
+ * Each landing is its own stand, so no stand's time is another run's.
+ *
+ * A stand that ran a file in part is kept while that file stands elsewhere
+ * and no run has finished it, so a reader can name both.
  */
 export function standingAfter(
   prior: RecordedTests | undefined,
@@ -40,53 +45,54 @@ export function standingAfter(
   if (base === undefined || held?.commit !== base) return undefined;
   const stands = new Map<string, StandingEntry>();
   const listed = new Map<string, string>();
-  for (const entry of held.standing ?? []) {
+  const partly = new Map<string, Set<string>>();
+  const stand = (entry: StandingEntry, files: readonly string[], part: readonly string[] | undefined): void => {
     const at = standKey(entry);
-    stands.set(at, { commit: entry.commit, files: [], ...(entry.assumed ? { assumed: true } : {}), ...ranOn(entry), ...landedOf(entry) });
-    for (const file of entry.files) listed.set(file, at);
+    if (!stands.has(at)) stands.set(at, entry);
+    for (const file of files) listed.set(file, at);
+    for (const file of part ?? []) partly.set(at, (partly.get(at) ?? new Set()).add(file));
+  };
+  for (const entry of held.standing ?? []) {
+    const { files, partly: part, ...rest } = entry;
+    stand({ ...rest, files: [] }, files, part);
   }
   // Earliest landing first: the record's own order, then the start it names,
-  // then its own commit, which landed after every other. That is not oldest
+  // then its own landings, which landed after every other. That is not oldest
   // first when a run landed at a commit older than the one before it.
   const start = held.over === undefined ? undefined : standKey({ commit: held.over, assumed: true });
   if (start !== undefined && !stands.has(start)) stands.set(start, { commit: held.over!, files: [], assumed: true });
-  const ranAt = standKey({ commit: base, ...ranOn(held) });
-  const ranThere = new Set(held.files);
-  // A seeded record's runs are the base's, so it counts none as its own. Met in
-  // a stand `standing` lists, the two times span; one not known, neither is.
-  const own = landedOf(held.runs === 0 ? { first: held.first, latest: held.latest } : held);
-  const there = stands.get(ranAt);
-  if (there === undefined) {
-    stands.set(ranAt, { commit: base, files: [], ...ranOn(held), ...own });
-  } else if (unobserved.some((test) => ranThere.has(test))) {
-    const { commit, files, assumed } = there;
-    stands.set(ranAt, { commit, files, ...(assumed ? { assumed } : {}), ...ranOn(there), ...spanned(there, own) });
-  }
+  // A seeded record's runs are the base's, so it counts none as its own.
+  for (const landing of landingsOf(held)) stand({ commit: base, files: [], ...ranOn(landing), ...landedOf(landing) }, landing.files, landing.partly);
   const grouped = new Map<string, string[]>();
   for (const test of unobserved) {
-    const at = ranThere.has(test) ? ranAt : (listed.get(test) ?? start);
+    const at = listed.get(test) ?? start;
     if (at === undefined) return undefined;
     grouped.set(at, [...(grouped.get(at) ?? []), test]);
   }
-  return [...stands]
-    .filter(([at]) => grouped.has(at))
-    .map(([at, stand]) => ({ ...stand, files: [...new Set(grouped.get(at))].sort(codeUnitOrder) }));
+  const pending = new Set(unobserved);
+  return [...stands].flatMap(([at, entry]) => {
+    const files = [...new Set(grouped.get(at))].sort(codeUnitOrder);
+    const part = [...(partly.get(at) ?? [])].filter((file) => pending.has(file)).sort(codeUnitOrder);
+    if (files.length === 0 && part.length === 0) return [];
+    return [{ ...entry, files, ...(part.length === 0 ? {} : { partly: part }) }];
+  });
 }
 
 /**
- * A stand as one string: its commit, whether it was assumed there, and the
- * install and texts it ran on. Those go with the tests, so a stand is compared
- * from what its tests ran on at every select, and two runs at one commit over
- * two of them are two stands.
+ * A stand as one string: its commit, whether it was assumed there, the install
+ * and texts it ran on, and when it landed. Those go with the tests, so a stand
+ * is compared from what its tests ran on at every select, and two runs at one
+ * commit are two stands: one run's time is never another's.
  */
-export function standKey(stand: Pick<StandingEntry, 'commit' | 'assumed' | 'installed' | 'texts'>): string {
+export function standKey(stand: Pick<StandingEntry, 'commit' | 'assumed' | 'installed' | 'texts' | 'first' | 'latest'>): string {
   const installed = stand.installed === undefined ? '' : ` ${installKey(stand.installed)}`;
   const texts = stand.texts === undefined ? '' : ` texts ${installKey(stand.texts)}`;
-  return `${stand.assumed === true ? 'assumed' : 'observed'} ${stand.commit}${installed}${texts}`;
+  const landed = stand.first === undefined || stand.latest === undefined ? '' : ` landed ${stand.first} ${stand.latest}`;
+  return `${stand.assumed === true ? 'assumed' : 'observed'} ${stand.commit}${installed}${texts}${landed}`;
 }
 
 /** The install and texts `of` holds, each where it holds one. */
-function ranOn(of: Pick<StandingEntry, 'installed' | 'texts'>): Pick<StandingEntry, 'installed' | 'texts'> {
+export function ranOn(of: Pick<StandingEntry, 'installed' | 'texts'>): Pick<StandingEntry, 'installed' | 'texts'> {
   return { ...(of.installed === undefined ? {} : { installed: of.installed }), ...(of.texts === undefined ? {} : { texts: of.texts }) };
 }
 
@@ -96,15 +102,4 @@ type Landed = Pick<StandingEntry, 'first' | 'latest' | 'runs'>;
 export function landedOf(of: Landed): Landed {
   if (of.first === undefined || of.latest === undefined) return {};
   return { first: of.first, latest: of.latest, ...(of.runs === undefined ? {} : { runs: of.runs }) };
-}
-
-/** One stand's time once the runs of two land in it: from the earlier first to the later latest. */
-export function spanned(one: Landed, other: Landed): Landed {
-  if (one.first === undefined || one.latest === undefined || other.first === undefined || other.latest === undefined) return {};
-  const runs = one.runs === undefined || other.runs === undefined ? {} : { runs: one.runs + other.runs };
-  return {
-    first: one.first < other.first ? one.first : other.first,
-    latest: one.latest > other.latest ? one.latest : other.latest,
-    ...runs,
-  };
 }
