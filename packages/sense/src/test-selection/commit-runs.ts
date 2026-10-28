@@ -328,11 +328,12 @@ export function commitRunsAfter(
   const stood = prior?.commit;
   const at = new Date().toISOString();
   // The snapshot already stands at this commit and the record says what it
-  // stood at before: this run is one more at the commit, not a new change. A
+  // stood at before: this run is one more at the commit, not a new change.
+  // Runs outside a checkout name no commit, so they all stand at one place. A
   // record of no runs was seeded from the base, and the first run over it
   // starts this checkout's change.
   const again =
-    current.commit !== undefined && stood === current.commit && held?.commit === current.commit && held.runs > 0;
+    prior !== undefined && held !== undefined && stood === current.commit && held.commit === current.commit && held.runs > 0;
   // The snapshot stands at this commit and the record at another: a landing
   // renamed its snapshot and died before its record. The record still names
   // the commit that landing was laid over, and it is this run's start too, and

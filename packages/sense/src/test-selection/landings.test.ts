@@ -128,6 +128,23 @@ describe('each run is its own landing', () => {
     expect(four.standing).toEqual([{ commit: 'S', files: ['a.test.ts'], first: DAY3, latest: DAY3, runs: 1, texts: {} }]);
   });
 
+  it('carries the landings of earlier runs outside a checkout, which all stand at one place', () => {
+    const outside = (files: readonly string[], partly: readonly string[] = []) => {
+      const { commit: _commit, ...run } = ran('', files, partly);
+      return run;
+    };
+    const one = landAt(DAY1, undefined, undefined, outside(['a.test.ts', 'b.test.ts']), {}, {});
+    const two = landAt(DAY2, { instrumentation: 'fixture', tests: [{ file: 'a.test.ts' }, { file: 'b.test.ts' }] }, one, outside(['b.test.ts'], ['a.test.ts']), {}, {});
+
+    expect(two).toMatchObject({ first: DAY1, latest: DAY2, runs: 2, files: ['a.test.ts', 'b.test.ts'] });
+    expect(two.landings).toEqual([
+      { files: ['a.test.ts'], first: DAY1, latest: DAY1, runs: 1, installed: {}, texts: {} },
+      { files: ['b.test.ts'], partly: ['a.test.ts'], first: DAY2, latest: DAY2, runs: 1, installed: {}, texts: {} },
+    ]);
+    const { places } = testPlaces({ commit: undefined, runs: two, tests: ['a.test.ts'] });
+    expect(places.get('a.test.ts')).toEqual({ first: DAY1, latest: DAY1, runs: 1, texts: {}, partly: [{ first: DAY2, latest: DAY2, runs: 1, texts: {} }] });
+  });
+
   it('reads a record written before landings as one landing of its envelope, which names no texts', () => {
     const held: CommitRuns = { commit: 'P', first: DAY1, latest: DAY2, runs: 2, files: ['a.test.ts'], installed: {} };
     const { places } = testPlaces({ commit: 'P', runs: held, tests: ['a.test.ts'] });
