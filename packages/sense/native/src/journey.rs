@@ -287,6 +287,8 @@ fn fold(
             module,
             called: &called_sets[module_blocks[row]..module_blocks[row + 1]],
             loaded: &loaded_flags[module_blocks[row]..module_blocks[row + 1]],
+            // A run measures the text it ran; nothing in it is overwritten.
+            overwritten: &[],
         })
         .collect();
     let module_count = encoded.len() as u32;

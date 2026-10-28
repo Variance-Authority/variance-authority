@@ -245,7 +245,7 @@ fn index(file: &str, runner: &str, regions: u32, lines: Vec<u8>) -> Vec<u8> {
     let mut sets = SetPool::new(1);
     let called: Vec<u32> = (0..regions).map(|at| if at == 0 { sets.intern(&[0]) } else { sets.intern(&[]) }).collect();
     let loaded = vec![false; regions as usize];
-    let modules = [EncodedModule { module: &regions_of, called: &called, loaded: &loaded }];
+    let modules = [EncodedModule { module: &regions_of, called: &called, loaded: &loaded, overwritten: &[] }];
     let extras = CaseExtras { durations: Vec::new(), lines: if lines.is_empty() { Vec::new() } else { vec![lines] }, ..CaseExtras::default() };
     journey_format::encode(&tests, &extras, &modules, &mut sets, None).unwrap()
 }
