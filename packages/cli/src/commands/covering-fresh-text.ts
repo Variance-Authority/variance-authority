@@ -121,15 +121,22 @@ function earliest(group: readonly RanStand[]): string {
   return times.length < group.length || times.length === 0 ? '' : times.sort()[0]!;
 }
 
+/** The runs a stand's cases came from: the one that last finished its test files, and each that ran them in part since. */
+function runsOf(stand: RanStand): readonly { readonly landed?: Landed }[] {
+  return [stand, ...(stand.partly ?? [])];
+}
+
 /**
  * When a group's runs landed: `in a run that landed 5 minutes ago`, `in runs
  * that landed from 3 days ago to 5 minutes ago`, and what of it the record
- * holds no time for. A record that holds no count still holds two landings
- * when its first and latest differ, so `runs` is said only of more than one.
+ * holds no time for. A later run that ran a test file in part is one of its
+ * runs. A record that holds no count still holds two landings when its first
+ * and latest differ, so `runs` is said only of more than one.
  */
 function when(group: readonly RanStand[], now: number): string {
-  const landed = group.flatMap((stand): Landed[] => (stand.landed === undefined ? [] : [stand.landed]));
-  const untimed = landed.length < group.length;
+  const runs = group.flatMap(runsOf);
+  const landed = runs.flatMap((run): Landed[] => (run.landed === undefined ? [] : [run.landed]));
+  const untimed = landed.length < runs.length;
   if (landed.length === 0) return 'at a time the record does not hold';
   const firstAt = landed.map((one) => one.first).sort()[0]!;
   const latestAt = landed.map((one) => one.latest).sort().at(-1)!;

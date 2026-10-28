@@ -1,6 +1,7 @@
 import { writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { digestString } from '@variance-authority/core/format';
 import { commitRunsFile, testCoverageFile, type ExecutionIndex } from '@variance-authority/sense/test-selection';
 import { namedTestFiles } from './covering-ran.js';
 import { ASSUMED, DAY, HOUR, MINUTE, PAY, iso, recordFixture, unplaced } from './covering-record.fixture.js';
@@ -69,6 +70,47 @@ describe('a covering answer says when the test files it names last ran, and over
 
     expect(json).toMatchObject({ frame: 'mapped', ran: { stands: [{ text: 'other', region: 'gone' }] } });
     expect(text).toContain('src/pay.test.ts ran over another text of src/pay.ts, in a run that landed 9 hours ago; `pay` is not in src/pay.ts as it is now.\n');
+  });
+
+  it('says which text a test file a later run ran in part ran over is not known when the two runs ran over different texts, naming both times', async () => {
+    const now = Date.now();
+    const { at, commit, first } = await checkout({
+      committed: now - (9 * HOUR + 30 * MINUTE),
+      second: { committed: now - (6 * MINUTE + 30_000), pay: `${PAY}export const fee = 0;\n` },
+      runs: (base, recorded) => ({
+        commit: recorded, over: base, first: iso(now - 6 * MINUTE), latest: iso(now - 6 * MINUTE), runs: 1, files: ['src/other.test.ts'], texts: {},
+        landings: [{ files: ['src/other.test.ts'], partly: ['src/pay.test.ts'], first: iso(now - 6 * MINUTE), latest: iso(now - 6 * MINUTE), runs: 1, texts: {} }],
+        standing: [{ commit: base, files: ['src/pay.test.ts'], first: iso(now - 9 * HOUR - MINUTE), latest: iso(now - 9 * HOUR - MINUTE), runs: 1, texts: {} }],
+      }),
+    });
+    const { text, json } = await ask(at, '--file', 'src/pay.ts');
+    const why = 'its cases ran in runs over different texts of src/pay.ts, and the runs record does not say which case ran in which';
+
+    expect(json['ran']).toMatchObject({ stands: [{ commit: first, tests: ['src/pay.test.ts'], partly: [{ commit, landed: { runs: 1 } }], unknown: why }] });
+    expect(text).toContain(`Whether src/pay.test.ts ran over src/pay.ts as it is now, in runs that landed from 9 hours ago to 6 minutes ago, is not known: ${why}.\n`);
+  });
+
+  it('says the same of a run in part over an uncommitted text, and that the file ran over another text when both runs did', async () => {
+    const now = Date.now();
+    const dirty = `${PAY}export const dirty = 1;\n`;
+    const { at } = await checkout({
+      committed: now - (9 * HOUR + 30 * MINUTE),
+      second: { committed: now - (6 * MINUTE + 30_000) },
+      runs: (base, recorded) => ({
+        commit: recorded, over: base, first: iso(now - 6 * MINUTE), latest: iso(now - 6 * MINUTE), runs: 1, files: ['src/other.test.ts'],
+        landings: [{ files: ['src/other.test.ts'], partly: ['src/pay.test.ts'], first: iso(now - 6 * MINUTE), latest: iso(now - 6 * MINUTE), runs: 1, texts: { 'src/pay.ts': digestString(dirty) } }],
+        standing: [{ commit: base, files: ['src/pay.test.ts'], first: iso(now - 9 * HOUR - MINUTE), latest: iso(now - 9 * HOUR - MINUTE), runs: 1, texts: {} }],
+      }),
+    });
+    const mixed = await ask(at, '--file', 'src/pay.ts');
+    await writeFile(join(at, 'src/pay.ts'), `${PAY}export const fee = 0;\n`);
+    const both = await ask(at, '--file', 'src/pay.ts', '--function', 'pay');
+
+    expect(mixed.json['ran']).toMatchObject({ stands: [{ tests: ['src/pay.test.ts'], unknown: expect.stringContaining('its cases ran in runs over different texts of src/pay.ts') }] });
+    expect(both.json['ran']).toMatchObject({ stands: [{ tests: ['src/pay.test.ts'], text: 'other', region: { unknown: 'the text of src/pay.ts that run ran over is neither kept nor committed' } }] });
+    expect(both.text).toContain(
+      'src/pay.test.ts ran over another text of src/pay.ts, in runs that landed from 9 hours ago to 6 minutes ago; whether `pay` differs is not known: the text of src/pay.ts that run ran over is neither kept nor committed.\n',
+    );
   });
 
   it('says whether a test file ran the asked text is not known for a stand the record holds no text for', async () => {

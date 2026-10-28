@@ -59,6 +59,12 @@ export interface RanStand {
   /** Absent when the record holds no time for them. */
   readonly landed?: Landed;
   /**
+   * The later runs that ran them only in part, earliest first, each with when
+   * it landed when the record holds it: their cases those runs ran are those
+   * runs', and the rest are this stand's. Absent when none did.
+   */
+  readonly partly?: readonly { readonly commit: string; readonly landed?: Landed }[];
+  /**
    * `held` when they ran over the asked text of every asked file, `other`
    * when they ran over another text of the files in `other`. Absent when no
    * text was held to compare, or with `unknown`.
@@ -159,7 +165,7 @@ export async function ranOf(answer: RanNamed, question: RanQuestion): Promise<Co
   }
   const region = regionOf(answer, question);
   const evidence = answer.preconditionOf === undefined && held.size > 0
-    ? await evidenceOf([...byPlace.keys()], held, { ...question, at, snapshot, repository: read.repository, region: region !== undefined })
+    ? await evidenceOf([...byPlace.keys()].flatMap(runsOf), held, { ...question, at, snapshot, repository: read.repository, region: region !== undefined })
     : undefined;
   const stands = [...byPlace].flatMap(([place, group]): RanStand[] => {
     const where = standOf(place, group);
@@ -177,10 +183,19 @@ function standOf(place: TestPlace, group: readonly string[]): RanStand {
     commit: place.commit,
     ...(place.assumed === true ? { assumed: true as const } : {}),
     tests: group,
-    ...(place.first === undefined || place.latest === undefined
-      ? {}
-      : { landed: { first: place.first, latest: place.latest, ...(place.runs === undefined ? {} : { runs: place.runs }) } }),
+    ...landedOf(place),
+    ...(place.partly === undefined ? {} : { partly: place.partly.map((part) => ({ commit: part.commit, ...landedOf(part) })) }),
   };
+}
+
+function landedOf(place: TestPlace): { readonly landed?: Landed } {
+  if (place.first === undefined || place.latest === undefined) return {};
+  return { landed: { first: place.first, latest: place.latest, ...(place.runs === undefined ? {} : { runs: place.runs }) } };
+}
+
+/** The runs a place's cases came from: the one that last finished its test files, then each that ran them in part since. */
+function runsOf(place: TestPlace): readonly TestPlace[] {
+  return [place, ...(place.partly ?? [])];
 }
 
 /** A precondition's digest is recorded per test file, so its verdict is each test file's own. */
@@ -290,23 +305,42 @@ async function evidenceOf(
  * assumption ran over the snapshot's own text at the snapshot's commit, and
  * the committed one anywhere else. A place whose text is not known is not
  * known, and no other place is touched by it.
+ *
+ * A test file a later run ran in part holds cases of each run, case by case,
+ * and the runs record does not say which case ran in which. Where those runs
+ * ran over one text, or every one of them over another, that is said of the
+ * file; where some ran over the asked text and some did not, which text its
+ * cases ran over is not known.
  */
 function verdictOf(place: TestPlace, held: ReadonlyMap<string, string>, evidence: Evidence, at: string, region: Region): Verdict {
   const other: string[] = [];
   let unknown: string | undefined;
   let regional: RanStand['region'];
   for (const [file, text] of held) {
-    const ran = ranOver(place, file, text, evidence, at);
-    if (ran === 'held') continue;
-    if ('unknown' in ran) {
-      unknown ??= ran.unknown;
+    const rans = runsOf(place).map((run) => ranOver(run, file, text, evidence, at));
+    const unread = rans.flatMap((ran) => (ran !== 'held' && 'unknown' in ran ? [ran.unknown] : []));
+    if (unread.length > 0) {
+      unknown ??= unread[0];
+      continue;
+    }
+    const others = rans.flatMap((ran) => (ran !== 'held' && 'text' in ran ? [ran.text] : []));
+    if (others.length === 0) continue;
+    if (others.length < rans.length) {
+      unknown ??= apart(file);
       continue;
     }
     other.push(file);
-    if (regional === undefined && held.size === 1) regional = regionVerdict(region, text, ran.text, file);
+    if (regional !== undefined || held.size !== 1) continue;
+    const regions = others.map((ran) => regionVerdict(region, text, ran, file));
+    regional = regions.find((one) => typeof one === 'object') ?? (regions.every((one) => one === regions[0]) ? regions[0] : { unknown: apart(file) });
   }
   if (other.length > 0) return { text: 'other', other, ...(regional === undefined ? {} : { region: regional }) };
   return unknown === undefined ? { text: 'held' } : { unknown };
+}
+
+/** Why a test file's runs ran over different texts of `file` leave its cases' text not known. */
+function apart(file: string): string {
+  return `its cases ran in runs over different texts of ${file}, and the runs record does not say which case ran in which`;
 }
 
 /** Whether `place` ran over `text` of `file`, or the text it ran over instead when that is found, or why that is not known. */
