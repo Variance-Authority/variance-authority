@@ -198,6 +198,8 @@ before anything else.**
 | `report` | nothing | what a run leaves behind, so several readers can share one shape |
 | `history` | nothing | what a row may contain, what the numbers mean, what to say with no store |
 | `ioc` | nothing | the seam a module declares its own state reset through, and the per-test hook a suite drives it with |
+| `isolator` | `ioc`; its `node` entrypoint additionally needs a Node runtime, its `react` entrypoint React 19 | an experimental build transform that gives every module-level variable a module writes, and every object it keeps, one value per session, so ioc's per-test hook resets state no module declared |
+| `reads` | nothing | the files an element showed, said on the element, so a recorded page run keeps them for the next run's selection |
 | `wire` | nothing; the driver's end of it needs a Node runtime and a loopback socket | one id per execution and one address to answer on, whether the participant is the page, a service in another process, or a server the suite started inside itself |
 | `event` | nothing; its `collect` entrypoint additionally needs a Node runtime and a loopback socket | announcements a running system makes about its own decisions, and the log a test waits on |
 | `vantage` | nothing; its `attach` entrypoint additionally needs a Node runtime and a loopback socket | what a run is saying while it is still saying it, in a process that outlives the test |

@@ -87,7 +87,7 @@ describe('showing stories on one page', () => {
 
   it('reports Storybook’s own signal when it is the one that fired', async () => {
     // The distinction the whole result type exists for: this readiness knows
-    // about decorators and loaders, and the fallback does not.
+    // about decorators and loaders, and markup does not.
     preview = fakePreview({});
     const page = fakePage(preview);
 
@@ -225,7 +225,31 @@ describe('a story that fails is a subject, not a crashed run', () => {
     const outcome = await collectStory(page, 'a--one', { baseUrl: BASE, ...TIMING });
 
     expect(outcome.status).toBe('timeout');
-    expect(outcome.error?.message).toContain('still changing');
+    expect(outcome.error?.message).toContain('storyRendered');
+  });
+
+  it('waits for Storybook on a selected story whose markup is still but whose render is not over', async () => {
+    // Markup that stopped changing is not a finished story: a loader, a `play`
+    // or a decorator can still be running behind it. Storybook's own render
+    // phase says which.
+    preview = fakePreview({ 'a--one': 'still-rendering' });
+    const page = fakePage(preview);
+
+    const outcome = await collectStory(page, 'a--one', { baseUrl: BASE, ...TIMING });
+
+    expect(outcome.status).toBe('timeout');
+    expect(outcome.error?.message).toContain('storyRendered');
+  });
+
+  it('never calls a switched story rendered on its markup when Storybook says nothing', async () => {
+    preview = fakePreview({ 'a--one': 'renders', 'a--two': 'silent' });
+    const page = fakePage(preview);
+
+    const outcomes = await collectStories(page, ['a--one', 'a--two'], { baseUrl: BASE, ...TIMING });
+
+    expect(outcomes[1]?.status).toBe('timeout');
+    expect(outcomes[1]?.readiness).toBe('none');
+    expect(outcomes[1]?.error?.message).toContain('storyRendered');
   });
 
   it('blames the page, not the component, when the browser cannot be driven', async () => {
@@ -288,28 +312,42 @@ describe('a story that fails is a subject, not a crashed run', () => {
 });
 
 describe('a preview with no channel', () => {
-  it('falls back to markup quiescence and says that is what it did', async () => {
-    // The fallback is weaker evidence, not equivalent evidence. A caller that
-    // cannot tell the two apart cannot know that a capture may be of a story
-    // still waiting on a fetch.
+  it('refuses the story and names the marker that would make it readable', async () => {
+    // Markup that stopped changing cannot see a story still waiting on a fetch,
+    // so with no channel to hear Storybook on, only the subject's own marker
+    // can say it is ready.
     preview = fakePreview({ 'a--one': 'silent' }, false);
     const page = fakePage(preview);
 
     const outcome = await collectStory(page, 'a--one', { baseUrl: BASE, ...TIMING });
 
-    expect(outcome.status).toBe('rendered');
-    expect(outcome.readiness).toBe('markup-quiescent');
+    expect(outcome.status).toBe('timeout');
+    expect(outcome.readiness).toBe('none');
     expect(outcome.channel).toBe(false);
-    expect(outcome.warnings.join(' ')).toContain('no Storybook channel');
+    expect(outcome.error?.message).toContain('readySelector');
+  });
+
+  it('reports a story that crashed as errored, not as a missing marker', async () => {
+    preview = fakePreview({ 'a--one': 'overlay' }, false);
+    const page = fakePage(preview);
+
+    const outcome = await collectStory(page, 'a--one', { baseUrl: BASE, ...TIMING });
+
+    expect(outcome.status).toBe('errored');
+    expect(outcome.error?.message).toContain('a--one could not be rendered');
   });
 
   it('pays a reload per story, and reports that it paid one', async () => {
     // Without a channel there is no way to switch stories in place. The cost is
     // real and the run's economics are not what its owner thinks unless it says so.
-    preview = fakePreview({ 'a--one': 'silent', 'a--two': 'silent' }, false);
+    preview = fakePreview({ 'a--one': 'declares', 'a--two': 'declares' }, false);
     const page = fakePage(preview);
 
-    const outcomes = await collectStories(page, ['a--one', 'a--two'], { baseUrl: BASE, ...TIMING });
+    const outcomes = await collectStories(page, ['a--one', 'a--two'], {
+      baseUrl: BASE,
+      ...TIMING,
+      readySelector: '[data-testid="story-ready"]',
+    });
 
     expect(page.navigations).toHaveLength(2);
     expect(outcomes[1]?.navigated).toBe(true);
@@ -352,8 +390,8 @@ describe('the page function', () => {
     // keeps calling `querySelector` until its own deadline, which is invisible
     // in a browser about to be driven to the next story and is a timer outliving
     // its DOM anywhere else. The first story of a session is the case that hits
-    // it every time: it arrives already selected, so the markup poll starts, and
-    // `storyRendered` lands between its two samples.
+    // it every time: it arrives already selected, so the bound starts, and
+    // `storyRendered` lands before it expires.
     preview = fakePreview({});
     const page = fakePage(preview);
 

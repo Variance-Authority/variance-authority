@@ -5,6 +5,7 @@
 > The Variance Authority format, rules, comparison, attribution and verdicts. Pure data in, pure data out, no DOM and no I/O.
 
 Part of [Variance Authority](https://variance-authority.dev).
+Point your coding agent at [`llms.txt`](https://variance-authority.dev/llms.txt).
 
 ## What this is for
 
@@ -270,7 +271,7 @@ observation profiles differ.
 | call | useful controls |
 |---|---|
 | `normalize` | `collapseWrappers` removes layout-only wrapper boundaries, `digestText` includes text content, and `sourceRoot` relativizes source locations |
-| `isolateRegions` / `attributeRegions` | `cell` and `limit` bound mask work; `origin` and `containment` describe the coordinate origin and how much a node must contain a region |
+| `isolateRegions` / `attributeRegions` | `cell` and `limit` bound mask work; `origin` and `containment` describe the coordinate origin and how much a node must contain a region; `inserted` names the rows the after image added, and a region inside them goes to the tightest box whose rows span it |
 | `fingerprintOfMask` | `grid` controls the shape sample and `coverage` the minimum occupied share |
 | `compareLocales` / ignore validation | `slack` permits a declared locale distance; `sites` supplies resolved ignore locations and `now` evaluates expiry |
 | `buildDocket` / dependency reach | `sampleSize` limits review examples; `through` selects graph edge kinds, `avoid` names nodes a walk never covers, and `shadows` lists per file the modules its run never loads, so `affectedBy` leaves out a file every trail to which crosses one of its own shadows; `depends` adds the install — which package rests on which — so a dependency bump is a seed like any other and affects only the files that import it; `uses` names what each import binds and each re-export republishes, and `moved` lists per seed the exports its change changed, so `affectedBy` covers only the files that import one of them |
@@ -381,4 +382,4 @@ the comparison is refused rather than reported as a difference in the product.
 
 ---
 
-**[@variance-authority/core](https://variance-authority.dev/reference/packages/core)** is part of [Variance Authority](https://variance-authority.dev) — [documentation](https://variance-authority.dev/docs) · MIT
+**[@variance-authority/core](https://variance-authority.dev/reference/packages/core)** is part of [Variance Authority](https://variance-authority.dev) — [documentation](https://variance-authority.dev/docs) · [GitHub](https://github.com/Variance-Authority/variance-authority/tree/main/packages/core) · MIT

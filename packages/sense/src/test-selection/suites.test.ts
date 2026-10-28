@@ -53,14 +53,19 @@ describe('the suites a repository declares', () => {
     [{}, '"suites" declares no suite'],
     [{ '../up': { kind: 'unit' } }, '"suites.../up" is not a suite name'],
     [{ '.work': { kind: 'unit' } }, '"suites..work" is not a suite name'],
-    [{ unit: { kind: 'smoke' } }, '"suites.unit" must be { "kind": "unit" | "integration" | "e2e" | "visual", "carry"?: "actions-cache" | "share", "before"?: [paths], "relations"?: boolean }, not {"kind":"smoke"}'],
+    [{ unit: { kind: 'smoke' } }, '"suites.unit" must be { "kind": "unit" | "integration" | "e2e" | "visual", "carry"?: "actions-cache" | "share", "before"?: [paths], "ignore"?: [globs], "relations"?: boolean, "precision"?: "file" | "symbol" | "file-use" | "function-use" | "region-use" }, not {"kind":"smoke"}'],
     [{ e2e: { kind: 'e2e', relations: 'no' } }, '"suites.e2e" must be { "kind"'],
     [{ unit: { kind: 'unit', carry: 'artifact' } }, '"suites.unit" must be { "kind"'],
+    [{ unit: { kind: 'unit', precision: 'package' } }, '"suites.unit" must be { "kind"'],
+    [{ e2e: { kind: 'e2e', relations: false, precision: 'symbol' } }, '"suites.e2e.precision" is "symbol", read from the import graph, and the suite declines the graph with "relations": false'],
     [{ unit: { kind: 'unit', runner: 'jest' } }, '"suites.unit" must be { "kind"'],
     [{ unit: 'unit' }, '"suites.unit" must be { "kind"'],
     [{ unit: { kind: 'unit', before: [] } }, '"suites.unit.before" must be a non-empty list of paths, not []'],
     [{ unit: { kind: 'unit', before: ['vitest.config.ts', 3] } }, '"suites.unit.before" must be a non-empty list of paths'],
     [{ unit: { kind: 'unit', before: 'vitest.config.ts' } }, '"suites.unit.before" must be a non-empty list of paths'],
+    [{ unit: { kind: 'unit', ignore: [] } }, '"suites.unit.ignore" must be a non-empty list of globs, not []'],
+    [{ unit: { kind: 'unit', ignore: '**/*.css' } }, '"suites.unit.ignore" must be a non-empty list of globs'],
+    [{ unit: { kind: 'unit', ignore: ['**/*.css', ''] } }, '"suites.unit.ignore" must be a non-empty list of globs'],
   ])('refuse %j', (value, message) => {
     expect(() => parseSuites(value, 'here.json')).toThrow(`here.json: ${message}`);
   });
@@ -72,6 +77,24 @@ describe('whether a suite asks the graph about a file its record did not measure
       parseSuites({ e2e: { kind: 'e2e', relations: false, before: ['apps/web'] }, unit: { kind: 'unit' } }, 'here.json'),
     ).toEqual([
       { name: 'e2e', kind: 'e2e', before: ['apps/web'], relations: false },
+      { name: 'unit', kind: 'unit' },
+    ]);
+  });
+});
+
+describe('which changed files a suite ignores', () => {
+  test('is declared on the suite, and absent when it says nothing', () => {
+    expect(parseSuites({ unit: { kind: 'unit', ignore: ['**/*.css', '**/*.png'] }, stories: { kind: 'visual' } }, 'here.json')).toEqual([
+      { name: 'stories', kind: 'visual' },
+      { name: 'unit', kind: 'unit', ignore: ['**/*.css', '**/*.png'] },
+    ]);
+  });
+});
+
+describe('how precisely a suite selects', () => {
+  test('is declared on the suite, and absent when it says nothing', () => {
+    expect(parseSuites({ e2e: { kind: 'e2e', precision: 'file-use' }, unit: { kind: 'unit' } }, 'here.json')).toEqual([
+      { name: 'e2e', kind: 'e2e', precision: 'file-use' },
       { name: 'unit', kind: 'unit' },
     ]);
   });
@@ -176,7 +199,7 @@ describe('a worktree and its suites', () => {
     await writeTestCoverage(testCoverageFile(primary, { suite: 'unit', cacheRoot }), snapshot);
     const file = testCoverageFile(path, { suite: 'unit', cacheRoot });
 
-    await seedTestCoverage(file, path, cacheRoot);
+    await seedTestCoverage(file, path, snapshot.instrumentation, cacheRoot);
 
     expect((await readTestCoverage(file)).tests).toEqual(snapshot.tests);
   });
@@ -186,7 +209,7 @@ describe('a worktree and its suites', () => {
     await writeTestCoverage(testCoverageFile(primary, { suite: 'unit', cacheRoot }), snapshot);
     const stories = testCoverageFile(path, { suite: 'stories', cacheRoot });
 
-    await seedTestCoverage(stories, path, cacheRoot);
+    await seedTestCoverage(stories, path, snapshot.instrumentation, cacheRoot);
 
     await expect(stat(stories)).rejects.toThrow();
   });

@@ -72,7 +72,7 @@
 
 import type { EdgeKind } from '@variance-authority/core/relate';
 import { native, nativeRefusal } from './addon.js';
-import type { SourceSize } from './cache.js';
+import type { BindingMember, OwnUse, SourceSize } from './cache.js';
 import type { SourceSymbol, TextSpan } from './harvest.js';
 import type { ImportDiff } from './taint/index.js';
 
@@ -160,6 +160,26 @@ export interface Request {
    * real hole into a silent one, which is the failure this package refuses.
    */
   readonly guessed?: boolean;
+
+  /**
+   * Whether the reader asked for the whole specifier as the item it names.
+   *
+   * Rust needs it: `crate::map::JourneyMap::new()` does not say whether `map`
+   * is a module, or whether `new` is a function of the module or of the type,
+   * so the reader asks for every prefix of the path, each bound to its last
+   * segment. A prefix names that item only where the module tree leaves
+   * exactly one segment past the modules; any other prefix names nothing, and
+   * is silent the way a guess is ([`rust.ts`](./rust.ts)).
+   */
+  readonly item?: boolean;
+
+  /**
+   * Set on an `export … from`: what it binds it passes on, and takes for no
+   * use of its own. Every `reexports` request carries it, and a `type` one
+   * does when `export type` writes it, which `kind` alone cannot tell from
+   * `import type` of the same file.
+   */
+  readonly republishes?: true;
 }
 
 export interface Export {
@@ -217,6 +237,13 @@ export interface Export {
    * once is a contradiction the reader keeps, so the check can name it.
    */
   readonly roles?: readonly DeclaredRole[];
+
+  /**
+   * A key of the object literal `export =` or `module.exports =` assigns at the
+   * top level, which CommonJS hands out as the module itself. Read on a
+   * best-effort basis: what an importer's `default` is, the reader does not say.
+   */
+  readonly assigned?: true;
 }
 
 /**
@@ -234,17 +261,29 @@ export interface Read {
   /** Top-level declarations reduced while the AST is already resident. */
   readonly symbols?: readonly SourceSymbol[];
 
+  /** The declarations were read, including when the file declares none. */
+  readonly harvested?: true;
+
   /** The component names the file declares, sorted. Absent when it declares none. */
   readonly declares?: readonly string[];
 
   /** What the file mocks and loads for real, read off the same tree. Recorded, never applied. */
   readonly mocks?: ImportDiff;
 
+  /** Every line that uses a name the file declares at its top level. Absent when there are none. */
+  readonly ownUses?: readonly OwnUse[];
+
+  /** Every name read off a binding a named import takes. Absent when there are none. */
+  readonly bindingMembers?: readonly BindingMember[];
+
   /** Why this file's requests are not the whole set, when they are not. */
   readonly unknown?: string;
 
   /** How big the module is. */
   readonly size?: SourceSize;
+
+  /** The module's own doc comment, inside its marks, as `Parsed.doc` says. */
+  readonly doc?: TextSpan;
 }
 
 /** Extensions the module reader claims. Everything else is somebody else's. */
@@ -256,7 +295,7 @@ export const MODULE_EXTENSIONS = ['.ts', '.tsx', '.mts', '.cts', '.js', '.jsx', 
  * Built once per file and searched, rather than counted per request: a barrel
  * makes hundreds of requests and counting newlines for each one is quadratic on
  * exactly the largest files. The same structure, for the same reason, is behind
- * [`package/doc.ts`](../../package/src/doc.ts).
+ * [`package/doc.ts`](https://github.com/Variance-Authority/variance-authority/blob/main/packages/package/src/doc.ts).
  */
 export function linesOf(contents: string): (offset: number) => number {
   const starts: number[] = [0];

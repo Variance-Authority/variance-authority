@@ -6,13 +6,14 @@ import { dirname, join } from 'node:path';
 import { digestString } from '@variance-authority/core/format';
 import { updateSourceIndex } from '@variance-authority/sense';
 import {
-  encodeExecutionIndex,
+  encodeAsSetExecutionIndex,
   testCoverageFile,
   withCaseSections,
   writeTestCoverage,
   type ExecutionBlock,
   type ExecutionIndex,
 } from '@variance-authority/sense/test-selection';
+import { INSTRUMENTATION_ID } from '@variance-authority/sense/instrument';
 
 /**
  * A change a review reads: `main` at the base, the change in the working tree,
@@ -59,6 +60,10 @@ export async function changed(options: {
   readonly tree?: string;
   readonly lines?: TotalLines;
   readonly indexed?: TotalLines;
+  /** The probes the run's record says cut it, the fixture's own unless given. */
+  readonly instrumentation?: string;
+  /** Files beside `src/total.ts` that no run recorded, by path: their text at the base, then in the tree. */
+  readonly others?: Readonly<Record<string, readonly [string, string]>>;
 } = {}): Promise<{ root: string; first: string; against: string }> {
   const tree = options.tree ?? AFTER;
   const lines = options.lines ?? AFTER_LINES;
@@ -72,6 +77,7 @@ export async function changed(options: {
   await writeFile(join(root, 'src/total.ts'), BEFORE);
   await writeFile(join(root, 'test/total.test.ts'), TEST);
   await writeFile(join(root, 'config.json'), '{}\n');
+  for (const [file, [base]] of Object.entries(options.others ?? {})) await writeFile(join(root, file), base);
   if (options.suites !== undefined) {
     const suites = Object.fromEntries(options.suites.map((name) => [name, { kind: 'unit' }]));
     await writeFile(join(root, 'variance.config.json'), JSON.stringify({ suites }));
@@ -83,11 +89,13 @@ export async function changed(options: {
   await writeFile(join(root, 'src/total.ts'), tree);
   await writeFile(join(root, 'test/total.test.ts'), `${TEST}it('rounds', () => {});\n`);
   await writeFile(join(root, 'config.json'), '{ "strict": true }\n');
+  for (const [file, [, now]] of Object.entries(options.others ?? {})) await writeFile(join(root, file), now);
   process.chdir(root);
   // A test the run recorded and the tree no longer holds, so the import graph has no node for it.
   const extra = options.gone === true ? ['test/round.test.ts'] : [];
 
   await recordTotal(testCoverageFile(root, { suite: options.suites?.[0] }), {
+    ...(options.instrumentation === undefined ? {} : { instrumentation: options.instrumentation }),
     commit: first,
     text: options.text ?? tree,
     lines,
@@ -106,8 +114,8 @@ export async function changed(options: {
 
   // The base's record, copied aside before the run the way a pipeline does it.
   const against = join(await mkdtemp(join(tmpdir(), 'variance-review-base-')), 'coverage.bin');
-  await writeTestCoverage(against, { version: 3, instrumentation: 'fixture', tests: [], modules: [] }, {
-    index: encodeExecutionIndex({
+  await writeTestCoverage(against, { version: 3, instrumentation: INSTRUMENTATION_ID, tests: [], modules: [] }, {
+    index: encodeAsSetExecutionIndex({
       tests: [DISCOUNTS],
       modules: [{ file: 'src/total.ts', blocks: [block('applyDiscount', 1, 3, [0])] }],
     }),
@@ -140,6 +148,7 @@ export async function roundedBy(root: string, first: string, suite: string, text
  * function, and `index` is the case index the run wrote into it.
  */
 export async function recordTotal(coverageFile: string, record: {
+  readonly instrumentation?: string;
   readonly commit: string;
   readonly text?: string;
   readonly lines?: TotalLines;
@@ -151,7 +160,7 @@ export async function recordTotal(coverageFile: string, record: {
   await mkdir(dirname(coverageFile), { recursive: true });
   await writeTestCoverage(coverageFile, {
     version: 3,
-    instrumentation: 'fixture',
+    instrumentation: record.instrumentation ?? INSTRUMENTATION_ID,
     commit: record.commit,
     tests: record.tests,
     modules: [{
@@ -164,5 +173,5 @@ export async function recordTotal(coverageFile: string, record: {
       ],
     }],
   });
-  await writeFile(coverageFile, withCaseSections(await readFile(coverageFile), { index: encodeExecutionIndex(record.index) }));
+  await writeFile(coverageFile, withCaseSections(await readFile(coverageFile), { index: encodeAsSetExecutionIndex(record.index) }));
 }

@@ -261,8 +261,11 @@ reads as one of three:
   import, against the principle of least knowledge. The reading is a
   warning that names the importer as the place to fix it.
 
-The mock is written as `jest.mock`: the record does not say which runner
-made it.
+The mock is named, not written: the reading names the module, the importer
+it stops loading it and every value it exports, and names no runner's call.
+The record does not say which runner made it, and a call in one runner's
+API does not work in another's; how to write the mock is the reader's, for
+the test file's runner.
 
 ### Absent is not empty
 
@@ -307,11 +310,11 @@ made it.
    reach, reported once as shared; a lazy import under an unused static
    import, owned by the static one; an `import()` whose specifier is not a
    quoted string still read as unseen.
-   **Discharged but for the line.** `causesOf` in
-   `@variance-authority/distill` walks the `lazy` edges it is handed beside
-   the static ones, and marks an owning import that is dynamic only
-   `lazy: true`. `variance distill` hands it the file graph's `dynamic`
-   edges and prints that import as `lazily imports`. Fixtures in
+   **Discharged but for the line.** The owner walk in the sense addon
+   (`packages/sense/native/src/distill_own.rs`) walks the file graph's
+   `dynamic` edges beside the static ones, and marks an owning import that
+   is dynamic only `lazy: true`. `variance distill` prints that import as
+   `lazily imports`. Fixtures in
    `own.test.ts`, and, read through the file graph in the CLI's file
    reading, a `React.lazy` modal and an `import()` of a specifier built
    at run time that stays unseen. Spec 0092's hole names a non-literal dynamic import.
@@ -345,7 +348,7 @@ made it.
    charges nothing; two sources that export the same name, each charged
    to its own references. Each import also reads by its importer's
    distance from the test file: an error for the test file's own import,
-   a `jest.mock` with a factory for its subject's, a warning for one
+   a mock with a stand-in for each export for its subject's, a warning for one
    further away. A real Jest run over `jest-prune` prints all three.
    **Discharged for the file reading.** The sense addon's
    `moduleReferences` and `importReferences` give each reference with its

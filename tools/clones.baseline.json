@@ -43,20 +43,6 @@
   },
   {
     "files": [
-      "packages/cli/src/commands/covering-reach.ts",
-      "packages/sense/src/test-selection/stopped.ts"
-    ],
-    "count": 1
-  },
-  {
-    "files": [
-      "packages/cli/src/commands/covering.ts",
-      "packages/cli/src/commands/covering.ts"
-    ],
-    "count": 1
-  },
-  {
-    "files": [
       "packages/cli/src/commands/observe-one.ts",
       "packages/cli/src/commands/observe-one.ts"
     ],
@@ -211,6 +197,20 @@
   },
   {
     "files": [
+      "packages/isolator/src/jest-test-files.ts",
+      "packages/sense/src/test-selection/jest-test-files.ts"
+    ],
+    "count": 1
+  },
+  {
+    "files": [
+      "packages/isolator/src/jest-transformer.ts",
+      "packages/sense/src/test-selection/jest-transformer.ts"
+    ],
+    "count": 1
+  },
+  {
+    "files": [
       "packages/mcp/src/tools/composition.ts",
       "packages/mcp/src/tools/recall.ts"
     ],
@@ -340,7 +340,7 @@
       "packages/route-collector/src/page-agent-entry.ts",
       "packages/storybook-collector/src/page-agent-entry.ts"
     ],
-    "count": 2
+    "count": 1
   },
   {
     "files": [
@@ -354,14 +354,14 @@
       "packages/route-collector/src/read.ts",
       "packages/storybook-collector/src/read.ts"
     ],
-    "count": 2
+    "count": 1
   },
   {
     "files": [
       "packages/route-collector/src/serve.ts",
       "packages/storybook-collector/src/serve.ts"
     ],
-    "count": 2
+    "count": 3
   },
   {
     "files": [
@@ -491,13 +491,6 @@
   },
   {
     "files": [
-      "packages/sense/src/test-selection/jest-setup.cts",
-      "packages/sense/src/test-selection/runner.ts"
-    ],
-    "count": 1
-  },
-  {
-    "files": [
       "packages/sense/src/test-selection/journey-parts.ts",
       "packages/sense/src/test-selection/journey.ts"
     ],
@@ -577,13 +570,6 @@
     "files": [
       "packages/storybook-collector/src/contract.ts",
       "packages/unit-test/src/contract.ts"
-    ],
-    "count": 1
-  },
-  {
-    "files": [
-      "packages/storybook/src/show-story.ts",
-      "packages/storybook/src/show-story.ts"
     ],
     "count": 1
   },

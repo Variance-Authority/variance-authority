@@ -1,7 +1,6 @@
 import { intern } from '@variance-authority/core/segment';
 import { blob, column, framedHeader, sections, validSections, type Header, type Section } from './format-layout.js';
 import { recordedCases } from './case-record.js';
-import { PRECONDITIONS_COLUMN, preconditionColumn, preconditionStrings, preconditionsFrom } from './case-precondition-column.js';
 import { openBlob, openBytes, openWords, resident, type Bytes } from './columns.js';
 import type {
   ExecutionBlock,
@@ -87,6 +86,10 @@ const LOADED = 2;
  * the same bytes.
  */
 export function encodeExecutionIndex(index: ExecutionIndex): Buffer {
+  // What a case said is items over crossing sets, and this spelling has no pool to lay them in.
+  if (index.tests.some((test) => test.said !== undefined)) {
+    throw new Error('the row spelling cannot hold what a case said; write the set spelling');
+  }
   const { strings, id } = intern(dictionary(index));
 
   const encoded = strings.map((value) => Buffer.from(value, 'utf8'));
@@ -154,7 +157,6 @@ export function encodeExecutionIndex(index: ExecutionIndex): Buffer {
       'tests.name': column(Uint32Array.from(index.tests, (test) => id(test.name))),
       'tests.stopped': column(stoppedColumn(index.tests)),
       'tests.duration': column(durationColumn(index.tests)),
-      ...preconditionColumn(index.tests, id),
       'modules.file': column(moduleFile),
       'modules.blocks': column(moduleBlocks),
       'blocks.kind': column(blockKind),
@@ -198,6 +200,15 @@ function jsonStart(bytes: Uint8Array): number {
   let at = BYTE_ORDER_MARK.every((byte, offset) => bytes[offset] === byte) ? BYTE_ORDER_MARK.length : 0;
   while (at < bytes.length && JSON_WHITESPACE.has(bytes[at]!)) at += 1;
   return at;
+}
+
+/**
+ * Whether `bytes`, or the case index a record of them carries, are in the row
+ * spelling this file writes, read off the header alone.
+ */
+export function isRowSpelledExecutionIndex(bytes: Uint8Array): boolean {
+  const version = framedHeader(recordedCases(bytes))?.version;
+  return version === EXECUTION_FORMAT || version === UNTIMED_ROWS || version === UNFLAGGED_ROWS;
 }
 
 /**
@@ -292,9 +303,6 @@ export function decodeExecutionIndex(bytes: Uint8Array): ExecutionIndex {
   const testDuration = found.has('tests.duration') ? words('tests.duration') : undefined;
   if (testFile.length !== testId.length || testName.length !== testId.length) throw invalid();
   if (testDuration !== undefined && testDuration.length !== testId.length) throw invalid();
-  // Written since a case carries the preconditions it named; a file without it listened to none.
-  const said = found.has(PRECONDITIONS_COLUMN) ? words(PRECONDITIONS_COLUMN) : undefined;
-  if (said !== undefined && said.length !== testId.length) throw invalid();
   const tests: ExecutionTest[] = [];
   for (let at = 0; at < testId.length; at += 1) {
     tests.push({
@@ -303,7 +311,6 @@ export function decodeExecutionIndex(bytes: Uint8Array): ExecutionIndex {
       name: string(testName[at]!),
       ...stoppedFrom(testStopped, at),
       ...durationFrom(testDuration, at),
-      ...preconditionsFrom(said, at, string),
     });
   }
 
@@ -377,7 +384,6 @@ function dictionary(index: ExecutionIndex): ReadonlySet<string> {
     held.add(test.file);
     held.add(test.name);
   }
-  for (const text of preconditionStrings(index.tests)) held.add(text);
   for (const module of index.modules) {
     held.add(module.file);
     for (const block of module.blocks) {

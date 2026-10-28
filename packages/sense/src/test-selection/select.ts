@@ -1,174 +1,36 @@
-import { blocksAround, regionOf } from './blocks-around.js';
-import { builtNamesOf } from './built-names.js';
+// compass: variance-authority.reach
+import { codeUnitOrder } from '@variance-authority/core/segment';
+import { causesOf } from './charging.js';
 import type { TestCoverageView } from './format-view.js';
-import { answerByImporters, type ExecutionNarrowingOptions, type ImporterReason } from './importers.js';
-import { findModules, testPathOf } from './lookup.js';
-import { changedLines } from './diff-lines.js';
-import { hunksOf } from './patch.js';
-import { frameOf } from './frame.js';
+import { testPathOf } from './lookup.js';
+import { changeOfDiff, ignoredChange, type Change } from './change.js';
+import { declarable, ranOverAll, withRanOver } from './ran-over.js';
 import { recordedOverKept } from './kept-texts.js';
-import { rebasedChange } from './text-diff.js';
-import { readChange, readRowless, rowlessNames, type FileReading } from './reading.js';
-import { bindsOnly } from './inert.js';
-import { disownedIn } from './shadowed.js';
-import { routeOf } from './route.js';
-
-export type { ExecutionNarrowingOptions, FileReading, ImporterReason };
-
-/**
- * What one snapshot can say about one diff: who it speaks for, and who the diff
- * reached.
- *
- * `selectTestFilesFromView` answers the second half alone, and an empty answer
- * from it has two readings that are opposite facts — *this diff reached nobody*,
- * and *this snapshot recorded nobody*. A caller that narrows a suite on the
- * first while holding the second skips every subject it has, silently, because a
- * subject that was never run is not in the report to be missing from.
- *
- * So `whole` is returned beside it. It is the tests whose observation was
- * complete, and only those: an upper-bound contribution cannot justify excluding
- * anything, and a test absent from the snapshot entirely is unknown rather than
- * untouched.
- */
-export interface ExecutionNarrowing {
-  /** Recorded tests whose observation was whole, so absence from `entered` is evidence. */
-  readonly whole: readonly string[];
-  /**
-   * Recorded tests whose observation was not whole: a run that skipped every
-   * case, or one whose probes fired where nothing could place them. Absence
-   * from `entered` is no evidence for them, but they are named, so a caller
-   * that cuts the selection into legs can place them by the import path each
-   * ran to a changed file it loaded (`distanceFromView`), or run them in the
-   * open leg when they ran none.
-   * Absent when the reader names no such list, which is not the same as none.
-   */
-  readonly incomplete?: readonly string[];
-  /** Recorded tests that entered a region this diff changed. */
-  readonly entered: readonly string[];
-
-  /**
-   * Changed paths the record and the graph hold nothing about: no row under
-   * any name the file may be held by, no precondition, and no place in the
-   * graph when the caller handed one over.
-   *
-   * The record decides what a change reaches. A module with no row is answered
-   * by the nearest importers that have one, and selects nobody when no chain
-   * of imports reaches a row; so does a stylesheet nothing recorded imports.
-   * What is listed here is different: a file the sense database has never
-   * heard of — a README, a fixture the tests read with `fs`, a script they
-   * spawn, a file outside the directories the scan was pointed at. It is a
-   * report, not a widening, and no caller widens on it: a suite that depends
-   * on such a file declares it as a precondition, and it stops appearing here.
-   * A moved package is never here; its measured importers answer for it.
-   *
-   * Empty is the ordinary state, and always empty in a suite that declines
-   * relations, which never asks the graph (`declined`).
-   */
-  readonly unread: readonly string[];
-
-  /**
-   * Changed paths the record did not measure, in a suite that declines
-   * relations (`ExecutionNarrowingOptions.unmeasured`): no row under any name
-   * and no test declaring it. Each selects nothing, because the suite said the
-   * import graph does not name its audience. Absent when the suite asks the
-   * graph; empty when it declines and every changed path was measured.
-   */
-  readonly declined?: readonly string[];
-
-  /**
-   * Changed modules whose recording was cut from a different text than the one
-   * the diff is written against, so their line ranges were not read.
-   *
-   * A snapshot's ranges are coordinates in the text the suite ran over, and its
-   * label is the commit `git rev-parse HEAD` named at that moment. A suite is
-   * recorded *by being run*, so in a developer's loop or an agent's the tree is
-   * dirty every time and the two are different texts — the ranges number lines
-   * the commit never had. A hunk then lands on whichever region occupies those
-   * numbers now, which answers with other tests, or with none, and the run is
-   * green over a change nothing watched.
-   *
-   * A landing keeps the text of every module it recorded over an edit
-   * (`kept-texts.ts`), and a caller that supplies `keptText` has the change
-   * read from that text instead. What is left here is a module whose recorded
-   * text was not kept — a run landed by a build that did not keep texts, a
-   * text edited again while the suite ran, a cache cleared since — or whose
-   * diff does not apply to the commit's text. Each is charged whole, which is
-   * what the snapshot can still say honestly about it, and the next run that
-   * loads it records it again. Empty is the ordinary state. It is listed
-   * because the widening is a fact about the *recording*, not about the diff.
-   *
-   * Populated only when the caller supplies `sourceAt`. Without it nothing is
-   * checked and this is empty because nothing looked — which is not the same
-   * fact, and is why the option is named on the query rather than assumed.
-   */
-  readonly stale: readonly string[];
-
-  /**
-   * Why each test in `entered` is there: one entry per selected test, in the
-   * same order, naming every region, precondition, and import chain that
-   * selected it.
-   *
-   * A test that keeps running after a change is a question with three answers —
-   * a probe placed wider than the edit, a precondition declared wider than it
-   * needs to be, or a real dependency — and they are fixed in three different
-   * places. `entered` alone cannot tell them apart. The reasons are the facts
-   * the inner loop already held when it selected the test, kept rather than
-   * discarded, so what a run prints about itself is what it did.
-   */
-  readonly because: readonly SelectionCause[];
-
-  /**
-   * What the parser made of each changed file whose frame was proved: which
-   * verdict charged it, or why it was charged by its lines alone. Without
-   * `sourceAt` every file is `unread: 'source'`: the old text is only ever held
-   * through it. Absent from an answer that never read a diff: one asked at a
-   * point, or of a recording that selects by journeys.
-   */
-  readonly readings?: readonly FileReading[];
-}
-
-/** One selected test and everything that selected it. */
-export interface SelectionCause {
-  readonly test: string;
-  readonly via: readonly SelectionReason[];
-}
-
-/**
- * One fact that put a test in `entered`.
- *
- * A `region` is a recorded block a changed line landed in, named the way the
- * journal names it — the enclosing declaration and the path to the block inside
- * it — with the source lines it spans, under the name the snapshot holds the
- * module by. A `precondition` is a changed file the test declared as governing
- * it: its own source, a setup file, a configuration. An `importer` is the chain
- * of imports from a changed file with no instrumented row to the file whose row
- * answered for it, which is how `ExecutionNarrowingOptions.relations` answers a
- * stylesheet, and a module the recording did not instrument.
- */
-export type SelectionReason =
-  | {
-      readonly kind: 'region';
-      readonly file: string;
-      readonly name: string;
-      readonly path: string;
-      readonly startLine: number;
-      readonly endLine: number;
-    }
-  | { readonly kind: 'precondition'; readonly name: string }
-  | {
-      /** A place that reads a value the change moved: `file` declares `name`, `reader` reads it. */
-      readonly kind: 'reader';
-      readonly name: string;
-      readonly file: string;
-      readonly reader: string;
-      readonly region?: Extract<SelectionReason, { kind: 'region' }>;
-    }
-  | ImporterReason;
+import { rowlessNames } from './reading.js';
+import { ignoreMatcher } from './route.js';
+import { byRelations, withGraph } from './precision.js';
+import { arrivedAt, chargeMeasured, namedAs, readUnmeasured, routed, runOf, seenThrough, selectAnswered, walked } from './stages.js';
+import type { ExecutionNarrowing, ExecutionNarrowingOptions } from './narrowing.js';
 
 /** Both halves of the question, from one pass over the same columns. */
 export function narrowByExecutionFromView(
   coverage: TestCoverageView,
   diff: string,
+  options: ExecutionNarrowingOptions = {},
+): ExecutionNarrowing {
+  return narrowByChangeFromView(coverage, changeOfDiff(diff), options);
+}
+
+/**
+ * The narrowing of a change handed over as a value (`change.ts`) rather than
+ * written as a diff: the stages of selection (`stages.ts`), called in the order
+ * spec 0091 sets — ignore, route, then the record, the reading, the
+ * preconditions and the graph — over files and ranges a caller may have
+ * invented.
+ */
+export function narrowByChangeFromView(
+  coverage: TestCoverageView,
+  change: Change,
   options: ExecutionNarrowingOptions = {},
 ): ExecutionNarrowing {
   const whole: string[] = [];
@@ -180,7 +42,7 @@ export function narrowByExecutionFromView(
   return {
     whole: whole.sort(codeUnitOrder),
     incomplete: incomplete.sort(codeUnitOrder),
-    ...readDiff(coverage, diff, options),
+    ...readDiff(coverage, change, options),
   };
 }
 
@@ -190,7 +52,7 @@ export function selectTestFilesFromView(
   diff: string,
   options: ExecutionNarrowingOptions = {},
 ): readonly string[] {
-  return readDiff(coverage, diff, options).entered;
+  return readDiff(coverage, changeOfDiff(diff), options).entered;
 }
 
 /**
@@ -205,17 +67,17 @@ export function selectTestFilesFromView(
  */
 function readDiff(
   coverage: TestCoverageView,
-  diff: string,
+  change: Change,
   asked: ExecutionNarrowingOptions,
 ): Required<Pick<ExecutionNarrowing, 'entered' | 'unread' | 'because' | 'stale' | 'readings'>> &
-  Pick<ExecutionNarrowing, 'declined'> {
+  Pick<ExecutionNarrowing, 'declined' | 'ignored'> {
+  const named = change.lines;
+  const ignores = ignoreMatcher(asked.ignore);
+  const { kept, ignored: ignoring } = ignoredChange(change, asked.ignore);
+  const changed = kept.lines;
   // A checkout to read layouts in lets the record say which of its names are
   // built from which source, and the graph's walk asks under the same names.
-  const changed = changedLines(diff);
-  const known: ExecutionNarrowingOptions =
-    asked.knownAs !== undefined || asked.root === undefined
-      ? asked
-      : { ...asked, knownAs: builtNamesOf(coverage, asked.root, changed.keys()) };
+  const known = namedAs(coverage, asked, named.keys());
   // Every changed name the loop below reads a recorded text under, named to
   // `sourceAt` with each ask: filled before the first ask, so a reader fetches
   // those texts together and none of the rest of the diff.
@@ -223,63 +85,34 @@ function readDiff(
   const sourceAt = known.sourceAt;
   const options: ExecutionNarrowingOptions =
     sourceAt === undefined ? known : { ...known, sourceAt: (file, commit) => sourceAt(file, commit, asking) };
-  const knownAs = options.knownAs ?? ((file: string): readonly string[] => [file]);
-  const selected = new Map<number, SelectionReason[]>();
-  const select = (test: number, reason: SelectionReason): void => {
-    const reasons = selected.get(test) ?? [];
-    reasons.push(reason);
-    selected.set(test, reasons);
-  };
-  const governing = new Set<string>();
-  const rowed = new Set<string>();
-  const stale = new Set<string>();
-  // A test that mocked the module is not the audience of what it only loaded there (`shadowed.ts`).
-  const disowned = disownedIn(coverage, options.relations);
+  // A graph step adds what the import walk reaches to what `file-use` reads, so
+  // it runs every test any finer step runs.
+  if (byRelations(options.precision)) return withGraph(coverage, readDiff(coverage, change, { ...asked, precision: 'file-use' }), [...changed.keys()], kept.hunks, options);
+  const run = runOf(coverage, options, kept.hunks);
+  const { knownAs } = run;
+  // An ignored file is cut from what selection infers, not from what a test declared: its names still govern.
+  const governing = new Set<string>(ignoring.flatMap((file) => [...knownAs(file)]));
 
-  const hunks = hunksOf(diff);
-  const readings: FileReading[] = [];
-  const seen = new Set<string>();
-  const charge = (file: string, block: number, reason: SelectionReason): void => {
-    for (const test of coverage.crossings.members(coverage.blockSet.at(block))) {
-      if (disowned?.(file, test, block) !== true) select(test, reason);
-    }
-  };
-  // An importer a reading could not read and holds no row for is answered by
-  // the graph's walk over its importers, with the reasons the reading gave.
-  const wholes = new Map<string, Array<Extract<SelectionReason, { readonly kind: 'reader' }>>>();
-  const whole = (file: string, reason: Extract<SelectionReason, { readonly kind: 'reader' }>): void => {
-    wholes.set(file, [...(wholes.get(file) ?? []), reason]);
-  };
-  const context = { coverage, options, knownAs, hunks, charge, pick: select, whole };
-
-  // Every row recorded under every name. One build reading a path is one
-  // row; two builds reading it are two, each with its own crossings, and the
-  // answer is all of them. `instrumented: false` is the build saying it never
-  // read this module — not that nothing ran in it — and its zero blocks
-  // would otherwise select nobody and look like an answer, so it takes
-  // nothing from the instrumented row beside it.
-  const rowsByFile = new Map<string, Map<string, readonly number[]>>();
+  const routes = new Map<string, ReturnType<typeof routed>>();
   for (const [file, lines] of changed) {
-    const rowsOf = new Map<string, readonly number[]>();
-    for (const name of knownAs(file)) {
-      // Every changed name is asked of the precondition table, whatever its
-      // rows say. A row and a declaration answer different questions: the row
-      // says which tests entered which regions of this module, the declaration
-      // says the observation is void if the file's text moves at all. No
-      // recorder writes the second where it can write the first, so what is
-      // left in the table is what no row can answer: a test's own file, a
-      // configured setup file, a module some other run never instrumented.
-      governing.add(name);
-      const rows = findModules(coverage, name).filter((module) => coverage.moduleInstrumented.at(module) === 1);
-      if (rows.length === 0) continue;
-      rowed.add(name);
-      rowsOf.set(name, rows);
-    }
-    rowsByFile.set(file, rowsOf);
-    if (rowsOf.size > 0) asking.push(file, ...knownAs(file));
-    else if (lines.length > 0 && routeOf(false, options.unmeasured) !== 'nothing') asking.push(...rowlessNames(context, file));
+    // Every changed name is asked of the precondition table, whatever its
+    // rows say. A row and a declaration answer different questions: the row
+    // says which tests entered which regions of this module, the declaration
+    // says the observation is void if the file's text moves at all. No
+    // recorder writes the second where it can write the first, so what is
+    // left in the table is what no row can answer: a test's own file, a
+    // configured setup file, a module some other run never instrumented.
+    for (const name of knownAs(file)) governing.add(name);
+    const route = routed(run, file);
+    for (const name of route.rows.keys()) run.rowed.add(name);
+    routes.set(file, route);
+    if (route.route === 'coverage') asking.push(file, ...knownAs(file));
+    // A declared rowless file's commit text is read for the digest its tests ran over (`arrivedDigests`).
+    else if (lines.length > 0 && declarable(coverage, knownAs(file))) asking.push(file);
+    if (route.route === 'relations' && lines.length > 0) asking.push(...rowlessNames(run, file));
   }
 
+  const { rowless, arrived } = arrivedAt(run, changed);
   // A row cut from a kept text whose file the diff does not name ran an edit
   // that is gone: the tree is back at the commit's text, which is a change the
   // tests that ran the edit have not run. The diff from the commit cannot say
@@ -292,102 +125,23 @@ function readDiff(
   const undone = new Set(
     options.keptDigests === undefined || options.keptText === undefined || options.sourceAt === undefined
       ? []
-      : recordedOverKept(coverage, options.keptDigests(), (file) => changed.has(file) || knownAs(file).some((name) => rowed.has(name))),
+      : recordedOverKept(coverage, options.keptDigests(), (file) => named.has(file) || knownAs(file).some((name) => run.rowed.has(name)))
+          .filter((file) => ignores?.(file) !== true),
   );
   for (const file of undone) {
     // Under every name, as a changed file is: a built twin's rows are in frame
     // exactly when the source's are.
-    const rowsOf = new Map<string, readonly number[]>();
-    for (const name of knownAs(file)) {
-      const rows = findModules(coverage, name).filter((module) => coverage.moduleInstrumented.at(module) === 1);
-      if (rows.length > 0) rowsOf.set(name, rows);
-    }
-    rowsByFile.set(file, rowsOf);
+    routes.set(file, routed(run, file));
     asking.push(file, ...knownAs(file));
   }
 
+  // The state machine: a measured file goes to coverage, one the record did
+  // not measure to the reading and then the walk, and one the suite declines
+  // relations for to nothing but the preconditions read below.
   for (const [file, lines] of [...changed, ...[...undone].map((file) => [file, []] as const)]) {
-    let ranges = lines;
-    const rowsOf = rowsByFile.get(file)!;
-    if (rowsOf.size === 0) {
-      // Nothing measured it under a row, and a suite that declines relations
-      // asks nothing else; the tests that declare it are read below either way.
-      if (routeOf(false, options.unmeasured) === 'nothing') continue;
-      // No row to charge, so its readers answer for it where a reading can be
-      // made. A file read that way is answered, and the walk over its importers
-      // below — which charges them whole — is for what the reading left.
-      const read = ranges.length === 0 ? undefined : readRowless(context, file);
-      if (read !== undefined) readings.push(read.reading);
-      if (read?.charged === true) for (const name of knownAs(file)) rowed.add(name);
-      continue;
-    }
-    // A caller that writes one file's hunks under each of its names hands the
-    // same change over twice, and every name of it was charged the first time.
-    const held = [...rowsOf.keys()].sort(codeUnitOrder).join('\n');
-    if (seen.has(held)) continue;
-    seen.add(held);
-
-    // Everything below reads line numbers, and a line number is only a place
-    // in the text it was cut from. The recorder wrote a digest of that text,
-    // so whether these numbers mean anything here is a question the snapshot
-    // answers about itself.
-    let frame = frameOf(coverage, knownAs(file), rowsOf, options.sourceAt, options.keptText);
-    let reader = context;
-    // An undone file read in the commit's own text, or not read at all, ran
-    // what is on disk: nothing changed for it.
-    if (undone.has(file) && (typeof frame !== 'object' || frame.kept !== true) && frame !== 'stale') continue;
-    if (typeof frame === 'object' && frame.kept === true && (ranges.length > 0 || undone.has(file))) {
-      // The rows were cut from a text the landing kept, and the diff is written
-      // against the commit's. The change the tests have not run is the one from
-      // the kept text to the diff's new side, so that is what is read.
-      const rebased = rebasedChange(file, frame.text, options.sourceAt?.(file, coverage.commit), context.hunks.get(file) ?? []);
-      if (rebased === undefined) frame = 'stale';
-      else if (rebased.ranges.length === 0) {
-        // The record was taken over the text the diff arrives at, and a test
-        // carried onto it from an earlier text of an edited region was demoted
-        // when it landed. No parser was asked, so the reading says so rather
-        // than claim equal runtime text. An undone file read empty is one the
-        // diff never named, and no reading is made of it.
-        if (!undone.has(file)) readings.push({ file, verdict: 'none', names: [], kept: true });
-        continue;
-      } else {
-        ranges = rebased.ranges;
-        reader = { ...context, hunks: new Map([...context.hunks, [file, rebased.hunks]]) };
-      }
-    }
-    if (frame === 'stale') {
-      for (const [name, rows] of rowsOf) {
-        stale.add(name);
-        for (const module of rows) chargeAll(coverage, module, (block) => charge(file, block, regionOf(coverage, name, block)));
-      }
-      continue;
-    }
-    if (frame === 'unchecked') readings.push({ file, unread: 'source' });
-    else if (ranges.length > 0) {
-      const read = readChange(reader, file, ranges, frame, rowsOf);
-      readings.push(read.reading);
-      if (read.charged) continue;
-    }
-
-    for (const [name, rows] of rowsOf) {
-      for (const module of rows) {
-        const first = coverage.moduleBlocks.at(module);
-        const end = coverage.moduleBlocks.at(module + 1);
-        const blocks = new Set<number>();
-        // A file the diff names without lines — a binary, a rename, a mode — is
-        // every region of it.
-        if (ranges.length === 0) for (let block = first; block < end; block += 1) blocks.add(block);
-        for (const range of ranges) {
-          // Text that only binds a name changed nothing that already ran, and
-          // the gap it opens would otherwise be charged to the module itself —
-          // every test that ever imported the file, for a function nobody calls
-          // yet.
-          if (range.added !== undefined && bindsOnly(range.added)) continue;
-          for (const block of blocksAround(coverage, first, end, range)) blocks.add(block);
-        }
-        for (const block of blocks) charge(file, block, regionOf(coverage, name, block));
-      }
-    }
+    const { rows, route } = routes.get(file)!;
+    if (route === 'coverage') chargeMeasured(run, file, rows, lines, undone.has(file));
+    else if (route === 'relations') readUnmeasured(run, file, lines);
   }
 
   // A row answers for its file, and the graph is walked only for a file no
@@ -397,39 +151,17 @@ function readDiff(
   // handed over together they are one read of it rather than two, and that
   // table is the only part of a snapshot large enough for the difference to
   // be the query.
-  const answered = answerByImporters(
-    coverage,
-    [...changed.keys()].sort(codeUnitOrder),
-    rowed,
-    options,
-    disowned,
-    governing,
-    [...wholes.keys()].sort(codeUnitOrder),
-  );
-  // A declaration is unconditional — *if this file's text moves, retire this
-  // observation* — and nothing here narrows it. It is the one thing a record
-  // says that no region of any row can say.
-  for (const [test, held] of answered.governed.tests) {
-    for (const name of held) select(test, { kind: 'precondition', name });
-  }
-  for (const [test, reasons] of answered.selected) {
-    for (const reason of reasons) select(test, reason);
-  }
-  // A test a whole answered for reached the declaring file through it, so the
-  // reading followed its way there and it is not `unseen`.
-  const through = new Set<string>();
-  for (const [test, files] of answered.wholes) {
-    for (const reason of files.flatMap((file) => wholes.get(file) ?? [])) {
-      select(test, reason);
-      through.add(`${reason.file}\0${testPathOf(coverage, test)}`);
-    }
-  }
+  const answered = walked(run, { changed: [...named.keys()].sort(codeUnitOrder), ignored: new Set(ignoring), also: governing, arrived });
+  // A file every test declaring it ran the arrived text of reads so, whatever its reader made of the diff.
+  const unread = new Set(answered.governed.unread);
+  const ranOver = new Set(rowless.filter((file) => ranOverAll(knownAs(file), unread, answered.governed.ranOver)));
+  const through = selectAnswered(run, answered);
   // A name is answered when something recorded holds it: a row with probes
   // behind it, or a test declaring it. The table is asked for every changed
   // name now, so its silence about a name is no longer the same sentence as
   // *nothing measured this* — a row measured it, whether or not any test wrote
   // the name down.
-  const unmatched = new Set(answered.governed.unread.filter((name) => !rowed.has(name)));
+  const unmatched = new Set(answered.governed.unread.filter((name) => !run.rowed.has(name)));
   // A file is measured when *some* name it may be held under was answered for.
   // `knownAs` exists because one file is two names — a package's own suite
   // loads `src`, every other package loads the built twin — and each name
@@ -438,34 +170,20 @@ function readDiff(
   // name beside it. A file `knownAs` gives no name at all was asked about
   // under nothing, and is reported.
   const measured = (file: string): boolean => knownAs(file).some((name) => !unmatched.has(name));
-  const unmeasured = answered.unread.filter((name) => !measured(name)).sort(codeUnitOrder);
+  const unmeasured = [...answered.unread.filter((name) => !measured(name)), ...answered.unheld].sort(codeUnitOrder);
   // A suite that declines relations never asked the graph, so nothing it
   // holds is unread: what the record did not measure was declined.
   const declining = options.unmeasured === 'nothing';
 
-  const because = [...selected]
-    .map(([test, via]): SelectionCause => ({ test: testPathOf(coverage, test), via }))
-    .sort((left, right) => codeUnitOrder(left.test, right.test));
+  const because = causesOf(coverage, run.selected);
 
   return {
     entered: because.map((cause) => cause.test),
     unread: declining ? [] : unmeasured,
     ...(declining ? { declined: unmeasured } : {}),
-    stale: [...stale].sort(codeUnitOrder),
+    ...(asked.ignore === undefined ? {} : { ignored: ignoring }),
+    stale: [...run.stale].sort(codeUnitOrder),
     because,
-    readings: readings.map((reading) =>
-      'unseen' in reading && reading.unseen !== undefined
-        ? { ...reading, unseen: reading.unseen.filter((test) => !through.has(`${reading.file}\0${test}`)) }
-        : reading,
-    ),
+    readings: seenThrough(withRanOver(run.readings, ranOver), through),
   };
-}
-
-/** Every region of one row. */
-function chargeAll(coverage: TestCoverageView, module: number, charge: (block: number) => void): void {
-  for (let block = coverage.moduleBlocks.at(module); block < coverage.moduleBlocks.at(module + 1); block += 1) charge(block);
-}
-
-function codeUnitOrder(left: string, right: string): number {
-  return left < right ? -1 : left > right ? 1 : 0;
 }

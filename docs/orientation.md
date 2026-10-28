@@ -80,7 +80,10 @@ find out which, not all the way to `rg`.
 documentation written above them, so a question about `createStore` never
 returns the files that only import or mention it. It adds one step an IDE does
 not take by default: the module graph keeps the candidates connected to a path
-you already have.
+you already have. A few words of what the code does reach it too: when no name
+holds them as written, the names holding any of them, matched by stem and
+ranked by how many they hold, come back before any installed package that says
+the same words.
 
 ```bash
 variance ask search --query createStore --from src/checkout/ --just-answer
@@ -128,8 +131,8 @@ tree is the answer. Both are exact and need no Variance index.
 | Files from a stack trace, a ticket or a search | `variance ask orient --files <path>[:<line>][,...]` | Each file's package, the names crossing its package boundary, external packages requested along its local imports, the recorded tests that ran each file, the functions in other files that call into it and those it calls, and the package flows those tests take through it; a line narrows the calls to the function holding it |
 | Words for an exported source name | `variance ask search --query <words>` | Matching exported names |
 | Words plus a file or directory | Add `--from <path>` or `--to <path>` | Matching names inside the related module area |
-| An exact exported name | `variance ask symbol --name <name>` | Its declaration, signature, documentation and consumers |
-| A name whose examples you need | `variance ask uses --name <name> --from <path>` | Exact import sites, ordered near the path |
+| An exact exported name | `variance ask symbol --name <name>` | Its declaration, signature, documentation, the members of an interface, type alias or class, and consumers; for a name only a member declares, each container and its `file:line`, pointing to `uses` |
+| A name whose examples you need | `variance ask uses --name <name> --from <path>` | Exact import sites, ordered near the path, the lines of the declaring file that use it, then the interface or class members by that name, the lines that use each through a value whose type they write, and the declaration to ask its language's find-references about for the rest |
 | Several facts about the file you want | `variance ask discover --from <path> --imports <module#name> --declares <regex>` | The files every fact holds for, each fact checked against every file rather than its nearest fifty, with the line behind each fact |
 | Two questions you could ask alone, and want where they agree | `variance ask intersection '<question>' '<question>'` | The files every question answers, each question read whole rather than its first fifty, with the lines that put each file in each |
 | A description of a captured UI state | `variance ask locate --query <words>` | Subject ids and the observed fields that matched |
@@ -192,9 +195,12 @@ APIs. It reads every direct dependency available to a workspace, including a
 package that workspace has not imported. The source index adds observed
 external requests; the manifest alone cannot prove use. The resolver selects
 the installed runtime and declaration provider for each public entrypoint.
-The catalogue keeps names, signatures and JSDoc in `dependency-lexicon.json`
-beside the source index. A refresh retains unchanged declaration readings and
-reads changed declarations without rescanning repository source. `ask search`
+The catalogue keeps names, signatures and JSDoc in `dependency-lexicon.bin`
+beside the source index, and the import requests each source file writes in
+`dependency-lexicon.sites.bin`. An edit adds the requests of the files it changed
+to the second file. The catalogue is written again only when a manifest, an
+installed package or a specifier no source file imported before changes, and
+then it keeps the declaration readings whose files are unchanged. `ask search`
 uses this catalogue alongside local names; `--from` and `--to` constrain which
 workspace's available packages it shows. `orient --files` keeps the dependency
 graph concise. Ask for a name when its third-party API detail matters.
@@ -215,8 +221,9 @@ variance ask search --query createStore --from src/checkout/ --just-answer
 
 Every answer prints when its workspace generation was produced. If no
 generation exists, `--just-answer` refuses instead of turning the question into
-an index build. `search` always reads this way, with or without the flag: it
-is a lookup, and it expects the generation to be published already. [The source index](source-index.md) explains production,
+an index build. `search` opens a published search this way, with or without
+the flag. With none published, it reads the checkout like any other question
+unless you passed `--just-answer`. [The source index](source-index.md) explains production,
 incremental reuse and CI caching.
 
 Subject orientation reads the report a completed run already produced. Its
@@ -251,7 +258,15 @@ tests ran which code; that is the [execution record](execution-record.md).
 The source graph records module imports, re-exports, literal dynamic imports,
 type imports and asset edges. It is not a function-call graph. `uses` reports
 where a name is imported, or read off a namespace or an `import()`, not where
-code called it at runtime.
+code called it at runtime. A member of an interface, a type literal or a class
+is never imported. When no top-level declaration or import has the name,
+`symbol` names each container that declares it as a member and the member's
+`file:line`. `uses` names its declarations after any imports, the lines
+that use each one through a value whose type they write, and the declaration
+to ask its language's find-references about for the uses a type checker has
+to infer. Members are read from JavaScript and TypeScript files only, and
+when the workspace holds files of another language, both answers end by
+naming those languages, whose members their language server finds.
 
 No graph database service is required. The workspace generation stores a
 compact graph with dependencies and dependents both materialized. The useful

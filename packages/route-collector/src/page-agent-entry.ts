@@ -1,4 +1,5 @@
 import { AGENT_GLOBAL, type CaptureRequest } from '@variance-authority/playwright/agent';
+import { tapCommits, type CommitTap } from '@variance-authority/react';
 import { AGENT_VERSION, acquire, declared, type AcquireRequest } from './page-agent.js';
 
 /**
@@ -23,8 +24,26 @@ import { AGENT_VERSION, acquire, declared, type AcquireRequest } from './page-ag
  */
 const DEFAULT_ROOTS = ['body'] as const;
 
+/**
+ * React's commit stream for this document, tapped once.
+ *
+ * The bundle runs twice in a route's document: as an init script, added
+ * before the world's first navigation and so ahead of every document's own
+ * scripts, and again as a script tag once the route has loaded. Only the first
+ * can install the hook `react-dom` binds when its module body runs, so the tap
+ * is made there and the second run takes it rather than wrapping the hook a
+ * second time. A document whose React loaded before the hook was installed
+ * makes the tap refuse rather than report a page that never commits;
+ * `awaitHydration` then reads it as no tap at all: it waits on React's lanes
+ * and the wire, and neither waits for passive effects nor compares the markup
+ * hydration changed.
+ */
+const TAP_GLOBAL = '__variance_authority_route_commits__';
+const scope = globalThis as unknown as Record<string, unknown>;
+const tap = (scope[TAP_GLOBAL] ??= tapCommits({ keep: 64 })) as CommitTap;
+
 async function acquireFor(request: CaptureRequest): Promise<string> {
-  return await acquire({
+  return await acquire(tap, {
     subjectId: request.subjectId,
     viewport: request.viewport,
     engine: request.engine,
@@ -38,7 +57,7 @@ async function acquireFor(request: CaptureRequest): Promise<string> {
 (globalThis as unknown as Record<string, unknown>)[AGENT_GLOBAL] = {
   version: AGENT_VERSION,
   declared,
-  acquire: (request: AcquireRequest) => acquire(request),
+  acquire: (request: AcquireRequest) => acquire(tap, request),
   capture: async (request: CaptureRequest) =>
     JSON.stringify(JSON.parse(await acquireFor(request)).capture),
 };

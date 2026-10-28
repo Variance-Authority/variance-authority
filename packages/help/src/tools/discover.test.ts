@@ -3,6 +3,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import type { EdgeKind } from '@variance-authority/core/relate';
 import type { FileNames, FileRecord, SourceNames, Tree } from '@variance-authority/mcp/tools';
 import { treeOf } from '@variance-authority/mcp/tools';
 import { discover, readsNames } from './discover.js';
@@ -17,8 +18,12 @@ import { discover, readsNames } from './discover.js';
 
 const RG = spawnSync('rg', ['--version']).error === undefined;
 
-const reads = (file: string, ...to: readonly string[]): FileRecord =>
-  to.length === 0 ? { file } : { file, edges: to.map((target) => ({ to: target, kind: 'imports' as const })) };
+const reads = (file: string, ...to: readonly (string | readonly [string, EdgeKind])[]): FileRecord =>
+  to.length === 0
+    ? { file }
+    : { file, edges: to.map((edge) => (typeof edge === 'string' ? { to: edge, kind: 'imports' as const } : { to: edge[0], kind: edge[1] })) };
+
+const blank: FileNames = { declared: [], imported: [] };
 
 const context = (name: string): FileNames => ({
   declared: [{ name, line: 2 }],
@@ -37,6 +42,9 @@ const NAMES: SourceNames = new Map<string, FileNames>([
   ['src/Wallet.tsx', { declared: [], imported: [{ from: './store/selectors', to: 'src/store/selectors.ts', name: 'selectBalance', local: 'balance', line: 1 }] }],
   ['src/store/selectors.ts', { declared: [{ name: 'selectBalance', line: 3 }], imported: [] }],
   ['src/old/selectors.ts', { declared: [{ name: 'selectBalance', line: 8 }], imported: [] }],
+  ...['src/chain/base.ts', 'src/chain/model.ts', 'src/chain/view.ts', 'src/chain/page.ts', 'src/chain/shell.ts', 'src/chain/blind.ts'].map(
+    (file): [string, FileNames] => [file, blank],
+  ),
 ]);
 
 let root: string;
@@ -64,6 +72,15 @@ beforeAll(() => {
       reads('src/Wallet.tsx', 'src/store/selectors.ts'),
       reads('src/store/selectors.ts'),
       reads('src/old/selectors.ts'),
+      // What rests on `base.ts`: `model.ts` through a type import, and `shell.ts`
+      // two ways, the shorter through `model.ts`. `blind.ts` reaches nothing the
+      // scan resolved, and imports something it did not.
+      reads('src/chain/base.ts'),
+      reads('src/chain/model.ts', ['src/chain/base.ts', 'type']),
+      reads('src/chain/view.ts', 'src/chain/model.ts'),
+      reads('src/chain/page.ts', 'src/chain/view.ts'),
+      reads('src/chain/shell.ts', 'src/chain/page.ts', 'src/chain/model.ts'),
+      { file: 'src/chain/blind.ts', unknown: 'an import nobody resolved' },
       // No reader claims it, so it has no names to read, rather than names unread.
       reads('README.md'),
     ],
@@ -183,6 +200,51 @@ describe('discover crosses whole sets', () => {
   });
 });
 
+describe('discover says how a file reaches what it was asked of', () => {
+  it('gives each file one shortest chain of imports to the subject, with the kind of each import that is not plain', () => {
+    const text = ask({ to: 'src/chain/base.ts' });
+    expect(text).toContain('2 imports to src/chain/base.ts: src/chain/view.ts → src/chain/model.ts (type import) → src/chain/base.ts');
+    expect(text).toContain('2 imports to src/chain/base.ts: src/chain/shell.ts → src/chain/model.ts (type import) → src/chain/base.ts');
+    expect(text).toContain('3 imports to src/chain/base.ts: src/chain/page.ts → src/chain/view.ts → src/chain/model.ts (type import) → src/chain/base.ts');
+    expect(text).toContain('1 import to src/chain/base.ts');
+  });
+
+  it('names the files it did not reach that import something unresolved, which may reach the subject through it', () => {
+    expect(ask({ to: 'src/chain/base.ts' })).toContain(
+      '5 files reaching `src/chain/base.ts` — 1 other file imports something the scan could not resolve, and may reach it: src/chain/blind.ts',
+    );
+  });
+
+  // Records every file a chain is asked of, so a chain built for a file nobody sees is caught.
+  const spied = (asked: string[]): Tree => ({
+    ...tree,
+    chainsTo: (seeds) => {
+      const chains = tree.chainsTo(seeds);
+      return { distance: chains.distance, chain: (file) => (asked.push(file), chains.chain(file)) };
+    },
+  });
+
+  it('builds a chain only for the files it shows', () => {
+    const asked: string[] = [];
+    const text = discover.run(undefined, { to: 'src/chain/base.ts', limit: 3 }, { tree: spied(asked), names: NAMES, root });
+    expect(text).toContain('2 more not shown');
+    expect(asked).toEqual(['src/chain/shell.ts']);
+  });
+
+  it('answers the files it reached, at no line and with no chain, when asked for the set', () => {
+    const asked: string[] = [];
+    const { files } = discover.files!(undefined, { to: 'src/chain/base.ts' }, { tree: spied(asked), names: NAMES, root });
+    expect(asked).toEqual([]);
+    expect([...files]).toEqual([
+      ['src/chain/base.ts', []],
+      ['src/chain/model.ts', []],
+      ['src/chain/shell.ts', []],
+      ['src/chain/view.ts', []],
+      ['src/chain/page.ts', []],
+    ]);
+  });
+});
+
 describe.skipIf(!RG)('text, inside the files the other operands kept', () => {
   it('answers only files with a matching line', () => {
     const text = ask({ ...CONTEXTS, text: 'dark' });
@@ -199,6 +261,13 @@ describe('discover refuses', () => {
 
   it('text alone, which is ripgrep over the checkout', () => {
     expect(() => ask({ text: 'dark' })).toThrow('run `rg "dark"`');
+  });
+
+  it('naming the sets as the surface it was asked on takes them', () => {
+    const shell = (input: Record<string, unknown>): string => discover.run(undefined, input, { tree, names: NAMES, root, shell: 'variance ask' });
+    expect(() => ask({})).toThrow('`discover` needs at least one set to cross: `from`, `to`, `imports`, `declares` or `path`.');
+    expect(() => shell({})).toThrow('`discover` needs at least one set to cross: `--from`, `--to`, `--imports`, `--declares` or `--path`.');
+    expect(() => shell({ text: 'dark' })).toThrow('`--text` searches inside the files the other sets kept');
   });
 
   it('a path the tree does not hold', () => {

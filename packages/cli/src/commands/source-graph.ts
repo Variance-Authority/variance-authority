@@ -81,6 +81,23 @@ export async function relationsFor(
   before: readonly string[] = [],
   noGit = false,
 ): Promise<Relations> {
+  return (await sourceGraphFor(root, dirs, taints, before, noGit)).relations;
+}
+
+/** The graph {@link relationsFor} reads, and the files the index read source in to build it: a node the graph holds is not one, since an import of a file nothing reads is a node too. */
+export interface SourceGraph {
+  readonly relations: Relations;
+  readonly sources: ReadonlySet<string>;
+}
+
+/** {@link relationsFor}, with the files the source index read, from the one read of it. */
+export async function sourceGraphFor(
+  root: string,
+  dirs: readonly string[],
+  taints: readonly string[] = [],
+  before: readonly string[] = [],
+  noGit = false,
+): Promise<SourceGraph> {
   const read = await publishedWithin(root, dirs, before, noGit);
 
   // The mocks are read unasked. A graph that believes `vi.mock('./api')`
@@ -107,7 +124,10 @@ export async function relationsFor(
   const uses: Uses = (importer, target) =>
     tainted.additions.get(importer)?.includes(target) ? undefined : read.uses(importer, target);
 
-  return relationsOfFiles(tainted.records, { shadows: tainted.shadows, depends, uses });
+  return {
+    relations: relationsOfFiles(tainted.records, { shadows: tainted.shadows, depends, uses }),
+    sources: new Set(read.records.map((record) => record.file)),
+  };
 }
 
 /**

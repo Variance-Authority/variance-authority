@@ -64,19 +64,25 @@
  */
 
 import { packWords } from './columns.js';
+import { LAYOUT } from './record-layout.js';
 
 /** A set of test ids, as stored. Names one entry of the pool. */
 export type SetId = number;
 
 /** Sorted test ids, two or four bytes each. */
-export const LIST = 0;
+export const LIST = LAYOUT.sets.list;
 /** One bit per test in the snapshot. */
-export const BITS = 1;
+export const BITS = LAYOUT.sets.bits;
 /** Sorted `(first, length)` pairs, two or four bytes each. */
-export const RUNS = 2;
+export const RUNS = LAYOUT.sets.runs;
 
 /** Ids up to this fit in two bytes, which halves both list containers. */
-export const NARROW = 0x1_0000;
+export const NARROW = LAYOUT.sets.narrow;
+
+/** The bytes one id takes in a list or a run, for a snapshot of `testCount` tests. */
+export function idWidth(testCount: number): 2 | 4 {
+  return testCount < NARROW ? 2 : 4;
+}
 
 /**
  * Address space the arena reserves once it is worth reserving any.
@@ -151,7 +157,7 @@ export function containerSizes(
   count: number,
   testCount: number,
 ): { readonly list: number; readonly bits: number; readonly runs: number } {
-  const width = testCount < NARROW ? 2 : 4;
+  const width = idWidth(testCount);
   let runs = 0;
   for (let at = 0; at < count; at += 1) {
     if (at === 0 || members[at]! !== members[at - 1]! + 1) runs += 1;
@@ -185,7 +191,7 @@ function writeSet(
   testCount: number,
 ): number {
   const sizes = containerSizes(members, count, testCount);
-  const width = testCount < NARROW ? 2 : 4;
+  const width = idWidth(testCount);
   const smallest = Math.min(sizes.list, sizes.bits, sizes.runs);
 
   if (smallest === sizes.bits) {

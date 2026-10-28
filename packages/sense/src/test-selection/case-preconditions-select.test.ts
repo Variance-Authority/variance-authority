@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
+import { rowOf } from './case-said.js';
 import { narrowByJourneys } from './execution-select.js';
+import { encodeAsSetExecutionIndex } from './execution-set-format.js';
 import type { ExecutionIndex, ExecutionTest } from './reverse.js';
-import { decodeExecutionIndex, encodeExecutionIndex } from './index.js';
+import { decodeExecutionIndex } from './index.js';
 
 // A characterization: these pin what selection already does with rows that
 // carry preconditions, and change no code. A named precondition is a state, and
@@ -11,17 +13,17 @@ import { decodeExecutionIndex, encodeExecutionIndex } from './index.js';
 const SAID: readonly ExecutionTest[] = [
   {
     id: 'cart.test.ts > pays mocked', file: 'cart.test.ts', name: 'pays mocked',
-    preconditions: [{ name: 'network', value: 'mocked', site: 'cart.test.ts:4', level: 1 }],
+    said: JSON.stringify({ said: [['fixture:network', '"mocked"', 'cart.test.ts:4', 1]] }),
   },
   {
     id: 'flow.test.ts > replays', file: 'flow.test.ts', name: 'replays',
-    preconditions: [{ name: 'flag', value: 'ff-on', site: 'flow.test.ts:9', level: 65535 }, { name: 'network', value: 'recorded', site: 'flow.test.ts:3', level: 0 }],
+    said: JSON.stringify({ said: [['fixture:flag', '"ff-on"', 'flow.test.ts:9', 65535], ['fixture:network', '"recorded"', 'flow.test.ts:3', 0]] }),
   },
-  { id: 'quiet.test.ts > says nothing', file: 'quiet.test.ts', name: 'says nothing', preconditions: [] },
+  { id: 'quiet.test.ts > says nothing', file: 'quiet.test.ts', name: 'says nothing', said: '{"said":[]}' },
 ];
 
 function indexOf(tests: readonly ExecutionTest[]): ExecutionIndex {
-  return decodeExecutionIndex(encodeExecutionIndex({
+  return decodeExecutionIndex(encodeAsSetExecutionIndex({
     tests,
     modules: [{
       file: 'src/cart.ts',
@@ -34,12 +36,12 @@ function indexOf(tests: readonly ExecutionTest[]): ExecutionIndex {
 }
 
 const said = indexOf(SAID);
-const silent = indexOf(SAID.map(({ preconditions: _, ...test }) => test));
+const silent = indexOf(SAID.map(({ said: _, ...test }) => test));
 
 describe('a precondition a case said', () => {
   it('travels on its row and is not read by selection', () => {
-    expect(said.tests.map((test) => test.preconditions?.length)).toEqual([1, 2, 0]);
-    expect(silent.tests.every((test) => test.preconditions === undefined)).toBe(true);
+    expect(said.tests.map((test) => rowOf(test)?.length)).toEqual([1, 2, 0]);
+    expect(silent.tests.every((test) => test.said === undefined)).toBe(true);
   });
 
   it.each([

@@ -7,6 +7,7 @@ import {
   encodeAsSetExecutionIndex,
   readTestCoverage,
   recordedEyesAt,
+  rowOf,
   testCoverageFile,
   withCaseSections,
   type ExecutionTest,
@@ -41,8 +42,8 @@ afterEach(async () => {
   await rm(home, { recursive: true, force: true });
 });
 
-const MOCKED = { name: 'network', value: 'mocked', site: 'test/total.test.ts:2', level: 1 };
-const SAID: ExecutionTest = { ...DISCOUNTS, preconditions: [MOCKED] };
+const MOCKED = { name: 'network:api', value: 'mocked', site: 'test/total.test.ts:2', level: 1 };
+const SAID: ExecutionTest = { ...DISCOUNTS, said: JSON.stringify({ said: [[MOCKED.name, JSON.stringify(MOCKED.value), MOCKED.site, MOCKED.level]] }) };
 const JOURNAL = { complete: true, attention: [], by: 'ci' };
 const EYES = { watched: [SAID.id], journals: [{ case: SAID.id, attempt: 1, journal: JOURNAL }] };
 
@@ -82,19 +83,20 @@ describe('a record laid from the mainline', () => {
     const base = await suiteBase(clone, { env: {} });
     if (base.from !== 'mainline') throw new Error(`expected the mainline's record, read ${JSON.stringify(base)}`);
 
-    const laid = await layMainline(clone, base.mainline);
-
-    expect(laid).toBe(testCoverageFile(clone, { suite: 'unit' }));
+    const laid = testCoverageFile(clone, { suite: 'unit' });
+    expect(await layMainline(clone, base.mainline, 'fixture')).toEqual({ laid });
     const ours = await readTestCoverage(made);
     expect((await readTestCoverage(laid)).modules).toEqual(ours.modules);
-    expect((await readExecutionIndex(laid)).tests).toEqual([SAID]);
+    const tests = (await readExecutionIndex(laid)).tests;
+    expect(tests).toEqual([SAID]);
+    expect(tests.map(rowOf)).toEqual([[MOCKED]]);
     expect(recordedEyesAt(laid)).toEqual(EYES);
     const { before, last } = caseSectionsAt(laid);
     expect({ before, last }).toEqual({ before: undefined, last: undefined });
 
     process.chdir(clone);
     const at = ['--file', 'src/total.ts', '--line', '2', '--root', clone, '--execution', laid];
-    expect((await coveringOf([...at, '--where', 'network=mocked'])).tests).toEqual([{ ...SAID, distance: 0 }]);
-    expect((await coveringOf([...at, '--where', 'network=live'])).tests).toEqual([]);
+    expect((await coveringOf([...at, '--where', 'network:api=mocked'])).tests).toEqual([{ ...SAID, distance: 0 }]);
+    expect((await coveringOf([...at, '--where', 'network:api=live'])).tests).toEqual([]);
   });
 });

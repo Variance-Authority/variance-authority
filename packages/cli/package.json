@@ -1,6 +1,6 @@
 {
   "name": "@variance-authority/cli",
-  "version": "0.15.0",
+  "version": "0.21.0",
   "description": "Run the Variance Authority workflow from a project config: collect subjects, compare, render what moved, report, accept.",
   "keywords": [
     "variance-authority",
@@ -64,5 +64,8 @@
     "@variance-authority/storybook": "workspace:^",
     "@variance-authority/vantage": "workspace:^",
     "ci-info": "^4.4.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.62.1"
   }
 }

@@ -11,7 +11,7 @@ the answer. Run them from the checkout you are asking about.
 | nothing yet, in a repository you do not know | `orient`, then `orient --area <id>` |
 | files from a stack trace, a ticket, your editor or a search | `orient --files <path>[:<line>][,...]` |
 | one file, and the words of a task | `journey-map --file <path> --query <words>` |
-| one test, and the question of what only it checks | `test-composition --file <test> --name <words>` |
+| one test, and the question of what only it runs | `test-composition --file <test> --name <words>` |
 | a place, and the question of what it may import | `stack --from <path>` |
 | a suite that is slow | `slowest-tests`, scoped with `--from` or `--to` |
 
@@ -70,9 +70,11 @@ smaller test with nine tenths of its footprint inside this one's, a whole a
 larger test holding nine tenths of this one's. What no piece entered is listed
 region by region: `own` is a module no piece entered, `reached` is a path
 through a piece's module that only this test takes. A test with neither runs
-nothing a nearer test does not run, and can check only how the pieces are put
-together. It reads execution: a mocked module is
-entered by nobody, so a test that mocks its pieces lists none.
+nothing a nearer test does not run. Every piece and whole is a candidate,
+inferred from what each test ran: a piece runs the same code, which does not
+establish that it checks the same thing, so a test with neither may still check
+something its pieces do not. It reads execution: a mocked module is entered by
+nobody, so a test that mocks its pieces lists none.
 
 ## `stack`
 
@@ -89,13 +91,15 @@ before you write code against the package; nothing is installed or copied for
 you. Only `skills/<name>/SKILL.md` beside the package's `package.json` is read,
 the layout [TanStack Intent](https://tanstack.com/intent/latest) set for npm. A
 skill a package keeps elsewhere and installs with its own command, as
-Playwright does for its CLI skills, is not listed. `search` does not list skills. A lexicon written before skills were read says so
-in the answer; `variance index` reads them.
+Playwright does for its CLI skills, is not listed. `search` does not list skills.
 
 ## `slowest-tests`
 
 The test files, then the test cases, that the latest recorded run spent longest
-in, with the duration the runner reported. Nothing is timed here. A file or case
+in. A file's time is what running it cost: the larger of the duration its
+runner reported and its phases summed, so the environment, setup files and
+import before its first case count, as Vitest's own file duration does not.
+Nothing is timed here. A file or case
 with no reported duration is counted apart and never ranked as fast. `--from`
 keeps the tests declared under the paths you give. `--to` keeps the tests that,
 in the recording, ran code in those paths, the same reading `variance covering`

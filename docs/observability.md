@@ -115,37 +115,48 @@ finished](vantage.md) is the page for what you can then ask it.
 ### Journeys: the flag and the build change
 
 The flag is `tests: true` in the Storybook collector's options, or
-`use: { varianceExecution: true }` in `playwright.config.ts`. The build change is
-`testSelectionProbes()` in the Vite config that bundles your product source:
+`use: { varianceExecution: true }` in `playwright.config.ts`. The build change,
+for a Storybook, is the collector in its addons, whichever builder runs it:
+
+```js
+// .storybook/main.js
+export default {
+  addons: ['@variance-authority/storybook-collector'],
+};
+```
+
+For the app your Playwright suite drives, it is `testSelectionProbes()` in the
+Vite config that bundles your product source, or `testSelectionRule()` in the
+`module.rules` of an Rspack or webpack one:
 
 ```bash
 npm install --save-dev @variance-authority/sense
 ```
 
 ```ts
-// .storybook/main.js — or the Vite config of the app your suite drives
+// vite.config.ts
 import { testSelectionProbes } from '@variance-authority/sense/journal';
 
 export default {
-  viteFinal: (config) => ({
-    ...config,
-    plugins: [...config.plugins, testSelectionProbes()],
-  }),
+  plugins: [testSelectionProbes()],
 };
 ```
 
-`testSelectionProbes(options?: TestSelectionProbeOptions)` takes five optional
+`testSelectionProbes(options?: TestSelectionProbeOptions)` takes six optional
 fields: `root` (a directory in the repository, defaults to the current directory;
 recorded paths are relative to the checkout that contains it), `include`
 (which transformed modules count as product source), `mode` (`presence`,
 the default, probes every arrival region; `entries` probes modules and functions
-only), and `journeys` with `label` (install a journey head named `label`,
-`build` by default, before anything the build instrumented runs). Every seam
+only; `loads` probes nothing and marks each module as loaded), `placement` (`after-transforms`, the default, places the probes in what
+your compilers wrote; `before-transforms` places them in each file as read),
+and `journeys` with `label` (install a journey head named `label`,
+`build` by default, before anything the build instrumented runs). The addon
+takes the same `root`, `mode`, `include` and `placement` as its options. Every seam
 that shares a coverage file needs the same `mode`: a record cut by one mode is
 discarded when the other merges over it.
 
 The build writes nothing beside its output. Each probe reports the module's
-repository-relative file and a digest of the text the probe was placed on, and
+repository-relative file and a digest of the text its regions were cut from, and
 the driver reads that file from your checkout and cuts it into regions again. A
 file whose text no longer matches the digest is recorded as not instrumented,
 so a preview built from an older checkout widens selection instead of

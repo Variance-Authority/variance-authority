@@ -1,5 +1,6 @@
-import { affectedBy, type Relations } from '@variance-authority/core/relate';
+import { RUNTIME_EDGES, affectedBy, type Relations } from '@variance-authority/core/relate';
 import type { ExecutionBlock, ExecutionIndex, ExecutionModule, ExecutionTest } from './reverse.js';
+import { ownedIn, shadowedFor } from './shadowed.js';
 
 /**
  * The stopped cases that could have reached this module, by the file graph.
@@ -7,7 +8,8 @@ import type { ExecutionBlock, ExecutionIndex, ExecutionModule, ExecutionTest } f
  * Could have reached means the case's file imports the module, which is
  * `affectedBy`'s answer and the one `loadersOf` in `reverse.ts` gives for load
  * time; a stopped case that crossed the module anyway is added, since it
- * plainly reached it. A record in which every case finished needs no graph:
+ * plainly reached it, unless that crossing is its own mock evaluating the
+ * module, which reached nothing. A record in which every case finished needs no graph:
  * the answer is nobody. Otherwise it is absent without a graph, when the graph
  * cannot answer for the module under the rules `loadersOf` states, and when a
  * case that could have reached it carries no settling: then nobody can say
@@ -20,13 +22,14 @@ export function stoppedIn(
 ): ReadonlySet<number> | undefined {
   if (index.tests.every((test) => test.stopped === false)) return new Set();
   if (relations === undefined) return undefined;
-  const affected = affectedBy(relations, [module.file]);
+  const affected = affectedBy(relations, [module.file], { through: RUNTIME_EDGES });
   if (affected.missing.length > 0) return undefined;
   const files = new Set(affected.files);
   const reach = new Set<number>();
   for (const [at, test] of index.tests.entries()) if (files.has(test.file)) reach.add(at);
   if (reach.size === 0) return undefined;
-  for (const block of module.blocks) for (const crossing of block.crossings) reach.add(crossing.test);
+  const owned = ownedIn(index, module, shadowedFor(relations));
+  for (const block of module.blocks) for (const crossing of block.crossings) if (owned(crossing)) reach.add(crossing.test);
   const stopped = new Set<number>();
   for (const at of reach) {
     const settled = index.tests[at]?.stopped;

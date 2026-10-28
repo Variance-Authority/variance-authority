@@ -1,5 +1,5 @@
 import type { FileSet, Tool, ToolInvocation } from '@variance-authority/mcp/tools';
-import { START_POINT_SCHEMA, startPointArg, stringArg } from '@variance-authority/mcp/tools';
+import { START_POINT_SCHEMA, limitOf, notShown, spellingOf, startPointArg, stringArg } from '@variance-authority/mcp/tools';
 import { areaLine, areaOf } from './area.js';
 import { ripgrep, type Hit } from './ripgrep.js';
 
@@ -31,11 +31,6 @@ import { ripgrep, type Hit } from './ripgrep.js';
 const SHOWN = 200;
 
 const byCodeUnit = (left: string, right: string): number => (left < right ? -1 : left > right ? 1 : 0);
-
-function limitArg(input: Readonly<Record<string, unknown>>): number {
-  const said = input['limit'];
-  return typeof said === 'number' && Number.isInteger(said) && said > 0 ? said : SHOWN;
-}
 
 /**
  * Typed over nothing because it reads nothing of the workspace value: the tree
@@ -70,6 +65,8 @@ export const grep: Tool<unknown> = {
   wants: (input) => startPointArg(input, 'from') !== undefined || startPointArg(input, 'to') !== undefined,
 
   run: (_help, input, invocation) => {
+    const spell = spellingOf(invocation);
+    const limit = limitOf(input, SHOWN, spell);
     const { query, area, hits, errors, distanceOf } = grepped(input, invocation);
 
     const header = [areaLine(area)];
@@ -82,7 +79,6 @@ export const grep: Tool<unknown> = {
       return [...header, ...unread, '', `Nothing in those files matches \`${query}\`.`].join('\n');
     }
 
-    const limit = limitArg(input);
     const matched = new Set(hits.map((hit) => hit.file)).size;
     const lines = [
       ...header,
@@ -99,7 +95,7 @@ export const grep: Tool<unknown> = {
       }
       lines.push(`${hit.file}:${hit.line}:${hit.text}`);
     }
-    if (hits.length > limit) lines.push('', `${hits.length - limit} more not shown; a higher \`limit\` shows them.`);
+    if (hits.length > limit) lines.push('', notShown(hits.length - limit, spell));
     return lines.join('\n');
   },
 

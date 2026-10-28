@@ -31,6 +31,7 @@ import { mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node
 import { dirname } from 'node:path';
 import { sourceIndexPath } from '@variance-authority/sense';
 import type { Parsed } from '../parse.js';
+import { logHeartbeat } from './step-progress.js';
 
 /** The lock, as written beside the index. */
 export interface FollowUpsLock {
@@ -142,15 +143,24 @@ function alive(pid: number): boolean {
 const READS_THE_INDEX_ALONE: ReadonlySet<Parsed['command']> = new Set(['select']);
 
 /**
+ * The commands that read nothing `variance index` writes: `journeys combine`
+ * combines the records it is named and opens nothing else. They do not wait.
+ */
+function readsNoIndex(parsed: Parsed): boolean {
+  return parsed.command === 'journeys' && parsed.operation === 'combine';
+}
+
+/**
  * Wait for the follow-ups a detached `index` is making, before any command reads
  * them; the process making them is the one command that does not wait. A process
  * that is gone left them unmade, so they are made here, on stderr, before the
  * command runs — unless the command is `index`, which is about to make them anyway.
  * A command that reads the index alone waits for the fold and no further, and
- * leaves the follow-ups of a gone process to the next command that reads them.
+ * leaves the follow-ups of a gone process to the next command that reads them;
+ * one that reads no index does not wait at all.
  */
 export async function settleFollowUps(parsed: Parsed, streams: { err(text: string): void }): Promise<void> {
-  if (parsed.command === 'index' && parsed.followUps === true) return;
+  if ((parsed.command === 'index' && parsed.followUps === true) || readsNoIndex(parsed)) return;
   const indexing = parsed.command === 'index';
   const cwd = process.cwd();
   const index = sourceIndexPath(cwd);
@@ -158,7 +168,12 @@ export async function settleFollowUps(parsed: Parsed, streams: { err(text: strin
     await awaitFollowUps(index, (lock) => streams.err(foldingLine(lock)), 'readied');
     return;
   }
-  const waited = await awaitFollowUps(index, (lock) => streams.err(waitingLine(lock)));
+  let quiet: (() => void) | undefined;
+  const waited = await awaitFollowUps(index, (lock) => {
+    streams.err(waitingLine(lock));
+    // A terminal sees the other process's latest step climb; a log has its lines already.
+    if (process.stderr.isTTY === true) quiet = logHeartbeat(lock.log, (text) => streams.err(text));
+  }).finally(() => quiet?.());
   if (!waited.held || waited.finished) return;
   rmSync(followUpsLockPath(index), { force: true });
   if (indexing) return;

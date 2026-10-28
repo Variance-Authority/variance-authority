@@ -577,7 +577,8 @@ html {
   max-width: 100%;
 }
 
-.mermaid-canvas p {
+/* The placeholder only: a rendered label is a <p> too, sized in Inter. */
+.mermaid-canvas > p {
   margin: 0;
   color: #8f8580;
   font-family: var(--font-mono);

@@ -5,6 +5,7 @@
 > Variance Authority baselines on a filesystem, in a plain directory or through git-LFS.
 
 Part of [Variance Authority](https://variance-authority.dev).
+Point your coding agent at [`llms.txt`](https://variance-authority.dev/llms.txt).
 
 This package is where those approved images sit. It gives you two backends —
 a plain directory, and a directory whose images are tracked by git-LFS — plus
@@ -274,8 +275,8 @@ directory named for a hash of its identity. Those are still read: a lookup
 falls back to them, reports `relocated` with the old and new paths, and `put` from this machine's own identity or line
 writes the new path and removes the old pair, so the commit shows a rename.
 
-`createDurableStore(root, options)` takes four options, and `createLfsStore`
-passes all four through:
+`createDurableStore(root, options)` takes five options, and `createLfsStore`
+passes the first four through:
 
 | option | default | what it decides |
 |---|---|---|
@@ -283,6 +284,7 @@ passes all four through:
 | `projects` | none | the Playwright projects the config runs, for a template with `{project}`. A record accepted for a project not in the list is a renamed project's, and the first key that renders its path takes it over; a project still in the list keeps its path and the run stops. Unset, every record is held to the project that accepted it. |
 | `cacheRoot` | `root` | where the render cache goes; a durable store doubles as one, so entries are written under `root` unless this points elsewhere. |
 | `recordRoot` | `root` | where the `.json` sidecars go. A sidecar changes whenever the document does — a class name, a build id, a font that resolved elsewhere — so sidecars beside their images put a tracked diff on every edit, including the edits that moved no pixel. Point this at an ignored directory or a CI cache and `root` ends up with images and nothing else. |
+| `readImage` | `readFile` | how `find` reads a baseline's image, given its path. An `ENOENT` means no image; anything else it throws reaches the caller. `describe` and the render cache never call it. The LFS store passes one that fetches a pointer's image first. |
 
 Splitting the roots moves the sidecar's directory; it does not make the sidecar
 optional. Both halves are still written and both are still read, so one half
@@ -346,7 +348,26 @@ un-smudged clone does not read as a passing run.
 That last case is the one worth naming. An un-smudged checkout — LFS not
 installed, or `GIT_LFS_SKIP_SMUDGE` set — hands you about 130 bytes of text
 where a PNG should be, and comparing two of those reports `unchanged` for every
-subject in the suite. The store refuses a pointer file read as an image.
+subject in the suite. When `find` reads a pointer, the store runs `git lfs pull
+--include=<that file>` and reads the image it fetched. The pull fetches that
+file and no other: the pattern is anchored at the work tree's root, a
+`lfs.fetchexclude` in your git config does not apply to it, and a path with a
+comma gets its own pull, since git-lfs cannot escape a comma. Pointers met while
+a pull runs go into the next one. If the image cannot be fetched, the lookup throws a
+`RasterStoreError` rather than reporting a missing baseline.
+
+So a CI job can check out with `GIT_LFS_SKIP_SMUDGE=1`, run `git lfs install
+--local --skip-smudge`, and download only the baselines of the subjects whose
+documents changed. Without that install, git never runs git-lfs: the pull leaves
+the pointer, which the lookup refuses naming the install, and
+`tracking.diagnostics` says so at open. `describe` reads the `.json`
+sidecar, which is never a pointer, and fetches nothing, so on such a checkout a
+subject whose document did not move passes. `npx variance doctor --baselines`
+reads the head of every image in the root and, where git-lfs is not set up in
+its work tree, counts the pointers, names the first and exits 2 before any run;
+the composite action asks it before every run. `isLfsPointer(head)` is the test
+both use, `LFS_POINTER_HEAD_BYTES` is how many leading bytes it needs, and
+`lfsSetup(cwd, run)` names what keeps git from running git-lfs.
 
 `createLfsStore` takes:
 
@@ -357,7 +378,7 @@ subject in the suite. The store refuses a pointer file read as an image.
 | `attributesFile` | `<root>/.gitattributes` | where the tracking entry lives — the baseline root, not the repository root |
 | `cacheRoot` | `root` | where the render cache goes. Defaults to `root`, so cache entries are tracked and committed alongside baselines unless this points outside the work tree |
 | `recordRoot` | `root` | where the `.json` sidecars go, passed straight to the durable store. The reason to set it is sharpest here: `pattern` routes the images out of the object database, and the sidecars are the text left behind gaining a revision per document change |
-| `verify` | `true` | `false` skips consulting git entirely, and records that in `tracking.diagnostics` rather than silently |
+| `verify` | `true` | `false` skips consulting git entirely, fetches included, and records that in `tracking.diagnostics` rather than silently |
 | `git` | `runCommand` | the `CommandRunner` git is invoked through — a `(command, args, { cwd }) => Promise<{ code, stdout, stderr }>` function, defaulting to a wrapper around `execFile`, swappable in tests |
 
 Because `git` is injected, all of this is testable without a git repository.
@@ -532,4 +553,4 @@ commit with no parent, so what the line replaced is the remote's to collect.
 
 ---
 
-**[@variance-authority/store](https://variance-authority.dev/reference/packages/store)** is part of [Variance Authority](https://variance-authority.dev) — [documentation](https://variance-authority.dev/docs) · MIT
+**[@variance-authority/store](https://variance-authority.dev/reference/packages/store)** is part of [Variance Authority](https://variance-authority.dev) — [documentation](https://variance-authority.dev/docs) · [GitHub](https://github.com/Variance-Authority/variance-authority/tree/main/packages/store) · MIT

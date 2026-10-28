@@ -1,9 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import type { RenderIdentity } from '@variance-authority/core/format';
 import { OperatorError } from '../exit.js';
 import { formatReport } from './report.js';
-import { reportHtml } from './report-html.js';
-import type { CliRunReport } from './run.js';
+import { CHANGED, reportHtml, reportOf } from './report-html-fixture.js';
 
 /**
  * The page is a third rendering of one docket, and these tests are about the
@@ -16,52 +14,6 @@ import type { CliRunReport } from './run.js';
  * never be dropped, and each one below has a test that it survived the
  * compression.
  */
-
-const IDENTITY: RenderIdentity = {
-  renderer: 'playwright-chromium',
-  engine: 'chromium@131',
-  platform: 'linux/x64',
-  deviceScaleFactor: 1,
-  fonts: ['Inter/400/normal/sha256-abc'],
-};
-
-function reportOf(over: Partial<CliRunReport> = {}): CliRunReport {
-  return {
-    runVersion: 1,
-    at: '2026-08-05T09:00:00.000Z',
-    identity: IDENTITY,
-    retention: 'durable',
-    observations: [],
-    notObserved: [],
-    ...over,
-  };
-}
-
-const CHANGED = {
-  subject: 'story:toggle',
-  verdict: 'changed' as const,
-  because: '86 pixel(s) differ across 1 region(s) in Toggle',
-  changedPixels: 86,
-  regions: [
-    {
-      x: 4,
-      y: 4,
-      width: 16,
-      height: 16,
-      pixels: 86,
-      component: 'Toggle',
-      where: 'main → list item 2 of 3',
-      file: 'src/ds/components.tsx:107',
-      cause: true,
-      fingerprint: 'v1:2c4f9a1e0b7d3856a91c4e2f8b06d735',
-    },
-  ],
-  images: {
-    before: 'images/toggle.before.png',
-    after: 'images/toggle.after.png',
-    diff: 'images/toggle.diff.png',
-  },
-};
 
 const PRESENTATION = {
   verdict: 'changed' as const,
@@ -106,37 +58,6 @@ describe('the page leads with the cause', () => {
 
     expect(html).toContain('>by area<');
     expect(html).toContain('Ranked by area');
-  });
-
-  it('puts the diff between the two images it is a diff of', () => {
-    // Three pictures in the order the record happens to list them makes the
-    // reader's eye travel past both things they are comparing to reach the
-    // reason the page is open.
-    const html = reportHtml(reportOf({ observations: [CHANGED] }));
-
-    const before = html.indexOf('images/toggle.before.png');
-    const diff = html.indexOf('images/toggle.diff.png');
-    const after = html.indexOf('images/toggle.after.png');
-
-    expect(before).toBeGreaterThan(-1);
-    expect(diff).toBeGreaterThan(before);
-    expect(after).toBeGreaterThan(diff);
-  });
-
-  it('offers the comparisons an arrangement of pictures cannot make', () => {
-    // A wipe, a blend and an overlay are what turn three images into a
-    // comparison; a 4-pixel shift is invisible in any of them side by side.
-    const html = reportHtml(reportOf({ observations: [CHANGED] }));
-
-    for (const mode of ['regions', 'wipe', 'blend', 'blink', 'trio']) {
-      expect(html).toContain(`data-mode="${mode}"`);
-    }
-  });
-
-  it('carries the boxes the overlay draws, since no raster size is recorded', () => {
-    const html = reportHtml(reportOf({ observations: [CHANGED] }));
-
-    expect(html).toContain('data-box="4,4,16,16"');
   });
 
   it('makes the fingerprint and the command it belongs to take-away-able', () => {
@@ -492,5 +413,22 @@ describe('a narrow screen names what it leaves out', () => {
     // reader to a wider screen to look for either.
     expect(note).not.toContain('settled subjects');
     expect(note).not.toContain('what was not observed');
+  });
+});
+
+describe('an unstable subject on the page', () => {
+  it('is not called clean, because the check stays red over it', () => {
+    // The same run the pull-request comment heads "1 subject(s) unstable": the
+    // page reads one docket, and a page saying "clean" beside a red check is the
+    // third rendering saying something the other two do not.
+    const unstable = {
+      ...CHANGED,
+      unstable: { components: [{ name: 'Clock' }], bands: ['content'], because: 'two readings in a row differ' },
+    };
+    const html = reportHtml(reportOf({ observations: [unstable] }));
+
+    expect(html).not.toContain('<h1 class="ok">clean</h1>');
+    expect(html).toContain('<h1>1 unstable</h1>');
+    expect(html).toContain('<title>1 unstable — variance</title>');
   });
 });

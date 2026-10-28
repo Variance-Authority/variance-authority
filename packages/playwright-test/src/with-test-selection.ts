@@ -23,11 +23,13 @@
  * Playwright folds once — so it is added once, at the top.
  */
 
-import { realpathSync } from 'node:fs';
+import { existsSync, realpathSync, statSync } from 'node:fs';
 import { createRequire } from 'node:module';
-import { dirname, sep } from 'node:path';
+import { dirname, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { ExecutionRecording } from './execution.js';
+import { shardArgument } from '@variance-authority/sense/test-selection';
+import { installedPlaywright, reporterArgument, shardRefusal, type PlaywrightShard } from './whole-file-shard.js';
 
 /** The reporter entry, by the specifier a configuration names it with. */
 export const SELECTION_REPORTER = '@variance-authority/playwright-test/reporter';
@@ -49,10 +51,12 @@ const SENSE_DIST = `**/${dirname(dirname(realpathSync(createRequire(import.meta.
 
 /** The subset of a Playwright configuration this reads and rewrites. */
 export interface PlaywrightSelectionConfig {
-  readonly use?: Record<string, unknown>;
+  readonly use?: object;
   readonly reporter?: string | ReadonlyArray<string | readonly [string, unknown?]>;
-  readonly projects?: ReadonlyArray<{ readonly use?: Record<string, unknown>; readonly [key: string]: unknown }>;
-  readonly [key: string]: unknown;
+  readonly projects?: ReadonlyArray<{ readonly name?: string; readonly use?: object }>;
+  readonly shard?: PlaywrightShard | null;
+  readonly build?: { readonly external?: readonly string[] };
+  readonly '@playwright/test'?: { readonly babelPlugins?: readonly unknown[] };
 }
 
 /**
@@ -70,11 +74,17 @@ export interface PlaywrightSelectionConfig {
  * `@variance-authority/sense/journal` — this wires the runner, not the page —
  * and a run whose application has no collector says so on stderr and records
  * nothing.
+ *
+ * A run that asks for a shard, by `--shard` or the configuration's `shard`, is
+ * refused here, before anything starts, when the project's Playwright is older
+ * than 1.62 and would split it test by test, or when a `--reporter` on the
+ * command line replaces the reporter that places it by whole files.
  */
-export function withTestSelection<Config extends PlaywrightSelectionConfig>(
-  config: Config = {} as Config,
+export function withTestSelection<Config extends object = PlaywrightSelectionConfig>(
+  config: Config & PlaywrightSelectionConfig = {} as Config & PlaywrightSelectionConfig,
   recording: ExecutionRecording = {},
 ): Config {
+  refuseShard(config.shard as PlaywrightShard | null | undefined);
   const reporters =
     config.reporter === undefined
       ? ['list' as const]
@@ -102,4 +112,57 @@ export function withTestSelection<Config extends PlaywrightSelectionConfig>(
         }),
     reporter: [...reporters, [SELECTION_REPORTER, { ...recording }] as const],
   };
+}
+
+/**
+ * Throw when this run asks for a shard nothing would place by whole files: a
+ * Playwright with no `preprocess`, which the configuration's directory
+ * resolves, or a `--reporter` that leaves the selection reporter out.
+ */
+function refuseShard(configured: PlaywrightShard | null | undefined): void {
+  const argv = process.argv;
+  const asked = shardArgument(argv);
+  const shard = asked === undefined ? configured ?? undefined : { current: asked.index, total: asked.count };
+  if (shard === undefined) return;
+  const old = shardRefusal(installedPlaywright(configDirectory(argv)), shard);
+  if (old !== undefined) throw new Error(old);
+  const reporters = reporterArgument(argv);
+  if (reporters === undefined || reporters.some(isSelectionReporter)) return;
+  throw new Error(
+    `variance-authority: refusing shard ${shard.current}/${shard.total}: --reporter ${reporters.join(',')} replaces the configuration's reporters, ` +
+      `so ${SELECTION_REPORTER}, which places the shard by whole files, would not run; name it in --reporter too`,
+  );
+}
+
+/**
+ * The directory of the configuration Playwright loads: `-c`/`--config`
+ * resolved from the cwd, a file's directory or the directory named, and the
+ * cwd when neither is given — where Playwright looks for one.
+ */
+function configDirectory(argv: readonly string[]): string {
+  let named: string | undefined;
+  for (const [at, argument] of argv.entries()) {
+    if (argument === '-c' || argument === '--config') named = argv[at + 1];
+    else if (argument.startsWith('--config=')) named = argument.slice('--config='.length);
+  }
+  if (named === undefined) return process.cwd();
+  const at = resolve(process.cwd(), named);
+  return existsSync(at) && statSync(at).isDirectory() ? at : dirname(at);
+}
+
+/**
+ * Whether a `--reporter` name is the selection reporter, resolved as
+ * Playwright resolves a command line's reporter: a path that exists from the
+ * cwd, else a module from the cwd.
+ */
+function isSelectionReporter(name: string): boolean {
+  if (name === SELECTION_REPORTER) return true;
+  const own = realpathSync(createRequire(import.meta.url).resolve(SELECTION_REPORTER));
+  const local = resolve(process.cwd(), name);
+  try {
+    const at = existsSync(local) ? local : createRequire(resolve(process.cwd(), 'package.json')).resolve(name);
+    return realpathSync(at) === own;
+  } catch {
+    return false;
+  }
 }

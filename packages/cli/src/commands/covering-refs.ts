@@ -9,30 +9,43 @@
  * for a case that was inside only while the module evaluated.
  */
 
-import type { CoveringTest, ExecutionTest } from '@variance-authority/sense/test-selection';
+import type { CoveringTest, ExecutionTest, Unentered } from '@variance-authority/sense/test-selection';
+import { runsText, targetText } from './covering-at.js';
 import type { CoveringRange } from './covering-frame.js';
 import { motionText } from './covering-motion.js';
-import { narrowedText, scopeText, staleText } from './covering-text.js';
+import { regionKind } from './review-scope.js';
+import { hopsText, narrowedText, probesText, scopeText } from './covering-text.js';
+import { staleLines } from './covering-stale.js';
 import type { Covering, StatedRegion } from './covering.js';
-import { heldText, type CaseTwin } from '@variance-authority/sense/test-selection';
-import { caseNameOf, twinText, whereText } from './covering-where.js';
+import { heldText, reachOf } from '@variance-authority/sense/test-selection';
+import { whereText } from './covering-where.js';
 
-type Case = Pick<ExecutionTest, 'id' | 'file' | 'name' | 'preconditions'>;
+type Case = Pick<ExecutionTest, 'id' | 'file' | 'name' | 'said'>;
 
 /** Say the answer with every case numbered once. */
 export function formatCoveringRefs(answer: Covering): string {
-  const table = new Table(everyCase(answer), answer.twins);
-  const body = answer.frame === 'stale' ? [staleText(answer)] : bodyOf(answer, table);
+  const table = new Table(everyCase(answer));
+  const body = answer.frame === 'stale' ? staleBody(answer, table) : bodyOf(answer, table);
   // Numbered before the table is read, which is when it knows every case it holds.
   const motion = motionText(answer.motion, (tests) => table.refs(tests));
   return `${[
+    ...probesText(answer),
     ...scopeText(answer),
     ...whereText(answer),
     ...body,
     ...narrowedText(answer),
+    ...hopsText(answer),
     ...table.lines(),
     ...motion,
   ].join('\n')}\n`;
+}
+
+/** What the record cannot place, then the cases that ran code in the file. */
+function staleBody(answer: Covering, table: Table): readonly string[] {
+  const { gone, header } = staleLines(answer);
+  const tests = answer.tests ?? [];
+  if (header === undefined) return [gone];
+  return [gone, tests.length === 0 ? header : `${header}: ${table.refs(tests)}`];
 }
 
 function bodyOf(answer: Covering, table: Table): readonly string[] {
@@ -53,8 +66,11 @@ function bodyOf(answer: Covering, table: Table): readonly string[] {
     return lines;
   }
   if (answer.preconditionOf !== undefined) {
-    const of = answer.preconditionOf.length === 0 ? 'no test file of these cases' : answer.preconditionOf.join(', ');
-    return [`${answer.file} precondition of: ${of}; no recorded line`];
+    const every = answer.held === 'declared' && answer.preconditionOf.length > 0 && answer.preconditionOf.length === answer.among;
+    const of = answer.preconditionOf.length === 0
+      ? 'no test file of these cases'
+      : every ? `every test file (${answer.among})` : answer.preconditionOf.join(', ');
+    return [`${answer.file} ${answer.held === 'declared' ? 'declared ' : ''}precondition of: ${of}; no recorded line`];
   }
   if (answer.ranges !== undefined) {
     return [
@@ -64,25 +80,36 @@ function bodyOf(answer: Covering, table: Table): readonly string[] {
       ...answer.ranges.map((range) => rangeLine(range, table)),
     ];
   }
-  const target = answer.target ?? { function: '' };
-  const where = 'line' in target ? `line ${target.line}` : `function ${target.function}`;
-  return [`${answer.file} ${where}${answer.state === undefined ? '' : ` ${answer.state}`}: ${
-    witnesses(answer.tests ?? [], answer.stopped, table)
-  }`];
+  const where = targetText(answer.target ?? { function: '' });
+  return [`${answer.file} ${where}${answer.grain === 'file' ? ' at file grain' : ''}${
+    answer.state === undefined ? '' : ` ${answer.state}`
+  }: ${witnesses(answer.tests ?? [], answer.stopped, table)}${
+    answer.fileGrain === undefined ? '' : `; file grain at ${runsText(answer.fileGrain)}`
+  }${answer.outside === undefined ? '' : `; outside every region at ${runsText(answer.outside)}`}${
+    answer.written === undefined ? '' : `; written since ${runsText(answer.written)}`
+  }${answer.unrun === undefined ? '' : `; no case ran ${answer.unrun.map((part) => `${runsText([part])} ${part.name === undefined ? part.kind : `${part.kind} ${part.name}`}${part.state === undefined ? '' : ` ${part.state}`}`).join(', ')}`}`];
 }
 
 function rangeLine(range: CoveringRange, table: Table): string {
   const lines = range.startLine === range.endLine ? `${range.startLine}` : `${range.startLine}-${range.endLine}`;
   return `${lines}${range.state === undefined ? '' : ` ${range.state}`}${range.moved === true ? ' edited' : ''}: ${
     witnesses(range.tests, range.stopped, table)
-  }`;
+  }${(range.unentered ?? []).map((region) => `; unentered ${region.kind} ${
+    region.startLine === region.endLine ? region.startLine : `${region.startLine}-${region.endLine}`
+  }${whyNobodyEntered(region, table)}`).join('')}`;
+}
+
+/** Why nobody entered a region, in the state word a range with no case would carry: ` unwalked`, ` hole, stopped first …`, or nothing. */
+function whyNobodyEntered(region: Unentered, table: Table): string {
+  const state = reachOf({ tests: [], ...(region.stopped === undefined ? {} : { stopped: region.stopped }) });
+  return state === 'unknown' ? '' : state === 'hole' ? ` hole, stopped first ${table.refs(region.stopped ?? [])}` : ` ${state}`;
 }
 
 function regionLine(region: StatedRegion, table: Table): string {
   const carried = region.passengers === undefined
     ? '; ran while its module evaluated, loaders unnamed'
     : region.passengers.length === 0 ? '' : `; carried ${table.refs(region.passengers)}`;
-  return `${region.startLine}-${region.endLine} ${region.kind}${region.name === '' ? '' : ` ${region.name}`}${
+  return `${region.startLine}-${region.endLine} ${regionKind(region)}${
     region.state === undefined ? '' : ` ${region.state}`
   }: ${witnesses(region.tests, region.stopped, table)}${carried}`;
 }
@@ -99,7 +126,9 @@ function witnesses(tests: readonly CoveringTest[], stopped: readonly ExecutionTe
 /** Every case the answer names, wherever it names it. */
 function everyCase(answer: Covering): readonly Case[] {
   const cases: Case[] = [...answer.tests ?? [], ...answer.stopped ?? []];
-  for (const range of answer.ranges ?? []) cases.push(...range.tests, ...range.stopped ?? []);
+  for (const range of answer.ranges ?? []) {
+    cases.push(...range.tests, ...range.stopped ?? [], ...(range.unentered ?? []).flatMap((region) => region.stopped ?? []));
+  }
   for (const file of answer.changed ?? []) {
     cases.push(...file.cases);
     for (const region of file.regions) cases.push(...region.tests, ...region.stopped ?? [], ...region.passengers ?? []);
@@ -113,10 +142,8 @@ class Table {
   private readonly number = new Map<string, number>();
   private readonly cases: readonly Case[];
   private starred = false;
-  private readonly twins: ReadonlyMap<string, CaseTwin>;
 
-  constructor(named: readonly Case[], twins: readonly CaseTwin[] = []) {
-    this.twins = new Map(twins.map((twin) => [twin.case, twin]));
+  constructor(named: readonly Case[]) {
     const unique = new Map<string, Case>();
     for (const test of named) if (!unique.has(test.id)) unique.set(test.id, test);
     this.cases = [...unique.values()].sort((left, right) =>
@@ -143,9 +170,7 @@ class Table {
       if (test.file !== file) lines.push((file = test.file));
       lines.push(`  ${this.number.get(test.id)} ${
         test.id === `${test.file} > ${test.name}` ? test.name : `${test.name} [${test.id}]`
-      }${heldText(test.preconditions)}`);
-      const twin = this.twins.get(test.id);
-      if (twin !== undefined) lines.push(twinText(twin, caseNameOf, '      '));
+      }${heldText(test)}`);
     }
     return lines;
   }

@@ -17,9 +17,9 @@
  * out of a file.
  *
  * Last it publishes the value `variance ask` answers from, the search beside it
- * included. `search` is a lookup that never scans, so without this a fresh
- * checkout — every agent's first session — ran `index`, asked `search`, and was
- * refused until some other question happened to publish one.
+ * included. `search` opens a published search at any age, so without this a
+ * fresh checkout — every agent's first session — would read the whole checkout
+ * again on its first `search`.
  *
  * Only the index is made before the prompt comes back on a workstation: the
  * map, the journeys, the lexicon and the value are handed to a process of their
@@ -40,8 +40,10 @@ import {
   prepareJourneys,
   readySourceIndex,
   sourceIndexPath,
+  stepped,
   updateSourceIndex,
   type PreparedCodeMap,
+  type Progress,
   type PreparedJourneys,
   type IndexTurnHolder,
   type SourceUpdate,
@@ -63,6 +65,8 @@ export interface IndexRequest {
   readonly detach?: Detach;
   /** Told once when another `index` holds the follow-ups, or another checkout's the machine's index turn, and this one waits for it. */
   readonly waiting?: (text: string) => void;
+  /** Told each step as it starts and ends: the update's own, then each follow-up's, which run at once. */
+  readonly progress?: Progress;
 }
 
 export async function indexOutput(request: IndexRequest): Promise<string> {
@@ -88,7 +92,10 @@ async function inline(request: IndexRequest, readied?: () => void): Promise<stri
 }
 
 async function written(request: IndexRequest): Promise<SourceUpdate> {
-  const update = await turn(request, () => updateSourceIndex(request.cwd, request.noGit ? { packs: false } : {}));
+  const update = await turn(request, () => updateSourceIndex(request.cwd, {
+    ...(request.noGit ? { packs: false } : {}),
+    ...(request.progress === undefined ? {} : { progress: request.progress }),
+  }));
   // A scan treats an unwritable cache as a cold next run. This step exists to
   // write it, so a refusal is the answer, and nothing after it has an index to read.
   if (update.refused !== undefined) {
@@ -128,20 +135,20 @@ export async function followUpsOutput(request: Omit<IndexRequest, 'detach'>): Pr
 
 /** `readied` is told once the index is folded, before the map, the journeys, the lexicon and the questions. */
 async function followUps(request: IndexRequest, update: SourceUpdate, readied?: () => void): Promise<readonly string[]> {
-  const { cwd } = request;
+  const { cwd, progress } = request;
   const noGit = request.noGit === true;
   return turn(request, async () => {
     // Readied first, so everything below reads the base the next update keeps and
     // the update itself never folds one while somebody waits on it.
-    await readySourceIndex(update.path);
+    await stepped(progress, 'readying the index for the follow-ups', () => readySourceIndex(update.path));
     readied?.();
     // The map, the journeys, the lexicon and the published value each read the index
     // the update wrote and nothing another writes, so they are made at once.
     const [map, walks, names, questions] = await Promise.all([
-      codeMap(cwd, update),
-      journeys(cwd, update),
-      lexicon(cwd),
-      answerable(cwd, update.path, noGit),
+      stepped(progress, 'writing the code map', () => codeMap(cwd, update)),
+      stepped(progress, 'writing the journeys', () => journeys(cwd, update)),
+      stepped(progress, 'writing the dependency lexicon', () => lexicon(cwd)),
+      stepped(progress, 'writing the questions', () => answerable(cwd, update.path, noGit, progress)),
     ]);
     return [map, ...walks, names, questions];
   });
@@ -152,17 +159,18 @@ async function followUps(request: IndexRequest, update: SourceUpdate, readied?: 
  * answered. The step that exists to publish reads the value back instead, so a
  * cache it could not write is a line in the log rather than a later refusal.
  */
-async function answerable(root: string, index: string, noGit: boolean): Promise<string> {
+async function answerable(root: string, index: string, noGit: boolean, progress: Progress | undefined): Promise<string> {
   // Loaded here, by the follow-ups alone: the index a command waits on reads no help.
-  const { publishedGeneration, readWorkspace, readWorkspaceSnapshot, refreshWorkspaceFromIndex, workspaceGeneration, workspaceSnapshotPath } =
-    await import('@variance-authority/help');
+  const { publishedGeneration, publishWorkspaceFromIndex, workspaceSnapshotPath } = await import('@variance-authority/help');
   const at = workspaceSnapshotPath(index);
   try {
     // The index was written a moment ago, so the previous value is refreshed from it without
     // reading the chain into records; a changed surface reads the way a first publish does.
-    const previous = await readWorkspaceSnapshot(root, { index }).catch(() => undefined);
-    const refreshed = previous === undefined ? undefined : await refreshWorkspaceFromIndex(root, previous, { index });
-    const generation = refreshed ?? workspaceGeneration(await readWorkspace(root, { index, saveIndex: false, ...(noGit ? { packs: false } : {}) }));
+    const generation = await publishWorkspaceFromIndex(root, {
+      index,
+      ...(noGit ? { packs: false } : {}),
+      ...(progress === undefined ? {} : { progress }),
+    });
     const published = await publishedGeneration(root, index);
     if (generation === undefined || published !== generation) {
       return `questions: not published: the value read back from ${at} is not the one this run wrote`;
@@ -176,9 +184,10 @@ async function answerable(root: string, index: string, noGit: boolean): Promise<
 async function lexicon(root: string): Promise<string> {
   const { refreshDependencyLexicon } = await import('@variance-authority/help');
   try {
-    const { path, packages, entrypoints, reused, unavailable, unchanged } = await refreshDependencyLexicon(root);
+    const { path, packages, entrypoints, reused, unavailable, unchanged, appended, rebuilt } = await refreshDependencyLexicon(root);
     if (unchanged) return `dependency lexicon: unchanged, nothing read: ${packages} workspace-dependency pairs, ${entrypoints} public entrypoints, ${unavailable} unavailable, at ${path}`;
-    return `dependency lexicon: ${packages} workspace-dependency pairs, ${entrypoints} public entrypoints, ${reused} reused, ${unavailable} unavailable, at ${path}`;
+    const read = !rebuilt && appended > 0 ? `${appended} changed source ${appended === 1 ? 'file' : 'files'} read: ` : '';
+    return `dependency lexicon: ${read}${packages} workspace-dependency pairs, ${entrypoints} public entrypoints, ${reused} reused, ${unavailable} unavailable, at ${path}`;
   } catch (error) {
     return `dependency lexicon: not prepared: ${error instanceof Error ? error.message : String(error)}`;
   }

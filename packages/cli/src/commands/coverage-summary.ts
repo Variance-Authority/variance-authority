@@ -14,6 +14,7 @@ export function coverageParts(change: SuiteChange): readonly string[] {
   if (change.gained > 0) said.push(`+${grouped(change.gained)} newly run`);
   if (change.lost > 0) said.push(`−${grouped(change.lost)} no longer run`);
   if (change.hidden > 0) said.push(`−${grouped(change.hidden)} no longer run after a case stopped`);
+  if (change.unmeasured > 0) said.push(`−${grouped(change.unmeasured)} unmeasured: their cases last ran before their file changed`);
   if (change.thinned > 0) said.push(`${grouped(change.thinned)} run by fewer cases`);
   if (change.written.regions > 0) said.push(`+${grouped(change.written.run)} run in ${regions(change.written.regions, 'added region')}`);
   if (change.deleted.regions > 0) said.push(`−${grouped(change.deleted.run)} had run in ${regions(change.deleted.regions, 'removed region')}`);
@@ -24,7 +25,7 @@ export function coverageParts(change: SuiteChange): readonly string[] {
 
 /** What the signed parts of `change` add to: the change in regions run they account for. */
 export function coverageSum(change: SuiteChange): number {
-  return change.gained - change.lost - change.hidden + change.written.run - change.deleted.run + change.arrived.run - change.departed.run;
+  return change.gained - change.lost - change.hidden - change.unmeasured + change.written.run - change.deleted.run + change.arrived.run - change.departed.run;
 }
 
 /** `+2`, `−3`, `0`. */
@@ -37,6 +38,7 @@ function executionChange(change: SuiteChange): string {
   const regions = (count: number) => `${grouped(count)} region${count === 1 ? '' : 's'}`;
   if (change.lost > 0) said.push(`${regions(change.lost)} no longer run`);
   if (change.hidden > 0) said.push(`${regions(change.hidden)} no longer run after a case stopped`);
+  if (change.unmeasured > 0) said.push(`${regions(change.unmeasured)} unmeasured since their file changed`);
   if (change.gained > 0) said.push(`${regions(change.gained)} newly run`);
   if (change.thinned > 0) said.push(`${regions(change.thinned)} run by fewer cases`);
   if (change.written.regions > 0 || change.deleted.regions > 0 || change.arrived.files.length > 0 || change.departed.files.length > 0) {
@@ -76,4 +78,11 @@ export function grouped(value: number): string {
 
 function files(count: number): string {
   return `${grouped(count)} file${count === 1 ? '' : 's'}`;
+}
+
+/** Columns padded to the widest cell, with no trailing space. */
+export function table(rows: readonly (readonly string[])[]): readonly string[] {
+  const widths: number[] = [];
+  for (const row of rows) row.forEach((cell, at) => (widths[at] = Math.max(widths[at] ?? 0, cell.length)));
+  return rows.map((row) => row.map((cell, at) => cell.padEnd(widths[at]!)).join('  ').trimEnd());
 }

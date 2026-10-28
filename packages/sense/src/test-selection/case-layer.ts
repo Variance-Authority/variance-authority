@@ -1,10 +1,8 @@
 import type { SetId } from './crossing-sets.js';
-import { NO_OWNER } from './format-layout.js';
 import { openSetExecutionIndex, type OpenedSetExecutionIndex, type SetExecutionModule } from './execution-set-format.js';
 import { LaidLines } from './case-layer-lines.js';
 import { HeldIndex, writeLaid, type CarriedModule, type LaidModule, type LaidTest } from './held-case-index.js';
 import { codeUnitOrder } from './instrumented-modules.js';
-import { heldAround } from './region-around.js';
 import { landedThrough, NO_EDIT, type EditOf } from './region-edit.js';
 import { relined, strayed } from './region-landing.js';
 import type { ExecutionTest } from './reverse.js';
@@ -20,9 +18,10 @@ export interface CaseRunFiles {
   readonly present: (file: string) => boolean;
   /**
    * The edit between the text the index's regions of `file` were cut from and
-   * the text the run recorded it from, as git's hunks between the two. Held
-   * cases land on the regions it left alone, at the lines it places them; a
-   * region it touched carries none. Absent when `file`'s text on either side
+   * the text the run recorded it from, as git's hunks between the two and the
+   * selector's reading of them. Held cases land on the regions it left alone,
+   * at the lines it places them; a region it touched keeps them only where the
+   * reading spares its kind ({@link landedThrough}). Absent when `file`'s text on either side
    * cannot be had: the whole module is then read as changed. A caller that
    * gives no `edit` knows no texts and reads the two cuts as one text.
    */
@@ -108,10 +107,8 @@ export interface CaseLayers {
  * carried cases land on them through the edit between the text they were cut
  * at and the text the run recorded ({@link landedThrough}): a region the edit
  * left alone keeps its cases at the lines the edit places it, and a region it
- * touched carries none, its tests counting as changed. Nothing is paired by
- * name. A region the index never held takes the cases of the nearest region
- * around it that some landed on, as a row born in a re-cut takes the crossings
- * around it ({@link carriedFrom}). A module this run did not record keeps the
+ * touched or wrote keeps them only where the edit spared its kind, the rule the
+ * snapshot's rows are landed by. A module this run did not record keeps the
  * regions it was recorded with, as it did before any partial run, and the
  * landing then lays it onto the cut its rows were landed at (`case-cuts.ts`).
  *
@@ -204,8 +201,7 @@ export function layerCaseIndex(
 /**
  * `recorded`'s regions, each with the cases `own` names and the held cases that
  * land on it from `held`: the region `held.lands` names for it
- * ({@link landedThrough}), and for a region the held cut never had, the nearest
- * region around it ({@link carriedFrom}). Each region is handed to `layer.lines`
+ * ({@link landedThrough}). Each region is handed to `layer.lines`
  * as a region of the `layer.at`-th module written.
  */
 export function laidOn(
@@ -221,12 +217,11 @@ export function laidOn(
   },
 ): SetExecutionModule {
   const { fromHeld, merged, lines } = layer;
-  const lands = held === undefined ? undefined : carriedFrom(recorded.owner, held.lands);
   const called = new Uint32Array(recorded.blocks.length);
   const loaded = new Uint8Array(recorded.blocks.length);
   for (let block = 0; block < recorded.blocks.length; block += 1) {
     const mine = own(block);
-    const from = lands?.(block) ?? -1;
+    const from = held?.lands[block] ?? -1;
     const carriedIn = from < 0 ? undefined : fromHeld(held!.module.called[from]!);
     called[block] = carriedIn === undefined ? mine : merged.union(mine, carriedIn);
     lines?.recorded(layer.at, block, layer.runModule, merged.members(mine),
@@ -327,32 +322,6 @@ function moduleUnion(
   }
   for (; next < recorded.length; next += 1) union.push({ recorded: recorded[next]!.module });
   return union;
-}
-
-/**
- * The held region each region recorded now carries its cases and load flag
- * from: its landing, and for a region the held cut never had, the landing of
- * the nearest region around it — the reading `crossingsAround` gives a
- * row born in a re-cut, by the same owners and the same walk. Without it the
- * two layers disagree: the rows say every test that stood on the enclosing
- * region stands on the new one, and the case index says nobody does.
- *
- * `owners` is the cut's own word for the region around each one, which no
- * reading of lines can stand in for: a branch on the line a sibling ends sits
- * inside the sibling's lines and is the function's. An index that recorded no
- * owners names no region around any, and a born region there takes nothing.
- * Where nothing landed there is nothing to hand down, and where everything
- * landed nothing is born, so neither walks.
- *
- * -1 where nothing is carried.
- */
-function carriedFrom(owners: Uint32Array | undefined, lands: Int32Array): (block: number) => number {
-  if (owners === undefined || !lands.includes(-1) || !lands.some((from) => from >= 0)) return (block) => lands[block]!;
-  return heldAround<number, number>(
-    (block) => (owners[block] === NO_OWNER ? undefined : owners[block]),
-    (block) => (lands[block]! >= 0 ? lands[block] : undefined),
-    -1,
-  );
 }
 
 /** The held module named `file`, as an object, when the index holds one. */

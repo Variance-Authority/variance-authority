@@ -374,9 +374,10 @@ left out 2 image(s) the report names and this machine could not read, the first 
 
 The same publish gives the line `subject-costs-v1`: what each subject took to
 collect, under the same commit. `npx variance run --shard k/n` reads it back
-from the mainline to split the suite evenly, and a run with `workers` reads it
-to take the slowest files first. `npx variance ask costs` reads the same line to
-show you, or an agent, which files and subjects the suite spends its time on;
+from the mainline to split the suite evenly, and a run reads it to give its
+slowest files to its [workers](../packages/cli#configuration) first.
+`npx variance ask costs` reads the same line to show you, or an agent, which
+files and subjects the suite spends its time on;
 see [the command-line questions](agent-cli.md#find-where-the-suites-time-goes).
 
 ### A sharded build
@@ -609,7 +610,8 @@ record of "stories": read from mainline main, published at 3f1c9a2…, 2 commit(
 ```
 
 `variance share --suite <name>` queries the remote now, whenever the last fetch
-was. Your test runner's integration never queries the remote. When its first run
+was. Your test runner's integration queries it only under `--shard`, for the
+times it [places the shard by](sharding.md#turn-it-on-in-a-vitest-jest-or-playwright-config). When its first run
 in a checkout has no record to land on, it copies the mainline record last
 fetched on this machine into the checkout's own place, with the runs record
 that came with it, and prints that it did. None of those runs are the
@@ -637,9 +639,11 @@ was recorded at a commit other than the one it was published at, is not used,
 and the `record of "<suite>":` line says why. With no execution record, `select`
 runs every test file, and `review` requires `--since`.
 
-`select` diffs from the commit the mainline's execution record names, so one
-behind or past your merge base adds mainline's changes in between to yours: a
-wider run, never a narrower one. `review` diffs from the merge base of that
+`select` diffs from the commit the mainline's execution record names, so a
+record behind or past your merge base adds mainline's changes in between to
+yours: a wider run, never a narrower one. In CI, [merge the pull request with
+that commit](#a-pull-request-that-runs-the-mainlines-changes-too) and the diff
+is the pull request's alone. `review` diffs from the merge base of that
 commit and `HEAD`. It compares the cases, the tests each test file declares,
 with the ones the mainline published only when that merge base is the published
 commit. For a record past your merge base it is not, and `review` compares them
@@ -1131,6 +1135,72 @@ Without `--publish` it reads the mainline's record the way `select` does, and
 prints the [`record of "unit":` line](#a-suite-your-checkout-has-not-recorded).
 `--suite` takes no `--config`, `--mainline` or report, because those name the
 other form's inputs.
+
+### A pull request that runs the mainline's changes too
+
+When a pull request runs more tests than its change should, read the
+`record of "<name>":` line `select` prints on stderr. When it names a miss, such as nothing published,
+the mainline has no record of the suite and `select` runs every test file:
+publish one, as the section above does. When it reads
+`read from mainline <name>, published at <commit>`, the extra tests are the
+mainline's.
+
+GitHub checks a pull request out as its head merged into the base branch's
+tip. The mainline's record is at an older commit whenever the mainline gained
+a commit after its last publish, so every commit in between is in the diff
+`select` measures, charged to your pull request. One that touches a file every
+test enters runs every test.
+
+Merge the head with the record's commit instead, and the diff is the pull
+request alone. With `--format github`, `share --suite <name>` prints that
+commit as a step output, `commit=<sha>`, and `commit=` when the mainline has
+no record of the suite; the `record of "<name>":` line goes to stderr:
+
+```yaml
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          filter: tree:0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci
+      - id: record
+        if: github.event_name == 'pull_request'
+        run: npx variance share --suite unit --format github >> "$GITHUB_OUTPUT"
+      - name: merge with the record's commit
+        if: steps.record.outputs.commit != ''
+        env:
+          COMMIT: ${{ steps.record.outputs.commit }}
+          HEAD_COMMIT: ${{ github.event.pull_request.head.sha }}
+        run: |
+          later=$(git show -s --format=%ct "$COMMIT" "$HEAD_COMMIT" | sort -n | tail -n 1)
+          git checkout --quiet --detach "$COMMIT"
+          GIT_AUTHOR_NAME=ci GIT_AUTHOR_EMAIL=ci@localhost \
+          GIT_COMMITTER_NAME=ci GIT_COMMITTER_EMAIL=ci@localhost \
+          GIT_AUTHOR_DATE="$later +0000" GIT_COMMITTER_DATE="$later +0000" \
+            git merge --no-ff --no-edit -m "Merge $HEAD_COMMIT into $COMMIT" "$HEAD_COMMIT" \
+            || { git merge --abort; git checkout --quiet --detach "$GITHUB_SHA"; }
+          git diff --quiet "$GITHUB_SHA" HEAD -- package-lock.json || npm ci
+      - run: npx vitest run
+```
+
+- **The run tests your change on the record's commit, not on the base tip.**
+  What the mainline gained since is checked where your branch is brought up to
+  date before it merges: the merge queue, the required up-to-date branch or the
+  rebase. A merge queue checks it only as far as the tests it runs; one that runs
+  part of the suite leaves the rest to the whole run on the mainline after the
+  merge.
+- **A head that conflicts with the record's commit stays on GitHub's merge**,
+  and the run measures what the mainline gained since the record as well.
+- **Shards read the commit once and share it.** A publish can land between
+  two jobs of one run, and two jobs that each ask can merge with two commits.
+  Read it in one job, pass `commit` to the others as a job output, and every
+  shard makes the same merge: the author, committer, date and message are
+  fixed. Shards then record at one commit, and their records fold into one.
+- **The install runs again only when the lockfile differs** from GitHub's
+  merge, because the merge can take a different one.
 
 ## S3 and Google Cloud Storage
 

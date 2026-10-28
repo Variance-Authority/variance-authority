@@ -80,6 +80,14 @@ export function regionRun(block: ExecutionBlock): RegionRun {
   return load ? 'load' : 'none';
 }
 
+/**
+ * A module's source regions, each under the key that joins it to the same
+ * region in another suite's record of the module: its address and its kind.
+ */
+export function* joinedRegions(blocks: readonly ExecutionBlock[]): Generator<readonly [string, ExecutionBlock]> {
+  for (const [address, block] of regionAddresses(blocks)) if (block.source) yield [`${address}\0${block.kind}`, block];
+}
+
 /** Count every suite's record over the regions any of them loaded. */
 export function countCoverage(suites: readonly CountedSuite[]): CoverageCount {
   // file → address and kind → what each suite that holds the region did there.
@@ -94,9 +102,7 @@ export function countCoverage(suites: readonly CountedSuite[]): CoverageCount {
       let holders = loadedBy.get(module.file);
       if (holders === undefined) loadedBy.set(module.file, (holders = new Set()));
       holders.add(at);
-      for (const [address, block] of regionAddresses(module.blocks)) {
-        if (!block.source) continue;
-        const key = `${address}\0${block.kind}`;
+      for (const [key, block] of joinedRegions(module.blocks)) {
         let runs = regions.get(key);
         if (runs === undefined) regions.set(key, (runs = Array.from<RegionRun | undefined>({ length: suites.length })));
         const run = regionRun(block);
@@ -162,16 +168,23 @@ export interface RegionTally {
 /**
  * The parts one suite's change in `run` is made of, between two of its records.
  *
- * `now.run − base.run` is `gained − lost − hidden + written.run − deleted.run +
- * arrived.run − departed.run`, and `now.regions − base.regions` is the same sum
- * over `regions`. `thinned` changes no count and is here because the motion
- * names it.
+ * `now.run − base.run` is `gained − lost − hidden − unmeasured + written.run −
+ * deleted.run + arrived.run − departed.run`, and `now.regions − base.regions` is
+ * the same sum over `regions`. `thinned` changes no count and is here because
+ * the motion names it.
  */
 export interface SuiteChange {
   readonly gained: number;
   readonly lost: number;
   readonly hidden: number;
   readonly thinned: number;
+  /**
+   * Regions run at the base that no case is recorded running now, where a case
+   * that ran one last ran before an edit to its file and the record carried it
+   * over the edit without it ({@link CaseMotion.unmeasured}): whether it still
+   * runs there was not measured.
+   */
+  readonly unmeasured: number;
   /** Regions only the current record holds, in modules both records hold. */
   readonly written: RegionTally;
   /** Regions only the base holds, in modules both records hold. */
@@ -189,7 +202,7 @@ export interface SuiteChange {
  * through the diff between the texts the two were recorded over, as the motion
  * pairs them.
  */
-export function coverageChange(base: ExecutionIndex, now: ExecutionIndex, options: Pick<CaseMotionOptions, 'diff'>): SuiteChange {
+export function coverageChange(base: ExecutionIndex, now: ExecutionIndex, options: Pick<CaseMotionOptions, 'diff' | 'stands'>): SuiteChange {
   const motion = caseMotion(base, now, options);
   const current = new Map(now.modules.map((module) => [module.file, module]));
   const held = new Set(base.modules.map((module) => module.file));
@@ -230,6 +243,7 @@ export function coverageChange(base: ExecutionIndex, now: ExecutionIndex, option
     lost: motion.counts.lost,
     hidden: motion.counts.hidden,
     thinned: motion.counts.thinned,
+    unmeasured: (motion.unmeasured ?? []).filter((region) => region.now.length === 0).length,
     written,
     deleted,
     arrived: { ...arrived, files: arrived.files.sort() },

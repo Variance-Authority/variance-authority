@@ -1,4 +1,4 @@
-import { chromium, type Browser, type BrowserContext, type Page } from 'playwright';
+import type { BrowserContextOptions, Page } from 'playwright';
 import {
   driveBeforeLoad,
   featuresOf,
@@ -9,7 +9,10 @@ import {
   type Viewport,
 } from '@variance-authority/core/format';
 import { AGENT_GLOBAL, type CaptureRequest, type PageAgent } from './agent.js';
+import { watchArrivals } from './arrivals.js';
+import { leaseBrowser, leaseContext, ownBrowser, ownContext, type Launch } from './browsers.js';
 import { observeNetwork, type NetworkObservation, type NetworkOptions } from './network.js';
+import { CHROMIUM_RASTER_ARGS } from './renderer.js';
 import { pinnedRegion } from './viewport.js';
 
 /**
@@ -74,6 +77,27 @@ export interface HarnessOptions extends PageRegion {
   readonly headless?: boolean;
 
   /**
+   * Open the page in a context shared with every other harness of the same
+   * viewport and region on the same browser. Defaults to `false`.
+   *
+   * The context is the browser's HTTP cache, so a page booted in one that
+   * another page already filled is answered from memory: the second worker of a
+   * run does not fetch the preview again. The pages also share cookies and
+   * storage, which is why it is asked for rather than given.
+   */
+  readonly warm?: boolean;
+
+  /**
+   * Launch a browser of this harness's own instead of leasing the process's
+   * shared one. Defaults to `false`.
+   *
+   * For a reading whose point is that nothing else has touched its world. Every
+   * other harness shares one browser per launch recipe, which is what keeps a
+   * run with workers at one launch.
+   */
+  readonly isolated?: boolean;
+
+  /**
    * Run against the page *before* it is navigated for the first time.
    *
    * The hook exists because of a class of thing that has to be installed before
@@ -123,19 +147,45 @@ export interface Harness {
 }
 
 export async function createHarness(options: HarnessOptions): Promise<Harness> {
-  const browser = await chromium.launch({ headless: options.headless ?? true });
+  // Laid out under the text settings the renderer paints with, or a line that
+  // fits here wraps there and the painted page is a different height. The same
+  // settings are what let the renderer lease this browser rather than launch
+  // its own.
+  const launch: Launch = { headless: options.headless ?? true, args: CHROMIUM_RASTER_ARGS };
+  const browser = options.isolated === true ? await ownBrowser('chromium', launch) : await leaseBrowser('chromium', launch);
   const errors: string[] = [];
+  const region = pinnedRegion(options);
+  const contextOptions = contextOptionsFor(options.viewport, region);
+
+  let context: Awaited<ReturnType<typeof leaseContext>> | undefined;
+  let page: Page | undefined;
+  // In reverse of opening: the page, then the context if this was its last
+  // page, then the browser if this was its last holder.
+  const close = async (): Promise<void> => {
+    try {
+      await page?.close();
+    } finally {
+      try {
+        await context?.release();
+      } finally {
+        await browser.release();
+      }
+    }
+  };
 
   try {
-    const region = pinnedRegion(options);
-    const context = await newContext(browser, options.viewport, region);
-    const page = await context.newPage();
+    context =
+      options.warm === true && options.isolated !== true
+        ? await leaseContext(browser.value, contextOptions)
+        : await ownContext(browser.value, contextOptions);
+    const opened = await context.value.newPage();
+    page = opened;
 
     // A bundle that throws leaves the agent global undefined, and the failure
     // then surfaces as a timeout with no cause. Recording page-side errors turns
     // that into the actual exception text.
-    page.on('pageerror', (error) => errors.push(String(error)));
-    page.on('console', (message) => {
+    opened.on('pageerror', (error) => errors.push(String(error)));
+    opened.on('console', (message) => {
       if (message.type() === 'error') errors.push(message.text());
     });
 
@@ -143,24 +193,28 @@ export async function createHarness(options: HarnessOptions): Promise<Harness> {
     // tricks survive one and the page's first script already reads the clock
     // and the motion preference.
     const driven =
-      options.stabilize === undefined ? [] : await driveBeforeLoad(options.stabilize, page, options.features);
+      options.stabilize === undefined ? [] : await driveBeforeLoad(options.stabilize, opened, options.features);
     const features = featuresOf(forDriver(options.stabilize ?? [], driven), options.features);
-    if (options.prepare !== undefined) await options.prepare(page);
+    if (options.prepare !== undefined) await options.prepare(opened);
 
-    await page.goto(options.url, { waitUntil: 'load' });
-    await installAgent(page, options.bundle, errors);
+    // After the driver tricks, so the agent's first read of the clock is
+    // already the driven one, and before the navigation, so the first document
+    // gets the agent ahead of its own scripts as every later one does.
+    await opened.addInitScript({ content: options.bundle });
+    await opened.goto(options.url, { waitUntil: 'load' });
+    await checkAgent(opened, errors);
 
-    const engine = `chromium@${browser.version()}`;
+    const engine = `chromium@${browser.value.version()}`;
     const subjectId = options.subjectId ?? ((subject: string) => `fixture:${subject}`);
 
     return {
       engine,
       region,
-      page,
+      page: opened,
       driven,
       pageErrors: () => [...errors],
       async capture(subject, variant) {
-        return evaluateCapture(page, {
+        return evaluateCapture(opened, {
           subject,
           variant,
           subjectId: subjectId(subject),
@@ -172,21 +226,20 @@ export async function createHarness(options: HarnessOptions): Promise<Harness> {
           ...(options.assets ? { assets: options.assets } : {}),
         });
       },
-      async close() {
-        await browser.close();
-      },
+      close,
     };
   } catch (error) {
     // The browser is a child process; an exception between launch and return
-    // would otherwise leave it running for the life of the test runner.
-    await browser.close();
+    // would otherwise leave it running, or leased, for the life of the caller.
+    await close();
     throw error;
   }
 }
 
 /**
- * A harness whose page is watched by {@link observeNetwork} from before its
- * first navigation, when `network` asks for it; absent watches nothing.
+ * A harness whose page is watched from before its first navigation: by
+ * {@link observeNetwork} when `network` asks for it, and always by
+ * {@link watchArrivals}, which a page agent asks what is still arriving.
  *
  * The observation is the caller's to close, before the harness: it outlives the
  * harness's `prepare`, which is where it has to start, because a watcher
@@ -200,6 +253,7 @@ export async function createObservedHarness(
   const harness = await createHarness({
     ...options,
     prepare: async (page): Promise<void> => {
+      await watchArrivals(page);
       if (network !== undefined) observation = await observeNetwork(page, network);
     },
   });
@@ -227,12 +281,8 @@ export async function captureOnce(
   }
 }
 
-async function newContext(
-  browser: Browser,
-  viewport: Viewport,
-  region: Required<PageRegion>,
-): Promise<BrowserContext> {
-  return browser.newContext({
+function contextOptionsFor(viewport: Viewport, region: Required<PageRegion>): BrowserContextOptions {
+  return {
     viewport: { width: viewport.width, height: viewport.height },
     deviceScaleFactor: viewport.deviceScaleFactor,
     // Declared, never inherited from the host OS. The same case must not render
@@ -241,31 +291,31 @@ async function newContext(
     // somebody decided (spec §11.1). The timezone and the language likewise.
     colorScheme: viewport.colorScheme,
     ...region,
-  });
+  };
 }
 
-async function installAgent(page: Page, bundle: string, errors: readonly string[]): Promise<void> {
-  await page.addScriptTag({ content: bundle });
-
-  /**
-   * And again for every document after this one.
-   *
-   * `addScriptTag` installs into the document that is open; `addInitScript`
-   * installs into the ones that follow. Both, because neither alone is enough:
-   * the init script does not touch the current document, and the script tag does
-   * not survive a navigation.
-   *
-   * There should not be a navigation — a session is one load and N subjects, and
-   * that is the whole economic argument. But the page is not this harness's to
-   * control: a Storybook preview reloads itself when a render it is replacing is
-   * still pending, a subject can set `location`, and a driver that assumed
-   * otherwise reported the truthful but useless `missing page agent
-   * __variance_authority_page_agent__` for every subject after the first one
-   * that reloaded. Losing the session's accumulated state to a reload is a
-   * weaker reading; losing the agent is no reading at all.
-   */
-  await page.addInitScript({ content: bundle });
-
+/**
+ * Whether the agent arrived. An init script installs it into every document of
+ * the page.
+ *
+ * Ahead of the page's scripts rather than after them, the first document
+ * included. An agent that has to see something from the start — React's commit
+ * stream, which `react-dom` only reports to a hook that existed when it loaded —
+ * missed it on the first document when the agent arrived there by script tag
+ * once the page had loaded, and only that document, so a run read its first
+ * subject with less than every other one.
+ *
+ * And into every document, not only the first. There should not be a
+ * navigation — a session is one load and N subjects, and that is the whole
+ * economic argument. But the page is not this harness's to control: a Storybook
+ * preview reloads itself when a render it is replacing is still pending, a
+ * subject can set `location`, and a driver that assumed otherwise reported the
+ * truthful but useless `missing page agent __variance_authority_page_agent__`
+ * for every subject after the first one that reloaded. Losing the session's
+ * accumulated state to a reload is a weaker reading; losing the agent is no
+ * reading at all.
+ */
+async function checkAgent(page: Page, errors: readonly string[]): Promise<void> {
   const installed = await page.evaluate(
     (global) => typeof (window as unknown as Record<string, unknown>)[global] === 'object',
     AGENT_GLOBAL,

@@ -1,7 +1,7 @@
 /**
  * `@variance-authority/sense/journal` — the same instrument, over a wire.
  *
- * [Spec 0028](../../../../docs/specs/0028-the-instrument.md) states the rule this
+ * [Spec 0028](https://github.com/Variance-Authority/variance-authority/blob/main/docs/specs/0028-the-instrument.md) states the rule this
  * file discharges: *a browser needs a different transport, not a different
  * instrument.* A browser is the case that exists, and not the boundary this
  * draws. What the Vitest seam has and this does not is a recorder that ran the
@@ -16,8 +16,9 @@
  * Three parts, and each is somebody's:
  *
  * 1. **The plugin** ({@link testSelectionProbes}, next door in `probes.ts` with
- *    the rest of the build half) belongs in the adopter's own build — a
- *    Storybook `viteFinal`, an application dev server. It instruments
+ *    the rest of the build half) belongs in the adopter's own build — an
+ *    application's `vite.config.ts` or dev server; a Storybook takes it through
+ *    the `@variance-authority/storybook-collector` addon. It instruments
  *    product source and hoists a collector in front of it. Its probes report the
  *    file and the digest of the text they were placed on, and nothing else is
  *    written down.
@@ -36,7 +37,7 @@
  * that also read it are not selected. So every region entered while a module
  * was evaluating — its root, a helper the top level called — is attributed to
  * **every subject the run drained**, over-including in the direction
- * [`selecting.md`](../../../../docs/selecting.md) already argues for. The page
+ * [`selecting.md`](https://variance-authority.dev/docs/selecting) already argues for. The page
  * marks those regions itself ([`instrument`](../instrument/index.ts)); the
  * join only reads the mark.
  */
@@ -86,13 +87,25 @@ export {
   type InstrumentingPlugin,
   type TestSelectionProbeOptions,
 } from './probes.js';
+export {
+  testSelectionRule,
+  type ProbesLoaderOptions,
+  type TestSelectionRule,
+  type TestSelectionRuleOptions,
+} from './probes-rule.js';
 
 /** What a module reports itself as, for a driver that writes its own journal. */
 export type { ModuleId };
 export { moduleId } from './captured-modules.js';
 
+/** Replacing one hook of a resolved Vite plugin, keeping its `order` and `filter`. */
+export { afterHook, type AfterHook, type HookedPlugin } from './plugin-hooks.js';
+
 /** The probe recipe both halves of this seam have to agree on. */
 export type { InstrumentMode };
+
+/** Where the probes go: after the project's transforms, or ahead of them. */
+export type { ProbePlacement } from './instrumented-modules.js';
 
 // What a driver observed, and how a run recorded by several processes is
 // joined: both are the journal seam's surface, and neither is this file's
@@ -108,7 +121,7 @@ export {
 } from './observed.js';
 export type { ObservedEyes } from './eyes-record.js';
 export { listenForPreconditions, type PreconditionListener, type PreconditionStanding } from './precondition-listener.js';
-export { preconditionText, type CasePrecondition } from './case-precondition-column.js';
+export { preconditionText, SAID_NOTHING, saidAcross, type CasePrecondition, type Said } from './case-said.js';
 export {
   STAGE_VARIABLE,
   closeStage,
@@ -119,6 +132,24 @@ export {
   type StagedExecution,
 } from './stage.js';
 export { drainExecution, type EvaluatingPage } from './drain.js';
+// The driver's half of a journey. It opens a socket, so it is here, beside the
+// recorders, and not on the bundle-safe `journey` entry a Worker imports.
+export {
+  SETTLING_MS,
+  driveJourneys,
+  type JourneyCookie,
+  type JourneyDriver,
+  type MintedJourney,
+} from './journey-driver.js';
+// One row per subject a visual run drove, page and heads joined: the recorder
+// a story run and a page run share.
+export {
+  createSubjectRecorder,
+  type SubjectNote,
+  type SubjectRecorder,
+  type SubjectRecording,
+  type SubjectSurface,
+} from './subject-recorder.js';
 
 
 export interface RecordExecutionOptions {
@@ -347,6 +378,7 @@ export async function recordExecution(
         complete: whole,
         preconditions: [...held].map(([name, digest]) => ({ name, digest })),
         ...(subject.duration === undefined ? {} : { duration: subject.duration }),
+        ...(subject.phases === undefined ? {} : { phases: subject.phases }),
       };
     })
     .sort((left, right) => codeUnitOrder(left.file, right.file));
@@ -375,7 +407,7 @@ export async function recordExecution(
   // earlier worker's whole contribution — silently, and in the unsafe direction.
   // A worktree layers onto the repository's months of recording rather than
   // onto nothing. A no-op here and after the first run.
-  noteSeeded(await seedTestCoverage(coverageFile, root, options.cacheRoot));
+  noteSeeded(await seedTestCoverage(coverageFile, root, current.instrumentation, options.cacheRoot));
   // In the record, never beside it, and only for a driver that asked. A file the
   // coverage says ran to the end has its cases replaced, and the rest of the
   // suite's cases stay. A Storybook row is a story, not a file, so its cases are

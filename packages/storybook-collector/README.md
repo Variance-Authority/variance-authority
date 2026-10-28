@@ -5,6 +5,7 @@
 > Turn a built or already-served Storybook into Variance Authority subjects.
 
 Part of [Variance Authority](https://variance-authority.dev).
+Point your coding agent at [`llms.txt`](https://variance-authority.dev/llms.txt).
 
 ## What this is for
 
@@ -34,7 +35,7 @@ This is the Storybook adapter, not the `variance` binary. The binary lives in
 | Module format | ESM only. Every `@variance-authority/*` package sets `"type": "module"`; `require()` will not load them. |
 | Browser | Chromium, installed through Playwright. The binaries do not arrive with an `npm install`. |
 | Storybook | Exercised against Storybook 10 with `@storybook/react-vite`. Index versions `3`, `4` and `5` are read, and the story root is looked for at `#storybook-root` (Storybook 7 and later) and then `#root` (before it). Storybook 8.3 and later emit `storyFinished`, which this package waits for; it falls back to `storyRendered` when the event is absent. |
-| Builder | Collection reads `index.json` and drives the preview channel, so it works the same whether Vite or Webpack 5 built the Storybook. Two optional precision features are Vite plugins with no Webpack equivalent, and are named as such where they appear below: `@variance-authority/jsx-source` and the `tests` option. |
+| Builder | Collection reads `index.json` and drives the preview channel, so it works the same whether Vite, Webpack 5 or Rspack built the Storybook. The `tests` option records under all three. `@variance-authority/jsx-source` is a Vite plugin with no Webpack or Rspack equivalent. |
 | React | Required for component attribution, the `wiring` band and the Suspense wait. The reading is of the expando `react-dom` writes on host nodes — `__reactFiber$` on React 17 and later, `__reactInternalInstance$` on React 16 — so there is no React version to match and none is imported. The suite runs against React 19. |
 
 A Storybook whose renderer is not React still collects: documents, pixels,
@@ -173,7 +174,7 @@ rendered by playwright-chromium (chromium@131, darwin/arm64, 1x)
 [changed] story:checkout--empty — Button: 1356 pixel(s) differ across 2 region(s) in Button
 [changed] story:checkout--one-item — Button: 1356 pixel(s) differ across 2 region(s) in Button
 
-not observed: 2 subject(s) — 0 the run could not see, 2 excluded by configuration, 0 not reached by this change
+not observed: 2 subject(s) — 0 the run could not see, 2 excluded on purpose, 0 not reached by this change
   [excluded] story:checkout--docs-only: excluded by tag `no-variance`
 ```
 
@@ -215,7 +216,7 @@ Everything below is passed to `storybookCollector(...)` in the module from step
 | `wiring` | Your preview's renderer is not React. | `true`. Reads props, context, hook cells and keys into a band of its own; turning it off changes no stored digest. |
 | `holdings` | Application values behind the nodes are evidence you want read. | `false`. Changes `structureHash` — an inert wrapper survives the collapse — so both sides of a comparison must be read the same way. |
 | `roots` | Your preview mounts somewhere other than the standard roots. | `['#storybook-root', '#root']`, tightest match first. |
-| `tests` | The next run should be able to skip stories whose code nothing touched. | `false`. Requires a Vite-built preview that includes `testSelectionProbes()`; see below. |
+| `tests` | The next run should be able to skip stories whose code nothing touched. | `false`. Requires this package in the Storybook's `addons` and `storybook build --test`; see below. |
 
 A **band** is the severity category a change is filed under. Loudest first:
 `a11y`, `geometry`, `token`, `content`, `texture`. A role or accessible name that
@@ -231,6 +232,16 @@ source and page-agent shapes.
 One navigation serves the whole suite rather than one navigation per story, and
 addon chrome stays outside the selected story root, so it never covers the
 subject document.
+
+A parallel run starts one Chromium. Each worker is another page in it, in one
+browser context with the first, so its preview boots from the HTTP cache rather
+than fetching the bundle again; the pages share cookies and storage, as stories
+in one preview already share a document. Across workers, what a story finds left
+behind depends on scheduling: which worker read which story before it decides the
+cookies, storage and service workers, msw's among them, that it meets. When you
+let the collector serve the build, it answers with `cache-control: immutable` so
+every asset stays cached for the run. A story read again to rule out its
+neighbours gets a browser of its own.
 
 ## Readiness and loading
 
@@ -344,25 +355,66 @@ for builds that already use Emotion, theme-ui or another custom JSX runtime.
 
 With `tests`, a run records which blocks of your code each story crossed, so the
 next run can skip a story whose code your diff did not reach. The recording is
-done by a Vite plugin in the preview build:
-
-```bash
-npm install --save-dev @variance-authority/sense
-```
+done by probes in the preview build, which this package adds as a Storybook
+addon to `storybook build --test` and a dev server:
 
 ```js
 // .storybook/main.js
-import { testSelectionProbes } from '@variance-authority/sense/journal';
-
 export default {
   stories: ['../src/**/*.stories.@(js|jsx|ts|tsx)'],
-  framework: { name: '@storybook/react-vite', options: {} },
-  viteFinal: async (config) => ({
-    ...config,
-    plugins: [...(config.plugins ?? []), testSelectionProbes()],
-  }),
+  framework: { name: 'storybook-react-rsbuild', options: {} },
+  addons: ['@variance-authority/storybook-collector'],
 };
 ```
+
+Storybook loads the addon through its preset,
+`@variance-authority/storybook-collector/preset`, which you never import
+yourself. The preset reads the builder Storybook runs. Under Vite it adds
+`testSelectionProbes()` from `@variance-authority/sense/journal`; under Rspack,
+through `rsbuildFinal`, and Webpack 5, through `webpackFinal`, it adds a plugin
+that lists `testSelectionRule()`, a loader at `enforce: 'post'`, first among the
+rules once the build's config is final, so it runs after every post loader of
+yours, the ones your `main.js` hooks add included: Storybook runs an addon's
+hooks before yours. Either way the probes go in after
+every compiler your build runs, so an extractor such as `@compiled/react` reads
+your file as you wrote it, and each probe is placed where the source map says
+that code went. Where the build writes no map the loaders can read, as
+`storybook build --test` does, the preset hands the loaders their maps and the
+build still writes no `.map` file. The preset asks Storybook which build it
+is: `test`, which `--test` sets, or `configType` of `DEVELOPMENT`, which a dev
+server sets. Any other `storybook build`, the one you publish, gets nothing
+from the addon: build it with `--test` for the run that records. If you added
+`testSelectionRule()` to the Storybook's builder config by hand, or
+`testSelectionProbes()` in a `viteFinal` of your own, remove it: two would
+probe each other's probes, so the build stops and says "remove your
+testSelectionRule(); the addon places it", or the same of
+`testSelectionProbes()`. One your `vite.config` lists is already in the config
+when the addon runs, and the addon keeps it rather than add a second; if you
+also gave the addon a `mode`, `include` or `placement` that differs from it, the
+build stops and names the option, since the addon's would be dropped. Under
+Rsbuild the addon adds its plugin as a function at the end of `tools.rspack`:
+an `rsbuildFinal` of yours that assigns `tools.rspack` outright, rather than
+adding to the list, drops it, and the build runs without probes. The Vite
+config `@storybook/addon-vitest` loads your presets for, inside Vitest, gets
+nothing from the addon either: that run is a Vitest run, and the Vitest seam
+records it where you configured one.
+
+Each loader that rewrites a file must return a source map composed with its
+input map. Enabling `devtool` gives the probes a map only where that chain is
+intact. A refusal saying there is no map back to the file means that chain is
+missing; one saying the map carries text different from the file on disk means
+the map describes another transform's input. The refusal lists the loader chain
+when the bundler provides it. Check map composition in those upstream loaders
+while keeping the probes after the compilers. Removing a file through `include`
+also removes it from recorded coverage.
+
+Pass the probes' options as the addon's: `{ name:
+'@variance-authority/storybook-collector', options: { mode: 'entries' } }`.
+`include` decides which modules are your source, every file outside
+`node_modules` and `dist` that is not a test or a config by default; `root` is a
+directory in the repository, the cwd by default. `placement:
+'before-transforms'` places the probes in each file as read, ahead of every
+compiler; a Storybook that runs an extractor keeps the default.
 
 ```js
 // variance/storybook.mjs
@@ -412,6 +464,23 @@ the index names each row by where the story is declared — its file, its
 `title/name` — which is the coordinate a person reads in the sidebar and the one
 a diff touches.
 
+Each story's row also says where the browser spent it, timed by the page on its
+own clock rather than by the test driving it, under the phase names a test
+file's row uses. `prepare` is the document's start until the preview is ready:
+the navigation, the runtime, the project annotations and the index. A document
+pays it once, so only the first story read on it carries it, and a story the
+preview switched to reads 0, as the second test in one file pays no worker
+start. `collect` is importing the story's file and everything it loads, and then
+unmounting the story shown before it: Storybook does that in between and signals
+nothing for it. No file is imported before its first story comes up — the
+story's parameters are read from the file the preview loads to show it — so the
+first story of each file carries that file's import, and the stories after it
+read only the unmount. `cases` is the render, from loaders through the play function to
+`afterEach`, or to the phase it ended on when it errored or was aborted. Each
+width a story is read at is its own row, with its own figures; the widths share
+one visit on one page, so the first carries the import and the others are the
+same story shown again at another size.
+
 ## When integration fails
 
 - **The index cannot be read:** build Storybook first and check
@@ -450,4 +519,4 @@ navigation, mounting and readiness.
 
 ---
 
-**[@variance-authority/storybook-collector](https://variance-authority.dev/reference/packages/storybook-collector)** is part of [Variance Authority](https://variance-authority.dev) — [documentation](https://variance-authority.dev/docs) · MIT
+**[@variance-authority/storybook-collector](https://variance-authority.dev/reference/packages/storybook-collector)** is part of [Variance Authority](https://variance-authority.dev) — [documentation](https://variance-authority.dev/docs) · [GitHub](https://github.com/Variance-Authority/variance-authority/tree/main/packages/storybook-collector) · MIT

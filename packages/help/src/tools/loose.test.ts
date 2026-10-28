@@ -82,10 +82,13 @@ const odd = (name: string): Named => ({
   kind: 'source',
 });
 
+/** A doc writes a name in a code span, and the span's backticks are not part of a word. */
+const SPANNED: Named = { ...odd('declaredRoles'), doc: 'The roles docs declare with `@testOnly` and `@production`.' };
+
 const HELP: Help = (() => {
   const read = readHelp(WORKSPACE);
   const extra = ['größe', 'Größenordnung', 'naïveCache', 'x', 'a_b', 'emoji😀Name', 'measureAll', 'mesure', 'ÅngströmUnit', 'parseHTTPResponse2', 'v8Flags', 'ΣύνολοΤιμών'];
-  return { ...read, exported: [...read.exported, ...extra.map(odd)] };
+  return { ...read, exported: [...read.exported, ...extra.map(odd), SPANNED] };
 })();
 
 const INDEX = openSearchIndex(encodeSearchIndex(HELP));
@@ -98,7 +101,7 @@ function reference(query: string): ReadonlySet<string> {
     held.set(name, doc === '' ? written : `${written} ${doc}`);
   };
   for (const [, , entry] of everyEntry(HELP)) keep(entry.name, entry.doc ?? '');
-  for (const named of HELP.exported) keep(named.name, '');
+  for (const named of HELP.exported) keep(named.name, named.doc ?? '');
 
   const mini = new MiniSearch<{ id: number; name: string; doc: string }>({
     fields: ['name', 'doc'],
@@ -140,6 +143,13 @@ describe('the loose pass against MiniSearch', () => {
   it('holds names with punctuation, non-ASCII letters and a surrogate pair', () => {
     expect(INDEX.termCount).toBeGreaterThan(20);
     expect(answered('größe')).toContain('größe');
+  });
+
+  it('holds a word a doc writes in a code span without its backticks', () => {
+    const terms = new Set(Array.from({ length: INDEX.termCount }, (_, id) => INDEX.term(id)));
+    expect([...terms].filter((term) => term.includes('`'))).toEqual([]);
+    expect(terms).toContain('testonly');
+    expect(answered('testonly production')).toContain('declaredRoles');
   });
 
   it.each(queries())('answers %j with the names MiniSearch answers', (query) => {

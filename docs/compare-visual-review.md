@@ -189,8 +189,9 @@ Choose it when the suite should own pixels but the vendor should own review and
 history.
 
 Its Chromium examples use both `--disable-lcd-text` and
-`--font-render-hinting=none`; Variance's Chromium renderer uses the same defaults
-and records the ordered launch recipe in renderer identity.
+`--font-render-hinting=none`; Variance's Chromium renderer uses the same two,
+adds `--disable-partial-raster` so a shot does not depend on what the page
+painted before it, and records the ordered launch recipe in renderer identity.
 
 Sources: [Playwright quickstart](https://argos-ci.com/docs/quickstart/playwright),
 [Vitest quickstart](https://argos-ci.com/docs/quickstart/vitest-quickstart),
@@ -343,7 +344,8 @@ two readings of one input. The order is load-bearing — `again` runs first,
 because `alone`'s inference is *the clean reading differs from the shared one,
 so the world changed it*, which is only evidence once two readings of one world
 are known to agree. A run re-collects at most `alone.limit` changed subjects
-this way.
+this way: the first to change in the order it takes them, whatever the number
+of worlds.
 
 Because a document keeps a hash per component per band, the answer is not
 "this subject is flaky", which is a page to re-examine. It is a component and a

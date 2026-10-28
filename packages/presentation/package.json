@@ -1,6 +1,6 @@
 {
   "name": "@variance-authority/presentation",
-  "version": "0.15.0",
+  "version": "0.21.0",
   "description": "Sense spacing, alignment, prominence and repetition inside one live interface, as evidence an agent can read.",
   "keywords": [
     "variance-authority",
@@ -58,5 +58,11 @@
     "@playwright/test": {
       "optional": true
     }
+  },
+  "devDependencies": {
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
   }
 }

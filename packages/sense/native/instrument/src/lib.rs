@@ -26,6 +26,8 @@
 
 mod cadence;
 mod cadence_map;
+#[cfg_attr(not(feature = "addon"), allow(dead_code))]
+mod carry;
 mod crossing;
 mod cut;
 mod dialect;
@@ -34,6 +36,8 @@ mod dialect;
 #[doc(hidden)]
 pub mod digest;
 mod header;
+#[cfg_attr(not(feature = "addon"), allow(dead_code))]
+mod place;
 mod walk;
 
 pub use cadence::{cadence, Cadence};
@@ -125,7 +129,9 @@ pub mod native {
     pub use crate::cut::{cut, Cut};
     pub use crate::dialect::dialect;
     pub use crate::header::header;
+    pub use crate::place::{place, Placed};
     pub use crate::walk::{Block, Kind};
+    pub use crate::walk::capture::{bound, declared, Erased};
 
     /// How many regions with source of their own a parsed program is cut into
     /// under `presence`.

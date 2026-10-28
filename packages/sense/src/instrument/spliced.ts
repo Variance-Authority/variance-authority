@@ -21,7 +21,7 @@
  * ## What is deliberately not a decision
  *
  * Ternaries, `&&`, `||`, `??` and `?.` belong to the region that contains them
- * ([spec 0028](../../../../docs/specs/0028-the-instrument.md)). For
+ * ([spec 0028](https://github.com/Variance-Authority/variance-authority/blob/main/docs/specs/0028-the-instrument.md)). For
  * `if (order.isPremium && order.total > 100)` the fact worth recording is which
  * branch ran, not which operand short-circuited, and a change to either operand
  * still reaches every test that evaluated the condition — through the region the
@@ -41,8 +41,17 @@ import type { NativeScanner } from '../native.js';
  * regions they keep the same way, so a function has the same address under
  * either; what differs is how many regions there are and how much a probe set
  * costs to carry.
+ *
+ * `loads` applies none of it: no module is cut or probed, and each one runs
+ * marked as loaded, with one line after its own text. A record made so says
+ * which files each test loaded, and nothing about what in them ran, so a
+ * change to a file selects every test that loaded it. Nothing walks under it:
+ * the walks below refuse it.
  */
-export type InstrumentMode = 'presence' | 'entries';
+export type InstrumentMode = 'presence' | 'entries' | 'loads';
+
+/** The modes that cut a module into regions. */
+export type WalkMode = Exclude<InstrumentMode, 'loads'>;
 
 /** What kind of region a probe stands in front of. */
 export type BlockKind =
@@ -89,6 +98,8 @@ export interface Spliced {
   /** Identity of the source the offsets are into. */
   readonly sourceDigest: string;
   readonly blocks: readonly Block[];
+  /** Whether `code` imports or exports: `false` is a script, which takes nothing by `import`. */
+  readonly module: boolean;
 }
 
 /** The addon, which is the only instrumenter: no addon is an error, never an uninstrumented run. */
@@ -114,6 +125,7 @@ export interface NativeInstrumented {
   readonly names: readonly string[];
   readonly paths: readonly string[];
   readonly digests: readonly string[];
+  readonly module: boolean;
 }
 
 /** The addon numbers kinds in this order; `walk.rs` declares the same. */
@@ -127,6 +139,13 @@ const KINDS: readonly BlockKind[] = [
   'case',
   'handler',
 ];
+
+/** The addon's answer for a transformed text: `native/instrument/src/place.rs`. */
+export interface NativePlaced {
+  readonly instrumented: NativeInstrumented;
+  readonly mappings: string;
+  readonly carried: string | null;
+}
 
 const NONE = 0xffffffff;
 
@@ -152,7 +171,7 @@ type WellFormed = string & { isWellFormed(): boolean };
  * With a `module`, the text carries the header that reports under that id, at
  * `headerAt`; without one it carries the probes alone.
  */
-export function spliced(source: string, file: string, mode: InstrumentMode, module?: string): Spliced | undefined {
+export function spliced(source: string, file: string, mode: WalkMode, module?: string): Spliced | undefined {
   const addon = instrumenter();
   if (!(source as WellFormed).isWellFormed()) return undefined;
 
@@ -164,6 +183,52 @@ export function spliced(source: string, file: string, mode: InstrumentMode, modu
   }
   if (answer === null) return undefined;
 
+  return columns(answer);
+}
+
+/** A text some other transform wrote, with the probes of the regions it came from. */
+export interface Placed extends Spliced {
+  /** The map from `code` back to the transformed text. */
+  readonly mappings: string;
+  /**
+   * With `carry`, the composed map's `mappings` moved onto `code`: its sources
+   * and names as they were, each column past the probes in front of it.
+   */
+  readonly carried?: string;
+}
+
+/**
+ * The regions of `authored`, numbered, named and digested as {@link spliced}
+ * cuts them, with their probes in `transformed` where `mappings` — the composed
+ * map from it to its sources, `authored` being number `source` — carries them.
+ * With `carry`, the answer holds that map moved onto the probed text, for a
+ * runner no bundler composes maps for.
+ */
+export function placed(
+  authored: string,
+  transformed: string,
+  map: { readonly file: string; readonly mappings: string; readonly source: number },
+  mode: WalkMode,
+  module: string,
+  carry = false,
+): Placed | undefined {
+  const addon = instrumenter();
+  if (!(authored as WellFormed).isWellFormed() || !(transformed as WellFormed).isWellFormed()) return undefined;
+  let answer: NativePlaced | null;
+  try {
+    answer = addon.place(authored, transformed, map.file, map.mappings, map.source, mode === 'entries', module, carry);
+  } catch (error) {
+    throw new Error(`instrument: the native walk failed on ${map.file}: ${(error as Error).message}`, { cause: error });
+  }
+  if (answer === null) return undefined;
+  return {
+    ...columns(answer.instrumented),
+    mappings: answer.mappings,
+    ...(answer.carried === null ? {} : { carried: answer.carried }),
+  };
+}
+
+function columns(answer: NativeInstrumented): Spliced {
   const blocks: Block[] = [];
   for (let ordinal = 0; ordinal < answer.starts.length; ordinal++) {
     const owner = answer.owners[ordinal]!;
@@ -184,5 +249,6 @@ export function spliced(source: string, file: string, mode: InstrumentMode, modu
     headerAt: answer.headerAt,
     sourceDigest: answer.sourceDigest,
     blocks,
+    module: answer.module,
   };
 }

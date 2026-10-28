@@ -1,6 +1,7 @@
 use super::*;
 use crate::journey_forks::{between, JourneyEnd};
-use crate::journey_format::{encode, EncodedModule, SetPool};
+use crate::crossing_sets::SetPool;
+use crate::journey_format::{encode, CaseExtras, EncodedModule};
 use crate::journey_journal::{Test, FINISHED};
 use crate::journey_paths::through;
 use crate::journey_record::{Block, Module};
@@ -9,7 +10,7 @@ use crate::journey_record::{Block, Module};
 /// and reach `target`; three take its second and stop; one reaches `target` alone.
 fn recorded() -> JourneyMasks {
     let tests: Vec<Test> = (0..8)
-        .map(|case| Test { id: format!("t{case}"), file: format!("route{}.test.ts", case % 2), name: format!("case {case}"), project: None, runner: None, settled: FINISHED, preconditions: None })
+        .map(|case| Test { id: format!("t{case}"), file: format!("route{}.test.ts", case % 2), name: format!("case {case}"), project: None, runner: None, settled: FINISHED, heard: None })
         .collect();
     let block = |kind: &str, name: &str, start: u32, end: u32| Block {
         kind: kind.to_owned(),
@@ -41,7 +42,7 @@ fn recorded() -> JourneyMasks {
         .enumerate()
         .map(|(at, module)| EncodedModule { module, called: &called[at], loaded: &loaded[at] })
         .collect();
-    let bytes = encode(&tests, &encoded, &sets, None).unwrap();
+    let bytes = encode(&tests, &CaseExtras::default(), &encoded, &mut sets, None).unwrap();
     JourneyMasks::of(Journey::of("recorded", bytes).unwrap()).unwrap()
 }
 

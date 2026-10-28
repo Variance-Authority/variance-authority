@@ -15,7 +15,7 @@ use crate::dialect::dialect;
 use sha2::{Digest, Sha256};
 
 use crate::digest;
-use crate::walk::{Block, Edit, Kind, Walker};
+use crate::walk::{capture, Block, Edit, Kind, Walker};
 
 /// `header_at` and `digests` are the addon's: [`crate::instrument`] reads neither.
 #[cfg_attr(not(feature = "addon"), allow(dead_code))]
@@ -30,6 +30,8 @@ pub struct Cut {
     /// Block offsets are UTF-16 code units into the original source.
     pub blocks: Vec<Block>,
     pub digests: Vec<String>,
+    /// Whether `code` is a module — it imports or exports — rather than a script.
+    pub module: bool,
 }
 
 /// Calls vitest hoists above everything, so a header must not land in front of them.
@@ -58,9 +60,42 @@ fn cut_in(allocator: &Allocator, source: &str, file: &str, entries: bool) -> Opt
         return None;
     }
     let program = &parsed.program;
+    let walker = walk(program, source_type.is_typescript(), entries);
+    let digests = own_digests(source, &walker.blocks);
+    let spliced = splice(source, program, walker, false);
+    Some(Cut {
+        code: spliced.code,
+        header_at: spliced.header_at,
+        header_byte: spliced.header_byte,
+        source_digest: digest::of_string(source),
+        blocks: spliced.blocks,
+        digests,
+        module: parsed.module_record.has_module_syntax,
+    })
+}
 
-    let mut walker = walk(program, source_type.is_typescript(), entries);
+/// A walked text with its probes in, and no header.
+#[cfg_attr(not(feature = "addon"), allow(dead_code))]
+pub(crate) struct Spliced {
+    pub code: String,
+    /// Where the header goes in `code`, in UTF-16 code units.
+    pub header_at: u32,
+    /// Where the header goes in `code`, in bytes.
+    pub header_byte: usize,
+    /// Where the header goes in the source, in bytes: in front of every other
+    /// insertion at that offset.
+    pub header_source: u32,
+    /// Block offsets in UTF-16 code units into the source.
+    pub blocks: Vec<Block>,
+    /// Every insertion, as `(source byte offset, text)`, in the order spliced:
+    /// the separator a header needs among them, the header not. Empty unless
+    /// the splice was asked to keep them.
+    pub edits: Vec<(u32, String)>,
+}
 
+/// Splice a walk's probes into the text it walked, keeping the list of
+/// insertions only when `keep` asks for it.
+pub(crate) fn splice(source: &str, program: &Program, mut walker: Walker, keep: bool) -> Spliced {
     let prologue = prologue_end(program);
     // The window closes after the last top-level statement, never at the end of the text.
     let last = match (program.body.last(), program.directives.last()) {
@@ -69,6 +104,10 @@ fn cut_in(allocator: &Allocator, source: &str, file: &str, entries: bool) -> Opt
         (None, None) => prologue,
     };
     let from = walker.texts.len() as u32;
+    if let Some(held) = capture::call(0, &capture::module(program)) {
+        walker.texts.push(';');
+        walker.texts.push_str(&held);
+    }
     walker.texts.push_str(";__vaE();");
     walker.edits.push(Edit { at: prologue.max(last), from, to: walker.texts.len() as u32 });
 
@@ -102,8 +141,20 @@ fn cut_in(allocator: &Allocator, source: &str, file: &str, entries: bool) -> Opt
     code.insert_str((prologue + before) as usize, separator);
     before += separator.len() as u32;
 
+    let mut edits: Vec<(u32, String)> = Vec::with_capacity(if keep { walker.edits.len() + 1 } else { 0 });
+    let mut separated = !keep || separator.is_empty();
+    for edit in walker.edits.iter().filter(|_| keep) {
+        if !separated && edit.at >= prologue {
+            edits.push((prologue, separator.to_string()));
+            separated = true;
+        }
+        edits.push((edit.at, walker.texts[edit.from as usize..edit.to as usize].to_string()));
+    }
+    if !separated {
+        edits.push((prologue, separator.to_string()));
+    }
+
     let header_byte = (prologue + before) as usize;
-    let digests = own_digests(source, &walker.blocks);
     let mut blocks = walker.blocks;
     let mut header_at = prologue;
     if !source.is_ascii() {
@@ -114,28 +165,20 @@ fn cut_in(allocator: &Allocator, source: &str, file: &str, entries: bool) -> Opt
             block.end = table.at(block.end);
         }
     }
-
-    Some(Cut {
-        code,
-        header_at: header_at + before,
-        header_byte,
-        source_digest: digest::of_string(source),
-        blocks,
-        digests,
-    })
+    Spliced { code, header_at: header_at + before, header_byte, header_source: prologue, blocks, edits }
 }
 
 /// UTF-8 byte offsets to UTF-16 code units, for a source that is not ASCII.
 ///
 /// oxc's own converter is behind its `serialize` feature, which brings serde
 /// into every AST type; this is the part of it this file needs.
-struct Utf16 {
+pub(crate) struct Utf16 {
     /// `(byte offset after a character, code units saved before it)`, in order.
     steps: Vec<(u32, u32)>,
 }
 
 impl Utf16 {
-    fn new(source: &str) -> Self {
+    pub(crate) fn new(source: &str) -> Self {
         let mut steps = Vec::new();
         let mut saved = 0u32;
         for (at, character) in source.char_indices() {
@@ -148,7 +191,7 @@ impl Utf16 {
         Self { steps }
     }
 
-    fn at(&self, offset: u32) -> u32 {
+    pub(crate) fn at(&self, offset: u32) -> u32 {
         let passed = self.steps.partition_point(|&(end, _)| end <= offset);
         offset - if passed == 0 { 0 } else { self.steps[passed - 1].1 }
     }
@@ -156,7 +199,18 @@ impl Utf16 {
 
 /// The walk over a program another parse made, from its module region down.
 pub(crate) fn walk<'a>(program: &'a Program<'a>, typescript: bool, entries: bool) -> Walker {
+    walk_firing(program, typescript, entries, None)
+}
+
+/// The walk, with each region's probe firing the authored regions `fires` names.
+pub(crate) fn walk_firing<'a>(
+    program: &'a Program<'a>,
+    typescript: bool,
+    entries: bool,
+    fires: Option<Vec<Vec<u32>>>,
+) -> Walker {
     let mut walker = Walker::new(entries, crate::crossing::crossing(program));
+    walker.fires = fires;
     let start = if typescript { typescript_start(program) } else { program.span.start };
     walker.open(Kind::Module, "module", start, program.span.end, None);
     walker.list(&program.body, "", 0);
@@ -263,12 +317,20 @@ fn prologue_end(program: &Program) -> u32 {
     at
 }
 
+/// A statement that only names another module: it runs when the module loads.
+pub(crate) fn is_import(statement: &Statement) -> bool {
+    matches!(
+        statement,
+        Statement::ImportDeclaration(_)
+            | Statement::ExportAllDeclaration(_)
+            | Statement::ExportFromDeclaration(_)
+            | Statement::TSImportEqualsDeclaration(_)
+    )
+}
+
 pub(crate) fn is_prologue(statement: &Statement) -> bool {
     match statement {
-        Statement::ImportDeclaration(_)
-        | Statement::ExportAllDeclaration(_)
-        | Statement::ExportFromDeclaration(_)
-        | Statement::TSImportEqualsDeclaration(_) => true,
+        statement if is_import(statement) => true,
         Statement::ExpressionStatement(it) => match &it.expression {
             Expression::StringLiteral(_) => true,
             expression => is_hoisted_call(Some(expression)),

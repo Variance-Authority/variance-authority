@@ -1,5 +1,5 @@
 import { locateSites } from '@variance-authority/core/attribute';
-import { documentDigest } from '@variance-authority/core/format';
+import { documentDigest, timeOn } from '@variance-authority/core/format';
 import type { Level } from '@variance-authority/core/judge';
 import {
   declaredIgnores,
@@ -62,7 +62,9 @@ export async function observeOne(
   // also puts the list in the hands of `images`, which writes it onto the
   // candidate sidecar so that the run *after* this one can say which of these
   // defects it inherited.
-  const found = await findingsOf(collected.snapshot, collected.source, deps.collector.callSites);
+  const found = await timeOn(context.steps, 'inspect', async () =>
+    findingsOf(collected.snapshot, collected.source, deps.collector.callSites),
+  );
   const marks = marksOf(found);
 
   // Shape-scoped ignores, flattened to the lookup the comparison actually does.
@@ -81,6 +83,7 @@ export async function observeOne(
     ...(collected.snapshot !== undefined ? { snapshot: collected.snapshot } : {}),
     ...(collected.source !== undefined ? { source: collected.source } : {}),
     ...(context.decoder !== undefined ? { decoder: context.decoder } : {}),
+    ...(context.steps !== undefined ? { steps: context.steps } : {}),
   };
 
   if (config.retention === 'ephemeral') {
@@ -108,16 +111,8 @@ export async function observeOne(
         ...(collected.causes !== undefined ? { causes: collected.causes } : {}),
         ...(collected.source !== undefined ? { source: collected.source } : {}),
         ...(collected.presentation !== undefined ? { presentation: collected.presentation } : {}),
-        ...(await images(
-          id,
-          observation,
-          collected.document,
-          renderer,
-          config,
-          deps,
-          null,
-          collected.snapshot,
-          marks,
+        ...(await timeOn(context.steps, 'write', async () =>
+          images(id, observation, collected.document, renderer, config, deps, null, collected.snapshot, marks),
         )),
         diagnostics,
         // No `standing` on this path, and none is inferrable. Ephemeral
@@ -147,14 +142,13 @@ export async function observeOne(
   // properly, but it does switch this whole economy off for every run above 1x
   // and say nothing. That is the drift `Renderer.identityFor` exists to prevent.
   const identity = renderer.identityFor(collected.document);
-  const described = await deps.store.describe(key, identity);
-  const settlement = settle(
-    documentDigest(collected.document),
-    described,
-    identity,
-    undefined,
-    collected.snapshot,
-  );
+  const { described, settlement } = await timeOn(context.steps, 'settle', async () => {
+    const described = await deps.store.describe(key, identity);
+    return {
+      described,
+      settlement: settle(documentDigest(collected.document), described, identity, undefined, collected.snapshot),
+    };
+  });
 
   if (settlement.kind === 'settled') {
     const missingFonts = settlement.missingFonts ?? [];
@@ -234,16 +228,8 @@ export async function observeOne(
       // from this report and never re-plans. The ephemeral branch above compares
       // two renders from one run and stores neither, so it has nowhere to place.
       ...baselineKeyOf(key),
-      ...(await images(
-        id,
-        observation,
-        collected.document,
-        renderer,
-        config,
-        deps,
-        key,
-        collected.snapshot,
-        marks,
+      ...(await timeOn(context.steps, 'write', async () =>
+        images(id, observation, collected.document, renderer, config, deps, key, collected.snapshot, marks),
       )),
       diagnostics,
       // Crossed against the marks the baseline recorded, from the sidecar this

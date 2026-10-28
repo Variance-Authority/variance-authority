@@ -1,5 +1,356 @@
 # @variance-authority/playwright-test
 
+## 0.21.0
+
+Lockstep release — nothing in this package changed. Every `@variance-authority/*` package shares one version.
+
+## 0.20.0
+
+Lockstep release — nothing in this package changed. Every `@variance-authority/*` package shares one version.
+
+## 0.19.0
+
+Lockstep release — nothing in this package changed. Every `@variance-authority/*` package shares one version.
+
+## 0.18.0
+
+Lockstep release — nothing in this package changed. Every `@variance-authority/*` package shares one version.
+
+## 0.17.1
+
+### Patch Changes
+
+- a438b9a: Accept typed Playwright configurations without casts and preserve their custom fixture types. Return a mutable loader tuple from `testSelectionRule` so it can be used directly in Rspack rules.
+
+## 0.17.0
+
+### Minor Changes
+
+- d0993fb: A Chromium shot no longer depends on what the page painted before it
+
+  `CHROMIUM_RASTER_ARGS` adds `--disable-partial-raster`. With partial raster, an
+  edit repaints only the damaged part of a tile, and those pixels come out one
+  colour level off a whole-tile paint. A page that mounts subject after subject
+  could shoot the same subject two ways: a baseline taken after another subject
+  differed from the same baseline taken first. Every tile is now painted whole:
+  240 mounts and shots on one page took 23.9 ms each with the flag and 24.0 ms
+  without it.
+
+  The flag is part of the ordered launch recipe, so a baseline recorded under the
+  old recipe comes back as a change caused by `rasterization`, and `accept`
+  adopts the new image. If you copy `CHROMIUM_RASTER_ARGS` into your own
+  `launchOptions`, the next run reports the same `rasterization` cause. A launch
+  list that spells the flags out by hand keeps the old recipe until you add
+  `--disable-partial-raster` to it.
+
+## 0.16.0
+
+### Minor Changes
+
+- 40a19b9: A committed baseline is named for its story or test
+
+  Under `directory` and `lfs`, a baseline was written to
+  `<root>/<identity digest>/<percent-encoded subject id>.png`, so a pull request
+  that accepted one listed a 32-character hex directory nobody could check against
+  the change, and each machine that accepted wrote its own copy. `baselines.path`
+  is now a template rendered from what the subject is: `{dir}` and `{file}` (the
+  file that declares it), `{title}`, `{name}`, `{id}`, `{project}` (the
+  Playwright project's name, in the fixture's `varianceBaselinePath` only) and
+  `{engine}` (the engine's family). The default, `{title}/{name}-{engine}`,
+  writes `Ui/Button/Primary-chromium.png`;
+  `{dir}/__baselines__/{file}/{name}-{engine}` with `root: "."` writes
+  `src/ui/Button/__baselines__/Button.stories.tsx/Primary-chromium.png` beside the
+  code. A label is spelled `Primary__dark-chromium.png`.
+
+  The machine that painted a baseline is read from the record beside it. One file
+  holds each subject per engine family, the last accept writes it, and a run on
+  another platform, scale factor or engine version compares against it, reading
+  unchanged or changed as the pixels say, with the moved field named as the cause.
+  A laptop and CI that take turns accepting rewrite the record each time; set
+  `baselines.records` to keep the records out of version control. The tribunal's
+  bucket store answers the same way: a lookup reads the last accept on the
+  engine family, where it used to prefer this machine's own row.
+
+  Two subjects that render one path, compared case-folded, stop the run with an
+  error naming both subjects and the template. Nothing is renumbered. The record
+  names the subject it was accepted for, so a shard, a Playwright worker or a
+  later run that renders the same path for another subject stops too. Two
+  Playwright projects that differ only in scale factor, colour scheme or viewport
+  render one path; the error names both projects and `{project}`. A record left by
+  a project the config no longer runs is a renamed project's, and the first run
+  under the new name takes it over.
+
+  The Vitest plugin reads a test's `describe` path from the runner, so a title
+  that contains ` > ` stays one directory under `{title}`.
+
+  **Breaking:** `baselines.layout` is removed, and a config that sets it is
+  refused with an error naming `path`. Baselines under the identity directories
+  are still read: the subject is compared against them, unchanged or changed as
+  the pixels say, with the move from the old path to the new one given as a cause,
+  and the next accept writes the template's path and deletes the old pair, so the
+  pull request shows a rename. An accept deletes only a pair this machine's
+  identity or engine line painted; another machine's stays until that machine
+  accepts. `BaselineKey` carries `file`, `title`, `name` and
+  `project` in place of `path`; the Playwright fixture, the Vitest plugin and
+  Storybook's index supply them, and `varianceBaselinePath` and `baselinePath`
+  set the template for a suite run without the CLI.
+
+  The git-LFS store's `.gitattributes` pattern and the action's commit-back
+  pathspecs are the template's glob, so a collocated baseline is tracked and
+  committed where it is written. An `lfs` config whose root is `.` and whose
+  template has no directory of its own is refused, because its glob would track
+  every hyphenated image in the repository; give the template a directory such
+  as `__baselines__`, give the baselines a root of their own, or set
+  `baselines.pattern`. A `directory` config at root `.` with such a template is
+  refused for the same reason: the action would commit every hyphenated image
+  back. An existing LFS root gets the template's pattern as a new
+  `.gitattributes` line the next time a run opens it; commit it with the baselines.
+- 0b6af81: A changed region is joined against the baseline's nodes as well as this render's
+
+  A change that replaces an element paints over the old element's box and the new
+  one's, and `attributeRegions` read only one snapshot. On todomvc's broken toggle,
+  71% of the changed region is inside the checkbox that left and 88.75% inside the
+  div that arrived. Neither reaches the 0.9 containment, so the region named the
+  row around both.
+
+  `AttributionOptions.before` is now required: the snapshot of the revision the
+  pixels are compared against, or `undefined`. Each node is joined against the
+  area its own box and the box of the node the differ's matcher pairs it with in
+  `before` cover together: the two places, not the rectangle that holds both.
+  A box that left is placed by where it was in its own image, whose corner is the
+  new `AttributionOptions.beforeOrigin`: by default the before snapshot's root, so
+  a subject the page moved between two clipped shots joins where its pixels are.
+  A call that states `origin` with a `before` snapshot and no `beforeOrigin`
+  throws, since a corner guessed from the other image is right only when the page
+  did not move.
+
+  A baseline keeps that snapshot. `Raster.snapshot` is a `PackedSnapshot`, the
+  tree gzipped and in base64, written by the Playwright fixture, its promotion,
+  the Vitest browser provider and the CLI's image sidecars. `packSnapshot` and
+  `unpackSnapshot` are exported from `@variance-authority/observe`. Every store
+  carries it as text: `sidecarFrom` keeps it, `variance push` forwards it, and
+  tribunal stores it in new `baselines.snapshot` and
+  `build_subjects.candidate_snapshot` columns (schema 21, migration
+  `0019_baseline-snapshot.sql`) and promotes it on approval. On
+  `cases/storybook-case` it adds 3.2–5.4 KB to each sidecar.
+
+  A baseline without a snapshot says so. When a changed verdict has regions and
+  its baseline kept no snapshot, or one that will not unpack, the reason ends
+  *the baseline records no snapshot of its nodes, so regions were joined against
+  this render's boxes alone: an accepting run records one on a revision where
+  this subject is unchanged*. An accepting run — `--update-snapshots`, Vitest's
+  `--update`, `variance accept` — now re-stamps an unchanged baseline that kept no
+  snapshot, as it re-stamps one painted under another identity, and the
+  observation marks it `signals.snapshot: 'unrecorded'`; `restamps` in
+  `@variance-authority/core/judge` is the one rule all three ask. Every other
+  verdict the mark is on ends *the baseline records no snapshot of its nodes, and
+  an accepting run records this one*. Two images
+  compared directly get the same clause, naming the before image, without the
+  remedy, and are never marked.
+
+  A subject whose document has not moved settles on its digest and builds no
+  observation to mark, so `settle` now renders a pictured baseline that kept no
+  snapshot when this run collected one, with the reason *the baseline records no
+  snapshot of its nodes, so this run renders it for an accepting run to record
+  one*. A suite of baselines accepted before this release renders them on every
+  run until an accepting run re-stamps them. Tribunal records one on ingest
+  instead: a pushed candidate's snapshot is written onto a baseline that has an
+  image and kept none, when it was painted from the same document under the same
+  identity, and never over one it kept, so such a subject renders once. The
+  snapshot's runtime fields (`provenance` and its `createdBy`, `wiring`, `holding`,
+  `styleProvenance`, `styleTokens`, `ignoredBy`) are then the recording run's: the
+  first push, from a build on any branch, that drew that document, as they are the
+  accepting run's on a re-stamp. `Described.keepsSnapshot`
+  is the new required field it reads:
+  the durable, LFS and tribunal stores derive it from the sidecar with
+  `keepsSnapshot` from `@variance-authority/core/format`, and the remote store
+  refuses a description without it. A packed snapshot now opens with a `v1:`
+  header naming its format version, `PACKED_SNAPSHOT_HEADER`, and a snapshot
+  without it counts as not kept. `unpackSnapshot` reads one as not recorded
+  unless every node in it is one, with `isSemanticSnapshot`, new in
+  `@variance-authority/core/format` beside `isRenderDocument` and
+  `isSubjectRef`: the checks `@variance-authority/unit-test` already made of a
+  capture file's snapshot, document and subject, which it now asks. Tribunal serves API 6, which describes a
+  baseline with `keepsSnapshot`; `variance push` against an older deployment names
+  the refused descriptions when the project's `remote` baselines are stored there,
+  and the remote store's refusal names tribunal before API 6 and a
+  `serveRasterStore` from an earlier `@variance-authority/remote`: upgrade the
+  server, tribunal or your own, before the client. `settle` takes this run's snapshot as a
+  fifth argument. `variance accept` and the MCP changelog call these subjects
+  *unchanged and re-stamped* rather than re-stamped under this run's identity,
+  which was untrue of them. The render cache no longer hands on a snapshot an
+  entry kept.
+- 9b95dc1: A shard takes whole files in every runner, and is balanced by file count without times
+
+  Under `--shard k/n`, a Playwright config wrapped by `withTestSelection` now
+  places each spec file whole in one shard, by the time it took on the last
+  recorded run, as Vitest and Jest shards are placed. Playwright's own split,
+  which under `fullyParallel` divides a file's tests between shards, does not run.
+  The reporter places the shard in `preprocess`, after `--project`, `--grep` and
+  `.only`, and prints one line on stderr:
+  `variance-authority: shard 1/2 by file count: 2 of 3 files; no times at …`.
+  A file several projects run, or `repeatEach` repeats, goes with all its copies
+  to one shard; setup and teardown projects are not placed, and a project with no
+  file in the shard is left out whole. Playwright runs a setup project in every
+  shard that needs it, so combining the shards' records refuses its files as run
+  by two shards. `PWTEST_SHARD_WEIGHTS` is ignored for placement, though
+  Playwright still validates it.
+
+  This needs Playwright 1.62 or newer. `withTestSelection` refuses a run that asks
+  for a shard, by `--shard` or by `shard` in the configuration, when the
+  configuration is evaluated, before any test starts: on an older Playwright with
+  `variance-authority: refusing shard k/n: Playwright <version> would split it
+  test by test, …; placing whole files needs Playwright 1.62 or newer`, and when
+  a `--reporter` on the command line replaces the configuration's reporters
+  without naming `@variance-authority/playwright-test/reporter`, by that
+  specifier or by a path that resolves to it. The version is the one the
+  configuration's directory resolves, from `-c`/`--config` or the working
+  directory. A configuration that names the reporter without `withTestSelection`
+  is not refused. A run with no shard runs as before.
+
+  When the record has no times, or none for the files collected, a Vitest, Jest
+  or Playwright shard prices every file the same and places them by the same
+  rule, so the shards are balanced by file count and none is left empty while
+  there are as many files as shards. The line reads
+  `shard k/n by file count: <m> of <n> files; <why>`, in place of
+  `split by the runner, by count: <why>`. A file the runner hands in more than
+  once, for each project that runs it, is placed once at its recorded time, which
+  already sums every project, with every copy in one shard.
+
+  `place` in `@variance-authority/core/shard` is where that rule lives: with
+  nothing recorded, every group weighs one and is placed longest first on the
+  least-loaded shard like a timed one, ties broken by key in code-unit order and
+  then by the lowest shard. Its `by` reads `count` rather than `checksum`, and
+  its `cost` and `load` are always present, one per group when placed by count.
+  `variance run --shard` and `variance collect --shard` place stories and routes
+  by the same rule, and a subject another shard owns reads
+  `assigned to shard k/n by count, …`.
+
+  A Jest or Vitest configuration wrapped by `withTestSelection` and evaluated
+  under `--shard` gets `passWithNoTests: true` unless it sets `passWithNoTests`
+  itself, so a shard left no file, because there are fewer files than shards,
+  passes as it does under Playwright. Vitest 4 refused such a run before any file
+  was placed. An unsharded run that finds no file still fails.
+
+  `shardOf(files, shard, times)`, `landingTimes(record, options)` and
+  `shardArgument(argv)`, which reads the `--shard k/n` a command line asks for, are exported
+  from `@variance-authority/sense/test-selection`, for a seam that places a shard
+  by the same rule.
+
+  A Vitest, Jest or Playwright shard that cannot read the record its times come
+  from now fails before any test runs, with
+  `variance-authority: the times this shard is placed by could not be read, …`
+  and the reason: a share that did not answer or answered with what does not
+  read, a record that is there and does not decode, or a CLI that throws as it
+  loads. It used to place by file count, beside shards that may have read the
+  times. A record that is not there, a share that holds none or is not
+  configured, and a CLI that is not installed still place by count. An unsharded
+  run reads no times and runs as before. `variance shards` fails the same way.
+
+  **Breaking:**
+
+  - A Vitest or Jest shard with no times is placed by file count, in code-unit
+    order of path, not by your sequencer's `shard`. Your sequencer still sorts
+    each shard.
+  - A Playwright run below 1.62 that asks for a shard is refused. Upgrade
+    Playwright, or run without `--shard`.
+  - A sharded Playwright run whose `--reporter` leaves out
+    `@variance-authority/playwright-test/reporter` is refused. Name it in
+    `--reporter` too.
+  - `variance run --shard` and `variance collect --shard` with no recorded costs
+    place each file by count, not by a checksum of the file and the shard. The
+    shards are balanced, but adding a file can move others to another shard.
+    A collection part's `assignment`, and the `assignment` in the provenance of
+    the suite index merged from it, read `count` where they read `checksum`. An
+    index that reads `checksum` still opens. `variance collect merge` refuses
+    sharded parts an earlier version cut by checksum; collect every shard again.
+  - A sharded run whose share does not answer fails rather than placing by
+    file count. Run the job again, or hand every shard the record fetched once.
+
+### Patch Changes
+
+- 8d1bcc1: A link in a doc comment opens from `node_modules`
+
+  Doc comments linked to documentation by repository paths such as
+  `../../../../docs/flakiness.md`, which resolve to nothing in an installed
+  package. They now link to the page on variance-authority.dev, or to the file on
+  GitHub when the site does not publish it, so the link works on hover in your
+  editor and in what `variance ask symbol` prints.
+
+  The MCP server's instructions and its observability answer linked to
+  `/start-cli` and `/presentation`, which the site does not serve. They now link
+  to `/start/cli` and `/docs/presentation`, and the `@variance-authority/cli`,
+  `@variance-authority/help`, `@variance-authority/mcp` and
+  `@variance-authority/vitest-browser` READMEs link to the guides where the site
+  publishes them.
+
+  `variancePrecondition`, `wiringOf`, `tapCommits` and `provenanceOf` carry an
+  `@see` link to the section of the guide that documents them.
+- 4aa7b16: Content inserted into a page is the inserted rows, not everything under them
+
+  Two images of the same width are compared row by row after their rows are
+  aligned: each row is hashed, runs of equal rows are one token, and Myers finds
+  the shortest edit between the two sequences. Each after row is then compared
+  with the before row that shows the same content, and `pixelmatch` still judges
+  every pairing; a row that moved, came or went is a change in itself, so no
+  pairing makes a page read as unchanged. A section added to a long page marks that
+  section, and the content it pushed down matches. A pairing is kept only when it
+  leaves fewer pixels differing than position does, a row it leaves unpaired
+  charged in full, so a line that changed in place is not shifted against its
+  neighbours. The rows a gap grew by are inserted, as the rows it lost are
+  removed, so a button whose padding grew has a region where it grew. Images of
+  different widths, or an edit longer than 2,000 runs of rows, are compared
+  position by position on the union box, as before.
+
+  An inserted row is marked edge to edge, since nothing says where its content
+  begins, so a region inside one is joined by its rows rather than its area: to
+  the tightest box whose rows span it. `attributeRegions` takes the inserted rows
+  as `inserted`. Joined by area, every such band went to the subject's root, and
+  a card whose button grew named the card rather than the button.
+
+  `RasterComparison.alignment` carries the pairing as `RowAlignment`: the after
+  rows `inserted`, the before rows `removed` with the after row they left from,
+  and the rows `shifted` with how far. A comparison without it was not aligned.
+
+  Content that moved is a change. A gap that grew in one place and shrank in
+  another moves what lies between them and leaves the page as tall as it was, and
+  every moved row matches the row it came from; such a subject reports `changed`,
+  never `unchanged` or `ignored`. The reason names the edit:
+  *120 pixels differ across 1 region; 3 pixel rows inserted in 1 place, moving
+  the content under them by up to 3 rows, and the subject resized from 40×5 to
+  40×8*. The Playwright fixture's evidence now writes a diff for a subject that
+  resized, drawn on the after image.
+- e6afc58: One recorder for every visual subject
+
+  `@variance-authority/sense/journal` exports `createSubjectRecorder`, which keeps
+  one row per subject of a visual run with the page and every head joined, and
+  `driveJourneys`, the driver's listener, cookies and settling wait. The
+  Storybook collector records through the first, the Playwright fixture through
+  the second, so a story, a page and a test file record their journeys the same
+  way.
+- e4e1b5b: What a case said it arranged is stored once, and read the same way everywhere
+
+  The record keeps each distinct precondition once, with the cases that said it
+  as a set in the pool coverage already uses, so a `beforeEach` that every case
+  of a file runs costs one entry rather than one per case. Every item is kept,
+  including one a narrower level overrode, and a case's row is resolved when it is
+  read: per name, the narrowest level wins, two values there are a
+  contradiction, and a value said at several sites is printed at the first.
+
+  Two runs, two shards or two frames of one case now give the same row whichever
+  arrived first. Before, a value said at two sites could print either site, and a
+  fraction could print as `0.000001` or `1e-6`, depending on which writer laid
+  the record. A contradiction's values now print in the code-unit order of their
+  JSON text.
+
+  A record written by an earlier release opens with every case unmeasured: `variance
+  covering --where` counts them as such until the suite is recorded again.
+
+  **Breaking:** on `ExecutionIndex` and `ObservedCase`, a test's `preconditions`
+  rows are replaced by `said`, the unresolved items as one string; `rowOf(test)`
+  returns the resolved rows. `encodeExecutionIndex` refuses a test that carries
+  `said`; `encodeAsSetExecutionIndex` writes it.
+
 ## 0.15.0
 
 ### Minor Changes

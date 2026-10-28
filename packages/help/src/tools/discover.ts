@@ -1,10 +1,10 @@
 import { extname } from 'node:path';
 import { codeUnitOrder } from '@variance-authority/core/segment';
-import type { FileSet, SourceNames, Tool, ToolInvocation, Tree } from '@variance-authority/mcp/tools';
-import { entryPoints, pathsOf, refusalFor, startPointArg } from '@variance-authority/mcp/tools';
+import type { FileSet, Link, SourceNames, Tool, ToolInvocation, Tree } from '@variance-authority/mcp/tools';
+import { entryPoints, limitOf, notShown, pathsOf, refusalFor, spellingOf, startPointArg } from '@variance-authority/mcp/tools';
 import { READABLE } from '@variance-authority/sense';
 import { ripgrep } from './ripgrep.js';
-import { importsOf as importersOf } from './unpublished.js';
+import { importsOf as importersOf, type IndexedUse } from './unpublished.js';
 
 /**
  * `docs_discover` — the files in every one of several sets.
@@ -38,6 +38,15 @@ import { importsOf as importersOf } from './unpublished.js';
  * that read the tree without them refuses those operands rather than answering
  * as though no file declared anything. A name out of a file the tree holds is
  * read off the source index, as `uses` reads it, and needs no names.
+ *
+ * ## What reaches a subject says how
+ *
+ * A change travels by use, so `to` is the question of what a change reaches,
+ * and a file in it is evidence only with the imports that put it there. Each
+ * file shown carries one shortest chain, built when it is shown: a crossing
+ * reads the whole set, and the chain of a file nobody sees is never walked.
+ * `to` a name out of a file starts where `uses` stops, at the files importing
+ * the name.
  */
 
 /** Files shown when `limit` is not said; every one is counted. */
@@ -56,6 +65,12 @@ interface Operand {
   /** Import distance from or to its start point; reach operands only. */
   readonly distance?: ReadonlyMap<string, number>;
   readonly evidence: (file: string) => readonly Evidence[];
+  /**
+   * The lines that put a file in the set, for a caller that prints no
+   * evidence; read off `evidence` when absent. A reach says it, since its
+   * evidence is a chain, which costs a walk back per file.
+   */
+  readonly lines?: (file: string) => readonly number[];
   /** What the set could not read, so a set short of files says so. */
   readonly unread?: string;
 }
@@ -90,11 +105,6 @@ function textArg(input: Readonly<Record<string, unknown>>, name: string): string
   return typeof said === 'string' && said.trim() !== '' ? said : undefined;
 }
 
-function limitArg(input: Readonly<Record<string, unknown>>): number {
-  const said = input['limit'];
-  return typeof said === 'number' && Number.isInteger(said) && said > 0 ? said : SHOWN;
-}
-
 function regexOf(name: string, pattern: string, flags: string): RegExp {
   try {
     return new RegExp(pattern, flags);
@@ -103,8 +113,54 @@ function regexOf(name: string, pattern: string, flags: string): RegExp {
   }
 }
 
-/** Everything a path reaches along the imports, or everything reaching it. */
-function reach(term: string, tree: Tree, along: boolean): Operand {
+/** How a step that is not a plain import is said on a chain. */
+const STEP: Readonly<Record<string, string>> = {
+  type: 'type import',
+  reexports: 'export … from',
+  dynamic: 'import()',
+  asset: 'asset import',
+};
+
+/** Files of the unresolved ones named before the rest are counted. */
+const NAMED = 5;
+
+/** `a.ts → b.ts (type import) → c.ts`: each file, and the kind of the import it takes to the next. */
+function chainText(links: readonly Link[]): string {
+  return links
+    .map((link) => (link.kind === undefined || link.kind === 'imports' ? link.file : `${link.file} (${STEP[link.kind] ?? link.kind})`))
+    .join(' → ');
+}
+
+/**
+ * What a walk could not see. Along the imports, a reached file whose own
+ * imports were not all resolved reaches further than the set says. Against
+ * them, a file the walk did not reach may import the subject through the one
+ * import nobody resolved, so those are the files named.
+ */
+function holesOf(tree: Tree, files: ReadonlySet<string>, along: boolean): string | undefined {
+  if (along) {
+    const unresolved = tree.unknownAmong(files).length;
+    return unresolved === 0 ? undefined : `${unresolved} of them import something the scan could not resolve`;
+  }
+  const unseen = tree.unknownAmong(tree.files).filter((file) => !files.has(file));
+  if (unseen.length === 0) return undefined;
+  const rest = unseen.length > NAMED ? ` and ${unseen.length - NAMED} more` : '';
+  return (
+    `${unseen.length} other ${unseen.length === 1 ? 'file imports' : 'files import'} something the scan could not resolve, ` +
+    `and may reach it: ${unseen.slice(0, NAMED).join(', ')}${rest}`
+  );
+}
+
+/**
+ * Everything a path reaches along the imports, or everything reaching it.
+ * Against the imports, `file#name` for a file the tree holds starts at the
+ * imports of that name rather than at the file.
+ */
+function reach(term: string, tree: Tree, along: boolean, root: string | undefined): Operand {
+  if (!along) {
+    const named = nameOf(term);
+    if (named.name !== undefined && tree.files.has(named.spec)) return reachingName(term, named.spec, named.name, tree, root);
+  }
   const seeds = entryPoints([term], tree);
   const refused = refusalFor(seeds.unmatched);
   if (refused !== undefined) {
@@ -113,16 +169,59 @@ function reach(term: string, tree: Tree, along: boolean): Operand {
         "that file, `src/a/*` its folder's own files, `src/a/` everything under it.",
     );
   }
-  const distance = along ? tree.distanceFrom(seeds.files) : tree.distanceTo(seeds.files);
+  // Against the imports the walk keeps its parent pointers, so a file shown can say how it gets there.
+  const chains = along ? undefined : tree.chainsTo(seeds.files);
+  const distance = chains?.distance ?? tree.distanceFrom(seeds.files);
   const files = new Set(distance.keys());
-  const unresolved = tree.unknownAmong(files).length;
-  const holes = unresolved === 0 ? undefined : `${unresolved} of them import something the scan could not resolve`;
+  const holes = holesOf(tree, files, along);
   const way = along ? 'from' : 'to';
   return {
     header: `${counted(files.size)} ${along ? 'reached from' : 'reaching'} \`${term}\`${said(holes)}`,
     files,
     distance,
-    evidence: (file) => [{ text: `${imports(distance.get(file) ?? 0)} ${way} ${term}` }],
+    evidence: (file) => {
+      const hops = distance.get(file) ?? 0;
+      const chain = chains !== undefined && hops > 1 ? `: ${chainText(chains.chain(file))}` : '';
+      return [{ text: `${imports(hops)} ${way} ${term}${chain}` }];
+    },
+    lines: () => [],
+    ...(holes === undefined ? {} : { unread: holes }),
+  };
+}
+
+/**
+ * What rests on one name out of a file: the files that import it, read off the
+ * source index as `uses` reads them, through every `export … from` that passes
+ * it on, then whatever reaches those files. A barrel is no use of the name, so
+ * a file importing another name through it is not reached; past the files that
+ * import the name the walk is by file, since an import of a file is an import
+ * of all of it.
+ */
+function reachingName(term: string, file: string, name: string, tree: Tree, root: string | undefined): Operand {
+  const read = importersOf(root, [file], name);
+  if ('unread' in read) {
+    throw new Error(`\`discover\` ran nothing: what imports \`${name}\` from \`${file}\` is read from the source index, and ${read.unread}.`);
+  }
+  const sites = sitesOf(read.uses);
+  const chains = tree.chainsTo(sites.keys());
+  const distance = new Map<string, number>([[file, 0]]);
+  for (const [at, hops] of chains.distance) if (!distance.has(at)) distance.set(at, hops + 1);
+  const files = new Set(distance.keys());
+  const holes = holesOf(tree, files, false);
+  return {
+    header: `${counted(files.size)} reaching \`${name}\` from \`${file}\`${passedOn(read.through)}${said(holes)}`,
+    files,
+    distance,
+    evidence: (at) => {
+      const hops = distance.get(at) ?? 0;
+      if (hops === 0) return [{ text: `0 imports to ${term}` }];
+      if (hops === 1) return sites.get(at) ?? [];
+      const chain = chains.chain(at);
+      const seed = chain.at(-1)!.file;
+      const site = sites.get(seed)![0]!;
+      return [{ text: `${imports(hops)} to ${term}: ${chainText(chain.slice(0, -1))} → ${seed}:${site.line} ${site.text}` }];
+    },
+    lines: (at) => (distance.get(at) === 1 ? (sites.get(at) ?? []).flatMap((site) => (site.line === undefined ? [] : [site.line])) : []),
     ...(holes === undefined ? {} : { unread: holes }),
   };
 }
@@ -137,12 +236,7 @@ function reach(term: string, tree: Tree, along: boolean): Operand {
  * specifier as written, a file with no name — is matched in the names.
  */
 function importsOf(written: string, tree: Tree, names: () => SourceNames, root: string | undefined): Operand {
-  const at = written.lastIndexOf('#');
-  const spec = at > 0 ? written.slice(0, at) : written;
-  const name = at > 0 ? written.slice(at + 1) : undefined;
-  if (name === '') {
-    throw new Error(`\`${written}\` has nothing after \`#\`. Say \`${spec}#name\`, or \`${spec}\` for every import of it.`);
-  }
+  const { spec, name } = nameOf(written);
   if (name !== undefined && tree.files.has(spec)) return importersOfFile(spec, name, root);
   const held = names();
   const files = new Set<string>();
@@ -175,21 +269,42 @@ function importersOfFile(file: string, name: string, root: string | undefined): 
   if ('unread' in read) {
     throw new Error(`\`discover\` ran nothing: who imports \`${name}\` from \`${file}\` is read from the source index, and ${read.unread}.`);
   }
-  const files = new Set<string>();
-  const lines = new Map<string, Evidence[]>();
-  for (const use of read.uses) {
-    files.add(use.at);
-    const through = use.through === undefined ? '' : use.through.kind === 'dynamic' ? ' through import()' : ' through a namespace';
-    const list = lines.get(use.at) ?? [];
-    list.push({ line: use.line, text: `imports ${use.name} from ${use.specifier}${through}` });
-    lines.set(use.at, list);
-  }
-  const passed = read.through.length === 0 ? '' : `, through ${counted(read.through.length)} that ${read.through.length === 1 ? 'passes' : 'pass'} it on`;
+  const lines = sitesOf(read.uses);
   return {
-    header: `${counted(files.size)} importing \`${name}\` from \`${file}\`${passed}`,
-    files,
+    header: `${counted(lines.size)} importing \`${name}\` from \`${file}\`${passedOn(read.through)}`,
+    files: new Set(lines.keys()),
     evidence: (at) => lines.get(at) ?? [],
   };
+}
+
+/** `spec#name`, split at the last `#` past the first character; a `#` with nothing after it is refused. */
+function nameOf(written: string): { readonly spec: string; readonly name: string | undefined } {
+  const at = written.lastIndexOf('#');
+  const spec = at > 0 ? written.slice(0, at) : written;
+  const name = at > 0 ? written.slice(at + 1) : undefined;
+  if (name === '') {
+    throw new Error(`\`${written}\` has nothing after \`#\`. Say \`${spec}#name\`, or \`${spec}\` for every import of it.`);
+  }
+  return { spec, name };
+}
+
+/** Each importing file, and the lines on which it imports the name, in the order the index holds them. */
+function sitesOf(uses: readonly IndexedUse[]): ReadonlyMap<string, readonly Evidence[]> {
+  const lines = new Map<string, Evidence[]>();
+  for (const use of uses) {
+    const through = use.through === undefined ? '' : use.through.kind === 'dynamic' ? ' through import()' : ' through a namespace';
+    const off = use.through?.throughDefault === true ? ', through `default`: may read it' : '';
+    const whole = use.through?.whole === true ? ', passed on whole: may read it' : '';
+    const list = lines.get(use.at) ?? [];
+    list.push({ line: use.line, text: `imports ${use.name} from ${use.specifier}${through}${off}${whole}` });
+    lines.set(use.at, list);
+  }
+  return lines;
+}
+
+/** `, through 2 files that pass it on`, or nothing when no file did. */
+function passedOn(through: readonly string[]): string {
+  return through.length === 0 ? '' : `, through ${counted(through.length)} that ${through.length === 1 ? 'passes' : 'pass'} it on`;
 }
 
 function declaresOf(pattern: string, tree: Tree, names: SourceNames): Operand {
@@ -230,8 +345,8 @@ function operandsOf(input: Readonly<Record<string, unknown>>, tree: Tree, names:
   const read = (prefix: '' | 'except'): Operand[] => {
     const key = (name: string): string => (prefix === '' ? name : `${prefix}${name[0]!.toUpperCase()}${name.slice(1)}`);
     const operands: Operand[] = [];
-    for (const term of listArg(input, key('from'))) operands.push(reach(term, tree, true));
-    for (const term of listArg(input, key('to'))) operands.push(reach(term, tree, false));
+    for (const term of listArg(input, key('from'))) operands.push(reach(term, tree, true, root));
+    for (const term of listArg(input, key('to'))) operands.push(reach(term, tree, false, root));
     for (const written of listArg(input, key('imports'))) operands.push(importsOf(written, tree, named, root));
     const declares = textArg(input, key('declares'));
     if (declares !== undefined) operands.push(declaresOf(declares, tree, named()));
@@ -271,7 +386,7 @@ export const discover: Tool<unknown> = {
     type: 'object',
     properties: {
       from: { type: 'array', items: { type: 'string' }, description: 'Paths; each is the set of files it reaches along the imports, itself included. Same path forms as `search --from`.' },
-      to: { type: 'array', items: { type: 'string' }, description: 'Paths; each is the set of files that reach it along the imports, itself included.' },
+      to: { type: 'array', items: { type: 'string' }, description: 'Paths; each is the set of files that reach it along the imports, every kind of import walked, itself included, and each file shown carries one shortest chain of imports to it. `file#name` for a repo-relative file starts at the imports of that name, as `docs_uses` reads them from the source index, so a file importing another name through the same barrel is not reached.' },
       imports: { type: 'array', items: { type: 'string' }, description: '`module#name` or `module`, as written in the import or as the repo-relative file it resolved to; each is the set of files importing it. A subpath of a package matches the package; a relative specifier matches only as written. `file#name` for a repo-relative file is answered as `docs_uses` answers it, from the source index: an import through a barrel that passes the name on counts.' },
       declares: { type: 'string', description: 'A regular expression, case-insensitive; the set of files declaring a matching name. An export of an imported name, with `from` or without, is declared where it comes from; `export default function make()` declares `make`.' },
       path: { type: 'string', description: 'A regular expression over repo-relative paths.' },
@@ -289,11 +404,12 @@ export const discover: Tool<unknown> = {
   wants: () => true,
 
   run: (_subject, input, invocation) => {
+    const spell = spellingOf(invocation);
+    const limit = limitOf(input, SHOWN, spell);
     const { kept, header, answer, matched, reaches } = answered(input, invocation);
     if (answer.length === 0) return [...header, '', 'No file is in all of them.'].join('\n');
 
     const shown = (file: string, evidence: Evidence): string => `  ${evidence.line === undefined ? '' : `${file}:${evidence.line}  `}${evidence.text}`;
-    const limit = limitArg(input);
     const order = reaches === 0 ? '.' : ', nearest first.';
     const lines = [...header, '', `${counted(answer.length)} in all of them${order}`];
     for (const file of answer.slice(0, limit)) {
@@ -301,7 +417,7 @@ export const discover: Tool<unknown> = {
       for (const operand of kept) for (const evidence of operand.evidence(file)) lines.push(shown(file, evidence));
       for (const evidence of matched.get(file) ?? []) lines.push(shown(file, evidence));
     }
-    if (answer.length > limit) lines.push('', `${answer.length - limit} more not shown; a higher \`limit\` shows them.`);
+    if (answer.length > limit) lines.push('', notShown(answer.length - limit, spell));
     return lines.join('\n');
   },
 
@@ -310,9 +426,11 @@ export const discover: Tool<unknown> = {
   files: (_subject, input, invocation): FileSet => {
     const { kept, answer, matched, unread } = answered(input, invocation);
     const files = new Map<string, readonly number[]>();
+    const linesOf = (operand: Operand, file: string): readonly number[] =>
+      operand.lines?.(file) ?? operand.evidence(file).flatMap((one) => (one.line === undefined ? [] : [one.line]));
     for (const file of answer) {
-      const evidence = [...kept.flatMap((operand) => operand.evidence(file)), ...(matched.get(file) ?? [])];
-      const lines = [...new Set(evidence.flatMap((one) => (one.line === undefined ? [] : [one.line])))];
+      const said = (matched.get(file) ?? []).flatMap((one) => (one.line === undefined ? [] : [one.line]));
+      const lines = [...new Set([...kept.flatMap((operand) => linesOf(operand, file)), ...said])];
       files.set(file, lines.sort((left, right) => left - right));
     }
     return { files, ...(unread.length === 0 ? {} : { unread }) };
@@ -328,10 +446,12 @@ function answered(input: Readonly<Record<string, unknown>>, invocation: ToolInvo
   }
   const { kept, out } = operandsOf(input, tree, invocation?.names, invocation?.root);
   if (kept.length === 0) {
+    const spell = spellingOf(invocation);
+    const sets = ['from', 'to', 'imports', 'declares'].map((name) => `\`${spell.input(name)}\``).join(', ');
     throw new Error(
       text === undefined
-        ? '`discover` needs at least one set to cross: `from`, `to`, `imports`, `declares` or `path`.'
-        : `\`text\` searches inside the files the other sets kept, and none was given. For the whole checkout, run \`rg ${JSON.stringify(text)}\`.`,
+        ? `\`discover\` needs at least one set to cross: ${sets} or \`${spell.input('path')}\`.`
+        : `\`${spell.input('text')}\` searches inside the files the other sets kept, and none was given. For the whole checkout, run \`rg ${JSON.stringify(text)}\`.`,
     );
   }
 

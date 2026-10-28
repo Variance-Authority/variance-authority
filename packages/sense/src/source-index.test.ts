@@ -68,10 +68,38 @@ const PARSED: Parsed = {
   // `./api.js` is named nowhere else, so a dictionary that never collected the
   // mock columns writes some other string here.
   mocks: { minus: ['./api.js'], plus: ['./button.js'] },
+  // Containers and a member name no other column holds, and lines no other
+  // column holds, so a cache, a fold or a decoder that dropped one of the four
+  // columns, or read one in place of another, fails here.
+  memberDeclarations: [
+    { name: 'resolveThings', line: 21, on: 'NativeScanner' },
+    { name: 'Card', line: 24, on: 'a type literal' },
+  ],
+  // A member, a type and lines no other column holds, and every kind of use,
+  // so a column dropped or read in place of another fails here.
+  memberUses: [
+    { name: 'hydrateLater', line: 31, of: 'LazyShell', how: 'read' },
+    { name: 'hydrateLater', line: 33, of: 'LazyShell', how: 'write' },
+    { name: 'paintOnce', line: 35, of: 'Renamed', how: 'destructure' },
+  ],
+  // A name and lines no other column holds, so a column dropped or read in
+  // place of another fails here.
+  ownUses: [
+    { name: 'shadeOwn', line: 41 },
+    { name: 'shadeOwn', line: 43 },
+  ],
+  // A binding, a name and lines no other column holds, and the second request,
+  // so a column dropped or read in place of another fails here.
+  bindingMembers: [
+    { request: 1, binding: 'Props', name: 'tintBound', line: 45 },
+    { request: 1, binding: 'Props', name: 'tintFree', line: 47 },
+    { request: 1, binding: 'Props', within: ['tint', 'deep'], name: 'tintDeep', line: 49 },
+  ],
   unknown: 'one dynamic request could not be read',
   // Numbers no other column holds, so a round trip that read one column in
   // place of another fails here.
   size: { bytes: 4127, lines: 93, blocks: 11 },
+  doc: { start: 5113, end: 5170 },
 };
 const RECORD: FileRecord = {
   file: 'src/card.tsx',
@@ -302,6 +330,44 @@ describe('the binary source index', () => {
     expect(() => decodeSourceIndex(encoded)).toThrow('not a variance-authority source index');
   });
 
+  it('rejects member declarations whose offsets run past their columns', () => {
+    const encoded = encodeSourceIndex({
+      parses: new Map([[DIGEST, PARSED]]),
+      directories: new Map(),
+      records: new Map(),
+    });
+    const headerLength = encoded.readUInt32LE(0);
+    const header = JSON.parse(encoded.toString('utf8', 4, 4 + headerLength).replace(/\0+$/, '')) as {
+      sections: { name: string; offset: number }[];
+    };
+    const section = header.sections.find((value) => value.name === 'parses.member-declarations');
+    expect(section).toBeDefined();
+    // One parse, so two offsets: the start of its range and its end.
+    const offsets = new Uint32Array(encoded.buffer, encoded.byteOffset + 4 + headerLength + section!.offset, 2);
+    offsets[1] = PARSED.memberDeclarations!.length + 1;
+
+    expect(() => decodeSourceIndex(encoded)).toThrow('not a variance-authority source index');
+  });
+
+  it('rejects member uses whose offsets run past their columns', () => {
+    const encoded = encodeSourceIndex({
+      parses: new Map([[DIGEST, PARSED]]),
+      directories: new Map(),
+      records: new Map(),
+    });
+    const headerLength = encoded.readUInt32LE(0);
+    const header = JSON.parse(encoded.toString('utf8', 4, 4 + headerLength).replace(/\0+$/, '')) as {
+      sections: { name: string; offset: number }[];
+    };
+    const section = header.sections.find((value) => value.name === 'parses.member-uses');
+    expect(section).toBeDefined();
+    // One parse, so two offsets: the start of its range and its end.
+    const offsets = new Uint32Array(encoded.buffer, encoded.byteOffset + 4 + headerLength + section!.offset, 2);
+    offsets[1] = PARSED.memberUses!.length + 1;
+
+    expect(() => decodeSourceIndex(encoded)).toThrow('not a variance-authority source index');
+  });
+
   it('keeps a package name that nothing else in the segment names', () => {
     // Only a subpath import reaches `@scope/only-here`, so the bare name is in no
     // other column. A dictionary that missed it wrote row 0 — whatever sorted
@@ -351,6 +417,21 @@ describe('the binary source index', () => {
     expect(decoded.parses.get(OTHER)).toEqual({ requests: [] });
   });
 
+  it('keeps whether a reader guessed a request, and whether it asked for it as an item', () => {
+    const requests: Parsed['requests'] = [
+      { value: 'self::graph', kind: 'imports', line: 1, bindings: [] },
+      { value: 'crate::graph::Limits', kind: 'imports', line: 2, bindings: [], guessed: true },
+      { value: 'crate::graph', kind: 'imports', line: 3, bindings: [], guessed: true, item: true },
+    ];
+    const decoded = decodeSourceIndex(encodeSourceIndex({
+      parses: new Map([[DIGEST, { requests }]]),
+      directories: new Map(),
+      records: new Map(),
+    }));
+
+    expect(decoded.parses.get(DIGEST)?.requests).toEqual(requests);
+  });
+
   it('readies a chain into the generation its layers read as, oldest first', async () => {
     const styled = `${OTHER}\0.css\0+` as ParseKey;
     const first = encodeSourceIndex({
@@ -369,7 +450,7 @@ describe('the binary source index', () => {
       deletedDirectories: new Set(['lib']),
       records: new Map([['src/button.tsx', { record: { file: 'src/button.tsx', edges: [] }, witnesses: [] }]]),
     });
-    const layers = [first, second].map(decodeSourceIndex);
+    const layers = [first, second].map((bytes) => decodeSourceIndex(bytes));
     const file = await path();
     expect(native()!.appendSourceIndex(file, [], false, [first])).toBeNull();
     expect(native()!.appendSourceIndex(file, [...(await openImmutableLog(file)).digests], false, [second])).toBeNull();
@@ -385,5 +466,34 @@ describe('the binary source index', () => {
       }))),
       records: materializeLayers(layers.map((layer) => ({ puts: layer.records, deletes: layer.deletedRecords ?? new Set() }))),
     });
+  });
+
+  it('writes a save that puts again what the base holds as a working layer of what changed', async () => {
+    const held = { record: RECORD, witnesses: WITNESSES };
+    const base = encodeSourceIndex({
+      config: CONFIG,
+      parses: new Map([[DIGEST, PARSED]]),
+      directories: new Map([['src', CONFIG]]),
+      records: new Map([[RECORD.file, held]]),
+    });
+    // Every row again, as an update that read every file hands it over, and one file more.
+    const added = { record: { file: 'src/button.tsx', edges: [] }, witnesses: [] };
+    const again = encodeSourceIndex({
+      config: CONFIG,
+      parses: new Map([[DIGEST, PARSED]]),
+      directories: new Map([['src', CONFIG]]),
+      records: new Map([[RECORD.file, held], ['src/button.tsx', added]]),
+    });
+    const file = await path();
+    expect(native()!.appendSourceIndex(file, [], false, [base])).toBeNull();
+    expect(native()!.appendSourceIndex(file, [...(await openImmutableLog(file)).digests], false, [again])).toBeNull();
+
+    const [, working] = (await openImmutableLog(file)).segments;
+    const layer = decodeSourceIndex(working!);
+    expect(layer.config).toBe(CONFIG);
+    expect([...layer.parses.keys()]).toEqual([]);
+    expect([...layer.directories.keys()]).toEqual([]);
+    expect([...layer.records.keys()]).toEqual(['src/button.tsx']);
+    expect((await readPublishedSources(file)).records.map((record) => record.file)).toEqual(['src/button.tsx', RECORD.file]);
   });
 });

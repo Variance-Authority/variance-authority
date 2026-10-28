@@ -1,6 +1,7 @@
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join, resolve, sep } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { agentSkills, formatSkills, shippedSkills } from './doctor-skills.js';
 
@@ -87,6 +88,23 @@ describe('shippedSkills', () => {
   it('finds the skills this package ships, beside its source', () => {
     const at = shippedSkills();
     expect(at).toBeDefined();
-    expect(agentSkills(project, at, home).skills.map((skill) => skill.name)).toContain('variance-authority');
+    expect(agentSkills(project, at, home).skills.map((skill) => skill.name)).toEqual([
+      'variance-authority',
+      'variance-testing',
+    ]);
+  });
+
+  it('ships every file a skill links to, so a skill that links its sibling opens it once both are linked', () => {
+    const at = shippedSkills()!;
+    const unshipped: string[] = [];
+    for (const file of readdirSync(at, { recursive: true, encoding: 'utf8' })) {
+      if (!file.endsWith('.md')) continue;
+      for (const [, link] of readFileSync(join(at, file), 'utf8').matchAll(/\]\(([^)\s]+)\)/g)) {
+        if (/^[a-z]+:/.test(link!) || link!.startsWith('#')) continue;
+        const target = resolve(dirname(join(at, file)), link!.split('#')[0]!);
+        if (!target.startsWith(at + sep) || !existsSync(target)) unshipped.push(`${file} -> ${link}`);
+      }
+    }
+    expect(unshipped).toEqual([]);
   });
 });

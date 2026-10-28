@@ -3,7 +3,8 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { treeOf, type FileRecord } from '@variance-authority/mcp/tools';
 import { readHelp } from '@variance-authority/package/help';
-import { ask, inputFrom, toolNamed, verbOf, verbs } from './ask.js';
+import { verbOf } from '@variance-authority/mcp/tools';
+import { ask, inputFrom, toolNamed, verbs } from './ask.js';
 import { HELP_TOOLS } from './tools.js';
 
 const WORKSPACE = join(dirname(fileURLToPath(import.meta.url)), './__fixtures__/workspace');
@@ -21,6 +22,12 @@ describe('a verb is a tool, not a second implementation of one', () => {
   it('answers a verb with exactly what the tool answers', () => {
     const tool = toolNamed('search');
     expect(ask(READING, 'search', ['deep'])).toBe(tool.run(READING, { query: 'deep' }));
+  });
+
+  it('spells the inputs and the questions an answer names as this binary takes them', () => {
+    const text = ask(READING, 'uses', ['behind']);
+    expect(text).toContain('Path order; `--from` sorts nearest first.');
+    expect(() => ask(READING, 'uses', ['nope'])).toThrow(/ask `variance-authority-help search` with it as the `--query`|ask `variance-authority-help search` with a word/);
   });
 
   it('names what it answers when a verb is not one of them', () => {

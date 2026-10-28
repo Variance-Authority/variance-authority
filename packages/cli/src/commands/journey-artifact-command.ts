@@ -1,26 +1,74 @@
+import { randomUUID } from 'node:crypto';
+import { linkSync, rmSync } from 'node:fs';
+import { codeUnitOrder } from '@variance-authority/core/segment';
 import {
+  combineRecords,
   finalizeJestJourneys,
+  recordStorageAt,
   stitchJourneyArtifacts,
+  type CombinedRecord,
   type JourneyArtifactResult,
 } from '@variance-authority/sense/test-selection';
-import { EXIT_CLEAN, type ExitCode } from '../exit.js';
+import { EXIT_CLEAN, OperatorError, type ExitCode } from '../exit.js';
 import type { Parsed } from '../parse.js';
-import { landJourneys } from './land.js';
-import { formatLanding } from './journeys.js';
+import { uncheckedReads } from './journeys.js';
+import { messageOf } from './resources.js';
 
 type JourneyArtifactCommand = Extract<
   Parsed,
-  { command: 'journeys'; operation: 'finalize' | 'stitch' | 'merge' }
+  { command: 'journeys'; operation: 'finalize' | 'stitch' | 'combine' | 'inspect' }
 >;
 
-/** Finalize journals, stitch journey artifacts, or merge rich shard records. */
+/** Finalize journals, stitch journey artifacts, combine shard records, or inspect their storage. */
 export async function runJourneyArtifactCommand(
   parsed: JourneyArtifactCommand,
   streams: { out(text: string): void },
 ): Promise<ExitCode> {
-  if (parsed.operation === 'merge') {
-    const result = await landJourneys(parsed.root, parsed.shards, parsed.into);
-    streams.out(`${formatLanding(result)}\n`);
+  if (parsed.operation === 'inspect') {
+    try {
+      const storage = recordStorageAt(parsed.record);
+      const sections = [...storage.sections].sort((left, right) => right.bytes - left.bytes || codeUnitOrder(left.name, right.name));
+      const result = { record: parsed.record, ...storage, sections };
+      streams.out(parsed.format === 'json' ? `${JSON.stringify(result, null, 2)}\n` :
+        `${parsed.record}: ${storage.bytes} bytes, format ${storage.format}\n` +
+        `${storage.overheadBytes} bytes outside sections (header and padding)\n` +
+        sections.map((section) => `${section.name}: ${section.bytes} bytes, ${section.rows} storage elements of width ${section.width}${section.packed ? ', packed' : ''}\n`).join(''));
+      return EXIT_CLEAN;
+    } catch (error) {
+      throw new OperatorError(messageOf(error), { cause: error });
+    }
+  }
+  if (parsed.operation === 'combine') {
+    // A combine writes a record of its own shards and nothing else. Over a
+    // record that is there it would discard that record, and over a shard the
+    // shard: landing over a record is the reading's job. The record is written
+    // beside `--into` and linked to it, which fails when anything is there by
+    // then, so nothing made after the command started is written over.
+    const staged = `${parsed.into}.${process.pid}-${randomUUID()}.tmp`;
+    let result: CombinedRecord;
+    try {
+      try {
+        result = combineRecords(parsed.shards, staged, process.cwd());
+      } catch (error) {
+        throw new OperatorError(messageOf(error), { cause: error });
+      }
+      try {
+        linkSync(staged, parsed.into);
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error;
+        throw new OperatorError(
+          `${parsed.into} is already there, and \`journeys combine\` writes a new record. ` +
+            'To land the shards over it, run `variance journeys <shards> --into <record>`; ' +
+            'to combine, name a path nothing is at yet.',
+          { cause: error },
+        );
+      }
+    } finally {
+      rmSync(staged, { force: true });
+    }
+    streams.out(`${combinedLine(result, parsed.into)}\n`);
+    if (result.unchecked.length > 0) streams.out(`journeys: ${uncheckedReads(result.unchecked)}\n`);
+    streams.out(renumbered(result));
     return EXIT_CLEAN;
   }
 
@@ -43,6 +91,16 @@ export async function runJourneyArtifactCommand(
   return EXIT_CLEAN;
 }
 
+/** What `journeys combine` wrote, in one line. */
+function combinedLine(result: CombinedRecord, into: string): string {
+  const cases = result.cases == null ? '' : `, ${result.cases} cases`;
+  const commit = result.commit == null ? '' : `, recorded at ${result.commit.slice(0, 12)}`;
+  return (
+    `journeys: combined ${result.shards.length} records into ${into} ` +
+    `(${result.tests} tests, ${result.modules} modules, ${result.crossings} crossings${cases}${commit})`
+  );
+}
+
 /**
  * The files whose regions are coarser than recorded, by name.
  *
@@ -51,7 +109,7 @@ export async function runJourneyArtifactCommand(
  * credited to the regions both transforms share. A reader who sees a function
  * select more tests than it should needs to find out why here.
  */
-function renumbered(result: JourneyArtifactResult): string {
+function renumbered(result: Pick<JourneyArtifactResult, 'renumbered'>): string {
   const files = result.renumbered ?? [];
   if (files.length === 0) return '';
   const count = files.length === 1 ? '1 file was' : `${files.length} files were`;

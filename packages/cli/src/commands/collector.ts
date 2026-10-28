@@ -2,12 +2,14 @@
 
 import { pathToFileURL } from 'node:url';
 import type { CallSiteResolver, SourceIndex } from '@variance-authority/core/attribute';
-import type {
-  Diagnostic,
-  RenderDocument,
-  SemanticSnapshot,
-  SubjectRef,
-  Viewport,
+import {
+  realizes,
+  type Diagnostic,
+  type RenderDocument,
+  type SemanticSnapshot,
+  type Step,
+  type SubjectRef,
+  type Viewport,
 } from '@variance-authority/core/format';
 import { storySubjectId, toSubjects } from '@variance-authority/storybook';
 import { readStoryIndex } from '@variance-authority/storybook/read';
@@ -159,8 +161,70 @@ export type Collected =
       readonly source?: SourceIndex;
       /** Product-owned presentation consequence, already compared by the collector. */
       readonly presentation?: PresentationSignalRecord;
+      /**
+       * How long each step of this reading took, in the order they ran, on the
+       * collector's own clock. The run records them as `collect.<step>` beside
+       * its own; absent records none.
+       */
+      readonly steps?: readonly Step[];
     }
-  | { readonly ok: false; readonly because: string };
+  | {
+      readonly ok: false;
+      /**
+       * The subject left the run by its own decision, which a collector learns
+       * only once it reads it — a page that marks itself excluded. The run
+       * records it as `excluded`, beside the subjects the plan left out, and
+       * does not send the run to review for it. Absent is a failure.
+       */
+      readonly excluded?: true;
+      readonly because: string;
+    };
+
+/** One subject a visit read: the subject as it was realized, and its reading. */
+export interface VisitedSubject {
+  readonly planned: PlannedSubject;
+  readonly collected: Collected;
+}
+
+/**
+ * What reaching one planned subject produced, when it is not one reading.
+ *
+ * A plan is made before any subject is visited, and some of what decides how a
+ * subject is read is known only at the visit: a story's widths live in its
+ * parameters, which are read when its file is loaded. So a visit may realize
+ * several subjects, or the planned one at a viewport it declared, and say what
+ * it could not read on the way. Every realized id is the planned id or the
+ * planned id at a width, `<id>@<digits>`, so a `--subjects` glob decides before
+ * the visit whether anything it realizes can be wanted. A visit that realizes
+ * any other id fails its story.
+ */
+export interface Visit {
+  readonly subjects: readonly VisitedSubject[];
+  readonly warnings?: readonly string[];
+  /**
+   * Present when the visit could not learn every subject the planned one
+   * realizes — a story whose parameters were not read, so its widths are
+   * unknown. The run then treats what the store holds of the planned subject
+   * as it does for a subject it did not visit: planned, not left behind.
+   */
+  readonly incomplete?: true;
+}
+
+/**
+ * The subjects one `collect` produced, as a list whichever shape it answered in.
+ * A visit that realized nothing is the planned subject failed: the plan holds
+ * it, so the report says what became of it. So is a visit that realized an id
+ * outside {@link Visit}'s contract: the run cannot trust any of it.
+ */
+export function visited(planned: PlannedSubject, result: Collected | Visit): readonly VisitedSubject[] {
+  if (!('subjects' in result)) return [{ planned, collected: result }];
+  const id = planned.subject.id;
+  const stray = result.subjects.find((entry) => !realizes(id, entry.planned.subject.id))?.planned.subject.id;
+  const because = `the collector realized \`${stray}\`, which is neither \`${id}\` nor one of its widths`;
+  if (stray !== undefined) return [{ planned, collected: { ok: false, because } }];
+  if (result.subjects.length > 0) return result.subjects;
+  return [{ planned, collected: { ok: false, because: 'the collector visited it and realized no subject' } }];
+}
 
 /**
  * The half of a run this package cannot write.
@@ -196,7 +260,8 @@ export type Collected =
 export interface Collector {
   /** Subjects to observe, plus the ones this source already refuses, with reasons. */
   plan(): Promise<Plan>;
-  collect(subject: PlannedSubject): Promise<Collected>;
+  /** One planned subject read: a {@link Collected}, or a {@link Visit} when it realized other subjects. */
+  collect(subject: PlannedSubject): Promise<Collected | Visit>;
 
   /**
    * The frames a snapshot carries, spent on demand.

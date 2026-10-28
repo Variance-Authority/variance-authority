@@ -39,7 +39,7 @@
  * costs what a point in a small one costs.
  *
  * That is the region-to-tests direction, which
- * [ADR-0061](../../../../docs/context/adr/0061-a-crossing-relation-is-interned-not-owned.md)
+ * [ADR-0061](https://github.com/Variance-Authority/variance-authority/blob/main/docs/context/adr/0061-a-crossing-relation-is-interned-not-owned.md)
  * holds is the one the pool answers without a join. The other direction — every
  * module one test entered — has no index and is a scan, which is why hop
  * distance is not computed here and is left to `distanceFromView` over
@@ -58,7 +58,7 @@
  * ## No distance is invented
  *
  * There is no depth on a crossing and there will not be one:
- * [ADR-0056](../../../../docs/context/adr/0056-a-crossing-is-a-place-not-a-stack.md)
+ * [ADR-0056](https://github.com/Variance-Authority/variance-authority/blob/main/docs/context/adr/0056-a-journey-is-the-places-visited.md)
  * forecloses a maintained call stack, and `cases.ts` records every crossing at
  * zero for that reason. A point query that sorted its answer by a fabricated
  * number would be sorting by nothing.
@@ -71,7 +71,7 @@ import { chargeLine, rowsOf } from './blocks-around.js';
 import { askCoverageFile } from './coverage-file.js';
 import { distanceFromView, type DistanceOptions, type TestDistance } from './distance.js';
 import { findModules } from './lookup.js';
-import type { SelectionCause, SelectionReason } from './select.js';
+import type { SelectionCause, SelectionReason } from './narrowing.js';
 import { NO_LINE } from './written-lines.js';
 
 /**
@@ -352,7 +352,7 @@ export async function testsReaching(
  * Separate from {@link testsReaching} because it is a different cost, not a
  * different option. The region-to-tests direction is an address; the
  * test-to-modules direction the walk needs has no index
- * ([ADR-0061](../../../../docs/context/adr/0061-a-crossing-relation-is-interned-not-owned.md)),
+ * ([ADR-0061](https://github.com/Variance-Authority/variance-authority/blob/main/docs/context/adr/0061-a-crossing-relation-is-interned-not-owned.md)),
  * so placing the answer costs a pass over every region in the snapshot. A
  * caller that wants hops asks for them here and pays for them here.
  *

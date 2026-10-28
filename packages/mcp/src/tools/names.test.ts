@@ -79,6 +79,7 @@ describe('readTree draws the names with the tree when asked', () => {
     write('src/passed.ts', "import { ThemeContext } from './theme';\nexport default ThemeContext;\nexport { ThemeContext as Renamed };\n");
     write('src/made.ts', 'export default function make() {}\n');
     write('src/spaced.ts', "import * as theme from './theme';\nexport { theme };\n");
+    write('src/closure.ts', "import { ThemeContext } from './theme';\nexport function run() {\n  const ThemeContext = () => 0;\n  const step = () => ThemeContext();\n  return step();\n}\nexport { ThemeContext };\n");
   });
 
   afterAll(() => rmSync(root, { recursive: true, force: true }));
@@ -98,5 +99,11 @@ describe('readTree draws the names with the tree when asked', () => {
     expect(drawn?.get('src/passed.ts')?.declared).toEqual([]);
     expect(drawn?.get('src/made.ts')?.declared).toEqual([{ name: 'make', line: 1 }]);
     expect(drawn?.get('src/spaced.ts')?.declared).toEqual([]);
+  });
+
+  it('declares what a file declares at its top level, never what a function body declares', async () => {
+    let drawn: SourceNames | undefined;
+    await readTree({ root, names: (names) => { drawn = names; } });
+    expect(drawn?.get('src/closure.ts')?.declared).toEqual([{ name: 'run', line: 2 }]);
   });
 });

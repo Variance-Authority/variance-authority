@@ -29,6 +29,13 @@ export type ParsedJourneys =
     }
   | {
       readonly command: 'journeys';
+      readonly operation: 'inspect';
+      readonly config: string;
+      readonly record: string;
+      readonly format: 'text' | 'json';
+    }
+  | {
+      readonly command: 'journeys';
       readonly operation: 'finalize';
       readonly config: string;
       readonly journeyFile: string;
@@ -42,9 +49,8 @@ export type ParsedJourneys =
     }
   | {
       readonly command: 'journeys';
-      readonly operation: 'merge';
+      readonly operation: 'combine';
       readonly config: string;
-      readonly root: string;
       readonly shards: readonly string[];
       readonly into: string;
     };
@@ -56,17 +62,23 @@ export function parseJourneysArgs(flags: Flags, config: string): ParsedJourneys 
   const into = flags.values.get('--into');
   const operation = flags.positionals[0];
 
+  if (operation === 'inspect') {
+    if (flags.positionals.length !== 2 || [...flags.present].some((flag) => flag !== '--format')) {
+      throw new OperatorError('`variance journeys inspect` takes one record and optional `--format text|json`');
+    }
+    const format = flags.values.get('--format') ?? 'text';
+    if (format !== 'text' && format !== 'json') throw new OperatorError('`journeys inspect --format` must be text or json');
+    return { command: 'journeys', operation, config, record: resolve(flags.positionals[1]!), format };
+  }
+  if (flags.present.has('--format')) throw new OperatorError('`journeys --format` belongs to `journeys inspect`');
 
-  if (operation === 'merge') {
-    const otherFlags = [...flags.present].filter((flag) => flag !== '--into' && flag !== '--root');
+  if (operation === 'combine') {
+    const otherFlags = [...flags.present].filter((flag) => flag !== '--into');
     if (otherFlags.length > 0 || into === undefined || flags.positionals.length < 2) {
-      throw new OperatorError(
-        '`variance journeys merge` takes one or more shard records, `--into <record>` and optional `--root <checkout>`',
-      );
+      throw new OperatorError('`variance journeys combine` takes one or more shard records and `--into <record>`, a path nothing is at yet');
     }
     return {
-      command: 'journeys', operation: 'merge', config,
-      root: resolve(flags.values.get('--root') ?? process.cwd()),
+      command: 'journeys', operation: 'combine', config,
       shards: flags.positionals.slice(1).map((path) => resolve(path)),
       into: resolve(into),
     };
@@ -99,8 +111,6 @@ export function parseJourneysArgs(flags: Flags, config: string): ParsedJourneys 
       into: resolve(into),
     };
   }
-
-  if (flags.present.has('--root')) throw new OperatorError('`journeys --root` is only used by `journeys merge`');
 
   if (into !== undefined && flags.positionals.length === 0) {
     throw new OperatorError('`--into` says where a fold lands, and nothing was named to fold');

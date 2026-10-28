@@ -252,7 +252,7 @@ because `new` re-records what is on screen and a network blip read as a miss
 destroys the thing the check was against while reporting success.
 
 The serving half is `serveRasterStore` from
-[`@variance-authority/remote`](../packages/remote/README.md), which binds
+[`@variance-authority/remote/store`](../packages/remote/README.md), which binds
 loopback; a deployment CI can call is either that behind a proxy you run, or
 the [`tribunal`](../packages/tribunal/README.md) Worker, which serves the same
 paths on D1 and R2.
@@ -319,6 +319,12 @@ to the pull request's branch as `github-actions[bot]`. The images are then in
 the pull request's diff beside the change that caused them, and the merge takes
 them to `main` with the code. Nothing runs on `main` to accept them again.
 
+Merging accepts the images the pull request committed, whatever its check said.
+A push to `main` compares what `main` renders against them, and names a
+difference as a warning rather than failing on it: `main` has no branch to
+commit new images to, so the next pull request's label commits them. It goes
+red only where it could not observe a subject.
+
 The approval is the pull-request review you already require. Whether the bot's
 push dismisses an earlier approval is a branch rule, set in GitHub rather than
 here: turn on *Dismiss stale pull request approvals when new commits are
@@ -334,9 +340,19 @@ Three things this needs from the repository:
 - **A branch in this repository.** A pull request from a fork runs with no
   secrets and a read-only token, so its label run cannot push. Its baselines are
   committed by hand.
-- **git-lfs in the job, for `lfs`.** The Playwright image has none. Install it
-  and fetch LFS objects in the checkout, or the store stops on a pointer file
-  where it expected an image.
+- **git-lfs in the job, for `lfs`.** The Playwright image has none, so install
+  it, and after the checkout run `git lfs install --local --skip-smudge`: an
+  installed git-lfs does nothing until git is told to run it, and a commit
+  without it stores whole images. Leave LFS objects out of the checkout, which
+  `actions/checkout` does unless you set `lfs: true`: the run reads a baseline
+  image only for a subject whose document changed, and fetches that one image
+  with `git lfs pull`. A checkout that fetches them works too, and downloads
+  every baseline on every run. Without git-lfs, the run stops with exit 2, an
+  error and not a difference, on the first image it needs. The action runs
+  `variance doctor --baselines` before the run, which names the first pointer
+  git-lfs cannot fetch here and exits 2, so such a job fails on the checkout
+  rather than on the first subject whose document changed. The first
+  commit-back carries the root's `.gitattributes` with the images.
 
 ### A review service
 

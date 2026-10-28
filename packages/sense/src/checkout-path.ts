@@ -50,6 +50,18 @@ export function checkoutListing(root: string, path: string): CheckoutListing {
   return { file: false, directory: false, ignored: ignored.length > 0 };
 }
 
+/**
+ * Whether `path`, a repository-relative path, existed at `commit`: git lists
+ * something there in that commit's tree. A recording made at a commit that did
+ * not hold the file keeps no row for it, and that is a file added since, not a
+ * file no test loaded. Answered with the first line git gave when it could not
+ * list the commit.
+ */
+export function existedAt(root: string, commit: string, path: string): boolean | { readonly unread: string } {
+  const listed = gitNames(root, ['ls-tree', '-z', '--name-only', commit, '--', path]);
+  return 'unread' in listed ? listed : listed.length > 0;
+}
+
 /** The names a git listing gives, or the first line git gave for not answering. */
 function gitNames(root: string, args: readonly string[]): readonly string[] | { readonly unread: string } {
   try {

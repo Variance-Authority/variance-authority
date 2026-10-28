@@ -29,9 +29,10 @@ import { OperatorError } from '../exit.js';
 import type { ParsedCovering } from '../covering-args.js';
 import { keepCases, type CoveringScope } from './covering-scope.js';
 import { readExecutionIndex } from './execution-input.js';
-import { diffFromBase, movedOnBase } from './base-diff.js';
+import { carriedOver, diffFromBase, movedOnBase, unnamedCommit } from './base-diff.js';
 import { cutElsewhere } from './before-texts.js';
 import { relationsFor } from './source-graph.js';
+import { functionOf, regionKind } from './review-scope.js';
 
 /** Which record the answer was compared with, and what of it was left out. */
 export interface MotionBase {
@@ -83,6 +84,12 @@ export interface CoveringMotion {
    * known, so nothing is compared.
    */
   readonly lastRunUnread?: string;
+  /**
+   * Why the layer the runs at this commit retired cannot be paired with the
+   * current regions, when it names no commit to diff from: a second run there
+   * ran a test file again. Nothing is compared, and the review says so.
+   */
+  readonly undiffed?: string;
 }
 
 /**
@@ -201,7 +208,7 @@ async function againstBefore(
   // at both ends. A case a run here recorded says nothing of what came before.
   const retained = keepCases(full, new Set(full.tests.filter((test) => !asked.has(test.id) && !ran.has(test.file)).map((test) => test.id)));
   const exclude = new Set([...(parting?.files ?? []), ...elsewhere]);
-  const moved = caseMotion(held, now, { ...(await graphFor(now, root)), exclude, retained, diff });
+  const moved = caseMotion(held, now, { ...(await graphFor(now, root)), ...(await carriedOver(from, root)), exclude, retained, diff });
   return { base, moved: file === undefined ? moved : within(moved, file), ...(elsewhere.length === 0 ? {} : { unmeasured: elsewhere }) };
 }
 
@@ -245,6 +252,9 @@ export async function motionOfRuns(
   if (wrote.compared.size === 0) return { base, ...said };
   const cases = full.tests.filter((test) => wrote.compared.has(test.file)).map((test) => test.id);
   const ran = new Set([...wrote.compared, ...(wrote.unwritten ?? []), ...(wrote.unbased ?? [])]);
+  // A layer naming no commit is the record's own state, left uncompared; a
+  // commit it names that this clone cannot diff from is refused.
+  if (wrote.at === undefined) return { base, ...said, undiffed: unnamedCommit(BEFORE_LAYER) };
   return { ...(await againstBefore(full, from, cases, root, { at: wrote.at, since, files: wrote.compared, ran })), ...said };
 }
 
@@ -270,7 +280,7 @@ export async function motionAgainst(
   const parting = await movedOnBase(commit, since, root);
   const base: MotionBase = { from: against, kind: 'record', at: commit, mergeBase: parting.mergeBase, leftOut: parting.files };
   const exclude = new Set(parting.files);
-  return { base, moved: caseMotion(held, now, { ...(await graphFor(now, root)), exclude, diff }) };
+  return { base, moved: caseMotion(held, now, { ...(await graphFor(now, root)), ...(await carriedOver(from, root)), exclude, diff }) };
 }
 
 /**
@@ -293,6 +303,7 @@ export function motionText(
   if (motion.unbased !== undefined && motion.unbased.length > 0) {
     unwritten.push(`Not compared, no case of these was recorded before this commit's first run: ${listedOf(motion.unbased, listed, 'test file')}.`);
   }
+  if (motion.undiffed !== undefined) return ['', `Not compared: ${motion.undiffed}`, ...unwritten];
   if (motion.lastRunUnread !== undefined) {
     return ['', `Not compared: ${motion.lastRunUnread} could not be read, so which test files a run at this commit wrote to the case index is not known.`];
   }
@@ -353,6 +364,12 @@ export function motionText(
     }
     lines.push(...notListed(mismatched.length - listed, 'row'));
   }
+  const carried = moved.unmeasured ?? [];
+  if (carried.length > 0) {
+    lines.push(`Not measured, ${carried.length} region${carried.length === 1 ? '' : 's'} whose cases last ran before ${carried.length === 1 ? 'its' : 'their'} file changed:`);
+    for (const region of carried.slice(0, listed)) lines.push(`  ${place(region)} — was ${named(region.before)}`);
+    lines.push(...notListed(carried.length - listed, 'region'));
+  }
   if (moved.unread.length > 0) lines.push(`Not compared, the current record has no row for: ${listedOf(moved.unread, listed, 'file')}.`);
   if (motion.unmeasured !== undefined && motion.unmeasured.length > 0) {
     lines.push(`Not compared, the cases before were recorded over another text than ${base.at!.slice(0, 12)} holds: ${
@@ -366,10 +383,11 @@ export function motionText(
 /**
  * The line that counts what a bounded list left out, and says where it is
  * listed. Plain text, because the markdown sets these lines in a code block.
+ * `which` follows the noun, where two lists of the same noun sit side by side.
  */
-function notListed(more: number, noun: string): readonly string[] {
+export function notListed(more: number, noun: string, which = ''): readonly string[] {
   if (more <= 0) return [];
-  return [`... and ${more} more ${noun}${more === 1 ? '' : 's'}, not listed here; --format json lists every one.`];
+  return [`... and ${more} more ${noun}${more === 1 ? '' : 's'}${which}, not listed here; --format json lists every one.`];
 }
 
 /** Names in one line, no more than `listed` of them, and the rest counted. */
@@ -391,14 +409,14 @@ export function functionsIn(regions: readonly MovedRegion[]): string {
   if (regions.length === 0) return 'nothing';
   const byFile = new Map<string, Set<string>>();
   for (const region of regions) {
-    const name = region.kind === 'module' || region.name === '' ? 'the top level' : region.name.split('/')[0]!;
+    const name = functionOf(region);
     const held = byFile.get(region.file);
     if (held === undefined) byFile.set(region.file, new Set([name]));
     else held.add(name);
   }
   const functions = [...byFile.values()].reduce((sum, names) => sum + names.size, 0);
   const count = `${regions.length} region${regions.length === 1 ? '' : 's'}`;
-  if (functions > NAMED_FUNCTIONS) return `${functions} functions in ${byFile.size} files (${count})`;
+  if (functions > NAMED_FUNCTIONS) return `${functions} functions in ${byFile.size} file${byFile.size === 1 ? '' : 's'} (${count})`;
   const said = [...byFile].map(([file, names]) => `${[...names].join(', ')} in ${file}`).join('; ');
   return `${said} (${count})`;
 }
@@ -414,7 +432,7 @@ function casesByFile(tests: readonly ExecutionTest[]): string {
 }
 
 function place(region: MovedRegion): string {
-  return `${region.file} ${region.startLine}-${region.endLine} ${region.kind} ${region.name}`;
+  return `${region.file} ${region.startLine}-${region.endLine} ${regionKind(region)}`;
 }
 
 /** The motion of one module, and each test file's reach into it. */

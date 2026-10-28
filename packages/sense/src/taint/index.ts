@@ -20,7 +20,7 @@
  * user can ship a taint as a JSON file next to the repository and never touch
  * the scan ({@link taintFile}). And the same records can be viewed under
  * several taints at once, or none, without a second walk — the join is the
- * only thing that changes ([ADR-0041](../../../../docs/context/adr/0041-a-request-is-the-edge-a-binding-is-the-name.md)).
+ * only thing that changes ([ADR-0041](https://github.com/Variance-Authority/variance-authority/blob/main/docs/context/adr/0041-a-request-is-the-edge-a-binding-is-the-name.md)).
  *
  * ## A plus is an edge, a minus is a node
  *
@@ -41,7 +41,7 @@
  * graph gains a node nobody read. A node with no edges of its own reads as *a
  * file that imports nothing*, and the truth is *nobody looked* — the absence
  * the graph must never spell as an empty set
- * ([ADR-0002](../../../../docs/context/adr/0002-observation-profiles.md)). So
+ * ([ADR-0002](https://github.com/Variance-Authority/variance-authority/blob/main/docs/context/adr/0002-observation-profiles.md)). So
  * such a file arrives with {@link FileRecord.unknown} set, which is what the
  * scan already does for a file it could not read: the reason is recorded for
  * whoever reports on the scan, the file contributes no edges of its own, and
@@ -89,7 +89,9 @@ import type { ParseCache, Parsed } from '../cache.js';
 import type { Digest } from '../digest.js';
 import { keyFor, parseWay } from '../files.js';
 import { MODULE_EXTENSIONS } from '../read.js';
+import { parsedOnce } from '../record.js';
 import { realPath, resolversFor, type ResolveOptions } from '../resolve.js';
+import { withDeclaredTsconfig } from '../typescript.js';
 import { worldIn } from '../world.js';
 import { rememberDiff, rememberedDiff } from './cache.js';
 import { applied, byCodeUnit, reach, targetFrom, type Said } from './join.js';
@@ -214,15 +216,17 @@ export async function taintRecords(
   if (taints.length === 0) return { records, shadows, additions, shadowedBy, addedBy };
 
   const root = realPath(resolve(options.root));
-  const resolvers = resolversFor(options);
+  const resolvers = resolversFor(withDeclaredTsconfig(root, options));
   // A landing under `build/` needs the listing's word
   // ([`repo-path.ts`](../repo-path.ts)), and the records carry it: every file
   // the scan read or resolved an edge to is one the listing held.
   // FIXME: a tracked `build/` file no record names resolves to nothing, where
   // any other file outside the scanned directories arrives `unknown`.
+  // The Rust resolver reads the `mod` lines off the world's parses, which the scan's cache holds.
   resolvers.tree = worldIn(
     records.flatMap((record) => [record.file, ...(record.edges ?? []).map((edge) => edge.to)]),
     root,
+    (file) => parsedOnce({ root, file, ...(options.cache === undefined ? {} : { cache: options.cache }) }),
   );
   const readers = taints.filter((taint) => taint.read !== undefined);
   const scanned = new Set(records.map((record) => record.file));

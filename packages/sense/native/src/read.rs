@@ -1,18 +1,22 @@
 //! One module's cacheable facts, extracted without letting its AST cross N-API.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use oxc_allocator::Allocator;
 use oxc_ast::ast::Program;
 use oxc_parser::Parser;
+use oxc_semantic::SemanticBuilder;
 use oxc_span::SourceType;
-use oxc_syntax::module_record::{ExportExportName, ExportImportName, ImportImportName};
+use oxc_syntax::module_record::{ExportExportName, ExportImportName, ExportLocalName, ImportImportName};
 use serde::Serialize;
 
 use crate::declarations::declarations;
 use crate::declared_role::DeclaredRoles;
 use crate::harvest::{Harvest, SourceSymbol, TextSpan};
-use crate::members::{members_and_loads_in, Member};
+use crate::help_member_uses::{member_uses_in, MemberUse};
+use crate::help_own_uses::{own_uses_in, OwnUse};
+use crate::help_members::{member_declarations_in, MemberDeclaration};
+use crate::members::{members_and_loads_in, BindingMember, Member};
 use crate::mocks::{mocks_in, Mocks};
 use crate::source_size::{size_of, Size};
 
@@ -57,6 +61,12 @@ pub struct Request {
     pub kind: Kind,
     pub(crate) bindings: Vec<Binding>,
     pub(crate) line: u32,
+    /// An `export … from` group: what it binds it passes on, and takes for no
+    /// use of its own. Every `reexports` request is one, and a `type` one is
+    /// when `export type` writes it, which its kind alone cannot tell from
+    /// `import type`.
+    #[serde(skip_serializing_if = "is_false")]
+    pub(crate) republishes: bool,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -79,6 +89,9 @@ pub struct Export {
     /// The role tags its doc declares, as `declared_role` bits.
     #[serde(rename = "roles", skip_serializing_if = "is_zero", serialize_with = "crate::declared_role::serialize")]
     pub(crate) tags: u8,
+    /// A key of the object `export =` or `module.exports =` hands out.
+    #[serde(skip_serializing_if = "is_false")]
+    pub(crate) assigned: bool,
 }
 
 #[derive(Clone, Debug, Default, Serialize)]
@@ -88,6 +101,9 @@ pub struct Read {
     pub(crate) exports: Vec<Export>,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub(crate) symbols: Vec<SourceSymbol>,
+    /// Every function a function's body declares, apart from the top level.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub(crate) nested: Vec<crate::harvest::NestedSymbol>,
     #[serde(skip_serializing_if = "is_false")]
     pub(crate) harvested: bool,
     #[serde(skip_serializing_if = "Vec::is_empty")]
@@ -96,16 +112,31 @@ pub struct Read {
     pub(crate) mocks: Mocks,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub(crate) members: Vec<Member>,
+    /// Every name read off a binding a named import takes.
+    #[serde(rename = "bindingMembers", skip_serializing_if = "Vec::is_empty")]
+    pub(crate) binding_members: Vec<BindingMember>,
+    /// Every member of an interface, a type literal or a class the module declares.
+    #[serde(rename = "memberDeclarations", skip_serializing_if = "Vec::is_empty")]
+    pub(crate) member_declarations: Vec<MemberDeclaration>,
+    /// Every use of a member through a value whose type the module writes.
+    #[serde(rename = "memberUses", skip_serializing_if = "Vec::is_empty")]
+    pub(crate) member_uses: Vec<MemberUse>,
+    /// Every line that uses a name the module declares at its top level.
+    #[serde(rename = "ownUses", skip_serializing_if = "Vec::is_empty")]
+    pub(crate) own_uses: Vec<OwnUse>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub unknown: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) size: Option<Size>,
+    /// The module's own doc comment, inside its marks, as [`Harvest`] reads it.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) doc: Option<TextSpan>,
 }
 
 pub(crate) struct Lines(Vec<usize>);
 
 impl Lines {
-    fn new(source: &str) -> Self {
+    pub(crate) fn new(source: &str) -> Self {
         let mut starts = vec![0];
         starts.extend(source.match_indices('\n').map(|(at, _)| at + 1));
         Self(starts)
@@ -144,6 +175,15 @@ pub(crate) fn read_module_and_tree<'a>(file: &str, source: &'a str, allocator: &
     let record = &parsed.module_record;
     let lines = Lines::new(source);
     let mut harvest = Harvest::new(&parsed.program, source, &lines, symbols);
+    // A module's own top level is its alone; a script's is global, or handed
+    // out through `module.exports`, and `export =` hands out what it names,
+    // neither of which the record holds.
+    let assigned = parsed.program.body.iter().any(|statement| crate::assigned_object::handed_out(statement).is_some());
+    if record.has_module_syntax && !assigned {
+        for symbol in &mut harvest.symbols {
+            symbol.reach = Some("file");
+        }
+    }
     let roles = DeclaredRoles::new(&parsed.program, std::mem::take(&mut harvest.tagged));
     let mut requests = Vec::new();
     let mut imports: Vec<ImportGroup> = Vec::new();
@@ -203,6 +243,7 @@ pub(crate) fn read_module_and_tree<'a>(file: &str, source: &'a str, allocator: &
         },
         bindings: group.bindings,
         line: lines.at(group.at),
+        republishes: false,
     }));
 
     let mut entries: Vec<_> = record
@@ -213,21 +254,36 @@ pub(crate) fn read_module_and_tree<'a>(file: &str, source: &'a str, allocator: &
         .collect();
     entries.sort_by_key(|entry| (entry.statement_span.start, entry.span.start));
 
+    // A namespace a module imports and exports by its local name, `import * as
+    // g from 'm'; export { g }`, is the module passed on as `export * as g from
+    // 'm'`, and is recorded as that: the binding is the module record.
+    let namespaces: HashMap<&str, &str> = record
+        .import_entries
+        .iter()
+        .filter(|entry| matches!(entry.import_name, ImportImportName::NamespaceObject))
+        .map(|entry| (entry.local_name.name.as_str(), entry.module_request.name.as_str()))
+        .collect();
+
     let mut exports = Vec::with_capacity(entries.len());
     let mut republished: Vec<ReexportGroup> = Vec::new();
     let mut groups: HashMap<String, usize> = HashMap::new();
     for entry in entries {
         let line = lines.at(entry.statement_span.start);
-        let from = entry
+        let mut from = entry
             .module_request
             .as_ref()
             .map(|name| name.name.to_string());
         let exported = export_name(&entry.export_name);
-        let imported = source_name(&entry.import_name);
+        let mut imported = source_name(&entry.import_name);
         // The record's own bound name, which for `export default name` is
         // `name`: `exported` already says `default`, and the identifier is what
         // a reader follows through this file's imports to where it comes from.
-        let local = entry.local_name.name().map(|name| name.to_string());
+        let mut local = entry.local_name.name().map(|name| name.to_string());
+        if let ExportLocalName::Name(name) = &entry.local_name {
+            if let Some(module) = namespaces.get(name.name.as_str()) {
+                (from, imported, local) = (Some((*module).to_owned()), Some("*".to_owned()), None);
+            }
+        }
 
         let tags = roles.of(entry.statement_span.start, local.as_deref());
         exports.push(Export {
@@ -239,6 +295,7 @@ pub(crate) fn read_module_and_tree<'a>(file: &str, source: &'a str, allocator: &
             line,
             signature: Some(harvest.span(entry.statement_span)),
             doc: harvest.doc(entry.statement_span.start),
+            assigned: false,
             tags,
         });
 
@@ -268,6 +325,29 @@ pub(crate) fn read_module_and_tree<'a>(file: &str, source: &'a str, allocator: &
             });
         }
     }
+    // An object the module hands out whole exports each key, when it spells them all.
+    for statement in &parsed.program.body {
+        let Some(object) = crate::assigned_object::assigned(statement).filter(|it| crate::assigned_object::spelled(it)) else { continue };
+        let at = oxc_span::GetSpan::span(statement);
+        for key in crate::assigned_object::keys(object) {
+            let local = key.local.map(|it| it.name.to_string());
+            let tags = roles.of(at.start, local.as_deref());
+            // A key is declared where it is written, and documented there or on the statement.
+            let doc = harvest.doc(key.span.start).or_else(|| harvest.doc(at.start));
+            exports.push(Export {
+                exported: Some(key.name),
+                local,
+                from: None,
+                imported: None,
+                type_only: false,
+                line: lines.at(key.span.start),
+                signature: Some(harvest.span(key.span)),
+                doc,
+                tags,
+                assigned: true,
+            });
+        }
+    }
     requests.extend(republished.into_iter().map(|group| Request {
         value: group.value,
         kind: if group.only_types {
@@ -277,16 +357,27 @@ pub(crate) fn read_module_and_tree<'a>(file: &str, source: &'a str, allocator: &
         },
         bindings: group.bindings,
         line: group.line,
+        republishes: true,
     }));
 
     let mut reasons = Vec::new();
-    let (members, loads) = members_and_loads_in(&parsed.program, &lines, &requests);
+    // One scope tree serves every reader that resolves a name by scope.
+    let built = SemanticBuilder::new().build(&parsed.program);
+    let scoping = built.semantic.scoping();
+    let (members, binding_members, loads, taken) = members_and_loads_in(&parsed.program, scoping, &lines, &requests);
+    // A binding destructured off a module it holds is that module's value under
+    // a local name, as an import binds one, and declares nothing of its own,
+    // unless the file exports it: the export publishes the binding, and the
+    // binding is what says what it is, as `export const s = lib.shout` does.
+    let published: HashSet<&str> = exports.iter().filter(|it| it.from.is_none()).filter_map(|it| it.local.as_deref().or(it.exported.as_deref())).collect();
+    harvest.symbols.retain(|symbol| published.contains(symbol.name.as_str()) || !taken.contains(&(symbol.name.clone(), symbol.line)));
     requests.extend(loads.dynamic);
     reasons.extend((0..loads.unread_dynamic).map(|_| "an `import()` whose specifier is not a literal".to_owned()));
     requests.extend(loads.required);
     if loads.unread_required > 0 {
         reasons.push(format!("{} `require()` call(s) with a specifier this cannot read", loads.unread_required));
     }
+    requests.extend(loads.typed);
     let depends = crate::depends::depends_in(source, &parsed.program.comments, &lines);
     requests.extend(depends.requests);
     if depends.pathless > 0 {
@@ -303,13 +394,20 @@ pub(crate) fn read_module_and_tree<'a>(file: &str, source: &'a str, allocator: &
         requests,
         exports,
         symbols: harvest.symbols,
+        nested: harvest.nested,
         harvested: symbols,
         declares: declarations(file, &parsed.program),
         mocks: mocks_in(source, &parsed.program),
         members,
+        binding_members,
+        member_declarations: member_declarations_in(&parsed.program, &lines),
+        member_uses: member_uses_in(&parsed.program, &lines),
+        own_uses: own_uses_in(&parsed.program, scoping, &lines),
         unknown: (!reasons.is_empty()).then(|| reasons.join("; ")),
         size: Some(size),
+        doc: harvest.module_doc,
     };
+    drop(built);
     (read, parsed.program)
 }
 
@@ -348,3 +446,15 @@ fn source_name(name: &ExportImportName<'_>) -> Option<String> {
 #[cfg(test)]
 #[path = "read_tests.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "read_objects_tests.rs"]
+mod objects_tests;
+
+#[cfg(test)]
+#[path = "read_binding_members_tests.rs"]
+mod binding_members_tests;
+
+#[cfg(test)]
+#[path = "read_passed_tests.rs"]
+mod passed_tests;

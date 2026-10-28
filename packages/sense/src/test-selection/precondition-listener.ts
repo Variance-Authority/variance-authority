@@ -1,6 +1,5 @@
-import { checkoutSaid, preconditionsHeard, type CasePrecondition } from './case-precondition-column.js';
+import { saidJoined, saidRow, saidSite, type CasePrecondition, type Said } from './case-said.js';
 import preconditions from './case-preconditions.cjs';
-import type { ObservedCase } from './observed.js';
 
 /**
  * Where a runner stands when a case says what it arranged, as only the runner
@@ -23,10 +22,9 @@ export type PreconditionStanding =
 export interface PreconditionListener {
   /**
    * What the case `key` names said since it was last taken, each site named
-   * from the checkout, as {@link ObservedCase.said} carries it: empty when it
-   * said nothing.
+   * from the checkout: absent when it said nothing.
    */
-  take(key: string): NonNullable<ObservedCase['said']>;
+  take(key: string): Said | undefined;
   /**
    * What the case `key` names has said so far, resolved as its row would be
    * if it ended now, and left for {@link take}: what a snapshot taken inside
@@ -51,7 +49,7 @@ export function listenForPreconditions(root: string, standing: () => Preconditio
   const holder = globalThis as { [key: symbol]: unknown };
   const before = holder[preconditions.PRECONDITION];
   // Every call is placed by one reading of `standing`, so `running` names no case.
-  const heard = preconditions.recorder(holder, () => undefined, undefined, root);
+  const heard = preconditions.recorder(holder, () => undefined, undefined, (site) => saidSite(root, site));
   heard.where.ask = () => {
     const at = standing();
     switch (at.at) {
@@ -66,11 +64,19 @@ export function listenForPreconditions(root: string, standing: () => Preconditio
     }
   };
   return {
-    take: (key) => checkoutSaid(root, heard.take(key)),
-    held: (key) => preconditionsHeard(root, [...heard.held(key)]).preconditions ?? [],
+    take: (key) => heardFrom(root, heard.take(key).said),
+    held: (key) => {
+      const said = heardFrom(root, heard.held(key));
+      return said === undefined ? [] : (saidRow(said).said ?? []);
+    },
     close: () => {
       if (before === undefined) delete holder[preconditions.PRECONDITION];
       else holder[preconditions.PRECONDITION] = before;
     },
   };
+}
+
+/** What a recorder held for a case, its sites named from the checkout; absent when it said nothing. */
+function heardFrom(root: string, said: readonly unknown[]): Said | undefined {
+  return said.length === 0 ? undefined : saidJoined(root, [JSON.stringify({ said })]);
 }

@@ -1,8 +1,8 @@
-import { profileById, type SemanticSnapshot } from '@variance-authority/core/format';
+import { profileById, totalsOf, type SemanticSnapshot } from '@variance-authority/core/format';
 import { RasterStoreError } from '@variance-authority/raster';
 import { DEFAULT_ALONE_LIMIT } from '../config.js';
 import { OperatorError } from '../exit.js';
-import { keyFor, type Plan } from './collector.js';
+import { keyFor, type Plan, type PlannedSubject } from './collector.js';
 import { observeOne } from './observe-one.js';
 import type { SubjectHistory } from './history.js';
 import { customProperties } from './history-rows.js';
@@ -16,6 +16,7 @@ import { assign, placedElsewhere } from './shard.js';
 import { costsOf } from './costs-entry.js';
 import { contextFor, timed } from './lanes.js';
 import { acquire } from './acquire.js';
+import { budgetOf } from './budget.js';
 import type { ObserveContext, Outcome, RunOptions } from './run-context.js';
 import { selectionFor } from './run-select.js';
 import { unplannedNotes } from './unplanned.js';
@@ -55,7 +56,9 @@ import { suitePartOf } from './suite-part.js';
  * what may never widen), `shard.ts` (which subjects are this run's),
  * `resources.ts` (decoder, store, disk) and `run-report.ts` (the artifact's
  * shape and its reader). Every public name any of them exports is
- * re-exported below, so `commands/run.js` is still the one import path.
+ * re-exported below, so a caller of the loop has one import path. A caller that
+ * only reads a report imports `run-report.js` itself: this file loads the
+ * observer, the decoder and the store, and `ask` must answer without them.
  */
 
 export { matchesGlob, collectorPath, loadCollector, planFor, planList, planStorybook } from './collector.js';
@@ -80,9 +83,9 @@ export { compositionOf, lexiconReportOf, type ComposeInput } from './compose.js'
 export {
   decoderFor,
   historyFor,
-  journeyAgainst,
   recordedJourneys,
   storeFor,
+  suiteJourney,
   writeArtifactToDisk,
 } from './resources.js';
 export { renderCacheRoot } from './renders.js';
@@ -130,7 +133,6 @@ export async function run(options: RunOptions): Promise<CliRunReport> {
   const renderer = await deps.renderer();
 
   try {
-    const budget = { remaining: config.alone?.limit ?? DEFAULT_ALONE_LIMIT };
     const decoder = await decoderFor(config);
 
     return await observeAll(
@@ -139,7 +141,6 @@ export async function run(options: RunOptions): Promise<CliRunReport> {
         config,
         deps,
         renderer,
-        budget,
         ...(options.flakes === true ? { sweep: true } : {}),
         ...(decoder !== undefined ? { decoder } : {}),
       },
@@ -166,7 +167,7 @@ export async function run(options: RunOptions): Promise<CliRunReport> {
 /** The loop, extracted only so `run` can own the renderer's lifetime in one place. */
 async function observeAll(
   plan: Plan,
-  context: ObserveContext,
+  context: Omit<ObserveContext, 'budget'>,
   options: RunOptions,
   accumulated: {
     observations: CliObservationRecord[];
@@ -179,8 +180,12 @@ async function observeAll(
   const { config, deps, renderer } = context;
   const { observations, notObserved, warnings } = accumulated;
 
-  /** One slot per planned subject, written by index so the pool needs no order. */
-  const perSubject = <T>(): (T | null)[] => plan.subjects.map(() => null);
+  /**
+   * One list per planned subject, written by index so the pool needs no order.
+   * A list because one visit may realize several subjects: a story read at each
+   * width it declares, in the order its visit read them.
+   */
+  const perSubject = <T>(): T[][] => plan.subjects.map(() => []);
 
   // Filled out of order and read back in order.
   // The report has to be a function of the plan and nothing else: a run whose
@@ -195,6 +200,12 @@ async function observeAll(
   const recording = options.identity !== undefined && config.history !== undefined;
   const readings = perSubject<SubjectHistory>();
 
+  // What each visit realized, so the store is asked about the subjects the run
+  // planned once their own parameters had their say.
+  const visits: (readonly PlannedSubject[] | undefined)[] = plan.subjects.map(() => undefined);
+  // What a second visit said, in the order it was first said.
+  const resaid = new Set<string>();
+
   // Subjects some other subject declared itself a variation of, plus the
   // variations themselves. Both halves are needed and neither is the whole run:
   // a suite of three hundred subjects holds three hundred normalized trees to
@@ -208,8 +219,12 @@ async function observeAll(
   // and it is excluded under that shard's name so the merge can prove coverage.
   const assignment = assign(plan.subjects, options.shard, options.costs?.costs);
   for (const [index, entry] of placedElsewhere(plan.subjects, assignment, options)) {
-    slots[index] = { kind: 'not-observed', entry };
+    slots[index]!.push({ kind: 'not-observed', entry });
   }
+
+  // Over this shard's queue, because the order it is taken in is what decides
+  // which changed subjects the budget reaches, whatever the width.
+  const budget = budgetOf(config.alone?.limit ?? DEFAULT_ALONE_LIMIT, assignment.queue);
 
   let storeFailure: unknown;
 
@@ -221,16 +236,12 @@ async function observeAll(
   // about the next one.
   const selection = selected?.notes ?? [];
 
-  // `plan.subjects`, never the narrowed list: `--since` decides what is worth
-  // observing now, and this decides whether a subject left the suite at all.
-  const orphaned = await unplannedNotes(deps.store, plan.subjects, (planned) =>
-    renderer.identityFor({ viewport: planned.viewport ?? config.viewport }),
-  );
-
   // After selection, because the saving is in not asking: a subject ruled out is
   // a subject nothing looks up. A store across a hop turns the whole suite into
   // one request; a store on a disk refuses two subjects it would file at one
   // path, here rather than after both are painted.
+  // FIXME: declared from the planned subject, so a story read at widths is never
+  // expected under the `@<width>` keys its visit realizes.
   deps.store.expect?.(
     plan.subjects
       .filter((planned, i) => !selected?.skipped.has(planned.subject.id) && !assignment.elsewhere.has(i))
@@ -250,12 +261,16 @@ async function observeAll(
     ...(options.subjects === undefined ? {} : { scope: options.subjects }),
     ...(deps.elapsed === undefined ? {} : { elapsed: deps.elapsed }),
     passed: (index, entry) => {
-      slots[index] = { kind: 'not-observed', entry };
+      slots[index]!.push({ kind: 'not-observed', entry });
+    },
+    realized: (index, subjects) => {
+      visits[index] = subjects;
     },
     // Once a store has failed the run is over, so later subjects stop rather
     // than each paying a render to reach the same conclusion.
     stopped: () => storeFailure !== undefined,
-    read: async (index, planned, collected, lane, started) => {
+    settled: (index) => budget.settle(index),
+    read: async (index, planned, collected, lane, started, steps) => {
       const id = planned.subject.id;
       // Retained here for the same reason the composition is taken here: the
       // snapshot does not outlive this scope on the path that keeps no history,
@@ -269,7 +284,7 @@ async function observeAll(
       // here — before the verdict — rather than from the observation, which knows
       // nothing about the reading that settled.
       if (recording && collected.snapshot !== undefined) {
-        readings[index] = {
+        readings[index]!.push({
           subject: id,
           snapshot: collected.snapshot,
           ...(collected.source !== undefined ? { source: collected.source } : {}),
@@ -279,12 +294,13 @@ async function observeAll(
           // document has to carry the resolved values for the render to be
           // faithful at all.
           tokens: customProperties(collected.document.inherited),
-        };
+        });
       }
 
       try {
-        const outcome = await observeOne(planned, collected, contextFor(context, lane), lane.collecting);
-        slots[index] = timed(outcome, started, deps.elapsed, planned.declaredIn);
+        const laned = contextFor({ ...context, budget: budget.of(index), said: (warning) => resaid.add(warning) }, lane);
+        const outcome = await observeOne(planned, collected, steps === undefined ? laned : { ...laned, steps }, lane.collecting);
+        slots[index]!.push(timed(outcome, started, deps.elapsed, planned.declaredIn, steps?.taken));
       } catch (error) {
         if (error instanceof RasterStoreError) {
           // Spec 0004: a store failure is not a verdict. Reporting an unreachable
@@ -303,23 +319,37 @@ async function observeAll(
         // Anything else is about this subject, not about the run. Recorded and the
         // run continues: one component that throws must not cost the other 299
         // their observations.
-        slots[index] = {
+        slots[index]!.push({
           kind: 'not-observed',
           entry: {
             subject: id,
             kind: 'failed',
             because: `observing it failed: ${messageOf(error)}`,
           },
-        };
+        });
       }
     },
   });
-  const { compositions, declared, warnings: laneWarnings } = acquired;
+  const { compositions, declared, warnings: visitWarnings, workers } = acquired;
+  // Said once however many readings said it: a second visit mostly repeats the first.
+  const laneWarnings = [...visitWarnings, ...[...resaid].filter((warning) => !visitWarnings.includes(warning))];
 
   if (storeFailure !== undefined) throw storeFailure;
 
-  for (const outcome of slots) {
-    if (outcome === null) continue;
+  // After the visits, because a story's widths are known only once it has been
+  // read: a visited story is asked about by what its visit realized, and one
+  // this run skipped, left to another shard or read nothing of by every width
+  // it may have. The whole plan either way, never the narrowed list: `--since`
+  // decides what is worth observing now, and this decides whether a subject
+  // left the suite.
+  const orphaned = await unplannedNotes(
+    deps.store,
+    plan.subjects.flatMap((planned, index) => visits[index] ?? [planned]),
+    (planned) => renderer.identityFor({ viewport: planned.viewport ?? config.viewport }),
+    plan.subjects.filter((_, index) => visits[index] === undefined),
+  );
+
+  for (const outcome of slots.flat()) {
     if (outcome.kind === 'observed') observations.push(outcome.record);
     else notObserved.push(outcome.entry);
   }
@@ -350,7 +380,7 @@ async function observeAll(
   // fade-in captured at its first frame without saying the frame was chosen is a
   // report whose reader has been handed an image nobody described.
   const applied = new Set(
-    slots.flatMap((slot) => (slot?.kind === 'observed' ? [...(slot.stabilization ?? [])] : [])),
+    slots.flat().flatMap((slot) => (slot.kind === 'observed' ? [...(slot.stabilization ?? [])] : [])),
   );
 
   // After the verdicts and before the report is written, because the flakiness
@@ -364,7 +394,7 @@ async function observeAll(
     at,
     ...(options.identity !== undefined ? { identity: options.identity } : {}),
     swept: context.sweep === true,
-    readings,
+    readings: readings.flat(),
     observations,
   });
 
@@ -384,7 +414,7 @@ async function observeAll(
   // entered, and the lexicon indexes those beside every other name.
   const parted = await deps.readJourneys?.([...observations, ...notObserved].map((o) => o.subject));
   const composed = composeReports({
-    subjects: compositions,
+    subjects: compositions.flat(),
     observations,
     ...(selected?.changed !== undefined ? { changed: selected.changed } : {}),
     ...(selected?.source !== undefined ? { source: selected.source } : {}),
@@ -403,6 +433,7 @@ async function observeAll(
     ...(config.names !== undefined ? { names: config.names } : {}),
   });
 
+  const totals = totalsOf(observations.map((entry) => entry.steps));
   const regioned = observations.some((entry) => entry.changedPixels > 0);
   const unattributed = accumulated.layoutless !== undefined && regioned ? [accumulated.layoutless] : [];
 
@@ -420,6 +451,8 @@ async function observeAll(
       : {}),
     observations,
     notObserved,
+    ...(workers === undefined ? {} : { workers }),
+    ...(totals.length === 0 ? {} : { steps: totals }),
     ...(recorded.flakiness !== undefined ? { flakiness: recorded.flakiness } : {}),
     ...(recorded.churn !== undefined ? { churn: recorded.churn } : {}),
     ...(recorded.drift !== undefined ? { drift: recorded.drift } : {}),

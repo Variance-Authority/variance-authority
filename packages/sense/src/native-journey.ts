@@ -39,8 +39,8 @@ export interface NativeJourneyProjection {
     readonly file: string;
     readonly name: string;
     readonly stopped?: boolean | null;
-    /** The case's preconditions as `tests.casePreconditions` spells them; absent where nobody listened. */
-    readonly preconditions?: string | null;
+    /** Every item the case said, unresolved, as `tests.said` holds them; absent where nobody listened. */
+    readonly said?: string | null;
   }[];
   readonly modules: readonly {
     readonly file: string;
@@ -58,6 +58,9 @@ export interface NativeJourneyProjection {
   /** Every file the journey holds a row for. */
   readonly files: readonly string[];
 }
+
+/** One region of a module, as the transform that placed its probes cut it. */
+export type NativeRegion = NativeJourneyModule['blocks'][number];
 
 /** One module a run's cases named, cut again from the checkout, as the fold reads it. */
 export interface NativeJourneyModule {

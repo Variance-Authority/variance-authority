@@ -101,14 +101,18 @@ export class OperatorError extends Error {
  * an editor stops asking instead of starting a process per keystroke.
  * `unloaded`: the record holds no row for the file because the run never loaded
  * it, which is a statement about the suite, not about the file's tests.
- * `unmeasured`: the record holds no case's preconditions, so a `--where` has
- * nothing to read — which is not the same as no case having said it.
  * `undiffed`: a base's regions are paired with the current ones only through
  * the diff from the commit the base was recorded at, and that diff cannot be
- * read here — a review that would report its other evidence fails on this one
- * instead of leaving it out.
+ * read here: the base names a commit this clone lacks or cannot diff from, or
+ * a base asked for by name — `--against`, `--cases last` — names no commit. A
+ * review that would report its other evidence fails on this one instead of
+ * leaving it out. A review of the runs at one commit whose retired layer names
+ * no commit is not refused: that is the record's own state, and the review
+ * carries the same sentence as `motion.undiffed`, comparing nothing.
+ * `older`: the record holds no row for the file because the commit it was made
+ * at did not hold the file: a record older than the file.
  */
-export type RefusalKind = 'unrecorded' | 'unloaded' | 'unmeasured' | 'undiffed';
+export type RefusalKind = 'unrecorded' | 'unloaded' | 'undiffed' | 'older';
 
 /**
  * Whether an error is a statement about the operator's configuration.
@@ -150,7 +154,7 @@ export interface ReviewableReport {
     }[];
 
     /**
-     * Set when two readings of this subject, seconds apart, disagreed.
+     * Set when two readings in a row of this subject disagreed.
      *
      * Only `absorbed` is read, and only for whether it is there. What the field
      * *says* — a component, a file, a band — is a statement about the page and is

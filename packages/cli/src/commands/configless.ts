@@ -23,6 +23,7 @@ import { join } from 'node:path';
 import { EXIT_CLEAN, OperatorError, type ExitCode } from '../exit.js';
 import type { Parsed } from '../parse.js';
 import type { Detach } from './index-follow-ups.js';
+import { writePieces } from '../json-pieces.js';
 
 /** The thirteen commands that read no project configuration at all. */
 export type Configless = Extract<
@@ -84,10 +85,21 @@ export async function constantAnswer(
   return undefined;
 }
 
+/**
+ * Where a command writes. `drained`, where a reader can lag, resolves once
+ * what was written has been taken, `false` when the reader has gone.
+ */
+export interface Streams {
+  out(text: string): void;
+  err(text: string): void;
+  drained?(): Promise<boolean>;
+  detach?: Detach;
+}
+
 /** Run one of them, each of which is about a suite rather than a project. */
 export async function answerConfigless(
   parsed: Configless,
-  streams: { out(text: string): void; err(text: string): void; detach?: Detach },
+  streams: Streams,
 ): Promise<ExitCode> {
   switch (parsed.command) {
     // A watcher is about a suite, not about a project: it listens, holds what a
@@ -110,12 +122,12 @@ export async function answerConfigless(
       if (parsed.format === 'jsonl') {
         const { distillRows } = await import('./distill.js');
         const { rows, unrecorded } = await distillRows(parsed);
-        for (const row of rows) streams.out(`${JSON.stringify(row)}\n`);
+        await writePieces(linesOf(rows), streams);
         if (unrecorded !== undefined) streams.err(`Not recorded: ${unrecorded.length === 1 ? 'suite' : 'suites'} ${unrecorded.join(', ')}.\n`);
         return EXIT_CLEAN;
       }
-      const { distillFiles, formatDistill } = await import('./distill.js');
-      streams.out(formatDistill(await distillFiles(parsed), parsed.format));
+      const { distillFiles, distillPieces } = await import('./distill.js');
+      await writePieces(distillPieces(await distillFiles(parsed), parsed.format), streams);
       return EXIT_CLEAN;
     }
 
@@ -125,14 +137,26 @@ export async function answerConfigless(
     // flag long and needs nothing configured. Naming the file is still allowed,
     // for the run that happened somewhere else.
     case 'covering': {
-      const { coveringAnswer, formatCoveringAnswer } = await import('./covering-suites.js');
+      const [{ answerGaps, coveringAnswer, formatCoveringAnswer }, { evidenceGapText, GapRefusal }] = await Promise.all([
+        import('./covering-suites.js'),
+        import('./evidence-gap.js'),
+      ]);
       try {
-        streams.out(formatCoveringAnswer(await coveringAnswer(parsed), parsed.format));
+        const answer = await coveringAnswer(parsed);
+        streams.out(formatCoveringAnswer(answer, parsed.format));
+        // Under `refs` stdout is a list a runner takes, so the run that closes a gap goes to the person, on stderr.
+        if (parsed.format === 'refs') for (const gap of answerGaps(answer)) streams.err(`${evidenceGapText(gap)}\n`);
       } catch (error) {
         // A program reading JSON is told which refusal this is on the stream it
         // parses; the sentence still goes to stderr, for the person.
+        const gap = error instanceof GapRefusal ? error.gap : undefined;
         if (parsed.format === 'json' && error instanceof OperatorError && error.kind !== undefined) {
-          streams.out(`${JSON.stringify({ refused: error.kind })}\n`);
+          streams.out(`${JSON.stringify({ refused: error.kind, ...(gap === undefined ? {} : { gap }) })}\n`);
+        }
+        // The person reads the run that would answer it under the sentence.
+        if (gap !== undefined) {
+          const kind = (error as OperatorError).kind;
+          throw new OperatorError(`${(error as Error).message}\n${evidenceGapText(gap)}`, { ...(kind === undefined ? {} : { kind }), cause: error });
         }
         throw error;
       }
@@ -176,13 +200,14 @@ export async function answerConfigless(
     // them. `--out` keeps the answer as files, because a workflow uploads it and
     // comments with it in steps that do not share this process's output.
     case 'review': {
-      const [{ reviewWithCoverage }, { REVIEW_ARTIFACT, reviewFromRun }, { formatReview }] = await Promise.all([
+      const [{ reviewWithCoverage }, { REVIEW_ARTIFACT, reviewFromRun }, { formatReview, reviewPieces }] = await Promise.all([
         import('./review-evidence.js'),
         import('./review-from-run.js'),
         import('./review-text.js'),
       ]);
       if (parsed.fromRun !== undefined) {
-        streams.out(formatReview(await reviewFromRun({ run: parsed.fromRun, artifact: parsed.artifact ?? REVIEW_ARTIFACT, root: parsed.root }), parsed.format));
+        const kept = await reviewFromRun({ run: parsed.fromRun, artifact: parsed.artifact ?? REVIEW_ARTIFACT, root: parsed.root });
+        await writePieces(reviewPieces(kept, parsed.format), streams);
         return EXIT_CLEAN;
       }
       if (parsed.format === 'handover') {
@@ -193,12 +218,10 @@ export async function answerConfigless(
       const answer = await reviewWithCoverage(parsed);
       if (parsed.out !== undefined) {
         await mkdir(parsed.out, { recursive: true });
-        // FIXME: review.json is unbounded — every moved region carries its cases in full, and a change that moves
-        // most of a suite's regions writes hundreds of megabytes (430 MB on a pull request's CI run).
-        await writeFile(join(parsed.out, 'review.json'), formatReview(answer, 'json'));
+        await writeFile(join(parsed.out, 'review.json'), reviewPieces(answer, 'json'));
         await writeFile(join(parsed.out, 'review.md'), formatReview(answer, 'markdown'));
       }
-      streams.out(formatReview(answer, parsed.format));
+      await writePieces(reviewPieces(answer, parsed.format), streams);
       return EXIT_CLEAN;
     }
 
@@ -216,11 +239,20 @@ export async function answerConfigless(
     // same reason: it publishes what they read, and a pipeline that runs them
     // may have configured this tool for nothing else.
     case 'index': {
-      const { followUpsOutput, indexOutput } = await import('./index-command.js');
-      const request = { cwd: process.cwd(), ...(parsed.noGit ? { noGit: true } : {}) };
+      const [{ followUpsOutput, indexOutput }, { stepTicker }] = await Promise.all([
+        import('./index-command.js'),
+        import('./step-progress.js'),
+      ]);
+      // On stderr, beside the waiting lines: stdout is the answer a pipeline reads.
+      const ticker = stepTicker((text) => streams.err(text), process.stderr.isTTY === true);
+      const request = { cwd: process.cwd(), ...(parsed.noGit ? { noGit: true } : {}), progress: ticker.progress };
       const waiting = (text: string): void => streams.err(text);
-      if (parsed.followUps) streams.out(await followUpsOutput({ ...request, waiting }));
-      else streams.out(await indexOutput({ ...request, waiting, ...(parsed.wait || streams.detach === undefined ? {} : { detach: streams.detach }) }));
+      try {
+        if (parsed.followUps) streams.out(await followUpsOutput({ ...request, waiting }));
+        else streams.out(await indexOutput({ ...request, waiting, ...(parsed.wait || streams.detach === undefined ? {} : { detach: streams.detach }) }));
+      } finally {
+        ticker.done();
+      }
       return EXIT_CLEAN;
     }
 
@@ -292,4 +324,9 @@ export async function answerConfigless(
       return exit;
     }
   }
+}
+
+/** One JSON line a row, each written as it is reached. */
+function* linesOf(rows: Iterable<unknown>): Generator<string, void, undefined> {
+  for (const row of rows) yield `${JSON.stringify(row)}\n`;
 }

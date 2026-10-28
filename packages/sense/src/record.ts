@@ -7,7 +7,9 @@
  * asked for.
  */
 
+import { readFileSync, statSync } from 'node:fs';
 import { lstat, readFile, stat } from 'node:fs/promises';
+import { join } from 'node:path';
 import type { FileEdge, FileRecord, PackageEdge } from '@variance-authority/core/relate';
 import type { Parsed, ParseCache } from './cache.js';
 import { digestString, type Digest } from './digest.js';
@@ -97,9 +99,14 @@ export async function recordFor(subject: RecordSubject): Promise<BuiltRecord> {
       };
     }
 
+    // A digest known only now can still name an entry: the parse a resolver
+    // asked for before the scan reached this file (`parsedOnce`).
     digest ??= digestString(contents);
-    read = parsedFrom(file, contents, way, language);
-    cache.set(keyFor(digest, way), read);
+    read = cache.get(keyFor(digest, way));
+    if (read === undefined) {
+      read = parsedFrom(file, contents, way, language);
+      cache.set(keyFor(digest, way), read);
+    }
   }
 
   const edges: FileEdge[] = [];
@@ -119,7 +126,7 @@ export async function recordFor(subject: RecordSubject): Promise<BuiltRecord> {
     // whole package or a whole target. `targets` stays one entry per request —
     // the source index is keyed by that alignment — and carries the first,
     // while every one of them becomes an edge.
-    const reached = resolveAll({ resolvers, root, from: absolute, request, language });
+    const reached = resolveAll({ resolvers, root, from: absolute, request, language, item: asked.item === true });
     const target = reached[0];
     targets.push(target);
     if (target === undefined) {
@@ -182,6 +189,41 @@ export async function recordFor(subject: RecordSubject): Promise<BuiltRecord> {
   };
 }
 
+/**
+ * What one file says, parsed at most once: the parse cache's entry for its
+ * digest, or a parse that the cache then holds for the record built after it.
+ *
+ * For a resolver that needs another file's parse before the scan reaches it, as
+ * a Rust `super` needs the `mod` lines of the file above. Nothing for a file
+ * that is not there, cannot be read, or is over `largestFile`, which the record
+ * built for it says.
+ */
+export function parsedOnce(input: {
+  readonly root: string;
+  readonly file: string;
+  readonly cache?: ParseCache;
+  readonly digest?: Digest | undefined;
+  readonly largestFile?: number;
+}): Parsed | undefined {
+  const { root, file, cache, largestFile } = input;
+  const way = parseWay(file);
+  const language = languageFor(way);
+  if (language === undefined) return undefined;
+  const held = input.digest === undefined ? undefined : cache?.get(keyFor(input.digest, way));
+  if (held !== undefined) return held;
+  let contents: string;
+  try {
+    if (largestFile !== undefined && statSync(join(root, file)).size > largestFile) return undefined;
+    contents = readFileSync(join(root, file), 'utf8');
+  } catch {
+    return undefined;
+  }
+  const key = keyFor(input.digest ?? digestString(contents), way);
+  const read = cache?.get(key) ?? parsedFrom(file, contents, way, language);
+  cache?.set(key, read);
+  return read;
+}
+
 /** The rest of the reason a file declined for its size is given: `too_large` in `acquire.rs` writes the same words. */
 const TOO_LARGE =
   'this scan opens: parsing it costs about fifty times that in memory, and it is ' +
@@ -236,8 +278,10 @@ function parsedFrom(file: string, contents: string, way: ParseWay, language: Lan
     ...(read.exports === undefined ? {} : { exports: read.exports }),
     ...(read.symbols === undefined ? {} : { symbols: read.symbols }),
     ...(read.mocks === undefined ? {} : { mocks: read.mocks }),
-    harvested: true,
+    ...(read.harvested === true ? { harvested: true } : {}),
     ...(declares.length === 0 ? {} : { declares }),
+    ...(read.ownUses === undefined ? {} : { ownUses: read.ownUses }),
+    ...(read.bindingMembers === undefined ? {} : { bindingMembers: read.bindingMembers }),
     ...(read.unknown === undefined ? {} : { unknown: read.unknown }),
     ...(read.size === undefined ? {} : { size: read.size }),
   };
@@ -260,7 +304,7 @@ function readerFor(language: LanguageId): (file: string, contents: string) => Re
  * A tree-sitter language, read by the grammar linked into the addon.
  *
  * The walk happens where the tree is and what crosses the boundary is the
- * answer ([ADR-0074](../../../docs/context/adr/0074-one-reader-per-tree-sitter-language.md)).
+ * answer ([ADR-0074](https://github.com/Variance-Authority/variance-authority/blob/main/docs/context/adr/0074-one-reader-per-tree-sitter-language.md)).
  * A binary built without the grammars claims no language, and the file is then
  * unknown with that reason rather than read some other way.
  */

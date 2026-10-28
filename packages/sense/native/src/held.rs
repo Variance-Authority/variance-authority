@@ -33,6 +33,13 @@ pub struct HeldRequest {
     bindings: Vec<HeldBinding>,
     #[serde(default)]
     line: u32,
+    #[serde(default)]
+    guessed: bool,
+    #[serde(default)]
+    item: bool,
+    /// `republishes` in `read.rs`; absent is an import, as JavaScript writes none for one.
+    #[serde(default)]
+    republishes: bool,
 }
 
 /// `TextSpan` in `harvest.ts`; an end JavaScript did not write reads as absent.
@@ -66,6 +73,21 @@ pub struct HeldSymbol {
     line: u32,
     signature: Option<HeldSpan>,
     doc: Option<HeldSpan>,
+    #[serde(default)]
+    reach: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct HeldNested {
+    name: String,
+    kind: String,
+    #[serde(default)]
+    line: u32,
+    signature: Option<HeldSpan>,
+    doc: Option<HeldSpan>,
+    holder: Option<String>,
+    #[serde(default, rename = "holderLine")]
+    holder_line: u32,
 }
 
 #[derive(Debug, Default, Deserialize)]
@@ -80,6 +102,47 @@ pub struct HeldMocks {
 pub struct HeldMember {
     #[serde(default)]
     request: u32,
+    name: String,
+    #[serde(default)]
+    line: u32,
+    #[serde(default, rename = "throughDefault")]
+    through_default: bool,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct HeldMemberDeclaration {
+    name: String,
+    #[serde(default)]
+    line: u32,
+    #[serde(default)]
+    on: String,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct HeldMemberUse {
+    name: String,
+    #[serde(default)]
+    line: u32,
+    #[serde(default)]
+    of: String,
+    #[serde(default)]
+    how: String,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct HeldOwnUse {
+    name: String,
+    #[serde(default)]
+    line: u32,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct HeldBindingMember {
+    #[serde(default)]
+    request: u32,
+    binding: String,
+    #[serde(default)]
+    within: Vec<String>,
     name: String,
     #[serde(default)]
     line: u32,
@@ -98,9 +161,21 @@ pub struct HeldParse {
     mocks: HeldMocks,
     #[serde(default)]
     members: Vec<HeldMember>,
+    #[serde(default, rename = "memberDeclarations")]
+    member_declarations: Vec<HeldMemberDeclaration>,
+    #[serde(default, rename = "memberUses")]
+    member_uses: Vec<HeldMemberUse>,
+    #[serde(default, rename = "ownUses")]
+    own_uses: Vec<HeldOwnUse>,
+    #[serde(default)]
+    nested: Vec<HeldNested>,
+    #[serde(default, rename = "bindingMembers")]
+    binding_members: Vec<HeldBindingMember>,
     unknown: Option<String>,
     #[serde(default)]
     size: Option<crate::source_size::Size>,
+    #[serde(default)]
+    doc: Option<HeldSpan>,
 }
 
 /// Both ends, each `NONE` where JavaScript's `optional` would write it.
@@ -131,6 +206,26 @@ impl ParseRow for HeldParse {
         values.extend(self.mocks.minus.iter().map(String::as_str));
         values.extend(self.mocks.plus.iter().map(String::as_str));
         values.extend(self.members.iter().map(|member| member.name.as_str()));
+        for declared in &self.member_declarations {
+            values.insert(&declared.name);
+            values.insert(&declared.on);
+        }
+        for used in &self.member_uses {
+            values.insert(&used.name);
+            values.insert(&used.of);
+            values.insert(&used.how);
+        }
+        values.extend(self.own_uses.iter().map(|used| used.name.as_str()));
+        for nested in &self.nested {
+            values.insert(&nested.name);
+            values.insert(&nested.kind);
+            values.extend(nested.holder.as_deref());
+        }
+        for read in &self.binding_members {
+            values.insert(&read.binding);
+            values.extend(read.within.iter().map(String::as_str));
+            values.insert(&read.name);
+        }
         values.extend(self.declares.iter().flatten().map(String::as_str));
         values.extend(self.unknown.as_deref());
     }
@@ -142,6 +237,8 @@ impl ParseRow for HeldParse {
                 id(&request.value),
                 id(&request.kind),
                 request.line,
+                crate::parse_columns::request_flags(request.guessed, request.item),
+                request.republishes,
                 request.bindings.iter().map(|binding| {
                     (id(&binding.imported), id(&binding.local), binding.type_only, binding.line)
                 }),
@@ -159,14 +256,30 @@ impl ParseRow for HeldParse {
             );
         }
         for symbol in &self.symbols {
-            into.symbol(id(&symbol.name), id(&symbol.kind), symbol.line, span(symbol.signature), span(symbol.doc));
+            into.symbol(id(&symbol.name), id(&symbol.kind), symbol.line, span(symbol.signature), span(symbol.doc), crate::harvest::reach_code(symbol.reach.as_deref()));
         }
         for name in self.declares.iter().flatten() {
             into.declare(id(name));
         }
         into.mock(self.mocks.minus.iter().map(|value| id(value)), self.mocks.plus.iter().map(|value| id(value)));
         for member in &self.members {
-            into.member(member.request, id(&member.name), member.line);
+            into.member(member.request, id(&member.name), member.line, member.through_default);
+        }
+        for declared in &self.member_declarations {
+            into.member_declaration(id(&declared.name), declared.line, id(&declared.on));
+        }
+        for used in &self.member_uses {
+            into.member_use(id(&used.name), used.line, id(&used.of), id(&used.how));
+        }
+        for used in &self.own_uses {
+            into.own_use(id(&used.name), used.line);
+        }
+        for nested in &self.nested {
+            let holder = strings.optional(nested.holder.as_deref());
+            into.nested(id(&nested.name), id(&nested.kind), nested.line, span(nested.signature), span(nested.doc), holder, nested.holder_line);
+        }
+        for read in &self.binding_members {
+            into.binding_member(read.request, id(&read.binding), read.within.iter().map(|name| id(name)), id(&read.name), read.line);
         }
     }
 
@@ -188,5 +301,9 @@ impl ParseRow for HeldParse {
 
     fn size(&self) -> Option<crate::source_size::Size> {
         self.size
+    }
+
+    fn doc(&self) -> Span {
+        span(self.doc)
     }
 }

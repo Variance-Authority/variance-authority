@@ -12,7 +12,7 @@ name: variance shards
 # shard, because they load the same module graph and splitting them pays for it
 # twice. Files are placed by the time each subject took on the newest mainline
 # commit this checkout descends from — longest first, onto the least loaded
-# shard — and by a checksum of the file when no such record exists. Both are
+# shard — and by file count, every file weighing the same, when no such record exists. Both are
 # functions of the plan and the shard count, so every shard computes the same
 # placement without talking to the others.
 #
@@ -41,7 +41,7 @@ name: variance shards
 
 # ## On demand here
 #
-# It observes the same fourteen subjects `variance.yml` does, through the same
+# It observes the same thirteen subjects `variance.yml` does, through the same
 # config, and the marker is the config's project — so run on the same event the
 # two would fight over one comment, each rewriting the other. A repository picks
 # one gate. This one is kept on demand because the suite it would shard is five
@@ -126,6 +126,11 @@ jobs:
         with:
           fetch-depth: 0
           filter: tree:0
+
+      # For the reason written at the same step in `variance.yml`.
+      - name: trust the workspace
+        shell: bash
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
 
       - shell: bash
         run: corepack enable && yarn install --immutable

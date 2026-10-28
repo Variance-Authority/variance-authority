@@ -5,16 +5,16 @@ import { total } from '../src/cart';
 // records this file finds the line each row should cite.
 
 beforeEach(() => {
-  variancePrecondition({ network: 'live' }); // file default
+  variancePrecondition('fixture', { network: 'live' }); // file default
 });
 
 afterEach(() => {
-  variancePrecondition({ cleaned: true }); // after each
+  variancePrecondition('fixture', { cleaned: true }); // after each
 });
 
 describe('mocked', () => {
   beforeEach(() => {
-    variancePrecondition({ network: 'mocked' }); // mocked each
+    variancePrecondition('fixture', { network: 'mocked' }); // mocked each
   });
 
   it('pays', () => {
@@ -22,7 +22,7 @@ describe('mocked', () => {
   });
 
   it('refunds behind a flag', () => {
-    variancePrecondition({ flag: 'ff-on' }); // case flag
+    variancePrecondition('fixture', { flag: 'ff-on' }); // case flag
     expect(total([])).toBe(0);
   });
 });
@@ -40,7 +40,7 @@ it('mocked refunds', () => {
 
 describe('live', () => {
   beforeEach(() => {
-    variancePrecondition({ region: 'eu' }); // live each
+    variancePrecondition('fixture', { region: 'eu' }); // live each
   });
 
   it('pays', () => {
@@ -48,15 +48,15 @@ describe('live', () => {
   });
 
   it('replays a recording', () => {
-    variancePrecondition({ network: 'recorded' }); // case network
+    variancePrecondition('fixture', { network: 'recorded' }); // case network
     expect(total([5])).toBe(5);
   });
 });
 
 describe('contradicted', () => {
   beforeEach(() => {
-    variancePrecondition({ flag: 'ff-on' }); // contradicted on
-    variancePrecondition({ flag: 'ff-off' }); // contradicted off
+    variancePrecondition('fixture', { flag: 'ff-on' }); // contradicted on
+    variancePrecondition('fixture', { flag: 'ff-off' }); // contradicted off
   });
 
   it('pays', () => {
@@ -68,7 +68,7 @@ describe('contradicted', () => {
 // the next case, in a sibling describe, never hears it.
 describe('doomed', () => {
   beforeEach(() => {
-    variancePrecondition({ doomed: true }); // doomed each
+    variancePrecondition('fixture', { doomed: true }); // doomed each
     throw new Error('the arrangement failed, so the case never runs');
   });
 
@@ -84,5 +84,5 @@ describe('after doomed', () => {
 });
 
 it('crosses nothing', () => {
-  variancePrecondition({ seeded: true }); // seeded
+  variancePrecondition('fixture', { seeded: true }); // seeded
 });

@@ -187,6 +187,7 @@ export {
   type Spill,
   type SpillCause,
 } from './scope.js';
+export { type FileTime, type ScopeTime } from './time.js';
 export { type ImportCharge } from './charge.js';
 export { type MisplacedMock } from './mocks.js';
 export { type ImportReach, type LoadCause } from './own.js';

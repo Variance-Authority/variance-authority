@@ -52,7 +52,7 @@ pub struct UpdateOptions {
     pub config: String,
     pub largest_file: Option<u32>,
     pub readers: Option<u32>,
-    pub tsconfig: Option<String>,
+    pub tsconfig: Option<napi::Either<String, bool>>,
     pub condition_names: Option<Vec<String>>,
     /// `Aliases.table` as JSON, when a configuration maps specifiers.
     pub aliases: Option<String>,
@@ -265,7 +265,7 @@ pub(crate) fn update(o: UpdateOptions, tree: Tree) -> napi::Result<Option<Update
                 seeds: need.clone(),
                 largest_file: o.largest_file,
                 readers: o.readers,
-                tsconfig: o.tsconfig.clone(),
+                tsconfig: crate::resolve::Tsconfig::from_js(o.tsconfig.clone()),
                 condition_names: o.condition_names.clone(),
                 include_parses: false,
             },
@@ -415,7 +415,8 @@ pub(crate) fn update(o: UpdateOptions, tree: Tree) -> napi::Result<Option<Update
     let base = references.len() - chain.working;
     let mut working: Vec<&[u8]> = chain.segments[base..].iter().map(Vec::as_slice).collect();
     working.push(&delta);
-    let working = if working.len() == 1 { delta.clone() } else { merged(&working).map_err(fail)? };
+    let beneath: Vec<&[u8]> = chain.segments[..base].iter().map(Vec::as_slice).collect();
+    let working = if working.len() == 1 { delta.clone() } else { merged(&beneath, &working).map_err(fail)? };
     // Another writer between the read and here: its chain is not the one this delta is against.
     let refused = match written(&o.index, Over::Published(chain.published()), &references[..base], &[&working], &references[base..], 1) {
         Ok(false) => return Ok(None),

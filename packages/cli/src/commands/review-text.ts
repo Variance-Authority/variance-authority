@@ -18,9 +18,11 @@ import { functionsIn, motionText } from './covering-motion.js';
 import { changeGraph } from './review-graph.js';
 import { changedPackagesMarkdown } from './review-changed-packages.js';
 import { installLines } from './review-install.js';
-import { caseTree, functionsMarkdown, namedList, outermost, uncoveredFunctions, uncoveredMarkdown } from './review-scope.js';
+import { caseTree, functionsMarkdown, namedList, outermost, regionKind, uncoveredFunctions, uncoveredMarkdown } from './review-scope.js';
 import { REACHES, type Reach, type Review, type ReviewFile, type ReviewRegion } from './review.js';
 import { describeDistance } from './share.js';
+import { jsonPieces } from '../json-pieces.js';
+import { reviewJson } from './review-json.js';
 
 /** The first line of the markdown, which a workflow looks for to edit its own comment. */
 export const REVIEW_MARKER = '<!-- variance-authority: review -->';
@@ -35,7 +37,7 @@ const EDITS = [
   ['load', 'what the module loads'],
 ] as const;
 
-/** Each answer in a few words, for a line that names a place: the handover's breadcrumbs. */
+/** Each answer in a few words, for a line that names a place: the handover's pointers. */
 export const REACH_WORD: Readonly<Record<Reach, string>> = {
   near: 'near',
   far: 'far',
@@ -56,13 +58,31 @@ const REACH_TEXT: Readonly<Record<Reach, string>> = {
   unknown: 'no case covered it, and the record cannot say whether one stopped first',
 };
 
-export function formatReview(review: Review, format: ReviewFormat): string {
-  if (format === 'json') return `${JSON.stringify(review, undefined, 2)}\n`;
+/** A review in words. JSON is {@link reviewPieces}'s: it can spell more than one string holds. */
+export function formatReview(review: Review, format: Exclude<ReviewFormat, 'json'>): string {
   return format === 'markdown' ? markdown(review) : text(review);
 }
 
+/**
+ * A review in the pieces `writePieces` writes. JSON is `review.json`'s shape,
+ * each case once ({@link reviewJson}), written as it serializes, a region at a
+ * time, so neither the answer nor a file most of the suite enters is held
+ * whole as one string.
+ */
+export function* reviewPieces(review: Review, format: ReviewFormat): Generator<string, void, undefined> {
+  if (format !== 'json') return yield formatReview(review, format);
+  // The review, its files, a file, its regions: below that, one region is one piece.
+  yield* jsonPieces(reviewJson(review), 4);
+  yield '\n';
+}
+
+/** What the record leaves open beside the answer, said before it. */
+function notes(review: Review): readonly string[] {
+  return [review.probes, review.runsUnread].filter((note) => note !== undefined);
+}
+
 function text(review: Review): string {
-  const lines = [header(review), '', ...summary(review, (code) => code)];
+  const lines = [header(review), ...notes(review).flatMap((note) => ['', note]), '', ...summary(review, (code) => code)];
   const edits = editRows(review.files);
   if (edits.length > 0) lines.push('', 'Edits:', ...edits.map(([label, count]) => `  ${count.padStart(5)}  ${label}`));
   const reach = reachRows(review.files);
@@ -75,7 +95,7 @@ function text(review: Review): string {
   lines.push(...motionText(review.motion));
   const detail = review.files.flatMap((file) =>
     outermost(file).filter(worthNaming).map((region) => `  ${file.file}:${region.startLine}-${region.endLine} ${
-      region.name === '' ? region.kind : `${region.kind} ${region.name}`
+      regionKind(region)
     } — ${REACH_TEXT[region.reach]} (${editText(file.file, region)})`));
   if (detail.length > 0) lines.push('', 'Regions not covered by a test one import away:', ...detail);
   for (const reading of review.coverage ?? []) {
@@ -130,7 +150,7 @@ function markdown(review: Review): string {
   const ran = review.record === 'ran';
   const lines = [REVIEW_MARKER, review.coverage === undefined ? `### 🧭 What this change ${ran ? 'did' : 'might do'}` : '### Test evidence', '', `<sub>${markdownHeader(review, code)}${
     ran ? '' : ' The record was made before this change, so it names the cases that stood on the changed lines.'
-  }</sub>`, ''];
+  }</sub>`, '', ...notes(review).flatMap((note) => [`<sub>${note}</sub>`, ''])];
   const changed = changedPackagesMarkdown(review.changedPackages, (reach) => MARK[reach]);
   lines.push(...calloutMarkdown(review), ...changed);
   if (changed.length > 0) lines.push('', `<sub>${LEGEND}</sub>`);
@@ -210,15 +230,15 @@ function lostMarkdown(review: Review, code: (value: string) => string): readonly
   const moved = review.motion?.moved;
   const unwritten = review.motion?.unwritten?.length ?? 0;
   const at = runsAt(review, code);
+  const there = review.runs?.commit === undefined ? 'in them' : 'there';
+  const files = unwritten === 1 ? `the one test file run ${there}` : `the ${unwritten} test files run ${there}`;
+  const notWritten = unwritten === 0 ? [] : [`No case index was written ${at} for ${files}, so no case is compared against the base.`];
+  if (review.motion?.undiffed !== undefined) return ['', `No case is compared against the base: ${review.motion.undiffed}`, ...notWritten];
+  // A record whose last run does not read says nothing of which files a run wrote, so no file is named unwritten beside it.
   if (review.motion?.lastRunUnread !== undefined) {
     return ['', `Which test files a run ${at} wrote to the case index could not be read, so no case is compared against the base.`];
   }
-  if (moved === undefined) {
-    if (unwritten === 0) return [];
-    const there = review.runs?.commit === undefined ? 'in them' : 'there';
-    const files = unwritten === 1 ? `the one test file run ${there}` : `the ${unwritten} test files run ${there}`;
-    return ['', `No case index was written ${at} for ${files}, so no case is compared against the base.`];
-  }
+  if (moved === undefined) return notWritten.length === 0 ? [] : ['', ...notWritten];
   const lost = moved.regions.filter((region) => region.motion === 'lost' || region.motion === 'hidden');
   const thinned = moved.counts.thinned;
   const fewer = thinned === 0 ? '' : `▽ ${thinned} changed region${thinned === 1 ? ' is' : 's are'} run by fewer cases than at the base.`;
@@ -254,11 +274,24 @@ function selectionMarkdown(review: Review, code: (value: string) => string): rea
   } kept the rows recorded before them. ${select} lists the files a change reaches.`];
 }
 
+/** The changed files the record holds nothing of, source or not: a file the change created is named whatever it holds. */
 function unrecordedFiles(review: Review): readonly string[] {
-  return review.files
-    .filter((file) => file.recorded === false && file.cases === undefined)
-    .filter((file) => file.verdict !== undefined || file.unread !== undefined || file.created === true)
-    .map((file) => file.file);
+  return outsideRecord(review).filter((file) => isSource(file) || file.created === true).map((file) => file.file);
+}
+
+/** The changed source files the record holds nothing of, in any language a reader here reads: no function in them can be named. */
+export function unrecordedSources(review: Review): readonly string[] {
+  return outsideRecord(review).filter(isSource).map((file) => file.file);
+}
+
+/** Neither a module the record holds a row for nor a test file it holds cases of. */
+function outsideRecord(review: Review): readonly ReviewFile[] {
+  return review.files.filter((file) => file.recorded === false && file.cases === undefined && file.holdsCases !== true);
+}
+
+/** Code: what the module reader claims, and what the source index reads in any language. */
+function isSource(file: ReviewFile): boolean {
+  return file.verdict !== undefined || file.unread !== undefined || file.indexed === true;
 }
 
 function marksOf(file: ReviewFile): string {

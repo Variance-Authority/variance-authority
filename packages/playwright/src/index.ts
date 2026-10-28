@@ -41,4 +41,5 @@ export { fetchModules } from './modules.js';
 export { createDeclarationReader } from './declarations.js';
 export type { DeclarationReader, DeclarationReaderOptions, DeclarationStats } from './declarations.js';
 
-export { acquireFromAgent } from './acquire.js';
+export { UnansweredAssets, acquireFromAgent } from './acquire.js';
+export { ARRIVAL_GLOBAL, watchArrivals } from './arrivals.js';

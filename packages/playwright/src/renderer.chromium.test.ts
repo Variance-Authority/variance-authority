@@ -7,10 +7,12 @@ import {
   identityDigest,
   type Recipe,
   type RenderDocument,
+  stepClock,
 } from '@variance-authority/core/format';
 import { comparePngs, decode } from '@variance-authority/png';
 import { createEphemeralStore } from '@variance-authority/raster';
-import { createPlaywrightRenderer } from './renderer.js';
+import { leaseBrowser } from './browsers.js';
+import { CHROMIUM_RASTER_ARGS, createPlaywrightRenderer } from './renderer.js';
 
 /**
  * What the page pool has to be true for.
@@ -400,3 +402,43 @@ if (!BROWSER_AVAILABLE) {
       '\n  no browser — npx playwright install chromium\n',
   );
 }
+
+describe.skipIf(!BROWSER_AVAILABLE)('createPlaywrightRenderer — steps', () => {
+  it('takes each step of a paint in the order it ran, and paints the same bytes with a clock as without', async () => {
+    const renderer = await createPlaywrightRenderer({ waitForFonts: false });
+    const document = documentOf('fixture:timed', '#336699');
+
+    try {
+      const steps = stepClock(() => performance.now());
+      const timed = await renderer.render(document, steps);
+      const untimed = await renderer.render(document);
+
+      const named = ['lease', 'load', 'fonts', 'screenshot', 'frame'];
+      expect(steps.taken.map((step) => step.step).filter((name) => named.includes(name))).toEqual(named);
+      expect(steps.taken.every((step) => step.ms >= 0)).toBe(true);
+      expect(digestBytes(timed.bytes!)).toBe(digestBytes(untimed.bytes!));
+    } finally {
+      await renderer.close();
+    }
+  }, 60_000);
+
+  it('closes the pages it opened in a browser something else still holds', async () => {
+    // The renderer no longer owns its browser: a collector launched the same way
+    // may hold it for the rest of the run, so closing the renderer has to close
+    // what it opened rather than the process.
+    const held = await leaseBrowser('chromium', { headless: true, args: CHROMIUM_RASTER_ARGS });
+
+    try {
+      const renderer = await createPlaywrightRenderer({ waitForFonts: false });
+      await renderer.render(documentOf('fixture:held', '#123456'));
+      expect(held.value.contexts().length).toBeGreaterThan(0);
+
+      await renderer.close();
+
+      expect(held.value.isConnected()).toBe(true);
+      expect(held.value.contexts()).toEqual([]);
+    } finally {
+      await held.release();
+    }
+  }, 60_000);
+});

@@ -108,6 +108,14 @@ describe('an uninstrumented run that keeps cases', () => {
     expect(decodeTestCoverage(readFileSync(record)).tests.map((test) => [test.file, test.complete])).toEqual([['b.test.ts', false]]);
   });
 
+  it('refuses to replace a record it cannot read, naming it, and leaves it as it was', async () => {
+    // One build reads what it wrote: a record it cannot read is another build's.
+    await writeFile(record, 'not a record');
+
+    await expect(landRun(record, uninstrumented, root, undefined, fresh())).rejects.toThrow(new RegExp(`${record}.*It was written by another build, so it is left as it was and this run lays nothing over it; deleting it is the operator's\\.$`, 'su'));
+    expect(readFileSync(record, 'utf8')).toBe('not a record');
+  });
+
   it('writes nothing when it keeps no cases and there is no record to land over', async () => {
     await landRun(record, uninstrumented, root);
     expect(existsSync(record)).toBe(false);

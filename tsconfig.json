@@ -1,8 +1,12 @@
 {
   "files": [],
   "references": [
+    { "path": "./tools/consumer-configs" },
     {
       "path": "./packages/wire"
+    },
+    {
+      "path": "./packages/reads"
     },
     {
       "path": "./packages/core"
@@ -105,6 +109,9 @@
     },
     {
       "path": "./packages/ioc"
+    },
+    {
+      "path": "./packages/isolator"
     },
     {
       "path": "./examples/kitchen-sink"

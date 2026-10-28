@@ -1,6 +1,6 @@
 // compass: variance-authority.reach
 
-import type { DeclaredSuite, Unmeasured } from '@variance-authority/sense/test-selection';
+import type { DeclaredSuite, Precision, Unmeasured } from '@variance-authority/sense/test-selection';
 import { OperatorError } from '../exit.js';
 import { messageOf } from '../config-values.js';
 
@@ -61,16 +61,27 @@ export async function landingRecord(root: string, suite?: string): Promise<strin
 
 /**
  * {@link suiteRecord}, with what its suite does with a file the record did not
- * measure: a suite declaring `relations: false` asks the graph nothing.
+ * measure — a suite declaring `relations: false` asks the graph nothing — and
+ * the precision and the `ignore` globs it declares.
  */
 export async function selectingRecord(
   root: string,
   suite?: string,
-): Promise<{ readonly file: string; readonly unmeasured?: Unmeasured }> {
+): Promise<{
+  readonly file: string;
+  readonly unmeasured?: Unmeasured;
+  readonly precision?: Precision;
+  readonly ignore?: readonly string[];
+}> {
   const { file, declared } = await recordedSuite(root, suite);
   const { unmeasuredOf } = await import('@variance-authority/sense/test-selection');
   const unmeasured = unmeasuredOf(declared);
-  return unmeasured === undefined ? { file } : { file, unmeasured };
+  return {
+    file,
+    ...(unmeasured === undefined ? {} : { unmeasured }),
+    ...(declared?.precision === undefined ? {} : { precision: declared.precision }),
+    ...(declared?.ignore === undefined ? {} : { ignore: declared.ignore }),
+  };
 }
 
 /**
@@ -121,10 +132,10 @@ export function asOperator<T>(read: () => T): T {
 export function nothingRecorded(root: string, suites?: readonly string[]): OperatorError {
   return new OperatorError(
     suites === undefined
-      ? `nothing is recorded in \`${root}\`: no run left a per-case index. Run the suite with \`withTestSelection\` and ask again.`
+      ? `nothing is recorded in \`${root}\`: no run left a per-case index, so no case can be named.`
       : `nothing is recorded in \`${root}\`: none of the suites it declares, ${
           suites.map((name) => `"${name}"`).join(', ')
-        }, has a per-case index. Run a suite with \`withTestSelection\` and ask again.`,
+        }, has a per-case index, so no case can be named.`,
     { kind: 'unrecorded' },
   );
 }

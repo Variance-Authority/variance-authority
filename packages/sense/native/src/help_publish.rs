@@ -1,7 +1,7 @@
 //! The Help value `variance index` publishes, refreshed from the chain it just
 //! wrote without its export list ever reaching JavaScript.
 //!
-//! `refreshWorkspaceFromIndex` in `packages/help/src/refresh-native.ts` drives
+//! `publishWorkspaceFromIndex` in `packages/help/src/refresh-native.ts` drives
 //! it. A reading holds what the chain says — the uses JavaScript joins against
 //! the documented surface, and the export list and path graph it has nothing to
 //! add to — and publishing writes the three files beside the index that
@@ -19,8 +19,12 @@ use rayon::prelude::*;
 use sha2::{Digest, Sha256};
 
 use crate::compact::Layer;
+use crate::help_aliases::{aliases, Alias};
+use crate::help_declared::{declared, declared_terms, Declared, Matching};
 use crate::off_thread::{off_thread, OffThread};
 use crate::help_search::{encode, exported_digest, PublishedRows, SearchGeneration};
+use crate::help_members::{indexed_extensions, member_declarations, members_on, ContainerMember, MemberDeclarations};
+use crate::help_origin::{declaration_exported, ExportedDeclaration};
 use crate::help_usage::{importers, usage, Importers, IndexedUsage, NamedExport};
 use crate::index_chain::read_chain;
 use crate::source_tree::tree;
@@ -98,6 +102,82 @@ fn reading(root: &str, index: &str, opened: &[String], published: &[String], une
 #[napi]
 pub fn importers_of(root: String, index: String, files: Vec<String>, name: String) -> napi::Result<Option<Importers>> {
     opened_chain(&index, |layers| importers(&root, layers, &files, &name))
+}
+
+/// Every import on the chain at `index` that binds `local` to an export of
+/// another name, ordered by the importing file in code units, then by line;
+/// `None` when there is no index.
+#[napi]
+pub fn aliases_of(root: String, index: String, local: String) -> napi::Result<Option<Vec<Alias>>> {
+    opened_chain(&index, |layers| aliases(&root, layers, &local))
+}
+
+/// Every declaration of a member named `name` the chain at `index` records,
+/// ordered by file in code units, then by line, beside the extensions of the
+/// files the chain holds; `None` when there is no index.
+#[napi]
+pub fn member_declarations_of(root: String, index: String, name: String) -> napi::Result<Option<MemberDeclarations>> {
+    opened_chain(&index, |layers| MemberDeclarations { sites: member_declarations(&root, layers, &name), extensions: indexed_extensions(layers) })
+}
+
+/// Every member the interface, type alias or class named `on` declares in
+/// `file`, repo-relative, by line; `None` when there is no index.
+#[napi]
+pub fn members_on_of(index: String, file: String, on: String) -> napi::Result<Option<Vec<ContainerMember>>> {
+    opened_chain(&index, |layers| members_on(layers, &file, &on))
+}
+
+/// What the index reads of the declaration an export binds.
+#[napi(object)]
+pub struct ExportedReading {
+    /// `None` when the walk ends short of a declaration.
+    pub declaration: Option<ExportedDeclaration>,
+}
+
+/// The declaration the export `name` of `file`, repo-relative, binds, as
+/// [`declaration_exported`] walks to it; `None` when there is no index.
+#[napi]
+pub fn declaration_exported_of(index: String, file: String, name: String) -> napi::Result<Option<ExportedReading>> {
+    opened_chain(&index, |layers| ExportedReading { declaration: declaration_exported(layers, &file, &name) })
+}
+
+/// Every top-level declaration on the chain at `index` that no export of its
+/// file binds, named `query` or, with `containing`, whose lowercased name or doc
+/// comment holds `query`, which the caller lowercased; only in `files` when they
+/// are named.
+/// `None` when there is no index.
+#[napi]
+pub fn declared_of(root: String, index: String, query: String, containing: bool, files: Option<Vec<String>>) -> napi::Result<Option<Declared>> {
+    let matching = if containing { Matching::Containing } else { Matching::Exact };
+    opened_chain(&index, |layers| declared(&root, layers, &query, matching, files.as_deref()))
+}
+
+/// The declarations no export binds whose name and doc hold any of `stems` —
+/// `describedWords`' stems of `query` — in `files` when they are named, each
+/// with the positions of the stems it holds and how near its doc writes
+/// `query`; and the files whose name and module doc hold any, the same way.
+/// `None` when there is no index.
+#[napi]
+pub fn declared_described_of(root: String, index: String, query: String, stems: Vec<String>, files: Option<Vec<String>>) -> napi::Result<Option<Declared>> {
+    let matching = Matching::Described { stems, query };
+    opened_chain(&index, |layers| declared(&root, layers, "", matching, files.as_deref()))
+}
+
+/// The distinct search terms of the top-level names the chain at `index`
+/// harvested, in `files` when they are named, sorted by their UTF-8 bytes: the
+/// dictionary the loose pass reads for names no export list holds.
+/// `None` when there is no index.
+#[napi]
+pub fn declared_terms_of(index: String, files: Option<Vec<String>>) -> napi::Result<Option<Vec<String>>> {
+    opened_chain(&index, |layers| declared_terms(layers, files.as_deref()))
+}
+
+/// The declarations no export binds whose name's terms hold one of every
+/// group of `groups`, in `files` when they are named: the names the loose pass
+/// reaches among them. `None` when there is no index.
+#[napi]
+pub fn declared_loose_of(root: String, index: String, groups: Vec<Vec<String>>, files: Option<Vec<String>>) -> napi::Result<Option<Declared>> {
+    opened_chain(&index, |layers| declared(&root, layers, "", Matching::Terms { groups }, files.as_deref()))
 }
 
 /// The chain at `index`, each segment opened in place, handed to `read`;

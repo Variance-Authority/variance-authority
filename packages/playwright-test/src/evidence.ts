@@ -99,9 +99,8 @@ export async function writeEvidence(
   const diff = `${base}.diff.png`;
   const beforeBytes = decode(before.bytes);
   await writeFile(beforePath, beforeBytes);
-  // Two images of different sizes have no common canvas, so there is no diff to
-  // draw -- the pair itself is the evidence, and it is the whole finding.
-  if (observation.comparison?.dimensionsChanged === true) return { before: beforePath, after };
+  // A pair of different sizes has a diff too: rows of the same width are aligned
+  // and drawn on the after image, and any other pair on the box that holds both.
   await writeFile(diff, diffImage(beforeBytes, afterBytes));
 
   return { before: beforePath, after, diff };

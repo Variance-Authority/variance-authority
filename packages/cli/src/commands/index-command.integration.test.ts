@@ -40,7 +40,7 @@ afterEach(() => {
 function unprepared(root: string, unchanged = false): string {
   return 'code map: none, because no manifest names a package\n' +
     `journeys: not prepared: nothing is recorded at ${testCoverageFile(root)}\n` +
-    `dependency lexicon: ${unchanged ? 'unchanged, nothing read: ' : ''}0 workspace-dependency pairs, 0 public entrypoints, ${unchanged ? '' : '0 reused, '}0 unavailable, at ${join(dirname(sourceIndexPath(root)), 'dependency-lexicon.json')}\n` +
+    `dependency lexicon: ${unchanged ? 'unchanged, nothing read: ' : ''}0 workspace-dependency pairs, 0 public entrypoints, ${unchanged ? '' : '0 reused, '}0 unavailable, at ${join(dirname(sourceIndexPath(root)), 'dependency-lexicon.bin')}\n` +
     `questions: published at ${sourceIndexPath(root)}.help.json\n`;
 }
 
@@ -69,7 +69,30 @@ async function run(argv: readonly string[]): Promise<{ code: number; out: string
   return { code, out, err };
 }
 
+/** Stderr that holds nothing but steps: each one's name, then its name with how long it took. */
+const STEPS_ONLY = /^(  [^\n]+\n)*$/u;
+
 describe('variance index', () => {
+  it('names each step on stderr as it starts, and again with how long it took, so stdout stays the answer', async () => {
+    const root = checkout();
+
+    const { out, err } = await run(['index']);
+
+    expect(out).toBe(`source index built: 2 files, at ${sourceIndexPath(root)}\n${unprepared(root)}`);
+    const lines = err.split('\n').filter((line) => line !== '');
+    for (const step of [
+      `reading every file of ${root}, because there is no index to update`,
+      'readying the index for the follow-ups',
+      'writing the code map',
+      'writing the journeys',
+      'writing the dependency lexicon',
+      'writing the questions',
+    ]) {
+      expect(lines).toContain(`  ${step}`);
+      expect(lines.some((line) => new RegExp(`^  ${escaped(step)} — \\d+\\.\\ds$`, 'u').test(line))).toBe(true);
+    }
+  });
+
   it('builds, then updates in place, naming how many files it read again', async () => {
     const root = checkout();
     const at = sourceIndexPath(root);
@@ -77,7 +100,7 @@ describe('variance index', () => {
     expect(await run(['index'])).toEqual({
       code: EXIT_CLEAN,
       out: `source index built: 2 files, at ${at}\n${unprepared(root)}`,
-      err: '',
+      err: expect.stringMatching(STEPS_ONLY),
     });
     expect(await indexOutput({ cwd: root }))
       .toBe(`source index updated: 2 files, 0 read again, at ${at}\n${unprepared(root, true)}`);
@@ -198,7 +221,7 @@ describe('variance index', () => {
     expect(read.stdout).toBe('src/unit.ts\nsrc/widget.ts\n');
   });
 
-  it('leaves a fresh checkout answering `ask search`, which never scans', async () => {
+  it('leaves a fresh checkout answering `ask search` from what `index` published', async () => {
     const root = checkout();
     // A workstation, whatever runs this suite: `CI=false` is the one answer every vendor's variable yields to.
     const env = { ...process.env, CI: 'false' };
@@ -357,7 +380,7 @@ describe('variance index', () => {
 
     expect(refused.code).toBe(EXIT_OPERATOR);
     expect(refused.out).toBe('');
-    expect(refused.err).toMatch(new RegExp(`^source index not written: .+, at ${escaped(sourceIndexPath(root))}\\n`, 'u'));
+    expect(refused.err).toMatch(new RegExp(`(^|\\n)source index not written: .+, at ${escaped(sourceIndexPath(root))}\\n`, 'u'));
     expect(refused.err).not.toContain('defect in the tool');
   });
 

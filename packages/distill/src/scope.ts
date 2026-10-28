@@ -1,13 +1,15 @@
 // compass: variance-authority/runtime/attention
-import type { ExecutionIndex, TestCoverage } from '@variance-authority/sense/test-selection';
-import { readTestFile, type FileDistillation } from './file.js';
+import type { Relations } from '@variance-authority/core/relate';
+import { readDistillRecords, type DistillRecords, type NativeDistillScope } from '@variance-authority/sense/test-selection';
+import { withheldOf } from './file.js';
 import { importOf, SHARED, UNSEEN } from './own.js';
+import { fileTime, formatScopeTime, scopeTime, type FileTime, type ScopeTime } from './time.js';
 
 /** One record a scope is read from, and the suite it belongs to when one is declared. */
 export interface ScopeRecord {
   readonly suite?: string;
-  readonly execution: ExecutionIndex;
-  readonly coverage: TestCoverage;
+  /** The record as it is written: its coverage rows and its case index. */
+  readonly record: Uint8Array;
 }
 
 /** What names a scope of test files, and the records it is read from. */
@@ -17,12 +19,8 @@ export interface ScopeDistillInput {
   readonly records: readonly ScopeRecord[];
   /** Declared suites with no record to read, named so a reading of every suite does not pass for one of all. */
   readonly unrecorded?: readonly string[];
-  /** As {@link FileDistillInput.imports}: given, each spill is the import that brought its modules in. */
-  readonly imports?: (file: string) => readonly string[];
-  /** As {@link FileDistillInput.lazy}. */
-  readonly lazy?: (file: string) => readonly string[];
-  /** As {@link FileDistillInput.republishes}. */
-  readonly republishes?: (file: string) => boolean;
+  /** As {@link FileDistillInput.relations}: given, each spill is the import that brought its modules in. */
+  readonly relations?: Relations;
 }
 
 /**
@@ -37,7 +35,7 @@ export type SpillCause =
 
 /** Modules loaded and entered by no case of the test file that loaded them, gathered under one cause. */
 export interface Spill {
-  /** Absent when no imports were given: the spill is then one module. */
+  /** Absent when no file graph was given: the spill is then one module. */
   readonly cause?: SpillCause;
   readonly modules: readonly string[];
   /** The test files that loaded them. */
@@ -62,9 +60,56 @@ export interface ScopeDistillation {
   readonly loads: number;
   /** Their lines, counted the same way. */
   readonly lines: number;
-  /** Imports heaviest first, then the shared and the unseen; with no imports given, modules heaviest first. */
+  /** Imports heaviest first, then the shared and the unseen; with no file graph given, modules heaviest first. */
   readonly spills: readonly Spill[];
+  /** Where the scope's worker time went, phase by phase. Absent when no test file of it reported its phases. */
+  readonly time?: ScopeTime;
 }
+
+const read = new WeakMap<readonly ScopeRecord[], DistillRecords>();
+
+/** The records read once, however many questions a scope asks of them. */
+function recordsOf(records: readonly ScopeRecord[]): DistillRecords {
+  let found = read.get(records);
+  if (found === undefined) read.set(records, (found = readDistillRecords(records.map(({ record }) => record))));
+  return found;
+}
+
+/** Each test file of the scope read on its own, record by record; refuses a scope that holds none. */
+function scopeOf(input: ScopeDistillInput): { readonly within?: string; readonly scope: NativeDistillScope } {
+  const within = input.within === undefined ? undefined : directoryOf(input.within);
+  const scope = recordsOf(input.records).scope(within, input.relations);
+  if (scope.readings.file.length === 0) {
+    throw new Error(within === undefined ? 'The record holds no test file.' : `The record holds no test file under \`${within}\`.`);
+  }
+  return { ...(within === undefined ? {} : { within }), scope };
+}
+
+/** The scope's readings, one per test file, in reading order. */
+function* readingsOf(input: ScopeDistillInput, scope: NativeDistillScope): Generator<ScopeRow, void, undefined> {
+  const { readings, names } = scope;
+  for (let at = 0; at < readings.file.length; at += 1) {
+    const { suite, record } = input.records[readings.record[at]!]!;
+    const file = names[readings.file[at]!]!;
+    const cases = readings.cases[at]!;
+    const time = fileTime(record, file);
+    const withheld = withheldOf(file, readings.withheld[at]!, readings.unsettled[at]!, cases);
+    yield {
+      ...(suite === undefined ? {} : { suite }),
+      file,
+      cases,
+      ...(time === undefined ? {} : { time }),
+      loaded: { modules: readings.loaded[at]!, lines: readings.loadedLines[at]! },
+      ...(withheld === undefined
+        ? { unentered: { modules: readings.unentered[at]!, lines: readings.unenteredLines[at]! } }
+        : { withheld }),
+    };
+  }
+}
+
+/** A spill's kind in the addon's columns: a module read with no graph, an import, shared, unseen. */
+const IMPORT = 1;
+const SHARED_KIND = 2;
 
 /**
  * Read every test file of a scope as {@link distillFile} reads one, and gather
@@ -74,61 +119,58 @@ export interface ScopeDistillation {
  * every test file it reaches: the barrel that puts a hundred unused lines into
  * forty test files spills four thousand. Only what no case of the loading file
  * entered is gathered; a module some cases used is the file's own reading.
+ * The records are read by the addon, in parallel, and the answer does not
+ * depend on how that work was split.
  */
 export function distillScope(input: ScopeDistillInput): ScopeDistillation {
-  const within = input.within === undefined ? undefined : directoryOf(input.within);
-  const readings = [...readingsOf(input)];
-  const gathered = new Map<string, { cause?: SpillCause; modules: Set<string>; files: Set<string>; lines: number }>();
-  let loads = 0;
-  let lines = 0;
-  for (const { reading } of readings) {
-    for (const module of reading.modules ?? []) {
-      if (module.entered > 0) continue;
-      const cause: SpillCause | undefined = module.cause === undefined
-        ? undefined
-        : module.cause.kind === 'shared' ? { kind: 'shared' }
-        // `reach` and `charge` are read from one test file; across test files the import alone gathers.
-        : module.cause.kind === 'import'
-        ? (({ reach: _reach, charge: _charge, ...cause }) => cause)(module.cause)
-        : module.cause;
-      // `lazy` is read from the importer's own edges, never from one test file's walk, so the pair decides it.
-      const key = cause === undefined ? `module ${module.file}` : cause.kind === 'import' ? `import ${cause.importer} ${cause.imported}` : cause.kind;
-      let spill = gathered.get(key);
-      if (spill === undefined) {
-        gathered.set(key, (spill = { ...(cause === undefined ? {} : { cause }), modules: new Set(), files: new Set(), lines: 0 }));
+  const { within, scope } = scopeOf(input);
+  const name = (id: number): string => scope.names[id]!;
+  const spills = Array.from(scope.kind, (kind, at): Spill => {
+    const cause: SpillCause | undefined = kind === IMPORT
+      ? {
+        kind: 'import',
+        importer: name(scope.importer[at]!),
+        imported: name(scope.imported[at]!),
+        ...(scope.lazy[at] === 1 ? { lazy: true as const } : {}),
       }
-      spill.modules.add(module.file);
-      spill.files.add(reading.file);
-      spill.lines += module.lines ?? 0;
-      loads += 1;
-      lines += module.lines ?? 0;
-    }
+      : kind === SHARED_KIND ? { kind: 'shared' }
+      : kind === 0 ? undefined
+      : { kind: 'unseen' };
+    return {
+      ...(cause === undefined ? {} : { cause }),
+      modules: Array.from(scope.modules.subarray(scope.moduleOffset[at]!, scope.moduleOffset[at + 1]!), name),
+      files: Array.from(scope.files.subarray(scope.fileOffset[at]!, scope.fileOffset[at + 1]!), name),
+      lines: scope.spillLines[at]!,
+    };
+  });
+  // One pass over the rows, none of them kept: what the answer holds is their tally and the withheld.
+  const withheld: { file: string; suite?: string; reason: string }[] = [];
+  const suites = new Set<string>();
+  const timed: { record: number; file: string }[] = [];
+  let files = 0;
+  for (const { suite, file, withheld: reason } of readingsOf(input, scope)) {
+    timed.push({ record: scope.readings.record[files]!, file });
+    files += 1;
+    if (suite !== undefined) suites.add(suite);
+    if (reason !== undefined) withheld.push({ file, ...(suite === undefined ? {} : { suite }), reason });
   }
-  const rank = (spill: Spill): number => (spill.cause?.kind === 'shared' ? 1 : spill.cause?.kind === 'unseen' ? 2 : 0);
-  const spills = [...gathered.values()]
-    .map((spill): Spill => ({
-      ...(spill.cause === undefined ? {} : { cause: spill.cause }),
-      modules: [...spill.modules].sort(compare),
-      files: [...spill.files].sort(compare),
-      lines: spill.lines,
-    }))
-    .sort((left, right) =>
-      rank(left) - rank(right) || right.lines - left.lines || right.files.length - left.files.length ||
-      compare(headOf(left), headOf(right)));
-
-  const withheld = readings.flatMap(({ suite, reading }) =>
-    reading.withheld === undefined ? [] : [{ file: reading.file, ...(suite === undefined ? {} : { suite }), reason: reading.withheld }]);
   return {
     ...(within === undefined ? {} : { within }),
-    suites: [...new Set(readings.flatMap(({ suite }) => (suite === undefined ? [] : [suite])))],
+    suites: [...suites],
     ...(input.unrecorded === undefined || input.unrecorded.length === 0 ? {} : { unrecorded: input.unrecorded }),
-    files: readings.length,
-    read: readings.length - withheld.length,
+    files,
+    read: files - withheld.length,
     withheld,
-    loads,
-    lines,
+    loads: scope.loads,
+    lines: scope.lines,
     spills,
+    ...timeOf(input.records, timed),
   };
+}
+
+function timeOf(records: readonly ScopeRecord[], files: readonly { record: number; file: string }[]): { time?: ScopeTime } {
+  const time = scopeTime(records.map(({ record }) => record), files);
+  return time === undefined ? {} : { time };
 }
 
 /** One test file of a scope: what it loaded, and what of that no case of it entered. */
@@ -137,6 +179,8 @@ export interface ScopeRow {
   readonly file: string;
   /** How many cases the record keeps for the file. */
   readonly cases: number;
+  /** Recorded worker milliseconds by phase, even when `unentered` is withheld. Absent when no phase was timed. */
+  readonly time?: FileTime;
   /** The modules it loaded that declare a function, other than itself, and their lines. */
   readonly loaded: { readonly modules: number; readonly lines: number };
   /** Of those, the ones no case of the file entered. Absent when the reading is withheld. */
@@ -148,55 +192,18 @@ export interface ScopeRow {
 /**
  * Every test file of a scope, one row each, in the order {@link distillScope}
  * reads them: a row a test file at a time, for a reader that wants the
- * distribution across test files rather than the imports they share.
+ * distribution across test files rather than the imports they share. The
+ * records are read, and a scope that holds no test file refused, before it
+ * returns; each row is made as it is reached.
  */
-export function* scopeRows(input: ScopeDistillInput): Generator<ScopeRow, void, undefined> {
-  for (const { suite, reading } of readingsOf(input)) {
-    const unentered = (reading.modules ?? []).filter(({ entered }) => entered === 0);
-    yield {
-      ...(suite === undefined ? {} : { suite }),
-      file: reading.file,
-      cases: reading.cases.length,
-      loaded: { modules: reading.loaded, lines: reading.lines },
-      ...(reading.withheld === undefined
-        ? { unentered: { modules: unentered.length, lines: unentered.reduce((sum, module) => sum + (module.lines ?? 0), 0) } }
-        : { withheld: reading.withheld }),
-    };
-  }
-}
-
-/** Each test file of the scope read on its own, record by record; refuses a scope that holds none. */
-function* readingsOf(input: ScopeDistillInput): Generator<{ readonly suite?: string; readonly reading: FileDistillation }, void, undefined> {
-  const within = input.within === undefined ? undefined : directoryOf(input.within);
-  const inside = (file: string): boolean => within === undefined || file.startsWith(`${within}/`);
-  let read = 0;
-  for (const record of input.records) {
-    const files = [...new Set(record.coverage.tests.map((test) => test.file))].filter(inside).sort(compare);
-    for (const file of files) {
-      const reading = readTestFile(file, {
-        execution: record.execution,
-        coverage: record.coverage,
-        ...(input.imports === undefined ? {} : { imports: input.imports }),
-        ...(input.lazy === undefined ? {} : { lazy: input.lazy }),
-        ...(input.republishes === undefined ? {} : { republishes: input.republishes }),
-      });
-      read += 1;
-      yield { ...(record.suite === undefined ? {} : { suite: record.suite }), reading };
-    }
-  }
-  if (read === 0) {
-    throw new Error(within === undefined ? 'The record holds no test file.' : `The record holds no test file under \`${within}\`.`);
-  }
+export function scopeRows(input: ScopeDistillInput): Generator<ScopeRow, void, undefined> {
+  return readingsOf(input, scopeOf(input).scope);
 }
 
 /** `packages/app/`, `./packages/app` and `packages/app` name one directory. */
 function directoryOf(raw: string): string | undefined {
   const trimmed = raw.replace(/^\.\//, '').replace(/\/+$/, '');
   return trimmed === '' || trimmed === '.' ? undefined : trimmed;
-}
-
-function compare(left: string, right: string): number {
-  return left < right ? -1 : left > right ? 1 : 0;
 }
 
 function headOf(spill: Spill): string {
@@ -232,6 +239,7 @@ export function formatScopeDistillation(result: ScopeDistillation): string {
   return [
     head,
     '',
+    ...(result.time === undefined ? [] : [...formatScopeTime(result.time, result.files), '']),
     `Loaded, and entered by no case of the test file that loaded it: ${result.loads} module load(s), ${result.lines} line(s).`,
     ...imports.slice(0, SPILLS_SHOWN).map((spill) => `  ${headOf(spill)}: ${size([spill])}`),
     ...(folded.length === 0 ? [] : [`  and ${folded.length} more: ${size(folded)}`]),

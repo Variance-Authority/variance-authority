@@ -1,5 +1,5 @@
 import type { Help, UseKind } from '@variance-authority/package/help';
-import { everyEntry } from '@variance-authority/package/help';
+import { everyEntry, PARAGRAPH_BREAK } from '@variance-authority/package/help';
 import { encodeSearch, type PublishedRows, type SearchGeneration } from '@variance-authority/sense';
 import { specifierOf } from './tools/find.js';
 
@@ -30,11 +30,14 @@ export type { SearchGeneration };
 
 // The layout is written by `help_search.rs` in the sense addon.
 const MAGIC = 0x53484156; // "VAHS", little-endian
-const VERSION = 2;
+const VERSION = 4;
 const NONE = 0xffffffff;
 
-/** The tokenizer MiniSearch applies by default, which the loose pass was built with. */
-export const SPACE_OR_PUNCTUATION = /[\n\r\p{Z}\p{P}]+/u;
+/**
+ * The tokenizer MiniSearch applies by default, which the loose pass was built
+ * with, and the backtick, a symbol that delimits a code span and is never a word's.
+ */
+export const SPACE_OR_PUNCTUATION = /[\n\r\p{Z}\p{P}`]+/u;
 
 /** A query's terms: the tokens it was typed in, short ones dropped, the rest lowercased. */
 export function tokensOf(text: string): readonly string[] {
@@ -52,8 +55,8 @@ const SECTIONS = [
   'names.name', 'names.rank', 'names.lowerOff', 'names.lower', 'names.pubOff', 'names.pub', 'names.expOff', 'names.exp',
   'pub.name', 'pub.spec', 'pub.kind', 'pub.doc', 'pub.at', 'pub.usedBy', 'pub.uses', 'pub.sitesOff', 'sites.at',
   'pub.docLowerOff', 'pub.docLower',
-  'exp.name', 'exp.at', 'exp.by', 'exp.line', 'exp.kind',
-  'terms.off', 'terms.blob', 'terms.nameOff', 'terms.name', 'terms.pubOff', 'terms.pub',
+  'exp.name', 'exp.at', 'exp.by', 'exp.line', 'exp.kind', 'exp.doc', 'exp.docLowerOff', 'exp.docLower',
+  'terms.off', 'terms.blob', 'terms.nameOff', 'terms.name', 'terms.pubOff', 'terms.pub', 'terms.expOff', 'terms.exp',
 ] as const;
 type SectionName = (typeof SECTIONS)[number];
 
@@ -111,6 +114,7 @@ export interface ExportedRow {
   readonly by: string;
   readonly line: number;
   readonly kind: UseKind;
+  readonly doc?: string;
 }
 
 /** An opened index: columns over one buffer, decoded a row at a time. */
@@ -120,12 +124,20 @@ export interface SearchIndex {
   namesContaining(query: string): readonly number[];
   /** Published rows whose lowercase doc contains `query`, ascending. */
   docsContaining(query: string): readonly number[];
+  /** Exported rows whose lowercase doc contains `query`, ascending. */
+  exportedDocsContaining(query: string): readonly number[];
+  /** Of {@link docsContaining}, the rows whose doc says `query` in its opening paragraph, before any blank line. */
+  docOpeningsContaining(query: string): readonly number[];
+  /** Of {@link exportedDocsContaining}, the rows whose doc says `query` in its opening paragraph. */
+  exportedDocOpeningsContaining(query: string): readonly number[];
   name(id: number): string;
   publishedOf(name: number): Uint32Array;
   exportedOf(name: number): Uint32Array;
   published(row: number): PublishedRow;
   /** The name id of one published row, without decoding the rest of it. */
   publishedName(row: number): number;
+  /** The bytes of one published row's doc, without decoding it; absent when it has none. */
+  publishedDocLength(row: number): number | undefined;
   /** A name's place in code-unit order among every name the index holds. */
   rank(name: number): number;
   /** The package and import counts of one published row, read off their columns. */
@@ -141,6 +153,10 @@ export interface SearchIndex {
   exportedFile(row: number): number;
   publishedFile(row: number): number;
   exported(row: number): ExportedRow;
+  /** The name id of one exported row, without decoding the rest of it. */
+  exportedName(row: number): number;
+  /** The bytes of one exported row's doc, without decoding it; absent when it has none. */
+  exportedDocLength(row: number): number | undefined;
   /** Where one exported row sits among source, test and story: 0, 1 or 2. */
   exportedKind(row: number): number;
   /** The file of one exported row, without decoding the rest of it. */
@@ -153,6 +169,8 @@ export interface SearchIndex {
   termBytes(id: number): Buffer;
   termNames(term: number): Uint32Array;
   termPublished(term: number): Uint32Array;
+  /** The exported rows whose doc holds the term. */
+  termExported(term: number): Uint32Array;
 }
 
 /** Open one encoded index. Throws on anything that is not this format and version. */
@@ -201,7 +219,9 @@ export function openSearchIndex(bytes: Uint8Array): SearchIndex {
   const sitesAt = u32('sites.at');
   const docLowerOff = u32('pub.docLowerOff');
   const docLower = bytesOf('pub.docLower');
-  const exp = { name: u32('exp.name'), at: u32('exp.at'), by: u32('exp.by'), line: u32('exp.line') };
+  const exp = { name: u32('exp.name'), at: u32('exp.at'), by: u32('exp.by'), line: u32('exp.line'), doc: u32('exp.doc') };
+  const expDocLowerOff = u32('exp.docLowerOff');
+  const expDocLower = bytesOf('exp.docLower');
   const expKind = bytesOf('exp.kind');
   const termOff = u32('terms.off');
   const termBlob = bytesOf('terms.blob');
@@ -209,19 +229,31 @@ export function openSearchIndex(bytes: Uint8Array): SearchIndex {
   const termName = u32('terms.name');
   const termPubOff = u32('terms.pubOff');
   const termPub = u32('terms.pub');
+  const termExpOff = u32('terms.expOff');
+  const termExp = u32('terms.exp');
 
   const name = (id: number): string => string(nameString[id] ?? NONE);
+  const pubDoc = (row: number): string => {
+    const doc = pub.doc[row] ?? NONE;
+    return doc === NONE ? '' : string(doc).toLowerCase();
+  };
+  const expDoc = (row: number): string => {
+    const doc = exp.doc[row] ?? NONE;
+    return doc === NONE ? '' : string(doc).toLowerCase();
+  };
+  // Each doc in a lowercase blob is followed by its separator, the last one included.
+  const docLength = (docs: Uint32Array, off: Uint32Array, row: number): number | undefined =>
+    (docs[row] ?? NONE) === NONE ? undefined : (off[row + 1] ?? 0) - (off[row] ?? 0) - 1;
   const slice = (off: Uint32Array, rows: Uint32Array, key: number): Uint32Array =>
     rows.subarray(off[key] ?? 0, off[key + 1] ?? 0);
 
   return {
     ...(head.generation === null ? {} : { generation: head.generation }),
     namesContaining: (query) => containing(namesLower, namesLowerOff, query, (id) => name(id).toLowerCase()),
-    docsContaining: (query) =>
-      containing(docLower, docLowerOff, query, (row) => {
-        const doc = pub.doc[row] ?? NONE;
-        return doc === NONE ? '' : string(doc).toLowerCase();
-      }),
+    docsContaining: (query) => containing(docLower, docLowerOff, query, pubDoc),
+    exportedDocsContaining: (query) => containing(expDocLower, expDocLowerOff, query, expDoc),
+    docOpeningsContaining: (query) => containing(docLower, docLowerOff, query, pubDoc, true),
+    exportedDocOpeningsContaining: (query) => containing(expDocLower, expDocLowerOff, query, expDoc, true),
     name,
     publishedOf: (id) => slice(namesPubOff, namesPub, id),
     exportedOf: (id) => slice(namesExpOff, namesExp, id),
@@ -239,6 +271,7 @@ export function openSearchIndex(bytes: Uint8Array): SearchIndex {
       };
     },
     publishedName: (row) => pub.name[row] ?? NONE,
+    publishedDocLength: (row) => docLength(pub.doc, docLowerOff, row),
     rank: (id) => nameRank[id] ?? NONE,
     usedBy: (row) => pub.usedBy[row] ?? 0,
     uses: (row) => pub.uses[row] ?? 0,
@@ -267,14 +300,20 @@ export function openSearchIndex(bytes: Uint8Array): SearchIndex {
     file: string,
     exportedFile: (row) => exp.at[row] ?? NONE,
     publishedFile: (row) => pub.at[row] ?? NONE,
-    exported: (row) => ({
-      row,
-      name: name(exp.name[row] ?? NONE),
-      at: string(exp.at[row] ?? NONE),
-      by: string(exp.by[row] ?? NONE),
-      line: exp.line[row] ?? 0,
-      kind: USE_KINDS[expKind[row] ?? 0] ?? 'source',
-    }),
+    exported(row) {
+      const doc = exp.doc[row] ?? NONE;
+      return {
+        row,
+        name: name(exp.name[row] ?? NONE),
+        at: string(exp.at[row] ?? NONE),
+        by: string(exp.by[row] ?? NONE),
+        line: exp.line[row] ?? 0,
+        kind: USE_KINDS[expKind[row] ?? 0] ?? 'source',
+        ...(doc === NONE ? {} : { doc: string(doc) }),
+      };
+    },
+    exportedName: (row) => exp.name[row] ?? NONE,
+    exportedDocLength: (row) => docLength(exp.doc, expDocLowerOff, row),
     exportedKind: (row) => expKind[row] ?? 0,
     exportedAt: (row) => string(exp.at[row] ?? NONE),
     publishedAt: (row) => string(pub.at[row] ?? NONE),
@@ -283,6 +322,7 @@ export function openSearchIndex(bytes: Uint8Array): SearchIndex {
     termBytes: (id) => termBlob.subarray(termOff[id] ?? 0, termOff[id + 1] ?? 0),
     termNames: (term) => slice(termNameOff, termName, term),
     termPublished: (term) => slice(termPubOff, termPub, term),
+    termExported: (term) => slice(termExpOff, termExp, term),
   };
 }
 
@@ -294,25 +334,34 @@ export function openSearchIndex(bytes: Uint8Array): SearchIndex {
  * which no needle without one can span. A lone surrogate in the text encodes as
  * U+FFFD, so a query holding a NUL, a surrogate or U+FFFD is answered row by row
  * instead.
+ *
+ * With `opening`, a row is kept only when its first match comes before the
+ * first blank line — the paragraph `opening()` shows, by its own rule — read
+ * from the bytes between the row's start and the match alone.
  */
 function containing(
   blob: Buffer,
   off: Uint32Array,
   query: string,
   text: (row: number) => string,
+  opening = false,
 ): readonly number[] {
   const rows = off.length - 1;
   const found: number[] = [];
   if (rows <= 0 || query === '') return found;
   if (query.includes('\0') || /[\uD800-\uDFFF\uFFFD]/.test(query)) {
-    for (let row = 0; row < rows; row += 1) if (text(row).includes(query)) found.push(row);
+    for (let row = 0; row < rows; row += 1) {
+      const said = text(row);
+      const at = said.indexOf(query);
+      if (at !== -1 && (!opening || !PARAGRAPH_BREAK.test(said.slice(0, at)))) found.push(row);
+    }
     return found;
   }
   const needle = Buffer.from(query, 'utf8');
   let at = blob.indexOf(needle, 0);
   while (at !== -1) {
     const row = rowAt(off, at);
-    found.push(row);
+    if (!opening || !PARAGRAPH_BREAK.test(blob.toString('utf8', off[row] ?? 0, at))) found.push(row);
     at = blob.indexOf(needle, off[row + 1] ?? blob.length);
   }
   return found;

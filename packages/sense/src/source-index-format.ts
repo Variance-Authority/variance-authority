@@ -13,7 +13,12 @@ import type { Parsed, ParseKey } from './cache.js';
 import type { DeclaredRole, Export } from './read.js';
 import { native, nativeRefusal } from './addon.js';
 import type { NativeScanner } from './native.js';
+import { openBindingMembers } from './source-index-binding-members.js';
 import { openHarvest } from './source-index-harvest.js';
+import { openMemberDeclarations } from './source-index-member-declarations.js';
+import { openNested } from './source-index-nested.js';
+import { openMemberUses } from './source-index-member-uses.js';
+import { openOwnUses } from './source-index-own-uses.js';
 import { openMembers } from './source-index-members.js';
 import { openMocks } from './source-index-mocks.js';
 import { openSize } from './source-index-size.js';
@@ -24,7 +29,7 @@ import { packageOf } from './specifier.js';
  *
  * The writer is the addon's (`native/src/generation.rs`); this file hands it
  * documents and reads back what it wrote. The segment arithmetic is not here
- * either: [`core/segment`](../../core/src/segment/index.ts) owns sections,
+ * either: [`core/segment`](https://github.com/Variance-Authority/variance-authority/blob/main/packages/core/src/segment/index.ts) owns sections,
  * alignment and the checks a decode runs before it believes a file.
  *
  * What stays is the part that is about *source*: which columns exist, which of
@@ -33,7 +38,7 @@ import { packageOf } from './specifier.js';
  */
 const FORMAT = 'variance-authority-source-index';
 /** The format version this reader reads and the addon writes (`VERSION` in `native/src/segment.rs`). */
-export const SOURCE_INDEX_VERSION = 19;
+export const SOURCE_INDEX_VERSION = 36;
 const VERSION = SOURCE_INDEX_VERSION;
 const WHAT = 'source index';
 /** Rows per document: a few megabytes of JSON, far under any string limit. */
@@ -111,8 +116,23 @@ export function sourceIndexDocuments(stored: StoredSourceIndex): string[] {
   return documents;
 }
 
-/** Decode a complete generation. Any malformed reference rejects the whole file. */
-export function decodeSourceIndex(input: Uint8Array): StoredSourceIndex {
+/** The keys a later layer of the chain already puts or deletes, so no earlier layer answers for them. */
+export interface DecidedKeys {
+  readonly parses: ReadonlySet<ParseKey>;
+  readonly records: ReadonlySet<string>;
+  readonly directories: ReadonlySet<string>;
+}
+
+/**
+ * Decode a complete generation. A malformed reference in any row it decodes,
+ * or a key two rows share, rejects the whole file.
+ *
+ * A row whose key `decided` names is not decoded: a later layer answers for it,
+ * so its values would only hold the heap, and a chain whose later layer puts
+ * every key again would hold the whole graph twice. Its references are not
+ * checked either, since nothing reads them; its key still is.
+ */
+export function decodeSourceIndex(input: Uint8Array, decided?: DecidedKeys): StoredSourceIndex {
   const opened = openSegment(FORMAT, VERSION, input, WHAT);
   const strings = openStrings(opened.u8('strings.blob'), opened.u32('strings.off'), invalid).text;
   const text = (value: number): string => {
@@ -135,7 +155,9 @@ export function decodeSourceIndex(input: Uint8Array): StoredSourceIndex {
   const requestValue = opened.u32('requests.value');
   const requestKind = opened.u32('requests.kind');
   const requestLine = opened.u32('requests.line');
+  const requestFlags = opened.u8('requests.flags');
   const requestBindings = opened.u32('requests.bindings');
+  const requestRepublishes = opened.u8('requests.republishes');
   const bindingImported = opened.u32('bindings.imported');
   const bindingLocal = opened.u32('bindings.local');
   const bindingType = opened.u8('bindings.type');
@@ -151,19 +173,27 @@ export function decodeSourceIndex(input: Uint8Array): StoredSourceIndex {
   const harvest = openHarvest(opened, text, parseKey.length, exportExported.length);
   const mocksOf = openMocks(opened, text, parseKey.length);
   const membersOf = openMembers(opened, text, parseKey.length);
+  const declaredMembersOf = openMemberDeclarations(opened, text, parseKey.length);
+  const memberUsesOf = openMemberUses(opened, text, parseKey.length);
+  const ownUsesOf = openOwnUses(opened, text, parseKey.length);
+  const nestedOf = openNested(opened, text, parseKey.length);
+  const bindingMembersOf = openBindingMembers(opened, text, parseKey.length);
   const sizeOf = openSize(opened, parseKey.length);
   validateOffset(parseRequests, requestValue.length, parseKey.length);
   validateOffset(parseExports, exportExported.length, parseKey.length);
   validateOffset(parseDeclares, declareName.length, parseKey.length);
   sameLength(parseKey.length, [parseExportPresent, parseDeclarePresent, parseUnknown, parseHarvested, parseWay]);
   if (deletedParseIds.length !== deletedParseWays.length) throw invalid();
-  sameLength(requestValue.length, [requestKind, requestLine]);
+  sameLength(requestValue.length, [requestKind, requestLine, requestFlags, requestRepublishes]);
   validateOffset(requestBindings, bindingImported.length, requestValue.length);
   sameLength(bindingImported.length, [bindingLocal, bindingType, bindingLine]);
   sameLength(exportExported.length, [exportLocal, exportFrom, exportImported, exportType, exportLine, exportTags]);
 
   const parses = new Map<ParseKey, Parsed>();
+  const skippedParses = new Set<ParseKey>();
   for (let row = 0; row < parseKey.length; row += 1) {
+    const key = joinedKey(text(parseKey[row]!), text(parseWay[row]!));
+    if (skips(decided?.parses, skippedParses, key)) continue;
     const requests = range(parseRequests, row).map((request) => ({
       value: text(requestValue[request]!),
       kind: text(requestKind[request]!) as Parsed['requests'][number]['kind'],
@@ -174,6 +204,8 @@ export function decodeSourceIndex(input: Uint8Array): StoredSourceIndex {
         type: flag(bindingType[binding]),
         line: bindingLine[binding]!,
       })),
+      ...requestFlagsOf(requestFlags[request]!),
+      ...(flag(requestRepublishes[request]) ? { republishes: true as const } : {}),
     }));
     const published = range(parseExports, row).map((entry): Export => {
       const exported = optional(exportExported[entry]!);
@@ -196,10 +228,10 @@ export function decodeSourceIndex(input: Uint8Array): StoredSourceIndex {
       };
     });
     const symbols = harvest.symbols(row);
+    const moduleDoc = harvest.moduleDoc(row);
     const declares = range(parseDeclares, row).map((entry) => text(declareName[entry]!));
     const unknown = optional(parseUnknown[row]!);
     const mocks = mocksOf(row);
-    const key = joinedKey(text(parseKey[row]!), text(parseWay[row]!));
     if (parses.has(key)) throw invalid();
     parses.set(key, {
       requests,
@@ -209,14 +241,20 @@ export function decodeSourceIndex(input: Uint8Array): StoredSourceIndex {
       ...(flag(parseDeclarePresent[row]) ? { declares } : {}),
       ...(mocks === undefined ? {} : { mocks }),
       ...membersOf(row, requests.length),
+      ...declaredMembersOf(row),
+      ...memberUsesOf(row),
+      ...ownUsesOf(row),
+      ...nestedOf(row),
+      ...bindingMembersOf(row, requests.length),
       ...(unknown === undefined ? {} : { unknown }),
       ...sizeOf(row),
+      ...(moduleDoc === undefined ? {} : { doc: moduleDoc }),
     });
   }
   const deletedParses = new Set<ParseKey>();
   for (const [at, value] of deletedParseIds.entries()) {
     const key = joinedKey(text(value), text(deletedParseWays[at]!));
-    if (parses.has(key) || deletedParses.has(key)) throw invalid();
+    if (parses.has(key) || skippedParses.has(key) || deletedParses.has(key)) throw invalid();
     deletedParses.add(key);
   }
 
@@ -255,8 +293,10 @@ export function decodeSourceIndex(input: Uint8Array): StoredSourceIndex {
   sameLength(packageTo.length, [packageKind]);
 
   const records = new Map<string, IndexedRecord>();
+  const skippedRecords = new Set<string>();
   for (let row = 0; row < recordFile.length; row += 1) {
     const file = text(recordFile[row]!);
+    if (skips(decided?.records, skippedRecords, file)) continue;
     const digest = optional(recordDigest[row]!) as Digest | undefined;
     const edges = range(recordEdges, row).map((edge) => ({
       to: text(edgeTo[edge]!),
@@ -289,22 +329,24 @@ export function decodeSourceIndex(input: Uint8Array): StoredSourceIndex {
   const deletedRecords = new Set<string>();
   for (const value of deletedRecordIds) {
     const file = text(value);
-    if (records.has(file) || deletedRecords.has(file)) throw invalid();
+    if (records.has(file) || skippedRecords.has(file) || deletedRecords.has(file)) throw invalid();
     deletedRecords.add(file);
   }
   const directoryPath = opened.u32('directories.path');
   const directoryDigest = opened.u32('directories.digest');
   sameLength(directoryPath.length, [directoryDigest]);
   const directories = new Map<string, Digest>();
+  const skippedDirectories = new Set<string>();
   for (let row = 0; row < directoryPath.length; row += 1) {
     const path = text(directoryPath[row]!);
+    if (skips(decided?.directories, skippedDirectories, path)) continue;
     if (directories.has(path)) throw invalid();
     directories.set(path, text(directoryDigest[row]!) as Digest);
   }
   const deletedDirectories = new Set<string>();
   for (const value of opened.maybeU32('directories.deleted')) {
     const path = text(value);
-    if (directories.has(path) || deletedDirectories.has(path)) throw invalid();
+    if (directories.has(path) || skippedDirectories.has(path) || deletedDirectories.has(path)) throw invalid();
     deletedDirectories.add(path);
   }
 
@@ -318,6 +360,14 @@ export function decodeSourceIndex(input: Uint8Array): StoredSourceIndex {
     records,
     ...(deletedRecords.size === 0 ? {} : { deletedRecords }),
   };
+}
+
+/** Whether a later layer decided `key`, so its row is not decoded; a key two rows share is refused all the same. */
+function skips<K>(decided: ReadonlySet<K> | undefined, skipped: Set<K>, key: K): boolean {
+  if (decided?.has(key) !== true) return false;
+  if (skipped.has(key)) throw invalid();
+  skipped.add(key);
+  return true;
 }
 
 function validateOffset(column: Uint32Array, end: number, rows = column.length - 1): void {
@@ -356,3 +406,11 @@ function joinedKey(digest: string, way: string): ParseKey {
 }
 
 function invalid(): Error { return new Error(`not a variance-authority ${WHAT}`); }
+
+/** `request_flags` in `native/src/parse_columns.rs`: guessed is the low bit, item the next. */
+function requestFlagsOf(flags: number): { readonly guessed?: true; readonly item?: true } {
+  return {
+    ...((flags & 1) === 0 ? {} : { guessed: true }),
+    ...((flags & 2) === 0 ? {} : { item: true }),
+  };
+}

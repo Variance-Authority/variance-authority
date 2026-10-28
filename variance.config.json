@@ -18,6 +18,23 @@
         "packages/route-collector/src/page-agent-entry.ts",
         "packages/storybook-collector/src/page-agent-entry.ts"
       ]
+    },
+    "site": {
+      "kind": "e2e",
+      "relations": false,
+      "before": [
+        "packages/reads/src",
+        "site/app/globals.css",
+        "site/next.config.ts",
+        "site/package.json",
+        "site/postcss.config.mjs",
+        "site/public",
+        "site/tsconfig.json",
+        "site/variance",
+        "site/vite.config.ts",
+        "site/wrangler.jsonc",
+        "site/yarn.lock"
+      ]
     }
   },
   "share": {
@@ -84,6 +101,15 @@
       "src/reset/index.ts",
       "src/reset/setup.ts"
     ],
+    "packages/isolator": [
+      "src/jest.ts",
+      "src/node.ts",
+      "src/loader.ts",
+      "src/react.ts",
+      "src/runtime.ts",
+      "src/session.ts",
+      "src/transform.ts"
+    ],
     "packages/jsx-source": [
       "jest-resolver.cjs",
       "src/jsx-dev-runtime.ts",
@@ -134,6 +160,9 @@
     "packages/react": [
       "src/index.ts"
     ],
+    "packages/reads": [
+      "src/index.ts"
+    ],
     "packages/remote": [
       "src/index.ts",
       "src/renderer.ts",
@@ -167,6 +196,8 @@
       "src/test-selection/jest.ts",
       "src/test-selection/journal.ts",
       "src/test-selection/journey.ts",
+      "src/test-selection/probes-loader.ts",
+      "src/test-selection/rstest-after-loader.ts",
       "src/test-selection/rstest-loader.ts",
       "src/test-selection/rstest.ts",
       "src/test-selection/runner.ts",
@@ -191,7 +222,8 @@
       "src/read.ts"
     ],
     "packages/storybook-collector": [
-      "src/index.ts"
+      "src/index.ts",
+      "src/preset.ts"
     ],
     "packages/tribunal": [
       "src/history.ts",

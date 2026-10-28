@@ -1,10 +1,12 @@
 import type { HistoryStore } from '@variance-authority/history';
 import type { SourceIndex } from '@variance-authority/core/attribute';
+import type { StepClock } from '@variance-authority/core/format';
 import type { Relations } from '@variance-authority/core/relate';
 import type { PngDecoder } from '@variance-authority/png';
 import type { RasterStore, Renderer } from '@variance-authority/raster';
 import type { ExecutionNarrowing } from '@variance-authority/sense/test-selection';
 import type { Config } from '../config.js';
+import type { SubjectBudget } from './budget.js';
 import type { Collector } from './collector.js';
 import type { RunIdentity } from './history.js';
 import type { JourneyReading } from './journeys.js';
@@ -114,12 +116,13 @@ export interface RunDeps {
    * never recorded is answered by the files that import it. A bumped package
    * arrives in `diff` as the files that import it, changed whole, and only the
    * graph can say which those are, so a reading asked about one is always
-   * handed a graph.
+   * handed a graph. `probes` is the note a record cut under probes this build
+   * does not place carries beside its answer (`probes-gap.ts`).
    */
   readJourney?(
     diff: string,
     relations?: Relations,
-  ): Promise<ExecutionNarrowing | undefined>;
+  ): Promise<(ExecutionNarrowing & { readonly probes?: string }) | undefined>;
 
   /**
    * Where this run's subjects parted in the source, read off the same journal.
@@ -145,8 +148,8 @@ export interface RunOptions {
   readonly shard?: Shard;
   /**
    * What each subject cost the newest mainline run this checkout descends from.
-   * Places groups on shards and orders the queue longest first; absent, a
-   * checksum places them and the queue keeps plan order.
+   * Places groups on shards and orders the queue longest first; absent, they
+   * are placed by count and the queue keeps plan order.
    */
   readonly costs?: { readonly commit: string; readonly costs: Costs };
 
@@ -177,6 +180,13 @@ export interface RunOptions {
    * anything that shipped and it silently becomes a denominator.
    */
   readonly identity?: RunIdentity;
+
+  /**
+   * The selected suite's `ignore` globs. A changed file they match narrows as
+   * `variance select` reads it: it moves no subject and no `before`, but
+   * through a module that declares it with a `/// <depends>`.
+   */
+  readonly ignore?: readonly string[];
 
   /**
    * `--since <ref>`: observe only what this diff could have changed.
@@ -261,18 +271,30 @@ export interface ObserveContext {
   readonly deps: RunDeps;
   readonly renderer: Renderer;
   /**
-   * How many more subjects may be re-collected alone.
+   * Whether this subject, once it changed, is one the run re-collects.
    *
-   * Mutable and shared across the loop, because the budget is a property of the
-   * *run* rather than of a subject: twenty changed subjects should spend twenty,
-   * not twenty each. Passed rather than closed over so `observeOne` stays
-   * callable from a test with a budget of its own.
+   * A share of one budget for the whole *run* rather than one per subject:
+   * twenty changed subjects should spend twenty, not twenty each, and which
+   * twenty is decided by queue order, not by which world finished first (see
+   * `budgetOf`). Passed rather than closed over so `observeOne` stays callable
+   * from a test with a budget of its own.
    */
-  readonly budget: { remaining: number };
+  readonly budget: SubjectBudget;
   /** `--flakes`: read every subject twice, outside the budget. See `RunOptions`. */
   readonly sweep?: boolean;
   /** Absent means `pngjs`. See `decoderFor`. */
   readonly decoder?: PngDecoder;
+  /**
+   * This subject's steps, on the run's injected clock. Absent when the run has
+   * no clock, and then nothing is timed: the same rule as `costMs`.
+   */
+  readonly steps?: StepClock;
+  /**
+   * Where a second visit to this subject says what it could not read on the
+   * way. The first visit's warnings are the run's already; a second may say
+   * more, and the run states each once.
+   */
+  readonly said?: (warning: string) => void;
 }
 
 export type Outcome =

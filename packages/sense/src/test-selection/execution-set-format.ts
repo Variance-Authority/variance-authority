@@ -3,7 +3,7 @@ import { type CrossingSetsView } from './crossing-sets-read.js';
 import { CrossingSets, type CrossingSetsPool } from './crossing-sets.js';
 import { codeUnitOrder, intern } from '@variance-authority/core/segment';
 import { linesColumn, type CaseLines, type LinesTable } from './case-lines.js';
-import { preconditionSection, preconditionStrings, preconditionWords, preconditionsFrom } from './case-precondition-column.js';
+import { saidLaid, type Said } from './case-said.js';
 import {
   columnWords,
   durationColumn,
@@ -11,6 +11,9 @@ import {
   fail,
   LOADED_SETS_FORMAT,
   members,
+  MISUSED_SECTION,
+  READ_SECTION,
+  SAID_SECTION,
   sectionsOf,
   setColumns,
   stoppedColumn,
@@ -23,6 +26,7 @@ import {
   type TestColumns,
 } from './execution-set-columns.js';
 import type { ExecutionBlock, ExecutionIndex, ExecutionModule, ExecutionTest } from './reverse.js';
+import { LAYOUT } from './record-layout.js';
 
 /** What `openSetColumns` hands back, for a reader that walks every case of a large record without decoding it. */
 export type { SetColumns, StringTable, TestColumns } from './execution-set-columns.js';
@@ -40,7 +44,7 @@ export type { SetColumns, StringTable, TestColumns } from './execution-set-colum
  * `blocks.owner` joined the same way, and a file without it names no region
  * around any.
  */
-export const SET_EXECUTION_FORMAT = 3;
+export const SET_EXECUTION_FORMAT = LAYOUT.cases.format;
 
 export interface SetExecutionModule {
   readonly file: string;
@@ -139,7 +143,7 @@ export function encodeSetExecutionIndex(index: SetExecutionIndex): Buffer {
     testName: Uint32Array.from(index.tests, (test) => id(test.name)),
     testStopped: stoppedColumn(index.tests),
     testDuration: durationColumn(index.tests),
-    testPreconditions: preconditionWords(index.tests, id),
+    testSaid: index.tests.map((test) => test.said),
     moduleFile,
     moduleBlocks,
     blockKind,
@@ -166,10 +170,11 @@ function renamed(lines: readonly (CaseLines | undefined)[], order: readonly numb
 }
 
 /** The columns an index is written from: every one {@link SetColumns} reads, none optional but the owner and lines columns. */
-export interface WrittenSetColumns extends Omit<SetColumns, 'sets' | 'testStopped' | 'testDuration' | 'testPreconditions' | 'testLines'> {
+export interface WrittenSetColumns extends Omit<SetColumns, 'sets' | 'testStopped' | 'testDuration' | 'testSaid' | 'testLines'> {
   readonly testStopped: Uint8Array;
   readonly testDuration: Uint32Array;
-  readonly testPreconditions: Uint32Array;
+  /** What each case said; `undefined` where none listened. */
+  readonly testSaid: readonly (Said | undefined)[];
   /** Each case's lines, its modules named by their row; no column where no case recorded any. */
   readonly testLines?: readonly (CaseLines | undefined)[] | undefined;
 }
@@ -178,7 +183,10 @@ export interface WrittenSetColumns extends Omit<SetColumns, 'sets' | 'testStoppe
  * Write an index from its columns. Modules in code-unit order of path, and
  * every id naming a string of `columns.strings`, are the caller's to keep.
  */
-export function writeSetColumns(columns: WrittenSetColumns, sets: CrossingSetsPool): Buffer {
+export function writeSetColumns(columns: WrittenSetColumns, pool: CrossingSetsPool): Buffer {
+  const listened = columns.testSaid.some((said) => said !== undefined);
+  const laid = listened ? saidLaid(columns.testSaid, pool, pool.testCount) : undefined;
+  const sets = laid ?? pool;
   return sections({
     'strings.blob': blob(columns.strings.blob, columns.strings.offsets),
     'strings.off': column(columns.strings.offsets),
@@ -187,7 +195,9 @@ export function writeSetColumns(columns: WrittenSetColumns, sets: CrossingSetsPo
     'tests.name': column(columns.testName),
     'tests.stopped': column(columns.testStopped),
     'tests.duration': column(columns.testDuration),
-    ...preconditionSection(columns.testPreconditions),
+    ...(laid?.said === undefined ? {} : { [SAID_SECTION]: column(laid.said) }),
+    ...(laid?.read === undefined ? {} : { [READ_SECTION]: column(laid.read) }),
+    ...(laid?.misused === undefined ? {} : { [MISUSED_SECTION]: column(laid.misused) }),
     ...linesColumn(columns.testLines ?? []),
     'modules.file': column(columns.moduleFile),
     'modules.blocks': column(columns.moduleBlocks),
@@ -387,7 +397,7 @@ export function testAt(columns: TestColumns, at: number, string: (id: number) =>
     name: string(columns.testName[at]!),
     ...stoppedFrom(columns.testStopped, at),
     ...durationFrom(columns.testDuration, at),
-    ...preconditionsFrom(columns.testPreconditions, at, string),
+    ...(columns.testSaid?.[at] === undefined ? {} : { said: columns.testSaid[at] }),
   };
 }
 
@@ -433,7 +443,6 @@ function dictionary(index: SetExecutionIndex): ReadonlySet<string> {
     held.add(test.file);
     held.add(test.name);
   }
-  for (const text of preconditionStrings(index.tests)) held.add(text);
   for (const module of index.modules) {
     held.add(module.file);
     for (const block of module.blocks) {

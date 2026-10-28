@@ -1,5 +1,667 @@
 # @variance-authority/help
 
+## 0.21.0
+
+Lockstep release — nothing in this package changed. Every `@variance-authority/*` package shares one version.
+
+## 0.20.0
+
+### Minor Changes
+
+- eed3410: `ask search` answers a description by any of its words. When no name or doc holds the query as written, the repository's own names and files that hold any of its stems come back, ranked as before: the most words held first, then the most in the name, then the phrase the doc writes. Before, a name had to hold at least half of them, so a three-word query whose best match held one word was reported as nothing. Their heading now reads "hold words of `<query>`" rather than "hold at least half the words of `<query>`". Installed packages still answer only when they hold half the words. A name holding fewer than half the stems, which this section did not hold before, is left to the loose reading when that reading reaches it by every word, as it was before. So `cache entriee magazie` still offers `cacheEntriesMagazine` loosely however many names holding `cache` this section shows. The rows this section shows hold every word any of its names holds, so `mermaid chart palette` shows the one name holding `mermaid` however many holding `chart` sort before it — the heading ends "a row holding each word is shown however it sorts" — and a doc is read for the phrase only when its name can be shown.
+
+  When those names, or the ones the loose reading adds, follow, the answer opens with "No name in this repository, nor the doc of one, writes `<query>` as typed. The nearest follow." instead of "Nothing in this repository is named or documented with `<query>`". With `from`/`to` it opens with "No name in reach of that start point, nor the doc of one, writes `<query>` as typed", still says to ask again without `from`/`to`, then gives the nearest in reach. The *nothing* line still opens an answer that has nothing of the repository's own to show.
+
+  `declaredDescribedOf` no longer takes `needed`: a declaration or file answers when it holds any of the stems asked.
+
+## 0.19.0
+
+Lockstep release — nothing in this package changed. Every `@variance-authority/*` package shares one version.
+
+## 0.18.0
+
+Lockstep release — nothing in this package changed. Every `@variance-authority/*` package shares one version.
+
+## 0.17.1
+
+Lockstep release — nothing in this package changed. Every `@variance-authority/*` package shares one version.
+
+## 0.17.0
+
+### Patch Changes
+
+- dfd5c06: An `import()` type is a type-only import
+
+  `import('./x').T` and `typeof import('./x')` are TypeScript's other spelling of
+  `import type`, and the reader skipped both: a file that reached a module only
+  through one, such as a test handing `typeof import('./x')` to a `vi.mock`
+  factory's original, had no edge to it, and `ask uses` did not list it. Each is
+  now a `type` request, an edge every walk but a runtime one follows. The name its
+  qualifier starts with is the name it takes; with no qualifier the module is
+  held whole, and `ask uses` lists the line as a type-only site that may read any
+  name, never as an `import()` that loads the module. The source index format
+  moves to version 33.
+
+## 0.16.0
+
+### Minor Changes
+
+- e0eb233: `variance index` reads each package manifest once
+
+  After the source index, `variance index` publishes the workspace's answers.
+  First it tries to refresh the answers it published last time. When that cannot
+  apply, on the first run or when the member list or the exported names have
+  changed, it reads the whole workspace again. Each of those steps listed the
+  members and read the manifests for itself, the refresh once or twice and the
+  workspace read twice: once for what each package publishes, and once for where
+  an import between packages lands. A first run read every manifest twice, a run
+  whose refresh could not apply three or four times, and one whose refresh
+  applied once or twice. On a product that lists two thousand
+  members, one read of them takes seconds.
+
+  Each manifest is now read once per run. `readWorkspaceManifests` gives both
+  answers from one read, and `publishWorkspaceFromIndex` hands them to the
+  refresh and, if it cannot apply, to the workspace read.
+
+  `refreshWorkspaceFromIndex` is withdrawn from `@variance-authority/help`. It was
+  the refresh half alone, and it read the manifests for itself; call
+  `publishWorkspaceFromIndex`, which refreshes when it can and reads the workspace
+  when it cannot.
+- 92f4692: `symbol`, `search` and `uses` answer a name a file declares and does not export
+
+  The source index harvests the top-level declarations of every file it parses,
+  and `symbol`, `search` and `uses` read only the exported ones. A module-private
+  function such as `relaunch` in `packages/cli/src/bin.ts` was answered by
+  `symbol` with *the dependency lexicon is not published*, by `search` with
+  *Nothing in this repository is named* it, and by `uses` with *not published by
+  this workspace*, while `git grep` found it at once. A Rust, Python, Swift, Java
+  or Kotlin file was worse off: its reader harvested no declarations, and the
+  index recorded it as declaring none.
+
+  The Rust, Python, Swift, Java and Kotlin readers now record every top-level
+  declaration with its kind, line, signature and the doc above it: the `///`
+  lines or `/** */` block, past Rust's attributes, and a Python definition's
+  docstring. Underscored Python names and Rust items that are not `pub` are
+  recorded too. A file a reader could not parse is recorded as not harvested,
+  rather than as declaring nothing.
+
+  `symbol` answers such a name, when no entry publishes it and no file exports it,
+  with one block per declaration: its kind, the file and line that declare it and
+  the package that owns them, its signature and documentation as the checkout
+  holds them, and who can reach it under the file's language. Nothing outside a
+  JavaScript or TypeScript module can import it; only its module and the modules
+  inside it can name a Rust item; another Python module can still import it by
+  name. Each reader records that reach with the declaration, and one that cannot
+  tell — a script or CommonJS file, a module that hands itself out with
+  `export =`, a `macro_rules!` — records none, which the answer says. Source comes before tests and stories, and past five declarations the rest
+  are counted. `search` lists the declarations whose names or documentation hold
+  the query under *N more names are declared somewhere in the repository without
+  being exported*, after the exported ones, and within the area when `from` or
+  `to` is given. `uses` answers with the file and line that declare it, and who
+  can reach it, before any member declared by that name. A declaration its own
+  file exports, under its name or another, is left to the export lists. When some
+  files' declarations were not read — a file over the size a read opens, one that
+  is not UTF-8, one its reader did not harvest — the answer or refusal names them,
+  since a name may be declared there.
+
+  `@variance-authority/sense` exports `declaredOf(root, query, { containing, files
+  })`, which reads these declarations off the published source index, and a
+  `SourceSymbol` carries its `reach`. `@variance-authority/package`'s
+  `DeclarationKind` names the kinds the new readers harvest: `struct`, `trait`,
+  `macro`, `record`, `protocol` and the rest. The source
+  index format moves to version 22; the first `variance index` after upgrading
+  writes it again.
+- cddaa27: `ask symbol` follows a renamed import in both directions
+
+  `import { greet as hail } from './greet.js'` binds `hail` to `greet`, and the
+  binding the parser read is now what ties the two. `ask symbol --name hail`
+  answers with that import and then with `greet`: its declaration and import line
+  when an entry publishes it, the file and line that export it when none does, or
+  the installed declaration when the specifier names a dependency. Before, it
+  answered that nothing declares `hail`.
+
+  `ask symbol --name greet` names every file and line that imports it as
+  something else, and `ask uses --name greet` marks each such site `(as hail)`,
+  the way it already marked an import of a renamed re-export. A use row now
+  carries the local name, and `@variance-authority/sense` exports `aliasesOf`,
+  which lists the imports that bind a given local name to another export.
+- 453bf3f: `ask uses` lists the lines of the file that declares a name
+
+  A file uses what it declares without importing it, so `ask uses` and
+  `docs_uses` answered a helper called three times in its own file with "nothing
+  imports it". The scan now records, with each TypeScript, JavaScript and Rust
+  file's parse, every line that uses a name the file declares at its top level:
+  a call, a read, a type, a Rust `self::name` path, and a test module's
+  `use super::*`. The answer lists them after the imports, under
+  `Used in the file that declares it`, for a name the file exports and for one it
+  keeps. The lines follow the language's scope: a parameter, a local or an inner
+  item of the same name is another name, and the declaration is not a use. A
+  Python, Swift, Java or Kotlin file is still answered by its imports alone.
+
+  The source index format moves to version 29, so the first scan after the
+  upgrade reads every file again.
+- 58cae6d: `discover --to` says how each file reaches the path, and takes a name out of a file
+
+  A file two or more imports away from a `--to` path now carries one shortest
+  chain of imports to it, `src/Page.ts → src/Model.ts (type import) →
+  src/store/selectors.ts`, with each step that is not a plain import marked. The
+  chain is built only for the files shown.
+
+  `--to src/store/selectors.ts#selectBalance` answers what rests on one name: the
+  walk starts at the files that import `selectBalance`, as `uses` lists them,
+  through every barrel that passes it on, so a file that imports another name
+  through the same barrel is not reached. The files that import the name show the
+  line that does; a file further out has its chain end at that line.
+
+  The `--to` header names the files the walk did not reach that import something
+  the scan could not resolve, since they may reach the path through it. It used
+  to count the unresolved files among those it reached, which says nothing about
+  what reaches the path.
+
+  `@variance-authority/mcp`'s `Tree` has `chainsTo(seeds)`: each file's import
+  distance to the seeds, and one shortest chain per file, asked per file.
+- 41ea367: A name nothing declares is an answer over MCP, and in `intersection`
+
+  `variance-authority-help` and `variance serve` answer `docs_symbol` and
+  `docs_uses` about a name nothing declares with the text `variance ask` prints,
+  as a result rather than an error, after reading a reused generation again.
+  `variance ask intersection` with a question about such a name answers that no
+  file is in all of them, naming beside that question what was read and declares
+  nothing, instead of refusing. `serve` takes `answered`, which turns what a tool
+  threw into a result, and `foundNothingAnswer` is the answer every surface gives.
+- 7d556bb: Search ranks a name by where it holds the words, reaches a name through a word's stem, and answers when nothing is published
+
+  `variance ask search --query 'instrumenting modules'` found nothing named
+  `instrumentModule`, because a word of the question had to start a word of the
+  name as written. Now a word also reaches a name word that shares its stem, so
+  `instrumenting modules`, `instrumented module` and `instrumenting` alone
+  answer `instrumentModule` as an exact match. The stemmer takes one inflection off and then every noun
+  or agent ending, so a word and its forms share one stem: `instrument`,
+  `instrumenting` and `instrumentation` meet, and so do `placement`, `place`
+  and `placed`. An ending needs four letters left, so `comment` stays apart from
+  `come` and `generation` from `gene`. An `s` after `s` or `u` and an `ed`
+  after `e` are not inflections, so `process` stays apart from `proceed`. The
+  dependency lexicon's catalogue is built again at the next `variance index`,
+  because it stores stems. Until then a catalogue of the version before still
+  answers every question; only the packages that describe a question by words
+  are left out, and the answer says so and names `variance index`. A question
+  by words also reports how many packages describe it when more are held than
+  shown, which it read under the wrong field name before.
+  The first `variance index`, or the first refused question that refreshes
+  the lexicon, after the upgrade rebuilds the catalogue whole, once.
+
+  A published or exported match is ordered by where it holds the question
+  first: in its name, then in its doc's opening paragraph, then later in its
+  doc. Importers order only within that. Before, `--query instrument` put a
+  type third whose doc said "instrument" only in its second paragraph, ahead of
+  names that hold the word.
+
+  When nothing holds the question as written, a name holding a word of it in
+  its own name now comes before one whose doc holds the words and whose name
+  holds none. The phrase the doc writes settles the order after that.
+
+  With no published search, `search` refused and told you to drop
+  `--just-answer`, even when you had not passed it. Now it reads the checkout
+  and publishes the search, the way every other question does, and the answer
+  no longer says the checkout was not compared.
+  `readSearchForAnswer` now returns the search with whether it was read from
+  the checkout, `{ index, compared }`, instead of the search alone. Only under
+  `--just-answer` does it refuse, and the refusal names that flag and
+  `variance index` as the command that publishes one.
+
+  A published search or published value that is there and does not open is no
+  longer passed over in silence. The answer names each one it tried, why it did
+  not open, and what it read instead; under `--json` it is
+  `unopened`, one `{ published, at, reason }` per file. A file that is not there
+  is still absence, and says nothing.
+- 9ee6ef6: The dependency lexicon is two binary files, and an edit appends to one of them
+
+  `variance index` writes the dependency lexicon as `dependency-lexicon.bin` and
+  `dependency-lexicon.sites.bin` beside the source index. The first is the
+  catalogue: the manifests' declared packages, what each installed package offers,
+  and the names, signatures and JSDoc of every public entrypoint. The second is
+  the import requests each source file writes, kept as a log. An edit appends the
+  requests of the files it changed to the log and leaves the catalogue as it is,
+  unless a manifest, an installed package or a specifier no source file imported
+  before changed. On a 51,059-pair checkout the two files are 55 MB and 27 MB, and
+  a refresh after one edited file appends about 450 bytes and takes 0.3 s.
+
+  After one edited file, `variance index` prints `dependency lexicon: 1 changed
+  source file read: …`. The line ends with the path of `dependency-lexicon.bin`.
+  `refreshDependencyLexicon` and `refreshDependencyLexiconNative` return `sites`,
+  the path of the log, `appended`, the number of source files whose requests the
+  refresh recorded, and `rebuilt`, which is true when the log was written whole.
+
+  **Breaking:** `dependency-lexicon.json`, `dependency-lexicon.built.json` and
+  `dependency-lexicon.merge.json` are no longer written or read. Run `variance
+  index` once to write the new files; the old ones can be deleted. `@variance-authority/help`
+  no longer exports `readDependencyLexicon`, `DependencyLexicon`, `LexiconEntry`,
+  `LexiconAvailability` and `LexiconIssue`; `ask search`, `ask symbol` and `ask stack`
+  read the lexicon. The refresh result no longer has `merged`.
+- 7a033f3: `ask uses` answers for a member of an interface, a type literal or a class
+
+  A method or property declared on an interface is never imported, so
+  `variance ask uses --name resolveSources` refused it as a name the workspace
+  does not publish. `uses` now lists where a member by that name is declared,
+  each line ending with its container, and names the search that finds its
+  callers: `ask grep --query '\bresolveSources\b' --to <declaring file>`, which
+  runs ripgrep over the files that import the declaration. For a name an export
+  has as well, such as a wrapper function named like the member, the
+  declarations follow the imports under `` `prepareJourneys` is a member too ``.
+  When the source index cannot be read, the refusal says so.
+
+  `variance index` records every member declaration with each file's parse, so
+  the answer is a lookup in the source index, and `memberDeclarationsOf` in
+  `@variance-authority/sense` reads it. The source index format moves to version
+  20; the first `variance index` after upgrading writes it again.
+
+### Patch Changes
+
+- 5080f93: A cold index of a large checkout declares its symbols
+
+  A checkout of ten thousand modules or more is indexed by the native graph in one
+  call, and every later change by the native update. Both parsed each module
+  without its declarations, so `ask symbol` and `ask search` answered as if the
+  checkout declared nothing, and kept answering that way: on seven copies of MUI,
+  `ask symbol --name useUtilityClasses` said the dependency lexicon was not
+  published. Both now read the declarations out of the same parse, and the answer
+  lists them.
+
+  Source index format version 24. An index written by an earlier release is
+  rebuilt by the next `variance index`.
+
+  When `symbol` finds nothing, its answer, or its refusal, names the files whose
+  declarations were not read, such as one over the largest-file limit, so a name
+  declared there is not reported as declared nowhere.
+
+  **Breaking:** `enrichSources` and `HarvestSubject` are removed from
+  `@variance-authority/sense`. They re-read a parse that held no declarations,
+  and no parse the index writes is one.
+- 0c3a311: A description finds this repository's own files, and a typo finds a name its file keeps to itself
+
+  `variance ask search --query 'loose reading'` did not answer
+  `packages/help/src/tools/loose.ts`, and `suite precision grain` did not answer
+  `packages/sense/src/test-selection/precision.ts`: what a file is for is said in
+  the doc it opens with, and no reading looked there. Now a file answers in the
+  `described` section by the words of its own name and that doc, as
+  `packages/help/src/tools/loose.ts [file] — @variance-authority/help — The loose
+  pass's membership, read off the published dictionary. [holds: loose, reading]`,
+  and `--format json` carries it with `source: 'file'`. The doc a file opens with
+  is the first `/**` comment ending before its first statement that is not an
+  import, unless it documents that statement.
+
+  Between two rows that hold as many of the words, the one whose doc writes more
+  of the question's adjacent word pairs adjacent now comes first, before the
+  words in the name; the pairs are of the words the question is about, not of
+  `it is` or `of a`. The words every package says about itself — `package`,
+  `module`, `use`, `tool`, `library`, `get`, `set` and the like — are words again
+  when your own code is asked, while staying stopwords for an installed package.
+  `what`, `where`, `who`, `whom`, `whose`, `why`, `does`, `did`, `was`, `were`,
+  `been`, `there`, `their`, `them`, `they`, `then`, `than`, `but`, `about` and
+  `each` are now stopwords for both, since they say how a question is put.
+
+  The loose reading — words apart, or one character off — now reaches a name its
+  file declares and does not export, after every exported one.
+
+  `@variance-authority/sense` exports `declaredTermsOf`, `declaredLooseOf` and
+  `nearOfNative`, and `declaredDescribedOf` takes the query and answers with
+  `files`. The source index format moves to version 26; an older index is
+  rebuilt.
+- 100eeea: A description finds this repository's own names before an installed package's
+
+  `variance ask search --query 'tsconfig custom conditions'` answered only with
+  the installed packages whose descriptions hold those words. The repository's
+  own names were matched by the phrase, or by every word in the name, and an
+  installed package describing the words stopped the search for anything looser.
+
+  Now, when nothing in the repository holds the query as written, the names
+  holding at least half of its words — stemmed and stopworded by the rule the
+  installed packages are read by — come first, each with the words it holds:
+  `customConditionsFor … [holds: conditions, custom]`. They are ordered by how
+  many of the words the name itself holds, then how many it holds at all. The
+  installed packages that describe the words follow them, and the loose reading
+  of the words runs whether or not a package describes them. `--format json`
+  carries the section as `described`, each row with its `words`.
+
+  `@variance-authority/sense` exports `describedWordsNative` and
+  `wordStemsNative`: a question's stems, and a word's stem, by the addon's rule.
+- 8d1bcc1: A link in a doc comment opens from `node_modules`
+
+  Doc comments linked to documentation by repository paths such as
+  `../../../../docs/flakiness.md`, which resolve to nothing in an installed
+  package. They now link to the page on variance-authority.dev, or to the file on
+  GitHub when the site does not publish it, so the link works on hover in your
+  editor and in what `variance ask symbol` prints.
+
+  The MCP server's instructions and its observability answer linked to
+  `/start-cli` and `/presentation`, which the site does not serve. They now link
+  to `/start/cli` and `/docs/presentation`, and the `@variance-authority/cli`,
+  `@variance-authority/help`, `@variance-authority/mcp` and
+  `@variance-authority/vitest-browser` READMEs link to the guides where the site
+  publishes them.
+
+  `variancePrecondition`, `wiringOf`, `tapCommits` and `provenanceOf` carry an
+  `@see` link to the section of the guide that documents them.
+- 80db3dc: A test file costs what running it took, the time before its first case included
+
+  Vitest's file duration is its cases alone, so a file that spent 5.4 s on its
+  environment, setup files and imports and 33 ms in its cases was ranked and
+  placed as a 33 ms file. Every reader that weighs a file by its time now reads
+  one figure: the larger of the runner's duration and the file's phases summed.
+  A Jest file still costs its runtime unless its phases add up to more, and a
+  file recorded without phases still costs its duration.
+
+  - `variance ask slowest-tests` and `docs_slowest_tests` rank files by it.
+  - A sharded run, and `variance shards`, place and count files by it.
+  - `variance distill`'s "loading" is everything before the first case —
+    `prepare`, `environment`, `setup` and `collect` — rather than `collect`
+    alone, as `timeBeforeCases` from `@variance-authority/sense/test-selection`
+    reads it, and a file is load-bound when that outlasts its cases. In
+    `--format json`, each `loadBound` entry is `{ file, loading, cases }`; its
+    `collect` field is gone.
+
+  The stored `tests.duration` is unchanged: it stays the runner's own figure.
+- 2cc4e43: A refusal reads the checkout as it is
+
+  `variance ask`, `variance serve`, `variance-authority-help` and its server
+  reused a published source generation for an hour, and the dependency lexicon
+  was built only under `variance index`, so a function written since the last
+  index was refused as not published, and a fresh checkout refused an installed
+  package's export with *the dependency lexicon is not published*. Both read as
+  real absences. A refused question is now asked again of a generation made from
+  the checkout now, with the dependency lexicon built when it is missing or
+  behind, and only that answer is given, under `--changed-file` and
+  `--taint-file` too; an answer that found its name still comes from the reused
+  generation, so only a refusal pays for the reading. When that reading or the
+  lexicon fails, the refusal says which was not compared with the checkout, and
+  why.
+  Under `--just-answer` or `justAnswer`, and on `search` when no changed files are
+  named, every answer and refusal says the checkout was not compared with the
+  generation, and `search --format json` carries `compared: false`. The help
+  package exports `caughtUp` and `snapshotLine` for hosts of their own, and
+  `serve` from `@variance-authority/mcp` takes an `again` hook that asks a
+  refused call to a known tool, with its required arguments, again with a fresher
+  subject, or ends the refusal with the host's footer.
+- f7dff69: A Rust inline module is a module of its own
+
+  `use super::helper` inside `mod tests { … }` in `foo.rs` names `foo.rs`, and a
+  `use` inside an inline module was read as if the file had written it, so it
+  landed on `lib.rs` or on the file's parent. `self` and `super` there now name
+  the inline module and the one around it, and a path that names the file it is
+  written in is no edge. A `#[path]` inside an inline module is read from that
+  module's directory, `a/b/inline/other.rs` in `a/b.rs`, and a `#[path]` at the
+  top of a file from the directory the file is in. A `pub use` inside an inline
+  module is no export of the file.
+
+  `ask symbol` answers an item inside an inline module, declared on its module
+  path, `tests::fixture`, asked for by that path or by its own name. A `pub` one
+  there says who can reach it is not recorded, since the modules around it decide.
+  A `pub` one whose inline modules are all `pub` is not declared on its own: the
+  file exports the outermost of them, and you ask for that module by name.
+- a96684c: A Rust path written in a type or an expression is a use, and `super` follows `#[path]`
+
+  `variance ask uses` now counts `crate::graph::Limits` in a field type and
+  `super::reach()` in a body, as well as a `use`, each resolved through the module
+  tree the crate's `mod` lines declare. A `self::` or `super::` path is read from
+  the module it is written in, an inline `mod` included, and a file a `#[path]`
+  loads keeps its children beside it, so a `use super::catalogue::Catalogue` in a
+  file put beside its parent reaches the parent's sibling. A test or example
+  target that no module declares is its own crate root. The item a path names is
+  the one segment past its modules: `crate::map::JourneyMap::new()` counts
+  `JourneyMap`, and neither a private `fn map` nor a module's `fn new`.
+
+  `ask uses` and `ask symbol` answer a name a file keeps to itself beside an
+  export of the same name in another file: the kept declaration, and for a Rust
+  item the modules inside its own that import it, follow the export's answer
+  instead of being dropped.
+
+  The source index format is version 25. It keeps whether a reader guessed a
+  request and whether it asked for an item, so a parse read back from the index
+  is the parse the reader made. An index written by an earlier version is rebuilt
+  on the next read.
+- d7627d4: A workspace whose members sit outside its directory is read from an index of what it lists
+
+  Some workspaces list members outside their own directory, such as a product in
+  a monorepo that lists packages from the repository's other top-level
+  directories. The questions `variance ask` answers about such a workspace
+  covered every top-level directory that held a member. In one product that came
+  to 316,034 files, read again on every `variance index` because nothing kept
+  them. The reading now covers what the `workspaces` list names: the workspace's
+  own directory and each listed member directory. A file elsewhere in the
+  repository that imports one of its packages is no longer counted as a use.
+  `variance index` keeps a source index over that scope next to the workspace's
+  own, updates it as it updates the workspace's, and answers the questions from
+  it. In that product, `variance index` after an edit went from 59–62 s to 15 s.
+
+  `updateSourceIndex` takes `dirs`, the directories the index covers, and
+  `primary`, the generation a missing index starts from.
+- d12b516: `search` finds a name no manifest publishes by the words of its doc comment
+
+  `variance ask search` matched an exported name that no entrypoint publishes by
+  its name alone, although `ask symbol` and `ask uses` send you there for exactly
+  that name: "ask `search` with a word from its documentation". A helper is
+  usually looked for by what it does, because whoever is looking does not know
+  its name yet. So `variance ask search --query 'owner directory'` missed
+  `pub(crate) fn owner_of` in the native crate, although its `///` comment says
+  "its nearest named directory".
+
+  An exported name's doc is now read the way a published name's is: by
+  substring, by the words it holds, and by the loose reading. That covers:
+
+  - a JSDoc block above a TypeScript export, or above the declaration
+    `export { x }` or `export default x` names;
+  - `///` lines or a `/** … */` block above a Rust, Java, Kotlin or Swift
+    declaration, past its attributes or annotations;
+  - the docstring a Python class or function opens with.
+
+  The unpublished line shows the first paragraph of the doc:
+  `owner_of — @variance-authority/sense · packages/sense/native/src/package_owners.rs:190 — Any path's package, tracked or not: …`.
+  In `--format json`, an `exported` row carries it as `summary`.
+
+  The search file `variance index` publishes moves to version 3, so the first
+  `variance index` after upgrading writes it again.
+- a15af35: `ask symbol` lists a container's members, and `ask uses` takes `--limit` and follows a passed-on name
+
+  `ask symbol` on an interface, a type alias or a class now lists the members it
+  declares after its signature, one line each as the checkout writes it, with its
+  file and line. A nested type literal's members are not listed, and an alias that
+  fits on its line lists nothing more.
+
+  `ask uses --limit <n>` shows that many rows of each list: each kind of site,
+  the lines of the declaring file, and the members by the name. Without it the
+  answer shows twelve of each and counts the rest, as before. A `limit` that is not a whole
+  number of at least 1 is now refused by `uses`, `grep`, `discover`,
+  `intersection`, `slowest-tests` and `variance_costs` alike, rather than read as
+  the default, and `variance_costs` now also takes the digits a shell passes.
+
+  A name a file only passes on, as in `export { taxOf as levy } from './tax.js'`,
+  is now followed to the declaration it reaches, through every file between them,
+  every rename, a type-only `export type { … } from`, a bare `export *`, an
+  import the file exports again, and `export { default as x } from`. `ask uses`
+  names that declaration after the export line, and `ask symbol` shows its line
+  and its members too. Files that only pass a name to each other name no
+  declaration, and neither does a namespace or a star asked for `default`.
+
+  Journeys resolve a call through a barrel the same way. A name two `export *`
+  reach in different files, and `default` behind an `export *`, used to land in
+  the first star's declaration; the call now names no function, as ECMAScript
+  resolves neither. Neither does a name behind a star whose request resolved
+  to no file of the checkout, or to a file the journeys could not parse, since
+  that star may export it too.
+
+  `ask symbol` for a name an import binds with `as` answers its original the
+  same way: followed to the declaration a file passes on, with its members.
+
+  Yarn 2 and later have no `-s` flag, so `yarn -s variance` fails before the CLI
+  starts. The skill now says that `yarn variance` already prints only the CLI's
+  output.
+- 0689917: `search` finds a name its file keeps to itself by words its name or doc holds apart
+
+  `variance ask search` found a declared, unexported name only when its name or
+  its doc comment held the query as one run of text. A private helper is
+  looked for by what it does, in your own words and your own order, so
+  `variance ask search --query 'process the program again'` missed:
+
+  - `function relaunch` under "Start the program again in a process of its own.";
+  - the same doc on a Rust `fn rerun`;
+  - the same doc on a Python `_reopen`.
+
+  Such a name now joins the section that follows an empty answer. The section
+  lists the names holding at least half of your words by stem, and the private
+  name is read by the same rule as an exported one:
+
+  ```text
+  relaunch [function] — @acme/kit · packages/kit/src/money/restart.ts:4 [holds: again, process, program]
+  ```
+
+  The section is now ordered by how many of your words a name holds, and only
+  then by how many its own name holds. A doc that says every word you asked now
+  ranks above a name that says half of them. In `--format json`, a `described`
+  row of such a name has `source: "declared"`.
+- f10a77e: `ask symbol` answers a member, and says what it checked for a name nothing declares
+
+  A method or property of an interface, a type literal or a class is answered
+  with its container and the file and line that declare it, one block per
+  declaration, as `ask uses` already lists them. It used to be refused.
+
+  A name nothing in the workspace declares is refused with what was read: no file
+  the source index read declares it at its top level or as a member, and no
+  installed dependency publishes it. When the dependency lexicon is not published, the refusal says
+  the dependencies were not checked and that `variance index` publishes it. It
+  used to answer only `the dependency lexicon is not published`, for a name the
+  workspace declares as a member or does not declare at all. The files whose
+  declarations the source index did not read are named last, as not checked.
+- f90242e: `variance ask symbol` and `ask uses` answer a name nothing declares on stdout and exit `0`, instead of refusing on stderr. The answer says what was read and declares nothing, where else the name may be written, and that a text search such as `rg` finds a name written only in a string or a comment. `variance-authority-help` answers the same way.
+- 19447a9: `uses` answers the lines that use a field of an interface or a type
+
+  `variance ask uses --name size` listed where a member named `size` was
+  declared, and sent you to a text search for everything that touched it. Now
+  each declaration on a named container is followed by the lines that read,
+  write or destructure the member through a value whose type the line writes:
+  `props: Props`, `value as Props`, `{ size: 3 } satisfies Props`,
+  `({ size }: Props) =>`. Each line says its package and how it uses the member:
+  `use.ts:6 — @acme/lib, write`.
+
+  The type's name is followed through the import that binds it, renamed or
+  passed on by a barrel, to the file that declares it, so `Props.size` and
+  `Other.size` are listed apart, and a value typed as neither is a use of
+  neither. What a type checker would infer stays the text search's, which the
+  answer still names.
+
+  The source index records these uses with each file's parse, in format version
+  23; `variance index` rebuilds an older one.
+- 52a11a1: `variance ask uses` lists the lines that use a name in the file declaring it
+  under that file, `Used in <file>, which declares it:`, one heading for each
+  declaring file. Before, a name declared in several files had the lines of all
+  of them under one heading that said they were in the file that declares it.
+
+  The export heading names the kind of the declaration in brackets after the
+  name: a published name its entry's kind, the one `ask symbol` prints, and an
+  export no entry publishes the kind of the declaration it binds in its own file,
+  as the source index holds it: "`addTax` [function] is imported in 1 place",
+  "`orphan` [const] is exported, without being published". An export that passes
+  the name on with `export … from` names no kind, and a name declared twice,
+  `const Kind` and `type Kind`, gives each export the kind on its own line. `Named` carries it
+  as `declaration`, and the Help snapshot moves to version 7.
+- e2eb4a8: `uses` counts each name destructured from an `import()` resolved through `Promise.all`
+
+  `const [{ a }, { b }] = await Promise.all([import('./x'), import('./y')])` takes
+  `a` from `./x` and `b` from `./y`, as `const { a } = await import('./x')` does.
+  The module reader now pairs each element of the array pattern with the
+  `import()` at the same position, in a declaration and in the callback of
+  `Promise.all([...]).then(([...]) => ...)`, so `variance ask uses` lists the file
+  for each name. A hole skips its position, and a spread leaves every later
+  position unpaired.
+
+  A TypeScript cast around the awaited call, as in
+  `(await import('./x')) as typeof import('./x')`, no longer hides the names
+  destructured from it, and a rest element such as `{ a, ...rest }` holds the
+  module, so `rest.b` is a read of `b`.
+
+  A property read off the promise an `import()` returns, without `await`, is the
+  promise's: `.then` is no longer listed as a use of an export named `then`.
+
+  An assignment destructures an `import()` as a declaration does:
+  `({ a } = await import('./x'))` and
+  `[{ a }, { b }] = await Promise.all([import('./x'), import('./y')])` take `a` and
+  `b`.
+
+  A name read off the module's `default`, as in
+  `const { a } = (await import('./x')).default`, is listed as a site of `a`
+  "through `default`: may read it", one level deep, beside the use of `default`
+  itself: `default` holds `a` only when the module is CommonJS, and the reader
+  cannot tell which one it is. It is counted apart from the imports, in an
+  entry's new `throughDefault` of the Help value, as the package graph, the roles
+  check and the dependency orientation skip it. `default` read off it again is
+  the same level. The `default` moving on, as in
+  `const { default: Page } = await import('./page')`, is a use of `default` and
+  no more.
+
+  A module held whole that leaves the reader's sight — passed to a call,
+  returned, exported, assigned to a property or as a rest target, stored in an
+  array, read by a key the reader cannot spell, or loaded lazily — is recorded at that line as the module going
+  on whole. A holder is the binding the scope resolves, so a parameter that
+  reuses its name is another value; assigning the holder, reading its type with
+  `typeof`, and `.catch` or `.finally` on the `import()` are not the module going
+  on. `variance ask uses` lists such a line as a site that may read the name,
+  marked "passed on whole: may read it", and counts it apart from the imports:
+  it is not in `usedBy`, `uses` or `sites` of the Help value but in the new
+  `whole` of the subpath that opens the module, and the package graph, the roles
+  check and the dependency orientation each read it as every name of the module.
+  A file whose only holders are `import m = require('./x')` now has them
+  resolved, where before their reads were not listed.
+
+  A published name no other package imports by name, and one of these may read,
+  is no longer listed as unused: `docs_symbol`, the catalogue page and `llms.txt`
+  say it is not imported by name and where it may be read, so whether it is used
+  is unknown.
+
+  The source index format moves to version 32, so the first `variance index`
+  after upgrading reads every file again, and the workspace snapshot to version
+  8, so a snapshot written before it is read again rather than opened.
+- cc6bf99: `variance ask uses` now names the kind of each declaration a file keeps to itself, the way `ask symbol` does. A Rust `mod walk;` and the `pub(crate) fn walk` inside it share a spelling and are two declarations. The answer listed the function's imports and then said "`walk` is declared, not exported, at src/lib.rs:1", which read as a second fact about the same function. It now says "`walk` [module] is declared, not exported, at src/lib.rs:1". When a name has several such declarations, each line carries its own kind, so a `function` in one file and a `const` in another are told apart.
+- 2162c57: `ask uses` on a member says which uses it lists, and asks the declaration's type checker for the rest
+
+  `variance ask uses --name <member>` and `docs_uses` list a use of `Props.size`
+  only where the line writes the value's type. The answer now ends with two lines
+  that say so: a use through an inferred value, a generic, a subtype by `extends`
+  or `implements`, a JSX attribute, a utility type or an inline type literal is
+  not listed, because no type checker runs. The second line names the
+  declaration's `file:line` for find-references in the declaration's own
+  language's tooling (TypeScript's language service for JavaScript and
+  TypeScript, its language server for any other), or, with several
+  declarations, asks for the one you mean from the list above. These two lines
+  replace the `docs_grep` route the answer used to end with; `variance ask grep --to <declaring file>` still finds the name as
+  text. Which uses are listed has not changed, and an answer with no member
+  prints neither line.
+
+  The skill reference tells an agent to use both tools: `variance` for
+  declarations, imports, the module graph and the recording, the language's type
+  checker for anything that needs a value's type.
+
+  Members are read from JavaScript and TypeScript files only, and a name nothing
+  declares now says so. Where the source index holds Python, Rust, Java, Kotlin
+  or Swift files, `ask symbol` no longer says no file declares the name "at its
+  top level or as a member": it says no file declares it at its top level and no
+  JavaScript or TypeScript file declares it as a member, names those languages,
+  and sends you to their language server's workspace symbols, then its
+  find-references. `ask uses` ends its refusal with the same sentence, and a
+  member answer of either ends with it too, since a member of those languages may
+  be declared there as well. A workspace of JavaScript and TypeScript alone keeps
+  the old sentence and prints no new one.
+- d7627d4: `variance index` says which step it is on, and how long each one took
+
+  On a large checkout, `variance index` used to print nothing for a minute or
+  more, so a slow step looked the same as a hung one. It now writes one line to
+  stderr as each step starts, such as listing the checkout with git, reading what
+  changed, reading the package manifests or publishing the questions, and writes
+  the line again with the time the step took when it ends. In a terminal the step
+  that is running stays on one line, with a clock that counts up while it runs
+  and a note of how many other steps are running beside it. A log gets the start
+  line and the end line, and nothing in between. A command that waits on another
+  process's follow-ups shows that process's latest line, and how long it has
+  waited. stdout still holds only the answer.
+
 ## 0.15.0
 
 ### Minor Changes

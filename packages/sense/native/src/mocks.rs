@@ -11,7 +11,7 @@ use oxc_ast_visit::{walk, Visit};
 use regex::Regex;
 use serde::Serialize;
 
-use crate::loads::constant;
+use crate::loads::{constant, requires};
 use crate::order::code_unit;
 
 /// `vi`, `jest` and `sb`: the callers every parse is read for.
@@ -42,7 +42,12 @@ pub fn mocks_in(source: &str, program: &Program<'_>) -> Mocks {
     }
     let mut found = Found::default();
     found.visit_program(program);
-    let minus = found.mocked.difference(&found.actual).cloned().collect();
+    let minus = found
+        .mocked
+        .difference(&found.actual)
+        .filter(|specifier| !found.preserved.contains(*specifier))
+        .cloned()
+        .collect();
     Mocks {
         minus: by_code_unit(minus),
         plus: by_code_unit(found.actual.into_iter().collect()),
@@ -59,27 +64,58 @@ fn by_code_unit(mut values: Vec<String>) -> Vec<String> {
 struct Found {
     mocked: BTreeSet<String>,
     actual: BTreeSet<String>,
+    preserved: BTreeSet<String>,
+    factory: Option<String>,
 }
 
 impl<'a> Visit<'a> for Found {
     fn visit_call_expression(&mut self, it: &CallExpression<'a>) {
         let specifier = it.arguments.first().and_then(specifier_of);
-        if let (Some(method), Some(specifier)) = (method_of(it), specifier) {
-            if method == "importActual" || method == "requireActual" {
-                self.actual.insert(specifier);
-            } else if method == "mock" {
+        let method = method_of(it);
+        if let Some(specifier) = specifier {
+            if matches!(method, Some("importActual" | "requireActual"))
+                || (self.factory.is_some() && requires(&it.callee))
+            {
+                if self.factory.as_ref() == Some(&specifier) {
+                    self.preserved.insert(specifier);
+                } else {
+                    self.actual.insert(specifier);
+                }
+            } else if method == Some("mock") {
                 let reaches = it.arguments[1..]
                     .iter()
                     .any(|argument| opaque(argument) || spies(argument) || original(argument));
                 if reaches {
-                    self.actual.insert(specifier);
+                    self.preserved.insert(specifier.clone());
                 } else {
-                    self.mocked.insert(specifier);
+                    self.mocked.insert(specifier.clone());
                 }
+                for (index, argument) in it.arguments[1..].iter().enumerate() {
+                    if index == 0 && is_factory(argument) {
+                        let previous = self.factory.replace(specifier.clone());
+                        self.visit_argument(argument);
+                        self.factory = previous;
+                    } else {
+                        self.visit_argument(argument);
+                    }
+                }
+                return;
             }
         }
         walk::walk_call_expression(self, it);
     }
+}
+
+/// A literal factory owned by a known mock call, rather than an eager argument.
+pub(crate) fn factory_target(call: &CallExpression<'_>) -> Option<String> {
+    if method_of(call) != Some("mock") || !call.arguments.get(1).is_some_and(is_factory) {
+        return None;
+    }
+    call.arguments.first().and_then(specifier_of)
+}
+
+fn is_factory(argument: &Argument<'_>) -> bool {
+    matches!(argument, Argument::ArrowFunctionExpression(_) | Argument::FunctionExpression(_))
 }
 
 /// `mock` in `vi.mock(…)`, when `vi` is one of the callers.
@@ -170,14 +206,28 @@ mod tests {
     fn a_mock_is_a_minus_and_an_original_is_a_plus() {
         let found = read("vi.mock('./b'); jest.mock('./a', () => jest.requireActual('./c')); sb.mock(import('./d'), { spy: true });");
         assert_eq!(found.minus, ["./a", "./b"]);
-        assert_eq!(found.plus, ["./c", "./d"]);
+        assert_eq!(found.plus, ["./c"]);
     }
 
     #[test]
     fn a_factory_reaching_the_original_cuts_nothing() {
         let found = read("vi.mock('./a', async (importOriginal) => ({ ...(await importOriginal()) })); vi.mock('./b', factory);");
         assert!(found.minus.is_empty());
-        assert_eq!(found.plus, ["./a", "./b"]);
+        assert!(found.plus.is_empty());
+    }
+
+    #[test]
+    fn a_forwarding_factory_cancels_without_adding_an_import() {
+        assert!(read("jest.mock('./a', () => jest.requireActual('./a'));").is_empty());
+        assert!(read("vi.mock('./a', async () => await vi.importActual('./a'));").is_empty());
+        assert!(read("sb.mock(import('./a'), { spy: true });").is_empty());
+    }
+
+    #[test]
+    fn an_independent_original_load_is_still_an_import() {
+        let found = read("jest.mock('./a'); beforeEach(() => jest.requireActual('./a'));");
+        assert!(found.minus.is_empty());
+        assert_eq!(found.plus, ["./a"]);
     }
 
     #[test]

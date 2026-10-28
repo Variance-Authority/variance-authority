@@ -3,7 +3,6 @@ import type {
   MatchedRule,
   ObservationProfile,
   RenderDocument,
-  FrameElement,
   SubjectRef,
   Viewport,
 } from '@variance-authority/core/format';
@@ -11,11 +10,13 @@ import { detectProfile } from './collect.js';
 import { inheritedSeed } from './inherit.js';
 import { indexStyleSheets, matchRulesFor, type StyleIndex } from './css.js';
 import { deviceProbe, type ConditionEnvironment } from './media.js';
-import { attributesOf, elements } from './dom-list.js';
+import { elements } from './dom-list.js';
 import { formState } from './form-state.js';
 import { splitPseudoElement } from './selector-parts.js';
 import { facesUsedBy, type IndexedFace } from './font-faces.js';
-import { objectUrls, type ObjectUrls } from './object-urls.js';
+import { objectUrls } from './object-urls.js';
+import { frameOf } from './frame.js';
+import { inLayers } from './layers.js';
 
 /**
  * Acquisition — phase one: a live DOM becomes something you can send somewhere.
@@ -331,14 +332,17 @@ function applicableCss(
   }
 
   const rules = [...byOrder.values()].sort((a, b) => a.order - b.order);
-  const text = rules.map(
-    (rule) =>
-      `${rule.selector} {${rule.declarations
+  const text = rules.map((rule) => {
+    const layer = index.layerOf.get(rule.order);
+    return {
+      text: `${rule.selector} {${rule.declarations
         .map((d) => `${d.property}:${d.value}${d.important ? ' !important' : ''}`)
         .join(';')}}`,
-  );
+      ...(layer !== undefined ? { layer } : {}),
+    };
+  });
 
-  return { css: text.length > 0 ? [text.join('\n')] : [], bindings };
+  return { css: text.length > 0 ? [inLayers(text, index.layers)] : [], bindings };
 }
 
 /**
@@ -374,39 +378,6 @@ function frameChain(root: Element): readonly Element[] {
     chain.unshift(node);
   }
   return chain;
-}
-
-/** Tags, ids, classes and attributes above the subject, outermost first. */
-function frameOf(root: Element, urls: ObjectUrls): RenderDocument['frame'] {
-  const ownerDocument = root.ownerDocument;
-  const ancestors: FrameElement[] = [];
-
-  for (let node = root.parentElement; node !== null; node = node.parentElement) {
-    const tag = node.tagName.toLowerCase();
-    if (tag === 'html' || tag === 'body') continue;
-    ancestors.unshift({ tag, attributes: framed(node, urls) });
-  }
-
-  // Zero under a profile with no layout engine, and omitted rather than recorded
-  // as `0` — a container width of zero is a claim, and an unobservable one must
-  // never be reported as an observed value (ADR-0002).
-  const containerWidth = root.parentElement?.getBoundingClientRect().width ?? 0;
-
-  return {
-    html: ownerDocument.documentElement ? framed(ownerDocument.documentElement, urls) : {},
-    body: ownerDocument.body ? framed(ownerDocument.body, urls) : {},
-    ancestors,
-    ...(containerWidth > 0 ? { containerWidth } : {}),
-  };
-}
-
-/** `element`'s attributes, by qualified name, with each object URL in them carried. */
-function framed(element: Element, urls: ObjectUrls): Record<string, string> {
-  const attributes = attributesOf(element);
-  for (const edit of urls.editsOf(element)) {
-    attributes[element.getAttributeNodeNS(edit.namespace, edit.name)?.name ?? edit.name] = edit.value;
-  }
-  return attributes;
 }
 
 /**
