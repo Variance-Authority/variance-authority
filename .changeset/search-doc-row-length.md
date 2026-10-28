@@ -1,5 +1,27 @@
 ---
-'@variance-authority/help': patch
+'@variance-authority/help': minor
 ---
 
-`ask search` weighs a word a doc holds at most two thirds as much as the same word in a name, however short the doc. A row's weight is multiplied by how much of the question it holds, each word by its rarity, so a long doc holding every word of a question can sort before a short doc or a short name holding most of them, and a word most rows hold adds little. A name with more than one row — published by more than one package or exported from more than one file, or published and also exported — is weighed through the one it weighs most through, by the words its name and that row's doc hold and by that doc's length, and shown with that row; of rows it weighs as much through, the first in the order the name's rows are shown in, whose doc orders it among names weighing as much by how near it writes the question's words. A word's rarity and the mean doc length are counted over every row a reached name could be weighed through, so the row one name is weighed through never changes another's weight. That order is the one the published section lists a name's rows in and the exported section picks the row it shows by, so every section shows a name through the same row: first where the row holds the question — the name whole, then in its words, then in the doc's opening, then later in the doc — with the question found alike in each in the described section; then a published row before an exported one; a published row more files of the area import first and then the one with more import sites there, when asked with `from` or `to`, then the one more packages import, then the one with more import sites; an exported row from a source file before a test, a test before a story; then the doc's text, a row with no doc last, then what a published row declares or the line an exported row is declared on, then the row's file and a published row's specifier, each in code-unit order. The file and the specifier settle only rows alike in everything else: one name two files export on one line under one doc, or one declaration two specifiers publish. The published and exported sections used to settle a tie between rows of one name by where the index wrote them, which follows package and file names, so renaming a package or a file could change the row they showed; they now settle it by the doc's text, the declaration's kind or line, and only then the row's path. The exported section used to show a name through its first row by kind and text even when another of its rows was the one whose doc opens with the question, which ranked it; it now shows the row that ranks it. Asked with `from` or `to`, a name is counted, weighed and ordered only through the rows of the area, the rows the section shows there: a published row a file of the area imports, or an exported row of a file in the area. The published `SearchIndex` type no longer declares `publishedFile`, the file id of a published row.
+`ask search` weighs and shows a name through one of its rows
+
+A word in a doc weighs at most two thirds of the same word in a name, however short the doc.
+
+A name's weight is multiplied by how much of the question it writes, each word counted by its rarity, so a long doc that writes every word can sort before a short one that writes most of them.
+
+A word's rarity is counted once per name, declaration and file found, a name writing it when any of its rows does, and the mean doc length over the doc of every row found, so no name's weight depends on the row another name is shown through.
+
+A name published by more than one package or exported from more than one file is weighed and shown through one row, never several rows' docs added up: the row its words weigh most through, then the one whose doc writes more of the question's adjacent word pairs, then the first one the published or exported section would show.
+
+A name stays in the described section only when one of its rows writes at least half the question's words; a name whose rows write that many only together is listed in the loose section, when every word finds it there.
+
+A name published anywhere is shown in the published section through a published row, whatever its exported rows write, and the described section weighs a name's rows before it asks whether they are published.
+
+The published and exported sections settle a tie between one name's rows by the doc's text, then what a published row declares or the line an exported row is declared on, then the file, where they used to settle it by where the index wrote each row, which follows package and file names.
+
+A published row has no line, so the file settles two published declarations of one kind under one doc.
+
+The exported section used to show a name through its first row by kind, then the first one written, even when another of its rows was the one whose doc opens with the question and ranked it; it now shows that row.
+
+With `from` or `to`, a name is counted, weighed, ordered and shown only through the rows of the area: a published row a file of the area imports, or an exported row of a file in the area.
+
+The published `SearchIndex` type no longer declares `publishedFile`, the file id of a published row.
