@@ -1,11 +1,13 @@
-import { mkdtemp, writeFile } from 'node:fs/promises';
+import { execFile } from 'node:child_process';
+import { mkdir, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { promisify } from 'node:util';
 import { describe, expect, it } from 'vitest';
 import { digestString } from '../digest.js';
 import { encodeTestCoverage } from './format.js';
 import type { TestCoverage } from './index.js';
-import { backThrough, hunksOf, placeAcross, placeThrough, recordedDigests } from './placed.js';
+import { backThrough, hunksOf, placeAcross, placeInText, placeInTexts, placeThrough } from './placed.js';
 import { stateOf } from './range-state.js';
 import type { CoveringTest, ExecutionTest } from './reverse.js';
 
@@ -114,35 +116,64 @@ describe('a range of one text placed in another', () => {
   });
 });
 
-/** A snapshot holding `src/pay.ts` instrumented over {@link RAN}, `src/env.ts` loaded uninstrumented, and `src/two.ts` cut from two texts. */
-async function snapshot(): Promise<string> {
-  const module = (file: string, sourceDigest: string, instrumented: boolean) => ({
-    file,
-    sourceDigest,
-    instrumented,
-    blocks: instrumented
-      ? [{ ordinal: 0, kind: 'module' as const, digest: `block:${file}`, name: '', path: 'module', startLine: 1, endLine: 6, source: true, testFiles: ['src/pay.test.ts'] }]
-      : [],
-  });
-  const coverage: TestCoverage = {
-    version: 3,
-    instrumentation: 'fixture-instrumentation',
-    tests: [{ file: 'src/pay.test.ts', complete: true, preconditions: [{ name: 'src/pay.test.ts', digest: 'source:test' }] }],
-    modules: [
-      module('src/pay.ts', digestString(RAN), true),
-      module('src/env.ts', 'source:env', false),
-      module('src/two.ts', 'source:one', true),
-      module('src/two.ts', 'source:two', true),
-    ],
-  };
-  const file = join(await mkdtemp(join(tmpdir(), 'variance-recorded-digests-')), 'coverage.bin');
-  await writeFile(file, encodeTestCoverage(coverage));
-  return file;
+/**
+ * A repository holding `src/pay.ts` and `src/same.ts` at {@link RAN}, and a
+ * snapshot at its commit with both instrumented over it, `src/env.ts` loaded
+ * uninstrumented, and `src/two.ts` cut from two texts.
+ */
+async function recorded(run: (root: string, snapshot: string) => Promise<void>): Promise<void> {
+  const root = await realpath(await mkdtemp(join(tmpdir(), 'variance-placed-')));
+  try {
+    await mkdir(join(root, 'src'));
+    await writeFile(join(root, 'src/pay.ts'), RAN);
+    await writeFile(join(root, 'src/same.ts'), RAN);
+    const git = async (...args: string[]) => (await promisify(execFile)('git', args, { cwd: root })).stdout.trim();
+    await git('init', '--quiet');
+    await git('config', 'user.email', 'fixture@example.invalid');
+    await git('config', 'user.name', 'Fixture');
+    await git('add', '--all');
+    await git('commit', '--quiet', '--message', 'ran');
+    const module = (file: string, sourceDigest: string, instrumented: boolean) => ({
+      file,
+      sourceDigest,
+      instrumented,
+      blocks: instrumented
+        ? [{ ordinal: 0, kind: 'module' as const, digest: `block:${file}`, name: '', path: 'module', startLine: 1, endLine: 6, source: true, testFiles: ['src/pay.test.ts'] }]
+        : [],
+    });
+    const coverage: TestCoverage = {
+      version: 3,
+      instrumentation: 'fixture-instrumentation',
+      commit: await git('rev-parse', 'HEAD'),
+      tests: [{ file: 'src/pay.test.ts', complete: true, preconditions: [{ name: 'src/pay.test.ts', digest: 'source:test' }] }],
+      modules: [
+        module('src/pay.ts', digestString(RAN), true),
+        module('src/same.ts', digestString(RAN), true),
+        module('src/env.ts', 'source:env', false),
+        module('src/two.ts', 'source:one', true),
+        module('src/two.ts', 'source:two', true),
+      ],
+    };
+    const snapshot = join(root, 'coverage.bin');
+    await writeFile(snapshot, encodeTestCoverage(coverage));
+    await run(root, snapshot);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
 }
 
-describe('the digest a snapshot recorded of a file', () => {
-  it('is its instrumented rows\' one digest, and absent where they name none or two', async () => {
-    const digests = recordedDigests(await snapshot(), ['src/pay.ts', 'src/env.ts', 'src/two.ts', 'src/gone.ts']);
-    expect(Object.fromEntries(digests)).toEqual({ 'src/pay.ts': digestString(RAN) });
+describe('the text a snapshot recorded each held file from', () => {
+  it('is the held text where the record is its own, the commit\'s where the commit holds it, and none where nothing does', async () => {
+    await recorded(async (root, snapshot) => {
+      const held = new Map([['src/pay.ts', HELD], ['src/same.ts', RAN], ['src/env.ts', HELD], ['src/two.ts', RAN], ['src/gone.ts', HELD]]);
+      const placed = placeInTexts(snapshot, root, held);
+      expect(Object.fromEntries([...placed].map(([file, placement]) => [file, { frame: placement.frame, recorded: placement.recorded }]))).toEqual({
+        'src/pay.ts': { frame: 'mapped', recorded: RAN },
+        'src/same.ts': { frame: 'recorded', recorded: RAN },
+        'src/two.ts': { frame: 'stale' },
+      });
+      expect(placed.get('src/two.ts')).not.toHaveProperty('recorded');
+      expect(placeInText(snapshot, root, 'src/pay.ts', HELD)?.recorded).toBe(RAN);
+    });
   });
 });
