@@ -5,7 +5,7 @@
 
 import type { CommitRuns, RecordedTests, StandingEntry } from './commit-runs.js';
 import { codeUnitOrder } from './instrumented-modules.js';
-import { installKey, type KeptInstall } from './kept-install.js';
+import { installKey } from './kept-install.js';
 
 /**
  * Where each test the snapshot held before this run last ran, leaving out the
@@ -29,8 +29,9 @@ import { installKey, type KeptInstall } from './kept-install.js';
  *
  * The tests in `held`'s `files` take its landing time with them: when its runs
  * landed, and how many there were (none in a seeded record, whose runs are the
- * base's). An entry `held` already lists keeps its own. Where the two meet in
- * one stand, the stand spans both; where either is not known, neither is.
+ * base's), and the install and texts they ran on. An entry `held` already
+ * lists keeps its own. Where the two meet in one stand, the stand spans both;
+ * where either time is not known, neither is.
  *
  * A worktree's first run is laid over a copy of the primary checkout's
  * snapshot, and the record beside it was seeded with that copy: the base's own
@@ -50,33 +51,27 @@ export function standingAfter(
   const unobserved = prior.tests.map((test) => test.file).filter((test) => !observed.has(test));
   if (unobserved.length === 0) return [];
   if (base === undefined || held?.commit !== base) return undefined;
-  // A stand is a commit, whether it was assumed there, and the install it ran
-  // on; the key is all three. The install goes with the tests, as a kept text
-  // does, so a stand is compared from what its tests ran on at every select.
-  const key = (commit: string, assumed: boolean, installed?: KeptInstall): string =>
-    `${assumed ? 'assumed' : 'observed'} ${commit}${installed === undefined ? '' : ` ${installKey(installed)}`}`;
   const stands = new Map<string, StandingEntry>();
   const listed = new Map<string, string>();
   for (const entry of held.standing ?? []) {
-    const at = key(entry.commit, entry.assumed === true, entry.installed);
-    const installed = entry.installed === undefined ? {} : { installed: entry.installed };
-    stands.set(at, { commit: entry.commit, files: [], ...(entry.assumed ? { assumed: true } : {}), ...installed, ...landedOf(entry) });
+    const at = standKey(entry);
+    stands.set(at, { commit: entry.commit, files: [], ...(entry.assumed ? { assumed: true } : {}), ...ranOn(entry), ...landedOf(entry) });
     for (const file of entry.files) listed.set(file, at);
   }
   // Earliest landing first: the record's own order, then the start it names,
   // then its own commit, which landed after every other. That is not oldest
   // first when a run landed at a commit older than the one before it.
-  const start = held.over === undefined ? undefined : key(held.over, true);
+  const start = held.over === undefined ? undefined : standKey({ commit: held.over, assumed: true });
   if (start !== undefined && !stands.has(start)) stands.set(start, { commit: held.over!, files: [], assumed: true });
-  const ranAt = key(base, false, held.installed);
+  const ranAt = standKey({ commit: base, ...ranOn(held) });
   const ranThere = new Set(held.files);
   const own = landedOf(held.runs === 0 ? { first: held.first, latest: held.latest } : held);
   const there = stands.get(ranAt);
   if (there === undefined) {
-    stands.set(ranAt, { commit: base, files: [], ...(held.installed === undefined ? {} : { installed: held.installed }), ...own });
+    stands.set(ranAt, { commit: base, files: [], ...ranOn(held), ...own });
   } else if (unobserved.some((test) => ranThere.has(test))) {
-    const { commit, files, assumed, installed } = there;
-    stands.set(ranAt, { commit, files, ...(assumed ? { assumed } : {}), ...(installed === undefined ? {} : { installed }), ...spanned(there, own) });
+    const { commit, files, assumed } = there;
+    stands.set(ranAt, { commit, files, ...(assumed ? { assumed } : {}), ...ranOn(there), ...spanned(there, own) });
   }
   const grouped = new Map<string, string[]>();
   for (const test of unobserved) {
@@ -89,16 +84,33 @@ export function standingAfter(
     .map(([at, stand]) => ({ ...stand, files: [...new Set(grouped.get(at))].sort(codeUnitOrder) }));
 }
 
+/**
+ * A stand as one string: its commit, whether it was assumed there, and the
+ * install and texts it ran on. Those go with the tests, so a stand is compared
+ * from what its tests ran on at every select, and two runs at one commit over
+ * two of them are two stands.
+ */
+export function standKey(stand: Pick<StandingEntry, 'commit' | 'assumed' | 'installed' | 'texts'>): string {
+  const installed = stand.installed === undefined ? '' : ` ${installKey(stand.installed)}`;
+  const texts = stand.texts === undefined ? '' : ` texts ${installKey(stand.texts)}`;
+  return `${stand.assumed === true ? 'assumed' : 'observed'} ${stand.commit}${installed}${texts}`;
+}
+
+/** The install and texts `of` holds, each where it holds one. */
+function ranOn(of: Pick<StandingEntry, 'installed' | 'texts'>): Pick<StandingEntry, 'installed' | 'texts'> {
+  return { ...(of.installed === undefined ? {} : { installed: of.installed }), ...(of.texts === undefined ? {} : { texts: of.texts }) };
+}
+
 type Landed = Pick<StandingEntry, 'first' | 'latest' | 'runs'>;
 
 /** The landing time `of` holds, or nothing when it holds no first and latest. */
-function landedOf(of: Landed): Landed {
+export function landedOf(of: Landed): Landed {
   if (of.first === undefined || of.latest === undefined) return {};
   return { first: of.first, latest: of.latest, ...(of.runs === undefined ? {} : { runs: of.runs }) };
 }
 
 /** One stand's time once the runs of two land in it: from the earlier first to the later latest. */
-function spanned(one: Landed, other: Landed): Landed {
+export function spanned(one: Landed, other: Landed): Landed {
   if (one.first === undefined || one.latest === undefined || other.first === undefined || other.latest === undefined) return {};
   const runs = one.runs === undefined || other.runs === undefined ? {} : { runs: one.runs + other.runs };
   return {

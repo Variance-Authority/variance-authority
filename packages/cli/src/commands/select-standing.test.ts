@@ -131,7 +131,7 @@ describe('a test that did not run at the journal commit', () => {
     const atP = (await readCommitRuns(repo.file))!;
     await landRun(repo.file, run(repo.root, H, NAMES), repo.root);
     expect((await readCommitRuns(repo.file))?.standing).toEqual([
-      { commit: P, files: ['test/gone.test.ts'], installed: {}, first: atP.first, latest: atP.latest, runs: atP.runs },
+      { commit: P, files: ['test/gone.test.ts'], installed: {}, texts: {}, first: atP.first, latest: atP.latest, runs: atP.runs },
     ]);
 
     const said = await repo.select();
@@ -217,7 +217,7 @@ describe('a test that did not run at the journal commit', () => {
     const atS = (await readCommitRuns(repo.file))!;
     await landRun(repo.file, run(repo.root, H, ['near']), repo.root);
     expect((await readCommitRuns(repo.file))?.standing).toEqual([
-      { commit: S, files: ['test/far.test.ts'], installed: {}, first: atS.first, latest: atS.latest, runs: atS.runs },
+      { commit: S, files: ['test/far.test.ts'], installed: {}, texts: {}, first: atS.first, latest: atS.latest, runs: atS.runs },
     ]);
     expect(repo.git('merge-base', S, H)).toBe(P);
 

@@ -6,7 +6,7 @@ import { promisify } from 'node:util';
 import { describe, expect, it } from 'vitest';
 import { digestString } from '../digest.js';
 import { commitRunsAfter, commitRunsFile, readCommitRuns, type RecordedTests } from './commit-runs.js';
-import { installAfter, installKey, keepRecordedInstall, sameInstall, shardsInstall } from './kept-install.js';
+import { installKey, keptAfter, keepRecordedInstall, sameInstall, shardsInstall, shardsTexts } from './kept-install.js';
 import { keptTexts, landedTree } from './kept-texts.js';
 
 /**
@@ -79,18 +79,18 @@ describe('the install the runs at one commit ran on', () => {
   const bumped = { 'yarn.lock': 'digest:bumped' };
 
   it('stays when another run lands over the same install', () => {
-    expect(installAfter({ files: ['a.test.ts'], installed: bumped }, ['b.test.ts'], { ...bumped })).toEqual(bumped);
+    expect(keptAfter(bumped, ['a.test.ts'], ['b.test.ts'], { ...bumped })).toEqual(bumped);
   });
 
   it('is the latest run\'s when that run observed every test the earlier runs did', () => {
-    expect(installAfter({ files: ['a.test.ts'], installed: bumped }, ['a.test.ts', 'b.test.ts'], {})).toEqual({});
-    expect(installAfter({ files: ['a.test.ts'] }, ['a.test.ts'], bumped)).toEqual(bumped);
+    expect(keptAfter(bumped, ['a.test.ts'], ['a.test.ts', 'b.test.ts'], {})).toEqual({});
+    expect(keptAfter(undefined, ['a.test.ts'], ['a.test.ts'], bumped)).toEqual(bumped);
   });
 
   it('is unknown when the runs at one commit ran on two installs', () => {
-    expect(installAfter({ files: ['a.test.ts'], installed: bumped }, ['b.test.ts'], {})).toBeUndefined();
-    expect(installAfter({ files: ['a.test.ts'] }, ['b.test.ts'], bumped)).toBeUndefined();
-    expect(installAfter({ files: ['a.test.ts'], installed: bumped }, ['a.test.ts'], undefined)).toBeUndefined();
+    expect(keptAfter(bumped, ['a.test.ts'], ['b.test.ts'], {})).toBeUndefined();
+    expect(keptAfter(undefined, ['a.test.ts'], ['b.test.ts'], bumped)).toBeUndefined();
+    expect(keptAfter(bumped, ['a.test.ts'], ['a.test.ts'], undefined)).toBeUndefined();
   });
 
   it('is written into the runs record, and left out where it is not known', () => {
@@ -136,6 +136,14 @@ describe('the install the runs at one commit ran on', () => {
       }
       await writeFile(commitRunsFile(coverage), JSON.stringify(install({ 'yarn.lock': null })));
       expect((await readCommitRuns(coverage))?.installed).toEqual({ 'yarn.lock': null });
+      // Texts name a digest for every path: a module deleted is no text a test ran over.
+      const ran = (texts: unknown) => ({ commit: 'head', first: '', latest: '', runs: 1, files: [], texts });
+      for (const texts of [null, 'src/a.ts', { 'src/a.ts': null }]) {
+        await writeFile(commitRunsFile(coverage), JSON.stringify({ ...ran(texts), standing: [{ commit: 'base', files: ['b.test.ts'], texts }] }));
+        const read = await readCommitRuns(coverage);
+        expect(read).not.toHaveProperty('texts');
+        expect(read?.standing).toEqual([{ commit: 'base', files: ['b.test.ts'] }]);
+      }
     } finally {
       await rm(scratch, { recursive: true, force: true });
     }
@@ -169,6 +177,15 @@ describe('the install a fold of shards ran on', () => {
     ]) {
       expect(shardsInstall([fine, other])).toBeUndefined();
     }
+  });
+
+  it('reads the texts the shards ran over as it reads the install', () => {
+    const edited = { 'src/a.ts': 'digest:edited' };
+    const ran = (files: readonly string[], texts?: typeof edited) => ({ ...shard(files, {}), runs: { ...shard(files, {}).runs, ...(texts === undefined ? {} : { texts }) } });
+    expect(shardsTexts([ran(['a.test.ts'], edited), ran(['b.test.ts'], { ...edited })])).toEqual(edited);
+    expect(shardsTexts([ran(['a.test.ts'], {}), ran(['b.test.ts'], {})])).toEqual({});
+    expect(shardsTexts([ran(['a.test.ts'], edited), ran(['b.test.ts'], {})])).toBeUndefined();
+    expect(shardsTexts([ran(['a.test.ts'], edited), ran(['b.test.ts'])])).toBeUndefined();
   });
 });
 

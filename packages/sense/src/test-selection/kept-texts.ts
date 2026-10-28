@@ -110,6 +110,45 @@ export async function keepRecordedTexts(tree: LandedTree | undefined, record: Te
 }
 
 /**
+ * The text of each module a run ran over where it differs from its commit's:
+ * the module's path, by the digest of that text. A runs record carries it with
+ * the tests the run observed (`commit-runs.ts`), so a reader knows which text
+ * each test ran over long after the tree has moved on.
+ */
+export type KeptTexts = Readonly<Record<string, string>>;
+
+/**
+ * The texts `current` ran over where its commit does not hold them: every
+ * module it instrumented that git says differs from `HEAD`, named by the
+ * digest the run recorded for it, in code-unit order. A module the run
+ * recorded as clean ran over the commit's text, and is not named.
+ *
+ * The digest is the run's own, not the disk's: a module edited again while the
+ * suite ran is named by the text the tests ran over, which `keepRecordedTexts`
+ * then has no text for. `undefined` with no tree to ask, which is outside a
+ * checkout or git not answering.
+ */
+export function ranOverTexts(tree: LandedTree | undefined, current: { readonly modules: readonly { readonly file: string; readonly sourceDigest: string; readonly instrumented: boolean }[] }): KeptTexts | undefined {
+  if (tree === undefined) return undefined;
+  const moved = new Set([...tree.changes.changed, ...tree.changes.gone]);
+  const texts: Record<string, string> = {};
+  for (const module of current.modules) {
+    if (module.instrumented && moved.has(module.file)) texts[module.file] = module.sourceDigest;
+  }
+  return Object.fromEntries(Object.entries(texts).sort(([a], [b]) => codeUnitOrder(a, b)));
+}
+
+/**
+ * `value` as texts, read off a runs record: an object naming each path with a
+ * digest. Anything else is `undefined`, which a reader takes for texts it does
+ * not know.
+ */
+export function keptTextsOf(value: unknown): KeptTexts | undefined {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return undefined;
+  return Object.values(value).every((digest) => typeof digest === 'string') ? (value as KeptTexts) : undefined;
+}
+
+/**
  * Write `text` into the layer at `top` under `digest`, its own digest, unless
  * it is there already. `false` when it could not be written.
  */

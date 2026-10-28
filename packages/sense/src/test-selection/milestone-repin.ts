@@ -38,7 +38,7 @@ import { editsBetween, type EditOf } from './region-edit.js';
 import { withIndexLock } from './index-lock.js';
 import type { TestCoverage } from './index.js';
 import { codeUnitOrder } from './instrumented-modules.js';
-import { installKey, type KeptInstall } from './kept-install.js';
+import { landedOf, spanned, standKey } from './standing-after.js';
 import type { LastFetched } from './mainline-layer.js';
 import { readOwnLayer, writeOwnLayer, type OwnLayer, type OwnState } from './own-layer.js';
 import { writeCoverageBytes } from './record-location.js';
@@ -262,8 +262,8 @@ function repinnedEyes(
 /**
  * The runs record once the record stands on `record`: the runs at its commit
  * as they were, its change now starting at the new milestone, each kept test
- * standing where it last ran, on the install the record said it ran on there,
- * and every other test at the milestone, where the publishing run ran the
+ * standing where it last ran, on the install and over the texts the record
+ * said it ran on there and with the time its runs landed, and every other test at the milestone, where the publishing run ran the
  * whole suite.
  */
 function repinnedRuns(
@@ -278,39 +278,51 @@ function repinnedRuns(
   const files = held.files.filter((file) => kept.has(file));
   const here = new Set(files);
   const milestone = recorded.filter((file) => !kept.has(file));
-  // The install each test ran on where it stands, as the runs record said it.
-  // A test the ledger places at a commit no entry names it at keeps none, and
-  // is compared from that commit.
-  const ranOn = new Map<string, KeptInstall>();
+  // What each test ran on where it stands, and when its runs landed, as the
+  // runs record said it. A test the ledger places at a commit no entry names
+  // it at keeps none of it, and is compared from that commit.
+  const ranOn = new Map<string, StandingEntry>();
   for (const entry of held.standing ?? []) {
-    if (entry.assumed || entry.installed === undefined) continue;
-    for (const file of entry.files) ranOn.set(`${entry.commit} ${file}`, entry.installed);
+    if (entry.assumed) continue;
+    for (const file of entry.files) ranOn.set(`${entry.commit} ${file}`, entry);
   }
-  const keyOf = (installed: KeptInstall | undefined) => (installed === undefined ? '' : installKey(installed));
-  const standing: StandingEntry[] = [];
-  if (milestone.length > 0) standing.push({ commit: record.commit, files: milestone });
+  // One entry per stand, its time spanning the entries its tests came from,
+  // each counted once: not known when any of them is.
+  const groups = new Map<string, { readonly stand: StandingEntry; readonly files: string[]; readonly from: Set<StandingEntry | undefined> }>();
+  if (milestone.length > 0) {
+    const stand = { commit: record.commit, files: [] };
+    groups.set(standKey(stand), { stand, files: [...milestone], from: new Set([undefined]) });
+  }
   for (const state of states) {
-    const byInstall = new Map<string, { installed: KeptInstall | undefined; files: string[] }>();
     for (const file of state.files.filter((one) => !here.has(one))) {
-      const installed = ranOn.get(`${state.commit} ${file}`);
-      const group = byInstall.get(keyOf(installed)) ?? { installed, files: [] };
+      const from = ranOn.get(`${state.commit} ${file}`);
+      const stand: StandingEntry = {
+        commit: state.commit,
+        files: [],
+        ...(from?.installed === undefined ? {} : { installed: from.installed }),
+        ...(from?.texts === undefined ? {} : { texts: from.texts }),
+      };
+      const group = groups.get(standKey(stand)) ?? { stand, files: [], from: new Set() };
       group.files.push(file);
-      byInstall.set(keyOf(installed), group);
-    }
-    for (const { installed, files: rest } of byInstall.values()) {
-      const install = installed === undefined ? {} : { installed };
-      const same = standing.find((entry) =>
-        entry.commit === state.commit && entry.assumed === undefined && keyOf(entry.installed) === keyOf(installed));
-      if (same === undefined) standing.push({ commit: state.commit, files: rest, ...install });
-      else standing.splice(standing.indexOf(same), 1, { commit: same.commit, files: [...same.files, ...rest].sort(codeUnitOrder), ...install });
+      group.from.add(from);
+      groups.set(standKey(stand), group);
     }
   }
+  const standing = [...groups.values()].map(({ stand, files: its, from }) => {
+    const sources = [...from];
+    const time = sources.some((source) => source === undefined)
+      ? {}
+      : sources.slice(1).reduce((span, source) => spanned(span, landedOf(source!)), landedOf(sources[0]!));
+    return { ...stand, files: [...new Set(its)].sort(codeUnitOrder), ...time };
+  });
   // At the snapshot's own commit, which repairs a runs record a crash left
   // naming another. The install the record kept differed from the commit it
   // named; moved to another commit, it would be compared from the wrong one,
-  // so it is dropped and the install is compared from the new commit.
+  // so it is dropped and the install is compared from the new commit. So are
+  // the texts it named, which say nothing of a module they do not name until
+  // read from the commit they were named at.
   if (commit === undefined || commit === held.commit) return { ...held, over: record.commit, files, standing };
-  const { installed: _measuredElsewhere, ...rest } = held;
+  const { installed: _measuredElsewhere, texts: _ranOverElsewhere, ...rest } = held;
   return { ...rest, commit, over: record.commit, files, standing };
 }
 

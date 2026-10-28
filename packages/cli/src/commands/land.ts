@@ -95,23 +95,23 @@ async function landCombined(
   const unmeasured = combined.shards.flatMap((shard) => (shard.measured ? [] : shard.files));
 
   // Each shard's own landing kept the install it ran on in the runs record
-  // beside its snapshot, where that shard ran, and the fold ran on it only when
-  // every shard names the same one. A record that cannot be read names none.
-  // A shard that recorded no test file ran no test the install could speak for,
-  // so it names nothing either way and is left out.
+  // beside its snapshot, where that shard ran, and named the texts it ran over;
+  // the fold ran on them only when every shard names the same ones. A record
+  // that cannot be read names none. A shard that recorded no test file ran no
+  // test they could speak for, so it names nothing either way and is left out.
   // FIXME: the texts a shard's install names are kept in the cache of the
   // machine it ran on, and nothing carries them here, so a shard that ran over
   // an uncommitted install elsewhere is compared from its commit after all.
-  const installed = fold === undefined
+  const ran = fold === undefined
     ? undefined
-    : selection.shardsInstall(
-        await Promise.all(
-          measured.filter((shard) => shard.files.length > 0).map(async (shard) => ({
-            tests: { ...(shard.commit == null ? {} : { commit: shard.commit }), tests: shard.files.map((file) => ({ file })) },
-            runs: await shardRuns(shard.path),
-          })),
-        ),
+    : await Promise.all(
+        measured.filter((shard) => shard.files.length > 0).map(async (shard) => ({
+          tests: { ...(shard.commit == null ? {} : { commit: shard.commit }), tests: shard.files.map((file) => ({ file })) },
+          runs: await shardRuns(shard.path),
+        })),
       );
+  const installed = ran === undefined ? undefined : selection.shardsInstall(ran);
+  const ranOver = ran === undefined ? undefined : selection.shardsTexts(ran);
 
   // A checkout's first landing starts from the base its first `yarn test`
   // would: the mainline's record as last fetched here, else the primary
@@ -176,7 +176,7 @@ async function landCombined(
     // and land again, which writes the same record.
     const held = await selection.heldCommitRuns(at, (line) => process.stderr.write(`variance: ${line}\n`));
     const before = previous === undefined ? undefined : selection.recordedRun(previous.coverage);
-    const runs = folded === undefined ? undefined : selection.commitRunsAfter(before, held, folded, installed);
+    const runs = folded === undefined ? undefined : selection.commitRunsAfter(before, held, folded, installed, ranOver);
     // The index beside the snapshot was cut from the texts the snapshot names,
     // and a module no shard recorded is laid onto the cut its rows landed at.
     const texts = selection.textsOf(before);

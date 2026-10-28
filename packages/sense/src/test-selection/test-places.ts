@@ -5,6 +5,7 @@
  */
 
 import type { CommitRuns } from './commit-runs.js';
+import type { KeptTexts } from './kept-texts.js';
 
 /** Where one test last ran. */
 export interface TestPlace {
@@ -21,6 +22,11 @@ export interface TestPlace {
   readonly first?: string;
   readonly latest?: string;
   readonly runs?: number;
+  /**
+   * The texts it ran over where they differ from `commit`'s, as the record
+   * holds them (`CommitRuns.texts`). Absent when the record does not know.
+   */
+  readonly texts?: KeptTexts;
 }
 
 /**
@@ -50,12 +56,23 @@ export function placesOf({ commit, runs, tests }: { readonly commit: string; rea
     return { places, assumed: tests.length === 0 ? undefined : `the runs record beside the snapshot is ${whose}, not ${at}'s, ${everyTest}` };
   }
   const ran = new Set(runs.files);
-  const here: TestPlace = { commit, first: runs.first, latest: runs.latest, ...(runs.runs > 0 ? { runs: runs.runs } : {}) };
+  const here: TestPlace = {
+    commit,
+    first: runs.first,
+    latest: runs.latest,
+    ...(runs.runs > 0 ? { runs: runs.runs } : {}),
+    ...(runs.texts === undefined ? {} : { texts: runs.texts }),
+  };
   const listed = new Map<string, TestPlace>();
   for (const entry of runs.standing ?? []) {
     const place: TestPlace = entry.assumed === true
       ? { commit: entry.commit, assumed: true }
-      : { commit: entry.commit, ...(entry.first === undefined || entry.latest === undefined ? {} : { first: entry.first, latest: entry.latest }), ...(entry.runs === undefined ? {} : { runs: entry.runs }) };
+      : {
+          commit: entry.commit,
+          ...(entry.first === undefined || entry.latest === undefined ? {} : { first: entry.first, latest: entry.latest }),
+          ...(entry.runs === undefined ? {} : { runs: entry.runs }),
+          ...(entry.texts === undefined ? {} : { texts: entry.texts }),
+        };
     for (const file of entry.files) listed.set(file, place);
   }
   const fallback: TestPlace = { commit: runs.over ?? commit, assumed: true };

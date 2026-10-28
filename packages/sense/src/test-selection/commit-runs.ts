@@ -52,8 +52,8 @@ import { RecordWithoutCoverage } from './format-validation.js';
 import { openTestCoverage } from './format-view.js';
 import { codeUnitOrder } from './instrumented-modules.js';
 import type { TestCoverage } from './index.js';
-import { installAfter, keepRecordedInstall, keptInstallOf, type KeptInstall } from './kept-install.js';
-import { keepRecordedTexts, landedTree } from './kept-texts.js';
+import { keepRecordedInstall, keptAfter, keptInstallOf, type KeptInstall } from './kept-install.js';
+import { keepRecordedTexts, keptTextsOf, landedTree, ranOverTexts, type KeptTexts } from './kept-texts.js';
 import { ownLayerAfter, readOwnLayer, workingTree, writeOwnLayer } from './own-layer.js';
 import { recordBase, takeReadFor } from './record-base.js';
 import { standingAfter } from './standing-after.js';
@@ -120,6 +120,16 @@ export interface CommitRuns {
    * all name one install, or runs at this commit over two installs. A reader compares from `commit` then.
    */
   readonly installed?: KeptInstall;
+  /**
+   * The texts the tests in `files` ran over where they differ from `commit`'s:
+   * each edited module they instrumented, by the digest of its text
+   * (`kept-texts.ts`). Empty when they ran over the commit's own. Absent when
+   * that is not known: a record written before texts were named, a run
+   * outside a checkout, a landing of shards that did not all name one set, or
+   * runs at this commit over two. A module it does not name ran over the
+   * commit's text only while the record says it knows.
+   */
+  readonly texts?: KeptTexts;
 }
 
 /** Tests that last ran at one commit, or were assumed to have when no record could say. */
@@ -129,6 +139,8 @@ export interface StandingEntry {
   readonly assumed?: true;
   /** The install they ran on, as {@link CommitRuns.installed} says it; absent when not known. */
   readonly installed?: KeptInstall;
+  /** The texts they ran over, as {@link CommitRuns.texts} says it; absent when not known. */
+  readonly texts?: KeptTexts;
   /**
    * When the runs they last ran in landed, as {@link CommitRuns.first} and
    * `latest` said it while those runs were the record's own, and how many
@@ -213,11 +225,13 @@ export async function landRun(
   const kept = await keepRecordedTexts(landed, openTestCoverage(bytes));
   // So is the install it ran on, before the record that names it.
   const installed = await keepRecordedInstall(landed);
+  // And the texts it ran over, named whether or not a text could be kept.
+  const ranOver = ranOverTexts(landed, current);
   // FIXME: two writes, and nothing makes them one. A failed record write, or a
   // process killed between them, leaves the snapshot at this run's commit
   // beside the record of the one before: the shape `commitRunsAfter` reads as
   // a retried landing, which the next run here repairs and nothing else does.
-  await writeCommitRuns(commitRunsFile(coverageFile), commitRunsAfter(before, held, current, installed));
+  await writeCommitRuns(commitRunsFile(coverageFile), commitRunsAfter(before, held, current, installed, ranOver));
   // The ledger last: it names this run's tests as this checkout's, and a
   // landing that died before it leaves them read as the milestone's, which a
   // re-run here corrects. A record with no ledger was laid before there was
@@ -283,15 +297,17 @@ function coveredRecord(coverageFile: string, bytes: Buffer | undefined): Buffer 
  * {@link landRun} reads both inputs off the disk. A landing of shard snapshots
  * has already read the snapshot to merge over it, and passes that.
  *
- * `installed` is the install `current` ran on, which {@link landRun} keeps; a
- * landing of shards passes the one their own landings kept, when they agree
- * (`shardsInstall`).
+ * `installed` is the install `current` ran on, which {@link landRun} keeps,
+ * and `texts` the texts it ran over (`ranOverTexts`); a landing of shards
+ * passes the ones their own landings named, when they agree (`shardsInstall`,
+ * `shardsTexts`).
  */
 export function commitRunsAfter(
   before: RecordedTests | undefined,
   held: CommitRuns | undefined,
   current: RecordedTests,
   installed?: KeptInstall,
+  texts?: KeptTexts,
 ): CommitRuns {
   const prior = before?.instrumentation === current.instrumentation ? before : undefined;
   const stood = prior?.commit;
@@ -312,7 +328,8 @@ export function commitRunsAfter(
   const over = again ? held.over : retried ? held.commit : stood;
   const ran = again ? [...new Set([...held.files, ...files])].sort(codeUnitOrder) : files;
   const standing = current.commit === undefined ? undefined : standingAfter(prior, held, retried ? held.commit : stood, ran);
-  const install = again ? installAfter(held, files, installed) : installed;
+  const install = again ? keptAfter(held.installed, held.files, files, installed) : installed;
+  const ranOver = again ? keptAfter(held.texts, held.files, files, texts) : texts;
   return {
     ...(current.commit === undefined ? {} : { commit: current.commit }),
     ...(over === undefined ? {} : { over }),
@@ -322,6 +339,7 @@ export function commitRunsAfter(
     files: ran,
     ...(standing === undefined ? {} : { standing }),
     ...(install === undefined ? {} : { installed: install }),
+    ...(ranOver === undefined ? {} : { texts: ranOver }),
   };
 }
 
@@ -344,9 +362,9 @@ export async function writeCommitRuns(to: string, record: CommitRuns): Promise<v
  * what to do. A writer need not refuse: {@link heldCommitRuns} lets it write a
  * record that says less, and says so.
  *
- * An install the record holds that is not one is left out, where it stands and
- * at the record's commit: an install not known compares from the commit, which
- * runs more and skips nothing.
+ * An install or texts the record holds that are not one are left out, where
+ * they stand and at the record's commit: an install not known compares from
+ * the commit, which runs more and skips nothing, and texts not known say so.
  */
 export async function readCommitRuns(coverageFile: string): Promise<CommitRuns | undefined> {
   const file = commitRunsFile(coverageFile);
@@ -370,22 +388,21 @@ export async function readCommitRuns(coverageFile: string): Promise<CommitRuns |
   if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
     throw new Error(`the runs record at ${file} is not a JSON object`);
   }
-  return withKnownInstalls(parsed as CommitRuns);
+  return withKnownKept(parsed as CommitRuns);
 }
 
-/** `record` with every install it holds that is not one left out: an install not known is compared from its commit. */
-function withKnownInstalls(record: CommitRuns): CommitRuns {
-  const { installed, ...rest } = record as CommitRuns & { readonly installed?: unknown };
-  const known = keptInstallOf(installed);
+/** `record` with every install and texts it holds that are not one left out: what is not known is compared from its commit. */
+function withKnownKept(record: CommitRuns): CommitRuns {
+  const known = <T extends { readonly installed?: unknown; readonly texts?: unknown }>(of: T): Omit<T, 'installed' | 'texts'> & Pick<CommitRuns, 'installed' | 'texts'> => {
+    const { installed, texts, ...rest } = of;
+    const install = keptInstallOf(installed);
+    const ranOver = keptTextsOf(texts);
+    return { ...rest, ...(install === undefined ? {} : { installed: install }), ...(ranOver === undefined ? {} : { texts: ranOver }) };
+  };
   const standing = Array.isArray(record.standing)
-    ? record.standing.map((entry) => {
-        if (typeof entry !== 'object' || entry === null) return entry;
-        const { installed: its, ...stand } = entry as StandingEntry & { readonly installed?: unknown };
-        const kept = keptInstallOf(its);
-        return kept === undefined ? stand : { ...stand, installed: kept };
-      })
+    ? record.standing.map((entry) => (typeof entry !== 'object' || entry === null ? entry : (known(entry) as StandingEntry)))
     : record.standing;
-  return { ...rest, ...(standing === undefined ? {} : { standing }), ...(known === undefined ? {} : { installed: known }) };
+  return { ...(known(record) as CommitRuns), ...(standing === undefined ? {} : { standing }) };
 }
 
 /**

@@ -6,7 +6,7 @@ import { promisify } from 'node:util';
 import { describe, expect, it, vi } from 'vitest';
 import { digestString } from '../digest.js';
 import { repositoryLayers } from './cache-layers.js';
-import { landRun } from './commit-runs.js';
+import { landRun, readCommitRuns } from './commit-runs.js';
 import { narrowByExecution, testCoverageFile, type FileReading, type TestCoverage } from './index.js';
 import { KEPT_TEXTS, keepRecordedTexts, keepText, keptDigests, keptTexts, landedTree } from './kept-texts.js';
 import { openTestCoverage } from './format-view.js';
@@ -278,6 +278,46 @@ describe('a run recorded over an edit keeps the text it ran over', () => {
  * nothing, and the record's kept text says the tree moved back under the tests
  * that ran the edit.
  */
+describe('the runs record names the texts its runs ran over', () => {
+  it('names each edited module by the digest of the text the run ran over, and none for a clean tree', async () => {
+    await checkout(async (at) => {
+      const clean = await recordOver(at, COMMITTED);
+      expect((await readCommitRuns(clean))?.texts).toEqual({});
+    });
+    await checkout(async (at) => {
+      const edited = await recordOver(at, FIRST_EDITED);
+      expect((await readCommitRuns(edited))?.texts).toEqual({ [FILE]: digestString(FIRST_EDITED) });
+    });
+  });
+
+  it('carries the texts with the tests a run at another commit did not observe', async () => {
+    await checkout(async (at) => {
+      const coverageFile = await recordOver(at, FIRST_EDITED);
+      const before = (await readCommitRuns(coverageFile))!;
+      await writeFile(resolve(at.root, FILE), COMMITTED, 'utf8');
+      await writeFile(resolve(at.root, 'README.md'), 'another commit\n', 'utf8');
+      await at.git('add', '--all');
+      await at.git('commit', '--quiet', '--message', 'another commit');
+      const next = await at.git('rev-parse', 'HEAD');
+      const run = recording(COMMITTED, next);
+      const second = {
+        ...run,
+        tests: run.tests.filter((test) => test.file === TESTS[1]),
+        modules: run.modules.map((module) => ({
+          ...module,
+          blocks: module.blocks.map((block) => ({ ...block, testFiles: block.testFiles.filter((file) => file === TESTS[1]) })),
+        })),
+      };
+      await landRun(coverageFile, second, at.root, at.cacheRoot);
+      const after = (await readCommitRuns(coverageFile))!;
+      expect(after.texts).toEqual({});
+      expect(after.standing).toEqual([
+        { commit: at.commit, files: [TESTS[0]], first: before.first, latest: before.latest, runs: 1, installed: {}, texts: { [FILE]: digestString(FIRST_EDITED) } },
+      ]);
+    });
+  });
+});
+
 describe('an undone edit', () => {
   async function undone(
     at: Checkout,

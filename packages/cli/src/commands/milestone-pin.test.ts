@@ -255,13 +255,22 @@ describe('the milestone under a checkout', () => {
 
   it('stands the tests that ran at one commit on one install as one entry, over every working state they ran in', async () => {
     const { worktree, own, next, installed } = await standingOverTwoStates();
+    const ran = [...((await readCommitRuns(own))?.standing ?? [])].filter((entry) => entry.commit === next);
     await refetch(worktree, next);
 
     expect(await suiteBase(worktree, { env: LOCAL })).toMatchObject({ repin: { repinned: true, to: next } });
 
-    // The ledger lists `total`'s state first; the entry names both in code-unit order.
+    // The ledger lists `total`'s state first; the entry names both in code-unit
+    // order, and spans the time the runs of both landed.
     expect((await readCommitRuns(own))?.standing).toEqual([
-      { commit: next, files: ['test/other.test.ts', 'test/total.test.ts'], installed },
+      {
+        commit: next,
+        files: ['test/other.test.ts', 'test/total.test.ts'],
+        installed,
+        first: ran.map((entry) => entry.first!).sort()[0],
+        latest: ran.map((entry) => entry.latest!).sort().at(-1),
+        runs: ran.reduce((sum, entry) => sum + entry.runs!, 0),
+      },
     ]);
   });
 
