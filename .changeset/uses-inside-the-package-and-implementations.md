@@ -21,6 +21,6 @@ where it goes, such as `run({ deps: { readJourney } })`, writes no type on its
 line: the answer says so and names the declaration to ask TypeScript's
 go-to-implementation about.
 
-The source index moves to format 37: it holds the lines a file uses each
+The source index moves to format 38: it holds the lines a file uses each
 import's binding on, and the `implement` members. The first command after the
 upgrade reads every file again.
