@@ -74,15 +74,15 @@ export function ranText(answer: Covering, now: number): readonly string[] {
     const { count, others } = counted(uncompared);
     lines.push({ at: earliest(uncompared), said: `${capital(subject(ran, count, others))} last ran ${when(uncompared, now)}.` });
   }
-  for (const stand of whole) {
+  // Every file a stand ran over not as it is now is said, each verdict in a line of its own.
+  for (const stand of whole.filter((one) => one.text !== 'held')) {
     const names = list(stand.tests, 'other test files');
-    if (stand.text === 'other') {
-      const of = list(stand.other ?? asked, 'other files');
-      lines.push({ at: earliest([stand]), said: `${names} ran over another text of ${of}, ${when([stand], now)}${regionText(answer, stand)}.` });
-    } else if (stand.unknown !== undefined) {
-      const of = list(asked, 'other files');
-      lines.push({ at: earliest([stand]), said: `Whether ${names} ran over ${of} as it is now, ${when([stand], now)}, is not known: ${stand.unknown}.` });
-    }
+    const at = when([stand], now);
+    const said = (line: string) => lines.push({ at: earliest([stand]), said: line });
+    if (stand.held !== undefined) said(`${list(stand.held, 'other files')} ${stand.held.length === 1 ? 'is the text' : 'are the texts'} ${names} ran over, ${at}.`);
+    if (stand.other !== undefined) said(`${names} ran over another text of ${list(stand.other, 'other files')}, ${at}${regionText(answer, stand)}.`);
+    if (stand.absent !== undefined) said(`${list(stand.absent, 'other files')} did not exist where ${names} ran, ${at}.`);
+    if (stand.unknown !== undefined) said(`Whether ${names} ran over ${list(unknownOf(stand, asked), 'other files')} as it is now, ${at}, is not known: ${stand.unknown}.`);
   }
   for (const [test, parts] of parted) lines.push({ at: earliest(parts), said: partsText(answer, ran, test, parts, asked, now) });
   const off = unheld.length === 1 ? 'is not on disk, so no text of it is held' : 'are not on disk, so no text of them is held';
@@ -113,13 +113,27 @@ function partsText(answer: Covering, ran: CoveringRan, test: string, parts: read
   return `${test} ran ${said.slice(0, -1).join(', ')}, and ${said.at(-1)!}.`;
 }
 
-/** What one part of a test file ran over and when, after its cases: ` over this text, in a run that landed 1 hour ago`. */
+/**
+ * What one part of a test file ran over and when, after its cases: ` over this
+ * text, in a run that landed 1 hour ago`, each file's verdict said.
+ */
 function partText(answer: Covering, part: RanStand, asked: readonly string[], now: number): string {
   const at = when([part], now);
   if (part.text === 'held') return ` over ${asked.length === 1 ? 'this text' : 'these texts'}, ${at}`;
-  if (part.text === 'other') return ` over another text of ${list(part.other ?? asked, 'other files')}, ${at}${partRegion(answer, part)}`;
-  if (part.unknown !== undefined) return ` over a text of ${list(asked, 'other files')} not known, ${at}, since ${part.unknown}`;
-  return ` ${at}`;
+  const over = [
+    ...(part.held === undefined ? [] : [`over the text of ${list(part.held, 'other files')} as it is now`]),
+    ...(part.other === undefined ? [] : [`over another text of ${list(part.other, 'other files')}`]),
+    ...(part.absent === undefined ? [] : [`where ${list(part.absent, 'other files')} did not exist`]),
+    ...(part.unknown === undefined ? [] : [`over a text of ${list(unknownOf(part, asked), 'other files')} not known`]),
+  ];
+  if (over.length === 0) return ` ${at}`;
+  return ` ${over.join(' and ')}, ${at}${partRegion(answer, part)}${part.unknown === undefined ? '' : `, since ${part.unknown}`}`;
+}
+
+/** The asked files a stand's `unknown` is of: every one it gives no other verdict of. */
+function unknownOf(stand: RanStand, asked: readonly string[]): readonly string[] {
+  const said = [...(stand.held ?? []), ...(stand.other ?? []), ...(stand.absent ?? [])];
+  return asked.filter((file) => !said.includes(file));
 }
 
 /** The asked region of a part that ran another text, after its time: whether it is the same in both texts. */

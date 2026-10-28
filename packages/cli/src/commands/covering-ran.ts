@@ -20,7 +20,7 @@ import {
   type TestPlace,
 } from '@variance-authority/sense/test-selection';
 import type { RunsRead } from './base-diff.js';
-import { evidenceOf, ranOver, regionVerdict, type Evidence, type Region } from './covering-ran-evidence.js';
+import { evidenceOf, ranOver, regionVerdict, type Evidence, type NotHeld, type Region } from './covering-ran-evidence.js';
 import { listedIn } from './covering-where.js';
 import type { CoveringTarget } from './covering.js';
 
@@ -54,12 +54,17 @@ export interface RanStand {
   readonly partly?: readonly { readonly commit?: string; readonly landed?: Landed }[];
   /**
    * `held` when they ran over the asked text of every asked file, `other`
-   * when they ran over another text of the files in `other`. Absent when no
-   * text was held to compare, or with `unknown`.
+   * when they ran over another text of the files in `other`, or over none of
+   * those in `absent`, which did not exist where they ran. Absent when no text
+   * was held to compare, or when neither is so of any file and `unknown` says
+   * why.
    */
   readonly text?: 'held' | 'other';
   readonly other?: readonly string[];
-  /** Why whether they ran over the asked text is not known. */
+  readonly absent?: readonly string[];
+  /** When not every asked file's text is the one they ran over: those whose is. */
+  readonly held?: readonly string[];
+  /** Why whether they ran over the asked text of each asked file not in `held`, `other` or `absent` is not known. */
   readonly unknown?: string;
   /**
    * With `other` and an asked line or function: whether it is the same in
@@ -294,8 +299,8 @@ function runsOf(place: TestPlace): readonly TestPlace[] {
   return [place, ...(place.partly ?? [])];
 }
 
-/** The verdict of one stand: `text`, `other`, `unknown` and `region` of {@link RanStand}. */
-type Verdict = Pick<RanStand, 'text' | 'other' | 'unknown' | 'region'>;
+/** The verdict of one stand: `text`, `other`, `absent`, `held`, `unknown` and `region` of {@link RanStand}. */
+type Verdict = Pick<RanStand, 'text' | 'other' | 'absent' | 'held' | 'unknown' | 'region'>;
 
 function regionOf(answer: RanNamed, question: RanQuestion): Region {
   const target = answer.target;
@@ -312,37 +317,43 @@ function regionOf(answer: RanNamed, question: RanQuestion): Region {
 }
 
 /**
- * One unit's verdict for the asked files, each held text against the text
- * each run its cases may have last run in ran over (`ranOver`). A unit whose
- * text is not known is not known, and no other unit is touched by it.
+ * One unit's verdict for each asked file, its held text against the text each
+ * run its cases may have last run in ran over (`ranOver`). Every file is said:
+ * one whose text is not known hides no other's verdict, and none hides it.
  */
 function verdictOf(unit: Unit, held: ReadonlyMap<string, string>, evidence: Evidence, region: Region, precondition: boolean): Verdict {
+  const same: string[] = [];
   const other: string[] = [];
-  let unknown: string | undefined;
+  const absent: string[] = [];
+  const unknown: string[] = [];
   let regional: RanStand['region'];
   for (const [file, text] of held) {
     const rans = unit.runs.map((run) => ranOver(run, unit.test, file, text, evidence, precondition));
-    const unread = rans.flatMap((ran) => (ran !== 'held' && 'unknown' in ran ? [ran.unknown] : []));
-    if (unread.length > 0) {
-      unknown ??= unread[0];
-      continue;
-    }
-    const others = rans.flatMap((ran) => (ran !== 'held' && 'text' in ran ? [ran.text] : []));
-    if (others.length === 0) continue;
+    const unread = rans.flatMap((ran) => (typeof ran === 'object' && 'unknown' in ran ? [ran.unknown] : []));
+    if (unread.length > 0) unknown.push(unread[0]!);
+    else if (rans.every((ran) => ran === 'held')) same.push(file);
     // A later run in part that does not say which cases it ran holds some of the
     // file's cases, so runs that ran over the asked text and runs that did not
     // leave no text its cases ran over.
-    if (others.length < rans.length) {
-      unknown ??= apart(file);
-      continue;
+    else if (rans.some((ran) => ran === 'held')) unknown.push(apart(file));
+    else if (rans.every((ran) => ran === 'absent')) absent.push(file);
+    else {
+      other.push(file);
+      if (held.size !== 1) continue;
+      const overs = rans.filter((ran): ran is NotHeld => ran === 'absent' || (typeof ran === 'object' && 'text' in ran));
+      const regions = overs.map((over) => regionVerdict(region, text, over, file));
+      regional = regions.find((one) => typeof one === 'object') ?? (regions.every((one) => one === regions[0]) ? regions[0] : { unknown: apart(file) });
     }
-    other.push(file);
-    if (regional !== undefined || held.size !== 1) continue;
-    const regions = others.map((ran) => regionVerdict(region, text, ran, file));
-    regional = regions.find((one) => typeof one === 'object') ?? (regions.every((one) => one === regions[0]) ? regions[0] : { unknown: apart(file) });
   }
-  if (other.length > 0) return { text: 'other', other, ...(regional === undefined ? {} : { region: regional }) };
-  return unknown === undefined ? { text: 'held' } : { unknown };
+  if (same.length === held.size) return { text: 'held' };
+  return {
+    ...(other.length > 0 || absent.length > 0 ? { text: 'other' as const } : {}),
+    ...(same.length === 0 ? {} : { held: same }),
+    ...(other.length === 0 ? {} : { other }),
+    ...(absent.length === 0 ? {} : { absent }),
+    ...(regional === undefined ? {} : { region: regional }),
+    ...(unknown.length === 0 ? {} : { unknown: [...new Set(unknown)].join('; ') }),
+  };
 }
 
 /** Why a test file's runs ran over different texts of `file` leave its cases' text not known. */

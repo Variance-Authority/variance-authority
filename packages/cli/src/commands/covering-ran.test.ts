@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process';
 import { rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -285,6 +286,65 @@ describe('a covering answer says when the test files it names last ran, and over
     expect(json).toMatchObject({ ran: { unheld: ['src/setup.ts'], stands: [{ tests: ['src/pay.test.ts'], text: 'held' }] } });
     expect(text).toContain('src/setup.ts is not on disk, so no text of it is held.\n');
     expect(text).toContain('src/pay.ts is the text the test file named here ran over, in a run that landed 6 minutes ago.\n');
+  });
+
+  it('says a file added after a test file ran did not exist where it ran, beside every other file\'s verdict', async () => {
+    const { at, commit } = await checkout({ runs: (_, recorded) => ({ commit: recorded, ...oneRun(iso(Date.now() - 6 * MINUTE), ['src/pay.test.ts']) }) });
+    await writeFile(join(at, 'src/extra.ts'), 'export const extra = 1;\n');
+    execFileSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', 'add', '.'], { cwd: at });
+    execFileSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '--quiet', '-m', 'extra'], { cwd: at });
+    const cwd = process.cwd();
+    process.chdir(at);
+    const added = await ask(at, '--since', 'HEAD~1').finally(() => process.chdir(cwd));
+
+    expect(added.json['ran']).toEqual({
+      named: 'read',
+      stands: [{ commit, tests: ['src/pay.test.ts'], landed: expect.any(Object), text: 'other', absent: ['src/extra.ts'] }],
+    });
+    expect(added.text).toContain('src/extra.ts did not exist where src/pay.test.ts ran, in a run that landed 6 minutes ago.\n');
+
+    await writeFile(join(at, 'src/pay.ts'), PAY.replace('return amount;', 'return amount + 0;'));
+    process.chdir(at);
+    const edited = await ask(at, '--since', 'HEAD~1').finally(() => process.chdir(cwd));
+
+    expect(edited.json['ran']).toEqual({
+      stands: [{ commit, tests: ['src/pay.test.ts'], landed: expect.any(Object), text: 'other', other: ['src/pay.ts'], absent: ['src/extra.ts'] }],
+    });
+    expect(edited.text).toContain([
+      'src/pay.test.ts ran over another text of src/pay.ts, in a run that landed 6 minutes ago.',
+      'src/extra.ts did not exist where src/pay.test.ts ran, in a run that landed 6 minutes ago.',
+    ].join('\n  '));
+  });
+
+  it('says which file\'s text is not known beside a file a test file ran another text of', async () => {
+    const now = Date.now();
+    const foreign = 'f'.repeat(40);
+    const { at } = await checkout({
+      fee: true,
+      runs: (_, recorded) => ({
+        commit: recorded, ...oneRun(iso(now - 6 * MINUTE), ['src/fee.test.ts']),
+        standing: [{ commit: foreign, files: ['src/pay.test.ts'], first: iso(now - 2 * HOUR), latest: iso(now - 2 * HOUR), runs: 1, texts: { 'src/pay.ts': digestString(PAY) } }],
+      }),
+    });
+    await writeFile(join(at, 'src/extra.ts'), 'export const extra = 1;\n');
+    execFileSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', 'add', '.'], { cwd: at });
+    execFileSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '--quiet', '-m', 'extra'], { cwd: at });
+    await writeFile(join(at, 'src/pay.ts'), PAY.replace('return amount;', 'return amount + 0;'));
+    const cwd = process.cwd();
+    process.chdir(at);
+    const { text, json } = await ask(at, '--since', 'HEAD~1').finally(() => process.chdir(cwd));
+
+    expect(json['ran']).toMatchObject({
+      stands: [{
+        commit: foreign, tests: ['src/pay.test.ts'], text: 'other', other: ['src/pay.ts'],
+        unknown: 'this clone holds no committed text of src/extra.ts where that run stood',
+      }, { tests: ['src/fee.test.ts'], text: 'other', other: ['src/pay.ts'], absent: ['src/extra.ts'] }],
+    });
+    expect(text).toContain([
+      'src/pay.test.ts ran over another text of src/pay.ts, in a run that landed 2 hours ago.',
+      'Whether src/pay.test.ts ran over src/extra.ts as it is now, in a run that landed 2 hours ago, is not known: ' +
+      'this clone holds no committed text of src/extra.ts where that run stood.',
+    ].join('\n  '));
   });
 
   it('says in the review reading\'s heading that the record names no commit', async () => {

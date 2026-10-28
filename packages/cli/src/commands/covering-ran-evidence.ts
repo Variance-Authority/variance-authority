@@ -9,14 +9,18 @@
 
 import { realpath } from 'node:fs/promises';
 import { join, relative, sep } from 'node:path';
+import { existedAt } from '@variance-authority/sense';
 import { keptTexts, placeAcross, placeInTexts, textsAt, type HeldLines, type Placement, type TestPlace } from '@variance-authority/sense/test-selection';
 import { digestString } from '@variance-authority/core/format';
 
 /**
  * What one run ran over of one asked file: the held text, another, given when
- * it is found, or why that is not known.
+ * it is found, none where the file did not exist, or why that is not known.
  */
-export type RanOver = 'held' | { readonly text: string | undefined } | { readonly unknown: string };
+export type RanOver = 'held' | NotHeld | { readonly unknown: string };
+
+/** What a run ran over of a file instead of its held text: another text, given when it is found, or none. */
+export type NotHeld = 'absent' | { readonly text: string | undefined };
 
 /**
  * The asked region of the held text, in its lines: the line or lines asked,
@@ -32,6 +36,8 @@ export interface Evidence {
   readonly repository: boolean;
   /** The committed text of each asked file at each run's commit, by the asked name; a file the commit lacks is absent. */
   readonly committed: ReadonlyMap<string, ReadonlyMap<string, string>>;
+  /** The asked files each run's commit does not hold, told from a text this clone lacks. */
+  readonly absent: ReadonlyMap<string, ReadonlySet<string>>;
   /** The text behind each digest a run names that the record keeps, read when a line or a function is asked. */
   readonly kept: ReadonlyMap<string, string>;
   /** When the run that wrote a snapshot naming no commit landed: its rows are the record of the texts it ran over. */
@@ -58,7 +64,7 @@ export interface EvidenceQuestion {
 
 /**
  * Read what the runs' verdicts need: the committed texts at every commit a run
- * stood at, the kept texts the runs name when a region is asked, and the
+ * stood at, which asked files those commits lack, the kept texts the runs name when a region is asked, and the
  * snapshot's placements when a run wrote it — the question's own for one
  * file, else read for each held text.
  */
@@ -68,6 +74,7 @@ export async function evidenceOf(runs: readonly TestPlace[], held: ReadonlyMap<s
   // A run the record could not place stood nowhere it says, so nothing is read where it is assumed to.
   const placed = runs.filter((run) => run.assumed !== true);
   const committed = new Map<string, Map<string, string>>();
+  const absent = new Map<string, Set<string>>();
   if (repository !== undefined) {
     const under = relative(await realpath(repository), await realpath(root));
     const repoPath = (file: string): string => (under === '' ? file : join(under, file).split(sep).join('/'));
@@ -79,6 +86,9 @@ export async function evidenceOf(runs: readonly TestPlace[], held: ReadonlyMap<s
         const text = texts?.get(repoPath(file));
         return text === undefined ? [] : [[file, text] as const];
       })));
+      // No text read is a file the commit lacks, or a commit or a blob this clone lacks: git's tree tells them apart.
+      const lacks = files.filter((file) => texts?.get(repoPath(file)) === undefined && existedAt(repository, commit, repoPath(file)) === false);
+      if (lacks.length > 0) absent.set(commit, new Set(lacks));
     }
   }
   const kept = new Map<string, string>();
@@ -94,7 +104,7 @@ export async function evidenceOf(runs: readonly TestPlace[], held: ReadonlyMap<s
     : question.placement !== undefined && files.length === 1
       ? new Map([[files[0]!, question.placement]])
       : placeInTexts(question.snapshot, root, held);
-  return { repository: repository !== undefined, committed, kept, last, placements, ranOther: question.ranOther };
+  return { repository: repository !== undefined, committed, absent, kept, last, placements, ranOther: question.ranOther };
 }
 
 /**
@@ -110,8 +120,9 @@ function readsTheSnapshot(run: TestPlace, last: string | undefined): boolean {
 /**
  * Whether `run` ran over `text` of `file`, the text it ran over instead when
  * that is found, or why that is not known. A run whose record names its texts
- * ran over the one it names, else over the committed one; one observed without
- * naming them ran over a text the record does not know; one the record could
+ * ran over the one it names, else over the committed one, or over none where
+ * its commit lacks the file; one observed without naming them ran over a text
+ * the record does not know; one the record could
  * not place, over a text it cannot say; the one that wrote a snapshot naming
  * no commit, over its rows'.
  */
@@ -127,6 +138,7 @@ export function ranOver(run: TestPlace, test: string, file: string, text: string
     return { text: evidence.kept.get(named) ?? (committed !== undefined && digestString(committed) === named ? committed : undefined) };
   }
   if (committed !== undefined) return digestString(committed) === digest ? 'held' : { text: committed };
+  if (run.commit !== undefined && evidence.absent.get(run.commit)?.has(file) === true) return 'absent';
   return {
     unknown: run.commit === undefined
       ? `that run stood at no commit, so no committed text of ${file} can be read`
@@ -149,13 +161,21 @@ function fromSnapshot(test: string, file: string, evidence: Evidence, preconditi
 }
 
 /**
- * Whether the asked region of `held` is the same in `ran`, the text a run ran
- * over; absent when no region is asked, and `gone` when the asked function is
- * not in `held` at all.
+ * Whether the asked region of `held` is the same in what a run ran over, the
+ * text found or none where the file did not exist; absent when no region is
+ * asked, and `gone` when the asked function is not in `held` at all.
  */
-export function regionVerdict(region: Region, held: string, ran: string | undefined, file: string): 'same' | 'changed' | 'gone' | { readonly unknown: string } | undefined {
+export function regionVerdict(
+  region: Region,
+  held: string,
+  over: NotHeld,
+  file: string,
+): 'same' | 'changed' | 'gone' | { readonly unknown: string } | undefined {
   if (region === undefined || 'unknown' in region) return region;
   if (region.held.length === 0) return 'gone';
+  // A file that did not exist held no text the region is in.
+  if (over === 'absent') return 'changed';
+  const ran = over.text;
   if (ran === undefined) return { unknown: `the text of ${file} that run ran over is neither kept nor committed` };
   const place = placeAcross(held, ran);
   return region.held.every((range) => place(range)?.moved === false) ? 'same' : 'changed';

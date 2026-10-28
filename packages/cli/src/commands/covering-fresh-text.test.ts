@@ -137,6 +137,25 @@ describe('ranText', () => {
     ]);
   });
 
+  it('says every asked file\'s verdict of a stand, and of a part, so none hides another\'s', () => {
+    const changed = ['src/extra.ts', 'src/pay.ts', 'src/tax.ts', 'src/vat.ts'].map((file) => ({ file }));
+    const verdict = { text: 'other', held: ['src/tax.ts'], other: ['src/pay.ts'], absent: ['src/extra.ts'], unknown: 'that text is not held' } as const;
+    const ran: CoveringRan = { stands: [
+      { commit: 'a', tests: ['src/fee.test.ts'], landed: landed(2 * HOUR), ...verdict },
+      { commit: 'a', tests: ['src/pay.test.ts'], cases: ['charges once'], landed: landed(3 * HOUR), text: 'held' },
+      { commit: 'a', tests: ['src/pay.test.ts'], cases: ['refunds'], landed: landed(HOUR), ...verdict },
+    ] };
+    expect(ranText(of(ran, { file: undefined, changed } as unknown as Partial<Covering>), NOW)).toEqual([
+      "src/pay.test.ts ran 'refunds' over the text of src/tax.ts as it is now and over another text of src/pay.ts and where src/extra.ts did not exist " +
+      'and over a text of src/vat.ts not known, in a run that landed 1 hour ago, since that text is not held, ' +
+      'and its 1 other case named here over these texts, in a run that landed 3 hours ago.',
+      'src/tax.ts is the text src/fee.test.ts ran over, in a run that landed 2 hours ago.',
+      'src/fee.test.ts ran over another text of src/pay.ts, in a run that landed 2 hours ago.',
+      'src/extra.ts did not exist where src/fee.test.ts ran, in a run that landed 2 hours ago.',
+      'Whether src/fee.test.ts ran over src/vat.ts as it is now, in a run that landed 2 hours ago, is not known: that text is not held.',
+    ]);
+  });
+
   it('says how many of the test files were placed by assumption, after the lines it dates', () => {
     const one: CoveringRan = { stands: [{ commit: 'a', assumed: true, tests: ['src/pay.test.ts'], text: 'held' }], assumed: 'no runs record lies beside the snapshot' };
     expect(ranText(of(one), NOW)).toEqual([
