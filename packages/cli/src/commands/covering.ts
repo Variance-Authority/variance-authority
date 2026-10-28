@@ -115,8 +115,8 @@ export interface Covering {
    */
   readonly written?: readonly HeldLines[];
   /**
-   * Under a run of lines or a function: the lines a case ran in another text
-   * than the one the record's lines are numbered in, so which case ran them is
+   * Under a run of lines or a function: the lines of a text a case ran over
+   * where a run over another text has landed since, so which case ran them is
    * not known. A line written since the recording that a text a case ran over
    * holds is one; so is a line of a region whose cases ran it where an edit
    * wrote over it, and which no named case entered. In the text as it is now.

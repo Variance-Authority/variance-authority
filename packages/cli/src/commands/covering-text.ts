@@ -129,7 +129,7 @@ function grainText(answer: Covering, where: string): readonly string[] {
   return [...lines, ...unplacedText(answer, '')];
 }
 
-/** The asked lines the record measured no run of: written since, or run by a case in a text the record's lines are not numbered in. */
+/** The asked lines the record measured no run of: written since, or in a text a case ran over where a run over another text has landed since. */
 function unplacedText(answer: Covering, of: string): readonly string[] {
   const said: string[] = [];
   if (answer.written !== undefined) {
