@@ -1,8 +1,11 @@
+import { execFileSync } from 'node:child_process';
 import { readFileSync, readdirSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { Ajv2020 } from 'ajv/dist/2020.js';
 import { parseSync } from 'oxc-parser';
 import { describe, expect, it } from 'vitest';
+import { parseConfig } from '@variance-authority/cli';
 
 /**
  * The config the parsers accept, and the schema an editor reads.
@@ -348,6 +351,85 @@ describe('the config schema and the parsers that refuse a config', () => {
     // else, and a completion with no sentence behind it sends them back to the
     // source — which is the trip this file exists to save.
     expect(SCHEMED.mute).toEqual([]);
+  });
+});
+
+/**
+ * The schema as an editor applies it: a draft 2020-12 validator, `format` read as
+ * the annotation that draft makes it.
+ */
+const validate = new Ajv2020({ allErrors: true, validateFormats: false }).compile(
+  JSON.parse(readFileSync(SCHEMA, 'utf8')) as Schema,
+);
+
+/** What the schema says of `config`: nothing when it accepts it. */
+function schemaRefusal(config: unknown): string {
+  if (validate(config)) return '';
+  return (validate.errors ?? []).map((error) => `${error.instancePath || '/'} ${error.message}`).join('; ');
+}
+
+/** What `parseConfig` says of `config`: nothing when it accepts it. */
+function parserRefusal(config: unknown): string {
+  try {
+    parseConfig(config, { source: 'variance.config.json', baseDir: ROOT });
+    return '';
+  } catch (error) {
+    return error instanceof Error ? error.message : String(error);
+  }
+}
+
+/** A config `run` renders from: the five keys every render needs, and no more. */
+const RENDERS = {
+  project: 'todomvc',
+  profile: 'chromium',
+  viewport: { width: 1280, height: 800 },
+  retention: 'ephemeral',
+  subjects: { kind: 'list', ids: ['fixture:button'], collector: './collector.mjs' },
+} as const;
+
+/**
+ * A config the configless commands read and nothing renders from: suites, the
+ * tiers `variance layers` holds packages to, and where the suites' records go.
+ */
+const SELECTS = {
+  suites: { unit: { kind: 'unit', carry: 'share' } },
+  share: { kind: 'git', mainlines: ['main'] },
+  tiers: [6000, 1500],
+} as const;
+
+describe('the schema accepts what the readers accept', () => {
+  it('accepts a config parseConfig renders from', () => {
+    expect(parserRefusal(RENDERS)).toBe('');
+    expect(schemaRefusal(RENDERS)).toBe('');
+  });
+
+  it('accepts a config that only selects, whose keys parseConfig accepts beside a render', () => {
+    // `parseConfig` reads a file `run` renders from, so it asks for the render
+    // keys; the configless commands read their own keys from the same file and
+    // never ask. The keys are held to the parser's rules by handing it both.
+    expect(parserRefusal({ ...RENDERS, ...SELECTS })).toBe('');
+    expect(schemaRefusal(SELECTS)).toBe('');
+  });
+
+  it('refuses half a render, as parseConfig does', () => {
+    const { project, profile } = RENDERS;
+    expect(parserRefusal({ ...SELECTS, project, profile })).not.toBe('');
+    expect(schemaRefusal({ ...SELECTS, project, profile })).not.toBe('');
+  });
+
+  it("accepts every variance.config.json in the repository, the repository's own included", () => {
+    const files = execFileSync('git', ['ls-files', '--', 'variance.config.json', '**/variance.config.json'], {
+      cwd: ROOT,
+      encoding: 'utf8',
+    })
+      .split('\n')
+      .filter(Boolean);
+
+    expect(files).toContain('variance.config.json');
+    for (const file of files) {
+      const config: unknown = JSON.parse(readFileSync(join(ROOT, file), 'utf8'));
+      expect(schemaRefusal(config), file).toBe('');
+    }
   });
 });
 
