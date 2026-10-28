@@ -6,7 +6,9 @@
  * other runs at the same commit say nothing about it. A run finishes a file it
  * ran whole. A file it ran in part (`-t`, a filter, a skip) keeps the cases it
  * did not run (`layerCaseIndex`), so it stays where it stood, and the run lists
- * it as run in part, which a reader names beside that place.
+ * it as run in part, with the cases it executed of it, so a reader dates each
+ * case by the run that last executed it. A file it executed no case of it did
+ * not observe at all.
  */
 
 import type { CommitRuns, RecordedTests, StandingEntry } from './commit-runs.js';
@@ -16,7 +18,7 @@ import { sameInstall, type KeptInstall } from './kept-install.js';
 import type { KeptTexts } from './kept-texts.js';
 
 /** One run at the record's commit, while a test file it finished has not been finished again there. */
-export interface Landing extends Pick<StandingEntry, 'installed' | 'texts' | 'partly'> {
+export interface Landing extends Pick<StandingEntry, 'installed' | 'texts' | 'partly' | 'cases'> {
   /** The test files it finished, in code-unit order. */
   readonly files: readonly string[];
   /**
@@ -37,24 +39,55 @@ export interface Landing extends Pick<StandingEntry, 'installed' | 'texts' | 'pa
 /** A run as the runs record reads it: the probes, the commit, and each test file with whether the run finished it. */
 export type RanTests = Pick<TestCoverage, 'instrumentation' | 'commit'> & {
   readonly tests: readonly Pick<CoverageTest, 'file' | 'complete'>[];
+  /**
+   * The cases it executed of each test file, by the id its case index names
+   * them by (`casesRan`); a file it executed none of has none. Absent when
+   * the run kept no cases, so which it executed is not known.
+   */
+  readonly executed?: ReadonlyMap<string, readonly string[]>;
 };
+
+/** What a run observed: the files it finished, and the ones it ran in part with the cases it executed of them. */
+export interface Observed extends Pick<Landing, 'cases'> {
+  readonly observed: string[];
+  readonly partly: string[];
+}
 
 /**
  * The files `current` observed, and the ones it ran only in part where the
- * snapshot `prior` already held them, each in code-unit order. A file the
- * snapshot did not hold has no other cases, so a run observes it either way;
- * with no snapshot, it observes every file it ran.
+ * snapshot `prior` already held them, each in code-unit order, with the cases
+ * it executed of those where it kept them. A file the snapshot held that it
+ * executed no case of it did not observe. A file the snapshot did not hold has
+ * no other cases, so a run observes it either way; with no snapshot, it
+ * observes every file it ran.
  */
-export function observedBy(prior: RecordedTests | undefined, current: RanTests): { readonly observed: string[]; readonly partly: string[] } {
+export function observedBy(prior: RecordedTests | undefined, current: RanTests): Observed {
   const held = prior === undefined ? undefined : new Set(prior.tests.map((test) => test.file));
   const observed = new Set<string>();
   const partly = new Set<string>();
   for (const test of current.tests) {
     if (test.complete || held === undefined || !held.has(test.file)) observed.add(test.file);
-    else partly.add(test.file);
+    else if (current.executed === undefined || (current.executed.get(test.file)?.length ?? 0) > 0) partly.add(test.file);
   }
   for (const file of observed) partly.delete(file);
-  return { observed: [...observed].sort(codeUnitOrder), partly: [...partly].sort(codeUnitOrder) };
+  const part = [...partly].sort(codeUnitOrder);
+  const executed = current.executed;
+  return {
+    observed: [...observed].sort(codeUnitOrder),
+    partly: part,
+    ...(executed === undefined || part.length === 0 ? {} : { cases: Object.fromEntries(part.map((file) => [file, executed.get(file)!])) }),
+  };
+}
+
+/**
+ * The files of `of`'s `partly` that `keep` keeps, with the cases it names of
+ * them, or nothing when none is left.
+ */
+export function partlyIn(of: Pick<Landing, 'partly' | 'cases'>, keep: (file: string) => boolean): Pick<Landing, 'partly' | 'cases'> {
+  const partly = (of.partly ?? []).filter(keep);
+  if (partly.length === 0) return {};
+  const cases = of.cases;
+  return { partly, ...(cases === undefined ? {} : { cases: Object.fromEntries(partly.flatMap((file) => (cases[file] === undefined ? [] : [[file, cases[file]]]))) }) };
 }
 
 /**
@@ -81,23 +114,25 @@ export function landingsOf(record: Pick<CommitRuns, 'files' | 'first' | 'latest'
  */
 export function landingsAfter(
   earlier: readonly Landing[],
-  { observed, partly }: ReturnType<typeof observedBy>,
+  { observed, ...ranPart }: Observed,
   at: string,
   installed: KeptInstall | undefined,
   texts: KeptTexts | undefined,
 ): Landing[] {
   const seen = new Set(observed);
+  const unseen = (file: string): boolean => !seen.has(file);
   const kept = earlier.flatMap((landing) => {
-    const files = landing.files.filter((file) => !seen.has(file));
-    const part = (landing.partly ?? []).filter((file) => !seen.has(file));
-    if (files.length === 0 && part.length === 0) return [];
-    const { partly: _part, ...rest } = landing;
-    return [{ ...rest, files, ...(part.length === 0 ? {} : { partly: part }) }];
+    const files = landing.files.filter(unseen);
+    const part = partlyIn(landing, unseen);
+    if (files.length === 0 && part.partly === undefined) return [];
+    const { partly: _part, cases: _cases, ...rest } = landing;
+    return [{ ...rest, files, ...part }];
   });
-  if (observed.length === 0 && partly.length === 0) return kept;
+  const part = partlyIn(ranPart, () => true);
+  if (observed.length === 0 && part.partly === undefined) return kept;
   return [...kept, {
     files: observed,
-    ...(partly.length === 0 ? {} : { partly }),
+    ...part,
     first: at,
     latest: at,
     runs: 1,

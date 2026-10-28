@@ -176,7 +176,6 @@ async function landCombined(
     // and land again, which writes the same record.
     const held = await selection.heldCommitRuns(at, (line) => process.stderr.write(`variance: ${line}\n`));
     const before = previous === undefined ? undefined : selection.recordedRun(previous.coverage);
-    const runs = folded === undefined ? undefined : selection.commitRunsAfter(before, held, folded, installed, ranOver);
     // The index beside the snapshot was cut from the texts the snapshot names,
     // and a module no shard recorded is laid onto the cut its rows landed at.
     const texts = selection.textsOf(before);
@@ -193,6 +192,11 @@ async function landCombined(
     // Where it kept none, every shard it folded kept none: the combine
     // refuses shards of which only some kept cases.
     const cased = combined.shards.filter((shard) => shard.cased).length;
+    // Shards that kept their cases name the ones they executed of a file they ran in part.
+    const executed = 'laid' in landing && landing.shards > 0 ? selection.casesRan(laid) : undefined;
+    const runs = folded === undefined
+      ? undefined
+      : selection.commitRunsAfter(before, held, { ...folded, ...(executed === undefined ? {} : { executed }) }, installed, ranOver);
     const cases = 'laid' in landing
       ? { ...landing, shards: landing.shards === 0 ? 0 : cased }
       : { ...landing, shards: [...shards] };

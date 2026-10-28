@@ -36,6 +36,12 @@ export interface TestPlace {
    * runs ran are theirs, and the rest are this place's. Absent when none did.
    */
   readonly partly?: readonly TestPlace[];
+  /**
+   * Of a place in `partly`: the cases it ran of each test file it ran in part,
+   * as the record names them (`StandingEntry.cases`). Absent when the record
+   * does not say which, so which of a file's cases are this place's is not known.
+   */
+  readonly cases?: StandingEntry['cases'];
 }
 
 /** The tests to place, under the snapshot at `commit` and the runs record beside it. */
@@ -92,6 +98,7 @@ function placesOf({ commit, runs, tests }: TestsAt<string | undefined>): Places<
           ...(stand.first === undefined || stand.latest === undefined ? {} : { first: stand.first, latest: stand.latest }),
           ...(stand.runs === undefined ? {} : { runs: stand.runs }),
           ...(stand.texts === undefined ? {} : { texts: stand.texts }),
+          ...(stand.cases === undefined ? {} : { cases: stand.cases }),
         };
     ids.set(its, ids.size);
     for (const file of files) listed.set(file, its);

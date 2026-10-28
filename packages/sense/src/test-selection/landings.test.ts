@@ -21,6 +21,14 @@ function ran(commit: string, files: readonly string[], partly: readonly string[]
   };
 }
 
+/** A run at `commit` that kept its cases: each finished file by one case, each file in `partly` by the cases it executed of it. */
+function ranCases(commit: string, files: readonly string[], partly: Readonly<Record<string, readonly string[]>>) {
+  return {
+    ...ran(commit, files, Object.keys(partly)),
+    executed: new Map<string, readonly string[]>([...files.map((file) => [file, [`${file} case`]] as const), ...Object.entries(partly)]),
+  };
+}
+
 /** The record one run at `commit` left at `at`: its one landing finished `files`, over the commit's texts unless `kept` says otherwise. */
 function record(commit: string, at: string, files: readonly string[], kept: Pick<Landing, 'installed' | 'texts'> = { texts: {} }): CommitRuns {
   return {
@@ -85,6 +93,32 @@ describe('a run observes the test files it finished', () => {
     // The texts are each landing's: the record names none of its own.
     expect(third.landings).toEqual([{ files: ['a.test.ts', 'b.test.ts'], first: DAY3, latest: DAY3, runs: 1, installed: {}, texts: {} }]);
     expect(third).not.toHaveProperty('texts');
+  });
+});
+
+describe('a run observes the cases it executed', () => {
+  it('does not observe a file the snapshot held that it executed no case of, which stays where it stood', () => {
+    // `-t` matched no case of b.test.ts: the runner collected it and skipped every case.
+    const held = record('P', DAY1, ['a.test.ts', 'b.test.ts']);
+    const after = landAt(DAY2, snapshot('P', 'a.test.ts', 'b.test.ts'), held, ranCases('R', ['a.test.ts'], { 'b.test.ts': [] }), {}, {});
+
+    expect(after.landings).toEqual([{ files: ['a.test.ts'], first: DAY2, latest: DAY2, runs: 1, installed: {}, texts: {} }]);
+    expect(after.standing).toEqual([{ commit: 'P', files: ['b.test.ts'], first: DAY1, latest: DAY1, runs: 1, texts: {} }]);
+  });
+
+  it('names the cases it executed of each file it ran in part, and they travel with its landing into its stand', () => {
+    const held = record('P', DAY1, ['a.test.ts', 'b.test.ts']);
+    const two = landAt(DAY2, snapshot('P', 'a.test.ts', 'b.test.ts'), held, ranCases('R', ['a.test.ts'], { 'b.test.ts': ['refunds'] }), {}, {});
+
+    expect(two.landings).toEqual([
+      { files: ['a.test.ts'], partly: ['b.test.ts'], cases: { 'b.test.ts': ['refunds'] }, first: DAY2, latest: DAY2, runs: 1, installed: {}, texts: {} },
+    ]);
+    const three = landAt(DAY3, snapshot('R', 'a.test.ts', 'b.test.ts'), two, ranCases('S', ['a.test.ts'], {}), {}, {});
+    expect(three.standing).toContainEqual(
+      { commit: 'R', files: [], partly: ['b.test.ts'], cases: { 'b.test.ts': ['refunds'] }, first: DAY2, latest: DAY2, runs: 1, installed: {}, texts: {} },
+    );
+    const { places } = testPlaces({ commit: 'S', runs: three, tests: ['b.test.ts'] });
+    expect(places.get('b.test.ts')?.partly).toEqual([{ commit: 'R', first: DAY2, latest: DAY2, runs: 1, texts: {}, cases: { 'b.test.ts': ['refunds'] } }]);
   });
 });
 

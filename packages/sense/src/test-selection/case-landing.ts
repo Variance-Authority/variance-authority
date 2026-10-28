@@ -263,6 +263,28 @@ export function lastCaseRunOf(sections: CaseSections): LastCaseRun | undefined {
 }
 
 /**
+ * The cases the run that wrote `sections` last executed, by test file, each
+ * file's in code-unit order: what the runs record names of the files that run
+ * finished only in part (`landings.ts`). `undefined` when no run named its
+ * cases, or one names a case its index does not place.
+ */
+export function casesRan(sections: CaseSections): ReadonlyMap<string, readonly string[]> | undefined {
+  const last = lastCaseRunOf(sections);
+  if (last === undefined) return undefined;
+  if (last.cases.length === 0) return new Map();
+  if (sections.index === undefined) return undefined;
+  const files = new Map(decodeExecutionTests(sections.index).map((test) => [test.id, test.file]));
+  const ran = new Map<string, string[]>();
+  for (const id of last.cases) {
+    const file = files.get(id);
+    if (file === undefined) return undefined;
+    ran.set(file, [...(ran.get(file) ?? []), id]);
+  }
+  for (const ids of ran.values()) ids.sort(codeUnitOrder);
+  return ran;
+}
+
+/**
  * One shard a landing folded: where its record is, and the runs it names.
  * `coverage` is absent for a shard whose run instrumented nothing, whose record
  * holds its cases and no coverage.

@@ -14,7 +14,7 @@
 import type { CommitRuns, RecordedTests, StandingEntry } from './commit-runs.js';
 import { codeUnitOrder } from './instrumented-modules.js';
 import { installKey } from './kept-install.js';
-import { landingsOf } from './landings.js';
+import { landingsOf, partlyIn } from './landings.js';
 
 /**
  * Where each test the snapshot held before this run last ran, this run's own
@@ -37,16 +37,18 @@ export function standingAfter(
   if (base === undefined || held?.commit !== base) return undefined;
   const stands = new Map<string, StandingEntry>();
   const listed = new Map<string, string>();
-  const partly = new Map<string, Set<string>>();
-  const stand = (entry: StandingEntry, files: readonly string[], part: readonly string[] | undefined): void => {
+  const partly = new Map<string, Map<string, readonly string[] | undefined>>();
+  const stand = (entry: StandingEntry, files: readonly string[], part: Pick<StandingEntry, 'partly' | 'cases'>): void => {
     const at = standKey(entry);
     if (!stands.has(at)) stands.set(at, entry);
     for (const file of files) listed.set(file, at);
-    for (const file of part ?? []) partly.set(at, (partly.get(at) ?? new Set()).add(file));
+    const its = partly.get(at) ?? new Map<string, readonly string[] | undefined>();
+    for (const file of part.partly ?? []) its.set(file, part.cases?.[file]);
+    if (its.size > 0) partly.set(at, its);
   };
   for (const entry of held.standing ?? []) {
-    const { files, partly: part, ...rest } = entry;
-    stand({ ...rest, files: [] }, files, part);
+    const { files, partly: part, cases, ...rest } = entry;
+    stand({ ...rest, files: [] }, files, { ...(part === undefined ? {} : { partly: part }), ...(cases === undefined ? {} : { cases }) });
   }
   // Earliest landing first: the record's own order, then the start it names,
   // then its own landings, which landed after every other. That is not oldest
@@ -56,7 +58,7 @@ export function standingAfter(
   if (start !== undefined && !stands.has(start)) stands.set(start, { commit: held.over!, files: [], assumed: true });
   // A test a landing finished stood at `base`, with that landing's time, install
   // and texts. A seeded record's landings are its base's, as they are.
-  for (const landing of landingsOf(held)) stand({ commit: base, files: [], ...ranOn(landing), ...landedOf(landing) }, landing.files, landing.partly);
+  for (const landing of landingsOf(held)) stand({ commit: base, files: [], ...ranOn(landing), ...landedOf(landing) }, landing.files, landing);
   const grouped = new Map<string, string[]>();
   for (const test of unobserved) {
     const at = listed.get(test) ?? start;
@@ -68,9 +70,12 @@ export function standingAfter(
   const pending = new Set(unobserved);
   return [...stands].flatMap(([at, entry]) => {
     const files = [...new Set(grouped.get(at))].sort(codeUnitOrder);
-    const part = [...(partly.get(at) ?? [])].filter((file) => pending.has(file)).sort(codeUnitOrder);
-    if (files.length === 0 && part.length === 0) return [];
-    return [{ ...entry, files, ...(part.length === 0 ? {} : { partly: part }) }];
+    const ran = [...(partly.get(at) ?? [])].sort(([one], [other]) => codeUnitOrder(one, other));
+    // The cases a stand names are known for every file it ran in part, or none.
+    const cases = ran.every(([, ids]) => ids !== undefined) ? { cases: Object.fromEntries(ran) as Record<string, readonly string[]> } : {};
+    const part = partlyIn({ partly: ran.map(([file]) => file), ...cases }, (file) => pending.has(file));
+    if (files.length === 0 && part.partly === undefined) return [];
+    return [{ ...entry, files, ...part }];
   });
 }
 

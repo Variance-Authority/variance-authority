@@ -44,7 +44,7 @@
 import { readFile } from 'node:fs/promises';
 import { followRowsIn } from './case-cuts.js';
 import { editsBetween } from './region-edit.js';
-import { layCases, textsIn, type FreshCases, type ModuleTexts } from './case-landing.js';
+import { casesRan, layCases, textsIn, type FreshCases, type ModuleTexts } from './case-landing.js';
 import { casesRecordedOver, recordOfCases, withCaseSections } from './case-record.js';
 import { askCoverageFile } from './coverage-file.js';
 import { anotherBuilds, layeredOver, recordBytes } from './format-layer.js';
@@ -145,6 +145,13 @@ export interface StandingEntry {
    * names this stand beside their place until a run finishes them.
    */
   readonly partly?: readonly string[];
+  /**
+   * The cases these runs executed of each file in `partly`, by the id the
+   * case index names them by: those are this stand's, and the file's others
+   * are its place's. Absent when the runs kept no cases, so which ran here is
+   * not known.
+   */
+  readonly cases?: Readonly<Record<string, readonly string[]>>;
   /** The install they ran on, as {@link CommitRuns.installed} says it; absent when not known. */
   readonly installed?: KeptInstall;
   /**
@@ -246,7 +253,9 @@ export async function landRun(
   // process killed between them, leaves the snapshot at this run's commit
   // beside the record of the one before: the shape `commitRunsAfter` reads as
   // a retried landing, which the next run here repairs and nothing else does.
-  await writeCommitRuns(commitRunsFile(coverageFile), commitRunsAfter(before, held, current, installed, ranOver));
+  // A run that kept its cases names the ones it executed of a file it ran in part.
+  const executed = cases === undefined ? undefined : casesRan(laid);
+  await writeCommitRuns(commitRunsFile(coverageFile), commitRunsAfter(before, held, { ...current, ...(executed === undefined ? {} : { executed }) }, installed, ranOver));
   // The ledger last: it names this run's tests as this checkout's, and a
   // landing that died before it leaves them read as the milestone's, which a
   // re-run here corrects. A record with no ledger was laid before there was

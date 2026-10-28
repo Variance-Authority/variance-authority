@@ -38,7 +38,7 @@ import { editsBetween, type EditOf } from './region-edit.js';
 import { withIndexLock } from './index-lock.js';
 import type { TestCoverage } from './index.js';
 import { codeUnitOrder } from './instrumented-modules.js';
-import { agreed, landingsOf, type Landing } from './landings.js';
+import { agreed, landingsOf, partlyIn, type Landing } from './landings.js';
 import { landedOf, ranOn, standKey } from './standing-after.js';
 import { opensFetched, type LastFetched } from './mainline-layer.js';
 import { readOwnLayer, writeOwnLayer, type OwnLayer, type OwnState } from './own-layer.js';
@@ -289,13 +289,13 @@ function repinnedRuns(
   const moved = commit !== undefined && commit !== held.commit;
   const landings = landingsOf(held).flatMap((landing): Landing[] => {
     const files = landing.files.filter((file) => kept.has(file));
-    const part = (landing.partly ?? []).filter((file) => kept.has(file));
-    if (files.length === 0 && part.length === 0) return [];
-    const { partly: _part, installed, texts, ...rest } = landing;
+    const part = partlyIn(landing, (file) => kept.has(file));
+    if (files.length === 0 && part.partly === undefined) return [];
+    const { partly: _part, cases: _cases, installed, texts, ...rest } = landing;
     return [{
       ...rest,
       files,
-      ...(part.length === 0 ? {} : { partly: part }),
+      ...part,
       ...(moved || installed === undefined ? {} : { installed }),
       ...(moved || texts === undefined ? {} : { texts }),
     }];
