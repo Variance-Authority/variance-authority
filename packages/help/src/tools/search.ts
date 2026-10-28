@@ -5,7 +5,7 @@ import type { SearchIndex } from '../search-index.js';
 import { encodeSearchIndex, openSearchIndex } from '../search-index.js';
 import { areaLine } from './area.js';
 import { describedLine, thirdLine, thirdScope } from './third-party.js';
-import type { DeclaredMatch, DescribedMatch, ExportedMatch, FileMatch, PublishedMatch } from './search-answer.js';
+import type { DeclaredMatch, DescribedMatch, ExportedMatch, FileMatch, PublishedMatch, SearchQuestion } from './search-answer.js';
 import { declaredLine, unreadLine } from './declared.js';
 import { searched, searchedFiles } from './search-answer.js';
 import { type ImportingOf, importingOf, withImporting } from './published-match.js';
@@ -168,9 +168,14 @@ export function searchIndexOf(help: Help): SearchIndex {
   return index;
 }
 
+/** The question `search` is asked by `input`, as its schema accepted it. */
+export function searchQuestionOf(input: Readonly<Record<string, unknown>>): SearchQuestion {
+  return { query: stringArg(input, 'query'), from: startPointArg(input, 'from'), to: startPointArg(input, 'to') };
+}
+
 /** The search over an opened index — what `docs_search` answers, without the Help value. */
 export function answerSearch(index: SearchIndex, input: Readonly<Record<string, unknown>>, tree?: Tree, root?: string, importing?: ImportingOf): string {
-  const question = { query: stringArg(input, 'query'), from: startPointArg(input, 'from'), to: startPointArg(input, 'to') };
+  const question = searchQuestionOf(input);
   const searchedOnce = searched(index, question, tree, root);
   const { area } = searchedOnce;
   const answer = withImporting(searchedOnce.answer, importing);
@@ -384,6 +389,6 @@ export const search: Tool<Help> = {
   run: (help, input, invocation) => answerSearch(searchIndexOf(help), input, invocation?.tree, invocation?.root, importingOf(help, invocation?.root)),
 
   files: (help, input, invocation): FileSet => ({
-    files: searchedFiles(searchIndexOf(help), { query: stringArg(input, 'query'), from: startPointArg(input, 'from'), to: startPointArg(input, 'to') }, invocation?.tree),
+    files: searchedFiles(searchIndexOf(help), searchQuestionOf(input), invocation?.tree),
   }),
 };

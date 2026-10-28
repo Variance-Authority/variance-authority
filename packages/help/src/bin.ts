@@ -5,11 +5,10 @@ import { ask, askSearch, askSearchJson, inputFrom, invocationOf, toolNamed, verb
 import { caughtUp, foundNothingAnswer, snapshotLine } from './caught-up.js';
 import { readWorkspaceForAnswer, workspaceGeneration } from './read.js';
 import { readNamedTree } from './names-read.js';
-import { readSearchForAnswer } from './search-read.js';
+import { countingShown, readSearchForAnswer } from './search-read.js';
 import { discover } from './tools/discover.js';
 import { intersection, namesWanted } from './tools.js';
-import { search } from './tools/search.js';
-import { importingOf } from './tools/published-match.js';
+import { search, searchQuestionOf } from './tools/search.js';
 import { serveWorkspace } from './server.js';
 import { writePages } from './write.js';
 
@@ -160,8 +159,9 @@ if (asking(verb) && verb !== undefined) {
         ...(wantsTree ? { tree: (drawn: Tree) => { tree = drawn; } } : {}),
       };
       if (tool === search) {
-        const { index, compared, unopened, help } = await readSearchForAnswer(root, reading);
-        const importing = help === undefined ? undefined : importingOf(help, root);
+        const read = await readSearchForAnswer(root, reading);
+        const { index, compared } = read;
+        const { importing, unopened } = await countingShown(read, searchQuestionOf(inputFrom(search, ownArgs)), tree, root);
         return { answer: () => (format === 'json' ? askSearchJson : askSearch)(index, ownArgs, () => tree, !compared, unopened, importing), at: index.generation?.generatedAt };
       }
       if (tool === discover) {

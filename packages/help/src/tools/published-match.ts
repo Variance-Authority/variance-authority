@@ -65,6 +65,16 @@ export function withImporting(answer: SearchAnswer, importingOf: ImportingOf | u
   return { ...answer, ...shown, ...(unread === undefined ? {} : { importsUnread: unread }) };
 }
 
+/**
+ * Whether `answer` shows a row {@link withImporting} would count: a published
+ * row in a section it counts. Only then is the value those counts are read
+ * from worth opening.
+ */
+export function showsPublished(answer: SearchAnswer): boolean {
+  const { published, loose, described } = answer;
+  return [published?.shown, loose?.shown, described?.shown].some((shown) => shown?.some((match) => match.source === 'published') === true);
+}
+
 /** What imports one published declaration, and why the imports within its package were not read, when they were not. */
 export interface ImportingOne {
   readonly importing: ImportedIn;

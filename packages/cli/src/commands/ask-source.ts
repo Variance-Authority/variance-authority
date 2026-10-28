@@ -1,7 +1,7 @@
 import { readFile } from 'node:fs/promises';
-import { readNamedTree, readSearchForAnswer, readWorkspaceForAnswer, workspaceGeneration, type Unopened } from '@variance-authority/help';
-import { answerSearch, discover, grep, importingOf, intersection, journeyMapTool, namesWanted, orient, slowestTests, testCompositionTool, type Help, type SearchAnswer, searchIndexOf, searchNames } from '@variance-authority/help/tools';
-import { readTree, startPointArg, stringArg, type Tool, type Tree } from '@variance-authority/mcp/tools';
+import { countingShown, readNamedTree, readSearchForAnswer, readWorkspaceForAnswer, workspaceGeneration, type Unopened } from '@variance-authority/help';
+import { answerSearch, discover, grep, importingOf, intersection, journeyMapTool, namesWanted, orient, slowestTests, testCompositionTool, type Help, type SearchAnswer, searchIndexOf, searchNames, searchQuestionOf } from '@variance-authority/help/tools';
+import { readTree, type Tool, type Tree } from '@variance-authority/mcp/tools';
 import { sourceIndexPath } from '@variance-authority/sense';
 import { taintFile as readTaintFile, type Taint } from '@variance-authority/sense/taint';
 import { messageOf } from '../config-values.js';
@@ -30,13 +30,6 @@ export interface Answering {
   readonly unopened?: readonly Unopened[];
 }
 
-/** The question `search` was asked, read off the input its schema accepted. */
-function searchQuestion(input: Readonly<Record<string, unknown>>) {
-  const from = startPointArg(input, 'from');
-  const to = startPointArg(input, 'to');
-  return { query: stringArg(input, 'query'), ...(from === undefined ? {} : { from }), ...(to === undefined ? {} : { to }) };
-}
-
 export async function wholeSource(
   read: NonNullable<AskRequest['source']>,
   tool: Tool<Help>,
@@ -48,7 +41,7 @@ export async function wholeSource(
   const tree = reading.tree === true ? sourced.tree?.() : undefined;
   return {
     answer: () => tool.run(sourced.help, input, invocationOf({ ...(tree === undefined ? {} : { tree }), root })),
-    data: () => searchNames(searchIndexOf(sourced.help), searchQuestion(input), tree, root, importingOf(sourced.help, root)),
+    data: () => searchNames(searchIndexOf(sourced.help), searchQuestionOf(input), tree, root, importingOf(sourced.help, root)),
     at: workspaceGeneration(sourced.help),
   };
 }
@@ -59,17 +52,18 @@ export async function searchSource(
   options: SourceReadOptions,
 ): Promise<Answering> {
   let tree: Tree | undefined;
-  const { index, compared, unopened, help } = await readSearchForAnswer(root, {
+  const read = await readSearchForAnswer(root, {
     index: sourceIndexPath(root),
     ...(options.changed === undefined ? {} : { changed: options.changed }),
     ...(options.taints === undefined ? {} : { taints: options.taints }),
     ...(options.justAnswer === true ? { justAnswer: true } : {}),
     ...(options.tree === true ? { tree: (drawn: Tree) => { tree = drawn; } } : {}),
   });
-  const importing = help === undefined ? undefined : importingOf(help, root);
+  const { index, compared } = read;
+  const { importing, unopened } = await countingShown(read, searchQuestionOf(input), tree, root);
   return {
     answer: () => answerSearch(index, input, tree, root, importing),
-    data: () => searchNames(index, searchQuestion(input), tree, root, importing),
+    data: () => searchNames(index, searchQuestionOf(input), tree, root, importing),
     at: index.generation?.generatedAt,
     unseen: !compared,
     ...(unopened === undefined ? {} : { unopened }),

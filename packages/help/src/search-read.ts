@@ -1,10 +1,13 @@
 import { resolve } from 'node:path';
+import type { Tree } from '@variance-authority/mcp/tools';
 import type { Help } from '@variance-authority/package/help';
 import { sourceIndexPath } from '@variance-authority/sense';
 import { operatorError } from './operator.js';
 import { readWorkspace, readWorkspaceForAnswer, workspaceSnapshotPath, type AnsweringOptions } from './read.js';
 import type { SearchIndex } from './search-index.js';
 import { readSearchSnapshot, readSearchTree, readWorkspaceSnapshot, searchOf, workspaceSearchPath } from './snapshot.js';
+import { importingOf, type ImportingOf, showsPublished } from './tools/published-match.js';
+import { searchNames, type SearchQuestion } from './tools/search-answer.js';
 
 /** A search, and whether it was read from the checkout as it is now. */
 export interface SearchReading {
@@ -23,10 +26,47 @@ export interface SearchReading {
    */
   readonly unopened?: readonly Unopened[];
   /**
-   * The value the search was written from, which the rows shown are counted
-   * against as `uses` counts them; absent when none opened.
+   * The value the search was written from, which the published rows shown are
+   * counted against as `uses` counts them. Read when first asked for and kept:
+   * opened beside a published search, it is the parse the search file exists to
+   * spare, so {@link countingShown} asks for it only for a row it counts.
    */
+  readonly value: () => Promise<ValueRead>;
+}
+
+/** The value a search was written from, or why the published one did not open; neither when none is published. */
+export interface ValueRead {
   readonly help?: Help;
+  readonly unopened?: Unopened;
+}
+
+/** What the published rows a search shows are counted with, and every published file that did not open. */
+export interface ShownCounting {
+  readonly importing?: ImportingOf;
+  readonly unopened?: readonly Unopened[];
+}
+
+/**
+ * The counts for the rows `question` shows, as `uses` gives them, read from
+ * the value only when one of those rows is published: a question that prints
+ * none never opens it.
+ */
+export async function countingShown(reading: SearchReading, question: SearchQuestion, tree: Tree | undefined, root: string | undefined): Promise<ShownCounting> {
+  const opened = showsPublished(searchNames(reading.index, question, tree)) ? await reading.value() : {};
+  const unopened = [...(reading.unopened ?? []), ...(opened.unopened === undefined ? [] : [opened.unopened])];
+  return {
+    ...(opened.help === undefined ? {} : { importing: importingOf(opened.help, root) }),
+    ...(unopened.length === 0 ? {} : { unopened }),
+  };
+}
+
+/** A value already in hand, as {@link SearchReading.value} hands it over. */
+const held = (help: Help): (() => Promise<ValueRead>) => () => Promise.resolve({ help });
+
+/** `read`, run the first time the thunk is called and never again. */
+function once<T>(read: () => Promise<T>): () => Promise<T> {
+  let pending: Promise<T> | undefined;
+  return () => (pending ??= read());
 }
 
 /** A published file the reading tried, and why it did not open. */
@@ -84,7 +124,7 @@ export async function readSearchForAnswer(root: string, options: AnsweringOption
   const index = reading.index ?? sourceIndexPath(resolve(root));
   if (reading.changed !== undefined || reading.taints !== undefined) {
     const help = await readWorkspaceForAnswer(root, options);
-    return { index: await searchOf(help, index), compared: !justAnswer, help };
+    return { index: await searchOf(help, index), compared: !justAnswer, value: held(help) };
   }
 
   const searchAt = workspaceSearchPath(index);
@@ -92,14 +132,15 @@ export async function readSearchForAnswer(root: string, options: AnsweringOption
   try {
     const search = await readSearchSnapshot(root, reading.index);
     if (reading.tree !== undefined) reading.tree(await readSearchTree(search, root, reading.index));
-    // The rows shown are counted against the value; a search without one answers with the counts it carries, and says why.
-    try {
-      const help = await readWorkspaceSnapshot(root, reading.index === undefined ? {} : { index: reading.index });
-      return { index: search, compared: false, help };
-    } catch (error) {
-      if (absent(error)) return { index: search, compared: false };
-      return { index: search, compared: false, unopened: [{ published: 'value', at: workspaceSnapshotPath(index), reason: reasonOf(error) }] };
-    }
+    // The value is opened only for a published row shown; without one the search answers with the counts it carries, and says why.
+    const value = once(async (): Promise<ValueRead> => {
+      try {
+        return { help: await readWorkspaceSnapshot(root, reading.index === undefined ? {} : { index: reading.index }) };
+      } catch (error) {
+        return absent(error) ? {} : { unopened: { published: 'value', at: workspaceSnapshotPath(index), reason: reasonOf(error) } };
+      }
+    });
+    return { index: search, compared: false, value };
   } catch (error) {
     // Not published says nothing; published and unopenable is said with the answer.
     if (!absent(error)) unopened = [{ published: 'search', at: searchAt, reason: reasonOf(error) }];
@@ -123,7 +164,7 @@ export async function readSearchForAnswer(root: string, options: AnsweringOption
       );
     }
     const read = await readWorkspace(root, reading);
-    return { index: await searchOf(read, index), compared: true, help: read, ...(unopened === undefined ? {} : { unopened }) };
+    return { index: await searchOf(read, index), compared: true, value: held(read), ...(unopened === undefined ? {} : { unopened }) };
   }
-  return { index: await searchOf(help, index), compared: false, help, ...(unopened === undefined ? {} : { unopened }) };
+  return { index: await searchOf(help, index), compared: false, value: held(help), ...(unopened === undefined ? {} : { unopened }) };
 }

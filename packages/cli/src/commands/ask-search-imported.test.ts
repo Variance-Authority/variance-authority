@@ -111,6 +111,18 @@ describe('variance ask search counts the places that import a published name as 
     expect(out).toMatch(/^Imports that do not name a package path are not counted: .*run `variance index`\.$/mu);
   });
 
+  it('reads no value for a question whose rows include no published name', async () => {
+    const root = checkout();
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+    // A value read at all says it did not open; a question that counts no row never reads it.
+    writeFileSync(workspaceSnapshotPath(sourceIndexPath(root)), 'not a value');
+
+    const { code, out } = await run(['ask', 'search', '--query', 'stamp']);
+    expect(code).toBe(EXIT_CLEAN);
+    expect(out).toMatch(/^stamp /mu);
+    expect(out).not.toMatch(/did not open/u);
+  });
+
   it('says the value did not open when it counts by published path instead', async () => {
     const root = checkout(FIVE_WITHIN);
     expect((await run(['index'])).code).toBe(EXIT_CLEAN);

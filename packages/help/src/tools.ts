@@ -137,7 +137,7 @@ export const UNCOMPARED_HELP: Served<Help> = { ...HELP, tools: HELP_TOOLS.map((t
 export { discover, entrypoint, gaps, grep, intersection, journeyMapTool, orient, packages, search, slowestTests, stack, symbol, testCompositionTool, uses };
 export { namesWanted } from './tools/intersection.js';
 export { formatOrientation, type OrientReading } from './tools/orient-format.js';
-export { answerSearch, searchIndexOf } from './tools/search.js';
+export { answerSearch, searchIndexOf, searchQuestionOf } from './tools/search.js';
 export type {
   ExportedMatch,
   InArea,

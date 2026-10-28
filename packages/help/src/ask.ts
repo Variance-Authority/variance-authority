@@ -1,13 +1,13 @@
 import { HELP_TOOLS } from './tools.js';
 import type { Tool, ToolInvocation, Tree } from '@variance-authority/mcp/tools';
-import { startPointArg, stringArg, verbOf } from '@variance-authority/mcp/tools';
+import { verbOf } from '@variance-authority/mcp/tools';
 import type { Help } from '@variance-authority/package/help';
 import { snapshotLine } from './caught-up.js';
 import { workspaceGeneration } from './read.js';
 import type { SearchIndex } from './search-index.js';
 import { unopenedLine, type Unopened } from './search-read.js';
 import { searchNames } from './tools/search-answer.js';
-import { answerSearch, search } from './tools/search.js';
+import { answerSearch, search, searchQuestionOf } from './tools/search.js';
 import type { ImportingOf } from './tools/published-match.js';
 import { wordsOf } from './words.js';
 
@@ -153,9 +153,7 @@ export function ask(
 export function askSearchJson(index: SearchIndex, args: readonly string[], walk?: () => Tree | undefined, unseen = false, unopened?: readonly Unopened[], importing?: ImportingOf): string {
   const input = inputFrom(search, args);
   const tree = search.wants?.(input) === true ? walk?.() : undefined;
-  const from = startPointArg(input, 'from');
-  const to = startPointArg(input, 'to');
-  const answer = searchNames(index, { query: stringArg(input, 'query'), from, to }, tree, undefined, importing);
+  const answer = searchNames(index, searchQuestionOf(input), tree, undefined, importing);
   const at = index.generation?.generatedAt;
   return JSON.stringify({ ...answer, ...(at === undefined ? {} : { generatedAt: at, ...(unseen ? { compared: false } : {}) }), ...(unopened === undefined ? {} : { unopened }) }, undefined, 2);
 }
