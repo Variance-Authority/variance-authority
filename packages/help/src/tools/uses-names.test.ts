@@ -40,7 +40,7 @@ describe('outsideAlone and outsideAfter', () => {
   });
 
   it('leaves the members to the workspace answer when the imports from outside follow one', () => {
-    const lines = outsideAfter('parseSync', outside([]), undefined, shown);
+    const lines = outsideAfter('parseSync', outside([]), undefined, shown, true);
     expect(lines.join('\n')).not.toContain('Members by this name');
   });
 });

@@ -109,17 +109,18 @@ export interface Unread {
 
 /**
  * The imports of a name from outside the workspace, after the workspace's own
- * answer, then the files whose imports were not read, any of which may import
- * the name.
+ * answer — `too` when the workspace `declares` it as well, rather than only
+ * passing it on — then the files whose imports were not read, any of which may
+ * import the name.
  */
-export function outsideAfter(name: string, outside: Outside, from: string | undefined, shown: Shown): readonly string[] {
+export function outsideAfter(name: string, outside: Outside, from: string | undefined, shown: Shown, declares: boolean): readonly string[] {
   if (!('sites' in outside)) return [];
   const notRead = importsUnread(outside);
   const { sites, packages, modules } = outside;
   const tail = notRead.length === 0 ? [] : ['', ...notRead];
   if (sites.length === 0) return tail;
   const out = [...packages, ...modules].join(', ');
-  return ['', `\`${name}\` is imported from outside the workspace too, in ${places(sites.length)}, out of ${out}:`, ...kinds(sites, from, name, shown, undefined), ...tail];
+  return ['', `\`${name}\` is imported from outside the workspace${declares ? ' too,' : ''} in ${places(sites.length)}, out of ${out}:`, ...kinds(sites, from, name, shown, undefined), ...tail];
 }
 
 /**

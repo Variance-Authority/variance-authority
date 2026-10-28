@@ -4,6 +4,8 @@ import type { Help, Use } from '@variance-authority/package/help';
 import type { DeclaredName } from '@variance-authority/sense';
 import { unreadLine } from './declared.js';
 import { type Members, places, routes } from './members.js';
+import { specifierOf } from './find.js';
+import { passedOn } from './format.js';
 import { passesOn } from './passed-on.js';
 import { SHOWN, type Shown, kinds, listed, nearestLine, order } from './sites.js';
 import { symbol } from './symbol.js';
@@ -162,12 +164,14 @@ export const uses: Tool<Help> = {
     const own = answered(answer, input, shown);
     // Alone, the imports from outside end with what of the workspace was not read, as `nowhere` would have.
     const unread = { declarations: answer.undeclared, members: answer.members.unread };
+    // A workspace that only passes the name on declares nothing of its own: the imports from outside are not another answer, and there is no declaration to narrow to.
+    const declares = !onlyPassed(answer);
     return [
       ...head,
       ...(own === undefined ? [] : [own]),
-      ...(own === undefined ? outsideAlone(name, outside, from, shown, unread) : outsideAfter(name, outside, from, shown)),
+      ...(own === undefined ? outsideAlone(name, outside, from, shown, unread) : outsideAfter(name, outside, from, shown, declares)),
       ...bindingLines(answer.files),
-      ...narrowing(answer.files, answer.file, spell),
+      ...(declares ? narrowing(answer.files, answer.file, spell) : []),
     ].join('\n');
   },
 
@@ -256,7 +260,9 @@ function ownLines(inFile: readonly Use[], name: string, shown: Shown): readonly 
  * index holds them, in brackets after the name; nothing when it holds none.
  */
 function declaredAs(answer: Answer): string {
-  const held = answer.found.length > 0 ? answer.found.map(([, , entry]) => entry.kind) : answer.exported.map((one) => one.declaration);
+  // A line passing a name on declares nothing, so has no kind.
+  const declaring = answer.found.filter(([, , entry]) => entry.passesOn === undefined);
+  const held = answer.found.length > 0 ? declaring.map(([, , entry]) => entry.kind) : answer.exported.map((one) => one.declaration);
   return bracketed(held);
 }
 
@@ -297,6 +303,12 @@ function imported(answer: Answer, from: string | undefined, own: readonly string
   const named = `\`${name}\`${declaredAs(answer)}`;
   // An entry may publish the name only as a member of a namespace it exports.
   const member = inside.length === 0 ? undefined : `published as ${inside.join(' and as ')}`;
+  // A name every entry only passes on from outside the sources is that module's, published by the entries' package.
+  const passing = exported.length === 0 ? passedFrom(name, found) : undefined;
+  if (sites.length === 0 && passing !== undefined && unread !== undefined) {
+    return `${passing.opener}, and no other package imports it from ${passing.paths}; the imports within its own package are read from the source index, and ${unread}.`;
+  }
+  if (sites.length === 0 && passing !== undefined) return [`${passing.opener}, and nothing in this workspace imports it from ${passing.paths}.`, ...own].join('\n');
   if (sites.length === 0 && exported.length > 0) {
     const how = member === undefined ? `exported, without being published, at ${exportedAt(exported)}` : `${member}, and exported at ${exportedAt(exported)}`;
     return [`${named} is ${how}${passed}, and nothing in this workspace imports it; ${UNCOUNTED}.`, ...own].join('\n');
@@ -332,6 +344,7 @@ function imported(answer: Answer, from: string | undefined, own: readonly string
       ? `${named} is imported by name nowhere${published}.`
       : `${named} is imported in ${certain.length} ${certain.length === 1 ? 'place' : 'places'}${answer.home === undefined ? '' : spokenSplit(split, answer.home)}${published}${loaded}`;
   return [
+    ...(passing === undefined ? [] : [`${passing.opener}.`]),
     `${taken}${may}`,
     nearest,
     ...kinds(sites, from, name, shown, answer.home),
@@ -340,4 +353,34 @@ function imported(answer: Answer, from: string | undefined, own: readonly string
     ...(unread === undefined ? [] : [`\nImports that do not name a package path are not listed: ${unread}.`]),
     ...(within === undefined ? [] : [`\n${UNCOUNTED.charAt(0).toUpperCase()}${UNCOUNTED.slice(1)}.`]),
   ].join('\n');
+}
+
+/**
+ * The opening for a name every entry publishing it only passes on from outside
+ * the sources, as `symbol` places it: the package publishing it, what each
+ * line passes on, and the paths it is published at. None when an entry
+ * publishes a declaration of the workspace's.
+ */
+function passedFrom(name: string, found: Answer['found']): { readonly opener: string; readonly paths: string } | undefined {
+  if (found.length === 0 || found.some(([, , entry]) => entry.passesOn === undefined)) return undefined;
+  const lines = new Map<string, string[]>();
+  for (const [, , entry] of found) {
+    const what = passedOn(entry.passesOn!);
+    lines.set(what, [...(lines.get(what) ?? []), `${entry.at}:${entry.line}`]);
+  }
+  const packages = spoken([...new Set(found.map(([published]) => published.name))]);
+  const what = spoken([...lines].map(([passed, at]) => `${passed} at ${spoken([...new Set(at)])}`));
+  const paths = [...new Set(found.map(([published, opening]) => specifierOf(published, opening)))];
+  return { opener: `\`${name}\` is published by ${packages}, which passes on ${what}`, paths: paths.join(' or ') };
+}
+
+/** Whether every entry publishing the name only passes it on from outside the sources, and nothing else in the workspace declares it. */
+function onlyPassed(answer: Answer): boolean {
+  const { found, exported, namesakes, kept, members } = answer;
+  return passedFrom(answer.name, found) !== undefined && exported.length === 0 && namesakes.length === 0 && kept.length === 0 && members.declared.length === 0;
+}
+
+/** `a`, `a and b`, `a, b and c`. */
+function spoken(parts: readonly string[]): string {
+  return parts.length < 2 ? parts.join('') : `${parts.slice(0, -1).join(', ')} and ${parts.at(-1)!}`;
 }

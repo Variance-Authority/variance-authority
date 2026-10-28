@@ -41,5 +41,10 @@ binding's JavaScript side declares.
 A published entry that passes on a name out of an installed package,
 `export type { JSX } from 'react/jsx-dev-runtime'`, said it was declared at
 that line. `ask symbol --name JSX` now says it is published by its package
-and passes on `react/jsx-dev-runtime`'s `JSX` at that line, and `ask uses`
-no longer counts it among the workspace's declarations of the name.
+and passes on `react/jsx-dev-runtime`'s `JSX` at that line, with nothing
+written above that line rather than above a declaration. `ask uses --name JSX`
+no longer counts it among the workspace's declarations of the name: it opens
+the same way, says whether anything imports the name by the entry's published
+path, and lists the imports out of `react` as the answer itself, not as
+imports from outside the workspace "too", with no `--file` line pointing at a
+declaration that does not exist.

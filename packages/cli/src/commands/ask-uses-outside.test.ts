@@ -161,11 +161,65 @@ describe('variance ask uses over a name an installed package declares', () => {
     const symbol = await run(['ask', 'symbol', '--name', 'parseSync']);
     expect(symbol.out).toContain("published by @acme/pkg, passes on thirdp's `parseSync` at packages/pkg/src/help.ts:4");
     expect(symbol.out).not.toContain('declared at packages/pkg/src/help.ts');
+    expect(symbol.out).toContain('Nothing is written above this line.');
+    expect(symbol.out).not.toContain('above this declaration');
 
     const uses = await run(['ask', 'uses', '--name', 'parseSync']);
     expect(uses.out).not.toContain('published, at packages/pkg/src/help.ts');
     expect(uses.out).not.toMatch(/names \d+ declarations?/);
     expect(uses.out).toMatch(/^packages\/pkg\/src\/help\.ts:4 — @acme\/pkg, from thirdp.*, passes it on$/m);
+  }, 120_000);
+
+  it('opens the answer for a name a published entry passes on out of an installed package by where it comes from, not as a workspace declaration', async () => {
+    checkout({
+      ...OUTSIDE,
+      'packages/pkg/package.json': JSON.stringify({
+        name: '@acme/pkg',
+        type: 'module',
+        dependencies: { thirdp: '1.0.0' },
+        exports: {
+          './help': { types: './dist/help.d.ts', default: './dist/help.js' },
+          './parse': { types: './dist/parse.d.ts', default: './dist/parse.js' },
+        },
+      }),
+      'packages/pkg/src/help.ts': "export function render(text: string): string {\n  return text;\n}\nexport { parseSync } from 'thirdp';\n",
+      'packages/pkg/src/parse.ts': "export { parseSync } from 'thirdp';\n",
+    });
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+
+    const { code, out } = await run(['ask', 'uses', '--name', 'parseSync']);
+    expect(code).toBe(EXIT_CLEAN);
+    expect(out.split('\n')[0]).toBe(
+      "`parseSync` is published by @acme/pkg, which passes on thirdp's `parseSync` at packages/pkg/src/help.ts:4 and packages/pkg/src/parse.ts:1, and nothing in this workspace imports it from @acme/pkg/help or @acme/pkg/parse.",
+    );
+    expect(out).not.toContain('is published and nothing in this workspace imports it');
+    expect(out).not.toContain('outside the workspace too');
+    expect(out).toContain('`parseSync` is imported from outside the workspace in 4 places, out of thirdp:');
+    expect(out).not.toContain('the file one of them is declared in');
+  }, 120_000);
+
+  it('says where a name a published entry passes on comes from before the imports of it by the published path', async () => {
+    checkout({
+      ...OUTSIDE,
+      'packages/pkg/package.json': JSON.stringify({
+        name: '@acme/pkg',
+        type: 'module',
+        dependencies: { thirdp: '1.0.0' },
+        exports: { './help': { types: './dist/help.d.ts', default: './dist/help.js' } },
+      }),
+      'packages/pkg/src/help.ts': "export function render(text: string): string {\n  return text;\n}\nexport { parseSync } from 'thirdp';\n",
+      'packages/tool/src/parsed.ts': "import { parseSync } from '@acme/pkg/help';\nexport const parsed = parseSync('p');\n",
+    });
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+
+    const { code, out } = await run(['ask', 'uses', '--name', 'parseSync']);
+    expect(code).toBe(EXIT_CLEAN);
+    expect(out.split('\n').slice(0, 2)).toEqual([
+      "`parseSync` is published by @acme/pkg, which passes on thirdp's `parseSync` at packages/pkg/src/help.ts:4.",
+      '`parseSync` is imported in 1 place, from another package.',
+    ]);
+    expect(out).toMatch(/^packages\/tool\/src\/parsed\.ts:1 — @acme\/tool; used on line 2$/m);
+    expect(out).toContain('`parseSync` is imported from outside the workspace in 3 places, out of thirdp:');
   }, 120_000);
 });
 

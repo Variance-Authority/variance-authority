@@ -1,5 +1,5 @@
 import { codeUnitOrder } from '@variance-authority/core/segment';
-import type { Documented, Entry, Opening, Use } from '@variance-authority/package/help';
+import type { Documented, Entry, Opening, PassedOn, Use } from '@variance-authority/package/help';
 import { mayBeRead, opening } from '@variance-authority/package/help';
 import { specifierOf } from './find.js';
 
@@ -118,8 +118,12 @@ export function importing(published: Documented, held: Opening, entry: Entry): s
 export function placed(published: Documented, entry: Entry): string {
   const passed = entry.passesOn;
   if (passed === undefined) return `declared at ${entry.at}:${entry.line}`;
-  const what = passed.name === '*' ? `everything ${passed.from} exports` : `${passed.from}'s \`${passed.name}\``;
-  return `published by ${published.name}, passes on ${what} at ${entry.at}:${entry.line}`;
+  return `published by ${published.name}, passes on ${passedOn(passed)} at ${entry.at}:${entry.line}`;
+}
+
+/** What an entry passes on from outside the sources: `thirdp's \`parseSync\``, or everything a module exports. */
+export function passedOn(passed: PassedOn): string {
+  return passed.name === '*' ? `everything ${passed.from} exports` : `${passed.from}'s \`${passed.name}\``;
 }
 
 /** One name in full, including the head somebody would copy. */
@@ -148,10 +152,12 @@ export function block(published: Documented, held: Opening, entry: Entry, undeci
  */
 export function said(entry: Entry): readonly string[] {
   if (entry.doc !== undefined) return [entry.doc];
-  if (entry.mention === undefined) return ['Nothing is written above this declaration.'];
+  // A line passing a name on declares nothing.
+  const above = `Nothing is written above this ${entry.passesOn === undefined ? 'declaration' : 'line'}.`;
+  if (entry.mention === undefined) return [above];
 
   return [
-    `Nothing is written above this declaration. ${entry.mention.at}:${entry.mention.line} names it:`,
+    `${above} ${entry.mention.at}:${entry.mention.line} names it:`,
     '',
     entry.mention.text,
   ];
