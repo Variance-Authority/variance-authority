@@ -122,6 +122,11 @@ describe('variance_changed_tests over the file graph', () => {
       'test/mocked.test.ts',
       "import { vi } from 'vitest';\nimport { priceOf } from '../src/cart/total';\nvi.mock('../src/cart/total');\nexport const price = priceOf(1);\n",
     );
+    write('src/cart/fake.ts', 'export function priceOf(): number {\n  return 0;\n}\n');
+    write(
+      'test/faked.test.ts',
+      "import { vi } from 'vitest';\nvi.mock('../src/cart/total', () => require('../src/cart/fake'));\nexport const loaded = true;\n",
+    );
     execFileSync('git', ['-C', root, 'init', '--quiet']);
     execFileSync('git', ['-C', root, 'add', '.']);
     tree = await readTree({ root });
@@ -168,5 +173,9 @@ describe('variance_changed_tests over the file graph', () => {
   it('leaves the import walks as they were: a file that mocks a module still imports it', () => {
     expect([...tree.reaching(['src/cart/total.ts'])].sort())
       .toEqual(['src/cart/total.ts', 'test/cart.test.ts', 'test/mocked.test.ts']);
+  });
+
+  it('walks the module a mock factory loads, as the run did', () => {
+    expect(tree.reaching(['src/cart/fake.ts']).has('test/faked.test.ts')).toBe(true);
   });
 });
