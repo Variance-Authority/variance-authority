@@ -82,17 +82,9 @@ const FRESH_PAGES = new Set(['goto', 'launch', 'launchPersistentContext', 'newCo
  * itself.
  */
 export function sources() {
-  return execFileSync(
-    'git',
-    // Without `:(glob)`, `*` crosses directories: these reach every depth. A
-    // package can also ship JavaScript, under `src/` or as a shim at its root.
-    ['ls-files', '--', ...SCRIPT.map((extension) => `packages/*/src/*.${extension}`),
-      ':(glob)packages/*/*.js', ':(glob)packages/*/*.mjs', ':(glob)packages/*/*.cjs', 'tools/*.mjs', 'tools/*.ts'],
-    { cwd: ROOT, encoding: 'utf8' },
-  )
-    .trim()
+  return execFileSync('git', ['ls-files'], { cwd: ROOT, encoding: 'utf8' })
     .split('\n')
-    .filter((file) => file !== '' && !isTest(file) && !file.endsWith('.d.ts') && !/\.config\.[cm]?js$/.test(file))
+    .filter(isSource)
     .filter((file) => existsSync(join(ROOT, file)));
 }
 
@@ -127,6 +119,18 @@ const IN_TESTS = new Set(['timer', 'fresh-page']);
 const COLLECTED_NAME = /\.(test|spec|check|measure)\.[cm]?[jt]sx?$/;
 const FIXTURE = /(^|\/)(__fixtures__|fixtures)\//;
 const isTest = (file) => COLLECTED_NAME.test(file) || FIXTURE.test(file) || /(^|\/)(__tests__|test)\//.test(file);
+
+/**
+ * Whether a path is a production source: a script under a package's `src/` at
+ * any depth, JavaScript shipped at a package's root, or a tool, and not a
+ * test, a fixture, a declaration or a configuration.
+ */
+export const isSource = (file) =>
+  (PACKAGE_SOURCE.test(file) || /^packages\/[^/]+\/[^/]+\.[cm]?js$/.test(file) || /^tools\/.+\.(mjs|ts)$/.test(file)) &&
+  !isTest(file) &&
+  !file.endsWith('.d.ts') &&
+  !/\.config\.[cm]?js$/.test(file);
+const PACKAGE_SOURCE = new RegExp(`^packages/.+/src/.+\\.(${SCRIPT.join('|')})$`);
 
 /** Every site of every idiom in one file's text, outside the files that own it. */
 export function sitesIn(file, text, read = Object.keys(IDIOMS)) {
@@ -245,7 +249,8 @@ function calleeName(callee) {
   return undefined;
 }
 
-const isFunction = (node) =>
+/** Whether a node is a function: declared, expressed or an arrow. */
+export const isFunction = (node) =>
   node.type === 'FunctionDeclaration' || node.type === 'FunctionExpression' || node.type === 'ArrowFunctionExpression';
 
 function nameOf(fn, scope) {
@@ -256,7 +261,7 @@ function nameOf(fn, scope) {
  * Depth-first over every node, carrying the nearest named function so a site
  * can say where it is. `into` decides whether to descend below a node.
  */
-function visit(root, enter, { into = () => true } = {}) {
+export function visit(root, enter, { into = () => true } = {}) {
   const walk = (node, scope) => {
     if (node === null || typeof node !== 'object') return;
     if (Array.isArray(node)) {
@@ -281,8 +286,8 @@ function visit(root, enter, { into = () => true } = {}) {
   walk(root, { name: undefined, binding: undefined });
 }
 
-// oxc reports UTF-16 offsets into the text it was given.
-function lines(text) {
+/** The line of each offset in `text`: oxc reports UTF-16 offsets into the text it was given. */
+export function lines(text) {
   const starts = [0];
   for (let index = 0; index < text.length; index += 1) {
     if (text.charCodeAt(index) === 10) starts.push(index + 1);

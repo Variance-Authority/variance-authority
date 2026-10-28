@@ -12866,6 +12866,7 @@ __metadata:
     "@variance-authority/cli": "workspace:^"
     "@variance-authority/core": "workspace:^"
     "@variance-authority/help": "workspace:^"
+    "@variance-authority/mcp": "workspace:^"
     "@variance-authority/playwright-test": "workspace:^"
     "@variance-authority/sense": "workspace:^"
     "@vitest/coverage-v8": "npm:^2.1.8"

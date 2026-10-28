@@ -27,8 +27,8 @@ export interface SnapshotValueOptions {
 }
 
 /**
- * Shape a value, address it by content, and write it where a later `variance
- * run` will read it. Returns the path written.
+ * Write a value a test case produced as a snapshot file of its `subject`, shaped
+ * and addressed by content, where a later `variance run` reads it. Returns its path.
  *
  * **It does not compare, and it does not fail your test.** That is the same
  * contract `capture` has, for the same reason: the baseline is not present in a

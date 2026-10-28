@@ -14,14 +14,13 @@ import { readdirSync, type Dirent } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { isAbsolute, join, relative } from 'node:path';
 import type { SourceIndex } from '@variance-authority/core/attribute';
-import { relationsOfFiles, type Relations, type Uses } from '@variance-authority/core/relate';
+import type { Relations } from '@variance-authority/core/relate';
 import {
-  mockTaint,
   publishedSources,
+  runGraphOf,
   SourceIndexUnpublished,
   sourcesWithin,
   taintFile,
-  taintRecords,
 } from '@variance-authority/sense';
 import { isCI } from 'ci-info';
 import { OperatorError } from '../exit.js';
@@ -100,17 +99,10 @@ export async function sourceGraphFor(
 ): Promise<SourceGraph> {
   const read = await publishedWithin(root, dirs, before, noGit);
 
-  // The mocks are read unasked. A graph that believes `vi.mock('./api')`
-  // imports `./api` selects that test for every change behind the mock, and
-  // an operator who has to know to switch the reader on is one who finds out
-  // from the suite that ran. The scan recorded what each file mocks in its
-  // parse, so the mock taint opens nothing; a table named in the config is
-  // answered here too, and what it adds is never saved.
+  // The mocks are read unasked, as every reader of the checkout's graph reads
+  // them; a table named in the config is answered here too, and what it adds
+  // is never saved.
   const tables = await Promise.all(taints.map((file) => taintFile(join(root, file))));
-  const tainted = await taintRecords(read.records, [mockTaint(), ...tables], {
-    root,
-    cache: read.cache,
-  });
 
   // Read from the lockfile at this revision, never from `package.json`: a range
   // is a request and the lockfile is the answer to it. Empty when there is no
@@ -119,13 +111,8 @@ export async function sourceGraphFor(
   // the same unreadable file rather than narrowing.
   const depends = await installedDepends(root);
 
-  // A taint's addition joins the edge the parse recorded, and the names the
-  // parse bound on it no longer say everything the file reaches through it.
-  const uses: Uses = (importer, target) =>
-    tainted.additions.get(importer)?.includes(target) ? undefined : read.uses(importer, target);
-
   return {
-    relations: relationsOfFiles(tainted.records, { shadows: tainted.shadows, depends, uses }),
+    relations: await runGraphOf(read.records, { root, cache: read.cache, taints: tables, depends, uses: read.uses }),
     sources: new Set(read.records.map((record) => record.file)),
   };
 }
