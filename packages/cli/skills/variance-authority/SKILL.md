@@ -39,9 +39,10 @@ whole suite again over a record that exists:
   with `HEAD`, which can already hold the file.
 - **Lines written since the recording, in a file the record holds** —
   `covering` answers a line your edit wrote with no case and names it in
-  `written`, and a line a case ran over in a text the record does not number
-  in `overwritten`; a `stale` frame or a `moved` range is the same gap. Record: the
-  test files that ran code in the file.
+  `written`, and a line a case ran in a text the record does not number, such
+  as a line of a region a run in part landed an edit over, in `overwritten`; a
+  `stale` frame or a `moved` range is the same gap. Record: the test files that
+  ran code in the file.
   `variance covering --file <path> --format refs` lists them, in the cases
   table at its end; run those.
 - **A file the suite never loaded** — `covering`'s `Not loaded by`

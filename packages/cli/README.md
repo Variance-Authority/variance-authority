@@ -611,8 +611,9 @@ paints it with:
 - `unwalked`: nobody entered it, and every case that could have reached it
   finished.
 
-A range with no word is one the record cannot rank, because a case's stop was
-never recorded.
+A range with no word is one the record cannot rank: a case's stop was never
+recorded, or a case ran it in another text than the one its lines are numbered
+in.
 
 #### Reading the test you are writing
 
@@ -721,7 +722,13 @@ variance covering --file src/checkout/total.ts --text - --format json < buffer.t
 `--text <path>` reads the held text from a file, and `--text -` reads it from
 standard input, which is how an editor queries a buffer you have not saved.
 `--line` then names a line in that text. A line the edit wrote is answered
-with no case, and the answer says the edit wrote it.
+with no case, and the answer says the edit wrote it. A line a case ran in
+another text than the one the record's lines are numbered in is answered with
+no case for it either, and named in `overwritten`. A run of one case under
+`-t`, over an edit to a region, lands the record in that run's text, where the
+cases that ran the region before ran another text, so which case runs the line
+now is not known. Over the whole file, `--format json` names those cases under
+the range's own `overwritten`.
 
 #### How fresh and how actual the answer is
 
