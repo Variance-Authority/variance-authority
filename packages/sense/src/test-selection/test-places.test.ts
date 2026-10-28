@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { CommitRuns } from './commit-runs.js';
-import { testPlaces } from './test-places.js';
+import { lastRunsOf, testPlaces, type TestPlace } from './test-places.js';
 
 /**
  * Where a test last ran is read from the runs record alone, and the time its
@@ -71,5 +71,29 @@ describe('a test is placed where the runs record says it last ran, with the time
     });
     expect(testPlaces({ commit: undefined, runs, tests: ['a.test.ts'] }).assumed)
       .toBe("the runs record beside the snapshot is H's, and the snapshot names no commit, so every test is read as though it last ran where the snapshot was recorded");
+  });
+});
+
+describe('the cases of a test file are dated by the run that last ran each', () => {
+  const finished: TestPlace = { commit: 'H', first: '2026-01-01T00:00:00.000Z', latest: '2026-01-01T00:00:00.000Z', runs: 1, texts: {} };
+  const naming: TestPlace = { commit: 'H', first: '2026-01-02T00:00:00.000Z', latest: '2026-01-02T00:00:00.000Z', runs: 1, texts: {}, cases: { 'a.test.ts': ['one'] } };
+  const silent: TestPlace = { commit: 'H', first: '2026-01-03T00:00:00.000Z', latest: '2026-01-03T00:00:00.000Z', runs: 1, texts: {} };
+  const place: TestPlace = { ...finished, partly: [naming, silent] };
+  const cases = [{ id: 'two', name: 'two' }, { id: 'one', name: 'one' }];
+
+  it('reads a place no later run ran in part, or cases it does not name, as one part last run there', () => {
+    expect(lastRunsOf(finished, 'a.test.ts', cases)).toEqual([{ runs: [finished] }]);
+    expect(lastRunsOf(place, 'a.test.ts', undefined)).toEqual([{ runs: [place, naming, silent] }]);
+  });
+
+  it('dates a case by the latest run that names it, then each later run in part that names none', () => {
+    expect(lastRunsOf(place, 'a.test.ts', cases)).toEqual([
+      { runs: [place, silent], cases: ['two'] },
+      { runs: [naming, silent], cases: ['one'] },
+    ]);
+  });
+
+  it('says the cases of a test file no later run names as one part, with every run that may have run them', () => {
+    expect(lastRunsOf(place, 'b.test.ts', cases)).toEqual([{ runs: [place, naming, silent] }]);
   });
 });

@@ -4,9 +4,11 @@
  * here: a selector reads the commit, `covering` the commit and the time.
  */
 
+import { codeUnitOrder } from '@variance-authority/core/segment';
 import type { CommitRuns, StandingEntry } from './commit-runs.js';
 import type { KeptTexts } from './kept-texts.js';
 import { landingsOf } from './landings.js';
+import type { ExecutionTest } from './reverse.js';
 
 /** Where one test last ran. */
 export interface TestPlace {
@@ -140,4 +142,47 @@ function placesOf({ commit, runs, tests }: TestsAt<string | undefined>): Places<
         ? `${runs.over.slice(0, 12)}, where its runs started`
         : `the commits they were assumed at, ${[...from].map((stand) => stand.slice(0, 12)).join(', ')}`;
   return { places, assumed: `the runs record beside the snapshot does not say where ${unlisted} test(s) last ran, so they are read from ${where}` };
+}
+
+/**
+ * Some of one test file's named cases and the runs they may have last run in:
+ * the one that last ran them, then each later run that ran the file in part
+ * without naming which cases. `cases`, by name, when the file's named cases
+ * last ran apart, so the file is said part by part.
+ */
+export interface CasesLastRan {
+  readonly runs: readonly TestPlace[];
+  readonly cases?: readonly string[];
+}
+
+/** The named cases of `test`, placed at `place`, grouped by the runs each last ran in: one part, naming no cases, when they all agree. */
+export function lastRunsOf(place: TestPlace, test: string, cases: readonly Pick<ExecutionTest, 'id' | 'name'>[] | undefined): readonly CasesLastRan[] {
+  const runs = [place, ...(place.partly ?? [])];
+  if (place.partly === undefined || cases === undefined || cases.length === 0) return [{ runs }];
+  const groups = new Map<string, { readonly runs: readonly TestPlace[]; readonly cases: string[] }>();
+  for (const one of cases) {
+    const last = lastRanIn(place, test, one.id);
+    const key = last.map((run) => runs.indexOf(run)).join(' ');
+    const group = groups.get(key) ?? { runs: last, cases: [] };
+    group.cases.push(one.name);
+    groups.set(key, group);
+  }
+  const parts = [...groups.values()];
+  if (parts.length === 1) return [{ runs: parts[0]!.runs }];
+  return parts.map((part) => ({ runs: part.runs, cases: [...new Set(part.cases)].sort(codeUnitOrder) }));
+}
+
+/**
+ * The runs case `id` of `test` may have last run in: the latest that names it
+ * among the cases it ran, else the one that last finished the file, then each
+ * later run that ran the file in part and does not say which of its cases.
+ */
+function lastRanIn(place: TestPlace, test: string, id: string): readonly TestPlace[] {
+  const maybe: TestPlace[] = [];
+  for (const part of [...(place.partly ?? [])].reverse()) {
+    const ran = part.cases?.[test];
+    if (ran === undefined) maybe.unshift(part);
+    else if (ran.includes(id)) return [part, ...maybe];
+  }
+  return [place, ...maybe];
 }

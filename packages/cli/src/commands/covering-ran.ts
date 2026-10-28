@@ -14,16 +14,20 @@ import { codeUnitOrder } from '@variance-authority/core/segment';
 import {
   coveringTestsInFile,
   functionsUnder,
+  lastRunsOf,
+  ranOver,
   testPlaces,
+  type CasesLastRan,
   type ExecutionIndex,
   type ExecutionTest,
   type HeldLines,
+  type NotHeld,
   type Placement,
   type TestPlace,
 } from '@variance-authority/sense/test-selection';
 import type { RunsRead } from './base-diff.js';
 import { runsOfLines } from './covering-at.js';
-import { evidenceOf, ranOver, regionVerdict, type Evidence, type NotHeld, type Region } from './covering-ran-evidence.js';
+import { evidenceOf, regionVerdict, type Evidence, type Region } from './covering-ran-evidence.js';
 import { listedIn } from './covering-where.js';
 import type { Covering, CoveringTarget } from './covering.js';
 import { heldAsPrecondition, type HeldAsPrecondition } from './held-as-precondition.js';
@@ -322,48 +326,14 @@ function readersOf(answer: RanNamed, of: {
   return readers;
 }
 
-/**
- * Some of one test file's named cases and the runs they may have last run in:
- * the one that last ran them, then each later run that ran the file in part
- * without naming which cases. `cases`, by name, when the file's named cases
- * last ran apart, so the file is said part by part.
- */
-interface Unit {
+/** Some of one test file's named cases and the runs they may have last run in (`lastRunsOf`). */
+interface Unit extends CasesLastRan {
   readonly test: string;
-  readonly runs: readonly TestPlace[];
-  readonly cases?: readonly string[];
 }
 
 /** The named cases of `test`, placed at `place`, grouped by the runs each last ran in: one unit when they all agree. */
 function unitsOf(place: TestPlace, test: string, cases: readonly ExecutionTest[] | undefined): readonly Unit[] {
-  const runs = runsOf(place);
-  if (place.partly === undefined || cases === undefined || cases.length === 0) return [{ test, runs }];
-  const groups = new Map<string, { readonly runs: readonly TestPlace[]; readonly cases: string[] }>();
-  for (const one of cases) {
-    const last = lastRanIn(place, test, one.id);
-    const key = last.map((run) => runs.indexOf(run)).join(' ');
-    const group = groups.get(key) ?? { runs: last, cases: [] };
-    group.cases.push(one.name);
-    groups.set(key, group);
-  }
-  const parts = [...groups.values()];
-  if (parts.length === 1) return [{ test, runs: parts[0]!.runs }];
-  return parts.map((part) => ({ test, runs: part.runs, cases: [...new Set(part.cases)].sort(codeUnitOrder) }));
-}
-
-/**
- * The runs case `id` of `test` may have last run in: the latest that names it
- * among the cases it ran, else the one that last finished the file, then each
- * later run that ran the file in part and does not say which of its cases.
- */
-function lastRanIn(place: TestPlace, test: string, id: string): readonly TestPlace[] {
-  const maybe: TestPlace[] = [];
-  for (const part of [...(place.partly ?? [])].reverse()) {
-    const ran = part.cases?.[test];
-    if (ran === undefined) maybe.unshift(part);
-    else if (ran.includes(id)) return [part, ...maybe];
-  }
-  return [place, ...maybe];
+  return lastRunsOf(place, test, cases).map((part) => ({ test, ...part }));
 }
 
 /**
@@ -407,11 +377,6 @@ function commitOf(place: TestPlace): { readonly commit?: string } {
 function landedOf(place: TestPlace): { readonly landed?: Landed } {
   if (place.first === undefined || place.latest === undefined) return {};
   return { landed: { first: place.first, latest: place.latest, ...(place.runs === undefined ? {} : { runs: place.runs }) } };
-}
-
-/** The runs a place's cases came from: the one that last finished its test files, then each that ran them in part since. */
-function runsOf(place: TestPlace): readonly TestPlace[] {
-  return [place, ...(place.partly ?? [])];
 }
 
 /** The verdict of one stand: `files`, `text`, `other`, `absent`, `held`, `unknown` and `region` of {@link RanStand}. */
