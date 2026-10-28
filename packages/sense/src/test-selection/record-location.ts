@@ -323,10 +323,8 @@ export function noteSeeded(seeded: Seeded | undefined): void {
  * it could not place and where it read them from.
  *
  * `runs` is 0, so the worktree's first run at the same commit is not counted
- * as another run of the base's — see `landRun` — and a review still finds that
- * no run of this checkout has listed itself. `first` and `latest` stay the
- * base's: they say when the runs its tests last ran in landed, which the seed
- * does not change.
+ * as another run of the base's (see `landRun`), and a review still finds no
+ * run of this checkout listed; `first` and `latest` stay the base's landings.
  *
  * The record is linked into place rather than renamed over it, so a runs record
  * already beside the snapshot when the link is made is kept. That protects this

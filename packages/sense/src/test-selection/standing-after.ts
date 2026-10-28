@@ -1,6 +1,14 @@
 /**
  * Where each test a run did not observe last ran, carried from the runs record
  * the run replaces (`commit-runs.ts`).
+ *
+ * A guess written here would be read back as a fact at every run after this
+ * one. So where no record names the run's base, or a test has no place and the
+ * record no `over`, the answer is absent until a run observes every test the
+ * snapshot held, which needs no record. A worktree's first record is a copy of
+ * the base's (see `seedTestCoverage`), so its first partial run carries the
+ * base's `standing` forward, assumed entries included, and leaves it absent
+ * when the base had no record to copy.
  */
 
 import type { CommitRuns, RecordedTests, StandingEntry } from './commit-runs.js';
@@ -11,33 +19,12 @@ import { installKey } from './kept-install.js';
  * Where each test the snapshot held before this run last ran, leaving out the
  * tests `ran` observed, or `undefined` when that is not known.
  *
- * `base` is the commit this run was laid over: the snapshot's own, or on a
- * retried landing the one its record still names. Only the record `held`
- * knows, and only when it names `base`: a test in its `files` stood there, and
- * a test its `standing` lists stood where it says. A test it cannot place is
- * listed at its `over`, marked assumed, which is where `test:since` read it
- * from while that record was the latest; carried, the assumption stays there
- * when a later run moves `over`. No record, a record of another commit, and a
- * test with no place and no `over` are not known, and a guess written here
- * would be read back as a fact at every run after this one. So the answer is
- * absent until a run observes every test the snapshot held, which needs no
- * record at all.
- *
- * A test is listed at the commit this run is at when it last ran there and
- * this run did not observe it, as a run landed at an older commit leaves it: a
- * test the record does not list is one nobody knows about.
- *
- * The tests in `held`'s `files` take its landing time with them: when its runs
- * landed, and how many there were (none in a seeded record, whose runs are the
- * base's), and the install and texts they ran on. An entry `held` already
- * lists keeps its own. Where the two meet in one stand, the stand spans both;
- * where either time is not known, neither is.
- *
- * A worktree's first run is laid over a copy of the primary checkout's
- * snapshot, and the record beside it was seeded with that copy: the base's own
- * record, with no run of this checkout's in it (see `seedTestCoverage`). So a
- * worktree's first partial run carries the base's `standing` forward, assumed
- * entries included, and leaves it absent when the base had no record to copy.
+ * `base` is the commit this run was laid over. Only a `held` record naming it
+ * knows: a test in its `files` stood there, with the record's landing time,
+ * install and texts; a test its `standing` lists stood where it says; any other
+ * stood at its `over`, assumed, where `test:since` read it from, and stays
+ * there when a later run moves `over`. A test this run did not observe is
+ * listed where it last ran, this run's own commit included.
  */
 export function standingAfter(
   prior: RecordedTests | undefined,
@@ -65,6 +52,8 @@ export function standingAfter(
   if (start !== undefined && !stands.has(start)) stands.set(start, { commit: held.over!, files: [], assumed: true });
   const ranAt = standKey({ commit: base, ...ranOn(held) });
   const ranThere = new Set(held.files);
+  // A seeded record's runs are the base's, so it counts none as its own. Met in
+  // a stand `standing` lists, the two times span; one not known, neither is.
   const own = landedOf(held.runs === 0 ? { first: held.first, latest: held.latest } : held);
   const there = stands.get(ranAt);
   if (there === undefined) {

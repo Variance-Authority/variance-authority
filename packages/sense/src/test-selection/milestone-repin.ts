@@ -316,11 +316,9 @@ function repinnedRuns(
     return { ...stand, files: [...new Set(its)].sort(codeUnitOrder), ...time };
   });
   // At the snapshot's own commit, which repairs a runs record a crash left
-  // naming another. The install the record kept differed from the commit it
-  // named; moved to another commit, it would be compared from the wrong one,
-  // so it is dropped and the install is compared from the new commit. So are
-  // the texts it named, which say nothing of a module they do not name until
-  // read from the commit they were named at.
+  // naming another. The install and texts the record kept were measured at the
+  // commit it named; moved to another, they would be compared from the wrong
+  // one, so they are dropped and compared from the new commit.
   if (commit === undefined || commit === held.commit) return { ...held, over: record.commit, files, standing };
   const { installed: _measuredElsewhere, texts: _ranOverElsewhere, ...rest } = held;
   return { ...rest, commit, over: record.commit, files, standing };
