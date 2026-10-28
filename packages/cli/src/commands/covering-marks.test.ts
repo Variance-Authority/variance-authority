@@ -38,6 +38,14 @@ describe('the marks of a file every declared suite answered about', () => {
       .toEqual([{ startLine: 1, endLine: 2, state: 'walked', suites: ['unit', 'checkout'] }]);
   });
 
+  it('read one declared case two suites both ran as one case, whatever id each record gave it', () => {
+    const range = (id: string) => ({ startLine: 1, endLine: 2, tests: [{ ...test('pays'), id }], stopped: [], state: 'alone' as const });
+    const chromium = { suite: 'chromium', kind: 'e2e', from: 'c' } as const;
+    const firefox = { suite: 'firefox', kind: 'e2e', from: 'f' } as const;
+    expect(marksOf([{ ...chromium, ranges: [range('1')] }, { ...firefox, ranges: [range('7')] }]))
+      .toEqual([{ startLine: 1, endLine: 2, state: 'alone', suites: ['chromium', 'firefox'] }]);
+  });
+
   it('leave the state out where one suite could not tell whether a case stopped', () => {
     expect(marksOf([
       { ...unit, ranges: [{ startLine: 1, endLine: 1, tests: [], state: 'unwalked', stopped: [] }] },

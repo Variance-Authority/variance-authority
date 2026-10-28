@@ -8,7 +8,7 @@
  * a function unwalked that an end-to-end journey walked. Each run of lines is
  * read as the cases of every suite that answered about it, through the same
  * `stateOf` one suite's range is read through, so no suite's word alone
- * decides the line and no editor ranks the suites (spec 0063, §6).
+ * decides the line and no editor ranks the suites (spec 0063).
  */
 
 import { stateOf, type ExecutionTest, type RangeState } from '@variance-authority/sense/test-selection';
@@ -21,7 +21,7 @@ export interface GutterMark {
   readonly endLine: number;
   /** Absent when the record cannot tell; see `stateOf`. */
   readonly state?: RangeState;
-  /** Every suite with a range over these lines, nearest kind first. */
+  /** Every suite with a range over these lines, in the order the suites were answered. */
   readonly suites: readonly string[];
 }
 
@@ -52,14 +52,31 @@ export function marksOf(suites: readonly SuiteAnswer[]): readonly GutterMark[] |
   return marks;
 }
 
-/** The ranges of several suites over one run of lines, read as one: a stop nobody recorded stays unknown. */
+/**
+ * The ranges of several suites over one run of lines, read as one: a stop nobody recorded stays
+ * unknown, and a case two suites both ran is one case, since deleting it leaves both without it.
+ */
 function joined(ranges: readonly CoveringRange[]): Pick<CoveringRange, 'tests' | 'loaded' | 'stopped'> {
   const stopped: ExecutionTest[] | undefined = ranges.every((range) => range.stopped !== undefined)
-    ? ranges.flatMap((range) => range.stopped!)
+    ? once(ranges.flatMap((range) => range.stopped!))
     : undefined;
   return {
-    tests: ranges.flatMap((range) => range.tests),
+    tests: once(ranges.flatMap((range) => range.tests)),
     ...(ranges.some((range) => range.loaded === true) ? { loaded: true as const } : {}),
     ...(stopped === undefined ? {} : { stopped }),
   };
+}
+
+/**
+ * Each declared case once, named by where it is declared, since each record numbers its own
+ * cases; one that walked the lines outranks one that was there only while its module loaded.
+ */
+function once<Case extends ExecutionTest & { readonly loaded?: true }>(cases: readonly Case[]): Case[] {
+  const kept = new Map<string, Case>();
+  for (const one of cases) {
+    const key = `${one.file}\0${one.name}`;
+    const held = kept.get(key);
+    if (held === undefined || (held.loaded === true && one.loaded !== true)) kept.set(key, one);
+  }
+  return [...kept.values()];
 }
