@@ -165,4 +165,22 @@ describe('ranText', () => {
       'src/fee.test.ts ran over another text of src/fee.ts, at a time the record does not hold.',
     ]);
   });
+
+  it('claims no text of a changed file that is not on disk, and says it is not', () => {
+    const answer = {
+      changed: [{ file: 'src/pay.ts' }, { file: 'src/fee.ts' }],
+      ran: {
+        stands: [
+          { commit: 'a', tests: ['src/pay.test.ts'], text: 'held' },
+          { commit: 'b', tests: ['src/fee.test.ts'], unknown: 'that text is not held' },
+        ],
+        unheld: ['src/fee.ts'],
+      },
+    } as unknown as Covering;
+    expect(ranText(answer, NOW)).toEqual([
+      'src/fee.ts is not on disk, so no text of it is held.',
+      'src/pay.ts is the text the other test file named here ran over, at a time the record does not hold.',
+      'Whether src/fee.test.ts ran over src/pay.ts as it is now, at a time the record does not hold, is not known: that text is not held.',
+    ]);
+  });
 });

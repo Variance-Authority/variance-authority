@@ -91,7 +91,16 @@ export interface RanStand {
  * cases the answer was read from.
  */
 export type CoveringRan = (
-  | { readonly stands: readonly RanStand[]; readonly assumed?: string }
+  | {
+    readonly stands: readonly RanStand[];
+    readonly assumed?: string;
+    /**
+     * Under `--since`, the changed files not on disk, so no text of them is
+     * held and none is compared; a question about one file says it in the
+     * answer's own `unheld`.
+     */
+    readonly unheld?: readonly string[];
+  }
   | { readonly tests: readonly string[]; readonly unread: string }
 ) & { readonly named?: 'entered' | 'read' };
 
@@ -159,6 +168,7 @@ export async function ranOf(answer: RanNamed, question: RanQuestion): Promise<Co
   const { places, assumed } = testPlaces({ commit: at, runs: read.runs, tests });
   const asked = answer.changed?.map((change) => change.file) ?? (answer.file === undefined ? [] : [answer.file]);
   const held = await heldTexts(question, answer, asked);
+  const unheld = answer.changed === undefined ? [] : asked.filter((file) => !held.has(file));
   const byPlace = new Map<TestPlace, string[]>();
   for (const test of tests) {
     const place = places.get(test)!;
@@ -175,7 +185,7 @@ export async function ranOf(answer: RanNamed, question: RanQuestion): Promise<Co
   });
   // Oldest first, by when their runs first landed; a stand the record holds no time for comes first.
   stands.sort((one, other) => (one.landed?.first ?? '').localeCompare(other.landed?.first ?? ''));
-  return { stands, ...(assumed === undefined ? {} : { assumed }), ...as };
+  return { stands, ...(assumed === undefined ? {} : { assumed }), ...(unheld.length === 0 ? {} : { unheld }), ...as };
 }
 
 /** Where and when `group` last ran, as `place` says. */

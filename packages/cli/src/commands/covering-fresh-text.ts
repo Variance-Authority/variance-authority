@@ -38,15 +38,18 @@ export function frameText(answer: Covering): readonly string[] {
  * Whether each test file the answer names ran over the asked text, and when,
  * in lines ordered by when their runs landed, the oldest first. The test files
  * that ran over it are said in one line; each group that ran over another
- * text, or whose text is not known, in one of its own, by name.
+ * text, or whose text is not known, in one of its own, by name. A changed file
+ * off disk is said first, and no line says a test file ran over it.
  *
  * @param now The clock the answer is dated against, in ms.
  */
 export function ranText(answer: Covering, now: number): readonly string[] {
   const ran = answer.ran;
   if (ran === undefined) return [];
-  const asked = askedFiles(answer);
   if ('unread' in ran) return [`Where and when ${subject(ran, ran.tests.length, false)} last ran is not known: ${ran.unread}.`];
+  // A changed file off disk has no text to compare, so no line says any test file ran over it.
+  const unheld = ran.unheld ?? [];
+  const asked = askedFiles(answer).filter((file) => !unheld.includes(file));
   const stands = [...ran.stands].sort((one, other) => (one.landed?.latest ?? '').localeCompare(other.landed?.latest ?? ''));
   const all = stands.reduce((sum, stand) => sum + stand.tests.length, 0);
   const held = stands.filter((stand) => stand.text === 'held');
@@ -75,14 +78,18 @@ export function ranText(answer: Covering, now: number): readonly string[] {
       lines.push({ at: earliest([stand]), said: `Whether ${names} ran over ${of} as it is now, ${when([stand], now)}, is not known: ${stand.unknown}.` });
     }
   }
-  const said = lines.sort((one, other) => one.at.localeCompare(other.at)).map((line) => line.said);
+  const off = unheld.length === 1 ? 'is not on disk, so no text of it is held' : 'are not on disk, so no text of them is held';
+  const said = [
+    ...(unheld.length === 0 ? [] : [`${list(unheld, 'other files')} ${off}.`]),
+    ...lines.sort((one, other) => one.at.localeCompare(other.at)).map((line) => line.said),
+  ];
   const assumed = stands.filter((stand) => stand.assumed === true).reduce((sum, stand) => sum + stand.tests.length, 0);
   if (assumed === 0) return said;
   const whose = assumed === all ? subject(ran, all, false) : `${String(assumed)} of them`;
   return [...said, `The record does not say where ${whose} last ran, so where ${assumed === 1 ? 'it' : 'they'} ran is assumed, not observed.`];
 }
 
-/** The files the answer asks about: the one file, or every changed one. */
+/** The files the answer asks about: the one file, or every changed one, off disk or not. */
 function askedFiles(answer: Covering): readonly string[] {
   return answer.changed?.map((change) => change.file) ?? (answer.file === undefined ? [] : [answer.file]);
 }

@@ -1,4 +1,4 @@
-import { writeFile } from 'node:fs/promises';
+import { rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { digestString } from '@variance-authority/core/format';
@@ -246,6 +246,20 @@ describe('a covering answer says when the test files it names last ran, and over
     expect(json).toMatchObject({ at: commit, ran: { stands: [{ commit, text: 'other', other: ['src/pay.ts'] }] } });
     expect(text).toContain(`Read from ${String(json['from'])}, recorded at ${commit!}.\n`);
     expect(text).toContain('src/pay.test.ts ran over another text of src/pay.ts, at a time the record does not hold.\n');
+  });
+
+  it('claims no text of a changed file that is not on disk, and says it is not', async () => {
+    const edited = PAY.replace('return amount;', 'return amount + 0;');
+    const { at } = await checkout({ ranOver: edited, setup: 'export const setup = 1;\n' });
+    await writeFile(join(at, 'src/pay.ts'), edited);
+    await rm(join(at, 'src/setup.ts'));
+    const cwd = process.cwd();
+    process.chdir(at);
+    const { text, json } = await ask(at, '--since', 'HEAD').finally(() => process.chdir(cwd));
+
+    expect(json).toMatchObject({ ran: { unheld: ['src/setup.ts'], stands: [{ tests: ['src/pay.test.ts'], text: 'held' }] } });
+    expect(text).toContain('src/setup.ts is not on disk, so no text of it is held.\n');
+    expect(text).toContain('src/pay.ts is the text the test file named here ran over, at a time the record does not hold.\n');
   });
 
   it('says in the review reading\'s heading that the record names no commit', async () => {
