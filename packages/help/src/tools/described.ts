@@ -34,30 +34,30 @@ import { admittedBy, rowWithin, termsOfStems } from './loose.js';
  * not of a package, since code is named in them.
  *
  * Ordered by how much of the question it holds, each word weighed by how rare it
- * is among everything the description reached — {@link rarity}, of the `N` reached
- * and the `n` holding it, counted in this one question and stored nowhere — times
- * the weight of where it holds it, three in its name and two in a doc, as a
- * field-weighted ranking weighs a title over a body. A doc word also counts by how
- * long the doc is, BM25's length term with a held word's count of one: a doc of
- * the mean length or shorter counts as two, a longer one less, the mean taken over
- * the docs reached. A long doc holds most words in passing, and a doc's word stays
- * below a name's however short. That sum is multiplied by a coordination factor,
- * {@link weightOf}. A name is weighed through the one of its rows weighing most,
- * then the first by {@link RowOrder}, the order its rows are shown in; a word's
- * holders and the mean are counted over every row a name could be weighed
- * through, so no name's row moves another's weight. Integers throughout,
- * so the order is counts, never a score, and a tie is a tie (ADR-0057). `N` is
- * everything reached, the names another section shows included, so the weight of a
- * word does not move with what is left. Then the words its name holds, then how
- * many of the question's adjacent word pairs its doc writes adjacent, then how
- * many rows publish or export it, in an area those {@link rowWithin} it, then the
- * name's own rank. A word every doc says in passing tells nothing about which of
- * them was meant: `find the repository root` is asked of `repositoryRoot`, not of
- * every doc that opens on `find` and mentions a root, when most of what was
- * reached says `find`. A name was chosen for what it does, and a doc that writes
- * the question's phrase about a name that holds none of it is usually saying what
- * the name is used with. The phrase — term proximity, counted as the pairs it
- * shares — settles what the weight and the name leave level.
+ * is among everything the description reached — {@link rarity}, of the `N`
+ * reached and the `n` holding it, counted in this one question and stored nowhere
+ * — times the weight of where it holds it, three in its name and two in a doc, as
+ * a field-weighted ranking weighs a title over a body. A doc word also counts by
+ * how long the doc is, BM25's length term with a held word's count of one: a doc
+ * of the mean length or shorter counts as two, a longer one less, the mean taken
+ * over the doc of every row, declaration and file reached. A long doc holds most
+ * words in passing, and a doc's word stays below a name's however short. That sum
+ * is multiplied by a coordination factor, {@link weightOf}. A name is weighed and
+ * shown through one of its rows, {@link DescribedName.through}, and counts once
+ * in `N` and in the `n` of a word any of its rows holds, so no name's row moves
+ * another's weight. Integers throughout, so the order is counts, never a score,
+ * and a tie is a tie (ADR-0057). `N` is everything reached, the names another
+ * section shows included, so the weight of a word does not move with what is
+ * left. Then the words its name holds, then how many of the question's adjacent
+ * word pairs its doc writes adjacent, then how many rows publish or export it, in
+ * an area those {@link rowWithin} it, then the name's own rank. A word every doc
+ * says in passing tells nothing about which of them was meant:
+ * `find the repository root` is asked of `repositoryRoot`, not of every doc that
+ * opens on `find` and mentions a root, when most of what was reached says `find`.
+ * A name was chosen for what it does, and a doc that writes the question's phrase
+ * about a name that holds none of it is usually saying what the name is used
+ * with. The phrase — term proximity, counted as the pairs it shares — settles
+ * what the weight and the name leave level.
  *
  * The rows shown hold every word anything reached holds: the best holder of a word
  * no row shown holds takes the place of the last row whose every word another row
@@ -93,7 +93,8 @@ export interface DescribedName extends DescribedKey {
   /**
    * The row it is weighed, ordered and shown through: of its published and
    * exported rows, the one its name's words and that row's doc weigh most by
-   * {@link weightOf}, then the first by {@link RowOrder}.
+   * {@link weightOf}; of those weighing alike, the one whose doc writes the most
+   * of the question's adjacent word pairs, then the first by {@link RowOrder}.
    */
   readonly through: DescribedRow;
 }
@@ -106,7 +107,8 @@ export interface DescribedRow {
 
 /**
  * The order one name's rows are shown in, a total order: of the rows a name
- * weighs as much through, the first is the one it is weighed and shown through.
+ * weighs as much through, whose docs write as many of the question's adjacent
+ * word pairs, the first is the one it is shown through.
  */
 export type RowOrder = (a: DescribedRow, b: DescribedRow) => number;
 
@@ -124,7 +126,13 @@ export interface DescribedFileHit extends DescribedKey {
 export type Described = DescribedName | DescribedDeclaration | DescribedFileHit;
 
 /** A name of the search index the description reached, before its doc is read for the phrase. */
-export type ReachedName = Omit<DescribedName, 'near'> & Counted;
+export type ReachedName = Omit<DescribedName, 'near'> & Counted & {
+  /**
+   * The rows it can be shown through: the one it is weighed through, then each
+   * other row with a doc weighing as much, by {@link RowOrder}.
+   */
+  readonly tied: readonly Pick<DescribedName, 'through' | 'words' | 'docLength'>[];
+};
 
 /** What one reached thing counts for in every word's rarity and the mean doc length: the same whichever row it is weighed through. */
 interface Counted {
@@ -147,11 +155,10 @@ export type Reached = ReachedName | DescribedDeclaration | DescribedFileHit;
  *
  * `already` names are never reached. `within`, file ids when given, admits a
  * name by its own words and a doc only through a row {@link rowWithin} the
- * area: a published row a file of it imports, as the published section shows
- * one, or an exported row whose file is in it, and counts only those rows.
- * `order` is the {@link RowOrder} of the section showing them; a name with no
- * row there is not reached. `others`, the declarations and files reached, are
- * counted in each word's rarity and the mean doc length a row is weighed by.
+ * area and counts only those rows; the index writes a name only for a row of
+ * it, so every name reached has one. `order` is the {@link RowOrder} of the
+ * section showing them. `others`, the declarations and files reached, count in
+ * each word's rarity and in the mean doc length.
  */
 export function describedNames(
   index: SearchIndex,
@@ -198,25 +205,26 @@ export function describedNames(
     asked.filter((_, position) => positions?.has(position) === true).map(([, word]) => word);
   const heldThrough = (name: number, row: DescribedRow): Set<number> =>
     new Set([...(named.get(name) ?? []), ...(docs.get(`${row.kind}:${row.row}`) ?? [])]);
-  const candidates = [...reached].flatMap((name) => {
+  const candidates = [...reached].map((name) => {
     const rows: DescribedRow[] = [
       ...[...rowsWithin(index, 'published', index.publishedOf(name), within)].map((row) => ({ kind: 'published' as const, row })),
       ...[...rowsWithin(index, 'exported', index.exportedOf(name), within)].map((row) => ({ kind: 'exported' as const, row })),
     ];
-    if (rows.length === 0) return [];
     const holds = wordsOf(new Set(rows.flatMap((row) => [...heldThrough(name, row)])));
     const docLengths = rows.flatMap((row) => rowDocLength(index, row) ?? []);
-    return [{ name, rows, holds, docLengths }];
+    return { name, rows, holds, docLengths };
   });
 
   // Every row a name could be weighed through counts, the chosen one or not.
   const weight = weightOf([...candidates, ...others.map(countedOf)]);
   return candidates.map(({ name, rows, holds, docLengths }): ReachedName => {
     const own = wordsOf(named.get(name));
-    const chosen = rows
-      .map((row) => ({ through: row, words: wordsOf(heldThrough(name, row)), named: own, ...docLengthOf(rowDocLength(index, row)) }))
-      .reduce((best, one) => ((weight(best) - weight(one) || order(one.through, best.through)) < 0 ? one : best));
-    return { name, ...chosen, rows: rows.length, rank: index.rank(name), holds, docLengths };
+    const picks = rows.map((row) => ({ through: row, words: wordsOf(heldThrough(name, row)), named: own, ...docLengthOf(rowDocLength(index, row)) }));
+    const chosen = picks.reduce((best, one) => ((weight(best) - weight(one) || order(one.through, best.through)) < 0 ? one : best));
+    // A row with no doc writes no phrase, so it never comes before the row chosen.
+    const most = weight(chosen);
+    const alike = picks.filter((one) => one !== chosen && one.docLength !== undefined && weight(one) === most);
+    return { name, ...chosen, rows: rows.length, rank: index.rank(name), holds, docLengths, tied: [chosen, ...alike.sort((a, b) => order(a.through, b.through))] };
   });
 }
 
@@ -249,18 +257,26 @@ export function describedShown(
     const from = at;
     while (at < levels.length && level(levels[from] as Reached, levels[at] as Reached) === 0) read.add(levels[at++] as Reached);
   }
+  // A name may be shown through any of the rows it weighs as much through.
+  const holding = (one: Reached, word: string): boolean => ('tied' in one ? one.tied : [one]).some((row) => row.words.includes(word));
   for (const word of words) {
-    const best = levels.find((one) => one.words.includes(word));
+    const best = levels.find((one) => holding(one, word));
     if (best === undefined) continue;
-    for (const one of levels) if (level(best, one) === 0 && one.words.includes(word)) read.add(one);
+    for (const one of levels) if (level(best, one) === 0 && holding(one, word)) read.add(one);
   }
 
-  const names = [...read].filter((one): one is ReachedName => !('near' in one));
+  const rows = [...read].flatMap((one) => ('tied' in one ? one.tied : []));
   // One word has no pair to write adjacent, so no doc is decoded for it.
-  const near = words.length > 1 ? nearOfNative(query, names.map((one) => rowDoc(index, one.through) ?? '')) : [];
-  const counted = new Map(names.map((one, at) => [one, near[at] ?? 0]));
+  const near = words.length > 1 ? nearOfNative(query, rows.map((one) => rowDoc(index, one.through) ?? '')) : [];
+  let at = 0;
   const order = describedOrderBy(weight);
-  const weighed = [...read].map((one): Described => ('near' in one ? one : { ...one, near: counted.get(one) ?? 0 })).sort(order);
+  const weighed = [...read].map((one): Described => {
+    if (!('tied' in one)) return one;
+    // The first of its tied rows whose doc writes the most of the question's pairs.
+    const nears = one.tied.map(() => near[at++] ?? 0);
+    const nearest = nears.reduce((best, count, row) => (count > (nears[best] ?? 0) ? row : best), 0);
+    return { ...one, ...one.tied[nearest], near: nears[nearest] ?? 0 };
+  }).sort(order);
 
   const shown = weighed.slice(0, count);
   for (const word of words) {
@@ -286,9 +302,11 @@ function rowDoc(index: SearchIndex, row: DescribedRow): string | undefined {
  * an absent one last, then what a published row declares or the line an
  * exported one is declared on, then the file, then a published row's specifier,
  * in code-unit order. Where the index wrote a row follows its package and file
- * names, which say nothing about the name, so it settles nothing; the path and
- * the specifier settle only rows alike in all else: one name two files export
- * on one line under one doc, or one declaration two specifiers publish.
+ * names, which say nothing about the name, so it settles nothing. A published
+ * row has no line, so the file settles two published declarations of one
+ * kind under one doc; otherwise the path and the specifier settle only one name
+ * two files export on one line under one doc, or one declaration two specifiers
+ * publish.
  */
 export function rowTextOrder(index: SearchIndex, a: DescribedRow, b: DescribedRow): number {
   const text = (row: DescribedRow): readonly [string | undefined, string, number, string, string] => {

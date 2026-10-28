@@ -9,16 +9,19 @@ import { searchIndexOf } from './search.js';
 /**
  * One name's rows are in one order in every section: the published section
  * lists them in it, the exported section shows the first of them, and the
- * described section shows a name no doc adds a word to through the first. A
- * row goes first by where the question was found in it, with the question
- * found alike in each in the described section: the name whole, then in its
- * words, then in its doc's opening, then later in the doc. Then a published row
- * goes by the files of the area importing it, then its import sites there, then
- * the packages importing it anywhere, then its import sites anywhere; an
- * exported row source first, then tests, then stories; then the doc's text,
- * then what a published row declares or the line an exported row is declared
- * on, then the row's path, so renaming a package or a file moves no row that
- * differs from the other in anything but its path.
+ * described section shows a name through the row it weighs most through, then
+ * the one whose doc writes more of the question's adjacent word pairs, then the
+ * first of them. A published row goes before an exported one: in the published
+ * and exported sections before where the question was found, in the described
+ * section with the question found alike in each. Then a row goes by where the
+ * question was found in it: the name whole, then in its words, then in its
+ * doc's opening, then later in the doc. Then a published row goes by the files
+ * of the area importing it, then its import sites there, then the packages
+ * importing it anywhere, then its import sites anywhere; an exported row source
+ * first, then tests, then stories; then the doc's text, then what a published
+ * row declares or the line an exported row is declared on, then the row's path.
+ * A published row has no line, so the file settles two published declarations
+ * of one kind under one doc.
  */
 
 const before = process.env['VARIANCE_AUTHORITY_CACHE'];
@@ -71,7 +74,7 @@ describe('the order one name\'s rows are shown in', () => {
     // `app` imports `PlacementKit` from both kits once each; `far`, outside the area, imports the first kit's.
     const shown = async (first: string): Promise<unknown> => {
       const root = await kits({
-        [first]: { 'index.ts': placed('The placement kit.') },
+        [first]: { 'index.ts': placed('The kit of a placement.') },
         'b-kit': { 'index.ts': placed('A kit for one placement.') },
         'app': { 'index.ts': `import type { PlacementKit } from '${first}';\nimport type { PlacementKit as Kit } from 'b-kit';\nexport type Used = PlacementKit | Kit;\n` },
         'far': { 'index.ts': `import type { PlacementKit } from '${first}';\nexport type Far = PlacementKit;\n` },
@@ -87,7 +90,7 @@ describe('the order one name\'s rows are shown in', () => {
 
   it('lists a name published twice, nothing importing either, by its docs whatever its packages are called', async () => {
     const shown = async (first: string): Promise<unknown> => sections(await kits({
-      [first]: { 'index.ts': placed('The placement kit.') },
+      [first]: { 'index.ts': placed('The kit of a placement.') },
       'b-kit': { 'index.ts': placed('A kit for one placement.') },
     }), first);
     const expected = { published: ['b-kit', '<renamed>'], exported: [], described: ['b-kit'] };
@@ -97,7 +100,7 @@ describe('the order one name\'s rows are shown in', () => {
 
   it('shows a name exported from two source files through the same row in both sections whatever its files are called', async () => {
     const shown = async (first: string): Promise<unknown> => sections(await inventedWorkspace(INVENTED_PACKAGES, ['react'], {
-      [`src/${first}.ts`]: placed('The placement kit.'),
+      [`src/${first}.ts`]: placed('The kit of a placement.'),
       'src/b.ts': placed('A kit for one placement.'),
     }), `src/${first}.ts`);
     const expected = { published: [], exported: ['src/b.ts'], described: ['src/b.ts'] };

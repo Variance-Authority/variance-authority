@@ -14,17 +14,21 @@ import { answerSearch, searchIndexOf } from './search.js';
  * exported from more than one file, or published and also exported — is
  * weighed, ordered and shown through one of them, never through several rows'
  * docs added up: the row its name's words and that row's doc weigh most, each
- * word by its rarity and a doc's by its length, then the order its rows are
+ * word by its rarity and a doc's by its length, then the one whose doc writes
+ * the most of the question's adjacent word pairs, then the order its rows are
  * shown in, so when no doc adds a word, the first row in that order, the one
  * the published or exported section shows first: a published row before an
  * exported one, a published row in an area by the files there importing it,
  * then by its import sites there, then by the packages importing it, then by
  * its import sites; an exported row source first, then tests, then stories;
  * then the doc's text, then what a published row declares or the line an
- * exported row is declared on, then the row's path. A word's rarity and the
- * mean doc length are counted over every row a name could be weighed through,
- * whichever it is. In an area it is counted, weighed and ordered only through
- * the rows the area holds.
+ * exported row is declared on, then the row's path. A word's rarity is counted
+ * per name, declaration and file reached, a name holding a word when any of
+ * its rows does; the mean doc length is taken over every row reached, so no
+ * name's weight depends on which row another is shown through. A name stays in
+ * the described section by the words one row holds, never its rows' together.
+ * In an area it is counted, weighed and ordered only through the rows the area
+ * holds.
  */
 
 const before = process.env['VARIANCE_AUTHORITY_CACHE'];
@@ -144,7 +148,7 @@ describe('which row a described name is weighed, ordered and shown through', () 
       const root = await kits({
         'a-kit': { 'index.ts': `${first}export interface Placement {\n  readonly at: string;\n}\n` },
         'b-kit': { 'index.ts': `${second}export interface Placement {\n  readonly at: string;\n}\n` },
-        'c-kit': { 'index.ts': 'export const kit = 1;\n', 'inner.ts': '/** The commit text. */\nexport interface Placement {\n  readonly at: string;\n}\n' },
+        'c-kit': { 'index.ts': 'export const kit = 1;\n', 'inner.ts': '/** The text of a commit. */\nexport interface Placement {\n  readonly at: string;\n}\n' },
       });
       const index = searchIndexOf(readHelp(root));
       const reached = reachedBy(index, 'commit text shard')?.find((one) => one.name === placementOf(index));
@@ -161,15 +165,15 @@ describe('which row a described name is weighed, ordered and shown through', () 
     searchNames(searchIndexOf(readHelp(root)), { query }).described?.shown.map((one) =>
       [one.name, 'specifier' in one ? one.specifier : one.at, 'summary' in one ? one.summary : undefined, one.words]);
   // Both docs are 31 bytes and add one word of three as rare as the other's, so the two rows weigh alike.
-  const TEXT = '/** Kept at a commit with its text. */\n';
-  const PAGE = '/** Kept at a commit with its page. */\n';
+  const TEXT = '/** Kept with its text at a commit. */\n';
+  const PAGE = '/** Kept with its page at a commit. */\n';
 
   it('weighs and shows a name published twice through the same row whatever its packages are called, at a tie on all else', async () => {
     const placed = async (first: string): Promise<unknown> => describedBy(await kits({
       [first]: { 'index.ts': `${TEXT}export interface Placement {\n  readonly at: string;\n}\n` },
       'b-kit': { 'index.ts': `${PAGE}export interface Placement {\n  readonly at: string;\n}\n` },
     }), 'commit text page');
-    const shown = [['Placement', 'b-kit', 'Kept at a commit with its page.', ['commit', 'page']]];
+    const shown = [['Placement', 'b-kit', 'Kept with its page at a commit.', ['commit', 'page']]];
     expect(await placed('a-kit')).toEqual(shown);
     expect(await placed('z-kit')).toEqual(shown);
   });
@@ -179,7 +183,7 @@ describe('which row a described name is weighed, ordered and shown through', () 
       [first]: `${TEXT}export interface Placement {\n  readonly at: string;\n}\n`,
       'src/b.ts': `${PAGE}export interface Placement {\n  readonly at: string;\n}\n`,
     }), 'commit text page');
-    const shown = [['Placement', 'src/b.ts', 'Kept at a commit with its page.', ['commit', 'page']]];
+    const shown = [['Placement', 'src/b.ts', 'Kept with its page at a commit.', ['commit', 'page']]];
     expect(await placed('src/a.ts')).toEqual(shown);
     expect(await placed('src/c.ts')).toEqual(shown);
   });
@@ -327,7 +331,7 @@ describe('which row a described name is weighed, ordered and shown through', () 
       const kit = (name: string, doc: string): Record<string, string> => ({ 'index.ts': `/** ${doc} */\nexport interface ${name} {\n  readonly at: string;\n}\n` });
       const root = await kits({
         'a-kit': kit('PlacementKit', 'A kit for one placement.'),
-        'b-kit': kit('PlacementKit', 'The placement kit.'),
+        'b-kit': kit('PlacementKit', 'The kit of a placement.'),
         'app': {
           'index.ts': "import type { PlacementKit } from 'a-kit';\nimport type { PlacementKit as Kit } from 'b-kit';\nimport type { More } from './more.js';\nexport type Used = PlacementKit | Kit | More;\n",
           'more.ts': "import type { PlacementKit } from 'b-kit';\nexport type More = PlacementKit;\n",
@@ -342,14 +346,14 @@ describe('which row a described name is weighed, ordered and shown through', () 
     };
     const alone = await shown([]);
     expect(alone).toEqual(await shown(['far', 'wide']));
-    expect(alone).toEqual([['PlacementKit', 'b-kit', 'The placement kit.']]);
+    expect(alone).toEqual([['PlacementKit', 'b-kit', 'The kit of a placement.']]);
   });
 
   it('shows a name in an area no doc adds a word to through the same exported row there whatever its files are called', async () => {
     const shown = async (first: string): Promise<unknown> => {
       const placed = (doc: string): string => `/** ${doc} */\nexport interface PlacementKit {\n  readonly at: string;\n}\n`;
       const root = await inventedWorkspace(INVENTED_PACKAGES, ['react'], {
-        [`src/${first}.ts`]: placed('The placement kit.'),
+        [`src/${first}.ts`]: placed('The kit of a placement.'),
         'src/b.ts': placed('A kit for one placement.'),
         'src/app.ts': `import type { PlacementKit } from './${first}.js';\nimport type { PlacementKit as Kit } from './b.js';\nexport type Used = PlacementKit | Kit;\n`,
       });
@@ -368,7 +372,7 @@ describe('which row a described name is weighed, ordered and shown through', () 
 
   it('shows a name no doc adds a word to, asked without an area, through the same published row whatever its packages are called', async () => {
     const shown = async (first: string): Promise<unknown> => describedBy(await kits({
-      [first]: declaring('PlacementKit', 'The placement kit.'),
+      [first]: declaring('PlacementKit', 'The kit of a placement.'),
       'b-kit': declaring('PlacementKit', 'A kit for one placement.'),
       'c-kit': declaring('KitPlacement', 'The placement kit.'),
     }), 'placement kit zebra');
@@ -382,7 +386,7 @@ describe('which row a described name is weighed, ordered and shown through', () 
 
   it('shows a name no doc adds a word to, asked without an area, through the same exported row whatever its files are called', async () => {
     const shown = async (first: string): Promise<unknown> => describedBy(await inventedWorkspace(INVENTED_PACKAGES, ['react'], {
-      [`src/${first}.ts`]: declaring('PlacementKit', 'The placement kit.')['index.ts'] as string,
+      [`src/${first}.ts`]: declaring('PlacementKit', 'The kit of a placement.')['index.ts'] as string,
       'src/b.ts': declaring('PlacementKit', 'A kit for one placement.')['index.ts'] as string,
     }), 'placement kit zebra');
     const named = await shown('a');
@@ -443,5 +447,31 @@ describe('which row a described name is weighed, ordered and shown through', () 
     });
     const shown = searchNames(searchIndexOf(readHelp(root)), { query: 'kit mermaid chart palette' }).described?.shown.find(({ name }) => name === 'DrawKit');
     expect(shown && [shown.at, 'summary' in shown ? shown.summary : undefined, shown.words]).toEqual(['src/b.ts', 'Drawn as a mermaid.', ['kit', 'mermaid']]);
+  });
+
+  it('shows a name through the row writing the question nearer, of two weighing alike, whatever the other one says first', async () => {
+    // Both `Placement` docs hold `commit` and `text` in 21 bytes; only `src/b.ts` writes them side by side, as `Rival`'s does.
+    const placed = async (first: string): Promise<unknown> => describedBy(await inventedWorkspace(INVENTED_PACKAGES, ['react'], {
+      'src/a.ts': `/** ${first} text at the commit. */\nexport interface Placement {\n  readonly at: string;\n}\n`,
+      'src/b.ts': '/** The commit text kept. */\nexport interface Placement {\n  readonly at: string;\n}\n',
+      'src/r.ts': '/** The commit text kept. */\nexport interface Rival {\n  readonly at: string;\n}\n',
+    }), 'commit text shard');
+    const shown = [
+      ['Placement', 'src/b.ts', 'The commit text kept.', ['commit', 'text']],
+      ['Rival', 'src/r.ts', 'The commit text kept.', ['commit', 'text']],
+    ];
+    expect(await placed('A')).toEqual(shown);
+    expect(await placed('X')).toEqual(shown);
+  });
+
+  it('keeps a name in the described section by the words of the row it is shown through, never of its rows added up', async () => {
+    // The three `Gadget` docs hold the three words between them, and no one of them holds two.
+    const found = searchNames(searchIndexOf(readHelp(await kits({
+      'a-kit': declaring('Gadget', 'Kept for the walrus.'),
+      'b-kit': declaring('Gadget', 'Kept for the pelican.'),
+      'c-kit': declaring('Gadget', 'Kept for the narwhal.'),
+    }))), { query: 'walrus pelican narwhal' });
+    expect(found.described?.shown.map((one) => one.name) ?? []).toEqual([]);
+    expect(found.loose?.shown.map((one) => one.name)).toEqual(['Gadget', 'Gadget', 'Gadget']);
   });
 });

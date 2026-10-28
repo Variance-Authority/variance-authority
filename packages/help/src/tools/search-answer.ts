@@ -294,8 +294,9 @@ function published(index: SearchIndex, hits: readonly Hit[], count: number): Mat
 }
 
 /**
- * The described section's {@link RowOrder}, the sections' own: a published row before an exported
- * one, then {@link surfaceOrder} with the question found alike in each, or {@link exportedOrder}.
+ * The described section's {@link RowOrder}: a published row before an exported one, then {@link surfaceOrder} with the
+ * question found alike in each, or {@link exportedOrder}. The published and exported sections also put a published row
+ * first, before where the question was found; the described section puts a row's weight, then its phrase, before it.
  */
 export function shownRowOrder(index: SearchIndex, area: Area | undefined, within: ReadonlySet<number> | undefined): RowOrder {
   const hits = new Map<number, Hit>();
@@ -410,12 +411,12 @@ export function searched(index: SearchIndex, question: SearchQuestion, tree?: Tr
   const declarations = describedDeclarations(root, query, area?.files) ?? [];
   const reached = describedNames(index, query, within, new Set([...named, ...answered]), shownRowOrder(index, area, within), declarations);
   const described = reached === undefined ? undefined : [...reached, ...declarations];
-  // Which reading a name both reach is told by is decided by what each holds,
-  // never by how many rows print. A name holding at least half the stems is the
-  // described section's, which prints first, and the loose pass offers none of
-  // them a second time. A name holding fewer is the loose section's when every
-  // word reaches it there, since every word one character off says more than
-  // under half the stems do: held on so few, it would sort past the rows shown.
+  // Which reading a name both reach is told by is decided by what each holds, never
+  // by how many rows print. A name holding at least half the stems through one row
+  // is the described section's, which prints first, and the loose pass offers none
+  // of them a second time. A name holding fewer is the loose section's when every
+  // word reaches it there, since every word one character off says more than under
+  // half the stems do: held on so few, it would sort past the rows shown.
   const strong = Math.ceil(describedWordsNative(query).length / 2);
   const held = (one: Reached): boolean => one.words.length >= strong;
 
