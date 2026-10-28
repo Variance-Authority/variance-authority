@@ -68,8 +68,10 @@ a half. When it keeps none it prints the seam's reading: `none (the record was
 taken over this text)` means the tests that entered the edit already ran it,
 and a test further than one import is left for `verify:near`. A type error
 stops it before any test. Integration and chromium tests never run in it. It
-ends with the needs list: for each function new on the branch, the existing
-functions that need what it needs. The list adds about half a second with its
+ends with the needs list: for each function new on the branch in the package
+sources, the scripts a package ships and `tools/`, with five needs or more, the
+existing functions there that need what it needs. Tests, `site/` and `examples/`
+are not read. The list adds about half a second with its
 cache warm and never changes the exit code. It is not lint and not a wave:
 `verify:near` still runs every slice once the change is whole.
 

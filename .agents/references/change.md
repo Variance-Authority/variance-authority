@@ -23,9 +23,10 @@ diff, and says nothing about a file that has not changed.
 
 **Does existing code already answer it?** Before writing, ask `yarn variance
 ask search` for what the code is to do. After, `yarn test:loop` ends by naming,
-for each function new on the branch, the existing functions that need what it
-needs: the same calls, fields, strings, types, imports and identifier words,
-whatever their order or shape. A name it lists is a lead to read, not a
+for each function new on the branch in the package sources, the scripts a
+package ships and `tools/`, with five needs or more, the existing functions
+there that need what it needs: the same calls, fields, strings, types, imports
+and identifier words, whatever their order or shape. A name it lists is a lead to read, not a
 verdict: where it answers, call or extend it instead of keeping the new one.
 The list misses copies, so an empty list clears nothing, and it does not see a
 second path written inside a function that already existed.

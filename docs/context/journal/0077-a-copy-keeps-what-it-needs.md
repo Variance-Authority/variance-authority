@@ -23,7 +23,7 @@ existed, from `main`'s first-parent line up to 94a02988b, 1,457 changes:
   while one that answered existed at its base. Each was confirmed by reading
   the copy and its owner. 44 are function copies, 48 functions between them
   because four changes wrote two; 4 are constants and 6 inline idioms.
-- 40 judged pairs: a sample of what an earlier probe named on ordinary changes,
+- 39 judged pairs: a sample of what an earlier probe named on ordinary changes,
   each read and called `reuse` (the existing function answers), `family` (the
   same question, answered another way) or `unrelated`. They were sampled from
   that probe's output, not from this tool's.
@@ -99,7 +99,7 @@ and prints 466 names. Of the first 40 of them, 20 are `reuse`, 17 `family` and
 half is an upper bound, so the recall to expect on new copies is a third or
 less, not the 58% of the half the threshold was first chosen on.
 
-Of the 40 judged pairs, the tool asks about 23. Of the other 17, 12 are in
+Of the 39 judged pairs, the tool asks about 23. Of the other 16, 11 are in
 files it does not read, package scripts and an example, and 5 are constants and
 a constructor. Of the 23 it names 13:
 5 `reuse` and 8 `family`. A `family` name is the place to look, not a false

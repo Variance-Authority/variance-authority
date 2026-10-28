@@ -66,8 +66,9 @@ the loop, and are fixed in the read.
 ## Amended 2026-10-28 — the loop names what a new function needs
 
 After the tests, whatever they said, the loop prints the existing functions
-that need what each function new on the branch needs (`tools/needs.mjs`,
-[journal 0077](../journal/0077-a-copy-keeps-what-it-needs.md)). A second
+that need what each function new on the branch needs, in the package sources,
+the scripts a package ships and `tools/`, for functions with five needs or more
+(`tools/needs.mjs`, [journal 0077](../journal/0077-a-copy-keeps-what-it-needs.md)). A second
 implementation is cheapest to drop while it is being written, and the loop is
 the one thing an agent runs then.
 

@@ -144,8 +144,13 @@ export function needs(root) {
 function mergeBase(root) {
   try {
     return git(root, ['merge-base', 'HEAD', 'origin/main']).trim();
-  } catch {
-    throw new Error('no merge base with origin/main to measure the branch from');
+  } catch (error) {
+    // Exit 1 is two histories with no common commit; 128 with this text is a checkout with no `origin/main`.
+    // Anything else, a corrupt object or an unreadable repository, is git's to say.
+    if (error.status === 1 || /Not a valid object name|unknown revision/i.test(error.message)) {
+      throw new Error('no merge base with origin/main to measure the branch from');
+    }
+    throw error;
   }
 }
 
@@ -272,8 +277,17 @@ function parsedOr(unread, path, read) {
 }
 
 /** Git's output in `root`, as text, or as bytes when `encoding` is `'buffer'`. */
-export const git = (root, args, { input, encoding = 'utf8' } = {}) =>
-  execFileSync('git', ['-c', 'core.quotePath=false', ...args], { cwd: root, input, encoding, maxBuffer: 1 << 30, stdio: ['pipe', 'pipe', 'pipe'] });
+export const git = (root, args, { input, encoding = 'utf8' } = {}) => {
+  try {
+    return execFileSync('git', ['-c', 'core.quotePath=false', ...args], { cwd: root, input, encoding, maxBuffer: 1 << 30, stdio: ['pipe', 'pipe', 'pipe'] });
+  } catch (error) {
+    // One line, git's own first: `execFileSync` opens with `Command failed:` and puts the reason lines below it.
+    const reason = String(error?.stderr ?? '').split('\n').find((line) => line.trim() !== '') ?? String(error?.message ?? error).split('\n')[0];
+    const failed = new Error(`git ${args[0]}: ${reason}`);
+    failed.status = error?.status;
+    throw failed;
+  }
+};
 const listed = (out) => out.split('\n').filter((line) => line !== '');
 
 const keyOf = (key) => (key?.type === 'Identifier' || key?.type === 'PrivateIdentifier' ? key.name : typeof key?.value === 'string' ? key.value : undefined);

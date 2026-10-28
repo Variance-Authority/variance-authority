@@ -1566,19 +1566,6 @@
    "verdict": "unrelated"
   },
   {
-   "base": "5fd2df4af5c24a89d2733919680b66211c29cedb",
-   "head": "232815a534b61c4218a70e4d1ddf0a06295a1177",
-   "added": {
-    "path": "packages/sense/scripts/variance-store-query.mjs",
-    "name": "pick"
-   },
-   "existing": {
-    "path": "packages/sense/scripts/scale-chunks.mjs",
-    "name": "pick"
-   },
-   "verdict": "unrelated"
-  },
-  {
    "base": "68e7438ccc91b03873307412cb6b967e1f0c9cd2",
    "head": "93d95e87a58c60f5ee865f51069a2c3c6ca7623f",
    "added": {

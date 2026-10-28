@@ -4,7 +4,7 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { READS, needs, remember, said, twinsOf, unitsIn } from './needs.mjs';
+import { READS, git, needs, remember, said, twinsOf, unitsIn } from './needs.mjs';
 
 /**
  * Existing code with the needs of a function just written.
@@ -186,6 +186,18 @@ describe('needs', () => {
     "  return { name: parsed.name, version: parsed.version ?? '0.0.0', workspaces: parsed.workspaces ?? [] };",
     '}',
   ];
+
+  it("says what git said, in one line, when a git command fails", async () => {
+    const { dir } = await repository({ 'packages/a/src/a.ts': ['export const a = 1;'] });
+    let message = '';
+    try {
+      git(dir, ['rev-parse', '--verify', 'nonsense']);
+    } catch (error) {
+      message = (error as Error).message;
+    }
+    expect(message).toMatch(/^git rev-parse: fatal: /);
+    expect(message).not.toContain('\n');
+  });
 
   it('asks about the functions new since the branch left origin/main, and only those', async () => {
     const { dir, write } = await repository({
