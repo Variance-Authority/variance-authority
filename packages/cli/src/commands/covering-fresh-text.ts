@@ -12,7 +12,7 @@
  */
 
 import { staleFile, staleLines } from './covering-stale.js';
-import type { CoveringRan, Landed, RanStand } from './covering-ran.js';
+import { unique, type CoveringRan, type Landed, type RanStand } from './covering-ran.js';
 import type { Covering, CoveringTarget } from './covering.js';
 
 /**
@@ -37,7 +37,8 @@ export function frameText(answer: Covering): readonly string[] {
 /**
  * Whether each test file the answer names ran over the asked text, and when,
  * in lines ordered by when their runs landed, the oldest first. The test files
- * that ran over it are said in one line; each group that ran over another
+ * that ran over it are said in one line, and those judged on fewer than every
+ * asked file in one per those files, by name; each group that ran over another
  * text, or whose text is not known, in one of its own, by name; a test file
  * whose named cases last ran in different runs, in one of its own, part by
  * part. A changed file off disk is said first, and no line says a test file
@@ -58,7 +59,10 @@ export function ranText(answer: Covering, now: number): readonly string[] {
   const parted = new Map<string, RanStand[]>();
   for (const stand of stands) if (stand.cases !== undefined) parted.set(stand.tests[0]!, [...(parted.get(stand.tests[0]!) ?? []), stand]);
   const all = new Set(stands.flatMap((stand) => stand.tests)).size;
-  const held = whole.filter((stand) => stand.text === 'held');
+  const held = whole.filter((stand) => stand.text === 'held' && stand.files === undefined);
+  // Test files judged on fewer than every asked file are said by name, with the files they read.
+  const read = new Map<string, RanStand[]>();
+  for (const stand of whole) if (stand.text === 'held' && stand.files !== undefined) read.set(stand.files.join('\n'), [...(read.get(stand.files.join('\n')) ?? []), stand]);
   const uncompared = whole.filter((stand) => stand.text === undefined && stand.unknown === undefined);
   const lines: { readonly at: string; readonly said: string }[] = [];
   const counted = (group: readonly RanStand[]): { count: number; others: boolean } => {
@@ -69,6 +73,11 @@ export function ranText(answer: Covering, now: number): readonly string[] {
     const { count, others } = counted(held);
     const verb = asked.length === 1 ? 'is the text' : 'are the texts';
     lines.push({ at: earliest(held), said: `${list(asked, 'other files')} ${verb} ${subject(ran, count, others)} ran over, ${when(held, now)}.` });
+  }
+  for (const group of read.values()) {
+    const files = group[0]!.files!;
+    const names = list(unique(group.flatMap((stand) => stand.tests)), 'other test files');
+    lines.push({ at: earliest(group), said: `${list(files, 'other files')} ${files.length === 1 ? 'is the text' : 'are the texts'} ${names} ran over, ${when(group, now)}.` });
   }
   if (uncompared.length > 0) {
     const { count, others } = counted(uncompared);
@@ -119,6 +128,7 @@ function partsText(answer: Covering, ran: CoveringRan, test: string, parts: read
  */
 function partText(answer: Covering, part: RanStand, asked: readonly string[], now: number): string {
   const at = when([part], now);
+  if (part.text === 'held' && part.files !== undefined) return ` over the text of ${list(part.files, 'other files')} as it is now, ${at}`;
   if (part.text === 'held') return ` over ${asked.length === 1 ? 'this text' : 'these texts'}, ${at}`;
   const over = [
     ...(part.held === undefined ? [] : [`over the text of ${list(part.held, 'other files')} as it is now`]),
@@ -130,10 +140,10 @@ function partText(answer: Covering, part: RanStand, asked: readonly string[], no
   return ` ${over.join(' and ')}, ${at}${partRegion(answer, part)}${part.unknown === undefined ? '' : `, since ${part.unknown}`}`;
 }
 
-/** The asked files a stand's `unknown` is of: every one it gives no other verdict of. */
+/** The asked files a stand's `unknown` is of: every one it is judged on and gives no other verdict of. */
 function unknownOf(stand: RanStand, asked: readonly string[]): readonly string[] {
   const said = [...(stand.held ?? []), ...(stand.other ?? []), ...(stand.absent ?? [])];
-  return asked.filter((file) => !said.includes(file));
+  return (stand.files ?? asked).filter((file) => !said.includes(file));
 }
 
 /** The asked region of a part that ran another text, after its time: whether it is the same in both texts. */

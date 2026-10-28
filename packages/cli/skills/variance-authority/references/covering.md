@@ -247,10 +247,14 @@ src/pay.ts is the text the other test file named here ran over, in a run that la
   ran over your text, which text its cases ran over is not known.
 - Your text, `--text` or the file on disk, is compared by digest with the
   texts the runs record names for each run, else the committed ones at its
-  commit. The groups that ran over it share one line; a group that ran over
-  another text, or whose text is not known, is named. A file the group's commit
-  lacks is said not to have existed where it ran; a commit or text this clone
-  lacks leaves it not known. Every asked file and its verdict is said.
+  commit. A group is compared only on the files its runs read: the asked file
+  its cases entered or hold as a precondition, and under `--since` each changed
+  file its cases are named for, entered or hold as a precondition. A file its
+  runs never loaded says nothing of the text they ran over. The groups that ran
+  over your text share one line; a group that ran over another text, or whose
+  text is not known, is named. A file the group's commit lacks is said not to
+  have existed where it ran; a commit or text this clone lacks leaves it not
+  known. Every file a group read and its verdict is said.
 - For `--line`, `--lines` and `--function`, a named group's line says whether
   that region is the same in both texts, gone from yours, or why that is not
   known. Under `--function` it says nothing of the region when the record does
@@ -267,20 +271,22 @@ src/pay.ts is the text the other test file named here ran over, in a run that la
   record lies beside the snapshot or it is of another commit, is read where
   the record assumes it, at no time and over a text not known, and a last line
   says how many were. An answer naming no test file is dated by the test files
-  that entered the file, else by every case it read.
-- `--since` says the same under its regions, over every changed file, with no
-  region; a changed file not on disk is named first, and no test file is said
-  to have run over it.
+  that entered the file, and compared over it, else by every case it read, and
+  compared over nothing, since none of them loaded it.
+- `--since` says the same under its regions, each group over the changed files
+  it read, with no region; a changed file not on disk is named first, and no
+  test file is said to have run over it.
 
 In JSON, `at` is the record's commit and `ran.stands` the groups: each a
 `commit` (absent for a run outside a git checkout), its `tests`, `cases` (the
 cases of its one test file when that file is said part by part), `landed`
 (`first`, `latest`, and `runs` when counted), `partly` (the `commit` and
 `landed` of each later run that ran them in part without naming its cases),
-`text` (`held` when they ran over your text of every asked file, `other` when
-they ran over another text of some, or over none), `other` naming the asked
-files they ran another text of, `absent` those that did not exist where they
-ran, `held` those whose text is yours when not every one is, `region` (`same`,
+`files` (the asked files they are compared on, when fewer than all), `text`
+(`held` when they ran over your text of every file they are compared on,
+`other` when they ran over another text of some, or over none), `other` naming
+the files they ran another text of, `absent` those that did not exist where
+they ran, `held` those whose text is yours when not every one is, `region` (`same`,
 `changed`, `gone` or `{ "unknown": <why> }`), `unknown` for why the rest's text
 is not known, and `assumed: true` with `ran.assumed` saying how. `ran.unheld`
 names the changed files not on disk, `ran.named` is `entered` or `read` when the

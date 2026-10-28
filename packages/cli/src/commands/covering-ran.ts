@@ -23,6 +23,7 @@ import type { RunsRead } from './base-diff.js';
 import { evidenceOf, ranOver, regionVerdict, type Evidence, type NotHeld, type Region } from './covering-ran-evidence.js';
 import { listedIn } from './covering-where.js';
 import type { CoveringTarget } from './covering.js';
+import { heldAsPrecondition, type HeldAsPrecondition } from './held-as-precondition.js';
 
 /** When the runs a stand's test files last ran in landed, and how many there were when the record says. */
 export interface Landed {
@@ -53,18 +54,27 @@ export interface RanStand {
    */
   readonly partly?: readonly { readonly commit?: string; readonly landed?: Landed }[];
   /**
-   * `held` when they ran over the asked text of every asked file, `other`
-   * when they ran over another text of the files in `other`, or over none of
-   * those in `absent`, which did not exist where they ran. Absent when no text
-   * was held to compare, or when neither is so of any file and `unknown` says
-   * why.
+   * Under `--since`, the changed files on disk they are judged on, in the
+   * diff's order, when that is not every one: the files their cases are named
+   * for, that they entered, or that they hold as a precondition. A run's texts
+   * name only the files it read, so a file their runs never loaded says
+   * nothing of the text they ran over, and is not judged. Absent when they are
+   * judged on every asked file, and with no verdict when on none.
+   */
+  readonly files?: readonly string[];
+  /**
+   * `held` when they ran over the asked text of every file they are judged
+   * on, `other` when they ran over another text of the files in `other`, or
+   * over none of those in `absent`, which did not exist where they ran. Absent
+   * when no text was held to compare, or when neither is so of any file and
+   * `unknown` says why.
    */
   readonly text?: 'held' | 'other';
   readonly other?: readonly string[];
   readonly absent?: readonly string[];
-  /** When not every asked file's text is the one they ran over: those whose is. */
+  /** When not every file they are judged on holds the text they ran over: those that do. */
   readonly held?: readonly string[];
-  /** Why whether they ran over the asked text of each asked file not in `held`, `other` or `absent` is not known. */
+  /** Why whether they ran over the asked text of each file they are judged on not in `held`, `other` or `absent` is not known. */
   readonly unknown?: string;
   /**
    * With `other` and an asked line or function: whether it is the same in
@@ -190,6 +200,13 @@ export async function ranOf(answer: RanNamed, question: RanQuestion): Promise<Co
   const precondition = answer.preconditionOf !== undefined;
   // A precondition has no recorded line, so no region of it is compared.
   const region = precondition ? undefined : regionOf(answer, question);
+  // Under `--since` a test file that read a changed file only as a precondition is judged on it as one.
+  const holding = answer.changed === undefined || held.size === 0 ? undefined : heldAsPrecondition(snapshot, [...held.keys()], held);
+  const readers = readersOf(answer, { tests, named, index: question.index, holding });
+  const judged = (test: string): Judged => new Map([...held].flatMap(([file, text]) => {
+    const as = readers.get(test)?.get(file);
+    return as === undefined ? [] : [[file, { text, precondition: as === 'precondition' }] as const];
+  }));
   const evidence = held.size === 0
     ? undefined
     : await evidenceOf(units.flatMap((unit) => unit.runs), held, {
@@ -199,12 +216,48 @@ export async function ranOf(answer: RanNamed, question: RanQuestion): Promise<Co
       last: at === undefined ? read.runs?.latest : undefined,
       region: region !== undefined,
       placement: question.placement,
-      ranOther: question.ranOther,
+      ranOther: question.ranOther ?? holding?.ranOther,
     });
-  const stands = standsOf(units, (unit) => (evidence === undefined ? {} : verdictOf(unit, held, evidence, region, precondition)));
+  const stands = standsOf(units, (unit) => (evidence === undefined ? {} : verdictOf(unit, judged(unit.test), held.size, evidence, region)));
   // Oldest first, by when their runs first landed; a stand the record holds no time for comes first.
   stands.sort((one, other) => (one.landed?.first ?? '').localeCompare(other.landed?.first ?? ''));
   return { stands, ...(assumed === undefined ? {} : { assumed }), ...(unheld.length === 0 ? {} : { unheld }), ...as };
+}
+
+/** The asked files one test file is judged on, each with its held text and whether the test file holds it as a precondition. */
+type Judged = ReadonlyMap<string, { readonly text: string; readonly precondition: boolean }>;
+
+/**
+ * The asked files each test file read, by test file, and how: the files its
+ * cases are named for or that it entered, else the ones it holds as a
+ * precondition. A question about one file is of the file for every test file
+ * it names or that entered it; a test file an answer was only read from read
+ * none of them.
+ */
+function readersOf(answer: RanNamed, of: {
+  readonly tests: readonly string[];
+  readonly named: 'entered' | 'read' | undefined;
+  readonly index: ExecutionIndex | undefined;
+  readonly holding: HeldAsPrecondition | undefined;
+}): ReadonlyMap<string, ReadonlyMap<string, 'entered' | 'precondition'>> {
+  const readers = new Map<string, Map<string, 'entered' | 'precondition'>>();
+  const add = (test: string, file: string, as: 'entered' | 'precondition') => {
+    const files = readers.get(test) ?? new Map<string, 'entered' | 'precondition'>();
+    if (files.get(file) !== 'entered') files.set(file, as);
+    readers.set(test, files);
+  };
+  if (answer.changed === undefined) {
+    if (answer.file === undefined || of.named === 'read') return readers;
+    for (const test of of.tests) add(test, answer.file, answer.preconditionOf === undefined ? 'entered' : 'precondition');
+    return readers;
+  }
+  for (const change of answer.changed) {
+    const named = [...change.regions.flatMap((region) => [...region.tests, ...(region.stopped ?? [])]), ...change.cases];
+    const entered = of.index === undefined ? [] : coveringTestsInFile(of.index, change.file).flatMap((range) => range.tests);
+    for (const test of [...named, ...entered]) add(test.file, change.file, 'entered');
+    for (const test of of.holding?.of.get(change.file) ?? []) add(test, change.file, 'precondition');
+  }
+  return readers;
 }
 
 /**
@@ -299,8 +352,8 @@ function runsOf(place: TestPlace): readonly TestPlace[] {
   return [place, ...(place.partly ?? [])];
 }
 
-/** The verdict of one stand: `text`, `other`, `absent`, `held`, `unknown` and `region` of {@link RanStand}. */
-type Verdict = Pick<RanStand, 'text' | 'other' | 'absent' | 'held' | 'unknown' | 'region'>;
+/** The verdict of one stand: `files`, `text`, `other`, `absent`, `held`, `unknown` and `region` of {@link RanStand}. */
+type Verdict = Pick<RanStand, 'files' | 'text' | 'other' | 'absent' | 'held' | 'unknown' | 'region'>;
 
 function regionOf(answer: RanNamed, question: RanQuestion): Region {
   const target = answer.target;
@@ -317,17 +370,21 @@ function regionOf(answer: RanNamed, question: RanQuestion): Region {
 }
 
 /**
- * One unit's verdict for each asked file, its held text against the text each
- * run its cases may have last run in ran over (`ranOver`). Every file is said:
- * one whose text is not known hides no other's verdict, and none hides it.
+ * One unit's verdict for each file it is judged on, its held text against the
+ * text each run its cases may have last run in ran over (`ranOver`). Every
+ * file is said: one whose text is not known hides no other's verdict, and none
+ * hides it. `asked` is how many asked files are held, so `files` is named only
+ * when the unit is judged on fewer.
  */
-function verdictOf(unit: Unit, held: ReadonlyMap<string, string>, evidence: Evidence, region: Region, precondition: boolean): Verdict {
+function verdictOf(unit: Unit, judged: Judged, asked: number, evidence: Evidence, region: Region): Verdict {
+  if (judged.size === 0) return {};
+  const files = judged.size === asked ? {} : { files: [...judged.keys()] };
   const same: string[] = [];
   const other: string[] = [];
   const absent: string[] = [];
   const unknown: string[] = [];
   let regional: RanStand['region'];
-  for (const [file, text] of held) {
+  for (const [file, { text, precondition }] of judged) {
     const rans = unit.runs.map((run) => ranOver(run, unit.test, file, text, evidence, precondition));
     const unread = rans.flatMap((ran) => (typeof ran === 'object' && 'unknown' in ran ? [ran.unknown] : []));
     if (unread.length > 0) unknown.push(unread[0]!);
@@ -339,14 +396,15 @@ function verdictOf(unit: Unit, held: ReadonlyMap<string, string>, evidence: Evid
     else if (rans.every((ran) => ran === 'absent')) absent.push(file);
     else {
       other.push(file);
-      if (held.size !== 1) continue;
+      if (judged.size !== 1) continue;
       const overs = rans.filter((ran): ran is NotHeld => ran === 'absent' || (typeof ran === 'object' && 'text' in ran));
       const regions = overs.map((over) => regionVerdict(region, text, over, file, evidence));
       regional = regions.find((one) => typeof one === 'object') ?? (regions.every((one) => one === regions[0]) ? regions[0] : { unknown: apart(file) });
     }
   }
-  if (same.length === held.size) return { text: 'held' };
+  if (same.length === judged.size) return { ...files, text: 'held' };
   return {
+    ...files,
     ...(other.length > 0 || absent.length > 0 ? { text: 'other' as const } : {}),
     ...(same.length === 0 ? {} : { held: same }),
     ...(other.length === 0 ? {} : { other }),
@@ -372,6 +430,7 @@ async function heldTexts(question: RanQuestion, answer: RanNamed, asked: readonl
   return new Map(texts.flatMap(([file, text]) => (text === undefined ? [] : [[file, text] as const])));
 }
 
-function unique(names: readonly string[]): readonly string[] {
+/** `names` once each, in code-unit order. */
+export function unique(names: readonly string[]): readonly string[] {
   return [...new Set(names)].sort();
 }

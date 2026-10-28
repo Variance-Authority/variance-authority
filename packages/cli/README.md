@@ -774,13 +774,17 @@ Each run is read where it stood: its commit, when it landed, and the texts it
 ran over that were not committed there, as the runs record keeps them. Your
 text, the `--text` buffer or else the file on disk, is compared by digest with
 the text the runs record names for that run, else with the committed one at its
-commit. The test files that ran over your text share one line. A group that ran
-over another text, or whose text is not known, is named. A file that did not
-exist at the commit a group ran at is said so, as in `src/extra.ts did not
-exist where src/fee.test.ts ran`, while a commit or a text this clone lacks
-leaves the text not known. Every asked file is said: a group that ran over your
-text of one file and another text of the next says both, so no file's verdict
-hides another's.
+commit. A group is compared only on the files its runs read: the asked file
+its cases entered or hold as a precondition, and under `--since` each changed
+file its cases are named for, entered or hold as a precondition. A file its
+runs never loaded says nothing of the text they ran over, so it is neither
+another text nor one that did not exist. The test files that ran over your text
+share one line. A group that ran over another text, or whose text is not known,
+is named. A file a group read that did not exist at the commit it ran at is
+said so, as in `src/extra.ts did not exist where src/fee.test.ts ran`, while a
+commit or a text this clone lacks leaves the text not known. Every file a group
+read is said: a group that ran over your text of one file and another text of
+the next says both, so no file's verdict hides another's.
 
 When you asked about a line, a run of lines or a function, a named group's line
 goes on to say whether that region is the same in both texts, read by placing
@@ -812,8 +816,9 @@ A test file the runs record does not place, and every test file when no runs
 record lies beside the snapshot or the one there is of another commit, is read
 where the record assumes it ran, at a time it does not hold, and which text it
 ran over is not known; a last line says how many were read so. An answer that
-names no test file is dated by the test files that entered the file, else by
-every test file of the cases it was read from. Under `--since`, a changed file
+names no test file is dated by the test files that entered the file, and
+compared over it, else by every test file of the cases it was read from, and
+compared over nothing, since none of them loaded it. Under `--since`, a changed file
 that is not on disk is named first, and no line says a test file ran over it.
 
 In JSON, `at` is the commit the record stands at, on every answer whose record
@@ -822,8 +827,9 @@ run outside a git checkout, its `tests`, `cases` naming the cases of its one
 test file when that file is said part by part, `landed` with ISO `first` and
 `latest` and, when the record counts them, `runs`, and `partly` with the
 `commit` and `landed` of each later run that ran them in part without naming
-its cases. Then `text` is `held` when they ran over your text of every asked
-file, else `other`, with `other` naming the asked files they ran another text
+its cases. `files` names the asked files they are compared on when fewer than
+all. Then `text` is `held` when they ran over your text of every file they are
+compared on, else `other`, with `other` naming the files they ran another text
 of, `absent` the ones that did not exist where they ran, `held` the ones whose
 text is yours when not every one is, and `region` as `same`, `changed`, `gone`
 or `{ "unknown": <why> }`. `unknown` says why the text of the files none of
