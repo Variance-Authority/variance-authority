@@ -11,8 +11,9 @@
  * where a run stood, carried in the JSON, and never leads a sentence.
  */
 
+import { codeUnitOrder } from '@variance-authority/core/segment';
 import { staleFile, staleLines } from './covering-stale.js';
-import { unique, type CoveringRan, type Landed, type RanStand } from './covering-ran.js';
+import type { CoveringRan, Landed, RanStand } from './covering-ran.js';
 import type { Covering, CoveringTarget } from './covering.js';
 
 /**
@@ -76,7 +77,7 @@ export function ranText(answer: Covering, now: number): readonly string[] {
   }
   for (const group of read.values()) {
     const files = group[0]!.files!;
-    const names = list(unique(group.flatMap((stand) => stand.tests)), 'other test files');
+    const names = list([...new Set(group.flatMap((stand) => stand.tests))].sort(codeUnitOrder), 'other test files');
     lines.push({ at: earliest(group), said: `${list(files, 'other files')} ${files.length === 1 ? 'is the text' : 'are the texts'} ${names} ran over, ${when(group, now)}.` });
   }
   if (uncompared.length > 0) {

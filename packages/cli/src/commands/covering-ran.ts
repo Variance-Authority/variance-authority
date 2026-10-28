@@ -10,6 +10,7 @@
 
 import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
+import { codeUnitOrder } from '@variance-authority/core/segment';
 import {
   coveringTestsInFile,
   functionsUnder,
@@ -175,11 +176,11 @@ export function namedTestFiles(answer: RanNamed, index: ExecutionIndex | undefin
   const stopped = [...(answer.stopped ?? []), ...(answer.changed ?? []).flatMap((file) => file.regions.flatMap((region) => region.stopped ?? []))];
   const holding = answer.preconditionOf ?? [];
   const listed = [...listedIn(answer), ...stopped, ...(index?.tests ?? []).filter((test) => holding.includes(test.file))];
-  const named = unique(listed.map((test) => test.file).concat(holding));
+  const named = [...new Set(listed.map((test) => test.file).concat(holding))].sort(codeUnitOrder);
   if (named.length > 0 || index === undefined) return { tests: named, cases: casesOf(listed) };
   const entered = answer.file === undefined ? [] : coveringTestsInFile(index, answer.file).flatMap((range) => range.tests);
-  if (entered.length > 0) return { tests: unique(entered.map((test) => test.file)), named: 'entered', cases: casesOf(entered) };
-  const read = unique(index.tests.map((test) => test.file));
+  if (entered.length > 0) return { tests: [...new Set(entered.map((test) => test.file))].sort(codeUnitOrder), named: 'entered', cases: casesOf(entered) };
+  const read = [...new Set(index.tests.map((test) => test.file))].sort(codeUnitOrder);
   return read.length === 0 ? { tests: [], cases: new Map() } : { tests: read, named: 'read', cases: casesOf(index.tests) };
 }
 
@@ -347,7 +348,7 @@ function unitsOf(place: TestPlace, test: string, cases: readonly ExecutionTest[]
   }
   const parts = [...groups.values()];
   if (parts.length === 1) return [{ test, runs: parts[0]!.runs }];
-  return parts.map((part) => ({ test, runs: part.runs, cases: unique(part.cases) }));
+  return parts.map((part) => ({ test, runs: part.runs, cases: [...new Set(part.cases)].sort(codeUnitOrder) }));
 }
 
 /**
@@ -384,7 +385,7 @@ function standsOf(units: readonly Unit[], verdict: (unit: Unit) => Verdict): Ran
     group.tests.push(unit.test);
     together.set(key, group);
   }
-  return [...[...together.values()].map((group) => ({ ...standOf(group.runs, unique(group.tests)), ...group.verdict })), ...apart];
+  return [...[...together.values()].map((group) => ({ ...standOf(group.runs, [...new Set(group.tests)].sort(codeUnitOrder)), ...group.verdict })), ...apart];
 }
 
 /** Where and when `tests` last ran: the run that last ran their cases, and the later runs in part that may have. */
@@ -489,9 +490,4 @@ async function heldTexts(question: RanQuestion, answer: RanNamed, asked: readonl
     ? asked.map((file) => [file, question.held] as const)
     : await Promise.all(asked.map(async (file) => [file, await readFile(resolve(question.root, file), 'utf8').catch(() => undefined)] as const));
   return new Map(texts.flatMap(([file, text]) => (text === undefined ? [] : [[file, text] as const])));
-}
-
-/** `names` once each, in code-unit order. */
-export function unique(names: readonly string[]): readonly string[] {
-  return [...new Set(names)].sort();
 }
