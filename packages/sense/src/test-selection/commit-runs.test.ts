@@ -192,6 +192,28 @@ describe('the runs recorded at one commit', () => {
     ]);
   });
 
+  it('holds no time for a stand the runs at its commit land in again when the stand was written without one', () => {
+    // A stand written before stands carried their time does not say when its
+    // tests ran. Spanned with the runs that land there again, it would date
+    // them by those runs, so the stand holds no time at all.
+    const tests = (...files: string[]) => files.map((file) => ({ file }));
+    const held: CommitRuns = {
+      commit: 'P',
+      over: 'Q',
+      first: '2026-01-03T00:00:00.000Z',
+      latest: '2026-01-03T00:00:00.000Z',
+      runs: 1,
+      files: ['a.test.ts'],
+      standing: [{ commit: 'P', files: ['b.test.ts'] }],
+    };
+    const after = commitRunsAfter({ instrumentation: 'fixture', commit: 'P', tests: tests('a.test.ts', 'b.test.ts', 'c.test.ts') }, held, {
+      instrumentation: 'fixture',
+      commit: 'R',
+      tests: tests('c.test.ts'),
+    });
+    expect(after.standing).toEqual([{ commit: 'P', files: ['a.test.ts', 'b.test.ts'] }]);
+  });
+
   it('leaves `standing` absent, rather than guessed, when no record speaks for the snapshot it replaces', async () => {
     const records = {
       'none beside the snapshot': undefined,
