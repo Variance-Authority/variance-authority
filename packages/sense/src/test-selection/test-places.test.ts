@@ -42,6 +42,12 @@ describe('a test is placed where the runs record says it last ran, with the time
     expect(places.get('a.test.ts')).toEqual({ commit: 'H', first: runs.latest, latest: runs.latest, runs: 1, texts: {} });
   });
 
+  it('holds no time for a record seeded before landings, whose time was when it was seeded', () => {
+    const { landings: _landings, ...enveloped } = runs;
+    const { places } = testPlaces({ commit: 'H', runs: { ...enveloped, runs: 0 }, tests: ['a.test.ts'] });
+    expect(places.get('a.test.ts')).toEqual({ commit: 'H' });
+  });
+
   it('holds no time for a record of another snapshot, and says so', () => {
     const { places, assumed } = testPlaces({ commit: 'X', runs, tests: ['a.test.ts'] });
     expect(places.get('a.test.ts')).toEqual({ commit: 'X', assumed: true });

@@ -20,8 +20,8 @@ export interface TestPlace {
   /**
    * When the runs it last ran in landed, and how many there were, as the
    * record holds it; a seeded record holds its base's landings as they are.
-   * Absent when it does not: an assumed place, and a stand written before
-   * stands carried their time.
+   * Absent when it does not: an assumed place, a stand written before stands
+   * carried their time, and a record seeded before landings were kept.
    */
   readonly first?: string;
   readonly latest?: string;

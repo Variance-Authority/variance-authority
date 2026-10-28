@@ -86,7 +86,8 @@ export interface CommitRuns {
   /**
    * When the first and the latest of the runs landed. A seeded record keeps
    * the base's: they say when the runs its tests last ran in landed, which
-   * the seed does not change.
+   * the seed does not change. A record seeded before landings were kept was
+   * stamped when it was seeded, so its time is not read (`landingsOf`).
    */
   readonly first: string;
   readonly latest: string;

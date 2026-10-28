@@ -140,6 +140,19 @@ describe('a covering answer says when the test files it names last ran, and over
     );
   });
 
+  it('holds no time for a record seeded before landings, which was stamped when it was seeded', async () => {
+    const seeded = iso(Date.now() - 10 * MINUTE);
+    const { at, commit } = await checkout({
+      runs: (_, recorded) => ({ commit: recorded, first: seeded, latest: seeded, runs: 0, files: ['src/pay.test.ts'], standing: [], installed: {} }),
+    });
+    const { text, json } = await ask(at, '--file', 'src/pay.ts', '--line', '3');
+
+    expect(json).toMatchObject({ ran: { stands: [{ commit }] } });
+    expect(json.ran.stands[0]).not.toHaveProperty('landed');
+    expect(text).toContain('at a time the record does not hold');
+    expect(text).not.toContain('10 minutes ago');
+  });
+
   it('reads a test file the runs at the record\'s commit did not observe as having run there, and says that is assumed', async () => {
     const { at, commit } = await checkout({
       runs: (_, recorded) => ({ commit: recorded, ...oneRun(iso(Date.now()), ['src/other.test.ts']) }),

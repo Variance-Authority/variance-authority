@@ -19,9 +19,13 @@ import type { KeptTexts } from './kept-texts.js';
 export interface Landing extends Pick<StandingEntry, 'installed' | 'texts' | 'partly'> {
   /** The test files it finished, in code-unit order. */
   readonly files: readonly string[];
-  /** When it landed: one instant for a run, a span for a record that kept no landings. */
-  readonly first: string;
-  readonly latest: string;
+  /**
+   * When it landed: one instant for a run, a span for a record that kept no
+   * landings. Absent for a record seeded before landings, which was stamped
+   * when it was seeded.
+   */
+  readonly first?: string;
+  readonly latest?: string;
   /**
    * How many runs it is: one for a run, the count a record that kept no
    * landings held. A seed carries its base's landings as they are, so a seeded
@@ -56,16 +60,16 @@ export function observedBy(prior: RecordedTests | undefined, current: RanTests):
 /**
  * The landings `record` holds, earliest first; a record that kept none is one
  * landing of its own fields, which names no texts: a record written before
- * landings was written before texts were named.
+ * landings was written before texts were named. One with no runs of its own
+ * was seeded then, and a seed stamped the moment of seeding, so its time is
+ * not held.
  */
 export function landingsOf(record: Pick<CommitRuns, 'files' | 'first' | 'latest' | 'runs' | 'installed' | 'landings'>): readonly Landing[] {
   if (Array.isArray(record.landings)) return record.landings;
   if (!Array.isArray(record.files) || record.files.length === 0) return [];
   return [{
     files: record.files,
-    first: record.first,
-    latest: record.latest,
-    ...(record.runs > 0 ? { runs: record.runs } : {}),
+    ...(record.runs > 0 ? { first: record.first, latest: record.latest, runs: record.runs } : {}),
     ...(record.installed === undefined ? {} : { installed: record.installed }),
   }];
 }
