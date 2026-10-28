@@ -186,7 +186,7 @@ in it is a script of ours:
 tsc --build && VARIANCE_AUTHORITY_SINCE= VARIANCE_AUTHORITY_AT_DISTANCE=0-1 npx vitest run
 ```
 
-Give your agent that line as the command it runs after each edit, and tell it
+Under Jest 30 the same two variables go in front of `npx jest`. Give your agent that line as the command it runs after each edit, and tell it
 to read the verdict before it makes the next one. Each edit ends one of four
 ways:
 
@@ -219,19 +219,17 @@ whole:
 ```text
 the change entered 3 test files: 2 at 3 hops, and 1 at 4 hops.
 3 selected test files are left for a later leg: the same command with `--at-distance 2-` runs them.
-read tools/slices.mjs: none (the record was taken over this text) — a test recorded over an earlier text of an edited region is not skipped
 ```
 
 The loop says only that the edit broke nothing within one import. The tests
 further out still owe the edit, as each run leaves them, so before you hand the
-change over, run the same line with `VARIANCE_AUTHORITY_AT_DISTANCE=2-`. The
-two legs split the selection as `0-2` and `3-` do above.
+change over, run the same line with `VARIANCE_AUTHORITY_AT_DISTANCE=2-`.
+Every selected file runs in one of `0-1` and `2-`, by the same rules that place
+it in `0-2` or `3-` above.
 
-This repository runs exactly that line as `yarn test:loop`, over its 1002
-unit test files. With a one-minute load average between 10 and 13, the median
-of five runs: a type error stops in 0.09 s, an edit no test needs answers in
-0.73 s, and a body edit that keeps one test answers in 1.42 s. The compiler is
-TypeScript 7.
+This repository's own agents run that line after each edit, as
+`yarn test:loop`; [what a selection costs](#what-a-selection-costs) gives its
+times.
 
 ## When it runs everything
 
@@ -267,8 +265,14 @@ those nine and exits in 3.4 s. Run it again on the same tree and it prints
 `selected none of 686` and exits in 0.8 s. Each of those two times is the median
 of seven warm runs.
 
+The agent loop on the same suite, grown to 1002 test files, puts the compiler
+first: a type error stops in 0.09 s, an edit no test needs answers in 0.73 s,
+and a body edit that keeps one test answers in 1.42 s. Each is the median of
+five runs, with a one-minute load average between 10 and 13.
+
 Every time in this section was measured on an Apple M4 Max with 64 GB under
-Node 24, with a one-minute load average between 4 and 9 on its 16 cores.
+Node 24, with a one-minute load average between 4 and 9 on its 16 cores unless
+it says otherwise.
 
 What recording adds to a run is measured on public suites in
 [what recording costs while the suite runs](selecting.md#what-recording-costs-while-the-suite-runs).

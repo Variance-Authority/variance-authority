@@ -51,3 +51,11 @@ is what that page says. A user's loop and ours are the same three steps.
 The seam computes the selection inside the runner, so an empty selection pays
 the Vitest boot. At 0.73 s that is accepted; a selection read outside the
 runner to save it would be the second implementation this ADR removes.
+
+The script ran `variance index` before it read; the line does not. A wrapped
+run writes the source index when it finishes, so each selection reads the file
+graph the previous run left. A file new since then is missing from that graph,
+and the run names it among the changed files it holds nothing about. No test is
+lost by it: a new file is reached only through an import an edit added, and
+that edited importer charges every test that loaded it. Checked by adding a new
+module and its import, then reading the loop and `variance select` after it.
