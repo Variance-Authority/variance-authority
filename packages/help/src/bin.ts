@@ -9,6 +9,7 @@ import { readSearchForAnswer } from './search-read.js';
 import { discover } from './tools/discover.js';
 import { intersection, namesWanted } from './tools.js';
 import { search } from './tools/search.js';
+import { importingOf } from './tools/uses-count.js';
 import { serveWorkspace } from './server.js';
 import { writePages } from './write.js';
 
@@ -159,8 +160,9 @@ if (asking(verb) && verb !== undefined) {
         ...(wantsTree ? { tree: (drawn: Tree) => { tree = drawn; } } : {}),
       };
       if (tool === search) {
-        const { index, compared, unopened } = await readSearchForAnswer(root, reading);
-        return { answer: () => (format === 'json' ? askSearchJson : askSearch)(index, ownArgs, () => tree, !compared, unopened), at: index.generation?.generatedAt };
+        const { index, compared, unopened, help } = await readSearchForAnswer(root, reading);
+        const importing = help === undefined ? undefined : importingOf(help, root);
+        return { answer: () => (format === 'json' ? askSearchJson : askSearch)(index, ownArgs, () => tree, !compared, unopened, importing), at: index.generation?.generatedAt };
       }
       if (tool === discover) {
         const named = await readNamedTree(root, inputFrom(tool, ownArgs));

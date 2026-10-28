@@ -11,6 +11,8 @@ import { declaredKey, looseDeclarations } from './loose-declared.js';
 import { queryDependencyLexicon, type LexiconMatches } from '../dependency-lexicon.js';
 import { declaredMatches, exactness } from './declared.js';
 import { docRows, exported, exportedOrder, first } from './exported-matches.js';
+import { type InArea, type PublishedMatch, withImporting } from './published-match.js';
+import type { ImportingOf } from './uses-count.js';
 
 /**
  * What `search` found, before a word of it is written.
@@ -57,36 +59,7 @@ export interface SearchQuestion {
   readonly to?: string | readonly string[] | undefined;
 }
 
-/** How one published name is used inside the area. */
-export interface InArea {
-  readonly files: number;
-  readonly imports: number;
-  /** `[hops, files]`, nearest first: how many importing files sit at each distance. */
-  readonly filesByDistance: readonly (readonly [number, number])[];
-}
-
-/** A name a manifest publishes. */
-export interface PublishedMatch {
-  readonly source: 'published';
-  readonly name: string;
-  /** What to import it from. */
-  readonly specifier: string;
-  readonly kind: string;
-  /**
-   * The first paragraph of its documentation, on one line; absent when nothing
-   * documents it. The whole comment is `symbol`'s answer, not this one's: forty
-   * of them would cost more than every other field here together.
-   */
-  readonly summary?: string;
-  /** The file that declares it. */
-  readonly at: string;
-  /** Packages that import it, across the repository. */
-  readonly packages: number;
-  /** Import sites, across the repository. */
-  readonly imports: number;
-  /** Absent when no start point was said. */
-  readonly inArea?: InArea;
-}
+export type { InArea, PublishedMatch } from './published-match.js';
 
 /** A name the source exports without publishing. */
 export interface ExportedMatch {
@@ -188,6 +161,8 @@ export interface SearchAnswer {
   readonly described?: Matches<DescribedMatch>;
   /** Installed third-party names available to this workspace or area. */
   readonly thirdParty?: LexiconMatches;
+  /** Why the imports within a package were not read for the counts shown; absent when they were, or nothing was counted. */
+  readonly importsUnread?: string;
 }
 
 /** The answer, and the resolved area the text renders its header from. */
@@ -285,8 +260,8 @@ function published(index: SearchIndex, hits: readonly Hit[], count: number): Mat
         kind: entry.kind,
         ...(entry.doc === undefined ? {} : { summary: opening(entry.doc) }),
         at: entry.at,
-        packages: entry.usedBy.length,
-        imports: entry.uses,
+        otherPackages: entry.usedBy.length,
+        otherImports: entry.uses,
         ...(hit.scoped === undefined ? {} : { inArea: hit.scoped }),
       };
     }),
@@ -492,8 +467,9 @@ function ascending(left: readonly number[], right: readonly number[]): readonly 
  * The same answer `variance ask search` prints, before it is written as text:
  * published names first, then the names the source exports without
  * publishing, then — only when both are empty — the names a looser reading
- * finds and the names that hold any of the words.
+ * finds and the names that hold any of the words. Each published row shown is
+ * counted by `importingOf` when it is given, as `uses` counts that name.
  */
-export function searchNames(index: SearchIndex, question: SearchQuestion, tree?: Tree, root?: string): SearchAnswer {
-  return searched(index, question, tree, root).answer;
+export function searchNames(index: SearchIndex, question: SearchQuestion, tree?: Tree, root?: string, importingOf?: ImportingOf): SearchAnswer {
+  return withImporting(searched(index, question, tree, root).answer, importingOf);
 }

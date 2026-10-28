@@ -1,6 +1,6 @@
 import { readFile } from 'node:fs/promises';
 import { readNamedTree, readSearchForAnswer, readWorkspaceForAnswer, workspaceGeneration, type Unopened } from '@variance-authority/help';
-import { answerSearch, discover, grep, intersection, journeyMapTool, namesWanted, orient, slowestTests, testCompositionTool, type Help, type SearchAnswer, searchIndexOf, searchNames } from '@variance-authority/help/tools';
+import { answerSearch, discover, grep, importingOf, intersection, journeyMapTool, namesWanted, orient, slowestTests, testCompositionTool, type Help, type SearchAnswer, searchIndexOf, searchNames } from '@variance-authority/help/tools';
 import { readTree, startPointArg, stringArg, type Tool, type Tree } from '@variance-authority/mcp/tools';
 import { sourceIndexPath } from '@variance-authority/sense';
 import { taintFile as readTaintFile, type Taint } from '@variance-authority/sense/taint';
@@ -48,7 +48,7 @@ export async function wholeSource(
   const tree = reading.tree === true ? sourced.tree?.() : undefined;
   return {
     answer: () => tool.run(sourced.help, input, invocationOf({ ...(tree === undefined ? {} : { tree }), root })),
-    data: () => searchNames(searchIndexOf(sourced.help), searchQuestion(input), tree, root),
+    data: () => searchNames(searchIndexOf(sourced.help), searchQuestion(input), tree, root, importingOf(sourced.help, root)),
     at: workspaceGeneration(sourced.help),
   };
 }
@@ -59,16 +59,17 @@ export async function searchSource(
   options: SourceReadOptions,
 ): Promise<Answering> {
   let tree: Tree | undefined;
-  const { index, compared, unopened } = await readSearchForAnswer(root, {
+  const { index, compared, unopened, help } = await readSearchForAnswer(root, {
     index: sourceIndexPath(root),
     ...(options.changed === undefined ? {} : { changed: options.changed }),
     ...(options.taints === undefined ? {} : { taints: options.taints }),
     ...(options.justAnswer === true ? { justAnswer: true } : {}),
     ...(options.tree === true ? { tree: (drawn: Tree) => { tree = drawn; } } : {}),
   });
+  const importing = help === undefined ? undefined : importingOf(help, root);
   return {
-    answer: () => answerSearch(index, input, tree, root),
-    data: () => searchNames(index, searchQuestion(input), tree, root),
+    answer: () => answerSearch(index, input, tree, root, importing),
+    data: () => searchNames(index, searchQuestion(input), tree, root, importing),
     at: index.generation?.generatedAt,
     unseen: !compared,
     ...(unopened === undefined ? {} : { unopened }),

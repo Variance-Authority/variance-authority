@@ -197,6 +197,19 @@ const asSite = (site: PathSite): Site => ({ ...site.taken, how: how(site) });
 const publishedFiles = (found: readonly Published[]): readonly string[] => [...new Set(found.flatMap(([, opening, entry]) => [entry.at, opening.source]))];
 
 /**
+ * The sites of the published declaration of `name` in `at`, the ones `uses`
+ * lists when asked for that name and that file, and why the source index did
+ * not read the imports within its package, when it did not.
+ */
+export function publishedSitesOf(help: Help, root: string | undefined, name: string, at: string): { readonly sites: readonly Site[]; readonly unread?: string } {
+  const found = entriesNamed(help, name).filter(([, , entry]) => entry.at === at);
+  const declared = new Set([at]);
+  const byPath = sitesByPath(help, name, undefined).filter((site) => resolvedTo(site, declared)).map(asSite);
+  const { sites, unread } = sitesOfOne(root, name, undefined, found, publishedFiles(found), byPath);
+  return unread === undefined ? { sites } : { sites, unread };
+}
+
+/**
  * The doors that publish a name only inside a namespace, `shout.greet` by
  * `@acme/lib` for an entry doing `export * as shout`: each namespace the
  * source index followed it into, written at a file an entry opens.

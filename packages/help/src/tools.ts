@@ -148,6 +148,7 @@ export type {
   SearchQuestion,
 } from './tools/search-answer.js';
 export { searchNames } from './tools/search-answer.js';
+export { importingOf, type Importing, type ImportingOf } from './tools/uses-count.js';
 export type { Help };
 export { audience, block, importing, line, reach, said } from './tools/format.js';
 export { sharedSegments } from './tools/shared-segments.js';

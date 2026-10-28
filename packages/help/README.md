@@ -108,25 +108,26 @@ This package is for the workspace that does not run one.
 
 Text, on stdout. `search` answers in two sections: the names a manifest
 publishes, ranked by where they hold your words (the name, then the doc's
-first paragraph, then the rest of it) and then by how many packages import
-them; then the names the source exports without publishing. A third follows
+first paragraph, then the rest of it) and then by how many other packages
+import them by a published path, each labelled with the places that import it
+and the packages those sit in, counted as `uses` counts them; then the names the source exports without publishing. A third follows
 when your words match a name they do not contain. Run against this repository, abridged to the first few lines of
 each section:
 
 ```
-12 published matches for `viewport`
+16 published matches for `viewport`
 
-@variance-authority/core/format · Viewport [interface] 17 packages, 60 imports — UNDOCUMENTED
-@variance-authority/core/format · documentDigest [function] 12 packages, 27 imports — Content address of a document: *what is to be painted*.
-@variance-authority/dom · conditionsFor [function] 1 packages, 1 imports — The condition environment a capture of this document would be flattened against.
-@variance-authority/storybook · harnessPage [function] 1 packages, 1 imports — Drive the page a harness already owns.
-@variance-authority/cli · ConfigError [class] 0 packages, 0 imports — A refusal that names the field.
+@variance-authority/core/format · Viewport [interface] imported in 68 places in 18 packages — UNDOCUMENTED
+@variance-authority/storybook · StoryViewport [interface] imported in 1 place in 1 package — A per-story viewport override.
+@variance-authority/core/format · documentDigest [function] imported in 33 places in 13 packages — Content address of a document: *what is to be painted*.
+@variance-authority/dom · conditionsFor [function] imported in 2 places in 2 packages — The condition environment a capture of this document would be flattened against.
+@variance-authority/core · CaptureMaterial [type] imported nowhere — Material already captured from a host, before retention or reporting.
 
-4 more names are exported somewhere in the repository without being published:
+22 more names are exported somewhere in the repository without being published:
 
+viewport — site · site/app/layout.tsx:48
 CORPUS_VIEWPORT — @variance-authority/example-kitchen-sink · examples/kitchen-sink/src/jsdom-profile.ts:21
-VIEWPORT — @variance-authority/cli · packages/cli/src/commands/run-fixture.ts:48
-parseViewport — @variance-authority/cli · packages/cli/src/config-sections.ts:241
+parseViewport — @variance-authority/cli · packages/cli/src/config-sections.ts:194
 ```
 
 A published name is API and comes with the specifier you would import it from.
@@ -257,7 +258,7 @@ No name in this repository, nor the doc of one, writes `meesure` as typed. The n
 1 more name matches loosely — your words apart, or within a character of the
 ones written. Nothing above was reordered by this.
 
-alpha · measure [function] 1 packages, 1 imports — Measures the thing, and says how much of it there was.
+alpha · measure [function] imported in 1 place in 1 package — Measures the thing, and says how much of it there was.
 ```
 
 It may only add. Nothing the two sections above answered is scored, reordered,

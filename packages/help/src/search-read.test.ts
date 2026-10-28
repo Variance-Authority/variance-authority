@@ -9,6 +9,7 @@ import { ask, askSearch } from './ask.js';
 import { readWorkspace, readWorkspaceForAnswer, workspaceSnapshotPath } from './read.js';
 import { readSearchForAnswer, unopenedLine } from './search-read.js';
 import { workspaceSearchPath } from './snapshot.js';
+import { importingOf } from './tools/uses-count.js';
 
 /**
  * `search` answers from the file published beside the value, and answers what
@@ -63,7 +64,8 @@ describe('search from its published file', () => {
 
     expect([...(tree?.files ?? [])].length).toBeGreaterThan(0);
     expect([...(searchTree?.files ?? [])]).toEqual([...(tree?.files ?? [])]);
-    expect(QUESTIONS.map((args) => askSearch(search, args, () => searchTree))).toEqual(expected);
+    // The rows are counted against the value, which the whole value's answer holds and the search's is handed.
+    expect(QUESTIONS.map((args) => askSearch(search, args, () => searchTree, false, undefined, importingOf(help, undefined)))).toEqual(expected);
     expect(expected[0]).toContain('\nSnapshot ');
   });
 
@@ -76,7 +78,7 @@ describe('search from its published file', () => {
 
     await expect(access(workspaceSearchPath(other))).resolves.toBeUndefined();
     const help = await readWorkspaceForAnswer(root, { index: other, justAnswer: true });
-    expect(askSearch(search, ['--query', 'measure'])).toEqual(ask(help, 'search', ['--query', 'measure']));
+    expect(askSearch(search, ['--query', 'measure'], undefined, false, undefined, importingOf(help, undefined))).toEqual(ask(help, 'search', ['--query', 'measure']));
   });
 
   it('opens a published search at any age, and scans nothing', async () => {

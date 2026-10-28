@@ -4,7 +4,7 @@ import { sourceIndexPath } from '@variance-authority/sense';
 import { operatorError } from './operator.js';
 import { readWorkspace, readWorkspaceForAnswer, workspaceSnapshotPath, type AnsweringOptions } from './read.js';
 import type { SearchIndex } from './search-index.js';
-import { readSearchSnapshot, readSearchTree, searchOf, workspaceSearchPath } from './snapshot.js';
+import { readSearchSnapshot, readSearchTree, readWorkspaceSnapshot, searchOf, workspaceSearchPath } from './snapshot.js';
 
 /** A search, and whether it was read from the checkout as it is now. */
 export interface SearchReading {
@@ -22,6 +22,11 @@ export interface SearchReading {
    * failure.
    */
   readonly unopened?: readonly Unopened[];
+  /**
+   * The value the search was written from, which the rows shown are counted
+   * against as `uses` counts them; absent when none opened.
+   */
+  readonly help?: Help;
 }
 
 /** A published file the reading tried, and why it did not open. */
@@ -76,7 +81,8 @@ export async function readSearchForAnswer(root: string, options: AnsweringOption
   const { justAnswer = false, refreshAfterMs: _age, ...reading } = options;
   const index = reading.index ?? sourceIndexPath(resolve(root));
   if (reading.changed !== undefined || reading.taints !== undefined) {
-    return { index: await searchOf(await readWorkspaceForAnswer(root, options), index), compared: !justAnswer };
+    const help = await readWorkspaceForAnswer(root, options);
+    return { index: await searchOf(help, index), compared: !justAnswer, help };
   }
 
   const searchAt = workspaceSearchPath(index);
@@ -84,7 +90,9 @@ export async function readSearchForAnswer(root: string, options: AnsweringOption
   try {
     const search = await readSearchSnapshot(root, reading.index);
     if (reading.tree !== undefined) reading.tree(await readSearchTree(search, root, reading.index));
-    return { index: search, compared: false };
+    // The rows shown are counted against the value; a search without one answers with the counts it carries.
+    const help = await readWorkspaceSnapshot(root, reading.index === undefined ? {} : { index: reading.index }).catch(() => undefined);
+    return { index: search, compared: false, ...(help === undefined ? {} : { help }) };
   } catch (error) {
     // Not published says nothing; published and unopenable is said with the answer.
     if (!absent(error)) unopened = [{ published: 'search', at: searchAt, reason: reasonOf(error) }];
@@ -107,7 +115,8 @@ export async function readSearchForAnswer(root: string, options: AnsweringOption
         { cause },
       );
     }
-    return { index: await searchOf(await readWorkspace(root, reading), index), compared: true, ...(unopened === undefined ? {} : { unopened }) };
+    const read = await readWorkspace(root, reading);
+    return { index: await searchOf(read, index), compared: true, help: read, ...(unopened === undefined ? {} : { unopened }) };
   }
-  return { index: await searchOf(help, index), compared: false, ...(unopened === undefined ? {} : { unopened }) };
+  return { index: await searchOf(help, index), compared: false, help, ...(unopened === undefined ? {} : { unopened }) };
 }
