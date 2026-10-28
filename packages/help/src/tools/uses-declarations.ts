@@ -7,11 +7,12 @@
 // compass: variance-authority.report.agent-surface
 
 import type { Spelling } from '@variance-authority/mcp/tools';
-import type { Named } from '@variance-authority/package/help';
 import type { DeclaredName } from '@variance-authority/sense';
 import { reachSentences } from './declared.js';
+import { specifierOf } from './find.js';
 import { type Members, places } from './members.js';
 import { exportedAt } from './unpublished.js';
+import type { Namesake } from './uses-of.js';
 
 /** The file the asker names a declaration by, exactly as the checkout spells it; absent when none is named. */
 export function declaredIn(input: Readonly<Record<string, unknown>>): string | undefined {
@@ -53,9 +54,16 @@ export function membersIn(members: Members, file: string): Members {
   return { ...members, declared: members.declared.filter((one) => one.at === file), used: members.used.filter((one) => one.declared.at === file) };
 }
 
-/** The sentence naming an exported namesake of the declaration answered first, by the exports that reach it. */
-export function namesakeLine(name: string, exported: readonly Named[]): string {
-  return `\`${name}\` is exported, without being published, at ${exportedAt(exported)} as well, which is another declaration.`;
+/**
+ * The sentence naming a namesake of the declaration answered first: by the
+ * entries that publish it and where it is declared, or by the exports that
+ * reach it when no entry publishes it.
+ */
+export function namesakeLine(name: string, one: Pick<Namesake, 'published' | 'exported'>): string {
+  const [door] = one.published;
+  if (door === undefined) return `\`${name}\` is exported, without being published, at ${exportedAt(one.exported)} as well, which is another declaration.`;
+  const by = one.published.map(([held, opening]) => specifierOf(held, opening)).join(', ');
+  return `\`${name}\` is published by ${by}, declared at ${door[2].at}:${door[2].line} as well, which is another declaration.`;
 }
 
 /** How to ask for one declaration, said when the answer covers more than one and no file was named. */

@@ -62,6 +62,8 @@ const ACCEPTANCE: Readonly<Record<string, string>> = {
     '',
   ].join('\n'),
   'apps/app/src/loud.ts': "import { text } from '@acme/core';\nexport const loud = text.shout('hi');\n",
+  'apps/app/src/covered.ts': "import type { Coverage } from '@acme/core';\nexport const covered = (coverage: Coverage): number => coverage.lines;\n",
+  'apps/app/src/reviewed.ts': "import type { Coverage } from '@acme/review';\nexport const reviewed = (coverage: Coverage): boolean => coverage.approved;\n",
   'apps/app/src/hello.test.ts': "import { greet } from '@acme/lib';\nexport const greeted = greet('test');\n",
 };
 

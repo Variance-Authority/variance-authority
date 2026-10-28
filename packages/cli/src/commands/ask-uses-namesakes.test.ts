@@ -58,6 +58,27 @@ describe('variance ask uses over a name several files declare', () => {
     expect(out).toMatch(/^packages\/lib\/src\/unrelated\.ts:1 — @acme\/lib; used on line 2$/m);
   });
 
+  it('lists the imports of a published namesake apart, counted as the declaration answered first is', async () => {
+    checkout({
+      'packages/second/package.json': JSON.stringify({ name: '@acme/second', exports: { '.': './src/index.ts' } }),
+      'packages/second/src/index.ts': 'export const greet = 2;\n',
+      'apps/app/src/second.ts': "import { greet } from '@acme/second';\nexport const second = greet;\n",
+      'apps/app/src/second-whole.ts': "import * as second from '@acme/second';\nexport const modules = [second];\n",
+    });
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+
+    const out = await uses();
+    expect(out).toMatch(/^apps\/app\/src\/hello\.ts:1 — @acme\/app; used on line 2$/m);
+    const namesake = paragraph(out, /^`greet` is published by @acme\/second, declared at packages\/second\/src\/index\.ts:1 as well, which is another declaration\.$/m);
+    // The module passed on whole may read the name, and is no place that imports it.
+    expect(namesake).toMatch(/^Imported in 1 place, from another package\. 1 more passes the module on whole, where this reading does not follow it, and may read `greet`\.$/m);
+    // Each declaration's sites follow its own sentence, the first declaration's before any namesake's.
+    const [first, second] = out.split(/^`greet` is published by @acme\/second/m);
+    expect(first).not.toMatch(/second\.ts|second-whole\.ts/);
+    expect(second).toMatch(/^apps\/app\/src\/second\.ts:1 — @acme\/app; used on line 2$/m);
+    expect(second).not.toMatch(/hello\.ts/);
+  });
+
   it('answers for the published declaration alone when `--file` names its file', async () => {
     checkout(NAMESAKES);
     expect((await run(['index'])).code).toBe(EXIT_CLEAN);

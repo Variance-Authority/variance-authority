@@ -251,11 +251,6 @@
   },
   {
     "idiom": "code-unit-order",
-    "at": "packages/help/src/tools/symbol.ts",
-    "count": 1
-  },
-  {
-    "idiom": "code-unit-order",
     "at": "packages/help/src/tools/uses.ts",
     "count": 1
   },
