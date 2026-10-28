@@ -165,10 +165,11 @@ for (const module of coverage.modules) {
 
 `readTestCoverage` decodes the whole file into `TestCoverage`, the model the
 rest of this page describes: tests with their preconditions, modules with their
-blocks, and on each block the test files that crossed it. Budget a second and
-three hundred megabytes of heap for a repository-scale snapshot — thirty times
-the file it came from — because the model is made of objects where the file is
-made of columns.
+blocks, and on each block the test files that crossed it. The model is made of
+objects where the file is made of columns, so its heap is many times the file:
+about a second and three hundred megabytes for a ten-megabyte record, and four
+and a half minutes and over five gigabytes for a 77 MB record of 200,000
+modules.
 
 When you want one module's regions rather than the repository's, open the file
 instead of decoding it. `openCoverageFile(file)` parses the section index and

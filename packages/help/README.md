@@ -138,14 +138,20 @@ Run `npx variance-authority-help symbol Viewport`:
 ```
 Viewport [interface]
 import { Viewport } from '@variance-authority/core/format';
-declared at packages/core/src/format/environment.ts:73
-used by 17 packages: @variance-authority/example-kitchen-sink, @variance-authority/example-todomvc, @variance-authority/cli, @variance-authority/dom, and 13 more — 60 imports
+declared at packages/core/src/format/environment.ts:93
+used by 17 packages: @variance-authority/example-kitchen-sink, @variance-authority/example-todomvc, @variance-authority/cli, @variance-authority/dom, @variance-authority/observe, @variance-authority/playwright-test, @variance-authority/playwright, @variance-authority/presentation, @variance-authority/raster, @variance-authority/remote, @variance-authority/route-collector, @variance-authority/session, and 5 more — 67 imports by published path
 
 interface Viewport
 
 Nothing is written above this declaration.
 
-docs_uses names the 60 places another package imports this by its published path, and the imports the source index resolves to its file, nearest to a file you name first.
+Members:
+packages/core/src/format/environment.ts:94 — readonly width: number;
+packages/core/src/format/environment.ts:95 — readonly height: number;
+packages/core/src/format/environment.ts:96 — readonly deviceScaleFactor: number;
+packages/core/src/format/environment.ts:98 — readonly colorScheme: 'light' | 'dark';
+
+`variance-authority-help uses` names the 68 places that import this: 67 from other packages and 1 inside @variance-authority/core, nearest to a file you name first.
 ```
 
 ## The questions

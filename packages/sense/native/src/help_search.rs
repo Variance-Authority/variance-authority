@@ -24,7 +24,7 @@ use crate::help_usage::NamedExport;
 use crate::order::code_unit;
 
 const MAGIC: u32 = 0x5348_4156; // "VAHS", little-endian
-const VERSION: u32 = 3;
+const VERSION: u32 = 4;
 const NONE: u32 = u32::MAX;
 const USE_KINDS: [&str; 3] = ["source", "test", "story"];
 
@@ -105,8 +105,9 @@ fn terms_of(split: &Regex, text: &str) -> HashSet<String> {
     found
 }
 
-/// What a token ends at: a line break, a space or a punctuation mark.
-static SPLIT: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"[\n\r\p{Z}\p{P}]+").expect("the pattern is fixed"));
+/// What a token ends at: a line break, a space, a punctuation mark or a
+/// backtick, which is a symbol (`Sk`) and a code span's delimiter, never a word's.
+static SPLIT: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"[\n\r\p{Z}\p{P}`]+").expect("the pattern is fixed"));
 
 /// A name's terms as the search file indexes an exported one, so a name the
 /// file does not hold answers the loose pass by the same rule.
