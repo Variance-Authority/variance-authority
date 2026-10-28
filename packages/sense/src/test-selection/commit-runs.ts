@@ -93,7 +93,8 @@ export interface CommitRuns {
   /**
    * How many runs landed at this commit. 0 in a worktree's record before its
    * first run: the record was seeded beside the primary checkout's snapshot and
-   * speaks for the base's runs, not for any of this checkout's.
+   * speaks for the base's runs, not for any of this checkout's; it carries the
+   * base's landings as they are, each one run that landed.
    */
   readonly runs: number;
   /**

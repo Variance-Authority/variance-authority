@@ -37,10 +37,9 @@ describe('a test is placed where the runs record says it last ran, with the time
     expect(assumed).toBe('the runs record beside the snapshot does not say where 2 test(s) last ran, so they are read from the commits they were assumed at, S, P');
   });
 
-  it('keeps the time of a seeded record and says nothing of its runs, which are the base\'s', () => {
-    const { landings: _landings, ...enveloped } = runs;
-    const { places } = testPlaces({ commit: 'H', runs: { ...enveloped, runs: 0 }, tests: ['a.test.ts'] });
-    expect(places.get('a.test.ts')).toEqual({ commit: 'H', first: runs.first, latest: runs.latest });
+  it('places a test of a seeded record by the base\'s landing as it is, one run that landed', () => {
+    const { places } = testPlaces({ commit: 'H', runs: { ...runs, runs: 0 }, tests: ['a.test.ts'] });
+    expect(places.get('a.test.ts')).toEqual({ commit: 'H', first: runs.latest, latest: runs.latest, runs: 1, texts: {} });
   });
 
   it('holds no time for a record of another snapshot, and says so', () => {

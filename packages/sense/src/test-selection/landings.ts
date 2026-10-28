@@ -22,7 +22,11 @@ export interface Landing extends Pick<StandingEntry, 'installed' | 'texts' | 'pa
   /** When it landed: one instant for a run, a span for a record that kept no landings. */
   readonly first: string;
   readonly latest: string;
-  /** How many runs it is; absent for a seeded record's, whose runs are its base's. */
+  /**
+   * How many runs it is: one for a run, the count a record that kept no
+   * landings held. A seed carries its base's landings as they are, so a seeded
+   * record's are its base's runs. Absent where the record held none.
+   */
   readonly runs?: number;
 }
 

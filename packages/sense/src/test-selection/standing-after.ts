@@ -55,7 +55,7 @@ export function standingAfter(
   const start = held.over === undefined ? undefined : standKey({ commit: held.over, assumed: true });
   if (start !== undefined && !stands.has(start)) stands.set(start, { commit: held.over!, files: [], assumed: true });
   // A test a landing finished stood at `base`, with that landing's time, install
-  // and texts. A seeded record's runs are the base's, so it counts none as its own.
+  // and texts. A seeded record's landings are its base's, as they are.
   for (const landing of landingsOf(held)) stand({ commit: base, files: [], ...ranOn(landing), ...landedOf(landing) }, landing.files, landing.partly);
   const grouped = new Map<string, string[]>();
   for (const test of unobserved) {

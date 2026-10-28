@@ -19,9 +19,9 @@ export interface TestPlace {
   readonly assumed?: true;
   /**
    * When the runs it last ran in landed, and how many there were, as the
-   * record holds it. Absent when it does not: an assumed place, a stand
-   * written before stands carried their time, and the run count of a seeded
-   * record, whose runs are its base's.
+   * record holds it; a seeded record holds its base's landings as they are.
+   * Absent when it does not: an assumed place, and a stand written before
+   * stands carried their time.
    */
   readonly first?: string;
   readonly latest?: string;
