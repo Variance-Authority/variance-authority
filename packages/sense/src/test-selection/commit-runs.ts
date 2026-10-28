@@ -133,10 +133,11 @@ export interface StandingEntry {
    */
   readonly partly?: readonly string[];
   /**
-   * The cases these runs executed of each file in `partly`, by the id the
-   * case index names them by: those are this stand's, and the file's others
-   * are its place's. Absent when the runs kept no cases, so which ran here is
-   * not known.
+   * The cases these runs laid into the case index of each file in `partly`,
+   * by the id the index names them by: those are this stand's, and the file's
+   * others are its place's. None when they kept no cases, so every case of the
+   * file is its place's and only its rows are both. Absent when the record does
+   * not say which, so which are this stand's is not known.
    */
   readonly cases?: Readonly<Record<string, readonly string[]>>;
   /** The install they ran on, as the landing they ran in said it (`kept-install.ts`); absent when not known. */
@@ -182,7 +183,8 @@ export type RecordedTests = Pick<TestCoverage, 'instrumentation' | 'commit'> & {
  *
  * `cases` is the run's own case index, laid over the cases the record holds
  * (`case-landing.ts`) and written with the coverage, in the same write. A run
- * that kept no cases carries the record's. Either way a held module the run did
+ * that kept no cases carries the record's, and its landing says it laid none of
+ * a file it ran in part (`landings.ts`). Either way a held module the run did
  * not record is laid onto the cut its rows were landed at (`case-cuts.ts`). A
  * run that instrumented no module lands its cases and nothing else
  * ({@link landUncovered}), except a file it could not finish measuring: probes
@@ -239,9 +241,10 @@ export async function landRun(
   // process killed between them, leaves the snapshot at this run's commit
   // beside the record of the one before: the shape `commitRunsAfter` reads as
   // a retried landing, which the next run here repairs and nothing else does.
-  // A run that kept its cases names the ones it executed of a file it ran in part.
-  const executed = cases === undefined ? undefined : casesRan(laid);
-  await writeCommitRuns(commitRunsFile(coverageFile), commitRunsAfter(before, held, { ...current, ...(executed === undefined ? {} : { executed }) }, installed, ranOver));
+  // It names the cases it laid of a file it ran in part: the ones it executed,
+  // or none when it kept no cases, whose index is the record's as it was.
+  const ranCases = cases === undefined ? 'none' : casesRan(laid);
+  await writeCommitRuns(commitRunsFile(coverageFile), commitRunsAfter(before, held, { ...current, ...(ranCases === undefined ? {} : { laid: ranCases }) }, installed, ranOver));
   // The ledger last: it names this run's tests as this checkout's, and a
   // landing that died before it leaves them read as the milestone's, which a
   // re-run here corrects. A record with no ledger was laid before there was

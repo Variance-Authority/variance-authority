@@ -192,11 +192,12 @@ async function landCombined(
     // Where it kept none, every shard it folded kept none: the combine
     // refuses shards of which only some kept cases.
     const cased = combined.shards.filter((shard) => shard.cased).length;
-    // Shards that kept their cases name the ones they executed of a file they ran in part.
-    const executed = 'laid' in landing && landing.shards > 0 ? selection.casesRan(laid) : undefined;
+    // The shards name the cases they laid of a file they ran in part: the ones
+    // they executed, or none when they kept no cases.
+    const ranCases = 'laid' in landing && landing.shards > 0 ? selection.casesRan(laid) : 'none';
     const runs = folded === undefined
       ? undefined
-      : selection.commitRunsAfter(before, held, { ...folded, ...(executed === undefined ? {} : { executed }) }, installed, ranOver);
+      : selection.commitRunsAfter(before, held, { ...folded, ...(ranCases === undefined ? {} : { laid: ranCases }) }, installed, ranOver);
     const cases = 'laid' in landing
       ? { ...landing, shards: landing.shards === 0 ? 0 : cased }
       : { ...landing, shards: [...shards] };

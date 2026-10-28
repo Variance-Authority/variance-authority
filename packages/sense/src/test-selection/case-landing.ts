@@ -264,9 +264,9 @@ export function lastCaseRunOf(sections: CaseSections): LastCaseRun | undefined {
 
 /**
  * The cases the run that wrote `sections` last executed, by test file, each
- * file's in code-unit order: what the runs record names of the files that run
- * finished only in part (`landings.ts`). `undefined` when no run named its
- * cases, or one names a case its index does not place.
+ * file's in code-unit order: the ones it laid, which the runs record names of
+ * the files that run finished only in part (`landings.ts`). `undefined` when
+ * no run named its cases, or one names a case its index does not place.
  */
 export function casesRan(sections: CaseSections): ReadonlyMap<string, readonly string[]> | undefined {
   const last = lastCaseRunOf(sections);

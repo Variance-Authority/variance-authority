@@ -57,6 +57,18 @@ describe('the runs recorded at one commit', () => {
     expect(await landedAt(coverageFile)).toEqual(['a.test.ts', 'b.test.ts']);
   });
 
+  it('names none of the cases of a held file it ran in part when the run kept no cases', async () => {
+    // A run that kept no cases leaves the index as it was: every case of the
+    // file it holds is the earlier run's, and the landing says this one laid none.
+    const { root, coverageFile } = await recorded('base');
+    await landRun(coverageFile, run('head', ['a.test.ts']), root);
+    const partial = run('head', ['a.test.ts', 'b.test.ts']);
+
+    await landRun(coverageFile, { ...partial, tests: partial.tests.map((test) => ({ ...test, complete: test.file !== 'a.test.ts' })) }, root);
+
+    expect((await readCommitRuns(coverageFile))?.landings.at(-1)).toMatchObject({ files: ['b.test.ts'], partly: ['a.test.ts'], cases: { 'a.test.ts': [] } });
+  });
+
   it('starts again at a new commit, laid over the last one', async () => {
     const { root, coverageFile } = await recorded('base');
 

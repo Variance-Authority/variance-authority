@@ -6,9 +6,11 @@
  * other runs at the same commit say nothing about it. A run finishes a file it
  * ran whole. A file it ran in part (`-t`, a filter, a skip) keeps the cases it
  * did not run (`layerCaseIndex`), so it stays where it stood, and the run lists
- * it as run in part, with the cases it executed of it, so a reader dates each
- * case by the run that last executed it. A file it executed no case of it did
- * not observe at all.
+ * it as run in part, with the cases it laid into the case index of it, so a
+ * reader dates each case by the run that laid its rows. A run that kept no
+ * cases laid none, and says so: the file's rows are both runs', its cases the
+ * earlier one's. A run that kept cases and executed no case of a file did not
+ * observe that file at all.
  */
 
 // compass: variance-authority.reach
@@ -42,14 +44,16 @@ export interface Landing extends Pick<StandingEntry, 'installed' | 'texts' | 'pa
 export type RanTests = Pick<TestCoverage, 'instrumentation' | 'commit'> & {
   readonly tests: readonly Pick<CoverageTest, 'file' | 'complete'>[];
   /**
-   * The cases it executed of each test file, by the id its case index names
-   * them by (`casesRan`); a file it executed none of has none. Absent when
-   * the run kept no cases, so which it executed is not known.
+   * The cases of each test file it laid into the case index, by the id the
+   * index names them by (`casesRan`): the ones it executed, so a file it
+   * executed none of has none. `none` when it kept no cases, so it laid none of
+   * any file's. Absent when its index cannot name them, so which it laid is not
+   * known.
    */
-  readonly executed?: ReadonlyMap<string, readonly string[]>;
+  readonly laid?: ReadonlyMap<string, readonly string[]> | 'none';
 };
 
-/** What a run observed: the files it finished, and the ones it ran in part with the cases it executed of them. */
+/** What a run observed: the files it finished, and the ones it ran in part with the cases it laid of them. */
 export interface Observed extends Pick<Landing, 'cases'> {
   readonly observed: string[];
   readonly partly: string[];
@@ -58,26 +62,26 @@ export interface Observed extends Pick<Landing, 'cases'> {
 /**
  * The files `current` observed, and the ones it ran only in part where the
  * snapshot `prior` already held them, each in code-unit order, with the cases
- * it executed of those where it kept them. A file the snapshot held that it
- * executed no case of it did not observe. A file the snapshot did not hold has
- * no other cases, so a run observes it either way; with no snapshot, it
- * observes every file it ran.
+ * it laid of those where it can name them: none, when it kept no cases. A run
+ * that kept cases did not observe a file the snapshot held that it executed no
+ * case of. A file the snapshot did not hold has no other cases, so a run
+ * observes it either way; with no snapshot, it observes every file it ran.
  */
 export function observedBy(prior: RecordedTests | undefined, current: RanTests): Observed {
   const held = prior === undefined ? undefined : new Set(prior.tests.map((test) => test.file));
+  const { laid } = current;
   const observed = new Set<string>();
   const partly = new Set<string>();
   for (const test of current.tests) {
     if (test.complete || held === undefined || !held.has(test.file)) observed.add(test.file);
-    else if (current.executed === undefined || (current.executed.get(test.file)?.length ?? 0) > 0) partly.add(test.file);
+    else if (laid === undefined || laid === 'none' || (laid.get(test.file)?.length ?? 0) > 0) partly.add(test.file);
   }
   for (const file of observed) partly.delete(file);
   const part = [...partly].sort(codeUnitOrder);
-  const executed = current.executed;
   return {
     observed: [...observed].sort(codeUnitOrder),
     partly: part,
-    ...(executed === undefined || part.length === 0 ? {} : { cases: Object.fromEntries(part.map((file) => [file, executed.get(file)!])) }),
+    ...(laid === undefined || part.length === 0 ? {} : { cases: Object.fromEntries(part.map((file) => [file, laid === 'none' ? [] : laid.get(file)!])) }),
   };
 }
 

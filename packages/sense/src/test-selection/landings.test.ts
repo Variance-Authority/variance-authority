@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { commitRunsAfter, commitRunsIn, type CommitRuns, type RecordedTests } from './commit-runs.js';
 import { whatLanded, type Landing } from './landings.js';
-import { testPlaces } from './test-places.js';
+import { lastRunsOf, testPlaces } from './test-places.js';
 
 const DAY1 = '2026-01-01T00:00:00.000Z';
 const DAY2 = '2026-01-02T00:00:00.000Z';
@@ -25,7 +25,7 @@ function ran(commit: string, files: readonly string[], partly: readonly string[]
 function ranCases(commit: string, files: readonly string[], partly: Readonly<Record<string, readonly string[]>>) {
   return {
     ...ran(commit, files, Object.keys(partly)),
-    executed: new Map<string, readonly string[]>([...files.map((file) => [file, [`${file} case`]] as const), ...Object.entries(partly)]),
+    laid: new Map<string, readonly string[]>([...files.map((file) => [file, [`${file} case`]] as const), ...Object.entries(partly)]),
   };
 }
 
@@ -116,6 +116,33 @@ describe('a run observes the cases it executed', () => {
     );
     const { places } = testPlaces({ commit: 'S', runs: three, tests: ['b.test.ts'] });
     expect(places.get('b.test.ts')?.partly).toEqual([{ commit: 'R', first: DAY2, latest: DAY2, runs: 1, texts: {}, cases: { 'b.test.ts': ['refunds'] } }]);
+  });
+
+  it('names no case of a file it ran in part when it kept none, so its cases are the earlier run\'s and its rows are both runs\'', () => {
+    // Jest with no case directory, Vitest in a page, a driver that asked for no cases: the
+    // coverage row says the file ran in part, and the run laid no case into the index.
+    const held = record('P', DAY1, ['a.test.ts', 'b.test.ts']);
+    const after = landAt(DAY2, snapshot('P', 'a.test.ts', 'b.test.ts'), held, { ...ran('P', ['a.test.ts'], ['b.test.ts']), laid: 'none' }, {}, {});
+
+    expect(after.landings).toEqual([
+      { files: ['b.test.ts'], first: DAY1, latest: DAY1, runs: 1, texts: {} },
+      { files: ['a.test.ts'], partly: ['b.test.ts'], cases: { 'b.test.ts': [] }, first: DAY2, latest: DAY2, runs: 1, installed: {}, texts: {} },
+    ]);
+    const place = testPlaces({ commit: 'P', runs: after, tests: ['b.test.ts'] }).places.get('b.test.ts')!;
+    // Each case the index holds of it is the run's that finished it: the later one laid none.
+    expect(lastRunsOf(place, 'b.test.ts', [{ id: 'refunds', name: 'refunds' }]).map(({ runs }) => runs.map((run) => run.first))).toEqual([[DAY1]]);
+    // Its rows are both runs', so the file is said by both.
+    expect(lastRunsOf(place, 'b.test.ts', undefined).map(({ runs }) => runs.map((run) => run.first))).toEqual([[DAY1, DAY2]]);
+  });
+
+  it('does not say which cases of a file it ran in part are its own when its index cannot name them', () => {
+    // A record this build did not write, or an index naming a case it does not place.
+    const held = record('P', DAY1, ['a.test.ts', 'b.test.ts']);
+    const after = landAt(DAY2, snapshot('P', 'a.test.ts', 'b.test.ts'), held, ran('P', ['a.test.ts'], ['b.test.ts']), {}, {});
+
+    expect(after.landings.at(-1)).toEqual({ files: ['a.test.ts'], partly: ['b.test.ts'], first: DAY2, latest: DAY2, runs: 1, installed: {}, texts: {} });
+    const place = testPlaces({ commit: 'P', runs: after, tests: ['b.test.ts'] }).places.get('b.test.ts')!;
+    expect(lastRunsOf(place, 'b.test.ts', [{ id: 'refunds', name: 'refunds' }]).map(({ runs }) => runs.map((run) => run.first))).toEqual([[DAY1, DAY2]]);
   });
 });
 

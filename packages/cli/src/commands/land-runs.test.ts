@@ -140,6 +140,16 @@ describe('a landing records its fold as one run at the shards\' commit', () => {
     expect(runs).not.toHaveProperty('standing');
   });
 
+  it('names none of the cases of a held file its shards ran in part when they kept no cases', async () => {
+    // Shards that kept no cases lay none: every case the index holds of the file is the earlier run's.
+    await partial();
+    const shard = run('H', ['near.test.ts', 'other.test.ts']);
+
+    await land({ ...shard, tests: shard.tests.map((test) => ({ ...test, complete: test.file !== 'near.test.ts' })) });
+
+    expect((await readCommitRuns(into))?.landings.at(-1)).toMatchObject({ files: ['other.test.ts'], partly: ['near.test.ts'], cases: { 'near.test.ts': [] } });
+  });
+
   it('says every test stands where it ran when the shards between them ran every test', async () => {
     await partial();
 

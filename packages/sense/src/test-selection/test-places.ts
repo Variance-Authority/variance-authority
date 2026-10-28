@@ -40,9 +40,10 @@ export interface TestPlace {
    */
   readonly partly?: readonly TestPlace[];
   /**
-   * Of a place in `partly`: the cases it ran of each test file it ran in part,
-   * as the record names them (`StandingEntry.cases`). Absent when the record
-   * does not say which, so which of a file's cases are this place's is not known.
+   * Of a place in `partly`: the cases it laid of each test file it ran in
+   * part, as the record names them (`StandingEntry.cases`); none when it kept
+   * no cases. Absent when the record does not say which, so which of a file's
+   * cases are this place's is not known.
    */
   readonly cases?: StandingEntry['cases'];
 }
@@ -148,8 +149,9 @@ function placesOf({ commit, runs, tests }: TestsAt<string | undefined>): Places<
 /**
  * Some of one test file's named cases and the runs they may have last run in:
  * the one that last ran them, then each later run that ran the file in part
- * without naming which cases. `cases`, by name, when the file's named cases
- * last ran apart, so the file is said part by part.
+ * and does not say which cases it laid, or every later one when no case is
+ * named, since each wrote some of the file's lines. `cases`, by name, when the
+ * file's named cases last ran apart, so the file is said part by part.
  */
 export interface CasesLastRan {
   readonly runs: readonly TestPlace[];
@@ -175,7 +177,7 @@ export function lastRunsOf(place: TestPlace, test: string, cases: readonly Pick<
 
 /**
  * The runs case `id` of `test` may have last run in: the latest that names it
- * among the cases it ran, else the one that last finished the file, then each
+ * among the cases it laid, else the one that last finished the file, then each
  * later run that ran the file in part and does not say which of its cases.
  */
 function lastRanIn(place: TestPlace, test: string, id: string): readonly TestPlace[] {
