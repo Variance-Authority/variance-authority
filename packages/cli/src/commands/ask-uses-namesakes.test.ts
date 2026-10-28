@@ -42,7 +42,7 @@ describe('variance ask uses over a name several files declare', () => {
     expect((await run(['index'])).code).toBe(EXIT_CLEAN);
 
     const out = await uses();
-    expect(out).toMatch(/^apps\/app\/src\/hello\.ts:1 — @acme\/app$/m);
+    expect(out).toMatch(/^apps\/app\/src\/hello\.ts:1 — @acme\/app; used on line 2$/m);
     expect(out).toContain('`greet` is exported, without being published, at packages/lib/src/other.ts:1 as well, which is another declaration.');
     expect(out).toMatch(/^`greet` \[function\] is declared, not exported, at packages\/lib\/src\/kept\.ts:1/m);
     expect(out).toContain('`--file`, the file one of them is declared in, answers for that declaration alone.');
@@ -54,8 +54,8 @@ describe('variance ask uses over a name several files declare', () => {
 
     const out = await uses();
     const namesake = paragraph(out, /^`greet` is exported, without being published, at packages\/lib\/src\/other\.ts:1/);
-    expect(namesake).toMatch(/^Imported in 1 place\.$/m);
-    expect(out).toMatch(/^packages\/lib\/src\/unrelated\.ts:1 — @acme\/lib$/m);
+    expect(namesake).toMatch(/^Imported in 1 place, inside @acme\/lib\.$/m);
+    expect(out).toMatch(/^packages\/lib\/src\/unrelated\.ts:1 — @acme\/lib; used on line 2$/m);
   });
 
   it('answers for the published declaration alone when `--file` names its file', async () => {
@@ -63,7 +63,7 @@ describe('variance ask uses over a name several files declare', () => {
     expect((await run(['index'])).code).toBe(EXIT_CLEAN);
 
     const out = await uses('--file', 'packages/lib/src/greet.ts');
-    expect(out).toMatch(/^apps\/app\/src\/hello\.ts:1 — @acme\/app$/m);
+    expect(out).toMatch(/^apps\/app\/src\/hello\.ts:1 — @acme\/app; used on line 2$/m);
     expect(out).not.toMatch(/other\.ts|unrelated\.ts|kept\.ts/);
   });
 
@@ -72,7 +72,7 @@ describe('variance ask uses over a name several files declare', () => {
     expect((await run(['index'])).code).toBe(EXIT_CLEAN);
 
     const out = await uses('--file', 'packages/lib/src/other.ts');
-    expect(out).toMatch(/^packages\/lib\/src\/unrelated\.ts:1 — @acme\/lib$/m);
+    expect(out).toMatch(/^packages\/lib\/src\/unrelated\.ts:1 — @acme\/lib; used on line 2$/m);
     expect(out).not.toMatch(/hello\.ts|kept\.ts/);
   });
 
@@ -107,8 +107,8 @@ describe('variance ask uses over a name several files declare', () => {
     expect(code).toBe(EXIT_CLEAN);
     expect(out.split('\n')[0]).toContain('exported at packages/kit/src/ui/Button.ts:1');
     // The import by path of the declaration is a use of it, and so is the one through the barrel.
-    expect(out).toMatch(/^apps\/app\/src\/checkout\.ts:2 — @acme\/app, by path from @acme\/kit\/src\/ui\/Button$/m);
-    expect(out).toMatch(/^apps\/app\/src\/barreled\.ts:1 — @acme\/app, by path from @acme\/kit\/src\/ui\/index$/m);
+    expect(out).toMatch(/^apps\/app\/src\/checkout\.ts:2 — @acme\/app, by path from @acme\/kit\/src\/ui\/Button; used on line 3$/m);
+    expect(out).toMatch(/^apps\/app\/src\/barreled\.ts:1 — @acme\/app, by path from @acme\/kit\/src\/ui\/index; used on line 2$/m);
   });
 
   it('answers for the members one file declares when `--file` names it', async () => {

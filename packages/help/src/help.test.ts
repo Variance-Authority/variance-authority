@@ -187,15 +187,15 @@ describe('what the workspace says when the declaration says nothing', () => {
 describe('where the repository already writes a name', () => {
   it('names every place it is imported, with a line to open', () => {
     const text = call('docs_uses', { name: 'behind' });
-    expect(text).toContain('`behind` [const] is imported in 4 places.');
+    expect(text).toContain('`behind` [const] is imported in 4 places, all from other packages.');
     expect(text).toContain('packages/beta/src/index.ts:2 — beta');
   });
 
   it('separates the files written to show it in use from the ones that depend on it', () => {
     const text = call('docs_uses', { name: 'behind' });
-    expect(text).toContain('Stories:');
+    expect(text).toContain('Stories, from other packages:');
     expect(text).toContain('packages/beta/src/again.stories.jsx:1');
-    expect(text).toContain('Tests:');
+    expect(text).toContain('Tests, from other packages:');
     expect(text).toContain('packages/beta/src/again.test.js:1');
   });
 

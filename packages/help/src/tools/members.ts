@@ -76,7 +76,7 @@ export function membersOf(root: string | undefined, name: string, wanted: string
 
 /** Which uses the answer lists, and which it leaves to a type checker, said once under the uses. */
 export const TYPED =
-  "A use is listed here only where its line writes the value's type. A use through an inferred value, a generic, a subtype by `extends` or `implements`, " +
+  "A use is listed here only where its line writes the value's type. A use through an inferred value, a generic, a subtype by `extends`, " +
   "a JSX attribute, a utility type or an inline type literal is not: which type a value has is a type checker's answer, and none runs here.";
 
 /**
@@ -86,7 +86,9 @@ export const TYPED =
  * the list is cut. It is asked of the type checker of the language the
  * declarations are written in: TypeScript's language service for JavaScript
  * and TypeScript, that language's own language server for any other, and each
- * declaration's own when they are written in more than one.
+ * declaration's own when they are written in more than one. Its
+ * go-to-implementation on the same declaration names the implementations
+ * that take their type from where they go, which write none on their line.
  */
 export function routes(name: string, members: Members, spell: Spelling): readonly string[] {
   const only = members.declared.length === 1 ? members.declared[0]! : undefined;
@@ -103,8 +105,14 @@ export function routes(name: string, members: Members, spell: Spelling): readonl
       : languages.has('module')
         ? "Ask TypeScript for those: its language service's find-references"
         : "Ask the declaration's own language for those: its language server's find-references";
+  // An object that takes the container from where it goes implements the member with no type on its line; a class that writes `implements` is a use.
+  const checker = languages.size === 1 && languages.has('module') ? "TypeScript's" : "its language server's";
+  const which = only === undefined ? 'the declaration you mean' : `${only.at}:${only.line}`;
+  const gap =
+    `An implementation of \`${named && only !== undefined ? `${only.by}.${name}` : name}\` that takes its type from where it goes — an argument, a property, a returned value — ` +
+    `writes no type on its line and is not listed: ${checker} go-to-implementation on ${which} names it.`;
   const stop = membersStop(name, members);
-  return ['', TYPED, `${ask} on ${at}.`, ...(stop === undefined ? [] : [stop])];
+  return ['', gap, TYPED, `${ask} on ${at}.`, ...(stop === undefined ? [] : [stop])];
 }
 
 /**

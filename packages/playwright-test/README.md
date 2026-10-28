@@ -579,6 +579,37 @@ Playwright can be asked to run, and the file-level record already names that.
 What a declared head executed is joined to the test that sent the request, so a
 branch that only ever ran in a service still names its test.
 
+### Leave out the specs a change did not reach
+
+Set `VARIANCE_AUTHORITY_SINCE` and the run drops every spec file the record
+shows never executed the code the change touched, before Playwright loads one
+or places a shard:
+
+```bash
+VARIANCE_AUTHORITY_SINCE= npx playwright test
+```
+
+```text
+variance-authority: selected 4 of 31
+```
+
+Set and empty, each spec is measured from the commit it last ran at; set to a
+ref, such as `origin/main`, from that ref. `VARIANCE_AUTHORITY_AT_DISTANCE`
+narrows it the same way it does under Vitest and Jest. A spec the selection
+keeps runs whole, every test in it, in every project that runs it.
+
+The files are dropped by a pattern `withTestSelection` adds to `testIgnore`,
+after your own, and to each project that sets its own `testIgnore`, because
+a project's replaces the top level's. Playwright asks it about each file it
+finds, so the drop costs one lookup a file. The selection is read in a
+`globalSetup` the wrapper puts ahead of yours, so a record it cannot read fails
+the run with the reason before any test starts. A selection that drops every
+file prints `selected none of M`, and the run passes rather than failing on
+Playwright's "No tests found".
+
+Three runs do not select, and say so on stderr: watch and UI mode, and
+`--list`, which runs no global setup.
+
 ### Place a shard by whole files
 
 Under `--shard k/n`, the reporter places the shard by whole spec files, and

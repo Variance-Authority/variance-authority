@@ -1,6 +1,6 @@
 # Run the tests an edit needs
 
-Set `VARIANCE_AUTHORITY_SINCE` and the Vitest or Jest run you already call
+Set `VARIANCE_AUTHORITY_SINCE` and the Vitest, Jest or Playwright run you already call
 leaves out every test file a recorded run shows never executed the code you
 changed. Nothing goes on the command line and no script sits between you and
 the runner, so the edit-and-test loop you or your coding agent already runs
@@ -53,6 +53,12 @@ For Jest 30, wrap the configuration with `withTestSelection` from
 [The Jest seam](../packages/sense/README.md#cut-a-jest-run-down-to-a-diff) says
 which parts of a Jest configuration it reads and which you spell out.
 
+For Playwright, wrap the configuration with `withTestSelection` from
+`@variance-authority/playwright-test` and run `VARIANCE_AUTHORITY_SINCE= npx
+playwright test`. A spec file the selection keeps runs whole.
+[The Playwright seam](../packages/playwright-test/README.md#leave-out-the-specs-a-change-did-not-reach)
+says where the files are dropped.
+
 Every wrapped run records, whether the variable is set or not. With it set, the
 runner drops the files the record proves your edit did not reach before it
 starts any of them, and prints one line to stderr first:
@@ -64,7 +70,8 @@ starts any of them, and prints one line to stderr first:
 
 Set and empty, the variable measures each test from the commit it last ran at,
 which the record keeps per test file. Set to a ref, such as `origin/main`, it
-names the base for a record taken outside a git checkout, which keeps no commit. Watch mode does not select. Under Jest,
+names the base for a record taken outside a git checkout, which keeps no commit. Watch mode does not select, and
+neither does Playwright's `--list`. Under Jest,
 `--filter` and `--skipFilter` replace the filter the selection runs in, so
 either one turns the selection off, and stderr says so.
 

@@ -25,10 +25,11 @@ import { type IndexedUse, type Within, exportsNamed, importsOf, indexMissing } f
 import { declaredIn, membersIn, notDeclaredIn } from './uses-declarations.js';
 
 /**
- * A site, how it names the module it imports when that is a file path, and
- * the name it takes when that is known.
+ * A site, how it names the module it imports when that is a file path, the
+ * name it takes when that is known, and the lines of its file that use what
+ * its import binds, when the source index read them.
  */
-export type Site = Use & { readonly how?: string; readonly name?: string };
+export type Site = Use & { readonly how?: string; readonly name?: string; readonly lines?: readonly number[] };
 
 /**
  * The sites that import a name, and the ones that may read it and are no use
@@ -155,14 +156,16 @@ function sitesOf(found: readonly Published[], byPath: readonly Site[], within: r
   const seen = new Set<string>();
   const sites: Site[] = [];
   const through = passing !== undefined && 'through' in passing ? new Set(passing.through) : new Set<string>();
-  const indexed = new Set(passing !== undefined && 'uses' in passing ? passing.uses.map((use) => `${use.at}:${use.line}`) : []);
+  // The lines a binding is used on are the index's, joined to the site the Help value recorded by its file and line.
+  const indexed = new Map<string, readonly number[] | undefined>(passing !== undefined && 'uses' in passing ? passing.uses.map((use) => [`${use.at}:${use.line}`, use.lines] as const) : []);
 
   const recorded = [...found.flatMap(([, opening, entry]) => [...entry.sites, ...entry.throughDefault, ...opening.whole]), ...byPath];
   for (const [index, use] of [...recorded, ...within].entries()) {
     const key = `${use.at}:${use.line}`;
     if (seen.has(key) || (index < recorded.length && through.has(use.at) && !indexed.has(key))) continue;
     seen.add(key);
-    sites.push(use);
+    const lines = indexed.get(key);
+    sites.push(lines === undefined || 'lines' in use ? use : { ...use, lines });
   }
   return sites;
 }
@@ -194,6 +197,11 @@ function publishedInside(help: Help, namespaces: ReturnType<typeof sitesOfOne>['
       ),
     ),
   ];
+}
+
+/** The package a file is in, as the place `by` names it; none for a file no manifest holds, which `by` names as empty. */
+export function packageOf(by: string | undefined): string | undefined {
+  return by === '' ? undefined : by;
 }
 
 /**
@@ -246,7 +254,7 @@ export function usesOf(help: Help, input: Readonly<Record<string, unknown>>, roo
   const shared = { name, found, exported, namesakes, byPath, members, kept, keptSites, keptInFile, file, files };
   if (found.length === 0 && byPath.length === 0 && exported.length === 0) {
     if (kept.length > 0 || members.declared.length > 0) {
-      return { ...shared, sites: [] as readonly Site[], unread: undefined, within: undefined, inFile: [] as readonly Use[], undeclared, origin: undefined, inside: [] as readonly string[] };
+      return { ...shared, home: undefined as string | undefined, sites: [] as readonly Site[], unread: undefined, within: undefined, inFile: [] as readonly Use[], undeclared, origin: undefined, inside: [] as readonly string[] };
     }
     if (file !== undefined && files.length > 0) throw new FoundNothing(notDeclaredIn(name, file, files));
     // The answer `symbol` gives: what was read and declares nothing, and where else the name may be.
@@ -259,10 +267,12 @@ export function usesOf(help: Help, input: Readonly<Record<string, unknown>>, roo
   const { sites, unread, within, inFile, namespaces } = sitesOfOne(root, name, wanted, found, [...new Set(local)], byPath);
   if (exported.length > 0 && unread !== undefined && byPath.length === 0) throw new Error(indexMissing(name, exported, unread));
 
+  // Inside is the declaring file's package, which a re-exporting door is not.
+  const home = packageOf(found.length > 0 ? (help.exported.find((held) => held.at === found[0]![2].at)?.by ?? found[0]![0].name) : exported[0]?.by);
   const [only] = exported;
   // The answer names one export's place, so only a name exported once is followed.
   const origin = only === undefined || exported.length > 1 ? undefined : originOf(root, only);
-  return { ...shared, sites, unread, within, inFile, undeclared: [] as readonly string[], origin, inside: publishedInside(help, namespaces) };
+  return { ...shared, home, sites, unread, within, inFile, undeclared: [] as readonly string[], origin, inside: publishedInside(help, namespaces) };
 }
 
 /**

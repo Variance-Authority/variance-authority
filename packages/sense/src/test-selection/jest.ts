@@ -37,8 +37,7 @@ import { projectNamed } from './jest-projects.js';
 import { selectingFilter } from './jest-selection.js';
 import { recordFileFor } from './record-location.js';
 import { repositoryRoot } from './repository-root.js';
-import { notingRead } from './record-base.js';
-import { landingTimes, selectionFrom } from './selection-environment.js';
+import { askedSelection, landingTimes } from './selection-environment.js';
 import type { SuiteSelection } from './suite-selection.js';
 
 export interface JestTestSelectionOptions {
@@ -347,9 +346,7 @@ export function withTestSelection(
     ...(options.continuations === true ? { continuations: true } : {}),
   };
   const suite = options.suite === undefined ? {} : { suite: options.suite };
-  // Each reading notes the record it read against the record this run lands in, which names it.
-  const asked = options.selection ?? selectionFrom(process.env, { root, from: rootDir, ...suite });
-  const selection = asked && notingRead(coverageFile, asked);
+  const selection = askedSelection(options.selection, () => coverageFile, { root, from: rootDir, ...suite });
   const times = landingTimes(coverageFile, { root, from: rootDir, ...suite, byFile: options.coverageFile !== undefined });
 
   return {
