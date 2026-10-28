@@ -733,8 +733,8 @@ second commit, `b.test.ts` last ran over a text that was never committed, and
 an answer naming both is two answers of two ages over two texts.
 
 So under the answer, after the frame line, the test files it names are said in
-groups, one line each, in the order their runs first landed: a group the record
-holds no time for first, then the oldest.
+groups, one line each, in the order their runs landed: a group the record holds
+no time for first, then the oldest.
 
 ```text
 The recorded lines of src/pay.ts are placed in its text as it is now.
@@ -750,40 +750,63 @@ prints as `edited`. A file whose record does not say which text its lines are
 numbered in gives them as recorded. A file not on disk is answered in the
 record's lines, and its test files are dated with no text to compare.
 
-A group is the test files that last ran at one place: a commit, with the texts
-the runs record says its runs ran over there where they were not committed.
-Your text, the `--text` buffer or else the file on disk, is compared by digest
-with the one the runs record names for that place, else with the committed one.
-The test files that ran over your text share one line. A group that ran over
-another text, or whose text is not known, is named, and when you asked about a line, a run of lines or a
-function, the line goes on to say whether that region is the same in both
-texts, read by placing your region in the text they ran over, or why that is
-not known: that text is neither kept nor committed, or the record's lines have
-no place in yours. It says nothing of the region when the record does not say
-which text its lines are numbered in.
+A group is the test files one run last finished. A run finishes a test file it
+runs whole, and one the record held no cases of. A later run that runs one in
+part, under `-t`, a filter or a skip, leaves it placed by the earlier run, since
+the cases that run did not reach are still the earlier run's, and its line then
+spans both runs' times. Each run is read where it stood: its commit, when it
+landed, and the texts it ran over that were not committed there, as the runs
+record keeps them. Your text, the `--text` buffer or else the file on disk, is
+compared by digest with the text the runs record names for that run, else with
+the committed one at its commit. The test files that ran over your text share
+one line. A group that ran over another text, or whose text is not known, is
+named. When a test file's runs ran over different texts and only some of them
+over yours, which text its cases ran over is not known, because the record does
+not say which case ran in which run.
 
-The time is when the runs at that place landed in the record, from the first to
-the latest: `in runs that landed from 3 days ago to 3 hours ago`. Runs of other
-test files at the same place count toward it. It is never when a commit was
-made, which says nothing of when a test ran. A record written before runs kept
-their time says it does not hold one, and one written before they kept their
-texts says whether the text is yours is not known, and why. A test file the
-runs record does not place is read where the record assumes it ran, over the
-text the snapshot names at its own commit and the committed one anywhere else,
-and a last line says how many were read so. An answer that names no test file
-is dated by the test files that entered the file, else by every test file of
-the cases it was read from.
+When you asked about a line, a run of lines or a function, a named group's line
+goes on to say whether that region is the same in both texts, read by placing
+your region in the text they ran over, or why that is not known: that text is
+neither kept nor committed, or the record's lines have no place in yours. A
+function with no block in your text is said to be gone from it. Under
+`--function`, the line says nothing of the region when the record does not say
+which text its lines are numbered in, since the function is found by those
+lines, which then have no known place in yours.
+
+The time is when that run landed in the record: `in a run that landed 3 hours
+ago`. A line that says several groups, or a test file a later run ran in part,
+spans their landings, `in runs that landed from 3 days ago to 3 hours ago`, and
+so does a group whose runs record keeps one span for every run at its commit.
+It is never when a commit was made, which says nothing of when a test ran. A
+group the record holds no time for says so, and one whose texts the record does
+not hold says that whether the text is yours is not known, and why. A record of
+a run outside a git checkout names no commit: its test files are dated by when
+that run landed, and compared with the text the snapshot's rows were recorded
+over. A test file your checkout reads from a newer mainline record is dated and
+compared by the run that published it.
+
+A test file the runs record does not place is read where the record assumes it
+ran, over the text the snapshot names at its own commit and the committed one
+anywhere else, and a last line says how many were read so. An answer that names
+no test file is dated by the test files that entered the file, else by every
+test file of the cases it was read from. Under `--since`, a changed file that is
+not on disk is named first, and no line says a test file ran over it.
 
 In JSON, `at` is the commit the record stands at, on every answer whose record
-names one. `ran.stands` holds one entry per group: its `commit`, its `tests`,
-`landed` with ISO `first` and `latest` and, when the record counts them, `runs`,
-then `text` as `held` or `other`, with `other` naming the asked files they ran
-another text of and `region` as `same`, `changed` or `{ "unknown": <why> }`.
-`unknown` says why `text` is not known, and `assumed: true` marks a group the
-record did not place, with `ran.assumed` saying how. `ran.unread` stands in for
-the stands when where they ran cannot be read. `moved: true` marks a
-`--function` answer and each `unrun` part an edit touched, and `unheld: true` a
-file that is not on disk. `ran` is left out under `--format refs`.
+names one. `ran.stands` holds one entry per group: its `commit`, absent for a
+run outside a git checkout, its `tests`, `landed` with ISO `first` and `latest`
+and, when the record counts them, `runs`, and `partly` with the `commit` and
+`landed` of each later run that ran them in part. Then `text` is `held` or
+`other`, with `other` naming the asked files they ran another text of and
+`region` as `same`, `changed`, `gone` or `{ "unknown": <why> }`. `unknown` says
+why `text` is not known, and `assumed: true` marks a group the record did not
+place, with `ran.assumed` saying how. `ran.unheld` names the changed files under
+`--since` that are not on disk, and `ran.named` is `entered` or `read` when the
+answer names no test file and the groups are the ones it is dated by instead.
+`ran.unread` stands in for the stands when where they ran cannot be read.
+`moved: true` marks a `--function` answer and each `unrun` part an edit touched,
+and `unheld: true` a file that is not on disk. `ran` is left out under
+`--format refs`.
 
 The index comes from any run wrapped in `withTestSelection(config)` and is read
 from where that run writes it, so an agent with a line number

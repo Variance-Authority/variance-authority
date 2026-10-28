@@ -230,30 +230,43 @@ src/pay.ts is the text the other test file named here ran over, in a run that la
   file or a line opens with it instead, as the reason it gives no line; under
   `--function` it adds that the parts no case ran are not said. Under `mapped`
   a part of the function no case ran that an edit touched prints as `edited`.
-- A group is the test files that last ran at one commit, over the texts the
-  runs record names for their runs there, else the committed ones. Your text,
-  `--text` or the file on disk, is compared by digest. The groups that ran over
-  it share one line; a group that ran over another text, or whose text is not
-  known, is named. For `--line` and `--function`, a named group's line says
-  whether that region is the same in both texts, or why that is not known.
-- The time is when the runs at that commit landed, first to latest, other test
-  files' runs included. A commit's date is never used. A record written before
-  runs kept their time or texts says what it does not hold.
+- A group is the test files one run last finished: it ran them whole, or the
+  record held no cases of them. A later run that ran one in part (`-t`, a
+  filter, a skip) leaves it placed by the earlier run, and its line spans both
+  runs' times. Your text, `--text` or the file on disk, is compared by digest
+  with the texts the runs record names for each run, else the committed ones
+  at its commit. The groups that ran over it share one line; a group that ran
+  over another text, or whose text is not known, is named. A test file whose
+  runs ran over different texts, only some of them yours, has cases whose text
+  is not known.
+- For `--line`, `--lines` and `--function`, a named group's line says whether
+  that region is the same in both texts, gone from yours, or why that is not
+  known. Under `--function` it says nothing of the region when the record does
+  not say which text its lines are numbered in.
+- The time is when that run landed, spanned when a line says several runs. A
+  commit's date is never used. A group the record holds no time or texts for
+  says what it does not hold. A run outside a git checkout is dated by its
+  landing and compared with the snapshot's rows. A test file read from a newer
+  mainline record is dated and compared by the run that published it.
 - A test file the runs record does not place is read where the record assumes
   it, and a last line says how many were. An answer naming no test file is
   dated by the test files that entered the file, else by every case it read.
 - `--since` says the same under its regions, over every changed file, with no
-  region.
+  region; a changed file not on disk is named first, and no test file is said
+  to have run over it.
 
 In JSON, `at` is the record's commit and `ran.stands` the groups: each a
-`commit`, its `tests`, `landed` (`first`, `latest`, and `runs` when counted),
-`text` (`held` or `other`), `other` naming the asked files it ran another text
-of, `region` (`same`, `changed` or `{ "unknown": <why> }`), `unknown` for why
-its text is not known, and `assumed: true` with `ran.assumed` saying how.
-`ran.unread` stands in for the stands when where they ran cannot be read, and
-`ran` is absent under `--format refs`. `moved: true` marks a `--function`
-answer and each `unrun` part an edit touched, and `unheld: true` a file that is
-not on disk.
+`commit` (absent for a run outside a git checkout), its `tests`, `landed`
+(`first`, `latest`, and `runs` when counted), `partly` (the `commit` and
+`landed` of each later run that ran them in part), `text` (`held` or `other`),
+`other` naming the asked files it ran another text of, `region` (`same`,
+`changed`, `gone` or `{ "unknown": <why> }`), `unknown` for why its text is not
+known, and `assumed: true` with `ran.assumed` saying how. `ran.unheld` names the
+changed files not on disk, `ran.named` is `entered` or `read` when the answer
+names no test file, and `ran.unread` stands in for the stands when where they
+ran cannot be read; `ran` is absent under `--format refs`. `moved: true` marks a
+`--function` answer and each `unrun` part an edit touched, and `unheld: true` a
+file that is not on disk.
 
 ## Ask about the whole change at review time
 
