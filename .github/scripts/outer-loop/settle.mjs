@@ -26,6 +26,12 @@ export function failureFile(env, name) {
  * Settles the flow `name` after a run whose step concluded `outcome`
  * (`success`, `failure`, `cancelled` or `skipped`). Returns the sentences that
  * went wrong while settling, empty when nothing did.
+ *
+ * A failure is filed before the sweep, because a job stopped by its own timeout
+ * starts nothing after this step; a pass is filed after it, so a failed sweep
+ * does not close the issue. Nobody cancels a scheduled run by hand, so one that
+ * ended cancelled ran out of the job's time and is filed as a failure; a
+ * dispatched run cancelled is a person's decision and files nothing.
  */
 export async function settle(name, outcome, env, log = console.log) {
   const flow = FLOWS[name];
@@ -42,13 +48,6 @@ export async function settle(name, outcome, env, log = console.log) {
 
   const home = () => client({ base: api, token: env.GITHUB_TOKEN, secret: 'GITHUB_TOKEN' });
 
-  // A failure is filed before the sweep: a job stopped by its own timeout
-  // starts nothing after this step, and a sweep of serial requests could spend
-  // the minutes the step has left. A pass is filed after it, so a sweep that
-  // fails does not close the issue. Nobody cancels a scheduled run by hand, so
-  // a scheduled run that ended cancelled ran out of the job's time: that is the
-  // flow failing slowly, and it is filed like any other failure. A dispatched
-  // run cancelled is a person's decision, and files nothing.
   const timedOut = outcome === 'cancelled' && env.GITHUB_EVENT_NAME === 'schedule';
   if (outcome === 'failure' || timedOut) {
     await attempt('reporting', () => report(home(), env, name, timedOut ? 'cancelled' : outcome, log));
