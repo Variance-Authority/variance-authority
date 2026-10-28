@@ -7,8 +7,7 @@
 
 // compass: variance-authority.report.agent-surface
 
-import type { Help } from '@variance-authority/package/help';
-import { type Site, packageOf, publishedSitesOf, sureness } from './uses-of.js';
+import { type Site, packageOf, sureness } from './uses-of.js';
 
 /** The places that import a name, those from other packages and those inside `home`. */
 export interface Counted {
@@ -67,34 +66,7 @@ export interface Importing {
 }
 
 /** The places among `sites` that {@link counted} counts, and the packages they sit in. */
-export function importing(sites: readonly Site[]): Importing {
+export function importingIn(sites: readonly Site[]): Importing {
   const { certain } = counted(sites, undefined);
   return { places: certain.length, packages: new Set(certain.flatMap((site) => packageOf(site.by) ?? [])).size };
-}
-
-/** What imports one published declaration, and why the imports within its package were not read, when they were not. */
-export interface ImportingOne {
-  readonly importing: Importing;
-  readonly unread?: string;
-}
-
-/** The count for the published declaration of `name` in the file `at`. */
-export type ImportingOf = (name: string, at: string) => ImportingOne;
-
-/**
- * The count `uses` gives for a published declaration when asked for its name
- * and its file, read for each declaration the first time it is asked for: a
- * question reads it for the rows it shows, not for every name it holds.
- */
-export function importingOf(help: Help, root: string | undefined): ImportingOf {
-  const read = new Map<string, ImportingOne>();
-  return (name, at) => {
-    const key = `${at}\0${name}`;
-    let one = read.get(key);
-    if (one === undefined) {
-      const { sites, unread } = publishedSitesOf(help, root, name, at);
-      read.set(key, (one = { importing: importing(sites), ...(unread === undefined ? {} : { unread }) }));
-    }
-    return one;
-  };
 }

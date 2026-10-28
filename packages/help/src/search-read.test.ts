@@ -9,7 +9,7 @@ import { ask, askSearch } from './ask.js';
 import { readWorkspace, readWorkspaceForAnswer, workspaceSnapshotPath } from './read.js';
 import { readSearchForAnswer, unopenedLine } from './search-read.js';
 import { workspaceSearchPath } from './snapshot.js';
-import { importingOf } from './tools/uses-count.js';
+import { importingOf } from './tools/published-match.js';
 
 /**
  * `search` answers from the file published beside the value, and answers what

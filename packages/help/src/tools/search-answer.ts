@@ -11,8 +11,7 @@ import { declaredKey, looseDeclarations } from './loose-declared.js';
 import { queryDependencyLexicon, type LexiconMatches } from '../dependency-lexicon.js';
 import { declaredMatches, exactness } from './declared.js';
 import { docRows, exported, exportedOrder, first } from './exported-matches.js';
-import { type InArea, type PublishedMatch, withImporting } from './published-match.js';
-import type { ImportingOf } from './uses-count.js';
+import { type ImportingOf, type InArea, type PublishedMatch, withImporting } from './published-match.js';
 
 /**
  * What `search` found, before a word of it is written.

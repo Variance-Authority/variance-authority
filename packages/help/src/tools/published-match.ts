@@ -1,5 +1,7 @@
 import type { DescribedMatch, ExportedMatch, DeclaredMatch, SearchAnswer } from './search-answer.js';
-import type { Importing, ImportingOf } from './uses-count.js';
+import type { Help } from '@variance-authority/package/help';
+import { type Importing, importingIn } from './uses-count.js';
+import { publishedSitesOf } from './uses-of.js';
 
 // compass: variance-authority.report.agent-surface
 
@@ -61,4 +63,31 @@ export function withImporting(answer: SearchAnswer, importingOf: ImportingOf | u
     ...(described === undefined ? {} : { described: { ...described, shown: described.shown.map(counted) } }),
   };
   return { ...answer, ...shown, ...(unread === undefined ? {} : { importsUnread: unread }) };
+}
+
+/** What imports one published declaration, and why the imports within its package were not read, when they were not. */
+export interface ImportingOne {
+  readonly importing: Importing;
+  readonly unread?: string;
+}
+
+/** The count for the published declaration of `name` in the file `at`. */
+export type ImportingOf = (name: string, at: string) => ImportingOne;
+
+/**
+ * The count `uses` gives for a published declaration when asked for its name
+ * and its file, read for each declaration the first time it is asked for: a
+ * question reads it for the rows it shows, not for every name it holds.
+ */
+export function importingOf(help: Help, root: string | undefined): ImportingOf {
+  const read = new Map<string, ImportingOne>();
+  return (name, at) => {
+    const key = `${at}\0${name}`;
+    let one = read.get(key);
+    if (one === undefined) {
+      const { sites, unread } = publishedSitesOf(help, root, name, at);
+      read.set(key, (one = { importing: importingIn(sites), ...(unread === undefined ? {} : { unread }) }));
+    }
+    return one;
+  };
 }

@@ -203,10 +203,19 @@ const publishedFiles = (found: readonly Published[]): readonly string[] => [...n
  */
 export function publishedSitesOf(help: Help, root: string | undefined, name: string, at: string): { readonly sites: readonly Site[]; readonly unread?: string } {
   const found = entriesNamed(help, name).filter(([, , entry]) => entry.at === at);
-  const declared = new Set([at]);
-  const byPath = sitesByPath(help, name, undefined).filter((site) => resolvedTo(site, declared)).map(asSite);
-  const { sites, unread } = sitesOfOne(root, name, undefined, found, publishedFiles(found), byPath);
+  const { sites, unread } = sitesOfPublished(root, name, undefined, found, sitesByPath(help, name, undefined));
   return unread === undefined ? { sites } : { sites, unread };
+}
+
+/**
+ * The sites of a published declaration, the one assembly `uses` and the count
+ * beside a search row both read: the imports by path that resolved to its
+ * file, then what {@link sitesOfOne} reads from the files it is published from.
+ */
+function sitesOfPublished(root: string | undefined, name: string, wanted: string | undefined, found: readonly Published[], paths: readonly PathSite[]) {
+  const declared = new Set(found.map(([, , entry]) => entry.at));
+  const byPath = paths.filter((site) => resolvedTo(site, declared)).map(asSite);
+  return { byPath, ...sitesOfOne(root, name, wanted, found, publishedFiles(found), byPath) };
 }
 
 /**
@@ -269,7 +278,8 @@ export function usesOf(help: Help, input: Readonly<Record<string, unknown>>, roo
   const claimed = (site: PathSite): boolean => site.held.to !== undefined && everyFile.has(site.held.to);
   const pathSites = (to: ReadonlySet<string>, stray: boolean): readonly Site[] =>
     paths.filter((site) => resolvedTo(site, to) || (stray && !claimed(site))).map(asSite);
-  const byPath = found.length > 0 ? pathSites(declared, false) : pathSites(new Set(exported.map((held) => held.at)), file === undefined);
+  const published = found.length > 0 ? sitesOfPublished(root, name, wanted, found, paths) : undefined;
+  const byPath = published?.byPath ?? pathSites(new Set(exported.map((held) => held.at)), file === undefined);
 
   const namesakes: readonly Namesake[] = others.map((group) => {
     const at = new Set(group.exported.map((held) => held.at));
@@ -286,8 +296,7 @@ export function usesOf(help: Help, input: Readonly<Record<string, unknown>>, roo
     // The answer `symbol` gives: what was read and declares nothing, and where else the name may be.
     throw new FoundNothing(nowhere(help, name, wanted, root, members, undefined, spell));
   }
-  const local = found.length === 0 ? [...new Set(exported.map((held) => held.at))] : publishedFiles(found);
-  const { sites, unread, within, inFile, namespaces } = sitesOfOne(root, name, wanted, found, local, byPath);
+  const { sites, unread, within, inFile, namespaces } = published ?? sitesOfOne(root, name, wanted, found, [...new Set(exported.map((held) => held.at))], byPath);
   if (exported.length > 0 && unread !== undefined && byPath.length === 0) throw new Error(indexMissing(name, exported, unread));
 
   // Inside is the declaring file's package, which a re-exporting door is not.

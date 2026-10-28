@@ -8,7 +8,7 @@ import type { SearchIndex } from './search-index.js';
 import { unopenedLine, type Unopened } from './search-read.js';
 import { searchNames } from './tools/search-answer.js';
 import { answerSearch, search } from './tools/search.js';
-import type { ImportingOf } from './tools/uses-count.js';
+import type { ImportingOf } from './tools/published-match.js';
 import { wordsOf } from './words.js';
 
 /**

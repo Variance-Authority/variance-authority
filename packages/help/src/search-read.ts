@@ -43,7 +43,9 @@ export interface Unopened {
  */
 export function unopenedLine(unopened: readonly Unopened[] | undefined, compared: boolean): string | undefined {
   if (unopened === undefined) return undefined;
-  const instead = compared ? 'the checkout' : 'the published value';
+  // Only the value unopened beside a search that opened: the search answered, with the counts it carries.
+  const searched = !compared && unopened.every(({ published }) => published === 'value');
+  const instead = compared ? 'the checkout' : searched ? 'the published search, with the counts it carries,' : 'the published value';
   const tried = unopened.map(({ published, at, reason }) => `The published ${published} at ${at} did not open (${reason})`);
   return `${tried.join('. ')}; ${instead} was read instead.`;
 }
@@ -90,9 +92,14 @@ export async function readSearchForAnswer(root: string, options: AnsweringOption
   try {
     const search = await readSearchSnapshot(root, reading.index);
     if (reading.tree !== undefined) reading.tree(await readSearchTree(search, root, reading.index));
-    // The rows shown are counted against the value; a search without one answers with the counts it carries.
-    const help = await readWorkspaceSnapshot(root, reading.index === undefined ? {} : { index: reading.index }).catch(() => undefined);
-    return { index: search, compared: false, ...(help === undefined ? {} : { help }) };
+    // The rows shown are counted against the value; a search without one answers with the counts it carries, and says why.
+    try {
+      const help = await readWorkspaceSnapshot(root, reading.index === undefined ? {} : { index: reading.index });
+      return { index: search, compared: false, help };
+    } catch (error) {
+      if (absent(error)) return { index: search, compared: false };
+      return { index: search, compared: false, unopened: [{ published: 'value', at: workspaceSnapshotPath(index), reason: reasonOf(error) }] };
+    }
   } catch (error) {
     // Not published says nothing; published and unopenable is said with the answer.
     if (!absent(error)) unopened = [{ published: 'search', at: searchAt, reason: reasonOf(error) }];

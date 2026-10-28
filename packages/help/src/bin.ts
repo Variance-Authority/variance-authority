@@ -9,7 +9,7 @@ import { readSearchForAnswer } from './search-read.js';
 import { discover } from './tools/discover.js';
 import { intersection, namesWanted } from './tools.js';
 import { search } from './tools/search.js';
-import { importingOf } from './tools/uses-count.js';
+import { importingOf } from './tools/published-match.js';
 import { serveWorkspace } from './server.js';
 import { writePages } from './write.js';
 

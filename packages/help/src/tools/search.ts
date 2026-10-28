@@ -8,8 +8,7 @@ import { describedLine, thirdLine, thirdScope } from './third-party.js';
 import type { DeclaredMatch, DescribedMatch, ExportedMatch, FileMatch, PublishedMatch } from './search-answer.js';
 import { declaredLine, unreadLine } from './declared.js';
 import { searched, searchedFiles } from './search-answer.js';
-import { withImporting } from './published-match.js';
-import { type ImportingOf, importingOf } from './uses-count.js';
+import { type ImportingOf, importingOf, withImporting } from './published-match.js';
 import { byPublishedPath, plural } from './format.js';
 
 /**
