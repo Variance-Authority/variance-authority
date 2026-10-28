@@ -76,7 +76,11 @@ function placesOf(exported: readonly Named[]): string {
 }
 
 /** One use the source index resolved, with the specifier its file wrote. */
-export type IndexedUse = Taken & { readonly specifier: string };
+export type IndexedUse = Taken & {
+  readonly specifier: string;
+  /** The lines of the importing file that use what the import binds; absent for a member read, which binds nothing. */
+  readonly lines?: readonly number[];
+};
 
 /**
  * A namespace one file passes a name on inside: `export * as shout` passes
@@ -119,7 +123,7 @@ export function importsOf(root: string | undefined, files: readonly string[], na
   }
   if (read === undefined) return { unread: 'no source index is published; run `variance index`' };
   const inFile = read.inFile.map((use): Use => ({ at: use.at, line: use.line, by: use.by, kind: use.kind, type: false }));
-  const uses = read.uses.map((use) => ({ name: use.name, specifier: use.key, ...useOf(use) }));
+  const uses = read.uses.map((use): IndexedUse => ({ name: use.name, specifier: use.key, ...useOf(use), ...(use.lines == null ? {} : { lines: use.lines }) }));
   return { uses, through: read.through, namespaces: read.namespaces, inFile };
 }
 

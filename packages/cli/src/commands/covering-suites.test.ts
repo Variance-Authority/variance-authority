@@ -79,6 +79,23 @@ async function ask(argv: readonly string[]) {
   return { code, out, err };
 }
 
+describe('a file asked of a repository that declares suites', () => {
+  it('carries the one mark each run of lines takes, read across the suites that ran it', async () => {
+    const answer = await ask(['covering', '--file', 'src/pay.ts', '--root', root, '--format', 'json']);
+
+    expect(answer.code).toBe(0);
+    const said = JSON.parse(answer.out) as { marks?: { startLine: number; endLine: number; suites: string[] }[] };
+    expect(said.marks?.length).toBeGreaterThan(0);
+    expect(said.marks?.every((mark) => mark.suites.join() === 'unit')).toBe(true);
+    expect(said.marks?.some((mark) => mark.startLine <= 12 && 12 <= mark.endLine)).toBe(true);
+  });
+
+  it('carries no marks under a question about one line', async () => {
+    const answer = await ask(['covering', '--file', 'src/pay.ts', '--line', '12', '--root', root, '--format', 'json']);
+    expect(JSON.parse(answer.out)).not.toHaveProperty('marks');
+  });
+});
+
 describe('a line asked of a repository that declares suites', () => {
   it('is answered by every suite, each by its role, with the one that never loaded it and the one that never ran said apart', async () => {
     const answer = await ask(['covering', '--file', 'src/pay.ts', '--line', '12', '--root', root, '--format', 'json']);

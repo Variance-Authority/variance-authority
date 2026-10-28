@@ -256,6 +256,22 @@ A published name that nothing imports is a different answer, not an empty list:
 `PagesOptions` [interface] is published and nothing in this workspace imports it; a namespace imported by name that goes somewhere whole and, outside Rust, a call through a qualified path are not counted. docs_symbol has its signature and what is written above it.
 ```
 
+The imports inside the package that declares the name are counted and listed
+apart from the ones from other packages, under `Source, inside <package>:` and
+`Source, from other packages:`, and the same for tests and stories; the first
+line says how many are on each side:
+
+```
+`greet` [function] is imported in 2 places: 1 from another package and 1 inside @acme/lib.
+```
+
+A site ends with the lines its file uses what the import binds on, read from
+the source index:
+
+```
+apps/app/src/hello.ts:1 — @acme/app; used on line 2
+```
+
 The imports within the name's own package come from the source index: every
 import that resolved to the file declaring it, or to a file that passes it on
 with `export … from`, which is followed under the name it exports and is not
@@ -287,14 +303,14 @@ alone, the same way. The first line names, in brackets, the kind of the
 declaration it binds, and where it is exported:
 
 ```
-`roundTax` [const] is imported in 1 place, and no entry publishes it; it is exported at packages/lib/src/internal/math.ts:5.
+`roundTax` [const] is imported in 1 place, inside @acme/lib, and no entry publishes it; it is exported at packages/lib/src/internal/math.ts:5.
 ```
 
 When the one file that exports it only passes it on, the line goes on to the
 declaration:
 
 ```
-`levy` is imported in 1 place, and no entry publishes it; it is exported at packages/kit/src/money/rates.ts:1, which passes on `taxOf`, declared at packages/kit/src/money/tax.ts:1.
+`levy` is imported in 2 places, all inside @acme/kit, and no entry publishes it; it is exported at packages/kit/src/money/rates.ts:1, which passes on `taxOf`, declared at packages/kit/src/money/tax.ts:1.
 ```
 
 When the declaring file exports it and others pass it on under the same name,
@@ -314,7 +330,7 @@ declaration it reaches. The answer ends by saying so when it covers more than on
 
 ```
 `greet` is exported, without being published, at packages/lib/src/other.ts:1 as well, which is another declaration.
-Imported in 1 place.
+Imported in 1 place, inside @acme/lib.
 
 `file`, the file one of them is declared in, answers for that declaration alone.
 ```
@@ -360,19 +376,20 @@ src/shapes/use.ts:8 — @acme/shop, destructure
 
 No line uses `size` through a value whose type is written as `Other` at src/shapes/props.ts:7.
 
-A use is listed here only where its line writes the value's type. A use through an inferred value, a generic, a subtype by `extends` or `implements`, a JSX attribute, a utility type or an inline type literal is not: which type a value has is a type checker's answer, and none runs here.
+An implementation of `size` that takes its type from where it goes — an argument, a property, a returned value — writes no type on its line and is not listed: TypeScript's go-to-implementation on the declaration you mean names it.
+A use is listed here only where its line writes the value's type. A use through an inferred value, a generic, a subtype by `extends`, a JSX attribute, a utility type or an inline type literal is not: which type a value has is a type checker's answer, and none runs here.
 Ask TypeScript for those: its language service's find-references on the declaration you mean, each listed above with its file and line (`package` narrows the declarations to one package).
 ```
 
-The two lines close the members of every member answer, whatever they list. With one
-declaration, the second line names it, such as `` `Props.size` at
-src/shapes/props.ts:2 ``. The second line names TypeScript's language
-service for a declaration in JavaScript or TypeScript, the declaration's own
+The three lines close the members of every member answer, whatever they list. With one
+declaration, the first and third lines name it, such as `` `Props.size` at
+src/shapes/props.ts:2 ``. The first and third lines name TypeScript's
+language service for a declaration in JavaScript or TypeScript, the declaration's own
 language server for one in another language, and each declaration's own type
 checker when they are written in more than one. An answer with no member
-prints neither. Members are read from JavaScript and TypeScript only, so a
+prints none. Members are read from JavaScript and TypeScript only, so a
 member of a Python, Rust, Java, Kotlin or Swift file is in no member answer.
-When the source index holds files of those languages, a third line names them
+When the source index holds files of those languages, a fourth line names them
 and sends you to their language server, as under `symbol`.
 
 A use is a line that reads the member (`props.size`, `props['size']`,
@@ -384,13 +401,16 @@ with `| undefined`, or an `as`, a `satisfies` or a `<Props>` cast. That name is
 followed through the import that binds it, renamed or passed on by `export *`
 or `export { … } from`, to the file that declares it, so `Props.size` and
 `Other.size` are listed apart and a same-named type of another file is neither.
-A binding that shadows an annotated one is no use.
+A binding that shadows an annotated one is no use. A member of a class that
+writes `implements Props` is listed under `Props.size` as an `implement`; a
+static member is not, since `implements` types the instance.
 
 What a type checker infers is not read: a value returned by a call, a generic
 or a mapped type, a value narrowed or copied without an annotation, and a type
 named through a namespace (`ns.Props`). Nor is what the line does not write as
 a value of the type: a JSX attribute (`<Box size={2} />`), an object literal
-passed to an annotated parameter, `this.size`, a field inherited through
+passed to an annotated parameter or property, which implements the member with
+no type on its line, as `{ deps: { readJourney } }` does, `this.size`, a field inherited through
 `extends` or `&`, and a type imported by another name than its declaration's,
 as a default export or one renamed where it is declared. Those are TypeScript's:
 its find-references on the declaration `uses` prints lists them, proven against

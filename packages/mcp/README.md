@@ -532,22 +532,30 @@ the agent's MCP connection:
 
 ```ts
 import { serve } from '@variance-authority/mcp';
+import { readTree } from '@variance-authority/mcp/tools';
 import { SOURCE_TESTS } from '@variance-authority/mcp/protocol';
 import type { ExecutionIndex } from '@variance-authority/sense/test-selection';
 
-export function serveSourceTests(current: () => ExecutionIndex | Promise<ExecutionIndex>) {
+export function serveSourceTests(root: string, current: () => ExecutionIndex | Promise<ExecutionIndex>) {
+  let tree: ReturnType<typeof readTree> | undefined;
   return serve({
     input: process.stdin,
     output: process.stdout,
     served: SOURCE_TESTS,
     subject: current,
+    tree: () => (tree ??= readTree({ root })),
+    root,
   });
 }
 ```
 
 That is an excerpt: it exports the server but never calls it. Call
-`serveSourceTests(() => yourIndex)` from a module the client launches, and keep
+`serveSourceTests(root, () => yourIndex)` from a module the client launches, and keep
 the process alive — the returned function detaches the server from its streams.
+The tree carries the file graph, with what each test file mocks: a case whose
+file mocked a changed module ran against the mock, and `variance_changed_tests`
+leaves it out of what stood on that module. A host that supplies no tree gets
+the answer without that cut, and the answer says so.
 
 The tool takes `file` and optionally one of `line` or `function`. With neither,
 it answers the whole file. It distinguishes an indexed range covered by no test

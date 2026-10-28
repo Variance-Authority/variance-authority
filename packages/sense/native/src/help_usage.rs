@@ -81,6 +81,11 @@ pub struct NameUse {
     /// The module goes, whole, somewhere the reader does not follow: this line
     /// may read the name, and what it reads is not recorded.
     pub whole: bool,
+    /// The lines of the importing file that use what this import binds, by
+    /// the name it binds, in line order; `None` where the binding's uses were
+    /// not read: a member read, which binds nothing, and the usage the Help
+    /// value records.
+    pub lines: Option<Vec<u32>>,
 }
 
 #[napi(object)]
@@ -162,7 +167,7 @@ fn taken<'a>(layer: &'a Layer, row: usize, request: usize, key: &str, by: &str, 
         if imported == "*" { continue; }
         let local = text.text(parses.binding_local.at(binding));
         let renamed = (local != imported).then(|| local.to_owned());
-        names.push((NameUse { key: key.to_owned(), name: imported.to_owned(), local: renamed, by: by.to_owned(), at: at.to_owned(), line: parses.binding_line.at(binding), r#type: parses.binding_type[binding] == 1, kind: kind.to_owned(), through: None, through_line: 0, through_default: false, whole: false }, local));
+        names.push((NameUse { key: key.to_owned(), name: imported.to_owned(), local: renamed, by: by.to_owned(), at: at.to_owned(), line: parses.binding_line.at(binding), r#type: parses.binding_type[binding] == 1, kind: kind.to_owned(), through: None, through_line: 0, through_default: false, whole: false, lines: None }, local));
     }
     // Only an `import()` type holds a module through a `type` request, since a
     // type-only namespace holds nothing: it is an `import()`, and its reads are types.
@@ -173,7 +178,7 @@ fn taken<'a>(layer: &'a Layer, row: usize, request: usize, key: &str, by: &str, 
         if parses.member_request.at(member) as usize != request - first { continue; }
         let name = text.text(parses.member_name.at(member));
         let (through_default, whole) = (parses.member_through_default[member] == 1, name == "*");
-        names.push((NameUse { key: key.to_owned(), name: name.to_owned(), local: None, by: by.to_owned(), at: at.to_owned(), line: parses.member_line.at(member), r#type: typed, kind: kind.to_owned(), through: Some(through.to_owned()), through_line: line, through_default, whole }, ""));
+        names.push((NameUse { key: key.to_owned(), name: name.to_owned(), local: None, by: by.to_owned(), at: at.to_owned(), line: parses.member_line.at(member), r#type: typed, kind: kind.to_owned(), through: Some(through.to_owned()), through_line: line, through_default, whole, lines: None }, ""));
     }
     names
 }
@@ -320,12 +325,14 @@ pub struct Namespace {
 /// What an `export … from` passes on is `passed_on`'s answer, the one the
 /// package graph reads: that is no use, and the file that writes it is
 /// followed instead under the name it exports, so an import through a barrel
-/// is listed and the barrel is not. A bare `export *` passes on every name but
-/// `default`. The question is about source, so a type-only re-export passes
-/// its names on too, and every use that came through one is a type use,
-/// whatever its importer wrote. Each file is followed once per name, and once
-/// more when a value path reaches a name a type-only one reached first, so a
-/// cycle of re-exports ends.
+/// is listed and the barrel is not. A bare `export *` passes a name on only
+/// where ECMAScript's export resolution says it does (`star_passes`): never
+/// `default`, never past the file's own export or named `export … from` of the
+/// name, and never when another star reaches a different declaration. The
+/// question is about source, so a type-only re-export passes its names on too,
+/// and every use that came through one is a type use, whatever its importer
+/// wrote. Each file is followed once per name, and once more when a value path
+/// reaches a name a type-only one reached first, so a cycle of re-exports ends.
 ///
 /// A file asked about that declares the name uses it by scope, not by import,
 /// and the scan read those lines with its parse: they are `in_file`.

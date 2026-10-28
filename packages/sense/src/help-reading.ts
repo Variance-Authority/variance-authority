@@ -133,7 +133,7 @@ export interface MemberUseSite {
   /** The package of the file, or empty when no package holds it. */
   readonly by: string;
   readonly kind: 'source' | 'story' | 'test';
-  readonly how: 'destructure' | 'read' | 'write';
+  readonly how: 'destructure' | 'implement' | 'read' | 'write';
 }
 
 /** One import that binds a local name to an export of another name. */

@@ -271,9 +271,6 @@
   "docs/understand-execution.md lead": [
     16
   ],
-  "editors/vscode/record.js block": [
-    7
-  ],
   "examples/kitchen-sink/scripts/agent-bundle.mjs block": [
     6
   ],
@@ -783,9 +780,6 @@
     15,
     12,
     11
-  ],
-  "packages/cli/src/commands/source-graph.ts block": [
-    6
   ],
   "packages/cli/src/commands/source-graph.ts docblock": [
     16
@@ -1513,7 +1507,7 @@
     36
   ],
   "packages/help/src/tools/described.ts overview": [
-    49
+    48
   ],
   "packages/help/src/tools/discover.ts overview": [
     31
@@ -1546,7 +1540,7 @@
     6
   ],
   "packages/help/src/tools/search-answer.ts docblock": [
-    14
+    12
   ],
   "packages/help/src/tools/search.ts block": [
     6
@@ -1907,9 +1901,6 @@
   ],
   "packages/playwright-test/src/whole-file-shard.ts overview": [
     19
-  ],
-  "packages/playwright-test/src/with-test-selection.ts docblock": [
-    16
   ],
   "packages/playwright-test/src/with-test-selection.ts overview": [
     18

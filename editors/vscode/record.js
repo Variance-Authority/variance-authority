@@ -35,9 +35,6 @@ function commandFor(root, configured) {
  * or nothing recorded. `cancel` stops the process
  * when a newer edit has made the question stale.
  */
-// TODO: a repository that declares suites answers under `suites`, one answer per
-// suite with its `kind`, `frame` and ranges; the gutter reads only `ranges`, so
-// it paints nothing there until it groups the marks and the hover by suite.
 function ask({ root, file, text, line, command }) {
   const argv = ['covering', '--file', file, '--root', root, '--text', '-', '--format', 'json'];
   if (line !== undefined) argv.push('--line', String(line));
@@ -86,4 +83,45 @@ function firstParagraph(text) {
   return text.trim().split(/\n\s*\n/)[0] || 'variance stopped without saying why.';
 }
 
-module.exports = { ask, commandFor };
+/**
+ * Every suite's answer, in the order the CLI gave them, nearest kind first. A
+ * repository that declares suites answers each under `suites`, with its own
+ * `suite`, `kind` and `frame`, or with `refused` and `reason` when its record
+ * could not answer. One that declares none answers once, as a suite without a
+ * name.
+ */
+function suitesOf(answer) {
+  if (answer === undefined) return [];
+  return Array.isArray(answer.suites) ? answer.suites : [answer];
+}
+
+/**
+ * The runs of lines to paint, each with its one state. Under `suites` the CLI
+ * has already read every suite's ranges into one mark per run (`marks`); a
+ * repository that declares none paints its ranges as they are. A stale record
+ * gives no ranges, so it paints nothing.
+ */
+function marksOf(answer) {
+  if (answer === undefined) return [];
+  return Array.isArray(answer.suites) ? answer.marks ?? [] : answer.ranges ?? [];
+}
+
+/**
+ * What every suite says about one line: the range each placed over it, nearest
+ * suite first, and the suites that could not answer about the file at all.
+ */
+function atLine(answer, line) {
+  const answered = [];
+  const refused = [];
+  for (const one of suitesOf(answer)) {
+    if (one.reason !== undefined) {
+      refused.push(one);
+      continue;
+    }
+    const range = (one.ranges ?? []).find((range) => range.startLine <= line && line <= range.endLine);
+    if (range !== undefined) answered.push({ suite: one.suite, kind: one.kind, range });
+  }
+  return { answered, refused };
+}
+
+module.exports = { ask, atLine, commandFor, marksOf, suitesOf };

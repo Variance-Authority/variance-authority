@@ -13,7 +13,8 @@ import { uses } from './uses.js';
 import { type Members, membersOf, membersStop } from './members.js';
 import { boundOf, exportedRows, originOf } from './passed-on.js';
 import { UNCOUNTED, exportsNamed, importsOf } from './unpublished.js';
-import { type Site, sureness, usesOf } from './uses-of.js';
+import { type Counted, counted, spokenSplit } from './uses-count.js';
+import { usesOf } from './uses-of.js';
 import { localNames, renamedSites } from './renamed.js';
 
 /**
@@ -164,11 +165,11 @@ export const symbol: Tool<Help> = {
     // who want them want them ranked against a file this tool never asked for.
     // Inside is the declaring file's package, which a re-exporting door is not.
     const listed = usesOf(help, input, invocation?.root, spell);
-    const owner = help.exported.find((held) => held.at === first[2].at)?.by ?? first[0].name;
-    // One partition of the sites `uses` lists feeds the header and the closing line.
-    const split = sureness(listed.sites);
+    const owner = listed.home ?? first[0].name;
+    // One count of the sites `uses` lists feeds the header and the closing line, counted as `uses` counts them.
+    const split = counted(listed.sites, owner);
     const may = [...split.off, ...split.whole];
-    const shown = listedLine(spell.tool(uses), owner, split.certain, may.length > 0, listed.unread);
+    const shown = listedLine(spell.tool(uses), owner, split, may.length > 0, listed.unread);
     const renamed = renamedSites(name, listed.sites);
 
     const entry = first[2];
@@ -308,21 +309,16 @@ function importedByPath(help: Help, root: string | undefined, name: string, site
  * the ones `uses` lists, counted as it counts them. An index that did not read
  * leaves the ones inside uncounted, and says why.
  */
-function listedLine(tool: string, owner: string, certain: readonly Site[], may: boolean, unread: string | undefined): readonly string[] {
+function listedLine(tool: string, owner: string, count: Counted, may: boolean, unread: string | undefined): readonly string[] {
+  const { certain } = count;
   if (certain.length === 0 && !may && unread === undefined) return [];
-  const inside = certain.filter((site) => site.by === owner).length;
-  const outside = certain.length - inside;
-  const parts = [
-    ...(outside === 0 ? [] : [`${outside} from ${outside === 1 ? 'another package' : 'other packages'}`]),
-    ...(inside === 0 ? [] : [`${inside} inside ${owner}`]),
-  ];
   const left = unread === undefined ? '' : ` The imports inside ${owner} are read from the source index, and ${unread}.`;
   if (certain.length === 0) {
     const where = may ? 'names no place that imports this, and lists the ones that may read it' : 'names no place another package imports this from';
     return [`\n\`${tool}\` ${where}.${left}`];
   }
   const also = may ? ', and the ones that may read it' : '';
-  return [`\n\`${tool}\` names the ${plural(certain.length, 'place')} that ${certain.length === 1 ? 'imports' : 'import'} this: ${parts.join(' and ')}, nearest to a file you name first${also}.${left}`];
+  return [`\n\`${tool}\` names the ${plural(certain.length, 'place')} that ${certain.length === 1 ? 'imports' : 'import'} this${spokenSplit(count, owner)}, nearest to a file you name first${also}.${left}`];
 }
 
 /**

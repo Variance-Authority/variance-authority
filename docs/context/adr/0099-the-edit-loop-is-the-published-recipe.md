@@ -59,3 +59,23 @@ and the run names it among the changed files it holds nothing about. No test is
 lost by it: a new file is reached only through an import an edit added, and
 that edited importer charges every test that loaded it. Checked by adding a new
 module and its import, then reading the loop and `variance select` after it.
+
+## Amended 2026-10-28 — a green run ends with what a new function needs
+
+After the tests pass, the loop prints the existing functions that need what
+each function new on the branch needs, in the package sources, the scripts a
+package ships and `tools/`, for functions with five needs or more
+(`tools/needs.mjs`, [journal 0077](../journal/0077-a-copy-keeps-what-it-needs.md)).
+A second implementation is cheapest to drop while it is being written, and the
+loop is the one thing an agent runs then.
+
+The list is advice. It never changes the exit code, and what keeps it from
+being read, no merge base with `origin/main` among them, is one line in its
+place. It is the third step of the script line, `node tools/needs.mjs`, after
+the compiler and the runner, so it reads the `dist/` they built, and a red
+compiler or a red test still ends the run before it: a red run is the agent's
+next edit, and the list waits for the green one. The two steps before it stay
+the line `docs/test-an-edit.md` publishes; the list is ours, a reader of this
+repository's own history, and the page does not carry it. On the measurement
+machine, reading it alone takes 0.56 s with its cache warm and 1.5 s on the
+first run after the reader changes, Node's start included.

@@ -42,7 +42,7 @@ const SCANNER = {
 };
 
 const STOP =
-  "A use is listed here only where its line writes the value's type. A use through an inferred value, a generic, a subtype by `extends` or `implements`, " +
+  "A use is listed here only where its line writes the value's type. A use through an inferred value, a generic, a subtype by `extends`, " +
   "a JSX attribute, a utility type or an inline type literal is not: which type a value has is a type checker's answer, and none runs here.";
 const ROUTE = "Ask TypeScript for those: its language service's find-references on `Scanner.resolveThings` at packages/lib/src/native.ts:2.";
 
@@ -69,7 +69,7 @@ describe('variance ask uses over a member', () => {
 
     const { code, out } = await run(['ask', 'uses', '--name', 'scanner']);
     expect(code).toBe(EXIT_CLEAN);
-    expect(out).toMatch(/^packages\/lib\/src\/effects\.ts:1 — @acme\/lib$/m);
+    expect(out).toMatch(/^packages\/lib\/src\/effects\.ts:1 — @acme\/lib; used on line 2$/m);
     expect(out).not.toContain('type checker');
     expect(out).not.toContain('find-references');
   });
@@ -136,7 +136,7 @@ describe('variance ask uses over a member', () => {
 
     const { code, out } = await run(['ask', 'uses', '--name', 'resolveThings']);
     expect(code).toBe(EXIT_CLEAN);
-    const imported = out.search(/^packages\/lib\/src\/wrapped\.ts:1 — @acme\/lib$/m);
+    const imported = out.search(/^packages\/lib\/src\/wrapped\.ts:1 — @acme\/lib; used on line 2$/m);
     const member = out.indexOf('`resolveThings` is a member too, declared in 1 place:');
     expect(imported).toBeGreaterThanOrEqual(0);
     expect(member).toBeGreaterThan(imported);

@@ -3,7 +3,8 @@ import type { OwnUse } from './cache.js';
 
 /**
  * The own-use columns of a source-index generation: per parse, every line that
- * uses a name the file declares at its top level, once per name and line.
+ * uses a name the file declares at its top level or binds by an import,
+ * once per name and line.
  *
  * One offset list, because the readers record the list only when it is not
  * empty, so the empty range and the absent field are the same fact.

@@ -130,7 +130,10 @@ loaded the file is `refused: "unloaded"`, which is the answer rather than a
 gap: a visual suite that never loaded the payment module says so. A suite
 whose recording was made at a commit that did not hold the file is
 `refused: "older"`: that record has no answer for it, and running the suite
-gives one. A
+gives one. Beside
+them, `marks` cuts the file into runs of lines and ranks each run once, over
+the cases of every suite that ran it, so the two editors paint a line alike
+and neither ranks it. A
 test is referred to by the record's own id everywhere, and its detail appears
 once, under `tests`.
 

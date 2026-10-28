@@ -9,7 +9,8 @@ import { sharedSegments } from './shared-segments.js';
 import { symbol } from './symbol.js';
 import { UNCOUNTED, exportedAt, rustUnread } from './unpublished.js';
 import { bracketed, keptLine, namesakeLine, narrowing } from './uses-declarations.js';
-import { type Answer, type Namesake, type Site, sureness, usesOf } from './uses-of.js';
+import { apart, counted, spokenSplit } from './uses-count.js';
+import { type Answer, type Namesake, type Site, packageOf, usesOf } from './uses-of.js';
 
 /**
  * `docs_uses` — how this repository actually writes a name.
@@ -141,9 +142,20 @@ function listed(sites: readonly Site[], heading: string, name: string, shown: Sh
     '',
     heading,
     '',
-    ...cut.map((use) => `${use.at}:${use.line} — ${use.by}${use.how ?? ''}${renamed(use)}${use.type ? ' (type only)' : ''}${held(use)}`),
+    ...cut.map((use) => `${use.at}:${use.line} — ${use.by}${use.how ?? ''}${renamed(use)}${use.type ? ' (type only)' : ''}${held(use)}${usedOn(use.lines, shown)}`),
     ...(rest > 0 ? [`… ${notShown(rest, shown.spell)}`] : []),
   ];
+}
+
+/**
+ * The lines of an importing file that use what its import binds, the first
+ * `limit` of them and the rest counted; nothing when none were read.
+ */
+function usedOn(lines: readonly number[] | undefined, shown: Shown): string {
+  if (lines === undefined || lines.length === 0) return '';
+  const cut = lines.slice(0, shown.limit);
+  const rest = lines.length - cut.length;
+  return `; used on ${lines.length === 1 ? 'line' : 'lines'} ${cut.join(', ')}${rest > 0 ? ` and ${rest} more` : ''}`;
 }
 
 /**
@@ -171,9 +183,11 @@ export const uses: Tool<Help> = {
     'name the file by path, marked as such. Imports within the exporting package are read from the ' +
     'source index, through each `export … from` that passes the name on, so a ' +
     'name exported and not published is answered too. A site is marked `(as x)` where its import or a re-export ' +
-    'renames the name. The lines of the declaring file that use the name are listed after the imports. A member of an interface, a type literal or a class by that ' +
+    'renames the name, and with the lines its file uses what the import binds on. The imports inside the declaring package and the ones from ' +
+    'other packages are counted and listed apart. The lines of the declaring file that use the name are listed after the imports. A member of an interface, a type literal or a class by that ' +
     'name is listed with its declarations, after the imports, each with the lines that read, write or destructure ' +
-    "it through a value whose type is written as its container, and the declaration to ask its language's find-references about for the uses no line types. A top-level " +
+    'it through a value whose type is written as its container and the members of the classes that write `implements` of it, ' +
+    "and the declaration to ask its language's find-references and go-to-implementation about for the uses and implementations no line types. A top-level " +
     'name a file declares and does not export is answered with its kind, where it is declared and who can reach it there. Stories ' +
     'and tests are listed apart. `from`, the file you are in, sorts sites by shared path; `limit` says how many sites of ' +
     'each kind are shown. A name only passed on with `export … from` is followed to the declaration it reaches. ' +
@@ -266,10 +280,15 @@ function answered(answer: Answer, input: Readonly<Record<string, unknown>>, show
  */
 function namesakeLines(name: string, namesakes: readonly Namesake[], from: string | undefined, shown: Shown): readonly string[] {
   return namesakes.flatMap((one) => {
-    const count = one.sites.length;
-    const taken = count === 0 ? 'Nothing in this workspace imports it.' : `Imported in ${count} ${count === 1 ? 'place' : 'places'}.`;
-    return ['', namesakeLine(name, one.exported), taken, ...kinds(one.sites, from, name, shown), ...ownLines(one.inFile, name, shown)];
+    const taken = one.sites.length === 0 ? 'Nothing in this workspace imports it.' : importedIn(one.sites, packageOf(one.exported[0]?.by));
+    return ['', namesakeLine(name, one.exported), taken, ...kinds(one.sites, from, name, shown, packageOf(one.exported[0]?.by)), ...ownLines(one.inFile, name, shown)];
   });
+}
+
+/** `Imported in 2 places, all inside @acme/lib.`: every site of one declaration, split as the headline splits its places. */
+function importedIn(sites: readonly Site[], home: string | undefined): string {
+  const count = sites.length;
+  return `Imported in ${count} ${count === 1 ? 'place' : 'places'}${home === undefined ? '' : spokenSplit(apart(sites, home), home)}.`;
 }
 
 /**
@@ -302,7 +321,7 @@ function declaredAs(answer: Answer): string {
  */
 function keptLines(name: string, kept: readonly DeclaredName[], sites: readonly Site[], inFile: readonly Use[], from: string | undefined, shown: Shown): readonly string[] {
   if (kept.length === 0) return [];
-  const taken = sites.length === 0 ? [] : ['', `Imported in ${sites.length} ${sites.length === 1 ? 'place' : 'places'}.`, ...kinds(sites, from, name, shown)];
+  const taken = sites.length === 0 ? [] : ['', importedIn(sites, packageOf(kept[0]?.by)), ...kinds(sites, from, name, shown, packageOf(kept[0]?.by))];
   return [keptLine(name, kept, shown.spell), ...taken, ...ownLines(inFile, name, shown)];
 }
 
@@ -346,7 +365,7 @@ function imported(answer: Answer, from: string | undefined, own: readonly string
   const nearest = nearestLine(from, shown.spell);
 
   // A read off `default` and a module passed on whole are no use of the name: each is listed, as a site that may read it, and counted apart.
-  const split = sureness(sites);
+  const split = counted(sites, answer.home);
   const certain = split.certain;
   const off = split.off.length;
   const whole = split.whole.length;
@@ -365,11 +384,11 @@ function imported(answer: Answer, from: string | undefined, own: readonly string
   const taken =
     certain.length === 0
       ? `${named} is imported by name nowhere${published}.`
-      : `${named} is imported in ${certain.length} ${certain.length === 1 ? 'place' : 'places'}${published}${loaded}`;
+      : `${named} is imported in ${certain.length} ${certain.length === 1 ? 'place' : 'places'}${answer.home === undefined ? '' : spokenSplit(split, answer.home)}${published}${loaded}`;
   return [
     `${taken}${may}`,
     nearest,
-    ...kinds(sites, from, name, shown),
+    ...kinds(sites, from, name, shown, answer.home),
     ...own,
     // The imports by package path are in the Help value; the rest are not.
     ...(unread === undefined ? [] : [`\nImports that do not name a package path are not listed: ${unread}.`]),
@@ -377,12 +396,23 @@ function imported(answer: Answer, from: string | undefined, own: readonly string
   ].join('\n');
 }
 
-/** The sites of a name, nearest first when `from` is said, stories and tests apart. */
-function kinds(sites: readonly Site[], from: string | undefined, name: string, shown: Shown): readonly string[] {
+/**
+ * The sites of a name, nearest first when `from` is said, stories and tests
+ * apart, and each kind's sites from other packages apart from those inside
+ * `home`, the package that declares the name, when one is known.
+ */
+function kinds(sites: readonly Site[], from: string | undefined, name: string, shown: Shown, home: string | undefined): readonly string[] {
   const sorted = order(sites, from);
-  return [
-    ...listed(sorted.filter((use) => use.kind === 'story'), 'Stories:', name, shown),
-    ...listed(sorted.filter((use) => use.kind === 'test'), 'Tests:', name, shown),
-    ...listed(sorted.filter((use) => use.kind === 'source'), 'Source:', name, shown),
-  ];
+  return (
+    [
+      ['story', 'Stories'],
+      ['test', 'Tests'],
+      ['source', 'Source'],
+    ] as const
+  ).flatMap(([kind, heading]) => {
+    const of = sorted.filter((use) => use.kind === kind);
+    if (home === undefined) return listed(of, `${heading}:`, name, shown);
+    const { outside, inside } = apart(of, home);
+    return [...listed(outside, `${heading}, from other packages:`, name, shown), ...listed(inside, `${heading}, inside ${home}:`, name, shown)];
+  });
 }
