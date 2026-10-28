@@ -37,20 +37,26 @@ export interface Placement {
 }
 
 /**
- * Frame one file's text by the digest each of its rows holds of the text its
- * run read, instrumented or not: `frameOf` asks once for the held text and once
- * for the recorded one, and the line map between the two is git's `diff
- * --no-index`. Absent when the snapshot holds no row for the file, so there is
+ * Frame one file's text against the snapshot that recorded it.
+ *
+ * The recorder wrote a digest of every module's text beside its rows, so the
+ * snapshot answers whether a text is the one it measured; `frameOf` asks it,
+ * once for the held text and once for the text at the recorded commit — or,
+ * for a run recorded over an edit, the text its landing kept. The
+ * line map between the recorded text and the held one is git's: `diff
+ * --no-index` over the two, which is the same hunk arithmetic every other
+ * reading of a change here takes from git.
+ *
+ * Absent when the snapshot holds no instrumented row for the file, so there is
  * no digest to hold the text against — which is not a frame, and not `stale`.
  */
 export function placeInText(snapshot: string, root: string, file: string, text: string): Placement | undefined {
   const asked = askCoverageFile(snapshot, (coverage) => {
-    const rows = findModules(coverage, file);
+    const rows = findModules(coverage, file).filter((module) => coverage.moduleInstrumented.at(module) === 1);
     if (rows.length === 0) return undefined;
     const rowsOf = new Map([[file, rows]]);
     const held = frameOf(coverage, [file], rowsOf, () => text);
     if (held !== 'stale') return { frame: 'recorded' as const, commit: coverage.commit };
-    // The text at the recorded commit, or, for a run recorded over an edit, the text its landing kept.
     const recorded = frameOf(coverage, [file], rowsOf, textAtRecording(root, [file]), keptTexts(root));
     return typeof recorded === 'string'
       ? { frame: 'stale' as const, commit: coverage.commit }

@@ -219,12 +219,13 @@ describe('a covering answer says whether the asked text is the one the suite ran
     expect(text).toContain(`src/pay.ts is not the text the suite ran over at ${sha(commit)}, and that text could not be found, so no recorded line is a place in it. Which parts of \`pay\` no case ran, and whether an edit touched it, are not said for that reason.\n`);
   });
 
-  it('frames the file by the digest of a row the build did not instrument', async () => {
+  it('frames no file by a row the build did not instrument, as no other reader of a record does', async () => {
     const { at, commit } = await checkout({ row: 'loaded' });
     const { text, json } = await ask(at, '--file', 'src/pay.ts');
 
-    expect(json).toMatchObject({ at: commit, frame: 'recorded' });
-    expect(text).toContain('src/pay.ts is the text the suite ran over.\n');
+    expect(json).toMatchObject({ at: commit });
+    expect(json).not.toHaveProperty('frame');
+    expect(text).not.toContain('src/pay.ts is the text the suite ran over.');
   });
 
   it('says whether the text is the one the suite ran over is not known when the record holds no row of it', async () => {
