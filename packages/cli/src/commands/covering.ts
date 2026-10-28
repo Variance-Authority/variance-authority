@@ -108,8 +108,18 @@ export interface Covering {
   readonly fileGrain?: readonly HeldLines[];
   /** Under a run of lines: the lines no recorded region holds, which no case can be said to have run. In the text as it is now. */
   readonly outside?: readonly HeldLines[];
-  /** Under a run of lines: the lines written since the recording, which no case has run. In the text as it is now. */
+  /**
+   * Under a run of lines: the lines written since the recording, which no case
+   * has run: neither the text the record's lines are numbered in holds them,
+   * nor any text a case that entered the file ran over. In the text as it is now.
+   */
   readonly written?: readonly HeldLines[];
+  /**
+   * Under a run of lines: the lines a text a case that entered the file ran
+   * over holds, and the text the record's lines are numbered in does not, so
+   * which case ran them is not known. In the text as it is now.
+   */
+  readonly overwritten?: readonly HeldLines[];
   /** Present when the question named a line or a function. */
   readonly tests?: readonly CoveringTest[];
   /** With `tests`: the same cases gathered by test file, nearest first under `--hops`. */
@@ -298,12 +308,11 @@ export async function covering(request: ParsedCovering, graph: Graph = graphOnce
   const hops = answer.tests !== undefined && request.since === undefined && request.hops === true ? await hopsToTests(request) : undefined;
   const files = answer.tests === undefined || whole === undefined ? undefined : coveringFiles(answer.tests, whole, hops?.byFile);
   const probes = await gapOf(request, answer.from, whole);
-  const source = { root: request.root, suite: request.suite, execution: request.execution, record: answer.from, graph };
-  const gap = whole === undefined ? undefined : await answerGap({ ...answer, ...(files === undefined ? {} : { files }) }, whole, source);
   const at = record?.at;
   const framed = placed === undefined ? undefined : await placed;
-  const ran = request.format === 'refs'
-    ? undefined
+  // Refs say no freshness, but the written lines they list are read off the same runs.
+  const read = request.format === 'refs' && answer.written === undefined
+    ? {}
     : await ranOf(answer, {
       root: request.root,
       snapshot: record?.snapshot,
@@ -314,8 +323,12 @@ export async function covering(request: ParsedCovering, graph: Graph = graphOnce
       ...(asked === undefined ? {} : { index: asked }),
       ...(ranOther === undefined ? {} : { ranOther }),
     });
+  const ran = request.format === 'refs' ? undefined : read.ran;
+  const lines = read.lines === undefined ? answer : withLines(answer, read.lines);
+  const source = { root: request.root, suite: request.suite, execution: request.execution, record: answer.from, graph };
+  const gap = whole === undefined ? undefined : await answerGap({ ...lines, ...(files === undefined ? {} : { files }) }, whole, source);
   return {
-    ...answer,
+    ...lines,
     ...(at === undefined ? {} : { at }),
     ...(ran === undefined ? {} : { ran }),
     ...(probes === undefined ? {} : { probes }),
@@ -326,6 +339,12 @@ export async function covering(request: ParsedCovering, graph: Graph = graphOnce
     ...(motion === undefined ? {} : { motion }),
     ...(gap === undefined ? {} : { gap }),
   };
+}
+
+/** `answer` with its written lines split as `lines` says; a part `lines` leaves out is absent. */
+function withLines(answer: Covering, lines: Pick<Covering, 'written' | 'overwritten'>): Covering {
+  const { written: _written, overwritten: _overwritten, ...rest } = answer;
+  return { ...rest, ...lines };
 }
 
 /** The refusals that say what the record holds of the file, and so are answered from it with its gap beside them. */

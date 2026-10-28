@@ -54,7 +54,7 @@ Each answer of `covering` gives one gap, one per suite over several suites, and 
 | The answer | Gap |
 |---|---|
 | a line at file grain (`At file grain`, `grain: "file"`, `fileGrain`) with named tests, asked by `--file`, `--line` or `--lines` | Deep: the story of the first three tests, in the order the answer lists them |
-| `frame: "stale"`, lines `written` since the recording, or ranges `moved` | Record: the test files `variance select` runs for the file, under the suite's own `relations`, `ignore` and `before` |
+| `frame: "stale"`, lines `written` since the recording or `overwritten`, or ranges `moved` | Record: the test files `variance select` runs for the file, under the suite's own `relations`, `ignore` and `before` |
 | `older`: the record is older than the file, so the file is new | Record: the recorded test files `variance select` runs for the file, by reach, under the suite's own configuration, or the whole suite when selection runs it. Then `variance reach --since <commit>`, from the commit the record was made at, never a ref such as `origin/main`, whose merge base can already hold the file: it takes every file the diff added at once, new test files no record names among them. When selection refuses, the gap says why in its words, as in every Record gap. No run when selection names no file, and never the share |
 | `unrecorded`: no run is recorded | `variance share --suite <name>` in a suite given to the share; otherwise Record: wire the producer and record one run of the suite, with no cost, since no record counts it |
 

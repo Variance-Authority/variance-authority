@@ -84,8 +84,8 @@ export async function coveringAt(
         file,
         target: asked,
         tests: [],
-        ...(lines.outside.length === 0 ? {} : { outside: runsOf(lines.outside) }),
-        ...(lines.written.length === 0 ? {} : { written: runsOf(lines.written) }),
+        ...(lines.outside.length === 0 ? {} : { outside: runsOfLines(lines.outside) }),
+        ...(lines.written.length === 0 ? {} : { written: runsOfLines(lines.written) }),
         ...(placement === undefined ? {} : { frame: placement.frame }),
         from,
         ...countOf(near, 0, 0),
@@ -95,9 +95,9 @@ export async function coveringAt(
     const whole = lines.fileGrain.length === lines.lines.length;
     grain = {
       ...(whole ? { grain: 'file' as const } : {}),
-      ...(whole || lines.fileGrain.length === 0 ? {} : { fileGrain: runsOf(lines.fileGrain) }),
-      ...(lines.outside.length === 0 ? {} : { outside: runsOf(lines.outside) }),
-      ...(lines.written.length === 0 ? {} : { written: runsOf(lines.written) }),
+      ...(whole || lines.fileGrain.length === 0 ? {} : { fileGrain: runsOfLines(lines.fileGrain) }),
+      ...(lines.outside.length === 0 ? {} : { outside: runsOfLines(lines.outside) }),
+      ...(lines.written.length === 0 ? {} : { written: runsOfLines(lines.written) }),
     };
   } else if (request.function !== undefined) {
     const named = request.function;
@@ -252,7 +252,7 @@ function noFunction(file: string, named: string, module: ExecutionModule): Opera
 }
 
 /** Ascending line numbers as the runs they make. */
-function runsOf(lines: readonly number[]): readonly HeldLines[] {
+export function runsOfLines(lines: readonly number[]): readonly HeldLines[] {
   const runs: HeldLines[] = [];
   for (const line of lines) {
     const last = runs.at(-1);

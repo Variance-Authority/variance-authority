@@ -87,7 +87,7 @@ function bodyOf(answer: Covering, table: Table): readonly string[] {
     answer.fileGrain === undefined ? '' : `; file grain at ${runsText(answer.fileGrain)}`
   }${answer.outside === undefined ? '' : `; outside every region at ${runsText(answer.outside)}`}${
     answer.written === undefined ? '' : `; written since ${runsText(answer.written)}`
-  }${answer.unrun === undefined ? '' : `; no case ran ${answer.unrun.map((part) => `${runsText([part])} ${part.name === undefined ? part.kind : `${part.kind} ${part.name}`}${part.state === undefined ? '' : ` ${part.state}`}${part.moved === true ? ' edited' : ''}`).join(', ')}`}`];
+  }${answer.overwritten === undefined ? '' : `; in a text a case ran over, not the record's, at ${runsText(answer.overwritten)}`}${answer.unrun === undefined ? '' : `; no case ran ${answer.unrun.map((part) => `${runsText([part])} ${part.name === undefined ? part.kind : `${part.kind} ${part.name}`}${part.state === undefined ? '' : ` ${part.state}`}${part.moved === true ? ' edited' : ''}`).join(', ')}`}`];
 }
 
 function rangeLine(range: CoveringRange, table: Table): string {

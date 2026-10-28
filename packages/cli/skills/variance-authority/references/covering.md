@@ -48,10 +48,12 @@ Which of the cases that loaded the file ran the line is then open, and the
 answer ends with a Deep gap: the story of its first three tests, in the order
 the answer lists them ([Fast, Smart, Deep](fsd.md)). A whole-file answer asks of
 no line, so it ends with no Deep gap: ask `--line` on the range you mean.
-Lines of a run your edit wrote are named in `written` and left out; when your
-edit wrote every line asked, the answer says that no case has run them. When
-no line asked is in a recorded region, the answer names no case and says, for
-each line, whether your edit wrote it or no region holds it.
+Lines of a run your edit wrote are named in `written`, lines a case ran over
+in a text the record does not number in `overwritten`, and both are left out;
+when your edit wrote every line asked, the answer says that no case has run
+them. When no line asked is in a recorded region, the answer names no case and
+says, for each line, whether your edit wrote it, a case ran over it in another
+text, or no region holds it.
 
 - `--hops` puts each test file's import hops beside it and sorts nearest first.
   It needs `--line` or `--function`, and a run of lines or any `--function` is
@@ -209,8 +211,12 @@ The answer's `frame` names the coordinates its numbers are in:
   ran your line cannot be said.
 
 A `--line` your edit wrote is answered with no case, because no case has run
-it, and in a run of lines it is named in `written` and left out. That is not
-*no test covers it*: the answer ends with a Record gap naming the test files
+it, and in a run of lines it is named in `written` and left out. A line the
+record's text has no place for, but a text that a case which entered the file
+ran over holds, is answered with no case too and named in `overwritten`: a
+later run over another text numbered the record's lines, so a case ran over
+your line, and which one ran it is not known. Neither is *no test covers it*:
+the answer ends with a Record gap naming the test files
 `variance select` runs for the file, under the suite's own `relations`, `ignore` and `before`. A `stale` frame and a `moved` range end the
 same way.
 

@@ -4,7 +4,7 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { afterAll, beforeAll } from 'vitest';
-import { encodeExecutionIndex, testCoverageFile, writeTestCoverage, commitRunsFile } from '@variance-authority/sense/test-selection';
+import { encodeExecutionIndex, repositoryLayers, testCoverageFile, writeTestCoverage, commitRunsFile } from '@variance-authority/sense/test-selection';
 import { updateSourceIndex } from '@variance-authority/sense';
 import { INSTRUMENTATION_ID } from '@variance-authority/sense/instrument';
 import { digestString } from '@variance-authority/core/format';
@@ -62,6 +62,8 @@ export interface Fixture {
   readonly recordedAt?: string | null;
   /** The text whose digest the record holds for `src/pay.ts`, when not the committed one. */
   readonly ranOver?: string;
+  /** The landing kept `ranOver` in the checkout's layer, as one over a dirty tree does. */
+  readonly kept?: true;
   /** How the record holds `src/pay.ts`: an instrumented row unless given, `loaded` for a row the build did not instrument, `false` for none. */
   readonly row?: 'loaded' | false;
   /** The text of `src/setup.ts`, committed and loaded by `src/pay.test.ts` without instrumenting it, when given. */
@@ -170,6 +172,12 @@ export function recordFixture(): RecordFixture {
     }, {
       index: encodeExecutionIndex(indexOf(options.fee === true, options.refunds) as Parameters<typeof encodeExecutionIndex>[0]),
     });
+    if (options.kept === true && options.ranOver !== undefined) {
+      // A landing names a kept text by its digest's hex, in the layer's `.texts`.
+      const kept = join(repositoryLayers(at).top, '.texts', digestString(options.ranOver).replace(/^[^:]+:/u, ''));
+      await mkdir(dirname(kept), { recursive: true });
+      await writeFile(kept, options.ranOver);
+    }
     const runs = options.runs?.(first, commit);
     if (runs !== undefined) await writeFile(commitRunsFile(file), typeof runs === 'string' ? runs : JSON.stringify(runs));
     return { at, commit, first };

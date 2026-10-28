@@ -71,10 +71,9 @@ function text(answer: Covering): string {
     // `whereText` said the filter left none of the cases that covered it; *no named test covered* would read as nothing running the code.
     return [...narrowedText(answer), ...unrunText(answer.unrun)].join('\n');
   }
-  if (tests.length === 0 && newlyWritten(answer)) {
-    // Every asked line is new since the recording: *no named test covered* is true, and the reason is the whole answer.
-    const [one, verb, it] = single(answer.written!) ? ['Line', 'was', 'it'] : ['Lines', 'were', 'them'];
-    return [`${one} ${runsText(answer.written!)} of ${answer.file} ${verb} written since the recording, so no case has run ${it}.`, ...narrowedText(answer)].join('\n');
+  if (tests.length === 0 && unplaced(answer)) {
+    // No asked line has a place in the record's text: *no named test covered* is true, and the reason is the whole answer.
+    return [...unplacedText(answer, ` of ${answer.file}`), ...narrowedText(answer)].join('\n');
   }
   if (tests.length === 0) {
     return [
@@ -123,19 +122,30 @@ function grainText(answer: Covering, where: string): readonly string[] {
     const [one, verb] = single(answer.outside) ? ['Line', 'is'] : ['Lines', 'are'];
     lines.push(`${one} ${runsText(answer.outside)} ${verb} outside every recorded region, so no case can be said to have run ${single(answer.outside) ? 'it' : 'them'}.`);
   }
-  if (answer.written !== undefined) {
-    const [one, verb] = single(answer.written) ? ['Line', 'was'] : ['Lines', 'were'];
-    lines.push(`${one} ${runsText(answer.written)} ${verb} written since the recording, so no case has run ${single(answer.written) ? 'it' : 'them'}.`);
-  }
-  return lines;
+  return [...lines, ...unplacedText(answer, '')];
 }
 
-/** Whether every line the question asked was written since the recording. */
-function newlyWritten(answer: Covering): boolean {
+/** The asked lines the record's text has no place for: written since, or in a text a case ran over that it does not number. */
+function unplacedText(answer: Covering, of: string): readonly string[] {
+  const said: string[] = [];
+  if (answer.written !== undefined) {
+    const [one, verb, it] = single(answer.written) ? ['Line', 'was', 'it'] : ['Lines', 'were', 'them'];
+    said.push(`${one} ${runsText(answer.written)}${of} ${verb} written since the recording, so no case has run ${it}.`);
+  }
+  if (answer.overwritten !== undefined) {
+    const [one, verb, it] = single(answer.overwritten) ? ['Line', 'is', 'it'] : ['Lines', 'are', 'them'];
+    said.push(`${one} ${runsText(answer.overwritten)}${of} ${verb} in a text a case ran over, but not in the one the record's lines are numbered in, so which case ran ${it} is not known.`);
+  }
+  return said;
+}
+
+/** Whether no line the question asked has a place in the record's text. */
+function unplaced(answer: Covering): boolean {
   const target = answer.target;
-  if (answer.written === undefined || target === undefined || 'function' in target) return false;
+  if (target === undefined || 'function' in target) return false;
   const asked = 'line' in target ? 1 : target.lines.endLine - target.lines.startLine + 1;
-  return answer.written.reduce((sum, run) => sum + run.endLine - run.startLine + 1, 0) === asked;
+  const count = (runs: readonly HeldLines[] | undefined) => (runs ?? []).reduce((sum, run) => sum + run.endLine - run.startLine + 1, 0);
+  return count(answer.written) + count(answer.overwritten) === asked;
 }
 
 function single(runs: readonly HeldLines[]): boolean {

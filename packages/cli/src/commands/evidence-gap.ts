@@ -31,7 +31,7 @@
  * be a guess the reader cannot check.
  */
 
-import type { CoveringTest, ExecutionIndex } from '@variance-authority/sense/test-selection';
+import type { CoveringTest, ExecutionIndex, HeldLines } from '@variance-authority/sense/test-selection';
 import { OperatorError, type RefusalKind } from '../exit.js';
 import { runsText, targetText } from './covering-at.js';
 import { casesByFile, type CoveringFile } from './covering-files.js';
@@ -107,9 +107,9 @@ export function gapScope(file: string, target: Covering['target']): string {
 
 /**
  * The gap an answer about one file leaves open, read in order: a record of
- * another text first, then lines written or ranges edited since, then a line
- * held only at file grain. Nothing open is no gap. `source` is where the
- * record was read, which selection is asked of.
+ * another text first, then lines the record's text has no place for, then
+ * ranges edited since, then a line held only at file grain. Nothing open is no
+ * gap. `source` is where the record was read, which selection is asked of.
  */
 export async function answerGap(answer: Covering, whole: ExecutionIndex, source: GapSource): Promise<EvidenceGap | undefined> {
   const file = answer.file;
@@ -122,11 +122,11 @@ export async function answerGap(answer: Covering, whole: ExecutionIndex, source:
   if (answer.frame === 'stale') {
     return selected('which of these tests ran it', scope, `${named(tests.length)} ran code in ${file}`, await selectedFor(source, file), whole);
   }
-  if (answer.written !== undefined && answer.written.length > 0) {
-    const one = answer.written.length === 1 && answer.written[0]!.startLine === answer.written[0]!.endLine;
-    const known = `${one ? 'line' : 'lines'} ${runsText(answer.written)} ${one ? 'was' : 'were'} written since the recording`;
-    return selected('which tests run it now', scope, known, await selectedFor(source, file), whole);
-  }
+  const unplaced = [
+    ...unplacedKnown(answer.written, ['was', 'were'], 'written since the recording'),
+    ...unplacedKnown(answer.overwritten, ['is', 'are'], "in a text a case ran over, but not in the one the record's lines are numbered in"),
+  ];
+  if (unplaced.length > 0) return selected('which tests run it now', scope, unplaced.join(', and '), await selectedFor(source, file), whole);
   const moved = (answer.ranges ?? []).filter((range) => range.moved === true);
   if (moved.length > 0) {
     const edited = moved.length === 1 ? 'a range' : `${moved.length} ranges`;
@@ -138,6 +138,13 @@ export async function answerGap(answer: Covering, whole: ExecutionIndex, source:
     return deep(scope, `${named(tests.length)} loaded ${file}${unread === 0 ? '' : `, and ${unread} past the nearest ${read.length} ${unread === 1 ? 'stays' : 'stay'} unread`}`, read, unread > 0);
   }
   return undefined;
+}
+
+/** What is known of asked lines the record's text has no place for, `said` of them: none when there are none. */
+function unplacedKnown(runs: readonly HeldLines[] | undefined, verbs: readonly [string, string], said: string): readonly string[] {
+  if (runs === undefined || runs.length === 0) return [];
+  const one = runs.length === 1 && runs[0]!.startLine === runs[0]!.endLine;
+  return [`${one ? 'line' : 'lines'} ${runsText(runs)} ${one ? verbs[0] : verbs[1]} ${said}`];
 }
 
 /**

@@ -54,6 +54,39 @@ describe('a covering answer dates each case it names by the run that last ran it
     expect(text).toContain('src/pay.test.ts ran over another text of src/pay.ts, in a run that landed 3 days ago; line 3 is the same in both.\n');
   });
 
+  it('never says a line a case ran the text of was written since, when a later run in part over another text wrote the record', async () => {
+    const now = Date.now();
+    const dirty = PAY.replace('return amount;', 'return amount + 0;');
+    const { at, commit } = await checkout({ refunds: 'enters', ranOver: dirty, kept: true, runs: inPart(now, { 'src/pay.ts': digestString(dirty) }) });
+    await writeFile(join(at, 'src/pay.ts'), dirty);
+    // `charges once` last ran over the committed text, which is the one asked; `refunds` then ran over the edit, and wrote the record.
+    await writeFile(join(at, 'held.ts'), PAY);
+    const said = [await ask(at, '--file', 'src/pay.ts', '--text', join(at, 'held.ts'), '--line', '5')];
+    await writeFile(join(at, 'src/pay.ts'), PAY);
+    said.push(await ask(at, '--file', 'src/pay.ts', '--line', '5'));
+
+    for (const { text, json } of said) {
+      expect(json).toMatchObject({ tests: [], overwritten: [{ startLine: 5, endLine: 5 }] });
+      expect(json).not.toHaveProperty('written');
+      expect(json['ran']).toEqual({
+        named: 'entered',
+        stands: [
+          { commit, tests: ['src/pay.test.ts'], cases: ['charges once'], landed: { first: iso(now - 3 * DAY), latest: iso(now - 3 * DAY), runs: 1 }, text: 'held' },
+          {
+            commit, tests: ['src/pay.test.ts'], cases: ['refunds'], landed: { first: iso(now - HOUR), latest: iso(now - HOUR), runs: 1 },
+            text: 'other', other: ['src/pay.ts'], region: 'changed',
+          },
+        ],
+      });
+      expect(json['gap']).toMatchObject({
+        remedy: 'record',
+        known: "line 5 is in a text a case ran over, but not in the one the record's lines are numbered in",
+      });
+      expect(text).toContain("Line 5 of src/pay.ts is in a text a case ran over, but not in the one the record's lines are numbered in, so which case ran it is not known.\n");
+      expect(text).not.toContain('written since');
+    }
+  });
+
   it('says each part of a test file a later run ran in part, by the text its cases ran over and when', async () => {
     const now = Date.now();
     const dirty = `${PAY}export const fee = 0;\n`;
