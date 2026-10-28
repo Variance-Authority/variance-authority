@@ -77,6 +77,7 @@ const FOREIGN: Readonly<Record<string, string>> = {
   'packages/lib/src/other.ts': 'the workspace ask-uses-namesakes.test.ts builds, quoted from its answers',
   'packages/kit/src/money/rates.ts': 'the workspace ask-passed-on.test.ts builds, quoted from its answers',
   'packages/kit/src/money/tax.ts': 'the workspace ask-packages-fixture.ts builds, quoted from an answer of ask-passed-on.test.ts',
+  'packages/kit/src/money/index.ts': 'the workspace ask-passed-on.test.ts builds, quoted from its answers',
   'apps/app/src/hello.ts': 'the workspace ask-packages-fixture.ts builds, quoted from an answer of ask-uses-in-package.test.ts',
   'save-bar.tsx': "a reader's own component, quoted from a sample test story",
   'packages/query-core/src/hydration.ts': "TanStack Query's own module, named by the case study",

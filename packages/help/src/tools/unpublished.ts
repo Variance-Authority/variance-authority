@@ -43,12 +43,36 @@ function fileOf(help: Help, held: Named, within: string): boolean {
   return importsByPath(help, within).some(([deep]) => deep.specifier === within && deep.to === held.at);
 }
 
-/** `at:line`, and how many more exports there are past the first. */
+/**
+ * What a Rust answer leaves out: a use no path names. The reading follows the
+ * paths a file writes and never resolves a type, so a glob, a method and a
+ * macro are the type checker's.
+ */
+const RUST_UNREAD = "In Rust, a name a glob `use` brings in, a method called on a value and a macro are not read by path; rust-analyzer's find-references has those.";
+
+/** The line that says so, after an answer about a declaration in one of `files` that is Rust. */
+export function rustUnread(files: readonly string[]): readonly string[] {
+  return files.some((file) => file.endsWith('.rs')) ? ['', RUST_UNREAD] : [];
+}
+
+/**
+ * `at:line` of the exports of one declaration: those that declare it, then
+ * those that pass it on with `export … from`. Each other declaration is
+ * answered apart, so no export here is another thing by the name.
+ */
 export function exportedAt(exported: readonly Named[]): string {
   const [first] = exported;
   if (first === undefined) return '';
-  const more = exported.length > 1 ? ` and ${exported.length - 1} more` : '';
-  return `${first.at}:${first.line}${more}`;
+  const declaring = exported.filter((held) => held.declaration !== undefined);
+  const at = declaring.length > 0 ? declaring : [first];
+  const passing = exported.filter((held) => !at.includes(held));
+  return `${placesOf(at)}${passing.length === 0 ? '' : `, passed on at ${placesOf(passing)}`}`;
+}
+
+/** `a:1`, `a:1 and b:2`, `a:1, b:2 and c:3`. */
+function placesOf(exported: readonly Named[]): string {
+  const places = exported.map((held) => `${held.at}:${held.line}`);
+  return places.length < 2 ? places.join('') : `${places.slice(0, -1).join(', ')} and ${places.at(-1)!}`;
 }
 
 /** One use the source index resolved, with the specifier its file wrote. */

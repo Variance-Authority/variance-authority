@@ -7,7 +7,7 @@ import { type Members, places, routes } from './members.js';
 import { passesOn } from './passed-on.js';
 import { sharedSegments } from './shared-segments.js';
 import { symbol } from './symbol.js';
-import { UNCOUNTED, exportedAt } from './unpublished.js';
+import { UNCOUNTED, exportedAt, rustUnread } from './unpublished.js';
 import { bracketed, keptLine, namesakeLine, narrowing } from './uses-declarations.js';
 import { apart, counted, spokenSplit } from './uses-count.js';
 import { type Answer, type Namesake, type Site, packageOf, usesOf } from './uses-of.js';
@@ -225,7 +225,9 @@ export const uses: Tool<Help> = {
     const spell = spellingOf(invocation);
     const shown: Shown = { limit: limitOf(input, SHOWN, spell), spell };
     const answer = usesOf(help, input, invocation?.root, spell);
-    return [answered(answer, input, shown), ...narrowing(answer.files, answer.file, spell)].join('\n');
+    // What a Rust path does not tell is said once, after every declaration the answer read.
+    const read = answer.file === undefined ? answer.files : [answer.file];
+    return [answered(answer, input, shown), ...rustUnread(read), ...narrowing(answer.files, answer.file, spell)].join('\n');
   },
 
   // Every file importing the name, at each line that does, or every file

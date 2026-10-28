@@ -213,6 +213,20 @@ describe('a name only passed on', () => {
     }
   });
 
+  it('names the files that pass the declaration on as passing it, not as more exports of it', async () => {
+    checkout({
+      'packages/kit/src/money/tax.ts': 'export function levy(amount: number): number {\n  return amount;\n}\n',
+      'packages/kit/src/money/index.ts': "export { levy } from './tax.js';\n",
+      'packages/kit/src/bill.ts': "import { levy } from './money/index.js';\nexport const bill = levy(1);\n",
+    });
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+
+    const { code, out } = await run(['ask', 'uses', '--name', 'levy']);
+    expect(code).toBe(EXIT_CLEAN);
+    expect(out).toContain('it is exported at packages/kit/src/money/tax.ts:1, passed on at packages/kit/src/money/index.ts:1.');
+    expect(out).not.toMatch(/and \d+ more/u);
+  });
+
   it('says nothing more for a name its file declares', async () => {
     checkout(RATES);
     expect((await run(['index'])).code).toBe(EXIT_CLEAN);

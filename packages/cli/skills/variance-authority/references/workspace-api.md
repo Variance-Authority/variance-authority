@@ -313,6 +313,13 @@ declaration:
 `levy` is imported in 2 places, all inside @acme/kit, and no entry publishes it; it is exported at packages/kit/src/money/rates.ts:1, which passes on `taxOf`, declared at packages/kit/src/money/tax.ts:1.
 ```
 
+When the declaring file exports it and others pass it on under the same name,
+the line names the declaration first and then the files that pass it on:
+
+```
+`levy` [function] is imported in 1 place, inside @acme/kit, and no entry publishes it; it is exported at packages/kit/src/money/tax.ts:1, passed on at packages/kit/src/money/index.ts:1.
+```
+
 Each file that declares a name declares another thing, so `uses` answers for
 every one of them, each kept apart: the published declaration's imports, a line
 naming each file that exports the name without publishing it followed by that
@@ -329,6 +336,13 @@ Imported in 1 place, inside @acme/lib.
 ```
 
 A `--file` that declares nothing by the name is answered with the files that do.
+
+An answer about a name declared in a Rust file follows the paths its `use`
+lines write and resolves no type, so it ends by naming what it does not read:
+
+```
+In Rust, a name a glob `use` brings in, a method called on a value and a macro are not read by path; rust-analyzer's find-references has those.
+```
 
 `--limit <n>` sets how many rows of each list are shown, 12 when not said:
 each kind of site, the lines of the declaring file, the member declarations
