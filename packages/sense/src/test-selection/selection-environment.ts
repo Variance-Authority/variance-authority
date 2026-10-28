@@ -100,6 +100,23 @@ export function selectionFrom(
 }
 
 /**
+ * The selection a run asks for: the one it was handed, else the environment's,
+ * noted against the record the run lands in, which names the record it read.
+ * `landing` is asked only when a selection is: a run that asks for none
+ * need not say where it lands. `undefined` when it asks for none.
+ */
+export function askedSelection(
+  handed: (() => Promise<SuiteSelection>) | undefined,
+  landing: () => string,
+  request: SelectionRequest,
+  env: NodeJS.ProcessEnv = process.env,
+  say?: (line: string) => void,
+): (() => Promise<SuiteSelection>) | undefined {
+  const asked = handed ?? selectionFrom(env, request, say);
+  return asked && notingRead(landing(), asked);
+}
+
+/**
  * The suite's recorded times, read the first time a run under `--shard` asks.
  * A record named by file is read where it is; a suite's is read by the cli,
  * from where `variance select` reads it, this checkout's or the mainline's.

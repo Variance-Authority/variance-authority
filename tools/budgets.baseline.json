@@ -1902,9 +1902,6 @@
   "packages/playwright-test/src/whole-file-shard.ts overview": [
     19
   ],
-  "packages/playwright-test/src/with-test-selection.ts docblock": [
-    16
-  ],
   "packages/playwright-test/src/with-test-selection.ts overview": [
     18
   ],
