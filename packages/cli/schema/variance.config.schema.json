@@ -2,10 +2,16 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://variance-authority.dev/schema/variance.config.schema.json",
   "title": "Variance Authority configuration",
-  "description": "Everything a run is configured by, in one file in the operator's repository. Nothing here is inferred from the network, discovered by probing, or downloaded at run time. Every object is closed: an unknown key is a refusal, not a value the run ignores.",
+  "description": "Everything a run is configured by, in one file in the operator's repository. Nothing here is inferred from the network, discovered by probing, or downloaded at run time. Every object is closed: an unknown key is a refusal, not a value the run ignores. A file that renders names all five of `project`, `profile`, `viewport`, `retention` and `subjects`; a file the configless commands alone read, such as one declaring only `suites`, names none of them.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["project", "profile", "viewport", "retention", "subjects"],
+  "dependentRequired": {
+    "project": ["profile", "viewport", "retention", "subjects"],
+    "profile": ["project", "viewport", "retention", "subjects"],
+    "viewport": ["project", "profile", "retention", "subjects"],
+    "retention": ["project", "profile", "viewport", "subjects"],
+    "subjects": ["project", "profile", "viewport", "retention"]
+  },
   "properties": {
     "$schema": {
       "type": "string",
