@@ -16,7 +16,7 @@ file of the workspace declares it, while `ask symbol` answered it from the
 installed package. `uses` now lists every import of such a name out of the
 package it is installed from, nearest first and with the module-whole reads
 and each `export … from` that passes it on marked, and points to
-`docs_symbol` for the declaration. A name both the workspace and an installed
+`ask symbol` for the declaration. A name both the workspace and an installed
 package carry opens by counting each apart: `render` names 1 declaration and
 is imported from 1 installed package.
 
