@@ -279,7 +279,7 @@ function answered(answer: Answer, input: Readonly<Record<string, unknown>>, show
 function namesakeLines(name: string, namesakes: readonly Namesake[], from: string | undefined, shown: Shown): readonly string[] {
   return namesakes.flatMap((one) => {
     const taken = one.sites.length === 0 ? 'Nothing in this workspace imports it.' : importedIn(one.sites, packageOf(one.exported[0]?.by));
-    return ['', namesakeLine(name, one.exported), taken, ...kinds(one.sites, from, name, shown, one.exported[0]?.by), ...ownLines(one.inFile, name, shown)];
+    return ['', namesakeLine(name, one.exported), taken, ...kinds(one.sites, from, name, shown, packageOf(one.exported[0]?.by)), ...ownLines(one.inFile, name, shown)];
   });
 }
 

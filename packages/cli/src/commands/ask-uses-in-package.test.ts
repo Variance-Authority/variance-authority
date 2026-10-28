@@ -76,6 +76,20 @@ describe('variance ask uses inside the declaring package', () => {
     expect(out).toMatch(/^Source:$/m);
   });
 
+  it('says no package of a namesake no manifest holds', async () => {
+    checkout({
+      'tools/shared.ts': 'export const shared = 1;\n',
+      'tools/a.ts': "import { shared } from './shared.js';\nexport const a = shared;\n",
+      'packages/kit/src/shared.ts': 'export const shared = 2;\n',
+    });
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+
+    const { code, out } = await run(['ask', 'uses', '--name', 'shared']);
+    expect(code).toBe(EXIT_CLEAN);
+    expect(out).toContain('tools/a.ts:1');
+    expect(out).not.toMatch(/inside [:,.]/);
+  });
+
   it('names the package the imports are inside of when another package publishes the name', async () => {
     checkout({
       'packages/lib/src/shout.ts': "import { greet } from './greet.js';\nexport const shout = greet('x');\n",
