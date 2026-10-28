@@ -59,11 +59,11 @@ describe('a function some cases entered and some part of which none ran', () => 
       { kind: 'branch', startLine: 12, endLine: 12 },
       { kind: 'function', name: 'moved/each.arg0', startLine: 20, endLine: 26 },
     ]);
-    expect(formatCovering(answer, 'text')).toContain(
+    expect(formatCovering(answer, 'text', Date.now())).toContain(
       '\nNo case ran 2 parts of it: the branch at line 12, function moved/each.arg0 at lines 20-26.\n',
     );
-    expect(JSON.parse(formatCovering(answer, 'json')).unrun).toHaveLength(2);
-    expect(formatCovering(answer, 'refs')).toContain('; no case ran 12 branch, 20-26 function moved/each.arg0\n');
+    expect(JSON.parse(formatCovering(answer, 'json', Date.now())).unrun).toHaveLength(2);
+    expect(formatCovering(answer, 'refs', Date.now())).toContain('; no case ran 12 branch, 20-26 function moved/each.arg0\n');
   });
 
   it('names both arms of a branch that share a line, a `} else {` or a one-line ternary', async () => {
@@ -81,7 +81,7 @@ describe('a function some cases entered and some part of which none ran', () => 
     const ran = await ask('--function', 'read');
     expect(ran.tests?.map((test) => test.id)).toEqual(['reads']);
     expect(ran.unrun).toBeUndefined();
-    expect(formatCovering(ran, 'text')).not.toContain('No case ran');
+    expect(formatCovering(ran, 'text', Date.now())).not.toContain('No case ran');
 
     // The answer already says no case entered the callback; its branch is not a second finding.
     const none = await ask('--function', 'moved/each.arg0');

@@ -43,12 +43,11 @@ export interface CoveringRange extends SourceTestRange {
 }
 
 /**
- * Frame the file a question names; `unheld` when no text is held to frame, the
- * file being off disk and no `--text` given; or nothing when there is no digest
- * to frame it against.
+ * Frame the file a question names in `text`, the one {@link heldText} read;
+ * `unheld` when no text is held to frame, the file being off disk and no
+ * `--text` given; or nothing when there is no digest to frame it against.
  */
-export async function placementFor(request: CoveringAt, from: string): Promise<Placement | { readonly unheld: true } | undefined> {
-  const text = await heldText(request);
+export async function placementFor(request: CoveringAt, from: string, text: string | undefined): Promise<Placement | { readonly unheld: true } | undefined> {
   if (text === undefined) return { unheld: true };
   const snapshot = await snapshotFor(request);
   if (snapshot === undefined || !from.startsWith(snapshot) || !existsSync(snapshot)) return undefined;

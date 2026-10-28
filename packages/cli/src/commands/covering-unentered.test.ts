@@ -53,11 +53,12 @@ describe('a run of lines no recorded region holds', () => {
     const answer = await ask('2-3');
 
     expect(answer).toMatchObject({ tests: [], frame: 'mapped', outside: [{ startLine: 2, endLine: 2 }], written: [{ startLine: 3, endLine: 3 }] });
-    expect(formatCovering(answer, 'text')).toBe(
+    expect(formatCovering(answer, 'text', Date.now())).toBe(
       'No named test covered lines 2-3 of src/cart.ts.\n'
         + 'Line 2 is outside every recorded region, so no case can be said to have run it.\n'
         + 'Line 3 was written since the recording, so no case has run it.\n'
-        + 'src/cart.ts differs from the text the suite ran over; its lines are placed in the text as it is now.\n'
+        + 'The recorded lines of src/cart.ts are placed in its text as it is now.\n'
+        + 'Where and when the test file that entered it last ran is not known: the record names no commit.\n'
         + 'Gap (stale) on lines 2-3 of src/cart.ts: which tests run it now. Known: line 3 was written since the recording.\n'
         + 'Next, Record, 1 test in 1 test file:\n'
         + "  Run with the suite's own runner: a.test.ts\n",

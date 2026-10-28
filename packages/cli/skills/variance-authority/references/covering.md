@@ -187,8 +187,8 @@ line 6 — alone
 
 ## Ask about the text you are editing
 
-When the file differs from the text the suite ran over, which it does the moment
-you edit it, pass the text you have:
+When the file differs from the text the record's lines are numbered in, which it
+does the moment you edit it, pass the text you have:
 
 ```bash
 variance covering --file src/checkout/total.ts --text - --format json < edited.ts
@@ -203,9 +203,6 @@ The answer's `frame` names the coordinates its numbers are in:
 - `stale` — the recorded text could not be found, so no ranges are given. The
   answer names the cases that ran code in the file and says that which of them
   ran your line cannot be said.
-- `differs` — the text changed, in a file test files hold as a precondition,
-  which has no recorded lines to carry. It is `recorded` only when every test
-  file holding it ran the text you hold.
 
 A `--line` your edit wrote is answered with no case, because no case has run
 it, and in a run of lines it is named in `written` and left out. That is not
@@ -213,37 +210,48 @@ it, and in a run of lines it is named in `written` and left out. That is not
 `variance select` runs for the file, under the suite's own `relations`, `ignore` and `before`. A `stale` frame and a `moved` range end the
 same way.
 
-## Read how far the answer holds
+## Read how fresh and how actual the answer is
 
-Every answer about a file, a line or a function ends with its frame, then where
-and when the test files it names last ran:
+The frame is numbering only. Which text each test file ran over, and when, is
+said apart, because a partial run moves the record to its commit and every test
+file it did not run keeps where it last ran: one answer can name a test file
+that ran a minute ago over your text beside one that ran days ago over a text
+that was never committed. Under the answer, after the frame line, the test
+files it names are said in groups, one line each, a group the record holds no
+time for first, then the oldest:
 
 ```text
-src/pay.ts differs from the text the suite ran over; its lines are placed in the text as it is now. No edit since the recording touched `pay`: its text is the one its cases ran.
-The 2 test files named here last ran at 2 commits, from 9cf65a4e2631, a commit made 3 days ago, to 1fa19f610e2a, in a run that landed 40 minutes ago; 1 of them ran over another text of src/pay.ts, which changed between where they ran and 1fa19f610e2a.
+The recorded lines of src/pay.ts are placed in its text as it is now.
+src/pay.test.ts ran over another text of src/pay.ts, in a run that landed 9 hours ago; `pay` is the same in both.
+src/pay.ts is the text the other test file named here ran over, in a run that landed 6 minutes ago.
 ```
 
-- The frame line is the `frame` in words. A `stale` answer about the file or a
-  line opens with it instead, as the reason it gives no line. With
-  `--function` under `mapped` the line adds whether an edit touched the
-  function, and a part no case ran that an edit touched is printed as `edited`.
-  Under `stale` `--function` names the function's cases and no parts, since no
-  recorded line is a place in your text.
-- A file the record holds no digest of is printed as not known, and a file not
-  on disk is answered in the record's lines.
-- The ran line is read per test file from the runs record beside the snapshot.
-  A run that record holds is dated by when it landed. Any other is read as
-  having run at its commit's time, and the line prints it as a commit's. Only
-  the files you asked about are checked for a change between where a test file
-  ran and the record's commit, so a test file that ran over another text of
-  yours is named. `--since` prints the same line under the regions, and its
-  `Read from` line ends `; the record names no commit.` when the record names
-  none.
+- The frame line says nothing under `recorded`. A `stale` answer about the
+  file or a line opens with it instead, as the reason it gives no line; under
+  `--function` it adds that the parts no case ran are not said. Under `mapped`
+  a part of the function no case ran that an edit touched prints as `edited`.
+- A group is the test files that last ran at one commit, over the texts the
+  runs record names for their runs there, else the committed ones. Your text,
+  `--text` or the file on disk, is compared by digest. The groups that ran over
+  it share one line; a group that ran over another text, or whose text is not
+  known, is named. For `--line` and `--function`, a named group's line says
+  whether that region is the same in both texts, or why that is not known.
+- The time is when the runs at that commit landed, first to latest, other test
+  files' runs included. A commit's date is never used. A record written before
+  runs kept their time or texts says what it does not hold.
+- A test file the runs record does not place is read where the record assumes
+  it, and a last line says how many were. An answer naming no test file is
+  dated by the test files that entered the file, else by every case it read.
+- `--since` says the same under its regions, over every changed file, with no
+  region.
 
-In JSON, `at` is the record's commit and `ran` the stands: each a `commit`, its
-`tests`, and `landed`, `committedAt`, `held: false` or `unread` for its time,
-with `otherText` naming the asked files that changed since it; or `tests` and
-`unread` when where they ran cannot be read. `moved: true` marks a `--function`
+In JSON, `at` is the record's commit and `ran.stands` the groups: each a
+`commit`, its `tests`, `landed` (`first`, `latest`, and `runs` when counted),
+`text` (`held` or `other`), `other` naming the asked files it ran another text
+of, `region` (`same`, `changed` or `{ "unknown": <why> }`), `unknown` for why
+its text is not known, and `assumed: true` with `ran.assumed` saying how.
+`ran.unread` stands in for the stands when where they ran cannot be read, and
+`ran` is absent under `--format refs`. `moved: true` marks a `--function`
 answer and each `unrun` part an edit touched, and `unheld: true` a file that is
 not on disk.
 

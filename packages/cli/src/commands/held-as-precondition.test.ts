@@ -38,12 +38,18 @@ describe('heldAsPrecondition', () => {
     expect(held?.of.get('src/env.ts')).toEqual([CART, PAGE]);
   });
 
-  it('says of a held text whether every test file holding the file ran it', async () => {
+  it('names, of a held text, each test file holding the file that ran another text of it', async () => {
     const at = await record();
-    const held = (text: string) => heldAsPrecondition(at, ['src/env.ts'], new Map([['src/env.ts', text]]))?.ranOver;
+    const held = (text: string) => heldAsPrecondition(at, ['src/env.ts'], new Map([['src/env.ts', text]]))?.ranOther;
 
-    expect(held(ENV)).toEqual(new Set(['src/env.ts']));
-    expect(held(`// read once\n${ENV}`)).toEqual(new Set());
-    expect(heldAsPrecondition(at, ['src/env.ts'])?.ranOver).toEqual(new Set());
+    expect(held(ENV)).toEqual(new Map());
+    expect(held(`// read once\n${ENV}`)).toEqual(new Map([['src/env.ts', [CART, PAGE]]]));
+    expect(heldAsPrecondition(at, ['src/env.ts'])?.ranOther).toEqual(new Map());
+  });
+
+  it('never names a test file as having run another text of itself', async () => {
+    const held = heldAsPrecondition(await record(), [CART], new Map([[CART, '// edited\n']]))?.ranOther;
+
+    expect(held).toEqual(new Map([[CART, [PAGE]]]));
   });
 });

@@ -699,21 +699,18 @@ case that stopped.
 
 #### Asking about the text you hold
 
-The recorded line numbers are the ones the suite ran over. Edit the file and
-they point at whatever code sits there now. So the answer about a file checks
-the text against the recording first, and names the `frame` its numbers
-stand in:
+The recorded line numbers are numbered in one text of the file. Edit the file
+and they point at whatever code sits there now. So the answer about a file, a
+line or a function checks your text against the record first, and names the
+`frame` its numbers stand in:
 
-- `recorded`: the file is the text the suite ran over.
+- `recorded`: your text is the one the record's lines are numbered in.
 - `mapped`: the text changed, and every range was carried to where its lines
   stand now. A range an edit touched is marked `moved`.
-- `stale`: the text changed, and the text the suite ran over could not be found.
-  No ranges are printed, because ranges at the wrong numbers would be read as
-  real. The answer names the cases that ran code in the file, and says that
-  which of them ran the line you asked about cannot be said.
-- `differs`: the text changed, in a file test files hold as a precondition,
-  which has no recorded lines to carry. It is `recorded` only when every test
-  file holding it ran the text you hold.
+- `stale`: the text changed, and the text the lines are numbered in could not
+  be found. No ranges are printed, because ranges at the wrong numbers would be
+  read as real. The answer names the cases that ran code in the file, and says
+  that which of them ran the line you asked about cannot be said.
 
 ```bash
 variance covering --file src/checkout/total.ts --text - --format json < buffer.ts
@@ -724,30 +721,69 @@ standard input, which is how an editor queries a buffer you have not saved.
 `--line` then names a line in that text. A line the edit wrote is answered
 with no case, and the answer says the edit wrote it.
 
-The answer ends with how far it holds for the file you asked about: its frame,
-then where and when the test files it names last ran.
+#### How fresh and how actual the answer is
+
+The frame says where the record's numbers stand in your text. It does not say
+which text each test file ran over, or when. Those differ from one test file to
+the next, because a run of some test files lands on the record and moves it to
+the commit it ran at, and every test file it did not run keeps where it last
+ran. Run `a.test.ts` and `b.test.ts` over an edit you have not committed,
+commit another edit, and run `a.test.ts` alone: the record now stands at the
+second commit, `b.test.ts` last ran over a text that was never committed, and
+an answer naming both is two answers of two ages over two texts.
+
+So under the answer, after the frame line, the test files it names are said in
+groups, one line each, in the order their runs first landed: a group the record
+holds no time for first, then the oldest.
 
 ```text
-src/pay.ts differs from the text the suite ran over; its lines are placed in the text as it is now. An edit since the recording touched `pay`: its cases ran another text of it.
-The test file named here last ran at 1fa19f610e2a, a commit made 9 hours ago, over another text of src/pay.ts, which changed between that commit and 9cf65a4e2631.
+The recorded lines of src/pay.ts are placed in its text as it is now.
+src/pay.test.ts ran over another text of src/pay.ts, in a run that landed 9 hours ago; `pay` is the same in both.
+src/pay.ts is the text the other test file named here ran over, in a run that landed 6 minutes ago.
 ```
 
-A `stale` answer about the file or a line opens with its frame instead, since
-the frame is why it gives no line. With `--function`, a `mapped` frame adds
-whether an edit touched the function, and a part no case ran that an edit
-touched is printed as `edited`. Under a `stale` frame `--function` names the
-function's cases and no parts, since no recorded line is a place in your text.
-A file the record holds no digest of is printed as not known, and one that is
-not on disk is answered in the record's lines.
+The frame line says nothing under `recorded`. A `stale` answer about the file
+or a line says it first instead, since it is why no line is given, and under
+`--function` it adds that the parts of the function no case ran are not said.
+Under `mapped`, a part of an asked function no case ran that an edit touched
+prints as `edited`. A file whose record does not say which text its lines are
+numbered in gives them as recorded. A file not on disk is answered in the
+record's lines, and its test files are dated with no text to compare.
 
-The second line is read from the runs record beside the snapshot, one test file
-at a time. A run that record holds is dated by when it landed. Any other is
-read as having run at its commit's time, and the line prints it as a commit's.
-Of the files changed between where a test file ran and the record's commit,
-only the ones you asked about are named. In JSON, `at` is the record's commit,
-`ran` lists one stand per commit the named test files last ran at, `moved`
-marks a function or an unrun part an edit touched, and `unheld` a file that is
-not on disk.
+A group is the test files that last ran at one place: a commit, with the texts
+the runs record says its runs ran over there where they were not committed.
+Your text, the `--text` buffer or else the file on disk, is compared by digest
+with the one the runs record names for that place, else with the committed one.
+The test files that ran over your text share one line. A group that ran over
+another text, or whose text is not known, is named, and when you asked about a line, a run of lines or a
+function, the line goes on to say whether that region is the same in both
+texts, read by placing your region in the text they ran over, or why that is
+not known: that text is neither kept nor committed, or the record's lines have
+no place in yours. It says nothing of the region when the record does not say
+which text its lines are numbered in.
+
+The time is when the runs at that place landed in the record, from the first to
+the latest: `in runs that landed from 3 days ago to 3 hours ago`. Runs of other
+test files at the same place count toward it. It is never when a commit was
+made, which says nothing of when a test ran. A record written before runs kept
+their time says it does not hold one, and one written before they kept their
+texts says whether the text is yours is not known, and why. A test file the
+runs record does not place is read where the record assumes it ran, over the
+text the snapshot names at its own commit and the committed one anywhere else,
+and a last line says how many were read so. An answer that names no test file
+is dated by the test files that entered the file, else by every test file of
+the cases it was read from.
+
+In JSON, `at` is the commit the record stands at, on every answer whose record
+names one. `ran.stands` holds one entry per group: its `commit`, its `tests`,
+`landed` with ISO `first` and `latest` and, when the record counts them, `runs`,
+then `text` as `held` or `other`, with `other` naming the asked files they ran
+another text of and `region` as `same`, `changed` or `{ "unknown": <why> }`.
+`unknown` says why `text` is not known, and `assumed: true` marks a group the
+record did not place, with `ran.assumed` saying how. `ran.unread` stands in for
+the stands when where they ran cannot be read. `moved: true` marks a
+`--function` answer and each `unrun` part an edit touched, and `unheld: true` a
+file that is not on disk. `ran` is left out under `--format refs`.
 
 The index comes from any run wrapped in `withTestSelection(config)` and is read
 from where that run writes it, so an agent with a line number
@@ -805,10 +841,10 @@ the merge base with `<ref>`, since the index's line ranges are in that commit's
 coordinates and nothing else's. Record before you read: an index behind the tree
 answers fluently about regions that have moved.
 
-Under the regions, the answer prints where and when the test files it names
-last ran, as an answer about one file does. When the record names no commit,
-the `Read from` line ends `; the record names no commit.` in place of
-`recorded at`.
+Under the regions, the answer says which changed files the test files it names
+ran over and when, as an answer about one file does, with no region. When the
+record names no commit, the `Read from` line ends `; the record names no
+commit.` in place of `recorded at`.
 
 #### What a change moved
 

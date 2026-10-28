@@ -85,9 +85,7 @@ export function staleFile(answer: Covering): boolean {
  * to name is closed by them, after a colon.
  */
 export function staleLines(answer: Covering): { readonly gone: string; readonly header?: string } {
-  const gone = `${answer.file} is not the text the suite ran over${
-    answer.at === undefined ? '' : ` at ${answer.at.slice(0, 12)}`
-  }, and that text could not be found, so no recorded line is a place in it.`;
+  const gone = `${answer.file} is not the text the record's lines are numbered in, and that text could not be found, so no recorded line is a place in it.`;
   const tests = answer.tests ?? [];
   // Under `--where`, *kept none* is said already; *no named test ran code here* would read as nothing having run it.
   if (tests.length === 0 && (answer.where?.of ?? 0) > 0) return { gone };

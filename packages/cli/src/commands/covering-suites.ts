@@ -148,7 +148,7 @@ async function askSuite(request: ParsedCovering, suite: DeclaredSuite, graph: Gr
  * said: the list is for a runner, and {@link answerGaps} hands the gaps to the
  * caller for the person. Each record is dated against `now`, in ms.
  */
-export function formatCoveringAnswer(answer: Covering | CoveringSuites, format: CoveringFormat, now: number = Date.now()): string {
+export function formatCoveringAnswer(answer: Covering | CoveringSuites, format: CoveringFormat, now: number): string {
   if (!('suites' in answer)) return formatCovering(answer, format, now);
   if (format === 'json') return `${JSON.stringify(answer, undefined, 2)}\n`;
 

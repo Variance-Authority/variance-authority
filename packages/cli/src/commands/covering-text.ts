@@ -24,7 +24,7 @@ import { heldText } from '@variance-authority/sense/test-selection';
 import { whereText } from './covering-where.js';
 import { evidenceGapText } from './evidence-gap.js';
 import { staleFile, staleLines } from './covering-stale.js';
-import { ranText } from './covering-ran.js';
+import { frameText, ranText } from './covering-fresh-text.js';
 import type { Covering, CoveringFormat, StatedChange } from './covering.js';
 
 /**
@@ -32,7 +32,7 @@ import type { Covering, CoveringFormat, StatedChange } from './covering.js';
  *
  * @param now The clock the answer is dated against, in ms.
  */
-export function formatCovering(answer: Covering, format: CoveringFormat, now: number = Date.now()): string {
+export function formatCovering(answer: Covering, format: CoveringFormat, now: number): string {
   if (format === 'refs') return formatCoveringRefs(answer);
   if (format === 'json') return `${JSON.stringify(answer, undefined, 2)}\n`;
   return `${[
@@ -43,40 +43,9 @@ export function formatCovering(answer: Covering, format: CoveringFormat, now: nu
     ...hopsText(answer),
     ...motionText(answer.motion),
     ...frameText(answer),
-    ...ranText(answer.ran, answer.at, now),
+    ...ranText(answer, now),
     ...(answer.gap === undefined ? [] : [evidenceGapText(answer.gap)]),
   ].join('\n')}\n`;
-}
-
-/**
- * Whether the asked text is the one the suite ran over, said once under the
- * answer. A stale answer about the file or its lines says it first instead,
- * since it is the reason no line is given; one about a function says it here,
- * with what it takes away from the function's parts.
- */
-function frameText(answer: Covering): readonly string[] {
-  const file = answer.file;
-  if (answer.changed !== undefined || file === undefined || staleFile(answer)) return [];
-  if (answer.frame === 'stale') {
-    const named = answer.target !== undefined && 'function' in answer.target ? answer.target.function : '';
-    return [`${staleLines(answer).gone} Which parts of \`${named}\` no case ran, and whether an edit touched it, are not said for that reason.`];
-  }
-  if (answer.frame === 'recorded') return [`${file} is the text the suite ran over.`];
-  if (answer.frame === 'differs') return [`${file} differs from the text the suite ran over.`];
-  if (answer.frame === 'mapped') return [`${file} differs from the text the suite ran over; its lines are placed in the text as it is now.${editedText(answer)}`];
-  // A precondition has no recorded line to be the record's.
-  const lines = answer.preconditionOf === undefined ? '; its lines are the record\'s' : '';
-  if (answer.unheld === true) return [`${file} is not on disk, so no text is held against the one the suite ran over${lines}.`];
-  return [`The record holds no digest of ${file}, so whether it is the text the suite ran over is not known.`];
-}
-
-/** Under a mapped frame, whether the edit touched the asked function: ` An edit since the recording touched \`pay\`: …`. */
-function editedText(answer: Covering): string {
-  if (answer.target === undefined || !('function' in answer.target)) return '';
-  const named = `\`${answer.target.function}\``;
-  return answer.moved === true
-    ? ` An edit since the recording touched ${named}: its cases ran another text of it.`
-    : ` No edit since the recording touched ${named}: its text is the one its cases ran.`;
 }
 
 /** Why `--hops` printed no distance, said under the files it would have measured. */

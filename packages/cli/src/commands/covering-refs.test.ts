@@ -20,7 +20,7 @@ const WHOLE_FILE: Covering = {
 
 describe('an answer with every case named once', () => {
   it('numbers each case once and names every range by those numbers, runs collapsed', () => {
-    expect(formatCovering(WHOLE_FILE, 'refs')).toBe([
+    expect(formatCovering(WHOLE_FILE, 'refs', Date.now())).toBe([
       'packages/ioc/src/reset/index.ts — 5 recorded ranges',
       '1-5 walked: 2-4',
       '59-61 alone: 4',
@@ -55,7 +55,7 @@ describe('an answer with every case named once', () => {
         ],
       }],
     };
-    expect(formatCovering(changed, 'refs').split('\n').slice(0, 5)).toEqual([
+    expect(formatCovering(changed, 'refs', Date.now()).split('\n').slice(0, 5)).toEqual([
       '1 changed file since origin/main, read from coverage.bin',
       'packages/ioc/src/reset/index.ts',
       '  1-90 the top level walked: 1-3; carried 1',
@@ -65,7 +65,7 @@ describe('an answer with every case named once', () => {
   });
 
   it('keeps the text answer to one file heading, and says a repeated list in one line', () => {
-    const text = formatCovering(WHOLE_FILE, 'text');
+    const text = formatCovering(WHOLE_FILE, 'text', Date.now());
 
     expect(text).toContain(`lines 1-5 — walked\n  ${RESET}\n    configure > honours a second driver\n`);
     expect(text).toContain('line 62 — walked\n  the same 3 named tests as lines 1-5\n');

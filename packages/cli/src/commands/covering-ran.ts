@@ -1,62 +1,87 @@
 // compass: variance-authority.reach
 /**
- * Where and when the test files a `covering` answer names last ran, which is
- * how fresh the answer is.
+ * Where and when the test files a `covering` answer names last ran, and
+ * whether they ran over the asked text, which is how fresh and how actual the
+ * answer is for the question.
  *
  * A snapshot names the commit of its latest run, and a partial run is a run:
  * after one, the snapshot stands at a commit most of its tests never ran at.
- * Dated by that commit, an answer whose every case last ran a day earlier, over
- * another text, reads as minutes old. The runs record beside the snapshot says
- * where each test last ran, and `readingFrom` reads it for every selector, so
- * the answer is dated from it too, for the test files it names and no others: a
- * test that ran somewhere else says nothing about this answer.
+ * The runs record beside it says where each test last ran, when those runs
+ * landed, and which texts they ran over where those were not the commit's
+ * (`testPlaces`), so the answer is dated and placed from it, for the test files
+ * it names and no others. Locality is by digest at the grain of the question:
+ * the file, and for a line or a function, that region of it, read across the
+ * two texts. Nothing here walks history or counts commits.
  *
- * A run's own time is said when the record holds it, which it does for the
- * runs at the snapshot's commit. Any other stand is dated by its commit's time,
- * and said to be that. Whether the asked file is the text such a run read is
- * said from git's list of the files changed between its commit and the
- * snapshot's, so locality is a file's: an edit elsewhere in the tree does not
- * make the answer older.
+ * The reading is the shell's: it reads the runs record (once, shared with the
+ * motion reading), the committed texts and the kept ones. What it found is
+ * said by `covering-fresh-text.ts`.
  */
 
-import { realpath } from 'node:fs/promises';
-import { join, relative, sep } from 'node:path';
-import { readCommitRuns, readingFrom, type CommitRuns, type ExecutionTest } from '@variance-authority/sense/test-selection';
-import { committedAt } from '@variance-authority/sense';
-import { gitIn, topLevel } from './since.js';
+import { readFile, realpath } from 'node:fs/promises';
+import { join, relative, resolve, sep } from 'node:path';
+import {
+  coveringTestsInFile,
+  functionsUnder,
+  keptTexts,
+  placeAcross,
+  recordedDigests,
+  testPlaces,
+  textsAt,
+  type ExecutionIndex,
+  type ExecutionTest,
+  type HeldLines,
+  type Placement,
+  type TestPlace,
+} from '@variance-authority/sense/test-selection';
+import { digestString } from '@variance-authority/core/format';
+import type { RunsRead } from './base-diff.js';
 import { listedIn } from './covering-where.js';
+import type { CoveringTarget } from './covering.js';
 
-/** Where some of the test files an answer names last ran, and when. */
+/** When the runs a stand's test files last ran in landed, and how many there were when the record says. */
+export interface Landed {
+  readonly first: string;
+  readonly latest: string;
+  readonly runs?: number;
+}
+
+/** Some of the test files an answer names: where they last ran, when, and over which text. */
 export interface RanStand {
-  /** The commit they last ran at. */
+  /** The commit they last ran at, or the one read instead with `assumed`. */
   readonly commit: string;
+  /** The runs record does not say where they ran, and `commit` is the fallback. */
+  readonly assumed?: true;
   /** In code-unit order. */
   readonly tests: readonly string[];
+  /** Absent when the record holds no time for them. */
+  readonly landed?: Landed;
   /**
-   * When the runs at `commit` landed, as the runs record beside the snapshot
-   * holds it: the first and the latest, and how many there were. Present only
-   * for the snapshot's own commit, which is the one the record keeps runs for.
+   * `held` when they ran over the asked text of every asked file, `other`
+   * when they ran over another text of the files in `other`. Absent when no
+   * text was held to compare, or with `unknown`.
    */
-  readonly landed?: { readonly first: string; readonly latest: string; readonly runs: number };
-  /** Without `landed`: when `commit` was committed, as a UTC ISO time. */
-  readonly committedAt?: string;
-  /** Without `landed`: this clone does not hold `commit`, so it has no time. */
-  readonly held?: false;
-  /** Without `landed`: the first line git gave for not dating `commit`. */
-  readonly unread?: string;
-  /** The asked files whose text changed between `commit` and the snapshot's, so these runs read another one. */
-  readonly otherText?: readonly string[];
+  readonly text?: 'held' | 'other';
+  readonly other?: readonly string[];
+  /** Why whether they ran over the asked text is not known. */
+  readonly unknown?: string;
+  /** With `other` and an asked line or function: whether it is the same in both texts, or why that is not known. */
+  readonly region?: 'same' | 'changed' | { readonly unknown: string };
 }
 
 /**
- * Where the test files an answer names last ran: one stand per commit, in the
- * order their runs landed, earliest first, with `assumed` saying where the runs
- * record could not place some of them and what was read instead. Or, with
- * `unread`, why that is not known, and the test files it is not known for.
+ * Where the test files an answer names last ran, one stand per place and
+ * verdict, oldest first, with `assumed` saying, in the runs record's words,
+ * where it could not place some of them. Or, with `unread`, why that is not
+ * known. `named` is absent when the answer names the test files; `entered`
+ * when it names none and these are the ones that entered the asked file
+ * elsewhere, `read` when none did either and these are every test file of the
+ * cases the answer was read from.
  */
-export type CoveringRan =
+export type CoveringRan = (
   | { readonly stands: readonly RanStand[]; readonly assumed?: string }
-  | { readonly tests: readonly string[]; readonly unread: string };
+  | { readonly tests: readonly string[]; readonly unread: string }
+) & { readonly named?: 'entered' | 'read' };
 
 /**
  * What an answer names that ran: the cases it lists, the cases that stopped
@@ -64,9 +89,12 @@ export type CoveringRan =
  * the file as a precondition.
  */
 export interface RanNamed {
+  readonly file?: string;
+  readonly target?: CoveringTarget;
   readonly tests?: readonly ExecutionTest[];
   readonly ranges?: readonly { readonly tests: readonly ExecutionTest[] }[];
   readonly changed?: readonly {
+    readonly file: string;
     readonly regions: readonly { readonly tests: readonly ExecutionTest[]; readonly stopped?: readonly ExecutionTest[] }[];
     readonly cases: readonly ExecutionTest[];
   }[];
@@ -74,127 +102,192 @@ export interface RanNamed {
   readonly preconditionOf?: readonly string[];
 }
 
-/**
- * Where the test files `named` last ran, read from the runs record beside
- * `snapshot`, the record whose commit is `at`. `asked` are the files the
- * question is about, named from `root`. Absent when the answer names no test
- * file, so there is nothing to date.
- */
-export async function ranFor(
-  named: readonly string[],
-  record: { readonly root: string; readonly snapshot: string | undefined; readonly at: string | undefined; readonly asked: readonly string[] },
-): Promise<CoveringRan | undefined> {
-  const tests = [...new Set(named)].sort();
-  if (tests.length === 0) return undefined;
-  const { root, snapshot, at } = record;
-  if (at === undefined || snapshot === undefined) return { tests, unread: 'the record names no commit' };
-  let runs: CommitRuns | undefined;
-  try {
-    runs = await readCommitRuns(snapshot);
-  } catch (error) {
-    return { tests, unread: error instanceof Error ? error.message : String(error) };
-  }
-  const repository = await topLevel(root);
-  const reading = readingFrom({ commit: at, ref: undefined, runs, tests, git: gitIn(repository ?? root) });
-  if (reading.widened !== undefined) return { tests, unread: reading.widened };
-  // `git diff` names files from the repository's top, and the answer from the root it was asked under.
-  const under = repository === undefined ? '' : relative(await realpath(repository), await realpath(root));
-  const repoPath = (file: string): string => (under === '' ? file : join(under, file).split(sep).join('/'));
-  const standing = new Set(reading.stands.flatMap((stand) => stand.tests));
-  const here = tests.filter((test) => !standing.has(test));
-  const observed = runs?.commit === at && runs.runs > 0 && here.every((test) => runs.files.includes(test)) ? runs : undefined;
-  const stands: RanStand[] = [
-    ...reading.stands.map((stand) => {
-      const changed = new Set(stand.changed);
-      const other = record.asked.filter((file) => changed.has(repoPath(file)));
-      return { commit: stand.commit, tests: stand.tests, ...dated(root, stand.commit), ...(other.length === 0 ? {} : { otherText: other }) };
-    }),
-    ...(here.length === 0
-      ? []
-      : [{ commit: at, tests: here, ...(observed === undefined ? dated(root, at) : { landed: { first: observed.first, latest: observed.latest, runs: observed.runs } }) }]),
-  ];
-  return { stands, ...(reading.assumed === undefined ? {} : { assumed: reading.assumed }) };
+/** What the reading of an answer's freshness is handed. */
+export interface RanQuestion {
+  readonly root: string;
+  /** The snapshot and the commit it names; absent for a record that names none. */
+  readonly snapshot: string | undefined;
+  readonly at: string | undefined;
+  readonly runs: RunsRead;
+  /** The asked file's text, from `--text` or disk, under a question about one file; absent when none is held. */
+  readonly held?: string;
+  /** How the asked file's recorded lines are placed in `held`, for a line or a function. */
+  readonly placement?: Placement;
+  /**
+   * The index the answer was read from, once `--cases`, `--where` and
+   * `--read` narrowed it: the test files an answer naming none is dated by,
+   * and the asked function's blocks.
+   */
+  readonly index?: ExecutionIndex;
+  /** Under a precondition answer: the test files holding the file that ran another text of it. */
+  readonly ranOther?: ReadonlyMap<string, readonly string[]>;
 }
 
-/** When `commit` was committed, or why the clone at `root` cannot say. */
-function dated(root: string, commit: string): Pick<RanStand, 'committedAt' | 'held' | 'unread'> {
-  const committed = committedAt(root, commit);
-  if (committed === false) return { held: false };
-  return typeof committed === 'string' ? { committedAt: committed } : { unread: committed.unread };
-}
-
-/** The test files an answer names, by their paths. */
-export function namedTestFiles(answer: RanNamed): readonly string[] {
+/** The test files an answer names, or, when it names none, the ones it is dated by instead. */
+export function namedTestFiles(answer: RanNamed, index: ExecutionIndex | undefined): { readonly tests: readonly string[]; readonly named?: 'entered' | 'read' } {
   const stopped = [...(answer.stopped ?? []), ...(answer.changed ?? []).flatMap((file) => file.regions.flatMap((region) => region.stopped ?? []))];
-  return [...listedIn(answer), ...stopped].map((test) => test.file).concat(answer.preconditionOf ?? []);
+  const named = unique([...listedIn(answer), ...stopped].map((test) => test.file).concat(answer.preconditionOf ?? []));
+  if (named.length > 0 || index === undefined) return { tests: named };
+  const entered = answer.file === undefined ? [] : unique(coveringTestsInFile(index, answer.file).flatMap((range) => range.tests.map((test) => test.file)));
+  if (entered.length > 0) return { tests: entered, named: 'entered' };
+  const read = unique(index.tests.map((test) => test.file));
+  return read.length === 0 ? { tests: [] } : { tests: read, named: 'read' };
+}
+
+/** Where, when and over which text the test files `answer` names last ran; absent when it names none. */
+export async function ranOf(answer: RanNamed, question: RanQuestion): Promise<CoveringRan | undefined> {
+  const { tests, named } = namedTestFiles(answer, question.index);
+  if (tests.length === 0) return undefined;
+  const as = named === undefined ? {} : { named };
+  const { snapshot, at } = question;
+  if (at === undefined || snapshot === undefined) return { tests, unread: 'the record names no commit', ...as };
+  const read = await question.runs();
+  if (read.unread !== undefined) return { tests, unread: read.unread.message, ...as };
+  const { places, assumed } = testPlaces({ commit: at, runs: read.runs, tests });
+  const asked = answer.changed?.map((change) => change.file) ?? (answer.file === undefined ? [] : [answer.file]);
+  const held = await heldTexts(question, answer, asked);
+  const byPlace = new Map<TestPlace, string[]>();
+  for (const test of tests) {
+    const place = places.get(test)!;
+    byPlace.set(place, [...(byPlace.get(place) ?? []), test]);
+  }
+  const verdicts = answer.preconditionOf === undefined
+    ? await moduleVerdicts([...byPlace.keys()], { ...question, at, snapshot, repository: read.repository, asked: held, region: regionOf(answer, question) })
+    : undefined;
+  const stands: RanStand[] = [];
+  for (const [place, group] of byPlace) {
+    const where: RanStand = {
+      commit: place.commit,
+      ...(place.assumed === true ? { assumed: true as const } : {}),
+      tests: group,
+      ...(place.first === undefined || place.latest === undefined
+        ? {}
+        : { landed: { first: place.first, latest: place.latest, ...(place.runs === undefined ? {} : { runs: place.runs }) } }),
+    };
+    if (verdicts !== undefined) {
+      stands.push({ ...where, ...verdicts.get(place) });
+      continue;
+    }
+    // A precondition's digest is recorded per test file, so its verdict is each test file's own.
+    const file = asked[0]!;
+    if (held.get(file) === undefined) {
+      stands.push(where);
+      continue;
+    }
+    const other = group.filter((test) => question.ranOther?.get(file)?.includes(test) === true);
+    const same = group.filter((test) => !other.includes(test));
+    if (same.length > 0) stands.push({ ...where, tests: same, text: 'held' });
+    if (other.length > 0) stands.push({ ...where, tests: other, text: 'other', other: [file] });
+  }
+  // Oldest first, by when their runs first landed; a stand the record holds no time for comes first.
+  stands.sort((one, other) => (one.landed?.first ?? '').localeCompare(other.landed?.first ?? ''));
+  return { stands, ...(assumed === undefined ? {} : { assumed }), ...as };
+}
+
+/** The verdict of one stand: `text`, `other`, `unknown` and `region` of {@link RanStand}. */
+type Verdict = Pick<RanStand, 'text' | 'other' | 'unknown' | 'region'>;
+
+/** The asked region of the held text, in its lines: the line or lines asked, or the asked function's blocks placed in it. */
+type Region = readonly HeldLines[] | { readonly unknown: string } | undefined;
+
+function regionOf(answer: RanNamed, question: RanQuestion): Region {
+  const target = answer.target;
+  if (target === undefined) return undefined;
+  if ('line' in target) return [{ startLine: target.line, endLine: target.line }];
+  if ('lines' in target) return [target.lines];
+  const placement = question.placement;
+  const module = question.index?.modules.find((candidate) => candidate.file === answer.file);
+  if (placement === undefined || module === undefined) return undefined;
+  if (placement.frame === 'stale') return { unknown: `the record's lines of ${answer.file!} are not placed in its text as it is now` };
+  return functionsUnder(module.blocks, target.function).flatMap((block) => {
+    const placed = placement.place(block);
+    return placed === undefined ? [] : [placed.lines];
+  });
 }
 
 /**
- * Where and when the test files an answer names last ran, in one sentence said
- * under the answer; nothing when it names none. One stand is said whole; more
- * are said as the span from the first landed to the last, with how many of the
- * test files read another text of the asked file. `at` is the record's commit.
+ * Each place's verdict for the asked module files: the digest of the text it
+ * ran over, read as the runs record says — a text it names, else the
+ * committed one; for a place the record could not observe, the snapshot's own
+ * digest at its commit and the committed text elsewhere — against the held
+ * text's. A place whose committed text this clone lacks is not known, and no
+ * other place is touched by it.
  */
-export function ranText(ran: CoveringRan | undefined, at: string | undefined, now: number): readonly string[] {
-  if (ran === undefined) return [];
-  const count = 'unread' in ran ? ran.tests.length : ran.stands.reduce((sum, stand) => sum + stand.tests.length, 0);
-  const subject = count === 1 ? 'the test file named here' : `the ${String(count)} test files named here`;
-  if ('unread' in ran) return [`Where and when ${subject} last ran is not known: ${ran.unread}.`];
-  const assumed = ran.assumed === undefined ? '' : `; ${ran.assumed}`;
-  const capital = `${subject[0]!.toUpperCase()}${subject.slice(1)}`;
-  const record = at === undefined ? '' : ` and ${at.slice(0, 12)}`;
-  if (ran.stands.length === 1) {
-    const [stand] = ran.stands as [RanStand];
-    const other = stand.otherText === undefined ? '' : `, over ${texts(stand.otherText)}, which changed between that commit${record}`;
-    return [`${capital} last ran at ${stand.commit.slice(0, 12)}, ${when(stand, now)}${other}${assumed}.`];
+async function moduleVerdicts(
+  places: readonly TestPlace[],
+  question: RanQuestion & { readonly at: string; readonly snapshot: string; readonly repository: string | undefined; readonly asked: ReadonlyMap<string, string | undefined>; readonly region: Region },
+): Promise<Map<TestPlace, Verdict>> {
+  const { at, snapshot, repository, asked: held } = question;
+  const files = [...held.keys()].filter((file) => held.get(file) !== undefined);
+  const verdicts = new Map<TestPlace, Verdict>(places.map((place) => [place, {}]));
+  if (files.length === 0) return verdicts;
+  const recorded = places.some((place) => place.assumed === true && place.texts === undefined && place.commit === at) ? recordedDigests(snapshot, files) : new Map<string, string>();
+  const under = repository === undefined ? undefined : relative(await realpath(repository), await realpath(question.root));
+  const repoPath = (file: string): string => (under === undefined || under === '' ? file : join(under, file).split(sep).join('/'));
+  const blobs = repository === undefined
+    ? new Map<string, Map<string, string>>()
+    : textsAt(repository, new Map(places.map((place) => [place.commit, files.map(repoPath)])));
+  const kept = keptTexts(question.root);
+  for (const place of places) {
+    const other: string[] = [];
+    let unknown: string | undefined;
+    let region: RanStand['region'];
+    for (const file of files) {
+      const blob = blobs.get(place.commit)?.get(repoPath(file));
+      const digest = digestOf(place, file, blob, at, recorded);
+      if (digest === undefined) {
+        unknown ??= place.texts === undefined && place.assumed !== true
+          ? `the runs record does not say which text of ${file} its runs there ran over`
+          : place.texts === undefined && place.commit === at
+            ? `the record holds no digest of the text of ${file} it ran over`
+            : repository === undefined
+              ? `the checkout is in no git repository, so no committed text of ${file} can be read`
+              : `this clone holds no committed text of ${file} where that run stood`;
+        continue;
+      }
+      if (digest === digestString(held.get(file)!)) continue;
+      other.push(file);
+      if (region === undefined && files.length === 1 && question.region !== undefined) {
+        const text = kept(digest) ?? (blob !== undefined && digestString(blob) === digest ? blob : undefined);
+        region = regionVerdict(question.region, held.get(file)!, text, file);
+      }
+    }
+    verdicts.set(place, other.length > 0
+      ? { text: 'other', other, ...(region === undefined ? {} : { region }) }
+      : unknown === undefined ? { text: 'held' } : { unknown });
   }
-  const first = ran.stands[0]!;
-  const last = ran.stands[ran.stands.length - 1]!;
-  const over = ran.stands.filter((stand) => stand.otherText !== undefined);
-  const files = [...new Set(over.flatMap((stand) => stand.otherText ?? []))];
-  const others = over.length === 0
-    ? ''
-    : `; ${String(over.reduce((sum, stand) => sum + stand.tests.length, 0))} of them ran over ${texts(files)}, which changed between where they ran${record}`;
-  return [
-    `${capital} last ran at ${String(ran.stands.length)} commits, from ${first.commit.slice(0, 12)}, ${when(first, now)}, to ${
-      last.commit.slice(0, 12)
-    }, ${when(last, now)}${others}${assumed}.`,
-  ];
-}
-
-function texts(files: readonly string[]): string {
-  return files.length === 1 ? `another text of ${files[0]!}` : `other texts of ${files.slice(0, -1).join(', ')} and ${files[files.length - 1]!}`;
-}
-
-/** When a stand ran, or which commit's time stands in for it, or why neither is known. */
-function when(stand: RanStand, now: number): string {
-  if (stand.landed !== undefined) {
-    const { first, latest, runs } = stand.landed;
-    if (runs === 1) return `in a run that landed ${ago(latest, now)}`;
-    const from = ago(first, now);
-    const to = ago(latest, now);
-    return `in one of the ${String(runs)} runs at it, which landed ${from === to ? to : `between ${from} and ${to}`}`;
-  }
-  if (stand.committedAt !== undefined) return `a commit made ${ago(stand.committedAt, now)}`;
-  if (stand.held === false) return 'a commit this clone does not hold';
-  return `a commit git could not date (${stand.unread ?? 'git gave no reason'})`;
+  return verdicts;
 }
 
 /**
- * A time against `now`, floored to the unit a reader acts on: minutes in the
- * first hour, hours in the first two days, days after. A time later than `now`
- * is given as itself, since its age would be negative.
+ * The digest of the text of `file` a place's runs ran over. A place whose
+ * record names its texts ran over the one it names, else over the committed
+ * one. A place the record observed without naming its texts ran over a text
+ * it does not know: nothing is assumed of it. A place read by assumption is
+ * read as the snapshot's row at the snapshot's commit, and as the committed
+ * text anywhere else.
  */
-function ago(iso: string, now: number): string {
-  const age = now - Date.parse(iso);
-  if (age < 0) return `at ${iso}, later than this machine's clock`;
-  const minutes = Math.floor(age / 60_000);
-  if (minutes < 1) return 'under a minute ago';
-  if (minutes < 60) return `${unit(minutes, 'minute')} ago`;
-  const hours = Math.floor(minutes / 60);
-  return `${hours < 48 ? unit(hours, 'hour') : unit(Math.floor(hours / 24), 'day')} ago`;
+function digestOf(place: TestPlace, file: string, blob: string | undefined, at: string, recorded: ReadonlyMap<string, string>): string | undefined {
+  const committed = blob === undefined ? undefined : digestString(blob);
+  if (place.texts !== undefined) return place.texts[file] ?? committed;
+  if (place.assumed !== true) return undefined;
+  return place.commit === at ? recorded.get(file) : committed;
 }
 
-function unit(of: number, noun: string): string {
-  return `${String(of)} ${noun}${of === 1 ? '' : 's'}`;
+/** Whether the asked region of `held` is the same in `ran`, the text a test file ran over. */
+function regionVerdict(region: Region, held: string, ran: string | undefined, file: string): RanStand['region'] {
+  if (region === undefined || 'unknown' in region) return region;
+  if (ran === undefined) return { unknown: `the text of ${file} that run ran over is neither kept nor committed` };
+  const place = placeAcross(held, ran);
+  return region.every((range) => place(range)?.moved === false) ? 'same' : 'changed';
+}
+
+/** The held text of each asked file: the one handed in for a question about one file, each changed file's on disk under `--since`. */
+async function heldTexts(question: RanQuestion, answer: RanNamed, asked: readonly string[]): Promise<ReadonlyMap<string, string | undefined>> {
+  if (answer.changed === undefined) return new Map(asked.map((file) => [file, question.held]));
+  return new Map(await Promise.all(asked.map(async (file) => [file, await readFile(resolve(question.root, file), 'utf8').catch(() => undefined)] as const)));
+}
+
+function unique(names: readonly string[]): readonly string[] {
+  return [...new Set(names)].sort();
 }

@@ -8,8 +8,8 @@
  * one of those files whole when the file changes, save a test whose row records
  * the text the change arrives at. `covering` names them and `review` counts them
  * from this one reading rather than two, without that exception: they ask about
- * a file, not a diff. Given the text held now, the exception is the frame
- * `covering` says: whether every test file holding the file ran that text.
+ * a file, not a diff. Given the text held now, the exception is what
+ * `covering` says of each test file: whether it ran that text.
  */
 
 import { digestString } from '@variance-authority/core/format';
@@ -32,8 +32,13 @@ export interface HeldAsPrecondition {
    * about the suite rather than a load anybody measured.
    */
   readonly loaded: ReadonlySet<string>;
-  /** The asked files given a text that every test file holding them ran: each row records that text's digest. */
-  readonly ranOver: ReadonlySet<string>;
+  /**
+   * Each asked file given a text, with the test files holding it whose row
+   * records another text's digest, in code-unit order: they ran over another
+   * text of it. A file every test file holding it ran the given text of is
+   * absent, as is one given no text.
+   */
+  readonly ranOther: ReadonlyMap<string, readonly string[]>;
 }
 
 /**
@@ -50,22 +55,26 @@ export function heldAsPrecondition(
 ): HeldAsPrecondition | undefined {
   try {
     return askCoverageFile(record, (coverage) => {
-      const of = new Map<string, string[]>();
-      for (const [test, names] of testsGovernedBy(coverage, files).tests) {
-        const own = coverage.string(coverage.testPath.at(test));
-        for (const name of names) {
-          if (name === own) continue;
-          const tests = of.get(name) ?? [];
-          tests.push(own);
-          of.set(name, tests);
+      const byFile = (tests: ReadonlyMap<number, readonly string[]>) => {
+        const of = new Map<string, string[]>();
+        for (const [test, names] of tests) {
+          const own = coverage.string(coverage.testPath.at(test));
+          for (const name of names) {
+            if (name === own) continue;
+            const holding = of.get(name) ?? [];
+            holding.push(own);
+            of.set(name, holding);
+          }
         }
-      }
-      for (const tests of of.values()) tests.sort();
+        for (const holding of of.values()) holding.sort();
+        return of;
+      };
+      const of = byFile(testsGovernedBy(coverage, files).tests);
       const loaded = new Set(files.filter((file) => findModules(coverage, file).length > 0));
       // Read apart from `of`: a test that ran the held text is still one that holds the file.
       const arrived = new Map([...texts].map(([file, text]) => [file, digestString(text)]));
-      const ranOver = arrived.size === 0 ? new Set<string>() : testsGovernedBy(coverage, files, arrived).ranOver;
-      return { tests: coverage.testPath.length, of, loaded, ranOver };
+      const ranOther = arrived.size === 0 ? new Map<string, string[]>() : byFile(testsGovernedBy(coverage, [...arrived.keys()], arrived).tests);
+      return { tests: coverage.testPath.length, of, loaded, ranOther };
     });
   } catch {
     return undefined;
