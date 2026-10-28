@@ -3220,6 +3220,7 @@
         "caseSectionsAt": "function",
         "caseSectionsOf": "function",
         "casesCutApart": "function",
+        "casesRan": "function",
         "changeOfDiff": "function",
         "changeOfFiles": "function",
         "changeOfPaths": "function",
