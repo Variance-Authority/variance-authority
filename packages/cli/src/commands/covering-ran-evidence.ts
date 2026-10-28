@@ -4,7 +4,8 @@
  * that run last ran (`covering-ran.ts`). Everything it is read from is read
  * once per question: the committed texts where the runs stood, the kept texts
  * behind the digests the runs name, and, for the one run that wrote a
- * snapshot naming no commit, the snapshot's rows.
+ * snapshot naming no commit, the snapshot's rows. The asked region is placed
+ * once per pair of texts compared, however many runs ran over the same one.
  */
 
 import { realpath } from 'node:fs/promises';
@@ -46,6 +47,8 @@ export interface Evidence {
   readonly placements: ReadonlyMap<string, Placement>;
   /** Under a precondition answer: the test files whose own digest of the file is of another text. */
   readonly ranOther: ReadonlyMap<string, readonly string[]> | undefined;
+  /** How lines of a held text are placed in a text a run ran over, placed once per pair of texts. */
+  readonly across: (held: string, ran: string) => Placement['place'];
 }
 
 /** What reading the evidence is handed. */
@@ -104,7 +107,15 @@ export async function evidenceOf(runs: readonly TestPlace[], held: ReadonlyMap<s
     : question.placement !== undefined && files.length === 1
       ? new Map([[files[0]!, question.placement]])
       : placeInTexts(question.snapshot, root, held);
-  return { repository: repository !== undefined, committed, absent, kept, last, placements, ranOther: question.ranOther };
+  // Runs that ran over the same text compare the same pair, so each pair is placed once.
+  const pairs = new Map<string, Placement['place']>();
+  const across = (from: string, to: string): Placement['place'] => {
+    const key = `${digestString(from)} ${digestString(to)}`;
+    const place = pairs.get(key) ?? placeAcross(from, to);
+    pairs.set(key, place);
+    return place;
+  };
+  return { repository: repository !== undefined, committed, absent, kept, last, placements, ranOther: question.ranOther, across };
 }
 
 /**
@@ -170,6 +181,7 @@ export function regionVerdict(
   held: string,
   over: NotHeld,
   file: string,
+  evidence: Evidence,
 ): 'same' | 'changed' | 'gone' | { readonly unknown: string } | undefined {
   if (region === undefined || 'unknown' in region) return region;
   if (region.held.length === 0) return 'gone';
@@ -177,6 +189,6 @@ export function regionVerdict(
   if (over === 'absent') return 'changed';
   const ran = over.text;
   if (ran === undefined) return { unknown: `the text of ${file} that run ran over is neither kept nor committed` };
-  const place = placeAcross(held, ran);
+  const place = evidence.across(held, ran);
   return region.held.every((range) => place(range)?.moved === false) ? 'same' : 'changed';
 }

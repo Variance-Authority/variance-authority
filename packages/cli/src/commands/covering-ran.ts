@@ -341,7 +341,7 @@ function verdictOf(unit: Unit, held: ReadonlyMap<string, string>, evidence: Evid
       other.push(file);
       if (held.size !== 1) continue;
       const overs = rans.filter((ran): ran is NotHeld => ran === 'absent' || (typeof ran === 'object' && 'text' in ran));
-      const regions = overs.map((over) => regionVerdict(region, text, over, file));
+      const regions = overs.map((over) => regionVerdict(region, text, over, file, evidence));
       regional = regions.find((one) => typeof one === 'object') ?? (regions.every((one) => one === regions[0]) ? regions[0] : { unknown: apart(file) });
     }
   }
