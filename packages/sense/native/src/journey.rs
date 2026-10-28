@@ -287,14 +287,12 @@ fn fold(
             module,
             called: &called_sets[module_blocks[row]..module_blocks[row + 1]],
             loaded: &loaded_flags[module_blocks[row]..module_blocks[row + 1]],
-            // A run measures the text it ran; nothing in it is overwritten.
             overwritten: &[],
         })
         .collect();
-    let module_count = encoded.len() as u32;
     Ok(Folded {
         bytes: journey_format::encode(&run.tests, &journey_format::CaseExtras::default(), &encoded, &mut sets, Some(gaps))?,
-        modules: module_count,
+        modules: encoded.len() as u32,
         crossings,
         passes,
     })

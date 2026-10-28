@@ -1,22 +1,12 @@
 import type { CoveringRegion, SourceTestRange } from './reverse.js';
 
 /**
- * What the record says about one range, as the one word every client paints.
- *
- * - `walked`: two or more cases called into it, or one did beside a case that
- *   stopped before it could be seen reaching the range, or beside a case whose
- *   run of it is not known.
- * - `alone`: exactly one case called into it, and every case that could have
- *   reached it finished.
- * - `loaded`: the only entry was while its module evaluated.
- * - `hole`: nobody entered it, and a case that could have reached it stopped.
- * - `unwalked`: nobody entered it, and every case that could have reached it
- *   finished.
- *
- * The rows are ranked so that the one that applies first wins, and the reader
- * ranks them, so two editors cannot paint one range differently. Absent when
- * the record cannot tell which applies: one witness, or none, with a case that
- * could have reached it and whose settling was not recorded.
+ * The one word every client paints for a range, ranked by the reader: an
+ * `entered` {@link Reach} is `walked` when two or more cases called in, or one
+ * did beside a case that stopped or whose run of it is not known, and `alone`
+ * when one did and every case that could have reached it finished; any other
+ * reach is its own word. Absent when the reach is `unknown`, or when one case
+ * called in and whether the others stopped was not recorded.
  */
 export type RangeState = 'walked' | 'alone' | 'loaded' | 'hole' | 'unwalked';
 

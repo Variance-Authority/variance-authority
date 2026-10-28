@@ -3104,9 +3104,6 @@
   "packages/sense/src/test-selection/ran-over.ts docblock": [
     11
   ],
-  "packages/sense/src/test-selection/range-state.ts docblock": [
-    13
-  ],
   "packages/sense/src/test-selection/react-compiler.integration.test.ts block": [
     7,
     6,
@@ -3137,9 +3134,6 @@
   ],
   "packages/sense/src/test-selection/recorded-text.ts overview": [
     56
-  ],
-  "packages/sense/src/test-selection/region-edit.ts block": [
-    19
   ],
   "packages/sense/src/test-selection/region-landing.ts block": [
     13,

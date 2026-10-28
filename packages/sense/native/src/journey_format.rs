@@ -22,7 +22,8 @@ pub struct EncodedModule<'a> {
     pub loaded: &'a [bool],
     /// Each region's overwritten cases as a set, none of them in `called`: a
     /// layering cut the index to a text an edit wrote over the region they ran
-    /// (`landedThrough` in `region-edit.ts`). Empty where the module holds none.
+    /// (`landedThrough` in `region-edit.ts`). Empty where the module holds none,
+    /// as in a run, which measures the text it ran.
     pub overwritten: &'a [u32],
 }
 
