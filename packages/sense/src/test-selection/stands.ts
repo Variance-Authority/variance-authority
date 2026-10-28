@@ -44,7 +44,7 @@
 
 import type { CommitRuns } from './commit-runs.js';
 import { sameInstall, type KeptInstall } from './kept-install.js';
-import { placesOf } from './test-places.js';
+import { testPlaces } from './test-places.js';
 import { askCoverageFile } from './coverage-file.js';
 import { codeUnitOrder } from './instrumented-modules.js';
 import { nearestFirst, type TestDistance } from './distance.js';
@@ -118,12 +118,12 @@ function isAncestor(git: Git, ancestor: string, commit: string): boolean {
   }
 }
 
-/** The commit each of `tests` last ran at, and why where the record could not say: {@link placesOf}, by commit. */
+/** The commit each of `tests` last ran at, and why where the record could not say: {@link testPlaces}, by commit. */
 function standsOf(of: { readonly commit: string; readonly runs: CommitRuns | undefined; readonly tests: readonly string[] }): {
   readonly stands: Map<string, string>;
   readonly assumed: string | undefined;
 } {
-  const { places, assumed } = placesOf(of);
+  const { places, assumed } = testPlaces(of);
   return { stands: new Map([...places].map(([test, place]) => [test, place.commit])), assumed };
 }
 

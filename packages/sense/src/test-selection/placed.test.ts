@@ -1,5 +1,11 @@
+import { mkdtemp, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { backThrough, hunksOf, placeThrough } from './placed.js';
+import { digestString } from '../digest.js';
+import { encodeTestCoverage } from './format.js';
+import type { TestCoverage } from './index.js';
+import { backThrough, hunksOf, placeAcross, placeThrough, recordedDigests } from './placed.js';
 import { stateOf } from './range-state.js';
 import type { CoveringTest, ExecutionTest } from './reverse.js';
 
@@ -89,5 +95,54 @@ describe('the one state a range is painted as', () => {
     expect(stateOf(range([], [stopped]))).toBe('hole');
     expect(stateOf(range([], []))).toBe('unwalked');
     expect(stateOf(range([]))).toBeUndefined();
+  });
+});
+
+/**
+ * Two texts of one file, read the way `covering` reads where a test ran over
+ * another text than the one held: the held text's range is placed in the other
+ * text, and a range no hunk touched is the same in both.
+ */
+const HELD = ['export function pay(amount) {', '  return amount;', '}', 'export function fee() {', '  return 2;', '}', ''].join('\n');
+const RAN = ['export function pay(amount) {', '  return amount;', '}', 'export function fee() {', '  return 1;', '}', ''].join('\n');
+
+describe('a range of one text placed in another', () => {
+  it('is the same where no hunk touched it, and moved where one did', () => {
+    const place = placeAcross(HELD, RAN);
+    expect(place({ startLine: 1, endLine: 3 })).toEqual({ lines: { startLine: 1, endLine: 3 }, moved: false });
+    expect(place({ startLine: 4, endLine: 6 })?.moved).toBe(true);
+  });
+});
+
+/** A snapshot holding `src/pay.ts` instrumented over {@link RAN}, `src/env.ts` loaded uninstrumented, and `src/two.ts` cut from two texts. */
+async function snapshot(): Promise<string> {
+  const module = (file: string, sourceDigest: string, instrumented: boolean) => ({
+    file,
+    sourceDigest,
+    instrumented,
+    blocks: instrumented
+      ? [{ ordinal: 0, kind: 'module' as const, digest: `block:${file}`, name: '', path: 'module', startLine: 1, endLine: 6, source: true, testFiles: ['src/pay.test.ts'] }]
+      : [],
+  });
+  const coverage: TestCoverage = {
+    version: 3,
+    instrumentation: 'fixture-instrumentation',
+    tests: [{ file: 'src/pay.test.ts', complete: true, preconditions: [{ name: 'src/pay.test.ts', digest: 'source:test' }] }],
+    modules: [
+      module('src/pay.ts', digestString(RAN), true),
+      module('src/env.ts', 'source:env', false),
+      module('src/two.ts', 'source:one', true),
+      module('src/two.ts', 'source:two', true),
+    ],
+  };
+  const file = join(await mkdtemp(join(tmpdir(), 'variance-recorded-digests-')), 'coverage.bin');
+  await writeFile(file, encodeTestCoverage(coverage));
+  return file;
+}
+
+describe('the digest a snapshot recorded of a file', () => {
+  it('is its instrumented rows\' one digest, and absent where they name none or two', async () => {
+    const digests = recordedDigests(await snapshot(), ['src/pay.ts', 'src/env.ts', 'src/two.ts', 'src/gone.ts']);
+    expect(Object.fromEntries(digests)).toEqual({ 'src/pay.ts': digestString(RAN) });
   });
 });

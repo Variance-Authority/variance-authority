@@ -42,7 +42,7 @@ export interface TestPlace {
  * snapshot's commit. Runs recorded at another commit describe some other
  * snapshot and say nothing about this one.
  */
-export function placesOf({ commit, runs, tests }: { readonly commit: string; readonly runs: CommitRuns | undefined; readonly tests: readonly string[] }): {
+export function testPlaces({ commit, runs, tests }: { readonly commit: string; readonly runs: CommitRuns | undefined; readonly tests: readonly string[] }): {
   readonly places: Map<string, TestPlace>;
   readonly assumed: string | undefined;
 } {

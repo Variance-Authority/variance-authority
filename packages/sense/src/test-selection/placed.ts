@@ -74,6 +74,39 @@ export function placeInText(snapshot: string, root: string, file: string, text: 
   return { frame: 'mapped', ...at, place: (lines) => placeThrough(hunks, lines), recordedLine: (line) => backThrough(hunks, line) };
 }
 
+/**
+ * A range of the text `from` placed in the text `to`, through git's line map
+ * between the two: whole and unmoved when no hunk touched it, `moved` when one
+ * did, absent when the edit removed every line of it. `covering` reads it with
+ * the held text as `from` and the text a test file ran over as `to`, so a line
+ * or a function an edit elsewhere in the file left alone is the same in both.
+ */
+export function placeAcross(from: string, to: string): Placement['place'] {
+  const hunks = hunksBetween(from, to);
+  return (range) => placeThrough(hunks, range);
+}
+
+/**
+ * The digest of the text the snapshot at `snapshot` recorded each of `files`
+ * from, read off its instrumented rows as {@link placeInText} frames them. A
+ * file with no instrumented row, or whose rows name two digests, is absent:
+ * the record holds no one text it ran over.
+ */
+export function recordedDigests(snapshot: string, files: readonly string[]): ReadonlyMap<string, string> {
+  return askCoverageFile(snapshot, (coverage) => {
+    const digests = new Map<string, string>();
+    for (const file of files) {
+      const named = new Set(
+        findModules(coverage, file)
+          .filter((module) => coverage.moduleInstrumented.at(module) === 1)
+          .map((module) => coverage.string(coverage.moduleSource.at(module))),
+      );
+      if (named.size === 1) digests.set(file, [...named][0]!);
+    }
+    return digests;
+  });
+}
+
 /** One `-U0` hunk: old lines `oldStart..+oldCount` became new `newStart..+newCount`. */
 export interface Hunk {
   readonly oldStart: number;
