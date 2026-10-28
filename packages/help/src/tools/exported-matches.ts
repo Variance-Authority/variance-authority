@@ -32,9 +32,9 @@ export function first<T>(items: readonly T[], count: number, before: (a: T, b: T
  * Grouped by name because one name exported from a barrel and from the file that
  * declares it is one thing to go and look at, and ordered by how many files
  * export it — which is the only count this half has — once `openings` has
- * said where the question was found. Source before tests and
- * stories within a name, so the place shown first is the implementation rather
- * than something exercising it.
+ * said where the question was found. A name is shown and ranked through one
+ * row: where its question was found first, then source before tests and
+ * stories, so the place shown is the implementation rather than its exercise.
  *
  * `through` holds, for a name reached by a doc and not by its own words, the
  * rows whose doc was read: the row shown and the rows listed are among them,
@@ -69,12 +69,18 @@ export function exported(
     return read === undefined ? rowsOf(name) : rowsOf(name).filter((row) => read.has(row));
   };
 
+  // Where the question was found in one row of `name`: the name whole, then in
+  // its words, then in the doc's opening, then later in the doc.
+  const fieldOf = (name: number) => (row: number): number =>
+    exact?.get(name) ?? (openings === undefined || through?.get(name) === undefined ? 2 : openings.has(row) ? 3 : 4);
+
   for (const name of names) {
     if (shown.has(name)) continue;
     const count = within === undefined ? index.exportedOf(name).length : rowsOf(name).length;
     if (count === 0) continue;
-    const read = openings === undefined ? undefined : through?.get(name);
-    const field = exact?.get(name) ?? (read === undefined ? 2 : reached(name).some((row) => openings?.has(row) === true) ? 3 : 4);
+    // The field of the row it is shown through, the first by an order that
+    // reads the field first: the least of its rows'.
+    const field = reached(name).reduce((least, row) => Math.min(least, fieldOf(name)(row)), Number.MAX_SAFE_INTEGER);
     found.push({ name, rank: index.rank(name), count, field });
   }
 
@@ -84,7 +90,7 @@ export function exported(
     head: (count) =>
       first(found, count, (a, b) => a.field - b.field || b.count - a.count || a.rank - b.rank).flatMap(({ name, count: files }) => {
         // `count` is the number of these rows, so one is always chosen.
-        const chosen = exportedShown(index, reached(name));
+        const chosen = exportedShown(index, reached(name), fieldOf(name));
         if (chosen === undefined) return [];
         const row = index.exported(chosen);
         // The row's own doc, or none: another row of the same name is another
@@ -113,11 +119,15 @@ export function exported(
 export const exportedOrder = (index: SearchIndex) => (a: number, b: number): number =>
   index.exportedKind(a) - index.exportedKind(b) || rowTextOrder(index, { kind: 'exported', row: a }, { kind: 'exported', row: b });
 
-/** The row of one name's `rows` an exported section shows: the first by {@link exportedOrder}. */
-function exportedShown(index: SearchIndex, rows: Iterable<number>): number | undefined {
+/**
+ * The row of one name's `rows` an exported section ranks and shows it through:
+ * the first by `field`, where the row holds the question, as the published
+ * section's order reads it first, then by {@link exportedOrder}.
+ */
+function exportedShown(index: SearchIndex, rows: Iterable<number>, field: (row: number) => number): number | undefined {
   const order = exportedOrder(index);
   let chosen: number | undefined;
-  for (const row of rows) if (chosen === undefined || order(row, chosen) < 0) chosen = row;
+  for (const row of rows) if (chosen === undefined || (field(row) - field(chosen) || order(row, chosen)) < 0) chosen = row;
   return chosen;
 }
 

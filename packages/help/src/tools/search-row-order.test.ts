@@ -110,4 +110,54 @@ describe('the order one name\'s rows are shown in', () => {
     expect(searchNames(index, { query: 'zebra rides' }).exported?.shown).toContainEqual(expect.objectContaining(through));
     expect(searchNames(index, { query: 'rides zebra' }).described?.shown).toContainEqual(expect.objectContaining(through));
   });
+
+  /** `PlacementKit`, or what `declaration` declares, under a doc of `lines`. */
+  const documented = (lines: readonly string[], declaration = 'export interface PlacementKit {\n  readonly at: string;\n}\n'): string =>
+    `/**\n${lines.map((line) => (line === '' ? ' *' : ` * ${line}`)).join('\n')}\n */\n${declaration}`;
+  const LATER = documented(['A kit.', '', 'It holds zebra rides.']);
+  const OPENS = documented(['The kit for zebra rides.']);
+  const exportedBy = (shown: readonly { name: string; at: string; summary?: string }[] | undefined): unknown =>
+    shown?.map((one) => [one.name, one.at, one.summary]);
+
+  it('shows a name in the exported section through the row whose doc opens with the question, the row that ranks it', async () => {
+    const index = searchIndexOf(readHelp(await inventedWorkspace(INVENTED_PACKAGES, ['react'], {
+      'src/a.ts': LATER,
+      'src/b.ts': OPENS,
+      'src/r.ts': documented(['zebra rides for the rival.'], 'export interface Rival {\n  readonly at: string;\n}\n'),
+    })));
+    expect(exportedBy(searchNames(index, { query: 'zebra rides' }).exported?.shown)).toEqual([
+      ['PlacementKit', 'src/b.ts', 'The kit for zebra rides.'],
+      ['Rival', 'src/r.ts', 'zebra rides for the rival.'],
+    ]);
+  });
+
+  it('shows a name in an area through the row whose doc opens with the question, in the exported and the described section', async () => {
+    const root = await inventedWorkspace(INVENTED_PACKAGES, ['react'], {
+      'src/a.ts': LATER,
+      'src/b.ts': OPENS,
+      'src/index.ts': "import type { PlacementKit } from './a.js';\nimport type { PlacementKit as Kit } from './b.js';\nexport type Used = PlacementKit | Kit;\n",
+    });
+    const tree = treeOf([{ file: 'src/index.ts', edges: ['src/a.ts', 'src/b.ts'].map((to) => ({ to, kind: 'imports' as const })) }, { file: 'src/a.ts' }, { file: 'src/b.ts' }], root);
+    const index = searchIndexOf(readHelp(root));
+    const shown = [['PlacementKit', 'src/b.ts', 'The kit for zebra rides.']];
+    for (const where of [{}, { from: 'src/index.ts' }]) {
+      expect(exportedBy(searchNames(index, { query: 'zebra rides', ...where }, tree).exported?.shown)).toEqual(shown);
+      expect(exportedBy(searchNames(index, { query: 'rides zebra', ...where }, tree).described?.shown as never)).toEqual(shown);
+    }
+  });
+
+  it('lists the published row whose doc opens with the question first, before a row a package imports', async () => {
+    const listed = async (first: string): Promise<unknown> => {
+      const root = await kits({
+        [first]: { 'index.ts': LATER },
+        'b-kit': { 'index.ts': OPENS },
+        'app': { 'index.ts': `import type { PlacementKit } from '${first}';\nexport type Used = PlacementKit;\n` },
+      }, { app: [first] });
+      const shown = searchNames(searchIndexOf(readHelp(root)), { query: 'zebra rides' }).published?.shown;
+      return JSON.parse(JSON.stringify(shown?.map((one) => [one.specifier, one.packages, one.summary])).replaceAll(first, '<renamed>'));
+    };
+    const expected = [['b-kit', 0, 'The kit for zebra rides.'], ['<renamed>', 1, 'A kit.']];
+    expect(await listed('a-kit')).toEqual(expected);
+    expect(await listed('z-kit')).toEqual(expected);
+  });
 });
