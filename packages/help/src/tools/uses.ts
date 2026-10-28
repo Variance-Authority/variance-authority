@@ -10,7 +10,7 @@ import { symbol } from './symbol.js';
 import { UNCOUNTED, exportedAt } from './unpublished.js';
 import { bracketed, keptLine, namesakeLine, narrowing } from './uses-declarations.js';
 import { apart, counted, spokenSplit } from './uses-count.js';
-import { type Answer, type Namesake, type Site, usesOf } from './uses-of.js';
+import { type Answer, type Namesake, type Site, packageOf, usesOf } from './uses-of.js';
 
 /**
  * `docs_uses` — how this repository actually writes a name.
@@ -278,7 +278,7 @@ function answered(answer: Answer, input: Readonly<Record<string, unknown>>, show
  */
 function namesakeLines(name: string, namesakes: readonly Namesake[], from: string | undefined, shown: Shown): readonly string[] {
   return namesakes.flatMap((one) => {
-    const taken = one.sites.length === 0 ? 'Nothing in this workspace imports it.' : importedIn(one.sites, one.exported[0]?.by);
+    const taken = one.sites.length === 0 ? 'Nothing in this workspace imports it.' : importedIn(one.sites, packageOf(one.exported[0]?.by));
     return ['', namesakeLine(name, one.exported), taken, ...kinds(one.sites, from, name, shown, one.exported[0]?.by), ...ownLines(one.inFile, name, shown)];
   });
 }
@@ -319,7 +319,7 @@ function declaredAs(answer: Answer): string {
  */
 function keptLines(name: string, kept: readonly DeclaredName[], sites: readonly Site[], inFile: readonly Use[], from: string | undefined, shown: Shown): readonly string[] {
   if (kept.length === 0) return [];
-  const taken = sites.length === 0 ? [] : ['', importedIn(sites, kept[0]?.by), ...kinds(sites, from, name, shown, kept[0]?.by)];
+  const taken = sites.length === 0 ? [] : ['', importedIn(sites, packageOf(kept[0]?.by)), ...kinds(sites, from, name, shown, packageOf(kept[0]?.by))];
   return [keptLine(name, kept, shown.spell), ...taken, ...ownLines(inFile, name, shown)];
 }
 
@@ -410,9 +410,7 @@ function kinds(sites: readonly Site[], from: string | undefined, name: string, s
   ).flatMap(([kind, heading]) => {
     const of = sorted.filter((use) => use.kind === kind);
     if (home === undefined) return listed(of, `${heading}:`, name, shown);
-    return [
-      ...listed(of.filter((use) => use.by !== home), `${heading}, from other packages:`, name, shown),
-      ...listed(of.filter((use) => use.by === home), `${heading}, inside ${home}:`, name, shown),
-    ];
+    const { outside, inside } = apart(of, home);
+    return [...listed(outside, `${heading}, from other packages:`, name, shown), ...listed(inside, `${heading}, inside ${home}:`, name, shown)];
   });
 }

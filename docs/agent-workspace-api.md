@@ -318,7 +318,7 @@ rest; pass `limit` to show more.
 `docs_uses` lists the imports within the name's own package too, counted and
 listed apart from the ones from other packages: every import
 that resolved to the file declaring it, or to a file that passes it on with
-`export … from`. Each import ends with the lines its file uses the name on. That file is followed under the name it exports and is not
+`export … from`. Each import that binds a name ends with the lines its file uses it on. That file is followed under the name it exports and is not
 listed itself, in another package as well, so an import through a barrel is
 counted once. A site that knows the name by another one is marked with it,
 `(as salute)`: an import that renames it with `as`, or an import of a re-export

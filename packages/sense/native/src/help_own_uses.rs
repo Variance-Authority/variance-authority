@@ -1,4 +1,4 @@
-//! Where a module uses a name it declares at its top level.
+//! Where a module uses a name it declares at its top level or binds by an import.
 //!
 //! An import names a declaration in another file; a use in the declaring file
 //! names it by scope, and only scope tells it from a local of the same name. So
@@ -27,14 +27,14 @@ use serde::Serialize;
 
 use crate::read::Lines;
 
-/// One line that uses a name the module declares at its top level.
+/// One line that uses a name the module declares at its top level or binds by an import.
 #[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize)]
 pub struct OwnUse {
     pub(crate) name: String,
     pub(crate) line: u32,
 }
 
-/// Every line `program` uses one of its top-level names on, once per name and
+/// Every line `program` uses one of its top-level or import-bound names on, once per name and
 /// line, by line and then by name in code units.
 pub(crate) fn own_uses_in(program: &Program<'_>, scoping: &Scoping, lines: &Lines) -> Vec<OwnUse> {
     let root = scoping.root_scope_id();

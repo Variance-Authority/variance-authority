@@ -199,6 +199,11 @@ function publishedInside(help: Help, namespaces: ReturnType<typeof sitesOfOne>['
   ];
 }
 
+/** The package a file is in, as the place `by` names it; none for a file no manifest holds, which `by` names as empty. */
+export function packageOf(by: string | undefined): string | undefined {
+  return by === '' ? undefined : by;
+}
+
 /**
  * Every site of the name for the declaration asked about, and each other
  * declaration's apart, and what was read to find them, or the refusal.
@@ -263,7 +268,7 @@ export function usesOf(help: Help, input: Readonly<Record<string, unknown>>, roo
   if (exported.length > 0 && unread !== undefined && byPath.length === 0) throw new Error(indexMissing(name, exported, unread));
 
   // Inside is the declaring file's package, which a re-exporting door is not.
-  const home = found.length > 0 ? (help.exported.find((held) => held.at === found[0]![2].at)?.by ?? found[0]![0].name) : exported[0]?.by;
+  const home = packageOf(found.length > 0 ? (help.exported.find((held) => held.at === found[0]![2].at)?.by ?? found[0]![0].name) : exported[0]?.by);
   const [only] = exported;
   // The answer names one export's place, so only a name exported once is followed.
   const origin = only === undefined || exported.length > 1 ? undefined : originOf(root, only);

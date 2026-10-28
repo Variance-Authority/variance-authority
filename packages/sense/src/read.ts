@@ -270,7 +270,7 @@ export interface Read {
   /** What the file mocks and loads for real, read off the same tree. Recorded, never applied. */
   readonly mocks?: ImportDiff;
 
-  /** Every line that uses a name the file declares at its top level. Absent when there are none. */
+  /** Every line that uses a name the file declares at its top level or binds by an import. Absent when there are none. */
   readonly ownUses?: readonly OwnUse[];
 
   /** Every name read off a binding a named import takes. Absent when there are none. */
