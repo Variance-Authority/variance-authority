@@ -13,7 +13,7 @@ import { execFile } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { promisify } from 'node:util';
-import { hunksByFile, readCommitRuns, standsAt, type Hunk, type Stand } from '@variance-authority/sense/test-selection';
+import { hunksByFile, readCommitRuns, standsAt, type CommitRuns, type Hunk, type Stand } from '@variance-authority/sense/test-selection';
 import { OperatorError } from '../exit.js';
 import { diffSince, gitIn, topLevel } from './since.js';
 
@@ -96,30 +96,64 @@ export async function movedOnBase(
 }
 
 /**
- * The stands of the record at `record`: the test files that did not run at its
+ * The runs record beside the record at `record`, read once for a question,
+ * with the checkout it is placed in. A runs record that is there and cannot be
+ * read is held as `unread`, not thrown: a comparison refuses it
+ * ({@link carriedOver}), and a reader that never refuses names it.
+ */
+export interface RecordRuns {
+  readonly record: string;
+  /** The checkout's top level, absent when `root` is in none. */
+  readonly repository?: string;
+  /** Absent when no run has listed itself beside the record. */
+  readonly runs?: CommitRuns;
+  /** Why the runs record that is there does not read. */
+  readonly unread?: Error;
+}
+
+/** {@link RecordRuns} for the record at `record`, never thrown. */
+export async function runsOf(record: string, root: string): Promise<RecordRuns> {
+  const repository = await topLevel(root);
+  const at = { record, ...(repository === undefined ? {} : { repository }) };
+  try {
+    const runs = await readCommitRuns(record);
+    return { ...at, ...(runs === undefined ? {} : { runs }) };
+  } catch (error) {
+    return { ...at, unread: error instanceof Error ? error : new Error(String(error)) };
+  }
+}
+
+/** The one read of a record's runs a question makes, made when first asked for. */
+export type RunsRead = () => Promise<RecordRuns>;
+
+/** A {@link RunsRead} of the record at `record` that reads it once, however often it is asked. */
+export function runsOnce(record: string, root: string): RunsRead {
+  let read: Promise<RecordRuns> | undefined;
+  return () => (read ??= runsOf(record, root));
+}
+
+/**
+ * The stands of the record `read` read: the test files that did not run at its
  * commit, and the files changed since each last ran, so a case the record
  * carried over an edit is not read as gone. A runs record that is there and
  * cannot be read is refused, naming it: read as absent, it would place every
  * test at the record's commit, and a case no test ran would be called no
  * longer run.
  */
-export async function carriedOver(record: string, root: string): Promise<{ readonly stands?: readonly Stand[] }> {
-  const repository = await topLevel(root);
+export function carriedOver(read: RecordRuns, root: string): { readonly stands?: readonly Stand[] } {
+  const { record, repository } = read;
   if (repository === undefined) {
     throw new OperatorError(`\`${root}\` is not in a git checkout, so where each test in ${record} last ran is not read and nothing is compared.`, {
       kind: 'undiffed',
     });
   }
-  let runs: Awaited<ReturnType<typeof readCommitRuns>>;
-  try {
-    runs = await readCommitRuns(record);
-  } catch (error) {
+  if (read.unread !== undefined) {
     throw new OperatorError(
-      `${error instanceof Error ? error.message : String(error)}. It says where each test in the record last ran, and ` +
+      `${read.unread.message}. It says where each test in the record last ran, and ` +
         'a comparison that read it as absent would call a case no test ran no longer run.',
-      { cause: error },
+      { cause: read.unread },
     );
   }
-  const reading = standsAt(record, runs, gitIn(repository), (test) => existsSync(join(repository, test)));
+  const reading = standsAt(record, read.runs, gitIn(repository), (test) => existsSync(join(repository, test)));
   return reading === undefined ? {} : { stands: reading.stands };
 }
