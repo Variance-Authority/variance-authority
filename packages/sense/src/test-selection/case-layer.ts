@@ -3,7 +3,7 @@ import { openSetExecutionIndex, type OpenedSetExecutionIndex, type SetExecutionM
 import { LaidLines } from './case-layer-lines.js';
 import { HeldIndex, writeLaid, type CarriedModule, type LaidModule, type LaidTest } from './held-case-index.js';
 import { codeUnitOrder } from './instrumented-modules.js';
-import { landedThrough, NO_EDIT, type EditOf, type Landing } from './region-edit.js';
+import { landedThrough, NO_EDIT, type EditOf, type RegionPairing } from './region-edit.js';
 import { relined, strayed } from './region-landing.js';
 import type { ExecutionTest } from './reverse.js';
 import { EMPTY, Translation } from './set-translation.js';
@@ -216,7 +216,7 @@ export function layerCaseIndex(
 export function laidOn(
   recorded: SetExecutionModule,
   own: (set: SetId) => SetId,
-  held: { readonly row: number; readonly module: SetExecutionModule; readonly landing: Landing } | undefined,
+  held: { readonly row: number; readonly module: SetExecutionModule; readonly landing: RegionPairing } | undefined,
   layer: {
     readonly fromHeld: (set: SetId) => SetId;
     readonly merged: Translation;

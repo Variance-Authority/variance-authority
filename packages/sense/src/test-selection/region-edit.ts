@@ -92,7 +92,7 @@ function hashingTo(text: string | undefined, digest: string): string | undefined
 type Cut = Pick<SetExecutionModule, 'blocks' | 'owner'>;
 
 /** Where the cases a cut of a module held land in a recorded cut of it, region by region. */
-export interface Landing {
+export interface RegionPairing {
   /** Per recorded region, the held region its cases carry from, or -1. */
   readonly lands: Int32Array;
   /**
@@ -111,7 +111,7 @@ export interface Landing {
  * overwritten where it did. Without a `change` — a text could not be found —
  * nothing lands.
  */
-export function landedThrough(held: Cut, recorded: Cut, change: Edit | undefined): Landing {
+export function landedThrough(held: Cut, recorded: Cut, change: Edit | undefined): RegionPairing {
   // FIXME: the snapshot's `carried` in record_coverage_recut.rs pairs by the
   // same rule in Rust; the case index should ask the addon for its landing instead.
   const lands = new Int32Array(recorded.blocks.length).fill(-1);
