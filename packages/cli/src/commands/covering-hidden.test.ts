@@ -58,6 +58,23 @@ describe('the whole-file answer over a range that only ran while its module load
   });
 });
 
+describe('the whole-file answer over a range a case also ran in another text', () => {
+  it('names the case that ran it, and says which other case ran it is not known', async () => {
+    const answer = await ask();
+    const adds = { ...INDEX.tests[0]!, distance: 0 };
+    const keeps = { id: 'b.test.ts > keeps', file: 'b.test.ts', name: 'keeps', stopped: false, distance: 0 };
+    const ranges = [{ startLine: 4, endLine: 8, state: 'walked' as const, tests: [adds], stopped: [], overwritten: [keeps] }];
+
+    expect(formatCovering({ ...answer, ranges }, 'text', Date.now())).toContain([
+      'lines 4-8 — walked',
+      '  a.test.ts',
+      '    adds',
+      "  it is also in a text a case ran over, but the record's lines are numbered in another, so which other case ran it is not known",
+      '',
+    ].join('\n'));
+  });
+});
+
 describe('the whole-file answer over a one-line region no case entered', () => {
   it('gives the region its own range and says nobody entered it', async () => {
     const answer = await ask();
