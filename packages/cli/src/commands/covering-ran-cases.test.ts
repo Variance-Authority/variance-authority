@@ -129,4 +129,26 @@ describe('a covering answer dates each case it names by the run that last ran it
       "src/pay.test.ts ran 'refunds' over another text of src/setup.ts, in a run that landed 1 hour ago, and its 1 other case named here over this text, in a run that landed 3 days ago.\n",
     );
   });
+
+  it('reads a line of a precondition by its digest, so a text the landing names and nobody kept leaves nothing unknown', async () => {
+    // A precondition, loaded without instrumenting, has no regions: its question is
+    // the file's, which the digest answers, so its text is not kept.
+    const now = Date.now();
+    const setup = 'export const setup = 1;\n';
+    const later = 'export const setup = 2;\n';
+    const { at, commit } = await checkout({ setup, setupRanOver: later, refunds: 'enters', runs: inPart(now, { 'src/setup.ts': digestString(later) }) });
+    const { text, json } = await ask(at, '--file', 'src/setup.ts', '--line', '1');
+
+    expect(json).toMatchObject({ preconditionOf: ['src/pay.test.ts'] });
+    expect(json['ran']).toEqual({
+      stands: [
+        { commit, tests: ['src/pay.test.ts'], cases: ['charges once'], landed: { first: iso(now - 3 * DAY), latest: iso(now - 3 * DAY), runs: 1 }, text: 'held' },
+        {
+          commit, tests: ['src/pay.test.ts'], cases: ['refunds'], landed: { first: iso(now - HOUR), latest: iso(now - HOUR), runs: 1 },
+          text: 'other', other: ['src/setup.ts'],
+        },
+      ],
+    });
+    expect(text).not.toContain('not known');
+  });
 });
