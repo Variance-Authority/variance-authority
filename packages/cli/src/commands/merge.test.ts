@@ -157,9 +157,14 @@ describe('the one section a split destroys', () => {
   it('says it dropped it, because a missing section reads as an answer', () => {
     // A reader who saw the component graph yesterday and not today would
     // otherwise conclude the suite stopped sharing components.
-    expect(mergeReports(composed()).warnings?.join('\n')).toContain(
-      'composition dropped: 1 of 2 shard(s)',
+    const warned = mergeReports(composed()).warnings?.join('\n');
+    expect(warned).toContain('composition dropped: 1 of 2 shard(s)');
+    // What the merged report cannot say, and where the rest still is; not a run to make.
+    expect(warned).toContain(
+      "Each shard's own report still holds its composition over the subjects it rendered; the component graph, " +
+        "or one subject's composition across shards, is in none of them. The lexicon is per subject and is carried.",
     );
+    expect(warned).not.toMatch(/[Rr]un the suite/);
   });
 
   it('stays silent when no shard composed anything', () => {

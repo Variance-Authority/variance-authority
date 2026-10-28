@@ -24,7 +24,7 @@ export interface BaselineKey {
    * name it after that code, without making the id path-shaped.
    *
    * Absent when no file declares the subject. Only placement reads this, `title`
-   * and `name`: two placements of one subject are one subject, which is what [ADR-0016](../../../docs/context/adr/0016-where-a-baseline-is-kept-decides-nothing.md)
+   * and `name`: two placements of one subject are one subject, which is what [ADR-0016](https://github.com/Variance-Authority/variance-authority/blob/main/docs/context/adr/0016-where-a-baseline-is-kept-decides-nothing.md)
    * says about every other storage decision.
    */
   readonly file?: string;

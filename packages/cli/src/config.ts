@@ -142,7 +142,7 @@ export interface Config extends RestsOn, PageRegion {
    * scan understands, so a change it finds no component in forces a whole run; a
    * changed file outside them is one nobody claimed could move a render, and
    * narrowing past it is the operator's own statement of where their components
-   * are ([`docs/selecting.md`](../../../docs/selecting.md)).
+   * are ([`docs/selecting.md`](https://variance-authority.dev/docs/selecting)).
    */
   readonly source?: SourceConfig;
 
@@ -291,14 +291,13 @@ export interface Config extends RestsOn, PageRegion {
   readonly decoder?: 'auto' | 'pngjs' | 'sharp';
 
   /**
-   * How many subjects may be in the raster tier at once. Defaults to 1.
+   * How many subjects may be in the raster tier at once, split evenly across
+   * the worlds and rounded up, so at least one per world. Defaults to 1.
    *
-   * Only the expensive half goes wide. Collection stays strictly serial however
-   * high this is set, because the collector owns one standing world (ADR-0009)
-   * and mounting two subjects into one document would let each decide the
-   * other's verdict. What parallelises is rendering, decoding, comparing and
-   * writing — which is also where the time is, by roughly an order of magnitude
-   * over collecting.
+   * This widens rendering, decoding, comparing and writing, never collection:
+   * a standing world (ADR-0009) collects one subject at a time, and mounting two
+   * subjects into one document would let each decide the other's verdict. How
+   * many worlds collect side by side is `workers`.
    *
    * Each lane holds a browser page and the decoded pixels of two images, so
    * this is a memory decision as much as a speed one. The report does not
@@ -310,8 +309,15 @@ export interface Config extends RestsOn, PageRegion {
 
   /**
    * How many standing worlds collect at once, each from the collector's
-   * `openWorker` with its own serial lane. Defaults to 1. Files go to workers
-   * whole, longest recorded first, and a worker that finishes takes the next.
+   * `openWorker` with its own serial lane. Files go to workers whole, longest
+   * recorded first, and a worker that finishes takes the next.
+   *
+   * Absent, half the logical cores, at least one and at most a declared
+   * `concurrency`, leaving the rest to decoding, comparing and a local server
+   * under test; never more worlds than there are files. A collector with no
+   * `openWorker` collects in one world, and warns only when this was declared.
+   * Set 1 for a server that cannot take concurrent pages. The report names the
+   * worlds it used; no verdict or observation order depends on the count.
    */
   readonly workers?: number;
 }
@@ -355,7 +361,7 @@ const TOP_LEVEL = [
   'workers',
   'cacheRoot',
   'suites',
-  'entrypoints', 'tiers', 'before', 'timezoneId', 'locale',
+  'entrypoints', 'tiers', 'typescript', 'before', 'timezoneId', 'locale',
 ] as const;
 
 /**

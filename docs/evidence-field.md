@@ -39,7 +39,7 @@ pass.
 
 Two of those attention lines are not verdicts about a component:
 
-- `[unstable]` — the subject was read twice, seconds apart, with nothing changed
+- `[unstable]` — the subject was read twice in a row, with nothing changed
   in between, and the two readings disagreed. The line names the component that
   differed and the band it differed in (`content`, `geometry`, `token`, `a11y`
   or `texture`), and `accept` refuses the subject.

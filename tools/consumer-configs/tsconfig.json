@@ -1,0 +1,6 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": { "noEmit": true, "tsBuildInfoFile": "../../node_modules/.cache/consumer-configs.mtsbuildinfo" },
+  "include": ["configs.mts"],
+  "references": [{ "path": "../../packages/playwright-test" }, { "path": "../../packages/sense" }]
+}

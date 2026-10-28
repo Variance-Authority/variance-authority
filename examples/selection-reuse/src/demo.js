@@ -2,7 +2,7 @@ import { execFileSync } from 'node:child_process';
 import { access, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
-import { affectedBy, relationsOfFiles } from '@variance-authority/core/relate';
+import { RUNTIME_EDGES, affectedBy, relationsOfFiles } from '@variance-authority/core/relate';
 import { openSourceIndex, scanRelations } from '@variance-authority/sense';
 
 const NOISE_FILES = 300;
@@ -40,7 +40,7 @@ async function fixture(root) {
 }
 
 function decision(records) {
-  const affected = affectedBy(relationsOfFiles(records), ['src/tokens.css']);
+  const affected = affectedBy(relationsOfFiles(records), ['src/tokens.css'], { through: RUNTIME_EDGES });
   const components = new Set(affected.components);
 
   return {

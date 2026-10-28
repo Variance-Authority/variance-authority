@@ -38,7 +38,7 @@ import {
  * The history record, on D1.
  *
  * A second implementation of `HistoryBackend`, and deliberately a *transcription*
- * of [`server/backend-sqlite.ts`](../../server/src/backend-sqlite.ts) rather than
+ * of [`server/backend-sqlite.ts`](https://github.com/Variance-Authority/variance-authority/blob/main/packages/server/src/backend-sqlite.ts) rather than
  * a fresh design. The seam exists so that replacing the engine changes one file
  * and not what a row means; the way to honour that is for the two files to be
  * boringly alike — same filters, same limit arithmetic, same correlated subquery

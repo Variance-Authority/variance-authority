@@ -7,7 +7,7 @@ import { recipeToDrive, type Recipe } from '@variance-authority/core/format';
 import { createDeclarationReader, fetchModules } from '@variance-authority/playwright';
 import { createStoryRecorder } from './execution.js';
 import { harnessPage, readParameters } from '@variance-authority/storybook';
-import { withParameters } from './parameters.js';
+import { realize, storyIdOf } from './parameters.js';
 import type { StorybookCollectorOptions } from './options.js';
 import { readStory, type Reading } from './read.js';
 import { openWorld, type World, type WorldRecipe } from './world.js';
@@ -18,8 +18,10 @@ export type {
   CollectorContext,
   Plan,
   PlannedSubject,
+  Visit,
+  VisitedSubject,
 } from './contract.js';
-import type { Collected, Collector, CollectorContext, Plan, PlannedSubject } from './contract.js';
+import type { Collected, Collector, CollectorContext, Plan, PlannedSubject, Visit } from './contract.js';
 import { operatorError } from './operator.js';
 
 /** Said in two places, because a mismatched kind can be caught at either. */
@@ -56,7 +58,7 @@ import { scanSource } from './source.js';
  *
  * Nothing outside Storybook. A Playwright suite, a route table or a bespoke
  * mount is still a collector somebody writes — see
- * [`@variance-authority/playwright-test`](../playwright-test) for the surface
+ * [`@variance-authority/playwright-test`](https://variance-authority.dev/reference/packages/playwright-test) for the surface
  * where the adopter's own test body plays that part instead.
  */
 
@@ -183,6 +185,14 @@ export function storybookCollector(
         ...(config.locale !== undefined ? { locale: config.locale } : {}),
         ...(options.headless !== undefined ? { headless: options.headless } : {}),
         stabilize,
+        // Every world of the run in one context, which is where the browser
+        // keeps its HTTP cache: a worker's preview boots from what the first
+        // world fetched. The pages share cookies and storage with it, as stories
+        // in one preview already share a document. Across workers what a story
+        // finds left behind depends on scheduling: which worker read which story
+        // before it decides the cookies, storage and service workers, msw's
+        // among them, that it meets.
+        warm: true,
       },
       // Installed in `prepare`, which runs before the first navigation: an
       // observation that starts afterwards has already missed the assets the
@@ -193,6 +203,10 @@ export function storybookCollector(
             network: {
               ...(config.blank !== undefined ? { blank: config.blank } : {}),
               ...(options.hashAssets !== undefined ? { hashAssets: options.hashAssets } : {}),
+              // Watching without turning the cache off. Safe because a Storybook
+              // world never resets its observation: each story carries the
+              // page's whole set, so nothing the cache answers silently is lost.
+              cache: true,
             },
           }),
     };
@@ -241,16 +255,52 @@ export function storybookCollector(
       return { ...collected, source: overlaySourceIndex(collected.source ?? {}, engine) };
     }
 
+    /**
+     * Reach one planned story on a standing world: read its parameters, then
+     * read each subject they make of it.
+     *
+     * The parameters are read first, on the page the story is about to be shown
+     * in, which imports the story's file — the import `showStory` would have
+     * made, charged to this story's `collect`. A story that excludes itself is
+     * not shown. Each width is the same story on the same page at another size,
+     * so nothing is opened, loaded or booted for it.
+     */
+    async function visit(
+      on: World,
+      planned: PlannedSubject,
+      reader: ReturnType<typeof createDeclarationReader>,
+    ): Promise<Collected | Visit> {
+      const read = await readParameters(harnessPage({ page: on.page }), storyIdOf(planned.subject.id));
+      const realized = realize(planned, read, config.viewport);
+      if ('excluded' in realized) return { ok: false, excluded: true, because: realized.excluded };
+      if ('refused' in realized) return { ok: false, because: realized.refused };
+
+      const [only] = realized.subjects;
+      if (realized.subjects.length === 1 && only === planned && realized.warning === undefined) {
+        return withDeclared(await readStory(on, reading, planned, recorder), reader);
+      }
+
+      const subjects: { planned: PlannedSubject; collected: Collected }[] = [];
+      for (const subject of realized.subjects) {
+        subjects.push({ planned: subject, collected: await withDeclared(await readStory(on, reading, subject, recorder), reader) });
+      }
+      return {
+        subjects,
+        ...(realized.warning === undefined ? {} : { warnings: [realized.warning] }),
+        ...(realized.incomplete === true ? { incomplete: true as const } : {}),
+      };
+    }
+
     const collector: Collector = {
       async plan(): Promise<Plan> {
         if (plan === undefined) {
           throw operatorError(WRONG_KIND);
         }
-        return withParameters(plan, await readParameters(harnessPage({ page: world.page })), config.viewport);
+        return plan;
       },
 
-      async collect(planned: PlannedSubject): Promise<Collected> {
-        return withDeclared(await readStory(world, reading, planned, recorder));
+      async collect(planned: PlannedSubject): Promise<Collected | Visit> {
+        return visit(world, planned, declared);
       },
 
       /**
@@ -276,7 +326,7 @@ export function storybookCollector(
        * `changed`.
        */
       async collectAlone(planned: PlannedSubject): Promise<Collected> {
-        const alone = await openWorld(recipe);
+        const alone = await openWorld({ ...recipe, harness: { ...recipe.harness, isolated: true } });
         // This world's engine. The run's reader has met every function every
         // earlier subject rendered, and would lay all of them over this reading.
         const declaredAlone = createDeclarationReader(alone.page);
@@ -305,7 +355,7 @@ export function storybookCollector(
         const declaredHere = createDeclarationReader(lane.page);
         return {
           plan: async () => collector.plan(),
-          collect: async (planned) => withDeclared(await readStory(lane, reading, planned, recorder), declaredHere),
+          collect: async (planned) => visit(lane, planned, declaredHere),
           callSites,
           async close(): Promise<void> {
             await declaredHere.close();
@@ -316,6 +366,9 @@ export function storybookCollector(
 
       callSites,
 
+      // The route collector closes in the same order, recorder first, so every
+      // head's account is in before the world that drove it goes.
+      // FIXME: one collector shell for both; until then they are kept in step by hand.
       async close(costs?: ReadonlyMap<string, number>): Promise<void> {
         await recorder?.close(costs);
         await declared.close();

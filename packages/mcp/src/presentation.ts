@@ -9,28 +9,27 @@ import type {
 export function presentationSummary(report: RunReport): readonly string[] {
   const observed = report.observations.filter((entry) => entry.signals?.presentation !== undefined);
   if (observed.length === 0) return [];
-  const comparable = observed.filter((entry) => entry.signals!.presentation!.verdict !== 'incomparable');
-  const incomparable = observed.length - comparable.length;
-  const effects = comparable.flatMap((entry) => {
-    const signal = entry.signals!.presentation!;
-    return signal.verdict === 'incomparable' ? [] : signal.effects;
-  });
+  const signals = observed.map((entry) => entry.signals!.presentation!);
+  const compared = signals.flatMap((signal) => ('because' in signal ? [] : [signal]));
+  const oneSided = signals.length - compared.length;
   const counts = new Map<string, number>();
-  for (const effect of effects) counts.set(effect.transition, (counts.get(effect.transition) ?? 0) + 1);
-  const changed = comparable.filter((entry) => entry.signals!.presentation!.verdict === 'changed').length;
+  for (const effect of compared.flatMap((signal) => signal.effects)) {
+    counts.set(effect.transition, (counts.get(effect.transition) ?? 0) + 1);
+  }
+  const changed = signals.filter((signal) => signal.verdict === 'changed').length;
 
   return [
     `presentation impact: ${counts.get('introduced') ?? 0} introduced, ` +
       `${counts.get('resolved') ?? 0} resolved, ${counts.get('persisted') ?? 0} persisted ` +
-      `across ${changed} changed subject(s); ${comparable.length} compared, ${incomparable} incomparable. ` +
+      `across ${changed} changed subject(s); ${compared.length} compared, ${oneSided} read on one side only. ` +
       'Independent of the regression verdict.',
   ];
 }
 
 /** One subject's durable presentation consequence, without re-running analysis. */
 export function describePresentation(signal: PresentationSignalRecord): readonly string[] {
-  if (signal.verdict === 'incomparable') {
-    return [`presentation: incomparable — ${signal.because}`];
+  if ('because' in signal) {
+    return [`presentation: changed — ${signal.because}`];
   }
   const information = signal.information;
   const info = [

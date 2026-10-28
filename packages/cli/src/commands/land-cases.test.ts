@@ -5,11 +5,13 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
   caseSectionsAt,
   commitRunsFile,
+  encodeAsSetExecutionIndex,
   encodeExecutionIndex,
   lastCaseRunOf,
   readTestCoverage,
   RecordWithoutCoverage,
   recordOfCases,
+  rowOf,
   sharedRecord,
   testCoverageFile,
   withoutCoverage,
@@ -57,9 +59,9 @@ describe('landJourneys and the cases in the record', () => {
 
     // The snapshot now says `test/total.test.ts` runs nothing in `src/total.ts`,
     // and the index already there says one of its cases runs `applyDiscount`.
-    expect(caseSectionsAt(record)).toEqual({});
+    expect(caseSectionsAt(record)).toEqual({ base: expect.any(Uint8Array) });
     await expect(recordedExecutionFile(dir, 'unit')).rejects.toMatchObject({ kind: 'unrecorded' });
-    expect(landed.cases).toEqual({ unanswered: record, shard, removed: true });
+    expect(landed.cases).toEqual({ unanswered: record, shards: [shard], removed: true });
   });
 
   it('leaves the cases as they were when no shard finished a test file', async () => {
@@ -104,7 +106,7 @@ describe('landJourneys and the cases in the record', () => {
 describe('landJourneys and the run its shards were', () => {
   /** A case of `file` that said `user` was `value` in its body. */
   function said(file: string, name: string, value: string): ExecutionTest {
-    return { id: `${file} > ${name}`, file, name, stopped: false, preconditions: [{ name: 'user', value, site: `${file}:2`, level: 65535 }] };
+    return { id: `${file} > ${name}`, file, name, stopped: false, said: JSON.stringify({ said: [['auth:user', JSON.stringify(value), `${file}:2`, 65535]] }) };
   }
 
   /** A shard at `commit` that finished `test`'s file, entered `src/total.ts`, and kept `test` as its one case. */
@@ -117,7 +119,7 @@ describe('landJourneys and the run its shards were', () => {
       commit,
       tests: [{ file: test.file, complete: true, preconditions: [] }],
       modules: [probedModule([test.file])],
-    }, { index: encodeExecutionIndex({ tests: [test], modules: [{ file: 'src/total.ts', blocks: [block] }] }) });
+    }, { index: encodeAsSetExecutionIndex({ tests: [test], modules: [{ file: 'src/total.ts', blocks: [block] }] }) });
     return shard;
   }
 
@@ -135,7 +137,23 @@ describe('landJourneys and the run its shards were', () => {
     expect(last).toMatchObject({ commit: first, files: ['test/other.test.ts', 'test/total.test.ts'] });
     expect(last.cases).toEqual([alone.id, discounts.id]);
     const named = (await readExecutionIndex(record)).tests.filter((test) => last.cases.includes(test.id));
-    expect(named.map((test) => [test.id, test.preconditions])).toEqual([[alone.id, alone.preconditions], [discounts.id, discounts.preconditions]]);
+    expect(named.map((test) => [test.id, rowOf(test)])).toEqual([
+      [alone.id, [{ name: 'auth:user', value: 'guest', site: 'test/other.test.ts:2', level: 65535 }]],
+      [discounts.id, [{ name: 'auth:user', value: 'member', site: 'test/total.test.ts:2', level: 65535 }]],
+    ]);
+  });
+
+  it('counts the shards whose cases it laid, and not an empty one named beside them', async () => {
+    const { dir, first } = await published(home, { publish: false, record: wholeRecord });
+    const record = testCoverageFile(dir, { suite: 'unit' });
+    const cased = await casedShard('shard-1.bin', first, said('test/total.test.ts', 'discounts', 'member'));
+    // A shard job that ran no test writes a record that observed nothing.
+    const empty = join(home, 'shard-2.bin');
+    await writeTestCoverage(empty, { version: 3, instrumentation: 'fixture', commit: first, tests: [], modules: [] });
+
+    const landed = await landJourneys(dir, [cased, empty], record);
+
+    expect(landed).toMatchObject({ shards: 2, cases: { laid: record, shards: 1 } });
   });
 });
 
@@ -148,7 +166,7 @@ describe('landJourneys and a shard whose run instrumented nothing', () => {
   async function uncoveredShard(commit: string, index: Uint8Array, name = 'shard-uncovered.bin'): Promise<string> {
     const shard = join(home, name);
     const last = { commit, at: '2026-01-01T00:00:00.000Z', files: ['test/total.test.ts'], began: true, cases: [] };
-    await writeFile(shard, recordOfCases({ index, last: Buffer.from(JSON.stringify(last)) }));
+    await writeFile(shard, recordOfCases({ index, last: Buffer.from(JSON.stringify(last)), base: Buffer.from('none') }));
     expect(withoutCoverage(shard)).toBe(true);
     return shard;
   }
@@ -188,11 +206,11 @@ describe('landJourneys and a shard whose run instrumented nothing', () => {
   });
 
   it('lays the cases of one that names no last run, for the files those cases are of', async () => {
-    const { dir, first } = await published(home, { publish: false, record: wholeRecord });
+    const { dir } = await published(home, { publish: false, record: wholeRecord });
     const record = testCoverageFile(dir, { suite: 'unit' });
-    // A shard that crossed a checkout keeps its index and drops the run that wrote it.
+    // A shard that keeps its index and names no run that wrote it, as one that crossed a checkout does.
     const shard = join(home, 'shard-shared.bin');
-    await writeFile(shard, sharedRecord(await readFile(await uncoveredShard(first, caseSectionsAt(record).index!))));
+    await writeFile(shard, recordOfCases({ index: caseSectionsAt(record).index!, base: Buffer.from('none') }));
     expect(caseSectionsAt(shard).last).toBeUndefined();
 
     const landed = await landJourneys(dir, [shard], record);
@@ -220,23 +238,50 @@ describe('landJourneys and a shard whose run instrumented nothing', () => {
     expect(last).toMatchObject({ commit: later, before: first });
   });
 
-  it('lays nothing of one whose cases this build cannot read and that names no run, and keeps the record as it was', async () => {
+  it('refuses one whose cases this build cannot read, by name, and keeps the record as it was', async () => {
     const { dir, first } = await published(home, { publish: false, record: wholeRecord });
     const record = testCoverageFile(dir, { suite: 'unit' });
     await ranWhole(record, first);
     const before = await readFile(record);
-    // An index no version of this build spells, and nothing else: no coverage, no last run.
+    // An index no version of this build spells, and nothing else but the base: no coverage, no last run.
     const shard = join(home, 'shard-unreadable.bin');
-    await writeFile(shard, recordOfCases({ index: Buffer.from([0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff]) }));
+    await writeFile(shard, recordOfCases({ index: Buffer.from([0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff]), base: Buffer.from('none') }));
     expect(withoutCoverage(shard)).toBe(true);
 
-    const landed = await landJourneys(dir, [shard], record);
-
-    expect(landed.cases).toEqual({ laid: record, shards: 0 });
+    await expect(landJourneys(dir, [shard], record)).rejects.toThrow(`cannot read the case index of ${shard}`);
     expect(await readFile(record)).toEqual(before);
   });
 
-  it('refuses shards whose runs name different commits, as a fold of measured ones does, and writes nothing', async () => {
+  it('refuses one whose case index is at another version, by name', async () => {
+    const { dir, first } = await published(home, { publish: false, record: wholeRecord });
+    const record = testCoverageFile(dir, { suite: 'unit' });
+    await ranWhole(record, first);
+    const before = await readFile(record);
+    // An index at another version: one row per case and region.
+    const rows = encodeExecutionIndex(await readExecutionIndex(record));
+    const shard = await uncoveredShard(first, rows, 'shard-rows.bin');
+
+    await expect(landJourneys(dir, [shard], record)).rejects.toThrow(
+      new RegExp(`cannot read the case index of ${shard}: .*it is written at version 5, and this build reads version 3$`),
+    );
+    expect(await readFile(record)).toEqual(before);
+  });
+
+  it('refuses one test file whose cases two shards ran, naming both, and writes nothing', async () => {
+    const { dir, first } = await published(home, { publish: false, record: wholeRecord });
+    const record = testCoverageFile(dir, { suite: 'unit' });
+    const before = await readFile(record);
+    const index = caseSectionsAt(record).index!;
+    const at = await uncoveredShard(first, index, 'shard-a.bin');
+    const again = await uncoveredShard(first, index, 'shard-b.bin');
+
+    await expect(landJourneys(dir, [at, again], record)).rejects.toThrow(
+      /`test\/total\.test\.ts` has cases in .*shard-[ab]\.bin and again in .*shard-[ab]\.bin\. A test file belongs to one shard/,
+    );
+    expect(await readFile(record)).toEqual(before);
+  });
+
+  it('fails when the shards started from different commits, as a fold of measured ones does, and writes nothing', async () => {
     const { dir, first } = await published(home, { publish: false, record: wholeRecord });
     const record = testCoverageFile(dir, { suite: 'unit' });
     const before = await readFile(record);
@@ -244,13 +289,19 @@ describe('landJourneys and a shard whose run instrumented nothing', () => {
     const at = await uncoveredShard(first, index, 'shard-a.bin');
     const other = await uncoveredShard('b'.repeat(40), index, 'shard-b.bin');
 
-    await expect(landJourneys(dir, [at, other], record)).rejects.toThrow(
-      `${at} and ${other} disagree about the commit (\`${first}\` against \`${'b'.repeat(40)}\`), so they are not shards of one run and cannot be folded into one.`,
-    );
+    // The combine hears the shards in code-unit order of their paths, whatever order they are named in.
+    await expect(landJourneys(dir, [other, at], record)).rejects.toThrow(new Error(
+      `the build failed because the sharding was unstable: ${at} started from commit \`${first}\`, and ${other} from commit \`${'b'.repeat(40)}\`. ` +
+        'Each shard split the suite against the record it started from, so the split may have left tests that ran in no shard. ' +
+        'Nothing of this build is combined, so the record before it stands. ' +
+        'Shards start alike when every one restores the same cached record: ' +
+        'the `actions/cache` step keyed `variance-${{ runner.os }}-${{ runner.arch }}-${{ github.sha }}` restores it, ' +
+        'and a shard that restored another, or none, starts apart.',
+    ));
     expect(await readFile(record)).toEqual(before);
   });
 
-  it('folds the shards that measured something, and lays every shard\'s cases in the order they were named', async () => {
+  it('refuses a shard that kept cases beside one that kept none, as no one run keeps cases of only some files', async () => {
     const { dir, first } = await published(home, { publish: false, record: wholeRecord });
     const record = testCoverageFile(dir, { suite: 'unit' });
     const shard = await uncoveredShard(first, caseSectionsAt(record).index!);
@@ -263,10 +314,9 @@ describe('landJourneys and a shard whose run instrumented nothing', () => {
       modules: [],
     });
 
-    const landed = await landJourneys(dir, [shard, measured], record);
+    const before = await readFile(record);
 
-    expect(landed.shards).toBe(2);
-    expect(landed.cases).toEqual({ laid: record, shards: 1 });
-    expect((await readTestCoverage(record)).tests.map((test) => test.file)).toContain('test/other.test.ts');
+    await expect(landJourneys(dir, [shard, measured], record)).rejects.toThrow(/kept cases and .* kept none/);
+    expect(await readFile(record)).toEqual(before);
   });
 });

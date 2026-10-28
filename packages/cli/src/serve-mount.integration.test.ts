@@ -91,6 +91,22 @@ describe('the server `variance serve` starts', () => {
     const result = await ask<Answer>('tools/call', { name: 'docs_packages' });
     expect(result.content[0]!.text).toContain('mounted');
   });
+
+  it('reads the checkout again before refusing a name written since the generation it holds', async () => {
+    // The generation is reused for an hour, so a name written after it was
+    // refused as not published: an answer that reads as a real absence.
+    const server = session();
+    try {
+      expect((await server.request<Answer>('tools/call', { name: 'docs_packages' })).isError).toBeUndefined();
+      await writeFile(join(workspace, 'src/kept.ts'), 'export function keptOf(amount: number): number {\n  return amount;\n}\n');
+      const result = await server.request<Answer>('tools/call', { name: 'docs_symbol', arguments: { name: 'keptOf' } });
+      expect(result.isError).toBeUndefined();
+      expect(result.content[0]!.text).toContain('src/kept.ts');
+    } finally {
+      server.close();
+      await rm(join(workspace, 'src/kept.ts'), { force: true });
+    }
+  });
 });
 
 describe('`variance serve` in a checkout with no report', () => {
@@ -235,6 +251,7 @@ describe('what review settled, over `variance serve`', () => {
 
 interface Answer {
   readonly content: readonly { readonly text: string }[];
+  readonly isError?: boolean;
 }
 
 /** A repository on `main` with one commit, and CI's run for it published to a directory share its config names. */

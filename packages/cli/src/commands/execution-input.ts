@@ -9,6 +9,7 @@ import {
   isEncodedExecutionIndex,
   keepsCases,
   projectJourneyFile,
+  type DeclaredSuite,
   type ExecutionIndex,
   type LineRange,
 } from '@variance-authority/sense/test-selection';
@@ -94,7 +95,9 @@ export async function defaultExecutionFile(
  * Told apart from an index that is there and cannot be read: that one is a
  * defect somebody fixes, and this one is a project that never ran the recorder,
  * which a program asking on every edit has to be able to recognise. A record
- * written before records carried cases is one of these.
+ * written before records carried cases is one of these. A record cut under
+ * probes this build does not place is read like any other, and its reader
+ * names the gap (`probes-gap.ts`).
  */
 export async function recordedExecutionFile(
   root: string,
@@ -104,8 +107,41 @@ export async function recordedExecutionFile(
   const file = await defaultExecutionFile(root, suite, record);
   if (keepsCases(file)) return file;
   throw new OperatorError(
-    `nothing is recorded in \`${root}\`: no run left a per-case index in \`${file}\`. ` +
-      'Run the suite with `withTestSelection` and ask again.',
+    `nothing is recorded in \`${root}\`: no run left a per-case index in \`${file}\`, so no case can be named.${await fetchable(root, suite)}`,
     { kind: 'unrecorded' },
   );
+}
+
+/**
+ * Where a record of `suite` can be had without running it: the mainline's,
+ * which `variance share --suite` fetches, for a suite the root config gives to
+ * the share. Nothing for any other suite, because the one other way to a
+ * record is a run of the suite, which is often impossible where the question
+ * is asked, and which the reader knows of already.
+ */
+export async function fetchable(root: string, suite: string | undefined): Promise<string> {
+  const command = await shareCommand(root, suite);
+  return command === undefined ? '' : ` \`${command}\` fetches the mainline's record of it.`;
+}
+
+/** The command that fetches the mainline's record of `suite`, when the root config gives it to the share. */
+export async function shareCommand(root: string, suite: string | undefined): Promise<string | undefined> {
+  const named = await declaredSuite(root, suite);
+  return named?.carry === 'share' ? `variance share --suite ${named.name}` : undefined;
+}
+
+/**
+ * The suite the root config declares as `suite`, or its only one when none is
+ * named. Absent when the config declares none, or does not read: the answer
+ * that asked is then not one suite's.
+ */
+export async function declaredSuite(root: string, suite: string | undefined): Promise<DeclaredSuite | undefined> {
+  const { declaredSuites } = await import('@variance-authority/sense/test-selection');
+  let declared: ReturnType<typeof declaredSuites>;
+  try {
+    declared = declaredSuites(root);
+  } catch {
+    return undefined;
+  }
+  return declared?.find((one) => one.name === (suite ?? (declared?.length === 1 ? declared[0]!.name : undefined)));
 }

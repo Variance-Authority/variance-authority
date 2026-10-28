@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { decodeExecutionIndex } from './execution-format.js';
-import type { CasePrecondition } from './case-precondition-column.js';
+import { readsOf, rowOf, type CasePrecondition } from './case-said.js';
 import type { ExecutionIndex } from './reverse.js';
 
 // One test file per runner says the same things from the same places — a
@@ -110,51 +110,51 @@ describe.each(Object.entries(runners))('a %s case that names its preconditions',
   };
 
   it('carries what its body said, with the call site, over what a beforeEach said', () => {
-    expect(row('mocked', 'refunds behind a flag').preconditions).toEqual([
-      said('flag', 'ff-on', 'case flag'),
-      said('network', 'mocked', 'mocked each'),
+    expect(rowOf(row('mocked', 'refunds behind a flag'))).toEqual([
+      said('fixture:flag', 'ff-on', 'case flag'),
+      said('fixture:network', 'mocked', 'mocked each'),
     ]);
-    expect(row('live', 'replays a recording').preconditions).toEqual([
-      said('network', 'recorded', 'case network'),
-      said('region', 'eu', 'live each'),
+    expect(rowOf(row('live', 'replays a recording'))).toEqual([
+      said('fixture:network', 'recorded', 'case network'),
+      said('fixture:region', 'eu', 'live each'),
     ]);
   });
 
   it('carries what a beforeEach inside a describe said, which a sibling describe never hears', () => {
-    expect(row('mocked', 'pays').preconditions).toEqual([said('network', 'mocked', 'mocked each')]);
-    expect(row('live', 'pays').preconditions).toEqual([
-      said('network', 'live', 'file default'),
-      said('region', 'eu', 'live each'),
+    expect(rowOf(row('mocked', 'pays'))).toEqual([said('fixture:network', 'mocked', 'mocked each')]);
+    expect(rowOf(row('live', 'pays'))).toEqual([
+      said('fixture:network', 'live', 'file default'),
+      said('fixture:region', 'eu', 'live each'),
     ]);
     // Named as if they were under `mocked`, and not under it.
-    expect(row('mocked flow', 'pays').preconditions).toEqual([said('network', 'live', 'file default')]);
-    expect(row('mocked refunds').preconditions).toEqual([said('network', 'live', 'file default')]);
+    expect(rowOf(row('mocked flow', 'pays'))).toEqual([said('fixture:network', 'live', 'file default')]);
+    expect(rowOf(row('mocked refunds'))).toEqual([said('fixture:network', 'live', 'file default')]);
   });
 
   it('keeps two values said at one level as a contradiction', () => {
-    expect(row('contradicted', 'pays').preconditions).toEqual([
-      said('flag', 'ff-off', 'contradicted off'),
-      said('flag', 'ff-on', 'contradicted on'),
-      said('network', 'live', 'file default'),
+    expect(rowOf(row('contradicted', 'pays'))).toEqual([
+      said('fixture:flag', 'ff-off', 'contradicted off'),
+      said('fixture:flag', 'ff-on', 'contradicted on'),
+      said('fixture:network', 'live', 'file default'),
     ]);
   });
 
   it('lays what a failing beforeEach said on no later case', () => {
-    expect(row('after doomed', 'pays').preconditions).toEqual([said('network', 'live', 'file default')]);
-    expect(index.tests.flatMap((test) => test.preconditions ?? []).some((held) => held.name === 'doomed')).toBe(false);
+    expect(rowOf(row('after doomed', 'pays'))).toEqual([said('fixture:network', 'live', 'file default')]);
+    expect(index.tests.flatMap((test) => rowOf(test) ?? []).some((held) => held.name === 'fixture:doomed')).toBe(false);
   });
 
   it('gives a case that crossed nothing a row, and a case that said nothing an empty one', () => {
-    expect(row('crosses nothing').preconditions).toEqual([
-      said('network', 'live', 'file default'),
-      said('seeded', true, 'seeded'),
+    expect(rowOf(row('crosses nothing'))).toEqual([
+      said('fixture:network', 'live', 'file default'),
+      said('fixture:seeded', true, 'seeded'),
     ]);
-    expect(row('says nothing').preconditions).toEqual([]);
+    expect(rowOf(row('says nothing'))).toEqual([]);
   });
 
   it('reports a call in afterEach with its site and lays it on no case', () => {
     expect(output).toMatch(new RegExp(`variancePrecondition at \\S*checkout\\.case\\.ts:${line('after each')} ran after its case`));
-    expect(index.tests.flatMap((test) => test.preconditions ?? []).some((held) => held.name === 'cleaned')).toBe(false);
+    expect(index.tests.flatMap((test) => rowOf(test) ?? []).some((held) => held.name === 'fixture:cleaned')).toBe(false);
   });
 
   it('throws where no case is running: the top level, a describe callback, a beforeAll and an afterAll', () => {
@@ -166,25 +166,51 @@ describe.each(Object.entries(runners))('a %s case that names its preconditions',
   });
 
   it('keeps both values of a retry that changed its mind', () => {
-    expect(row('retries').preconditions).toEqual([
-      said('attempt', 1, 'retried', runner.retries),
-      said('attempt', 2, 'retried', runner.retries),
-      ...runner.retries === 'checkout.case.ts' ? [said('network', 'live', 'file default')] : [],
+    expect(rowOf(row('retries'))).toEqual([
+      said('fixture:attempt', 1, 'retried', runner.retries),
+      said('fixture:attempt', 2, 'retried', runner.retries),
+      ...runner.retries === 'checkout.case.ts' ? [said('fixture:network', 'live', 'file default')] : [],
     ]);
   });
 
   it.runIf(runnerName !== 'jest')('tells two concurrent cases and their hooks apart', () => {
-    expect(row('lanes', 'left').preconditions).toEqual([
-      said('lane', 'left', 'lane each'),
-      said('network', 'live', 'file default'),
-      said('side', 'left', 'left side'),
+    expect(rowOf(row('lanes', 'left'))).toEqual([
+      said('fixture:lane', 'left', 'lane each'),
+      said('fixture:network', 'live', 'file default'),
+      said('fixture:side', 'left', 'left side'),
     ]);
-    expect(row('lanes', 'right').preconditions).toEqual([
-      said('lane', 'right', 'lane each'),
-      said('network', 'live', 'file default'),
-      said('side', 'right', 'right side'),
+    expect(rowOf(row('lanes', 'right'))).toEqual([
+      said('fixture:lane', 'right', 'lane each'),
+      said('fixture:network', 'live', 'file default'),
+      said('fixture:side', 'right', 'right side'),
     ]);
   });
 
   it.todo('a Jest test.concurrent pair — needs a Jest recording under continuations, whose concurrent bodies start before their hooks run');
+
+  describe('what the code under test read', () => {
+    const flags = `${relative(repository, fixture)}/src/flags.ts`;
+    const read = async (name: string, value: CasePrecondition['value'], call: string, level: number): Promise<CasePrecondition> => {
+      const lines = (await readFile(resolve(repository, flags), 'utf8')).split('\n');
+      return { name, value, site: `${flags}:${lines.findIndex((text) => text.endsWith(`// ${call}`)) + 1}`, level };
+    };
+
+    it('lays a read in a case on that case, and one made as the file loaded on every case of the file', async () => {
+      const loaded = await read('copy:label', 'Pay', 'load read', 0);
+      expect(readsOf(row('reads the flag on'))).toEqual([loaded, await read('flags:checkout', true, 'flag read', 0xffff)]);
+      expect(readsOf(row('reads only what the file read as it loaded'))).toEqual([loaded]);
+    });
+
+    it('keeps both values one key was read with in one case', async () => {
+      expect(readsOf(row('reads the flag both ways'))).toEqual([
+        await read('copy:label', 'Pay', 'load read', 0),
+        await read('flags:checkout', false, 'flag read', 0xffff),
+        await read('flags:checkout', true, 'flag read', 0xffff),
+      ]);
+    });
+
+    it('gives a case of a file that read nothing an empty read', () => {
+      expect(readsOf(row('says nothing'))).toEqual([]);
+    });
+  });
 });

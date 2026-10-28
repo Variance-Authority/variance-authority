@@ -9,7 +9,7 @@
 
 use napi_derive::napi;
 
-use crate::journey_stitch::strings;
+use crate::case_shard::strings;
 use crate::journeys::TEST;
 use crate::journeys_read::opened;
 use crate::journeys_steps::{Known, Tag};

@@ -20,7 +20,7 @@ const probes = testSelectionProbes({ root: here, label: process.env.VARIANCE_AUT
 async function instrumented(name) {
   const source = resolve(here, name);
   // The collector import is the page's half; this realm already has a factory.
-  return probes.transform(await readFile(source, 'utf8'), source).code.replace(/^import "[^"]+";/, '');
+  return probes.transform.handler(await readFile(source, 'utf8'), source).code.replace(/\n;import "[^"]+";$/, '');
 }
 
 async function imported(name) {

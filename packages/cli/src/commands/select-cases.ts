@@ -64,7 +64,7 @@ export function casesToSkip(
   });
 
   const cut = new Map<string, readonly string[]>();
-  for (const { test: file, via } of narrowing.because) {
+  for (const { test: file, via } of narrowing.because ?? []) {
     const cases = declared.get(file);
     if (!whole.has(file) || cases === undefined) continue;
     const reached = reachedIn(file, via, blocks, index);

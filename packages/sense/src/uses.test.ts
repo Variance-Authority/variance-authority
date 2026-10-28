@@ -41,6 +41,9 @@ describe('the uses a published index answers', () => {
     await write('test/side.test.ts', "import '../lib/cart.js';\n");
     await write('test/whole.test.ts', "import * as cart from '../lib/cart.js';\nvoid cart;\n");
     await write('test/barrel.test.ts', "import { sum } from '../lib/index.js';\nvoid sum;\n");
+    await write('rs/Cargo.toml', '[package]\nname = "rs"\nversion = "0.1.0"\n');
+    await write('rs/src/lib.rs', 'mod order;\n');
+    await write('rs/src/order.rs', 'pub fn order() {}\npub fn helper() {}\n');
     git('init', '--quiet');
     git('add', '.');
     git('-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '--quiet', '-m', 'fixture');
@@ -75,6 +78,10 @@ describe('the uses a published index answers', () => {
   it('names no import for one that binds nothing or binds the namespace, which is the whole module', () => {
     expect(uses('test/side.test.ts', 'lib/cart.ts')).toEqual({});
     expect(uses('test/whole.test.ts', 'lib/cart.ts')).toEqual({});
+  });
+
+  it('names no import for a Rust `mod`, which takes the file whole, though an item shares the module\'s name', () => {
+    expect(uses('rs/src/lib.rs', 'rs/src/order.rs')).toEqual({});
   });
 
   it('keeps a star beside a named re-export of the same file, and an `export * as`', () => {

@@ -31,8 +31,16 @@ async function workspace(): Promise<string> {
 
 const mark = (reach: Reach): string => (reach === 'near' ? 'G' : reach === 'far' ? 'Y' : 'R');
 
-const pkg = (name: string, functions: number, reaches: ChangedPackage['reaches'], tests: readonly string[] = [name], importers = 0): ChangedPackage =>
-  ({ package: name, path: `packages/${name}`, functions, reaches, own: tests.includes(name), tests: tests.filter((test) => test !== name), importers });
+const pkg = (name: string, functions: number, reaches: ChangedPackage['reaches'], tests: readonly string[] = [name], importers = 0, partly = 0): ChangedPackage => ({
+  package: name,
+  path: `packages/${name}`,
+  functions,
+  reaches,
+  uncovered: (reaches.hole ?? 0) + (reaches.unwalked ?? 0) + (reaches.unknown ?? 0) + partly,
+  own: tests.includes(name),
+  tests: tests.filter((test) => test !== name),
+  importers,
+});
 
 describe('where a change lands, a package at a time', () => {
   it('groups changed functions by the manifest above them and names the packages whose tests entered them', async () => {
@@ -46,21 +54,29 @@ describe('where a change lands, a package at a time', () => {
       changed.includes('packages/a/src/x.ts') ? ['packages/a/src/x.ts', 'packages/b/src/z.ts', 'tools/run.ts'] : changed;
 
     expect(changedPackagesOf(root, files, dependents)).toEqual([
-      { package: '.', path: '.', functions: 1, reaches: { unwalked: 1 }, own: false, tests: [], importers: 0 },
-      { package: '@x/a', path: 'packages/a', functions: 1, reaches: { near: 1 }, own: true, tests: ['packages/b'], importers: 2 },
-      { package: 'packages/b', path: 'packages/b', functions: 1, reaches: { far: 1 }, own: true, tests: [], importers: 0 },
+      { package: '.', path: '.', functions: 1, reaches: { unwalked: 1 }, uncovered: 1, own: false, tests: [], importers: 0 },
+      { package: '@x/a', path: 'packages/a', functions: 1, reaches: { near: 1 }, uncovered: 0, own: true, tests: ['packages/b'], importers: 2 },
+      { package: 'packages/b', path: 'packages/b', functions: 1, reaches: { far: 1 }, uncovered: 0, own: true, tests: [], importers: 0 },
     ]);
   });
 
-  it('counts a function once, as uncovered, when a case ran it and none ran a branch in it', async () => {
+  it('counts a function a case ran by its own reach, and once more as holding code no case ran when none ran a branch in it', async () => {
     const root = await workspace();
     const files: ReviewFile[] = [{
       file: 'packages/a/src/x.ts',
-      regions: [region('module', '', 1, 40, 'near', ['packages/a/test/x.test.ts']), region('function', 'cap', 3, 20, 'near', ['packages/a/test/x.test.ts']), region('branch', 'cap', 9, 9, 'unwalked')],
+      regions: [
+        region('module', '', 1, 40, 'near', ['packages/a/test/x.test.ts']),
+        region('function', 'cap', 3, 20, 'near', ['packages/a/test/x.test.ts']),
+        region('branch', 'cap', 9, 9, 'unwalked'),
+        // A branch on the function's first line is read before the function, and does not mark it.
+        region('function', 'round', 12, 18, 'far', ['packages/b/test/y.test.ts']),
+        region('branch', 'round', 12, 12, 'hole'),
+        region('function', 'floor', 22, 30, 'hole'),
+      ],
     }];
 
     expect(changedPackagesOf(root, files, (changed) => changed)).toEqual([
-      { package: '@x/a', path: 'packages/a', functions: 1, reaches: { unwalked: 1 }, own: true, tests: [], importers: 0 },
+      { package: '@x/a', path: 'packages/a', functions: 3, reaches: { near: 1, far: 1, hole: 1 }, uncovered: 3, own: true, tests: ['packages/b'], importers: 0 },
     ]);
   });
 
@@ -71,7 +87,7 @@ describe('where a change lands, a package at a time', () => {
     const files: ReviewFile[] = [{ file: 'packages/a/src/x.ts', regions: [region('function', 'f', 1, 5, 'far', ['fixtures/a/x.test.ts'])] }];
 
     expect(changedPackagesOf(root, files, (changed) => changed)).toEqual([
-      { package: '@x/a', path: 'packages/a', functions: 1, reaches: { far: 1 }, own: false, tests: ['@x/a'], importers: 0 },
+      { package: '@x/a', path: 'packages/a', functions: 1, reaches: { far: 1 }, uncovered: 0, own: false, tests: ['@x/a'], importers: 0 },
     ]);
   });
 
@@ -80,9 +96,9 @@ describe('where a change lands, a package at a time', () => {
     const files: ReviewFile[] = [{ file: 'packages/a/src/x.ts', regions: [region('function', 'f', 1, 5, 'near', ['packages/a/test/x.test.ts'])] }];
 
     expect(changedPackagesOf(root, files, () => undefined)).toEqual([
-      { package: '@x/a', path: 'packages/a', functions: 1, reaches: { near: 1 }, own: true, tests: [] },
+      { package: '@x/a', path: 'packages/a', functions: 1, reaches: { near: 1 }, uncovered: 0, own: true, tests: [] },
     ]);
-    expect(changedPackagesMarkdown([{ ...pkg('a', 1, { far: 1 }), importers: undefined }, pkg('b', 1, { near: 1 })], mark).slice(5, 6)).toEqual(['| `a` | 1 | Y 1 | own |  |']);
+    expect(changedPackagesMarkdown([{ ...pkg('a', 1, { far: 1 }), importers: undefined }, pkg('b', 1, { near: 1 })], mark).slice(5, 6)).toEqual(['| `a` | 1 | Y 1 | 0 | own |  |']);
   });
 
   it('prints nothing for a change that lands in one package', () => {
@@ -99,12 +115,12 @@ describe('where a change lands, a package at a time', () => {
       '',
       '**Where this change lands:** 8 changed functions in 4 packages.',
       '',
-      '| Package | Changed functions | Ran | Tests from | Packages importing it |',
-      '|---|--:|---|---|--:|',
-      '| `d` | 2 | R 2 | none | 0 |',
-      '| `a` | 3 | G 2 · R 1 | own, `b` | 2 |',
-      '| `c` | 1 | Y 1 | `a` | 1 |',
-      '| `b` | 2 | G 2 | own | 0 |',
+      '| Package | Changed functions | Ran | With code no case ran | Tests from | Packages importing it |',
+      '|---|--:|---|--:|---|--:|',
+      '| `d` | 2 | R 2 | 2 | none | 0 |',
+      '| `a` | 3 | G 2 · R 1 | 1 | own, `b` | 2 |',
+      '| `c` | 1 | Y 1 | 0 | `a` | 1 |',
+      '| `b` | 2 | G 2 | 0 | own | 0 |',
     ].join('\n'));
   });
 
@@ -114,10 +130,10 @@ describe('where a change lands, a package at a time', () => {
     const lines = changedPackagesMarkdown([...clean, ...gaps], mark);
 
     expect(lines.slice(5)).toEqual([
-      '| `g1` | 1 | R 1 | none | 0 |',
-      '| `g3` | 2 | G 1 · R 1 | own | 0 |',
-      '| `g2` | 1 | Y 1 | own | 0 |',
-      '| 11 more packages, every function G | 22 | G 22 | | |',
+      '| `g1` | 1 | R 1 | 1 | none | 0 |',
+      '| `g3` | 2 | G 1 · R 1 | 0 | own | 0 |',
+      '| `g2` | 1 | Y 1 | 0 | own | 0 |',
+      '| 11 more packages, every function G | 22 | G 22 | 0 | | |',
       '',
       'Each package is in the review\'s JSON, under `changedPackages`.',
     ]);
@@ -126,7 +142,7 @@ describe('where a change lands, a package at a time', () => {
   it('folds a change whose every package a nearby test ran into one row', () => {
     const clean = Array.from({ length: 11 }, (_, at) => pkg(`c${String(at).padStart(2, '0')}`, 1, { near: 1 }));
 
-    expect(changedPackagesMarkdown(clean, mark).slice(5, 6)).toEqual(['| 11 packages, every function G | 11 | G 11 | | |']);
+    expect(changedPackagesMarkdown(clean, mark).slice(5, 6)).toEqual(['| 11 packages, every function G | 11 | G 11 | 0 | | |']);
   });
 
   it('keeps the table to its budget, the fold rows counted in it', () => {
@@ -135,9 +151,9 @@ describe('where a change lands, a package at a time', () => {
     const beside = changedPackagesMarkdown([...gaps, pkg('c', 1, { near: 1 })], mark);
 
     expect(alone.slice(5, -2)).toHaveLength(10);
-    expect(alone.slice(-3)).toEqual(['| 3 more packages | 3 | Y 3 | | |', '', 'Each package is in the review\'s JSON, under `changedPackages`.']);
+    expect(alone.slice(-3)).toEqual(['| 3 more packages | 3 | Y 3 | 0 | | |', '', 'Each package is in the review\'s JSON, under `changedPackages`.']);
     expect(beside.slice(5, -2)).toHaveLength(10);
-    expect(beside.slice(-4, -2)).toEqual(['| 4 more packages | 4 | Y 4 | | |', '| 1 more package, every function G | 1 | G 1 | | |']);
+    expect(beside.slice(-4, -2)).toEqual(['| 4 more packages | 4 | Y 4 | 0 | | |', '| 1 more package, every function G | 1 | G 1 | 0 | | |']);
   });
 
   it('follows the verdict in the comment, the marks said once under it', () => {
@@ -150,7 +166,31 @@ describe('where a change lands, a package at a time', () => {
     } as unknown as Review, 'markdown');
 
     expect(markdown).toContain('`g`.\n\n**Where this change lands:** 2 changed functions in 2 packages.');
-    expect(markdown).toContain('| `b` | 1 | 🔴 1 | none | 0 |\n| `a` | 1 | 🟢 1 | own | 0 |\n\n<sub>🟢 a test importing the file ran it');
+    expect(markdown).toContain('| `b` | 1 | 🔴 1 | 1 | none | 0 |\n| `a` | 1 | 🟢 1 | 0 | own | 0 |\n\n<sub>🟢 a test importing the file ran it');
     expect(markdown.split('🟢 a test importing the file ran it')).toHaveLength(2);
+  });
+
+  it('keeps a package whose nearby tests left a branch unrun out of the fold of packages every nearby test ran', () => {
+    const clean = Array.from({ length: 11 }, (_, at) => pkg(`c${String(at).padStart(2, '0')}`, 1, { near: 1 }));
+    const lines = changedPackagesMarkdown([...clean, pkg('p', 1, { near: 1 }, undefined, 0, 1)], mark);
+
+    expect(lines.slice(5, 7)).toEqual(['| `p` | 1 | G 1 | 1 | own | 0 |', '| 11 more packages, every function G | 11 | G 11 | 0 | | |']);
+  });
+
+  it('marks a function a case ran from afar the way the table of what ran does, and counts its unrun branch apart, not under the mark no case ran', async () => {
+    const root = await workspace();
+    const far = ['packages/b/test/y.test.ts'];
+    const files: ReviewFile[] = [
+      { file: 'packages/a/src/x.ts', regions: [region('function', 'described', 1, 20, 'far', far), region('branch', 'described', 9, 9, 'hole')] },
+      { file: 'packages/b/src/y.ts', regions: [region('function', 'g', 1, 5, 'near', far)] },
+    ];
+    const markdown = formatReview({
+      from: 'abc', record: 'ran', base: 'since', files, changedPackages: changedPackagesOf(root, files, (changed) => changed),
+    } as unknown as Review, 'markdown');
+
+    expect(markdown).toContain('**1 of 2 changed functions has code no case ran:** `described`.');
+    expect(markdown).toContain('| `@x/a` | 1 | 🟡 1 | 1 | `packages/b` | 0 |');
+    expect(markdown).toContain('| 🟡 | `described` | new |');
+    expect(markdown).not.toContain('| 🔴 1 |');
   });
 });

@@ -1,12 +1,12 @@
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync, statSync, utimesSync, writeFileSync } from 'node:fs';
 import { homedir, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterAll, describe, expect, it } from 'vitest';
 import { updateSourceIndex } from '@variance-authority/sense';
-import { readDependencyLexicon, refreshDependencyLexicon } from './dependency-lexicon.js';
+import { refreshDependencyLexicon } from './dependency-lexicon.js';
 
 // compass: variance-authority.report.agent-surface
 
@@ -21,7 +21,7 @@ import { readDependencyLexicon, refreshDependencyLexicon } from './dependency-le
  * Each corpus is indexed once through the CLI into a cache of its own, so every
  * question reads a published generation the way a user's does. The catalogue is
  * then refreshed cold (no lexicon on disk), again over the unchanged install and index, and once more
- * with the record of what it was built from removed. Four answers are timed end to end, node start
+ * with the root manifest's modification time moved, so it reads again what its stamps no longer vouch for. Four answers are timed end to end, node start
  * included, and each must come in under a second warm; `ask packages` is one of them because it takes no
  * argument, so nothing narrows what it reads. So is `orient` over the start point, which reads
  * the package graph, the external requests and the recorded cases. Its cost is the working-tree reading,
@@ -77,24 +77,33 @@ for (const corpus of CORPORA) {
       caches.push(cache);
       process.env['VARIANCE_AUTHORITY_CACHE'] = cache;
       const index = timed(() => cli(corpus.root, cache, ['index', '--wait']));
-      const { path } = readDependencyLexicon(corpus.root);
-      rmSync(path);
+      const { path, sites } = await refreshDependencyLexicon(corpus.root);
+      const removed = (): void => { rmSync(path, { force: true }); rmSync(sites, { force: true }); };
+      removed();
       const cold = await awaited(() => refreshDependencyLexicon(corpus.root));
       const nothing = await awaited(() => refreshDependencyLexicon(corpus.root));
-      // The record of what the lexicon was built from is what lets a refresh do nothing; without it the
-      // refresh reads everything again and reuses what it can, which is the path a changed install takes.
-      rmSync(path.replace(/\.json$/, '.built.json'));
-      const warm = await awaited(() => refreshDependencyLexicon(corpus.root));
-      // One source file gains an import. The index gains a segment, and the refresh merges that segment
-      // into what it kept; the answer must be the one a refresh from nothing gives.
+      // The stamps are what let a refresh do nothing. One that moves sends it to read everything again and
+      // reuse what it can, which is the path a changed install takes.
+      const manifest = join(corpus.root, 'package.json');
+      const { atime, mtime } = statSync(manifest);
+      let warm: { ms: number; value: Awaited<ReturnType<typeof refreshDependencyLexicon>> };
+      try {
+        utimesSync(manifest, atime, new Date(mtime.getTime() + 1000));
+        warm = await awaited(() => refreshDependencyLexicon(corpus.root));
+      } finally {
+        utimesSync(manifest, atime, mtime);
+      }
+      // Restoring the time moved the stamp back, which the next refresh reads again; it is not the edit's.
+      await refreshDependencyLexicon(corpus.root);
+      // One source file gains an import. The index gains a segment, and the refresh appends that file's
+      // requests to the sites it kept; the catalogue must be the one a refresh from nothing gives.
       const edited = join(corpus.root, corpus.pick);
       const original = readFileSync(edited, 'utf8');
       let edit: { ms: number; value: Awaited<ReturnType<typeof refreshDependencyLexicon>> };
       let reindex: { ms: number };
       let merged: string;
       let full: string;
-      // The lexicon is over a hundred megabytes here: hashed from a buffer past its stamp, never held as a string.
-      const body = (file: string): string => { const bytes = readFileSync(file); return createHash('sha256').update(bytes.subarray(bytes.indexOf('"entries"'))).digest('hex'); };
+      const body = (file: string): string => createHash('sha256').update(readFileSync(file)).digest('hex');
       try {
         writeFileSync(edited, `${original}\nimport * as scaleProbe from 'react';\nvoid scaleProbe;\n`);
         const start = performance.now();
@@ -102,7 +111,7 @@ for (const corpus of CORPORA) {
         reindex = { ms: performance.now() - start };
         edit = await awaited(() => refreshDependencyLexicon(corpus.root));
         merged = body(path);
-        rmSync(path.replace(/\.json$/, '.built.json'));
+        removed();
         await refreshDependencyLexicon(corpus.root);
         full = body(path);
       } finally {
@@ -133,7 +142,7 @@ for (const corpus of CORPORA) {
       expect(nothing.ms, 'unchanged refresh').toBeLessThan(UNCHANGED_BUDGET_MS);
       expect(edit.value.unchanged, 'an edit is not nothing').toBe(false);
       expect(edit.ms, 'refresh after one edited file').toBeLessThan(EDIT_BUDGET_MS);
-      expect(merged, 'the merged lexicon is the one a full refresh gives').toBe(full);
+      expect(merged, 'the catalogue after an edit is the one a refresh from nothing gives').toBe(full);
       expect(warm.value.entrypoints - warm.value.reused - unresolved, 'entries recomputed on an unchanged install').toBeLessThanOrEqual(corpus.recomputed);
       for (const answer of answers) {
         expect(answer.bytes, `${answer.ask} answered`).toBeGreaterThan(200);

@@ -10,13 +10,25 @@
  */
 
 import { execFile } from 'node:child_process';
+import { existsSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { promisify } from 'node:util';
-import { hunksByFile, type Hunk } from '@variance-authority/sense/test-selection';
+import { hunksByFile, readCommitRuns, standsAt, type Hunk, type Stand } from '@variance-authority/sense/test-selection';
 import { OperatorError } from '../exit.js';
-import { diffSince, topLevel } from './since.js';
+import { diffSince, gitIn, topLevel } from './since.js';
 
 const OBJECT_NAME = /^[0-9a-f]{40}(?:[0-9a-f]{24})?$/u;
+
+/**
+ * The sentence {@link diffFromBase} refuses a base with that names no commit,
+ * for a caller that knows so before it asks and leaves the base uncompared.
+ */
+export function unnamedCommit(base: { readonly name: string; readonly unnamed?: string }): string {
+  return (
+    `${base.name} names no commit it was recorded at, so it is not compared: its regions are paired with the current ones ` +
+    `only through the diff from that commit.${base.unnamed === undefined ? '' : ` ${base.unnamed}`}`
+  );
+}
 
 /**
  * The diff by file from `at`, the commit the base `base` names was recorded at,
@@ -32,12 +44,7 @@ export async function diffFromBase(
   const refuse = (why: string): never => {
     throw new OperatorError(`${base.name} ${why}`, { kind: 'undiffed' });
   };
-  if (at === undefined) {
-    return refuse(
-      'names no commit it was recorded at, so it is not compared: its regions are paired with the current ones ' +
-        `only through the diff from that commit.${base.unnamed === undefined ? '' : ` ${base.unnamed}`}`,
-    );
-  }
+  if (at === undefined) throw new OperatorError(unnamedCommit(base), { kind: 'undiffed' });
   if (!OBJECT_NAME.test(at)) return refuse(`was recorded at \`${at}\`, which is not a commit's object name, so it is not compared.`);
   const repository = await topLevel(root);
   if (repository === undefined) return refuse(`was recorded at ${at}, and \`${root}\` is not in a git checkout to diff from it.`);
@@ -86,4 +93,33 @@ export async function movedOnBase(
       { kind: 'undiffed' },
     );
   }
+}
+
+/**
+ * The stands of the record at `record`: the test files that did not run at its
+ * commit, and the files changed since each last ran, so a case the record
+ * carried over an edit is not read as gone. A runs record that is there and
+ * cannot be read is refused, naming it: read as absent, it would place every
+ * test at the record's commit, and a case no test ran would be called no
+ * longer run.
+ */
+export async function carriedOver(record: string, root: string): Promise<{ readonly stands?: readonly Stand[] }> {
+  const repository = await topLevel(root);
+  if (repository === undefined) {
+    throw new OperatorError(`\`${root}\` is not in a git checkout, so where each test in ${record} last ran is not read and nothing is compared.`, {
+      kind: 'undiffed',
+    });
+  }
+  let runs: Awaited<ReturnType<typeof readCommitRuns>>;
+  try {
+    runs = await readCommitRuns(record);
+  } catch (error) {
+    throw new OperatorError(
+      `${error instanceof Error ? error.message : String(error)}. It says where each test in the record last ran, and ` +
+        'a comparison that read it as absent would call a case no test ran no longer run.',
+      { cause: error },
+    );
+  }
+  const reading = standsAt(record, runs, gitIn(repository), (test) => existsSync(join(repository, test)));
+  return reading === undefined ? {} : { stands: reading.stands };
 }

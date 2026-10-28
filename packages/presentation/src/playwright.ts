@@ -24,6 +24,8 @@ export interface SensePresentationOptions {
   readonly title?: string;
   readonly fonts?: readonly string[];
   readonly suspense?: { readonly timeoutMs?: number };
+  /** The subject is its loading state: a pending Suspense boundary is read, not refused. */
+  readonly loading?: boolean;
   /** Override stabilization ids; use `[]` only when the caller owns a static document. */
   readonly stabilize?: readonly string[];
   /** `true` paints every layer; a layer list paints only those measurements. */
@@ -54,6 +56,7 @@ export async function sensePresentation(
     ...(options.fonts === undefined ? {} : { fonts: options.fonts }),
     ...(options.suspense === undefined ? {} : { suspense: options.suspense }),
     ...(options.stabilize === undefined ? {} : { stabilize: options.stabilize }),
+    ...(options.loading === undefined ? {} : { loading: options.loading }),
   };
   const raw = await locator.evaluate(
     (element, [global, sent]: readonly [string, PresentationAcquireRequest]) => {

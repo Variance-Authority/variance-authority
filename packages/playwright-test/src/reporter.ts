@@ -23,9 +23,15 @@
  * It is worth installing for a single-worker run too: a worker that finds no
  * staging directory merges for itself and says so, and one that does contribute
  * costs a file write it would have spent on the merge anyway.
+ *
+ * Under `--shard k/n` it also places the shard, by whole files
+ * (`whole-file-shard.ts`), and turns Playwright's own split off. Below
+ * Playwright 1.62 nothing calls `preprocess`, so Playwright's split runs:
+ * `withTestSelection` refuses such a run when the configuration is evaluated,
+ * and a configuration that names this reporter without it is not refused.
  */
 
-import type { FullConfig, Reporter } from '@playwright/test/reporter';
+import type { Reporter } from '@playwright/test/reporter';
 import {
   closeStage,
   foldStage,
@@ -35,11 +41,13 @@ import {
   type InstrumentMode,
 } from '@variance-authority/sense/journal';
 import {
+  landingTimes,
   recordFileFor,
   repositoryRoot,
 } from '@variance-authority/sense/test-selection';
 import { dirname, resolve } from 'node:path';
 import { randomUUID } from 'node:crypto';
+import { placeWholeFiles, type Preprocess } from './whole-file-shard.js';
 
 /**
  * Where the folded record goes. The same values the fixtures were given.
@@ -94,11 +102,13 @@ export default class implements Reporter {
   // the workers stage beside this snapshot, so the fold has to write the same one.
   readonly #coverageFile: string | undefined;
   readonly #snapshot: string;
+  readonly #start: string;
   #directory: string | undefined;
 
   constructor(options: ExecutionReporterOptions = {}) {
     this.#options = options;
     const start = resolve(options.root ?? process.cwd());
+    this.#start = start;
     this.#root = repositoryRoot(start);
     this.#coverageFile =
       options.coverageFile === undefined ? undefined : resolve(start, options.coverageFile);
@@ -112,7 +122,18 @@ export default class implements Reporter {
     return false;
   }
 
-  onBegin(_config: FullConfig): void {
+  /** Playwright 1.62 and newer: place a `--shard` by whole files, before Playwright would split it. */
+  async preprocess(params: Preprocess): Promise<void> {
+    const times = landingTimes(this.#snapshot, {
+      root: this.#root,
+      from: this.#start,
+      ...(this.#options.suite === undefined ? {} : { suite: this.#options.suite }),
+      byFile: this.#coverageFile !== undefined,
+    });
+    await placeWholeFiles(params, this.#root, times, (line) => process.stderr.write(`${line}\n`));
+  }
+
+  onBegin(): void {
     // Before the first worker is forked, because a worker inherits the
     // environment as it stood when it started and has no other way to be told.
     // Beside the snapshot, so a suite that redirected its index redirects this

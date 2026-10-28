@@ -1,7 +1,7 @@
 /**
  * `@variance-authority/sense` — the file graph, read off a disk.
  *
- * [`core/relate`](../../core/src/relate) holds the structure and answers the
+ * [`core/relate`](https://github.com/Variance-Authority/variance-authority/tree/main/packages/core/src/relate) holds the structure and answers the
  * questions; it performs no I/O and depends on nothing (ADR-0006). This is the
  * half that opens files: an `oxc` parse for the module record, a resolver for
  * turning a specifier into a path, and a walk that follows what it finds.
@@ -24,7 +24,7 @@
 // compass: variance-authority.reach
 
 export { scanRelations, type ScanOptions } from './scan.js';
-export { refreshDependencyLexiconNative, queryDependencyLexiconNative, dependencyStackNative } from './dependency-lexicon.js';
+export { refreshDependencyLexiconNative, queryDependencyLexiconNative, dependencyStackNative, describedWordsNative, nearOfNative, wordStemsNative } from './dependency-lexicon.js';
 
 /**
  * Which languages this build reads, and every extension a scan will open.
@@ -34,7 +34,7 @@ export { refreshDependencyLexiconNative, queryDependencyLexiconNative, dependenc
  * alternative is a caller carrying its own extension list that drifts from this
  * one the first time a language is added.
  */
-export { LANGUAGES, READABLE, languageOf, grainOf, type LanguageId } from './language.js';
+export { LANGUAGES, READABLE, languageOf, grainOf, readsMembers, type LanguageId } from './language.js';
 
 /**
  * One module's component index, read off its tree: where each component it
@@ -50,8 +50,7 @@ export {
   type PersistentParseCache,
   type SourceSize,
 } from './cache.js';
-export type { SourceSymbol, SourceSymbolKind, TextSpan } from './harvest.js';
-export { enrichSources, type HarvestSubject } from './enrich.js';
+export type { SourceSymbol, SourceSymbolKind, SourceSymbolReach, TextSpan } from './harvest.js';
 
 export {
   treeShapeOf,
@@ -64,6 +63,7 @@ export {
 
 export {
   openSourceIndex,
+  primarySourceIndexPath,
   readSourceRecords,
   sourceIndexPath,
   type PersistentSourceIndex,
@@ -80,6 +80,7 @@ export {
   type SourceUpdate,
   type SourceUpdateOptions,
 } from './published.js';
+export { placesOf, stepped, type Progress } from './progress.js';
 export { readySourceIndex } from './ready-index.js';
 export { inIndexTurn, indexTurnPath, type IndexTurnHolder } from './index-turn.js';
 export type { SourceIndexState } from './source-index-file.js';
@@ -117,6 +118,8 @@ export {
 export { layerMoves, type LayerCause, type LayerHeld, type LayerMoves, type LayerPresence } from './layer-moves.js';
 export { tierMoves, type TierCause, type TierMoves } from './tier-moves.js';
 export { declaredTiers, parseTiers, tierLabel, tierOf, TiersError, type TierPlace, type Tiers } from './tiers.js';
+export { parseTypescript, TypescriptError } from './typescript.js';
+export { tsconfigUse, type TsconfigUse } from './typescript-use.js';
 export {
   cappedLayers,
   cappedTiers,
@@ -154,7 +157,7 @@ export {
   type PreparedCodeMap,
   type ShippedFiles,
 } from './code-map.js';
-export { checkoutListing, checkoutPath, type CheckoutListing, type CheckoutPath } from './checkout-path.js';
+export { checkoutListing, checkoutPath, existedAt, type CheckoutListing, type CheckoutPath } from './checkout-path.js';
 export {
   forksBetween,
   journeysAmong,
@@ -201,13 +204,29 @@ export {
 export { gitDigests } from './tree.js';
 export { workingTreeChanges, type WorkingTreeChanges } from './working-tree-changes.js';
 export {
+  aliasesOf,
+  declarationExported,
+  declaredDescribedOf,
+  declaredLooseOf,
+  declaredOf,
+  declaredTermsOf,
   encodeSearch,
   exportedDigest,
   importersOf,
+  memberDeclarationsOf,
+  membersOn,
   readHelp,
+  type Alias,
+  type ContainerMember,
+  type DeclaredName,
+  type DeclaredNames,
+  type DescribedFile,
   type EncodedSearch,
+  type ExportedDeclaration,
   type HelpPublish,
   type HelpReading,
+  type MemberDeclarations,
+  type MemberSite,
   type PublishedRows,
   type SearchGeneration,
 } from './help-reading.js';

@@ -1,7 +1,7 @@
 import { COLLECT_RECIPE, recipeOf } from '@variance-authority/core/format';
 import type { Digest, RawCapture, SubjectRef, Viewport } from '@variance-authority/core/format';
 import { collect, stabilizeForObservation } from '@variance-authority/dom';
-import { awaitSuspense, portalContentOf } from '@variance-authority/react';
+import { awaitSuspense, portalContentOf, suspenseRefusal } from '@variance-authority/react';
 import type { PaintInstruction, PaintLayer } from './model.js';
 
 export const PRESENTATION_AGENT = '__variance_authority_presentation__';
@@ -17,6 +17,8 @@ export interface PresentationAcquireRequest {
   readonly fonts?: readonly string[];
   readonly stabilize?: readonly string[];
   readonly suspense?: { readonly timeoutMs?: number };
+  /** The subject is its loading state: a pending boundary is read, not refused. */
+  readonly loading?: boolean;
 }
 
 export interface PresentationAcquired {
@@ -37,7 +39,13 @@ export async function acquirePresentation(
   request: PresentationAcquireRequest,
 ): Promise<string> {
   clearPresentationPaint();
-  await awaitSuspense(root, request.suspense ?? {});
+  // A boundary still showing its fallback is the subject before it arrived, and
+  // reading it would record the fallback as the presentation.
+  const unsettled = suspenseRefusal(
+    await awaitSuspense(root, request.suspense ?? {}),
+    { subjectId: request.subject.id, declaredLoading: request.loading === true },
+  );
+  if (unsettled !== undefined) throw new Error(unsettled);
   const portalRoots = portalContentOf(root);
   const held = await stabilizeForObservation(
     root.ownerDocument,

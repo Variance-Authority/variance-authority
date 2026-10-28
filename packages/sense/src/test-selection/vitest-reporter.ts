@@ -7,13 +7,13 @@ import type { Reporter } from 'vitest/reporters';
 import {
   carriedJournal,
   reportedComplete,
-  reportedDuration,
   runnerSkipped,
   taskComplete,
   type FinishedFile,
   type ReportedModule,
   type RunnerTask,
 } from './finished-files.js';
+import { reportedDuration, reportedPhases } from './reported-time.js';
 import { reportedCases, taskCases } from './case-durations.js';
 import { noteRunner, projectConfig, type RunnerContext } from './governing-config.js';
 import { reopenRun, type SelectionRun } from './selection-run.js';
@@ -47,8 +47,10 @@ export function selectionReporter(
       byName = noteRunner(run, context);
       run.watching = context.config?.watch === true;
     },
-    onWatcherRerun: () => reopenRun(run),
-    onTestRunStart: () => reopenRun(run),
+    // Both fire before a worker reads a file of the cycle; the first cycle
+    // keeps the start the run was made at, before the configuration loaded.
+    onWatcherRerun: () => reopenRun(run, Date.now()),
+    onTestRunStart: () => reopenRun(run, run.settled ? Date.now() : run.startedAt),
     onFinished: (files: readonly RunnerTask[]) => settle(
       files.flatMap((file) => file.filepath === undefined
         ? []
@@ -56,6 +58,13 @@ export function selectionReporter(
           filepath: file.filepath,
           complete: taskComplete(file, runnerSkipped(runner)),
           ...reportedDuration(file.result?.duration),
+          ...reportedPhases({
+            prepare: file.prepareDuration,
+            environment: file.environmentLoad,
+            setup: file.setupDuration,
+            collect: file.collectDuration,
+            cases: file.result?.duration,
+          }),
           ...taskCases(file),
           ...carriedJournal(file.filepath, file.meta),
           ...configsOf(byName.get(file.projectName ?? '')),
@@ -66,10 +75,22 @@ export function selectionReporter(
         filepath: module.moduleId,
         complete: reportedComplete(module, runnerSkipped(runner, reason)),
         ...reportedDuration(module.diagnostic?.()?.duration),
+        ...modulePhases(module.diagnostic?.()),
         ...reportedCases(module),
         ...carriedJournal(module.moduleId, module.meta?.()),
         ...configsOf(projectConfig(module.project)),
       })),
     ),
   } as Reporter;
+}
+
+/** Vitest 3 and 4's phases for a module, under the record's names. */
+function modulePhases(diagnostic: ReturnType<NonNullable<ReportedModule['diagnostic']>>): Pick<FinishedFile, 'phases'> {
+  return diagnostic === undefined ? {} : reportedPhases({
+    prepare: diagnostic.prepareDuration,
+    environment: diagnostic.environmentSetupDuration,
+    setup: diagnostic.setupDuration,
+    collect: diagnostic.collectDuration,
+    cases: diagnostic.duration,
+  });
 }

@@ -39,7 +39,7 @@ import { element, headline, number, sentence } from './text.js';
  * the defects this change brought lead the panel at full size, and everything the
  * record does not put on this change is folded behind its count. *Not dated* is
  * its own answer and is never drawn as *arrived with this change*: the reading is
- * [`byArrival`](../../../report/src/findings.ts), shared with the HTML report so
+ * [`byArrival`](https://github.com/Variance-Authority/variance-authority/blob/main/packages/report/src/findings.ts), shared with the HTML report so
  * the two surfaces say it in the same words and in the same order.
  *
  * Drawn in three registers rather than one line. The report writes a rule id and

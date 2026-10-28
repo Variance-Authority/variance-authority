@@ -1,3 +1,5 @@
+import { HOOK_KEY, injectedVersion, type DevToolsHook } from './hook.js';
+
 /**
  * What we can honestly say about the React runtime that rendered a page.
  *
@@ -30,10 +32,6 @@ export interface ReactRuntimeInfo {
   readonly majorHint?: string;
 }
 
-interface DevToolsHook {
-  readonly renderers?: Map<number, { version?: string }> | undefined;
-}
-
 /**
  * Read the version from the DevTools hook if — and only if — one is present.
  *
@@ -43,23 +41,7 @@ interface DevToolsHook {
  * require it.
  */
 export function detectReactVersion(scope: object = globalThis): string | undefined {
-  const hook = (scope as Record<string, unknown>)['__REACT_DEVTOOLS_GLOBAL_HOOK__'] as
-    | DevToolsHook
-    | undefined;
-
-  const renderers = hook?.renderers;
-  if (!renderers || typeof renderers.forEach !== 'function') return undefined;
-
-  let version: string | undefined;
-  renderers.forEach((renderer) => {
-    // Multiple renderers (react-dom plus react-three-fiber, say) can coexist.
-    // First wins: this is a diagnostic, and disambiguating them would require
-    // knowing which renderer produced the node we are about to inspect.
-    if (version === undefined && typeof renderer?.version === 'string') {
-      version = renderer.version;
-    }
-  });
-  return version;
+  return injectedVersion((scope as Record<string, unknown>)[HOOK_KEY] as DevToolsHook | undefined);
 }
 
 /** Everything we can establish about the runtime behind a given node. */

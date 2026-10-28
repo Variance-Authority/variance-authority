@@ -9,8 +9,9 @@
  */
 
 import type { WrittenLines } from './index.js';
+import { LAYOUT } from './record-layout.js';
 
-export const NO_LINE = 0;
+export const NO_LINE = LAYOUT.coverage.noLine;
 
 /** The pair a column holds at one region, as the lines it stands for. */
 export function writtenLines(startLine: number, endLine: number): WrittenLines {

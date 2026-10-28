@@ -150,6 +150,8 @@ describe('where a review of the runs starts', () => {
     const refused = runsBase(origin, runs(B, '--all'), snapshot(origin));
     await expect(refused).rejects.toBeInstanceOf(OperatorError);
     await expect(refused).rejects.toThrow(`\`${commitRunsFile(snapshot(origin))}\` is malformed: its \`over\` is "--all"`);
+    await expect(refused).rejects.toThrow(/which is not a commit's full object name\. Name the base with `--since <ref>`\.$/);
+    await expect(refused).rejects.not.toThrow(/[Dd]elete it|run the suite/);
 
     await expect(runsBase(origin, runs('HEAD', B), snapshot(origin))).rejects.toThrow('its `commit` is "HEAD"');
     // Between the lengths of SHA-1 and SHA-256 names is neither.

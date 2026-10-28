@@ -26,6 +26,7 @@ use crate::journeys_record::{record, seeds};
 use crate::journeys_roots::Helpers;
 use crate::journeys_walk::{walk, Exported, Walked};
 use crate::package_owners::{owner_of, owners, shown};
+use crate::resolve::Tsconfig;
 use crate::GitTree;
 
 pub(crate) const FORMAT: u8 = 2;
@@ -195,7 +196,8 @@ pub struct JourneysCommit {
 /// Walks the recording at `recording` over the index at `index` and writes the
 /// journeys to `out`, with git listing the checkout. `None` when there is no
 /// source index. `builtins` are the runtime's own modules, which no function
-/// of the checkout answers.
+/// of the checkout answers. `tsconfig` is the config the scan that built the
+/// index resolved under.
 #[napi(catch_unwind)]
 pub fn prepare_journeys(
     root: String,
@@ -204,9 +206,10 @@ pub fn prepare_journeys(
     at: JourneysCommit,
     out: String,
     builtins: Vec<String>,
+    tsconfig: Option<napi::Either<String, bool>>,
 ) -> napi::Result<Option<JourneysPrepared>> {
     let listing = listed(&root);
-    prepare(&root, &index, &recording, at, &out, listing.as_deref(), builtins)
+    prepare(&root, &index, &recording, at, &out, listing.as_deref(), builtins, Tsconfig::from_js(tsconfig))
 }
 
 #[napi]
@@ -214,6 +217,7 @@ impl GitTree {
     /// Walk the recording over the index and write the journeys to `out`,
     /// carrying this listing of the checkout rather than asking git again.
     #[napi(catch_unwind)]
+    #[allow(clippy::too_many_arguments, reason = "stable positional N-API contract")]
     pub fn prepare_journeys(
         &self,
         root: String,
@@ -222,11 +226,13 @@ impl GitTree {
         at: JourneysCommit,
         out: String,
         builtins: Vec<String>,
+        tsconfig: Option<napi::Either<String, bool>>,
     ) -> napi::Result<Option<JourneysPrepared>> {
-        prepare(&root, &index, &recording, at, &out, Some(self.listed()), builtins)
+        prepare(&root, &index, &recording, at, &out, Some(self.listed()), builtins, Tsconfig::from_js(tsconfig))
     }
 }
 
+#[allow(clippy::too_many_arguments, reason = "the two N-API entries' arguments, carried")]
 fn prepare(
     root: &str,
     index: &str,
@@ -235,6 +241,7 @@ fn prepare(
     out: &str,
     listing: Option<&[String]>,
     builtins: Vec<String>,
+    tsconfig: Tsconfig,
 ) -> napi::Result<Option<JourneysPrepared>> {
     let fail = napi::Error::from_reason;
     // Stat before reading, so a file replaced while it is read is stamped as
@@ -257,7 +264,7 @@ fn prepare(
     // the graph read are the listing.
     let known = listing.map(|listing| owners(root, listing));
     let unnamed = at.unread.unwrap_or_else(|| "the recording names no commit".to_owned());
-    let graph = Graph::build(root, &layers, at.commit.as_deref().ok_or(unnamed.as_str()), &seeds);
+    let graph = Graph::build(root, &layers, at.commit.as_deref().ok_or(unnamed.as_str()), &seeds, tsconfig);
     let record = record(&journey, &graph).map_err(fail)?;
     let owners = known.unwrap_or_else(|| owners(root, &graph.files));
     let directories: HashMap<&str, u32> =

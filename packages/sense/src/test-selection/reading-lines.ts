@@ -57,20 +57,22 @@ function verdictOf(reading: FileReading): string {
 
 /** The gloss a reading's line explains itself with, the first time that line is printed. */
 function glossOf(reading: FileReading): keyof typeof GLOSS {
-  if (reading.verdict === undefined) return 'unread';
+  if (reading.verdict === undefined) return reading.unread === 'exports' ? 'importers' : 'unread';
   return reading.kept === true ? 'kept' : reading.verdict;
 }
 
 const GLOSS = {
   none: ' — the runtime text is equal',
   // The landing that laid the record demoted every carried test that ran an
-  // edited region of the earlier text (`mergeCoverage`), so those tests are
+  // edited region of the earlier text (`layRecord`), so those tests are
   // selected as incomplete rather than skipped as having run this one.
   kept: ' — a test recorded over an earlier text of an edited region is not skipped',
   bodies: ' — the changed regions are charged, not the whole module',
   values: ' — the readers of the changed values and the changed regions are charged',
   load: ' — every test that loaded it is charged',
   unread: ' — its changed lines are charged',
+  // A file with no row has no lines to charge: the walk charges what imports it.
+  importers: ' — every test that loaded its nearest measured importers is charged',
   unseen: ' by an import the file graph does not list; named, not selected',
 } as const;
 
@@ -80,4 +82,5 @@ const UNREAD = {
   parse: 'one side does not parse',
   addon: 'no native scanner on this machine',
   language: 'not a JavaScript or TypeScript module',
+  exports: 'it names no export to follow',
 } as const;

@@ -1,4 +1,5 @@
-import { mkdtempSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import { mkdtempSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -30,6 +31,7 @@ describe('the times a sharded run places its files by', () => {
     expect(await suiteTimes({ root })).toEqual({
       recording: testCoverageFile(root),
       commit: 'a'.repeat(40),
+      read: `sha256:${createHash('sha256').update(readFileSync(testCoverageFile(root))).digest('hex')}`,
       times: new Map([['a.test.ts', 1200]]),
     });
   });

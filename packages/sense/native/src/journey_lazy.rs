@@ -12,7 +12,8 @@
 use std::cell::OnceCell;
 use std::collections::HashMap;
 
-use crate::journey_columns::{self, BLOB_RUN, RUN};
+use crate::journey_columns;
+use crate::record_layout::LAYOUT;
 
 enum Body {
     /// Stored as written: the column is small enough that packing did not pay.
@@ -55,7 +56,7 @@ impl Lazy {
                     let index = if placed.name.ends_with(".blob") {
                         journey_columns::runs_any(&bytes[stored])?
                     } else {
-                        journey_columns::runs(&bytes[stored], rows.div_ceil(RUN))?
+                        journey_columns::runs(&bytes[stored], rows.div_ceil(LAYOUT.run))?
                     };
                     let runs: Vec<_> = index
                         .iter()
@@ -108,12 +109,15 @@ impl Lazy {
                 Ok(u32::from_le_bytes(self.bytes[at..at + 4].try_into().unwrap_or_default()))
             }
             Body::Runs { runs, words, .. } => {
-                let run = row / RUN;
+                let run = row / LAYOUT.run;
                 let values = get_or_try(&words[run], || {
-                    let rows = RUN.min(held.rows - run * RUN);
-                    journey_columns::unvarints(&journey_columns::decompress(&self.bytes[runs[run].clone()])?, rows)
+                    let rows = LAYOUT.run.min(held.rows - run * LAYOUT.run);
+                    journey_columns::unvarints(
+                        &journey_columns::decompress(&self.bytes[runs[run].clone()], journey_columns::word_run_limit())?,
+                        rows,
+                    )
                 })?;
-                Ok(values[row % RUN])
+                Ok(values[row % LAYOUT.run])
             }
         }
     }
@@ -126,17 +130,22 @@ impl Lazy {
         match &held.body {
             Body::Plain(stored) => Ok(self.bytes[stored.start + row]),
             Body::Runs { runs, bytes, .. } => {
-                let run = row / RUN;
+                let run = row / LAYOUT.run;
                 let values = get_or_try(&bytes[run], || {
-                    let decoded = journey_columns::decompress(&self.bytes[runs[run].clone()])?;
-                    if decoded.len() != RUN.min(held.rows - run * RUN) {
+                    let decoded = journey_columns::decompress(&self.bytes[runs[run].clone()], LAYOUT.run)?;
+                    if decoded.len() != LAYOUT.run.min(held.rows - run * LAYOUT.run) {
                         return Err("journey byte column has the wrong length".to_owned());
                     }
                     Ok(decoded)
                 })?;
-                Ok(values[row % RUN])
+                Ok(values[row % LAYOUT.run])
             }
         }
+    }
+
+    /// Every byte of a byte column.
+    pub fn all_bytes(&self, column: Handle) -> Result<Vec<u8>, String> {
+        (0..self.rows(column)).map(|row| self.byte(column, row)).collect()
     }
 
     /// Entry `id` of a blob, bounded by its offset column.
@@ -158,13 +167,13 @@ impl Lazy {
                 Ok(&self.bytes[stored.start + from..stored.start + to])
             }
             Body::Runs { runs, bytes, .. } => {
-                let run = id / BLOB_RUN;
-                let first = run * BLOB_RUN;
+                let run = id / LAYOUT.blob_run;
+                let first = run * LAYOUT.blob_run;
                 let base = self.word(offsets, first)? as usize;
-                let last = (first + BLOB_RUN).min(self.rows(offsets) - 1);
+                let last = (first + LAYOUT.blob_run).min(self.rows(offsets) - 1);
                 let end = self.word(offsets, last)? as usize;
                 let values = get_or_try(&bytes[run], || {
-                    let decoded = journey_columns::decompress(&self.bytes[runs[run].clone()])?;
+                    let decoded = journey_columns::decompress(&self.bytes[runs[run].clone()], end.saturating_sub(base))?;
                     if decoded.len() != end.saturating_sub(base) {
                         return Err("journey blob column has the wrong length".to_owned());
                     }

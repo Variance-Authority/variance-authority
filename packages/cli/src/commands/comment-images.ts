@@ -1,7 +1,8 @@
 import type { CliRunReport } from './run.js';
+import { urlOfPath } from './url-of-path.js';
 
 /**
- * A subject's before and after, as two images a pull-request comment can show.
+ * A subject's change, as the picture a pull-request comment can show.
  *
  * Separate from `comment-blocks.ts` because it is the one part of the comment
  * that points outside the body: the bytes live wherever the operator published
@@ -9,9 +10,12 @@ import type { CliRunReport } from './run.js';
  * paths are the report's own, carried as written and joined to `--image-root`,
  * so the published layout and the report can never disagree about a file name.
  *
- * Before and after rather than the diff, because the pair is what a reviewer
- * approves; the diff is how the report finds the region, and the cause line
- * above the pictures already names it.
+ * The change rather than the pages. A full-page capture shown whole is scaled to
+ * the comment's column and its text cannot be read, so the picture is the run's
+ * crop of it: each of the largest regions with the rows around it, before
+ * beside after with the change marked on both, at its own size. It is one
+ * `<img>` where the pages were two, so it costs the comment less text, not more. A subject the run cut
+ * no crop for, because no region was isolated, shows its before and after.
  */
 export type Pictures = (subject: string) => string | undefined;
 
@@ -23,25 +27,26 @@ export function picturesOf(report: CliRunReport, imageRoot: string | undefined):
 
   return (subject) => {
     const images = bySubject.get(subject);
+    if (images?.change !== undefined) {
+      return image(root, images.change, `${subject}: before beside after, the change marked`);
+    }
     if (images?.before === undefined || images.after === undefined) return undefined;
+    // Two side by side, sized so they still fit a phone's column.
     return [
-      image(root, images.before, `${subject} before`),
-      image(root, images.after, `${subject} after`),
+      image(root, images.before, `${subject} before`, ' width="48%"'),
+      image(root, images.after, `${subject} after`, ' width="48%"'),
     ].join(' ');
   };
 }
 
 /**
- * One `<img>`, sized so two sit side by side on a phone.
+ * One `<img>`, its path joined to the root as a URL by {@link urlOfPath}.
  *
- * Each segment is percent-encoded, because the store already percent-encodes a
- * subject id into its file name: `story%3Abutton.before.png` is the name on disk,
- * and a URL that carried the `%3A` raw would ask the server for `story:button`.
  * The subject id reaches the `alt` text from the collector, so it is escaped.
  */
-function image(root: string, path: string, alt: string): string {
-  const src = `${root}/${path.split('/').map(encodeURIComponent).join('/')}`;
-  return `<img src="${attribute(src)}" alt="${attribute(alt)}" width="48%">`;
+function image(root: string, path: string, alt: string, size = ''): string {
+  const src = `${root}/${urlOfPath(path)}`;
+  return `<img src="${attribute(src)}" alt="${attribute(alt)}"${size}>`;
 }
 
 function attribute(text: string): string {

@@ -5,6 +5,7 @@
 > Put the states your unit suite already mounts in jsdom into visual regression review, without launching a browser in the test process.
 
 Part of [Variance Authority](https://variance-authority.dev).
+Point your coding agent at [`llms.txt`](https://variance-authority.dev/llms.txt).
 
 Your jsdom tests already mount components and assert on them. This package
 writes each mounted state to disk as a *capture*: the markup, the CSS that
@@ -289,9 +290,9 @@ npx variance report --format html > .variance/report.html
 ```
 
 The HTML is one self-contained file that fetches nothing, so it reads the same
-from your machine or a CI artifact. Each subject gives you the approved image,
-the difference and the candidate, with a wipe, a blend and a blink between the
-two.
+from your machine or a CI artifact. Each subject opens on what changed at its
+own size, and gives you the approved image, the difference and the candidate,
+with a wipe, a blend and a blink between the two.
 
 A run whose observed subjects are all `unchanged`, `ignored` or `new`, with
 every planned subject accounted for, exits `0`. Anything else exits `1`. The
@@ -444,4 +445,4 @@ documents`.
 
 ---
 
-**[@variance-authority/unit-test](https://variance-authority.dev/reference/packages/unit-test)** is part of [Variance Authority](https://variance-authority.dev) — [documentation](https://variance-authority.dev/docs) · MIT
+**[@variance-authority/unit-test](https://variance-authority.dev/reference/packages/unit-test)** is part of [Variance Authority](https://variance-authority.dev) — [documentation](https://variance-authority.dev/docs) · [GitHub](https://github.com/Variance-Authority/variance-authority/tree/main/packages/unit-test) · MIT

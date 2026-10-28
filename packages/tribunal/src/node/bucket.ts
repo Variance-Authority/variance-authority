@@ -61,7 +61,7 @@ import { FoldedKey } from '../worker-http.js';
  * It is not solved by escaping, because escaping does not help: any encoding
  * that survives a case-folding filesystem has to fold case itself, which loses
  * the name. The plain-directory backend in
- * [`@variance-authority/store`](../../../store) makes the same trade with the
+ * [`@variance-authority/store`](https://github.com/Variance-Authority/variance-authority/tree/main/packages/store) makes the same trade with the
  * same layout, and the mitigation is the same one: on a case-insensitive volume,
  * a project whose keys differ only by case needs a different volume.
  *

@@ -85,7 +85,24 @@ export function recordFileFor(
   return resolve(from, options.coverageFile);
 }
 
-/** Which record a checkout's first run was laid on, when {@link seedTestCoverage} laid one. */
+/**
+ * A base the first run here was not laid on: it was written under other probes
+ * than the run's, so the run cannot be laid over it (`layRecord`).
+ */
+export interface PassedOver {
+  /** The record passed over. */
+  readonly file: string;
+  /** The probes it was written under. */
+  readonly instrumentation: string;
+  /** The probes the run records under. */
+  readonly run: string;
+}
+
+/**
+ * Which record a checkout's first run was laid on, when {@link seedTestCoverage}
+ * laid one, and the bases it passed over on the way; `nothing` when it passed
+ * over every base there was.
+ */
 export type Seeded =
   | { readonly from: 'mainline'; readonly record: LastFetched }
   | {
@@ -94,7 +111,10 @@ export type Seeded =
       readonly file: string;
       /** The suite, when the root config gives it to the share and so a mainline record was looked for first. */
       readonly shared?: string;
-    };
+      /** The mainline record passed over before it, when one was. */
+      readonly passed?: readonly [PassedOver];
+    }
+  | { readonly from: 'nothing'; readonly passed: readonly [PassedOver, ...PassedOver[]] };
 
 /**
  * Give a checkout the base to build its own record on top of, before its first
@@ -127,6 +147,13 @@ export type Seeded =
  * A suite's record is seeded from the same suite's, and never from another
  * suite's or from the repository's one record: those were cut by another build.
  *
+ * A base written under other probes than `instrumentation`, the probes of the
+ * run about to land, is not copied either: the run could not be laid over it,
+ * and a worktree seeded with it would fail every run until somebody deleted the
+ * copy — and the next run would seed it again. It is passed over for the next
+ * base and named in what this returns, so {@link noteSeeded} says so. A run that
+ * lays no coverage passes `undefined`, and lays over a base under any probes.
+ *
  * A base this build cannot read is not copied and not an error. That is the same
  * answer {@link recordedCommit} gives, for the same reason: a snapshot written
  * by another layout is a snapshot this run has no claim on, and one stale base
@@ -143,6 +170,7 @@ export type Seeded =
 export async function seedTestCoverage(
   file: string,
   root: string,
+  instrumentation: string | undefined,
   cacheRoot?: string,
 ): Promise<Seeded | undefined> {
   const layers = repositoryLayers(root, cacheRoot);
@@ -152,12 +180,21 @@ export async function seedTestCoverage(
   if (inside !== 'coverage.bin' && !/^suites\/[^/]+\/coverage\.bin$/u.test(inside)) return undefined;
   const suite = /^suites\/([^/]+)\//u.exec(inside)?.[1];
   const shared = suite === undefined ? undefined : declaredSuite(root, suite)?.carry === 'share' ? suite : undefined;
+  // A checkout with a record of its own has its base, and no other is asked.
+  if (present(file)) return undefined;
+  let mainline: PassedOver | undefined;
   if (shared !== undefined) {
     const record = lastFetchedMainline(root, shared, cacheRoot);
-    if (record !== undefined && (await layFetchedMainline(record, file))) return { from: 'mainline', record };
+    if (record !== undefined) {
+      mainline = passedOver(record.coverage, await readFile(record.coverage).catch(() => undefined), instrumentation);
+      if (mainline === undefined && (await layFetchedMainline(record, file))) return { from: 'mainline', record };
+    }
   }
-  if (layers.top === layers.base) return undefined;
+  const passed = mainline === undefined ? undefined : ([mainline] as const);
+  const nothing = (): Seeded | undefined => (passed === undefined ? undefined : { from: 'nothing', passed });
+  if (layers.top === layers.base) return nothing();
   let snapshot: TestCoverageView | undefined;
+  let primary: PassedOver | undefined;
   // The cases come in the record, and the run folds into whatever it finds
   // there, replacing the cases of the files it ran: with none seeded, the first
   // run in a worktree would write a partial index that then stands for the
@@ -172,16 +209,42 @@ export async function seedTestCoverage(
     } catch (error) {
       if (!(error instanceof RecordWithoutCoverage)) throw error;
     }
+    primary = passedOver(resolve(layers.base, inside), bytes, instrumentation);
+    if (primary !== undefined) return undefined;
     const { index } = caseSectionsOf(bytes);
     if (index !== undefined && openSetExecutionIndex(index) === undefined) decodeExecutionTests(index);
     return sharedRecord(bytes);
   });
-  if (!seeded) return undefined;
+  if (primary !== undefined) return { from: 'nothing', passed: [...(passed ?? []), primary] };
+  if (!seeded) return nothing();
   if (snapshot !== undefined) await seedCommitRuns(file, resolve(layers.base, inside), snapshot);
   // The primary checkout's record is no milestone: nothing is pinned, and no
   // fetch moves it. Its tests are not this checkout's.
   await writeOwnLayer(file, { ran: [] });
-  return { from: 'primary', file: resolve(layers.base, inside), ...(shared === undefined ? {} : { shared }) };
+  return {
+    from: 'primary',
+    file: resolve(layers.base, inside),
+    ...(shared === undefined ? {} : { shared }),
+    ...(passed === undefined ? {} : { passed }),
+  };
+}
+
+/**
+ * The record at `file`, as `bytes`, when a run under `instrumentation` cannot
+ * be laid over it for its probes: the check `layRecord` makes first.
+ * Nothing for a record that measured nothing, which a run lands over as it is,
+ * for one this build cannot read or that is gone, which the caller refuses on
+ * its own terms, and for a run that lays no coverage.
+ */
+function passedOver(file: string, bytes: Uint8Array | undefined, instrumentation: string | undefined): PassedOver | undefined {
+  if (bytes === undefined || instrumentation === undefined) return undefined;
+  let written: string;
+  try {
+    written = openTestCoverage(bytes).instrumentation;
+  } catch {
+    return undefined;
+  }
+  return written === instrumentation ? undefined : { file, instrumentation: written, run: instrumentation };
 }
 
 /**
@@ -202,12 +265,22 @@ export function recordsAlone(sharded: boolean, selected: boolean): boolean {
 
 /**
  * Say which base a run was laid on, where the run prints: once, when a
- * checkout's first run lands. Silent when nothing was laid, and for the primary
- * checkout's record under a suite the share does not carry, where it is the
- * only base there is.
+ * checkout's first run lands, with each base passed over for its probes. Silent
+ * when nothing was laid or passed over, and for the primary checkout's record
+ * under a suite the share does not carry, where it is the only base there is.
  */
 export function noteSeeded(seeded: Seeded | undefined): void {
   if (seeded === undefined) return;
+  if (seeded.from !== 'mainline') {
+    for (const passed of seeded.passed ?? []) {
+      console.warn(
+        `variance-authority did not lay this checkout's first record on ${passed.file}: it was written under the probes ` +
+          `\`${passed.instrumentation}\` and this run records under \`${passed.run}\`, so the run cannot be laid over it. ` +
+          (seeded.from === 'nothing' ? 'The run records its own from nothing.' : 'The next base was asked.'),
+      );
+    }
+  }
+  if (seeded.from === 'nothing') return;
   if (seeded.from === 'mainline') {
     const { record } = seeded;
     console.warn(
@@ -275,15 +348,15 @@ async function seedCommitRuns(file: string, base: string, snapshot: TestCoverage
 
 /**
  * Copy `name` from under `base` to `target` unless `target` is already there,
- * as `opens` returns the bytes, and unless it refuses them. No base and an
- * unreadable one are the same answer: nothing to inherit. Says whether it
- * copied.
+ * as `opens` returns the bytes. A base `opens` returns nothing for is not
+ * copied. No base and an unreadable one are the same answer: nothing to
+ * inherit. Says whether it copied.
  */
 async function seedFrom(
   base: string,
   name: string,
   target: string,
-  opens: (bytes: Uint8Array) => Uint8Array,
+  opens: (bytes: Uint8Array) => Uint8Array | undefined,
 ): Promise<boolean> {
   // FIXME: the check and the copy are two steps, so two first writes in one
   // worktree can both find `target` missing, and the later copy replaces a
@@ -298,7 +371,9 @@ async function seedFrom(
     const bytes = await readFile(resolve(base, name));
     // Opening parses the section index and nothing else, which is the whole of
     // what "this build can read it" means and costs a fraction of a decode.
-    await writeCoverageBytes(target, opens(bytes));
+    const opened = opens(bytes);
+    if (opened === undefined) return false;
+    await writeCoverageBytes(target, opened);
     return true;
   } catch {
     // No base, or one this build has no claim on. Either way there is nothing

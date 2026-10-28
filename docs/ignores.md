@@ -404,8 +404,12 @@ absent from the run may have been copied from another report.
   counted in a register of its own.
 - **It cannot change what is rendered.** Ignores sit outside the environment key,
   so editing one never invalidates a baseline — and never changes an image.
-- **It cannot silence a size change.** A subject that resized is reported whatever
-  its exclusions cover, because the canvas itself changed.
+- **It cannot silence a size change or content that moved.** An ignore hides
+  the pixels inside its region, not the layout around it. When the region grows
+  taller, everything under it moves down the page, and the subject is reported
+  `changed` whatever its exclusions cover, as it is when the subject resizes.
+  The reason names the rows inserted or removed and how far the rest moved. Give
+  the region a fixed height if its size is noise, or accept the new layout.
 - **It cannot hide from the ledger.** There is no quiet ignore.
 
 ## Coming from somewhere else

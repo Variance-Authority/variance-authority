@@ -62,7 +62,7 @@ impl Exported {
                 let names = graph.parsed(file).map(|parsed| parsed.exports.keys().filter(|name| *name != "*").collect::<Vec<_>>());
                 let mut found = Vec::new();
                 for name in names.unwrap_or_default() {
-                    let Some((at, local)) = graph.declaration_of(file, name, &mut HashSet::new()) else { continue };
+                    let Some((at, local)) = graph.declaration_of(file, name) else { continue };
                     let Some(declared) = graph.parsed(at) else { continue };
                     for &func in declared.locals.get(&local).into_iter().flatten() {
                         let Some(held) = regions.get(&(at, func)).filter(|_| declared.fns[func as usize].parent.is_none()) else { continue };

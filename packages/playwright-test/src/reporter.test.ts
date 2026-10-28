@@ -2,7 +2,6 @@ import { execFileSync } from 'node:child_process';
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
-import type { FullConfig } from '@playwright/test/reporter';
 import {
   moduleId,
   stageExecution,
@@ -44,7 +43,7 @@ describe('the reporter that folds what the workers recorded', () => {
       const cacheRoot = await instrumented(root);
       const reporter = new ExecutionReporter({ root, cacheRoot, coverageFile });
 
-      reporter.onBegin({} as FullConfig);
+      reporter.onBegin();
       const directory = stagingDirectory()!;
       expect(directory).toBeDefined();
 
@@ -82,7 +81,7 @@ describe('the reporter that folds what the workers recorded', () => {
       const cacheRoot = await instrumented(root);
       const reporter = new ExecutionReporter({ root, cacheRoot, coverageFile });
 
-      reporter.onBegin({} as FullConfig);
+      reporter.onBegin();
       await reporter.onEnd();
 
       await expect(readTestCoverage(coverageFile)).rejects.toThrow();
@@ -106,7 +105,7 @@ describe('the reporter that folds what the workers recorded', () => {
         coverageFile: 'coverage.bin',
       });
 
-      reporter.onBegin({} as FullConfig);
+      reporter.onBegin();
       const directory = stagingDirectory()!;
       expect(directory.startsWith(`${root}/`)).toBe(true);
       const walked: ExecutionJournal = {

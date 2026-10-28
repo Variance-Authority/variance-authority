@@ -106,7 +106,7 @@ import { variations } from './tools/variations.js';
 export type { FileSet, Served, Tool, ToolInvocation } from './tools/tool.js';
 // The tree a start point is resolved against, exported for the hosts that have
 // a repository to read: a tool cannot walk one, so somebody outside has to.
-export { readTree, treeAtWorkspace, treeFromRelations, treeOf, type Tree, type TreeOptions } from './tools/tree.js';
+export { readTree, treeAtWorkspace, treeFromRelations, treeOf, type Chains, type Link, type Tree, type TreeOptions } from './tools/tree.js';
 export { namesOf, type DeclaredName, type FileNames, type ImportedName, type SourceNames } from './tools/names.js';
 export { decodeSourceTree, encodeSourceTree } from './tools/source-tree-format.js';
 // `treeOf` takes these, so a host that builds a tree out of a scan it already
@@ -134,6 +134,12 @@ export { NO_ARGS, stringArg };
 export { notObservedSentence } from './tools/subject.js';
 // A long part of an answer, capped and counted the same way in every server.
 export { cappedRows } from './tools/capped.js';
+// How many rows a listing shows, read and refused the same way in every server.
+export { limitOf, notShown } from './tools/limit.js';
+// How rare a word is in a population, the one integer every word ranking multiplies by a field weight.
+export { heldWeight, rarity } from './tools/rarity.js';
+// How an answer names an input, a tool or a question, on the surface it was asked on.
+export { flagOf, spellingOf, verbOf, type Spelling } from './tools/spelling.js';
 export { diffState };
 
 /** The source-to-named-test tool set for an MCP server over an execution index. */

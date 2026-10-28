@@ -1,14 +1,13 @@
 //! Bounded questions over the separately published dependency corpus.
 
-use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
-use std::fs;
-use std::path::Path;
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 
 use napi_derive::napi;
 use serde::Serialize;
 
 use super::describing::{described, Described};
-use super::{Api, Lexicon, Readme};
+use super::view::{read, Lexicon, Row};
+use super::{Api, Readme};
 
 #[derive(Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -65,6 +64,7 @@ struct Silent {
 
 /// `silent` is asked for by an exact name only: a search over words has no name to be silent about.
 #[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
 struct Matches {
     total: u32, shown: Vec<Match>, silent: Vec<Silent>, scope: Scope,
     /// Packages whose own words describe the question, asked for by words rather than one name.
@@ -72,6 +72,9 @@ struct Matches {
     described: Option<Vec<Described>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     described_total: Option<u32>,
+    /// Why no package was asked to describe the question, when the catalogue cannot answer it.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    described_unread: Option<String>,
 }
 
 /// What the question searched, so an empty answer says how much it looked at.
@@ -86,39 +89,22 @@ struct Scope {
     location: Option<Vec<String>>,
 }
 
-pub(super) fn owners<'a>(lexicon: &'a Lexicon, files: &[String]) -> HashSet<&'a str> {
-    let mut manifests: Vec<&str> = lexicon.availability.iter().map(|row| row.owner.as_str()).collect();
-    manifests.sort_unstable();
-    manifests.dedup();
-    manifests.sort_unstable_by_key(|path| std::cmp::Reverse(path.len()));
-    let mut included = HashSet::new();
-    for file in files {
-        let owner = manifests.iter().copied().find(|manifest| {
-            if *manifest == "package.json" { return false; }
-            let Some(directory) = manifest.strip_suffix("package.json") else { return false };
-            file.starts_with(directory) || format!("{file}/").starts_with(directory)
-        });
-        included.insert(owner.unwrap_or("package.json"));
-    }
-    included
-}
-
 fn summary(doc: &str) -> String {
     let paragraph = doc.split("\n\n").next().unwrap_or(doc).split_whitespace().collect::<Vec<_>>().join(" ");
     paragraph.chars().take(180).collect()
 }
 
-fn matches(api: &Api, row: &super::Availability, query: &str, exact: bool) -> Vec<Match> {
+fn matches(api: &Api, row: &Row, query: &str, exact: bool) -> Vec<Match> {
     api.names.as_deref().unwrap_or(&[]).iter().filter(|name| {
         if exact { name.name == query } else {
-            [row.package.as_str(), row.specifier.as_str(), name.name.as_str(), name.doc.as_deref().unwrap_or("")]
+            [row.package, row.specifier, name.name.as_str(), name.doc.as_deref().unwrap_or("")]
                 .iter().any(|field| field.to_lowercase().contains(query))
         }
     }).map(|name| Match {
-        source: "third-party", name: name.name.clone(), specifier: row.specifier.clone(),
-        kind: name.kind.clone(), package: row.package.clone(), manifest: row.owner.clone(),
+        source: "third-party", name: name.name.clone(), specifier: row.specifier.to_owned(),
+        kind: name.kind.clone(), package: row.package.to_owned(), manifest: row.owner.to_owned(),
         installed: api.runtime.as_ref().or(api.declarations.as_ref()).map(|identity| identity.manifest.clone()),
-        declared_as: row.declared_as.clone(), imports: row.imports, site: row.site.clone(),
+        declared_as: row.declared_as.map(str::to_owned), imports: row.imports, site: row.site.clone(),
         version: api.runtime.as_ref().or(api.declarations.as_ref()).map(|identity| identity.version.clone()),
         summary: name.doc.as_deref().map(summary), imported: row.imported == Some(true),
         at: exact.then(|| name.at.clone()), line: exact.then_some(name.line),
@@ -133,52 +119,44 @@ fn matches(api: &Api, row: &super::Availability, query: &str, exact: bool) -> Ve
 /// Read the corpus and return only matching names, counted before the cap.
 /// `files=None` asks the whole checkout; an empty vector asks an empty area.
 #[napi(catch_unwind)]
-pub fn query_dependency_lexicon(path: String, query: String, files: Option<Vec<String>>,
+pub fn query_dependency_lexicon(path: String, sites: String, query: String, files: Option<Vec<String>>,
     exact: bool, package: Option<String>, limit: u32) -> napi::Result<Option<String>> {
-    let bytes = match fs::read(Path::new(&path)) {
-        Ok(bytes) => bytes,
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
-        Err(error) => return Err(napi::Error::from_reason(error.to_string())),
-    };
-    let lexicon: Lexicon = serde_json::from_slice(&bytes)
-        .map_err(|error| napi::Error::from_reason(format!("the dependency lexicon did not read: {error}")))?;
-    if !matches!(lexicon.version, 4..=9) { return Err(napi::Error::from_reason("the dependency lexicon version is not supported")); }
-    let allowed = files.as_ref().map(|files| owners(&lexicon, files));
-    let entries: HashMap<&str, &Api> = lexicon.entries.iter().map(|entry| (entry.id.as_str(), &entry.api)).collect();
+    let Some((catalogue, held)) = read(&path, &sites)? else { return Ok(None) };
+    let lexicon = Lexicon::open(&catalogue, held.as_deref())?;
+    let allowed = files.as_ref().map(|files| lexicon.located(files));
+    let (rows, _) = lexicon.rows(allowed.as_ref());
     let query = if exact { query } else { query.to_lowercase() };
-    let mut found = BTreeMap::<(String, String, String, String), Match>::new();
-    let mut searched = HashMap::<(&str, &str), Vec<Match>>::new();
-    let mut silent = BTreeMap::<(String, String), Silent>::new();
+    let mut found = BTreeMap::<(&str, String, String, String), Match>::new();
+    let mut searched = HashMap::<(u32, &str), Vec<Match>>::new();
+    let mut silent = BTreeMap::<(&str, &str), Silent>::new();
     let mut looked = (BTreeSet::<&str>::new(), BTreeSet::<&str>::new());
     let mut read = Vec::new();
-    for row in &lexicon.availability {
-        if allowed.as_ref().is_some_and(|owners| !owners.contains(row.owner.as_str())) { continue; }
-        if package.as_ref().is_some_and(|wanted| wanted != &row.package && wanted != &row.specifier) { continue; }
-        let Some(api) = entries.get(row.entry.as_str()) else { continue };
-        looked.0.insert(row.owner.as_str());
-        looked.1.insert(row.package.as_str());
-        read.push((row, *api));
+    for row in &rows {
+        if package.as_ref().is_some_and(|wanted| wanted != row.package && wanted != row.specifier) { continue; }
+        let Some(api) = lexicon.api(row.entry) else { continue };
+        let entry = lexicon.entry_id(row.entry);
+        looked.0.insert(row.owner);
+        looked.1.insert(row.package);
+        read.push((row, api));
         if let (true, Some(reason)) = (exact, api.unavailable.as_ref()) {
-            let key = (row.entry.clone(), row.specifier.clone());
             let imported = row.imported == Some(true);
-            if silent.get(&key).is_none_or(|prior| !prior.imported && imported) {
-                silent.insert(key, Silent {
-                    package: row.package.clone(), specifier: row.specifier.clone(),
+            if silent.get(&(entry, row.specifier)).is_none_or(|prior| !prior.imported && imported) {
+                silent.insert((entry, row.specifier), Silent {
+                    package: row.package.to_owned(), specifier: row.specifier.to_owned(),
                     version: api.runtime.as_ref().map(|identity| identity.version.clone()),
                     installed: api.runtime.as_ref().map(|identity| identity.manifest.clone()),
                     reason: reason.clone(), readme: api.readme.clone(), imported,
                 });
             }
         }
-        let candidates = searched.entry((row.entry.as_str(), row.specifier.as_str()))
-            .or_insert_with(|| matches(api, row, &query, exact));
+        let candidates = searched.entry((row.entry, row.specifier)).or_insert_with(|| matches(api, row, &query, exact));
         for mut hit in candidates.iter().cloned() {
             hit.imported = row.imported == Some(true);
-            hit.manifest = row.owner.clone();
-            hit.declared_as = row.declared_as.clone();
+            hit.manifest = row.owner.to_owned();
+            hit.declared_as = row.declared_as.map(str::to_owned);
             hit.imports = row.imports;
             hit.site = row.site.clone();
-            let key = (row.entry.clone(), hit.specifier.clone(), hit.name.clone(), hit.kind.clone());
+            let key = (entry, hit.specifier.clone(), hit.name.clone(), hit.kind.clone());
             let prior = found.get(&key);
             if prior.is_none_or(|prior| !prior.imported && hit.imported) { found.insert(key, hit); }
         }
@@ -188,9 +166,12 @@ pub fn query_dependency_lexicon(path: String, query: String, files: Option<Vec<S
     shown.sort_by(|a, b| b.imported.cmp(&a.imported)
         .then_with(|| (&a.specifier, &a.name, &a.kind).cmp(&(&b.specifier, &b.name, &b.kind))));
     shown.truncate(limit as usize);
-    let words = if exact { None } else { described(&query, read.iter().copied(), limit as usize) };
+    let older = lexicon.catalogue.stems_older();
+    let described_unread = older.filter(|_| !exact)
+        .map(|version| format!("The dependency lexicon was written at version {version}, whose stems this release does not compare"));
+    let words = if exact || older.is_some() { None } else { described(&query, read.iter().copied(), limit as usize) };
     let (described_total, described) = match words { Some((total, shown)) => (Some(total), Some(shown)), None => (None, None) };
-    let answer = serde_json::to_string(&Matches { total, shown, silent: silent.into_values().collect(), described, described_total,
+    let answer = serde_json::to_string(&Matches { total, shown, silent: silent.into_values().collect(), described, described_total, described_unread,
         scope: Scope { owners: looked.0.into_iter().map(str::to_owned).collect(), packages: looked.1.len() as u32,
             location: allowed.map(|allowed| { let mut held: Vec<String> = allowed.into_iter().map(str::to_owned).collect(); held.sort_unstable(); held }) } })
         .map_err(|error| napi::Error::from_reason(error.to_string()))?;

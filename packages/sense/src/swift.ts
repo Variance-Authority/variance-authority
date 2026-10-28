@@ -7,7 +7,7 @@
  * anywhere in the file, says which of those files the symbol came from. Within a
  * target it is worse: files see each other with no import at all, so a Swift file
  * names none of the files it depends on and cannot be made to
- * ([ADR-0066](../../../docs/context/adr/0066-a-language-is-a-reader-not-a-sense.md)).
+ * ([ADR-0066](https://github.com/Variance-Authority/variance-authority/blob/main/docs/context/adr/0066-a-language-is-a-reader-not-a-sense.md)).
  *
  * ## So the target is the answer, projected onto files
  *

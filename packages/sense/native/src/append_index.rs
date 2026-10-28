@@ -43,7 +43,7 @@ fn appended(path: &str, read: &[String], legacy: bool, layers: &[&[u8]]) -> Resu
     let moved = |written: bool| if written { Ok(()) } else { Err(MOVED.to_owned()) };
     // A legacy file is its own one segment, written as the base it always was.
     if let Some(Chain { segments, .. }) = chain.as_ref().filter(|chain| legacy && chain.references.is_empty()) {
-        let layer = working(&[], layers)?;
+        let layer = working(&[&segments[0]], &[], layers)?;
         return written(path, over, &[], &[&segments[0], &layer], &[], 1).map_err(fail).and_then(moved);
     }
     let Some(chain) = chain.filter(|_| kept > 0) else {
@@ -54,20 +54,17 @@ fn appended(path: &str, read: &[String], legacy: bool, layers: &[&[u8]]) -> Resu
         return Err("a segment the save read is no longer there".to_owned());
     }
     let base = (references.len() - chain.working).min(kept);
-    let under: Vec<&[u8]> = chain.segments[base..kept].iter().map(Vec::as_slice).collect();
-    let layer = working(&under, layers)?;
+    let segments: Vec<&[u8]> = chain.segments[..kept].iter().map(Vec::as_slice).collect();
+    let layer = working(&segments[..base], &segments[base..], layers)?;
     written(path, over, &references[..base], &[&layer], &references[base..], 1).map_err(fail).and_then(moved)
 }
 
 const MOVED: &str = "the chain moved after it was read, so these layers are not against it";
 
-/// The working layer `under` was, with `layers` over it, as one layer.
-fn working(under: &[&[u8]], layers: &[&[u8]]) -> Result<Vec<u8>, String> {
+/// The working layer `under` was, with `layers` over it, as one layer over `base`.
+fn working(base: &[&[u8]], under: &[&[u8]], layers: &[&[u8]]) -> Result<Vec<u8>, String> {
     let all: Vec<&[u8]> = under.iter().chain(layers).copied().collect();
-    match all.as_slice() {
-        [one] => Ok(one.to_vec()),
-        _ => merged(&all),
-    }
+    merged(base, &all)
 }
 
 fn named(chain: &Chain) -> Vec<LogSegment> {

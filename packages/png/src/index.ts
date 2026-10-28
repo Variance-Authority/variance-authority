@@ -24,6 +24,9 @@ export {
 } from './compare.js';
 export type { DecodedImage, PngDecoder } from './compare.js';
 
+export { changeImages } from './change.js';
+export type { ChangeImages, ChangeLabels } from './change.js';
+
 export { declaredIdentity, foreignDigest, foreignRaster } from './foreign.js';
 export type { DeclaredPainter } from './foreign.js';
 

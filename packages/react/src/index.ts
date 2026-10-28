@@ -27,7 +27,7 @@ export type {
   NoFiberResult,
   NoFiberReason,
 } from './resolve.js';
-export { resolveProvenance, provenanceOf, NO_FIBER, UNMOUNTED } from './resolve.js';
+export { resolveProvenance, provenanceOf, NO_FIBER, UNCOMMITTED, UNMOUNTED } from './resolve.js';
 export type { DigestPass } from './props.js';
 export { digestPass } from './props.js';
 
@@ -71,12 +71,19 @@ export type {
 } from './arrival.js';
 export { awaitSuspense, suspenseRefusal } from './arrival.js';
 
-export type { HydrationSettlement, HydrationWaitOptions } from './hydration.js';
+export type {
+  AwaitedArrival,
+  HydrationSettlement,
+  HydrationState,
+  HydrationWaitOptions,
+  MarkupChange,
+} from './hydration.js';
 export { awaitHydration } from './hydration.js';
 
 export type {
   Commit,
   CommitTap,
+  RootHydration,
   TapOptions,
   TapRefusal,
 } from './commits.js';

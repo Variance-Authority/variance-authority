@@ -10,8 +10,8 @@ import { flagsFor, synopsisFor } from '../usage.js';
 import { digestString } from '@variance-authority/core/format';
 import { encodeExecutionIndex, recordOfCases, writeTestCoverage } from '@variance-authority/sense/test-selection';
 import { covering, formatCovering } from './covering.js';
-import { refold } from './covering-reach.js';
 import { indexOutput } from './index-command.js';
+import { INSTRUMENTATION_ID } from '@variance-authority/sense/instrument';
 
 const INDEX = {
   tests: [
@@ -58,7 +58,7 @@ async function recordFile(): Promise<string> {
   const held = (name: string) => ({ name, digest: digestString(name) });
   await writeTestCoverage(file, {
     version: 3,
-    instrumentation: 'fixture-instrumentation',
+    instrumentation: INSTRUMENTATION_ID,
     tests: [
       { file: 'total.test.ts', complete: true, preconditions: [held('total.test.ts'), held('src/stabilize.ts')] },
       { file: 'flow.test.tsx', complete: true, preconditions: [held('flow.test.tsx')] },
@@ -169,7 +169,7 @@ describe('asking which tests entered a line', () => {
     expect(answer.preconditionOf).toEqual(['total.test.ts']);
     expect(formatCovering(answer, 'text')).toBe(
       'src/stabilize.ts is a precondition of 1 test file, and a change to it selects every one: the run loaded it ' +
-        'without instrumenting it, or the suite declares it, so no line of it has a recorded case.\n  total.test.ts\n',
+        'without instrumenting it, so no line of it has a recorded case.\n  total.test.ts\n',
     );
     expect(formatCovering(answer, 'refs')).toBe('src/stabilize.ts precondition of: total.test.ts; no recorded line\n');
   });
@@ -185,7 +185,7 @@ describe('asking which tests entered a line', () => {
     expect(formatCovering(other, 'text')).toBe(
       'Read from the 1 case of flow.test.tsx, not the whole suite.\n' +
         'No test file of these cases holds src/stabilize.ts as a precondition: the run loaded it without instrumenting ' +
-        'it, or the suite declares it, so no line of it has a recorded case.\n',
+        'it, so no line of it has a recorded case.\n',
     );
     expect(formatCovering(other, 'refs')).toContain('src/stabilize.ts precondition of: no test file of these cases; no recorded line\n');
   });
@@ -215,11 +215,12 @@ describe('asking which tests entered a line', () => {
     await expect(asked).rejects.toHaveProperty('kind', 'unloaded');
   });
 
-  it('separates a line nothing recorded from a line nothing covered', async () => {
+  it('separates a line nothing recorded from a line nothing covered, and answers it', async () => {
     const execution = await indexFile();
+    const answer = await covering(parse(['--file', 'src/total.ts', '--line', '2', '--execution', execution]));
 
-    await expect(covering(parse(['--file', 'src/total.ts', '--line', '2', '--execution', execution])))
-      .rejects.toThrow(/outside every recorded region/);
+    expect(answer).toMatchObject({ tests: [], outside: [{ startLine: 2, endLine: 2 }] });
+    expect(formatCovering(answer, 'text')).toContain('Line 2 is outside every recorded region, so no case can be said to have run it.');
   });
 
   it('refuses a line and a function together, and a line that is not one', () => {
@@ -403,16 +404,6 @@ describe('narrowing the witnesses to what is nearby', () => {
     expect(answer.narrowed).toMatchObject({ kept: 1, of: 2 });
   });
 
-  it('keeps apart two neighbours whose stopped cases differ', () => {
-    const range = (startLine: number, endLine: number, stopped?: readonly string[]) => ({
-      startLine, endLine, tests: [],
-      ...(stopped === undefined ? {} : { stopped: stopped.map((id) => ({ id, file: 'a.test.ts', name: id })) }),
-    });
-
-    expect(refold([range(1, 2, ['a']), range(3, 4, ['a']), range(5, 6, ['b']), range(7, 8)]).map((one) => [one.startLine, one.endLine]))
-      .toEqual([[1, 4], [5, 6], [7, 8]]);
-  });
-
   it('prints no depth beside a witness', async () => {
     const execution = await indexFile();
 
@@ -481,6 +472,16 @@ describe('asking who loaded a region that ran while its module evaluated', () =>
 
     expect(answer.tests?.map((test) => [test.id, test.loaded])).toEqual([['near', true]]);
     expect(formatCovering(answer, 'text')).toContain('* ran only while the module evaluated (its file imports it)');
+  });
+
+  it('reads a region as loaded when it ran while its module evaluated and the graph names nobody who loaded it', async () => {
+    const { root, execution } = await checkout();
+    execFileSync('git', ['rm', '--quiet', 'total.test.ts'], { cwd: root, stdio: 'pipe' });
+    await indexOutput({ cwd: root });
+    const asked = (...flags: string[]) => covering(parse(['--file', 'src/total.ts', ...flags, '--root', root, '--execution', execution]));
+    const [answer, whole] = [await asked('--line', '3'), await asked()];
+    expect(answer.tests).toEqual([]);
+    expect([answer.state, whole.ranges?.find((range) => range.startLine === 3)?.state]).toEqual(['loaded', 'loaded']);
   });
 
   it('carries the same loaders into a change', async () => {

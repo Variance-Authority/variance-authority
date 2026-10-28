@@ -85,10 +85,14 @@ export interface RouteWorld {
 }
 
 /**
- * Launch a browser, open a page, and watch what it is served.
+ * Open a page, and watch what it is served.
  *
- * The whole world: a fresh browser process, a fresh context and a fresh page.
- * Not a fresh *context* on the running browser, which would be cheaper and would
+ * A run's worlds are pages in one leased browser, each in a context of its own:
+ * a route reading resets its observation per navigation, which only the
+ * uncached wire keeps complete (see `NetworkOptions.cache`). A recipe whose
+ * harness asks for `isolated` gets the whole world — a fresh browser process, a
+ * fresh context and a fresh page. Not a fresh *context* on the running browser,
+ * which would be cheaper and would
  * be answering a smaller question — a leak through a shared browser process is
  * rarer than a leak through a shared origin and it is the harder one to find by
  * hand, so the reading that costs a launch is the one worth having.
@@ -127,8 +131,11 @@ export async function openWorld(recipe: RouteWorldRecipe): Promise<RouteWorld> {
     driven: harness.driven,
 
     async close(): Promise<void> {
-      await network?.close();
-      await harness.close();
+      try {
+        await network?.close();
+      } finally {
+        await harness.close();
+      }
     },
   };
 }

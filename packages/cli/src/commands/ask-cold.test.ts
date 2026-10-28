@@ -1,8 +1,9 @@
 import { execFileSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, realpathSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { sourceIndexPath } from '@variance-authority/sense';
 import { main } from '../bin.js';
 import { EXIT_CLEAN, EXIT_OPERATOR } from '../exit.js';
 
@@ -57,21 +58,57 @@ function answeredOrRefused(answered: { code: number; err: string }): void {
 }
 
 describe('variance ask on a checkout with no index', () => {
-  it('search refuses with a code and names `variance index` as the remedy', async () => {
+  it('search reads the checkout when nothing is published, and does not call that reading uncompared', async () => {
     cold();
     const answered = await run(['ask', 'search', '--query', 'shim']);
+    expect(answered.err).toBe('');
+    expect(answered.code).toBe(EXIT_CLEAN);
+    expect(answered.out).toContain('shim');
+    expect(answered.out).toContain('\nSnapshot ');
+    expect(answered.out).not.toContain('not compared with the checkout');
+  });
+
+  it('search says which published search did not open, and that it read the checkout instead', async () => {
+    const root = cold();
+    const at = `${sourceIndexPath(root)}.help-search.bin`;
+    mkdirSync(dirname(at), { recursive: true });
+    writeFileSync(at, 'not a search');
+    const answered = await run(['ask', 'search', '--query', 'shim']);
+    expect(answered.code).toBe(EXIT_CLEAN);
+    expect(answered.out).toContain(`The published search at ${at} did not open (`);
+    expect(answered.out).toContain('the checkout was read instead.');
+
+    writeFileSync(at, 'not a search');
+    const json = JSON.parse((await run(['ask', 'search', '--query', 'shim', '--format', 'json'])).out) as { unopened?: readonly { at: string }[] };
+    expect(json.unopened?.map((one) => one.at)).toEqual([at]);
+  });
+
+  it('search --format json from a read of the checkout carries its generation without `compared: false`', async () => {
+    cold();
+    const answered = await run(['ask', 'search', '--query', 'shim', '--format', 'json']);
+    expect(answered.code).toBe(EXIT_CLEAN);
+    const data = JSON.parse(answered.out) as { generatedAt?: string; compared?: boolean };
+    expect(data.generatedAt).toBeDefined();
+    expect(data.compared).toBeUndefined();
+  });
+
+  it('search --just-answer refuses with a code, names the flag it was given and `variance index` as the remedy', async () => {
+    cold();
+    const answered = await run(['ask', 'search', '--query', 'shim', '--just-answer']);
     answeredOrRefused(answered);
     expect(answered.code).toBe(EXIT_OPERATOR);
     expect(answered.err).toContain('Run `variance index`');
+    expect(answered.err).toContain('asked with `--just-answer`');
   });
 
-  it('search answers once `variance index` has published the generation', async () => {
+  it('search answers once `variance index` has published the generation, and says it opened it uncompared', async () => {
     cold();
     expect((await run(['index'])).code).toBe(EXIT_CLEAN);
     const answered = await run(['ask', 'search', '--query', 'shim']);
     expect(answered.err).toBe('');
     expect(answered.code).toBe(EXIT_CLEAN);
     expect(answered.out).toContain('shim');
+    expect(answered.out).toContain('not compared with the checkout');
   });
 
   it('packages answers or refuses with a code', async () => {

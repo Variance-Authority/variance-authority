@@ -369,6 +369,10 @@ describe('a run that composed nothing', () => {
     expect(answer).toContain('A report merged from shards drops the composition');
     expect(answer).not.toContain('No subject supplied');
     expect(answer).toContain('it says this report cannot tell');
+    // Where the composition still is, said instead of a run to repeat.
+    expect(answer).toContain("Each shard's own report still holds its composition over the subjects it rendered");
+    expect(answer).toContain("the suite index the build composes from every shard's part holds the census across them");
+    expect(answer).not.toMatch(/run the suite/i);
     expect(answer).not.toContain('0 component(s)');
   });
 
@@ -466,8 +470,21 @@ describe('one subject — the recall the run wrote down', () => {
     expect(answer).not.toContain('shared with');
   });
 
+  it('answers a subject from the census when the report carries no per-subject structure, and names what is missing', () => {
+    const answer = composition.run(REPORT, { subject: 'page/all' });
+
+    expect(answer.split('\n')[0]).toBe('page/all — 3 component(s) in the census hold in it: Button, Chip, Stack');
+    expect(answer).toContain('carries no per-subject structure');
+    expect(answer).toContain('no document order, depth, mount or count within this subject');
+    expect(answer).toContain('shared with other subjects (2)');
+    expect(answer).toContain('Chip @ v1:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa also in ds/chip--group, page/active');
+    expect(answer).not.toMatch(/re-run|run the suite/i);
+  });
+
   it('keeps three absences apart: no structure, planned and unobserved, unknown', () => {
     expect(composition.run(REPORT, { subject: 'page/all' })).toContain('carries no per-subject structure');
+    expect(composition.run({ ...REPORT, notObserved: [{ subject: 'page/skipped', reason: 'render failed', because: 'threw' }] } as RunReport, { subject: 'page/skipped' }))
+      .toContain('planned and not observed');
     expect(composition.run(structured, { subject: 'page/skipped' })).toContain('planned and not observed');
     const unknown = composition.run(structured, { subject: 'page/typo' });
     expect(unknown).toContain('not among the 4 subject(s) this run composed');

@@ -50,6 +50,13 @@ runtime and re-runs every decorator on every subject. The corner that cuts —
 subjects sharing one document — is paid for by detecting what one left behind for
 the next, not by preventing it.
 
+It does not launch per worker. A run's parallel worlds are pages in one leased
+browser; a Storybook run also keeps them in one browser context, which holds the
+HTTP cache, so a worker's preview boots from what the first page fetched. Route
+worlds take a context each, because a route reading resets its observation per
+navigation and only the uncached wire keeps that complete. The reading that
+audits order is the exception: it gets a browser of its own.
+
 It is not a crawler. Nothing followed is decided by what a fetched page points
 at, because a subject list that grows when someone adds a link is a list nobody
 wrote.
@@ -69,9 +76,12 @@ an adopter did not ask for into their dependency tree.
 - `packages/storybook/src/preview.ts`, `show-story.ts`, `preview-url.ts`,
   `preview-protocol.ts` — driving a preview over its own channel
 - `packages/storybook-collector/src/index.ts` — the collector, `execution.ts`, `page-agent.ts`
+- `packages/storybook-collector/src/preset.ts` — the addon preset that adds the
+  probes to the preview's build under Vite, Rspack or webpack
 - `packages/route-collector/src/index.ts` — the collector, `options.ts`, `page-agent.ts`
 - `packages/{storybook-collector,route-collector}/src/source.ts` — the component-to-`file:line` scan
-- `packages/playwright/src/harness.ts` — the standing page the adapters are handed
+- `packages/playwright/src/harness.ts` — the standing page the adapters are handed,
+  on a leased browser (`browsers.ts`)
 
 ## Diagram
 

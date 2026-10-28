@@ -84,7 +84,7 @@ signal travels beside the verdict rather than inside it.
 #### What I need from it
 
 A record shape that keeps effects and information counts distinct, that can say
-*incomparable* without inventing a transition, and that distinguishes an absent
+one side was not read without inventing a transition, and that distinguishes an absent
 signal from an empty one. Nothing more: storing the signal applies no policy.
 
 #### What would make me leave

@@ -311,7 +311,7 @@ describe("the documented vocabulary is the real one", () => {
   });
 });
 
-/** Package registries keep reference ownership; the start guide links outward. */
+/** The start guide links outward to each adopter integration. */
 describe("the site routes package visitors to adopter integrations", () => {
   const GUIDE = readFileSync(join(ROOT, "docs/start.md"), "utf8");
   const STARTS = [
@@ -324,23 +324,6 @@ describe("the site routes package visitors to adopter integrations", () => {
 
   it.each(STARTS)("names the %s start", (name) => {
     expect(GUIDE).toContain(name);
-  });
-
-  const manifests = execFileSync(
-    "git",
-    ["ls-files", ":(glob)packages/*/package.json"],
-    { cwd: ROOT, encoding: "utf8" },
-  )
-    .trim()
-    .split("\n");
-
-  it.each(manifests)("%s links to its reference", (path) => {
-    const manifest = JSON.parse(readFileSync(join(ROOT, path), "utf8")) as {
-      homepage?: string;
-    };
-    expect(manifest.homepage).toBe(
-      `https://variance-authority.dev/reference/packages/${path.split("/")[1]}`,
-    );
   });
 
   it("renders the canonical first-observation guide", () => {

@@ -34,7 +34,7 @@ import { entryPoints, pathsOf, refusalFor, type Tree } from '@variance-authority
  * how the callers of a thing are found when the thing is what you have.
  *
  * Said together they are two start points and not one, unioned rather than
- * crossed, for the same reason [`scope.ts`](../../../mcp/src/tools/scope.ts)
+ * crossed, for the same reason [`scope.ts`](https://github.com/Variance-Authority/variance-authority/blob/main/packages/mcp/src/tools/scope.ts)
  * gives: two entry points of one application share almost no file, so an
  * intersection answers nothing at exactly the moment the caller was most
  * specific.
@@ -43,7 +43,7 @@ import { entryPoints, pathsOf, refusalFor, type Tree } from '@variance-authority
  *
  * What a path means — three widths, anchored at the root, compared segment for
  * whole segment, not found rather than guessed at — belongs to
- * [`start-point.ts`](../../../mcp/src/tools/start-point.ts) and is imported
+ * [`start-point.ts`](https://github.com/Variance-Authority/variance-authority/blob/main/packages/mcp/src/tools/start-point.ts) and is imported
  * from there. A second server that wrote its own would drift, and the drift
  * lands on the reader as `src/billing/` meaning one thing in one tool and
  * something else in the next.

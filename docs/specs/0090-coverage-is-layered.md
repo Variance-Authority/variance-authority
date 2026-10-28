@@ -3,7 +3,7 @@
 **Missing:** the per-test read of item 1, and items 2 to 4. A checkout's
 record is still one file, the milestone it was laid on with its runs folded in,
 so a landing over an edit still demotes every test on an edited region the run
-did not observe (`format-layer-rows.ts`, `mergeCoverage`). Which rows are whose
+did not observe (`record_coverage_layer.rs`). Which rows are whose
 is now kept beside it: the ledger `coverage.layer.json`
 (`packages/sense/src/test-selection/own-layer.ts`) names the pinned milestone
 and the tests each run observed, with the state they ran over, and
@@ -56,7 +56,7 @@ the checkout can reach replaces it.**
   answered by the milestone's row, diffed from the milestone's commit.
   This retires a width the merge pays today: a landing over an edit demotes
   every test on an edited region that the run did not observe
-  (`format-layer-rows.ts`, `mergeCoverage`), because one frame serves every
+  (`record_coverage_layer.rs`), because one frame serves every
   test. An edit at a module's top level demotes every loader of the module,
   where a diff from each test's own text charges only the readers of what
   changed.

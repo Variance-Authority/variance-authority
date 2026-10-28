@@ -6,7 +6,7 @@ import {
   isEncodedExecutionIndex,
 } from './execution-format.js';
 import { CrossingSets } from './crossing-sets.js';
-import { encodeSetExecutionIndex } from './execution-set-format.js';
+import { encodeAsSetExecutionIndex, encodeSetExecutionIndex } from './execution-set-format.js';
 import type { ExecutionIndex } from './reverse.js';
 
 describe('the execution index as columns', () => {
@@ -75,7 +75,7 @@ describe('the execution index as columns', () => {
   });
 
   it('reads rows written before a region carried the flag as flagging nothing', () => {
-    variancePrecondition({ record: 'older' });
+    variancePrecondition('fixture', { record: 'older' });
     const index: ExecutionIndex = {
       tests: [{ id: 'a.test.ts > one', file: 'a.test.ts', name: 'one' }],
       modules: [{
@@ -249,7 +249,7 @@ describe('the duration each case carries', () => {
   });
 
   it('is absent from every case of an index written before cases carried one', () => {
-    variancePrecondition({ record: 'older' });
+    variancePrecondition('fixture', { record: 'older' });
     const bytes = encodeExecutionIndex(timed);
     const headerLength = bytes.readUInt32LE(0);
     const header = JSON.parse(bytes.toString('utf8', 4, 4 + headerLength).replace(/\0+$/u, '')) as {
@@ -271,32 +271,32 @@ describe('the preconditions each case named', () => {
     tests: [
       {
         id: 'a.test.ts > one', file: 'a.test.ts', name: 'one',
-        preconditions: [
-          { name: 'flag', value: 'ff-on', site: 'a.test.ts:4', level: 65535 },
-          { name: 'retries', value: 3, site: 'a.test.ts:5', level: 1 },
-          { name: 'seeded', value: true, site: 'a.test.ts:2', level: 0 },
-        ],
+        said: JSON.stringify({ said: [
+          ['fixture:flag', '"ff-on"', 'a.test.ts:4', 65535],
+          ['fixture:retries', '3', 'a.test.ts:5', 1],
+          ['fixture:seeded', 'true', 'a.test.ts:2', 0],
+        ] }),
       },
-      { id: 'a.test.ts > two', file: 'a.test.ts', name: 'two', preconditions: [] },
+      { id: 'a.test.ts > two', file: 'a.test.ts', name: 'two', said: '{"said":[]}' },
       { id: 'a.test.ts > three', file: 'a.test.ts', name: 'three' },
     ],
     modules: [],
   };
 
   it('keeps every name, value and site, a case that named none, and a case nobody listened to', () => {
-    const back = decodeExecutionIndex(encodeExecutionIndex(said));
+    const back = decodeExecutionIndex(encodeAsSetExecutionIndex(said));
 
     expect(back.tests).toEqual(said.tests);
-    expect(back.tests[1]!.preconditions).toEqual([]);
-    expect('preconditions' in back.tests[2]!).toBe(false);
+    expect(back.tests[1]!.said).toBe('{"said":[]}');
+    expect('said' in back.tests[2]!).toBe(false);
   });
 
-  it('writes no column when no case was listened to, so an older index reads as unmeasured', () => {
-    const silent: ExecutionIndex = { tests: said.tests.map(({ preconditions: _, ...test }) => test), modules: [] };
-    const bytes = encodeExecutionIndex(silent);
+  it('writes no section when no case was listened to, so an older index reads as unmeasured', () => {
+    const silent: ExecutionIndex = { tests: said.tests.map(({ said: _, ...test }) => test), modules: [] };
+    const bytes = encodeAsSetExecutionIndex(silent);
 
-    expect(bytes.toString('utf8')).not.toContain('tests.casePreconditions');
-    expect(decodeExecutionIndex(bytes).tests.map((test) => 'preconditions' in test)).toEqual([false, false, false]);
+    expect(bytes.toString('utf8')).not.toContain('tests.said');
+    expect(decodeExecutionIndex(bytes).tests.map((test) => 'said' in test)).toEqual([false, false, false]);
   });
 
   it('crosses the set spelling the record lays its cases in', () => {
@@ -316,22 +316,17 @@ describe('the preconditions each case named', () => {
     return Buffer.concat([bytes.subarray(0, 4), rewritten, bytes.subarray(4 + headerLength)]);
   }
 
-  it('refuses a column that does not hold one word per case, in either spelling', () => {
+  it('refuses a section that does not hold one entry per case', () => {
     const short = (sections: { name: string; length: number }[]) => {
-      sections.find((section) => section.name === 'tests.casePreconditions')!.length = 4;
+      sections.find((section) => section.name === 'tests.said')!.length = 4;
     };
     const set = encodeSetExecutionIndex({ tests: said.tests, modules: [], sets: new CrossingSets(3).pool() });
 
-    expect(() => decodeExecutionIndex(withHeader(encodeExecutionIndex(said), short))).toThrow(/not a variance-authority/);
-    expect(() => decodeExecutionIndex(withHeader(set, short))).toThrow(/not a variance-authority/);
+    expect(() => decodeExecutionIndex(withHeader(set, short))).toThrow(/not a variance-authority execution index/);
   });
 
-  it('refuses a case whose preconditions are not a list', () => {
-    const bytes = encodeExecutionIndex({ tests: [said.tests[1]!], modules: [] });
-    const at = bytes.indexOf('[]');
-    expect(bytes.indexOf('[]', at + 1)).toBe(-1);
-    bytes.write('{}', at, 'utf8');
-
-    expect(() => decodeExecutionIndex(bytes)).toThrow(/not a variance-authority execution index/);
+  it('is refused by the row spelling, which has no pool to lay it in, a case that said nothing included', () => {
+    expect(() => encodeExecutionIndex(said)).toThrow(/row spelling cannot hold what a case said/);
+    expect(() => encodeExecutionIndex({ tests: [said.tests[1]!], modules: [] })).toThrow(/row spelling cannot hold/);
   });
 });

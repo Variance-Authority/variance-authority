@@ -7,24 +7,28 @@
  * `api.ts` is one no execution follows, and a change to `api.ts` selects that
  * test for nothing. This reads those calls off the tree and subtracts them.
  *
- * ## The real module, loaded by name, is an import
+ * ## A factory replaces an import; it does not request one
  *
- * `jest.requireActual('./api')` and `vi.importActual('./api')` load the real
- * module wherever they are written — in the factory, in a `beforeEach` that
- * hands a mock the original implementation, anywhere in the file. Each is a
- * plus: the file imports `./api`, and a mock of `./api` in the same file cuts
- * nothing, because the run enters the real module through that call. A factory
- * taking vitest's `importOriginal` argument does the same for the module it
- * mocks, and so does a `{ spy: true }` option. A factory that loads a
- * different module (`jest.mock('./a', () => jest.requireActual('./b'))`) cuts
- * `./a` and adds `./b`, which is what runs.
+ * A factory loading its own target cancels the replacement: `jest.mock('./api',
+ * () => jest.requireActual('./api'))` preserves an existing import and adds
+ * nothing when the file never imports `./api`. The same holds for vitest's
+ * `importOriginal` callback, `{ spy: true }`, and an opaque factory.
+ *
+ * Loading a different target in the factory cuts the mocked module and adds
+ * the loaded one: `jest.mock('./api', () => require('./other'))` is minus
+ * `./api`, plus `./other`. Literal `require`, `module.require`, `requireActual`
+ * and `importActual` follow this rule. A `requireActual` or `importActual`
+ * outside the factory is an independent real load, including a `beforeEach`
+ * that restores an implementation: it remains a plus and prevents a mock of
+ * that target from cutting it.
  *
  * ## What is not subtracted
  *
  * A factory that is not written inside the call — an identifier, a member,
  * anything but a function literal — has a body this cannot read, and a body
- * this cannot read is assumed to reach the original; so is a factory loading
- * the real thing by a specifier that is not a string literal. `vi.doMock` and
+ * this cannot read preserves existing imports of the original without adding
+ * one; so does a factory loading the real thing by a specifier that is not a
+ * string literal. `vi.doMock` and
  * `jest.doMock` replace only what is imported after they run, and the static
  * imports above them ran the real module: they are not read. `vi.unmock` and
  * `jest.unmock` restore an edge the file wrote, and the file's own row already
@@ -41,9 +45,10 @@
  *
  * The module reader already holds the tree, so it reads the default callers'
  * mocks while it is there and the parse carries them ({@link mockDiff}). This
- * taint answers from that parse and opens nothing. The scan records what the
- * file writes and never applies it: records keep every edge, and only a caller
- * that passes this taint sees the cut. A taint with its own `callers` asks a
+ * taint answers from that parse and opens nothing. The scan keeps written
+ * imports, except a factory's same-target `require`: that forwarding call is
+ * part of the replacement, not an independent request. Only a caller that
+ * passes this taint sees the remaining mock cuts. A taint with its own `callers` asks a
  * question the scan did not, and reads the file.
  */
 
@@ -110,32 +115,49 @@ export function mockDiff(
   // A file that neither mocks nor loads an original has nothing to say. The parse is the cost this skips.
   if (!mayMock(source)) return undefined;
 
-  const mocked: string[] = [];
+  const mocked = new Set<string>();
   const actual = new Set<string>();
-  each(program(), (node) => {
+  const preserved = new Set<string>();
+  const read = (node: Node, factory?: string): boolean | undefined => {
     const method = methodOf(node, callers);
-    if (method === undefined) return;
+    const required = factory !== undefined && requires(node);
+    if (method === undefined && !required) return;
     const [subjectArgument, ...rest] = node.arguments as readonly Node[];
     const specifier = specifierOf(subjectArgument);
     if (specifier === undefined) return;
-    if (ACTUAL.has(method)) {
-      actual.add(specifier);
+    if (required || (method !== undefined && ACTUAL.has(method))) {
+      if (factory === specifier) preserved.add(specifier);
+      else actual.add(specifier);
       return;
     }
-    if (!MOCKING.has(method)) return;
-    if (rest.some((argument) => opaque(argument) || spies(argument) || original(argument, callers))) {
-      actual.add(specifier);
-      return;
+    if (method === undefined || !MOCKING.has(method)) return;
+    if (rest.some((argument) => opaque(argument) || spies(argument) || original(argument, callers))) preserved.add(specifier);
+    else mocked.add(specifier);
+    for (const [index, argument] of rest.entries()) {
+      const deferred = index === 0 && ['ArrowFunctionExpression', 'FunctionExpression'].includes(argument.type);
+      each(argument, (inner) => read(inner, deferred ? specifier : factory));
     }
-    mocked.push(specifier);
-  });
+    return false;
+  };
+  each(program(), read);
 
   // Sets, sorted by code unit: a diff is compared across the two readers that
   // write it, and neither's walk order is part of the answer.
-  const minus = [...new Set(mocked)].filter((specifier) => !actual.has(specifier)).sort(codeUnitOrder);
+  const minus = [...mocked].filter((specifier) => !actual.has(specifier) && !preserved.has(specifier)).sort(codeUnitOrder);
   const plus = [...actual].sort(codeUnitOrder);
   if (minus.length === 0 && plus.length === 0) return undefined;
   return { ...(minus.length === 0 ? {} : { minus }), ...(plus.length === 0 ? {} : { plus }) };
+}
+
+/** The native loader's two CommonJS spellings, only deferred under a mock factory. */
+function requires(node: Node): boolean {
+  if (node.type !== 'CallExpression') return false;
+  const callee = node.callee as Node;
+  if (callee.type === 'Identifier') return callee.name === 'require';
+  if (callee.type !== 'MemberExpression' || callee.computed === true) return false;
+  const object = callee.object as Node;
+  const property = callee.property as Node;
+  return object.type === 'Identifier' && object.name === 'module' && property.type === 'Identifier' && property.name === 'require';
 }
 
 /** `mock` in `vi.mock(…)`, when `vi` is one of the callers. */
@@ -176,7 +198,7 @@ function opaque(node: Node): boolean {
 /**
  * A factory that reaches the module it mocks: vitest's `importOriginal`, or an
  * original loaded by a specifier this cannot read. An original loaded by a
- * literal is read as its own plus wherever it is written.
+ * literal is normalized against the target of its own factory.
  */
 function original(node: Node, callers: ReadonlySet<string>): boolean {
   let found = false;
@@ -198,8 +220,8 @@ function spies(node: Node): boolean {
   });
 }
 
-function each(node: Node, visit: (node: Node) => void): void {
-  visit(node);
+function each(node: Node, visit: (node: Node) => boolean | undefined | void): void {
+  if (visit(node) === false) return;
   for (const key of Object.keys(node)) {
     const value = node[key];
     if (value === null || typeof value !== 'object') continue;

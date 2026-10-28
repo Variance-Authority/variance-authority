@@ -105,6 +105,17 @@ export interface ToolInvocation<Subject> {
    * one refuses rather than reading wherever the process happens to stand.
    */
   readonly root?: string;
+  /**
+   * The command a shell asks these tools through, such as `variance ask`, where
+   * the host is a shell rather than the wire.
+   *
+   * An answer that tells its reader what to ask next names an input or another
+   * tool, and the two surfaces spell them differently: the wire takes `from`
+   * and `docs_symbol`, a shell takes `--from` and `variance ask symbol`. A hint
+   * spelled for the other surface is one the reader cannot type. Absent means
+   * the tools are asked over the wire, by the names their schemas publish.
+   */
+  readonly shell?: string;
 }
 
 /**

@@ -1,4 +1,4 @@
-import { type Browser, type BrowserContext, type Page } from 'playwright';
+import { type BrowserContext } from 'playwright';
 import {
   RASTER_RECIPE,
   conflicts,
@@ -9,15 +9,18 @@ import {
   recipeDigest,
   recipeScreenshot,
   settleRecipe,
+  stepClock,
   type PageRegion,
   type Raster,
   type Recipe,
   type RenderDocument,
   type RenderIdentity,
-  type Viewport,
+  type StepClock,
 } from '@variance-authority/core/format';
 import { captureSubject } from './capture.js';
-import { ENGINE_TYPES, type BrowserEngine } from './engines.js';
+import { leaseBrowser } from './browsers.js';
+import { type BrowserEngine } from './engines.js';
+import { PagePool } from './page-pool.js';
 import { pinnedRegion } from './viewport.js';
 import {
   assertClosedResources,
@@ -81,18 +84,29 @@ import {
 export type { BrowserEngine };
 
 /**
- * Chromium settings that make text rasterization independent of host defaults.
+ * Chromium settings that make rasterization independent of host defaults and of
+ * what the page painted before.
  *
- * **No other engine accepts them**, so Firefox and WebKit paint text the way the
- * host does; WebKit's one lever is the page's `-webkit-font-smoothing`, which
- * changes the subject rather than the conditions it is shot under. Dormant on
- * macOS — no subpixel antialiasing since 10.14, every flag a no-op — and
- * load-bearing wherever fontconfig is live: 6,662 chromatic pixels in the standard
- * image, zero with the flags. A raster belongs to a host. See the README.
+ * The two text flags: **no other engine accepts them**, so Firefox and WebKit
+ * paint text the way the host does; WebKit's one lever is the page's
+ * `-webkit-font-smoothing`, which changes the subject rather than the conditions
+ * it is shot under. Dormant on macOS — no subpixel antialiasing since 10.14,
+ * every flag a no-op — and load-bearing wherever fontconfig is live: 6,662
+ * chromatic pixels in the standard image, zero with the flags. A raster belongs
+ * to a host. See the README.
+ *
+ * `--disable-partial-raster`: with partial raster, an edit repaints only the
+ * damaged part of a tile and keeps the rest, and the repainted pixels come out a
+ * colour level off a whole-tile paint. A page that mounts subject after subject
+ * then shoots one subject two ways, by whether something else was painted over
+ * it first. Without partial raster every tile is painted whole, at no cost: 240
+ * mounts and shots on one page took 23.9 ms each with the flag and 24.0 ms
+ * without it, on an M4 Max.
  */
 export const CHROMIUM_RASTER_ARGS = [
   '--disable-lcd-text',
   '--font-render-hinting=none',
+  '--disable-partial-raster',
 ] as const;
 
 /** Each page opens in {@link PageRegion}'s timezone and language: `UTC` and `en-US` by default. */
@@ -165,7 +179,10 @@ export async function createPlaywrightRenderer(
   const engine = options.browser ?? 'chromium';
   const headless = options.headless ?? true;
   const launchArgs = options.launchArgs ?? (engine === 'chromium' ? CHROMIUM_RASTER_ARGS : []);
-  const browser = await ENGINE_TYPES[engine].launch({ headless, args: [...launchArgs] });
+  // Leased, so a run whose collector already holds a browser launched the same
+  // way paints in that one rather than starting a second.
+  const held = await leaseBrowser(engine, { headless, args: launchArgs });
+  const browser = held.value;
   const recipe = options.stabilization ?? RASTER_RECIPE;
   const holdStill = recipeCss(recipe);
   const settledWithoutWaits = recipe.filter((intervention) => intervention.trick !== 'wait');
@@ -180,7 +197,7 @@ export async function createPlaywrightRenderer(
   // accident of ordering, and which one is invisible in every image that follows.
   const clashes = conflicts(recipe);
   if (clashes.length > 0) {
-    await browser.close();
+    await held.release();
     throw new Error(
       'stabilization recipe has tricks claiming the same property: ' +
         clashes.map((clash) => `${clash.governs} (${clash.ids.join(', ')})`).join('; '),
@@ -248,51 +265,48 @@ export async function createPlaywrightRenderer(
       identity,
       identityFor,
 
-      async render(document: RenderDocument): Promise<Raster> {
+      async render(document: RenderDocument, steps?: StepClock): Promise<Raster> {
         assertClosedResources(document);
         const closed = document.resources !== undefined;
-        const lease = await pool.acquire(document.viewport, closed);
+        // Untimed is a list nobody reads, so every step below is written once.
+        const clock = steps ?? stepClock(() => 0);
+        const lease = await clock.time('lease', async () => pool.acquire(document.viewport, closed));
         const page = lease.page;
         const context = page.context();
 
         try {
           const missingResources = new Set<string>();
-          await context.unrouteAll({ behavior: 'wait' });
-          if (closed) {
-            activeResources.set(context, missingResources);
-            await serveClosedResources(context, document, missingResources);
-          } else {
-            await serveOpenFaces(context, document);
-          }
-
-          await page.setContent(assemble(document, options.assemble ?? {}), {
-            waitUntil: options.waitForFonts === false ? 'domcontentloaded' : 'load',
+          await clock.time('load', async () => {
+            await context.unrouteAll({ behavior: 'wait' });
+            if (closed) activeResources.set(context, missingResources);
+            await (closed ? serveClosedResources(context, document, missingResources) : serveOpenFaces(context, document));
+            await page.setContent(assemble(document, options.assemble ?? {}), {
+              waitUntil: options.waitForFonts === false ? 'domcontentloaded' : 'load',
+            });
           });
 
           refuseMissingResources(document, missingResources);
 
           // After `setContent`, because `setContent` replaces the document and
           // would discard a sheet added before it.
-          if (holdStill !== '') await page.addStyleTag({ content: holdStill });
+          if (holdStill !== '') await clock.time('hold', async () => page.addStyleTag({ content: holdStill }));
 
           // Every settle the recipe asks for, and nothing else. A recipe with no
           // waits — the structure-and-style rung — pays for none of this, and
           // `waitForFonts: false` turns off the waits alone: `no-focus` still runs.
-          await settleRecipe(options.waitForFonts === false ? settledWithoutWaits : recipe, page);
+          await settleRecipe(options.waitForFonts === false ? settledWithoutWaits : recipe, page, clock);
 
-          const missingFonts = await page.evaluate(probeFonts, familiesOf(document.fonts));
+          const missingFonts = await clock.time('fonts', async () => page.evaluate(probeFonts, familiesOf(document.fonts)));
 
           // Takes the element path or a page clip over the same rectangle,
           // whichever is cheaper and identical; `capture.ts` owns that decision
           // and the animation options both paths are given.
-          const { bytes, box } = await captureSubject(page, document.viewport, screenshot);
+          const { bytes, box } = await clock.time('screenshot', async () => captureSubject(page, document.viewport, screenshot));
 
           // Catch work queued by load/font completion or the screenshot itself.
           // Every network channel remains blocked for the whole lease; this turn
           // gives queued callbacks one browser frame in which to declare a miss.
-          await page.evaluate(
-            () => new Promise<void>((resolve) => requestAnimationFrame(() => resolve())),
-          );
+          await clock.time('frame', async () => page.evaluate(() => new Promise<void>((r) => requestAnimationFrame(() => r()))));
           refuseMissingResources(document, missingResources);
 
           // A subject with no box — or a box with a zero side — is recorded
@@ -336,13 +350,19 @@ export async function createPlaywrightRenderer(
       },
 
       async close(): Promise<void> {
-        await browser.close();
+        // Its own contexts, then its hold on the browser: another holder may
+        // still be painting in it.
+        try {
+          await pool.close();
+        } finally {
+          await held.release();
+        }
       },
     };
   } catch (error) {
     // The browser is a child process; throwing between launch and return would
-    // otherwise leave it running for the life of the caller.
-    await browser.close();
+    // otherwise leave it running, or leased, for the life of the caller.
+    await held.release();
     throw error;
   }
 }
@@ -391,109 +411,3 @@ function probeFonts(families: readonly string[]): string[] {
     GENERICS.every((generic) => widthOf(`"${family}",${generic}`) === widthOf(generic)),
   );
 }
-
-/**
- * One page per viewport, reused.
- *
- * `deviceScaleFactor` and `colorScheme` are context-level in Playwright, so a
- * document at 2x genuinely needs its own context. Keying the cache on the whole
- * viewport rather than recreating per render keeps a run at one context in the
- * normal case, where every subject shares a viewport.
- */
-class PagePool {
-  readonly #browser: Browser;
-  readonly #limit: number;
-  readonly #region: Required<PageRegion>;
-  readonly #onWebSocket: (context: BrowserContext, url: string) => void;
-  /** The recipe's driver tricks, applied to each page as it opens. */
-  readonly #drive: (page: Page) => Promise<void>;
-  /** Idle pages, per viewport key. A render takes one and puts it back. */
-  readonly #idle = new Map<string, Page[]>();
-  #leased = 0;
-  readonly #waiting: (() => void)[] = [];
-
-  constructor(
-    browser: Browser,
-    limit: number,
-    region: Required<PageRegion>,
-    onWebSocket: (context: BrowserContext, url: string) => void,
-    drive: (page: Page) => Promise<void>,
-  ) {
-    this.#browser = browser;
-    this.#limit = limit;
-    this.#region = region;
-    this.#onWebSocket = onWebSocket;
-    this.#drive = drive;
-  }
-
-  /**
-   * Wait for a slot, then hand back a page nobody else is painting into.
-   *
-   * The slot count is global while pages are keyed by viewport, and those are
-   * deliberately different. The limit exists to bound *concurrent Chromium work*,
-   * which does not care what size the pages are; the key exists because a page's
-   * viewport and scale factor cannot be changed without recreating its context.
-   * A run at one viewport — the normal case — reuses the same pages forever.
-   */
-  async acquire(viewport: Viewport, closed: boolean): Promise<{ page: Page; release: () => void }> {
-    while (this.#leased >= this.#limit) {
-      await new Promise<void>((resolve) => this.#waiting.push(resolve));
-    }
-    this.#leased += 1;
-
-    const key = `${viewport.width}x${viewport.height}@${viewport.deviceScaleFactor}/${viewport.colorScheme}/${closed ? 'closed' : 'open'}`;
-
-    try {
-      const free = this.#idle.get(key) ?? [];
-      const page = free.pop() ?? (await this.#open(viewport, closed));
-      this.#idle.set(key, free);
-
-      let released = false;
-      return {
-        page,
-        release: () => {
-          // Guarded because a double release would let two renders hold the same
-          // page, which is the one thing this class exists to prevent.
-          if (released) return;
-          released = true;
-          (this.#idle.get(key) ?? []).push(page);
-          this.#leased -= 1;
-          this.#waiting.shift()?.();
-        },
-      };
-    } catch (error) {
-      this.#leased -= 1;
-      this.#waiting.shift()?.();
-      throw error;
-    }
-  }
-
-  async #open(viewport: Viewport, closed: boolean): Promise<Page> {
-    // Not tracked for teardown: `close()` closes the browser, which takes every
-    // context with it. A second list to keep in step would only drift.
-    const context = await this.#browser.newContext({
-      viewport: { width: viewport.width, height: viewport.height },
-      deviceScaleFactor: viewport.deviceScaleFactor,
-      colorScheme: viewport.colorScheme,
-      ...this.#region,
-      serviceWorkers: closed ? 'block' : 'allow',
-    });
-    const page = await context.newPage();
-    await this.#drive(page);
-    if (closed) {
-      await context.routeWebSocket(/.*/, async (route) => {
-        this.#onWebSocket(context, route.url());
-        await route.close({ code: 1008, reason: 'resource-closed render' });
-      });
-      // A page that has never committed a navigation is not covered by WebSocket
-      // interception, and `setContent` alone does not commit one — it replaces the
-      // document of the page the browser opened at. Without this the socket policy
-      // is silently absent and a resource-closed document dials out unrefused.
-      // `about:blank` because it is where the page already is: the URL, and so the
-      // resolution context for a document carrying no `<base>`, is left unchanged.
-      await page.goto('about:blank');
-    }
-    return page;
-  }
-}
-

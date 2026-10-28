@@ -26,10 +26,10 @@ import { parseRow, type SidecarRow } from './sidecar-row.js';
  *
  * The third durable backend, after the directory and git-LFS, and it answers to
  * the same contract for the same reason the other two do: what a baseline
- * *means* lives in [`@variance-authority/raster`](../../raster), so a verdict
+ * *means* lives in [`@variance-authority/raster`](https://github.com/Variance-Authority/variance-authority/tree/main/packages/raster), so a verdict
  * cannot depend on where the bytes were kept. That claim is tested rather than
  * asserted — this store is one of the implementations in
- * [`observe/parity.test.ts`](../../observe/src/parity.test.ts), which pins each
+ * [`observe/parity.test.ts`](https://github.com/Variance-Authority/variance-authority/blob/main/packages/observe/src/parity.test.ts), which pins each
  * expected verdict as well as comparing the backends, because three stores
  * agreeing on a wrong answer is not a pass.
  *
@@ -313,7 +313,7 @@ export function createBucketStore(options: BucketStoreOptions): RasterStore {
  * The last accept on the family, not this identity's own row. A file-backed
  * store keeps one file per engine family, so when a laptop and CI both accept,
  * the file holds whichever accepted last and both machines read it
- * ([ADR-0016](../../../docs/context/adr/0016-where-a-baseline-is-kept-decides-nothing.md)):
+ * ([ADR-0016](https://github.com/Variance-Authority/variance-authority/blob/main/docs/context/adr/0016-where-a-baseline-is-kept-decides-nothing.md)):
  * a row this machine wrote before CI's accept would answer `unchanged` where
  * every file store answers with CI's image and names the machine.
  *

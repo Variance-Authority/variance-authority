@@ -1,5 +1,8 @@
 import { CLI_VERSION } from '../version.js';
 import type { PushProgress, PushResult } from './push.js';
+import { REAL, seconds, wholeSeconds, type TickerClock } from './ticker-clock.js';
+
+export type { TickerClock } from './ticker-clock.js';
 
 /**
  * The two ways a push is read while it happens and after it is over.
@@ -48,11 +51,7 @@ export function pushTicker(
   const started = clock.now();
 
   /** Whole seconds, then minutes: a push measured in tenths is not being waited on. */
-  const since = (): string => {
-    const seconds = Math.round((clock.now() - started) / 1000);
-    if (seconds < 60) return `${String(seconds)}s`;
-    return `${String(Math.floor(seconds / 60))}m ${String(seconds % 60).padStart(2, '0')}s`;
-  };
+  const since = (): string => wholeSeconds(clock.now() - started);
 
   const halt = (): void => {
     stop?.();
@@ -129,38 +128,6 @@ export function pushTicker(
       if (tty && width > 0) write(`\r${''.padEnd(width)}\r`);
     },
   };
-}
-
-/**
- * The clock and the timer, injected so a test can assert a heartbeat.
- *
- * A test that waited a real second for a real interval would be a test that
- * sometimes waits two.
- */
-export interface TickerClock {
-  readonly now: () => number;
-  /** Returns the call that stops it. */
-  readonly every: (ms: number, run: () => void) => () => void;
-}
-
-const REAL: TickerClock = {
-  now: () => Date.now(),
-  every: (ms, run) => {
-    const timer = setInterval(run, ms);
-    // Never the reason a command stays alive: if the push is over and something
-    // else is holding the process, that is the bug and this must not hide it.
-    timer.unref();
-    return () => {
-      clearInterval(timer);
-    };
-  },
-};
-
-/** A duration as somebody waiting reads it, which is never in milliseconds. */
-function seconds(ms: number): string {
-  const whole = Math.round(ms / 1000);
-  if (whole < 60) return `${(ms / 1000).toFixed(1)}s`;
-  return `${String(Math.floor(whole / 60))}m ${String(whole % 60).padStart(2, '0')}s`;
 }
 
 /** What went up, as the operator reads it. */

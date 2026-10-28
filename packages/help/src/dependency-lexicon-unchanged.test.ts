@@ -4,11 +4,11 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { afterEach, expect, it } from 'vitest';
 import { updateSourceIndex } from '@variance-authority/sense';
-import { readDependencyLexicon, refreshDependencyLexicon } from './dependency-lexicon.js';
+import { refreshDependencyLexicon } from './dependency-lexicon.js';
 
 /**
  * A refresh that finds the source index's chain and every installed file it read where the last one left
- * them reads nothing and writes nothing. Each thing the lexicon is a function of, moved alone, defeats it:
+ * them reads nothing and writes nothing, to the catalogue or to the sites file. Each thing the lexicon is a function of, moved alone, defeats it:
  * a source that imports something new, an installed file, and a package installed where none resolved.
  */
 
@@ -45,16 +45,19 @@ it('does nothing when nothing moved, and something exactly when one of its input
 
   const first = await refreshDependencyLexicon(root);
   expect(first.unchanged).toBe(false);
-  const { path } = readDependencyLexicon(root);
-  const written = statSync(path).mtimeMs;
+  const { path, sites } = first;
+  const written = [statSync(path).mtimeMs, statSync(sites).mtimeMs];
 
   const second = await refreshDependencyLexicon(root);
-  expect(second).toMatchObject({ unchanged: true, entrypoints: first.entrypoints, unavailable: first.unavailable, packages: first.packages });
-  expect(statSync(path).mtimeMs).toBe(written);
+  expect(second).toMatchObject({ unchanged: true, entrypoints: first.entrypoints, unavailable: first.unavailable, packages: first.packages, appended: 0, rebuilt: false });
+  expect([statSync(path).mtimeMs, statSync(sites).mtimeMs]).toEqual(written);
 
-  // A record outliving the lexicon it described is not a reason to skip writing it again.
+  // Either file missing is written again.
   rmSync(path);
   expect((await refreshDependencyLexicon(root)).unchanged).toBe(false);
+  expect((await refreshDependencyLexicon(root)).unchanged).toBe(true);
+  rmSync(sites);
+  expect((await refreshDependencyLexicon(root)).rebuilt).toBe(true);
   expect((await refreshDependencyLexicon(root)).unchanged).toBe(true);
 
   put(root, { 'packages/app/src/y.ts': "import { one } from 'alpha';\none();\n" });

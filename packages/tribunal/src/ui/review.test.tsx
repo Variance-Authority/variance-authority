@@ -99,7 +99,7 @@ describe('coverage is drawn as a share of the suite, not a count', () => {
 
     expect(markup).toContain('va-incomplete');
     expect(text(markup)).toContain('50 failed to render');
-    expect(text(markup)).toContain('2 excluded by configuration');
+    expect(text(markup)).toContain('2 excluded on purpose');
   });
 });
 

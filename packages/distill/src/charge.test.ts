@@ -2,12 +2,15 @@ import type { ExecutionIndex, FileReferences, TestCoverage } from '@variance-aut
 import { describe, expect, it } from 'vitest';
 import { distillFile, formatFileDistillation, type ImportCharge } from './index.js';
 import { reachLine } from './charge.js';
+import { graphOf, recordOf } from './record.fixture.js';
 
 const FILE = 'test/report.test.ts';
 const OTHER = 'test/export.test.ts';
 const THIRD = 'test/print.test.ts';
 const UTILS = 'src/utils.ts';
 const PDF = 'src/pdf.ts';
+/** A runner's own mock call: the reading names the module and leaves the call to whoever writes it for the file's runner. */
+const RUNNER_MOCK = /\b(?:jest|vi|sb)\.(?:mock|doMock|unstable_mockModule|fn)\b|\bmock\.module\b/;
 
 type Block = TestCoverage['modules'][number]['blocks'][number];
 
@@ -58,9 +61,8 @@ function read(
   const imports = { [FILE]: [UTILS], [UTILS]: [PDF], ...edges };
   return distillFile({
     file: FILE,
-    coverage,
-    execution,
-    imports: (file) => imports[file] ?? [],
+    record: recordOf(coverage, execution),
+    relations: graphOf(imports),
     references: (file) => (file === UTILS ? references : file === FILE ? own : file === PDF ? pdf : undefined),
   });
 }
@@ -121,13 +123,9 @@ describe('an import a used file writes, charged to the code that reads it', () =
     const result = read(referencing([{ file: PDF, name: 'PdfViewer', line: 25, load: false }]), {}, [0, 1]);
 
     expect(chargeOf(result)).toEqual({ kind: 'load', line: 25, name: 'PdfViewer' });
-    // Another test file's crossing made while loading is not a call either.
-    expect(chargeOf(read(referencing([{ file: PDF, name: 'PdfViewer', line: 25, load: false }]), {}, [1]))).toEqual({
-      kind: 'functions',
-      functions: [{ name: 'setup', line: 24, ran: 0 }],
-      ran: 0,
-      loading: 3,
-    });
+    // The case index keeps a run at load as a flag that names no case, so another test file's run reads as this one's.
+    expect(chargeOf(read(referencing([{ file: PDF, name: 'PdfViewer', line: 25, load: false }]), {}, [1])))
+      .toEqual({ kind: 'load', line: 25, name: 'PdfViewer' });
     // A re-export does not hide it: the file still pays for the module when it loads.
     expect(chargeOf(read(referencing([{ file: PDF, name: 'PdfViewer', line: 25, load: false }], { passed: [PDF] }), {}, [0])))
       .toEqual({ kind: 'load', line: 25, name: 'PdfViewer' });
@@ -200,32 +198,39 @@ describe('what to do about an import, by how far from the test file its importer
     ].join('\n'));
   });
 
-  it('proposes mocking an import the file\'s subject never reads, with a factory that stands in for every value it exports', () => {
+  it('proposes mocking an import the file\'s subject never reads by the module, in no runner\'s words', () => {
     // The mock replaces the module for every file the test loads, not only for the subject.
     const result = read(referencing([]));
     expect(result.modules?.find(({ file }) => file === PDF)?.cause).toMatchObject({ reach: 'subject', exports: ['create'] });
-    expect(formatFileDistillation(result)).toContain(
-      `    Or mock it in this file, so ${UTILS} does not load it: jest.mock('../src/pdf', () => ({ create: jest.fn() }));`,
+    const text = formatFileDistillation(result);
+    expect(text).toContain(
+      `    Or mock ${PDF} in this file, so ${UTILS} does not load it: ` +
+        'stand a function in for each value it exports (create); an automock loads the module to read its shape.',
     );
+    expect(text).not.toMatch(RUNNER_MOCK);
   });
 
-  it('stands a function in for each export, so any file the test loads can call, construct or extend any of them', () => {
+  it('names every export for a stand-in, so any file the test loads can call, construct or extend any of them', () => {
     // The mock replaces the module for every file the test loads, which may read a name the subject does not.
     const idle = read(referencing([{ file: PDF, name: 'default', line: 12, load: false }]), {}, [], undefined,
       referencing([], { exports: ['default', 'render', 'create'] }));
-    expect(formatFileDistillation(idle)).toContain(
-      `    Or mock it in this file, so ${UTILS} does not load it: ` +
-        "jest.mock('../src/pdf', () => ({ __esModule: true, default: jest.fn(), render: jest.fn(), create: jest.fn() }));",
+    const text = formatFileDistillation(idle);
+    expect(text).toContain(
+      `    Or mock ${PDF} in this file, so ${UTILS} does not load it: ` +
+        'stand a function in for each value it exports (default, render, create); an automock loads the module to read its shape.',
     );
+    expect(text).not.toMatch(RUNNER_MOCK);
     const charge = { kind: 'functions', functions: [{ name: 'exportPdf', line: 11, ran: 1 }], ran: 1, loading: 3 } as const;
-    expect(reachLine(FILE, { importer: UTILS, imported: PDF, reach: 'subject', charge, exports: ['render'] }))
-      .toBe(`Or mock it in this file, so ${UTILS} does not load it: jest.mock('../src/pdf', () => ({ render: jest.fn() }));`);
+    expect(reachLine(FILE, { importer: UTILS, imported: PDF, reach: 'subject', charge, exports: ['render'] })).toBe(
+      `Or mock ${PDF} in this file, so ${UTILS} does not load it: ` +
+        'stand a function in for each value it exports (render); an automock loads the module to read its shape.',
+    );
   });
 
   it('proposes no mock where what the imported module exports is not known', () => {
     // An `export *` leaves the set to another file, and a factory short of a name hands its reader undefined.
     expect(reachLine(FILE, { importer: UTILS, imported: PDF, reach: 'subject', charge: { kind: 'never' } })).toBeUndefined();
-    expect(formatFileDistillation(read(referencing([]), {}, [], undefined, referencing([])))).not.toContain('jest.mock(');
+    expect(formatFileDistillation(read(referencing([]), {}, [], undefined, referencing([])))).not.toContain('Or mock');
   });
 
   it('proposes no mock where the subject reads the import when it loads', () => {
@@ -234,10 +239,10 @@ describe('what to do about an import, by how far from the test file its importer
     const result = read(referencing([{ file: PDF, name: 'default', line: 6, load: true }]));
     expect(chargeOf(result)).toEqual({ kind: 'load', line: 6, name: 'default' });
     expect(formatFileDistillation(result)).toContain(`    ${UTILS} reads default from ${PDF} at line 6 when it loads`);
-    expect(formatFileDistillation(result)).not.toContain('jest.mock(');
+    expect(formatFileDistillation(result)).not.toContain('Or mock');
     // So does a function the file calls while it loads.
     expect(formatFileDistillation(read(referencing([{ file: PDF, name: 'PdfViewer', line: 25, load: false }]), {}, [0])))
-      .not.toContain('jest.mock(');
+      .not.toContain('Or mock');
     expect(reachLine(FILE, { importer: UTILS, imported: PDF, reach: 'subject', charge: { kind: 'load', line: 6, name: 'default' }, exports: ['default'] }))
       .toBeUndefined();
   });
@@ -265,6 +270,6 @@ describe('what to do about an import, by how far from the test file its importer
     expect(text).toContain(
       `    warning: this file does not import ${UTILS}; mocking ${PDF} here would tie it to code it does not know: fix it in ${UTILS}.`,
     );
-    expect(text).not.toContain('jest.mock(');
+    expect(text).not.toContain('Or mock');
   });
 });

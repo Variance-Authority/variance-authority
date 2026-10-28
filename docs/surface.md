@@ -514,10 +514,11 @@ change.
 | A raster you already have | all acquisition and rendering work | less semantic evidence, unless you supply it yourself | another trusted capture system already owns the pixels and the identity |
 
 Every baseline records the renderer identity that painted it: engine, platform,
-scale, fonts, stabilization, and rasterization recipe. Chromium rendering defaults to
-`--disable-lcd-text` and `--font-render-hinting=none`; changing the ordered
-launch recipe changes identity, so a font rasterization difference comes back as
-a change caused by the recipe rather than as a component regression. The cause
+scale, fonts, stabilization, and rasterization recipe. Chromium rendering
+defaults to `--disable-lcd-text`, `--font-render-hinting=none` and
+`--disable-partial-raster`; changing the ordered launch recipe changes
+identity, so a font rasterization difference comes back as a change caused by
+the recipe rather than as a component regression. The cause
 names the recipe as what moved, and `accept` adopts the new image. Choose between a
 committed directory, Git LFS and a remote store in
 [where baselines live](placement.md), which also covers what each costs.
@@ -566,13 +567,18 @@ The CLI collector contract is for hosts whose subjects are observed as a run:
 ```ts
 interface Collector {
   plan(): Promise<Plan>;
-  collect(subject: PlannedSubject): Promise<Collected>;
+  collect(subject: PlannedSubject): Promise<Collected | Visit>;
   close(): Promise<void>;
 }
 ```
 
 `plan` names what the run intends to observe. `collect` returns a render document
-and optional semantic and source evidence. `close` releases the host. The
+and optional semantic and source evidence. When reaching a subject is what tells
+you how many subjects it is, such as a story whose own parameters ask for two
+widths, `collect` returns a `Visit` instead: every subject the visit read, each
+with its result, and each id the planned one or the planned one at a width,
+`<id>@<digits>`. A visit that returns any other id fails that subject. `close` releases
+the host. The
 Storybook, route, and unit-capture surfaces implement this contract.
 
 Collectors do not choose the renderer or the baseline store. `variance run` wires

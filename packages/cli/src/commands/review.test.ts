@@ -20,6 +20,7 @@ import { probedModule } from './mainline-fixture.js';
 import { review } from './review.js';
 import { formatReview, REVIEW_MARKER } from './review-text.js';
 import { AFTER, DISCOUNTS, ROUNDS, block, changed, git, roundedBy } from './review-fixture.js';
+import { INSTRUMENTATION_ID } from '@variance-authority/sense/instrument';
 
 function parse(argv: readonly string[]) {
   return parseReviewArgs(readFlags(argv, 'review', flagsFor('review'), synopsisFor('review')));
@@ -136,7 +137,7 @@ describe('a review of what a change did, after the run that recorded it', () => 
 
     // The test file sits under no manifest, so the root's directory is its package.
     expect(answer.changedPackages).toEqual([
-      { package: '@o/total', path: 'src', functions: 2, reaches: { near: 1, unwalked: 1 }, own: false, tests: ['.'], importers: 2 },
+      { package: '@o/total', path: 'src', functions: 2, reaches: { near: 1, unwalked: 1 }, uncovered: 1, own: false, tests: ['.'], importers: 2 },
     ]);
   });
 
@@ -243,7 +244,7 @@ describe('a review of what a change did, after the run that recorded it', () => 
     const { root, first } = await changed();
     await landRun(testCoverageFile(root), {
       version: 3,
-      instrumentation: 'fixture',
+      instrumentation: INSTRUMENTATION_ID,
       commit: first,
       tests: [{ file: 'test/total.test.ts', complete: true, preconditions: [] }],
       modules: [probedModule(['test/total.test.ts'])],
@@ -424,6 +425,14 @@ describe('a review of what a change did, after the run that recorded it', () => 
     const written = casesOf(await review(parse(['--since', first, '--root', root])));
 
     expect(written?.cases).toEqual({ added: ['counts'], removed: [] });
+
+    // A runs record that cannot be read leaves the named base, and no word on which files the runs wrote.
+    await writeFile(commitRunsFile(testCoverageFile(root)), '{not json');
+    const runsUnread = await review(parse(['--since', first, '--root', root]));
+
+    expect(runsUnread).toMatchObject({ base: 'since', from: first });
+    expect(runsUnread.runs).toBeUndefined();
+    expect(casesOf(runsUnread)?.cases).toBeUndefined();
   });
 
   it('writes the answer beside what it prints when given a directory', async () => {

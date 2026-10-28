@@ -1,6 +1,6 @@
 import { digestString } from '../digest.js';
 import type { TestCoverageView } from './format-view.js';
-import type { ExecutionNarrowingOptions } from './importers.js';
+import type { ExecutionNarrowingOptions } from './narrowing.js';
 
 /** The text a module's rows were recorded from, under the name that proved it. */
 export interface Frame {
@@ -92,4 +92,22 @@ function keptFor(
   // The store answers by name, and a name is a claim: the text is held to it.
   if (text === undefined || digestString(text) !== digest) return undefined;
   return { name, text, kept: true };
+}
+
+/**
+ * The text at the record's commit of a file no row holds, under the first of
+ * its names the commit holds, and empty under `fallback` for a file the commit
+ * does not hold: a new file's diff is its whole text.
+ */
+export function commitFrame(
+  coverage: TestCoverageView,
+  names: readonly string[],
+  fallback: string,
+  sourceAt: NonNullable<ExecutionNarrowingOptions['sourceAt']>,
+): Frame {
+  for (const name of names) {
+    const text = sourceAt(name, coverage.commit);
+    if (text !== undefined) return { name, text };
+  }
+  return { name: fallback, text: '' };
 }

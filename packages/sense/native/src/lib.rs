@@ -17,37 +17,60 @@
 use napi_derive::napi;
 use std::collections::HashMap;
 use std::sync::{Arc, OnceLock};
+use variance_sense_instrument::digest;
 
 mod acquire;
 mod append_index;
+mod assigned_object;
 mod batch;
+mod case_fold;
 mod case_id;
+mod case_lines;
 mod case_owner;
-mod case_preconditions;
+mod case_said;
+mod case_said_napi;
+mod case_shard;
 mod compact;
+#[cfg(any(target_os = "macos", target_os = "linux"))]
+mod large_alloc;
+
+#[cfg(any(target_os = "macos", target_os = "linux"))]
+#[global_allocator]
+static ALLOCATOR: large_alloc::Mapped = large_alloc::Mapped;
 mod conditions;
+mod coverage_rows;
+mod crossing_sets;
 mod declarations;
 mod declared_role;
 mod declared_roles_check;
-mod depends;
 mod dependency_lexicon;
 mod dependency_namespace;
-use variance_sense_instrument::digest;
+mod depends;
+mod distill_cases;
+mod distill_gather;
+mod distill_own;
+mod distill_rank;
+mod distill_read;
 mod emitted;
 mod external_dependencies;
+mod generation;
+mod git;
+#[cfg(feature = "grammars")]
+mod grammar;
+mod graph_dominators;
+mod graph_index;
+mod harvest;
+mod held;
+mod help_aliases;
+mod help_declared;
+mod help_in_file;
+mod help_member_uses;
+mod help_members;
+mod help_origin;
+mod help_own_uses;
 mod help_publish;
 mod help_search;
 mod help_usage;
-mod source_tree;
-mod generation;
-mod git;
-mod graph_index;
-#[cfg(feature = "grammars")]
-mod grammar;
-#[cfg(feature = "grammars")]
-mod languages;
-mod harvest;
-mod held;
 mod index;
 mod index_chain;
 mod index_turn;
@@ -81,6 +104,8 @@ mod journeys_record;
 mod journeys_roots;
 mod journeys_steps;
 mod journeys_walk;
+#[cfg(feature = "grammars")]
+mod languages;
 mod loads;
 mod log;
 mod louvain;
@@ -90,16 +115,17 @@ mod module_moved;
 mod module_readers;
 mod module_shape;
 mod module_verdict;
-mod order;
+mod nested;
 mod off_thread;
+mod order;
 mod orient_map;
 mod orient_map_catalogued;
 mod orient_map_closure;
 mod orient_map_entries;
 mod orient_map_layers;
-mod orient_map_shipped;
 mod orient_map_pages;
 mod orient_map_read;
+mod orient_map_shipped;
 mod orient_map_signals;
 mod orient_map_tree;
 mod package_flows;
@@ -111,14 +137,30 @@ mod promisor;
 mod read;
 mod ready_index;
 mod record;
+mod record_combine;
+mod record_coverage;
+mod record_coverage_address;
+mod record_coverage_columns;
+mod record_coverage_dictionary;
+mod record_coverage_fold;
+mod record_coverage_layer;
+mod record_coverage_recut;
+#[cfg(test)]
+mod record_fixture;
+mod record_layout;
+mod record_parts;
+mod record_start;
 mod resolve;
+mod resolve_export;
 mod seed;
 mod segment;
 mod side_effects;
 mod source_size;
+mod source_tree;
 mod source_update;
 mod specifier;
 mod stored;
+mod text_digests;
 mod top_level;
 mod tree;
 mod witness;
@@ -303,7 +345,7 @@ impl GitTree {
         largest_file: Option<u32>,
         digests: Option<bool>,
         readers: Option<u32>,
-        tsconfig: Option<String>,
+        tsconfig: Option<napi::Either<String, bool>>,
         condition_names: Option<Vec<String>>,
     ) -> batch::ScanBatch {
         let oids = files
@@ -317,7 +359,7 @@ impl GitTree {
                 largest_file,
                 digests,
                 readers,
-                tsconfig,
+                tsconfig: crate::resolve::Tsconfig::from_js(tsconfig),
                 condition_names,
             },
             Some(oids),
@@ -338,7 +380,7 @@ impl GitTree {
         seeds: Vec<String>,
         largest_file: Option<u32>,
         readers: Option<u32>,
-        tsconfig: Option<String>,
+        tsconfig: Option<napi::Either<String, bool>>,
         condition_names: Option<Vec<String>>,
         include_parses: Option<bool>,
     ) -> batch::ScanBatch {
@@ -348,7 +390,7 @@ impl GitTree {
                 seeds,
                 largest_file,
                 readers,
-                tsconfig,
+                tsconfig: crate::resolve::Tsconfig::from_js(tsconfig),
                 condition_names,
                 include_parses: include_parses.unwrap_or(false),
             },

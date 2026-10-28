@@ -64,6 +64,9 @@ const TSC = {
   },
 };
 
+/** `TSC.code` with no comment naming a map: a build that wrote none. */
+const UNMAPPED = TSC.code.replace(/\n\/\/# sourceMappingURL=.*$/, '');
+
 const root = join(tmpdir(), `variance-readings-${process.pid}`);
 
 beforeAll(async () => {
@@ -73,6 +76,7 @@ beforeAll(async () => {
   await writeFile(join(root, 'app/src/a.ts'), SOURCE);
   await writeFile(join(root, 'app/dist/a.js'), TSC.code);
   await writeFile(join(root, 'app/dist/b.js'), TSC.code.replace('a.js.map', 'b.js.map'));
+  await writeFile(join(root, 'app/dist/c.js'), UNMAPPED);
   await writeFile(join(root, 'node_modules/app/dist/a.js'), TSC.code);
   await writeFile(join(root, 'app/dist/a.js.map'), JSON.stringify({ version: 3, ...TSC.map }));
   await writeFile(join(root, 'app/dist/b.js.map'), JSON.stringify({ version: 3, ...TSC.map, sources: ['../src/a.ts', '../src/b.ts'] }));
@@ -113,7 +117,7 @@ describe('a module read as itself and through its tsc build', () => {
  */
 describe('a module loaded from its tsc build under the default include', () => {
   const transformed = (file: string, code = TSC.code) =>
-    testSelectionProbes({ root }).transform(code, join(root, file));
+    testSelectionProbes({ root }).transform.handler(code, join(root, file));
 
   it('is instrumented and recorded under the source its map leads to', () => {
     const done = transformed('app/dist/a.js');
@@ -126,7 +130,7 @@ describe('a module loaded from its tsc build under the default include', () => {
   });
 
   it('is left out when it points at no map', () => {
-    expect(transformed('app/dist/a.js', TSC.code.replace(/\n\/\/# sourceMappingURL=.*$/, ''))).toBeNull();
+    expect(transformed('app/dist/c.js', UNMAPPED)).toBeNull();
   });
 
   it('is left out when its map names several sources, as a bundled library does', () => {

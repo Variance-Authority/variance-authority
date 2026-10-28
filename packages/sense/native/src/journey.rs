@@ -5,13 +5,11 @@ use std::path::Path;
 use napi::bindgen_prelude::Buffer;
 use napi_derive::napi;
 
-use crate::journey_format::{self, EncodedModule, Gaps, SetPool};
-use crate::{case_owner, journey_columns};
+use crate::journey_format::{self, EncodedModule, Gaps};
+use crate::{case_owner, case_shard, crossing_sets, journey_columns, journey_output, order};
 use crate::journey_journal::{self, CaseRun, ModuleId, Visitor};
-use crate::journey_output;
 use crate::journey_record::Module;
-use crate::journey_stitch;
-use crate::order;
+use crate::record_layout::LAYOUT;
 
 const DEFAULT_BUDGET: usize = 512 * 1_048_576;
 
@@ -126,8 +124,8 @@ fn answer(
 /// to compare with, no head can be said to have gone quiet.
 fn previous_heads(output: &str) -> Option<Vec<String>> {
     let bytes = fs::read(output).ok()?;
-    let decoded = journey_columns::decode(&bytes, journey_format::FORMAT).ok()?;
-    let strings = journey_stitch::strings(&decoded).ok()?;
+    let decoded = journey_columns::decode(&bytes, LAYOUT.cases.format).ok()?;
+    let strings = case_shard::strings(&decoded).ok()?;
     Some(journey_format::read_gaps(&decoded, &strings).ok()??.heads)
 }
 
@@ -218,12 +216,12 @@ fn fold(
     let mut called_sets = vec![0; block_count];
     let mut loaded_flags = vec![false; block_count];
     let mut module_entered = vec![false; modules.len()];
-    let mut sets = SetPool::new(run.tests.len());
+    let mut sets = crossing_sets::SetPool::new(run.tests.len());
     let empty = sets.intern(&[]);
     called_sets.fill(empty);
     if block_count == 0 || run.tests.is_empty() {
         return Ok(Folded {
-            bytes: journey_format::encode(&run.tests, &[], &sets, Some(gaps))?,
+            bytes: journey_format::encode(&run.tests, &journey_format::CaseExtras::default(), &[], &mut sets, Some(gaps))?,
             modules: 0,
             crossings: 0,
             passes: 0,
@@ -293,7 +291,7 @@ fn fold(
         .collect();
     let module_count = encoded.len() as u32;
     Ok(Folded {
-        bytes: journey_format::encode(&run.tests, &encoded, &sets, Some(gaps))?,
+        bytes: journey_format::encode(&run.tests, &journey_format::CaseExtras::default(), &encoded, &mut sets, Some(gaps))?,
         modules: module_count,
         crossings,
         passes,

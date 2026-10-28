@@ -1,7 +1,7 @@
 //! What a location can already use, asked of the published corpus with no words.
 //!
 //! One row per package the owning manifest declares or the code imports there,
-//! read from `availability` and nothing else: no source is opened and no
+//! read from the lexicon's rows and nothing else: no source is opened and no
 //! installed package is read. A row is `imported` when the index counted a
 //! written request for it, `unused` when it counted none, and `unread` when the
 //! index was not read at all, which is not the same as none.
@@ -9,14 +9,12 @@
 // compass: variance-authority.report.agent-surface
 
 use std::collections::BTreeMap;
-use std::fs;
-use std::path::Path;
 
 use napi_derive::napi;
 use serde::Serialize;
 
-use super::query::owners;
-use super::{Api, Lexicon, Skill, SKILLS};
+use super::view::{read, Lexicon};
+use super::Skill;
 
 /// Runtime first: it is the answer to *what may I import*; dev and types follow.
 fn rank(role: &str) -> u8 {
@@ -66,32 +64,25 @@ struct Stack {
     remaining: u32,
     rows: Vec<Row>,
     unreadable: Vec<Unreadable>,
-    /// Rows, on every page, whose package ships skills; absent when the lexicon predates reading them.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    skilled: Option<u32>,
+    /// Rows, on every page, whose package ships skills.
+    skilled: u32,
 }
 
 /// Every third-party package usable at `files`, paged in a stable order.
 #[napi(catch_unwind)]
-pub fn dependency_stack(path: String, files: Vec<String>, offset: u32, limit: u32) -> napi::Result<Option<String>> {
-    let bytes = match fs::read(Path::new(&path)) {
-        Ok(bytes) => bytes,
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
-        Err(error) => return Err(napi::Error::from_reason(error.to_string())),
-    };
-    let lexicon: Lexicon = serde_json::from_slice(&bytes)
-        .map_err(|error| napi::Error::from_reason(format!("the dependency lexicon did not read: {error}")))?;
-    if !matches!(lexicon.version, 4..=9) { return Err(napi::Error::from_reason("the dependency lexicon version is not supported")); }
-    let allowed = owners(&lexicon, &files);
-    let apis: std::collections::HashMap<&str, &Api> = lexicon.entries.iter().map(|entry| (entry.id.as_str(), &entry.api)).collect();
-    let mut rows = BTreeMap::<(String, String), Row>::new();
-    for row in lexicon.availability.iter().filter(|row| allowed.contains(row.owner.as_str())) {
-        let api = apis.get(row.entry.as_str());
+pub fn dependency_stack(path: String, sites: String, files: Vec<String>, offset: u32, limit: u32) -> napi::Result<Option<String>> {
+    let Some((catalogue, held)) = read(&path, &sites)? else { return Ok(None) };
+    let lexicon = Lexicon::open(&catalogue, held.as_deref())?;
+    let allowed = lexicon.located(&files);
+    let (found, issues) = lexicon.rows(Some(&allowed));
+    let mut rows = BTreeMap::<(&str, &str), Row>::new();
+    for row in &found {
+        let api = lexicon.api(row.entry);
         let version = api.and_then(|api| api.runtime.as_ref().or(api.declarations.as_ref())).map(|identity| identity.version.clone());
         let types_only = api.is_some_and(|api| api.runtime.is_none() && api.declarations.is_some());
-        let role = if types_only { "types-only" } else if row.declared_as.as_deref() == Some("dev") { "dev" } else { "runtime" };
-        let slot = rows.entry((row.owner.clone(), row.package.clone())).or_insert_with(|| Row {
-            package: row.package.clone(), manifest: row.owner.clone(), role, declared_as: row.declared_as.clone(),
+        let role = if types_only { "types-only" } else if row.declared_as == Some("dev") { "dev" } else { "runtime" };
+        let slot = rows.entry((row.owner, row.package)).or_insert_with(|| Row {
+            package: row.package.to_owned(), manifest: row.owner.to_owned(), role, declared_as: row.declared_as.map(str::to_owned),
             version: None, state: "unread", imports: None, site: None, specifiers: 0, skills: Vec::new(),
         });
         if slot.skills.is_empty() { slot.skills = api.and_then(|api| api.skills.clone()).unwrap_or_default(); }
@@ -111,13 +102,13 @@ pub fn dependency_stack(path: String, files: Vec<String>, offset: u32, limit: u3
         .then_with(|| (&a.package, &a.manifest).cmp(&(&b.package, &b.manifest))));
     let count = |state: &str| rows.iter().filter(|row| row.state == state).count() as u32;
     let (imported, unused, unread, total) = (count("imported"), count("unused"), count("unread"), rows.len() as u32);
-    let skilled = (lexicon.version >= SKILLS).then(|| rows.iter().filter(|row| !row.skills.is_empty()).count() as u32);
+    let skilled = rows.iter().filter(|row| !row.skills.is_empty()).count() as u32;
     let start = (offset as usize).min(rows.len());
     let page: Vec<Row> = rows.into_iter().skip(start).take(limit as usize).collect();
     let mut location: Vec<String> = allowed.iter().map(|manifest| (*manifest).to_owned()).collect();
     location.sort_unstable();
-    let mut unreadable: Vec<Unreadable> = lexicon.issues.iter().filter(|issue| allowed.contains(issue.owner.as_str()))
-        .map(|issue| Unreadable { manifest: issue.owner.clone(), package: issue.package.clone(), reason: issue.reason.clone() }).collect();
+    let mut unreadable: Vec<Unreadable> = issues.iter()
+        .map(|issue| Unreadable { manifest: issue.owner.to_owned(), package: issue.package.to_owned(), reason: issue.reason.to_owned() }).collect();
     unreadable.sort_by(|a, b| (&a.manifest, &a.package).cmp(&(&b.manifest, &b.package)));
     let answer = Stack { location, total, imported, unused, unread, offset: start as u32,
         remaining: total - (start as u32 + page.len() as u32), rows: page, unreadable, skilled };

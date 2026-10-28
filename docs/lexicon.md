@@ -108,7 +108,7 @@ That fixes the division in three parts:
 - **The run writes down every name it read, per field, and interprets none of
   them.** Separate instruments, pointed at the subject for other reasons.
 - **The reader matches words against those names and orders them with
-  integers.** Three integers and a string, identical on every machine.
+  integers.** Four integers and a string, identical on every machine.
 - **The caller brings the words.** Which word stands for which other word is a
   judgement about your repository, and the run never makes it.
 
@@ -187,9 +187,10 @@ that join once — `declaredIn`, one row per component rather than a path on eac
 of ten thousand landmarks — and an answer prints a file either way.
 
 `box` is absent rather than zeroed when the run resolved no layout. Ask *what is
-under this* against such a run and you are told the run has no layout to answer
-from: document order agrees with the screen often enough to be dangerous and not
-often enough to be relied on. Containment is answered all the same, because
+under this* against such a run and you get where *this* is, and a line saying
+the run has no layout to tell what is under it: document order agrees with the
+screen often enough to be dangerous and not often enough to be relied on.
+Containment is answered all the same, because
 `within` needs no rectangles. [Asking where something
 sits](locate.md#ask-where-something-sits) is the reading side.
 
@@ -213,10 +214,18 @@ and the fact under it are read off one structure.
 
 ## How the hits are ordered
 
-A hit ranks by how many of the query's terms it matched, then by the sum over
+A hit ranks by how many of the query's terms it matched, then by how many
+adjacent pairs of them it says side by side in one value, then by the sum over
 its matches of a per-field weight times how rare the matched word is in that
-field, then by fewer boundaries, then by id. The third key prefers
-the subject that shows your words with less else around it.
+field, then by fewer boundaries, then by id. The fourth key prefers the subject
+that shows your words with less else around it.
+
+**A pair is two words next to each other in the query and next to each other in
+one value.** `clear completed` is a pair in the label *Clear completed*, and is
+not one in a label *Clear* beside a text *completed*, or in a paragraph that has
+both words with others between them. Two subjects that match the same words
+are ordered by which says them as you did; *Completed, clear* is not the pair
+`clear completed`, and *ClearCompleted* and *Clear the completed* are.
 
 The weights are fixed, and a field weighs by how strongly a name in it picks out
 one subject rather than a family of them:
@@ -225,7 +234,9 @@ one subject rather than a family of them:
 |---|---|---|---|---|
 | `id`, `example` | `names`, `text` | `components`, `createdBy` | `regions`, `files` | `roles`, `tokens` |
 
-Both factors are integers and the sum is an integer, so no float is involved in the
+A word's rarity in a field is `⌊1000 × (N − n + 1) / (N + 1)⌋`, for `n` of the `N`
+subjects searched having it there: 952 for one subject in twenty, 47 for all
+twenty. Both factors are integers and the sum is an integer, so no float is involved in the
 sort and two machines cannot order the same hits differently.
 
 Rarity is counted per field, not once across all of them, because the fields
@@ -234,6 +245,25 @@ another: if every subject covers a `createCard` region, `card` as a *region*
 says nothing, while `card` in an id still picks out the two subjects named for
 it. Pooling the counts would spend the word everywhere on the strength of the
 worthless field.
+
+**A word in more than half the subjects searched, in a field, distinguishes
+none of them there, and the answer says so.** Every match prints how many
+subjects have it when that is more than half — `roles` `button` *(in 3 of 4)* —
+and the header names those words and fields. When every word of a query is that
+common in every field it matched, and so is every pair said side by side, the first
+line says that none of the words distinguishes a subject and that the order of
+the list is no answer. Add a word only the subject you mean would show, or [name
+a start point](#say-a-start-point-and-a-word-is-worth-something-else) so that
+fewer subjects are searched. Half is the same line drawn for a component, which
+in more than half a suite is [structure](#what-a-deep-tree-does-to-it).
+
+The word still counts toward the first key and the third. A rank that leaves it
+out loses more first places than it wins under [the gate
+below](#how-a-change-to-the-order-is-judged), because half is a step, not a
+slope. On a suite of 183, `button` is in the text of 92 subjects and the names of
+50: such a rank drops the word from the text and keeps it in the names, and the
+subject a question is about, which shows `button` only as text, falls behind one
+that also names it.
 
 ### Say a start point, and a word is worth something else
 
@@ -391,11 +421,12 @@ pick the answer.**
 
 ### Why the words run out
 
-The rank's second key is how rare a matched word is, and on a large suite the
+The rank's third key is how rare a matched word is, and on a large suite the
 words an author uses are not rare. Of the words the product-app questions
 matched, a fifth appear in more than half of its 572 subjects — `section` by
 568, `page` by 567, `states` by 566 — at which point the word is being asked to
-distinguish between subjects that all have it.
+distinguish between subjects that all have it. The answer names each such word
+beside the matches, so the reader sees which of a hit's words told it apart.
 
 material-ui does not have this problem, and that is the more useful fact: its
 median matched word appears in 1.1% of the suite, and not one matched word
@@ -446,6 +477,33 @@ answer hands over there is the component that owns the landmark and the files
 declaring it, which is somewhere to open rather than a coordinate, and it is
 said differently for that reason.
 
+### How a change to the order is judged
+
+A change to the ranking is put to questions nobody wrote for it, and judged on
+the ones it was not worked out against.
+
+```bash
+node packages/mcp/scripts/locate-sheet.mjs sheet <report.json> <dir> 40 <seed>
+node packages/mcp/scripts/locate-sheet.mjs resolve <dir> > questions.json
+node packages/mcp/scripts/locate-corpus.mjs <report.json> questions.json <before-dist>
+```
+
+`sheet` draws subjects by a seed and writes them under opaque labels, with only
+their roles, names and text, for an author who never sees the index — a person,
+or a small model given that file and nothing else. The author writes one to
+three questions per subject, so forty subjects give about eighty questions, in
+a few minutes. `resolve` turns the labels back into subjects; a question
+with no answer in the suite is added by hand with a `null` subject.
+`locate-corpus.mjs` asks every question of two builds of the package, the one
+before the change — `<before-dist>`, its `dist` built on the base and copied
+under a `node_modules` — and the one after, and counts what each did. A change
+passes when no question's subject falls off the page of eight, at least as
+many questions gain first place as lose it, and no question with no answer
+stops saying so, both over every question and over the fifth held out by a
+hash of each question's words. That fifth is the same on
+every machine, so a change tuned while looking at four fifths is judged on the
+one it did not see.
+
 ### What these numbers are, and are not
 
 They are counts against fixed denominators, taken inside one run. No number here
@@ -465,7 +523,7 @@ chosen by fitting these questions.
 ## What it refuses to be
 
 **Not a search engine.** The corpus is a few hundred short names per subject and
-the ranking is three integers and a string. No term frequency, because three chips
+the ranking is four integers and a string. No term frequency, because three chips
 in one footer is a fact about a list and not a better match. No length
 normalisation, because the size of a subject is already a rank key.
 

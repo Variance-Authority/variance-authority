@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   EDGE_KINDS,
+  RUNTIME_EDGES,
   dependenciesOf,
   dependentsOf,
   explain,
@@ -135,7 +136,7 @@ describe('the graph', () => {
     expect(value.nodes.map((id) => relations.names[id])).toEqual(['b.ts', 'types.ts']);
   });
 
-  it('does not cross a type-only import unless asked to', () => {
+  it('crosses a type-only import by default, and leaves it out for a runtime question', () => {
     const relations = relationsOfFiles([
       { file: 'a.ts', edges: [{ to: 'types.ts', kind: 'type' }] },
       { file: 'b.ts', edges: [{ to: 'types.ts', kind: 'imports' }] },
@@ -143,12 +144,20 @@ describe('the graph', () => {
     ]);
     const seed = idOf(relations, 'file', 'types.ts')!;
 
-    // Nothing behind `import type` runs, so a change to `types.ts` affects `b.ts`
-    // and not `a.ts` — until a caller says its question is
-    // about source, not about a runtime.
-    expect(dependentsOf(relations, [seed]).nodes.map((id) => relations.names[id])).toEqual(['b.ts', 'types.ts']);
-    expect(dependentsOf(relations, [seed], { through: EDGE_KINDS }).nodes.map((id) => relations.names[id]))
+    // `a.ts` depends on `types.ts` through its types, so a change there reaches
+    // it. Nothing behind `import type` runs, so a caller asking what a run loads
+    // names `RUNTIME_EDGES` and reaches `b.ts` alone.
+    expect(dependentsOf(relations, [seed]).nodes.map((id) => relations.names[id]))
       .toEqual(['a.ts', 'b.ts', 'types.ts']);
+    expect(dependentsOf(relations, [seed], { through: RUNTIME_EDGES }).nodes.map((id) => relations.names[id]))
+      .toEqual(['b.ts', 'types.ts']);
+    expect(affectedBy(relations, ['types.ts']).files).toEqual(['a.ts', 'b.ts', 'types.ts']);
+    expect(affectedBy(relations, ['types.ts'], { through: RUNTIME_EDGES }).files).toEqual(['b.ts', 'types.ts']);
+    // The same edge, walked the other way: what `a.ts` depends on.
+    const a = idOf(relations, 'file', 'a.ts')!;
+    expect(dependenciesOf(relations, [a]).nodes.map((id) => relations.names[id])).toEqual(['a.ts', 'types.ts']);
+    expect(dependenciesOf(relations, [a], { through: RUNTIME_EDGES }).nodes.map((id) => relations.names[id]))
+      .toEqual(['a.ts']);
   });
 });
 

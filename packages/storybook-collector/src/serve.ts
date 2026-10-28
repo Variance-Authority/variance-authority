@@ -10,6 +10,9 @@ import { extname, join, normalize } from 'node:path';
  * blocked by `file://` origin rules. A Storybook that is *already served* needs
  * none of this — see `baseUrl` — and that is the arrangement to prefer, because
  * then nothing here has an opinion about how the build is hosted.
+ *
+ * The same file server is in `@variance-authority/route-collector`, on purpose:
+ * sharing it would make one surface package import another (ADR-0024).
  */
 
 const TYPES: Readonly<Record<string, string>> = {
@@ -80,6 +83,12 @@ export async function serveStatic(root: string): Promise<StaticServer> {
 
     response.writeHead(200, {
       'content-type': TYPES[extname(file)] ?? 'application/octet-stream',
+      // Fresh for as long as the server lives. A build does not change under a
+      // run, the server and its port live exactly one run, and a run's browser
+      // starts with an empty cache, so nothing stale can be answered. Without
+      // it the browser has nothing to call fresh, and each worker's page
+      // fetches the whole preview again.
+      'cache-control': 'max-age=31536000, immutable',
     });
     response.end(body);
   });

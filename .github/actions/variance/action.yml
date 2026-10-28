@@ -66,7 +66,7 @@ inputs:
   shard:
     description: >-
       `k/n`: observe the files placed on shard k of n, by the costs the mainline
-      lineage recorded or by checksum when there are none. Every other subject is
+      lineage recorded or by file count when there are none. Every other subject is
       reported as another shard's, never dropped, and `variance report` over all n
       reports is the suite.
     required: false
@@ -209,10 +209,22 @@ inputs:
     required: false
     default: ''
 
+  exit-zero-on-changes:
+    description: >-
+      `true` for a check that reports rather than blocks: changes that need
+      review are named as a warning and the check passes, with the comment and
+      the report as they would be otherwise. It still fails when the run did
+      not happen, when a subject could not be observed or its observation
+      errored, and when an accept the comparison after it did not hold.
+    required: false
+    default: 'false'
+
 outputs:
+  # The doctor step writes `exit-code` only when it refuses, so a run step it
+  # skipped leaves the run's answer empty and the doctor's 2 is the one read.
   exit-code:
     description: '0 nothing needs review, 1 changes need review, 2 the run did not happen.'
-    value: ${{ steps.run.outputs.exit-code }}
+    value: ${{ steps.run.outputs.exit-code || steps.doctor.outputs.exit-code }}
   report:
     description: 'Absolute path to the run report, resolved from the config.'
     value: ${{ steps.carry.outputs.report }}
@@ -259,6 +271,31 @@ runs:
         path: ${{ steps.carry.outputs.baselines-path }}
         key: ${{ steps.carry.outputs.baselines-key }}
         restore-keys: ${{ steps.carry.outputs.baselines-restore-keys }}
+
+    # Before anything compares, because the run meets an LFS pointer only at a
+    # subject whose document moved: one that did not is settled from its `.json`
+    # sidecar without its image being read, so a checkout that skipped the LFS
+    # fetch would pass green until somebody edits a component. `--baselines`
+    # reads the store's first bytes and nothing else, no browser and no font, and
+    # exits 2 on a pointer; this step then fails, every step that compares or
+    # writes is skipped, and the verdict reports 2. Only for a store in the
+    # checkout: a remote store and ephemeral retention keep nothing here.
+    - id: doctor
+      if: ${{ steps.carry.outputs.baselines-root != '' }}
+      name: refuse a checkout of LFS pointers
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      env:
+        VARIANCE_COMMAND: ${{ inputs.command }}
+        VARIANCE_CONFIG: ${{ inputs.config }}
+      run: |
+        set -uo pipefail
+        # shellcheck disable=SC2086
+        if $VARIANCE_COMMAND doctor --config "$VARIANCE_CONFIG" --baselines; then exit 0; else code=$?; fi
+        # Any refusal here means the run did not happen, so the verdict reads 2
+        # whatever doctor exited with; a crash must not read as "changes".
+        echo "exit-code=2" >> "$GITHUB_OUTPUT"
+        exit "$code"
 
     # `--exit-zero-on-changes` because this run is not asking: the person has
     # already decided. It suppresses 1 and never 2, so a run whose browser did
@@ -390,18 +427,19 @@ runs:
         here="$(dirname "$VARIANCE_REPORT")"
         repo="$(mktemp -d)"
         paths="$repo/paths"
-        # Before and after, only where the report holds both, since a subject
-        # with one of them is never pictured; and never a path that leaves the
-        # report's directory.
+        # What the comment shows of each subject: the change, cropped, where the
+        # report has one, and otherwise the before and after, only where it holds
+        # both, since a subject with one of them is never pictured. Never a path
+        # that leaves the report's directory.
         node -e '
           const report = JSON.parse(require("node:fs").readFileSync(process.argv[1], "utf8"));
+          const inside = (path) => typeof path === "string" && !path.split("/").includes("..");
           for (const { images } of report.observations ?? []) {
-            const pair = [images?.before, images?.after];
-            if (pair.every((path) => typeof path === "string" && !path.split("/").includes("..")))
-              console.log(pair.join("\n"));
+            const shown = inside(images?.change) ? [images.change] : [images?.before, images?.after];
+            if (shown.every(inside)) console.log(shown.join("\n"));
           }
         ' "$VARIANCE_REPORT" > "$paths" || skip "the report could not be read"
-        [ -s "$paths" ] || skip "the report names no before and after images"
+        [ -s "$paths" ] || skip "the report names no image of a change"
 
         git init -q --bare "$repo/git"
         export GIT_DIR="$repo/git" GIT_WORK_TREE="$here"
@@ -629,8 +667,10 @@ runs:
       if: ${{ always() }}
       shell: bash
       env:
-        CODE: ${{ steps.run.outputs.exit-code }}
+        CODE: ${{ steps.run.outputs.exit-code || steps.doctor.outputs.exit-code }}
         KEPT: ${{ steps.saved.outcome == 'success' }}
+        EXIT_ZERO_ON_CHANGES: ${{ inputs.exit-zero-on-changes }}
+        REPORT: ${{ steps.carry.outputs.report }}
         # Where the reader goes next. A push has no pull request, so pointing at
         # a comment there sends them looking for something that was never written.
         WHERE: >-
@@ -647,6 +687,26 @@ runs:
               # The run accepted, and kept it: what failed, failed against
               # this commit's own accept.
               echo "::error::variance kept what this run accepted, and the comparison after it still failed: a subject that does not render the same way twice, an observation that errored, or a subject not observed; $WHERE."
+            elif [ "$EXIT_ZERO_ON_CHANGES" = true ]; then
+              # A change is the reviewer's to look at whenever they get to it;
+              # a subject the run could not observe is a hole in what it says,
+              # often a server that died mid-run, and stays red. Of the
+              # conditions `exitFor` turns into 1, the holes are a `failed`
+              # subject, an `error` diagnostic and a report that does not say
+              # what it observed or skipped; an unreadable one is a hole too.
+              # An unabsorbed instability is left a change on purpose: on an
+              # ordinary run that subject is already `changed`.
+              if node -e '
+                const report = JSON.parse(require("node:fs").readFileSync(process.argv[1], "utf8"));
+                const hole = report.observations === undefined || report.notObserved === undefined ||
+                  report.notObserved.some((entry) => entry.kind === "failed") ||
+                  report.observations.some(({ diagnostics }) => (diagnostics ?? []).some((d) => d.severity === "error"));
+                process.exit(hole ? 1 : 0);
+              ' "${REPORT:-}" 2>/dev/null; then
+                echo "::warning::variance found changes that need review; $WHERE."
+                exit 0
+              fi
+              echo "::error::variance could not observe every subject: a subject failed, an observation errored, or the report does not say what it skipped; $WHERE."
             else
               echo "::error::variance found changes that need review; $WHERE."
             fi
@@ -655,7 +715,7 @@ runs:
           2)
             # Not a finding about the change: no verdict was reached and no
             # subject was observed.
-            echo "::error::variance could not run (exit 2); see the variance run step."
+            echo "::error::variance could not run (exit 2); see the doctor or the variance run step above."
             exit 2
             ;;
           '')

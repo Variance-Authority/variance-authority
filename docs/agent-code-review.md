@@ -183,7 +183,7 @@ Read from the record of `unit` before this change ran.
 
 And 1 more, every one reached by a case: 1 near.
 
-More on one file: `variance covering --since 3f2a9c0d1e4b --file <path>`
+More on one file: `variance covering --file <path>`
 </details>
 <!-- /variance-authority: handover -->
 ```
@@ -200,7 +200,17 @@ see [test distance](distance.md). A function every case reached from near is
 only counted: a test file that imports it is easy to find. Functions with code
 no case ran come first. Past twelve lines the rest are only counted, so the
 block stays a handful of lines on a change of any size, and its last line is
-the `covering` command that reads one file in full.
+the `covering` command that reads one file in full, from every suite the block
+reads. For a 🔴 function, `variance covering --file <path> --function <name>`
+names the part no case ran, in each suite.
+
+The changed source files that no suite's record holds, in any language the
+[source index](source-index.md) reads, such as Rust, are named on one last line, *not in the
+record*, twelve by name and the rest counted. The record holds no function from
+those files, so the block cannot name one there. When they are all the change
+touched, the summary prints *no changed function in the record, 2 changed files
+not in it* rather than *no changed function*. A test file the record holds
+cases of is in the record, and is not named there.
 
 A person sees one collapsed line. A bot reads the raw body, folded content
 included. The markers show where the block a later run prints is pasted, so

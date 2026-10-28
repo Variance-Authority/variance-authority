@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { testCoverageFile } from '@variance-authority/sense/test-selection';
 import { describe, expect, it } from 'vitest';
+import { bundleCarried } from './bundle-carried.mjs';
 import { takeCarried } from './take-carried.mjs';
 
 /**
@@ -13,7 +14,9 @@ import { takeCarried } from './take-carried.mjs';
  * The record names the commits its tests last ran at, and a selection diffs
  * each test from its commit. Those are the merge commits of earlier pushes:
  * GitHub moves `refs/pull/<n>/merge` on every push, so no ref a clone fetches
- * holds them, and they are fetched by name. A suite whose commits cannot all
+ * holds them, and they are fetched by name. A merge `check.yml` made itself,
+ * with the commit the mainline's record was made at, is on no remote: the push
+ * that made it bundles it beside the records. A suite whose commits cannot all
  * be had is not taken, and the checkout reads the mainline's record as it
  * would with nothing carried.
  */
@@ -127,5 +130,59 @@ describe('a pull request reads from what its last push ran', () => {
   it('takes nothing when nothing was carried', async () => {
     const { clone } = await pullRequest();
     expect(await takeCarried(clone, join(clone, '.nothing'))).toEqual({ taken: [], left: [] });
+  });
+
+  it('takes a merge no remote holds from the bundle the last push left beside the records', async () => {
+    const { clone, kept } = await pullRequest();
+    const earlier = join(dirname(clone), 'earlier');
+    git(dirname(clone), 'clone', '-q', '--no-local', join(dirname(clone), 'upstream'), earlier);
+    await commitIn(earlier, 'c.ts', 'c\n');
+    const head = git(earlier, 'rev-parse', 'HEAD');
+    git(earlier, 'checkout', '-q', '--detach', kept);
+    git(earlier, '-c', 'user.name=t', '-c', 'user.email=t@t', 'merge', '-q', '--no-ff', '--no-edit', head);
+    const merge = git(earlier, 'rev-parse', 'HEAD');
+    const carried = join(earlier, '.carried');
+    await carry(carried, 'unit', runsAt(merge, [kept]));
+
+    expect(await bundleCarried(earlier, carried, 'refs/remotes/origin/main')).toEqual({ bundled: [merge], absent: [] });
+    expect(git(earlier, 'for-each-ref', 'refs/carried/')).toBe('');
+    expect(() => git(clone, 'cat-file', '-e', `${merge}^{commit}`)).toThrow();
+
+    expect(await takeCarried(clone, carried)).toEqual({ taken: ['unit'], left: [] });
+    expect(git(clone, 'rev-parse', `${merge}^2`)).toBe(head);
+    expect(git(clone, 'for-each-ref', 'refs/carried/')).toBe('');
+  });
+
+  it('bundles the commits the clone holds, and names the ones it does not', async () => {
+    const { clone, kept, gone } = await pullRequest();
+    const carried = join(clone, '.carried');
+    const lost = 'f'.repeat(40);
+    git(clone, 'fetch', '-q', 'origin', gone);
+    await carry(carried, 'unit', runsAt(kept, [gone, lost]));
+
+    expect(await bundleCarried(clone, carried, 'refs/remotes/origin/main')).toEqual({ bundled: [gone], absent: [lost] });
+    expect(git(clone, 'bundle', 'list-heads', join(carried, 'commits.bundle'))).toContain(gone);
+  });
+
+  it('says the bundle did not read, and leaves the suite whose commit was in it', async () => {
+    const { clone } = await pullRequest();
+    const carried = join(clone, '.carried');
+    const lost = 'f'.repeat(40);
+    await carry(carried, 'unit', runsAt(lost));
+    await writeFile(join(carried, 'commits.bundle'), 'not a bundle');
+
+    const taken = await takeCarried(clone, carried);
+
+    expect(taken.left).toEqual([{ suite: 'unit', missing: [lost] }]);
+    expect(taken.unbundled).toMatch(/commits\.bundle/u);
+  });
+
+  it('bundles nothing when every commit the records name is on the mainline', async () => {
+    const { clone, kept } = await pullRequest();
+    const carried = join(clone, '.carried');
+    await carry(carried, 'unit', runsAt(kept));
+
+    expect(await bundleCarried(clone, carried, 'refs/remotes/origin/main')).toEqual({ bundled: [], absent: [] });
+    expect(existsSync(join(carried, 'commits.bundle'))).toBe(false);
   });
 });

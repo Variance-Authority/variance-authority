@@ -5,6 +5,7 @@
 > Turn pages your application already serves into Variance Authority subjects.
 
 Part of [Variance Authority](https://variance-authority.dev).
+Point your coding agent at [`llms.txt`](https://variance-authority.dev/llms.txt).
 
 ## What this is for
 
@@ -290,6 +291,26 @@ subject should be something somebody signs off. A sitemap index is not followed:
 its own `<loc>` values are treated as pages, and links on pages are never
 crawled.
 
+## Leave a page out
+
+A sitemap lists every page a site publishes, and not every page is one you
+review as pixels: a long article, a changelog, a generated reference. Such a
+page changes on every prose edit and can be tens of thousands of pixels tall.
+Mark it on the page itself, with the reason as the value:
+
+```html
+<article data-variance-exclude="a markdown document: its change is reviewed as text">
+```
+
+The attribute can sit on any element of the document, inside the roots or not,
+and it applies to the whole page. Put it in the component that renders the kind
+of page — the layout every article uses — and a page added later leaves the run
+with no edit to the collector. The collector navigates, waits for `ready`, sees
+the attribute, and reads and photographs nothing. The run lists the page as
+`excluded`, with the reason the page gave, beside the subjects the plan left
+out; an excluded page never sends a run to review. A page that drops the
+attribute is photographed on the next run.
+
 ## Observe responsive layouts
 
 Use `widths` when each route must be evaluated at more than one breakpoint:
@@ -337,10 +358,33 @@ loudest first: `a11y`, `geometry`, `token`, `content`, `texture`.
 | `holdings` | Application values behind the nodes are evidence you want recorded. | `false`. Changes the structure digest — an inert wrapper survives the collapse — so both sides of a comparison must be read the same way. |
 | `stabilize` | The application has its own determinism strategy, or a route should be read hovered, focused, animated or at the real time. | The standard collection recipe, which also takes the pointer off the page, releases focus, asks for reduced motion and fixes `Date`; `[]` records an untouched page. A list replaces the recipe: start from the exported `DEFAULT_STABILIZE` and filter out what you want read, as in `DEFAULT_STABILIZE.filter((id) => id !== 'freeze-clock')`. |
 | `now` | Your pages print a date and you want one other than the default. | `2024-06-15T12:00:00.000Z`. An ISO 8601 instant with its zone; anything else is refused when the collector is created. |
+| `tests` | The next run should photograph only the pages an edit reached. | `false`. Requires a build with `testSelectionProbes()`; see [photographing only the pages an edit reached](#photographing-only-the-pages-an-edit-reached). |
 
 ## Readiness and loading
 
-Before each route is read, the collector waits for every React Suspense boundary
+Before each route is read, the collector waits for React to hydrate it, when
+React has not already. A server-rendered route is on screen before React has committed it, and the
+component behind a node can only be read after that commit. So the collector
+reads React's own record of each root on, above or under the selected roots,
+the `Document` included, and waits until every one has committed: while React
+has work it can do or effects to run, and, while it is stuck on a promise or
+no root is there yet, for as long as anything the page requested is still
+arriving. On a page React has not loaded on, only a script still arriving
+counts, because only a script brings a renderer, so a long poll on a page
+React does not render holds nothing. No clock ends the wait. A route
+React stops hydrating with nothing left arriving is refused at once, as a route
+still showing a Suspense fallback is: an effect that runs after
+hydration can paint a different image, so the same route would record one image
+on a slow run and another on a fast one. A route where no React root is found
+is collected with a `react-root-absent` warning, and a changed region on it
+names no component for that reason; on a route React never loaded on, the
+warning says so. A route whose markup changed after its hydration commit
+carries a `hydration-changed-markup` warning that quotes the markup at that
+commit and the client's, and names the components that committed after
+hydrating. With `wiring: false` the collector reads no components, waits for
+nothing, and says nothing.
+
+Then it waits for every React Suspense boundary
 under the selected roots to resolve real content rather than still be showing a
 fallback. This runs before stabilization, because content that arrives late
 brings its own images and fonts.
@@ -367,6 +411,97 @@ export default routeCollector({
 A route listed in `loading` skips the Suspense wait entirely. The check runs both
 ways: a route declared this way that turns out to settle is refused too, because
 what gets recorded would otherwise depend on how fast the machine is.
+
+## Photographing only the pages an edit reached
+
+A page depends on two things a URL does not show: the code that rendered it, on
+the server as well as in the browser, and the content it displayed. With
+`tests`, a run records both for every page, so a later run against a diff
+photographs the pages that ran a changed line or showed a changed file, and
+skips the rest.
+
+What a page ran comes from probes in your build. Install
+`@variance-authority/sense` as a devDependency and add `testSelectionProbes()`
+to the client build. For code that renders on the server, add it to the server
+build too, with `journeys: true` and the name the server reports under, and
+serve each request inside `collectJourneys()` from
+`@variance-authority/sense/journey`:
+
+```ts
+// worker.ts — the server the recorded run photographs
+import { collectJourneys } from '@variance-authority/sense/journey';
+import handler from './handler';
+
+const journeys = collectJourneys();
+
+export default {
+  fetch: (request: Request) => journeys.enter(request.headers.get('cookie') ?? undefined, () => handler(request)),
+};
+```
+
+Start that server with `VARIANCE_AUTHORITY_JOURNEYS=1` and
+`VARIANCE_AUTHORITY_HEAD=site`, and name the same head in the collector. Each
+page is read under a journey of its own, carried to the server as a cookie on
+the document and on every request the page makes after it, so what the server
+rendered for one page is never charged to another. Unset, `collectJourneys()`
+installs nothing and `enter` returns what its body returns, so the wrapper
+ships to production unchanged. The example closes the journey when the
+handler's response arrives. A server that streams its render is still rendering
+while the body is read, so keep the journey open until the body has been written
+out.
+
+Serve the recorded build with prerendering and every page cache off. A page a
+cache answered ran none of the code that made it, so the record would show it
+running nothing, and a change to that code would skip it.
+
+What a page showed and no code names — a document read at build time, a string
+imported with `?raw` — the element that shows it says, with
+[`@variance-authority/reads`](https://variance-authority.dev/reference/packages/reads):
+
+```tsx
+<article {...reads(document.path)}>{document.body}</article>
+```
+
+Then declare the suite in the root `variance.config.json`, and name it in the
+collector:
+
+```json
+{
+  "suites": {
+    "site": { "kind": "e2e", "relations": false, "before": ["app/globals.css", "vite.config.ts"] }
+  }
+}
+```
+
+```js
+// variance/routes.mjs
+export default routeCollector({
+  sitemap: 'http://localhost:8787/sitemap.xml',
+  tests: { suite: 'site', heads: ['site'] },
+});
+```
+
+Record one run against the probed build, and from then on narrow each run by
+its diff:
+
+```bash
+npx variance run --config variance.config.json --since origin/main --suite site
+```
+
+A changed line selects the pages that ran it. A changed file a page named
+selects that page. A change to a file in `before` runs every page: list there
+what every page rests on without any page running it, such as a global
+stylesheet, the build config and the lockfile. `"relations": false` keeps a
+changed file the record never measured from widening the run, so a file left
+out of `before` is named in the run's warnings and selects nothing.
+
+`tests` accepts `true` or an options object. `suite` names the suite this run
+records; it is required once the root config declares any. `heads` names every
+server that reports, and a named head that reported nothing marks the whole run
+incomplete, so a server that was not watched cannot pass for one that ran
+nothing. `root`, `cacheRoot`, `coverageFile`, `mode`, `preconditions` and `commit` mean
+what they mean on the `tests` option of
+[`@variance-authority/storybook-collector`](https://variance-authority.dev/reference/packages/storybook-collector).
 
 ## Sitemap helpers
 
@@ -405,6 +540,10 @@ console.log(routesFrom(xml));
   what you intend to review.
 - **Every route changes with shared chrome:** tighten `roots`; `body` explicitly
   includes headers, navigation, and overlays.
+- **A page is refused as too large to photograph:** a subject longer than 16,384
+  device pixels on either side is never captured and never clipped; the run
+  records it as failed, with its size, and exits `1`. Bound it with tighter `roots`, or
+  [leave the page out](#leave-a-page-out).
 - **Component names have no source lines:** configure `source.dirs` and preserve
   component names in the production bundle. That resolves a name to where the
   component is *declared* — one line however many times the component renders.
@@ -434,4 +573,4 @@ the collector.
 
 ---
 
-**[@variance-authority/route-collector](https://variance-authority.dev/reference/packages/route-collector)** is part of [Variance Authority](https://variance-authority.dev) — [documentation](https://variance-authority.dev/docs) · MIT
+**[@variance-authority/route-collector](https://variance-authority.dev/reference/packages/route-collector)** is part of [Variance Authority](https://variance-authority.dev) — [documentation](https://variance-authority.dev/docs) · [GitHub](https://github.com/Variance-Authority/variance-authority/tree/main/packages/route-collector) · MIT

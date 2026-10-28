@@ -2,7 +2,7 @@ import { existsSync } from 'node:fs';
 import { chromium, type Browser, type Page } from 'playwright';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { Viewport } from '@variance-authority/core/format';
-import { captureSubject, outward } from './capture.js';
+import { MAX_CAPTURE_PIXELS, captureSubject, outward } from './capture.js';
 
 /**
  * The fast capture path, held to the only bar that matters: the same bytes.
@@ -132,6 +132,30 @@ describe.skipIf(!BROWSER_AVAILABLE)('captureSubject', () => {
     await page.setContent(`<!doctype html><div data-va-path="0" style="${style}">s</div>`);
     expect(await captureSubject(page, VIEWPORT, SHOT)).toEqual({ bytes: null, box: null });
   }, 10_000);
+
+  /**
+   * A subject past the ceiling is refused, not photographed and not clipped.
+   *
+   * A clipped image claims a review of pixels nobody saw, and an image tens of
+   * thousands of pixels tall is not one a person reviews. Measured in device
+   * pixels, so the same subject at a higher scale factor reaches it sooner.
+   */
+  it.each([
+    ['taller than the ceiling', 'width:420px;height:17000px', VIEWPORT, 17000],
+    ['under it in CSS pixels, over it in device pixels', 'width:420px;height:9000px', { ...VIEWPORT, deviceScaleFactor: 2 }, 18000],
+    ['wider than the ceiling', 'width:17000px;height:20px', VIEWPORT, 17000],
+  ])('refuses a subject %s, naming its size and the ceiling', async (_name, style, viewport, pixels) => {
+    await page.setContent(document_(style));
+    await expect(captureSubject(page, viewport, SHOT)).rejects.toThrow(
+      new RegExp(`${pixels}.*${MAX_CAPTURE_PIXELS}`),
+    );
+  }, 10_000);
+
+  it('photographs a subject exactly at the ceiling', async () => {
+    await page.setContent(document_(`width:420px;height:${MAX_CAPTURE_PIXELS}px`));
+    const { box } = await captureSubject(page, VIEWPORT, SHOT);
+    expect(box?.height).toBe(MAX_CAPTURE_PIXELS);
+  }, 30_000);
 
 });
 

@@ -63,8 +63,9 @@ import {
   type ParseWay,
 } from './files.js';
 import { worldIn, worldOn } from './world.js';
-import { declinedForSize, recordFor, stillTooLarge } from './record.js';
+import { declinedForSize, parsedOnce, recordFor, stillTooLarge } from './record.js';
 import { onlyListed } from './repo-path.js';
+import { withDeclaredTsconfig } from './typescript.js';
 import {
   realPath,
   resolversFor,
@@ -83,7 +84,7 @@ export interface ScanOptions extends ResolveOptions {
    * The harness. A `vitest.config.ts` lives outside every directory anybody
    * would point a component scan at, and what it loads — a setup module, an
    * environment — is the part of a run nothing imports and every test rests
-   * on ([`before`](../../core/src/relate/before.ts)). Seeded here, the file and
+   * on ([`before`](https://github.com/Variance-Authority/variance-authority/blob/main/packages/core/src/relate/before.ts)). Seeded here, the file and
    * everything it reaches become ordinary nodes, and the question *what does
    * the run rest on* becomes an ordinary walk.
    *
@@ -249,8 +250,8 @@ interface Scanned {
   readonly listing?: NativeGitTree;
 }
 
-async function scanning(options: ScanOptions): Promise<Scanned> {
-  if (options.changed !== undefined && options.digests !== undefined) {
+async function scanning(asked: ScanOptions): Promise<Scanned> {
+  if (asked.changed !== undefined && asked.digests !== undefined) {
     throw new Error('`changed` supplies Git identity and cannot be combined with `digests`');
   }
   // The real path, because resolution returns one. On macOS a temporary
@@ -258,7 +259,8 @@ async function scanning(options: ScanOptions): Promise<Scanned> {
   // on the wrong side of that link puts every resolved file *outside* the
   // repository — an empty graph, no error, and a selector that narrows to
   // nothing while reporting success.
-  const root = realPath(resolve(options.root));
+  const root = realPath(resolve(asked.root));
+  const options = withDeclaredTsconfig(root, asked);
   const resolvers = resolversFor(options);
   const addon = native();
   if (addon === undefined) {
@@ -276,14 +278,15 @@ async function scanning(options: ScanOptions): Promise<Scanned> {
 
   // Every language but JavaScript resolves by asking about the tree rather
   // than walking a `node_modules` chain ([`world.ts`](./world.ts)), and the
-  // scan already holds the answer for every path it knows.
-  const world = tree === undefined ? worldOn(root) : worldIn(tree.paths(), root);
+  // scan already holds the answer for every path it knows, and every parse.
+  const largestFile = options.largestFile ?? LARGEST_FILE;
+  const parse = (file: string) => parsedOnce({ root, file, cache, largestFile, digest: tree?.getAll([file])[0] });
+  const world = tree === undefined ? worldOn(root, parse) : worldIn(tree.paths(), root, parse);
   resolvers.tree = world;
 
   // No digests, no reuse. Not a policy — a record that names no bytes cannot be
   // checked against the bytes on disk, so there is nothing to reuse it against.
   const reuse = tree === undefined ? undefined : options.reuse;
-  const largestFile = options.largestFile ?? LARGEST_FILE;
   const shape = tree === undefined ? undefined : await shapeOf({ root, tree, options });
   // FIXME: under a clean or smudge filter — LFS, `core.autocrlf`, `working-tree-encoding` —
   // a blob and its checked-out file differ, both parse under the blob's digest, and an
@@ -442,7 +445,7 @@ async function scanning(options: ScanOptions): Promise<Scanned> {
         graph = held;
         nativeGraphUsed = true;
         answeredFiles = [];
-        adoptNativeParses(cache, { get bytes() { return held.parseSegment(); }, keys: parseKeys(held) });
+        adoptNativeParses(cache, { get bytes() { return held.parseSegment(); }, keys: { has: (key) => held.hasParse(key) } });
         reuse?.adopt?.(held);
         for (const file of held.following()) {
           if (!built.has(file) && READABLE.has(extname(file))) queue.push(file);
@@ -474,26 +477,7 @@ async function scanning(options: ScanOptions): Promise<Scanned> {
   return { built, ...(graph === undefined ? {} : { graph }), ...(listing === undefined ? {} : { listing }) };
 }
 
-/**
- * The closure's parse keys, as the parse cache asks them: held by the addon,
- * less the few JavaScript harvested since and writes itself.
- */
-function parseKeys(graph: NativeIndexGraph): { has(key: string): boolean; delete(key: string): boolean } {
-  const overridden = new Set<string>();
-  return {
-    has: (key) => !overridden.has(key) && graph.hasParse(key),
-    delete: (key) => {
-      const had = !overridden.has(key) && graph.hasParse(key);
-      overridden.add(key);
-      return had;
-    },
-  };
-}
-
 /** Whether a path is there to be opened, without opening it. */
 async function readable(file: string): Promise<boolean> {
-  return access(file).then(
-    () => true,
-    () => false,
-  );
+  return access(file).then(() => true, () => false);
 }

@@ -65,7 +65,7 @@
  * the run still does not narrow.
  */
 
-import { nodeAt, type NodeId, type Relations } from './graph.js';
+import { RUNTIME_EDGES, nodeAt, type NodeId, type Relations } from './graph.js';
 import { dependenciesOf } from './reach.js';
 
 /** The part of a run that sits before the tests, as names. */
@@ -154,7 +154,7 @@ export function beforeReach(
     if (!entered.has(id) && within(name, sensed)) avoid.push(id);
   }
 
-  for (const id of dependenciesOf(relations, seeds, { avoid }).nodes) {
+  for (const id of dependenciesOf(relations, seeds, { through: RUNTIME_EDGES, avoid }).nodes) {
     const node = nodeAt(relations, id);
     if (node?.kind === 'file') files.add(node.name);
   }

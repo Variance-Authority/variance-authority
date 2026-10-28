@@ -86,11 +86,26 @@ describe('the sequencer that drops what a selection may skip', () => {
       selection: async () => selection(['a.test.ts']),
       say: () => {},
     });
-    const sequencer = new Sequencer({ config: { root, shard: { index: 1, count: 1 } } });
+    // Vitest's own sort runs the largest file first when no results are cached.
+    const size = new Map([['b.test.ts', 1], ['c.test.ts', 3], ['d.test.ts', 2]]);
+    const cache = {
+      getFileTestResults: () => undefined,
+      getFileStats: (key: string) => ({ size: size.get(key.slice(key.indexOf(':') + 1)) ?? 0 }),
+    };
+    const sequencer = new Sequencer({ config: { root }, cache } as SequencerContext);
+    const files = ['a.test.ts', 'b.test.ts', 'c.test.ts', 'd.test.ts'].map((file) => ({ ...spec(file), project: { name: '' } }));
 
-    const part = await sequencer.shard(['a.test.ts', 'b.test.ts'].map(spec));
+    const sorted = await sequencer.sort(files);
 
-    expect(names(part)).toEqual(['b.test.ts']);
+    expect(names(sorted)).toEqual(['c.test.ts', 'd.test.ts', 'b.test.ts']);
+  });
+
+  it('hands a shard call that asks for no shard to the project\'s sequencer', async () => {
+    const Sequencer = selectingSequencer(Reversing, { root, configRoot: root, say: () => {} });
+
+    const part = await new Sequencer(context()).shard(['a.test.ts', 'b.test.ts', 'c.test.ts', 'd.test.ts'].map(spec));
+
+    expect(names(part)).toEqual(['a.test.ts', 'b.test.ts']);
   });
 
   it('reads the selection once, however many pools and runs ask', async () => {
@@ -230,7 +245,7 @@ describe('the sequencer under --shard', () => {
     expect(await shard(2)).toEqual({ part: [], passes: true });
   });
 
-  it('hands the split to the project\'s sequencer when nothing is timed, and says so', async () => {
+  it('places whole files by count when nothing is timed, and says why', async () => {
     const lines: string[] = [];
     const Sequencer = selectingSequencer(Reversing, {
       root,
@@ -241,8 +256,30 @@ describe('the sequencer under --shard', () => {
 
     const part = await new Sequencer(context({ shard: { index: 1, count: 2 } })).shard(files.map(spec));
 
-    expect(names(part)).toEqual(['a.test.ts', 'b.test.ts']);
-    expect(lines).toEqual(['variance-authority: shard 1/2 split by the runner, by count: no times at /cache/unit.bin: nothing is recorded there']);
+    expect(names(part)).toEqual(['a.test.ts', 'c.test.ts']);
+    expect(lines).toEqual(['variance-authority: shard 1/2 by file count: 2 of 4 files; no times at /cache/unit.bin: nothing is recorded there']);
+  });
+
+  it('places by count when it is handed no way to read times', async () => {
+    const lines: string[] = [];
+    const Sequencer = selectingSequencer(Reversing, { root, configRoot: root, say: (line) => lines.push(line) });
+
+    const part = await new Sequencer(context({ shard: { index: 2, count: 2 } })).shard(files.map(spec));
+
+    expect(names(part)).toEqual(['b.test.ts', 'd.test.ts']);
+    expect(lines).toEqual(['variance-authority: shard 2/2 by file count: 2 of 4 files; no times at the record: no record was named to read them from']);
+  });
+
+  it('passes a shard left empty by fewer files than shards, and only that one', async () => {
+    const Sequencer = selectingSequencer(Reversing, { root, configRoot: root, say: () => {} });
+    const shard = async (index: number) => {
+      const config: SequencerContext['config'] = { shard: { index, count: 2 } };
+      const sequencer = new Sequencer(context(config));
+      return { part: names(await sequencer.sort(await sequencer.shard([spec('a.test.ts')]))), passes: config.passWithNoTests };
+    };
+
+    expect(await shard(1)).toEqual({ part: ['a.test.ts'], passes: undefined });
+    expect(await shard(2)).toEqual({ part: [], passes: true });
   });
 
   it('reads no times and says nothing when no shard is asked for and nothing is selected', async () => {

@@ -1,9 +1,10 @@
 # Spec 0093 — a case names its preconditions
 
-**Missing:** a test case cannot say what state it arranged. A test that mocks the
-network, turns a flag on or paints the dragon green leaves no trace of it in the
-recording. The only preconditions recorded are files: a test file's own source,
-its setup and configuration, each held by digest.
+**Missing:** the dimension. `variancePrecondition` takes one record, so a name
+is one word and nothing parses `dimension:key`. `covering` reads that word on
+an axis, which this spec withdraws until spec 0102 settles it. A snapshot in
+the Vitest browser realm names no case, a case row names no snapshot, and a
+subject's coordinate is never compared with what its case said.
 **Built on:** the per-file `preconditions` in the coverage record
 (`CoveragePrecondition`, `name` and `digest`), the case scope every producer
 already enters (`CASE_SCOPE` in `@variance-authority/sense`), the case
@@ -39,14 +40,19 @@ The test says it, at runtime, from the test body, a hook or a helper:
 ```ts
 import { variancePrecondition } from '@variance-authority/sense/precondition';
 
-variancePrecondition({ network: 'mocked' });
-variancePrecondition({ flag: 'ff-on', colour: 'green', 'seeded-cart': true });
+variancePrecondition('network', { upsell: 'mocked' });
+variancePrecondition('flags', { 'new-checkout': true });
+variancePrecondition('subject', { colour: 'green', 'seeded-cart': true });
 ```
 
-- **One form: a record of names to values.** A value is a string, number or
-  boolean, always said; a state that is present with nothing further to say
-  holds `true`. A bare name and a name-value pair are refused, so every call
-  reads the same.
+- **One form: a dimension, then a record of keys to values**, as
+  [spec 0102](0102-a-case-records-what-the-code-read.md) defines it. A name is
+  the `(dimension, key)` pair, written `flags:new-checkout`; the dimension is
+  the user's string, open and untyped, and nothing crosses between two of them.
+  A value is recorded as the JSON text of what was said; a state that is present
+  with nothing further to say holds `true`. A dimension holding `:` throws,
+  naming the call site. The one-argument record is deleted, not kept beside the
+  new form.
 - **The entry imports nothing.** It reads one function from
   `globalThis[Symbol.for('variance-authority.test-selection.precondition')]`,
   which a recording installs, and calls it. Without a recording the call does
@@ -72,8 +78,8 @@ file, and one deeper for each `describe` around it. The case body is narrower
 than any of them.
 
 - **A narrower level overrides a wider one** for the same name, silently: a
-  `flag=ff-off` from a `beforeEach` at the top of the file and a `flag=ff-on`
-  from the case body give the case `ff-on`. That is the ordinary shape of a
+  `flags:new-checkout=false` from a `beforeEach` at the top of the file and a
+  `flags:new-checkout=true` from the case body give the case `true`. That is the ordinary shape of a
   default and its exception.
 - **Two values for one name at one level** are a contradiction. The case carries
   both with their call sites and is reported, never resolved to the last one
@@ -105,10 +111,13 @@ recording's commit. The body itself is never copied.
 
 ## What is recorded
 
-A case-level precondition is `{ name, value, site }`, laid on the case rows of
-the record (spec 0094) beside `stopped` and `duration`, through the string
-table every other section uses. It is layered, seeded, sharded and shared with
-the coverage the same run recorded, by the same code. It travels in the journal beside the case frame, which is a
+A case-level precondition is `{ name, value, site, level }`, its name the
+`(dimension, key)` pair, its value the JSON text the realm wrote. Each distinct
+one is an item, and the cases that said it are a set in the record's
+crossing-set pool, as ADR-0094 lays it in the case index's `tests.said`
+section. Every item is kept, an overridden one too; a case's row is resolved
+when it is read. It is layered, seeded, sharded and shared with the coverage
+the same run recorded, by the same code. It travels in the journal beside the case frame, which is a
 change to the journal format, and is not part of the case key, so a case's
 identity does not move when its preconditions do. A case that named a
 precondition has a row even when it crossed nothing: a passing case that only
@@ -126,32 +135,34 @@ that was never a file.
 A case is named the way `covering` already prints it: its test file and its
 declaration path. No new identity is introduced.
 
-- **`variance covering … --where <name>[=<value>]`**, in every form of
-  `covering` that answers with cases, keeps the cases that declared it.
-  Repeated, every `--where` must hold. `--where network` matches any value of
-  `network`.
+- **`variance covering … --where <dimension>[:<key>][=<value>]`**, in every
+  form of `covering` that answers with cases, keeps the cases that declared it.
+  Repeated for different names, every `--where` must hold; repeated for one
+  `dimension:key`, any of its values may
+  ([spec 0103](0103-a-behaviour-names-the-cases-that-witnessed-it.md)), and a
+  case that said two values for it at one level is counted as contradicted,
+  not matched. `--where network` matches any key of
+  `network`, `--where flags:new-checkout` any value of that key, and
+  `--where network=mocked` any key of `network` that holds `mocked`. A value
+  is parsed as JSON when it parses, so `=true` is the boolean and `=mocked` the
+  string, and compared with the recorded JSON text.
 - **Every case `covering` lists carries its preconditions** with their call
-  sites, in each format.
+  sites, in each format, except a dimension the case also read: that one is
+  printed by its reads, with the value said beside each and no key said and
+  never read, as [spec 0102](0102-a-case-records-what-the-code-read.md) prints
+  it.
 
-When `names.axes` declares the name, the value is read against that axis:
+A precondition is read as the case said it, never against `names.axes`. That
+grammar orders subject ids. A precondition's value is the user's word and stays
+open, so no value is reported as outside a vocabulary, and a case that never
+said a name is not placed at a base: a default filled in would be a declaration
+presented as an observation. `--where flag=ff-off` matches the cases that said
+it.
 
-- A value outside the axis's vocabulary is reported by name and kept. It is not
-  dropped.
-- `values[0]` is the base, and a case that never names the axis is at the base,
-  as ADR-0046 reads a subject that omits it. `--where flag=ff-off` matches it.
-- **The twin.** A case's twin is found as ADR-0046 finds a parent: move its last
-  declared axis one step toward the base, keep every other precondition, and
-  take the nearest coordinate a recorded case actually holds. The twin is looked
-  up among the cases of the same test file that the same question reached
-  before `--where` narrowed it, so `--where flag=ff-on` still prints each
-  case's `ff-off` twin. Another file's case is never a twin: a case that names
-  nothing stands at the base of every axis, and across files every such case
-  would be the twin of every case that names a value. `covering` prints the
-  twin beside the case, in every form that lists cases, with or without
-  `--where`: the `ff-off` twin of an `ff-on` case, with what each ran. Several
-  cases at that coordinate are printed as their count and the first three
-  names. When no recorded case holds it, the case is printed with *no twin
-  recorded*.
+- **The twin** is the contrast of
+  [spec 0103](0103-a-behaviour-names-the-cases-that-witnessed-it.md): a case
+  of the same test file that said the same except on one name. It needs no
+  axis.
 - **The count.** `--where` says how many of the cases that covered the line,
   function, file or change it kept, out of how many covered it.
 - **The state.** A line's, function's, range's or changed region's state, and
@@ -186,7 +197,7 @@ reads **unmeasured**; one from a listening case that said nothing reads
 **Where the subject and the case disagree.** A subject id may encode an axis
 `names.axes` declares — `receipt--ff-on` is at `flag=ff-on` — and the case may
 say the same axis. Where both speak, the subject's value is compared with what
-the case said, a case that never named the axis standing at the base. A
+the case said. A case that never said the name is not compared. A
 difference is reported by the axis's name with the call site that said the
 case's value, and neither side is taken as the truth: a snapshot named `ff-on`
 from a case that arranged `ff-off` is a mislabelled subject or a mis-arranged
@@ -219,10 +230,7 @@ annotation: under a passing test nobody asked.
 4. `--where` and the per-case preconditions in every form of `covering` that
    answers with cases, each with a test that fails on an answer that reads an
    unmeasured record as an empty one.
-5. The axis reading: vocabulary check, base for an unnamed axis, and the twin,
-   on fixtures where two cases differ only in `flag`, where three hold the same
-   coordinate, and where no case holds it; and `--where flag=ff-on` printing an
-   `ff-off` twin the filter left out of the answer.
+5. The twin, as spec 0103's contrast, discharged there.
 6. A snapshot inside a case: the case's key and the preconditions in force when
    it was taken, unmeasured from a run that did not listen, on Playwright and in
    the Vitest browser realm; the disagreement between a subject's coordinate and

@@ -12,6 +12,7 @@
 // compass: variance-authority.report.agent-surface
 
 use std::collections::{HashMap, HashSet};
+use std::sync::LazyLock;
 
 use napi::bindgen_prelude::Buffer;
 use napi_derive::napi;
@@ -23,7 +24,7 @@ use crate::help_usage::NamedExport;
 use crate::order::code_unit;
 
 const MAGIC: u32 = 0x5348_4156; // "VAHS", little-endian
-const VERSION: u32 = 2;
+const VERSION: u32 = 4;
 const NONE: u32 = u32::MAX;
 const USE_KINDS: [&str; 3] = ["source", "test", "story"];
 
@@ -104,6 +105,16 @@ fn terms_of(split: &Regex, text: &str) -> HashSet<String> {
     found
 }
 
+/// What a token ends at: a line break, a space, a punctuation mark or a
+/// backtick, which is a symbol (`Sk`) and a code span's delimiter, never a word's.
+static SPLIT: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"[\n\r\p{Z}\p{P}`]+").expect("the pattern is fixed"));
+
+/// A name's terms as the search file indexes an exported one, so a name the
+/// file does not hold answers the loose pass by the same rule.
+pub(crate) fn name_terms(name: &str) -> HashSet<String> {
+    terms_of(&SPLIT, name)
+}
+
 /// `wordsOf`: the words one token is written in, split where the case or a
 /// digit changes — a lowercase letter before an uppercase one, the last capital
 /// of a run before a lowercase letter, and a digit beside anything that is not one.
@@ -177,10 +188,11 @@ fn json(text: &str) -> String {
 /// The search file's bytes. The digest of `exported` is the caller's: a
 /// reading already holds it, and the encoder does not compute it again.
 pub(crate) fn encode(published: &PublishedRows, exported: &[NamedExport], generation: Option<&SearchGeneration>) -> Vec<u8> {
-    let split = Regex::new(r"[\n\r\p{Z}\p{P}]+").expect("the pattern is fixed");
+    let split = &*SPLIT;
     let (mut strings, mut names) = (Pool::default(), Pool::default());
     let (mut name_string, mut name_pub, mut name_exp): (Vec<u32>, Vec<Vec<u32>>, Vec<Vec<u32>>) = Default::default();
-    let mut by_term: HashMap<String, (Vec<u32>, Vec<u32>)> = HashMap::new();
+    // Per term: the names, the published rows and the exported rows that hold it.
+    let mut by_term: HashMap<String, (Vec<u32>, Vec<u32>, Vec<u32>)> = HashMap::new();
 
     macro_rules! name_of {
         ($name:expr) => {{
@@ -224,6 +236,9 @@ pub(crate) fn encode(published: &PublishedRows, exported: &[NamedExport], genera
 
     let (mut exp_name, mut exp_at, mut exp_by, mut exp_line, mut exp_kind) =
         (Vec::with_capacity(exported.len()), Vec::with_capacity(exported.len()), Vec::with_capacity(exported.len()), Vec::with_capacity(exported.len()), Vec::with_capacity(exported.len()));
+    let (mut exp_doc, mut exp_doc_lower) = (Vec::with_capacity(exported.len()), Vec::with_capacity(exported.len()));
+    let exp_terms: Vec<HashSet<String>> =
+        exported.par_iter().map(|named| named.doc.as_deref().map(|doc| terms_of(&split, doc)).unwrap_or_default()).collect();
     for (row, named) in exported.iter().enumerate() {
         let name = name_of!(named.name.as_str());
         name_exp[name as usize].push(row as u32);
@@ -232,6 +247,12 @@ pub(crate) fn encode(published: &PublishedRows, exported: &[NamedExport], genera
         exp_by.push(strings.id(&named.by).0);
         exp_line.push(named.line);
         exp_kind.push(USE_KINDS.iter().position(|kind| *kind == named.kind).map_or(u8::MAX, |at| at as u8));
+        let doc = named.doc.as_deref();
+        exp_doc.push(doc.map_or(NONE, |doc| strings.id(doc).0));
+        exp_doc_lower.push(doc.unwrap_or("").to_lowercase());
+        for term in &exp_terms[row] {
+            by_term.entry(term.clone()).or_default().2.push(row as u32);
+        }
     }
 
     let name_terms: Vec<HashSet<String>> = names.values.par_iter().map(|name| terms_of(&split, name)).collect();
@@ -257,12 +278,14 @@ pub(crate) fn encode(published: &PublishedRows, exported: &[NamedExport], genera
     let lowered: Vec<String> = names.values.par_iter().map(|name| name.to_lowercase()).collect();
     let (lower_off, lower_blob) = joined(&lowered, "\0");
     let (doc_off, doc_blob) = joined(&doc_lower, "\0");
+    let (exp_doc_off, exp_doc_blob) = joined(&exp_doc_lower, "\0");
     let (terms_off, terms_blob) = joined(&terms, "");
     let lists = |lists: &[Vec<u32>]| postings(&lists.iter().map(Vec::as_slice).collect::<Vec<_>>());
     let (names_pub_off, names_pub) = lists(&name_pub);
     let (names_exp_off, names_exp) = lists(&name_exp);
     let (term_name_off, term_name) = postings(&terms.iter().map(|term| by_term[*term].0.as_slice()).collect::<Vec<_>>());
     let (term_pub_off, term_pub) = postings(&terms.iter().map(|term| by_term[*term].1.as_slice()).collect::<Vec<_>>());
+    let (term_exp_off, term_exp) = postings(&terms.iter().map(|term| by_term[*term].2.as_slice()).collect::<Vec<_>>());
 
     use Section::{Bytes, Words};
     let sections: Vec<(&str, Section)> = vec![
@@ -276,10 +299,12 @@ pub(crate) fn encode(published: &PublishedRows, exported: &[NamedExport], genera
         ("pub.sitesOff", Words(sites_off)), ("sites.at", Words(sites_at)),
         ("pub.docLowerOff", Words(doc_off)), ("pub.docLower", Bytes(doc_blob)),
         ("exp.name", Words(exp_name)), ("exp.at", Words(exp_at)), ("exp.by", Words(exp_by)), ("exp.line", Words(exp_line)),
-        ("exp.kind", Bytes(exp_kind)),
+        ("exp.kind", Bytes(exp_kind)), ("exp.doc", Words(exp_doc)),
+        ("exp.docLowerOff", Words(exp_doc_off)), ("exp.docLower", Bytes(exp_doc_blob)),
         ("terms.off", Words(terms_off)), ("terms.blob", Bytes(terms_blob)),
         ("terms.nameOff", Words(term_name_off)), ("terms.name", Words(term_name)),
         ("terms.pubOff", Words(term_pub_off)), ("terms.pub", Words(term_pub)),
+        ("terms.expOff", Words(term_exp_off)), ("terms.exp", Words(term_exp)),
     ];
     let bodies: Vec<std::borrow::Cow<[u8]>> = sections.par_iter().map(|(_, section)| section.bytes()).collect();
 

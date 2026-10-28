@@ -109,7 +109,7 @@ describe('a suite as a `suite-v1/<suite>` entry', () => {
 
     if (typeof read === 'string') throw new Error(read);
     expect(Buffer.from(read.coverage).equals(record)).toBe(true);
-    expect(caseSectionsOf(read.coverage)).toEqual({});
+    expect(caseSectionsOf(read.coverage)).toEqual({ base: new Uint8Array(Buffer.from('none')) });
     expect(Object.keys(read)).toEqual(['coverage']);
   });
 

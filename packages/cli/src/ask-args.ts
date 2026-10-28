@@ -193,7 +193,7 @@ export function parseAskArgs(flags: Flags, config: string): ParsedAsk {
   const changedFile = flags.values.get('--changed-file');
   const taintFile = flags.values.get('--taint-file');
   const justAnswer = flags.present.has('--just-answer');
-  const limit = countOf(flags.values.get('--limit'), 'tests to list');
+  const limit = countOf(flags.values.get('--limit'), 'rows to show');
   const said = flags.values.get('--offset');
   if (said !== undefined && !/^(0|[1-9][0-9]*)$/.test(said)) {
     throw new OperatorError(`--offset is how many rows to skip and must be a whole number, not \`${said}\``);

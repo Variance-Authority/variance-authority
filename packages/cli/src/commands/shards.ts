@@ -97,7 +97,7 @@ export type ShardsAnswer =
 const UNRECORDED_NOTE = '`--unrecorded <n>` sets the count until the suite is recorded.';
 const SETUP_NOTE = '`--setup` was not given, so the count does not weigh what each shard spends before its first test.';
 const UNLISTED_NOTE = 'Without `--collected <file>`, only the test files the record has seen are counted.';
-const NO_SHARD_NOTE = '`--unrecorded 0` would start none, and the suite still has to run.';
+const NO_SHARD_NOTE = '`--unrecorded 0` asks for no shard, and a matrix of none starts no job, so the count is one.';
 const UNCUT_NOTE = '`--at-distance` cuts nothing without `--since`, so the count is of the whole suite.';
 
 export function shardsAnswer(input: ShardsInput): ShardsAnswer {

@@ -62,7 +62,7 @@ async function laidWorktree(): Promise<{ ci: string; first: string; worktree: st
   await git(primary, 'worktree', 'add', '--quiet', '--detach', worktree);
   expect(await suiteBase(worktree, { env: LOCAL })).toMatchObject({ from: 'mainline', mainline: { commit: first } });
   const own = testCoverageFile(worktree, { suite: 'unit' });
-  expect(await seedTestCoverage(own, worktree)).toMatchObject({ from: 'mainline' });
+  expect(await seedTestCoverage(own, worktree, 'fixture')).toMatchObject({ from: 'mainline' });
   return { ci, first, worktree, own };
 }
 
@@ -330,6 +330,9 @@ describe('the milestone under a checkout', () => {
     const next = await publishedNext(ci);
     await git(worktree, 'fetch', '--quiet', 'origin');
     await git(worktree, 'checkout', '--quiet', '--detach', next);
+    // A run is never laid over a record of other probes, so this one starts the
+    // checkout's record afresh, as the record of a build under other probes.
+    await rm(own);
     await landRun(own, { ...ranAlone(next, 'test/total.test.ts'), instrumentation: 'other probes' }, worktree);
     await refetch(worktree, next);
 

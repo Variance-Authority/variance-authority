@@ -7,7 +7,7 @@ import {
   type StackFrame,
 } from '@variance-authority/core/format';
 import type { DeclarationSink } from './declared.js';
-import { FiberTag, findFiber, isOwnerFrame, type Fiber } from './fiber.js';
+import { FiberTag, findCommittedFiber, isOwnerFrame, type Fiber } from './fiber.js';
 import { debugOwnerName, fiberComponentName } from './names.js';
 import { boundaryPropsDigest, type DigestPass } from './props.js';
 
@@ -47,7 +47,15 @@ export type NoFiberReason =
    * A fiber was cached on the node, but walking `return` did not reach a live
    * `HostRoot`. The node belonged to a tree that has been torn down.
    */
-  | 'unmounted';
+  | 'unmounted'
+  /**
+   * A fiber was cached on the node, and the root it leads to has not committed:
+   * React is still hydrating or rendering it for the first time. Nothing is
+   * read off a render that has not committed, because it may never be the one
+   * on screen. Unlike the other two this is a matter of timing, not of the
+   * node: the same node read after the commit resolves.
+   */
+  | 'uncommitted';
 
 export interface NoFiberResult {
   readonly status: 'no-fiber';
@@ -80,6 +88,11 @@ export const UNMOUNTED: NoFiberResult = Object.freeze({
   reason: 'unmounted',
 });
 
+export const UNCOMMITTED: NoFiberResult = Object.freeze({
+  status: 'no-fiber',
+  reason: 'uncommitted',
+});
+
 /** Guards the `return` walk against a corrupted or cyclic chain. */
 const MAX_CHAIN_DEPTH = 10_000;
 
@@ -100,15 +113,16 @@ export function resolveProvenance(
   declared?: DeclarationSink,
   pass?: DigestPass,
 ): ProvenanceResult {
-  let fiber: Fiber | null;
+  let fiber: Fiber | 'uncommitted' | null;
   try {
-    fiber = findFiber(node);
+    fiber = findCommittedFiber(node);
   } catch {
     return NO_FIBER;
   }
 
+  if (fiber === 'uncommitted') return UNCOMMITTED;
   if (fiber === null) {
-    // `findFiber` returns null both when no expando exists and when the cached
+    // `findCommittedFiber` returns null both when no expando exists and when the cached
     // fiber's tree has no live root. Re-checking the raw expando would let us
     // tell those apart, but React deletes the expando on unmount (verified on
     // 19.2.8), so in practice the second case only arises for a node detached
@@ -128,6 +142,8 @@ export function resolveProvenance(
  *
  * Discards *why* provenance is missing. Use `resolveProvenance` where the reason
  * belongs in a diagnostic.
+ *
+ * @see https://variance-authority.dev/docs/framework-reference#provenanceof
  */
 export function provenanceOf(
   node: Node,

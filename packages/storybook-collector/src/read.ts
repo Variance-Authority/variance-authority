@@ -1,7 +1,7 @@
 import type { SourceIndex } from '@variance-authority/core/attribute';
 import { matchesGlob } from '@variance-authority/core/judge';
 import { normalize as normalizeCapture } from '@variance-authority/core/rules';
-import { acquireFromAgent, unresizable } from '@variance-authority/playwright';
+import { UnansweredAssets, acquireFromAgent, unresizable } from '@variance-authority/playwright';
 import { suspenseRefusal } from '@variance-authority/react';
 import { collectStory, harnessPage } from '@variance-authority/storybook';
 import type { StoryRecorder } from './execution.js';
@@ -90,7 +90,7 @@ export async function readStory(
   if (outcome.status !== 'rendered') {
     // A story that rendered a fallback still executed code, and counters left in
     // the page would be handed to whichever story drained next.
-    await recorder?.note(page, planned.subject.id, false);
+    await recorder?.note(page, planned.subject.id, false, outcome.timing);
     return {
       ok: false,
       because:
@@ -101,9 +101,13 @@ export async function readStory(
 
   // After the story has mounted and before it is read. A story whose image is
   // still in flight is a story whose bytes nobody hashed, and the wait is the
-  // driver's because the page cannot see its own requests. Never a failure: a
-  // page that keeps fetching is reported, not refused.
-  await network?.settle();
+  // driver's because the page cannot see its own requests. One still unanswered
+  // at the bound refuses the story, named.
+  const unanswered = await network?.settle();
+  if (unanswered !== undefined) {
+    await recorder?.note(page, planned.subject.id, false, outcome.timing);
+    return { ok: false, because: unanswered };
+  }
 
   // Either form matches. A subject is `story:case-surface--x` and a story is
   // `case-surface--x`, and `ready` above is keyed by the second — so a
@@ -160,7 +164,14 @@ export async function readStory(
   // uses, and the page cannot know what the bytes were. Never reset between
   // stories — one page serves the whole run, and a story whose asset was fetched
   // during an earlier story still references it.
-  const raw = await acquireFromAgent(page, network, request);
+  let raw: string;
+  try {
+    raw = await acquireFromAgent(page, network, request);
+  } catch (error) {
+    if (!(error instanceof UnansweredAssets)) throw error;
+    await recorder?.note(page, planned.subject.id, false, outcome.timing);
+    return { ok: false, because: error.message };
+  }
 
   const acquired = JSON.parse(raw) as Acquired;
 
@@ -169,7 +180,7 @@ export async function readStory(
   // and take the run with it, and defaulting it to "settled" would silently
   // restore the behaviour this exists to end.
   if (acquired.suspense === undefined) {
-    await recorder?.note(page, planned.subject.id, false);
+    await recorder?.note(page, planned.subject.id, false, outcome.timing);
     return {
       ok: false,
       because:
@@ -185,11 +196,11 @@ export async function readStory(
     declaredLoading,
   });
   if (unsettled !== undefined) {
-    await recorder?.note(page, planned.subject.id, false);
+    await recorder?.note(page, planned.subject.id, false, outcome.timing);
     return { ok: false, because: unsettled };
   }
 
-  await recorder?.note(page, planned.subject.id, true);
+  await recorder?.note(page, planned.subject.id, true, outcome.timing);
 
   // No frames are spent here, and that is deliberate: a story that settles on
   // its document digest has nobody to hand a location to. They ride the snapshot

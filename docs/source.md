@@ -405,13 +405,14 @@ file reaches importers and components together.
 | `depends-on` | Package to a package its install resolved beneath it. |
 | `depends` | Module to a file it names in `/// <depends path="…" />`: a file it reads without importing it. |
 
-Type-only edges remain in the graph because source-oriented questions need
-them. The default reach uses `RUNTIME_EDGES`, every kind except `type`: a
-type-only dependency runs no test and paints no pixel. A closure digest uses
-`CLOSURE_EDGES`, which also leaves out `depends-on`, because a package node is a
-name, not content that a hash could show changing. To ask about source instead — a
-documentation generator reading prop types, say — pass `EDGE_KINDS` or another
-explicit set. `relationsOfFiles`, `affectedBy`,
+A reach walks every edge kind, `type` included, unless you pass `through`: a
+type-only import is still a dependency, and a changed type can break the file
+that imports it. Test selection asks what a run loads, so it passes
+`RUNTIME_EDGES`, every kind except `type`: a type-only dependency runs no test
+and paints no pixel. A closure digest uses `CLOSURE_EDGES`, which also leaves
+out `depends-on`, because a package node is a name, not content that a hash
+could show changing. Any other set you pass is walked exactly.
+`relationsOfFiles`, `affectedBy`,
 `RUNTIME_EDGES` and `EDGE_KINDS` are all exported from
 `@variance-authority/core/relate`.
 

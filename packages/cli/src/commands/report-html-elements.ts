@@ -29,11 +29,16 @@ export function section(
   /** Starts hidden, and is revealed by pressing the census segment it holds. */
   quiet?: boolean,
 ): string {
+  return `${opening(name, hint, holds, quiet)}${body}</section>`;
+}
+
+/** A section's opening tag and heading, for a body written in pieces. */
+export function opening(name: string, hint: string, holds?: string, quiet?: boolean): string {
   return (
     `<section id="${text(slug(name))}"` +
     (quiet === true ? ' class="hidden"' : '') +
     (holds === undefined ? '' : ` data-holds="${text(holds)}"`) +
-    `><h2>${text(name)}<span class="hint">${text(hint)}</span></h2>${body}</section>`
+    `><h2>${text(name)}<span class="hint">${text(hint)}</span></h2>`
   );
 }
 

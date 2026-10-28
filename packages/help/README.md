@@ -5,6 +5,7 @@
 > Find the public name, signature, documentation, consumers and import sites of an exported workspace symbol, over MCP.
 
 Part of [Variance Authority](https://variance-authority.dev).
+Point your coding agent at [`llms.txt`](https://variance-authority.dev/llms.txt).
 
 ## What this is for
 
@@ -44,13 +45,17 @@ The repository itself does not have to be built and no API site is required.
 Point it at any checkout with `--root`.
 
 Producing a generation scans the checkout; answering one does not. Ordinary
-commands reuse a generation for one hour before refreshing it. `--just-answer`
-uses the last published generation regardless of age and prints when it was
-produced. It performs no Git status or refresh, and refuses if there is no
-generation to read. `search` always behaves this way: it is a lookup, and
-producing the generation is the job of the step before it. The detailed cost model, including why Git's packed objects
+commands reuse a generation for one hour before refreshing it, and a name a
+reused generation does not hold is looked for again in one made from the checkout
+now, so a function you just wrote is answered rather than reported missing.
+`--just-answer` uses the last published generation regardless of age, and every
+answer and refusal says when it was produced and that the checkout was not
+compared with it. It performs no Git status or refresh, and refuses if there is
+no generation to read. `search` opens a published search at any age, with or
+without the flag. When none is published it reads the checkout and publishes
+one, unless you passed `--just-answer`: then it refuses and names that flag. The detailed cost model, including why Git's packed objects
 beat opening hundreds of thousands of small files, is in [find code through the workspace
-index](https://variance-authority.dev/docs/agent-workspace-api#choose-the-cheapest-entrance).
+index](https://variance-authority.dev/agents/workspace-api#choose-the-cheapest-entrance).
 
 It answers two different questions about a name. What the name is supposed to be
 comes off the declaration — its signature and the block comment above it. How
@@ -88,6 +93,10 @@ one import specifier a package's `exports` map opens — `@scope/pkg` and
 `@scope/pkg/deep` are two of them. Add `--root <dir>` when you are not standing
 in the repository you are asking about.
 
+An answer that points you at another question names it the way the binary you
+asked takes it — `--limit`, `variance-authority-help symbol` — where the same
+answer over MCP says `limit` and `docs_symbol`.
+
 The same questions are on `variance ask` wherever
 [`@variance-authority/cli`](https://variance-authority.dev/reference/packages/cli)
 is installed — `npx variance ask search --query viewport` — and the same
@@ -97,10 +106,11 @@ This package is for the workspace that does not run one.
 
 ### What you get
 
-Text, on stdout. `search` answers in two sections — the names a manifest
-publishes, ranked by how many packages import them, then the names the source
-exports without publishing — and in a third when your words match a name they
-do not contain. Run against this repository, abridged to the first few lines of
+Text, on stdout. `search` answers in two sections: the names a manifest
+publishes, ranked by where they hold your words (the name, then the doc's
+first paragraph, then the rest of it) and then by how many packages import
+them; then the names the source exports without publishing. A third follows
+when your words match a name they do not contain. Run against this repository, abridged to the first few lines of
 each section:
 
 ```
@@ -128,14 +138,20 @@ Run `npx variance-authority-help symbol Viewport`:
 ```
 Viewport [interface]
 import { Viewport } from '@variance-authority/core/format';
-declared at packages/core/src/format/environment.ts:73
-used by 17 packages: @variance-authority/example-kitchen-sink, @variance-authority/example-todomvc, @variance-authority/cli, @variance-authority/dom, and 13 more — 60 imports
+declared at packages/core/src/format/environment.ts:93
+used by 17 packages: @variance-authority/example-kitchen-sink, @variance-authority/example-todomvc, @variance-authority/cli, @variance-authority/dom, @variance-authority/observe, @variance-authority/playwright-test, @variance-authority/playwright, @variance-authority/presentation, @variance-authority/raster, @variance-authority/remote, @variance-authority/route-collector, @variance-authority/session, and 5 more — 67 imports by published path
 
 interface Viewport
 
 Nothing is written above this declaration.
 
-docs_uses names the 60 places another package imports this by its published path, and the imports the source index resolves to its file, nearest to a file you name first.
+Members:
+packages/core/src/format/environment.ts:94 — readonly width: number;
+packages/core/src/format/environment.ts:95 — readonly height: number;
+packages/core/src/format/environment.ts:96 — readonly deviceScaleFactor: number;
+packages/core/src/format/environment.ts:98 — readonly colorScheme: 'light' | 'dark';
+
+`variance-authority-help uses` names the 68 places that import this: 67 from other packages and 1 inside @variance-authority/core, nearest to a file you name first.
 ```
 
 ## The questions
@@ -148,14 +164,14 @@ stays available without taking space from the first answer.
 |---|---|---|
 | `packages` / `docs_packages` | nothing | every import specifier the repository publishes, with how heavily used and how well documented each is, for each package that declares no entry, how many of its names and files other packages import by path, and for each package that declares one, how many imports reach past it; then the `entrypoint --package` questions for the most-imported specifier and the first row of each count |
 | `entrypoint` / `docs_entrypoint` | a package name, optionally a subpath | the names that one specifier opens, most-imported first. Asked by a package's name, also the imports that reach past its entry, or, for a package that declares no entry, the imports of its files by path, counted one row per file; asked by one of those files' specifiers, how many files import each name through it; for a package that opens only subpaths, the specifiers it opens in place of the names. Ends with the narrower questions: the first row's specifier, and `uses` on the name the most files take through it |
-| `symbol` / `docs_symbol` | a name | the import line, the place, the signature, the doc — or the README passage that names it — and who imports it; for a name a file exports and no entry publishes, the file, the line and how many imports reach that file, directly or through a file that passes it on |
-| `uses` / `docs_uses` | a name, optionally the file you are in | every place that imports it, stories and tests listed apart, nearest first: an import from another package by its published path, and every import the source index resolved to the file that declares it, or to a file that passes it on with `export … from`, within its own package as well. For a name a file exports and no entry publishes, the imports the source index resolved |
-| `search` / `docs_search` | a string, optionally a path to answer from | published names whose name or doc contains it, or whose name is written in its words, then the names exported without being published, then the ones only a looser reading finds |
+| `symbol` / `docs_symbol` | a name | the import line, the place, the signature, the doc — or the README passage that names it — and who imports it, then the members of an interface, a type alias or a class, one line each; for a name a file exports and no entry publishes, the file, the line and how many imports reach that file, directly or through a file that passes it on, and the declaration an `export … from` passes on; the files that import it under another name with `as`. For a name an import binds with `as`, that import and the original it names, followed to its declaration and its members the same way |
+| `uses` / `docs_uses` | a name, optionally the file you are in | every place that imports it, stories and tests listed apart, nearest first: an import from another package by its published path, and every import the source index resolved to the file that declares it, or to a file that passes it on with `export … from`, within its own package as well, each marked `(as x)` where it knows the name as `x`. For a name a file exports and no entry publishes, the imports the source index resolved, and the declaration an `export … from` passes on. Then the lines of a TypeScript, JavaScript or Rust file that use a name it declares, by its scope rules. Twelve rows of each list, unless `limit` says more |
+| `search` / `docs_search` | a string, optionally a path to answer from | published names whose name or doc contains it, or whose name is written in its words, then the names exported without being published, matched by the same rule, then the names and files holding any of its words by stem and the names only a looser reading finds |
 | `grep` / `docs_grep` | a pattern, and a path to answer from | the lines `rg` matches in the files that path imports, or that import it, nearest first |
-| `discover` / `docs_discover` | two or more sets of files: what paths reach (`from`) or what reaches them (`to`), who imports a `module#name`, who declares a name matching a pattern, a path pattern, each also as `except…` to take it out; optionally a `text` pattern | the files in every set, each read whole, nearest the paths first, with the line that put each file in each set; `text` keeps the files with a line `rg` matches. Over MCP, `declares`, and `imports` of anything but a name out of a repository file, are refused: the reading an MCP host serves holds no names |
+| `discover` / `docs_discover` | two or more sets of files: what paths reach (`from`) or what reaches them (`to`, also `file#name` for what rests on one name, starting at its imports), who imports a `module#name`, who declares a name matching a pattern, a path pattern, each also as `except…` to take it out; optionally a `text` pattern | the files in every set, each read whole, nearest the paths first, with the line that put each file in each set, and for `to` one shortest chain of imports, each step that is not a plain import marked; `text` keeps the files with a line `rg` matches. Over MCP, `declares`, and `imports` of anything but a name out of a repository file, are refused: the reading an MCP host serves holds no names |
 | `intersection` / `docs_intersection` | two or more whole questions whose answers are sets of files — `symbol`, `uses`, `search`, `grep`, `discover` — each with its own input; on a shell, each one quoted word | the files every question answers, each question read whole, with the lines that put each file in each question |
 | `orient` / `docs_orient` | nothing, an area id, or files you already have as paths from the root | with no files, the code map `variance index` keeps beside the source index: areas of packages with their size, dependency layers, most-imported packages and the areas they import from. With files, the package each file is in with the names it imports from other packages and the names they import from it, the recorded test cases that ran each file, the functions in other files that call into it and those it calls, with how each call is known, the [package flows](https://variance-authority.dev/docs/orientation#choose-the-entrance-from-what-you-have) those cases take through it, and the narrower questions to ask next; `path:line` narrows the calls to the function holding that line |
-| `slowest-tests` / `docs_slowest_tests` | optionally test paths to keep (`from`), code paths the tests must have entered (`to`), and how many rows to list | the test files, then the test cases, the latest recorded run spent longest in, with the duration their runner reported, and how many recorded files and cases have none |
+| `slowest-tests` / `docs_slowest_tests` | optionally test paths to keep (`from`), code paths the tests must have entered (`to`), and how many rows to list | the test files, then the test cases, the latest recorded run spent longest in, a file by what running it cost before and during its cases, and how many recorded files and cases have none |
 | `journey-map` / `docs_journey_map` | one file, optionally words of the task | how many recorded tests entered that file, the paths through each of its functions, then the code beyond it those tests entered, nearest first |
 | `test-composition` / `docs_test_composition` | a test file, optionally the test's name or a word of it | the smaller tests whose recorded regions sit inside this test's (its pieces), the larger tests holding it (its wholes), and the regions no piece entered: modules only it enters, and paths through a piece's modules only it takes. Regions more than half the suite entered are counted apart as structure. [Ask what one test is made of](https://variance-authority.dev/docs/own-fewer-tests#ask-what-one-test-is-made-of) |
 | `stack` / `docs_stack` | a file or folder | every third-party package that location can already use: its role, how the owning manifest declares it, its version, how many times the code imports it, and each agent skill it ships in `skills/<name>/SKILL.md`, with the file to read. [Use the packages your project already installed](https://variance-authority.dev/docs/tech-stack) |
@@ -231,17 +247,17 @@ two words that are both written about a name but not written beside each
 other — `read span` appears in no text anywhere, and the declaration you wanted
 has both.
 
-Those get a third section, and only those. Ask for `numbers order` in this
+Those get a third section, and only those. Ask for `meesure` in this
 repository's own fixture and the substring finds nothing, which is printed
-first:
+first, as a miss of the text you typed rather than of the code:
 
 ```
-Nothing in this repository is named or documented with `numbers order`.
+No name in this repository, nor the doc of one, writes `meesure` as typed. The nearest follow.
 
 1 more name matches loosely — your words apart, or within a character of the
 ones written. Nothing above was reordered by this.
 
-alpha · Span [type] 0 packages, 0 imports — Two numbers, in order.
+alpha · measure [function] 1 packages, 1 imports — Measures the thing, and says how much of it there was.
 ```
 
 It may only add. Nothing the two sections above answered is scored, reordered,
@@ -249,7 +265,8 @@ promoted, demoted or removed by it, a name they already returned can never
 appear in it, and when it has nothing to add it prints nothing — so an answer to
 a word that was written stays exactly as short as it was. It obeys `from` and
 `to` as they are: the looser reading runs over the files the area allows, so it
-can find a name you did not type and never a file you ruled out.
+can find a name you did not type and never a file you ruled out. A name its file
+declares and does not export is reached the same way, after every exported one.
 
 Inside it the order is the order above — by how many packages import the name,
 then by name. Membership is the only decision the looser reading makes, because
@@ -291,7 +308,7 @@ npx variance-authority-help uses collect --from packages/cli/src/index.ts
 ```
 
 ```
-`collect` is imported in 24 places.
+`collect` [function] is imported in 24 places.
 Nearest to packages/cli/src/index.ts first.
 
 Tests:
@@ -433,7 +450,7 @@ for (const file of writePages('.', 'docs/api', {
 `readWorkspace` is the reading the answers are computed from, for a program that
 runs more than one of them or runs them through its own interface. It
 takes the root and returns the workspace: every package, what each publishes,
-and who imports it. Eight options, all optional: `index`, the path of the source
+and who imports it. Nine options, all optional: `index`, the path of the source
 index the scan keeps its parses in, when you would rather it shared one you
 already have than kept its own under the checkout; `packs`, whether the scan
 reads file bytes from Git's object store, on unless you say otherwise; `save`,
@@ -446,7 +463,15 @@ addition-only Sense taints for declarative module loads the language's imports
 do not express; and `records`, a function handed the import
 graph the scan drew on the way, for a caller that needs the arrows between files
 as well as the names, so it does not scan the checkout a second time to get them;
-and `tree`, a function handed that graph as the path-query surface directly.
+`tree`, a function handed that graph as the path-query surface directly;
+and `progress`, a function told each step's name as it starts, which returns
+the function to call when that step ends, for a caller that shows a slow
+reading as it happens.
+A workspace whose `workspaces` list names members outside its own directory is
+read over its directory and each listed member, named from the top of the Git
+checkout, and keeps that scope's records in a second index next to `index`. That
+one is always saved, whatever `saveIndex` says, because no other caller
+publishes it.
 Taints change which files a path question reaches and never manufacture symbol
 bindings or usage counts. A subtractive taint is refused: a mock is relative to
 one file's run and cannot be flattened into a workspace-wide source tree.
@@ -488,8 +513,17 @@ UTC production time attached to a recorded value.
 `serveWorkspace` starts the stdio server and returns a function that stops it.
 `input` and `output` are the two streams the protocol is spoken over and default
 to this process's own; override them when the host owns the transport. It uses
-the same one-hour policy, or serves only the recorded generation when
-`justAnswer` is true.
+the same one-hour policy and asks a refused call again of a generation made
+now, or serves only the recorded generation when `justAnswer` is true. A host
+of its own asks `caughtUp` whether a refusal is worth asking again, and is
+handed what to ask again and, when the checkout could not be compared, the line
+its refusal ends with; `snapshotLine` dates an answer. A name nothing declares
+is thrown as a `FoundNothing`, so it is asked again like a refusal, but its
+message is the answer: what was read, and where else the name may be written.
+`foundNothingAnswer` is that answer, under the lines `foundNothingFooter`
+gives: `variance ask` and `variance-authority-help` print it on stdout and exit
+`0`, and this server and `variance serve` return it as a result, not an error.
+A server of your own passes it as `serve`'s `answered`.
 
 ```ts
 import { serveWorkspace } from '@variance-authority/help';
@@ -520,9 +554,29 @@ It does not serve source. `uses` names the story, the test and the file, with
 the line to open; reading them is your job, against the file as it is rather
 than as it was when the reading was taken.
 
-It does not rank on prose. `search` is a case-insensitive substring match over
-names and docs, so a match is a fact about the text rather than an opinion about
-the query.
+It does not rank on prose. `search` matches the query case-insensitively as a
+substring of a name or its doc, and a name also matches when it is written in
+every word of the query, each word by its start or its stem, so `instrumenting`
+reaches `instrumentModule`. A match is a fact about the text rather than an
+opinion about the query. When it matches nothing, the names holding any of
+the query's words, stemmed as installed packages are, in any order
+across the name and its doc, follow under their own heading, each with the
+words it holds. A name its file declares and does not export is among them, and
+so is a file, by its own name and the doc it opens with. They are ordered by
+the words each holds, each counted by how few of the rows the query reached
+hold it, three times over when the name holds it and twice when a doc of the
+mean length does — more for a shorter doc, less for a longer one, never more
+than a name — then by how many of them its name holds, then by how many of the query's
+adjacent word pairs its doc writes adjacent: counts, never a score. A word most docs say in passing tells you little about which of them
+you meant, so `order paths by code units` puts `codeUnitOrder` first rather
+than every doc that says `paths`. Every word one of them holds is held by a row shown, so the
+one name holding a rare word is shown however many holding a common one sort
+before it. A name holding fewer than half the words, which the loose
+reading reaches by every word, is told there instead, so on three words or
+more, names holding one common word never sort it out of sight.
+The words every package says about itself — `package`, `module`, `use`,
+`tool`, `get` and the like — are stopwords for an installed package and words
+for your own code, which is named in them.
 
 It does not stop at what a manifest publishes. Most code in any checkout was
 never meant to be published — 1,826 names are published in this repository and
@@ -531,4 +585,4 @@ sections and labels which is which.
 
 ---
 
-**[@variance-authority/help](https://variance-authority.dev/reference/packages/help)** is part of [Variance Authority](https://variance-authority.dev) — [documentation](https://variance-authority.dev/docs) · MIT
+**[@variance-authority/help](https://variance-authority.dev/reference/packages/help)** is part of [Variance Authority](https://variance-authority.dev) — [documentation](https://variance-authority.dev/docs) · [GitHub](https://github.com/Variance-Authority/variance-authority/tree/main/packages/help) · MIT

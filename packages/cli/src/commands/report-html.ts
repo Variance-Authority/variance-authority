@@ -1,10 +1,11 @@
-import { clusterChanges, type Change, type ObservationRecord } from '@variance-authority/report';
+import { clusterChanges, type Change } from '@variance-authority/report';
 import type { CliObservationRecord, CliRunReport } from './run-report.js';
 import { docketOf, type Docket } from './docket.js';
 import { chip, cmd, copy, markers, px, qualifier, section, slug, text } from './report-html-elements.js';
 import { MARK, STYLE } from './report-html-style.js';
 import { SCRIPT } from './report-html-script.js';
-import { presentationImpact, subjects } from './report-html-subjects.js';
+import { needsReview, presentationImpact, subjects } from './report-html-subjects.js';
+import { BY_PATH, type Placement } from './report-html-pictures.js';
 import { accumulated, composition } from './report-html-composition.js';
 import { coverage } from './report-html-coverage.js';
 import { notObserved, settled } from './report-html-settled.js';
@@ -42,9 +43,14 @@ import { notObserved, settled } from './report-html-settled.js';
  *
  * **Image paths are relative to the report**, exactly as `ObservationRecord.images`
  * declares them, so this page belongs beside `report.json` rather than anywhere
- * else. The alternative — base64 data URIs, one genuinely portable file — would
- * make this function read the filesystem, and a formatter that can fail on ENOENT
- * is a formatter that cannot be tested by handing it a value.
+ * else — unless the caller hands in a {@link Placement} that carries the
+ * pictures, which `report-html-pictures.ts` explains. The formatter never opens a
+ * file to decide anything: what was found is located before it runs.
+ *
+ * **It is written in pieces.** A run's page grows with its subjects, and with
+ * its pictures when it carries them, and a page joined into one string has a
+ * ceiling a large run reaches. The pieces join into the page; nothing here holds
+ * more than one subject's card or one slice of a picture.
  *
  * **No network, of any kind.** No stylesheet, no font file, no analytics, no
  * image host. A page that fetches anything renders differently in the reviewer's
@@ -54,7 +60,7 @@ import { notObserved, settled } from './report-html-settled.js';
  * arrangement of three pictures cannot do.
  */
 
-export function reportHtml(report: CliRunReport): string {
+export function* reportHtml(report: CliRunReport, placement: Placement = BY_PATH): Generator<string> {
   const docket = docketOf(report);
   const reviewable = report.observations.filter((entry) => needsReview(entry.verdict));
   const clustering = clusterChanges(report.observations);
@@ -68,7 +74,7 @@ export function reportHtml(report: CliRunReport): string {
     coverage: coverage(report, docket),
   };
 
-  return [
+  const parts: (string | Iterable<string>)[] = [
     '<!doctype html>',
     '<html lang="en"><head><meta charset="utf-8">',
     '<meta name="viewport" content="width=device-width,initial-scale=1">',
@@ -81,7 +87,7 @@ export function reportHtml(report: CliRunReport): string {
     '<div class="pane">',
     narrowNote(wide, reviewable),
     wide.changes,
-    subjects(reviewable),
+    subjects(reviewable, placement),
     wide.presentation,
     wide.composition,
     wide.across,
@@ -91,10 +97,24 @@ export function reportHtml(report: CliRunReport): string {
     '</div>',
     '</main>',
     `<script>${SCRIPT}</script>`,
+    // After the script, which defines what each payload calls, and after every
+    // card, so the page is whole before the first picture arrives.
+    placement.carried(),
     '</body></html>',
-  ]
-    .filter((part) => part !== '')
-    .join('\n');
+  ];
+
+  let first = true;
+  for (const part of parts) {
+    const pieces = typeof part === 'string' ? [part] : part;
+    let opened = false;
+    for (const piece of pieces) {
+      if (piece === '') continue;
+      if (!opened && !first) yield '\n';
+      opened = true;
+      first = false;
+      yield piece;
+    }
+  }
 }
 
 /**
@@ -136,14 +156,11 @@ function narrowNote(
   );
 }
 
-/** Both green verdicts are excluded, for the reason `Docket.reviewable` gives. */
-function needsReview(verdict: ObservationRecord['verdict']): boolean {
-  return verdict !== 'unchanged' && verdict !== 'ignored';
-}
-
 function statusOf(docket: Docket): 'incomplete' | 'review' | 'clean' {
   if (docket.failed.length > 0) return 'incomplete';
-  return docket.reviewable > 0 ? 'review' : 'clean';
+  // An unstable subject holds the check red as a change does, so the page may
+  // not call the run clean over one: the comment and the exit code do not.
+  return docket.reviewable > 0 || docket.unstable.length > 0 ? 'review' : 'clean';
 }
 
 /**
@@ -155,6 +172,7 @@ function statusOf(docket: Docket): 'incomplete' | 'review' | 'clean' {
 function title(docket: Docket): string {
   const parts: string[] = [];
   if (docket.reviewable > 0) parts.push(`${docket.reviewable} to review`);
+  if (docket.unstable.length > 0) parts.push(`${docket.unstable.length} unstable`);
   if (docket.fresh > 0) parts.push(`${docket.fresh} new`);
   if (docket.failed.length > 0) parts.push(`${docket.failed.length} failed`);
   if (parts.length === 0) parts.push('clean');
@@ -227,7 +245,9 @@ function headline(docket: Docket): string {
   const [first, ...rest] = docket.causes;
   const lead =
     first === undefined
-      ? `${docket.reviewable} to review`
+      ? docket.reviewable > 0
+        ? `${docket.reviewable} to review`
+        : `${docket.unstable.length} unstable`
       : `${text(first.label)}${first.named ? '' : '<span class="mark area">by area</span>'}`;
   return (
     `<h1>${lead}` +

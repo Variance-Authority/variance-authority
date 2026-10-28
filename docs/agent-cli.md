@@ -90,10 +90,21 @@ it. `--from` keeps the names the code at your path already depends on. To
 change it, you need the declaration's `file:line` and the code that depends on
 it. `--to` keeps the names in that code.
 
-It answers in two sections: the names a manifest publishes, ranked by how
-many packages import them, then the names the source exports without
-publishing. A third follows only when your words match a name that does not
-contain them, labelled as the looser reading it is.
+It answers in two sections: the names a manifest publishes, then the names
+the source exports without publishing. Several words also match a name
+written in them, each word by its start or its stem, so `instrumenting
+modules` answers `instrumentModule`. In both sections a name holding your
+words comes before a doc that opens with them, and that before a doc that
+says them further down; the published names are then ranked by how many
+packages import them. When neither holds your words as written, two more
+follow, each labelled as the reading it is and both before any installed
+package: the names and files holding any of your words, matched by
+stem, a file by its name and the doc it opens with, ranked by how many of
+your words each holds, then by how many its name holds, then by how much of
+your phrase its doc writes; then the names your words reach written apart or one character off,
+exported or kept to their file. So `tsconfig custom conditions` answers
+`customConditionsFor` before the bundlers that also say those words, and
+`loose reading` answers `packages/help/src/tools/loose.ts`.
 
 `symbol` prints one name's import line, declaration, signature, documentation
 and consumers; `uses` prints every import site, ordered by how much path it
@@ -110,7 +121,10 @@ Each section has a `total`, which counts every match, and `shown`, which holds
 the rows the text would print. A published row carries `specifier`, `at`, the
 first paragraph of its documentation as `summary`, and `inArea` when you gave a
 start point. An exported row carries `at` and `line`. A section that was not run
-is missing: `loose` is present only when the other two are empty, and a refused
+is missing: `described` and `loose` are present only when the other two are
+empty, a `described` row carries the `words` of yours it holds and a `source`
+of `published`, `exported`, `declared` or `file`, and is never repeated in `loose`, and
+a refused
 start point returns `refused` with no sections. Only `search` answers in JSON.
 
 These questions read the checkout the same way `packages` does. `--from` and
@@ -367,18 +381,26 @@ review loop.
 
 ## Point an agent at it
 
-`@variance-authority/cli` ships one skill, `variance-authority`, at
-`node_modules/@variance-authority/cli/skills/variance-authority`. It covers
-reports, watchers and connections, choosing which tests to run, and what a
-workspace publishes, and opens a reference file for each only when the question
-needs it. Installing the package puts it on disk; your agent reads it only from
+`@variance-authority/cli` ships two skills, under
+`node_modules/@variance-authority/cli/skills/`:
+
+- **`variance-authority`** covers reports, watchers and connections, choosing
+  which tests to run, and what a workspace publishes, and opens a reference
+  file for each only when the question needs it.
+- **`variance-testing`** is the order to ask in while you write, fix or debug a
+  test: which tests stand on a line, what an edit needs to run, where a failing
+  or flaky test went, what a change or a file's tests left untested, and how
+  much of a test can go. It links the
+  `variance-authority` references for its flags, so link both.
+
+Installing the package puts them on disk; your agent reads a skill only from
 its own skills directory, in the project or your home directory. Claude Code
-reads `.claude/skills`; most other agents read `.agents/skills`. Link it into
-both rather than copying it, so it follows every update:
+reads `.claude/skills`; most other agents read `.agents/skills`. Link them into
+both rather than copying them, so they follow every update:
 
 ```bash
-mkdir -p .agents/skills && ln -s ../../node_modules/@variance-authority/cli/skills/variance-authority .agents/skills/variance-authority
-mkdir -p .claude/skills && ln -s ../../.agents/skills/variance-authority .claude/skills/variance-authority
+mkdir -p .agents/skills && for s in variance-authority variance-testing; do ln -s ../../node_modules/@variance-authority/cli/skills/$s .agents/skills/$s; done
+mkdir -p .claude/skills && for s in variance-authority variance-testing; do ln -s ../../.agents/skills/$s .claude/skills/$s; done
 ```
 
 An agent opens a skill only when its description matches the task, and it reads

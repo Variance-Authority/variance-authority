@@ -87,6 +87,7 @@ function probesOf(
       };
     },
     exists: async () => options.exists !== false,
+    pointers: async () => [],
     partitions: async () => partitions,
     // Nothing cached. The cache is reported, never diagnosed: it holds only
     // images this machine can repaint.

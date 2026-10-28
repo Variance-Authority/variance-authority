@@ -42,7 +42,7 @@ pub struct IndexGraphOptions {
     pub seeds: Vec<String>,
     pub largest_file: Option<u32>,
     pub readers: Option<u32>,
-    pub tsconfig: Option<String>,
+    pub tsconfig: Option<napi::Either<String, bool>>,
     pub condition_names: Option<Vec<String>>,
     /// Whether records keep the directories that answered them, for reuse.
     pub remembering: bool,
@@ -87,7 +87,7 @@ pub(crate) fn index_graph(
             seeds: options.seeds,
             largest_file: options.largest_file,
             readers: options.readers,
-            tsconfig: options.tsconfig,
+            tsconfig: crate::resolve::Tsconfig::from_js(options.tsconfig),
             condition_names: options.condition_names,
             include_parses: false,
         },

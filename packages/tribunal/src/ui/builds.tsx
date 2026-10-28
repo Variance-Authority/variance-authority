@@ -230,7 +230,7 @@ export function CoverageLine({ build }: { readonly build: BuildSummary }): React
         </>
       )}
       {coverage.failed === 0 ? null : <> · {coverage.failed} failed to render</>}
-      {coverage.excluded === 0 ? null : <> · {coverage.excluded} excluded by configuration</>}
+      {coverage.excluded === 0 ? null : <> · {coverage.excluded} excluded on purpose</>}
     </p>
   );
 }

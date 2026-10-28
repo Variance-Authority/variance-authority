@@ -1,5 +1,142 @@
 # @variance-authority/react
 
+## 0.21.0
+
+Lockstep release — nothing in this package changed. Every `@variance-authority/*` package shares one version.
+
+## 0.20.0
+
+Lockstep release — nothing in this package changed. Every `@variance-authority/*` package shares one version.
+
+## 0.19.0
+
+Lockstep release — nothing in this package changed. Every `@variance-authority/*` package shares one version.
+
+## 0.18.0
+
+Lockstep release — nothing in this package changed. Every `@variance-authority/*` package shares one version.
+
+## 0.17.1
+
+Lockstep release — nothing in this package changed. Every `@variance-authority/*` package shares one version.
+
+## 0.17.0
+
+Lockstep release — nothing in this package changed. Every `@variance-authority/*` package shares one version.
+
+## 0.16.0
+
+### Minor Changes
+
+- dc7bb11: A route's components are read after React has hydrated it, and a route read before says so
+
+  The route collector waited for hydration by watching the number of nodes
+  carrying a fiber until it held still. A shell that suspends during hydration,
+  on a promise read outside any `<Suspense>`, leaves fibers on the nodes rendered
+  before it while the root is still uncommitted, so the wait ended there and the
+  nodes past it came back with no component. On a loaded machine hydration
+  finishes later, and a changed region named no component on one run and its
+  component on the next.
+
+  `awaitHydration` now reads React's record of each root on, above (up to the
+  `Document`, for an app that hydrates the whole page), under and behind the
+  subject, and waits until every one has committed. It returns `state`:
+  `hydrated`, `hydrating` or `unrooted`, with `roots`, `pending` and `waitedMs`;
+  `hydrated: boolean`, `fibers` and the `confirmations` option are gone.
+
+  A route that stops hydrating with roots uncommitted is refused with their
+  number, as a route still showing a Suspense fallback is:
+  an effect that runs after hydration can paint a different image. A route with
+  no React root is collected with a `react-root-absent` warning, so a region with
+  no component says why. A run with `wiring: false` waits for nothing and says
+  nothing.
+
+  `resolveProvenance`, `wiringOf`, `holdingOf` and `componentFiberOf` read
+  nothing off a node whose root has not committed. `resolveProvenance` returns
+  the new `UNCOMMITTED` sentinel, reason `'uncommitted'`, for it, where it used to
+  resolve the component of a render React had not committed. A root that
+  committed `null` now reads as committed. An Eyes archive accepts a target
+  recorded with that reason.
+- 0d280fc: A route waits for hydration only while something can still finish it, and says when hydration changed it
+
+  No clock decides how long a route waits for React to hydrate it: the route
+  collector's `hydrationTimeoutMs` option and its two-second default are gone. React's own record decides: the collector
+  waits while a root has a render React can do or a commit has effects React has
+  not run, and, while React is stuck on a promise or has no root yet, for as long
+  as anything the page requested is still arriving. A route React stops
+  hydrating with nothing left arriving is refused at once, and the refusal says
+  React had no work it could do and nothing was arriving to give it some. A slow
+  route is waited for however long its responses take; a route held on a timer
+  or on a promise nothing settles is refused without waiting.
+
+  A route React never loaded on is read once no script it requested is still
+  arriving, because only a script brings a renderer, so a long poll on such a page
+  holds nothing: the route agent taps React's commits from before the page's first
+  script, so it knows no React came, and its `react-root-absent` warning says
+  React had not loaded and suggests `wiring: false`.
+
+  A route that hydrates is now compared. The commit tap copies the markup in
+  React's hydration commit, inert, and it is compared with the markup once React
+  has nothing left to do, so a fast machine and a slow one give the same answer.
+  A difference is reported as a `hydration-changed-markup` warning that quotes
+  the markup at the hydration commit and the client's around the change, and
+  names the components that committed after hydrating in the roots that reach
+  the subject. The route is
+  still read as it ended.
+
+  `awaitHydration` takes `tap`, a `tapCommits` tap, and `outstanding(of)`, a
+  function that resolves `true` once something the page requested has arrived and
+  `false` when nothing is in flight. `of` is an `AwaitedArrival`: `'script'` when
+  the tap saw no React load, so only scripts count, and `'any'` otherwise; without it, a root stuck on a promise is returned as
+  `hydrating` at once. Its `timeoutMs` option is gone. Its settlement carries
+  `loaded: false` when the tap saw no React load, and `changed`, a
+  `MarkupChange`, when the markup moved. A `tapCommits` tap gains
+  `effectsPending(root?)`, true while a commit's passive effects have not run on
+  that root, or on any without one, and `hydration(root)`, a `RootHydration`: the
+  markup copied at that root's hydration commit and the commits since. The tap
+  reads React 18's passive-effect flags as React 18 sets them, so a React 18 root
+  is no longer held busy by flags React 18 never clears. `detectReactVersion`
+  reads the hook through the same reader as the tap.
+
+  `watchArrivals(page)`, exported by the Playwright package, answers
+  `outstanding` from the page's own requests, leaving out event streams,
+  WebSockets and media, which are open by design, and fonts and images, which
+  React waits on neither and the asset stages wait for and name. The Playwright harness installs
+  it, and its page agent by init script before the first navigation, so the first
+  document gets the agent ahead of its own scripts, as every later one already
+  did. A page agent that fails while a request is still arriving fails naming
+  that request, with Playwright's error as the cause.
+- a68bd0f: A story names React objects by React's own word
+
+  Add `@variance-authority/react/story` to a suite's setup files, and a story
+  shows a context, a memo or an element it was handed as `react.context`,
+  `react.memo` or `react.transitional.element`, read from the `$$typeof` mark
+  React gave it. Without it, each is an `Object`.
+
+  Sense's story tap knows no framework. It asks the functions a realm puts in
+  its `Symbol.for('variance-authority.story.kind')` array what an object is, the
+  first that answers a word names it, and one that throws is passed over.
+
+### Patch Changes
+
+- 8d1bcc1: A link in a doc comment opens from `node_modules`
+
+  Doc comments linked to documentation by repository paths such as
+  `../../../../docs/flakiness.md`, which resolve to nothing in an installed
+  package. They now link to the page on variance-authority.dev, or to the file on
+  GitHub when the site does not publish it, so the link works on hover in your
+  editor and in what `variance ask symbol` prints.
+
+  The MCP server's instructions and its observability answer linked to
+  `/start-cli` and `/presentation`, which the site does not serve. They now link
+  to `/start/cli` and `/docs/presentation`, and the `@variance-authority/cli`,
+  `@variance-authority/help`, `@variance-authority/mcp` and
+  `@variance-authority/vitest-browser` READMEs link to the guides where the site
+  publishes them.
+
+  `variancePrecondition`, `wiringOf`, `tapCommits` and `provenanceOf` carry an
+  `@see` link to the section of the guide that documents them.
+
 ## 0.15.0
 
 ### Patch Changes

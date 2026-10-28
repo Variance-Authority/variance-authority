@@ -1,8 +1,9 @@
 // compass: variance-authority/runtime/attention
 /**
  * Where a change lands, a package at a time: the changed functions in each
- * package, how near the tests that ran them were, the packages those tests
- * live in, and how many packages import the changed code.
+ * package, how near the tests that ran them were, how many hold code no case
+ * ran, the packages those tests live in, and how many packages import the
+ * changed code.
  *
  * A monorepo pull request is read package by package — by whoever owns each
  * one — and a list of functions does not say which owner to ask, nor whether a
@@ -11,7 +12,7 @@
  *
  * The table is bounded whatever the repository's size: the packages with code
  * no nearby test ran come first, and once there are more packages than rows,
- * the ones whose every function a nearby test ran are folded into one row, and
+ * the ones whose every function a nearby test ran in full are folded into one row, and
  * the rest past the budget into another, both counted in it. The JSON keeps
  * every package.
  */
@@ -55,7 +56,7 @@ export function changedPackagesOf(
     return name;
   };
 
-  const held = new Map<string, { readonly functions: Map<string, Reach>; readonly tests: Set<string>; readonly changed: string[] }>();
+  const held = new Map<string, { readonly functions: Map<string, Held>; readonly tests: Set<string>; readonly changed: string[] }>();
   const entry = (home: string) => {
     let at = held.get(home);
     if (at === undefined) held.set(home, (at = { functions: new Map(), tests: new Set(), changed: [] }));
@@ -64,10 +65,14 @@ export function changedPackagesOf(
   for (const file of files) entry(homeOf(file.file)).changed.push(file.file);
   for (const [file, region] of located({ files })) {
     const { functions, tests } = entry(homeOf(file));
-    const key = `${file}\0${functionOf(region)}`;
+    const name = functionOf(region);
+    const key = `${file}\0${name}`;
     const prior = functions.get(key);
-    // A function's answer is its worst region's: a branch no case ran leaves the function uncovered.
-    if (prior === undefined || REACHES.indexOf(region.reach) > REACHES.indexOf(prior)) functions.set(key, region.reach);
+    // A function is marked by its own region, as the table of what ran marks it; a branch no case ran inside one a case
+    // entered is counted apart. Code with no function region of its own, the top level, is marked by its worst region.
+    const own = region.kind === 'function' && region.name === name;
+    const reach = prior === undefined || own || (!prior.own && REACHES.indexOf(region.reach) > REACHES.indexOf(prior.reach)) ? region.reach : prior.reach;
+    functions.set(key, { reach, own: own || prior?.own === true, uncovered: uncovered(region) || prior?.uncovered === true });
     // By directory, not name: a fixture's manifest may borrow the name of the package it stands in for.
     for (const test of region.tests) tests.add(homeOf(test));
   }
@@ -76,7 +81,7 @@ export function changedPackagesOf(
     .filter(([, { functions }]) => functions.size > 0)
     .map(([home, { functions, tests, changed }]): ChangedPackage => {
       const reaches: Partial<Record<Reach, number>> = {};
-      for (const reach of functions.values()) reaches[reach] = (reaches[reach] ?? 0) + 1;
+      for (const { reach } of functions.values()) reaches[reach] = (reaches[reach] ?? 0) + 1;
       // FIXME: one walk per changed package; a change touching K packages beside a hub walks it K times. One walk carrying each file's origin package would pay once.
       const reached = dependents(changed);
       const importers = new Set<string>();
@@ -89,6 +94,7 @@ export function changedPackagesOf(
         path: relative(top, home) || '.',
         functions: functions.size,
         reaches: Object.fromEntries(REACHES.filter((reach) => reaches[reach] !== undefined).map((reach) => [reach, reaches[reach]])),
+        uncovered: [...functions.values()].filter((fn) => fn.uncovered).length,
         own: tests.has(home),
         tests: [...new Set([...tests].filter((at) => at !== home).map(nameOf))].sort(codeUnitOrder),
         ...(reached === undefined ? {} : { importers: importers.size }),
@@ -105,20 +111,20 @@ export function changedPackagesMarkdown(pkgs: readonly ChangedPackage[] | undefi
   if (pkgs === undefined || pkgs.length < 2) return [];
   const total = pkgs.reduce((sum, pkg) => sum + pkg.functions, 0);
   const ranked = [...pkgs].sort((left, right) =>
-    unrun(right) - unrun(left) || away(right) - away(left) || right.functions - left.functions || codeUnitOrder(left.package, right.package));
+    right.uncovered - left.uncovered || away(right) - away(left) || right.functions - left.functions || codeUnitOrder(left.package, right.package));
   const lines = [
     '',
     `**Where this change lands:** ${total} changed function${total === 1 ? '' : 's'} in ${pkgs.length} packages.`,
     '',
-    '| Package | Changed functions | Ran | Tests from | Packages importing it |',
-    '|---|--:|---|---|--:|',
+    '| Package | Changed functions | Ran | With code no case ran | Tests from | Packages importing it |',
+    '|---|--:|---|--:|---|--:|',
   ];
   const row = (pkg: ChangedPackage): string =>
-    `| \`${pkg.package}\` | ${pkg.functions} | ${tally(pkg.reaches, mark)} | ${testedFrom(pkg)} | ${pkg.importers ?? ''} |`;
+    `| \`${pkg.package}\` | ${pkg.functions} | ${tally(pkg.reaches, mark)} | ${pkg.uncovered} | ${testedFrom(pkg)} | ${pkg.importers ?? ''} |`;
   if (ranked.length <= ROWS) return [...lines, ...ranked.map(row)];
 
-  const gaps = ranked.filter((pkg) => away(pkg) > 0);
-  const quiet = ranked.filter((pkg) => away(pkg) === 0);
+  const gaps = ranked.filter((pkg) => away(pkg) > 0 || pkg.uncovered > 0);
+  const quiet = ranked.filter((pkg) => away(pkg) === 0 && pkg.uncovered === 0);
   // The fold rows are rows too: the quiet one when there is any, the overflow one when the gaps do not fit beside it.
   const room = ROWS - (quiet.length > 0 ? 1 : 0);
   const shown = gaps.length <= room ? gaps.length : room - 1;
@@ -128,12 +134,20 @@ export function changedPackagesMarkdown(pkgs: readonly ChangedPackage[] | undefi
   return [...lines, '', 'Each package is in the review\'s JSON, under `changedPackages`.'];
 }
 
+/** One changed function: its mark, whether that is its own region's, and whether any changed code in it no case ran. */
+interface Held {
+  readonly reach: Reach;
+  readonly own: boolean;
+  readonly uncovered: boolean;
+}
+
 /** Several packages on one row: their functions and marks summed. Their tests and importers are left blank, since a sum would count a package entering or importing two of them twice. */
 function folded(pkgs: readonly ChangedPackage[], label: string, mark: (reach: Reach) => string): string {
   const reaches: Partial<Record<Reach, number>> = {};
   for (const pkg of pkgs) for (const reach of REACHES) reaches[reach] = (reaches[reach] ?? 0) + (pkg.reaches[reach] ?? 0);
   const functions = pkgs.reduce((sum, pkg) => sum + pkg.functions, 0);
-  return `| ${label} | ${functions} | ${tally(reaches, mark)} | | |`;
+  const unran = pkgs.reduce((sum, pkg) => sum + pkg.uncovered, 0);
+  return `| ${label} | ${functions} | ${tally(reaches, mark)} | ${unran} | | |`;
 }
 
 /** The functions by mark, in the marks' order: the reaches one mark stands for are summed under it. */
@@ -151,11 +165,6 @@ function testedFrom(pkg: ChangedPackage): string {
   const named = [...(pkg.own ? ['own'] : []), ...pkg.tests.slice(0, TESTED_FROM).map((name) => `\`${name}\``)];
   if (named.length === 0) return 'none';
   return pkg.tests.length > TESTED_FROM ? `${named.join(', ')} and ${pkg.tests.length - TESTED_FROM} more` : named.join(', ');
-}
-
-/** Functions holding code no case ran. */
-function unrun(pkg: ChangedPackage): number {
-  return REACHES.filter((reach) => uncovered({ reach })).reduce((sum, reach) => sum + (pkg.reaches[reach] ?? 0), 0);
 }
 
 /** Functions no test importing their file ran. */

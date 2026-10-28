@@ -7,7 +7,7 @@
  * repository's, and it is the structure every run ends by rewriting. Four
  * numbers decide whether that is affordable at two hundred thousand modules:
  * the bytes the snapshot holds, the time to encode them, the time to answer a
- * diff off them, and the time to merge a run into the one before it.
+ * diff off them, and the time to lay a run over the one before it.
  *
  *   shape   — every product file in this repository, instrumented for real and
  *             its regions cut for real. The blocks per module, the line spans
@@ -20,15 +20,13 @@
  *             logical model. The gap is the reason selection reads views.
  *   select  — one changed file answered off the columns, which is what a build
  *             actually asks.
- *   merge   — the read-modify-write at the end of a run, timed at two sizes. The
- *             ratio between them is the growth: a merge that indexes both sides
- *             doubles when the input doubles, one that scans inside a scan
- *             quadruples.
+ *   lay     — the read-modify-write at the end of a run, timed at three sizes.
+ *             The ratio between them is the growth: a lay that indexes both
+ *             sides doubles when the input doubles, one that scans inside a
+ *             scan quadruples.
  *   layer   — the same read-modify-write in the shape every run after the first
- *             has: a whole index with a handful of modules re-recorded over it.
- *             What it reports is how many modules came through as the objects
- *             they already were, because a merge that rebuilds what it carries
- *             pays for the repository to change ten files of it.
+ *             has: a whole index with a handful of modules re-recorded over it,
+ *             which costs the carried columns and not their decode.
  *
  * Crossings are drawn clustered rather than uniformly — a test that enters a
  * module enters most of its regions, and neighbouring modules are entered by
@@ -48,7 +46,7 @@ import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { decodeTestCoverage, encodeTestCoverage } from '../dist/test-selection/format.js';
 import { openTestCoverage } from '../dist/test-selection/format-view.js';
-import { mergeCoverage } from '../dist/test-selection/merge.js';
+import { layCoverage } from '../dist/test-selection/format-layer.js';
 import { selectTestFilesFromView } from '../dist/test-selection/select.js';
 import { TEST_SHARE, corpusOf, instrumentedSources } from './coverage-corpus.mjs';
 
@@ -161,26 +159,24 @@ clock = since();
 const selected = selectTestFilesFromView(view, diff);
 console.log(`  select  ${clock().toFixed(1)} ms to answer one changed file, ${selected.length} tests entered`);
 
-console.log('\nmerging a run into the one before it');
+console.log('\nlaying a run over the one before it');
 let last;
 for (const count of [Math.round(MODULES / 4), Math.round(MODULES / 2), MODULES]) {
-  const previous = coverageOf(count);
+  const previous = encodeTestCoverage(coverageOf(count));
   const current = coverageOf(count);
   clock = since();
-  const merged = mergeCoverage(previous, current);
+  const laid = layCoverage(previous, current, new Map());
   const took = clock();
   const growth = last === undefined ? '' : `, ${(took / last).toFixed(1)}x the run half its size`;
   console.log(`  ${String(count).padStart(7)} modules  ${took.toFixed(0)} ms${growth}`);
   last = took;
-  if (merged.modules.length !== count) throw new Error('merge lost modules');
+  if (decodeTestCoverage(laid).modules.length !== count) throw new Error('the lay lost modules');
 }
 
 // Every run after the first is this shape: an index found on disk, and the
 // handful of modules a build re-transpiled recorded over it. The equal-size
-// merge above is the rarer one, and the only one a merge that rebuilds what it
-// carries survives — there the rebuilding is the work it was asked for, and
-// here it is all of it. What the line below reports is how much of the index
-// came through as the objects it already was.
+// lay above is the rarer one; here nearly everything is carried, and what is
+// carried should cost its columns, not its decode.
 const RE_RECORDED = 10;
 const recut = coverage.modules.slice(0, RE_RECORDED);
 const ran = new Set(recut.flatMap((module) => module.blocks.flatMap((block) => block.testFiles)));
@@ -194,19 +190,16 @@ const layer = {
     blocks: module.blocks.map((block) => ({ ...block, testFiles: [...block.testFiles] })),
   })),
 };
-const held = new Set(coverage.modules);
 const standing = heap();
 clock = since();
-const layered = mergeCoverage(coverage, layer);
+const layered = layCoverage(encoded, layer, new Map());
 const layering = clock();
 const cost = heap() - standing;
-const carried = layered.modules.filter((module) => held.has(module)).length;
-if (layered.modules.length !== MODULES) throw new Error('layering lost modules');
+if (decodeTestCoverage(layered).modules.length !== MODULES) throw new Error('layering lost modules');
 console.log(
   `\nlayering a run onto the index it found\n` +
     `  ${RE_RECORDED} modules and ${layer.tests.length} tests re-recorded over ${MODULES}\n` +
-    `  ${layering.toFixed(0)} ms, ${mb(cost).toFixed(0)} MB of heap\n` +
-    `  ${carried} of ${MODULES - RE_RECORDED} carried modules came through untouched`,
+    `  ${layering.toFixed(0)} ms, ${mb(cost).toFixed(0)} MB of heap`,
 );
 
 console.log(

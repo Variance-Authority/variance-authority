@@ -1,11 +1,9 @@
 // compass: variance-authority/runtime/attention
 import {
   innermostAt,
-  type ExecutionIndex,
   type FileReferences,
-  type TestCoverage,
+  type NativeDistillRegion,
 } from '@variance-authority/sense/test-selection';
-import { posix } from 'node:path';
 import type { ImportReach } from './own.js';
 
 /**
@@ -14,8 +12,9 @@ import type { ImportReach } from './own.js';
  *
  * `never`: it references none of the import's names. `effect`: it imports the
  * module with no binding, `import './x'`, so loading it is the point. `load`: a
- * reference runs when the file loads, the first one named, or sits in a function
- * that ran while it loaded. `handed`: it re-exports a name
+ * reference runs when the file loads, the first one named, or sits in a
+ * function some case ran while the file loaded, which the case index keeps
+ * without naming the case. `handed`: it re-exports a name
  * from the import, so the use is its importers'. `ran`: a case of the test
  * file ran a function that references it, so the import was needed and nothing
  * called into it. `functions`: it is referenced only in functions no case of
@@ -47,13 +46,13 @@ export type ImportCharge =
 export interface ChargeInput {
   /** Where a file references what it imports. */
   readonly references: (file: string) => FileReferences | undefined;
-  readonly coverage: TestCoverage;
-  readonly execution: ExecutionIndex;
-  /** The test file's cases, by their place in the case index. */
-  readonly mine: ReadonlySet<number>;
+  /** How many test files load a file: its coverage row's loaders. */
+  readonly loading: (file: string) => number;
+  /** The regions the record keeps for a file, read against the test file's cases. */
+  readonly regions: (file: string) => readonly NativeDistillRegion[];
 }
 
-type Block = ExecutionIndex['modules'][number]['blocks'][number];
+type Block = NativeDistillRegion;
 
 /**
  * The charge of each import `importer` → `imported`, read once per import
@@ -62,16 +61,8 @@ type Block = ExecutionIndex['modules'][number]['blocks'][number];
  * reader resolved.
  */
 export function chargesOf(input: ChargeInput): (importer: string, imported: string) => ImportCharge | undefined {
-  const executed = new Map(input.execution.modules.map((module) => [module.file, module.blocks]));
-  const loaders = new Map(input.coverage.modules.map((module) => [
-    module.file,
-    module.blocks.find((block) => block.kind === 'module')?.loadedBy ?? [],
-  ]));
   const read = new Map<string, FileReferences | undefined>();
   const charged = new Map<string, ImportCharge | undefined>();
-  const called = (block: Block) => block.crossings.filter((crossing) => crossing.loaded !== true);
-  const testFiles = (block: Block): ReadonlySet<string> =>
-    new Set(called(block).map(({ test }) => input.execution.tests[test]!.file));
 
   const referencesOf = (file: string) => {
     if (!read.has(file)) read.set(file, input.references(file));
@@ -90,7 +81,7 @@ export function chargesOf(input: ChargeInput): (importer: string, imported: stri
     }
     const load = references.find((reference) => reference.load);
 
-    const blocks = executed.get(importer) ?? [];
+    const blocks = input.regions(importer);
     const regions = new Map<Block, (typeof references)[number]>();
     let unmeasured: number | undefined;
     for (const reference of references) {
@@ -99,21 +90,20 @@ export function chargesOf(input: ChargeInput): (importer: string, imported: stri
       for (const block of at) if (!regions.has(block)) regions.set(block, reference);
     }
     const named = (block: Block) => ({ name: block.name || block.path, line: block.startLine });
-    const mine = (crossing: Block['crossings'][number]) => input.mine.has(crossing.test);
-    const ran = [...regions.keys()].filter((block) => called(block).some(mine));
+    const ran = [...regions.keys()].filter((block) => block.ran);
     if (load !== undefined) return { kind: 'load', line: load.line, name: load.name };
-    const atLoad = [...regions].find(([block]) => block.crossings.some((crossing) => crossing.loaded === true && mine(crossing)));
+    // The case index names no case for a run at load, so any test file's reads as this one's: a load is never mocked.
+    const atLoad = [...regions].find(([block]) => block.loaded);
     if (atLoad !== undefined) return { kind: 'load', line: atLoad[1].line, name: atLoad[1].name };
     if (found.passed.includes(imported)) return { kind: 'handed' };
     if (ran.length > 0) return { kind: 'ran', functions: ran.map(named) };
     if (unmeasured !== undefined) return { kind: 'unmeasured', line: unmeasured };
-    const union = new Set<string>();
+    const union = new Set<number>();
     const functions = [...regions.keys()].map((block) => {
-      const files = testFiles(block);
-      for (const file of files) union.add(file);
-      return { ...named(block), ran: files.size };
+      for (const file of block.called) union.add(file);
+      return { ...named(block), ran: block.called.length };
     });
-    return { kind: 'functions', functions, ran: union.size, loading: new Set(loaders.get(importer) ?? []).size };
+    return { kind: 'functions', functions, ran: union.size, loading: input.loading(importer) };
   };
 
   return (importer, imported) => {
@@ -125,15 +115,17 @@ export function chargesOf(input: ChargeInput): (importer: string, imported: stri
 
 /**
  * One line that says what the test file `file` can do about an import, by its
- * reach. A mock is proposed with a factory: an automock requires the module to
- * read its shape, which is the load it is there to stop. The factory stands a
- * function in for every value `exports` names, since the mock replaces the
- * module for every file the test loads; a function can be called, constructed,
- * extended and read. One is proposed only where the importer reads none of
- * the import, or reads it only in functions no case of the test file ran: a
- * stand-in read at load is used at load or kept for a case, and one a case
- * runs, or the importer hands on, changes what the case does. None is proposed
- * where what the module exports is not known. Absent when nothing is.
+ * reach. A mock is proposed by the module it replaces and the importer it stops
+ * loading it, in no runner's words: how to write it is the file's runner's, and
+ * the reader's. It names every value `exports` holds for a stand-in, since the
+ * mock replaces the module for every file the test loads; a function can be
+ * called, constructed, extended and read. An automock requires the module to
+ * read its shape, which is the load the mock is there to stop. One is proposed
+ * only where the importer reads none of the import, or reads it only in
+ * functions no case of the test file ran: a stand-in read at load is used at
+ * load or kept for a case, and one a case runs, or the importer hands on,
+ * changes what the case does. None is proposed where what the module exports
+ * is not known. Absent when nothing is.
  */
 export function reachLine(
   file: string,
@@ -150,23 +142,16 @@ export function reachLine(
       // Deleting is the fix only when the file reads nothing it imports; otherwise the line under it says where it does.
       return `error: ${file} imports ${imported}, and none of its cases enters what that loads` +
         (charge?.kind === 'never' ? ': delete the import.' : '.');
-    case 'subject': {
+    case 'subject':
       if (exports === undefined) return undefined;
       if (charge?.kind !== 'never' && charge?.kind !== 'functions') return undefined;
-      const specifier = posix.relative(posix.dirname(file), imported).replace(/\.[cm]?[jt]sx?$/, '');
-      return `Or mock it in this file, so ${importer} does not load it: ` +
-        `jest.mock('${specifier.startsWith('.') ? specifier : `./${specifier}`}', () => (${factoryOf(exports)}));`;
-    }
+      return `Or mock ${imported} in this file, so ${importer} does not load it: ` +
+        `stand a function in for each value it exports (${exports.join(', ')}); ` +
+        'an automock loads the module to read its shape.';
     case 'beyond':
       return `warning: this file does not import ${importer}; mocking ${imported} here would tie it to code it does not know: ` +
         `fix it in ${importer}.`;
   }
-}
-
-/** The object a mock's factory returns: a function for each value the module exports, `default` as an ES module's. */
-function factoryOf(exports: readonly string[]): string {
-  const names = exports.map((name) => `${/^[A-Za-z_$][\w$]*$/.test(name) ? name : JSON.stringify(name)}: jest.fn()`);
-  return `{ ${exports.includes('default') ? '__esModule: true, ' : ''}${names.join(', ')} }`;
 }
 
 /** One line that says where the importer references the import, and what to change. */

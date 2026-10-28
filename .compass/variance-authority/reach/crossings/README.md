@@ -72,14 +72,24 @@ commit it was made at, which is the whole of its position; nothing walks lineage
 or scores a distance, and a recording that cannot say where it stands has
 nothing to diff against, so its holder runs everything.
 
+A file a **subject** showed and no code names — a document read at build time,
+a string bundled as text — has no region to cross. The element that shows it
+names it in `data-variance-reads`, and the driver records each named file as a
+precondition of that **subject** alone, at file grain: the attribute is
+production markup with no runtime, read only inside the photographed roots.
+
 ## Implementation coordinates
 
 - `packages/sense/src/test-selection/index.ts` — the logical model of the record
   and the entry points over it
 - `packages/sense/src/test-selection/journal.ts` — `recordExecution`, the join
   between an inventory and the ordinals a driven realm reported
-- `packages/sense/src/test-selection/merge.ts` — how two runs and two shards
-  become one record, and where evidence is retired
+- `packages/sense/native/src/record_coverage_layer.rs` — how one run is laid
+  over the record, and where evidence is retired
+- `packages/sense/native/src/record_combine.rs` — `combineRecords`, the one fold
+  of N shards' records into the record an unsharded run would have written;
+  `packages/sense/record-layout.json` is the format's constants, read by both
+  sides
 - `packages/sense/src/test-selection/commit.ts` — where the record stands, and
   the honest absence when there is no answer
 - `packages/sense/src/test-selection/divergence.ts` — `journeyDivergences`: one
@@ -88,8 +98,12 @@ nothing to diff against, so its holder runs everything.
   against what it enters
 - `packages/sense/src/test-selection/reverse.ts` — `coveringTests`, the
   runner-independent point query
+- `packages/sense/src/test-selection/unentered.ts` — the regions on a range no
+  case entered, and the one sentence every answer says about them
 - `packages/sense/src/test-selection/format.ts` — interned paths and a
   compressed-sparse-row region-to-test relation
+- `packages/reads/src/index.ts` — `reads`, the props an element spreads to
+  name the files it showed
 - `packages/sense/src/test-selection/case-lines.ts` — per case, the test line
   that first reached each region it crossed, stored as runs over the regions
 

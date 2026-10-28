@@ -1,10 +1,11 @@
 import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import type { FileRecord } from '@variance-authority/core/relate';
 import type { ParseCache, ParseKey, Parsed } from './cache.js';
 import { keyFor, parseWay } from './files.js';
+import { native } from './native.js';
 import { scanRelations } from './scan.js';
 
 /**
@@ -98,6 +99,30 @@ describe('a repository of five languages, scanned once', () => {
     expect(sizeOf('rs/src/lib.rs')).toEqual({ bytes: 24, lines: 2 });
     expect(sizeOf('jv/src/main/java/a/b/Thing.java')).toEqual({ bytes: 51, lines: 3 });
     expect(sizeOf('sw/Sources/Core/Lens.swift')).toEqual({ bytes: 33, lines: 2 });
+  });
+});
+
+describe('a Rust crate whose paths climb the module tree', () => {
+  it('parses each file once, though a `super` reads the `mod` lines of the file above', async () => {
+    // The module tree is the scan's own parse, not a second reading of the crate.
+    const root = await mkdtemp(join(tmpdir(), 'variance-rust-once-'));
+    await write(root, 'Cargo.toml', '[package]\nname = "held"\n');
+    await write(root, 'src/lib.rs', 'mod lens;\nmod view;\nstruct Lens;\n');
+    await write(root, 'src/lens.rs', 'use super::Lens;\n');
+    await write(root, 'src/view.rs', 'fn draw(lens: crate::Lens) {}\n');
+    const addon = native();
+    if (addon === undefined) throw new Error('the native addon did not load');
+    const read = vi.spyOn(addon, 'readLanguage');
+    try {
+      const records = await scanRelations({ root, dirs: ['.'] });
+      const parsed = read.mock.calls.filter(([language]) => language === 'rust').map(([, file]) => file).sort();
+
+      expect(records.find((record) => record.file === 'src/lens.rs')?.edges?.map((edge) => edge.to)).toEqual(['src/lib.rs']);
+      expect(parsed).toEqual(['src/lens.rs', 'src/lib.rs', 'src/view.rs']);
+    } finally {
+      read.mockRestore();
+      await rm(root, { recursive: true, force: true });
+    }
   });
 });
 

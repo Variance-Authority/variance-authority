@@ -43,6 +43,21 @@ describe('what a Swift file asks for', () => {
       .toEqual(['Lens', 'Seen', 'read', 'version']);
   });
 
+  it('keeps a `private` or `fileprivate` declaration to its file, and publishes one whose setter alone is private', () => {
+    const read = readSwift(
+      'a.swift',
+      'private func helper() {}\nfileprivate struct Cache {}\nprivate (set) var count = 0\npublic let version = 1\n',
+    );
+
+    expect((read.exports ?? []).map((entry) => entry.exported)).toEqual(['count', 'version']);
+    expect(read.symbols?.map(({ name, reach }) => ({ name, reach }))).toEqual([
+      { name: 'helper', reach: 'file' },
+      { name: 'Cache', reach: 'file' },
+      { name: 'count', reach: undefined },
+      { name: 'version', reach: undefined },
+    ]);
+  });
+
   it('says so when the parser stopped where an import could have been', () => {
     expect(readSwift('a.swift', 'import Core\n@ ~ !\n').unknown).toContain('did not parse cleanly');
   });
@@ -138,6 +153,34 @@ async function write(root: string, path: string, contents: string): Promise<void
   const absolute = join(root, path);
   await mkdir(dirname(absolute), { recursive: true });
   await writeFile(absolute, contents, 'utf8');
+}
+
+describe('what a Swift file declares', () => {
+  it('records each top-level declaration with its signature and the doc above it', () => {
+    const contents = [
+      'import Foundation',
+      '',
+      '/// Start again.',
+      'func relaunch(argv: [String]) -> Int {',
+      '    return 0',
+      '}',
+      '',
+      'struct Lens {}',
+      '',
+    ].join('\n');
+    const read = readSwift('Sources/App/main.swift', contents);
+
+    expect(spelled(contents, read)).toEqual([
+      { name: 'relaunch', kind: 'function', line: 4, signature: 'func relaunch(argv: [String]) -> Int', doc: '/// Start again.' },
+      { name: 'Lens', kind: 'struct', line: 8, signature: 'struct Lens', doc: undefined },
+    ]);
+  });
+});
+
+/** A symbol's signature and doc, as the spans it carries cut them from `contents`. */
+function spelled(contents: string, read: Read) {
+  const cut = (span: { readonly start: number; readonly end: number } | undefined) => span && contents.slice(span.start, span.end);
+  return (read.symbols ?? []).map(({ name, kind, line, signature, doc }) => ({ name, kind, line, signature: cut(signature), doc: cut(doc) }));
 }
 
 /** What the addon's Swift reader answers, which is the only reader there is. */

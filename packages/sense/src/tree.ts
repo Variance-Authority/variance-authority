@@ -124,9 +124,8 @@ async function overlayKnownChanges(
  * `prefix` is where `root` sits below the top of its checkout, as
  * `rev-parse --show-prefix` spells it. Porcelain status names every path from
  * that top wherever it runs, so each one is cut to the scan root before it meets
- * a digest key. Below the top, status is asked with `-- .`, so every path it
- * names is under the root: a rename across the root is a deletion or an
- * addition on the root's side.
+ * a digest key; `workingTreeChanges` drops a path beside the root, so a rename
+ * across the root is a deletion or an addition on the root's side.
  */
 async function overlayWorkingTree(root: string, digests: Map<string, Digest>, prefix: string): Promise<void> {
   const changes = await workingTreeChanges(root, prefix);

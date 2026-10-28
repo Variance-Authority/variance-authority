@@ -28,6 +28,7 @@ pub(crate) fn depends_in(source: &str, comments: &[Comment], lines: &Lines) -> D
                 kind: Kind::Depends,
                 bindings: Vec::new(),
                 line: lines.at(comment.span.start),
+                republishes: false,
             }),
             Some(None) => found.pathless += 1,
             None => {}

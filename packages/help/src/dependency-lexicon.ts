@@ -1,65 +1,9 @@
 /** The Rust-published third-party lexicon, read by help questions. */
-import { readFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
-import { dependencyStackNative, queryDependencyLexiconNative, refreshDependencyLexiconNative, sourceIndexPath } from '@variance-authority/sense';
+import { dependencyStackNative, queryDependencyLexiconNative, refreshDependencyLexiconNative } from '@variance-authority/sense';
 
-export interface DependencyApiName {
-  readonly name: string; readonly kind: string; readonly at: string; readonly line: number;
-  readonly signature?: string; readonly doc?: string;
-}
-export interface DependencyIdentity { readonly name: string; readonly version: string; readonly manifest: string }
-export interface DependencyApi {
-  readonly runtime?: DependencyIdentity;
-  readonly declarations?: DependencyIdentity;
-  readonly entrypoint?: string;
-  readonly names?: readonly DependencyApiName[];
-  readonly sources?: readonly { readonly at: string; readonly digest: string }[];
-  readonly unavailable?: string;
-  /** Only on an unavailable entry: the `README.md` beside the runtime package's manifest. */
-  readonly readme?: DependencyReadme;
-  /** The agent skills the package ships in `skills/`; absent when it ships none or the lexicon predates them. */
-  readonly skills?: readonly DependencySkill[];
-}
 export interface DependencyReadme { readonly at: string; readonly lines?: number; readonly unreadable?: string }
 /** One agent skill a package ships: `skills/<directory>/SKILL.md`, named by its front matter or, failing that, its directory. */
 export interface DependencySkill { readonly name: string; readonly at: string; readonly description?: string; readonly unreadable?: string }
-
-export interface LexiconEntry { readonly id: string; readonly api: DependencyApi }
-export interface LexiconAvailability {
-  readonly owner: string;
-  readonly package: string;
-  readonly specifier: string;
-  readonly entry: string;
-  readonly declared: boolean;
-  readonly imported?: boolean;
-  /** How the owning manifest declares it; absent when it only imports it. */
-  readonly declaredAs?: 'dependency' | 'optional' | 'peer' | 'dev';
-  /** Written requests for the specifier under the owner, and the first of them as `file:line`. */
-  readonly imports?: number;
-  readonly site?: string;
-}
-export interface LexiconIssue { readonly owner: string; readonly package: string; readonly reason: string }
-export interface DependencyLexicon {
-  readonly version: 4 | 5 | 6 | 7 | 8 | 9;
-  readonly refreshedAt: string;
-  readonly entries: readonly LexiconEntry[];
-  readonly availability: readonly LexiconAvailability[];
-  readonly issues: readonly LexiconIssue[];
-}
-
-function pathOf(root: string): string { return join(dirname(sourceIndexPath(root)), 'dependency-lexicon.json'); }
-
-/** Read the separately published corpus without scanning source or declarations. */
-export function readDependencyLexicon(root: string): { readonly path: string; readonly lexicon?: DependencyLexicon } {
-  const path = pathOf(root);
-  try {
-    const value: unknown = JSON.parse(readFileSync(path, 'utf8'));
-    if (typeof value !== 'object' || value === null || ![4, 5, 6, 7, 8, 9].includes((value as Partial<DependencyLexicon>).version ?? 0)
-      || !Array.isArray((value as Partial<DependencyLexicon>).entries)
-      || !Array.isArray((value as Partial<DependencyLexicon>).availability)) return { path };
-    return { path, lexicon: value as DependencyLexicon };
-  } catch { return { path }; }
-}
 
 /** Refresh all directly available third-party solutions in the checkout. */
 export function refreshDependencyLexicon(root: string) { return refreshDependencyLexiconNative(root); }
@@ -113,6 +57,8 @@ export interface LexiconMatches {
   /** Present on a question by words: the packages that describe it, best first, under a lexicon that recorded what packages say. */
   readonly described?: readonly DescribedPackage[];
   readonly describedTotal?: number;
+  /** Present instead of `described` when the lexicon cannot compare the question's words: why, as a sentence's opening. */
+  readonly describedUnread?: string;
 }
 
 /** Return names the native lexicon found, or absence when it is unpublished. */
@@ -140,8 +86,8 @@ export interface Stack {
   readonly offset: number; readonly remaining: number;
   readonly rows: readonly StackRow[];
   readonly unreadable: readonly { readonly manifest: string; readonly package: string; readonly reason: string }[];
-  /** Rows, across every page, whose package ships skills; absent when the lexicon predates reading them. */
-  readonly skilled?: number;
+  /** Rows, across every page, whose package ships skills. */
+  readonly skilled: number;
 }
 
 /** Every package usable at `files`, imported first, one page; absent when the lexicon is unpublished. */

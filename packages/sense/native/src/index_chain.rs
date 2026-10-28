@@ -108,12 +108,13 @@ fn manifest(bytes: &[u8]) -> Option<(Vec<Reference>, usize)> {
 }
 
 /// The digests of the segments the manifest at `path` names, oldest first: the chain's identity, read
-/// without opening a segment. A missing file, a legacy single-segment file and a malformed manifest have
-/// none, and a refresh that finds none reads the chain.
-pub(crate) fn manifest_digests(path: &str) -> Option<Vec<String>> {
+/// without opening a segment, with how many of the last are the working layer. A missing file, a legacy
+/// single-segment file and a malformed manifest have none, and a refresh that finds none reads the chain.
+pub(crate) fn manifest_digests(path: &str) -> Option<(Vec<String>, usize)> {
     let bytes = std::fs::read(path).ok()?;
     if !bytes.starts_with(MAGIC) { return None; }
-    Some(manifest(&bytes)?.0.into_iter().map(|reference| reference.digest).collect())
+    let (references, working) = manifest(&bytes)?;
+    Some((references.into_iter().map(|reference| reference.digest).collect(), working))
 }
 
 /// The segments of `chain` past its first `known`, read and checked against the digests they are named by,

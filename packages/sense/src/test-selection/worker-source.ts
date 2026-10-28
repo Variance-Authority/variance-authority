@@ -14,6 +14,7 @@
  */
 
 import { vitestCutSource } from './case-cut.js';
+import { runnerHelpersSource } from './runner-helpers-source.js';
 import { CASE_SCOPE } from './cases.js';
 import { scopeGlobalsSource } from './precondition-source.js';
 import { EXECUTION_GLOBAL, executionCollectorSource } from './probes.js';
@@ -73,6 +74,8 @@ export interface SetupShim {
   readonly story?: string | undefined;
   /** The checkout the record names files against; given, the case scope keeps Eyes journals. */
   readonly root?: string;
+  /** `false` keeps one bucket for the file and no case scope or frame: a run under `loads`. */
+  readonly cases?: boolean;
 }
 
 export function setupSource(
@@ -85,18 +88,16 @@ import { afterAll, beforeAll, expect } from ${JSON.stringify(shim.runner ?? 'vit
 import { mkdir, writeFile } from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
 import { createRequire } from 'node:module';
-const journalFormat = createRequire(${JSON.stringify(HERE)})('./journal-format.cjs');
-const collector = createRequire(${JSON.stringify(HERE)})('./collectors.cjs').scoped(globalThis, ${
-    shim.continuations === true
-  }, ${
-    shim.story === undefined
-      ? 'undefined'
-      : `createRequire(${JSON.stringify(HERE)})('../story/format.cjs').storyWriter(${JSON.stringify(shim.story)})`
-  }, ${shim.root === undefined ? 'undefined' : JSON.stringify(shim.root)});
+const senseRequire = createRequire(${JSON.stringify(HERE)});
+const journalFormat = senseRequire('./journal-format.cjs');
+const collector = ${shim.cases === false ? `senseRequire('./collectors.cjs').flat(globalThis)` : `senseRequire('./collectors.cjs').scoped(
+  globalThis, ${shim.continuations === true}, ${shim.story === undefined
+    ? 'undefined'
+    : `senseRequire('../story/format.cjs').storyWriter(${JSON.stringify(shim.story)})`}, ${shim.root === undefined ? 'undefined' : JSON.stringify(shim.root)})`};
 const seal = (testFile) => collector.seal(testFile);
 const finish = (testFile) => collector.finish(testFile);
 const runaways = () => collector.runaways();
-${shim.scope ?? ''}
+${shim.cases === false ? '' : shim.scope ?? ''}
 // What had run before the file's first test. The file is collected — its
 // imports evaluated, its top level run — before any hook runs, so a function
 // counted here ran as a consequence of loading, not of a test. Read off the
@@ -153,6 +154,7 @@ export const BROWSER_JOURNAL = 'varianceAuthority';
  * collector keeps it: the drain is always the realm's own.
  */
 export function browserSetupSource(mode?: InstrumentMode, runner = 'vitest'): string {
+  // FIXME: Vitest is the default runner of a runner-neutral file; the caller names it (No runner is the default).
   return `
 import { afterAll, beforeAll } from ${JSON.stringify(runner)};
 {${executionCollectorSource(mode)}}
@@ -215,11 +217,14 @@ export function caseWriterSource(caseDirectory: string): string {
  * through the serializer is credited with what it called.
  *
  * @param runner How this module should spell `@vitest/runner`, and its `utils`
- * entry. The runner is a file in the project root, and `@vitest/runner` is a
- * dependency of Vitest rather than of the project — under a node_modules layout
- * that does not hoist, a bare specifier there resolves to nothing and every
- * test file fails to load. The caller resolves it; see `runnerImport` in
- * [`vitest.ts`](./vitest.ts). `recording` is the engine the setup module's
+ * entry, on the Vitest lines that ship it: 2, 3 and 4. The runner is a file in
+ * the project root, and `@vitest/runner` is a dependency of Vitest rather than
+ * of the project — under a node_modules layout that does not hoist, a bare
+ * specifier there resolves to nothing and every test file fails to load. The
+ * caller resolves it; see `runnerImports` in [`vitest.ts`](./vitest.ts). Absent,
+ * the module imports nothing but `vitest`, as Vitest 5 needs: it ships neither
+ * `@vitest/runner` nor `vitest/runners`, and its `TestRunner` hands out the
+ * test's function and a suite's hooks itself. `recording` is the engine the setup module's
  * collector will ask for, which a realm decides once: the same `continuations`
  * and story answers the caller hands {@link setupSource}.
  */
@@ -239,21 +244,11 @@ export function caseRunnerSource(
     }, ${runner.recording.story});\n`;
   return `
 import * as vitest from 'vitest';
-import { getFn, getHooks } from ${JSON.stringify(runner.module ?? '@vitest/runner')};
-import { getNames } from ${JSON.stringify(runner.utils ?? '@vitest/runner/utils')};
+${runnerHelpersSource(runner.module, runner.utils)}
 import { readFileSync } from 'node:fs';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
 import { createRequire } from 'node:module';
-
-// The class this runner extends. Vitest 4.1 exports it from the package root as
-// \`TestRunner\` and deprecates \`vitest/runners\`, which prints a line saying so
-// in every worker that imports it; the root's \`VitestTestRunner\` there is a
-// type and nothing at run time. Vitest 2, 3 and 4.0 export the class only from
-// \`vitest/runners\`, so that entry is imported only where the root has none.
-// The root is read as a namespace because a named import it lacks fails to
-// link.
-const VitestTestRunner = vitest.TestRunner ?? (await import('vitest/runners')).VitestTestRunner;
 
 ${recording}
 // The runner's own tree, cut to what the fold reads a file's outcome from. The
@@ -281,6 +276,16 @@ const tree = (task) => ({
   ...(task.tasks === undefined ? {} : { tasks: task.tasks.map(tree) }),
 });
 
+// A file's phases, under the record's names, as the runner measured them; the
+// reader keeps the ones that are durations. Its cases are the file's own result.
+const phases = (file) => ({
+  prepare: file.prepareDuration,
+  environment: file.environmentLoad,
+  setup: file.setupDuration,
+  collect: file.collectDuration,
+  cases: file.result?.duration,
+});
+
 const caseScope = () => globalThis[Symbol.for('variance-authority.test-selection.cases')];
 // The declaration path under the file, which is what a reader recognises a
 // case by. The runner's own \`test.id\` is unique and is carried beside it,
@@ -289,12 +294,11 @@ const caseScope = () => globalThis[Symbol.for('variance-authority.test-selection
 // are two cases.
 let caseOwner;
 const caseKey = (test) => {
-  const names = getNames(test);
-  const file = test.file?.filepath ?? names[0] ?? '';
+  const file = test.file?.filepath ?? test.file?.name ?? '';
   // Required here, where a case is recorded, and not at the top: a runner that
   // records nothing never loads it.
   caseOwner ??= createRequire(${JSON.stringify(HERE)})('./case-owner.cjs');
-  return caseOwner.packCase(file, names.slice(1).join(' > '), test.id, test.file?.projectName);
+  return caseOwner.packCase(file, testName(test), test.id, test.file?.projectName);
 };
 
 // Where a \`variancePrecondition\` call stands. Hooks are wrapped when their
@@ -330,7 +334,7 @@ export default class extends VitestTestRunner {
     const scope = caseScope();
     const hooks = scope?.within === undefined ? undefined : getHooks(suite);
     if (hooks === undefined) return;
-    const depth = getNames(suite).length - 1;
+    const depth = depthOf(suite);
     for (const kind of ['beforeAll', 'beforeEach', 'afterEach', 'afterAll']) {
       const registered = hooks[kind] ?? [];
       const kept = [];
@@ -354,7 +358,7 @@ export default class extends VitestTestRunner {
     const runnerSkipped = Boolean(this.config?.testNamePattern) || this.cancelRun === true;
     await writeFile(
       finished + '/' + process.pid + '-' + randomUUID() + '.json',
-      JSON.stringify(files.map((file) => ({ filepath: file.filepath, runnerSkipped, ...tree(file) }))),
+      JSON.stringify(files.map((file) => ({ filepath: file.filepath, runnerSkipped, phases: phases(file), ...tree(file) }))),
     );
   }
 

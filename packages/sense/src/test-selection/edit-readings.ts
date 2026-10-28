@@ -26,6 +26,7 @@ import { openTestCoverage } from './format-view.js';
 import type { TestCoverage } from './index.js';
 import { keptTexts } from './kept-texts.js';
 import { textAtRecording } from './recorded-text.js';
+import { LAYOUT } from './record-layout.js';
 
 /**
  * How far one module's edit reaches the tests that ran it, as the selector
@@ -44,30 +45,6 @@ export function editKey(file: string, from: string, to: string): string {
 }
 
 /**
- * Whether a test that entered a region of `kind` in `file` ran something the
- * edit from `from` to `to` changed. Asked only of a region whose digest moved
- * over a source that moved too.
- *
- * Unread is reached: a text that could not be had or would not parse says
- * nothing about what the edit left alone.
- */
-export function editReaches(
-  readings: EditReadings | undefined,
-  file: string,
-  from: string,
-  to: string,
-  kind: string,
-): boolean {
-  const reading = readings?.get(editKey(file, from, to));
-  if (reading === undefined || reading === 'load') return true;
-  if (reading === 'none') return false;
-  // The selector charges a body edit to the regions its lines are in, never the
-  // module's own: the verdict proved what the module does as it loads did not
-  // move.
-  return kind !== 'module';
-}
-
-/**
  * The reading of every module `current` re-recorded over a text other than the
  * one `previous` holds its rows in, and of every carried module whose text
  * `onDisk` holds (`carriedSources`), which the landing cuts again in it.
@@ -83,8 +60,7 @@ export async function editReadings(
   onDisk: ReadonlyMap<string, string>,
   cacheRoot?: string,
 ): Promise<EditReadings> {
-  const scanner = native();
-  if (scanner?.moduleVerdict === undefined) return new Map();
+  if (native()?.moduleVerdict === undefined) return new Map();
   const edits: { file: string; from: string; to: string; now?: string }[] = [];
   let commit: string | undefined;
   try {
@@ -122,11 +98,30 @@ export async function editReadings(
     if (before === undefined) continue;
     const after = now ?? hashingTo(await fromDisk(root, file), to) ?? kept(to);
     if (after === undefined) continue;
-    const verdict = scanner.moduleVerdict(file, before, after);
-    if (verdict === null) continue;
-    readings.set(editKey(file, from, to), readingOf(root, file, verdict));
+    const reading = readEdit(root, file, before, after);
+    if (reading !== undefined) readings.set(editKey(file, from, to), reading);
   }
   return readings;
+}
+
+/**
+ * Whether an edit read as `reading` reached a region of `kind`: it did unless
+ * the record layout's `spared` names the kind under the reading. The snapshot's
+ * landing (`reaches` in `record_coverage_recut.rs`) reads the same rule.
+ */
+export function reaches(reading: EditReading | undefined, kind: string): boolean {
+  const spared: Partial<Record<EditReading, readonly string[]>> = LAYOUT.coverage.spared;
+  return !(reading !== undefined && spared[reading]?.includes(kind) === true);
+}
+
+/**
+ * How far the edit from `before` to `after` reaches the tests that ran
+ * `file`, as the selector reads the two texts; `undefined` when the module
+ * reader does not claim the file or cannot read a text.
+ */
+export function readEdit(root: string, file: string, before: string, after: string): EditReading | undefined {
+  const verdict = native()?.moduleVerdict?.(file, before, after);
+  return verdict === null || verdict === undefined ? undefined : readingOf(root, file, verdict);
 }
 
 function readingOf(

@@ -24,10 +24,10 @@ import {
 } from '@variance-authority/raster';
 import { orAbsent } from './absent.js';
 import { claim, placedForIn, placedForOf, refuseOccupied, type Claims, type PlacedFor } from './claims.js';
-import { held } from './held.js';
+import { anyWidthOf, held } from './held.js';
 import { legacyHolders, partitionsOf } from './legacy.js';
 import { familyOf, identities, nearness } from './line.js';
-import { readRaster, readSidecar, retire, type Places, type Read } from './pair.js';
+import { readRaster, readSidecar, retire, type ImageReader, type Places, type Read } from './pair.js';
 import { DEFAULT_BASELINE_PATH, parseBaselinePath, sanitized } from './path-template.js';
 
 /**
@@ -35,6 +35,7 @@ import { DEFAULT_BASELINE_PATH, parseBaselinePath, sanitized } from './path-temp
  * store exists, with the same sentence the store would throw.
  */
 export { DEFAULT_BASELINE_PATH, parseBaselinePath, type BaselinePathTemplate } from './path-template.js';
+export type { ImageReader } from './pair.js';
 
 /**
  * Re-exported because `{engine}` is spelled with it: a reader that matches a
@@ -114,6 +115,17 @@ export interface DurableStoreOptions {
   readonly cacheRoot?: string;
 
   /**
+   * How a baseline's image is read, when `find` needs its bytes.
+   *
+   * Defaults to reading the file. The LFS store passes a reader that fetches
+   * the image first when the working tree holds its pointer, so the placement
+   * that says where the file is stays here and nowhere else. A reader that
+   * throws ENOENT means no image, and any other throw refuses the lookup, as a
+   * read of the file would. The render cache and `describe` never call it.
+   */
+  readonly readImage?: ImageReader;
+
+  /**
    * The runner's projects, by name, when it has them: a Playwright config's
    * `projects`. A record placed for a project outside them is a renamed
    * project's baseline, taken over rather than refused as a second claimant.
@@ -141,6 +153,7 @@ export function createDurableStore(root: string, options: DurableStoreOptions = 
   const occupied = (record: PlacedFor | undefined, key: BaselineKey, path: string): void =>
     refuseOccupied(record, key, path, template, projects);
   const at = (path: string): Places => ({ image: join(root, path), record: join(recordRoot, path) });
+  const readImage = options.readImage ?? readFile;
 
   // Every path this store has answered for, against the key it answered for.
   // The record beside each image is the claim no single store sees whole.
@@ -259,7 +272,7 @@ export function createDurableStore(root: string, options: DurableStoreOptions = 
     retention: 'durable',
 
     async find(key, identity): Promise<Found | null> {
-      const hit = await lookup(key, identity, readRaster);
+      const hit = await lookup(key, identity, (places) => readRaster(places, readImage));
       if (hit === null) return null;
       const { stored, ...rest } = hit;
       return { raster: stored, storedUnder: stored.identity, ...rest };
@@ -327,7 +340,7 @@ export function createDurableStore(root: string, options: DurableStoreOptions = 
     },
 
     /** The plan's complement, over paths this store alone can compute. See `held.ts`. */
-    async unplanned(keys, identity): Promise<readonly string[]> {
+    async unplanned(keys, identity, atAnyWidth = []): Promise<readonly string[]> {
       const engine = familyOf(identity.engine);
       const digest = identityDigest(identity);
       const planned = new Set<string>();
@@ -337,7 +350,8 @@ export function createDurableStore(root: string, options: DurableStoreOptions = 
           for (const partition of partitionsOf(digest)) planned.add(posix.join(holder, partition, leaf));
         }
       }
-      return held(recordRoot, { template, engine, digest, planned });
+      const widened = atAnyWidth.length === 0 ? undefined : anyWidthOf(template, engine, atAnyWidth);
+      return held(recordRoot, { template, engine, digest, planned, ...(widened === undefined ? {} : { widened }) });
     },
 
     // A durable store is also a render cache: an unchanged document under an

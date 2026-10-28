@@ -168,7 +168,7 @@ describe('the recorded partings a run can reach', () => {
     );
     expect(fallback.pool).toContain('no report at .variance/report.json');
     expect(fallback.pool).toContain('a deleted subject still counts');
-    expect(fallback.pool).toContain('run once to narrow it to this run, or pass --all');
+    expect(fallback.pool).toMatch(/a deleted subject still counts$/);
   });
 
   it('says how stale the record is, or that it cannot say', () => {
@@ -235,6 +235,14 @@ describe('formatLanding', () => {
     );
   });
 
+  it('names the shards whose read was not checked', () => {
+    const fold = { at: '/tmp/coverage.bin', shards: 3, observations: 2, modules: 1 };
+    expect(formatLanding({ ...fold, unchecked: ['/ci/jvm-1.bin', '/ci/jvm-2.bin'] }).split('\n').slice(2)).toEqual([
+      '  the reads of /ci/jvm-1.bin and /ci/jvm-2.bin were not checked: their records name the record their selection read `unknown`, ' +
+        'so nothing says they chose their tests from the record the other shards read',
+    ]);
+  });
+
   it('says what the landing did to the cases of the record it wrote', () => {
     const fold = { at: '/tmp/coverage.bin', shards: 2, observations: 2, modules: 1 };
     const lines = (cases: LandedJourneys['cases']) => formatLanding({ ...fold, cases }).split('\n').slice(2);
@@ -245,10 +253,14 @@ describe('formatLanding', () => {
     expect(lines({ laid: '/tmp/coverage.bin', shards: 0 })).toEqual([
       '  case index at /tmp/coverage.bin left as it was: no snapshot finished a test file',
     ]);
-    expect(lines({ unanswered: '/tmp/coverage.bin', shard: '/ci/shard-1.bin', removed: true })).toEqual([
+    expect(lines({ unanswered: '/tmp/coverage.bin', shards: ['/ci/shard-1.bin', '/ci/shard-2.bin'], removed: false })).toEqual([
+      '  no case index at /tmp/coverage.bin: /ci/shard-1.bin and /ci/shard-2.bin ran test files to the end, and ' +
+        'their records keep no case index this build can read',
+    ]);
+    expect(lines({ unanswered: '/tmp/coverage.bin', shards: ['/ci/shard-1.bin'], removed: true })).toEqual([
       '  case index removed at /tmp/coverage.bin: /ci/shard-1.bin ran a test file to the end, and ' +
         'its record keeps no case index this build can read, so no index can say which of ' +
-        "that file's cases run a line. Record cases in the runs that write the shards, or run the suite here, to write one.",
+        "that file's cases run a line.",
     ]);
   });
 

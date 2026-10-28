@@ -1,7 +1,9 @@
 //! The parse half of a source-index segment, as columns: the part of
 //! `encodeSourceIndex` from `parses.key` to `declares.name`, with the harvest,
-//! mock and member columns `source-index-harvest.ts`, `-mocks.ts` and
-//! `-members.ts` add.
+//! mock, member, member-declaration, member-use, own-use, nested and
+//! binding-member columns `source-index-harvest.ts`, `-mocks.ts`,
+//! `-members.ts`, `-member-declarations.ts`, `-member-uses.ts`,
+//! `-own-uses.ts`, `-nested.ts` and `-binding-members.ts` add.
 //!
 //! Two kinds of row are written into it. The graph walk's own reads
 //! (`index.rs`), whose absences are empty lists, and the parses JavaScript
@@ -28,6 +30,8 @@ pub trait ParseRow {
     fn harvested(&self) -> bool;
     /// How big the module is; absent for a row whose reader did not measure it.
     fn size(&self) -> Option<Size>;
+    /// The module's own doc comment, inside its marks; absent when it writes none.
+    fn doc(&self) -> Span;
 }
 
 /// A text span's two ends, or `NONE` twice when there is no span.
@@ -47,10 +51,13 @@ pub struct ParseColumns {
     bytes: Vec<u32>,
     lines: Vec<u32>,
     blocks: Vec<u32>,
+    doc: [Vec<u32>; 2],
     request_value: Vec<u32>,
     request_kind: Vec<u32>,
     request_line: Vec<u32>,
+    request_flags: Vec<u8>,
     request_bindings: Vec<u32>,
+    request_republishes: Vec<u8>,
     binding_imported: Vec<u32>,
     binding_local: Vec<u32>,
     binding_type: Vec<u8>,
@@ -70,6 +77,7 @@ pub struct ParseColumns {
     symbol_line: Vec<u32>,
     symbol_signature: [Vec<u32>; 2],
     symbol_doc: [Vec<u32>; 2],
+    symbol_reach: Vec<u8>,
     mocks_minus: Vec<u32>,
     mocks_plus: Vec<u32>,
     mock_minus: Vec<u32>,
@@ -78,6 +86,34 @@ pub struct ParseColumns {
     member_request: Vec<u32>,
     member_name: Vec<u32>,
     member_line: Vec<u32>,
+    member_through_default: Vec<u8>,
+    member_declarations: Vec<u32>,
+    member_declaration_name: Vec<u32>,
+    member_declaration_line: Vec<u32>,
+    member_declaration_on: Vec<u32>,
+    member_uses: Vec<u32>,
+    member_use_name: Vec<u32>,
+    member_use_line: Vec<u32>,
+    member_use_of: Vec<u32>,
+    member_use_how: Vec<u32>,
+    own_uses: Vec<u32>,
+    own_use_name: Vec<u32>,
+    own_use_line: Vec<u32>,
+    nested: Vec<u32>,
+    nested_name: Vec<u32>,
+    nested_kind: Vec<u32>,
+    nested_line: Vec<u32>,
+    nested_signature: [Vec<u32>; 2],
+    nested_doc: [Vec<u32>; 2],
+    nested_holder: Vec<u32>,
+    nested_holder_line: Vec<u32>,
+    binding_members: Vec<u32>,
+    binding_member_request: Vec<u32>,
+    binding_member_binding: Vec<u32>,
+    binding_member_name: Vec<u32>,
+    binding_member_line: Vec<u32>,
+    binding_member_within: Vec<u32>,
+    binding_within_name: Vec<u32>,
     declare_name: Vec<u32>,
 }
 
@@ -89,7 +125,7 @@ fn span(into: &mut [Vec<u32>; 2], value: Span) {
 impl ParseColumns {
     /// Every row, keyed and sorted by the caller, written in that order.
     pub fn of<P: ParseRow>(rows: &[(&str, &P)], strings: &Strings) -> Self {
-        let mut columns = Self { request_bindings: vec![0], ..Self::default() };
+        let mut columns = Self { request_bindings: vec![0], binding_member_within: vec![0], ..Self::default() };
         for (key, row) in rows {
             let (digest, way) = key.split_once('\0').unwrap_or((key, ""));
             columns.row(strings.id(digest), strings.id(way));
@@ -101,6 +137,7 @@ impl ParseColumns {
             columns.bytes.push(size.map_or(NONE, |size| size.bytes));
             columns.lines.push(size.map_or(NONE, |size| size.lines));
             columns.blocks.push(size.and_then(|size| size.blocks).unwrap_or(NONE));
+            span(&mut columns.doc, row.doc());
             row.write(strings, &mut columns);
         }
         columns.close();
@@ -122,12 +159,21 @@ impl ParseColumns {
         self.mocks_minus.push(self.mock_minus.len() as u32);
         self.mocks_plus.push(self.mock_plus.len() as u32);
         self.members.push(self.member_name.len() as u32);
+        self.member_declarations.push(self.member_declaration_name.len() as u32);
+        self.member_uses.push(self.member_use_name.len() as u32);
+        self.own_uses.push(self.own_use_name.len() as u32);
+        self.nested.push(self.nested_name.len() as u32);
+        self.binding_members.push(self.binding_member_name.len() as u32);
     }
 
-    pub fn request(&mut self, value: u32, kind: u32, line: u32, bindings: impl IntoIterator<Item = (u32, u32, bool, u32)>) {
+    /// One request; `flags` is [`request_flags`] of what its reader said about
+    /// it, and `republishes` marks an `export … from`.
+    pub fn request(&mut self, value: u32, kind: u32, line: u32, flags: u8, republishes: bool, bindings: impl IntoIterator<Item = (u32, u32, bool, u32)>) {
         self.request_value.push(value);
         self.request_kind.push(kind);
         self.request_line.push(line);
+        self.request_flags.push(flags);
+        self.request_republishes.push(u8::from(republishes));
         for (imported, local, type_only, line) in bindings {
             self.binding_imported.push(imported);
             self.binding_local.push(local);
@@ -152,12 +198,14 @@ impl ParseColumns {
         self.export_tags.push(tags);
     }
 
-    pub fn symbol(&mut self, name: u32, kind: u32, line: u32, signature: Span, doc: Span) {
+    /// `reach` as [`crate::harvest::reach_code`] stores it.
+    pub fn symbol(&mut self, name: u32, kind: u32, line: u32, signature: Span, doc: Span, reach: u8) {
         self.symbol_name.push(name);
         self.symbol_kind.push(kind);
         self.symbol_line.push(line);
         span(&mut self.symbol_signature, signature);
         span(&mut self.symbol_doc, doc);
+        self.symbol_reach.push(reach);
     }
 
     pub fn declare(&mut self, name: u32) {
@@ -169,10 +217,53 @@ impl ParseColumns {
         self.mock_plus.extend(plus);
     }
 
-    pub fn member(&mut self, request: u32, name: u32, line: u32) {
+    pub fn member(&mut self, request: u32, name: u32, line: u32, through_default: bool) {
         self.member_request.push(request);
         self.member_name.push(name);
         self.member_line.push(line);
+        self.member_through_default.push(u8::from(through_default));
+    }
+
+    pub fn member_declaration(&mut self, name: u32, line: u32, on: u32) {
+        self.member_declaration_name.push(name);
+        self.member_declaration_line.push(line);
+        self.member_declaration_on.push(on);
+    }
+
+    pub fn member_use(&mut self, name: u32, line: u32, of: u32, how: u32) {
+        self.member_use_name.push(name);
+        self.member_use_line.push(line);
+        self.member_use_of.push(of);
+        self.member_use_how.push(how);
+    }
+
+    pub fn own_use(&mut self, name: u32, line: u32) {
+        self.own_use_name.push(name);
+        self.own_use_line.push(line);
+    }
+
+    /// One function a function's body declares; `holder` is an id, or `NONE`
+    /// when nothing names the function that holds it.
+    #[allow(clippy::too_many_arguments, reason = "one column each, in the encoder's order")]
+    pub fn nested(&mut self, name: u32, kind: u32, line: u32, signature: Span, doc: Span, holder: u32, holder_line: u32) {
+        self.nested_name.push(name);
+        self.nested_kind.push(kind);
+        self.nested_line.push(line);
+        span(&mut self.nested_signature, signature);
+        span(&mut self.nested_doc, doc);
+        self.nested_holder.push(holder);
+        self.nested_holder_line.push(holder_line);
+    }
+
+    /// One name read off a value inside a module; `within` are the names read
+    /// off `binding` to reach the value, nearest first.
+    pub fn binding_member(&mut self, request: u32, binding: u32, within: impl IntoIterator<Item = u32>, name: u32, line: u32) {
+        self.binding_member_request.push(request);
+        self.binding_member_binding.push(binding);
+        self.binding_member_name.push(name);
+        self.binding_member_line.push(line);
+        self.binding_within_name.extend(within);
+        self.binding_member_within.push(self.binding_within_name.len() as u32);
     }
 
     /// The columns in `encodeSourceIndex`'s order, the deleted keys between
@@ -183,6 +274,9 @@ impl ParseColumns {
         let [export_doc_start, export_doc_end] = self.export_doc;
         let [symbol_signature_start, symbol_signature_end] = self.symbol_signature;
         let [symbol_doc_start, symbol_doc_end] = self.symbol_doc;
+        let [doc_start, doc_end] = self.doc;
+        let [nested_signature_start, nested_signature_end] = self.nested_signature;
+        let [nested_doc_start, nested_doc_end] = self.nested_doc;
         vec![
             u32s("parses.key", self.digest),
             u32s("parses.key-way", self.way),
@@ -198,10 +292,14 @@ impl ParseColumns {
             u32s("parses.bytes", self.bytes),
             u32s("parses.lines", self.lines),
             u32s("parses.blocks", self.blocks),
+            u32s("parses.doc-start", doc_start),
+            u32s("parses.doc-end", doc_end),
             u32s("requests.value", self.request_value),
             u32s("requests.kind", self.request_kind),
             u32s("requests.line", self.request_line),
+            u8s("requests.flags", self.request_flags),
             u32s("requests.bindings", self.request_bindings),
+            u8s("requests.republishes", self.request_republishes),
             u32s("bindings.imported", self.binding_imported),
             u32s("bindings.local", self.binding_local),
             u8s("bindings.type", self.binding_type),
@@ -220,6 +318,7 @@ impl ParseColumns {
             u32s("symbols.signature-end", symbol_signature_end),
             u32s("symbols.doc-start", symbol_doc_start),
             u32s("symbols.doc-end", symbol_doc_end),
+            u8s("symbols.reach", self.symbol_reach),
             u32s("exports.signature-start", export_signature_start),
             u32s("exports.signature-end", export_signature_end),
             u32s("exports.doc-start", export_doc_start),
@@ -233,7 +332,43 @@ impl ParseColumns {
             u32s("members.request", self.member_request),
             u32s("members.name", self.member_name),
             u32s("members.line", self.member_line),
+            u8s("members.through-default", self.member_through_default),
+            u32s("parses.member-declarations", self.member_declarations),
+            u32s("member-declarations.name", self.member_declaration_name),
+            u32s("member-declarations.line", self.member_declaration_line),
+            u32s("member-declarations.on", self.member_declaration_on),
+            u32s("parses.member-uses", self.member_uses),
+            u32s("member-uses.name", self.member_use_name),
+            u32s("member-uses.line", self.member_use_line),
+            u32s("member-uses.of", self.member_use_of),
+            u32s("member-uses.how", self.member_use_how),
+            u32s("parses.own-uses", self.own_uses),
+            u32s("own-uses.name", self.own_use_name),
+            u32s("own-uses.line", self.own_use_line),
+            u32s("parses.nested", self.nested),
+            u32s("nested.name", self.nested_name),
+            u32s("nested.kind", self.nested_kind),
+            u32s("nested.line", self.nested_line),
+            u32s("nested.signature-start", nested_signature_start),
+            u32s("nested.signature-end", nested_signature_end),
+            u32s("nested.doc-start", nested_doc_start),
+            u32s("nested.doc-end", nested_doc_end),
+            u32s("nested.holder", self.nested_holder),
+            u32s("nested.holder-line", self.nested_holder_line),
+            u32s("parses.binding-members", self.binding_members),
+            u32s("binding-members.request", self.binding_member_request),
+            u32s("binding-members.binding", self.binding_member_binding),
+            u32s("binding-members.name", self.binding_member_name),
+            u32s("binding-members.line", self.binding_member_line),
+            u32s("binding-members.within", self.binding_member_within),
+            u32s("binding-within.name", self.binding_within_name),
             u32s("declares.name", self.declare_name),
         ]
     }
+}
+
+/// A guessed request sets the low bit and an item asked for by its whole path
+/// the next, as `guessed` and `item` on `Request` in `read.ts` say them.
+pub fn request_flags(guessed: bool, item: bool) -> u8 {
+    u8::from(guessed) | (u8::from(item) << 1)
 }

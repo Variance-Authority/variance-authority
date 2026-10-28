@@ -14,6 +14,7 @@ import { native, nativeRefusal } from './native.js';
 import type { NativeDeclaredRoleCheck, NativeOrientLayers, NativeOrientMapAnswer, NativeOrientMapPrepared, NativeOrientShipped } from './native-orient.js';
 import type { SourceUpdate } from './published.js';
 import { sourceIndexPath } from './source-index.js';
+import { declaredTsconfig } from './typescript.js';
 
 export type {
   NativeOrientLayers as PackageLayers,
@@ -60,9 +61,11 @@ export async function prepareCodeMap(
   scanned?: Pick<SourceUpdate, 'listing'>,
 ): Promise<PreparedCodeMap> {
   const carried = scanned?.listing?.prepareOrientMap?.bind(scanned.listing);
+  // A manifest's entry lands where the scan that built the index put it.
+  const tsconfig = declaredTsconfig(root);
   const prepared = await (carried !== undefined
-    ? carried(root, index)
-    : entry('prepareOrientMap')(root, index, scanned !== undefined && scanned.listing === undefined ? true : null));
+    ? carried(root, index, tsconfig)
+    : entry('prepareOrientMap')(root, index, scanned !== undefined && scanned.listing === undefined ? true : null, tsconfig));
   return prepared === null ? { index } : { index, prepared };
 }
 

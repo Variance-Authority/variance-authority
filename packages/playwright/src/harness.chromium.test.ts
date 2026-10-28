@@ -4,6 +4,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { captureOnce, fetchModules } from '@variance-authority/playwright';
 import { AGENT_GLOBAL } from './agent.js';
 import { createHarness, type Harness, type HarnessOptions } from './harness.js';
+import { CHROMIUM_RASTER_ARGS } from './renderer.js';
 
 /**
  * The harness's own tests, with no corpus in sight.
@@ -156,6 +157,55 @@ describe.skipIf(!BROWSER_AVAILABLE)('createHarness', () => {
 const regionOf = () => ({
   timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
   language: navigator.language,
+});
+
+describe.skipIf(!BROWSER_AVAILABLE)('createHarness — text settings', () => {
+  it('lays text out under the flags the renderer paints it with', async () => {
+    // Hinting moves glyph advances wherever fontconfig is live, so a page laid
+    // out with it and painted without it wraps differently: on Linux the site's
+    // pages painted up to 866 pixels taller than the layout they were read from.
+    const launch = vi.spyOn(chromium, 'launch');
+    const harness = await createHarness(OPTIONS);
+
+    try {
+      expect(launch.mock.calls[0]?.[0]?.args).toEqual(expect.arrayContaining([...CHROMIUM_RASTER_ARGS]));
+    } finally {
+      launch.mockRestore();
+      await harness.close();
+    }
+  }, 60_000);
+});
+
+describe.skipIf(!BROWSER_AVAILABLE)('createHarness — what the page painted before', () => {
+  it('paints the same content to the same bytes after an edit and its revert', async () => {
+    // A harness mounts subject after subject on one page. With partial raster,
+    // a remount repaints only the damaged part of each tile, and the repainted
+    // pixels come out one colour level off a whole-tile paint, so the same
+    // content painted after an edit differs from the same content painted
+    // first.
+    const harness = await createHarness(OPTIONS);
+    const page = harness.page;
+
+    try {
+      await page.setContent(
+        '<style>body{margin:8px;font:16px system-ui}div{border:1px solid #ddd;border-radius:6px;padding:12px}</style>' +
+          '<div><b>Todos</b><ul><li><input type=checkbox checked> one</li><li><input type=checkbox> two</li></ul></div>',
+      );
+      const first = await page.screenshot();
+
+      const swap = (to: string): Promise<void> =>
+        page.evaluate((html) => {
+          window.document.querySelector('li')!.firstElementChild!.outerHTML = html;
+        }, to);
+      await swap('<span style="display:inline-block;width:13px;height:13px;background:#36c"></span>');
+      await page.screenshot();
+      await swap('<input type=checkbox checked>');
+
+      expect((await page.screenshot()).equals(first)).toBe(true);
+    } finally {
+      await harness.close();
+    }
+  }, 60_000);
 });
 
 describe.skipIf(!BROWSER_AVAILABLE)('createHarness — a declared timezone and locale', () => {

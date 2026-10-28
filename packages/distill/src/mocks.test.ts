@@ -1,7 +1,8 @@
 import type { ExecutionIndex, TestCoverage } from '@variance-authority/sense/test-selection';
 import type { ShadowReach } from '@variance-authority/sense/taint';
 import { describe, expect, it } from 'vitest';
-import { distillFile, formatFileDistillation } from './index.js';
+import { formatFileDistillation } from './index.js';
+import { distillOf } from './record.fixture.js';
 
 const FILE = 'test/card.test.ts';
 
@@ -29,7 +30,7 @@ const shadows = (file: string): readonly ShadowReach[] => (file === FILE ? REACH
 
 describe('the mocks a test file writes, held against what it loads', () => {
   it('names a mock of a module the file does not load as an error, and one beyond its subject\'s imports as a warning', () => {
-    const result = distillFile({ file: FILE, execution: EXECUTION, coverage: COVERAGE, shadows });
+    const result = distillOf({ file: FILE, execution: EXECUTION, coverage: COVERAGE, shadows });
 
     expect(result.mocks).toEqual([
       { module: 'src/legacy.ts', kind: 'unloaded' },
@@ -38,7 +39,7 @@ describe('the mocks a test file writes, held against what it loads', () => {
   });
 
   it('prints the error and the warning before the loads, each with its fix', () => {
-    const text = formatFileDistillation(distillFile({ file: FILE, execution: EXECUTION, coverage: COVERAGE, shadows }));
+    const text = formatFileDistillation(distillOf({ file: FILE, execution: EXECUTION, coverage: COVERAGE, shadows }));
 
     expect(text).toContain(
       `error: ${FILE} mocks src/legacy.ts, which it does not load, directly or through anything it imports: ` +
@@ -52,19 +53,19 @@ describe('the mocks a test file writes, held against what it loads', () => {
   it('says nothing of mocks within the subject\'s imports, nor when the shadows are not given', () => {
     const near = (file: string) => shadows(file).filter(({ hops }) => hops !== undefined && hops <= 2);
 
-    expect(distillFile({ file: FILE, execution: EXECUTION, coverage: COVERAGE, shadows: near }).mocks).toBeUndefined();
-    expect(distillFile({ file: FILE, execution: EXECUTION, coverage: COVERAGE }).mocks).toBeUndefined();
+    expect(distillOf({ file: FILE, execution: EXECUTION, coverage: COVERAGE, shadows: near }).mocks).toBeUndefined();
+    expect(distillOf({ file: FILE, execution: EXECUTION, coverage: COVERAGE }).mocks).toBeUndefined();
   });
 
   it('says nothing of a mock it could not reach past a file whose imports nobody read', () => {
     const blind = (file: string): readonly ShadowReach[] =>
       file === FILE ? [{ module: 'src/legacy.ts', unread: 'src/plugins.ts' }] : [];
 
-    expect(distillFile({ file: FILE, execution: EXECUTION, coverage: COVERAGE, shadows: blind }).mocks).toBeUndefined();
+    expect(distillOf({ file: FILE, execution: EXECUTION, coverage: COVERAGE, shadows: blind }).mocks).toBeUndefined();
   });
 
   it('holds the mocks against the graph when the record withholds the loads', () => {
-    const result = distillFile({ file: FILE, execution: { tests: [], modules: [] }, coverage: COVERAGE, shadows });
+    const result = distillOf({ file: FILE, execution: { tests: [], modules: [] }, coverage: COVERAGE, shadows });
 
     expect(result.withheld).toBe(`the record keeps no cases for ${FILE}.`);
     expect(result.mocks).toHaveLength(2);

@@ -1,7 +1,7 @@
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   DATABASE_VARIABLE,
   HOST_VARIABLE,
@@ -20,6 +20,13 @@ import {
   start,
   type RunningTribunal,
 } from './bin.js';
+
+import { grant } from '../worker-auth.js';
+
+vi.mock('../worker-auth.js', async (importOriginal) => {
+  const real = await importOriginal<typeof import('../worker-auth.js')>();
+  return { ...real, grant: vi.fn(real.grant) };
+});
 
 /**
  * The refusals, without binding a port — and then one start that does.
@@ -120,40 +127,51 @@ describe('who is allowed what', () => {
       headers: token === undefined ? {} : { authorization: `Bearer ${token}` },
     });
 
-  it('gives a token-holder what the token is for', () => {
+  it('gives a token-holder what the token is for', async () => {
     const authorize = authorizeFor(readConfig(env()));
 
-    expect(authorize(request(INGEST))).toBe('ingest');
-    expect(authorize(request(REVIEW))).toBe('review');
+    expect(await authorize(request(INGEST))).toBe('ingest');
+    expect(await authorize(request(REVIEW))).toBe('review');
   });
 
-  it('gives the share token the share, and only when one was configured', () => {
+  it('gives the share token the share, and only when one was configured', async () => {
     const SHARE = 'share-token-0123456789';
     const config = readConfig(env({ [SHARE_TOKEN_VARIABLE]: SHARE }));
 
     expect(config.shareToken).toBe(SHARE);
-    expect(authorizeFor(config)(request(SHARE))).toBe('share');
+    expect(await authorizeFor(config)(request(SHARE))).toBe('share');
     expect(readConfig(env()).shareToken).toBeUndefined();
-    expect(authorizeFor(readConfig(env()))(request(SHARE))).toBeNull();
+    expect(await authorizeFor(readConfig(env()))(request(SHARE))).toBeNull();
   });
 
-  it('refuses a token it does not know, even on loopback', () => {
+  it('refuses a token it does not know, even on loopback', async () => {
     const authorize = authorizeFor(readConfig(env()));
 
     // A caller that presented a credential is claiming one. Falling back to the
     // loopback grant would make a wrong token better than no token.
-    expect(authorize(request('nonsense-token-01234'))).toBeNull();
+    expect(await authorize(request('nonsense-token-01234'))).toBeNull();
   });
 
-  it('lets the browser on this machine review with no credential', () => {
-    expect(authorizeFor(readConfig(env()))(request())).toBe('review');
+  it('compares a presented token the way the Worker does, in constant time', async () => {
+    const config = readConfig(env());
+    const presented = request(`${INGEST.slice(0, -1)}X`);
+    vi.mocked(grant).mockClear();
+
+    // A compare that stops at the first differing character answers sooner the
+    // less of a guess matched, so the time it takes would spell the token out.
+    expect(await authorizeFor(config)(presented)).toBeNull();
+    expect(vi.mocked(grant)).toHaveBeenCalledWith(presented, config);
   });
 
-  it('grants nothing to an anonymous caller once the socket is on a network', () => {
+  it('lets the browser on this machine review with no credential', async () => {
+    expect(await authorizeFor(readConfig(env()))(request())).toBe('review');
+  });
+
+  it('grants nothing to an anonymous caller once the socket is on a network', async () => {
     const config = readConfig(env({ [HOST_VARIABLE]: '0.0.0.0', [TRUST_NETWORK_VARIABLE]: '1' }));
 
-    expect(authorizeFor(config)(request())).toBeNull();
-    expect(authorizeFor(config)(request(REVIEW))).toBe('review');
+    expect(await authorizeFor(config)(request())).toBeNull();
+    expect(await authorizeFor(config)(request(REVIEW))).toBe('review');
   });
 });
 

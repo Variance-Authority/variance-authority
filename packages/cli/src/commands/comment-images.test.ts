@@ -17,6 +17,7 @@ function changed(subject: string, component: string, file: string): ObservationR
       before: `images/${name}.before.png`,
       after: `images/${name}.after.png`,
       diff: `images/${name}.diff.png`,
+      change: `images/${name}.change.png`,
     },
   };
 }
@@ -42,23 +43,62 @@ const REPORT: CliRunReport = {
 const ROOT = 'https://github.com/o/r/raw/0123abc/';
 
 describe('pictures in the comment, when the operator published the images', () => {
-  it('shows the leading cause before and after above the fold, at the published path', () => {
+  it('shows the leading cause as its change, cropped, above the fold, at the published path', () => {
     const body = renderComment({ project: PROJECT, report: REPORT, imageRoot: ROOT });
-    const before =
-      '<img src="https://github.com/o/r/raw/0123abc/images/story%253Atoggle.before.png"';
+    const change =
+      '<img src="https://github.com/o/r/raw/0123abc/images/story%253Atoggle.change.png"';
 
-    // The file on disk is `story%3Atoggle.before.png`; a URL carrying `%3A` raw
+    // The file on disk is `story%3Atoggle.change.png`; a URL carrying `%3A` raw
     // would be decoded by the server into a name nobody wrote.
-    expect(body).toContain(before);
-    expect(body.indexOf(before)).toBeLessThan(body.indexOf('<details>'));
+    expect(body).toContain(change);
+    expect(body.indexOf(change)).toBeLessThan(body.indexOf('<details>'));
   });
 
-  it('gives each further cause its pair in the fold, and does not repeat the first', () => {
+  it('shows one picture per subject at its own size, never the two whole pages', () => {
+    const body = renderComment({ project: PROJECT, report: REPORT, imageRoot: ROOT });
+
+    expect(body.match(/<img /g)).toHaveLength(2);
+    expect(body).not.toContain('.before.png');
+    expect(body).not.toContain('.after.png');
+    expect(body).not.toContain('width=');
+  });
+
+  it('costs the comment no more text than the pair it replaces', () => {
+    const pair: CliRunReport = {
+      ...REPORT,
+      observations: REPORT.observations.map((entry) => {
+        const { change: _change, ...images } = entry.images!;
+        return { ...entry, images };
+      }),
+    };
+
+    const cropped = renderComment({ project: PROJECT, report: REPORT, imageRoot: ROOT });
+    const whole = renderComment({ project: PROJECT, report: pair, imageRoot: ROOT });
+
+    expect(cropped.length).toBeLessThan(whole.length);
+  });
+
+  it('gives each further cause its picture in the fold, and does not repeat the first', () => {
     const body = renderComment({ project: PROJECT, report: REPORT, imageRoot: ROOT });
     const fold = body.slice(body.indexOf('<details>'));
 
-    expect(fold).toContain('alt="story:&quot;quoted&quot; after"');
+    expect(fold).toContain('alt="story:&quot;quoted&quot;: before beside after, the change marked"');
     expect(fold).not.toContain('story%253Atoggle');
+  });
+
+  it('falls back to the whole before and after when the change was not cropped', () => {
+    const pair: CliRunReport = {
+      ...REPORT,
+      observations: REPORT.observations.map((entry) => {
+        const { change: _change, ...images } = entry.images!;
+        return { ...entry, images };
+      }),
+    };
+
+    const body = renderComment({ project: PROJECT, report: pair, imageRoot: ROOT });
+
+    expect(body).toContain('images/story%253Atoggle.before.png');
+    expect(body).toContain('alt="story:&quot;quoted&quot; after"');
   });
 
   it('carries no picture when nothing was published', () => {

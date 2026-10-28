@@ -29,12 +29,17 @@ describe('place', () => {
     expect(backward.owner).toEqual([2, 1]);
   });
 
-  it('places by checksum when nothing is recorded, and a group keeps its shard when another is added', () => {
-    const before = place([timed('a'), timed('b'), timed('c')], 3);
-    const after = place([timed('a'), timed('b'), timed('c'), timed('d')], 3);
-    expect(before.by).toBe('checksum');
-    expect(before.load).toBeUndefined();
-    expect(after.owner.slice(0, 3)).toEqual(before.owner);
+  it('weighs every group the same when nothing is recorded, by the same rule, ties by key then lowest shard', () => {
+    const placement = place([timed('d'), timed('b', undefined, undefined), timed('a'), timed('c'), timed('e')], 2);
+    expect(placement.by).toBe('count');
+    // a → 1, b → 2, c → 1, d → 2, e → 1: one each, a group of two members weighing the same as one.
+    expect(placement.owner).toEqual([2, 2, 1, 1, 1]);
+    expect(placement.cost).toEqual([1, 1, 1, 1, 1]);
+    expect(placement.load).toEqual([3, 2]);
+  });
+
+  it('leaves no shard empty when nothing is recorded and there are as many groups as shards', () => {
+    expect(new Set(place([timed('x'), timed('y'), timed('z')], 3).owner)).toEqual(new Set([1, 2, 3]));
   });
 
   it('gives one shard everything', () => {

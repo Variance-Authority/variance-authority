@@ -287,14 +287,36 @@ describe('the relation the reading cannot support', () => {
     },
   ]);
 
-  it('refuses a spatial question rather than answering it from document order', () => {
+  it('answers where the anchor is, and names the relation it cannot read, rather than guessing it from document order', () => {
     // Document order agrees with the screen often enough to be dangerous and
-    // not often enough to be relied on, so the answer is a sentence about the
-    // run rather than a guess with a file and a line on it.
+    // not often enough to be relied on, so nothing is placed beneath the
+    // anchor. What the reading still holds is where the anchor itself is, on
+    // every surface that says it, and that is the answer, beside the gap.
     const answer = orient(flat, askedFor('warning', { under: 'the Carrier field' }));
-    expect(answer.hits).toEqual([]);
     expect(answer.laidOut).toBe(false);
-    expect(answer.refused).toContain('did not resolve layout');
+    expect(answer.unrelated).toContain('did not resolve layout');
+    expect(answer.unrelated).not.toMatch(/re-run/i);
+    expect(answer.hits.map((hit) => [hit.subject, hit.anchor.name, hit.target])).toEqual([
+      [DISPATCH.subject, 'Carrier', undefined],
+    ]);
+    expect(answer.hits[0]?.anchor.file).toBe('src/dispatch/CarrierPicker.tsx');
+  });
+
+  it('prints the anchor\'s place under the gap, and claims no relation', () => {
+    const printed = locate.run(flat, { query: 'warning', under: 'the Carrier field' });
+
+    expect(printed).toContain('did not resolve layout');
+    expect(printed).toContain('CarrierPicker');
+    expect(printed).not.toContain('Cannot answer');
+    expect(printed).not.toMatch(/re-run|matched on place/i);
+  });
+
+  it('says no surface names the anchor, under the gap, when none does', () => {
+    const printed = locate.run(flat, { query: 'warning', under: 'zzqxv' });
+
+    expect(printed).toContain('did not resolve layout');
+    expect(printed).toMatch(/No surface of \d+ says/);
+    expect(printed).not.toMatch(/re-run/i);
   });
 
   it('still answers a containment question, which needs no rectangles', () => {
@@ -305,7 +327,7 @@ describe('the relation the reading cannot support', () => {
     // dialog. So the answer is everything inside it, flagged as matched on
     // place, with the sentence among them — and the reader picks.
     const answer = orient(flat, askedFor('warning', { inside: 'the Dispatch shipment dialog' }));
-    expect(answer.refused).toBeUndefined();
+    expect(answer.unrelated).toBeUndefined();
 
     const hit = answer.hits[0];
     expect(hit?.targetMatched).toBe(false);

@@ -3,6 +3,8 @@
  * out rather than from a second walk.
  */
 
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import type { Parsed } from '@variance-authority/sense';
 import { NAMESPACE_NAME } from '@variance-authority/sense/read';
 import {
@@ -13,9 +15,11 @@ import {
   type Deep,
   type ImportTargets,
   type Taken,
+  type Through,
   type Usage,
   type Use,
 } from '@variance-authority/package/help';
+import { docOf } from './indexed-surface.js';
 
 /** An import by path while its file's targets are still to come. */
 type Pending = { -readonly [key in keyof Deep]: Deep[key] };
@@ -30,7 +34,7 @@ type Pending = { -readonly [key in keyof Deep]: Deep[key] };
  * among them that declare no entry, whose imports are listed apart from the
  * deep ones.
  */
-export function collectingUsage(opened: ReadonlySet<string>, targets: ImportTargets): {
+export function collectingUsage(root: string, opened: ReadonlySet<string>, targets: ImportTargets): {
   accept(at: string, by: string, parsed: Parsed): void;
   targets(at: string, targets: readonly (string | undefined)[]): void;
   read(): Usage;
@@ -43,8 +47,22 @@ export function collectingUsage(opened: ReadonlySet<string>, targets: ImportTarg
       if (parsed.unknown !== undefined) usage.unreadable.push(at);
       const kind = kindOf(at);
 
+      // The parse holds where a doc is, not what it says, so the file is read
+      // once for the prose, and only when one of its exports has any.
+      let text: string | undefined;
       for (const published of parsed.exports ?? []) {
         if (published.exported !== undefined) {
+          // The TypeScript reader spans an export's doc on the export; the
+          // others span it on the declaration the export binds, by its name.
+          // One name may be declared twice, `const Kind` and `type Kind`: an
+          // export takes the declaration on its own line, else the first.
+          const named = published.from === undefined
+            ? (parsed.symbols ?? []).filter((symbol) => symbol.name === published.local)
+            : [];
+          const bound = named.find((symbol) => symbol.line === published.line) ?? named[0];
+          const span = published.doc ?? bound?.doc;
+          if (span !== undefined) text ??= readFileSync(join(root, at), 'utf8');
+          const doc = text === undefined ? undefined : docOf(text, span);
           usage.exported.push({
             name: published.exported,
             at,
@@ -52,6 +70,8 @@ export function collectingUsage(opened: ReadonlySet<string>, targets: ImportTarg
             line: published.line,
             type: published.type,
             kind,
+            ...(bound === undefined ? {} : { declaration: bound.kind }),
+            ...(doc === undefined ? {} : { doc }),
           });
         }
       }
@@ -70,11 +90,10 @@ export function collectingUsage(opened: ReadonlySet<string>, targets: ImportTarg
         }
 
         for (const binding of asked.bindings) {
-          if (binding.imported !== NAMESPACE_NAME) usage.take(key, binding.imported, { by, at, line: binding.line, type: binding.type, kind });
+          if (binding.imported !== NAMESPACE_NAME) usage.take(key, binding.imported, { ...renamed(binding), by, at, line: binding.line, type: binding.type, kind });
         }
-        const through = { kind: asked.kind === 'dynamic' ? 'dynamic' : 'namespace', line: asked.line } as const;
         for (const member of parsed.members ?? []) {
-          if (member.request === index) usage.take(key, member.name, { by, at, line: member.line, type: false, kind, through });
+          if (member.request === index) usage.take(key, member.name, { by, at, line: member.line, type: asked.kind === 'type', kind, through: throughOf(asked, member) });
         }
       }
     },
@@ -100,11 +119,28 @@ function takenBy(
   const taken: Taken[] = [];
   for (const binding of asked.bindings) {
     if (binding.imported === NAMESPACE_NAME) continue;
-    taken.push({ name: binding.imported, by, at, line: binding.line, type: binding.type, kind });
+    taken.push({ name: binding.imported, ...renamed(binding), by, at, line: binding.line, type: binding.type, kind });
   }
-  const through = { kind: asked.kind === 'dynamic' ? 'dynamic' : 'namespace', line: asked.line } as const;
   for (const member of parsed.members ?? []) {
-    if (member.request === index) taken.push({ name: member.name, by, at, line: member.line, type: false, kind, through });
+    if (member.request === index) taken.push({ name: member.name, by, at, line: member.line, type: asked.kind === 'type', kind, through: throughOf(asked, member) });
   }
   return taken;
+}
+
+/**
+ * The request a member is read through, and how: off its `default`, or the module escaping whole as `*`.
+ * Only an `import()` type holds a module through a `type` request, so it is an `import()`, and its reads are types.
+ */
+function throughOf(asked: Parsed['requests'][number], member: NonNullable<Parsed['members']>[number]): Through {
+  return {
+    kind: asked.kind === 'dynamic' || asked.kind === 'type' ? 'dynamic' : 'namespace',
+    line: asked.line,
+    ...(member.throughDefault === true ? { throughDefault: true } : {}),
+    ...(member.name === NAMESPACE_NAME ? { whole: true } : {}),
+  };
+}
+
+/** The `local` of a use of `binding`, when its statement renames it with `as`. */
+function renamed(binding: Parsed['requests'][number]['bindings'][number]): { readonly local?: string } {
+  return binding.local === binding.imported ? {} : { local: binding.local };
 }

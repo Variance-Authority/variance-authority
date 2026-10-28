@@ -45,7 +45,7 @@ import { heldSites } from './control.js';
  * Unexplained is not a flake. This system's position on what establishes a flake
  * has not moved: a subject is unstable when it fails to read the same way twice,
  * and one reading can never prove instability
- * ([`flakiness.md`](../../../../docs/flakiness.md)). What an unexplained movement
+ * ([`flakiness.md`](https://variance-authority.dev/docs/flakiness)). What an unexplained movement
  * is, exactly, is **the shortlist of subjects worth reading twice** — which is
  * the scarce resource a sweep spends, and until now it was spent on `changed`
  * subjects in whatever order the plan produced them.

@@ -1,7 +1,6 @@
 name: check
 
-# This repository's own gate. Everything in it that is a decision is commented as
-# one.
+# This repository's own gate.
 #
 # These jobs run the suite and the repository's own rules, one job per harness.
 # The suite and the cases run in the pinned Playwright image, so the chromium
@@ -41,6 +40,7 @@ on:
 # run's artifacts.
 permissions:
   contents: read
+  actions: read
   pull-requests: write
 
 # A pull request's newer push supersedes its older one, so the group is the ref
@@ -55,8 +55,9 @@ jobs:
   rules:
     # The repository's own rules, read as data: lint, and the `tools/*.check.ts`
     # suite. The cheapest failures there are, so they report while the suite is
-    # still installing. The native crate's unit tests run last, for the reason
-    # written at their step. A merge group runs `queue` instead.
+    # still installing. The carry contract and the native crate's unit tests run
+    # after them, for the reasons written at their steps. A merge group runs
+    # `queue` instead.
     if: github.event_name != 'merge_group'
     runs-on: ubuntu-24.04
 
@@ -122,6 +123,8 @@ jobs:
       # checker reading `src` would pass on things the published types refuse.
       - uses: ./.github/actions/build
         id: build
+        with:
+          native-tests: true
 
       # Before the checks because it is the fastest of the two and its failures
       # are the cheapest to act on: an unused import is a one-line fix.
@@ -139,6 +142,67 @@ jobs:
         shell: bash
         run: yarn check
 
+      # The import fences in each `.relations.json`: a runner-neutral file that
+      # reads one runner's integration is the first step of bending toward it.
+      - name: restrictions
+        shell: bash
+        run: yarn restrictions
+
+      # The journeys that carry a record through a history of edits and runs,
+      # asked in-process and through the CLI after a restart. They run here by
+      # path, not by selection: `suite` runs what Variance selects from the
+      # record `main` saved, and a defect in carrying is a defect in that record,
+      # so a selection read from it is the one answer this contract cannot trust.
+      # They need the build this job already made — the CLI journeys run
+      # `packages/cli/dist/bin.js` — and nothing else, so they are a step here
+      # rather than a job that installs and builds again. The paths are what
+      # carrying is read and written by: the selection and the instrumenter in
+      # `sense`, the native layer, and the CLI's commands that compare records.
+      # A push to `main` always runs them. Like the native tests, they run
+      # after a red rule, because a failing link check says nothing about
+      # carrying.
+      #
+      # A failed walk keeps its directory — the texts, the actions, the record
+      # and each expectation beside what came back — under the artifacts path,
+      # and the step after uploads it.
+      - name: carry contract
+        id: carry-contract
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        shell: bash
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          CARRY_CONTRACT_ARTIFACTS: ${{ runner.temp }}/carry-contract
+        run: |
+          set -euo pipefail
+          if [ -n "$BASE" ] && [ -z "$(git diff --name-only "$BASE" HEAD -- \
+            packages/sense packages/core/src packages/cli/src/commands \
+            .github/workflows/check.yml)" ]; then
+            echo "carry contract skipped: nothing it reads changed since $BASE"
+            exit 0
+          fi
+          mkdir -p "$CARRY_CONTRACT_ARTIFACTS"
+          # The two runs share nothing but the build, so they run side by
+          # side, each into its own log, printed whole once both have ended.
+          yarn vitest run packages/sense/src/test-selection/carry-contract.test.ts packages/sense/src/test-selection/carry-harness.test.ts \
+            > "$CARRY_CONTRACT_ARTIFACTS/in-process.log" 2>&1 &
+          in_process=$!
+          yarn vitest run --config vitest.integration.config.mts packages/sense/src/test-selection/carry-contract.integration.test.ts \
+            > "$CARRY_CONTRACT_ARTIFACTS/cli.log" 2>&1 &
+          cli=$!
+          status=0
+          wait "$in_process" || status=1
+          wait "$cli" || status=1
+          cat "$CARRY_CONTRACT_ARTIFACTS/in-process.log" "$CARRY_CONTRACT_ARTIFACTS/cli.log"
+          exit "$status"
+
+      - name: keep the failed walks
+        if: ${{ !cancelled() && steps.carry-contract.outcome == 'failure' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: carry-contract-walks
+          path: ${{ runner.temp }}/carry-contract
+          if-no-files-found: ignore
+
       # The native crates' own unit tests, the `#[cfg(test)]` modules under
       # `packages/sense/native`, and one build of the instrumenter crate as a
       # project's Rust pipeline links it, from `node_modules`. `yarn test`
@@ -151,13 +215,12 @@ jobs:
       # about the crate.
       #
       # On a pull request that leaves the crate as its base had it, the step
-      # skips, and says so. The tests read nothing outside
-      # `packages/sense/native` but the command that runs them, so the crate's
-      # tree id, which the build action already names, and the `test:native`
-      # script in `packages/sense/package.json` are the whole of what can move
-      # their answer. When both match the base's, the answer is the base's.
-      # `HEAD` here is the pull request merged into its base, so the tree
-      # matches exactly when the pull request changed nothing in the crate.
+      # skips, and says so. The tests also read the record layout Rust
+      # compiles from outside `packages/sense/native`. The build action names
+      # both compiled inputs; those and the `test:native` command in
+      # `packages/sense/package.json` decide whether a source edit needs them.
+      # `HEAD` here is the pull request merged into its base, so the identity
+      # matches exactly when the pull request changed no compiled input.
       #
       # The toolchain file names `stable`, not a version, so a Rust release can
       # change the answer with no file moving. A push to `main` therefore always
@@ -168,7 +231,7 @@ jobs:
         shell: bash
         env:
           BASE: ${{ github.event.pull_request.base.sha }}
-          TREE: ${{ steps.build.outputs.native-tree }}
+          INPUTS: ${{ steps.build.outputs.native-inputs }}
         run: |
           command_at() {
             git show "$1:packages/sense/package.json" 2>/dev/null | node -e '
@@ -177,13 +240,16 @@ jobs:
               console.log(script);
             ' 2>/dev/null
           }
-          if [ -n "$BASE" ] && [ -n "$TREE" ]; then
+          if [ -n "$BASE" ] && [ -n "$INPUTS" ]; then
             git cat-file -e "$BASE^{commit}" 2>/dev/null || git fetch --no-tags --quiet --depth=1 origin "$BASE" || true
-            base_tree=$(git rev-parse --verify --quiet "$BASE:packages/sense/native" || true)
+            base_inputs=$(node --input-type=module -e '
+              import { nativeBuildInputs } from "./packages/sense/native/build-inputs.mjs";
+              process.stdout.write(nativeBuildInputs(process.cwd(), process.env.BASE)?.identity ?? "");
+            ')
             base_command=$(command_at "$BASE" || true)
             head_command=$(command_at HEAD || true)
-            if [ -n "$base_tree" ] && [ "$base_tree" = "$TREE" ] && [ -n "$base_command" ] && [ "$base_command" = "$head_command" ]; then
-              echo "native unit tests skipped: packages/sense/native is tree $TREE and test:native is \`$head_command\` both here and at the base $BASE"
+            if [ -n "$base_inputs" ] && [ "$base_inputs" = "$INPUTS" ] && [ -n "$base_command" ] && [ "$base_command" = "$head_command" ]; then
+              echo "native unit tests skipped: native compiled inputs are $INPUTS and test:native is \`$head_command\` both here and at the base $BASE"
               exit 0
             fi
           fi
@@ -237,8 +303,16 @@ jobs:
     # a job told nothing was uploaded takes nothing, and a job told something
     # was stops when it cannot download it.
     outputs:
+      legs: ${{ steps.count.outputs.legs }}
+      native-key: ${{ steps.scanner.outputs.native-key || steps.initial.outputs.native-key }}
+      toolchain: ${{ steps.scanner.outputs.toolchain || steps.initial.outputs.toolchain }}
       handed: ${{ steps.hand.outputs.artifact-id != '' }}
       carried: ${{ steps.carry.outputs.artifact-id != '' }}
+      # The commit every job of a pull request's run merges its head with: the
+      # one the mainline's records were made at, when the head merged with it,
+      # and the merge commit this job made, which every other job's must be.
+      baseline: ${{ steps.merge.outputs.merged == 'true' && steps.read.outputs.commit || '' }}
+      checkout: ${{ steps.merge.outputs.checkout }}
 
     steps:
       # Every commit, because the read says how far behind HEAD the record was
@@ -259,6 +333,7 @@ jobs:
         run: corepack enable && yarn install --immutable
 
       - uses: ./.github/actions/build
+        id: initial
 
       # `mainlineBase` keeps what it reads under the cache's read root, one
       # directory per suite, and that root is what the jobs below are handed:
@@ -268,30 +343,59 @@ jobs:
       # was not asked about, because this environment names no mainline or
       # lacks the share's credential, leaves nothing, and a job asking finds
       # the same.
+      #
+      # The read also names the commit the records were made at, which a pull
+      # request's head is merged with below: one commit, or none when the suites'
+      # records were made at different commits. `tools/read-mainline.mjs`.
       - name: read the mainline once
         id: read
         shell: bash
+        run: node tools/read-mainline.mjs
+
+      # Tried here once for the run, and its answer handed on: a head that
+      # conflicts with the record's commit stays merged with the base tip in
+      # every job, and the others are told which commit this merge made.
+      - uses: ./.github/actions/merge-baseline
+        id: merge
+        if: github.event_name == 'pull_request'
+        with:
+          commit: ${{ steps.read.outputs.commit }}
+          head: ${{ github.event.pull_request.head.sha }}
+          on-conflict: stay
+
+      # The pointers handed on are asked at the merge base the other jobs will
+      # stand on: the merged checkout's, past the record's commit when the head
+      # already held it. Behind it, the read just made reads the same record
+      # without asking the line. Past it, the line can answer with a record
+      # nearer the merge base, which the jobs read while standing on the merge
+      # made with the first: a wider run, not a narrower one, and said here.
+      - name: read the mainline at the merge
+        id: reread
+        if: steps.merge.outputs.merged == 'true'
+        shell: bash
+        env:
+          MERGED_WITH: ${{ steps.read.outputs.commit }}
         run: |
-          read=$(node --input-type=module -e "
-            const cli = await import('@variance-authority/cli');
-            const selection = await import('@variance-authority/sense/test-selection');
-            const root = process.cwd();
-            for (const { name, carry } of selection.declaredSuites(root) ?? []) {
-              if (carry !== 'share') continue;
-              const base = await cli.suiteBase(root, { suite: name });
-              if (base.from === 'mainline') console.error(cli.mainlineRead(base.mainline));
-              else if ('missed' in base && base.missed !== undefined) console.error(cli.mainlineMissed(base.missed));
-            }
-            process.stdout.write(selection.cacheRootFor(root) + '/share/read');
-          ")
-          echo "dir=$read" >> "$GITHUB_OUTPUT"
+          node tools/read-mainline.mjs
+          read=$(sed -n 's/^commit=//p' "$GITHUB_OUTPUT" | tail -n 1)
+          if [ "$read" != "$MERGED_WITH" ]; then
+            echo "::notice::The head is merged with $MERGED_WITH, and the mainline read at that merge answered ${read:-no single commit}: the run measures the commits between them as well."
+          fi
+
+      - name: freeze the read
+        shell: bash
+        env:
+          READ: ${{ steps.read.outputs.dir }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/base"
+          if [ -d "$READ" ]; then cp -R "$READ/." "$RUNNER_TEMP/base/"; fi
 
       - name: hand the read on
         id: hand
         uses: actions/upload-artifact@v4
         with:
           name: variance-base
-          path: ${{ steps.read.outputs.dir }}
+          path: ${{ runner.temp }}/base
           include-hidden-files: true
           if-no-files-found: ignore
           retention-days: 1
@@ -318,10 +422,12 @@ jobs:
           restore-keys: variance-pr-${{ github.event.pull_request.number }}-
 
       # The record names the commits its tests last ran at, the merge commits
-      # of earlier pushes, which no ref holds any more: `tools/take-carried.mjs`
-      # fetches each by name. A suite whose commits the remote no longer has is
-      # not handed on, and reads `main`'s record; checked once here, so every
-      # job reads the same.
+      # of earlier pushes, which no ref holds: `tools/take-carried.mjs` reads
+      # a merge with the record's commit from the bundle the `record` job left
+      # beside the records, and fetches GitHub's own merge by name. A suite
+      # whose commits cannot be had is not handed on, and reads `main`'s
+      # record; checked once here, so every job reads the same. The bundle is
+      # a file, not a suite's directory, and travels with the records.
       - name: check what the last push ran
         if: github.event_name == 'pull_request'
         shell: bash
@@ -343,6 +449,47 @@ jobs:
           if-no-files-found: ignore
           retention-days: 1
 
+      - name: reconcile the merged install
+        if: steps.merge.outputs.merged == 'true'
+        shell: bash
+        run: yarn install --immutable
+
+      - uses: ./.github/actions/build
+        id: scanner
+        if: steps.merge.outputs.merged == 'true'
+
+      - name: hand the native scanner on
+        uses: actions/upload-artifact@v4
+        with:
+          name: variance-native
+          path: |
+            packages/sense/npm/*/scan.node
+            packages/sense/npm/*/scan.node.tree
+          if-no-files-found: error
+          retention-days: 1
+
+      # Keep the same carried/mainline record the suite jobs will read. Prices
+      # and collection are read after the merge, on the suite jobs' own tree.
+      - name: keep the planning records
+        shell: bash
+        env:
+          HANDED: ${{ steps.hand.outputs.artifact-id != '' }}
+        run: |
+          node tools/take-base.mjs "$RUNNER_TEMP/base" "$HANDED"
+          node tools/keep-base.mjs
+
+      - name: plan suite jobs
+        id: count
+        shell: bash
+        env:
+          BASELINE_READ: ${{ runner.temp }}/base
+          BASELINE_HANDED: ${{ steps.hand.outputs.artifact-id != '' }}
+          EVENT: ${{ github.event_name }}
+          BASE: ${{ github.event.pull_request.base.sha }}
+          SETUP: '100'
+          BUDGET: '240'
+        run: node tools/plan-suites.mjs
+
   suite:
     # One slice, or one shard of one, per job, in the pinned Playwright image
     # `cases` and `variance.yml` run in. The image carries the browser, so the
@@ -352,20 +499,11 @@ jobs:
     # green in it on `main` is what showed the browser suites' numbers survive
     # the move off the machine that made them.
     #
-    # The three slices in one job took eleven minutes on `main`: unit 3.5,
-    # integration 2, chromium 6. Split, the longest job is a chromium third. The
-    # split is per slice because each slice already has a config and a record
-    # of its own, and within unit and chromium by shard because they are the
-    # long ones. Integration stays whole on purpose, and not only because it is
-    # short: its record is made the way a laptop's is, the run layered onto the
-    # base it found, while the sharded slices' records are made the way a
-    # sharded suite's are, each shard alone and folded in `record` below.
-    #
-    # A shard is Vitest's own `--shard`. A pull request's selected slice is not
-    # sharded: its first shard job runs the whole selection and the others stop
-    # before the test. A selected run records over the base it read, and the
-    # fold refuses two shard records that both carry the base's rows, so the
-    # selection runs in one job and hands its record on as a whole slice's is.
+    # `base` compares the recorded wall time of a serial selected run with
+    # a sharded whole run. Cheap selections start one job; broad selections
+    # keep the faster whole-suite parallelism. No job installs merely to skip.
+    # Selected records still layer once; whole shards still record alone and
+    # fold over one shared baseline.
     #
     # Not `fail-fast`: a red unit shard says nothing about chromium, and a
     # cancelled job reports nothing.
@@ -374,13 +512,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - { suite: unit, shard: 1/2 }
-          - { suite: unit, shard: 2/2 }
-          - { suite: integration }
-          - { suite: chromium, shard: 1/3 }
-          - { suite: chromium, shard: 2/3 }
-          - { suite: chromium, shard: 3/3 }
+        include: ${{ fromJSON(needs.base.outputs.legs) }}
     runs-on: ubuntu-24.04
     container:
       image: mcr.microsoft.com/playwright:v1.62.1-noble
@@ -389,10 +521,11 @@ jobs:
 
     steps:
       # The image has neither git nor a compiler; `cases` says why each is
-      # needed before the checkout.
+      # needed before the checkout. git-lfs is for the store's test that commits
+      # a baseline through the filter, which skips where git-lfs is absent.
       - name: version control and compiler
         shell: bash
-        run: apt-get update && apt-get install -y --no-install-recommends git build-essential curl ca-certificates
+        run: apt-get update && apt-get install -y --no-install-recommends git git-lfs build-essential curl ca-certificates
 
       # Every commit, because the reading diffs each test from the commit it
       # last ran at, which can be any number of commits back. No trees, for the
@@ -407,22 +540,29 @@ jobs:
         with:
           node-version: 24
 
-      - name: rust
-        shell: bash
-        run: |
-          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal
-          echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
-
       # For the reason written at the same step in `cases`.
       - name: trust the workspace
         shell: bash
         run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
+      # The head merged with the commit the mainline's record was made at, as
+      # `base` merged it, so the selection measures the pull request's change
+      # alone. Before the install and the build, which read the sources.
+      - uses: ./.github/actions/merge-baseline
+        if: github.event_name == 'pull_request'
+        with:
+          commit: ${{ needs.base.outputs.baseline }}
+          head: ${{ github.event.pull_request.head.sha }}
+          expect: ${{ needs.base.outputs.checkout }}
 
       - name: install
         shell: bash
         run: corepack enable && yarn install --immutable
 
       - uses: ./.github/actions/build
+        with:
+          native-key: ${{ needs.base.outputs.native-key }}
+          toolchain: ${{ needs.base.outputs.toolchain }}
 
       # For `docs_grep`'s tests, which are unit tests and fail on CI without
       # `rg` rather than skip. The other slices load none of them.
@@ -468,7 +608,11 @@ jobs:
       # as a seed, into this checkout's own layer: the restore a cache-carried
       # suite gets from the Actions cache, and nothing a developer's checkout
       # does. When the ref is missing or does not read, the line says why and
-      # the slice has no base; nothing older is put in its place.
+      # the slice has no base; nothing older is put in its place. A record
+      # written under other probes than this build records under, as a pull
+      # request that changes the instrumentation sees it, is passed over with a
+      # notice naming both, and the slice has no base either: no run of this
+      # build could be laid over it.
       #
       # The case index is a section of the record, and `keepsCases` reads it
       # off the header. Its presence enables selection.
@@ -479,9 +623,10 @@ jobs:
           SUITE: ${{ matrix.suite }}
         run: node tools/keep-base.mjs "$SUITE"
 
-      # A pull request runs what its change reached, and nothing else: this
-      # repository ships test selection, so its own pull requests are selected
-      # by it. `VARIANCE_AUTHORITY_SINCE` turns on the selection the slice's
+      # A pull request runs its selection when its predicted wall time is no
+      # greater than a sharded whole run's. Otherwise it runs the whole suite:
+      # broad selections keep their parallelism without folding inherited rows.
+      # `VARIANCE_AUTHORITY_SINCE` turns on the selection the slice's
       # config is wrapped in: it reads the mainline's record the step above
       # laid, diffs each test from the commit it last ran at, which for a record
       # the mainline made whole is the commit it was published at, and Vitest
@@ -509,10 +654,9 @@ jobs:
       # shard then places by the same record, and none asks the line.
       - name: test
         id: test
-        if: ${{ github.event_name != 'pull_request' || steps.base.outputs.based != 'true' || !matrix.shard || startsWith(matrix.shard, '1/') }}
         shell: bash
         env:
-          SELECT: ${{ github.event_name == 'pull_request' && steps.base.outputs.based == 'true' }}
+          SELECT: ${{ matrix.mode == 'selected' && steps.base.outputs.based == 'true' }}
           SUITE: ${{ matrix.suite }}
           SHARD: ${{ matrix.shard }}
           HANDED: ${{ needs.base.outputs.handed }}
@@ -520,8 +664,8 @@ jobs:
           if [ "$SELECT" = true ]; then
             echo "into=slice" >> "$GITHUB_OUTPUT"
             yarn variance index
-            VARIANCE_AUTHORITY_SINCE= VARIANCE_AUTHORITY_AT_DISTANCE=0-2 yarn "test:$SUITE"
-            VARIANCE_AUTHORITY_SINCE= VARIANCE_AUTHORITY_AT_DISTANCE=3- yarn "test:$SUITE"
+            VARIANCE_AUTHORITY_SINCE='' VARIANCE_AUTHORITY_AT_DISTANCE=0-2 yarn "test:$SUITE"
+            VARIANCE_AUTHORITY_SINCE='' VARIANCE_AUTHORITY_AT_DISTANCE=3- yarn "test:$SUITE"
           elif [ -n "$SHARD" ]; then
             echo "into=shard" >> "$GITHUB_OUTPUT"
             VARIANCE_AUTHORITY_CACHE="$RUNNER_TEMP/shard-record" node tools/take-base.mjs "$RUNNER_TEMP/base" "$HANDED"
@@ -571,8 +715,9 @@ jobs:
 
     steps:
       # Every commit, because the review below diffs from a base it does not
-      # choose: the base tip on a pull request, and on `main` the commit the
-      # previous push left, which can be any number of commits back. No trees,
+      # choose: on a pull request the commit the mainline's record was made at,
+      # or the base tip when the head conflicts with it, and on `main` the
+      # commit the previous push left, which can be any number of commits back. No trees,
       # for the reason written at the checkout in `rules`. Nothing here pushes,
       # so the token is not left in the clone beside the install scripts and
       # the build; the comment step hands its own token to the script that
@@ -582,6 +727,15 @@ jobs:
           fetch-depth: 0
           filter: tree:0
           persist-credentials: false
+
+      # The checkout the suite jobs ran, for the reason written at the same
+      # step in `suite`.
+      - uses: ./.github/actions/merge-baseline
+        if: github.event_name == 'pull_request'
+        with:
+          commit: ${{ needs.base.outputs.baseline }}
+          head: ${{ github.event.pull_request.head.sha }}
+          expect: ${{ needs.base.outputs.checkout }}
 
       # Node 24, for the reason written at the same step in `rules`.
       - uses: actions/setup-node@v4
@@ -593,6 +747,9 @@ jobs:
         run: corepack enable && yarn install --immutable
 
       - uses: ./.github/actions/build
+        with:
+          native-key: ${{ needs.base.outputs.native-key }}
+          toolchain: ${{ needs.base.outputs.toolchain }}
 
       # Where the change starts, asked of `variance carry` rather than spelled
       # here. The root `variance.config.json` declares the suites and gives some
@@ -601,8 +758,9 @@ jobs:
       # repository's own git remote.
       #
       # The base: on a pull request the checkout is the merge of its head into
-      # the base, and the merge's first parent is the base tip, so the change is
-      # the pull request's own. On a push it is the commit the push replaced.
+      # the commit the mainline's record was made at, or else into the base
+      # tip, and the merge's first parent is that commit, so the change is the
+      # pull request's own. On a push it is the commit the push replaced.
       - name: what to carry
         id: carry
         shell: bash
@@ -662,12 +820,15 @@ jobs:
 
       # Each slice's record, as the suite job that ran it would have left it in
       # this checkout. The mainline's record is laid first, the one the suite
-      # jobs laid. A slice that ran whole in one job handed its record on already
-      # layered, and it replaces the base. A sharded slice's shards are folded
-      # and landed over the base by `variance journeys --suite`, which is what a
-      # sharded suite's fan-in runs anywhere. A slice nothing handed on keeps
-      # the base, and on a push the publish refuses it as recorded at another
-      # commit. Every slice's record sits under one directory, which is what
+      # jobs laid, and passed over as they passed it over when it was written
+      # under other probes than this build records under. A slice that ran
+      # whole in one job handed its record on already layered, and it replaces
+      # the base. A sharded slice's shards are folded
+      # and landed over the base as `variance journeys --suite` lands them, which
+      # is what a sharded suite's fan-in runs anywhere, and only the landing is
+      # printed: nobody reads a whole journal in a log. A slice nothing handed
+      # on keeps the base, and on a push the publish refuses it as recorded at
+      # another commit. Every slice's record sits under one directory, which is what
       # the publish job is handed.
       - name: fold the slices
         id: records
@@ -679,10 +840,12 @@ jobs:
           for suite in $SHARED; do
             recording=$(SUITE="$suite" node --input-type=module -e "
               const cli = await import('@variance-authority/cli');
+              const { instrumentationId } = await import('@variance-authority/sense/instrument');
               const { testCoverageFile } = await import('@variance-authority/sense/test-selection');
               const suite = process.env.SUITE;
               const base = await cli.suiteBase(process.cwd(), { suite });
-              if (base.from === 'mainline') await cli.layMainline(process.cwd(), base.mainline);
+              const laid = base.from === 'mainline' ? await cli.layMainline(process.cwd(), base.mainline, instrumentationId()) : undefined;
+              if (laid !== undefined && 'passed' in laid) console.error(cli.mainlinePassedOver(laid.passed));
               process.stdout.write(testCoverageFile(process.cwd(), { suite }));
             ")
             records=$(dirname "$(dirname "$recording")")
@@ -697,7 +860,10 @@ jobs:
             else
               mapfile -t shards < <(find "$RAN" -path "$RAN/variance-shard-$suite-*" -path "*/suites/$suite/coverage.bin" | sort)
               if [ "${#shards[@]}" -gt 0 ]; then
-                node packages/cli/dist/bin.js journeys "${shards[@]}" --suite "$suite"
+                SUITE="$suite" node --input-type=module -e "
+                  const cli = await import('@variance-authority/cli');
+                  process.stdout.write(await cli.landSuite(process.cwd(), process.argv.slice(1), process.env.SUITE) + '\\n');
+                " "${shards[@]}"
               else
                 echo "$suite: nothing was handed on, so the base stands."
               fi
@@ -764,13 +930,18 @@ jobs:
       # step `what the last push ran` in `base` says why. A red suite is kept
       # too, since the files it left incomplete are what the next push reruns.
       # Saved only when the copy finished: a part-copied record is not one.
+      # A checkout merged with the record's commit is a commit no remote
+      # holds, so it is bundled beside the records, with every commit it
+      # needs that `main` does not have.
       - name: keep what this push ran
         id: stage
         if: ${{ !cancelled() && github.event_name == 'pull_request' && steps.records.outputs.dir != '' }}
         shell: bash
         env:
           RECORDS: ${{ steps.records.outputs.dir }}
-        run: rm -rf .variance-carry && cp -R "$RECORDS" .variance-carry
+        run: |
+          rm -rf .variance-carry && cp -R "$RECORDS" .variance-carry
+          node tools/bundle-carried.mjs .variance-carry refs/remotes/origin/main
 
       - if: ${{ !cancelled() && steps.stage.outcome == 'success' }}
         uses: actions/cache/save@v4
@@ -924,9 +1095,8 @@ jobs:
     # The pinned Playwright image is the one `variance.yml` observes in, for the
     # same reason: the browser and its fonts are part of what these cases assert.
     # Whether the numbers written on a Mac survive this image is what this job
-    # asks, and it is not in `needs` of `check` below until it has answered green
-    # on `main`. A red result here is a finding about the image, not a reason to
-    # weaken a case.
+    # asks. It reports separately from the required `check`: a red result here
+    # is a finding about the image, not a reason to weaken a case.
     #
     # The cases' own fixture files stay at zero coverage: they run in child
     # processes and builds that carry no probe. Running them does not move that
@@ -1023,6 +1193,8 @@ jobs:
       options: --ipc=host
     outputs:
       legs: ${{ steps.count.outputs.legs }}
+      native-key: ${{ steps.build.outputs.native-key }}
+      toolchain: ${{ steps.build.outputs.toolchain }}
       handed: ${{ steps.hand.outputs.artifact-id != '' }}
 
     steps:
@@ -1040,12 +1212,6 @@ jobs:
         with:
           node-version: 24
 
-      - name: rust
-        shell: bash
-        run: |
-          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal
-          echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
-
       - name: trust the workspace
         shell: bash
         run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
@@ -1055,6 +1221,7 @@ jobs:
         run: corepack enable && yarn install --immutable
 
       - uses: ./.github/actions/build
+        id: build
 
       # Every shared slice's mainline record, read once and handed to every
       # `queue` job, as `base` hands its read to `suite`: the line can move
@@ -1085,24 +1252,21 @@ jobs:
         name: count the shards
         shell: bash
         env:
+          EVENT: ${{ github.event_name }}
           BASE: ${{ github.event.merge_group.base_sha }}
           SETUP: '100'
           BUDGET: '240'
-        run: |
-          set -euo pipefail
-          yarn variance index
-          legs='[{"part":"rules"}]'
-          for suite in unit integration chromium; do
-            case "$suite" in unit) config=vitest.config.mts unrecorded=2 ;; integration) config=vitest.integration.config.mts unrecorded=1 ;; chromium) config=vitest.chromium.config.mts unrecorded=3 ;; esac
-            yarn vitest list --filesOnly --config "$config" > "$RUNNER_TEMP/collected-$suite.txt"
-            workers=$(SUITE="$suite" node --input-type=module -e "const { availableParallelism } = await import('node:os'); const { SLICES } = await import('./vitest.config.mts'); console.log(SLICES[process.env.SUITE].workers ?? Math.max(1, availableParallelism() - 1))")
-            answer=$(node packages/cli/dist/bin.js shards --suite "$suite" --setup "$SETUP" --budget "$BUDGET" --workers "$workers" --unrecorded "$unrecorded" \
-              --since "$BASE" --collected "$RUNNER_TEMP/collected-$suite.txt" --at-distance 0-2 --format json)
-            echo "$answer" | jq -r --arg suite "$suite" '"\($suite): \(.shards) shard(s), \(if .by == "recorded" then "\(.files) file(s) selected, \(.skipped // 0) skipped, last done in \(.wall / 1000 | round) s, \(.why)" else "unrecorded: \(.unread)" end)"' | tee -a "$GITHUB_STEP_SUMMARY"
-            legs=$(jq -c --arg suite "$suite" --argjson answer "$answer" \
-              '. + (if $answer.shards == 1 then [{part: $suite}] else [$answer.matrix[] | {part: $suite, shard: .}] end)' <<<"$legs")
-          done
-          echo "legs=$legs" >> "$GITHUB_OUTPUT"
+        run: node tools/plan-suites.mjs
+
+      - name: hand the native scanner on
+        uses: actions/upload-artifact@v4
+        with:
+          name: variance-native
+          path: |
+            packages/sense/npm/*/scan.node
+            packages/sense/npm/*/scan.node.tree
+          if-no-files-found: error
+          retention-days: 1
 
   queue:
     # A merge group's gate, and the only harness a group runs: lint and the
@@ -1142,7 +1306,7 @@ jobs:
       # For the reason written at the same step in `cases`.
       - name: version control and compiler
         shell: bash
-        run: apt-get update && apt-get install -y --no-install-recommends git build-essential curl ca-certificates
+        run: apt-get update && apt-get install -y --no-install-recommends git git-lfs build-essential curl ca-certificates
 
       # Every commit, for the reason written at the checkout in `suite`.
       - uses: actions/checkout@v4
@@ -1156,12 +1320,6 @@ jobs:
         with:
           node-version: 24
 
-      - name: rust
-        shell: bash
-        run: |
-          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal
-          echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
-
       # For the reason written at the same step in `cases`.
       - name: trust the workspace
         shell: bash
@@ -1172,6 +1330,9 @@ jobs:
         run: corepack enable && yarn install --immutable
 
       - uses: ./.github/actions/build
+        with:
+          native-key: ${{ needs.plan.outputs.native-key }}
+          toolchain: ${{ needs.plan.outputs.toolchain }}
 
       # The unit part only, for the reason written at the same step in `suite`.
       - uses: ./.github/actions/ripgrep
@@ -1186,6 +1347,11 @@ jobs:
         if: matrix.part == 'rules'
         shell: bash
         run: yarn check
+
+      - name: restrictions
+        if: matrix.part == 'rules'
+        shell: bash
+        run: yarn restrictions
 
       # The mainline's records as `plan` read them and counted from, for the
       # reasons written at the same steps in `suite`.
@@ -1218,7 +1384,7 @@ jobs:
           SHARD: ${{ matrix.shard }}
         run: |
           yarn variance index
-          VARIANCE_AUTHORITY_SINCE= VARIANCE_AUTHORITY_AT_DISTANCE=0-2 yarn "test:$SUITE" ${SHARD:+--shard "$SHARD"}
+          VARIANCE_AUTHORITY_SINCE='' VARIANCE_AUTHORITY_AT_DISTANCE=0-2 yarn "test:$SUITE" ${SHARD:+--shard "$SHARD"}
 
   # The one check a branch rule names, and the one line that combines the
   # harnesses its event runs: `plan` and `queue` for a merge group, and `rules`, `measure`,
@@ -1257,3 +1423,23 @@ jobs:
             echo "::error::not every harness passed — $(echo "$failed" | paste -sd, -)"
             exit 1
           fi
+
+      - name: get timing reporter
+        continue-on-error: true
+        if: ${{ !cancelled() }}
+        uses: actions/checkout@v4
+        with:
+          sparse-checkout: |
+            tools/ci-timing.mjs
+            tools/report-ci-timing.mjs
+          sparse-checkout-cone-mode: false
+          persist-credentials: false
+
+      - name: report gate timings
+        timeout-minutes: 1
+        if: ${{ !cancelled() }}
+        continue-on-error: true
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: node tools/report-ci-timing.mjs

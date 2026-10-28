@@ -14,12 +14,15 @@
 
 import { readFileSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
-import { resolve } from 'node:path';
+import { dirname, resolve } from 'node:path';
 import { digestString } from '../digest.js';
-import { instrument, probeRuntime, type InstrumentMode, type ModuleId } from '../instrument/index.js';
+import { instrument, type InstrumentMode, type ModuleId } from '../instrument/index.js';
+import { instrumentTransformed } from '../instrument/transformed.js';
 import { recordedBlocks } from './coverage-rows.js';
-import { insideRoot, isMissing, projectPath, type CapturedModule } from './instrumented-modules.js';
+import moduleIds from './module-id.cjs';
+import { fileOrNone, insideRoot, isMissing, mayTake, projectPath, type CapturedModule } from './instrumented-modules.js';
 import { handedTexts, rawFrame, type RawFrame } from './source-lines.js';
+import type { UnmappedStep } from './unmapped-transforms.js';
 
 /** A module cut into regions, and the text that carries its probes. */
 export interface Captured {
@@ -32,6 +35,14 @@ export interface Captured {
   readonly code: string;
   /** The file is on disk, and the text handed over is not it, nor it with its map comments blanked: see {@link rawFrame}. */
   readonly changed?: true;
+  /**
+   * `code` was read and neither imports nor exports, as CommonJS does: what
+   * it takes ahead of its own code must not be an `import`, which would make it
+   * a module. `at` is where that goes, past the directive prologue, in UTF-16
+   * code units. Absent where it is a module, and where it was marked rather
+   * than read.
+   */
+  readonly script?: { readonly at: number };
 }
 
 /**
@@ -129,6 +140,7 @@ export function placeModule(
   mode: InstrumentMode | undefined,
   original: (path: string) => string = readOriginal,
 ): Captured | undefined {
+  if (mode === 'loads') return placeModule(root, path, code, never, loadsAll(root, include, unprobed), undefined, original);
   const plan = planModule(root, path, code, include, original, unprobed);
   if (plan === undefined) return undefined;
   const { frame, file, id } = plan;
@@ -144,11 +156,217 @@ export function placeModule(
       : { file, id, sourceDigest, instrumented: true, blocks: recordedBlocks(done.blocks, frame, code, mode ?? 'presence') },
     code: done?.code ?? markLoaded(code, id),
     ...changed,
+    ...(done?.module === false ? { script: { at: done.headerAt } } : {}),
   };
+}
+
+const never = (): boolean => false;
+
+/**
+ * Under `loads`, every module `include` or `unprobed` accepts is marked as
+ * loaded and none is probed. A module outside `root` has no project path to
+ * be marked under, as {@link planModule} says, and is left as it is.
+ */
+function loadsAll(root: string, include: (file: string) => boolean, unprobed: ((file: string) => boolean) | undefined) {
+  return (file: string) => insideRoot(root, file) && (include(file) || unprobed?.(file) === true);
+}
+
+/** The map a transform at the end of a pipeline is handed back to every source it came from: Vite's `getCombinedSourcemap()`. */
+export interface ComposedMap {
+  readonly sources: readonly (string | null)[];
+  readonly sourceRoot?: string;
+  /** The text of each source, where the map carries it: for the file, what the first step was handed. */
+  readonly sourcesContent?: readonly (string | null)[] | undefined;
+  readonly mappings: string;
+}
+
+/** A module whose probes a transform placed after the project's own, and the map from its text back to theirs. */
+export interface CapturedAfter extends Captured {
+  /** The map from `code` back to the text it was handed, one source. */
+  readonly mappings?: string;
+  /** With `carry`, the composed map's `mappings` moved onto `code`, its sources and names as they were. */
+  readonly carried?: string;
+}
+
+/** What {@link captureAfter} is told beyond the text and its map. */
+interface AfterOptions {
+  /** The modules marked as loaded rather than probed, as {@link placeModule} reads it. */
+  readonly unprobed?: ((file: string) => boolean) | undefined;
+  /** Answer the composed map moved onto the probed text, for a runner no bundler composes maps for. */
+  readonly carry?: boolean;
+  readonly original?: (path: string) => string;
+  /** The steps ahead of this one that wrote the module and returned no map: {@link unmappedSteps}. */
+  readonly unmapped?: readonly UnmappedStep[];
+  /** How this seam's project has its transforms write a map, for the error that has none. */
+  readonly remedy?: string;
+  /**
+   * The import asked for a module built from the file, such as `?raw` or a
+   * single-file component's block, rather than the file itself: one whose map
+   * leads back to the file is placed through it, and any other is marked as
+   * loaded, so an edit to the file selects every test that loaded it.
+   */
+  readonly variant?: boolean;
+}
+
+const REMEDY = 'Have them write a source map';
+
+/** A refusal of the map back to the file: a seam that can run the transforms again on the probed text answers it so. */
+export class MapRefusal extends Error {}
+
+/**
+ * Cut one module as {@link placeModule} cuts it, from the file on disk, and
+ * place its probes in `code`, the text every transform before this one wrote.
+ *
+ * A compiler that reads syntax reads probes too, so they go in last: regions,
+ * ordinals and the id are the file's, as they are when the probes go in first,
+ * and `map` says which code in `code` each one became. A region `map` carries
+ * nowhere fires when the module loads, charged to every test that loaded it,
+ * rather than recorded as never running. A rewrite with no map, one whose map
+ * names no source that resolves to the file, one a plugin returned no map
+ * for, one whose map carries a text for the file that is not the file, and
+ * code a map with no mappings carries for a file with more than module code,
+ * and text the instrumenter cannot parse written from a file it can, is an
+ * error; a `variant` is marked instead. So is a file that is there and cannot
+ * be read. Where `code` is the file, this is {@link placeModule}.
+ */
+export function captureAfter(
+  root: string,
+  path: string,
+  code: string,
+  include: (file: string) => boolean,
+  mode: InstrumentMode | undefined,
+  map: (() => ComposedMap | undefined) | undefined,
+  options: AfterOptions = {},
+): CapturedAfter | undefined {
+  if (mode === 'loads') {
+    return captureAfter(root, path, code, never, undefined, map, { ...options, unprobed: loadsAll(root, include, options.unprobed) });
+  }
+  const { unprobed, carry = false, original: read = readOriginal, unmapped = [], remedy = REMEDY, variant = false } = options;
+  // Under `node_modules`, `include` is asked first: no map there is read.
+  if (!mayTake(path, (file) => include(file) || (unprobed !== undefined && insideRoot(root, file) && unprobed(file)))) return undefined;
+  const disk = fileOrNone(path, read);
+  // The file is read once: every step below that asks for it again is handed this text.
+  const original = disk === undefined ? read : heldOriginal(path, disk, read);
+  if (disk === undefined || handedTexts(disk).includes(code)) {
+    return placeModule(root, path, code, include, unprobed, mode, original);
+  }
+  const plan = planModule(root, path, disk, include, original, unprobed);
+  if (plan === undefined) return undefined;
+  const { frame, file, id } = plan;
+  const named = projectPath(root, path);
+  const unread = { file, id, sourceDigest: frame.sourceDigest, instrumented: false, blocks: [] };
+  // The mark follows the last line, so no column moves: a map is composed only to carry.
+  if (plan.marked) {
+    const carried = carry ? map?.() : undefined;
+    return { module: unread, code: markLoaded(code, id), ...(carried ? { carried: carried.mappings } : {}) };
+  }
+  const composed = map?.();
+  const texts = handedTexts(disk);
+  const rewrote = unmapped.filter((step) => step.loaded === undefined || !texts.includes(step.loaded));
+  const source = mapsBack(path, code, composed);
+  // A module built from the file whose code no map leads back from, such as
+  // the file's text as a string, holds none of the file's code to place a
+  // region in, and depends on all of it: marked, as `unprobed` marks a module.
+  if (variant && (rewrote.length > 0 || source === undefined || source < 0 || !carriesTheFile(composed!, source, texts))) {
+    const marked = markedId(projectPath(root, path), disk);
+    return { module: { ...unread, id: marked }, code: markLoaded(code, marked), ...(carry && composed ? { carried: composed.mappings } : {}) };
+  }
+  if (rewrote.length > 0) {
+    const plugins = rewrote.map((step) => `\`${step.plugin}\``).join(', ');
+    const what = rewrote.every((step) => step.nulled)
+      ? 'returned `map: null`, which says it moved nothing, and moved the file\'s lines'
+      : 'rewrote the file and returned no source map, which Vite reads as moving nothing';
+    throw new Error(
+      `\`${named}\`: ${rewrote.length === 1 ? 'the plugin' : 'the plugins'} ${plugins} ahead of the probes ${what}, ` +
+        'so the map back to the file names code that is not there. ' +
+        `Have ${rewrote.length === 1 ? 'it' : 'each'} return the map of what it wrote, or leave the file out of \`include\`.`,
+    );
+  }
+  if (source === undefined) {
+    throw new MapRefusal(
+      `\`${named}\`: the transforms ahead of the probes rewrote the file and left no map back to it, ` +
+        `so no region of it can be placed in what they wrote. ${remedy}, or leave the file out of \`include\`.`,
+    );
+  }
+  if (source >= 0 && !carriesTheFile(composed!, source, texts)) {
+    throw new MapRefusal(
+      `\`${named}\`: the map back to the file carries a text for it that is not the file on disk: a step ahead of the ` +
+        'transforms that wrote a map, such as a `load` hook, rewrote the file and returned no map or `map: null`, so the map names lines ' +
+        `the author never wrote. Have that step return the map of what it wrote, or leave the file out of \`include\`.`,
+    );
+  }
+  const done = instrumentTransformed(disk, code, { file, mappings: source === -1 ? '' : composed!.mappings, source: Math.max(source, 0) }, id, { ...(mode === undefined ? {} : { mode }), carry });
+  if (done === undefined) {
+    // The file itself cannot be cut, so the reader cuts nothing from it either:
+    // the probe of loading it is all it can hold, as when the probes go in first.
+    if (instrument(disk, file, id) === undefined) {
+      return { module: unread, code: markLoaded(code, id), ...(carry && composed ? { carried: composed.mappings } : {}) };
+    }
+    // The file can be cut and what the transforms wrote cannot be parsed: a
+    // mark would be read back as the module's region alone run, every other
+    // region never, so a test that ran them would go unselected.
+    throw new Error(
+      `\`${named}\`: the transforms ahead of the probes wrote text the instrumenter cannot parse, so no region of the file ` +
+        'can be placed in it. Have them write JavaScript, or leave the file out of `include`.',
+    );
+  }
+  // Code a map carries to nothing is a module of types compiled to a prologue,
+  // which has only the module's region; a file with more was rewritten, and
+  // its map lost on the way.
+  if (source === -1 && /\S/.test(code) && done.blocks.length > 1) {
+    throw new MapRefusal(
+      `\`${named}\`: the transforms ahead of the probes rewrote the file and handed on a map with no mappings, ` +
+        `so no region of it can be placed in what they wrote. ${remedy}, or leave the file out of \`include\`.`,
+    );
+  }
+  return {
+    module: { ...unread, instrumented: true, blocks: recordedBlocks(done.blocks, frame, disk, mode ?? 'presence') },
+    code: done.code,
+    ...(done.module ? {} : { script: { at: done.headerAt } }),
+    mappings: done.mappings,
+    ...(done.carried === undefined ? {} : { carried: done.carried }),
+  };
+}
+
+/**
+ * Which of `map`'s sources is `path`, the file `code` was written from; `-1`
+ * where nothing need be placed through it, and `undefined` where nothing
+ * leads back. A text with no code in it, or code the map carries to nothing,
+ * such as what a module of types compiles to, has no map to name the file in:
+ * the probe of loading it is all it can hold, and every region of the file
+ * fires with it.
+ */
+export function mapsBack(path: string, code: string, map: ComposedMap | undefined): number | undefined {
+  if (!/\S/.test(code) || (map !== undefined && !/[^;,]/.test(map.mappings))) return -1;
+  const source = map?.sources.findIndex((name) => name !== null && resolve(dirname(path), map.sourceRoot ?? '', name) === path) ?? -1;
+  return source === -1 ? undefined : source;
+}
+
+/**
+ * Whether the text `map` carries for its source `source`, if it carries one,
+ * is one of `texts`, the file as a step can be handed it. A map is trusted on
+ * its source's name only where it says nothing more.
+ */
+export function carriesTheFile(map: ComposedMap, source: number, texts: readonly string[]): boolean {
+  const content = map.sourcesContent?.[source];
+  return typeof content !== 'string' || texts.includes(content);
 }
 
 function readOriginal(path: string): string {
   return readFileSync(path, 'utf8');
+}
+
+/**
+ * The reader of files that answers `path` with `text`, already read, and reads
+ * any other: how a seam's half that read the file hands it to the half that
+ * places its probes, so a module is read from disk once.
+ */
+export function heldOriginal(
+  path: string,
+  text: string | undefined,
+  other: (at: string) => string = readOriginal,
+): (at: string) => string {
+  return text === undefined ? other : (at) => (at === path ? text : other(at));
 }
 
 /** The id the probes on `code`, read from `path`, report. */
@@ -173,10 +391,10 @@ const MARKED = '~';
  * For a module no probe may sit in: one whose functions cross into another
  * realm as text, where the first probe throws. The text is unchanged up to its
  * end, and the runtime follows it there, at module scope, which no function
- * carries with it when it crosses. It registers one region, the module's own,
- * and logs it as {@link instrument}'s header does, so every test that loaded
- * the module is in the record — which an edit to it then selects whole,
- * because nothing says what in it ran.
+ * carries with it when it crosses. It is one call, the root's `m`, nothing
+ * imported: it registers the module's own region and logs it as
+ * {@link instrument}'s header does, so every test that loaded the module is in
+ * the record — which an edit to it then selects whole, as nothing says what ran.
  *
  * Private to this module, beside {@link markedId}: the reader cuts a module
  * into regions unless its id says it was marked, so a mark placed under an id
@@ -184,7 +402,7 @@ const MARKED = '~';
  * region run.
  */
 function markLoaded(source: string, id: ModuleId): string {
-  return `${source}\n;${probeRuntime(id, 1)}__vaE();`;
+  return `${source}\n;globalThis.__VA__.m(${JSON.stringify(id)});`;
 }
 
 /**
@@ -247,12 +465,10 @@ export async function deriveModules(
 /** How many files {@link deriveModules} reads at once. */
 const READERS = 64;
 
-const ID = /^(.+)@(~?)([0-9a-f]+)$/;
+const { ID } = moduleIds;
 
 /** The repository-relative path an id names, or the whole id when it names no digest. */
-export function pathOf(id: ModuleId): string {
-  return ID.exec(id)?.[1] ?? id;
-}
+export const pathOf: (id: ModuleId) => string = moduleIds.pathOf;
 
 async function deriveModule(
   root: string,
@@ -276,7 +492,7 @@ async function deriveModule(
   }
   // Every name the transform could have accepted, because it did accept one:
   // the module reported, so it was instrumented or marked under one of them.
-  const original = (at: string) => (at === path ? disk : readFileSync(at, 'utf8'));
+  const original = heldOriginal(path, disk);
   const captured = marked === MARKED
     ? markModule(root, path, code, () => true, original)
     : captureModule(root, path, code, () => true, mode, original);

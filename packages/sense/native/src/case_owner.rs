@@ -22,7 +22,7 @@ pub fn unpack_case(packed: &str) -> (&str, &str, &str, u8) {
 /// The journey a frame belongs to: the fifth field of its owner, after the
 /// settling, empty when the case never handed one out. `packJourney` in
 /// `case-owner.cts`. A sixth field, what the case said it arranged, is
-/// [`case_preconditions::said_of`]'s.
+/// [`crate::case_said::of_frame`]'s.
 pub fn journey_of(packed: &str) -> &str {
     packed.split('\0').nth(4).unwrap_or("")
 }

@@ -41,7 +41,7 @@ the run to `1`:
 | --- | --- |
 | a subject is `changed` | pixels moved outside what you excluded, whatever the cause — a baseline painted under a different browser, platform, scale factor or font stack is compared, and the identity that moved is named first |
 | a subject the run meant to observe failed | a subject that cannot be observed does not silently pass |
-| two readings of one subject, seconds apart, disagreed and the subject's own declaration did not absorb that | otherwise the verdict is decided by whichever reading came first |
+| two readings in a row of one subject disagreed and the subject's own declaration did not absorb that | otherwise the verdict is decided by whichever reading came first |
 | an observation reports an `error` diagnostic | the run looked at less than the subject — a stylesheet it could not read, say — so the images agree about something smaller than what you asked for |
 
 Four things deliberately do not take it there:

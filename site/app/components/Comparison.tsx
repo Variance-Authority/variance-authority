@@ -1,3 +1,4 @@
+import { headingId } from "../content/markdown-text";
 import ComparisonTable from "./ComparisonTable";
 
 /**
@@ -12,6 +13,12 @@ import ComparisonTable from "./ComparisonTable";
  */
 const doc = (fragment: string) => fragment;
 
+/**
+ * The detailed comparison: the document's section of that heading, under the
+ * id the page renders for it. A hand-written id outlived the heading it named.
+ */
+const DETAILED = `#${headingId(doc("1. Compare the responsibilities that matter"))}`;
+
 export default function Comparison() {
   return (
     <div>
@@ -22,7 +29,7 @@ export default function Comparison() {
         Start with where pixels are made, who owns review, and who operates the
         system. The{" "}
         <a
-          href="#1-the-dimensions-a-buyer-actually-decides-on"
+          href={DETAILED}
           className="text-ivory underline decoration-hairline underline-offset-4 transition-colors hover:decoration-orange"
         >
           detailed comparison
@@ -77,7 +84,7 @@ export default function Comparison() {
             )}
             .{" "}
             <a
-              href="#1-the-dimensions-a-buyer-actually-decides-on"
+              href={DETAILED}
               className="font-mono text-orange transition-colors hover:text-ivory"
             >
               Full comparison, with sources →

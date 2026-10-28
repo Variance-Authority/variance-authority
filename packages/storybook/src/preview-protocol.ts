@@ -128,6 +128,12 @@ export interface StorybookScope {
   readonly __STORYBOOK_PREVIEW__?: {
     readonly channel?: StoryChannel;
     readonly currentSelection?: { readonly storyId?: string };
+    /**
+     * The render Storybook is running or last ran: the story it is for and the
+     * phase it reached (`rendering`, `playing`, `completed`, `finished`,
+     * `errored` and the rest of `StoryRender.phase`).
+     */
+    readonly currentRender?: { readonly id?: string; readonly phase?: string } | null;
   };
   readonly __STORYBOOK_ADDONS_CHANNEL__?: StoryChannel;
 }
@@ -137,7 +143,7 @@ export interface ShowRequest {
   readonly storyId: string;
   /** Budget for the story to signal that it rendered. */
   readonly timeoutMs: number;
-  /** Interval between markup samples on the fallback path. */
+  /** Interval between readiness-marker checks when a `readySelector` is configured. */
   readonly pollMs: number;
   readonly events: ShowEvents;
   readonly roots: readonly string[];
@@ -145,15 +151,13 @@ export interface ShowRequest {
   /**
    * Selector for the readiness marker the *subject* attaches when it is settled.
    *
-   * Absent means the feature is off and readiness is decided exactly as it was
-   * before this existed. There is deliberately no default: a marker no project
+   * Absent means Storybook's own signal decides. There is deliberately no default: a marker no project
    * agreed to attach would never appear, and inventing one would turn every
    * existing run into a suite of timeouts.
    *
    * Present means the marker decides. Readiness is not reached until this
    * selector matches — `storyRendered` having already fired does not shorten the
-   * wait — and if it never matches, the result is a `timeout` naming it rather
-   * than a capture taken on weaker evidence.
+   * wait — and if it never matches, the result is a `timeout` naming it.
    */
   readonly readySelector?: string;
 }
@@ -182,18 +186,14 @@ export type ShowStatus = 'rendered' | 'errored' | 'missing' | 'timeout' | 'no-ro
  *   about decorators, loaders, and async render phases — and still only a claim
  *   that the story function returned, not that the application settled.
  * - `already-rendered` — the story the URL selected was already in the document
- *   when this ran, so its `storyRendered` had already fired; readiness came from
- *   markup that stopped changing.
- * - `markup-quiescent` — the fallback: the root mounted and its markup was
- *   identical across two samples. Strictly weaker, and blind to anything that
- *   arrives later.
+ *   when this ran, so its `storyRendered` had already fired; Storybook's
+ *   `currentRender` said that render was over.
  * - `none` — nothing was ready; the status says what happened instead.
  */
 export type Readiness =
   | 'declared'
   | 'storyRendered'
   | 'already-rendered'
-  | 'markup-quiescent'
   | 'none';
 
 export interface ShowResult {
@@ -238,9 +238,9 @@ export interface FinishRequest {
  * a warning on every subject of every run. It is therefore never reset.
  *
  * `watching` and `hit` are one story's question. The driver names the story
- * before showing it and polls `hit` afterwards, so an event that arrives while
- * the result is still in flight — which is the usual case for a fast story — is
- * already written down by the time it is asked for.
+ * before showing it and waits on `hit` afterwards, so an event that arrives
+ * while the result is still in flight — which is the usual case for a fast
+ * story — is already written down by the time it is asked for.
  *
  * `absent` is written by the driver once it has waited out the grace on a page
  * that has never emitted the event, so no later story of that session pays the
@@ -263,22 +263,15 @@ export interface FinishRecord {
 }
 
 /**
- * A reading of the watch, taken now, with Storybook's own answer beside it.
+ * The record as the page holds it: what was heard, and who is waiting to hear.
  *
- * {@link FinishRecord} is what the listener wrote down. `pending` is what the
- * preview says about *this instant*: whether the render it currently holds is in
- * one of the phases `StoryRender.isPending` names, which is the exact predicate
- * `teardown` consults before it reloads the document. The two are separate
- * questions and only one of them can be answered by remembering — a story that
- * was never re-selected has no render in flight and no finish coming, and
- * nothing the listener heard could tell those apart from a render that is stuck.
- *
- * `true` when the preview cannot be asked. An older Storybook, or one that moved
- * the property, leaves the driver where it was before this existed: waiting on
- * the event and saying so if it never comes.
+ * `waiters` are the pending answers of {@link FinishRecord} the driver asked
+ * for before the finish arrived; the listener settles them when it does. They
+ * never cross to Node — a function does not survive the trip — which is why
+ * the page hands back a copy of the record rather than the record.
  */
-export interface FinishReading extends FinishRecord {
-  pending: boolean;
+export interface FinishWatch extends FinishRecord {
+  waiters: (() => void)[];
 }
 
 /**
@@ -316,3 +309,40 @@ export interface GlobalsRequest {
   readonly event: string;
   readonly globals: PreviewGlobals;
 }
+
+/**
+ * How the driver puts the preview on Storybook's test branch, and what it takes
+ * back out of it.
+ *
+ * Storybook opens every render's `completing` phase with `waitForAnimations`: a
+ * 100 ms timer before it even looks, then every finite running animation. It
+ * skips that when it believes a test runner is driving the preview, which it
+ * decides per render from `globalThis.__vitest_browser__` or a user agent
+ * naming `StorybookTestRunner`. The global is the narrower of the two: it lives
+ * in the one document this session opened, where the user agent belongs to the
+ * whole browser context and every sniffer in the application reads it.
+ *
+ * The test branch is not neutral, which is why `pauseSheet` is here. In place of
+ * the wait, Storybook appends a sheet after every other one in the head that
+ * pauses every animation at delay `0s`, reversed — its last keyframe — and sets
+ * `transition: none`. The animation state of a capture is the stabilize
+ * recipe's to decide, so that sheet is taken out the moment it is appended.
+ * `pauseSheet` identifies it: every declaration in the list is in its text.
+ */
+export interface TestEnvironmentRequest {
+  /** Where the page records that this document is already switched. */
+  readonly key: string;
+  /** The global Storybook reads to decide it is under test. */
+  readonly flag: string;
+  readonly pauseSheet: readonly string[];
+}
+
+export const TEST_ENVIRONMENT: TestEnvironmentRequest = {
+  key: '__variance_authority_test_environment__',
+  flag: '__vitest_browser__',
+  pauseSheet: [
+    'animation-delay: 0s !important',
+    'animation-play-state: paused !important',
+    'transition: none !important',
+  ],
+};

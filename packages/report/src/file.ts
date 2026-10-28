@@ -79,7 +79,7 @@ export async function writeSuiteIndex(path: string, index: SuiteIndex): Promise<
  *
  * A caller that cannot read one has no baseline and must say so rather than
  * answer from this run alone — the same direction
- * [`sense`](../../sense/src/test-selection/commit.ts) already fails in, where an
+ * [`sense`](https://github.com/Variance-Authority/variance-authority/blob/main/packages/sense/src/test-selection/commit.ts) already fails in, where an
  * index that cannot say where it is means everything runs.
  */
 export async function readSuiteIndex(path: string): Promise<SuiteIndex> {
@@ -89,12 +89,21 @@ export async function readSuiteIndex(path: string): Promise<SuiteIndex> {
 function checkPresentation(path: string, index: number, value: unknown): void {
   const signal = value as Partial<PresentationSignalRecord> & Record<string, unknown>;
   const where = `${path}: observations[${index}].signals.presentation`;
-  if (signal.verdict === 'incomparable') {
+  if (signal.verdict !== 'unchanged' && signal.verdict !== 'changed') {
+    throw new Error(`${where}.verdict is not unchanged or changed`);
+  }
+  if ('because' in signal) {
+    if (signal.verdict !== 'changed') {
+      throw new Error(`${where} names a missing side but is not changed`);
+    }
     if (typeof signal.because !== 'string') {
-      throw new Error(`${where} is incomparable without a \`because\``);
+      throw new Error(`${where}.because is not a string`);
+    }
+    if (signal.because.trim() === '') {
+      throw new Error(`${where}.because is empty`);
     }
     if ('effects' in signal || 'information' in signal) {
-      throw new Error(`${where} is incomparable but claims comparable evidence`);
+      throw new Error(`${where} names a missing side but claims compared evidence`);
     }
     if (
       (signal.before !== undefined && typeof signal.before !== 'string') ||
@@ -102,10 +111,10 @@ function checkPresentation(path: string, index: number, value: unknown): void {
     ) {
       throw new Error(`${where} has a presentation digest that is not a string`);
     }
+    if (signal.before === undefined && signal.after === undefined) {
+      throw new Error(`${where} names a missing side but carries no digest of the side it read`);
+    }
     return;
-  }
-  if (signal.verdict !== 'unchanged' && signal.verdict !== 'changed') {
-    throw new Error(`${where}.verdict is not unchanged, changed, or incomparable`);
   }
   if (typeof signal.before !== 'string' || typeof signal.after !== 'string') {
     throw new Error(`${where} has no before and after presentation digests`);

@@ -98,8 +98,11 @@ const ABSENT =
   'reads no markup — a raster-only capture, or a run whose collector gives only images — never ' +
   'sees a component boundary, so it has nothing to join. A report merged from shards drops the ' +
   'composition its shards had, because two subjects that share a rendering can land in ' +
-  'different shards; run the suite unsharded to ask for it. Nothing here says the suite shares ' +
-  'no components; it says this report cannot tell.';
+  "different shards. Each shard's own report still holds its composition over the subjects it " +
+  'rendered, and the suite index the build composes from every shard\'s part holds the census ' +
+  'across them — which component is mounted in how many subjects; which subjects share a ' +
+  'rendering across shards is in none of them. Nothing here says the suite shares no ' +
+  'components; it says this report cannot tell.';
 
 function whole(composed: CompositionReport): string {
   const unexplained = composed.movements.filter((movement) => movement.cause === 'unexplained');

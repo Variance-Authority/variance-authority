@@ -27,6 +27,10 @@ describe('the native crate governs the unit suite', () => {
     expect(tracked.filter((path) => path.startsWith(`${NATIVE}/src/`) && path.endsWith('.rs')).length).toBeGreaterThan(0);
   });
 
+  it('declares the layout Rust compiles from outside the crate', () => {
+    expect(declared.has('packages/sense/record-layout.json')).toBe(true);
+  });
+
   it('declares every file git holds for the crate as a precondition', () => {
     expect(tracked.filter((path) => !declared.has(path))).toEqual([]);
   });

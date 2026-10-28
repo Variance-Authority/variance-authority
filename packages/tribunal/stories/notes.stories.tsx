@@ -207,7 +207,7 @@ export const FindingsUndated = side('Findings', () => <Findings subject={undated
 
 /* --- declarations -------------------------------------------------------- */
 
-const ticking = subjectOf(CHANGED, 'story:case-surface--ticking').subject;
+const deferred = subjectOf(CHANGED, 'story:case-surface--deferred').subject;
 const receipt = subjectOf(CHANGED, 'story:case-surface--receipt-at-two-widths@375').subject;
 
 const ignore = (rule: string, reason: string, over: Partial<IgnoreUsage>): IgnoreUsage => ({
@@ -245,7 +245,7 @@ const ignored: BuildDetail['declarations'] = {
       ignore('checkout-only', 'checkout totals are live', { subjects: 0, comparedIn: 0, inertIn: 0, unwornTags: ['checkout'] }),
     ],
     dead: ['promo-banner'],
-    fullyIgnored: [ticking],
+    fullyIgnored: [deferred],
     totalPixels: 412,
     vocabulary: ['no-variance'],
   },

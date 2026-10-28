@@ -1,0 +1,42 @@
+[
+  {
+    "from": "vitest-browser",
+    "to": "vitest-browser",
+    "type": "allowed"
+  },
+  {
+    "from": "playwright-test",
+    "to": "playwright-test",
+    "type": "allowed"
+  },
+  {
+    "from": "*/src",
+    "to": "vitest-browser",
+    "type": "restricted",
+    "message": "a package other than the Vitest integration reads none of it; a shared answer moves into a runner-neutral package and the integration calls it"
+  },
+  {
+    "from": "*/src",
+    "to": "playwright-test",
+    "type": "restricted",
+    "message": "a package other than the Playwright Test integration reads none of it; a shared answer moves into a runner-neutral package and the integration calls it"
+  },
+  {
+    "from": "*/src",
+    "to": "sense/src/test-selection/jest*",
+    "type": "restricted",
+    "message": "shipped source outside test selection reads its Jest integration through the package index, never directly; a shared answer moves into a runner-neutral file"
+  },
+  {
+    "from": "*/src",
+    "to": "sense/src/test-selection/rstest*",
+    "type": "restricted",
+    "message": "shipped source outside test selection reads its Rstest integration through the package index, never directly; a shared answer moves into a runner-neutral file"
+  },
+  {
+    "from": "*/src",
+    "to": "sense/src/test-selection/vitest*",
+    "type": "restricted",
+    "message": "shipped source outside test selection reads its Vitest integration through the package index, never directly; a shared answer moves into a runner-neutral file"
+  }
+]

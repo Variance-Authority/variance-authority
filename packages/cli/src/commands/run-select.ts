@@ -35,7 +35,7 @@ import {
   type BeforeReach,
   type Relations,
 } from '@variance-authority/core/relate';
-import { readingLines, type ExecutionNarrowing } from '@variance-authority/sense/test-selection';
+import { ignoredBy, readingLines, type ExecutionNarrowing } from '@variance-authority/sense/test-selection';
 import type { ReachReport } from '@variance-authority/report';
 import { OperatorError } from '../exit.js';
 import { affectedSubjects, type Affected } from './affected.js';
@@ -44,6 +44,7 @@ import { unenteredSubjects } from './journey.js';
 import { withoutManifests, type InstallDiff } from './installed.js';
 import { beyondOf, withWhole } from './select-beyond.js';
 import { many } from './prose-counts.js';
+import { ignoredSaid } from './reach.js';
 import { reachOf } from './reach-subjects.js';
 import type { ObserveContext, RunDeps, RunOptions } from './run-context.js';
 
@@ -111,7 +112,7 @@ export interface Selection {
  */
 export async function selectionFor(
   plan: Plan,
-  context: ObserveContext,
+  context: Pick<ObserveContext, 'config' | 'deps' | 'renderer'>,
   options: RunOptions,
 ): Promise<Selection | undefined> {
   const { config, deps, renderer } = context;
@@ -207,6 +208,7 @@ export async function selectionFor(
           ...(changedDirs === undefined ? {} : { changedDirs }),
           ...(explains.install === undefined ? {} : { install: explains.install }),
           ...(explains.movedExports === undefined ? {} : { movedExports: explains.movedExports }),
+          ...(options.ignore === undefined ? {} : { ignore: options.ignore }),
         });
 
   if (options.since === undefined) {
@@ -221,6 +223,7 @@ export async function selectionFor(
 
   const { ref, diff } = options.since;
   const planned = plan.subjects.map((each) => each.subject.id);
+  const ignored = ignoredBy(options.ignore, options.since.changed);
 
   const answer = affectedSubjects({
     planned,
@@ -234,6 +237,7 @@ export async function selectionFor(
     ...(narrowDirs === undefined ? {} : { changedDirs: narrowDirs }),
     ...(options.since.install === undefined ? {} : { install: options.since.install }),
     ...(options.since.movedExports === undefined ? {} : { movedExports: options.since.movedExports }),
+    ...(options.ignore === undefined ? {} : { ignore: options.ignore }),
   });
 
   // Absent all the way down: no diff text, no reader, or a reader that found no
@@ -278,6 +282,9 @@ export async function selectionFor(
       ...(journey?.skipped ?? []).map((entry): [string, string] => [entry.subject, because(entry)]),
     ]),
     notes: [
+      ...(journal?.probes === undefined ? [] : [journal.probes]),
+      // Said once for the run: a file the suite ignores moves only a module that declares it.
+      ...(ignored.length === 0 ? [] : [`${ignoredSaid(ignored)}, so only a \`/// <depends>\` on it selects`]),
       ...notesFor(
         ref,
         { ...answer, skipped, kept },
@@ -354,7 +361,7 @@ async function journalOf(
   relations: Relations | undefined,
   install: Extract<InstallDiff, { readonly moved: unknown }> | undefined,
   dirs: readonly string[],
-): Promise<ExecutionNarrowing | undefined> {
+): Promise<(ExecutionNarrowing & { readonly probes?: string }) | undefined> {
   const read = async (graph?: Relations) => {
     const beyond = beyondOf(graph, install);
     const narrowing = await deps.readJourney?.(withWhole(diff, beyond.files), graph);

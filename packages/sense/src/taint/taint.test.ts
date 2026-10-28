@@ -333,9 +333,11 @@ describe('the mock taint', () => {
     }
   });
 
-  it('reads an original loaded by name as an import, which no mock of it in the file can cut', async () => {
-    const { shadows } = await under([mockTaint()]);
+  it('preserves an existing forwarded import and adds an independently restored original', async () => {
+    const { shadows, additions } = await under([mockTaint()]);
 
+    expect(additions.has('src/forward.test.ts')).toBe(false);
+    expect(additions.get('src/restore.test.ts')).toEqual(['src/api.ts']);
     expect(shadows.has('src/forward.test.ts')).toBe(false);
     expect(shadows.has('src/restore.test.ts')).toBe(false);
     expect(shadows.get('src/swap.test.ts')).toEqual(['src/api.ts']);

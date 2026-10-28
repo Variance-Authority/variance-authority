@@ -5,6 +5,7 @@
 > Wiring a test run drives and a production build ignores: declare how a module resets its own state, and let the runner decide when.
 
 Part of [Variance Authority](https://variance-authority.dev).
+Point your coding agent at [`llms.txt`](https://variance-authority.dev/llms.txt).
 
 A module-level `let` outlives the test that changed it. A counter, a cache, a
 lazily built client, a memoized value — each one is written by whichever test
@@ -220,4 +221,4 @@ MIT © Machine Garden
 
 ---
 
-**[@variance-authority/ioc](https://variance-authority.dev/reference/packages/ioc)** is part of [Variance Authority](https://variance-authority.dev) — [documentation](https://variance-authority.dev/docs) · MIT
+**[@variance-authority/ioc](https://variance-authority.dev/reference/packages/ioc)** is part of [Variance Authority](https://variance-authority.dev) — [documentation](https://variance-authority.dev/docs) · [GitHub](https://github.com/Variance-Authority/variance-authority/tree/main/packages/ioc) · MIT

@@ -70,3 +70,12 @@ describe('a Vitest 4 run handed a selection', () => {
     expect(ran).toEqual([at('one.case.ts')]);
   }, 60_000);
 });
+
+describe('a Vitest 4 run under --shard', () => {
+  it('passes a shard left no file, because there are fewer files than shards', async () => {
+    const { code, stderr } = await run('more-shards', [], '--shard', '3/3');
+
+    expect(stderr).toContain('variance-authority: shard 3/3 by file count: 0 of 2 files');
+    expect(code).toBe(0);
+  }, 60_000);
+});

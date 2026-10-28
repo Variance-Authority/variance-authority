@@ -1,3 +1,5 @@
+import { availableParallelism } from 'node:os';
+import type { Step } from '@variance-authority/core/format';
 import type { Config } from '../config.js';
 import type { Collector } from './collector.js';
 import type { ObserveContext, Outcome } from './run-context.js';
@@ -24,29 +26,45 @@ export interface Lane {
   readonly collecting: <T>(job: () => Promise<T>) => Promise<T>;
 }
 
-/** `workers`, defaulting to one. */
-export function workersOf(config: Config): number {
-  return Math.max(1, config.workers ?? 1);
+/**
+ * `workers` as declared; undeclared, half the machine's logical cores, at least
+ * one — the default Playwright Test takes. Half, because a page read is mostly
+ * waiting and the other half is left to what the waiting is for: the run's own
+ * comparison and, on one machine, the server under test.
+ *
+ * A declared `concurrency` holds the derived width: it is a memory bound, and
+ * every world holds a page and a subject in flight. A declared width is the
+ * operator's word on both and is taken as it is.
+ */
+export function workersOf(config: Config, cores: number = availableParallelism()): number {
+  if (config.workers !== undefined) return Math.max(1, config.workers);
+  return Math.max(1, Math.min(Math.floor(cores / 2), config.concurrency ?? Number.POSITIVE_INFINITY));
 }
 
 /**
- * The run's own collector as the first lane, and `workers - 1` more from it.
+ * The run's own collector as the first lane, and up to `workers - 1` more from
+ * it: never more lanes than there are file groups, because a world with nothing
+ * to take is a browser opened for nothing.
  *
- * A collector with no `openWorker` runs one lane and the warning says so: the
- * operator asked for a width, and silence would read as having it.
+ * A collector with no `openWorker` runs one lane. When the width was declared
+ * the warning says so: the operator asked for it, and silence would read as
+ * having it. A derived width is a ceiling, not a request, and says nothing.
  */
 export async function openLanes(
   collector: Collector,
-  workers: number,
+  config: Config,
+  groups: number,
 ): Promise<{ readonly lanes: readonly Lane[]; readonly warnings: readonly string[] }> {
   const lanes: Lane[] = [{ collector, collecting: serial() }];
+  const workers = Math.min(workersOf(config), groups);
   if (workers <= 1) return { lanes, warnings: [] };
 
   if (collector.openWorker === undefined) {
+    if (config.workers === undefined) return { lanes, warnings: [] };
     return {
       lanes,
       warnings: [
-        `\`workers\` is ${workers}, and this collector supplies no \`openWorker\`, so the ` +
+        `\`workers\` is ${config.workers}, and this collector supplies no \`openWorker\`, so the ` +
           'run collected in one world',
       ],
     };
@@ -67,19 +85,37 @@ export async function closeLanes(lanes: readonly Lane[]): Promise<void> {
   await Promise.all(lanes.slice(1).map(async (lane) => lane.collector.close()));
 }
 
-/** The context a lane's subjects are decided in: second readings stay in its world. */
+/**
+ * The context a lane's subjects are decided in: a second reading stays in its
+ * world, and a reading alone is opened by whichever collector can open one.
+ *
+ * A worker is a standing world and opens nothing alone; the clean world is the
+ * run's collector's to build, from the same recipe. Without it a subject's
+ * evidence would depend on the world it drew: the same change read alone in
+ * one world and "not re-run alone" in another.
+ */
 export function contextFor(context: ObserveContext, lane: Lane): ObserveContext {
-  if (lane.collector === context.deps.collector) return context;
-  return { ...context, deps: { ...context.deps, collector: lane.collector } };
+  const own = context.deps.collector;
+  const worker = lane.collector;
+  if (worker === own) return context;
+  const isolated = worker.collectAlone === undefined ? own : worker;
+  const collector: Collector = {
+    plan: async () => worker.plan(),
+    collect: async (planned) => worker.collect(planned),
+    ...(worker.callSites !== undefined ? { callSites: worker.callSites } : {}),
+    ...(isolated.collectAlone !== undefined ? { collectAlone: isolated.collectAlone.bind(isolated) } : {}),
+    close: async (costs) => worker.close(costs),
+  };
+  return { ...context, deps: { ...context.deps, collector } };
 }
 
 /**
  * Run `body` over every index in `queue`, group by group, lane by lane.
  *
- * Each lane keeps up to `window` subjects in flight — `concurrency` shared
- * across the lanes, so the raster tier is exactly as wide as it was configured
- * — and takes its next group only once it has started the last subject of the
- * one before. With one lane and a concurrency of one this is the loop a run
+ * Each lane keeps up to `window` subjects in flight — its even share of
+ * `concurrency`, rounded up, so at least one and in all at least as wide as
+ * configured — and takes its next group only once it has started the last
+ * subject of the one before. With one lane and a concurrency of one this is the loop a run
  * always was: one subject at a time, in queue order.
  */
 export async function steal(
@@ -121,8 +157,14 @@ export function timed(
   started: number | undefined,
   elapsed: (() => number) | undefined,
   declaredIn?: string,
+  /** The subject's steps, taken on the same clock; see `ObserveContext.steps`. */
+  steps?: readonly Step[],
 ): Outcome {
   if (outcome.kind !== 'observed' || started === undefined || elapsed === undefined) return outcome;
-  const record = { ...outcome.record, costMs: elapsed() - started };
+  const record = {
+    ...outcome.record,
+    costMs: elapsed() - started,
+    ...(steps === undefined ? {} : { steps: [...steps] }),
+  };
   return { ...outcome, record: declaredIn === undefined ? record : { ...record, declaredIn } };
 }

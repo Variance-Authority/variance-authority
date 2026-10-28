@@ -6,7 +6,7 @@
  * the configuration, so what that configuration was handed is still in memory:
  * `jest-placing.ts` leaves the project's own sequencer and the placement under
  * a symbol on `globalThis`. Every method is the project's sequencer's, except
- * `shard`, which places by recorded time.
+ * `shard`, which places whole files by the rule every runner's shard is placed by.
  */
 
 /** Where the configuration leaves the sequencer; mirrors `HANDED` in `jest-placing.ts`. */
@@ -17,13 +17,9 @@ interface Shard {
   readonly shardCount: number;
 }
 
-interface Inner {
-  shard?(tests: unknown[], options: Shard): unknown;
-}
-
 interface Handed {
-  readonly own: () => new (options: unknown) => Inner;
-  readonly shard: (tests: { path: string }[], options: Shard, inner: Inner) => Promise<unknown[]>;
+  readonly own: () => new (options: unknown) => object;
+  readonly shard: (tests: { path: string }[], options: Shard) => Promise<unknown[]>;
 }
 
 class PlacingSequencer {
@@ -38,7 +34,7 @@ class PlacingSequencer {
     const inner = new (handed.own())(options);
     return new Proxy(inner, {
       get(target, key) {
-        if (key === 'shard') return (tests: { path: string }[], shard: Shard) => handed.shard(tests, shard, target);
+        if (key === 'shard') return (tests: { path: string }[], shard: Shard) => handed.shard(tests, shard);
         const value = Reflect.get(target, key, target) as unknown;
         return typeof value === 'function' ? value.bind(target) : value;
       },

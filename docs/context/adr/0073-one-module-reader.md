@@ -8,8 +8,7 @@ implementation stays, and stays the oracle", and the line under *What this
 forecloses* that treats the native binary as optional.
 **Relates to:**
 [`packages/sense/src/read.ts`](../../../packages/sense/src/read.ts),
-[`packages/sense/native/src/read.rs`](../../../packages/sense/native/src/read.rs),
-[`packages/sense/src/enrich.ts`](../../../packages/sense/src/enrich.ts)
+[`packages/sense/native/src/read.rs`](../../../packages/sense/native/src/read.rs)
 
 ## Context
 
@@ -36,7 +35,7 @@ the change reader in `module_shape.rs` shares.
 
 **There is one module reader, and it is `native/src/read.rs`.**
 `readModule(file, contents)` calls the addon's `readSource`. The batch calls
-read files off the disk, and `enrich` reads declarations through the addon too.
+read files off the disk, declarations included.
 
 A machine without the addon cannot read a module. It fails and names the reason
 the addon did not load. It never falls back to another reader, and it never

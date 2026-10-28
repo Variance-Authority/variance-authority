@@ -16,13 +16,13 @@ import {
 /**
  * Where baselines live — the one axis with no default and no inferred answer.
  *
- * Three placements, chosen in [`placement.md`](../../../docs/placement.md), and
+ * Three placements, chosen in [`placement.md`](https://variance-authority.dev/docs/placement), and
  * the choice is the operator's because the three fail in different directions
  * and none of them is safe to guess: `directory` and `lfs` are committed, and a
  * repository that ignores them reports every subject `new` forever without ever
  * erroring; `remote` is not committed, and a run that cannot reach it must stop.
  * Nothing here reads a verdict differently
- * ([ADR-0016](../../../docs/context/adr/0016-where-a-baseline-is-kept-decides-nothing.md)).
+ * ([ADR-0016](https://github.com/Variance-Authority/variance-authority/blob/main/docs/context/adr/0016-where-a-baseline-is-kept-decides-nothing.md)).
  */
 export type BaselinesConfig = DirectoryBaselines | LfsBaselines | RemoteBaselines;
 

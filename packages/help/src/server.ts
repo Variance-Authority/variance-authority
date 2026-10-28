@@ -2,12 +2,13 @@ import type { Readable, Writable } from 'node:stream';
 import { serve } from '@variance-authority/mcp';
 import type { Tree } from '@variance-authority/mcp/tools';
 import { readOfferings, type Help } from '@variance-authority/package/help';
+import { caughtUp, foundNothingAnswer } from './caught-up.js';
 import {
   readWorkspaceForAnswer,
   workspaceGeneration,
   type AnsweringOptions,
 } from './read.js';
-import { HELP } from './tools.js';
+import { HELP, UNCOMPARED_HELP } from './tools.js';
 
 /**
  * The transport, and one decision that could not go anywhere else.
@@ -17,7 +18,10 @@ import { HELP } from './tools.js';
  * Git what changed or to rebuild that value. The ordinary server refreshes a
  * generation after one hour, while `justAnswer` keeps serving the recorded one
  * until another process deliberately replaces it. Every answer says when that
- * generation was produced, so freshness is evidence rather than hidden work.
+ * generation was produced, so freshness is evidence rather than hidden work,
+ * and a `justAnswer` answer says it was not compared with the checkout. A
+ * refusal from a reused generation is asked again of one read now, as
+ * {@link caughtUp} decides for every surface that asks a source question.
  *
  * `tools/surface.check.ts` holds the shape of what is served to the recorded
  * surface. No prose in this file reaches a client — `initialize` sends a name
@@ -69,28 +73,40 @@ export function serveWorkspace(root: string, options: WorkspaceOptions = {}): ()
   // MCP and answered by `variance ask`.
   let tree: Tree | undefined;
 
+  const readNow = async (after: number): Promise<Help> => {
+    let nextTree: Tree | undefined;
+    const read = await readWorkspaceForAnswer(root, {
+      ...reading,
+      justAnswer,
+      refreshAfterMs: after,
+      tree: (drawn: Tree) => {
+        nextTree = drawn;
+      },
+    });
+    cached = read;
+    tree = nextTree;
+    return read;
+  };
+
   return serve({
     input: input ?? process.stdin,
     output: output ?? process.stdout,
-    served: HELP,
+    served: justAnswer ? UNCOMPARED_HELP : HELP,
     tree: () => tree,
     root,
+    // `justAnswer` reads nothing but what was published, so its refusal stands.
+    ...(justAnswer ? {} : {
+      again: async (_asked: string | undefined, refused: Help, started: number) => {
+        return caughtUp(workspaceGeneration(refused), started, root, async (current) => (current ? readNow(0) : refused));
+      },
+    }),
+    // A name nothing declares is the answer once it has been read again, said as `variance ask` says it.
+    answered: (thrown: unknown, subject: Help, again) => foundNothingAnswer(thrown, again, workspaceGeneration(subject), justAnswer),
     subject: async () => {
       try {
         const at = cached === undefined ? undefined : workspaceGeneration(cached);
         const stale = at === undefined || Date.now() - Date.parse(at) > refreshAfterMs;
-        if (cached === undefined || (!justAnswer && stale)) {
-          let nextTree: Tree | undefined;
-          cached = await readWorkspaceForAnswer(root, {
-            ...reading,
-            justAnswer,
-            refreshAfterMs,
-            tree: (drawn: Tree) => {
-              nextTree = drawn;
-            },
-          });
-          tree = nextTree;
-        }
+        if (cached === undefined || (!justAnswer && stale)) cached = await readNow(refreshAfterMs);
       } catch (failure) {
         // A workspace mid-edit — a manifest saved half-written, a file being
         // rewritten — must not take the server down. The previous reading is

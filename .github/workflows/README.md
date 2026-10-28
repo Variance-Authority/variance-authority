@@ -2,8 +2,7 @@
 
 Six workflow files live here. Three of them are recipes, meant to be copied
 into your own repository and edited. Each is a complete answer to a different
-question, and every decision inside them is commented as a decision — including
-the ones that are wrong for somebody else's repository. They all shell out to
+question. They all shell out to
 one tool: `@variance-authority/cli`, a devDependency, invoked as
 `npx variance <command>`.
 
@@ -30,10 +29,11 @@ an image. [`docs/stabilization.md`](../../docs/stabilization.md) has both.
 The other three files here, [`check.yml`](check.yml),
 [`release.yml`](release.yml) and [`outer-loop.yml`](outer-loop.yml), are this
 repository's own build, publish and end-to-end test, and none is a recipe.
-`outer-loop.yml` has [its own section](#the-outer-loop). On a pull request, `check.yml` runs only the tests the
-change reached, selected by the `withTestSelection` each slice's config is
-wrapped in from the recording `main` saved, and a push to `main` runs the whole
-suite. It then posts two comments on the pull request, each under its own
+`outer-loop.yml` has [its own section](#the-outer-loop). On a pull request,
+`check.yml` uses the recording `main` saved to select the tests the change
+reached. It compares the predicted time of that selection in one job with a
+sharded full suite and runs the cheaper option.
+A push to `main` runs the whole suite. It then posts two comments on the pull request, each under its own
 marker so neither overwrites the gate's: `variance review` over the suite's
 recording, and `variance coverage` against the record `main` saved. A merge
 group runs `plan` and `queue` in place of those jobs: lint and `yarn check` in
@@ -42,17 +42,32 @@ others, in as many shards per slice as `variance shards` counts them worth. It
 posts nothing.
 
 Here, the gate runs on every pull request and on every push to `main`, the sweep
-nightly, and the shards on demand only — sharding fourteen subjects across two
+nightly, and the shards on demand only — sharding thirteen subjects across two
 installs saves nothing, and the shards find their pull-request comment by the
 same hidden HTML marker the gate uses, because the marker names the config's
 `project` and the two run one config, so on the same event the two would
 overwrite each other. The gate runs three configs, each its own check with its
 own comment and its own accept label: the case's Storybook, and a matrix over
-this project's own surfaces, the review surface's Storybook and the site.
+this project's own surfaces, the review surface's Storybook and the site. The
+site's check photographs on a pull request only when the change reaches what
+the site is built from or photographed with, which `tools/site-reach.mjs`
+reads out of the checkout; otherwise it ends green and its summary says why.
+It reports rather than blocks: a change it finds is a warning on a green check,
+with its docket and report as on the other two, and `variance: accept site`
+still accepts it. It turns red when the run did not happen, when a subject
+could not be observed, an observation errored or the report cannot be read, and
+when an accept the comparison after it did not hold. The action's
+`exit-zero-on-changes` input does that for any job.
+Two more jobs run the case's Storybook under the other two ways of keeping a
+baseline, each with its own config, label and comment: `lfs` commits the
+baselines to the pull request's branch through git-LFS, and `tribunal-service`
+deploys this commit's review service to workers.dev and pushes the build to it.
+That one needs the `CLOUDFLARE_API_TOKEN` secret and fails without it.
 
-`check.yml` runs one job per harness — the repository's rules, the timed
-measurements, and the vitest suite — and a `check` job that turns their results
-into the one check a branch rule names. In a merge group `plan` and `queue`
+`check.yml` runs one job per harness — the repository's rules, with the carry
+contract as one of their steps, the timed measurements, and the vitest suite —
+and a `check` job that turns their results into the one check a branch rule
+names. In a merge group `plan` and `queue`
 replace the harness jobs, and `check` still runs, reading only their results.
 
 ## How the CLI reaches the runner
@@ -99,7 +114,8 @@ nothing else.
 
 Accepting a change writes a new baseline, so where the baselines live decides
 who accepts and how. `variance.yml` chooses with one value at the top of the
-file, `VARIANCE_REVIEW`, and this repository runs `cache`.
+file, `VARIANCE_REVIEW`. This repository runs `cache` for both subjects, and
+the other two each in a job of its own over the case.
 [`docs/placement.md`](../../docs/placement.md#who-accepts-a-change) compares the
 three arrangements. This is what each one needs in your copy:
 
@@ -118,8 +134,10 @@ three arrangements. This is what each one needs in your copy:
   The push starts the run that checks the new commit, which is why the token
   has to be one whose push starts a workflow. The first baseline comes from the
   label on the pull request that adds the suite: a dispatch with `accept` is
-  refused, because it has no branch to commit to. For `lfs`, add `lfs: true` to
-  the checkout and install git-lfs in a step before it.
+  refused, because it has no branch to commit to. For `lfs`, install git-lfs in
+  a step before the checkout, leave the checkout's `lfs` off, and run `git lfs
+  install --local --skip-smudge` after it: the run fetches the images it
+  compares, and a commit stores pointers.
 - **`tribunal`** skips the cache and sends every run to the service with
   `variance push`, red or green. The label accepts nothing, and the comment
   sends the reviewer to the service's page. A dispatch with `accept` writes
@@ -175,9 +193,12 @@ did.
 
 ## The pictures in the comment
 
-The comment shows the leading cause's before and after on its first screen, and
-each further cause's pair inside its fold. The action pushes the report's before
-and after images to `refs/variance/project/<project>/images/<branch>`, named for
+The comment shows the leading cause's change on its first screen, and each
+further cause's inside its fold. A change is one picture at its own size: each
+of the largest changed regions with the rows around it, as before, after and the
+difference, top to bottom. A subject with no region to crop shows its whole
+before and after instead. The action pushes those images from the report to
+`refs/variance/project/<project>/images/<branch>`, named for
 the config's `project` and the pull request's branch, so each job's comment
 links its own pictures. `<project>` is spelled as `variance carry` prints it,
 one path segment whatever the project holds. The ref is one commit with no

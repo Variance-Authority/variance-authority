@@ -197,6 +197,22 @@ approved image the plan did not contain — but you learn about it from a run
 rather than from a review. Keep the explicit `routes` form for a suite where
 removing a subject should be something somebody signs off.
 
+A sitemap also lists pages you do not review as pixels: articles, changelogs,
+generated references, which change with every prose edit and run to tens of
+thousands of pixels tall. Leave such a page out from the page itself: put
+`data-variance-exclude="<reason>"` on any element, inside `roots` or outside
+them, and the whole page leaves the run, not only that element. Put it in the layout every article shares and each
+new article is left out too. The collector still loads the page, to find the
+marker, and then reads and photographs nothing. The run lists the page as
+`excluded`, with that reason, and an excluded page never changes the exit code;
+the [route collector's reference](../packages/route-collector/README.md#leave-a-page-out)
+has the details.
+
+Any route, listed or discovered, is refused when its subject is longer than
+16,384 device pixels on either side. It is never photographed or clipped: the
+run records it as failed with its size and exits `1`, so somebody decides
+whether to narrow `roots` or leave the page out.
+
 ## Routes that will not hold still
 
 Two different things go wrong here, and they fail at different points.
@@ -204,7 +220,8 @@ Two different things go wrong here, and they fail at different points.
 **Readiness** is whether the route has arrived. The collector waits for page
 load, and then for every React Suspense boundary under your roots to resolve
 real content rather than still be showing a fallback. Anything that finishes
-later — a fetch issued after mount — needs a marker you name:
+later — a fetch issued after mount — needs a marker you name, or the work put
+under Suspense ([content that loads late](late-content.md)):
 
 ```js
 routeCollector({

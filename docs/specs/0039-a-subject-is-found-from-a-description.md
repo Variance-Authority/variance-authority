@@ -49,10 +49,11 @@ Two counts belong to that half alone. **Matched on place**: the share of
 answers where nothing in the relation said the asked-for word, which is the
 rate at which the reader is being handed a landmark rather than a match, and
 is expected to be high — a screen says `role=status`, a person says *warning*.
-And **refusals**: a spatial question against a reading with no layout must
-refuse, and the count of refusals must equal the count of such questions
-exactly. A corpus rendered under jsdom resolves no layout at all, so it
-measures containment and the word half, and cannot measure the rest.
+And **unrelated answers**: a spatial question against a reading with no
+layout must answer the anchor alone and name the relation as the gap, and the
+count of such answers must equal the count of such questions exactly. A
+corpus rendered under jsdom resolves no layout at all, so it measures
+containment and the word half, and cannot measure the rest.
 
 **2. The story's own file and line.** The run does not hold `stories.tsx`, and
 the render already carries what the props became, so the story source is not

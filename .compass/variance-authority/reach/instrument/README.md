@@ -6,7 +6,8 @@
 
 Cuts a module into arrival regions and splices a presence probe in front of each
 one, producing the transformed source beside the inventory that says what every
-region is.
+region is. Under the `loads` recipe it does neither: the module keeps its text,
+with one line after it that marks it as loaded, and has no inventory.
 
 ## Bounded context
 
@@ -14,15 +15,18 @@ region is.
 
 ## Inputs and outputs
 
-In: one module's source text, its id, and — where a bundler already transformed
-it — the map that says which line of the original each offset was written on.
-Out: the source with probes spliced in, and one entry per region carrying its
+In: one module's source text, its id, and — where the project's transforms
+already rewrote it — the transformed text and the composed map from it back to
+the source text. Out: the text with probes spliced in, the map from it back to
+what it was spliced into, and one entry per region carrying its
 ordinal, its kind, its name and path, its extent in the author's own
 coordinates, the digest of its own source with child bodies excluded, and the
 ordinal of the region enclosing it. Also out: the identity of the exact input,
 and the identity of the probe recipe. For a test file, under a test-runner seam
 with cadence on: the file with a cut before each statement of its test and hook
-bodies, which reports the line it stands on, and no probes.
+bodies, which reports the line it stands on, and no probes. Under `loads` the
+module text with the load mark after it, the identity of the input, and no
+regions; a test file is not cut.
 
 ## Depends on
 
@@ -63,12 +67,19 @@ statement. The close charges each region to the last cut before its first
 entry, so a case records which of its own lines, or a hook's, first reached
 each region it crossed.
 
-Line count is preserved exactly — no inserted text contains a newline — so a
-stack trace and anything else reading the same file still agree about lines.
-Columns shift, and the extents recorded beside each region are translated back
-through the bundler's own map, because a diff speaks in the coordinates of the
-file the author edited and extents taken from transformed text are a different
-number line rather than an approximation.
+Regions are always cut from the text the author wrote, because a diff speaks
+in the coordinates of the file the author edited and extents taken from
+transformed text are a different number line rather than an approximation.
+The probes go into the transformed text, after every transform of the
+project's, so a compiler that reads syntax never reads one: each transformed
+region fires the authored regions the composed map names its code as coming
+from, and a region the map gives no code of its own is fired by the enclosing
+code in front of it. That can report a region running when it did not, never
+the reverse. A rewritten text with no map back, or a region nothing fires, is
+refused by file and region rather than dropped. No inserted text contains a
+newline, except the line a module that is only a hashbang takes its header on,
+so lines stay where the transforms put them, and the map handed on is the
+project's moved past the probes.
 
 A module that cannot be parsed yields nothing at all, and a missing result is
 never an empty region list: only the caller can keep those apart, and it widens
@@ -102,6 +113,16 @@ its own probes handed back with none in it, carry the same mark.
   arrival rule, region identity, and where a module header may be inserted
 - `packages/sense/native/instrument/src/crossing.rs` — the functions a module
   hands to another realm as text, found from the calls that send them
+- `packages/sense/native/instrument/src/place.rs` — `place`: the authored
+  cut, placed on the transformed text through the composed map
+- `packages/sense/native/instrument/src/carry.rs` — the project's map moved
+  past the probes placed in the text it maps
+- `packages/sense/src/test-selection/unmapped-transforms.ts` — the plugins
+  ahead of the probes that rewrote a module under Vite and returned no map
+- `packages/sense/src/test-selection/loader-probes.ts` — the placement every
+  Rspack and webpack loader at `enforce: 'post'` shares, through the map the
+  loaders ahead handed on; `probes-rule.ts` and `probes-loader.ts` — the rule
+  and loader that probe a build no test runner drives
 - `packages/sense/native/instrument/src/lib.rs` — the instrumenter crate a Rust
   pipeline links from `node_modules`: `instrument`, `module_id` and `recipe`
 - `packages/sense/native/instrument/src/header.rs` — the one author of the

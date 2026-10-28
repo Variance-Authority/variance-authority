@@ -48,6 +48,10 @@ interface Chain {
   readonly exclude?: readonly string[];
   readonly allowJs?: boolean;
   readonly conditions?: readonly string[];
+  /** Whether `paths` maps any specifier; `false` where a config clears what it inherits. */
+  readonly paths?: boolean;
+  /** Whether `baseUrl` names a directory, through which a bare specifier resolves without any `paths`. */
+  readonly baseUrl?: boolean;
   readonly references: readonly string[];
 }
 
@@ -59,11 +63,13 @@ interface Chain {
  */
 export function customConditionsFor(tsconfig: string): (file: string) => readonly string[] {
   const chains = new Map<string, Chain | undefined>();
+  const projects = new Map<string, Config | undefined>();
   const configs = new Map<string, Config | undefined>();
   const nearest = new Map<string, string | undefined>();
 
-  const load = (path: string): Config | undefined => {
-    if (configs.has(path)) return configs.get(path);
+  /** One config without its references: what it is when another config references it. */
+  const project = (path: string): Config | undefined => {
+    if (projects.has(path)) return projects.get(path);
     const chain = chainOf(path, chains, new Set());
     const directory = dirname(path);
     const config = chain === undefined
@@ -74,12 +80,26 @@ export function customConditionsFor(tsconfig: string): (file: string) => readonl
           include: chain.include?.map((pattern) => placed(directory, pattern)),
           exclude: chain.exclude?.map((pattern) => placed(directory, pattern)),
           allowJs: chain.allowJs === true,
-          references: chain.references
-            .map((reference) => configFile(normalize(join(directory, reference))))
-            .map((found) => found === undefined ? undefined : load(found))
-            .filter((found): found is Config => found !== undefined),
+          references: [],
           conditions: chain.conditions,
         };
+    projects.set(path, config);
+    return config;
+  };
+
+  // A governing config with the projects it references, one level deep, the way
+  // `oxc-resolver` loads them: a referenced project's own references are never
+  // read, and a config that references itself or a project that is not there is
+  // refused.
+  const load = (path: string): Config | undefined => {
+    if (configs.has(path)) return configs.get(path);
+    const own = project(path);
+    const references = (chains.get(path)?.references ?? [])
+      .map((reference) => configFile(normalize(join(dirname(path), reference))))
+      .map((found) => found === undefined || found === path ? undefined : project(found));
+    const config = own === undefined || references.includes(undefined)
+      ? undefined
+      : { ...own, references: references as Config[] };
     configs.set(path, config);
     return config;
   };
@@ -108,6 +128,22 @@ export function customConditionsFor(tsconfig: string): (file: string) => readonl
   return (file) => governing(file)?.conditions ?? [];
 }
 
+/**
+ * What each config asks of a resolution, with everything it extends folded in:
+ * the conditions it adds, whether it maps `paths`, and whether it sets
+ * `baseUrl`, through which the resolver answers a bare specifier. Undefined for a config
+ * that cannot be read, or that extends one that cannot.
+ */
+export function declaredOptionsReader(): (
+  path: string,
+) => { readonly conditions: readonly string[]; readonly paths: boolean; readonly baseUrl: boolean } | undefined {
+  const chains = new Map<string, Chain | undefined>();
+  return (path) => {
+    const chain = chainOf(path, chains, new Set());
+    return chain === undefined ? undefined : { conditions: chain.conditions ?? [], paths: chain.paths === true, baseUrl: chain.baseUrl === true };
+  };
+}
+
 /** A config's own options, then each unset one from its bases, last base first. */
 function chainOf(
   path: string,
@@ -127,12 +163,16 @@ function chainOf(
 
   const options = (raw['compilerOptions'] ?? {}) as Record<string, unknown>;
   const custom = options['customConditions'];
+  const paths = options['paths'];
+  const baseUrl = options['baseUrl'];
   let chain: Chain = {
     ...list('files', raw['files']),
     ...list('include', raw['include']),
     ...list('exclude', raw['exclude']),
     ...(typeof options['allowJs'] === 'boolean' ? { allowJs: options['allowJs'] } : {}),
     ...(custom === undefined ? {} : { conditions: Array.isArray(custom) ? strings(custom) : [] }),
+    ...(paths === undefined ? {} : { paths: typeof paths === 'object' && paths !== null && Object.keys(paths).length > 0 }),
+    ...(baseUrl === undefined ? {} : { baseUrl: typeof baseUrl === 'string' && baseUrl !== '' }),
     references: Array.isArray(raw['references'])
       ? raw['references'].flatMap((reference: unknown) => {
           const at = (reference as { path?: unknown } | null)?.path;
@@ -156,6 +196,8 @@ function chainOf(
       ...(chain.conditions ?? inherited.conditions) === undefined
         ? {}
         : { conditions: chain.conditions ?? inherited.conditions },
+      ...(chain.paths ?? inherited.paths) === undefined ? {} : { paths: chain.paths ?? inherited.paths },
+      ...(chain.baseUrl ?? inherited.baseUrl) === undefined ? {} : { baseUrl: chain.baseUrl ?? inherited.baseUrl },
       references: chain.references,
     };
   }

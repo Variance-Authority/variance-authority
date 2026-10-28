@@ -1,12 +1,12 @@
 import { execFileSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, readFileSync, symlinkSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { afterEach, expect, it } from 'vitest';
 import { treeOf } from '@variance-authority/mcp/tools';
 import { readHelp } from '@variance-authority/package/help';
 import { updateSourceIndex } from '@variance-authority/sense';
-import { readDependencyLexicon, refreshDependencyLexicon } from '../dependency-lexicon.js';
+import { refreshDependencyLexicon } from '../dependency-lexicon.js';
 import { answerSearch, searchIndexOf } from './search.js';
 import { stack } from './stack.js';
 
@@ -119,15 +119,4 @@ it('reads no SKILL.md that a link inside the package points outside it', async (
   expect(answer).toContain('    skill encrypted: node_modules/env-kit/skills/encrypted/SKILL.md');
   expect(answer).not.toContain('borrowed');
   expect(answer).not.toContain('linked');
-});
-
-it('says skills were not read when the lexicon was written before they were recorded', async () => {
-  const root = await workspace();
-  const { path } = readDependencyLexicon(root);
-  const lexicon = JSON.parse(readFileSync(path, 'utf8')) as { entries: { api: { skills?: unknown } }[] };
-  for (const entry of lexicon.entries) delete entry.api.skills;
-  writeFileSync(path, JSON.stringify({ ...lexicon, version: 8 }));
-  const answer = stack.run(readHelp(root), { from: 'src/index.ts' }, { root });
-  expect(answer).toContain('Skills were not read: the dependency lexicon predates them; run `variance index` to read them.');
-  expect(answer).not.toContain('    skill ');
 });

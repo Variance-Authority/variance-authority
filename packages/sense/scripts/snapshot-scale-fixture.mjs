@@ -29,7 +29,7 @@ const COHORTS = 16;
 const RERAN = 20;
 const RERECORDED = 10;
 
-const mb = (bytes) => `${(bytes / 1_048_576).toFixed(1)} MB`;
+const mb = (bytes) => `${(bytes / 1_048_576).toFixed(1)} MiB`;
 const count = (n) => n.toLocaleString();
 const secs = (ms) => `${(ms / 1000).toFixed(1)}s`;
 
@@ -44,6 +44,18 @@ const verdict = () => {
   console.log(
     `\npeak rss ${mb(peak)} against a ${mb(CEILING)} ceiling — ${peak <= CEILING ? 'fits' : 'OVER'}`,
   );
+};
+
+/**
+ * The verdict as a gate: the process's own peak resident size, which the
+ * kernel keeps, so a peak inside one native call that no `watch()` saw counts.
+ * Above the ceiling the process exits non-zero.
+ */
+const gate = () => {
+  const held = process.resourceUsage().maxRSS * 1024;
+  if (held > peak) peak = held;
+  verdict();
+  if (peak > CEILING) process.exitCode = 1;
 };
 
 const stream = (seed) => {
@@ -204,6 +216,7 @@ export {
   count,
   secs,
   watch,
+  gate,
   verdict,
   stream,
   pad,

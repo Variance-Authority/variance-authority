@@ -12,7 +12,7 @@ import { arrangedText, type SnapshotCase } from './arranged.js';
  * They rendered the same value into two different strings, which is how a
  * Playwright user and an agent reading the run report end up describing the same
  * observation differently. The merged version lives in
- * [`summarize.ts`](../../observe/src/summarize.ts); the seam stays here because
+ * [`summarize.ts`](https://github.com/Variance-Authority/variance-authority/blob/main/packages/observe/src/summarize.ts); the seam stays here because
  * *what a failing assertion prints* is this package's contract and
  * [`docket.test.ts`](./docket.test.ts) is where it is held.
  *

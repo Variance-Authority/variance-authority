@@ -15,6 +15,18 @@ import type { CoverageBlock } from './index.js';
 
 export type { ModuleId };
 
+/**
+ * Where a module's probes go, on every seam that places them.
+ *
+ * `after-transforms`, the default, places them in what the project's
+ * transforms wrote, through the map back to the file, so a compiler that reads
+ * syntax never reads a probe. `before-transforms` places them in the file as
+ * read, ahead of every transform: one parse and no map, for a run whose
+ * transforms only strip types or JSX. A compiler that reads syntax, such as
+ * Compiled or the React Compiler, then reads the probes too.
+ */
+export type ProbePlacement = 'after-transforms' | 'before-transforms';
+
 /** One module the transform saw, whether or not it could read it. */
 export interface CapturedModule {
   /** Repository-relative, forward-slashed: the same path a coverage row carries. */
@@ -65,6 +77,8 @@ export function insideRoot(root: string, file: string): boolean {
 /** What one test file's run counted, per module, under the ids the modules reported. */
 export interface ReadJournal {
   readonly testFile: string;
+  /** When the file finished collecting, by the worker's `Date.now()`; absent where nothing marked it. */
+  readonly collected?: number;
   readonly modules: ReadonlyArray<{
     readonly id: ModuleId;
     readonly hits: readonly number[];
@@ -166,4 +180,32 @@ export async function readNamed(directory: string): Promise<ReadonlyArray<{ name
 
 export function isMissing(error: unknown): boolean {
   return error instanceof Error && 'code' in error && error.code === 'ENOENT';
+}
+
+/**
+ * The file on disk, or nothing where no file holds the module: a bundler's
+ * virtual module, named by no absolute path or by one with `\0` in it, or a
+ * path nothing is at. A file that is there and cannot be read fails, with
+ * its reason: the probes would otherwise take it for a module no file holds.
+ */
+export function fileOrNone(path: string, read: (path: string) => string): string | undefined {
+  if (!isAbsolute(path) || path.includes('\0')) return undefined;
+  try {
+    return read(path);
+  } catch (error) {
+    if (isMissing(error)) return undefined;
+    throw new Error(`\`${path}\`: the probes cannot read the file to place its regions: ${(error as Error).message}`, { cause: error });
+  }
+}
+
+export const NODE_MODULES = /[/\\]node_modules[/\\]/;
+
+/**
+ * Whether a module could be taken before its file is read. A file under
+ * `node_modules` is taken under its own name alone, as no map there is read,
+ * so `accepts` answers for it unread. Any other file may name a map whose
+ * source `accepts` takes, which only its text says.
+ */
+export function mayTake(file: string, accepts: (file: string) => boolean): boolean {
+  return !NODE_MODULES.test(file) || accepts(file);
 }

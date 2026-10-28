@@ -21,6 +21,7 @@ use crate::compact::Layer;
 use crate::orient_map_closure::{closures, Closure, Nodes};
 use crate::package_graph::{fold, join_parses, Crossing};
 use crate::package_owners::{owner_of, owners, parent, shown, NO_OWNER};
+use crate::resolve::Tsconfig;
 
 /// One package: a manifest with a name. A second manifest declaring a name
 /// already taken keeps its place, not its name: `name (directory)`.
@@ -79,6 +80,8 @@ const STORIES_INSIDE: &str = r"(?i)(^|/)storybook/";
 struct Request<'a> {
     to: Option<&'a str>,
     kind: &'a str,
+    /// An `export … from`, `export type` included: it passes names on and takes none.
+    republishes: bool,
     value: Option<&'a str>,
     /// The names it takes, by the rule in `names`.
     names: Vec<&'a str>,
@@ -114,7 +117,15 @@ fn package_of(value: &str) -> &str {
 /// holds, and the manifests the ones beside them. `made` answers which files
 /// are generated or vendored, asked only once every file's requests are read:
 /// git takes as long to answer as the reading takes, so the two overlap.
-pub(crate) fn read(root: &str, layers: &[Layer], listed: Option<&[String]>, made: impl FnOnce() -> HashSet<String>) -> Read {
+/// `tsconfig` is the config the scan that built the index resolved under, so
+/// a manifest's entry lands where that scan would have put it.
+pub(crate) fn read(
+    root: &str,
+    layers: &[Layer],
+    listed: Option<&[String]>,
+    tsconfig: Tsconfig,
+    made: impl FnOnce() -> HashSet<String>,
+) -> Read {
     let by_path = Regex::new(TEST_BY_PATH).expect("the pattern is fixed");
     let stories_inside = Regex::new(STORIES_INSIDE).expect("the pattern is fixed");
     let folded = fold(layers);
@@ -180,7 +191,7 @@ pub(crate) fn read(root: &str, layers: &[Layer], listed: Option<&[String]>, made
         .collect();
     let offering: Vec<&crate::package_owners::Package> = by_name.iter().map(|&owner| &owners.packages[owner as usize]).collect();
     let owner_of_file: Vec<u32> = files.iter().map(|file| file.owner).collect();
-    let mut entries = crate::orient_map_entries::declared(root, &offering, &counted, &owner_of_file);
+    let mut entries = crate::orient_map_entries::declared(root, &offering, &counted, &owner_of_file, tsconfig);
     // A package whose own directory is the tests' by its path is a fixture: its
     // manifest says what it offers the test that loads it, not what ships.
     for (package, entries) in packages.iter().zip(entries.iter_mut()) {
@@ -229,7 +240,7 @@ pub(crate) fn read(root: &str, layers: &[Layer], listed: Option<&[String]>, made
             // What a package is taken for is read from shipped code taking
             // shipped code, through a request that takes rather than republishes.
             let Some(&provider) = request.to.and_then(|to| counted.get(to)) else { continue };
-            if !code(file.path) || provider == at || test[provider] || request.kind == "reexports" || files[provider].owner != b {
+            if !code(file.path) || provider == at || test[provider] || request.republishes || files[provider].owner != b {
                 continue;
             }
             for &name in &request.names {
@@ -377,7 +388,7 @@ fn requests<'a>(layers: &'a [Layer<'a>], crossing: &Crossing<'a>) -> File<'a> {
     };
     let file = |requests, parsed, lines| File { path: crossing.file, owner: crossing.owner, requests, parsed, lines };
     let unparsed = |targets: Vec<Option<&'a str>>| {
-        file(targets.into_iter().map(|to| Request { to, kind: "", value: None, names: Vec::new() }).collect(), false, None)
+        file(targets.into_iter().map(|to| Request { to, kind: "", republishes: false, value: None, names: Vec::new() }).collect(), false, None)
     };
     let Some((parse_layer, parse_row)) = crossing.parse else { return unparsed(targets) };
     let (text, parses) = (&layers[parse_layer].stored, &layers[parse_layer].parses);
@@ -386,7 +397,8 @@ fn requests<'a>(layers: &'a [Layer<'a>], crossing: &Crossing<'a>) -> File<'a> {
         return unparsed(targets);
     }
     let mut read: HashMap<usize, Vec<&str>> = HashMap::new();
-    for member in parses.members.range(parse_row) {
+    // A name off the module's `default` is that value's; the `default` read is the use.
+    for member in parses.members.range(parse_row).filter(|&member| parses.member_through_default[member] == 0) {
         read.entry(parses.member_request.at(member) as usize).or_default().push(text.text(parses.member_name.at(member)));
     }
     let requests = range
@@ -406,7 +418,8 @@ fn requests<'a>(layers: &'a [Layer<'a>], crossing: &Crossing<'a>) -> File<'a> {
                 }
             }
             let kind = text.text(parses.request_kind.at(request));
-            Request { to, kind, value: Some(text.text(parses.request_value.at(request))), names }
+            let republishes = parses.request_republishes[request] == 1;
+            Request { to, kind, republishes, value: Some(text.text(parses.request_value.at(request))), names }
         })
         .collect();
     file(requests, true, parses.code_lines(parse_row))

@@ -42,7 +42,7 @@ describe('the Vitest integration', () => {
     // take them off again.
     const configured = withTestSelection({}, { root: tmpdir(), coverageFile: '/tmp/coverage.bin' });
 
-    expect(configured.plugins).toHaveLength(1);
+    expect(configured.plugins).toHaveLength(2);
     expect(configured.test?.setupFiles).toHaveLength(1);
     expect(configured.test?.reporters).toHaveLength(3);
   });

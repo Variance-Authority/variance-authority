@@ -63,12 +63,13 @@ async function updated(runner: string, args: (fixture: string) => readonly strin
   return readFile(file, 'utf8');
 }
 
-// Vitest and Rstest write no snapshot into a concise body's call even uncut,
-// so the cut is held to what the runner writes without it.
+// A test file's probes go in after the runner's own transform, so each runner
+// finds every call where it wrote it, a concise body's among them.
 describe.each(Object.entries(runners))('an inline snapshot under %s', (runner, args) => {
   it('is written where it is written without cuts', async () => {
     const uncut = await updated(runner, args, 'off');
     expect(uncut).toMatch(/expect\(value\)\.toMatchInlineSnapshot\(`[^`]*"answer": 42[^`]*`\);/);
+    expect(uncut).toMatch(/toMatchInlineSnapshot\(`[^`]*"answer": 7[^`]*`\)\);/);
     expect(await updated(runner, args, 'on')).toBe(uncut);
   }, 60_000);
 });

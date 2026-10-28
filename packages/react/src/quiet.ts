@@ -1,4 +1,4 @@
-import type { CommitTap } from './commits.js';
+import type { Commit, CommitTap } from './commits.js';
 
 export interface QuietResult {
   /** True when the page went `quietFor` milliseconds without a commit. */
@@ -49,18 +49,22 @@ function seenSince(
   before: number,
 ): { commits: number; restless: readonly { name: string; commits: number }[] } {
   const since = tap.commits().slice(before);
+  return { commits: since.length, restless: restlessIn(since) };
+}
+
+/** The components these commits rendered, most commits first, then by name. */
+export function restlessIn(commits: readonly Commit[]): { name: string; commits: number }[] {
   const counts = new Map<string, number>();
-  for (const commit of since) {
+  for (const commit of commits) {
     for (const name of commit.components) counts.set(name, (counts.get(name) ?? 0) + 1);
   }
-  const restless = [...counts]
+  return [...counts]
     .map(([name, commits]) => ({ name, commits }))
     .sort(
       (left, right) =>
         right.commits - left.commits ||
         (left.name < right.name ? -1 : left.name > right.name ? 1 : 0),
     );
-  return { commits: since.length, restless };
 }
 
 function now(): number {

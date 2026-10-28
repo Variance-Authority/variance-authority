@@ -206,25 +206,42 @@ describe('distill', () => {
   });
 
   it('carries what each case said it arranged, and leaves an unheard case without any', () => {
-    const said: ExecutionIndex = { ...EXECUTION, tests: [
+    // The JSON spells each item as an object; the index holds them as the frame does, unresolved, in the order every writer joins them to.
+    const spelled = { ...EXECUTION, tests: [
       { id: 'mocked', file: 'test/pay.test.ts', name: 'pays mocked', preconditions: [
-        { name: 'network', value: 'mocked', site: 'test/pay.test.ts:4', level: 1 },
-        { name: 'retries', value: 3, site: 'test/pay.test.ts:5', level: 0 },
-        { name: 'flaky', value: true, site: 'test/pay.test.ts:9', level: 65535 },
+        { name: 'pay:network', value: 'mocked', site: 'test/pay.test.ts:4', level: 1 },
+        { name: 'pay:retries', value: 3, site: 'test/pay.test.ts:5', level: 0 },
+        { name: 'pay:flaky', value: true, site: 'test/pay.test.ts:9', level: 65535 },
       ] },
       { id: 'silent', file: 'test/pay.test.ts', name: 'says nothing', preconditions: [] },
       { id: 'unheard', file: 'test/pay.test.ts', name: 'nobody listened' },
     ] };
 
-    const parsed = parseExecutionIndex(said);
+    const parsed = parseExecutionIndex(spelled);
 
-    expect(parsed).toEqual(said);
-    expect(parsed.tests[2]).not.toHaveProperty('preconditions');
-    expect(() => parseExecutionIndex({ ...said, tests: [{ ...said.tests[0], preconditions: {} }] }))
+    expect(parsed).toEqual({ ...EXECUTION, tests: [
+      { id: 'mocked', file: 'test/pay.test.ts', name: 'pays mocked', said: JSON.stringify({ said: [
+        ['pay:flaky', 'true', 'test/pay.test.ts:9', 65535],
+        ['pay:network', '"mocked"', 'test/pay.test.ts:4', 1],
+        ['pay:retries', '3', 'test/pay.test.ts:5', 0],
+      ] }) },
+      { id: 'silent', file: 'test/pay.test.ts', name: 'says nothing', said: '{"said":[]}' },
+      { id: 'unheard', file: 'test/pay.test.ts', name: 'nobody listened' },
+    ] } satisfies ExecutionIndex);
+    expect(parsed.tests[2]).not.toHaveProperty('said');
+    expect(() => parseExecutionIndex({ ...spelled, tests: [{ ...spelled.tests[0], preconditions: {} }] }))
       .toThrow('execution test 0 preconditions must be an array');
-    expect(() => parseExecutionIndex({ ...said, tests: [{ ...said.tests[0], preconditions: [
-      { name: 'network', value: null, site: 'test/pay.test.ts:4', level: 1 },
-    ] }] })).toThrow('execution test 0 precondition 0 value must be a string, number or boolean');
+    // A value is any JSON value, as the recorder holds it.
+    expect(parseExecutionIndex({ ...spelled, tests: [{ ...spelled.tests[0], preconditions: [
+      { name: 'pay:cart', value: { items: [1, 2] }, site: 'test/pay.test.ts:4', level: 1 },
+      { name: 'pay:user', value: null, site: 'test/pay.test.ts:5', level: 1 },
+    ] }] }).tests[0]?.said).toBe(JSON.stringify({ said: [
+      ['pay:cart', '{"items":[1,2]}', 'test/pay.test.ts:4', 1],
+      ['pay:user', 'null', 'test/pay.test.ts:5', 1],
+    ] }));
+    expect(() => parseExecutionIndex({ ...spelled, tests: [{ ...spelled.tests[0], preconditions: [
+      { name: 'pay:network', site: 'test/pay.test.ts:4', level: 1 },
+    ] }] })).toThrow('execution test 0 precondition 0 value is missing');
   });
 
   it('carries whether each case stopped and how long it ran, and leaves an untimed, unsettled case without either', () => {
@@ -331,7 +348,12 @@ describe('a named import nothing ever calls', () => {
     const text = formatDistillation(result);
     expect(text).toContain('Loaded but not covered: 1 module(s).');
     expect(text).toContain('never covered: formatTotal (lines 3-6)');
-    expect(text).toContain("substitution to try: vi.mock('src/format-total.ts')");
+    expect(text).toContain(
+      '    substitution to try: mock src/format-total.ts in this test\'s file; loading it is all this test used of it. ' +
+        'Stand in for what it exports: an automock loads the module to read its shape',
+    );
+    // The module is named, and how to write the mock is left to the file's runner.
+    expect(text).not.toMatch(/\b(?:jest|vi|sb)\.(?:mock|doMock|unstable_mockModule|fn)\b|\bmock\.module\b/);
     // The proposal is a candidate, and the top level is what mocking also takes.
     expect(text).toContain('Mocking removes the top level too');
   });

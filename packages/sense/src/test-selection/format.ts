@@ -1,4 +1,5 @@
 import type {
+  FilePhases,
   CoverageBlock,
   CoverageModule,
   CoveragePrecondition,
@@ -10,6 +11,7 @@ import {
   MODEL,
   NO_DURATION,
   NO_OWNER,
+  PHASE_NAMES,
   blob,
   column,
   durationWord,
@@ -70,6 +72,7 @@ export function encodeTestCoverage(coverage: TestCoverage): Buffer {
   const testPaths = Uint32Array.from(normalized.tests, (test) => stringId(test.file));
   const testComplete = Uint8Array.from(normalized.tests, (test) => test.complete ? 1 : 0);
   const testDuration = Uint32Array.from(normalized.tests, (test) => durationWord(test.duration));
+  const testPhases = phaseWords(normalized.tests.map((test) => test.phases));
   const testPreconditions = new Uint32Array(normalized.tests.length + 1);
   const preconditionName = new Uint32Array(preconditionCount);
   const preconditionDigest = new Uint32Array(preconditionCount);
@@ -160,6 +163,7 @@ export function encodeTestCoverage(coverage: TestCoverage): Buffer {
     'tests.complete': column(testComplete),
     'tests.preconditions': column(testPreconditions),
     'tests.duration': column(testDuration),
+    'tests.phases': column(testPhases),
     'preconditions.name': column(preconditionName),
     'preconditions.digest': column(preconditionDigest),
     'modules.path': column(modulePaths),
@@ -182,6 +186,29 @@ export function encodeTestCoverage(coverage: TestCoverage): Buffer {
   });
 }
 
+
+/** `tests.phases` for these tests: {@link PHASE_NAMES} words each, a phase nobody reported as {@link NO_DURATION}. */
+export function phaseWords(phases: readonly (FilePhases | undefined)[]): Uint32Array {
+  const words = new Uint32Array(phases.length * PHASE_NAMES.length);
+  for (const [test, held] of phases.entries()) {
+    for (const [at, name] of PHASE_NAMES.entries()) words[test * PHASE_NAMES.length + at] = durationWord(held?.[name]);
+  }
+  return words;
+}
+
+/** The phases test `test` holds in a `tests.phases` column, as a field to spread: absent where none was reported. */
+export function phasesAt(words: Uint32Array | undefined, test: number): { readonly phases?: FilePhases } {
+  if (words === undefined) return {};
+  const phases: Partial<Record<keyof FilePhases, number>> = {};
+  let reported = false;
+  for (const [at, name] of PHASE_NAMES.entries()) {
+    const word = words[test * PHASE_NAMES.length + at] ?? NO_DURATION;
+    if (word === NO_DURATION) continue;
+    phases[name] = word;
+    reported = true;
+  }
+  return reported ? { phases } : {};
+}
 
 /** Decode the snapshot for callers that explicitly ask for the logical model. */
 export function decodeTestCoverage(bytes: Uint8Array): TestCoverage {
@@ -210,6 +237,7 @@ export function decodeTestCoverage(bytes: Uint8Array): TestCoverage {
   const testComplete = view.testComplete.all();
   const testPreconditions = view.testPreconditions.all();
   const testDuration = view.testDuration?.all();
+  const testPhases = view.testPhases?.all();
   const preconditionName = view.preconditionName.all();
   const preconditionDigest = view.preconditionDigest.all();
   const tests: CoverageTest[] = [];
@@ -227,6 +255,7 @@ export function decodeTestCoverage(bytes: Uint8Array): TestCoverage {
       complete: testComplete[test] === 1,
       preconditions,
       ...(duration === NO_DURATION ? {} : { duration }),
+      ...phasesAt(testPhases, test),
     });
   }
   const modulePath = view.modulePath.all();
@@ -362,7 +391,7 @@ function ordered<T>(values: readonly T[], name: (value: T) => string): readonly 
   return values;
 }
 
-export function settledModule(module: CoverageModule): CoverageModule {
+function settledModule(module: CoverageModule): CoverageModule {
   const blocks = settle(byOrdinal(module.blocks), settledBlock);
   return blocks === module.blocks ? module : { ...module, blocks };
 }
@@ -397,7 +426,7 @@ function distinct(values: readonly string[]): readonly string[] {
   return values;
 }
 
-export function settledTest(test: CoverageTest): CoverageTest {
+function settledTest(test: CoverageTest): CoverageTest {
   const preconditions = uniquePreconditions(test.preconditions);
   return preconditions === test.preconditions ? test : { ...test, preconditions };
 }

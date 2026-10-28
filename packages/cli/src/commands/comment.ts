@@ -8,7 +8,6 @@ import {
   coverageBlocks,
   driftBlocks,
   foldBlocks,
-  leadBlocks,
   metaBlocks,
   moveBlocks,
   skippedBlocks,
@@ -16,6 +15,8 @@ import {
   withoutCauseBlocks,
 } from './comment-blocks.js';
 import { picturesOf } from './comment-images.js';
+import { leadBlocks } from './comment-lead.js';
+import { unstableBlocks } from './comment-unstable.js';
 import { clampComment, COMMENT_CHARACTERS } from './comment-text.js';
 
 /**
@@ -91,15 +92,16 @@ import { clampComment, COMMENT_CHARACTERS } from './comment-text.js';
  * driver, and what lets every claim above be a unit test over a hand-built report
  * instead of a job on a real pull request.
  *
- * ## The four files
+ * ## The files
  *
  * `docket.ts` folds the report into review items and counts what it
- * refuses to list; `comment-blocks.ts` turns that docket into markdown;
- * `comment-images.ts` spells the address of a picture the operator published;
- * `comment-text.ts` holds the two primitives both of them write through, so the
- * fold and the render can never escape a component name differently. This file
- * keeps the one decision the other two must not be allowed to make — whether a
- * comment exists at all.
+ * refuses to list; `comment-lead.ts` writes the first screen,
+ * `comment-unstable.ts` the subjects that disagreed with themselves, and
+ * `comment-blocks.ts` everything after them; `comment-images.ts` spells the
+ * address of a picture the operator published; `comment-text.ts` holds the two
+ * primitives they all write through, so the fold and the render can never
+ * escape a component name differently. This file keeps the one decision none of
+ * them may make — whether a comment exists at all.
  */
 
 /**
@@ -215,6 +217,7 @@ export function renderComment(options: CommentOptions): string {
   const blocks = [
     commentMarker(options.project),
     ...leadBlocks(docket, options, pictures),
+    ...unstableBlocks(docket, limits),
     ...moveBlocks(docket, limits),
     ...warningBlocks(report, docket),
     ...driftBlocks(report, limits),

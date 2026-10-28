@@ -126,20 +126,23 @@ describe('reading a module', () => {
           { imported: 'b', local: 'b', type: false, line: 1 },
           { imported: 'c', local: 'c', type: true, line: 2 },
         ],
+        republishes: true,
       },
     ]);
   });
 
-  it('reads every re-export, including the star', () => {
+  it('reads every re-export, including the star, and tells `export type … from` from `import type`', () => {
     const read = readModule(
       'index.ts',
-      "export * from './star';\nexport { E } from './e';\nexport type { F } from './f';\n",
+      "export * from './star';\nexport { E } from './e';\nexport type { F } from './f';\nimport type { G } from './g';\n",
     );
 
-    expect(read.requests.map((request) => [request.value, request.kind])).toEqual([
-      ['./star', 'reexports'],
-      ['./e', 'reexports'],
-      ['./f', 'type'],
+    // `export type` and `import type` share a kind; only the first passes what it binds on.
+    expect(read.requests.map((request) => [request.value, request.kind, request.republishes])).toEqual([
+      ['./g', 'type', undefined],
+      ['./star', 'reexports', true],
+      ['./e', 'reexports', true],
+      ['./f', 'type', true],
     ]);
   });
 

@@ -21,8 +21,9 @@ import { lineCellOf, type Env } from '../share-lines.js';
 import { EXIT_CLEAN, EXIT_OPERATOR } from '../exit.js';
 import { mainlineBase, mainlineMissed, mainlineRead } from './mainline-base.js';
 import { DISCOUNTS, GIT_SHARE, PUSH, collectedBoth, gitPublished, recordIn, selectedIn } from './mainline-fixture.js';
-import { layMainline, suiteBase } from './suite-base.js';
-import { publishSuite, suiteShare, suiteShareLines } from './suite-share.js';
+import { layMainline, mainlinePassedOver, suiteBase } from './suite-base.js';
+import { publishSuite, runSuiteShare, suiteShare, suiteShareLines } from './suite-share.js';
+import { suiteTimes } from './suite-times.js';
 
 /**
  * The record a checkout measures from, in a real repository whose `origin` is
@@ -145,10 +146,10 @@ describe('the record a worktree that has run nothing measures from', () => {
     const base = await suiteBase(fresh, { env: LOCAL });
     if (base.from !== 'mainline') throw new Error(`expected the mainline's record, read ${JSON.stringify(base)}`);
 
-    const laid = await layMainline(fresh, base.mainline);
+    const laid = await layMainline(fresh, base.mainline, 'fixture');
 
     const own = testCoverageFile(fresh, { suite: 'unit' });
-    expect(laid).toBe(own);
+    expect(laid).toEqual({ laid: own });
     expect(await readFile(own)).toEqual(await readFile(base.file));
     expect(keepsCases(own)).toBe(true);
     // The mainline's runs record, as a seed: none of its runs are this checkout's.
@@ -161,7 +162,32 @@ describe('the record a worktree that has run nothing measures from', () => {
       layer: { pinned: { mainline: 'main', commit: base.mainline.commit }, ran: [] },
       repin: { repinned: false, why: 'current' },
     });
-    expect(await layMainline(fresh, base.mainline)).toBeUndefined();
+    expect(await layMainline(fresh, base.mainline, 'fixture')).toBeUndefined();
+  });
+
+  it('is passed over, named with both probes, when the suite\'s run records under other probes than it was written under', async () => {
+    const { origin } = await mainline();
+    const fresh = join(home, 'fresh');
+    await git(home, 'clone', '--quiet', origin, fresh);
+    cacheOf('fresh-cache');
+    const base = await suiteBase(fresh, { env: LOCAL });
+    if (base.from !== 'mainline') throw new Error(`expected the mainline's record, read ${JSON.stringify(base)}`);
+    const own = testCoverageFile(fresh, { suite: 'unit' });
+
+    const laid = await layMainline(fresh, base.mainline, 'newer-recipe');
+
+    // No run under `newer-recipe` could be laid over it, so the checkout keeps
+    // no record: the suite has no base, and runs whole.
+    expect(laid).toEqual({ passed: { suite: 'unit', file: base.file, instrumentation: 'fixture', run: 'newer-recipe' } });
+    expect(existsSync(own)).toBe(false);
+    if (laid === undefined || !('passed' in laid)) throw new Error('expected the record passed over');
+    expect(mainlinePassedOver(laid.passed)).toBe(
+      `record of "unit": the mainline's record at ${base.file} was written under the probes \`fixture\`, ` +
+        'and this run records under `newer-recipe`, so no run here can be laid over it and it was not laid',
+    );
+
+    // Under the probes it was written under, it is laid.
+    expect(await layMainline(fresh, base.mainline, 'fixture')).toEqual({ laid: own });
   });
 
   it('is the worktree\'s own once it has one, and the mainline is not asked', async () => {
@@ -231,6 +257,25 @@ describe('the primary checkout\'s record is the offline fallback, and says why',
   });
 });
 
+describe('the times a sharded run places its files by, from a suite given to the share', () => {
+  // Every shard reads the times on its own machine, so a read that failed on
+  // one may have answered on another, and the two would place different files.
+  it('stop the run when the remote cannot be reached, though the primary checkout holds a record', async () => {
+    const { origin, first } = await mainline();
+    const { worktree } = await laptop(origin, first);
+    await git(worktree, 'remote', 'set-url', 'origin', join(home, 'nowhere.git'));
+
+    await expect(suiteTimes({ root: worktree })).rejects.toThrow(/^record of "unit": the mainline's was not read; mainline main: /u);
+  });
+
+  it('are read from the primary checkout when the share holds no record, which every shard sees alike', async () => {
+    const { origin, first } = await mainline({ publish: false });
+    const { primary, worktree } = await laptop(origin, first);
+
+    expect(await suiteTimes({ root: worktree })).toMatchObject({ recording: testCoverageFile(primary, { suite: 'unit' }) });
+  });
+});
+
 describe('`variance share --suite unit`', () => {
   it('publishes the record alone, and says so the way `share --publish` does', async () => {
     const { ci } = await mainline({ publish: false });
@@ -264,6 +309,59 @@ describe('`variance share --suite unit`', () => {
     expect(() => parseArgs(['share', '--suite', 'unit', '--publish', 'report.json'])).toThrow(/so it takes no report$/u);
     expect(parseArgs(['share', '--suite', 'unit', '--publish'])).toMatchObject({ command: 'share', suite: 'unit', publish: true });
   });
+
+  it('names the commit of the record the mainline holds, for a workflow to merge the change with', async () => {
+    const ci = await mainline();
+    const { worktree } = await laptop(ci.origin, ci.first);
+
+    const done = await suiteShare(worktree, { suite: 'unit', publish: false, format: 'github' }, { env: LOCAL });
+
+    expect(done).toEqual({
+      lines: [`commit=${ci.first}`],
+      notes: [expect.stringMatching(/^record of "unit": read from mainline main, published at /u)],
+      exit: EXIT_CLEAN,
+    });
+  });
+
+  it("prints the commit alone for `$GITHUB_OUTPUT`, and says the read on stderr", async () => {
+    const ci = await mainline();
+    const { worktree } = await laptop(ci.origin, ci.first);
+    const out: string[] = [];
+    const err: string[] = [];
+
+    const exit = await runSuiteShare({ suite: 'unit', publish: false, format: 'github' }, { out: (text) => out.push(text), err: (text) => err.push(text) }, worktree, { env: LOCAL });
+
+    expect({ exit, out, err }).toEqual({
+      exit: EXIT_CLEAN,
+      out: [`commit=${ci.first}\n`],
+      err: [expect.stringMatching(/^record of "unit": read from mainline main, published at .*\n$/su)],
+    });
+  });
+
+  it('names no commit when the mainline holds no record, and says why beside it', async () => {
+    const ci = await mainline({ publish: false });
+    const { worktree } = await laptop(ci.origin, ci.first);
+
+    expect(await suiteShare(worktree, { suite: 'unit', publish: false, format: 'github' }, { env: LOCAL })).toEqual({
+      lines: ['commit='],
+      notes: ['record of "unit": the share has none either; mainline main: nothing is published there.'],
+      exit: EXIT_CLEAN,
+    });
+  });
+
+  it('takes `--format` only to read the mainline', () => {
+    expect(parseArgs(['share', '--suite', 'unit', '--format', 'github'])).toMatchObject({ command: 'share', suite: 'unit', format: 'github' });
+    expect(() => parseArgs(['share', '--suite', 'unit', '--format', 'json'])).toThrow('--format must be text or github, not `json`');
+    expect(() => parseArgs(['share', '--suite', 'unit', '--publish', '--format', 'github'])).toThrow(
+      '`--format` shapes what `share --suite <name>` reads from the mainline; a publish prints what it wrote',
+    );
+    expect(() => parseArgs(['share', '--suite', 'unit', '--publish', '--format', 'text'])).toThrow(
+      '`--format` shapes what `share --suite <name>` reads from the mainline; a publish prints what it wrote',
+    );
+    expect(() => parseArgs(['share', '--mainline', 'main', '--format', 'github'])).toThrow(
+      '`--format` shapes what `share --suite <name>` reads from the mainline; a publish prints what it wrote',
+    );
+  });
 });
 
 describe('every reader of a worktree that has run nothing starts from the same record', () => {
@@ -275,7 +373,7 @@ describe('every reader of a worktree that has run nothing starts from the same r
     const own = testCoverageFile(worktree, { suite: 'unit' });
 
     // What `yarn test`'s seam does before it lands the run it made.
-    const seeded = await seedTestCoverage(own, worktree);
+    const seeded = await seedTestCoverage(own, worktree, 'fixture');
 
     expect(seeded).toMatchObject({ from: 'mainline', record: { mainline: 'main', commit: ci.first } });
     expect(await readFile(own)).toEqual(ci.record);

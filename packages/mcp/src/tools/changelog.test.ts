@@ -60,7 +60,7 @@ const OBSERVATIONS: readonly ObservationRecord[] = [
     unstable: {
       components: [{ name: 'Clock', file: 'src/Clock.tsx:12' }],
       bands: ['content'],
-      because: 'read twice seconds apart and the two readings disagreed in Clock',
+      because: 'read twice in a row and the two readings disagreed in Clock',
     },
   },
   {

@@ -3,6 +3,7 @@ import {
   type Raster,
   type RenderDocument,
   type RenderIdentity,
+  type StepClock,
 } from '@variance-authority/core/format';
 
 /**
@@ -58,7 +59,12 @@ export interface Renderer {
    */
   identityFor(document: Pick<RenderDocument, 'viewport'>): RenderIdentity;
 
-  render(document: RenderDocument): Promise<Raster>;
+  /**
+   * Paint `document`. `steps`, when given, takes the renderer's own steps —
+   * waiting for a page, loading the document, each wait, the screenshot — and
+   * a renderer that times nothing leaves them absent.
+   */
+  render(document: RenderDocument, steps?: StepClock): Promise<Raster>;
 
   close(): Promise<void>;
 }

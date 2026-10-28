@@ -5,12 +5,14 @@ import type {
   SourceIndex,
 } from '@variance-authority/core/attribute';
 import type { Band } from '@variance-authority/core/compare';
-import type {
-  AccessibilitySnapshot,
-  Diagnostic,
-  Raster,
-  RenderDocument,
-  SemanticSnapshot,
+import {
+  timeOn,
+  type AccessibilitySnapshot,
+  type Diagnostic,
+  type Raster,
+  type RenderDocument,
+  type SemanticSnapshot,
+  type StepClock,
 } from '@variance-authority/core/format';
 import type { Level } from '@variance-authority/core/judge';
 import type { PngDecoder } from '@variance-authority/png';
@@ -292,6 +294,13 @@ export interface CompareInputs {
    * isolation actually returned, and a truncated tail is never silently absorbed.
    */
   readonly ignoreShapes?: Readonly<Record<string, string>>;
+
+  /**
+   * Where this observation's steps are taken: `baseline` (the store lookup),
+   * `cache.get` and `cache.put` (the render cache), the renderer's own steps
+   * under `render.`, then `decode` and `compare`. Absent, nothing is timed.
+   */
+  readonly steps?: StepClock;
 }
 
 /** {@link CompareInputs}, plus the two things a render needs. */
@@ -353,9 +362,9 @@ export async function observePair(
   after: RenderDocument,
   options: ObserveOptions,
 ): Promise<Observation> {
-  const left = await renderOnce(options.renderer, options.store, before);
+  const left = await renderOnce(options.renderer, options.store, before, undefined, undefined, options.steps);
   const components = componentsOf(options.snapshot);
-  const right = await renderOnce(options.renderer, options.store, after, components);
+  const right = await renderOnce(options.renderer, options.store, after, components, undefined, options.steps);
 
   return await decideRasters(
     after.subject.id,
@@ -388,13 +397,14 @@ export async function observeAgainstBaseline(
   const identity = options.renderer.identityFor(document);
 
   const components = componentsOf(options.snapshot);
-  const found = await options.store.find(key, identity);
+  const found = await timeOn(options.steps, 'baseline', async () => options.store.find(key, identity));
   const fresh = await renderOnce(
     options.renderer,
     options.store,
     document,
     components,
     options.accessibility,
+    options.steps,
   );
 
   // Carried on the paths that never reach a comparison. What the operator

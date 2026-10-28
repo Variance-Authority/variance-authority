@@ -11,9 +11,9 @@ nothing of what its stories executed. No job runs an e2e suite through
 **Built on:** [spec 0087](0087-every-suite-is-compared-with-its-own-base.md)
 (a base for each suite) and [spec 0088](0088-a-suite-is-carried-alone.md) (each
 suite saved and restored alone), both required first; the storybook collector's
-`tests: { suite }` option with `testSelectionProbes()` from
-`@variance-authority/sense/journal` in the preview build
-(`packages/storybook-collector/src/options.ts`); `withTestSelection` in
+`tests: { suite }` option with the collector listed in the preview's
+`addons`, which probes a `storybook build --test`
+(`packages/storybook-collector/src/options.ts`, `preset.ts`); `withTestSelection` in
 `packages/playwright-test/src/with-test-selection.ts`;
 [spec 0080](0080-coverage-is-counted-per-kind.md) (the overlap by kind).
 
@@ -30,8 +30,9 @@ itself is the cheapest end-to-end test those rows have.
 **1. The root config declares three suites.** `unit` (kind `unit`), `stories`
 (kind `visual`) and `e2e` (kind `e2e`), each with its carrier.
 
-**2. The visual gate records `stories`.** `cases/storybook-case` builds its
-preview with `testSelectionProbes()`, its variance config passes
+**2. The visual gate records `stories`.** `cases/storybook-case` lists
+`@variance-authority/storybook-collector` in its `addons` and builds its preview
+with `storybook build --test`, its variance config passes
 `tests: { suite: 'stories' }`, and the gate saves the record on a push to
 `main`. A pull request compares with the record `main` saved last, and the
 comment says which commit that is. The gate does not wait for the unit suite,

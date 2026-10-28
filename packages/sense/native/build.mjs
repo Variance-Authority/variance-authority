@@ -45,9 +45,9 @@
  * still ships. A build that fails again is a build that failed.
  *
  * A host build is skipped when the binary already in place was built from the
- * tree git holds for this directory. Every input `cargo` reads — the manifest,
- * the lockfile, the toolchain pin, `src/`, `vendor/`, this script — lives here,
- * so git's tree id for it is the build's identity, and a full build writes it
+ * compiled inputs git holds: this directory's tree and the external
+ * `record-layout.json` blob compiled by Rust's `include_str!`.
+ * `nativeBuildInputs` owns that identity, and a full build writes it
  * beside the binary as `scan.node.tree`. Git owns what the directory contains;
  * nothing here hashes it again. A directory with uncommitted changes has no
  * tree id that describes it, and neither does a build narrowed by
@@ -60,9 +60,10 @@
 
 import { spawnSync } from 'node:child_process';
 import { copyFileSync, existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { TARGETS } from './targets.mjs';
+import { nativeBuildInputs } from './build-inputs.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 
@@ -92,18 +93,15 @@ const into =
 const stamp = join(into, 'scan.node.tree');
 
 /**
- * Git's tree id for this directory, or nothing when git cannot vouch for it.
+ * Git's identity of the compiled inputs, or nothing when git cannot vouch for it.
  *
- * `HEAD:./` names the committed tree; a change git has not committed — edited,
+ * A change git has not committed to any compiled input — edited,
  * staged or untracked — means the files on disk are not that tree, so the
  * answer is nothing rather than an id that describes something else.
  */
 function builtFrom() {
-  const git = (args) => spawnSync('git', args, { cwd: here, encoding: 'utf8' });
-  const tree = git(['rev-parse', 'HEAD:./']);
-  const dirty = git(['status', '--porcelain', '--', '.']);
-  if (tree.status !== 0 || dirty.status !== 0 || dirty.stdout !== '') return undefined;
-  return tree.stdout.trim();
+  const inputs = nativeBuildInputs(resolve(here, '../../..'));
+  return inputs?.clean ? inputs.identity : undefined;
 }
 
 const tree = builtFrom();
@@ -116,7 +114,7 @@ const stamped = existsSync(stamp) ? readFileSync(stamp, 'utf8').trim() : undefin
 
 if (plain && tree !== undefined && stamped === tree && existsSync(join(into, 'scan.node'))) {
   console.log(
-    `sense: native scanner at ${join(into, 'scan.node')} was built from tree ${tree.slice(0, 12)}, ` +
+    `sense: native scanner at ${join(into, 'scan.node')} was built from inputs ${tree}, ` +
       'which is unchanged — not rebuilt',
   );
   process.exit(0);

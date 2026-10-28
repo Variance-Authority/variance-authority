@@ -5,6 +5,7 @@ import {
   byBand,
   carriedLine,
   findingTotals,
+  isUnstable,
   mixedAges,
 } from '@variance-authority/report';
 import type {
@@ -63,7 +64,7 @@ export const describe: Tool = {
       // world re-collection was never taken on this subject — its answer would
       // have been a comparison between two readings that do not agree anyway —
       // so there is no order-dependence claim here to place second.
-      ...(observation.unstable !== undefined && observation.unstable.absorbed === undefined
+      ...(isUnstable(observation)
         ? [
             `NOT A COMPONENT CHANGE: ${observation.unstable.because}. The regions below are`,
             'the difference between one of those two readings and the baseline, so which',
@@ -89,7 +90,7 @@ export const describe: Tool = {
       // what moves between two readings needs a way to find out whether it did,
       // and the alternative it reaches for otherwise is a full run — three
       // hundred subjects and a browser, to answer a question about one of them.
-      ...(observation.unstable !== undefined && observation.unstable.absorbed === undefined
+      ...(isUnstable(observation)
         ? [
             'VERIFY A FIX WITH:',
             `  variance run --subjects '${observation.subject}' --flakes`,
@@ -192,7 +193,7 @@ function label(observation: {
   readonly unstable?: { readonly absorbed?: unknown };
   readonly alone?: { readonly reproduced: boolean };
 }): string {
-  if (observation.unstable !== undefined && observation.unstable.absorbed === undefined) {
+  if (isUnstable(observation)) {
     return 'unstable';
   }
   if (observation.alone?.reproduced === false) return 'order-dependent';

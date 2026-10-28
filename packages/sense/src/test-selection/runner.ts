@@ -34,15 +34,17 @@ import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { cadence } from '../instrument/cadence.js';
 import type { InstrumentMode, ModuleId } from '../instrument/index.js';
+import { probesRegions } from '../instrument/identity.js';
 import caseOwner from './case-owner.cjs';
 import { captureModule, markModule } from './captured-modules.js';
+import { saidSite } from './case-said.js';
 import collectors from './collectors.cjs';
 import { evaluatedCut } from './cut-map.js';
 import journalFormat from './journal-format.cjs';
 import { recordFileFor } from './record-location.js';
 import { defaultInclude, insideRoot } from './instrumented-modules.js';
 import { repositoryRoot } from './repository-root.js';
-import { reportedDuration } from './finished-files.js';
+import { reportedDuration } from './reported-time.js';
 import { finishedCase } from './case-durations.js';
 import { foldRun } from './selection-fold.js';
 import { newRun } from './selection-run.js';
@@ -147,7 +149,8 @@ export function startRecording(options: RecordingOptions = {}): Recording {
     caseDirectory: run.caseDirectory,
     mode,
     continuations: options.continuations === true,
-    cadence: options.cadence !== false,
+    // Under `loads` no region is probed for a line of a test to have reached first.
+    cadence: options.cadence !== false && probesRegions(mode),
   };
   const value = JSON.stringify(carried);
   process.env[RECORDING_VARIABLE] = value;
@@ -336,8 +339,19 @@ export function observeTestFile(file: string): TestFileObserver | undefined {
   }
   observing = testFile;
   // Given the checkout, the scope names a precondition's call site from it, as
-  // every other host's does, and keeps what Eyes hands each case.
-  const collector = collectors.scoped(globalThis as { __VA__?: unknown }, recording.continuations, undefined, recording.root);
+  // every other host's does, and keeps what Eyes hands each case. Under `loads`
+  // a module is marked as the file loads it, before any case opens, so the file
+  // keeps one bucket and a case is its body alone.
+  const cases = probesRegions(recording.mode);
+  const collector = cases
+    ? collectors.scoped(
+      globalThis as { __VA__?: unknown },
+      recording.continuations,
+      undefined,
+      recording.root,
+      (site) => saidSite(recording.root, site),
+    )
+    : collectors.flat(globalThis as { __VA__?: unknown });
   let loaded: ReadonlyMap<ModuleId, Uint32Array> | undefined;
   let ordinal = 0;
   let finished = false;
@@ -345,6 +359,7 @@ export function observeTestFile(file: string): TestFileObserver | undefined {
     case(name, body) {
       if (finished) throw new Error(`variance-authority has already finished observing ${testFile}`);
       loaded ??= collector.seal(testFile);
+      if (!cases) return body();
       const declared = typeof name === 'string' ? name : name.join(' > ');
       return (globalThis as unknown as Scoped)[CASE_SCOPE].enter(
         caseOwner.packCase(testFile, declared, String(ordinal++)),

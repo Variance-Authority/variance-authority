@@ -54,9 +54,9 @@ describe('every file a diff affects', () => {
 
   it('does not walk an edge that is erased before anything runs', () => {
     // `typed.py` imports `alone.py` under `if TYPE_CHECKING:`, and the same
-    // distinction is `import type` in TypeScript. The walk defaults to
-    // `RUNTIME_EDGES`, so a file that only names another for its types is not
-    // something a change to that other file can move at run time.
+    // distinction is `import type` in TypeScript. Selection asks what a run
+    // loads and names `RUNTIME_EDGES`, so a file that only names another for its
+    // types is not something a change to that other file can move at run time.
     const affected = affectedFiles(GRAPH, ['src/lib/alone.py'], ROOTS);
     if (refused(affected)) throw new Error(affected.whole);
 

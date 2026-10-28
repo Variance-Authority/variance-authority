@@ -1,23 +1,19 @@
 import type { Readable, Writable } from 'node:stream';
-import { createEyesArchive, type EyesArchive } from '@variance-authority/eyes';
+import type { EyesArchive } from '@variance-authority/eyes';
 import type { RunReport } from '@variance-authority/report';
-import { readRunReport } from '@variance-authority/report/file';
-import { attachVantage } from '@variance-authority/vantage/attach';
 import {
-  EYES,
-  REPORTS,
-  VANTAGE,
+  answering,
   createLineReader,
   handle,
   askedInput,
   askedTool,
   wantsTree,
+  wellFormed,
   type JsonRpcRequest,
-} from './protocol.js';
+} from './framing.js';
 import { readEyesRecord, RecordKeepsNoEyes } from './eyes-record.js';
-import { continuing } from './tools/continue.js';
 import type { Served } from './tools/tool.js';
-import { readTree, type Tree } from './tools/tree.js';
+import type { Tree } from './tools/tree.js';
 
 /**
  * The transport, and nothing else.
@@ -26,9 +22,16 @@ import { readTree, type Tree } from './tools/tree.js';
  * pure. What is left here is stream plumbing, which is the part that cannot be
  * unit-tested meaningfully and therefore the part that should contain no
  * decisions.
+ *
+ * What a started server reads — the served tool sets, the run report file, Eyes,
+ * the live-run listener and the source tree — is imported by the function that
+ * starts it, not by this module. The root entry exports `serve` beside pure
+ * functions such as `locateSubjects`, and Node evaluates every static import of
+ * an entry, so a static import here is paid by every caller that only wanted a
+ * pure function and never starts a server.
  */
 
-export interface ServerOptions<Subject = RunReport> {
+export interface ServerOptions<Subject = RunReport, Again extends AskedAgain<Subject> = AskedAgain<Subject>> {
   readonly input: Readable;
   readonly output: Writable;
   /** Which tools answer, and what the server calls itself. */
@@ -78,9 +81,47 @@ export interface ServerOptions<Subject = RunReport> {
 
   /** The checkout this server answers about, handed to every call as `invocation.root`. */
   readonly root?: string;
+
+  /**
+   * A subject to ask a refused call of once more, or none to let the refusal stand.
+   *
+   * A host whose subject is a reading it reuses — a workspace generation kept
+   * for an hour — can refuse a name only because the reading is older than the
+   * file that declares it. So a call to a tool the server has, with every
+   * argument it requires, that came back `isError` is handed here with the
+   * subject that refused it and when the request started. A `subject` read
+   * since is asked the same call, and the tree is asked for again with it; a
+   * `footer` ends the refusal that still stands, for a host that could not
+   * bring its reading up to date and says why. Only a refusal pays for the
+   * second reading.
+   */
+  readonly again?: (asked: string | undefined, refused: Subject, started: number) => Promise<Again | undefined>;
+
+  /**
+   * The answer a refused call gives instead of its refusal, or none to let the
+   * refusal stand.
+   *
+   * A tool says some answers by throwing them — a name nothing declares is
+   * thrown so that `again` reads the subject once more before the absence is
+   * believed — and only its host knows which. So a call to a tool the server
+   * has, with every argument it requires, still refused once `again` has had
+   * its turn, is handed here with what its tool threw, the subject that refused
+   * it last, and what `again` returned, as the host returned it; text returned
+   * is the call's result, not an error, and `again`'s footer is the host's to
+   * say in it. It runs whether or not the host passes `again`: a host that
+   * reads its subject fresh for every call has nothing to read again, and its
+   * thrown answers are answers all the same.
+   */
+  readonly answered?: (thrown: unknown, subject: Subject, again: Again | undefined) => string | undefined;
 }
 
-export function serve<Subject>(options: ServerOptions<Subject>): () => void {
+/** What a host answers a refused call with: a fresher subject, and what a refusal that still stands says. */
+export interface AskedAgain<Subject> {
+  readonly subject?: Subject;
+  readonly footer?: string;
+}
+
+export function serve<Subject, Again extends AskedAgain<Subject> = AskedAgain<Subject>>(options: ServerOptions<Subject, Again>): () => void {
   const write = (value: unknown): void => {
     options.output.write(`${JSON.stringify(value)}\n`);
   };
@@ -103,13 +144,30 @@ export function serve<Subject>(options: ServerOptions<Subject>): () => void {
     }
 
     queue = queue.then(async () => {
-      const subject = await options.subject(askedTool(request), askedInput(request));
-      const tree = wantsTree(request, options.served) ? await options.tree?.() : undefined;
-      const response = handle(request, () => subject, options.served, {
-        ...(previous === undefined ? {} : { previous }),
-        ...(tree === undefined ? {} : { tree }),
-        ...(options.root === undefined ? {} : { root: options.root }),
-      });
+      const started = Date.now();
+      const asked = askedTool(request);
+      const answer = async (subject: Subject) => {
+        const tree = wantsTree(request, options.served) ? await options.tree?.() : undefined;
+        return answering(request, () => subject, options.served, {
+          ...(previous === undefined ? {} : { previous }),
+          ...(tree === undefined ? {} : { tree }),
+          ...(options.root === undefined ? {} : { root: options.root }),
+        });
+      };
+      let subject: Subject = await options.subject(asked, askedInput(request));
+      let answered = await answer(subject);
+      let response = answered.response;
+      if (!succeeded(response) && wellFormed(request, options.served)) {
+        const fresher = await options.again?.(asked, subject, started);
+        if (fresher?.subject !== undefined) {
+          subject = fresher.subject;
+          answered = await answer(subject);
+          response = answered.response;
+        }
+        const said = response === null || answered.thrown === undefined ? undefined : options.answered?.(answered.thrown.value, subject, fresher);
+        if (said !== undefined) response = { ...response!, result: { content: [{ type: 'text', text: said }] } };
+        else if (fresher?.footer !== undefined) response = footed(response, fresher.footer);
+      }
       if (request.method === 'tools/call' && succeeded(response)) {
         previous = options.remember === undefined ? structuredClone(subject) : options.remember(subject);
       }
@@ -121,6 +179,14 @@ export function serve<Subject>(options: ServerOptions<Subject>): () => void {
   options.input.on('data', onData);
 
   return () => options.input.off('data', onData);
+}
+
+/** A refused call's result, ending with what the host said about the subject it was refused from. */
+function footed(response: ReturnType<typeof handle>, footer: string): ReturnType<typeof handle> {
+  if (response === null || response.error !== undefined || succeeded(response)) return response;
+  const result = response.result as { readonly content: readonly { readonly type: string; readonly text: string }[]; readonly isError: true };
+  const said = result.content.map((part) => part.text).join('\n');
+  return { ...response, result: { ...result, content: [{ type: 'text', text: `${said}\n\n${footer}` }] } };
 }
 
 function succeeded(response: ReturnType<typeof handle>): boolean {
@@ -166,7 +232,8 @@ function treeOnce(options: ReportFileOptions): (() => Promise<Tree | undefined>)
 
   let read: Promise<Tree | undefined> | undefined;
   return () => {
-    read ??= readTree({ root, ...(options.index === undefined ? {} : { index: options.index }) }).catch(
+    read ??= import('./tools/tree.js').then(({ readTree }) =>
+      readTree({ root, ...(options.index === undefined ? {} : { index: options.index }) })).catch(
       (error: unknown) => {
         // Said on stderr rather than swallowed. The refusal the caller reads is
         // about their question — *no source tree was read* — and the reason the
@@ -196,6 +263,10 @@ export async function serveReportFile(
   path: string,
   streams: ReportFileOptions = {},
 ): Promise<() => void> {
+  const [{ readRunReport }, { REPORTS }] = await Promise.all([
+    import('@variance-authority/report/file'),
+    import('./protocol.js'),
+  ]);
   // Read once before serving, so a path that is not a run report fails at
   // startup rather than on whichever request happens to arrive first.
   let cached = await readRunReport(path);
@@ -238,6 +309,10 @@ export async function serveEyesRecord(
   record: string,
   streams: ReportFileOptions = {},
 ): Promise<() => void> {
+  const [{ createEyesArchive }, { EYES }] = await Promise.all([
+    import('@variance-authority/eyes'),
+    import('./protocol.js'),
+  ]);
   let cached: EyesArchive = await readEyesRecord(record);
 
   return serve({
@@ -282,6 +357,11 @@ export interface ServedVantage {
  * changes is how long one execution lasts when somebody is watching it.
  */
 export async function serveVantage(streams: ReportFileOptions = {}): Promise<ServedVantage> {
+  const [{ attachVantage }, { VANTAGE }, { continuing }] = await Promise.all([
+    import('@variance-authority/vantage/attach'),
+    import('./protocol.js'),
+    import('./tools/continue.js'),
+  ]);
   const attached = await attachVantage();
   const stop = serve({
     input: streams.input ?? process.stdin,

@@ -40,7 +40,20 @@ export type DeclarationKind =
   | 'await using'
   | 'object'
   | 'namespace-object'
-  | 'foreign';
+  | 'foreign'
+  // What the Rust, Python, Swift, Java and Kotlin readers call a declaration.
+  | 'struct'
+  | 'union'
+  | 'trait'
+  | 'static'
+  | 'module'
+  | 'macro'
+  | 'record'
+  | 'annotation'
+  | 'protocol'
+  | 'actor'
+  | 'property'
+  | 'variable';
 
 /** One name, as the file that publishes it declares it. */
 export interface Declaration {
@@ -238,6 +251,27 @@ function record(node: Statement, into: Map<string, Declaration>, source: Source,
  * comment was written, above both of them.
  */
 export function declarationsIn(source: Source): Map<string, Declaration> {
+  return declared(source);
+}
+
+/**
+ * Every declaration a file makes at its top level, under each name it binds and
+ * in source order, for an export to find the one it declares: `const Kind` and
+ * `type Kind` are two, and `export default function f` binds `f`.
+ */
+export function everyBindingIn(source: Source): Map<string, readonly Declaration[]> {
+  const every = new Map<string, Declaration[]>();
+  for (const node of source.parsed.program.body) {
+    const declaration = node.type === 'ExportNamedDeclaration' || node.type === 'ExportDefaultDeclaration' ? node.declaration : node;
+    if (declaration === null || !('type' in declaration)) continue;
+    const one = new Map<string, Declaration>();
+    record(declaration as Statement, one, source, around(source, node.start));
+    for (const [name, found] of one) every.set(name, [...(every.get(name) ?? []), found]);
+  }
+  return every;
+}
+
+function declared(source: Source): Map<string, Declaration> {
   const kinds = new Map<string, Declaration>();
 
   for (const node of source.parsed.program.body) {

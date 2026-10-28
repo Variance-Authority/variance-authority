@@ -62,6 +62,7 @@ describe('a difference mask the page could not compute', () => {
     expect(host.textContent).not.toContain('Working out the difference');
     expect(host.textContent).toContain('This page could not compute the difference mask');
     expect(host.textContent).toContain('answered 404');
+    expect(host.querySelector('.va-viewer')?.getAttribute('aria-busy')).toBeNull();
   });
 
   it('is said outside the stage, with no region ringed over the sentence', async () => {
@@ -93,6 +94,9 @@ describe('a difference mask the page could not compute', () => {
     expect(host.textContent).toContain('Working out the difference');
     expect(host.querySelector('.va-loupe')?.textContent).not.toContain('Working out');
     expect(host.querySelector('.va-regions')).toBeNull();
+    // The mask arrives from an object URL, which no wire and no image node
+    // announces, so the viewer says it is not done for a reading to wait on.
+    expect(host.querySelector('.va-viewer')?.getAttribute('aria-busy')).toBe('true');
   });
 
   it('keeps the stage where the reviewer left it while the mask is made', () => {

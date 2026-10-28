@@ -1,9 +1,11 @@
 import { HELP_TOOLS } from './tools.js';
-import type { Tool, Tree } from '@variance-authority/mcp/tools';
-import { startPointArg, stringArg } from '@variance-authority/mcp/tools';
+import type { Tool, ToolInvocation, Tree } from '@variance-authority/mcp/tools';
+import { startPointArg, stringArg, verbOf } from '@variance-authority/mcp/tools';
 import type { Help } from '@variance-authority/package/help';
+import { snapshotLine } from './caught-up.js';
 import { workspaceGeneration } from './read.js';
 import type { SearchIndex } from './search-index.js';
+import { unopenedLine, type Unopened } from './search-read.js';
 import { searchNames } from './tools/search-answer.js';
 import { answerSearch, search } from './tools/search.js';
 import { wordsOf } from './words.js';
@@ -25,9 +27,12 @@ import { wordsOf } from './words.js';
  * reachable from this file.
  */
 
-/** What a tool is called from a shell: its wire name without the transport's prefix. */
-export function verbOf(tool: Tool<Help>): string {
-  return tool.name.replace(/^docs_/, '').replace(/_/g, '-');
+/** The command the verbs are asked through, which every hint in an answer is spelled for. */
+const SHELL = 'variance-authority-help';
+
+/** What a verb's tool is handed: what this host read, asked through its shell. */
+export function invocationOf<Subject>(read: Omit<ToolInvocation<Subject>, 'shell'>): ToolInvocation<Subject> {
+  return { ...read, shell: SHELL };
 }
 
 export function toolNamed(verb: string): Tool<Help> {
@@ -133,33 +138,36 @@ export function ask(
   args: readonly string[],
   walk?: () => Tree | undefined,
   root?: string,
+  unseen = false,
 ): string {
   const tool = toolNamed(verb);
   const input = inputFrom(tool, args);
   const tree = tool.wants?.(input) === true ? walk?.() : undefined;
-  const answer = tool.run(help, input, { ...(tree === undefined ? {} : { tree }), ...(root === undefined ? {} : { root }) });
+  const answer = tool.run(help, input, invocationOf({ ...(tree === undefined ? {} : { tree }), ...(root === undefined ? {} : { root }) }));
   const at = workspaceGeneration(help);
-  return at === undefined ? answer : `${answer}\nSnapshot ${at}.`;
+  return at === undefined ? answer : `${answer}\n${snapshotLine(at, unseen)}`;
 }
 
 /** The same answer as data: the generation is a field, and absent when unknown. */
-export function askSearchJson(index: SearchIndex, args: readonly string[], walk?: () => Tree | undefined): string {
+export function askSearchJson(index: SearchIndex, args: readonly string[], walk?: () => Tree | undefined, unseen = false, unopened?: readonly Unopened[]): string {
   const input = inputFrom(search, args);
   const tree = search.wants?.(input) === true ? walk?.() : undefined;
   const from = startPointArg(input, 'from');
   const to = startPointArg(input, 'to');
   const answer = searchNames(index, { query: stringArg(input, 'query'), from, to }, tree);
   const at = index.generation?.generatedAt;
-  return JSON.stringify({ ...answer, ...(at === undefined ? {} : { generatedAt: at }) }, undefined, 2);
+  return JSON.stringify({ ...answer, ...(at === undefined ? {} : { generatedAt: at, ...(unseen ? { compared: false } : {}) }), ...(unopened === undefined ? {} : { unopened }) }, undefined, 2);
 }
 
 /** `search`, answered from its published index rather than the whole value. */
-export function askSearch(index: SearchIndex, args: readonly string[], walk?: () => Tree | undefined): string {
+export function askSearch(index: SearchIndex, args: readonly string[], walk?: () => Tree | undefined, unseen = false, unopened?: readonly Unopened[]): string {
   const input = inputFrom(search, args);
   const tree = search.wants?.(input) === true ? walk?.() : undefined;
   const answer = answerSearch(index, input, tree);
   const at = index.generation?.generatedAt;
-  return at === undefined ? answer : `${answer}\nSnapshot ${at}.`;
+  const dated = at === undefined ? answer : `${answer}\n${snapshotLine(at, unseen)}`;
+  const said = unopenedLine(unopened, !unseen);
+  return said === undefined ? dated : `${dated}\n${said}`;
 }
 
 /** Every verb and what it answers, for the usage text and for `--help`. */

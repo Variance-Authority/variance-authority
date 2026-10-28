@@ -406,6 +406,24 @@ export function readImportTargets(root: string): ImportTargets {
   return importTargets(members(resolve(root), read).map((path) => read(path)));
 }
 
+/** What the manifests of a workspace say, from one read of each. */
+export interface WorkspaceManifests {
+  /** As {@link readOfferings} reads them. */
+  readonly offerings: readonly Offering[];
+  /** As {@link readImportTargets} reads them. */
+  readonly targets: ImportTargets;
+}
+
+/**
+ * {@link readOfferings} and {@link readImportTargets} at once. A workspace can
+ * list thousands of members, and each of the two lists them and reads every
+ * manifest for itself.
+ */
+export function readWorkspaceManifests(root: string, options: OfferingOptions = {}): WorkspaceManifests {
+  const manifests = members(resolve(root), read).map((path) => [path, read(path)] as const);
+  return { offerings: offeringsOf(manifests, options), targets: importTargets(manifests.map(([, manifest]) => manifest)) };
+}
+
 /**
  * Every published package of a workspace, and the source each entrypoint opens.
  *
@@ -416,11 +434,17 @@ export function readImportTargets(root: string): ImportTargets {
  * either invent a source or drop the subpath.
  */
 export function readOfferings(root: string, options: OfferingOptions = {}): readonly Offering[] {
+  return offeringsOf(members(resolve(root), read).map((path) => [path, read(path)] as const), options);
+}
+
+function offeringsOf(
+  manifests: readonly (readonly [path: string, manifest: Record<string, unknown>])[],
+  options: OfferingOptions,
+): readonly Offering[] {
   const offered = options.offered ?? OFFERED;
   const found: Offering[] = [];
 
-  for (const path of members(resolve(root), read)) {
-    const manifest = read(path);
+  for (const [path, manifest] of manifests) {
     if (!isPublished(manifest)) continue;
 
     const dir = dirname(path);

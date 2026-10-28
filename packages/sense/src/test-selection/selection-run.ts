@@ -17,7 +17,8 @@ import { randomUUID } from 'node:crypto';
 import { mkdirSync, readdirSync, readFileSync, rmdirSync, rmSync, writeFileSync } from 'node:fs';
 import { basename, dirname, resolve } from 'node:path';
 import type { InstrumentMode, ModuleId } from '../instrument/index.js';
-import { defaultInclude, type CapturedModule } from './instrumented-modules.js';
+import { probesRegions } from '../instrument/identity.js';
+import { defaultInclude, type CapturedModule, type ProbePlacement } from './instrumented-modules.js';
 
 export interface SelectionRun {
   readonly root: string;
@@ -36,6 +37,8 @@ export interface SelectionRun {
    * See `case-cut.ts`.
    */
   readonly cutFile: string;
+  /** When the run, or the rerun a watching runner reopened it for, began: see `runTexts`. */
+  startedAt: number;
   /** The cases the selection skips in the files this run kept: each such file is recorded incomplete. */
   readonly cut: Map<string, readonly string[]>;
   readonly modules: Map<ModuleId, CapturedModule>;
@@ -66,6 +69,8 @@ export interface SelectionRun {
    * them, carried for the same reason as `include`; absent cuts nothing.
    */
   cadence: ((file: string) => boolean) | undefined;
+  /** Where the loaders place the probes, carried for the same reason as `include`. */
+  placement: ProbePlacement;
   /** Files this seam generated, which no transform may instrument. */
   readonly shims: Set<string>;
   /**
@@ -74,7 +79,18 @@ export interface SelectionRun {
    * project's, whatever is in it.
    */
   readonly made: Set<string>;
-  /** Whether this run records per-case crossings: every run does, unless its files run in a page. */
+  /**
+   * The files a bundler's first loader passed on to be probed after the
+   * project's own loaders, until the loader that probes them reaches each one.
+   * Any left at the end were never probed: a configuration that carries the
+   * first loader without the second.
+   */
+  readonly awaiting: Set<string>;
+  /**
+   * Whether this run records per-case crossings: every run does, unless its
+   * files run in a page or it records under `loads`, where a module is marked
+   * as its file loads it, before any case opens.
+   */
   cases: boolean;
   /**
    * Whether the run in progress has been folded.
@@ -124,6 +140,7 @@ export function newRun(coverageFile: string, root: string, mode: InstrumentMode)
     caseDirectory: `${runDirectory}-cases`,
     finishedDirectory: `${runDirectory}-files`,
     cutFile: `${runDirectory}-cut.json`,
+    startedAt: Date.now(),
     cut: new Map<string, readonly string[]>(),
     modules: new Map<ModuleId, CapturedModule>(),
     preconditions: new Set<string>(),
@@ -133,9 +150,11 @@ export function newRun(coverageFile: string, root: string, mode: InstrumentMode)
     include: defaultInclude,
     unprobed: undefined,
     cadence: undefined,
+    placement: 'after-transforms',
     shims: new Set<string>(),
     made: new Set<string>(),
-    cases: true,
+    awaiting: new Set<string>(),
+    cases: probesRegions(mode),
     settled: false,
     watching: false,
     alone: false,
@@ -143,14 +162,16 @@ export function newRun(coverageFile: string, root: string, mode: InstrumentMode)
 }
 
 /**
- * Open the run for the next end the runner announces: the start of a rerun.
+ * Open the run for the next end the runner announces: the start of a rerun,
+ * at `startedAt`, no later than the runner's first read of a file this cycle.
  *
  * The directories are the ones the workers were handed when the shims were
  * written. The last fold removed them, and each worker recreates the one it
  * writes to, so a rerun's journals are its own.
  */
-export function reopenRun(run: SelectionRun): void {
+export function reopenRun(run: SelectionRun, startedAt: number): void {
   run.settled = false;
+  run.startedAt = startedAt;
 }
 
 /** The run a half that was handed only the snapshot's path is taking part in. */

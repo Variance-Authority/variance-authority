@@ -90,7 +90,7 @@ fn folded(name: &str) -> (Fixture, Read) {
     let layers: Vec<Layer> = chain.segments.iter().map(|bytes| Layer::open(bytes).unwrap()).collect();
     let mut paths: Vec<String> = FILES.iter().map(|(path, _, _)| (*path).to_owned()).collect();
     paths.sort_by(|a, b| crate::order::code_unit(a, b));
-    let read = read(&root.to_string_lossy(), &layers, Some(&paths), HashSet::new);
+    let read = read(&root.to_string_lossy(), &layers, Some(&paths), crate::resolve::Tsconfig::Auto, HashSet::new);
     (Fixture(root), read)
 }
 

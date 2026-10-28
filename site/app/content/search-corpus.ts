@@ -7,7 +7,7 @@
  * and one that was deleted is gone from both at once.
  */
 
-import { headingId, documentTitle } from "./markdown-text";
+import { documentHeadings, documentTitle } from "./markdown-text";
 import { PACKAGE_DOCUMENTS } from "./package-docs";
 import { routedDocument } from "./routed-docs";
 import type { SearchEntry } from "./search-options";
@@ -42,12 +42,13 @@ function entries(path: string, source: string): readonly SearchEntry[] {
       path,
       section,
       title,
+      hash: "",
       heading: "",
       body: opening ?? "",
       label: navigationItem(path)?.label ?? "",
     }),
-    ...sections.map(({ heading, body }) =>
-      entry({ path, section, title, heading, body }),
+    ...sections.map(({ hash, heading, body }) =>
+      entry({ path, section, title, hash, heading, body }),
     ),
   ].filter((candidate) => candidate.text.length > 0);
 }
@@ -56,6 +57,7 @@ function entry({
   path,
   section,
   title,
+  hash,
   heading,
   body,
   label = "",
@@ -63,17 +65,17 @@ function entry({
   path: string;
   section: string;
   title: string;
+  hash: string;
   heading: string;
   body: string;
   label?: string;
 }): SearchEntry {
-  const hash = heading ? headingId(heading) : "";
   return {
     id: hash ? `${path}#${hash}` : path,
     path,
     hash,
     title,
-    heading: heading.replace(/[`*_]/g, ""),
+    heading,
     section,
     label,
     lead: lead(body),
@@ -82,6 +84,9 @@ function entry({
 }
 
 interface Section {
+  /** The id the rendered heading carries. */
+  readonly hash: string;
+  /** The heading's text as the page shows it. */
   readonly heading: string;
   readonly body: string;
 }
@@ -94,13 +99,13 @@ interface Section {
  * every heading in the document would bury the page it belongs to.
  */
 function splitOnHeadings(source: string): [string, ...Section[]] {
-  const parts = source.split(/^## (.+)$/m);
-  const opening = parts[0] ?? "";
-  const sections: Section[] = [];
-
-  for (let index = 1; index < parts.length; index += 2) {
-    sections.push({ heading: parts[index]!, body: parts[index + 1] ?? "" });
-  }
+  const headings = documentHeadings(source).filter(({ depth }) => depth === 2);
+  const opening = source.slice(0, headings[0]?.start ?? source.length);
+  const sections = headings.map(({ id, label, end }, index) => ({
+    hash: id,
+    heading: label,
+    body: source.slice(end, headings[index + 1]?.start ?? source.length),
+  }));
 
   return [opening, ...sections];
 }

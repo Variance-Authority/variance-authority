@@ -31,7 +31,7 @@ describe('a file that moved on since the build', () => {
       const module = resolve(root, 'price.js');
       await writeFile(module, SOURCE, 'utf8');
 
-      const transformed = testSelectionProbes({ root }).transform(SOURCE, module)!;
+      const transformed = testSelectionProbes({ root }).transform.handler(SOURCE, module)!;
 
       // The checkout moves on after the build: the probes were placed on a
       // text the join can no longer find.
@@ -76,7 +76,7 @@ describe('a file that moved on since the build', () => {
       const module = resolve(root, 'price.js');
       await writeFile(module, SOURCE, 'utf8');
 
-      const transformed = testSelectionProbes({ root }).transform(SOURCE, module)!;
+      const transformed = testSelectionProbes({ root }).transform.handler(SOURCE, module)!;
 
       await writeFile(module, MOVED_ON, 'utf8');
 
@@ -113,7 +113,7 @@ describe('a file that moved on since the build', () => {
       const module = resolve(root, 'price.js');
       await writeFile(module, SOURCE, 'utf8');
 
-      const transformed = testSelectionProbes({ root }).transform(SOURCE, module)!;
+      const transformed = testSelectionProbes({ root }).transform.handler(SOURCE, module)!;
 
       await writeFile(module, MOVED_ON, 'utf8');
 
@@ -158,7 +158,7 @@ describe('a file that moved on since the build', () => {
       const module = resolve(root, 'price.js');
       await writeFile(module, SOURCE, 'utf8');
 
-      const transformed = testSelectionProbes({ root }).transform(SOURCE, module)!;
+      const transformed = testSelectionProbes({ root }).transform.handler(SOURCE, module)!;
 
       await writeFile(module, MOVED_ON, 'utf8');
 

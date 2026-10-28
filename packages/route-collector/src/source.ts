@@ -14,7 +14,7 @@ import { operatorError } from './operator.js';
  * step is a fact about a build somebody has to keep configured. `resolveSource`
  * is the last hop of attribution, so getting it from the cheapest possible place
  * is what makes `file:line` free rather than a feature. The names are the ones
- * `sense` reads as declared ([`indexDeclarations`](../../sense/src/declarations.ts)),
+ * `sense` reads as declared ([`indexDeclarations`](https://github.com/Variance-Authority/variance-authority/blob/main/packages/sense/src/declarations.ts)),
  * so a declaration a comment spells is not one.
  *
  * **Directories, not globs.** A glob syntax is a small language with its own

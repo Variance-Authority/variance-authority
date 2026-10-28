@@ -324,8 +324,11 @@ export interface NativeOrientMapAnswer {
 
 /** The code-map call on a git listing the addon holds. */
 export interface NativeOrientMapListing {
-  /** Fold the source index at `index` into the code map, carrying this listing rather than asking git again; `null` when there is no index. */
-  prepareOrientMap?(root: string, index: string): Promise<NativeOrientMapPrepared | null>;
+  /**
+   * Fold the source index at `index` into the code map, carrying this listing rather than asking git again,
+   * resolving under the `tsconfig` the scan did; `null` when there is no index.
+   */
+  prepareOrientMap?(root: string, index: string, tsconfig?: string | false): Promise<NativeOrientMapPrepared | null>;
 }
 
 /** The addon's code-map calls, kept apart from the scanner's other calls. */
@@ -334,9 +337,9 @@ export interface NativeOrientMaps {
    * Fold the source index at `index` into the code map kept beside it, with no
    * scan's listing to carry: git lists the checkout for the map. `scanned` is a
    * scan that ran and git could not list, so none is asked for. `null` when
-   * there is no index.
+   * there is no index. `tsconfig` is the one the scan that built the index resolved under.
    */
-  prepareOrientMap?(root: string, index: string, scanned?: boolean | null): Promise<NativeOrientMapPrepared | null>;
+  prepareOrientMap?(root: string, index: string, scanned?: boolean | null, tsconfig?: string | false): Promise<NativeOrientMapPrepared | null>;
   /** One page of the code map kept beside the index at `index`, the top one without `area`; `null` when none is kept, or one of a format this reader does not know. */
   orientMapPage?(index: string, area?: string | null): NativeOrientMapAnswer | null;
   orientLayers?(index: string): NativeOrientLayers | null;
@@ -348,19 +351,29 @@ export interface NativeOrientMaps {
 
 /** The addon's dependency-lexicon calls, kept apart from the scanner's other calls. */
 export interface NativeDependencyLexicon {
-  /** Refresh all installed third-party public declarations on the Rust side. */
-  refreshDependencyLexicon(root: string, index: string, path: string, refreshedAt: string): Promise<{
-    readonly path: string; readonly packages: number; readonly entrypoints: number;
+  /** Refresh all installed third-party public declarations on the Rust side, resolving under `tsconfig` as the scan did. */
+  refreshDependencyLexicon(root: string, index: string, path: string, sites: string, tsconfig?: string | false): Promise<{
+    readonly path: string; readonly sites: string; readonly packages: number; readonly entrypoints: number;
     readonly reused: number; readonly unavailable: number; readonly unresolved?: number; readonly unchanged: boolean;
+    /** The source files whose requests this refresh recorded. */
+    readonly appended: number;
+    /** The requests file was written whole, because its base or the names a request is internal to moved. */
+    readonly rebuilt: boolean;
   }>;
-  queryDependencyLexicon(path: string, query: string, files: string[] | null,
+  queryDependencyLexicon(path: string, sites: string, query: string, files: string[] | null,
     exact: boolean, packageName: string | null, limit: number): string | null;
-  dependencyStack(path: string, files: string[], offset: number, limit: number): string | null;
+  dependencyStack(path: string, sites: string, files: string[], offset: number, limit: number): string | null;
+  /** A question's distinct stems as `[stem, word]`, split the way package descriptions are. */
+  describedWords(query: string): [string, string][];
+  /** Per text, how many of the adjacent word pairs of `query` it writes adjacent. */
+  nearOf(query: string, texts: string[]): number[];
+  /** Each word's stem, in order. */
+  wordStems(words: string[]): string[];
 }
 
 /** What the published index records of imports and exports, read by `readHelp`. */
 export interface NativeIndexedUsage {
-  exported: { name: string; at: string; by: string; line: number; type: boolean; kind: 'story' | 'test' | 'source' }[];
+  exported: { name: string; at: string; by: string; line: number; type: boolean; kind: 'story' | 'test' | 'source'; doc?: string }[];
   /** Imports of a file past every specifier its package declares. */
   deep: NativeByPath[];
   /** Imports of a file of a package that declares no entry. */
@@ -375,6 +388,8 @@ export interface NativeIndexedUsage {
 export interface NativeNameUse {
   key: string;
   name: string;
+  /** The name the importing file binds it to, or passes it on as, when its binding renames it with `as`. */
+  local?: string | null;
   by: string;
   at: string;
   line: number;
@@ -382,6 +397,10 @@ export interface NativeNameUse {
   kind: 'story' | 'test' | 'source';
   through?: 'dynamic' | 'namespace' | null;
   throughLine: number;
+  /** Read off the module's `default`, which under interop is a CommonJS module's `module.exports`. */
+  throughDefault: boolean;
+  /** The module goes, whole, somewhere the reader does not follow: the line may read the name. */
+  whole: boolean;
 }
 
 /** Who imports one name out of a set of files, and which files pass it on with `export … from`. */
@@ -390,6 +409,29 @@ export interface NativeImporters {
   uses: NativeNameUse[];
   /** Every file that passes the name on, in code-unit order; none of the files asked about. */
   through: string[];
+  /** Every line of a file asked about that uses the name it declares, by file in code units, then by line. */
+  inFile: NativeInFile[];
+  /**
+   * Every namespace a file passes the name on inside, by file in code units,
+   * then by name: `export * as shout` passes `greet` as `shout.greet`, `name`
+   * `shout` and `members` `['greet']`, the last member the name itself.
+   */
+  namespaces: NativeNamespace[];
+}
+
+/** A namespace one file passes a name on inside, under the name it exports it as. */
+export interface NativeNamespace {
+  at: string;
+  name: string;
+  members: string[];
+}
+
+/** One line of a file that uses a name the file declares at its top level. */
+export interface NativeInFile {
+  at: string;
+  line: number;
+  by: string;
+  kind: 'story' | 'test' | 'source';
 }
 
 /** An import of a file rather than an entry, with the file it resolved to when the index recorded one. */

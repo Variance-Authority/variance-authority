@@ -1,18 +1,11 @@
-//! The parse columns of one layer, and one row of them written again into the
-//! compacted generation (`compact.rs`).
-//!
-//! A row is copied as `decodeSourceIndex` reads it rather than as it lies: the
-//! export and declare lists only where the row marks them present, and a span
-//! only where it has an end. Everything else is the row's own ids, looked up in
-//! the new dictionary.
+//! The parse columns of one layer, opened and checked so that a row read from
+//! them (`compact_parse_view.rs`) is a row in bounds.
 
 // compass: variance-authority.reach.source-index
 
-use crate::parse_columns::{ParseColumns, ParseRow};
-use crate::segment::{Collected, Strings};
 use crate::stored::{same_length, Stored, U32s};
 
-use super::{flag, span};
+use super::span;
 
 /// A span column's two ends.
 type Ends<'a> = [U32s<'a>; 2];
@@ -25,17 +18,20 @@ pub(crate) struct Parses<'a> {
     pub requests: U32s<'a>,
     pub exports: U32s<'a>,
     pub exports_present: &'a [u8],
-    declares: U32s<'a>,
-    declares_present: &'a [u8],
+    pub declares: U32s<'a>,
+    pub declares_present: &'a [u8],
     pub unknown: U32s<'a>,
-    harvested: &'a [u8],
-    bytes: U32s<'a>,
-    lines: U32s<'a>,
-    blocks: U32s<'a>,
+    pub harvested: &'a [u8],
+    pub bytes: U32s<'a>,
+    pub lines: U32s<'a>,
+    pub blocks: U32s<'a>,
+    pub doc: Ends<'a>,
     pub request_value: U32s<'a>,
     pub request_kind: U32s<'a>,
     pub request_line: U32s<'a>,
+    pub request_flags: &'a [u8],
     pub request_bindings: U32s<'a>,
+    pub request_republishes: &'a [u8],
     pub binding_imported: U32s<'a>,
     pub binding_local: U32s<'a>,
     pub binding_type: &'a [u8],
@@ -46,24 +42,56 @@ pub(crate) struct Parses<'a> {
     pub export_imported: U32s<'a>,
     pub export_type: &'a [u8],
     pub export_line: U32s<'a>,
-    export_signature: Ends<'a>,
-    export_doc: Ends<'a>,
+    pub export_signature: Ends<'a>,
+    pub export_doc: Ends<'a>,
     pub export_tags: &'a [u8],
-    symbols: U32s<'a>,
-    symbol_name: U32s<'a>,
-    symbol_kind: U32s<'a>,
-    symbol_line: U32s<'a>,
-    symbol_signature: Ends<'a>,
-    symbol_doc: Ends<'a>,
-    mocks_minus: U32s<'a>,
-    mocks_plus: U32s<'a>,
-    mock_minus: U32s<'a>,
-    mock_plus: U32s<'a>,
+    pub symbols: U32s<'a>,
+    pub symbol_name: U32s<'a>,
+    pub symbol_kind: U32s<'a>,
+    pub symbol_line: U32s<'a>,
+    pub symbol_signature: Ends<'a>,
+    pub symbol_doc: Ends<'a>,
+    /// A symbol's reach as [`crate::harvest::reach_code`] stores it.
+    pub symbol_reach: &'a [u8],
+    pub mocks_minus: U32s<'a>,
+    pub mocks_plus: U32s<'a>,
+    pub mock_minus: U32s<'a>,
+    pub mock_plus: U32s<'a>,
     pub members: U32s<'a>,
     pub member_request: U32s<'a>,
     pub member_name: U32s<'a>,
     pub member_line: U32s<'a>,
-    declare_name: U32s<'a>,
+    /// A member read off the module's `default`, as [`crate::members::Member`] says.
+    pub member_through_default: &'a [u8],
+    pub member_declarations: U32s<'a>,
+    pub member_declaration_name: U32s<'a>,
+    pub member_declaration_line: U32s<'a>,
+    pub member_declaration_on: U32s<'a>,
+    pub member_uses: U32s<'a>,
+    pub member_use_name: U32s<'a>,
+    pub member_use_line: U32s<'a>,
+    pub member_use_of: U32s<'a>,
+    pub member_use_how: U32s<'a>,
+    pub own_uses: U32s<'a>,
+    pub own_use_name: U32s<'a>,
+    pub own_use_line: U32s<'a>,
+    pub nested: U32s<'a>,
+    pub nested_name: U32s<'a>,
+    pub nested_kind: U32s<'a>,
+    pub nested_line: U32s<'a>,
+    pub nested_signature: Ends<'a>,
+    pub nested_doc: Ends<'a>,
+    /// The holder's name, or `NONE` when nothing names it.
+    pub nested_holder: U32s<'a>,
+    pub nested_holder_line: U32s<'a>,
+    pub binding_members: U32s<'a>,
+    pub binding_member_request: U32s<'a>,
+    pub binding_member_binding: U32s<'a>,
+    pub binding_member_name: U32s<'a>,
+    pub binding_member_line: U32s<'a>,
+    pub binding_member_within: U32s<'a>,
+    pub binding_within_name: U32s<'a>,
+    pub declare_name: U32s<'a>,
 }
 
 impl<'a> Parses<'a> {
@@ -78,6 +106,12 @@ impl<'a> Parses<'a> {
         let (export_exported, symbol_name) = (u32s("exports.exported")?, u32s("symbols.name")?);
         let (mock_minus, mock_plus) = (u32s("mocks.minus")?, u32s("mocks.plus")?);
         let (member_name, declare_name) = (u32s("members.name")?, u32s("declares.name")?);
+        let member_declaration_name = u32s("member-declarations.name")?;
+        let member_use_name = u32s("member-uses.name")?;
+        let own_use_name = u32s("own-uses.name")?;
+        let nested_name = u32s("nested.name")?;
+        let binding_member_name = u32s("binding-members.name")?;
+        let binding_within_name = u32s("binding-within.name")?;
         let parses = Parses {
             key,
             way: u32s("parses.key-way")?,
@@ -93,8 +127,11 @@ impl<'a> Parses<'a> {
             bytes: u32s("parses.bytes")?,
             lines: u32s("parses.lines")?,
             blocks: u32s("parses.blocks")?,
+            doc: ends("parses.doc-start", "parses.doc-end")?,
             request_kind: u32s("requests.kind")?,
             request_line: u32s("requests.line")?,
+            request_flags: stored.u8s("requests.flags")?,
+            request_republishes: stored.u8s("requests.republishes")?,
             request_bindings: stored.offsets("requests.bindings", request_value.len(), binding_imported.len())?,
             request_value,
             binding_local: u32s("bindings.local")?,
@@ -115,6 +152,7 @@ impl<'a> Parses<'a> {
             symbol_line: u32s("symbols.line")?,
             symbol_signature: ends("symbols.signature-start", "symbols.signature-end")?,
             symbol_doc: ends("symbols.doc-start", "symbols.doc-end")?,
+            symbol_reach: stored.u8s("symbols.reach")?,
             symbol_name,
             mocks_minus: stored.offsets("parses.mocks-minus", rows, mock_minus.len())?,
             mocks_plus: stored.offsets("parses.mocks-plus", rows, mock_plus.len())?,
@@ -123,7 +161,35 @@ impl<'a> Parses<'a> {
             members: stored.offsets("parses.members", rows, member_name.len())?,
             member_request: u32s("members.request")?,
             member_line: u32s("members.line")?,
+            member_through_default: stored.u8s("members.through-default")?,
             member_name,
+            member_declarations: stored.offsets("parses.member-declarations", rows, member_declaration_name.len())?,
+            member_declaration_line: u32s("member-declarations.line")?,
+            member_declaration_on: u32s("member-declarations.on")?,
+            member_declaration_name,
+            member_uses: stored.offsets("parses.member-uses", rows, member_use_name.len())?,
+            member_use_line: u32s("member-uses.line")?,
+            member_use_of: u32s("member-uses.of")?,
+            member_use_how: u32s("member-uses.how")?,
+            member_use_name,
+            own_uses: stored.offsets("parses.own-uses", rows, own_use_name.len())?,
+            own_use_line: u32s("own-uses.line")?,
+            own_use_name,
+            nested: stored.offsets("parses.nested", rows, nested_name.len())?,
+            nested_kind: u32s("nested.kind")?,
+            nested_line: u32s("nested.line")?,
+            nested_signature: ends("nested.signature-start", "nested.signature-end")?,
+            nested_doc: ends("nested.doc-start", "nested.doc-end")?,
+            nested_holder: u32s("nested.holder")?,
+            nested_holder_line: u32s("nested.holder-line")?,
+            nested_name,
+            binding_members: stored.offsets("parses.binding-members", rows, binding_member_name.len())?,
+            binding_member_request: u32s("binding-members.request")?,
+            binding_member_binding: u32s("binding-members.binding")?,
+            binding_member_line: u32s("binding-members.line")?,
+            binding_member_within: stored.offsets("binding-members.within", binding_member_name.len(), binding_within_name.len())?,
+            binding_within_name,
+            binding_member_name,
             declare_name,
         };
         parses.lengths()?;
@@ -137,6 +203,24 @@ impl<'a> Parses<'a> {
         (bytes != crate::segment::NONE && lines != crate::segment::NONE).then_some(lines)
     }
 
+    /// The module's own doc comment span, in UTF-16 units of its file;
+    /// absent when it writes none.
+    pub fn doc_of_module(&self, row: usize) -> Option<crate::harvest::TextSpan> {
+        span(self.doc[0], self.doc[1], row).map(|(start, end)| crate::harvest::TextSpan { start, end })
+    }
+
+    /// The doc comment span of one export, in UTF-16 units of its file;
+    /// absent when the reader found none.
+    pub fn doc_of_export(&self, export: usize) -> Option<crate::harvest::TextSpan> {
+        span(self.export_doc[0], self.export_doc[1], export).map(|(start, end)| crate::harvest::TextSpan { start, end })
+    }
+
+    /// The doc comment span of one declaration, as [`Self::doc_of_export`]
+    /// is of an export.
+    pub fn doc_of_symbol(&self, symbol: usize) -> Option<crate::harvest::TextSpan> {
+        span(self.symbol_doc[0], self.symbol_doc[1], symbol).map(|(start, end)| crate::harvest::TextSpan { start, end })
+    }
+
     fn lengths(&self) -> Result<(), String> {
         let rows = self.key.len();
         same_length(rows, &[
@@ -148,11 +232,15 @@ impl<'a> Parses<'a> {
             ("parses.bytes", self.bytes.len()),
             ("parses.lines", self.lines.len()),
             ("parses.blocks", self.blocks.len()),
+            ("parses.doc-start", self.doc[0].len()),
+            ("parses.doc-end", self.doc[1].len()),
         ])?;
         same_length(self.deleted.len(), &[("parses.deleted-way", self.deleted_way.len())])?;
         same_length(self.request_value.len(), &[
             ("requests.kind", self.request_kind.len()),
             ("requests.line", self.request_line.len()),
+            ("requests.flags", self.request_flags.len()),
+            ("requests.republishes", self.request_republishes.len()),
         ])?;
         same_length(self.binding_imported.len(), &[
             ("bindings.local", self.binding_local.len()),
@@ -182,140 +270,37 @@ impl<'a> Parses<'a> {
             ("symbols.signature-end", signature_end.len()),
             ("symbols.doc-start", doc_start.len()),
             ("symbols.doc-end", doc_end.len()),
+            ("symbols.reach", self.symbol_reach.len()),
         ])?;
         same_length(self.member_name.len(), &[
             ("members.request", self.member_request.len()),
             ("members.line", self.member_line.len()),
+            ("members.through-default", self.member_through_default.len()),
+        ])?;
+        same_length(self.member_declaration_name.len(), &[
+            ("member-declarations.line", self.member_declaration_line.len()),
+            ("member-declarations.on", self.member_declaration_on.len()),
+        ])?;
+        same_length(self.member_use_name.len(), &[
+            ("member-uses.line", self.member_use_line.len()),
+            ("member-uses.of", self.member_use_of.len()),
+            ("member-uses.how", self.member_use_how.len()),
+        ])?;
+        same_length(self.own_use_name.len(), &[("own-uses.line", self.own_use_line.len())])?;
+        same_length(self.nested_name.len(), &[
+            ("nested.kind", self.nested_kind.len()),
+            ("nested.line", self.nested_line.len()),
+            ("nested.signature-start", self.nested_signature[0].len()),
+            ("nested.signature-end", self.nested_signature[1].len()),
+            ("nested.doc-start", self.nested_doc[0].len()),
+            ("nested.doc-end", self.nested_doc[1].len()),
+            ("nested.holder", self.nested_holder.len()),
+            ("nested.holder-line", self.nested_holder_line.len()),
+        ])?;
+        same_length(self.binding_member_name.len(), &[
+            ("binding-members.request", self.binding_member_request.len()),
+            ("binding-members.binding", self.binding_member_binding.len()),
+            ("binding-members.line", self.binding_member_line.len()),
         ])
-    }
-}
-
-/// One row of one layer, the newest for its key.
-pub(super) struct ParseView<'s, 'a> {
-    pub stored: &'s Stored<'a>,
-    pub columns: &'s Parses<'a>,
-    pub row: usize,
-}
-
-impl ParseView<'_, '_> {
-    fn exports(&self) -> std::ops::Range<usize> {
-        if self.exports_present() { self.columns.exports.range(self.row) } else { 0..0 }
-    }
-
-    fn declares(&self) -> std::ops::Range<usize> {
-        if self.declares_present() { self.columns.declares.range(self.row) } else { 0..0 }
-    }
-}
-
-impl ParseRow for ParseView<'_, '_> {
-    fn strings<'s>(&'s self, into: &mut Collected<'s>) {
-        let (stored, columns, row) = (self.stored, self.columns, self.row);
-        let mut text = |column: U32s, at: usize| {
-            into.insert(stored.text(column.at(at)));
-        };
-        for request in columns.requests.range(row) {
-            text(columns.request_value, request);
-            text(columns.request_kind, request);
-            for binding in columns.request_bindings.range(request) {
-                text(columns.binding_imported, binding);
-                text(columns.binding_local, binding);
-            }
-        }
-        for symbol in columns.symbols.range(row) {
-            text(columns.symbol_name, symbol);
-            text(columns.symbol_kind, symbol);
-        }
-        for at in columns.mocks_minus.range(row) {
-            text(columns.mock_minus, at);
-        }
-        for at in columns.mocks_plus.range(row) {
-            text(columns.mock_plus, at);
-        }
-        for at in columns.members.range(row) {
-            text(columns.member_name, at);
-        }
-        for at in self.declares() {
-            text(columns.declare_name, at);
-        }
-        for export in self.exports() {
-            for column in [columns.export_exported, columns.export_local, columns.export_from, columns.export_imported] {
-                into.extend(stored.optional(column.at(export)));
-            }
-        }
-        into.extend(self.unknown());
-    }
-
-    fn write(&self, strings: &Strings, into: &mut ParseColumns) {
-        let (stored, columns, row) = (self.stored, self.columns, self.row);
-        let id = |column: U32s, at: usize| strings.id(stored.text(column.at(at)));
-        for request in columns.requests.range(row) {
-            into.request(
-                id(columns.request_value, request),
-                id(columns.request_kind, request),
-                columns.request_line.at(request),
-                columns.request_bindings.range(request).map(|binding| {
-                    (
-                        id(columns.binding_imported, binding),
-                        id(columns.binding_local, binding),
-                        flag(columns.binding_type, binding),
-                        columns.binding_line.at(binding),
-                    )
-                }),
-            );
-        }
-        for export in self.exports() {
-            into.export(
-                [columns.export_exported, columns.export_local, columns.export_from, columns.export_imported]
-                    .map(|column| strings.optional(stored.optional(column.at(export)))),
-                flag(columns.export_type, export),
-                columns.export_line.at(export),
-                span(columns.export_signature[0], columns.export_signature[1], export),
-                span(columns.export_doc[0], columns.export_doc[1], export),
-                columns.export_tags[export],
-            );
-        }
-        for symbol in columns.symbols.range(row) {
-            into.symbol(
-                id(columns.symbol_name, symbol),
-                id(columns.symbol_kind, symbol),
-                columns.symbol_line.at(symbol),
-                span(columns.symbol_signature[0], columns.symbol_signature[1], symbol),
-                span(columns.symbol_doc[0], columns.symbol_doc[1], symbol),
-            );
-        }
-        for at in self.declares() {
-            into.declare(id(columns.declare_name, at));
-        }
-        into.mock(
-            columns.mocks_minus.range(row).map(|at| id(columns.mock_minus, at)),
-            columns.mocks_plus.range(row).map(|at| id(columns.mock_plus, at)),
-        );
-        for at in columns.members.range(row) {
-            into.member(columns.member_request.at(at), id(columns.member_name, at), columns.member_line.at(at));
-        }
-    }
-
-    fn exports_present(&self) -> bool {
-        flag(self.columns.exports_present, self.row)
-    }
-
-    fn declares_present(&self) -> bool {
-        flag(self.columns.declares_present, self.row)
-    }
-
-    fn unknown(&self) -> Option<&str> {
-        self.stored.optional(self.columns.unknown.at(self.row))
-    }
-
-    fn harvested(&self) -> bool {
-        flag(self.columns.harvested, self.row)
-    }
-
-    fn size(&self) -> Option<crate::source_size::Size> {
-        use crate::segment::NONE;
-        let (bytes, lines, blocks) =
-            (self.columns.bytes.at(self.row), self.columns.lines.at(self.row), self.columns.blocks.at(self.row));
-        (bytes != NONE && lines != NONE)
-            .then(|| crate::source_size::Size { bytes, lines, blocks: (blocks != NONE).then_some(blocks) })
     }
 }

@@ -147,6 +147,7 @@ function drive(mode: 'flat' | 'sequential' | 'continuations', seed: number, stor
       model: journals.encodeJournal(FILE, counters(model.current), counters(sealedModel)),
       frames: [undefined, undefined],
       stories: undefined,
+      registered: [collector.registered(), loaded.map((module) => module.id)] as const,
     };
   }
 
@@ -190,7 +191,7 @@ function drive(mode: 'flat' | 'sequential' | 'continuations', seed: number, stor
     model.current = ambient;
     // The case returned, so its frame is named as one that finished, and as
     // one a recorder listened to that said nothing.
-    fold(preconditions.packSaid(caseOwner.settledCase(key, false), []), presence, true);
+    fold(preconditions.packHeard(caseOwner.settledCase(key, false), { said: [], read: [], misused: [] }), presence, true);
   }
   work(next(20), 0);
   fold(caseOwner.packCase(FILE, '', ''), ambient);
@@ -200,6 +201,7 @@ function drive(mode: 'flat' | 'sequential' | 'continuations', seed: number, stor
     model: journals.encodeJournal(FILE, counters(union), counters(sealedModel)),
     frames: [journals.packFrames(done.frames ?? []), journals.packFrames(frames)],
     stories: [new Map([...written].map(([key, bytes]) => [key, spoken(bytes)])), told] as const,
+    registered: [collector.registered(), loaded.map((module) => module.id)] as const,
   };
 }
 
@@ -244,6 +246,17 @@ describe('the recording a file writes', () => {
     },
   );
 
+  it.each(['flat', 'sequential', 'continuations'] as const)(
+    'registers every module whose probes ran, once, whichever bucket it wrote into: %s',
+    (mode) => {
+      for (const seed of [1, 7, 42]) {
+        const [registered, loaded] = drive(mode, seed).registered;
+        expect(new Set(registered), `seed ${seed}`).toEqual(new Set(loaded));
+        expect(registered.length, `seed ${seed}`).toBe(new Set(registered).size);
+      }
+    },
+  );
+
   it.each(['sequential', 'continuations'] as const)(
     'is the same journal with stories taped, and each story is every visit its case made, in order: %s',
     (mode) => {
@@ -255,6 +268,27 @@ describe('the recording a file writes', () => {
         expect(told!.size, `seed ${seed}`).toBeGreaterThan(30);
         expect(written, `stories, seed ${seed}`).toEqual(told);
       }
+    },
+  );
+
+  it.each([
+    ['flat', false], ['sequential', false], ['continuations', false], ['sequential', true], ['continuations', true],
+  ] as const)(
+    'logs a module marked loaded by its one line as the header logs a module that ran none of its regions: %s, story %s',
+    (mode, story) => {
+      const holder: Record<PropertyKey, unknown> = {};
+      const collector = mode === 'flat'
+        ? collectors.flat(holder)
+        : collectors.scoped(holder, mode === 'continuations', story ? () => {} : undefined);
+      // The header's mark, and the one line `loads` writes in its place.
+      new Function('globalThis', `${probeRuntime('header', 1)}__vaE();`)(holder);
+      new Function('globalThis', 'globalThis.__VA__.m("line");')(holder);
+
+      const sealed = collector.seal(FILE);
+
+      expect(sealed.get('line')).toEqual(sealed.get('header'));
+      expect(sealed.get('line')).toEqual(new Uint32Array([EVALUATING | 1]));
+      expect(collector.registered()).toEqual(['header', 'line']);
     },
   );
 
@@ -365,7 +399,9 @@ describe('what a case said it arranged', () => {
   const PRECONDITION = Symbol.for('variance-authority.test-selection.precondition');
   const said = (frame: Uint8Array) => {
     const owner = journals.decodeJournal(frame).testFile;
-    return [caseOwner.unpackCase(owner).name, preconditions.saidOf(owner)?.map(([name, value, , level]) => [name, value, level])];
+    const field = preconditions.heardField(owner);
+    const items = field === undefined ? undefined : (JSON.parse(field) as { said: [string, unknown, string, number][] }).said;
+    return [caseOwner.unpackCase(owner).name, items?.map(([name, value, , level]) => [name, value, level])];
   };
 
   it('travels in the frame of the case that said it, and a case that only said something still writes one', () => {
@@ -374,18 +410,18 @@ describe('what a case said it arranged', () => {
     const scope = holder[CASE_SCOPE] as Scope & {
       phase(where: { kind: 'each'; depth: number } | undefined): void;
     };
-    const say = holder[PRECONDITION] as (named: unknown, value: unknown, called: Error) => void;
+    const say = holder[PRECONDITION] as (dimension: unknown, record: unknown, called: Error) => void;
     scope.phase({ kind: 'each', depth: 1 });
-    say({ network: 'mocked' }, undefined, new Error());
+    say('fixture', { network: 'mocked' }, new Error());
     scope.phase(undefined);
-    scope.enter(caseOwner.packCase(FILE, 'checkout > pays', '0'), () => say({ flag: 'ff-on' }, undefined, new Error()));
+    scope.enter(caseOwner.packCase(FILE, 'checkout > pays', '0'), () => say('fixture', { flag: 'ff-on' }, new Error()));
     expect(() => scope.enter(caseOwner.packCase(FILE, 'refunds > pays', '1'), () => {
       throw new Error('stopped, so it writes a frame, and said nothing');
     })).toThrow('stopped');
 
     const frames = journals.unpackFrames(journals.packFrames(collector.finish(FILE).frames ?? []));
     expect(frames.map(said).filter(([name]) => name !== '')).toEqual([
-      ['checkout > pays', [['network', 'mocked', 1], ['flag', 'ff-on', preconditions.CASE_LEVEL]]],
+      ['checkout > pays', [['fixture:network', '"mocked"', 1], ['fixture:flag', '"ff-on"', preconditions.CASE_LEVEL]]],
       // Listened to and silent: an empty list, not an unmeasured case.
       ['refunds > pays', []],
     ]);
@@ -395,10 +431,10 @@ describe('what a case said it arranged', () => {
     const holder: Record<PropertyKey, unknown> = {};
     collectors.scoped(holder, true);
     const scope = holder[CASE_SCOPE] as Scope;
-    const say = holder[PRECONDITION] as (named: unknown, value: unknown, called: Error) => void;
+    const say = holder[PRECONDITION] as (dimension: unknown, record: unknown, called: Error) => void;
     let late: Promise<void> | undefined;
     await scope.enter(caseOwner.packCase(FILE, 'pays', '0'), async () => {
-      late = new Promise((settle) => setTimeout(settle, 5)).then(() => say({ network: 'mocked' }, undefined, new Error()));
+      late = new Promise((settle) => setTimeout(settle, 5)).then(() => say('fixture', { network: 'mocked' }, new Error()));
     });
     await expect(late).rejects.toThrow(/ran outside a running case/);
   });

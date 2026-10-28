@@ -24,6 +24,7 @@ import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { recordedTimes } from '../recorded-durations.js';
 import { distanceRange } from './at-distance.js';
+import { notingRead } from './record-base.js';
 import type { SuiteSelection, SuiteTimes } from './suite-selection.js';
 
 /** Where the selection is read: the checkout, whose record, and where the cli is installed. */
@@ -102,14 +103,18 @@ export function selectionFrom(
  * The suite's recorded times, read the first time a run under `--shard` asks.
  * A record named by file is read where it is; a suite's is read by the cli,
  * from where `variance select` reads it, this checkout's or the mainline's.
- * A cli the configuration does not resolve is a reason rather than a failure:
- * the runner can still cut the shard by count, and the line it prints says why.
+ *
+ * An absence every shard sees alike is a reason rather than a failure — nothing
+ * recorded, or a cli the configuration does not resolve or that predates the
+ * times — and the shard is placed by file count, its line saying why. A read
+ * that failed throws: another shard's may have answered, and the two would
+ * place different files.
  */
 export function timesFrom(request: SelectionRequest & { readonly recording?: string }): () => Promise<SuiteTimes> {
   return async () => {
-    if (request.recording !== undefined) return recordedTimes(request.recording);
     const from = request.from ?? request.root;
     try {
+      if (request.recording !== undefined) return recordedTimes(request.recording);
       const cli = await installed(from);
       if (cli?.suiteTimes === undefined) {
         const why = cli === undefined ? `which ${from} does not resolve` : 'and the one installed predates them';
@@ -117,7 +122,11 @@ export function timesFrom(request: SelectionRequest & { readonly recording?: str
       }
       return await cli.suiteTimes({ root: request.root, ...(request.suite === undefined ? {} : { suite: request.suite }) });
     } catch (error) {
-      return { unread: error instanceof Error ? error.message : String(error) };
+      throw new Error(
+        'variance-authority: the times this shard is placed by could not be read, and a shard placed without them ' +
+          `may take files another shard takes: ${error instanceof Error ? error.message : String(error)}`,
+        { cause: error },
+      );
     }
   };
 }
@@ -142,4 +151,18 @@ async function selector(from: string): Promise<Selector> {
     );
   }
   return cli;
+}
+
+/**
+ * The times a run landing in `landing` places its shard by, noted against that
+ * record as its selection is, so the shard's record names the record it read.
+ * A record the caller named by file is the one the run lands in, so its times
+ * are read there; a suite's are read where `variance select` reads its record.
+ */
+export function landingTimes(
+  landing: string,
+  request: SelectionRequest & { readonly byFile: boolean },
+): () => Promise<SuiteTimes> {
+  const { byFile, ...asked } = request;
+  return notingRead(landing, timesFrom({ ...asked, ...(byFile ? { recording: landing } : {}) }));
 }

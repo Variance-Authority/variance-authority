@@ -27,7 +27,7 @@ use napi_derive::napi;
 use serde_json::Value;
 
 use crate::emitted::{Emitted, EMITTED};
-use crate::resolve::Resolvers;
+use crate::resolve::{Resolvers, Tsconfig};
 
 /// Where each source a file imports from lands: the repository path, the
 /// absolute path of a file outside the checkout, or an empty string when
@@ -38,10 +38,20 @@ use crate::resolve::Resolvers;
 /// files the caller's graph holds under a tracked `build/`. A scan records a
 /// file there only where Git lists it, so the graph carries that word, and a
 /// landing there answers with the repository path the graph names it by.
+///
+/// `tsconfig` is the repository's word on which config governs resolution,
+/// the one the scan that built the graph read, so a source lands where that
+/// scan would have put it.
 #[napi(catch_unwind)]
-pub fn resolve_sources(root: String, file: String, sources: Vec<String>, listed: Option<Vec<String>>) -> Vec<String> {
+pub fn resolve_sources(
+    root: String,
+    file: String,
+    sources: Vec<String>,
+    listed: Option<Vec<String>>,
+    tsconfig: Option<napi::Either<String, bool>>,
+) -> Vec<String> {
     let listed: Option<HashMap<String, u32>> = listed.map(|paths| paths.into_iter().zip(0..).collect());
-    let resolvers = Resolvers::new(None, None);
+    let resolvers = Resolvers::new(Tsconfig::from_js(tsconfig), None);
     // The resolver answers with the path a symlink leads to, and a repository
     // path is cut from the root that path lies under.
     let root = std::fs::canonicalize(&root).unwrap_or_else(|_| PathBuf::from(&root));

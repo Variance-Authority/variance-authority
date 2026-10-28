@@ -1,5 +1,7 @@
 import { isOwnerFrame, type Fiber } from './fiber.js';
+import { HOOK_KEY, injectedVersion, installHook, reactHasMounted, type DevToolsHook } from './hook.js';
 import { fiberComponentName } from './names.js';
+import { committedHydration } from './root-state.js';
 import {
   memoizedUpdatersOf,
   type CommitUpdater,
@@ -66,6 +68,20 @@ import {
  */
 const PERFORMED_WORK = 0b1;
 
+/**
+ * `PassiveMask` in React 19: `Passive | ChildDeletion | Visibility`. React reads
+ * it off the finished `HostRoot` to decide whether a commit leaves passive
+ * effects to flush, and calls `onPostCommitFiberRoot` once it has. A commit the
+ * mask misses still gets its post-commit call in a development build, which
+ * also flushes for the profiler, so reading less than React does waits for
+ * less, never for a call that is not coming. Reading more would: a root marked
+ * flushing that React never flushes reads as busy for good.
+ */
+const PASSIVE_MASK = 0b10_1000_0001_0000;
+
+/** `PassiveMask` in React 18, which flushes nothing for `Visibility` alone. */
+const PASSIVE_MASK_18 = 0b1000_0001_0000;
+
 /** Runaway guard on the per-commit walk. See `suspense.ts` for the same bound. */
 const MAX_FIBERS = 500_000;
 
@@ -105,6 +121,20 @@ export interface Commit {
   readonly updatersTruncated?: boolean;
 }
 
+/** What a tap saw of one root's hydration. */
+export interface RootHydration {
+  /**
+   * The root's container as the commit that hydrated it left it, copied once
+   * that commit has written the DOM and before any later commit or effect runs:
+   * the first moment a root is known to own it, so what is compared with it does
+   * not depend on when anyone asked. The copy belongs to a document of its own,
+   * where nothing it holds loads or runs.
+   */
+  readonly markup: Node;
+  /** The root's own commits since, oldest first, as many as the tap keeps. */
+  commits(): readonly Commit[];
+}
+
 /**
  * Why no tap was installed, carried so silence can be read.
  *
@@ -137,6 +167,14 @@ export type TapRefusal =
    */
   | 'no-hook';
 
+/**
+ * What `tapCommits` hands back: React's commits on this page as React reports
+ * them to the DevTools hook, and whether one still has effects to run.
+ *
+ * `awaitHydration` takes one as `tap`, to know whether React loaded at all and
+ * when the effects hydration scheduled have run; a collector installs it from
+ * its page agent, before the page's first script.
+ */
 export interface CommitTap {
   /** False when nothing was instrumented. Never confuse with "no commits". */
   readonly attached: boolean;
@@ -159,6 +197,22 @@ export interface CommitTap {
   dropped(): number;
   /** Milliseconds since the last commit, or since attaching if there were none. */
   quietFor(): number;
+  /**
+   * Whether a commit left passive effects React has not run yet.
+   *
+   * Between a commit and its effects every field on the root reads idle — no
+   * lanes, no callback — while a `useEffect` that will change the page is still
+   * queued. React announces the flush with `onPostCommitFiberRoot`, and this is
+   * true from a commit that has effects until that call for its root.
+   *
+   * Given a `FiberRoot`, whether that root has; without one, whether any has.
+   */
+  effectsPending(root?: object): boolean;
+  /**
+   * The `FiberRoot`'s hydration, or `undefined` for a root that never hydrated
+   * or one this tap did not see hydrate.
+   */
+  hydration(root: object): RootHydration | undefined;
   /** Restore whatever was there before. Safe to call twice. */
   stop(): void;
 }
@@ -191,22 +245,6 @@ export interface TapOptions {
   readonly createHook?: boolean;
 }
 
-const HOOK_KEY = '__REACT_DEVTOOLS_GLOBAL_HOOK__';
-const CONTAINER_KEY_PREFIX = '__reactContainer$';
-
-interface DevToolsHook {
-  renderers?: Map<number, { version?: string }>;
-  supportsFiber?: boolean;
-  inject?: (internals: unknown) => number;
-  // `| undefined` in the value type, not only optional: `stop()` restores
-  // whatever was here before, and on a page with no DevTools that is `undefined`.
-  // Under `exactOptionalPropertyTypes` a bare `?:` cannot be assigned back what
-  // it was read as, which would leave the tap unable to undo itself.
-  onCommitFiberRoot?: ((...args: unknown[]) => void) | undefined;
-  onPostCommitFiberRoot?: ((...args: unknown[]) => void) | undefined;
-  onCommitFiberUnmount?: ((...args: unknown[]) => void) | undefined;
-}
-
 /**
  * Attach to React's commit stream, installing a hook if there is not one.
  *
@@ -226,6 +264,8 @@ interface DevToolsHook {
  * requests have all settled and whose components are still rendering is still
  * read at whichever commit the raster reaches. The evidence exists in the test
  * chronology; making it a capture refusal remains collector policy.
+ *
+ * @see https://variance-authority.dev/docs/framework-reference#tapcommits-and-awaitquiet
  */
 export function tapCommits(options: TapOptions = {}): CommitTap {
   const scope = options.scope ?? (globalThis as unknown as Record<string, unknown>);
@@ -252,11 +292,24 @@ export function tapCommits(options: TapOptions = {}): CommitTap {
   let lost = 0;
   let last = started;
   let stopped = false;
+  // Roots whose last commit left passive effects React has not flushed.
+  const flushing = new Set<object>();
+  const hydrated = new WeakMap<object, { readonly markup: Node; readonly since: Commit[] }>();
 
   const record = (...args: unknown[]): void => {
     if (stopped) return;
     const fiberRoot = args[1] as FiberRootUpdate | undefined;
     last = now();
+    const hydration = fiberRoot !== undefined && committedHydration(fiberRoot);
+    if (hydration) {
+      const container = (fiberRoot as { readonly containerInfo: Element | Document }).containerInfo;
+      hydrated.set(fiberRoot, { markup: inertCopy(container), since: [] });
+    }
+    if (fiberRoot?.current !== undefined) {
+      const mask = injectedVersion(hook)?.startsWith('18.') === true ? PASSIVE_MASK_18 : PASSIVE_MASK;
+      const flags = flagsOf(fiberRoot.current);
+      if (((flags.own | flags.subtree) & mask) !== 0) flushing.add(fiberRoot);
+    }
 
     const named = fiberRoot?.current ? componentsThatRendered(fiberRoot.current, nameLimit) : null;
     const updaterEvidence = memoizedUpdatersOf(fiberRoot, updaterLimit);
@@ -277,6 +330,8 @@ export function tapCommits(options: TapOptions = {}): CommitTap {
     }
 
     recorded.push(commit);
+    const since = hydration || fiberRoot === undefined ? undefined : hydrated.get(fiberRoot)?.since;
+    if (since !== undefined && since.push(commit) > keep) since.shift();
     if (recorded.length > keep) {
       recorded.shift();
       lost += 1;
@@ -286,6 +341,7 @@ export function tapCommits(options: TapOptions = {}): CommitTap {
 
   const hook: DevToolsHook = existing ?? installHook(scope);
   const previous = hook.onCommitFiberRoot;
+  const previousPost = hook.onPostCommitFiberRoot;
 
   hook.onCommitFiberRoot = (...args: unknown[]): void => {
     // Theirs first, and outside our own try: a harness that throws is a bug we
@@ -299,6 +355,16 @@ export function tapCommits(options: TapOptions = {}): CommitTap {
     }
   };
 
+  hook.onPostCommitFiberRoot = (...args: unknown[]): void => {
+    // The effects have run whether or not the harness before us throws on
+    // hearing it, and a root left marked would read as busy for good.
+    try {
+      previousPost?.apply(hook, args);
+    } finally {
+      if (!stopped) flushing.delete(args[1] as object);
+    }
+  };
+
   return {
     attached: true,
     get reactVersion(): string | undefined {
@@ -307,10 +373,17 @@ export function tapCommits(options: TapOptions = {}): CommitTap {
     commits: () => recorded.slice(),
     dropped: () => lost,
     quietFor: () => now() - last,
+    effectsPending: (root?: object) => (root === undefined ? flushing.size > 0 : flushing.has(root)),
+    hydration: (root: object) => {
+      const seen = hydrated.get(root);
+      return seen === undefined ? undefined : { markup: seen.markup, commits: () => seen.since.slice() };
+    },
     stop: () => {
       if (stopped) return;
       stopped = true;
+      flushing.clear();
       hook.onCommitFiberRoot = previous;
+      hook.onPostCommitFiberRoot = previousPost;
     },
   };
 }
@@ -359,6 +432,17 @@ function componentsThatRendered(
 }
 
 /**
+ * A copy of a root's container in a document of its own, which has no window:
+ * an image in it does not load and a script does not run. A `Document` container
+ * is copied from its root element, which is what its markup is read from. Only
+ * `hydrateRoot` hydrates, and it takes an element or a document.
+ */
+function inertCopy(container: Element | Document): Node {
+  const source = (container as Partial<Document>).documentElement ?? (container as Element);
+  return source.ownerDocument.implementation.createHTMLDocument('').importNode(source, true);
+}
+
+/**
  * Flags, tolerating a fiber shape that does not have them.
  *
  * `flags`/`subtreeFlags` are not on the structural `Fiber` type this package
@@ -374,67 +458,6 @@ function flagsOf(fiber: Fiber): { own: number; subtree: number } {
   };
 }
 
-/**
- * The minimum `react-dom` requires of a hook, and nothing more.
- *
- * `inject` must return an id and the `on*` methods must exist, or `react-dom`
- * throws while wiring itself up — which would break the page this is supposed to
- * be observing. `supportsFiber` is what it checks before talking at all.
- */
-function installHook(scope: Record<string, unknown>): DevToolsHook {
-  const renderers = new Map<number, { version?: string }>();
-  let nextId = 1;
-
-  const hook: DevToolsHook = {
-    renderers,
-    supportsFiber: true,
-    inject: (internals: unknown) => {
-      const id = nextId++;
-      renderers.set(id, (internals as { version?: string }) ?? {});
-      return id;
-    },
-    onCommitFiberRoot: () => {},
-    onPostCommitFiberRoot: () => {},
-    onCommitFiberUnmount: () => {},
-  };
-
-  scope[HOOK_KEY] = hook;
-  return hook;
-}
-
-function injectedVersion(hook: DevToolsHook): string | undefined {
-  const renderers = hook.renderers;
-  if (!renderers || typeof renderers.forEach !== 'function') return undefined;
-
-  let version: string | undefined;
-  renderers.forEach((renderer) => {
-    if (version === undefined && typeof renderer?.version === 'string') version = renderer.version;
-  });
-  return version;
-}
-
-/**
- * Has React already mounted something in this document?
- *
- * The observable proxy for "the hook was installed too late". Structural, like
- * `findReactContainers` — it asks the document rather than trusting a flag
- * somebody set.
- */
-function reactHasMounted(scope: Record<string, unknown>): boolean {
-  const doc = (scope['document'] ?? globalThis.document) as Document | undefined;
-  if (!doc?.querySelectorAll) return false;
-
-  const all = doc.querySelectorAll('*');
-  for (let index = 0; index < all.length; index += 1) {
-    const element = all[index] as unknown as Record<string, unknown> | undefined;
-    if (!element) continue;
-    for (const key of Object.keys(element)) {
-      if (key.startsWith(CONTAINER_KEY_PREFIX)) return true;
-    }
-  }
-  return false;
-}
-
 function refused(reason: TapRefusal): CommitTap {
   return {
     attached: false,
@@ -442,6 +465,8 @@ function refused(reason: TapRefusal): CommitTap {
     commits: () => [],
     dropped: () => 0,
     quietFor: () => 0,
+    effectsPending: () => false,
+    hydration: () => undefined,
     stop: () => {},
   };
 }

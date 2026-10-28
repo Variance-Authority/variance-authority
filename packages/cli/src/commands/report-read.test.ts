@@ -3,11 +3,18 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { Config } from '../config.js';
-import { formatReport } from './report.js';
-import { embedImages, reportsFor } from './report-read.js';
+import { htmlPage } from './report.js';
+import { carrying, locatePictures, type Picture } from './report-html-pictures.js';
+import { reportWithPictures } from './report-read.js';
 import type { CliRunReport } from './run.js';
 
-const PNG = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+/** A PNG's signature and header, saying 320 by 200. */
+const PNG = Buffer.alloc(24);
+Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]).copy(PNG, 0);
+PNG.writeUInt32BE(13, 8);
+PNG.write('IHDR', 12, 'latin1');
+PNG.writeUInt32BE(320, 16);
+PNG.writeUInt32BE(200, 20);
 
 function reportOf(images: Record<string, string>): CliRunReport {
   return {
@@ -35,7 +42,7 @@ function reportOf(images: Record<string, string>): CliRunReport {
   } as CliRunReport;
 }
 
-describe('embedImages', () => {
+describe('locatePictures', () => {
   let dir: string;
 
   beforeEach(async () => {
@@ -49,20 +56,35 @@ describe('embedImages', () => {
     await rm(dir, { recursive: true, force: true });
   });
 
-  it('carries each picture inside the report, and leaves the sidecar a path', async () => {
+  it('finds each picture with the size its header says, and leaves the sidecar a path', async () => {
+    const found = new Map<string, Picture>();
     const report = reportOf({ after: 'images/button.after.png', record: 'images/button.after.json' });
-    const images = (await embedImages(report, dir)).observations[0]?.images;
+    const images = (await locatePictures(report, dir, found)).observations[0]?.images;
 
-    expect(images?.after).toBe(`data:image/png;base64,${PNG.toString('base64')}`);
+    const file = join(dir, 'images', 'button.after.png');
+    expect(images?.after).toBe(file);
+    expect(found.get(file)).toEqual({ file, media: 'image/png', width: 320, height: 200 });
     expect(images?.record).toBe('images/button.after.json');
   });
 
+  it('finds the change at its own size too, since a tall page is read by it', async () => {
+    await writeFile(join(dir, 'images', 'button.change.png'), PNG);
+    const found = new Map<string, Picture>();
+    const report = reportOf({ after: 'images/button.after.png', change: 'images/button.change.png' });
+    const images = (await locatePictures(report, dir, found)).observations[0]?.images;
+
+    const file = join(dir, 'images', 'button.change.png');
+    expect(images?.change).toBe(file);
+    expect(found.get(file)).toEqual({ file, media: 'image/png', width: 320, height: 200 });
+  });
+
   it('keeps the path of a picture it cannot read, so the page still has its slot', async () => {
+    const found = new Map<string, Picture>();
     const report = reportOf({ after: 'images/button.after.png', before: 'images/gone.before.png' });
-    const images = (await embedImages(report, dir)).observations[0]?.images;
+    const images = (await locatePictures(report, dir, found)).observations[0]?.images;
 
     expect(images?.before).toBe('images/gone.before.png');
-    expect(images?.after).toMatch(/^data:image\/png;base64,/);
+    expect(found.size).toBe(1);
   });
 
   it('resolves pictures against the report that named them, and the page carries them', async () => {
@@ -70,9 +92,11 @@ describe('embedImages', () => {
     await writeFile(path, JSON.stringify(reportOf({ after: 'images/button.after.png' })));
     const config = { report: join(tmpdir(), 'elsewhere', 'run.json') } as Config;
 
-    const page = formatReport({ report: await reportsFor([path], config, true), format: 'html' });
+    const { report, pictures } = await reportWithPictures([path], config);
+    const page = [...htmlPage({ report, placement: carrying(pictures) })].join('');
 
-    expect(page).toContain(`src="data:image/png;base64,${PNG.toString('base64')}"`);
+    expect(page).toContain('data-picture="0" width="320" height="200"');
+    expect(page).toContain(`data-media="image/png">${PNG.toString('base64')}</script>`);
     expect(page).not.toContain('src="images/button.after.png"');
   });
 });

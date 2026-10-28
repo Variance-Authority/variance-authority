@@ -30,4 +30,19 @@ describe('what a bump reached, said', () => {
         '(test/a.test.ts, test/b.test.ts, test/c.test.ts and 2 more) were read as changed whole',
     );
   });
+
+  // A selected test's reason names a region of a file the diff never touched;
+  // the file, and how the bump reached it, is what joins the reason to the bump.
+  it('names each file it changed whole and the chain from the bumped package', () => {
+    const chains = new Map<string, readonly string[]>([['src/pad.ts', ['left-pad']]]);
+    const beyond: BeyondReach = { files: ['src/pad.ts', 'src/lib/index.ts'], unplaced: [], traced: ['left-pad'], chains };
+
+    const said = installReached(
+      new Map([[undefined, { lockfile: 'yarn.lock', packages: ['left-pad'], manifests: [], moved: ['src/lib/package.json'] }]]),
+      new Map([[undefined, beyond]]),
+      () => 'at abc',
+    );
+
+    expect(said?.files).toEqual([{ file: 'src/lib/index.ts' }, { file: 'src/pad.ts', through: ['left-pad'] }]);
+  });
 });

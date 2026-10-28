@@ -390,9 +390,9 @@ because the image links inside it are relative to the report:
 npx variance report --config variance.config.json --format html > .variance/report.html
 ```
 
-Open it in a browser. Each subject is a picture you can work: the approved
-image, the difference, and the candidate, with a wipe, a blend and a blink
-between them. A `new` subject has no approved image, so what you are looking at
+Open it in a browser. Each subject opens on what changed at its own size, and
+is a picture you can work: the approved image, the difference, and the
+candidate, with a wipe, a blend and a blink between them. A `new` subject has no approved image, so what you are looking at
 is the candidate alone, and the question is only whether that is what the
 template is supposed to look like.
 

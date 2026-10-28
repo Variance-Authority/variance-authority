@@ -61,12 +61,20 @@ describe('the walk', () => {
   it.each(Object.keys(FIXTURES).flatMap((file) => MODES.map((mode) => [file, mode] as const)))(
     'answers %s (%s) as committed',
     (file, mode) => {
-      const answered = spliced(FIXTURES[file]!, file, mode);
+      const whole = spliced(FIXTURES[file]!, file, mode);
+      // Whether the text is a module says how a caller opens it, and is no part of the walk's identity.
+      const answered = whole && (({ module: _, ...rest }) => rest)(whole);
 
       expect(answered === undefined ? null : { ...answered, blocks: answered.blocks.map((block) => ({ ...block })) })
         .toEqual(GOLDEN[`${file} (${mode})`]);
     },
   );
+
+  it('says a text that neither imports nor exports is a script, as CommonJS is', () => {
+    expect(spliced('module.exports = () => 1;\n', 'lib.js', 'presence')!.module).toBe(false);
+    expect(spliced('module.exports = () => 1;\n', 'lib.cjs', 'presence')!.module).toBe(false);
+    expect(spliced('export const f = () => 1;\n', 'lib.js', 'presence')!.module).toBe(true);
+  });
 
   it('spells a regular expression as `String(value)` does', () => {
     expect(spliced(FIXTURES['regexp-key.js']!, 'regexp-key.js', 'presence')!.blocks[1]!.name).toBe('/x/');
@@ -114,7 +122,7 @@ describe('the header', () => {
 
       expect(statements[first]).toMatchObject({
         type: 'VariableDeclaration',
-        declarations: [{ id: { name: '__vaK' } }, {}, {}],
+        declarations: [{ id: { name: '__vaK' } }, {}, {}, {}],
       });
     },
   );

@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 import { codeUnitOrder } from '@variance-authority/core/segment';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { instrumentationId } from '../instrument/index.js';
 import { decodeTestCoverage } from './format.js';
 import { writeTestCoverage } from './index.js';
 
@@ -128,7 +129,7 @@ describe('a Jest run under --shard, with the times a record holds', () => {
     // Alpha is recorded as the slow one, so on two shards it is alone on the first.
     const timed = (k: number) => writeTestCoverage(resolve(directory, `timed-${k}.bin`), {
       version: 3,
-      instrumentation: 'fixture',
+      instrumentation: instrumentationId('presence'),
       tests: FOUND.map((file) => ({ file, complete: true, preconditions: [], duration: file.includes('alpha') ? 9000 : 100 })),
       modules: [],
     });
@@ -143,6 +144,13 @@ describe('a Jest run under --shard, with the times a record holds', () => {
     expect(first.stderr).not.toMatch(/PASS .*beta\.case\.ts/);
     for (const name of ['beta', 'delta', 'each', 'gamma']) expect(second.stderr).toMatch(new RegExp(`PASS .*${name}\\.case\\.ts`));
     expect(second.stderr).not.toMatch(/PASS .*alpha\.case\.ts/);
+  }, 60_000);
+
+  it('passes a shard there are too few files to give one, and says so', async () => {
+    const { stderr, ran } = await runWith('empty-shard', {}, '--shard', '6/6');
+
+    expect(stderr).toContain('variance-authority: shard 6/6 by file count: 0 of 5 files;');
+    expect(ran).toEqual([]);
   }, 60_000);
 });
 

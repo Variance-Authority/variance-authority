@@ -128,4 +128,11 @@ describe('the cases that ran a changed line', () => {
 
     expect(cap?.changedLineCases).toBe(1);
   });
+
+  it('orders the cases by file, title and id, so two cases one title shares keep one order however they were recorded', () => {
+    const twin = (id: string): CoveringTest => ({ id, file: 'a.test.ts', name: 'twice', stopped: false, distance: 0 });
+    const [cap] = regionsOf([{ kind: 'function', name: 'cap', startLine: 1, endLine: 10, tests: [twin('a#2'), twin('a#1')] }], undefined, [{ start: 4, end: 4 }], undefined, 'src/caps.ts', removedText(''), []);
+
+    expect(cap?.called.map((called) => called.id)).toEqual(['a#1', 'a#2']);
+  });
 });

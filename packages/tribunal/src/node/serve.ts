@@ -14,7 +14,7 @@ import { reviewPage, uiAsset, uiFont, UI_FONTS_PATH } from './ui-assets.js';
  * Nothing here knows what a build is; every route, every refusal and every status
  * code is the same code a Cloudflare deployment runs.
  *
- * Shaped after [`server/http.ts`](../../../server/src/http.ts): `node:http`, no
+ * Shaped after [`server/http.ts`](https://github.com/Variance-Authority/variance-authority/blob/main/packages/server/src/http.ts): `node:http`, no
  * framework, and no logic of its own beyond transport.
  *
  * ## The two decisions

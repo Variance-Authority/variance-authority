@@ -14,14 +14,13 @@ import type { Readiness, ShowRequest, ShowResult, ShowStatus, StorybookScope } f
  *
  * **Readiness is reported, never assumed.** Storybook emits `storyRendered`
  * when it is done, and that signal is the only one that knows about decorators,
- * loaders, and async render phases. When it is absent — an older preview, a
- * build with the channel stripped, a page that is not a Storybook at all — this
- * falls back to a markup-quiescence heuristic, and the fallback is *named in the
- * result*. The two are not equivalent and callers must not be able to confuse
- * them: quiescent markup cannot see a story still waiting on a fetch, a font
- * swap, or an image, so a capture taken on that evidence is a capture of an
- * unfinished story. Saying which evidence was used is the difference between a
- * weaker claim and a false one.
+ * loaders, and async render phases. A story already on screen when this runs
+ * is read from Storybook's own `currentRender`, whose phase says whether that
+ * render is over. Markup that stopped changing is never taken for either: it
+ * cannot see a story still waiting on a fetch, a font swap, or an image. Where
+ * Storybook gives no signal — no channel, or no `storyRendered` before the
+ * bound — the story is refused, naming what did not arrive, and a project
+ * whose preview cannot say so attaches a readiness marker instead.
  *
  * **The subject outranks the framework.** `storyRendered` means Storybook
  * believes the story function returned, not that the *application* settled — a
@@ -30,7 +29,7 @@ import type { Readiness, ShowRequest, ShowResult, ShowStatus, StorybookScope } f
  * the application attached is stronger evidence than any event the framework can
  * emit. The marker is a contract, and a contract that can be quietly substituted
  * is not one: a configured marker that never arrives is reported as a timeout
- * naming it, never as quiescent markup. A project that asked to be asked,
+ * naming it. A project that asked to be asked,
  * answered with a guess, is worse off than one that never asked.
  *
  * Handing a story back is not the same as making the switch to the next one
@@ -55,10 +54,8 @@ export const showStory = (request: ShowRequest): Promise<ShowResult> => {
   /**
    * Stop reading the page the moment an answer has been handed back.
    *
-   * Both polls below run on their own `setTimeout` chain, and either can still be
-   * mid-flight when the channel answers first. That is the ordinary first story of
-   * a session: it arrives already selected, so the `already-rendered` markup poll
-   * starts, and `storyRendered` lands between its two samples. In a browser an
+   * The marker poll below runs on its own `setTimeout` chain, and can still be
+   * mid-flight when the channel answers first. In a browser an
    * unstopped chain costs a few wasted `querySelector` calls; off a browser it is
    * a timer that outlives the DOM it reads, and the straggler's `ReferenceError`
    * is attributed to whichever subject happened to be running.
@@ -108,8 +105,6 @@ export const showStory = (request: ShowRequest): Promise<ShowResult> => {
     return null;
   };
 
-  const markupOf = (selector: string): string => document.querySelector(selector)?.innerHTML ?? '';
-
   const overlay = (): { message: string; stack: string } | null => {
     if (!document.body.classList.contains(request.errorOverlay.bodyClass)) return null;
     return {
@@ -135,62 +130,30 @@ export const showStory = (request: ShowRequest): Promise<ShowResult> => {
   });
 
   /**
-   * Wait for the story root to stop changing.
+   * How far Storybook's own render of this story has got, read from the
+   * preview's `currentRender`.
    *
-   * Two identical samples rather than one non-empty one: a framework that mounts
-   * a shell and then fills it would otherwise be captured mid-flight. Polling
-   * rather than `requestAnimationFrame` because a backgrounded page throttles
-   * frames, and a readiness check that depends on being visible is a readiness
-   * check that fails in CI.
+   * `over` once the render reached `completed` — where `storyRendered` is
+   * emitted — or a later phase; `errored` for a render that failed; `pending`
+   * while it is still loading, rendering or playing; `unknown` when the preview
+   * exposes no render for this story, which is not evidence either way.
    */
-  const settleByMarkup = (
-    readiness: Readiness,
-    budgetMs: number,
-    notes: readonly string[],
-  ): Promise<ShowResult> =>
-    new Promise<ShowResult>((resolve) => {
-      const deadline = since() + budgetMs;
-      let previous: string | null = null;
-
-      const tick = (): void => {
-        if (handedBack) return;
-
-        const failed = overlay();
-        if (failed !== null) {
-          resolve(result('errored', 'none', { message: failed.message, stack: failed.stack, notes }));
-          return;
-        }
-
-        const root = rootSelector();
-        if (root !== null && document.readyState === 'complete') {
-          const markup = markupOf(root);
-          if (previous === markup) {
-            resolve(result('rendered', readiness, { notes }));
-            return;
-          }
-          previous = markup;
-        }
-
-        if (since() >= deadline) {
-          resolve(
-            root === null
-              ? result('no-root', 'none', {
-                  message: `nothing mounted into ${request.roots.join(' or ')} within ${budgetMs}ms`,
-                  notes,
-                })
-              : result('timeout', 'none', {
-                  message: `the story root was still changing after ${budgetMs}ms`,
-                  notes,
-                }),
-          );
-          return;
-        }
-
-        pollAgain(tick);
-      };
-
-      tick();
-    });
+  const renderState = (): 'over' | 'errored' | 'pending' | 'unknown' => {
+    const current = scope.__STORYBOOK_PREVIEW__?.currentRender;
+    if (current === undefined || current === null || current.id !== request.storyId) return 'unknown';
+    switch (current.phase) {
+      case 'completed':
+      case 'afterEach':
+      case 'finished':
+        return 'over';
+      case 'errored':
+        return 'errored';
+      case undefined:
+        return 'unknown';
+      default:
+        return 'pending';
+    }
+  };
 
   /**
    * Wait for the subject to declare itself ready.
@@ -257,8 +220,7 @@ export const showStory = (request: ShowRequest): Promise<ShowResult> => {
                   `\`${request.events.storyRendered}\` arrived within ${budgetMs}ms`
                 : `the readiness marker \`${selector}\` never appeared within ${budgetMs}ms` +
                   `${missingRoot}. A configured marker is not traded for weaker evidence: this run ` +
-                  `asked the subject to declare readiness, so an undeclared story is a timeout ` +
-                  `rather than a capture taken on markup quiescence.`,
+                  `asked the subject to declare readiness, so an undeclared story is a timeout.`,
               notes,
             }),
           );
@@ -276,18 +238,24 @@ export const showStory = (request: ShowRequest): Promise<ShowResult> => {
   if (channel === null) {
     if (marker !== undefined) {
       // No channel means no `storyRendered` to wait for, so the marker is the
-      // whole of the evidence — and it is still stronger than the quiescence
-      // this would otherwise have fallen back to.
+      // whole of the evidence.
       return settleByMarker(marker, request.timeoutMs, () => true, [
         `no Storybook channel was found on the preview window, so the framework's own signal was ` +
           `unavailable and readiness rested entirely on the configured marker \`${marker}\`.`,
       ]);
     }
-    return settleByMarkup('markup-quiescent', request.timeoutMs, [
-      'no Storybook channel was found on the preview window, so readiness was decided by markup ' +
-        'quiescence: the root mounted and stopped changing. That cannot see a story still waiting ' +
-        'on a fetch, a font, or an image.',
-    ]);
+    // Nothing on this page can say the story is ready, so it is not read. Markup
+    // that stopped changing would be a guess at a story that may still be waiting
+    // on a fetch, a font or an image. A story that crashed is still said so.
+    const shown = overlay();
+    return Promise.resolve(
+      shown !== null ? result('errored', 'none', shown) : result('timeout', 'none', {
+        message:
+          `no Storybook channel was found on the preview window, so nothing said \`${request.storyId}\` ` +
+          `was ready and it was not read. Configure \`readySelector\` with a marker the story ` +
+          `attaches once it has settled.`,
+      }),
+    );
   }
 
   return new Promise<ShowResult>((resolve) => {
@@ -440,22 +408,66 @@ export const showStory = (request: ShowRequest): Promise<ShowResult> => {
       finish(result('unreachable', 'none', { message: String(error) }));
     };
 
+    /**
+     * The bound on Storybook's answer. Reaching it refuses the story and names
+     * what did not arrive; it never reads the story anyway.
+     */
+    const bound = (selected: boolean): void => {
+      timer = setTimeout(() => {
+        const shown = overlay();
+        if (shown !== null) {
+          finish(result('errored', 'none', shown));
+          return;
+        }
+        const unreadable = selected && renderState() === 'unknown'
+          ? ', and the preview exposes no `currentRender` to say whether its render was already over'
+          : '';
+        finish(
+          result('timeout', 'none', {
+            message:
+              `no \`${request.events.storyRendered}\` for \`${request.storyId}\` within ` +
+              `${request.timeoutMs}ms${unreadable}, so it was not read`,
+          }),
+        );
+      }, request.timeoutMs);
+    };
+
     if (scope.__STORYBOOK_PREVIEW__?.currentSelection?.storyId === request.storyId) {
       // The first story of a session arrives selected by the URL, so its
-      // `storyRendered` may have fired before this function was injected. Waiting
-      // for it alone would burn the whole timeout, then report a story sitting fully
-      // rendered on the screen as a timeout.
+      // `storyRendered` may have fired before this function was injected.
+      // Storybook's `currentRender` says whether that render is already over;
+      // the listeners above are attached first, so an event that lands while
+      // this reads it is still heard.
+      const state = renderState();
+      if (state === 'errored') {
+        finish(
+          result('errored', 'none', overlay() ?? {
+            message: `Storybook's render of \`${request.storyId}\` had already failed`,
+          }),
+        );
+        return;
+      }
       if (marker !== undefined) {
-        // The framework's half is already spent, so the marker is all that is outstanding.
-        settleByMarker(marker, request.timeoutMs, () => true, [
+        // With no `currentRender`, an event that fired before this ran is lost,
+        // and the marker is the evidence left.
+        const told = (): boolean => signalled || state === 'unknown' || renderState() === 'over';
+        settleByMarker(marker, request.timeoutMs, told, [
           `the story was already selected when this ran, so readiness waited on the subject's own ` +
-            `marker \`${marker}\` rather than on markup that had stopped changing.`,
+            `marker \`${marker}\` and on Storybook's \`currentRender\`.`,
         ]).then(finish, failed);
         return;
       }
-      // FIXME: a story that is already selected waits on markup, not `storyRendered`,
-      // so a subject that never stops changing spends all of `timeoutMs` to say so.
-      settleByMarkup('already-rendered', request.timeoutMs, []).then(finish, failed);
+      if (state === 'over') {
+        finish(
+          rootSelector() === null
+            ? result('no-root', 'none', {
+                message: `the render finished and mounted nothing into ${request.roots.join(' or ')}`,
+              })
+            : result('rendered', 'already-rendered'),
+        );
+        return;
+      }
+      bound(true);
       return;
     }
 
@@ -477,23 +489,12 @@ export const showStory = (request: ShowRequest): Promise<ShowResult> => {
     }
 
     if (marker !== undefined) {
-      // With a marker there is no fallback timer, because there is nothing to fall
-      // back *to*: the marker owns the deadline, and reaching it is a timeout naming
-      // the selector. That is the difference between a declared contract and a guess,
-      // and why the weaker path below is absent rather than deprioritised.
+      // The marker owns the deadline, and reaching it is a timeout naming the
+      // selector.
       settleByMarker(marker, request.timeoutMs, () => signalled, []).then(finish, failed);
       return;
     }
 
-    timer = setTimeout(() => {
-      // The channel said nothing in time. Rather than reporting a timeout for a
-      // story that may be sitting rendered on the screen, check the weaker
-      // evidence — and say that is what happened. Four polls is the least that
-      // can produce two identical samples.
-      settleByMarkup('markup-quiescent', request.pollMs * 4, [
-        `no \`${request.events.storyRendered}\` within ${request.timeoutMs}ms; readiness fell back ` +
-          `to markup quiescence, which is weaker evidence than Storybook's own signal`,
-      ]).then(finish, failed);
-    }, request.timeoutMs);
+    bound(false);
   });
 };

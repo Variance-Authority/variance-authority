@@ -13,6 +13,7 @@
 
 import { rm } from 'node:fs/promises';
 import { instrumentationId, type InstrumentMode, type ModuleId } from '../instrument/index.js';
+import { runTexts } from '../text-digests.js';
 import { deriveModules } from './captured-modules.js';
 import { commitOf } from './commit.js';
 import { landRun } from './commit-runs.js';
@@ -25,7 +26,7 @@ import {
   type ReadJournal,
 } from './instrumented-modules.js';
 import { coverageModule } from './coverage-rows.js';
-import { joinedJournals, joinReadings } from './readings.js';
+import { joinedJournals, joinReadings, ownCut } from './readings.js';
 import { freshCases } from './case-fold.js';
 import { caseDurations } from './case-durations.js';
 import {
@@ -99,7 +100,7 @@ export function foldRun(
       : { journals: written, unplaced: new Set<string>() };
     const { unplaced } = placed;
     // A file the run read twice is one record, and every row is read in it.
-    const joined = joinReadings(modules);
+    const joined = joinReadings(modules, ownCut(root, mode));
     const journals = joinedJournals(placed.journals, joined.readings);
     // A file the selection ran in part is incomplete too: the cases it skipped
     // keep the reach they had. See `case-cut.ts`.
@@ -120,15 +121,16 @@ export function foldRun(
     // One row per path, not per project run of it: two projects that both match
     // a file are two announcements of one test file, and the snapshot is keyed
     // by path.
-    // FIXME: each test file reads and digests its preconditions itself, so one
-    // that every test shares is read once per test file. This repository's unit
-    // suite declares every file of the native crate, which made re-reading them
-    // about 2.5 s of a fold that needs to read each of them once.
-    const tests = await Promise.all(
-      oneRowPerFile(files, root).map((file) =>
-        coverageTest(file, root, governingPreconditions(run, file.configs), journals, joined.modules),
-      ),
-    );
+    const perFile = oneRowPerFile(files, root).map((file) => ({ file, governing: governingPreconditions(run, file.configs) }));
+    const texts = runTexts(perFile.map(({ file, governing }) => ({ test: file.filepath, governing })), run.startedAt);
+    const tests = perFile.map(({ file, governing }) => coverageTest(
+      texts.moved(file.filepath, governing) ? { ...file, complete: false } : file,
+      root,
+      governing,
+      texts.digests,
+      journals,
+      joined.modules,
+    ));
     const commit = await commitOf(root);
     const current: TestCoverage = {
       version: 3,
@@ -147,7 +149,7 @@ export function foldRun(
     // lands on it, so a worktree layers onto months of recording rather than
     // onto nothing. A no-op in the primary checkout and after the first run,
     // and not asked by a shard that is a part of one whole run.
-    if (!run.alone) noteSeeded(await seedTestCoverage(coverageFile, root));
+    if (!run.alone) noteSeeded(await seedTestCoverage(coverageFile, root, current.instrumentation));
     // In the record, with the coverage, in one write. `run.cases` is whether
     // the run could record a case: one whose files ran in a page could not.
     // One that could, and recorded no case and finished no file — no worker

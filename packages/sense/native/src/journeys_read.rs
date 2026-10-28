@@ -16,7 +16,7 @@ use std::collections::HashMap;
 use napi_derive::napi;
 
 use crate::journey_columns::{decode, Decoded};
-use crate::journey_stitch::strings;
+use crate::case_shard::strings;
 use crate::journeys::{same, Meta, FORMAT, NO_PACKAGE, TEST, WALK};
 use crate::journeys_answer::*;
 use crate::journeys_steps::{Known, Tag};

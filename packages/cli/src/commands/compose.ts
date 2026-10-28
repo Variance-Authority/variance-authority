@@ -49,7 +49,7 @@ import type { CliObservationRecord, CliRunReport } from './run-report.js';
  *
  * A movement nothing explains is **not** a flake here. The position has not
  * moved: a subject is unstable when it fails to read the same way twice, and one
- * reading can never establish that ([`flakiness.md`](../../../../docs/flakiness.md)).
+ * reading can never establish that ([`flakiness.md`](https://variance-authority.dev/docs/flakiness)).
  * What this produces is the *shortlist* — the subjects a sweep should spend its
  * second readings on — and `standing: 'flake'` appears only where the run already
  * has both halves: an unexplained movement in a subject that also disagreed with

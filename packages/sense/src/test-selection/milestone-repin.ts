@@ -32,7 +32,7 @@ import { linesOf } from './case-lines.js';
 import { decodeSetExecutionIndex, encodeOwnedSetExecutionIndex, openSetColumns, openSetExecutionIndex } from './execution-set-format.js';
 import { layEyes, readableEyes } from './eyes-record.js';
 import { decodeTestCoverage } from './format.js';
-import { layerTestCoverage } from './format-layer.js';
+import { layCoverage } from './format-layer.js';
 import { openTestCoverage, wholeCoverage } from './format-view.js';
 import { editsBetween, type EditOf } from './region-edit.js';
 import { withIndexLock } from './index-lock.js';
@@ -127,7 +127,7 @@ async function repin(coverageFile: string, record: LastFetched, root: string, la
   const dropped = [...new Set(layer.ran.flatMap((state) => state.files))].filter((file) => !kept.has(file));
   // Under the milestone's probes, so a subset of nothing lays the milestone as it is.
   const subset = { ...ownSubset(own, kept), instrumentation };
-  const bytes = layerTestCoverage(milestone, subset, await carriedSources(root, milestone, subset));
+  const bytes = layCoverage(milestone, subset, await carriedSources(root, milestone, subset));
 
   const ownCases = caseSectionsOf(ownBytes);
   const milestoneCases = caseSectionsOf(milestone);

@@ -19,6 +19,7 @@ import { describe, expect, it } from 'vitest';
 
 const ROOT = resolve(import.meta.dirname, '..');
 const ACTION = join(ROOT, '.github/actions/variance/action.yml');
+const WORKFLOW = join(ROOT, '.github/workflows/variance.yml');
 
 /** The `if:` of the step whose `name:` or `id:` is `step`. */
 async function conditionOf(step: string): Promise<string> {
@@ -65,6 +66,132 @@ describe('the variance action', () => {
 
     expect(action).toContain("KEPT: ${{ steps.saved.outcome == 'success' }}");
     expect(action).toMatch(/if \[ "\$KEPT" = true \]; then\s*(#.*\s*)*echo "::error::variance kept what this run accepted/);
+  });
+});
+
+/** The `run:` block of the step whose `name:` is `step`, unindented. */
+async function runBlock(step: string): Promise<string> {
+  const lines = (await readFile(ACTION, 'utf8')).split('\n');
+  const named = lines.findIndex((line) => line.trim() === `- name: ${step}`);
+  if (named < 0) throw new Error(`the action has no step ${step}`);
+  const run = lines.findIndex((line, at) => at > named && line.trim() === 'run: |');
+  const indent = lines[run]!.length - lines[run]!.trimStart().length;
+  const body: string[] = [];
+  for (const line of lines.slice(run + 1)) {
+    if (line.trim() !== '' && line.length - line.trimStart().length <= indent) break;
+    body.push(line);
+  }
+  const inner = Math.min(...body.filter((line) => line.trim() !== '').map((line) => line.length - line.trimStart().length));
+  return body.map((line) => line.slice(inner)).join('\n');
+}
+
+/** A report in which every subject was observed, and one changed. */
+const CHANGED = { observations: [{ verdict: 'changed' }], notObserved: [] };
+
+/**
+ * What the verdict step exits with, and the annotation it prints, for a run's
+ * exit code and report; `null` writes none, and `path` names another.
+ */
+async function verdict(
+  code: string,
+  exitZeroOnChanges: string,
+  { kept = 'false', report = CHANGED as unknown, path }: { readonly kept?: string; readonly report?: unknown; readonly path?: string } = {},
+): Promise<{ readonly status: number; readonly out: string }> {
+  const at = await mkdtemp(join(tmpdir(), 'variance-action-verdict-'));
+  try {
+    const written = join(at, 'report.json');
+    if (report !== null) await writeFile(written, JSON.stringify(report));
+    const out = execFileSync('/bin/bash', ['-c', await runBlock('verdict')], {
+      env: {
+        ...process.env,
+        CODE: code,
+        KEPT: kept,
+        REPORT: path ?? written,
+        WHERE: 'the docket is in the pull request comment',
+        EXIT_ZERO_ON_CHANGES: exitZeroOnChanges,
+      },
+      encoding: 'utf8',
+      stdio: 'pipe',
+    });
+    return { status: 0, out };
+  } catch (error) {
+    const failed = error as { status: number; stdout: string };
+    return { status: failed.status, out: failed.stdout };
+  } finally {
+    await rm(at, { recursive: true, force: true });
+  }
+}
+
+describe('the verdict', () => {
+  it('fails the check on changes that need review', async () => {
+    const { status, out } = await verdict('1', 'false');
+
+    expect(status).toBe(1);
+    expect(out).toContain('::error::variance found changes that need review');
+  });
+
+  it('reports changes and passes the check when the job reports rather than blocks', async () => {
+    const { status, out } = await verdict('1', 'true');
+
+    expect(status).toBe(0);
+    expect(out).toContain('::warning::variance found changes that need review');
+  });
+
+  it('still fails an accept the comparison after it did not hold when the job reports rather than blocks', async () => {
+    const { status, out } = await verdict('1', 'true', { kept: 'true' });
+
+    expect(status).toBe(1);
+    expect(out).toContain('::error::variance kept what this run accepted');
+  });
+
+  it('still fails a run that could not observe every subject when the job reports rather than blocks', async () => {
+    const holes = [
+      { observations: [{ verdict: 'unchanged' }], notObserved: [{ kind: 'failed' }] },
+      { observations: [{ verdict: 'unchanged', diagnostics: [{ severity: 'error' }] }], notObserved: [] },
+      { observations: [{ verdict: 'changed' }] },
+      { notObserved: [] },
+      null,
+    ];
+
+    for (const report of holes) {
+      const { status, out } = await verdict('1', 'true', { report });
+
+      expect(status).toBe(1);
+      expect(out).toContain('::error::variance could not observe every subject');
+    }
+  });
+
+  it('still fails when the run named no report, when the job reports rather than blocks', async () => {
+    const { status, out } = await verdict('1', 'true', { report: CHANGED, path: '' });
+
+    expect(status).toBe(1);
+    expect(out).toContain('::error::variance could not observe every subject');
+  });
+
+  it('still fails a run that did not happen when the job reports rather than blocks', async () => {
+    expect((await verdict('2', 'true')).status).toBe(2);
+    expect((await verdict('', 'true')).status).toBe(2);
+  });
+});
+
+/** The rows `plan` lists, before a label narrows them. */
+async function projectRows(): Promise<ReadonlyArray<Record<string, string>>> {
+  const workflow = await readFile(WORKFLOW, 'utf8');
+  const listed = /projects='(\[[^']*\])'/.exec(workflow);
+  if (listed?.[1] === undefined) throw new Error('the workflow lists no projects');
+  return JSON.parse(listed[1]) as ReadonlyArray<Record<string, string>>;
+}
+
+describe('the projects the workflow observes', () => {
+  it('reports the site rather than block on it, and blocks on the review surface', async () => {
+    const rows = await projectRows();
+
+    expect(rows.find((row) => row['project'] === 'site')?.['exit-zero-on-changes']).toBe('true');
+    expect(rows.find((row) => row['project'] === 'tribunal')?.['exit-zero-on-changes']).toBeUndefined();
+  });
+
+  it('hands each row\'s choice to the action', async () => {
+    expect(await readFile(WORKFLOW, 'utf8')).toContain("exit-zero-on-changes: ${{ matrix['exit-zero-on-changes'] || 'false' }}");
   });
 });
 

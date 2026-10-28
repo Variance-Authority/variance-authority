@@ -170,6 +170,18 @@ export interface AttributionOptions {
    * about the wrong components. A full-page pair passes `{x: 0, y: 0}` for both.
    */
   readonly beforeOrigin?: { readonly x: number; readonly y: number };
+
+  /**
+   * The rows of this image that have no partner in the before image, as
+   * half-open runs of raster rows.
+   *
+   * Such a row is marked edge to edge, because nothing says where its content
+   * begins, so a region inside one is as wide as the image and only the root
+   * contains it by area. It is joined by its rows instead: to the tightest box
+   * whose rows span it, which is the box that grew. Absent when the rows were
+   * compared by position.
+   */
+  readonly inserted?: readonly { readonly from: number; readonly to: number }[];
 }
 
 const DEFAULT_CONTAINMENT = 0.9;
@@ -211,6 +223,9 @@ export function attributeRegions(
       height: region.height / options.scale,
     };
     const area = css.width * css.height;
+    // Rows the after image added are joined by the rows they span, and only to
+    // this render's box: the before side never painted them.
+    const added = options.inserted?.some((run) => run.from <= region.y && region.y + region.height <= run.to) ?? false;
 
     let inside: (typeof boxed)[number] | undefined;
     let overlapping: (typeof boxed)[number] | undefined;
@@ -230,7 +245,10 @@ export function attributeRegions(
       // one: the run then names the wrapper nothing edited and sends a reviewer
       // to its file. Ties go to the last box seen, which is the innermost, and is
       // also the one the browser painted on top.
-      if (area > 0 && shared / area >= containment) {
+      const contained = added
+        ? spans(box.node.rect!, css) && box.node.rect!.width * box.node.rect!.height > 0
+        : area > 0 && shared / area >= containment;
+      if (contained) {
         if (inside === undefined || nodeArea <= inside.area) inside = box;
       }
       // The same rule for `nearest`. It is orientation rather than attribution,
@@ -375,6 +393,11 @@ function covered(rect: Rect, [first, second]: readonly Rect[]): number {
   if (second === undefined) return one;
   const both = overlap(first!, second);
   return one + intersectionArea(rect, second) - (both === undefined ? 0 : intersectionArea(rect, both));
+}
+
+/** Whether `box`'s rows cover every row of `rect`, wherever their columns are. */
+function spans(box: Rect, rect: Rect): boolean {
+  return box.y <= rect.y && rect.y + rect.height <= box.y + box.height;
 }
 
 /** The area the boxes cover together, counting what two of them share once. */

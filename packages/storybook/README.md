@@ -5,6 +5,7 @@
 > Storybook index parsing, subject planning and a host-neutral preview driver.
 
 Part of [Variance Authority](https://variance-authority.dev).
+Point your coding agent at [`llms.txt`](https://variance-authority.dev/llms.txt).
 
 ## What this is, and whether you want it
 
@@ -211,25 +212,29 @@ Storybook's own viewport entries are written. Any other unit is refused: `em` an
 | `baseUrl` | required | Storybook's root URL — `http://localhost:6006`, or a `file://` path to a built directory. An absolute URL: `localhost:6006` with no scheme is refused, naming the mistake |
 | `readySelector` | none | CSS selector for a marker the story attaches once it has settled. When set, it is the only signal that can mark a story `rendered` |
 | `timeoutMs` | `15000` | budget for one story to become ready |
-| `pollMs` | `50` | markup sampling interval, on the fallback path only |
+| `pollMs` | `50` | how often the `readySelector` marker is looked for |
 | `events` | `STORYBOOK_EVENTS` | the channel event names this adapter listens for — `{ setCurrentStory, updateGlobals, storyRendered, storyFinished, storyThrewException, storyErrored, storyMissing, playFunctionThrewException }`. Override any of them if a Storybook build renamed one |
 | `globals` | `{ a11y: { manual: true } }` | Storybook globals to set on the preview, once per document, before any story is shown. The default stands `@storybook/addon-a11y`'s automatic scan down for this pass. Pass `{}` to change nothing |
 | `roots` | `#storybook-root`, `#root` | where the story mounts, tried in order |
-| `errorOverlay` | `STORYBOOK_ERROR_OVERLAY` | CSS selectors identifying Storybook's fatal-error overlay — `{ bodyClass: 'sb-show-errordisplay', message: '#error-message', stack: '#error-stack' }`. Only consulted when no channel was found, since there is then no event to name the error |
+| `errorOverlay` | `STORYBOOK_ERROR_OVERLAY` | CSS selectors identifying Storybook's fatal-error overlay — `{ bodyClass: 'sb-show-errordisplay', message: '#error-message', stack: '#error-stack' }`. Consulted when no Storybook event named the error, and on a preview with no channel |
 | `observe` | none | `collectStories` only: called after a story became ready and before the next is shown. This is where a capture goes. Called only for `rendered` stories, and sequentially — one call finishes before the next story is shown |
 
 ## Readiness
 
 Without `readySelector`, a story is ready when Storybook's `storyRendered`
-fires, and failing that when the mounted root's markup is unchanged across two
-samples `pollMs` apart. Which of those decided it is in the outcome's
-`readiness` field, so a report separates a declared-ready capture from an
-inferred one:
+fires. The story the URL selected may have rendered before anything listened,
+so for it Storybook's `currentRender` says whether that render is over. Markup
+that stopped changing is never taken for ready: it cannot see a story still
+waiting on a fetch, a font or an image. A story Storybook says nothing about
+within `timeoutMs` is a `timeout` naming the missing `storyRendered`, and a
+preview with no Storybook channel needs `readySelector`, since nothing else on
+it can say a story is ready.
+
+Which signal decided it is in the outcome's `readiness` field:
 
 `declared` (your marker appeared) · `storyRendered` (Storybook's signal) ·
-`already-rendered` (the story the URL selected was already on screen) ·
-`markup-quiescent` (the fallback) · `none` (the status records what happened
-instead).
+`already-rendered` (the story the URL selected had finished rendering) ·
+`none` (the status records what happened instead).
 
 Set `readySelector` for any component that fetches, animates, or defers work to
 an effect. Those async gaps are what produce a capture that differs between
@@ -268,6 +273,18 @@ Two things put work in that phase, and both are ordinary:
 Storybook has emitted `storyFinished` since 8.3. On anything older, the first
 story of a session waits out `timeoutMs` to establish that the event is never
 coming, and the rest of the run pays nothing.
+
+The wait for `storyFinished` is the event itself: the story is handed on when
+Storybook emits it, not at the next tick of a poll. Storybook's own fixed wait
+is gone too. Outside a test runner it opens every render's `completing` phase
+with a 100 ms timer before it looks for running animations; `collectStory` sets
+`__vitest_browser__` on each document it navigates, which is the switch
+Storybook reads to skip that timer. The same switch makes Storybook pause every
+animation at its last keyframe, so the adapter removes that stylesheet as it is
+added, and your page keeps the animation state it set. Like the globals below,
+the switch lives in a document this session opened and dies with it. The first
+story of a document is rendered before the switch
+can be set, and pays Storybook's wait once.
 
 Nor is there a wait for a story the preview is already showing. Storybook
 re-renders only a story it is not already displaying, so asking for the same
@@ -330,4 +347,4 @@ pruning. There is no separate list of things to exclude to maintain.
 
 ---
 
-**[@variance-authority/storybook](https://variance-authority.dev/reference/packages/storybook)** is part of [Variance Authority](https://variance-authority.dev) — [documentation](https://variance-authority.dev/docs) · MIT
+**[@variance-authority/storybook](https://variance-authority.dev/reference/packages/storybook)** is part of [Variance Authority](https://variance-authority.dev) — [documentation](https://variance-authority.dev/docs) · [GitHub](https://github.com/Variance-Authority/variance-authority/tree/main/packages/storybook) · MIT

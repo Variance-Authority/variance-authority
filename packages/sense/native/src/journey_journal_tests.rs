@@ -25,6 +25,8 @@ fn frame(rows: &[(u8, &str, &[&[u32]])]) -> Vec<u8> {
         out.extend_from_slice(value.as_bytes());
     };
     text(&mut out, "case");
+    // A case frame marks no moment its collection ended.
+    out.extend_from_slice(&[0; TIME_BYTES]);
     out.push(rows.len() as u8);
     for (tag, path, lists) in rows {
         out.push(*tag);

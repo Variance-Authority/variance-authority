@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest';
 import { beyondReach, relationsOfFiles, type FileRecord, type Relations } from '@variance-authority/core/relate';
 import { codeUnitOrder } from '@variance-authority/core/segment';
 import { blocksChargedAt } from './blocks-around.js';
+import { rowOf } from './case-said.js';
 import { CrossingSets } from './crossing-sets.js';
 import type { LineRange } from './diff-lines.js';
 import { decodeExecutionIndex } from './execution-format.js';
@@ -161,6 +162,54 @@ describe('selecting off a journey file in the addon', () => {
       });
     }
   }
+
+  it('leaves out a file the suite ignores, as narrowByJourneys does', async () => {
+    const changed = new Map<string, readonly LineRange[]>([['src/http.ts', [{ start: 2, end: 2 }]], ['src/card.ts', [{ start: 2, end: 2 }]]]);
+    const options = { relations: plain, ignore: ['src/http.ts'] };
+    const selected = await selectJourneyFile(FILE, changed, options);
+
+    expect(selected).toEqual(narrowByJourneys(index, changed, options));
+    expect(selected).toMatchObject({ entered: ['test/plain.test.ts'], ignored: ['src/http.ts'] });
+  });
+
+  // `http.ts` imports the picture; `card.ts`, which holds a row, and `solo.ts`, which holds none, declare they read its bytes.
+  const reading = relationsOfFiles(
+    RECORDS.map((record) =>
+      record.file === 'src/http.ts'
+        ? { ...record, edges: [{ to: 'src/logo.png', kind: 'asset' as const }] }
+        : record.file === 'src/card.ts' || record.file === 'src/solo.ts'
+          ? { ...record, edges: [...(record.edges ?? []), { to: 'src/logo.png', kind: 'depends' as const }] }
+          : record,
+    ),
+    { depends },
+  );
+
+  it('still follows a `/// <depends>` on a file the suite ignores, by the row or past a module with none, and no asset edge, as narrowByJourneys does', async () => {
+    const changed = new Map<string, readonly LineRange[]>([['src/logo.png', []]]);
+    const options = { relations: reading, ignore: ['**/*.png'] };
+    const selected = await selectJourneyFile(FILE, changed, options);
+
+    expect(selected).toEqual(narrowByJourneys(index, changed, options));
+    expect(selected).toMatchObject({ entered: ['test/other.test.ts', 'test/plain.test.ts'], unread: [], ignored: ['src/logo.png'] });
+  });
+
+  it('declines a module that declares an ignored file and holds no row in a suite that declines relations, as narrowByJourneys does', async () => {
+    const changed = new Map<string, readonly LineRange[]>([['src/logo.png', []]]);
+    const options = { relations: reading, ignore: ['**/*.png'], unmeasured: 'nothing' as const };
+    const selected = await selectJourneyFile(FILE, changed, options);
+
+    expect(selected).toEqual(narrowByJourneys(index, changed, options));
+    expect(selected).toMatchObject({ entered: ['test/plain.test.ts'], declined: ['src/solo.ts'] });
+  });
+
+  it('still follows a `/// <depends>` from a module the suite ignores as well, as narrowByJourneys does', async () => {
+    const changed = new Map<string, readonly LineRange[]>([['src/logo.png', []], ['src/card.ts', []]]);
+    const options = { relations: reading, ignore: ['src/**'] };
+    const selected = await selectJourneyFile(FILE, changed, options);
+
+    expect(selected).toEqual(narrowByJourneys(index, changed, options));
+    expect(selected).toMatchObject({ entered: ['test/other.test.ts', 'test/plain.test.ts'], ignored: ['src/card.ts', 'src/logo.png'] });
+  });
 
   it('declines a file the journey has no row for when the suite declines relations', async () => {
     const changed = new Map<string, readonly LineRange[]>([['src/solo.ts', []], ['test/other.test.ts', []], ['nowhere.ts', []]]);
@@ -327,13 +376,13 @@ describe('projecting a journey file onto a change', () => {
   });
 
   it('carries what each case said it arranged, and nothing for a case nobody listened to', async () => {
-    const network = { name: 'network', value: 'mocked', site: 'test/card.test.ts:3', level: 0 };
+    const network = { name: 'fixture:network', value: 'mocked', site: 'test/card.test.ts:3', level: 0 };
     const sets = new CrossingSets(3);
     const file = join(mkdtempSync(join(tmpdir(), 'journey-native-')), 'journeys.bin');
     writeFileSync(file, encodeSetExecutionIndex({
       tests: [
-        { id: 'card > a', file: 'test/card.test.ts', name: 'a', preconditions: [network] },
-        { id: 'card > b', file: 'test/card.test.ts', name: 'b', preconditions: [] },
+        { id: 'card > a', file: 'test/card.test.ts', name: 'a', said: JSON.stringify({ said: [['fixture:network', '"mocked"', 'test/card.test.ts:3', 0]] }) },
+        { id: 'card > b', file: 'test/card.test.ts', name: 'b', said: '{"said":[]}' },
         { id: 'card > c', file: 'test/card.test.ts', name: 'c' },
       ],
       modules: [{
@@ -347,6 +396,6 @@ describe('projecting a journey file onto a change', () => {
 
     const projected = await projectJourneyFile(file, new Map([['src/api.ts', lines(2)]]));
 
-    expect(projected?.index.tests.map((test) => test.preconditions)).toEqual([[network], [], undefined]);
+    expect(projected?.index.tests.map(rowOf)).toEqual([[network], [], undefined]);
   });
 });

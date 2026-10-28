@@ -5,6 +5,7 @@
 > Measure how a rendered interface groups, separates, aligns and emphasizes its content, and return those measurements as data a test or an agent can read.
 
 Part of [Variance Authority](https://variance-authority.dev).
+Point your coding agent at [`llms.txt`](https://variance-authority.dev/llms.txt).
 
 ## What this is for
 
@@ -284,7 +285,8 @@ reading.
 | --- | --- |
 | `subjectId`, `title` | Name the sensed boundary in the returned report. Defaults to `presentation` with no title. |
 | `fonts` | Font identities you established for this capture. The report returns them, and a substitution changes `report.digest` while `report.contentDigest` stays the same. |
-| `suspense` | `{ timeoutMs }` for settling React boundaries before reading. |
+| `suspense` | `{ timeoutMs }`, the bound on React Suspense boundaries under the subject. A boundary still pending at the bound rejects the call and names the subject. |
+| `loading` | `true` when the subject *is* its loading state. A boundary pending at the bound is then read as the fallback, and a subject with none pending rejects the call: the declaration no longer describes it. |
 | `stabilize` | Replaces the default stabilization recipe. |
 | `paint` | `true`, or a list of the layers above. |
 | `accessibility` | The browser-computed ARIA snapshot read beside this capture. The report keeps it as an independent semantic reading and it covers `report.contentDigest`. Leave it out only when nothing observed it. |
@@ -493,7 +495,7 @@ const observation: ObservationRecord = {
   because: 'the candidate differs from its baseline',
   changedPixels: 320,
   regions: [],
-  signals: { presentation },
+  ...(presentation === undefined ? {} : { signals: { presentation } }),
 };
 
 console.log(observation.signals?.presentation);
@@ -505,10 +507,13 @@ effects were introduced, which were resolved, and which changed measurement.
 automatic findings are the complete evidence for the subject.
 
 A missing report, or a report with no layout findings to compare, produces
-`verdict: 'incomparable'` with a `because` naming which side was missing —
-never an empty clean list, because "we could not look" and "we looked and found
-nothing" are different answers. The content identity and information counts
-travel alongside the effects.
+`verdict: 'changed'` with a `because` naming which side was missing and no
+effects. It is never an empty clean list, because "we could not look" and "we
+looked and found nothing" are different answers. When neither side has a
+reading with layout findings, `presentationSignal` returns `undefined`, and the
+member stays absent.
+
+The content identity and information counts travel alongside the effects.
 
 The stored signal reports consequence, not severity. Project policy still
 decides whether any finding blocks a run.
@@ -519,4 +524,4 @@ and [Presentation evidence reference](https://variance-authority.dev/docs/presen
 
 ---
 
-**[@variance-authority/presentation](https://variance-authority.dev/reference/packages/presentation)** is part of [Variance Authority](https://variance-authority.dev) — [documentation](https://variance-authority.dev/docs) · MIT
+**[@variance-authority/presentation](https://variance-authority.dev/reference/packages/presentation)** is part of [Variance Authority](https://variance-authority.dev) — [documentation](https://variance-authority.dev/docs) · [GitHub](https://github.com/Variance-Authority/variance-authority/tree/main/packages/presentation) · MIT

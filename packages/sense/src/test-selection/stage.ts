@@ -12,7 +12,7 @@ import { mkdirSync, rmSync } from 'node:fs';
 import { mkdir, readFile, readdir, rename, rm, writeFile } from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
 import { resolve } from 'node:path';
-import { heardAcross, heardOf } from './case-precondition-column.js';
+import { saidAcross } from './case-said.js';
 import { packCase, settledAcross, timedAcross, unpackCase } from './cases.js';
 import { linesAcross } from './reached-lines.js';
 import { codeUnitOrder, isMissing } from './instrumented-modules.js';
@@ -146,7 +146,7 @@ function foldCases(observations: readonly ObservedCase[]): readonly ObservedCase
     settled.set(owner, {
       ...settledAcross(held.stopped, observed.stopped),
       ...timedAcross(held.duration, observed.duration),
-      ...heardOf(heardAcross(held.said, observed.said)),
+      ...saidAcross(held.said, observed.said),
       ...linesAcross(held.lines, observed.lines),
       ...(held.eyes === undefined && observed.eyes === undefined ? {} : { eyes }),
     });

@@ -23,6 +23,7 @@ use crate::index_chain::read_chain;
 use crate::GitTree;
 use crate::orient_map_pages::{layers, names, number, pages, Page, Row};
 use crate::orient_map_read::{read, Read};
+use crate::resolve::Tsconfig;
 use crate::orient_map_signals::signals;
 use crate::orient_map_tree::tree;
 
@@ -189,25 +190,32 @@ impl From<Made> for OrientMapMade {
 /// Fold the index at `index` into the code map and write it beside the index,
 /// with no scan's listing to carry: git lists the checkout for the map, and
 /// the result says so. `scanned` is a scan that ran and could not list with
-/// git, so none is asked for. `undefined` when there is no index.
+/// git, so none is asked for. `tsconfig` is the config the scan that built the
+/// index resolved under. `undefined` when there is no index.
 #[napi(ts_return_type = "Promise<OrientMapPrepared | null>")]
-pub fn prepare_orient_map(root: String, index: String, scanned: Option<bool>) -> AsyncTask<OffThread<Option<OrientMapPrepared>>> {
-    off_thread(move || uncarried(&root, &index, scanned))
+pub fn prepare_orient_map(
+    root: String,
+    index: String,
+    scanned: Option<bool>,
+    tsconfig: Option<napi::Either<String, bool>>,
+) -> AsyncTask<OffThread<Option<OrientMapPrepared>>> {
+    let tsconfig = Tsconfig::from_js(tsconfig);
+    off_thread(move || uncarried(&root, &index, scanned, tsconfig))
 }
 
 /// `prepare_orient_map`, on the calling thread.
-pub(crate) fn uncarried(root: &str, index: &str, scanned: Option<bool>) -> napi::Result<Option<OrientMapPrepared>> {
+pub(crate) fn uncarried(root: &str, index: &str, scanned: Option<bool>, tsconfig: Tsconfig) -> napi::Result<Option<OrientMapPrepared>> {
     if scanned == Some(true) {
-        return prepare(root, index, None, false);
+        return prepare(root, index, None, false, tsconfig);
     }
     let snapshot = crate::git::snapshot(root);
-    prepare(root, index, snapshot.as_ref().map(Listed::from), snapshot.is_some())
+    prepare(root, index, snapshot.as_ref().map(Listed::from), snapshot.is_some(), tsconfig)
 }
 
 /// `GitTree::prepare_orient_map`, on the calling thread.
 #[cfg(test)]
 pub(crate) fn carried(tree: &GitTree, root: &str, index: &str) -> napi::Result<Option<OrientMapPrepared>> {
-    prepare(root, index, Some(Listed { paths: &tree.paths, oids: &tree.oids, unhashed: &tree.unhashed }), false)
+    prepare(root, index, Some(Listed { paths: &tree.paths, oids: &tree.oids, unhashed: &tree.unhashed }), false, Tsconfig::Auto)
 }
 
 #[napi]
@@ -216,13 +224,20 @@ impl GitTree {
     /// the checkout — the one the scan that published the index took — rather
     /// than asking git again. `undefined` when there is no index.
     /// The listing is copied, because the fold runs off the JavaScript thread
-    /// while this tree stays JavaScript's.
+    /// while this tree stays JavaScript's. `tsconfig` is the config the scan
+    /// resolved under.
     #[napi(ts_return_type = "Promise<OrientMapPrepared | null>")]
-    pub fn prepare_orient_map(&self, root: String, index: String) -> AsyncTask<OffThread<Option<OrientMapPrepared>>> {
+    pub fn prepare_orient_map(
+        &self,
+        root: String,
+        index: String,
+        tsconfig: Option<napi::Either<String, bool>>,
+    ) -> AsyncTask<OffThread<Option<OrientMapPrepared>>> {
         let (paths, oids, unhashed) = (self.paths.clone(), self.oids.clone(), self.unhashed.clone());
+        let tsconfig = Tsconfig::from_js(tsconfig);
         off_thread(move || {
             let listed = Listed { paths: &paths, oids: &oids, unhashed: &unhashed };
-            prepare(&root, &index, Some(listed), false)
+            prepare(&root, &index, Some(listed), false, tsconfig)
         })
     }
 }
@@ -232,7 +247,7 @@ impl GitTree {
 /// so a question is answered with the reason rather than with a map left from
 /// before. A kept map folded from this index and these manifests is kept as
 /// it is, so an index with nothing changed costs no fold.
-fn prepare(root: &str, index: &str, snapshot: Option<Listed>, relisted: bool) -> napi::Result<Option<OrientMapPrepared>> {
+fn prepare(root: &str, index: &str, snapshot: Option<Listed>, relisted: bool, tsconfig: Tsconfig) -> napi::Result<Option<OrientMapPrepared>> {
     // The reason alone: the caller says what was not prepared.
     let fail = napi::Error::from_reason;
     let path = map_path(index);
@@ -264,7 +279,7 @@ fn prepare(root: &str, index: &str, snapshot: Option<Listed>, relisted: bool) ->
                 crate::git::git(root, &["ls-files", "-z", ":(attr:linguist-generated)", ":(attr:linguist-vendored)"], None)
             })
         });
-        read(root, &layers_read, snapshot.as_ref().map(|snapshot| snapshot.paths), || {
+        read(root, &layers_read, snapshot.as_ref().map(|snapshot| snapshot.paths), tsconfig, || {
             let made = marks.join().ok().flatten();
             unmarked = !walked && made.is_none();
             made.unwrap_or_default()

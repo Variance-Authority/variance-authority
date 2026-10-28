@@ -9,7 +9,7 @@
 
 import type { SetExecutionModule } from './execution-set-format.js';
 import { NO_OWNER } from './format-layout.js';
-import { addressKey, sameNumbering } from './merge-carry.js';
+import { addressKey, sameNumbering, seatedAlike } from './carried-rows.js';
 
 /**
  * `held` at the lines `recorded` stands its regions on, when the two are named
@@ -101,8 +101,9 @@ function keptOwners(owner: Uint32Array, kept: readonly number[]): Uint32Array {
  * neighbours.
  *
  * This answers whether two cuts of one text agree. Where the cases of a region
- * go over an edit is {@link landedThrough}'s to say, and an address says
- * nothing of that.
+ * go over an edit is {@link landedThrough}'s to say: it seats a region by the
+ * lines the edit places it at first, and pairs by address only where both
+ * cuts numbered their regions alike and the edit's reading spares the kind.
  */
 function landing(recorded: Cut, before: Cut): Int32Array {
   // A layer asks one pair this up to four times.
@@ -144,6 +145,19 @@ export interface Cut {
 
 function address(block: Region): string {
   return `${block.name}\0${block.path}`;
+}
+
+/**
+ * Whether an address names one region in both cuts: each holds it as many
+ * times, and every counter it passes through handed out the same seats in
+ * each ({@link seatedAlike}). Where the counts differ, one cut holds a sibling
+ * the other lacks, and the n-th of one is not the n-th of the other; where a
+ * counter's seats differ, an edit renumbered what it counts.
+ */
+export function addressedAlike(held: Cut, recorded: Cut): (block: Region) => boolean {
+  const [heldCount, recordedCount] = [addressCounts(held.blocks), addressCounts(recorded.blocks)];
+  const seated = seatedAlike(held.blocks, recorded.blocks);
+  return (block) => heldCount.get(address(block)) === recordedCount.get(address(block)) && seated(block);
 }
 
 function addressCounts(blocks: readonly Region[]): Map<string, number> {

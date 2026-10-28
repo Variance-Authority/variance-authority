@@ -12,6 +12,8 @@ import type { TestCoverage } from './index.js';
  * the same code through its manifest as `dist/cart.js`, whose map leads back to
  * the source. Both are recorded under `src/cart.ts`, and the two readings cut
  * different regions: the build is what `tsc` made of the text, not the text.
+ * The record is cut as the text is, whichever of them a run loaded: shards of
+ * one build load different ones, and their records fold only if they agree.
  */
 const SOURCE = [
   'export function total(items) {',
@@ -56,7 +58,25 @@ const EDITED = `// What a cart holds.\n${SOURCE}`;
 /** Another module of the package, whose tests load it and not the cart. */
 const RATE = 'export const rate = 0.2;\n';
 
-type Transform = (code: string, id: string) => unknown;
+type Handled = { code: string } | null;
+type SeamPlugin = { name: string; transform: { handler: (code: string, id: string) => Handled }; watchChange?(id: string): void };
+
+/**
+ * The seam's two transforms as Vite runs them on a module no other plugin
+ * changes: the cut first, then the probes, handed what the cut left. Nothing
+ * between them rewrites the text, so the probes stage never asks for a map.
+ */
+function seamOf(plugins: unknown): { transform: { handler: (code: string, id: string) => Handled }; watchChange(id: string): void } {
+  const [cut, probes] = (plugins as SeamPlugin[]).filter(({ name }) => name.startsWith('variance-authority:test-selection'));
+  const unmapped = { getCombinedSourcemap: () => { throw new Error('no transform rewrote the text'); } };
+  return {
+    transform: { handler: (code, id) => {
+      const first = cut!.transform.handler(code, id);
+      return probes!.transform.handler.call(unmapped, first?.code ?? code, id) ?? first;
+    } },
+    watchChange: (id) => cut!.watchChange!(id),
+  };
+}
 
 type Reading = 'source' | 'build' | 'legacy' | 'rate';
 
@@ -94,16 +114,11 @@ async function recordedUnder(
     await writeFile(resolve(root, 'lib/cart.js'), LEGACY, 'utf8');
     await writeFile(resolve(root, 'src/rate.ts'), RATE, 'utf8');
     const configured = withTestSelection({}, { root, coverageFile, include });
-    const plugin = (configured.plugins as unknown as Array<{
-      transform: { handler: Transform };
-      watchChange(id: string): void;
-    }>)[0]!;
+    const plugin = seamOf(configured.plugins);
     // A `projects` layout wraps each project's config, and each brings a plugin of its own.
     const other = projects === 1
       ? plugin
-      : (withTestSelection({}, { root, coverageFile, include }).plugins as unknown as Array<{
-          transform: { handler: Transform };
-        }>)[0]!;
+      : seamOf(withTestSelection({}, { root, coverageFile, include }).plugins);
     const reporter = (configured.test!.reporters as unknown as Array<{
       onFinished(files: readonly []): Promise<void>;
       onWatcherRerun(): void;
@@ -157,39 +172,18 @@ describe('a module two transforms both name', () => {
     expect(buildFirst).toEqual(sourceFirst);
   });
 
-  it('is recorded at the regions both readings cut, each where both readings put it', async () => {
-    const place = (block: TestCoverage['modules'][number]['blocks'][number]): string =>
-      JSON.stringify([block.kind, block.name, block.path, block.startLine, block.endLine, block.source]);
-    const [joined] = await recorded(['source', 'build']);
-    const [source] = await recorded(['source']);
-    const [build] = await recorded(['build']);
-    const cut = (module: typeof joined): ReadonlySet<string> => new Set(module!.blocks.map(place));
+  it('is recorded at the regions its source cuts, whichever readings of it the run loaded', async () => {
+    const source = await recorded(['source']);
 
-    expect(joined!.blocks.length).toBeGreaterThan(1);
-    for (const block of joined!.blocks) {
-      expect([cut(source).has(place(block)), cut(build).has(place(block))]).toEqual([true, true]);
+    expect(source[0]!.blocks.length).toBeGreaterThan(1);
+    for (const loaded of [['build'], ['legacy'], ['source', 'build'], ['legacy', 'build'], ['build', 'legacy']] as const) {
+      expect(await recorded(loaded)).toEqual(source);
     }
-    expect(joined!.blocks.map((block) => block.ordinal)).toEqual(joined!.blocks.map((_, at) => at));
   });
 
   it('is recorded the same when each reading came through another project\'s plugin', async () => {
     expect(await recorded(['build', 'source'], 2)).toEqual(await recorded(['source', 'build']));
     expect(await recorded(['source', 'build'], 2)).toEqual(await recorded(['source', 'build']));
-  });
-
-  it('is recorded at the regions two builds both cut when the run loaded no source', async () => {
-    const place = (block: TestCoverage['modules'][number]['blocks'][number]): string =>
-      JSON.stringify([block.kind, block.name, block.path, block.startLine, block.endLine, block.source]);
-    const [joined] = await recorded(['legacy', 'build']);
-    const [legacy] = await recorded(['legacy']);
-    const [build] = await recorded(['build']);
-    const cut = (module: typeof joined): ReadonlySet<string> => new Set(module!.blocks.map(place));
-
-    expect(await recorded(['build', 'legacy'])).toEqual([joined]);
-    expect(joined!.blocks.length).toBeGreaterThan(1);
-    for (const block of joined!.blocks) {
-      expect([cut(legacy).has(place(block)), cut(build).has(place(block))]).toEqual([true, true]);
-    }
   });
 
   it('is recorded from the readings a rerun made of the text on disk, not one a run before it made', async () => {
@@ -244,10 +238,11 @@ describe('a module the runner loaded from its build alone', () => {
         { test: { globalSetup: ['./eyes.globalSetup.ts'] } },
         { root, coverageFile },
       );
-      const plugin = (configured.plugins as unknown as Array<{
-        transform: { handler(code: string, id: string): { code: string } | null };
-      }>)[0]!;
+      const plugin = seamOf(configured.plugins);
       const source = 'export default function setup() { return 1; }';
+      await mkdir(resolve(root, 'src'), { recursive: true });
+      await writeFile(resolve(root, 'eyes.globalSetup.ts'), source);
+      await writeFile(resolve(root, 'src/cart.ts'), source);
 
       expect(plugin.transform.handler(source, resolve(root, 'eyes.globalSetup.ts'))).toBeNull();
       // The exclusion is the named path, not every file beside it.
@@ -272,9 +267,7 @@ describe('a module the runner loaded from its build alone', () => {
         JSON.stringify({ version: 3, sources: ['../src/setup.ts'], names: [], mappings: 'AAAA' }),
       );
       const configured = withTestSelection({ test: { globalSetup: ['./dist/setup.js'] } }, { root, coverageFile });
-      const plugin = (configured.plugins as unknown as Array<{
-        transform: { handler(code: string, id: string): { code: string } | null };
-      }>)[0]!;
+      const plugin = seamOf(configured.plugins);
       const built = 'export default function setup() { return 1; }\n//# sourceMappingURL=setup.js.map\n';
       await writeFile(resolve(root, 'dist/setup.js'), built);
       await writeFile(resolve(root, 'dist/other.js'), built.replace('setup.js.map', 'other.js.map'));
@@ -341,7 +334,7 @@ async function recordedTyped(reading: 'source' | 'build' | 'helped'): Promise<Te
     await writeFile(resolve(root, 'dist/cart.js'), built, 'utf8');
     await writeFile(resolve(root, 'dist/cart.js.map'), map, 'utf8');
     const configured = withTestSelection({}, { root, coverageFile, include: () => true });
-    const plugin = (configured.plugins as unknown as Array<{ transform: { handler: Transform } }>)[0]!;
+    const plugin = seamOf(configured.plugins);
     const reporter = (configured.test!.reporters as unknown as Array<{
       onFinished(files: readonly []): Promise<void>;
     }>).at(-1)!;
@@ -362,11 +355,7 @@ describe('a module tsc built from TypeScript', () => {
     expect(build).toEqual(await recordedTyped('source'));
   });
 
-  it('opens its module where its source does when the build cut a region its source has not', async () => {
-    const [helped] = await recordedTyped('helped');
-    const [source] = await recordedTyped('source');
-
-    expect(helped!.blocks.length).toBeGreaterThan(source!.blocks.length);
-    expect(helped!.blocks[0]).toEqual(source!.blocks[0]);
+  it('is recorded at the regions its source has when the build cut a region its source has not', async () => {
+    expect(await recordedTyped('helped')).toEqual(await recordedTyped('source'));
   });
 });

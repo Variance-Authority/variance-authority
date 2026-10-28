@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it } from 'vitest';
-import { collectStories, collectStory } from './preview.js';
+import { collectStories, collectStory, type StoryPage } from './preview.js';
 import { BASE, TIMING, fakePage, fakePreview, type FakePreview } from './preview-fake.js';
 
 /**
@@ -113,6 +113,57 @@ describe('the end of a render', () => {
     expect(again.status).toBe('rendered');
     expect(again.warnings).toEqual([]);
     expect(spent).toBeLessThan(TIMING.timeoutMs);
+  });
+
+  it('asks the page the same number of times however long the finish takes', async () => {
+    // The finish is an event, so the driver hears it rather than asking after
+    // it: one question per story, answered when Storybook gets there. A driver
+    // that polled would ask again every interval, and pay half an interval per
+    // story on average after the event had already arrived.
+    preview = fakePreview({ 'a--first': 'renders', 'a--prompt': 'renders', 'a--late': 'finishes-late' });
+    const page = fakePage(preview);
+    let asked = 0;
+    const counting: StoryPage = {
+      url: () => page.url(),
+      // Forwarded, not opened: the wrapper counts the asks on the page it was handed.
+      goto: (url) => page.goto(url),
+      evaluate: (fn, argument) => {
+        asked += 1;
+        return page.evaluate(fn, argument);
+      },
+    };
+    const options = { baseUrl: BASE, ...TIMING };
+
+    await collectStory(counting, 'a--first', options);
+
+    asked = 0;
+    const prompt = await collectStory(counting, 'a--prompt', options);
+    const promptly = asked;
+
+    asked = 0;
+    const late = await collectStory(counting, 'a--late', options);
+
+    expect([prompt.status, late.status]).toEqual(['rendered', 'rendered']);
+    expect([...prompt.warnings, ...late.warnings]).toEqual([]);
+    expect(asked).toBe(promptly);
+  });
+
+  it('takes a first story whose render was over before the watch opened as finished', async () => {
+    // The first story of a document is selected by its URL, and nothing stops
+    // its render reaching `finished` before the watch is open — Storybook skips
+    // its animation wait once the session has switched it to its test branch.
+    // That finish is Storybook's own `currentRender` phase, not a silence: a
+    // driver that waited for an event already sent would spend its budget and
+    // then write this preview down as one that never emits it, and stop
+    // waiting for every story after — the busy one included.
+    preview = fakePreview({ 'a--first': 'silent', 'a--plain': 'renders', 'a--stuck': 'never-finishes' });
+    const page = fakePage(preview);
+
+    const outcomes = await collectStories(page, ['a--first', 'a--plain', 'a--stuck'], { baseUrl: BASE, ...TIMING });
+
+    expect(outcomes.map((outcome) => outcome.status)).toEqual(['rendered', 'rendered', 'rendered']);
+    expect(outcomes[0]?.warnings).toEqual([]);
+    expect(outcomes[2]?.warnings.join(' ')).toContain('read from a page that has been reset');
   });
 
   it('says so when Storybook finished the render by reporting it failed', async () => {

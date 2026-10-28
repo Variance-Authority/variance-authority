@@ -13,34 +13,17 @@ import { recallPieces } from './recall-pieces.js';
  * inside it, and what is left that only it watches.
  *
  * Three different absences, three sentences. A report from before the run
- * recorded structure has nothing per subject and says so; a subject the run did
- * not compose is named as planned-and-unobserved when the report knows that,
- * and as unknown when it does not.
+ * recorded structure still has the census, so it answers which components hold
+ * in the subject and what it shares, and names what only structure holds; a
+ * subject the run did not compose is named as planned-and-unobserved when the
+ * report knows that, and as unknown when it does not.
  */
 export function recall(report: RunReport, composed: CompositionReport, subject: string): string {
   const structure = composed.structure;
-  if (structure === undefined) {
-    return (
-      'This report carries no per-subject structure: it was written by a run that recorded the ' +
-      'census component-first and nothing subject-first. Re-run to get one. Meanwhile the census ' +
-      `names ${composed.components.length} component(s) and which subjects each holds in.`
-    );
-  }
+  if (structure === undefined) return fromCensus(report, composed, subject);
 
   const record = structure.find((each) => each.subject === subject);
-  if (record === undefined) {
-    const planned = report.notObserved?.find((each) => each.subject === subject);
-    if (planned !== undefined) {
-      return (
-        `\`${subject}\` was planned and not observed in this run, so nothing was composed for ` +
-        'it — `variance_explain_verdict` says why.'
-      );
-    }
-    return (
-      `\`${subject}\` is not among the ${composed.subjects.length} subject(s) this run composed: ` +
-      `${preview(composed.subjects, 12)}. \`variance_locate\` finds one from a description.`
-    );
-  }
+  if (record === undefined) return uncomposed(report, composed, subject);
 
   const examples = composed.components
     .filter((entry) => entry.examples.includes(subject))
@@ -59,24 +42,64 @@ export function recall(report: RunReport, composed: CompositionReport, subject: 
     );
   }
 
-  const echoes = sharedWith(composed.echoes, subject);
-
   return [
     [head, ...record.rows.map(renderRow)].join('\n'),
-    echoes.length === 0
-      ? ''
-      : [
-          `shared with other subjects (${echoes.length}) — one diff to read, wherever it is read`,
-          ...echoes.map(
-            (echo) =>
-              `  ${echo.component} @ ${echo.rendering} also in ${preview(echo.others)}` +
-              (echo.example === undefined ? '' : ` (example ${echo.example})`),
-          ),
-        ].join('\n'),
+    shared(sharedWith(composed.echoes, subject)),
     record.pieces === undefined ? '' : recallPieces(record.pieces),
   ]
     .filter((section) => section !== '')
     .join('\n\n');
+}
+
+/**
+ * One subject read from the census alone: a report written before the run
+ * recorded structure per subject. The census names every component that holds
+ * in a subject and every rendering it shares, so those are the answer; what
+ * only structure carries — order, depth, who mounted what, how many — is the
+ * gap, named once.
+ */
+function fromCensus(report: RunReport, composed: CompositionReport, subject: string): string {
+  const holding = composed.components.filter((entry) => entry.subjects.includes(subject)).map((entry) => entry.component);
+  if (holding.length === 0 && !composed.subjects.includes(subject)) return uncomposed(report, composed, subject);
+  const head = holding.length === 0
+    ? `${subject} — no component in the census holds in it`
+    : `${subject} — ${holding.length} component(s) in the census hold in it: ${holding.join(', ')}`;
+  const gap =
+    'This report carries no per-subject structure: the run that wrote it recorded the census ' +
+    'component-first and nothing subject-first, so it holds no document order, depth, mount or ' +
+    'count within this subject.';
+  return [`${head}\n  ${gap}`, shared(sharedWith(composed.echoes, subject))]
+    .filter((section) => section !== '')
+    .join('\n\n');
+}
+
+/** A subject with no record: planned and not observed when the report knows that, unknown otherwise. */
+function uncomposed(report: RunReport, composed: CompositionReport, subject: string): string {
+  const planned = report.notObserved?.find((each) => each.subject === subject);
+  if (planned !== undefined) {
+    return (
+      `\`${subject}\` was planned and not observed in this run, so nothing was composed for ` +
+      'it — `variance_explain_verdict` says why.'
+    );
+  }
+  return (
+    `\`${subject}\` is not among the ${composed.subjects.length} subject(s) this run composed: ` +
+    `${preview(composed.subjects, 12)}. \`variance_locate\` finds one from a description.`
+  );
+}
+
+/** The renderings a subject shares, as one section, or nothing when it shares none. */
+function shared(echoes: readonly Shared[]): string {
+  return echoes.length === 0
+    ? ''
+    : [
+        `shared with other subjects (${echoes.length}) — one diff to read, wherever it is read`,
+        ...echoes.map(
+          (echo) =>
+            `  ${echo.component} @ ${echo.rendering} also in ${preview(echo.others)}` +
+            (echo.example === undefined ? '' : ` (example ${echo.example})`),
+        ),
+      ].join('\n');
 }
 
 interface Shared {

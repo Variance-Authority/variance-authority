@@ -94,9 +94,11 @@ they stop and list the suites.
 
 `variance covering` asks the other question, which suites ran this code, so it
 reads every declared suite's record and answers under each suite's name and
-kind. Suites that never loaded the file are named together after the answers,
-and a suite with no recording yet says so. A suite that loaded the file without
-instrumenting it names the test files that loaded it, which are the ones a
+kind, unit suites first. Suites that never loaded the file are named together
+after the answers, a suite with no recording yet says so, and a suite whose
+record is older than the file says that, with the commit it recorded at. A
+suite that loaded the file without instrumenting it names the test files that
+loaded it, which are the ones a
 change to it selects, and no line. A payment module your unit suite
 walked and your visual suite never loaded reads as exactly that. `--suite
 <name>` asks one record alone.
@@ -163,10 +165,11 @@ for (const module of coverage.modules) {
 
 `readTestCoverage` decodes the whole file into `TestCoverage`, the model the
 rest of this page describes: tests with their preconditions, modules with their
-blocks, and on each block the test files that crossed it. Budget a second and
-three hundred megabytes of heap for a repository-scale snapshot — thirty times
-the file it came from — because the model is made of objects where the file is
-made of columns.
+blocks, and on each block the test files that crossed it. The model is made of
+objects where the file is made of columns, so its heap is many times the file:
+about a second and three hundred megabytes for a ten-megabyte record, and four
+and a half minutes and over five gigabytes for a 77 MB record of 200,000
+modules.
 
 When you want one module's regions rather than the repository's, open the file
 instead of decoding it. `openCoverageFile(file)` parses the section index and
@@ -190,8 +193,8 @@ they return are the ones this page describes.
 | Import from | Names |
 |---|---|
 | `@variance-authority/sense/instrument` | `instrument`, `instrumentationId`, `instrumentModeOf`, `probeRecipe`, `probeRuntime`, `INSTRUMENTATION_ID`, `EVALUATING`; types `Block`, `BlockKind`, `Instrumented`, `InstrumentOptions`, `ModuleId` |
-| `@variance-authority/sense/test-selection` | `testCoverageFile`, `readableTestCoverage`, `seedTestCoverage`, `readTestCoverage`, `writeTestCoverage`, `writeCoverageBytes`, `openCoverageFile`, `askCoverageFile`, `BLOCK_KINDS`, `caseSectionsAt`, `openSetColumns`, `selectTestFiles`, `narrowByExecution`, `mergeCoverage`, `foldTestCoverage`, `changedLines`, `coveringTests`, `coveringTestsInFile`, `recordedCommit`, `cacheLayers`, `cacheRootFor`, `CACHE_CONFIG`, `repositoryLayers`, `layeredFiles`; types `CacheLayers`, `TestCoverage`, `CoverageModule`, `CoverageBlock`, `CoverageTest`, `CoveragePrecondition`, `CoverageFile`, `CoverageShard`, `ExecutionIndex`, `SetColumns`, `TestColumns`, `StringTable` |
-| `@variance-authority/sense/journal` | `testSelectionProbes`, `drainExecution`, `recordExecution`, `joinObservations`, `moduleId`, `EXECUTION_GLOBAL`; types `ExecutedModule`, `ExecutionJournal`, `EvaluatingPage`, `ObservedSubject` |
+| `@variance-authority/sense/test-selection` | `testCoverageFile`, `readableTestCoverage`, `seedTestCoverage`, `readTestCoverage`, `writeTestCoverage`, `writeCoverageBytes`, `openCoverageFile`, `askCoverageFile`, `BLOCK_KINDS`, `caseSectionsAt`, `openSetColumns`, `selectTestFiles`, `narrowByExecution`, `landedCoverage`, `combineRecords`, `changedLines`, `coveringTests`, `coveringTestsInFile`, `recordedCommit`, `cacheLayers`, `cacheRootFor`, `CACHE_CONFIG`, `repositoryLayers`, `layeredFiles`; types `CacheLayers`, `TestCoverage`, `CoverageModule`, `CoverageBlock`, `CoverageTest`, `CoveragePrecondition`, `CoverageFile`, `CombinedRecord`, `CombinedShard`, `ExecutionIndex`, `SetColumns`, `TestColumns`, `StringTable` |
+| `@variance-authority/sense/journal` | `testSelectionProbes`, `testSelectionRule`, `drainExecution`, `recordExecution`, `joinObservations`, `moduleId`, `afterHook`, `EXECUTION_GLOBAL`; types `AfterHook`, `ExecutedModule`, `ExecutionJournal`, `EvaluatingPage`, `HookedPlugin`, `ObservedSubject`, `ProbePlacement`, `TestSelectionProbeOptions`, `TestSelectionRuleOptions` |
 | `@variance-authority/sense/journey` | `collectJourneys`, `stitchJourneys`, `mintJourney`, `journeyOf`, `JOURNEY_COOKIE`, `JOURNEY_VARIABLE`, `JOURNEY_HEAD_VARIABLE`; types `JourneyAccount`, `JourneyReport`, `StitchedJourneys` |
 
 Nothing else on this page is importable. Where the sections below describe the
@@ -333,7 +336,7 @@ array of eight slots, not one per function.
 
 Across test files the ordinals are the join key. Every worker that ran this
 module reports hits against the same eight slots, and the fold unions them per
-ordinal into the block's `testFiles`. `foldTestCoverage` unions the records of a
+ordinal into the block's `testFiles`. `combineRecords` unions the records of a
 sharded run the same way, and refuses two shards that record the module under
 two source digests, because their slot 4 would be two places.
 
@@ -343,7 +346,7 @@ An ordinal is a slot in one instrumented version of a module, and it is not
 what keeps evidence across an edit. What keeps it is the region's address: the
 declaration name path and the structural path inside it, which record where the
 region sits in the module's tree rather than where it sits in the module's
-text. `mergeCoverage` moves a crossing from the previous record onto the
+text. Laying one record over another (`landedCoverage`) moves a crossing from the previous record onto the
 region with the same address, and the digests take no part in that.
 
 So renumbering is not invalidation. Inserting
@@ -476,6 +479,7 @@ parent has rows: child rows for parent `i` are `[off[i], off[i + 1])`.
 | tests | `tests.path` | the test file path, sorted by code unit |
 | tests | `tests.complete` | one byte, `1` when every case in the file ran and passed |
 | tests | `tests.duration` | the whole milliseconds the test runner reported for the file, `0xffffffff` when it reported none |
+| tests | `tests.phases` | five words a file, the whole milliseconds of its prepare, environment, setup, collect and cases phases, `0xffffffff` for a phase the runner did not time |
 | tests | `tests.preconditions` | range into the precondition rows |
 | preconditions | `preconditions.name`, `preconditions.digest` | a path the test's answer depends on, and the digest it had |
 | modules | `modules.path`, `modules.source` | the module path, sorted by code unit, and the digest of its source |
@@ -490,12 +494,41 @@ parent has rows: child rows for parent `i` are `[off[i], off[i + 1])`.
 | sets | `sets.blob`, `sets.off` | the pool both of those name: one copy of each distinct set of tests, however many regions name it |
 
 **Durations.** `tests.duration` is the runner's own figure for the file, never a
-second clock: Vitest's file result, Jest's `perfStats.runtime`, Rstest's file
-duration, Playwright's `testInfo.duration` summed over the file's tests, or the
+second clock: Vitest's file result, which is its cases alone, Jest's
+`perfStats.runtime`, which spans the file's run, Rstest's file duration,
+Playwright's `testInfo.duration` summed over the file's tests, or the
 `duration` you pass to `startRecording().finish()`. A file the runner reported
-nothing for stores the sentinel, and a reader answers it as
-absent, not as zero. When two projects record the same file, its duration is
-their sum, and it is absent if either is.
+nothing for stores the sentinel, and a reader answers it as absent, not as
+zero. When two projects record the same file, its duration is their sum, and it
+is absent if either is.
+
+**Phases.** `tests.phases` splits a file's time into what is part of a test
+and what is not: readying the file in its worker, the test environment, the
+setup files, collecting the file — importing it and everything it loads — and
+running its cases with their hooks. Vitest reports all five. Jest's `perfStats`
+times the environment and the setup files, and the setup module marks where
+collecting ended — when jest-circus starts the file's run, before any hook — on
+a clock the test's fake timers do not replace, so the rest splits into collect
+and cases there; Jest readies no file apart from those, so its prepare is
+absent. A mark outside the file's own span splits nothing, and the file has no
+collect or cases. A story is timed by its page: `prepare` is the document's
+start until the preview is ready, navigation included, which only the first
+story read on the document pays, so every later one reads 0; `collect` is
+importing the story's file and unmounting the story shown before it; and `cases`
+is the render through `afterEach`, or to the phase it ended on when it errored,
+was aborted or was read before `afterEach` finished. Phases are summed across
+projects and readings as durations are. A record written before phases were kept
+opens with every file unphased.
+
+**A file's cost.** What running a file cost is the larger of its duration and
+its phases summed. Each counts part of the same run: Jest's runtime spans the
+file's run with the gaps between phases, and Vitest's duration is only the last
+of its five phases. So a Vitest file that spends 5.4 s importing and 33 ms in
+its cases costs 5.4 s, not 33 ms, and a Jest file costs its runtime unless its
+phases add up to more. A file without phases costs its duration, and a file
+with neither is untimed. Two projects' figures are summed before the larger is
+taken, so the cost is that of both runs. `variance ask slowest-tests` ranks
+files by this cost and a sharded run places them by it.
 
 The case index beside the snapshot carries the same figure for each case, in a
 `tests.duration` column of its own: Vitest's task result, Jest's assertion
@@ -509,6 +542,17 @@ the runner's report by the id the runner gave it, or by its declaration path
 under the file where the runner gives none. A path the file declares twice
 cannot be matched to one of the two cases, so neither is timed. A case index
 written before cases carried durations opens with every case untimed.
+
+The case index also carries what each case said, its
+[case preconditions](case-preconditions.md), in a `tests.said` section. Each
+distinct `(name, value, site, level)` is one item, and the cases that said it are
+a set in the same pool the crossings use, so a value every case of a file says
+costs one item and a set the record usually holds already. The section stores
+every item, an overridden one too, and a case's row is resolved when it is read.
+One more set names the cases a recorder listened to: a case outside it is
+unmeasured, a case inside it and under no item said nothing. A case index
+without the section, including one written before it existed, opens with every
+case unmeasured.
 
 A Storybook run is its own runner, so its figure is the time the run spent on
 each story, from its first collection to its decision: the same time
@@ -594,7 +638,7 @@ the digest it must still have for its blocks to mean anything.
 
 **Module id.** A probe reports its module as `path@digest`: the
 repository-relative path of the file the transform was handed, and the first 32
-hexadecimal characters of the SHA-256 of the text the probes were placed on.
+hexadecimal characters of the SHA-256 of the text the regions were cut from.
 `moduleId(path, code)` from `@variance-authority/sense/journal` builds it, for a
 driver that writes its own journal. The build writes nothing else down.
 Placing probes is deterministic, so one text, one path and one recipe give one
@@ -629,7 +673,7 @@ apart.
 a module and the first block is the module root.
 
 **Block, across files.** `name`, `path` and `kind`: the address, and what kind
-of region sits at it. `mergeCoverage` matches `name` and `path`, and then checks
+of region sits at it. The lay matches `name` and `path`, and then checks
 the one remaining condition, whether the kinds agree. Nothing above the block
 is part of the match and neither is its digest, so a block keeps its crossings through every edit that leaves it where
 it is. A block with no match in the new table is gone, and what was recorded
@@ -844,8 +888,12 @@ test: regions covered as a consequence of loading. Presence only: the counts
 never leave the process. The ordinals index the recipe the build instrumented
 under — `sense:instrument/presence-v6`, or `sense:instrument/entries-v3` when
 the seam was asked for `mode: 'entries'`, which numbers the module and each
-function and nothing between — and every reader refuses a journal or
-snapshot cut under the other.
+function and nothing between. Under `mode: 'loads'`, `sense:instrument/loads-v1`,
+a module has no ordinals: its id is spelled `path@~digest`, it is recorded with
+no blocks, and its arrival is the only hit it reports. A run refuses to fold a journal, or lay itself
+over a snapshot, cut under another recipe. A reader answers from such a
+snapshot as it holds it, and names both recipes and the regions the difference
+leaves unanswered.
 
 **Worker journal.** Written by the setup file of a Vitest, Jest or Rstest
 worker in its `afterAll`, one per test file, as `<pid>-<uuid>.va` under the
@@ -855,13 +903,14 @@ increment and writes the ordinals out as the gaps between them, so a worker pays
 one pass over each array and the reporter reads bytes.
 
 ```
-journal  "VAJRN" | version | test file | modules | module | module | …
+journal  "VAJRN" | version | test file | collected | modules | module | module | …
 module   1 | id | hits | shared | loaded
 hits     count | gap | gap | …
 ```
 
-A module is written as `1 | id`, and a reader refuses any other tag as a
-damaged frame. Counts, ids and gaps are varints and text is a length and its UTF-8; ordinals
+`collected` is the moment, in epoch milliseconds as an eight-byte double, the
+file finished collecting, and zero where nothing marked it. A module is written
+as `1 | id`, and a reader refuses any other tag as a damaged frame. Counts, ids and gaps are varints and text is a length and its UTF-8; ordinals
 rise within a module, so a region costs one byte. A run of eight thousand test
 files over two hundred thousand modules reports sixteen million module rows. As
 frames each row is its module's id and its ordinals as gaps, which is under
@@ -953,9 +1002,11 @@ crossings cannot all be placed is one a later run may not skip. The fold is
 O(hits) over every subject's journal plus O(modules reported) to build the
 rows.
 
-**Merge with the previous record.** `mergeCoverage` brings forward what the run
-did not observe. When the instrumentation id differs the previous record is
-dropped whole. A test the run observed replaces its previous row. A test the
+**Lay over the previous record.** The native addon's lay brings forward what
+the run did not observe, column to column, without decoding either record. A
+previous record under another instrumentation id, or one this build cannot
+read, is refused with the reason and left where it is: one build records under
+one set of probes and reads what it wrote, so either is another build's. A test the run observed replaces its previous row. A test the
 run did not observe keeps its row, unless no region it crossed survives in the
 new table or a region it crossed has a new digest, in which case it is demoted
 to incomplete and re-runs on its next selection. An unobserved module whose text on disk changed has its rows
@@ -970,9 +1021,11 @@ structural path together — so the cost is O(M_prev + M_cur) plus
 O(B_prev + B_cur) for each matched module, and the file is sorted on the way
 out.
 
-**Fold shards.** `foldTestCoverage` unions the records of a
-sharded run, in any order, O(sum of shard sizes). It refuses shards with
-differing instrumentation or commit, a test in two shards, and a module with
+**Fold shards.** `combineRecords` unions the records of a sharded run, coverage
+and case parts, in the native addon: O(sum of shard bytes), reading nothing but
+the shards. The shards are taken in code-unit order of their paths, so the
+record is the same bytes whatever order they are named in. It refuses shards
+with differing instrumentation or commit, a test in two shards, and a module with
 two source digests. Where shards disagree about whether a module could be
 read, the instrumented rows answer: a shard that could not instrument a module
 has no rows for the tests another shard recorded running it, and the tests that
@@ -1066,9 +1119,9 @@ test, is refused at open.
 | tests covering a line | O(M + B²) | `coveringTests` |
 | fold worker journals | O(journal bytes) | the reporter of a runner seam |
 | record drained subjects | O(hits + modules reported) | `recordExecution` |
-| merge with the previous record | O(M_prev + M_cur + Σ B) | `mergeCoverage` |
-| re-cut an unobserved module's rows | O(module length) | `mergeCoverage`, per changed module |
-| fold shards | O(Σ shard rows) | `foldTestCoverage` |
+| lay over the previous record | O(M_prev + M_cur + Σ B) | `landedCoverage` |
+| re-cut an unobserved module's rows | O(module length) | `landedCoverage`, per changed module |
+| fold shards | O(Σ shard bytes) | `combineRecords` |
 | encode | O(r log r) | `writeTestCoverage` |
 
 **Further:** [`selecting.md`](selecting.md) for what a run does with the

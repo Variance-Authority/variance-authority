@@ -1,3 +1,5 @@
+import { limitOf } from './limit.js';
+import { spellingOf } from './spelling.js';
 import type { Tool } from './tool.js';
 
 /**
@@ -66,8 +68,9 @@ export const costs: Tool<CostsSubject> = {
     additionalProperties: false,
   },
 
-  run(subject, input) {
-    const limit = limitOf(input['limit']);
+  run(subject, input, invocation) {
+    const spell = spellingOf(invocation);
+    const limit = limitOf(input, DEFAULT_LIMIT, spell);
     const paths = pathsOf(input['from']);
     const all = [...subject.subjects].sort(slowestFirstSubject);
     if (all.length === 0) return `${subject.from} timed no subject.`;
@@ -99,7 +102,7 @@ export const costs: Tool<CostsSubject> = {
     for (const entry of timed.slice(0, limit)) {
       lines.push(`  ${seconds(entry.ms).padStart(width)}  ${entry.subject}${entry.file === undefined ? '' : `  ${entry.file}`}`);
     }
-    if (timed.length > limit) lines.push(`  and ${count(timed.length - limit, 'more subject')}; \`--limit\` lists more`);
+    if (timed.length > limit) lines.push(`  and ${count(timed.length - limit, 'more subject')}; a higher \`${spell.input('limit')}\` lists them`);
     return lines.join('\n');
   },
 };
@@ -138,14 +141,6 @@ function nothingUnder(from: string, where: string, all: readonly SubjectCost[]):
     ? ' No timed subject names a file, so no path can hold one.'
     : ` The timed subjects are declared under ${heaviest.map((entry) => `${entry.dir} (${seconds(entry.ms)})`).join(', ')}.`;
   return `${from} timed no subject${where}.${hint}`;
-}
-
-function limitOf(given: unknown): number {
-  if (given === undefined) return DEFAULT_LIMIT;
-  if (typeof given !== 'number' || !Number.isInteger(given) || given < 1) {
-    throw new Error('`limit` must be a whole number of at least 1');
-  }
-  return given;
 }
 
 /** Longest first; a tie in code-unit order of the id, so the list is the same list twice. */

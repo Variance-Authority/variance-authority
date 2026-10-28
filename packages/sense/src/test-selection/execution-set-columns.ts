@@ -1,12 +1,13 @@
 import { openBlob, openBytes, openWords, resident, type Bytes } from './columns.js';
 import { durationWord, NO_DURATION, NO_OWNER, validSections, type Header, type Section } from './format-layout.js';
 import { openCrossingSets, type CrossingSetsView } from './crossing-sets-read.js';
-import { PRECONDITIONS_COLUMN, UNHEARD } from './case-precondition-column.js';
+import { saidRead, type Said } from './case-said.js';
 import { LINES_COLUMN, LINES_OFFSETS, type LinesTable } from './case-lines.js';
 import type { ExecutionTest } from './reverse.js';
+import { LAYOUT } from './record-layout.js';
 
 /** The version that recorded the set of cases that loaded each region, read as the flag its set implies. */
-export const LOADED_SETS_FORMAT = 2;
+export const LOADED_SETS_FORMAT = LAYOUT.cases.loadedSets;
 
 /**
  * A set-spelled index as the columns it is stored in, every id still an id.
@@ -28,8 +29,8 @@ export interface TestColumns {
   readonly testStopped: Uint8Array | undefined;
   /** Absent in an index written before cases carried a duration. */
   readonly testDuration: Uint32Array | undefined;
-  /** Absent in an index that listened to no case. */
-  readonly testPreconditions: Uint32Array | undefined;
+  /** What each case said, `undefined` where none listened; absent in an index that listened to no case. */
+  readonly testSaid: readonly (Said | undefined)[] | undefined;
   /** The line that reached each region a case crossed; absent in an index written without cuts. */
   readonly testLines: LinesTable | undefined;
 }
@@ -87,19 +88,41 @@ export function testColumns(opened: OpenedSections, strings: number): TestColumn
   const testStopped = opened.found.has('tests.stopped') ? columnBytes(opened, 'tests.stopped') : undefined;
   // Written since a case carries its runner's duration; a file without it timed none.
   const testDuration = opened.found.has('tests.duration') ? columnWords(opened, 'tests.duration') : undefined;
-  // Written since a case carries the preconditions it named; a file without it listened to none.
-  const testPreconditions = opened.found.has(PRECONDITIONS_COLUMN) ? columnWords(opened, PRECONDITIONS_COLUMN) : undefined;
   const testCount = testId.length;
+  // Written since a case's said items are crossing sets; a file without it listened to none.
+  const testSaid = Object.values(HEARD_SECTIONS).some((name) => opened.found.has(name)) ? saidOf(opened, testCount) : undefined;
   if (testFile.length !== testCount || testName.length !== testCount) throw invalid();
   if (testDuration !== undefined && testDuration.length !== testCount) throw invalid();
-  if (testPreconditions !== undefined && testPreconditions.length !== testCount) throw invalid();
   for (let test = 0; test < testCount && testStopped !== undefined; test += 1) {
     if ((testStopped[test] ?? 0) > STOPPED) throw invalid();
   }
-  for (const id of testPreconditions ?? []) if (id !== UNHEARD && id >= strings) throw invalid();
   // Written since a cut case carries the line that reached each region; a file without it cut none.
   const testLines = opened.found.has(LINES_COLUMN) ? linesTable(opened, testCount) : undefined;
-  return { testId, testFile, testName, testStopped, testDuration, testPreconditions, testLines };
+  return { testId, testFile, testName, testStopped, testDuration, testSaid, testLines };
+}
+
+/** The section `case_said.rs` lays what each case said in. */
+export const SAID_SECTION = 'tests.said';
+
+/** The section `case_said.rs` lays what the code read in each case in. */
+export const READ_SECTION = 'tests.read';
+
+/** The section `case_said.rs` lays each misused `varianceBreadcrumb` call of each case in. */
+export const MISUSED_SECTION = 'tests.misused';
+
+const HEARD_SECTIONS = { said: SAID_SECTION, read: READ_SECTION, misused: MISUSED_SECTION } as const;
+
+/** What each case heard, read by the addon off the sections and the index's crossing-set pool. */
+function saidOf(opened: OpenedSections, testCount: number): readonly (Said | undefined)[] {
+  const offsets = columnWords(opened, 'sets.off');
+  const sections = Object.fromEntries(
+    Object.entries(HEARD_SECTIONS).filter(([, name]) => opened.found.has(name)).map(([facet, name]) => [facet, columnBytes(opened, name)]),
+  );
+  return saidRead(
+    sections,
+    { bytes: columnBlob(opened, 'sets.blob', offsets), offsets },
+    testCount,
+  );
 }
 
 function linesTable(opened: OpenedSections, testCount: number): LinesTable {

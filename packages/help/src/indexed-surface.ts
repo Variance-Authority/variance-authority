@@ -24,18 +24,19 @@ function add(into: Names, name: string, declaration: Declaration): void {
   else if (!held.has(declaration.kind)) held.set(declaration.kind, declaration);
 }
 
-function headOf(text: string, span: TextSpan | undefined): string | undefined {
+export function headOf(text: string, span: TextSpan | undefined): string | undefined {
   if (span === undefined) return undefined;
   const head = text.slice(span.start, span.end).trimEnd().replace(/;$/, '');
   return head === '' ? undefined : head;
 }
 
-function docOf(text: string, span: TextSpan | undefined): string | undefined {
+export function docOf(text: string, span: TextSpan | undefined): string | undefined {
   if (span === undefined) return undefined;
   const doc = text
     .slice(span.start, span.end)
     .split('\n')
-    .map((line) => line.replace(/^[ \t]*\*[ \t]?/, ''))
+    // A JSDoc or Javadoc block's `*` margin, or a Rust or Swift doc line's `///` or `//!`.
+    .map((line) => line.replace(/^[ \t]*(?:\/\/[/!]|\*)[ \t]?/, ''))
     .join('\n')
     .trim();
   return doc === '' ? undefined : doc;
@@ -76,8 +77,7 @@ function declarationOfSymbol(at: string, symbol: SourceSymbol, text: string): De
 export async function indexedNames(
   root: string,
   offerings: readonly Offering[],
-  sources: Map<string, IndexedSource>,
-  enrich: (files: readonly string[]) => Promise<ReadonlyMap<string, Parsed>>,
+  sources: ReadonlyMap<string, IndexedSource>,
 ): Promise<(source: string) => Names> {
   const entrypoints = new Map<string, string>();
   for (const offering of offerings) {
@@ -123,17 +123,7 @@ export async function indexedNames(
   for (;;) {
     expanded.clear();
     for (const source of wanted) visit(source);
-    const missing = [...wanted].filter((file) => sources.get(file)?.parsed.harvested !== true);
     let changed = false;
-    if (missing.length > 0) {
-      for (const [file, parsed] of await enrich(missing)) {
-        const held = sources.get(file);
-        if (held !== undefined) {
-          sources.set(file, { parsed, targets: held.targets });
-          changed = true;
-        }
-      }
-    }
 
     const unread = [...wanted].filter((file) => !texts.has(file));
     let next = 0;

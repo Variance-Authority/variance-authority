@@ -1,4 +1,3 @@
-import { UNHEARD, preconditionStrings, preconditionWords } from './case-precondition-column.js';
 import type { CaseLines } from './case-lines.js';
 import type { CrossingSetsPool } from './crossing-sets.js';
 import { durationColumn, stoppedColumn, type SetColumns } from './execution-set-columns.js';
@@ -17,10 +16,8 @@ import type { ExecutionTest } from './reverse.js';
  * so the order of two of them is the order of their ids, and they are copied
  * into the output as the bytes they are stored as. A string is decoded only
  * where the layer reasons about it — a test file it asks whether the checkout
- * still holds, a module the run recorded again — and once. A case's
- * preconditions are carried as stored too: every writer of the column spells a
- * row as `JSON.stringify` does, so the stored bytes are what the case would be
- * written as again.
+ * still holds, a module the run recorded again — and once. What a carried case
+ * said is read off the held index once and laid again by the addon.
  */
 export class HeldIndex {
   readonly columns: SetColumns;
@@ -145,8 +142,6 @@ export function writeLaid(
       marked[columns.testId[test]!] = 1;
       marked[columns.testFile[test]!] = 1;
       marked[columns.testName[test]!] = 1;
-      const word = columns.testPreconditions?.[test] ?? UNHEARD;
-      if (word !== UNHEARD) marked[word] = 1;
       continue;
     }
     objects.push(test);
@@ -154,7 +149,6 @@ export function writeLaid(
     fresh.add(test.file);
     fresh.add(test.name);
   }
-  for (const text of preconditionStrings(objects)) fresh.add(text);
   let blockCount = 0;
   for (const module of modules) {
     if ('row' in module) {
@@ -183,13 +177,11 @@ export function writeLaid(
 
   const objectStopped = stoppedColumn(objects);
   const objectDuration = durationColumn(objects);
-  const objectPreconditions = preconditionWords(objects, id);
   const testId = new Uint32Array(tests.length);
   const testFile = new Uint32Array(tests.length);
   const testName = new Uint32Array(tests.length);
   const testStopped = new Uint8Array(tests.length);
   const testDuration = new Uint32Array(tests.length);
-  const testPreconditions = new Uint32Array(tests.length);
   for (let at = 0, object = 0; at < tests.length; at += 1) {
     const test = tests[at]!;
     if (typeof test === 'number') {
@@ -198,8 +190,6 @@ export function writeLaid(
       testName[at] = remap[columns.testName[test]!]!;
       testStopped[at] = columns.testStopped?.[test] ?? 0;
       testDuration[at] = columns.testDuration?.[test] ?? NO_DURATION;
-      const word = columns.testPreconditions?.[test] ?? UNHEARD;
-      testPreconditions[at] = word === UNHEARD ? UNHEARD : remap[word]!;
       continue;
     }
     testId[at] = id(test.id);
@@ -207,7 +197,6 @@ export function writeLaid(
     testName[at] = id(test.name);
     testStopped[at] = objectStopped[object]!;
     testDuration[at] = objectDuration[object]!;
-    testPreconditions[at] = objectPreconditions[object]!;
     object += 1;
   }
 
@@ -260,7 +249,8 @@ export function writeLaid(
 
   return writeSetColumns({
     strings: { blob: dictionary.blob, offsets: dictionary.offsets },
-    testId, testFile, testName, testStopped, testDuration, testPreconditions,
+    testId, testFile, testName, testStopped, testDuration,
+    testSaid: tests.map((test) => (typeof test === 'number' ? columns.testSaid?.[test] : test.said)),
     moduleFile, moduleBlocks,
     blockKind, blockName, blockPath, blockStart, blockEnd, blockSource, blockCalled, blockLoaded, blockOwner,
     testLines: lines,

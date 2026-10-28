@@ -53,10 +53,16 @@ export async function collectEvidence(input: CollectInput): Promise<EvidencePart
 
   try {
     const plan = await collector.plan();
-    const outcomes: (SubjectOutcome | null)[] = plan.subjects.map(() => null);
-    const said: (readonly EvidenceDiagnostic[] | null)[] = plan.subjects.map(() => null);
+    // One list per planned subject: a visit may realize several.
+    const outcomes: SubjectOutcome[][] = plan.subjects.map(() => []);
+    const said: EvidenceDiagnostic[][] = plan.subjects.map(() => []);
     const costs: Record<string, number> = {};
     const environments = new Map<string, EvidenceEnvironment>();
+    // The planned subject a realized one came from, when they differ.
+    const ofPlanned = (position: number, subject: string): { of?: string } => {
+      const planned = plan.subjects[position]!.subject.id;
+      return planned === subject ? {} : { of: planned };
+    };
 
     const { compositions, declared, warnings } = await acquire({
       plan,
@@ -66,25 +72,25 @@ export async function collectEvidence(input: CollectInput): Promise<EvidencePart
       ...(input.scope === undefined ? {} : { scope: input.scope }),
       elapsed,
       passed: (position, { subject, kind, because }) => {
-        outcomes[position] = { position, subject, outcome: kind, because };
+        outcomes[position]!.push({ position, subject, ...ofPlanned(position, subject), outcome: kind, because });
       },
       read: async (position, planned, collected, _lane, begun) => {
         const subject = planned.subject.id;
         costs[subject] = elapsed() - begun!;
-        outcomes[position] = { position, subject, outcome: 'collected', snapshot: collected.snapshot !== undefined };
+        outcomes[position]!.push({ position, subject, ...ofPlanned(position, subject), outcome: 'collected', snapshot: collected.snapshot !== undefined });
         if (collected.snapshot !== undefined) {
           const environment = evidenceEnvironmentOf(collected.snapshot.environment.inputs);
           environments.set(canonicalize(environment as unknown as CanonicalValue), environment);
         }
         if (collected.diagnostics !== undefined && collected.diagnostics.length > 0) {
-          said[position] = collected.diagnostics.map(({ severity, code, message }) => ({ subject, severity, code, message }));
+          said[position]!.push(...collected.diagnostics.map(({ severity, code, message }) => ({ subject, severity, code, message })));
         }
       },
     });
 
     const reading = lexiconReadingOf(
       withDeclared({
-        subjects: compositions,
+        subjects: compositions.flat(),
         observations: [],
         ...(input.source === undefined ? {} : { source: input.source }),
         ...(declared === undefined ? {} : { declared }),
@@ -98,13 +104,13 @@ export async function collectEvidence(input: CollectInput): Promise<EvidencePart
       recipe: input.recipe,
       environments: [...environments].sort(([left], [right]) => codeUnitOrder(left, right)).map(([, environment]) => environment),
       plan: evidencePlanOf(plan),
-      assignment: 'checksum',
+      assignment: 'count',
       ...(input.scope === undefined ? {} : { scope: input.scope }),
-      outcomes: outcomes.filter((outcome) => outcome !== null),
+      outcomes: outcomes.flat(),
       diagnostics: [
         ...plan.warnings.map((message): EvidenceDiagnostic => ({ severity: 'warn', code: 'plan', message })),
         ...warnings.map((message): EvidenceDiagnostic => ({ severity: 'warn', code: 'workers', message })),
-        ...said.flatMap((each) => each ?? []),
+        ...said.flat(),
       ],
       acquisition: { ms: elapsed() - started, subjects: costs },
     };

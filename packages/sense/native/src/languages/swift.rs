@@ -14,7 +14,8 @@ use serde::Serialize;
 use tree_sitter::{Node, Tree};
 
 use super::shape::{Binding, Export, Kind, Read, Request};
-use super::{line_of, named_children, text_of};
+use super::{declaration, file_private, kind_of, line_of, named_children, text_of};
+use crate::harvest::SourceSymbol;
 
 /// The request a file makes for its own target: the files it sees without asking.
 const OWN_TARGET: &str = "*";
@@ -45,7 +46,7 @@ pub fn read(file: &str, source: &str, tree: &Tree) -> Read {
             }
             continue;
         }
-        if let Some(name) = declared(child, source) {
+        if let Some(name) = declared(child, source).filter(|_| !file_private(child, source, &FILE_PRIVATE)) {
             exports.push(Export {
                 exported: Some(name.clone()),
                 local: Some(name),
@@ -63,6 +64,50 @@ pub fn read(file: &str, source: &str, tree: &Tree) -> Read {
             format!("{file} did not parse cleanly as Swift, so what it imports may be incomplete.")
         }),
         ..Read::default()
+    }
+}
+
+/// Every top-level declaration, each with the `///` lines or `/** */` block
+/// above it. An extension adds to a type declared elsewhere and names nothing
+/// of its own.
+pub fn declarations(tree: &Tree, source: &str) -> Vec<SourceSymbol> {
+    let children = named_children(tree.root_node());
+    (0..children.len())
+        .filter_map(|at| {
+            let node = children[at];
+            let name = declared(node, source)?;
+            let kind = match node.kind() {
+                "class_declaration" => nominal(node)?,
+                other => kind_of(other)?,
+            };
+            let mut symbol = declaration(&children, at, name, kind, source, &[]);
+            if file_private(node, source, &FILE_PRIVATE) {
+                symbol.reach = Some("file");
+            }
+            Some(symbol)
+        })
+        .collect()
+}
+
+/// `private` and `fileprivate` mean the same at the top level: the file.
+const FILE_PRIVATE: [&str; 2] = ["private", "fileprivate"];
+
+/// The keyword a `class_declaration` is written with, which is an anonymous
+/// child; `None` for an extension.
+fn nominal(node: Node) -> Option<&'static str> {
+    let mut cursor = node.walk();
+    let keyword = node.children(&mut cursor).find_map(|child| match child.kind() {
+        "struct" => Some("struct"),
+        "class" => Some("class"),
+        "enum" => Some("enum"),
+        "actor" => Some("actor"),
+        "extension" => Some("extension"),
+        _ => None,
+    });
+    match keyword {
+        Some("extension") => None,
+        Some(keyword) => Some(keyword),
+        None => Some("class"),
     }
 }
 
@@ -100,15 +145,16 @@ fn want(requests: &mut Vec<Request>, seen: &mut HashSet<String>, value: &str, lo
         // written identically, and the target a name belongs to is a fact about
         // the tree.
         guessed: true,
+        item: false,
     });
 }
 
-/// Top-level declarations this file publishes.
+/// Top-level declarations this file publishes, unless [`FILE_PRIVATE`] keeps one.
 ///
 /// `class_declaration` is every nominal type in this grammar — `struct`, `class`,
 /// `enum` and `actor` all reach it — and the keyword that separates them is an
 /// anonymous node. Nothing here needs to tell them apart.
-const DECLARATIONS: [&str; 5] = [
+pub(super) const DECLARATIONS: [&str; 5] = [
     "class_declaration",
     "protocol_declaration",
     "typealias_declaration",

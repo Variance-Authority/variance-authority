@@ -25,14 +25,17 @@
 // - `git`: the label, and nothing else. The accepted images are committed to
 //   the pull request's branch, so they merge with the code and there is nothing
 //   to promote on `main`. A dispatch has no branch to commit to, and is refused
-//   rather than promoting images that no commit would keep.
+//   rather than promoting images that no commit would keep. The merge is still
+//   the accept: `main` cannot commit what it renders without a pull request of
+//   its own, so a push compares and reports a change rather than failing on it.
 // - `tribunal`: the dispatch alone, which writes through to the service. A
 //   subject is decided on the service's review page, one at a time, and a
 //   label here would be a second place deciding the same thing.
 //
-// Writes `promote`, `because` and `intent` to `$GITHUB_OUTPUT`. `fetch` and the
-// REST API only, like `post-comment.mjs`, for the same reason: a dependency here
-// would be a third party deciding what the baseline is.
+// Writes `promote`, `because`, `intent` and `exit-zero-on-changes` to
+// `$GITHUB_OUTPUT`. `fetch` and the REST API only, like `post-comment.mjs`, for
+// the same reason: a dependency here would be a third party deciding what the
+// baseline is.
 
 import { appendFileSync, readFileSync } from 'node:fs';
 
@@ -56,6 +59,7 @@ const title = pull?.title ?? `main at ${sha}`;
 output('promote', String(decision.promote));
 output('because', decision.because);
 output('intent', decision.promote ? `${title} — accepted: ${decision.because}` : title);
+output('exit-zero-on-changes', String(decision.exitZeroOnChanges === true));
 console.log(`${decision.promote ? 'accepting' : 'comparing only'}: ${decision.because}`);
 
 async function decide(name) {
@@ -97,7 +101,9 @@ async function decide(name) {
   }
 
   if (name === 'push') {
-    if (review === 'git') return { promote: false, because: 'the accepted baselines merged with the code' };
+    if (review === 'git') {
+      return { promote: false, exitZeroOnChanges: true, because: 'the accepted baselines merged with the code' };
+    }
     if (review === 'tribunal') return { promote: false, because: 'the review service stores the baselines' };
     return landed();
   }

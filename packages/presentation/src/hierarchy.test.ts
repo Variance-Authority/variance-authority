@@ -79,8 +79,8 @@ describe('product-owned presentation hierarchy', () => {
       afterHierarchy: [inspectPresentationHierarchy(after, contract())],
     });
 
-    expect(signal.verdict).toBe('changed');
-    expect(signal.verdict === 'changed' && signal.effects).toEqual(expect.arrayContaining([
+    expect(signal?.verdict).toBe('changed');
+    expect(signal !== undefined && 'effects' in signal && signal.effects).toEqual(expect.arrayContaining([
       expect.objectContaining({
         transition: 'resolved',
         rule: 'SPACING_HIERARCHY_COLLISION',
@@ -97,8 +97,8 @@ describe('product-owned presentation hierarchy', () => {
       afterHierarchy: [inspectPresentationHierarchy(after, contract())],
     });
 
-    expect(signal.verdict).toBe('changed');
-    expect(signal.verdict === 'changed' && signal.effects).toEqual(expect.arrayContaining([
+    expect(signal?.verdict).toBe('changed');
+    expect(signal !== undefined && 'effects' in signal && signal.effects).toEqual(expect.arrayContaining([
       expect.objectContaining({
         transition: 'persisted',
         contract: 'record-hierarchy',

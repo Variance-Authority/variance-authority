@@ -1,11 +1,16 @@
 import type { Tree } from '@variance-authority/mcp/tools';
 import { opening } from '@variance-authority/package/help';
+import { describedWordsNative, wordStemsNative } from '@variance-authority/sense';
 import type { SearchIndex } from '../search-index.js';
 import { tokensOf } from '../search-index.js';
 import type { Area } from './area.js';
 import { areaOf } from './area.js';
-import { looseNames, matchingTerms } from './loose.js';
+import { looseNames, matchingTerms, termsOfStems } from './loose.js';
+import { describedDeclarations, describedNames, describedShown, fileMatch, type Reached } from './described.js';
+import { declaredKey, looseDeclarations } from './loose-declared.js';
 import { queryDependencyLexicon, type LexiconMatches } from '../dependency-lexicon.js';
+import { declaredMatches, exactness } from './declared.js';
+import { docRows, exported, first } from './exported-matches.js';
 
 /**
  * What `search` found, before a word of it is written.
@@ -14,8 +19,9 @@ import { queryDependencyLexicon, type LexiconMatches } from '../dependency-lexic
  * so the two cannot disagree about a count or a row: both read the same value.
  * What was not determined is absent, never empty. A start point that did not
  * resolve carries `refused` and no sections, because nothing was searched; the
- * loose section is absent when the substring answered, because it was not run,
- * and present with a total of zero when it ran and found nothing.
+ * loose and described sections are absent when an earlier section answered,
+ * because they were not run, and present with a total of zero when they ran and
+ * found nothing.
  *
  * Every `total` counts the whole match and every `shown` holds the first few.
  * Only the shown rows are decoded, so a two-letter query that matches a
@@ -30,6 +36,9 @@ export const ELSEWHERE_CAP = 25;
 
 /** Loose matches shown. Lowest: these are the ones the caller did not ask for. */
 export const LOOSE_CAP = 15;
+
+/** Described matches shown: as many as the loose pass, the same kind of guess. */
+export const DESCRIBED_CAP = LOOSE_CAP;
 
 /** How wrong a word may be and still be looked up: one character, capped in `loose.ts`. */
 const FUZZY = 0.2;
@@ -90,7 +99,40 @@ export interface ExportedMatch {
   readonly line: number;
   /** How many files export it, the one shown included. */
   readonly files: number;
+  /**
+   * The first paragraph of the shown row's own documentation, on one line, as
+   * `PublishedMatch` says it; absent when that row has none.
+   */
+  readonly summary?: string;
 }
+
+/** A name a file declares at its top level and does not export. */
+export interface DeclaredMatch {
+  readonly source: 'declared';
+  readonly name: string;
+  /** The declaration's kind as the parser read it: `function`, `const`, … */
+  readonly kind: string;
+  /** The package that holds it; absent at the repository root. */
+  readonly package?: string;
+  readonly at: string;
+  readonly line: number;
+}
+
+/** A file of this repository, described by its name and the doc it opens with. */
+export interface FileMatch {
+  readonly source: 'file';
+  readonly at: string;
+  /** The package that holds it; absent at the repository root. */
+  readonly package?: string;
+  /** The first paragraph of the doc the file opens with, on one line; absent when it opens with none. */
+  readonly summary?: string;
+}
+
+/** A name or a file of this repository a description reached, and which of its words it holds. */
+export type DescribedMatch = (PublishedMatch | ExportedMatch | DeclaredMatch | FileMatch) & {
+  /** The question's words the name, the file's name or the documentation holds, as the question wrote them. */
+  readonly words: readonly string[];
+};
 
 export interface Matches<T> {
   readonly total: number;
@@ -112,7 +154,8 @@ export interface SearchArea {
  * One `search` answer, as the text and `--format json` both read it.
  *
  * Sections are present when they ran. `loose` runs only when the exact local
- * and third-party sections are empty; no section runs when `refused` is set.
+ * sections are empty and no installed name holds the query, and `described`
+ * runs beside it. No section runs when `refused` is set.
  */
 export interface SearchAnswer {
   /** The query as it was matched: lowercase. */
@@ -123,8 +166,26 @@ export interface SearchAnswer {
   readonly refused?: string;
   readonly published?: Matches<PublishedMatch>;
   readonly exported?: Matches<ExportedMatch>;
-  /** Present only when the exact sections are empty, which is when it runs. */
-  readonly loose?: Matches<PublishedMatch | ExportedMatch>;
+  /**
+   * Names a file declares and does not export, read off the source index.
+   * Absent when no checkout was named or its index could not be read.
+   */
+  readonly declared?: Matches<DeclaredMatch> & {
+    /** Files whose declarations the index holds none of, since none were read: unknown, not empty. */
+    readonly unread: readonly string[];
+  };
+  /**
+   * Present only when the exact sections are empty, which is when it runs: the
+   * published and exported names first, then the ones a file keeps to itself.
+   */
+  readonly loose?: Matches<PublishedMatch | ExportedMatch | DeclaredMatch>;
+  /**
+   * This repository's names and files holding any of the question's words,
+   * but a name holding fewer than half the stems that `loose` holds. Present
+   * when `loose` ran, which is when it runs;
+   * absent too when the question has no word to describe it by.
+   */
+  readonly described?: Matches<DescribedMatch>;
   /** Installed third-party names available to this workspace or area. */
   readonly thirdParty?: LexiconMatches;
 }
@@ -142,28 +203,14 @@ interface Hit {
   readonly rank: number;
   readonly usedBy: number;
   readonly uses: number;
+  /**
+   * Where the question was found: 0 as the whole name as written, 1 as the
+   * whole name in another case, 2 in the name, 3 in the doc's opening
+   * paragraph, 4 later in the doc.
+   */
+  readonly field: number;
   /** What the area saw of it — nothing, when there is no area. */
   readonly scoped: InArea | undefined;
-}
-
-/** The first `count` of `items` under `before`, a total order, without sorting the rest. */
-function first<T>(items: readonly T[], count: number, before: (a: T, b: T) => number): T[] {
-  const best: T[] = [];
-  if (count <= 0) return best;
-  for (const item of items) {
-    const last = best[best.length - 1];
-    if (best.length === count && last !== undefined && before(item, last) >= 0) continue;
-    let low = 0;
-    let high = best.length;
-    while (low < high) {
-      const middle = (low + high) >>> 1;
-      if (before(best[middle] as T, item) <= 0) low = middle + 1;
-      else high = middle;
-    }
-    best.splice(low, 0, item);
-    if (best.length > count) best.pop();
-  }
-  return best;
 }
 
 /** Import sites of one published name that are actually written in the area. */
@@ -191,12 +238,18 @@ function usedWithin(index: SearchIndex, row: number, area: Area, inArea: Readonl
  * decides both what is admitted and how what is admitted is ordered, and a
  * second pass that applied only one of the two would answer a scoped question
  * with an unscoped ranking.
+ *
+ * `field` says where the question was found in a row, and orders before
+ * anything the area or the importers say: a name that is the word is the thing
+ * asked for, a name holding the word is that thing, a doc opening with it says what the name is for, and a doc saying it
+ * three paragraphs down mentions it. Absent, every row was reached alike.
  */
 function surface(
   index: SearchIndex,
   rows: Iterable<number>,
   area: Area | undefined,
   inArea: ReadonlySet<number> | undefined,
+  field?: (row: number, name: number) => number,
 ): readonly Hit[] {
   const hits: Hit[] = [];
   for (const row of new Set(rows)) {
@@ -205,12 +258,13 @@ function surface(
     // does not use, however well it matches the word.
     if (scoped !== undefined && scoped.imports === 0) continue;
     const name = index.publishedName(row);
-    hits.push({ row, name, rank: index.rank(name), usedBy: index.usedBy(row), uses: index.uses(row), scoped });
+    hits.push({ row, name, rank: index.rank(name), usedBy: index.usedBy(row), uses: index.uses(row), field: field?.(row, name) ?? 0, scoped });
   }
   return hits;
 }
 
 const surfaceOrder = (a: Hit, b: Hit): number =>
+  a.field - b.field ||
   (b.scoped?.files ?? 0) - (a.scoped?.files ?? 0) ||
   (b.scoped?.imports ?? 0) - (a.scoped?.imports ?? 0) ||
   b.usedBy - a.usedBy ||
@@ -243,64 +297,6 @@ const publishedOf = (index: SearchIndex, names: Iterable<number>): number[] =>
   [...names].flatMap((name) => [...index.publishedOf(name)]);
 
 /**
- * Exported names given by id, nearest thing to a ranking.
- *
- * Grouped by name because one name exported from a barrel and from the file that
- * declares it is one thing to go and look at, and ordered by how many files
- * export it — which is the only count this half has. Source before tests and
- * stories within a name, so the place shown first is the implementation rather
- * than something exercising it.
- */
-function exported(
-  index: SearchIndex,
-  names: Iterable<number>,
-  shown: ReadonlySet<number>,
-  within: ReadonlySet<number> | undefined,
-): { readonly total: number; head(count: number): readonly ExportedMatch[]; rows(): readonly number[] } {
-  const found: { name: number; rank: number; count: number }[] = [];
-  // The file that exports it, against the closure. A name exported from a
-  // barrel inside the area and declared outside it arrives here twice, under
-  // two paths, and the one in the area is the one a reader can open.
-  const rowsOf = (name: number): readonly number[] => {
-    const all = index.exportedOf(name);
-    return within === undefined ? [...all] : [...all].filter((row) => within.has(index.exportedFile(row)));
-  };
-
-  for (const name of names) {
-    if (shown.has(name)) continue;
-    const count = within === undefined ? index.exportedOf(name).length : rowsOf(name).length;
-    if (count > 0) found.push({ name, rank: index.rank(name), count });
-  }
-
-  return {
-    total: found.length,
-    rows: () => found.flatMap(({ name }) => rowsOf(name)),
-    head: (count) =>
-      first(found, count, (a, b) => b.count - a.count || a.rank - b.rank).flatMap(({ name, count: files }) => {
-        // Source before tests before stories, and the first written within a
-        // kind: the kind column orders the rows, and only the one shown is read.
-        // `count` is the number of these rows, so one is always chosen.
-        let chosen: number | undefined;
-        for (const row of rowsOf(name)) {
-          if (chosen === undefined || index.exportedKind(row) < index.exportedKind(chosen)) chosen = row;
-          if (index.exportedKind(chosen) === 0) break;
-        }
-        if (chosen === undefined) return [];
-        const row = index.exported(chosen);
-        const match: ExportedMatch = {
-          source: 'exported',
-          name: row.name,
-          ...(row.by === '' ? {} : { package: row.by }),
-          at: row.at,
-          line: row.line,
-          files,
-        };
-        return [match];
-      }),
-  };
-}
-
-/**
  * What the words match, in the area a start point resolved to: the published
  * rows the area uses and the exported names past them. Both the answer and the
  * file set read this, so they cannot disagree about what matched.
@@ -316,9 +312,22 @@ function matched(index: SearchIndex, question: SearchQuestion, tree: Tree | unde
 
   const within = area === undefined ? undefined : index.fileIds(area.files);
   const named = ascending(index.namesContaining(query), namesOfWords(index, query));
-  const hits = surface(index, [...publishedOf(index, named), ...index.docsContaining(query)], area, within);
+  const byName = new Set(named);
+  const openings = new Set(index.docOpeningsContaining(query));
+  // The name that is the question is the thing asked for, however few import
+  // it: as written first, then the same word in another case.
+  const exact = new Map<number, number>();
+  for (const name of named) {
+    const tier = exactness(index.name(name), question.query);
+    if (tier !== undefined) exact.set(name, tier);
+  }
+  const field = (row: number, name: number): number => exact.get(name) ?? (byName.has(name) ? 2 : openings.has(row) ? 3 : 4);
+  const hits = surface(index, [...publishedOf(index, named), ...index.docsContaining(query)], area, within, field);
   const answered = new Set(hits.map((hit) => hit.name));
-  const rest = exported(index, named, answered, within);
+  // An exported row is reached by its doc as a published one is, and inside an
+  // area only through a row whose file is in it.
+  const through = docRows(index, index.exportedDocsContaining(query), within, byName);
+  const rest = exported(index, ascending(named, [...through.keys()]), answered, within, through, new Set(index.exportedDocOpeningsContaining(query)), exact);
   return { query, area, within, named, hits, answered, rest } as const;
 }
 
@@ -360,49 +369,91 @@ export function searched(index: SearchIndex, question: SearchQuestion, tree?: Tr
   // is what the location reaches, and a package another workspace declares is that workspace's
   // to offer, so ownership is asked of the paths the question started at and not of the closure.
   const thirdParty = root === undefined ? undefined : queryDependencyLexicon(root, query, area === undefined ? undefined : [...area.from, ...area.to]);
+  const declared = declaredMatches(root, question.query, area?.files, ELSEWHERE_CAP);
 
   const answer: SearchAnswer = {
     query,
     ...(counted === undefined ? {} : { area: counted }),
     published: published(index, hits, CAP),
     exported: { total: rest.total, shown: rest.head(ELSEWHERE_CAP) },
+    ...(declared === undefined ? {} : { declared }),
     ...(thirdParty === undefined ? {} : { thirdParty }),
   };
-  if (hits.length > 0 || rest.total > 0 || (thirdParty?.total ?? 0) > 0 || (thirdParty?.described?.length ?? 0) > 0) return { answer, area };
+  // The installed packages that describe the words are a different answer from
+  // this repository's names, and never stand in for them: only an installed
+  // name holding the query as written — which the caller asked for by name —
+  // ends the search for names of this repository's own.
+  if (hits.length > 0 || rest.total > 0 || (declared?.total ?? 0) > 0 || (thirdParty?.total ?? 0) > 0) return { answer, area };
+
+  // The empty answer read as a description: names holding any of its words,
+  // stemmed by the rule packages are.
+  // A name its file keeps to itself is in no row: the source index answers for it.
+  const reached = describedNames(index, query, within, new Set([...named, ...answered]));
+  const described = reached === undefined ? undefined : [...reached, ...(describedDeclarations(root, query, area?.files) ?? [])];
+  // Which reading a name both reach is told by is decided by what each holds,
+  // never by how many rows print. A name holding at least half the stems is the
+  // described section's, which prints first, and the loose pass offers none of
+  // them a second time. A name holding fewer is the loose section's when every
+  // word reaches it there, since every word one character off says more than
+  // under half the stems do: held on so few, it would sort past the rows shown.
+  const strong = Math.ceil(describedWordsNative(query).length / 2);
+  const held = (one: Reached): boolean => one.words.length >= strong;
 
   // The loose pass — names the words reach when they are allowed apart and
   // allowed one character off — runs only on an empty answer. The names the
   // substring answered are kept out: a name the caller can already see must
   // not be offered back to them as something else. Whether a name is in the
   // answer is the dictionary's to say; where it sits is not.
-  const loose = looseNames(index, query, FUZZY, within, new Set([...named, ...answered]));
+  const claimed = new Set([...named, ...answered, ...(reached ?? []).filter(held).map(({ name }) => name)]);
+  const viaDoc = new Map<number, Set<number>>();
+  const loose = looseNames(index, query, FUZZY, within, claimed, viaDoc);
   const alsoHits = loose.size === 0 ? [] : surface(index, publishedOf(index, loose), area, within);
   const alsoFound = published(index, alsoHits, LOOSE_CAP);
-  const alsoRest = exported(index, loose, new Set(alsoHits.map((hit) => hit.name)), within);
-  const shown = [...alsoFound.shown, ...alsoRest.head(LOOSE_CAP - alsoFound.shown.length)];
-  return { answer: { ...answer, loose: { total: alsoFound.total + alsoRest.total, shown } }, area };
+  const alsoRest = exported(index, loose, new Set(alsoHits.map((hit) => hit.name)), within, viaDoc);
+  // A name its file keeps to itself is in no dictionary row: the source index
+  // answers for it, by the same rule, after every name that is.
+  const describedHere = new Set((described ?? []).flatMap((one) => ('match' in one && held(one) ? [declaredKey(one.match)] : [])));
+  const kept = looseDeclarations(root, query, FUZZY, area?.files, describedHere) ?? [];
+  const keptHere = new Set(kept.map(declaredKey));
+  const left = described?.filter((one) => ('match' in one ? !keptHere.has(declaredKey(one.match)) : 'file' in one || !loose.has(one.name)));
+  const told = described === undefined || left === undefined ? undefined : describedShown(index, query, left, DESCRIBED_CAP, described)
+    .flatMap((one): DescribedMatch[] => {
+      if ('match' in one) return [{ ...one.match, words: one.words }];
+      if ('file' in one) return [{ ...fileMatch(root, one.file), words: one.words }];
+      const row = published(index, surface(index, index.publishedOf(one.name), area, within), 1).shown[0] ??
+        exported(index, [one.name], new Set(), within, one.through === undefined ? undefined : new Map([[one.name, new Set([one.through])]])).head(1)[0];
+      return row === undefined ? [] : [{ ...row, words: one.words }];
+    });
+  const reachedNames = [...alsoFound.shown, ...alsoRest.head(LOOSE_CAP - alsoFound.shown.length)];
+  const shown = [...reachedNames, ...kept.slice(0, LOOSE_CAP - reachedNames.length)];
+  const loosely: SearchAnswer = { ...answer, loose: { total: alsoFound.total + alsoRest.total + kept.length, shown } };
+  if (left === undefined || told === undefined) return { answer: loosely, area };
+  return { answer: { ...loosely, described: { total: left.length, shown: told } }, area };
 }
 
 /**
- * Names a query of several words reaches through the words names are written
- * in, ascending: every word of the query is a word of the name or the start of
- * one, so `select test files` is `selectTestFiles`. A query of one word is the
- * substring's alone.
+ * Names a query reaches through the words names are written in, ascending:
+ * every word of the query is a word of the name, the start of one, or one that
+ * shares its stem, so `select test files` is `selectTestFiles` and
+ * `instrumenting` is `instrumentModule`. The stem is the dependency lexicon's,
+ * admitted the way the described section admits it.
  */
 function namesOfWords(index: SearchIndex, query: string): readonly number[] {
   const words = tokensOf(query);
-  if (words.length < 2) return [];
+  if (words.length === 0) return [];
 
+  const stemmed = termsOfStems(index, wordStemsNative(words));
   let held: ReadonlySet<number> | undefined;
-  for (const word of words) {
+  for (const [position, word] of words.entries()) {
+    const terms = new Set([...matchingTerms(index, word, 0), ...(stemmed[position] ?? [])]);
     const reached = new Set<number>();
-    for (const term of matchingTerms(index, word, 0)) {
+    for (const term of terms) {
       for (const name of index.termNames(term)) if (held === undefined || held.has(name)) reached.add(name);
     }
     if (reached.size === 0) return [];
     held = reached;
   }
-  return [...(held ?? [])];
+  return held === undefined ? [] : [...held];
 }
 
 /** Two lists of ids as one, ascending and without repeats. */
@@ -417,7 +468,7 @@ function ascending(left: readonly number[], right: readonly number[]): readonly 
  * The same answer `variance ask search` prints, before it is written as text:
  * published names first, then the names the source exports without
  * publishing, then — only when both are empty — the names a looser reading
- * finds.
+ * finds and the names that hold any of the words.
  */
 export function searchNames(index: SearchIndex, question: SearchQuestion, tree?: Tree, root?: string): SearchAnswer {
   return searched(index, question, tree, root).answer;

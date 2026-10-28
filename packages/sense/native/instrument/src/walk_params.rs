@@ -62,7 +62,8 @@ pub struct Plan {
     pub close: u32,
 }
 
-pub fn plan(params: &FormalParameters, entry: u32, arrow: bool) -> Option<Plan> {
+/// `entry` is the function region's probe expression, `__va(n)`.
+pub fn plan(params: &FormalParameters, entry: &str, arrow: bool) -> Option<Plan> {
     let items = &params.items;
     let throwing = items.iter().position(|item| throws(&item.pattern, item.initializer.as_deref()));
     let rest = params.rest.as_deref();
@@ -105,7 +106,7 @@ pub fn plan(params: &FormalParameters, entry: u32, arrow: bool) -> Option<Plan> 
     let cut = items.iter().position(|item| item.initializer.is_some()).unwrap_or(items.len());
     // Where the rest array starts.
     let from = first.max(cut);
-    let probe = |key: &str| format!("[(__va({entry}),{key})]:");
+    let probe = |key: &str| format!("[({entry},{key})]:");
 
     let mut before = Vec::new();
     for (index, item) in items.iter().enumerate().skip(first) {

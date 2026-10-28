@@ -1,3 +1,4 @@
+import { timeOn } from '@variance-authority/core/format';
 import {
   observeAgainstBaseline,
   observePair,
@@ -77,7 +78,7 @@ export async function alone(
     };
   }
 
-  if (budget.remaining <= 0) {
+  if (!(await budget.claim())) {
     return {
       alone: {
         reproduced: true,
@@ -86,12 +87,12 @@ export async function alone(
     };
   }
 
-  budget.remaining -= 1;
-
-  // Through the same lane as `collect`, because a clean world is still built out
-  // of the collector's one browser: two of these at once is the identical hazard.
+  // Through the lane's serializer like `collect`, so a world reads one subject
+  // at a time whatever a collector's clean world is built from. The shipped
+  // collectors build each one as a browser of its own, so clean worlds from
+  // several lanes run side by side without sharing a page.
   const collectAlone = deps.collector.collectAlone.bind(deps.collector);
-  const fresh = await collecting(async () => collectAlone(planned));
+  const fresh = await collecting(async () => timeOn(context.steps, 'alone.collect', async () => collectAlone(planned)));
   if (!fresh.ok) {
     return {
       alone: {
@@ -107,6 +108,9 @@ export async function alone(
     ...(fresh.snapshot !== undefined ? { snapshot: fresh.snapshot } : {}),
     ...(fresh.source !== undefined ? { source: fresh.source } : {}),
     ...(context.decoder !== undefined ? { decoder: context.decoder } : {}),
+    // The clean reading's comparison, under its own names: a subject that was
+    // investigated paid for two of each, and the run totals should say which.
+    ...(context.steps !== undefined ? { steps: context.steps.within('alone.') } : {}),
   };
 
   // The same comparison the first pass made, against the same other side. Not a

@@ -3,6 +3,8 @@ import { cp, mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { openImmutableLog } from './immutable-log.js';
+import { decodeSourceIndex } from './source-index-format.js';
 import { openSourceIndexFile } from './source-index-file.js';
 import { updateNatively } from './native-update.js';
 import { readySourceIndex } from './ready-index.js';
@@ -12,7 +14,9 @@ import { gitTreeOf } from './tree.js';
 
 /**
  * The addon's warm update and the JavaScript one are asked the same thing from
- * the same chain, and what they publish is compared record for record.
+ * the same chain, and what they publish is compared record for record, each
+ * parse with the declarations it harvested: `symbol` and `uses` read those
+ * for a changed file off the working layer.
  */
 describe('the native warm update', () => {
   let root: string;
@@ -57,9 +61,8 @@ describe('the native warm update', () => {
   async function held(index: string) {
     const file = await openSourceIndexFile(index);
     const sorted = (map: ReadonlyMap<string, unknown>) => JSON.stringify([...map].sort((a, b) => (a[0] < b[0] ? -1 : 1)));
-    // A parse the addon read carries no harvest yet, as a cold build's does; JavaScript adds it when something asks.
-    const unharvested = new Map([...file.stored.parses].map(([key, { symbols: _symbols, harvested: _harvested, ...rest }]) => [key, rest]));
-    return { records: sorted(file.stored.records), parses: sorted(unharvested), directories: sorted(file.stored.directories) };
+    // Declarations included: `ask symbol` reads them from whichever update wrote the parse.
+    return { records: sorted(file.stored.records), parses: sorted(file.stored.parses), directories: sorted(file.stored.directories) };
   }
 
   async function agree(change: () => Promise<void>): Promise<void> {
@@ -133,6 +136,20 @@ describe('the native warm update', () => {
     expect(await held(start)).toEqual(await held(twin));
     expect(await readySourceIndex(start)).toBe(false);
     git('checkout', '--', 'lib/alone.ts', 'lib/unit.ts');
+  });
+
+  it('leaves a file put back as the base holds it out of the working layer', async () => {
+    const start = await both();
+    const base = (await chain(start)).segments;
+    await write('lib/unit.ts', 'export const unit = 6;\n');
+    await updateNatively(root, start);
+    git('checkout', '--', 'lib/unit.ts');
+    await updateNatively(root, start);
+    expect(await chain(start)).toEqual({ segments: base + 1, working: 1 });
+    const working = decodeSourceIndex((await openImmutableLog(start)).segments.at(-1)!);
+    expect([...working.records.keys()]).toEqual([]);
+    // Its parse too: the base already holds the same harvested parse under that key.
+    expect([...working.parses.keys()]).toEqual([]);
   });
 
   it('writes nothing when nothing changed', async () => {

@@ -3,7 +3,7 @@
  *
  * A landing — a run's, `variance land`'s, or a repin onto a newer milestone —
  * re-cuts a carried module's rows to the text on disk when every region keeps
- * its address (`carriedSources` in `merge-carry.ts`), and lays a run's own
+ * its address (`carriedSources` in `carried-sources.ts`), and lays a run's own
  * cases onto the modules that run recorded. A module the run did not
  * record keeps the case regions it was recorded with, and after the re-cut
  * those are lines of a text the record no longer names. Every reader asks the
@@ -12,9 +12,10 @@
  *
  * So after every landing, each held module whose rows now stand at another
  * text is laid onto the rows' cut by the rule a run's recorded module takes the
- * held cases by ({@link laidOn}): through the edit between the two texts, a
- * region born in the re-cut taking the cases of the region around it, and a
- * region the edit touched dropping its cases. A module none of whose cases land leaves the
+ * held cases by ({@link laidOn}): through the edit between the two texts, where
+ * a region the edit touched, or one the re-cut bore, keeps the cases of its own
+ * region or of the region around it only when the edit's reading spares its
+ * kind. A module none of whose cases land leaves the
  * index, as one no run kept cases of is absent from it, rather than standing at
  * lines no text holds. A module whose index already stands at the rows' lines, as one a
  * run recorded does, is carried as it is.

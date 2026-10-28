@@ -9,6 +9,7 @@ import {
 } from '@variance-authority/core/relate';
 import { native } from '../addon.js';
 import { onlyListed } from '../repo-path.js';
+import { declaredTsconfig } from '../typescript.js';
 
 /**
  * Of a changed file and what the imports it started or stopped binding load,
@@ -35,7 +36,7 @@ export function declaredEffects(
   if (root === undefined || scanner?.declaredEffects === undefined || scanner.resolveSources === undefined) return [];
   const targets = imported.length === 0
     ? []
-    : scanner.resolveSources(root, file, [...imported], listedIn(relations)).filter(Boolean);
+    : scanner.resolveSources(root, file, [...imported], listedIn(relations), declaredTsconfig(root)).filter(Boolean);
   const loaded = new Set(targets.flatMap((target) => loadedFrom(relations, [target])));
   for (const already of loadedFrom(relations, unchangedImports(relations, file, targets))) loaded.delete(already);
   loaded.delete(file);

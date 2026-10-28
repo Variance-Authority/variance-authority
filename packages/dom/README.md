@@ -5,6 +5,7 @@
 > Extract a Variance Authority capture from a mounted element, under jsdom or a browser, with CSS applicability pruning.
 
 Part of [Variance Authority](https://variance-authority.dev).
+Point your coding agent at [`llms.txt`](https://variance-authority.dev/llms.txt).
 
 Point this package at an element that is already mounted and it reads back two
 things: a **capture** — the element's tree, its ARIA, and the CSS declarations
@@ -190,7 +191,7 @@ and call this underneath.
 | `collect` / `acquireDocument` | `subject`, `viewport` and `engine` name what was read; `features` supplies media conditions such as `prefers-reduced-motion`; `index` reuses a stylesheet index across subjects sharing one document, and is refused if it was built for a different viewport or colour scheme |
 | `acquireDocument` | `inherited` overrides the values and custom properties resolved from ancestors outside the subject; design tokens live on `:root`, which pruning correctly drops, so this is what keeps `var(--brand)` resolving |
 | `collect` | `ignore` excludes subtrees by selector, `provenanceOf` adds component ownership, `wiringOf` adds framework wiring, `holdingOf` adds what each component was handed and retained, `portalsOf` pulls in portalled subtrees, `stabilization` records the digest of whatever held the page still, and `timezoneId` and `locale` record the timezone and language the driver opened the page in, as given rather than read from `Intl`; none of these is inferred from markup |
-| `stabilizeForObservation` | `recipe` selects the interventions to apply — animations, carets, and the rest — and the result reports which ones actually applied. `tier` raises the tier the reading is taken at — declarations, geometry, or pixels — when it is higher than the profile's. Pass the raster tier when you are screenshotting the document you just read, so holds such as the caret are installed. `driven` names the tricks your browser driver applied before the page loaded — `no-hover`, `reduced-motion`, `freeze-clock` — since nothing in the document can apply them; a recipe trick you did not drive is left out of the ids and the digest |
+| `stabilizeForObservation` | `recipe` selects the interventions to apply — animations, carets, and the rest — and the result reports which ones actually applied. `tier` raises the tier the reading is taken at — declarations, geometry, or pixels — when it is higher than the profile's. Pass the raster tier when you are screenshotting the document you just read, so holds such as the caret are installed. `driven` names the tricks your browser driver applied before the page loaded — `no-hover`, `reduced-motion`, `freeze-clock` — since nothing in the document can apply them; a recipe trick you did not drive is left out of the ids and the digest. `steps` takes each wait as a timed step, the recipe's settles by their id and `frames` for the two frames after a new sheet |
 | `resolveIgnores` | `selectors` names the excluded places, `markers` controls handling of the `data-variance-ignore` attribute |
 | `attributeProvenance` | `component`, `createdBy` and `props` name the attributes to read provenance from, defaulting to `data-component`, `data-created-by` and `data-props`. Their values are declared by whatever rendered the element, never guessed from a tag name |
 
@@ -246,4 +247,4 @@ a modal is open or closed, and an opening dialog reads as unchanged.
 
 ---
 
-**[@variance-authority/dom](https://variance-authority.dev/reference/packages/dom)** is part of [Variance Authority](https://variance-authority.dev) — [documentation](https://variance-authority.dev/docs) · MIT
+**[@variance-authority/dom](https://variance-authority.dev/reference/packages/dom)** is part of [Variance Authority](https://variance-authority.dev) — [documentation](https://variance-authority.dev/docs) · [GitHub](https://github.com/Variance-Authority/variance-authority/tree/main/packages/dom) · MIT

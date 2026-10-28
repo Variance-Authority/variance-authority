@@ -31,6 +31,7 @@ const PROBES = {
     throw new Error('doctor must not open a renderer when one is configured elsewhere');
   },
   exists: async () => true,
+  pointers: async () => [],
   partitions: async () => [],
   // Nothing cached. The cache is reported, never diagnosed: it holds only
   // images this machine can repaint.

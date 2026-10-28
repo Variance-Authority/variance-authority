@@ -1,4 +1,4 @@
-import { identityDigest } from '@variance-authority/core/format';
+import { identityDigest, totalsOf } from '@variance-authority/core/format';
 import type { LexiconField, LexiconReport, SubjectLexicon } from '@variance-authority/report';
 import { OperatorError } from '../exit.js';
 import { isShardFilter, type CliRunReport, type NotObserved } from './run-report.js';
@@ -88,7 +88,7 @@ export function mergeReports(shards: readonly Shard[]): CliRunReport {
     retention: first.report.retention,
     ...(first.report.intent !== undefined ? { intent: first.report.intent } : {}),
     ...runOf(shards),
-    observations: observationsOf(shards),
+    ...withTotals(observationsOf(shards)),
     ...coverageOf(shards),
     ...warningsOf(shards, unmergeable(shards)),
     ...ignoresOf(shards),
@@ -227,6 +227,18 @@ function parse(shard: Shard): number {
 }
 
 /**
+ * The step totals are a fold over subjects, so they are taken again over the
+ * merged list rather than added up from each shard's. `workers` is not carried:
+ * every shard collected in its own, and no one number is the merged run's.
+ */
+function withTotals(
+  observations: CliRunReport['observations'],
+): Pick<CliRunReport, 'observations' | 'steps'> {
+  const steps = totalsOf(observations.map((observation) => observation.steps));
+  return { observations, ...(steps.length === 0 ? {} : { steps }) };
+}
+
+/**
  * Every shard's observations, in shard order, with an overlap refused.
  *
  * Two observations of one subject means the globs overlapped, and there is no
@@ -343,7 +355,7 @@ function warningsOf(
  * It cannot be recomputed here either. `variants` and `renderings` count
  * distinct digests, and the digests are in the snapshots rather than in the
  * artifact — which is the bargain
- * [`composition.ts`](../../../report/src/composition.ts) already states.
+ * [`composition.ts`](https://github.com/Variance-Authority/variance-authority/blob/main/packages/report/src/composition.ts) already states.
  *
  * So it is omitted, and the omission is a warning rather than a silence. The
  * rule this file is built on is that a merged report must not say anything a
@@ -359,9 +371,9 @@ function unmergeable(shards: readonly Shard[]): readonly string[] {
     `composition dropped: ${composed} of ${shards.length} shard(s) compared their subjects to ` +
       'each other, and that comparison does not survive a split — two subjects sharing a ' +
       'rendering are the finding, and a pair that landed in different shards is in neither ' +
-      'report. Each subject\'s structure rows go with it. Run the suite unsharded to ask ' +
-      'for the component graph or one subject\'s composition; the lexicon is per subject ' +
-      'and is carried.',
+      'report. Each subject\'s structure rows go with it. Each shard\'s own report still holds ' +
+      'its composition over the subjects it rendered; the component graph, or one subject\'s ' +
+      'composition across shards, is in none of them. The lexicon is per subject and is carried.',
   ];
 }
 

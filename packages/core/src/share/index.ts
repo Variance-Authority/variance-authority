@@ -19,7 +19,7 @@
  * Not a baseline store. A baseline is the thing a comparison is *against*, it
  * cannot be re-derived, and losing one silently is how a suite records whatever
  * happened to be on screen — which is why
- * [`RasterStore`](../../../raster/src/store.ts) throws on every failure. A line
+ * [`RasterStore`](https://github.com/Variance-Authority/variance-authority/blob/main/packages/raster/src/store.ts) throws on every failure. A line
  * holds what can be derived again from the commit it names, so a miss costs the
  * derivation. The two are configured separately because they are answers to
  * different questions, and a share is disposable in a way a baseline may never

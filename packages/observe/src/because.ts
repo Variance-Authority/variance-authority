@@ -108,6 +108,23 @@ export function forgiveness(comparison: RasterComparison, options: CompareInputs
   );
 }
 
+/**
+ * Whether the subject's geometry moved: its image was resized, or its rows were
+ * paired with rows of the before image that sit elsewhere.
+ *
+ * Content that moved is a change even when every row of it matches the row it
+ * moved from, so a mask with nothing in it is not the whole answer once rows
+ * are aligned. Nor is the height: a gap that grew in one place and shrank in
+ * another moves everything between them and leaves the page as tall as it was.
+ */
+export function reshaped(comparison: RasterComparison): boolean {
+  const rows = comparison.alignment;
+  return (
+    comparison.dimensionsChanged ||
+    (rows !== undefined && (rows.inserted.length > 0 || rows.removed.length > 0 || rows.shifted.length > 0))
+  );
+}
+
 export function describeChange(
   comparison: RasterComparison,
   isolation: Isolation,
@@ -133,6 +150,33 @@ export function describeChange(
 
   return (
     `${count(changed, 'pixel')} differ across ` +
-    `${count(isolation.regions.length, 'region')}${where}${size}${capped}`
+    `${count(isolation.regions.length, 'region')}${where}${capped}${movement(comparison)}${size}`
   );
+}
+
+/**
+ * Where rows went in or came out, and how far that moved the rest.
+ *
+ * The regions are drawn on the after image, which shows an inserted row and
+ * cannot show a removed one, so the removed rows are named here or nowhere.
+ */
+function movement(comparison: RasterComparison): string {
+  const rows = comparison.alignment;
+  if (rows === undefined) return '';
+
+  const span = (list: readonly { from: number; to: number }[]): number =>
+    list.reduce((sum, run) => sum + run.to - run.from, 0);
+  const edits = [
+    ...(rows.inserted.length === 0
+      ? []
+      : [`${count(span(rows.inserted), 'pixel row')} inserted in ${count(rows.inserted.length, 'place')}`]),
+    ...(rows.removed.length === 0
+      ? []
+      : [`${count(span(rows.removed), 'pixel row')} removed in ${count(rows.removed.length, 'place')}`]),
+  ];
+  const far = rows.shifted.reduce((most, run) => Math.max(most, Math.abs(run.by)), 0);
+  const moved = far === 0 ? '' : count(far, 'row');
+
+  if (edits.length === 0) return moved === '' ? '' : `; the content moved by up to ${moved}`;
+  return `; ${edits.join(' and ')}${moved === '' ? '' : `, moving the content under them by up to ${moved}`}`;
 }

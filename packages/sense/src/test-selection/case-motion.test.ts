@@ -272,3 +272,38 @@ describe('a branch whose lines carried it onto a branch of another path', () => 
 // cases also changed takes that one's occurrence: the address pairs the displaced row with the new region (lost) and
 // the next row with the displaced region (gained). `coverage-sibling.test.ts` shows the diff pairing it truly.
 it.todo('reports no motion for a sibling neither the diff nor its cases can tell from its neighbour — needs a rule for what an ambiguous occurrence pairing is reported as, without a diff to pair it');
+
+describe('a case the current record carried over an edit to the region\'s file', () => {
+  // `b.test.ts` last ran before `src/total.ts` changed: the record carried its cases.
+  const stands = [{ commit: 'c0ffee', tests: ['b.test.ts'], changed: ['src/total.ts'], whole: [] }];
+
+  it('makes the region it dropped unmeasured, not lost, and says nothing of its test file leaving it', () => {
+    const base = index([A, B], [block('apply', 1, [1]), block('round', 10, [0, 1])]);
+    const now = index([A, B], [block('apply', 1, []), block('round', 10, [0])]);
+
+    const motion = caseMotion(base, now, { ...UNCHANGED, stands });
+
+    expect(motion.regions).toEqual([]);
+    expect(motion.unmeasured?.map((region) => region.name)).toEqual(['apply', 'round']);
+    expect(motion.testFiles).toEqual([]);
+  });
+
+  it('reads a case that ran since the edit as measured', () => {
+    const base = index([A, B], [block('apply', 1, [0])]);
+    const now = index([A, B], [block('apply', 1, [])]);
+
+    const motion = caseMotion(base, now, { ...UNCHANGED, stands });
+
+    expect(motion.regions.map((region) => [region.name, region.motion])).toEqual([['apply', 'lost']]);
+    expect(motion.unmeasured).toEqual([]);
+  });
+
+  it('reads a carried case as measured in a file that did not change since it ran', () => {
+    const base = index([A, B], [block('apply', 1, [1])]);
+    const now = index([A, B], [block('apply', 1, [])]);
+
+    const motion = caseMotion(base, now, { ...UNCHANGED, stands: [{ ...stands[0]!, changed: ['src/other.ts'] }] });
+
+    expect(motion.regions.map((region) => [region.name, region.motion])).toEqual([['apply', 'lost']]);
+  });
+});

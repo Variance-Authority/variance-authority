@@ -227,8 +227,9 @@ belongs to the static graph, which is why the graph stays and why this narrows
 within it rather than replacing it.
 
 **The first run is a full run, and so is the first run after a toolchain
-change.** An index from a different instrumentation mode or a different compiler
-is discarded rather than trusted.
+change.** An index from a different compiler is discarded rather than trusted.
+An index cut under other probes is selected from as it holds it, and the
+selection names the probes and the regions they leave unanswered.
 
 **A module-scope edit degrades to the module.** A four-hundred-line file of
 top-level constants has one initialization block, so editing any of them selects

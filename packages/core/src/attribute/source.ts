@@ -23,7 +23,7 @@
  *
  * The index is plain data. `core` performs no I/O (ADR-0006) and has no parser,
  * so building one is a caller's job — `indexDeclarations` in
- * [`@variance-authority/sense`](../../../sense/src/declarations.ts) reads it off
+ * [`@variance-authority/sense`](https://github.com/Variance-Authority/variance-authority/blob/main/packages/sense/src/declarations.ts) reads it off
  * a module's parse — and resolving against one is here.
  */
 

@@ -21,6 +21,22 @@ answers from the last recording, so for a file it has never seen, put the edit
 in the tree and read `yarn variance select --suite <slice>`: it selects from the
 diff, and says nothing about a file that has not changed.
 
+**Does it change how a record is carried or read?** Carrying, the case index,
+and the selection and comparison read off them, keep one contract: an
+ambiguous correspondence never becomes measured absence, and evidence never
+lands on a region that did not earn it. A unit test of one function cannot show
+either. A defect there shows only over a history: a cut, an edit, a run of other
+tests, then a selection that misses a test or a comparison that calls a region
+lost. So a change to these mechanisms names, in its PR, the clause of the
+contract it keeps and the journey in
+`packages/sense/src/test-selection/__fixtures__/carry-stories.ts` that exercises
+it, in-process and through the CLI, adding the journey when none does. It also
+shows the regression test failing on the code before the fix: the command and
+its failing assertion, quoted in the PR's `Pinned by` column. The
+`carry contract` step of the `rules` job in
+[`check.yml`](../../.github/workflows/check.yml) runs these journeys by path rather than by selection, because a carrying defect
+corrupts the very record a selection would be read from.
+
 **Is it this task?** A task is the sentence of done from [refine](refine.md),
 and its code is its branch's diff, `git diff origin/main`. A defect in that diff
 is the task's, whoever finds it — the agent, a reviewer, CodeRabbit, CI, the
@@ -99,6 +115,21 @@ the site, CLI output and error messages. Read it before writing any of them.
   `codeUnitOrder` from `@variance-authority/core/segment`, not a local
   comparator.
 - **500 lines per file**, enforced by `tools/shape.check.ts`.
+- **A budget per written surface**, in content lines: a file overview 15, a
+  declaration's docblock 10, a block comment in code 5, a public page's lead 15.
+  Blank lines, bare tags and pragmas such as `// compass:` do not count.
+  `tools/budgets.check.ts` reads comments with oxc and holds the debt recorded
+  in `tools/budgets.baseline.json`.
+- **A breach is a collapse, not a trim.** Write what the task needs while you
+  work; the limits are checked once, in `verify:rules`. A surface or file that
+  breaches is collapsed in the same change, as a commit of its own before the
+  feature commit, and well under the limit: a comment to about half its budget,
+  a file split by responsibility to about 300 lines each. Overflow moves to its
+  owner — down to the site it governs, up to the folder or package, or to the
+  export's docblock — and an owner that does not exist is created, held to its
+  own limit. A change that grows a surface on the debt list collapses the whole
+  surface, not the lines it added. A debt entry that shrinks is written down with
+  `yarn budgets --write`.
 - **An export a README names is run by something**, enforced by
   `tools/docs-exercised.check.ts`. The rule is deliberately shallow — it asks
   whether a test *names* the export, not whether the test is about it — and it
@@ -108,7 +139,43 @@ the site, CLI output and error messages. Read it before writing any of them.
   being typed again: a SHA-256 digest, a code-unit comparator and a
   write-then-rename. `tools/owners.check.ts` holds their sites per file and
   names each owner, and `tools/clones.check.ts` holds pasted blocks per pair of
-  files. Neither sees a long flow re-typed with new names.
+  files. Neither sees a long flow re-typed with new names; the Alignment
+  reviewer looks for that.
+- **One implementation.** A second way to compute an answer that already has
+  one is a defect, however it is spelled: a new flag beside an old one, a fast
+  path beside the general path, a fallback beside the reader that refused. The
+  change extends, calls or replaces the first; it never sits next to it.
+- **Four roles, and complexity goes down.** Each file plays one of them. A
+  shell imports decisions and mechanisms, a mechanism imports engines, and a
+  decision imports only decisions and types; nothing imports a shell. A role is
+  not a package layer: those are depth in the import graph, from
+  `variance layers`.
+  1. **Engine** — borrowed: oxc parses, git finds files and diffs, TypeScript
+     answers types, Chromium paints, the runner says what an import meant under
+     test. We call an engine; we never re-implement it.
+  2. **Mechanism** — our deep modules: complex inside, a narrow interface out,
+     no policy. The source index, the recording, the comparator.
+  3. **Decision** — pure functions over values a mechanism returned. No I/O,
+     no clock, no process.
+  4. **Shell** — wiring: read arguments, call, print. No branches beyond
+     dispatch.
+
+  A rule that wants a loop over bytes goes down a role into a mechanism; a
+  mechanism that wants a policy takes it as a parameter. Before writing a
+  mechanism, ask whether an engine already answers it. This is Bernhardt's
+  "functional core, imperative shell" with the core split into Ousterhout's
+  deep modules. Nothing checks a role yet: a file does not declare one
+  (`tools/relations.check.ts` holds the marker).
+- **Scope stops at a neighbour's answer.** What another tool owns — the table in
+  [`.compass/COMPASS.md`](../../.compass/COMPASS.md#not-ours) — is asked of that
+  tool, never grown here. A capability that would make variance answer its
+  neighbour's question is a separate decision, not a step inside a feature.
+- **No runner is the default.** Runner-neutral code reads no runner's
+  integration: Jest, Vitest and Rstest are peers, and what two of them share
+  moves into a neutral file they each call. `.relations.json` beside the
+  integrations holds the fence, and `yarn restrictions` (in `verify:rules`)
+  fails an import across it. A feature lands for every runner or says, at the
+  site, which runner it waits for.
 - **Performance is earned, and isolation is not how it is earned.** A session
   keeps one browser, one context and one page (ADR-0009), and switches subjects
   **in place** through the harness's own API — Storybook's story switch, never a
@@ -125,6 +192,13 @@ the site, CLI output and error messages. Read it before writing any of them.
   names the writer and the selector that connected them, and we guide the fix.
   Rinsing an unstable subject until it looks stable hides the defect and charges
   every other subject for it.
+  A navigation, a reload, a new browser, page or context is a `fresh-page` site, and a
+  `setTimeout`, `setInterval` or `waitForTimeout` is a `timer` site:
+  `tools/owners.check.ts` holds today's per file, tests included, and a new one
+  fails. Readiness
+  is a signal — an event, a promise, `aria-busy`, the harness hook — and a timer
+  is only a deadline that names what never answered. A deadline lands the way
+  any recorded site does: its reason at the site, then `yarn owners --write`.
 - **No magic, and not alone.** Nothing performs an operation the user did not
   ask for, in a place they would not look for it. We never keep the user blind,
   and we never fix an edge case behind their back. Across a boundary we ride what

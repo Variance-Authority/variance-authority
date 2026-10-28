@@ -21,7 +21,7 @@ import { type Reached, baselinesAt, reach, shareAt, versionNote } from '../versi
 /**
  * The caller the tribunal's write half never had.
  *
- * Rung 4 of [`flows.md`](../../../../docs/flows.md) is a review surface: builds,
+ * Rung 4 of [`flows.md`](https://variance-authority.dev/docs/flows) is a review surface: builds,
  * a docket, region overlays, decisions that are recorded. Every part of it
  * shipped except the one that puts a build in front of a reviewer. Nothing in
  * this package and nothing in the shipped action posted to the ingest route, so

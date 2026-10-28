@@ -13,7 +13,7 @@
  */
 
 import { openBlob, openWords, packBlob, packWords, type WordColumn } from './columns.js';
-import { BITS, LIST, NARROW, RUNS, type CrossingSetsPool, type SetId } from './crossing-sets.js';
+import { BITS, LIST, RUNS, idWidth, type CrossingSetsPool, type SetId } from './crossing-sets.js';
 
 /** What a reader holds before it has been asked about anything. */
 const EMPTY = new Uint8Array(0);
@@ -77,7 +77,7 @@ export function openCrossingSets(source: CrossingSetsPool | CrossingSetsSource):
     ? (source as CrossingSetsSource)
     : poolSource(source as CrossingSetsPool);
   const { testCount } = held;
-  const width = testCount < NARROW ? 2 : 4;
+  const width = idWidth(testCount);
 
   let last = -1;
   let bytes: Uint8Array = EMPTY;

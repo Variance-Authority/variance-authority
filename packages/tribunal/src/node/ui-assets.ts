@@ -6,7 +6,7 @@ import { REVIEW_STYLES } from '../ui/styles.js';
  *
  * The review surface is a React component tree, and a `node:http` server cannot
  * hand a browser a component tree. Something has to bundle it. That something is
- * **not this package** — [`tools/page-agents.mjs`](../../../../tools/page-agents.mjs)
+ * **not this package** — [`tools/page-agents.mjs`](https://github.com/Variance-Authority/variance-authority/blob/main/tools/page-agents.mjs)
  * records the rule and the reason: a bundler is not a thing a consumer of a
  * visual-regression tool should install, and `tools/shape.check.ts` refuses build
  * tools in any package's dependencies. So the bundling happens at this

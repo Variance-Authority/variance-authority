@@ -6,7 +6,7 @@ import { dirname, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 import { chromium } from '@playwright/test';
-import { decodeExecutionIndex, type ExecutionIndex } from '@variance-authority/sense/test-selection';
+import { decodeExecutionIndex, rowOf, type ExecutionIndex } from '@variance-authority/sense/test-selection';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 // A real Playwright run over a spec that says what its cases arranged, from the
@@ -108,67 +108,67 @@ describe.runIf(BROWSER_AVAILABLE)('a Playwright case that names its precondition
   };
 
   it('carries what its body said, with the call site, over what a beforeEach said', () => {
-    expect(row('mocked', 'refunds behind a flag').preconditions).toEqual([
-      said('flag', 'ff-on', 'case flag'),
-      said('network', 'mocked', 'mocked each'),
+    expect(rowOf(row('mocked', 'refunds behind a flag'))).toEqual([
+      said('fixture:flag', 'ff-on', 'case flag'),
+      said('fixture:network', 'mocked', 'mocked each'),
     ]);
-    expect(row('live', 'replays a recording').preconditions).toEqual([said('network', 'recorded', 'case network')]);
+    expect(rowOf(row('live', 'replays a recording'))).toEqual([said('fixture:network', 'recorded', 'case network')]);
   });
 
   it('carries what a beforeEach inside a describe said, which a sibling describe never hears', () => {
-    expect(row('mocked', 'pays').preconditions).toEqual([said('network', 'mocked', 'mocked each')]);
-    expect(row('live', 'replays a recording').preconditions?.some((held) => held.value === 'mocked')).toBe(false);
+    expect(rowOf(row('mocked', 'pays'))).toEqual([said('fixture:network', 'mocked', 'mocked each')]);
+    expect(rowOf(row('live', 'replays a recording'))?.some((held) => held.value === 'mocked')).toBe(false);
   });
 
   // A Playwright without one of the internals read refuses at setup, so every
   // test fails and the run exits non-zero before any row is written.
   it('reads every internal it needs to say a hook’s describe from the installed Playwright', () => {
     expect(output).not.toMatch(/cannot say which describe declared a beforeEach/);
-    expect(row('flag on', 'reads the exception').preconditions).not.toEqual([]);
+    expect(rowOf(row('flag on', 'reads the exception'))).not.toEqual([]);
   });
 
   it('lets a beforeEach inside a describe override one at the top of the file', () => {
-    expect(row('flag on', 'reads the exception').preconditions).toEqual([said('flag', 'ff-on', 'describe flag')]);
+    expect(rowOf(row('flag on', 'reads the exception'))).toEqual([said('fixture:flag', 'ff-on', 'describe flag')]);
   });
 
   it('keeps a beforeEach inside a describe from a sibling describe, which hears the top of the file', () => {
-    expect(row('flag left alone', 'reads the default').preconditions).toEqual([said('flag', 'ff-off', 'file flag')]);
+    expect(rowOf(row('flag left alone', 'reads the default'))).toEqual([said('fixture:flag', 'ff-off', 'file flag')]);
   });
 
   it('places a beforeEach one helper declares at two depths at the depth of the one running', () => {
-    expect(row('tier outer', 'tier inner', 'reads the inner tier').preconditions).toEqual([
-      said('flag', 'ff-off', 'file flag'),
-      { ...said('tier', 'silver', 'helper tier'), level: 2 },
+    expect(rowOf(row('tier outer', 'tier inner', 'reads the inner tier'))).toEqual([
+      said('fixture:flag', 'ff-off', 'file flag'),
+      { ...said('fixture:tier', 'silver', 'helper tier'), level: 2 },
     ]);
   });
 
   it('keeps two values said at one level as a contradiction', () => {
-    expect(row('contradicted').preconditions).toEqual([
-      said('flag', 'ff-off', 'contradicted off'),
-      said('flag', 'ff-on', 'contradicted on'),
+    expect(rowOf(row('contradicted'))).toEqual([
+      said('fixture:flag', 'ff-off', 'contradicted off'),
+      said('fixture:flag', 'ff-on', 'contradicted on'),
     ]);
   });
 
   it('gives a case that said something a row, and a case that said nothing an empty one', () => {
-    expect(row('crosses nothing').preconditions).toEqual([said('seeded', true, 'seeded')]);
-    expect(row('says nothing').preconditions).toEqual([]);
+    expect(rowOf(row('crosses nothing'))).toEqual([said('fixture:seeded', true, 'seeded')]);
+    expect(rowOf(row('says nothing'))).toEqual([]);
   });
 
   it('reports a call in afterEach with its site and lays it on no case', () => {
     expect(output).toMatch(new RegExp(`variancePrecondition at \\S*checkout\\.spec\\.ts:${line('after each')} ran after its case`));
-    expect(index.tests.flatMap((test) => test.preconditions ?? []).some((held) => held.name === 'cleaned')).toBe(false);
+    expect(index.tests.flatMap((test) => rowOf(test) ?? []).some((held) => held.name === 'fixture:cleaned')).toBe(false);
   });
 
   it('names the case a snapshot was taken in, and what it had arranged by then', () => {
-    expect(row('mocked', 'photographs the receipt').preconditions).toEqual([
-      said('flag', 'ff-on', 'receipt flag'),
-      said('network', 'mocked', 'mocked each'),
-      said('seeded', true, 'receipt seeded'),
+    expect(rowOf(row('mocked', 'photographs the receipt'))).toEqual([
+      said('fixture:flag', 'ff-on', 'receipt flag'),
+      said('fixture:network', 'mocked', 'mocked each'),
+      said('fixture:seeded', true, 'receipt seeded'),
     ]);
     // The call after the snapshot is on the row and not on the snapshot.
     expect(annotated('listening', 'photographs the receipt')).toEqual([
       `receipt--ff-on: taken in ${specs}/checkout.spec.ts > mocked > photographs the receipt, ran under ` +
-        `flag=ff-on (${specs}/checkout.spec.ts:${line('receipt flag')}), network=mocked (${specs}/checkout.spec.ts:${line('mocked each')})`,
+        `fixture:flag=ff-on (${specs}/checkout.spec.ts:${line('receipt flag')}), fixture:network=mocked (${specs}/checkout.spec.ts:${line('mocked each')})`,
     ]);
   });
 

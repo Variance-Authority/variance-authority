@@ -46,7 +46,7 @@ const UNSTABLE = {
     components: [{ name: 'Clock', file: 'src/ds/Clock.tsx:22' }],
     bands: ['content'],
     because:
-      'read twice in the same world, seconds apart, with nothing changed in between, and ' +
+      'read twice in a row in the same world, with nothing changed in between, and ' +
       'the two readings disagree: Clock src/ds/Clock.tsx:22 read differently (content)',
   },
 };

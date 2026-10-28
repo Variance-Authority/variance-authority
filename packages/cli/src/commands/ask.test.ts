@@ -6,9 +6,8 @@ import type { RenderIdentity } from '@variance-authority/core/format';
 import type { VantageState } from '@variance-authority/vantage';
 import type { VantageReading } from '@variance-authority/vantage/attach';
 import { HELP_TOOLS, type Help } from '@variance-authority/help/tools';
-import { TOOLS, VANTAGE_TOOLS, toolByName, vantageToolByName } from '@variance-authority/mcp/tools';
+import { TOOLS, VANTAGE_TOOLS, toolByName, vantageToolByName, verbOf } from '@variance-authority/mcp/tools';
 import { ASKED, ask, askSource, questions, type Sourced } from './ask.js';
-import { questionOf } from './asking.js';
 import type { CliRunReport } from './run.js';
 
 const IDENTITY: RenderIdentity = {
@@ -73,9 +72,9 @@ describe('the questions', () => {
     // The whole claim of this command: an agent that cannot host a server is not
     // holding a smaller product. A tool added to either MCP set and not to this
     // list would make that false silently, in the one direction nobody checks.
-    expect(listed('ABOUT THE LAST RUN')).toEqual(TOOLS.map(questionOf));
-    expect(listed('ABOUT A SUITE THAT IS STILL RUNNING')).toEqual(VANTAGE_TOOLS.map(questionOf));
-    expect(listed('ABOUT THE WORKSPACE SOURCE')).toEqual(HELP_TOOLS.map(questionOf));
+    expect(listed('ABOUT THE LAST RUN')).toEqual(TOOLS.map(verbOf));
+    expect(listed('ABOUT A SUITE THAT IS STILL RUNNING')).toEqual(VANTAGE_TOOLS.map(verbOf));
+    expect(listed('ABOUT THE WORKSPACE SOURCE')).toEqual(HELP_TOOLS.map(verbOf));
   });
 
   it('lists the question that is both under both, because it answers about both', () => {
@@ -86,7 +85,7 @@ describe('the questions', () => {
   });
 
   it('names each question after its tool, without the transport in the name', () => {
-    expect(questionOf(toolByName('variance_trace_component')!)).toBe('trace-component');
+    expect(verbOf(toolByName('variance_trace_component')!)).toBe('trace-component');
   });
 
   it('answers without a report, because nothing about a run decides what may be asked', () => {
@@ -116,13 +115,17 @@ const WORKSPACE: Help = {
               usedBy: ['@example/beta'],
               uses: 1,
               sites: [],
+              throughDefault: [],
             },
           ],
+          whole: [],
         },
       ],
     },
   ],
   deep: [],
+  unfollowed: [],
+  byPath: [],
   exported: [],
   unreadable: [],
 };
@@ -391,6 +394,13 @@ describe('a question about a suite that is still running', () => {
     // A watcher is asked while the suite is going. There is no report yet, and
     // falling back to one would answer about the run before this one.
     expect(await ask(about('self', { state: RUNNING }))).toContain('http://127.0.0.1:4100');
+  });
+
+  it('names `limit` as a shell takes it, from the watcher and from the timed run alike', async () => {
+    const two: VantageState = { ...RUNNING, tests: [...RUNNING.tests, { ...RUNNING.tests[0]!, id: 't-2', ordinal: 1 }] };
+    expect(await ask(about('run-signals', { state: two }, { limit: 1 }))).toContain('a higher `--limit` lists them');
+    const timed = { from: 'The report run.json', subjects: [{ subject: 'story:a', ms: 2 }, { subject: 'story:b', ms: 1 }] };
+    expect(await ask({ question: 'costs', costs: () => Promise.resolve(timed), limit: 1 })).toContain('a higher `--limit` lists them');
   });
 
   it('compares against the reading the watcher handed out last', async () => {

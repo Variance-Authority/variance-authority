@@ -6,12 +6,13 @@
   "publisher": "machine-garden",
   "license": "MIT",
   "private": true,
-  "homepage": "https://variance-authority.dev",
+  "homepage": "https://variance-authority.dev/reference/packages/editors",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/Variance-Authority/variance-authority.git",
     "directory": "editors/vscode"
   },
+  "bugs": "https://github.com/Variance-Authority/variance-authority/issues",
   "engines": {
     "vscode": "^1.90.0"
   },

@@ -70,6 +70,7 @@ function probesWith(
       };
     },
     exists: async () => exists,
+    pointers: async () => [],
     partitions: async () => partitions,
     // Nothing cached. The cache is reported, never diagnosed: it holds only
     // images this machine can repaint.
@@ -84,6 +85,7 @@ function refusingProbes(): DoctorProbes {
       throw new Error('Executable does not exist at /ms-playwright/chromium/chrome');
     },
     exists: async () => true,
+    pointers: async () => [],
     partitions: async () => [],
     // Nothing cached. The cache is reported, never diagnosed: it holds only
     // images this machine can repaint.
@@ -205,6 +207,16 @@ describe('formatDiagnosis', () => {
 
     expect(text).toContain('Liberation Sans');
     expect(text).toContain('exit code unaffected');
+  });
+
+  it('prints the typescript finding, and a warning in it moves no exit code', async () => {
+    const diagnosis = {
+      ...(await doctor(configOf(), probesWith([]))),
+      typescript: { declared: false as const, under: '', configs: ['tsconfig.json'], conditioned: ['tsconfig.json'], mapped: [], based: [] },
+    };
+
+    expect(formatDiagnosis(diagnosis)).toContain('typescript: tsconfig off\n  1 tsconfig file in the repository');
+    expect(exitForDiagnosis(diagnosis)).toBe(exitForDiagnosis(await doctor(configOf(), probesWith([]))));
   });
 
   it('does not claim a limit for a probe that never ran', async () => {

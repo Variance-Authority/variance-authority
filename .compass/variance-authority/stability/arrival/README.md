@@ -54,6 +54,27 @@ directions: a subject declared to capture a loading state, that then settles,
 is refused too, because a declaration nobody deleted is a subject whose
 baseline flips between a skeleton and a component depending on the weather.
 
+Hydration is refused on the same terms. A server-rendered subject React has not
+committed is not the image it settles on: an effect that runs after hydration —
+a mounted flag, a theme read from storage, a layout measured on the client —
+paints differently, and nothing is read off a render that has not committed, so
+its components are missing too. A subject no React root was found for is
+collected, and carries `react-root-absent`, so that a region with no component
+on it reads as unobserved and never as unattributed.
+
+A wait needs a reason, and every reason is React's record or the wire's. A
+root with a render React can do, or a commit whose effects have not run, is
+waited for; a root stuck on a promise, or a page with no root yet, is waited
+for while a request is arriving, and then refused or read with
+`react-root-absent`. A page the tap saw no React load on waits only on a script
+arriving, the one request that can bring a renderer.
+
+Hydration is compared: the tap copies the markup in the hydration commit, and
+it is compared with the markup once React has nothing left to do, so the answer
+does not depend on how fast the machine reached it. A difference is reported as
+`hydration-changed-markup`, naming the components that committed after
+hydrating in the roots that reach the subject.
+
 It does not decide *why* a page never finished, and it does not fix it. It
 names the boundary, the component that wrote it, and the components still
 committing, and the fix is made where the markup is.
@@ -65,6 +86,22 @@ committing, and the fix is made where the markup is.
   gap between one fallback leaving and the next arriving is never photographed);
   `suspenseRefusal` turns a settlement into `string | undefined`, so a caller's
   use of it is one `if` and cannot decay into a log line.
+- `packages/react/src/hydration.ts` — `awaitHydration` finds every React root
+  on, above (up to the `Document`), under and behind the subject's own fiber,
+  and waits until React's record on each says it has committed: while a root
+  has lanes React can render or a commit has passive effects still to run, and,
+  stuck on a promise, while `outstanding` says a request is still arriving —
+  `packages/playwright/src/arrivals.ts` answers that from the page's own
+  requests. No clock ends the wait. A fiber count
+  is not that record: a shell suspended mid-hydration leaves fibers on the
+  nodes rendered before it. Given a commit tap it also waits for passive
+  effects, says when React never loaded, and compares the markup the tap copied
+  at the hydration commit (`tap.hydration(root)`) with the markup it ends on.
+  A page agent that is stopped while it waits on the wire is named by the
+  requests still arriving (`stillArriving`, in `arrivals.ts`).
+  `packages/route-collector/src/read.ts` turns the settlement into the
+  warnings, and `packages/route-collector/src/page-agent-entry.ts` taps once
+  per document.
 - `packages/react/src/suspense.ts` — `boundariesUnder`, which reads a boundary's
   state off the committed fiber and distinguishes resolved, pending and
   dehydrated by traversal, with nothing installed.

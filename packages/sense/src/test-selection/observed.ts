@@ -15,6 +15,7 @@ import type { ObservedEyes } from './eyes-record.js';
 import { codeUnitOrder } from './instrumented-modules.js';
 import type { CoveragePrecondition } from './index.js';
 import type { ExecutedModule, ExecutionJournal } from './probes.js';
+import { summedPhases, type FilePhases } from './reported-time.js';
 
 /** One subject's window in the page, as the driver observed it. */
 export interface ObservedSubject {
@@ -47,6 +48,12 @@ export interface ObservedSubject {
    * a head reports crossings, not time — so a join sums what its sources carry.
    */
   readonly duration?: number;
+  /**
+   * Where that time went, as the source timed it: for a story, the preview's
+   * load, the story file's and the render. Absent from a source that timed
+   * none, as `duration` is, and summed across sources as it is.
+   */
+  readonly phases?: FilePhases;
 }
 
 /**
@@ -171,6 +178,7 @@ export function joinObservations(
     complete: boolean;
     instrumentation: string;
     duration?: number;
+    phases?: FilePhases;
   }
   const byOwner = new Map<string, Held>();
 
@@ -188,6 +196,13 @@ export function joinObservations(
       }
       if (subject.complete === false) held.complete = false;
       if (subject.duration !== undefined) held.duration = (held.duration ?? 0) + subject.duration;
+      // Summed like the duration where two sources timed the owner; a source
+      // that timed nothing — a head — leaves the other's phases standing.
+      if (subject.phases !== undefined) {
+        const phases = held.phases === undefined ? subject.phases : summedPhases(held.phases, subject.phases).phases;
+        if (phases === undefined) delete held.phases;
+        else held.phases = phases;
+      }
       // A recipe that does not match this driver's has to survive the fold, or
       // the refusal it exists to trigger is folded away with it.
       if (subject.journal.instrumentation !== INSTRUMENTATION_ID) {
@@ -203,6 +218,7 @@ export function joinObservations(
       owner,
       complete: held.complete,
       ...(held.duration === undefined ? {} : { duration: held.duration }),
+      ...(held.phases === undefined ? {} : { phases: held.phases }),
       journal: {
         instrumentation: held.instrumentation,
         modules: modulesEntered(held.modules),

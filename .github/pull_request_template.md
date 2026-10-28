@@ -15,7 +15,10 @@ Mark: Upgrade (modified), Extract (separated out so callers share it), Ghost
 (new: nothing existing carries it), Acquire (a dependency brought in),
 Deconstruct (removed). A Ghost or Acquire names what existing code it ruled
 out, and why. Pinned by: the test that fails without the block, or the command
-and result that show it. -->
+and result that show it. A block that changes how a record is carried, indexed
+by case, or read by a selection or a comparison also names the contract clause
+it keeps and the carry journey that exercises it, and quotes that test's
+failing assertion on the code before the fix. -->
 
 | Mark | Block | Change | Pinned by |
 | --- | --- | --- | --- |

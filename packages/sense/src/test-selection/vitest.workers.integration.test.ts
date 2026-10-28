@@ -2,7 +2,7 @@
  * One run, several worker processes, one snapshot — and no fan-in.
  *
  * A suite split across machines produces a snapshot per shard and is folded by
- * `foldTestCoverage`. A suite split across *workers* is not that: it is one
+ * `combineRecords`. A suite split across *workers* is not that: it is one
  * runner process with one coverage file, and each test file writes its own
  * journal into the run directory as it finishes. What stitches them is the
  * reporter, in the process that is already there.

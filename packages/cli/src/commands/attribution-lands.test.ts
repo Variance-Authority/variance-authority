@@ -6,6 +6,7 @@ import {
   encodeAsSetExecutionIndex,
   readTestCoverage,
   recordedEyesAt,
+  rowOf,
   writeTestCoverage,
   type ExecutionTest,
 } from '@variance-authority/sense/test-selection';
@@ -35,10 +36,12 @@ afterEach(async () => {
 
 const TOTAL = 'test/total.test.ts';
 const OTHER = 'test/other.test.ts';
-const MOCKED = { name: 'network', value: 'mocked', site: `${TOTAL}:2`, level: 1 };
-const FLAGGED = { name: 'flag', value: 'ff-on', site: `${OTHER}:1`, level: 0xffff };
-const DISCOUNTS: ExecutionTest = { id: `${TOTAL} > discounts`, file: TOTAL, name: 'discounts', preconditions: [MOCKED] };
-const STANDS: ExecutionTest = { id: `${OTHER} > stands alone`, file: OTHER, name: 'stands alone', preconditions: [FLAGGED] };
+const MOCKED = { name: 'network:api', value: 'mocked', site: `${TOTAL}:2`, level: 1 };
+const FLAGGED = { name: 'flags:checkout', value: 'ff-on', site: `${OTHER}:1`, level: 0xffff };
+/** What a case said, as the frame spells it. */
+const said = (...items: readonly (typeof MOCKED)[]) => JSON.stringify({ said: items.map(({ name, value, site, level }) => [name, JSON.stringify(value), site, level]) });
+const DISCOUNTS: ExecutionTest = { id: `${TOTAL} > discounts`, file: TOTAL, name: 'discounts', said: said(MOCKED) };
+const STANDS: ExecutionTest = { id: `${OTHER} > stands alone`, file: OTHER, name: 'stands alone', said: said(FLAGGED) };
 const journal = (by: string) => ({ complete: true, attention: [], by });
 
 /** A shard of the run at `commit` that ran `test` alone: its coverage of `src/total.ts`, its case, and that case's journal. */
@@ -86,7 +89,7 @@ describe('landJourneys and every kind of attribution a shard holds', () => {
       ['src/total.ts', [OTHER, TOTAL]],
     ]);
     const index = await readExecutionIndex(record);
-    expect(index.tests.map((test) => [test.id, test.preconditions])).toEqual([
+    expect(index.tests.map((test) => [test.id, rowOf(test)])).toEqual([
       [STANDS.id, [FLAGGED]],
       [DISCOUNTS.id, [MOCKED]],
     ]);

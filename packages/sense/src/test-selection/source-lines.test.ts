@@ -193,7 +193,8 @@ const cut = (root: string, path: string, code: string, include: (file: string) =
 
 describe('what the build seam cuts', () => {
   it('records a block at the line the author would find it on', () => {
-    const written = cut('/repo', '/repo/app/src/a.ts', ORIGINAL)?.module;
+    // The file on disk holds the text the transform is handed.
+    const written = captureModule('/repo', '/repo/app/src/a.ts', ORIGINAL, () => true, undefined, () => ORIGINAL)?.module;
     const arrow = written?.blocks.find((block) => block.kind === 'function');
 
     expect(written?.file).toBe('app/src/a.ts');

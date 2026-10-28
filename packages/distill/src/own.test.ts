@@ -1,6 +1,7 @@
 import type { ExecutionIndex, TestCoverage } from '@variance-authority/sense/test-selection';
 import { describe, expect, it } from 'vitest';
 import { distillFile, formatFileDistillation, type LoadCause } from './index.js';
+import { graphOf, recordOf } from './record.fixture.js';
 
 const FILE = 'test/dialog.test.ts';
 const OTHER = 'test/other.test.ts';
@@ -56,13 +57,8 @@ function read(
   };
   return distillFile({
     file: FILE,
-    coverage,
-    execution,
-    ...(edges === undefined ? {} : {
-      imports: (file: string) => edges[file] ?? [],
-      republishes: (file: string) => republishing.includes(file),
-    }),
-    ...(lazy === undefined ? {} : { lazy: (file: string) => lazy[file] ?? [] }),
+    record: recordOf(coverage, execution),
+    ...(edges === undefined && lazy === undefined ? {} : { relations: graphOf(edges ?? {}, republishing, lazy) }),
   });
 }
 

@@ -36,6 +36,14 @@ beforeAll(() => {
   write('src/old/selectors.ts', 'export const selectBalance = () => 0;\n');
   write('src/Nav.ts', "import { useTheme } from './theme';\nexport const nav = useTheme;\n");
   write('src/theme.ts', "const ThemeContext = { theme: 'light' };\nexport const useTheme = () => ThemeContext;\n");
+  // `greet` reaches its users through two barrels; `wave` passes through the same ones.
+  write('src/lib/greet.ts', "export const greet = () => 'hi';\nexport const wave = () => 'o/';\n");
+  write('src/lib/index.ts', "export { greet, wave } from './greet';\n");
+  write('src/lib/all.ts', "export * from './index';\n");
+  write('src/Hello.ts', "import { greet } from './lib';\nexport const hello = greet;\n");
+  write('src/Deep.ts', "import { greet } from './lib/all';\nexport const deep = greet;\n");
+  write('src/Waver.ts', "import { wave } from './lib';\nexport const waver = wave;\n");
+  write('src/Page.ts', "import { hello } from './Hello';\nexport const page = hello;\n");
   const commit = (...args: string[]): void => void execFileSync('git', ['-C', root, ...args]);
   commit('init', '--quiet');
   commit('add', '.');
@@ -71,6 +79,16 @@ describe('ask discover over a checkout', () => {
     expect(text).toContain('2 files importing `selectBalance` from `src/store/selectors.ts`, through 1 file that passes it on');
     expect(text).toContain('src/Wallet.ts:1  imports selectBalance from ./store');
     expect(text).toContain('src/store/index.ts:1  imports selectBalance from ./selectors');
+  });
+
+  it('finds what rests on a name out of a file, through the barrels that pass it on, and not what imports another name through them', async () => {
+    const text = await ask({ to: 'src/lib/greet.ts#greet' });
+    expect(text).toContain('4 files reaching `greet` from `src/lib/greet.ts`, through 2 files that pass it on');
+    expect(text).toContain('src/Hello.ts:1  imports greet from ./lib');
+    expect(text).toContain('src/Deep.ts:1  imports greet from ./lib/all');
+    expect(text).toContain('2 imports to src/lib/greet.ts#greet: src/Page.ts → src/Hello.ts:1 imports greet from ./lib');
+    expect(text).not.toContain('src/Waver.ts');
+    expect(text).not.toContain('src/lib/index.ts');
   });
 
   it('crosses paths alone, with no names to read', async () => {

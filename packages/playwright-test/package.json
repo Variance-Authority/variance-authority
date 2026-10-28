@@ -1,6 +1,6 @@
 {
   "name": "@variance-authority/playwright-test",
-  "version": "0.15.0",
+  "version": "0.21.0",
   "description": "Add a source-aware visual observation to a Playwright test that already gets the app into the state.",
   "keywords": [
     "variance-authority",
@@ -65,5 +65,8 @@
   },
   "peerDependencies": {
     "@playwright/test": ">=1.49 <2"
+  },
+  "devDependencies": {
+    "pngjs": "^7.0.0"
   }
 }

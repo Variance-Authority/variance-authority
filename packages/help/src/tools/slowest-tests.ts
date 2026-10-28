@@ -2,10 +2,11 @@
  * `docs_slowest_tests` — which recorded test files, and which test cases, took
  * longest, anywhere or somewhere.
  *
- * The duration is the one the test runner reported when the run was recorded:
- * for a file, Vitest's file result, Jest's `perfStats.runtime`, Rstest's file
- * duration; for a case, Vitest's task result, Jest's assertion result, Rstest's
- * test result. Nothing here times anything, and a file or case whose runner
+ * The duration is read from what the test runner reported when the run was
+ * recorded: for a file, what running it cost, the larger of its duration and
+ * its phases summed (`fileCost`), so the time before its first case counts; for
+ * a case, Vitest's task result, Jest's assertion result, Rstest's test result.
+ * Nothing here times anything, and a file or case whose runner
  * reported no duration is counted apart rather than ranked as instant.
  *
  * *Slowest* means little without *where*, so a question may narrow it: `from`
@@ -22,6 +23,7 @@
 
 import type { Tool } from '@variance-authority/mcp/tools';
 import { recordedDurations, type DurationScope } from '@variance-authority/sense';
+import { limitOf, spellingOf } from '@variance-authority/mcp/tools';
 import { formatSlowest } from './slowest-format.js';
 import { recordedOnce, refuseUnknownPath } from './unknown-path.js';
 
@@ -29,17 +31,6 @@ export { formatSlowest, spent } from './slowest-format.js';
 
 /** Files, and cases, listed per suite when the question names no limit. */
 export const SLOWEST = 10;
-
-/** The limit as asked: a whole number of at least one, or the default when none was given. */
-export function limitOf(input: Readonly<Record<string, unknown>>): number {
-  const said = input['limit'];
-  if (said === undefined) return SLOWEST;
-  const limit = typeof said === 'string' && said.trim() !== '' ? Number(said) : said;
-  if (typeof limit !== 'number' || !Number.isInteger(limit) || limit < 1) {
-    throw new Error(`\`--limit\` takes a whole number of rows, at least 1; it was given \`${String(said)}\`.`);
-  }
-  return limit;
-}
 
 /** `from` and `to` as asked: each a list of paths, a lone string read as a list of one. */
 export function scopeOf(input: Readonly<Record<string, unknown>>): DurationScope {
@@ -75,7 +66,8 @@ export const slowestTests: Tool<unknown> = {
   name: 'docs_slowest_tests',
   description:
     'The test files, then the test cases, that took longest in the latest recorded run, slowest first, with ' +
-    'the duration the test runner reported for each; a case row names its file and its declaration path. ' +
+    'what each took as its test runner timed it, a file\'s time including its environment, setup files and import ' +
+    'before its first case; a case row names its file and its declaration path. ' +
     '`from` keeps the tests declared under the paths given, `to` the tests the recording says entered code ' +
     'in them, and the two combine. Counts are within that scope, a path the recording has no row for is ' +
     'named as unrecorded, and files and cases whose runner reported no duration are counted, not ranked. ' +
@@ -105,7 +97,7 @@ export const slowestTests: Tool<unknown> = {
   },
 
   run: (_subject, input, invocation) => {
-    const limit = limitOf(input);
+    const limit = limitOf(input, SLOWEST, spellingOf(invocation));
     const scope = scopeOf(input);
     const root = invocation?.root;
     if (root === undefined) {

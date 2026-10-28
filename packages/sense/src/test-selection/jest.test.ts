@@ -63,14 +63,15 @@ describe('withJourneyCoverage for Jest', () => {
     ]);
   });
 
-  it('runs the project environment through one that requires the trace once per worker', () => {
+  it('runs the project environment through one that requires the trace once per worker', async () => {
     const rootDir = resolve(import.meta.dirname, '../..');
     const configured = withJourneyCoverage(
       { rootDir, testEnvironmentOptions: { customExportConditions: ['node'] } },
       { journeyFile: 'journeys.bin', trace: '<rootDir>/test/sentry.cjs' },
     );
 
-    expect(configured.testEnvironment).toBe(TRACE_ENVIRONMENT);
+    expect(configured.testEnvironment).toMatch(/jest-environments\/v1%3A[0-9a-f]+\.mjs$/);
+    expect(await readFile(configured.testEnvironment as string, 'utf8')).toContain(TRACE_ENVIRONMENT);
     expect(configured.testEnvironmentOptions).toEqual({
       customExportConditions: ['node'],
       varianceAuthority: {
@@ -143,10 +144,12 @@ function transformOptions(root: string, id = 'project'): JestTransformRequest {
 }
 
 describe('withTestSelection for Jest', () => {
-  it('composes with the setup files, reporters, and transforms the configuration already has', () => {
+  it('composes with the setup files, reporters, and transforms the configuration already has', async () => {
+    const root = await mkdtemp(resolve(tmpdir(), 'variance-jest-environment-config-'));
+    temporary.push(root);
     const configured = withTestSelection(
       {
-        rootDir: '/repo',
+        rootDir: root,
         testEnvironment: '<rootDir>/test/environment.ts',
         setupFiles: ['<rootDir>/test/polyfills.js'],
         setupFilesAfterEnv: ['<rootDir>/test/setup.ts'],
@@ -165,27 +168,27 @@ describe('withTestSelection for Jest', () => {
       'default',
       ['jest-junit', { outputDirectory: 'reports' }],
       [SELECTION_REPORTER, {
-        root: '/repo',
-        coverageFile: '/repo/coverage.bin',
+        root,
+        coverageFile: resolve(root, 'coverage.bin'),
         preconditions: [
-          '/repo/test/environment.ts',
-          '/repo/test/polyfills.js',
-          '/repo/test/setup.ts',
-          '/repo/tsconfig.json',
+          resolve(root, 'test/environment.ts'),
+          resolve(root, 'test/polyfills.js'),
+          resolve(root, 'test/setup.ts'),
+          resolve(root, 'tsconfig.json'),
         ],
-        declared: ['/repo/tsconfig.json'],
+        declared: [resolve(root, 'tsconfig.json')],
       }],
     ]);
     expect(configured.transform).toEqual({
       '\\.tsx?$': [SELECTION_TRANSFORM, {
-        root: '/repo',
+        root,
         transformer: ['@swc/jest', { jsc: { parser: { syntax: 'typescript' } } }],
-        exclude: ['/repo/test/environment.ts', '/repo/tsconfig.json'],
+        exclude: [resolve(root, 'test/environment.ts'), resolve(root, 'tsconfig.json')],
       }],
       '\\.css$': [SELECTION_TRANSFORM, {
-        root: '/repo',
+        root,
         transformer: 'jest-transform-css',
-        exclude: ['/repo/test/environment.ts', '/repo/tsconfig.json'],
+        exclude: [resolve(root, 'test/environment.ts'), resolve(root, 'tsconfig.json')],
       }],
     });
   });

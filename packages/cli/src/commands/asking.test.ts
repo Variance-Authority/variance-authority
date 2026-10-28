@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { HELP_TOOLS, intersection, search, symbol } from '@variance-authority/help/tools';
-import { COSTS_TOOLS, REVIEW_TOOLS, TOOLS, VANTAGE_TOOLS, toolByName, vantageToolByName } from '@variance-authority/mcp/tools';
-import { QUESTIONS, argumentsOf, questionFor, questionOf, takes } from './asking.js';
+import { COSTS_TOOLS, REVIEW_TOOLS, TOOLS, VANTAGE_TOOLS, toolByName, vantageToolByName, verbOf } from '@variance-authority/mcp/tools';
+import { QUESTIONS, argumentsOf, questionFor, takes } from './asking.js';
 
 /**
  * The catalogue is derived, and this is the claim that it stays derived.
@@ -14,17 +14,17 @@ import { QUESTIONS, argumentsOf, questionFor, questionOf, takes } from './asking
 
 describe('the question a tool answers', () => {
   it('is the tool’s name with the transport taken out of it', () => {
-    expect(questionOf(toolByName('variance_trace_component')!)).toBe('trace-component');
-    expect(questionOf(vantageToolByName('variance_run_signals')!)).toBe('run-signals');
+    expect(verbOf(toolByName('variance_trace_component')!)).toBe('trace-component');
+    expect(verbOf(vantageToolByName('variance_run_signals')!)).toBe('run-signals');
     // The workspace API server has its own namespace on the wire, and the
     // question drops that one too: a reader types `search`, not `docs_search`.
-    expect(questionOf(search)).toBe('search');
+    expect(verbOf(search)).toBe('search');
   });
 
   it('exists for every tool in all five sets, and for nothing else', () => {
-    const named = new Set([...TOOLS, ...VANTAGE_TOOLS, ...HELP_TOOLS, ...COSTS_TOOLS, ...REVIEW_TOOLS].map(questionOf));
+    const named = new Set([...TOOLS, ...VANTAGE_TOOLS, ...HELP_TOOLS, ...COSTS_TOOLS, ...REVIEW_TOOLS].map(verbOf));
 
-    expect(new Set(QUESTIONS.map((question) => questionOf(question.tool)))).toEqual(named);
+    expect(new Set(QUESTIONS.map((question) => verbOf(question.tool)))).toEqual(named);
   });
 
   it('carries the tool that answers it, per subject', () => {

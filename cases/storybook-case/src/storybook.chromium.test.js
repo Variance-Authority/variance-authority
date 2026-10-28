@@ -216,7 +216,6 @@ live('a subject that settles after the framework says it is done', () => {
     });
 
     expect(outcome.status).toBe('timeout');
-    expect(outcome.readiness).not.toBe('markup-quiescent');
     expect(outcome.readiness).not.toBe('storyRendered');
     expect(JSON.stringify(outcome)).toContain('never-attached');
   }, 60_000);

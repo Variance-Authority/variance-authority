@@ -75,6 +75,9 @@ can satisfy on its own is decoration.
 
 The identity provider should be GitHub, because the reviewer is already the pull
 request's reviewer and no password is then stored anywhere.
+[0101](0101-the-deployer-decides-who-the-tribunal-recognizes.md) proposes to
+carry this out through Cloudflare Access with GitHub as its login provider, so the tribunal
+verifies one identity token and holds no GitHub App.
 
 **The rule to carry forward:** the ingest capability must be *incapable* of
 approval rather than merely unauthorized for it. Today's two-token split already
@@ -152,11 +155,13 @@ CI, so nothing above depends on closing this.
 
 ## What would discharge this spec
 
-1. Decide option 1 or option 2 above, and write the ADR.
+1. Decide option 1 or option 2 above, and write the ADR. Option 2's two
+   questions, and the declaration that answers them, are
+   [0101](0101-the-deployer-decides-who-the-tribunal-recognizes.md)'s.
 2. Resolve the project **from the credential**, and delete `?project=` from every
    route that reads one. The storage half of this is already done.
 3. Make approval require a named subject, and make the ingest capability unable
-   to reach it.
+   to reach it — [0101](0101-the-deployer-decides-who-the-tribunal-recognizes.md).
 4. Implement metering as a walk over stored artifacts, and publish the walk so a
    customer can run it.
 5. Give `serveRenderer` a bearer token, and the CLI's `renderer` config the field

@@ -1,11 +1,12 @@
 import { hashComponents } from '@variance-authority/core/attribute';
-import { documentDigest } from '@variance-authority/core/format';
+import { documentDigest, timeOn } from '@variance-authority/core/format';
 import type {
   AccessibilitySnapshot,
   ComponentHash,
   Raster,
   RenderDocument,
   SemanticSnapshot,
+  StepClock,
 } from '@variance-authority/core/format';
 import type { RasterStore, Renderer } from '@variance-authority/raster';
 
@@ -46,9 +47,11 @@ export async function renderOnce(
   /** This document's component hashes, folded into the raster it produces. */
   components?: readonly ComponentHash[],
   accessibility?: AccessibilitySnapshot,
+  /** Takes `cache.get`, `cache.put`, and the renderer's steps under `render.`. */
+  steps?: StepClock,
 ): Promise<{ raster: Raster; rendered: boolean }> {
   const identity = renderer.identityFor(document);
-  const hit = await store.renderCache.get(documentDigest(document), identity);
+  const hit = await timeOn(steps, 'cache.get', async () => store.renderCache.get(documentDigest(document), identity));
 
   // A cache hit is an image of exactly this document, so the hashes computed
   // *here* describe it as well as the ones written with it did. What the cache
@@ -57,7 +60,7 @@ export async function renderOnce(
     return { raster: withEvidence(hit, components, accessibility), rendered: false };
   }
 
-  const painted = await renderer.render(document);
+  const painted = await renderer.render(document, steps?.within('render.'));
   // Pixels only. A render cache is addressed by document digest and holds
   // *images*; component hashes describe a snapshot, which carries provenance a
   // document does not, so two different snapshots share one cache key. Storing
@@ -65,7 +68,7 @@ export async function renderOnce(
   // and, because `images.ts` builds the candidate sidecar out of this cache, what
   // would have let `accept` promote a baseline whose hashes belong to a document
   // it is not an image of.
-  await store.renderCache.put(painted);
+  await timeOn(steps, 'cache.put', async () => store.renderCache.put(painted));
   return { raster: withEvidence(painted, components, accessibility), rendered: true };
 }
 

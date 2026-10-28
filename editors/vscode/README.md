@@ -4,6 +4,8 @@ See which test cases went through each line of the file you are editing,
 without leaving it. After your suite runs with the recorder on, the gutter
 beside every line it ran shows one of five marks, and hovering names the cases.
 
+Point your coding agent at [`llms.txt`](https://variance-authority.dev/llms.txt).
+
 | Mark | State | What it tells you |
 |---|---|---|
 | green bar | walked | Several cases went through these lines. |
@@ -55,3 +57,7 @@ code --install-extension variance-authority.vsix
 
 `variance.command` names a different CLI when the workspace's own
 `node_modules/.bin/variance` is not the one to ask.
+
+---
+
+**[Variance Authority for VS Code](https://variance-authority.dev/reference/packages/editors)** is part of [Variance Authority](https://variance-authority.dev) — [documentation](https://variance-authority.dev/docs) · [GitHub](https://github.com/Variance-Authority/variance-authority/tree/main/editors/vscode) · MIT

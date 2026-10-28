@@ -7,6 +7,7 @@ import {
   landRun,
   readCommitRuns,
   testCoverageFile,
+  writeTestCoverage,
   type TestCoverage,
 } from '@variance-authority/sense/test-selection';
 import { indexOutput } from './index-command.js';
@@ -55,11 +56,12 @@ describe('the install a landing of shards ran on', () => {
    * Commit `left-pad` 1.3.0 and the tests, then run each shard of `SPLIT` with
    * the lockfile at the version `recorded` names for it, uncommitted, and land
    * every shard into this checkout. `between` runs after the shards and before
-   * the landing. The lockfile is left at the last shard's version.
+   * the landing, and may add shards of its own. The lockfile is left at the
+   * last shard's version.
    */
   async function landedOver(
     recorded: readonly string[],
-    between: (shards: readonly string[]) => void = () => {},
+    between: (shards: string[], root: string, head: string) => Promise<void> | void = () => {},
   ): Promise<{ root: string; head: string }> {
     const { root, head } = checkout({ 'package-lock.json': npmLock('1.3.0') });
     const shards: string[] = [];
@@ -70,7 +72,7 @@ describe('the install a landing of shards ran on', () => {
       await landRun(at, part(head, files), root);
       shards.push(at);
     }
-    between(shards);
+    await between(shards, root, head);
     await landJourneys(root, shards);
     process.chdir(root);
     await indexOutput({ cwd: root });
@@ -96,6 +98,20 @@ describe('the install a landing of shards ran on', () => {
     expect(said.err).toContain(
       `package-lock.json resolves 1 package differently than the install recorded at ${head.slice(0, 12)} (left-pad)`,
     );
+  });
+
+  it('keeps the install when a shard recorded coverage of no test file', async () => {
+    const { root } = await landedOver(['1.4.0', '1.4.0'], async (shards, at, head) => {
+      // A shard handed no test file: its record holds coverage of nothing, and
+      // no runs record, since its seam landed no run.
+      const empty = join(at, '.shards', 'shard-2', 'coverage.bin');
+      mkdirSync(join(empty, '..'), { recursive: true });
+      const { instrumentation } = snapshot(head);
+      await writeTestCoverage(empty, { version: 3, instrumentation, commit: head, tests: [], modules: [] });
+      shards.push(empty);
+    });
+
+    expect(await readCommitRuns(testCoverageFile(root))).toHaveProperty('installed');
   });
 
   it('keeps no install, and compares from the commit, when the shards ran on two', async () => {

@@ -10,7 +10,8 @@ use std::collections::HashSet;
 use tree_sitter::{Node, Tree};
 
 use super::shape::{Binding, Export, Kind, Read, Request};
-use super::{line_of, named_children, text_of};
+use super::{declaration, file_private, kind_of, line_of, named_children, text_of};
+use crate::harvest::SourceSymbol;
 
 /// The suffix that makes a request name a package directory rather than a file.
 const WHOLE_PACKAGE: &str = ".*";
@@ -97,7 +98,7 @@ fn walk(node: Node, source: &str, held: &mut Gathering) {
             }
 
             _ => {
-                if let Some(name) = declared(child, source) {
+                if let Some(name) = declared(child, source).filter(|_| !file_private(child, source, &FILE_PRIVATE)) {
                     held.exports.push(Export {
                         exported: Some(name.clone()),
                         local: Some(name),
@@ -110,6 +111,27 @@ fn walk(node: Node, source: &str, held: &mut Gathering) {
         }
     }
 }
+
+/// Every top-level declaration, each with the `/** */` block above it.
+pub fn declarations(tree: &Tree, source: &str) -> Vec<SourceSymbol> {
+    let children = named_children(tree.root_node());
+    (0..children.len())
+        .filter_map(|at| {
+            let node = children[at];
+            let name = declared(node, source)?;
+            let mut symbol = declaration(&children, at, name, kind_of(node.kind())?, source, &[]);
+            if file_private(node, source, &FILE_PRIVATE) {
+                symbol.reach = Some("file");
+            }
+            Some(symbol)
+        })
+        .collect()
+}
+
+/// A top-level Kotlin `private` keeps a declaration to its file. Java has no
+/// such thing: a top-level `private` does not compile, and its grammar writes
+/// the keyword as an anonymous node that is no `visibility_modifier`.
+const FILE_PRIVATE: [&str; 1] = ["private"];
 
 fn want(held: &mut Gathering, value: &str, local: &str, line: u32) {
     if value.is_empty() || !held.seen.insert(value.to_string()) {
@@ -128,6 +150,7 @@ fn want(held: &mut Gathering, value: &str, local: &str, line: u32) {
         // Always. See the module doc: nothing in the statement separates this
         // repository's packages from the platform's.
         guessed: true,
+        item: false,
     });
 }
 
@@ -140,8 +163,9 @@ fn ends_wide(text: &str) -> bool {
     rest.ends_with('*')
 }
 
-/// Declarations a file publishes to its package and to anything importing it.
-const DECLARATIONS: [&str; 9] = [
+/// Declarations a file publishes to its package and to anything importing it,
+/// unless [`FILE_PRIVATE`] keeps one.
+pub(super) const DECLARATIONS: [&str; 9] = [
     "class_declaration",
     "interface_declaration",
     "enum_declaration",

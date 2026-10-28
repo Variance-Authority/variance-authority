@@ -11,6 +11,7 @@ import {
   EDGE_KINDS,
   NODE_KINDS,
   NOTHING,
+  RUNTIME_EDGES,
   WHOLE,
   carried,
   type Adjacency,
@@ -65,7 +66,7 @@ export function walkImporters(
       arrive: (importer, _from, kind, carry) => (kinds[importer] !== FILE ? NOTHING : kind === DEPENDS ? WHOLE : carry),
       hand: (importer, arrived) => visit(names[importer]!, arrived),
     },
-    { seedsHold: false, mask },
+    { through: RUNTIME_EDGES, seedsHold: false, mask },
   );
   for (const node of entered) mask[node] = 0;
   idle.set(dependents, mask);

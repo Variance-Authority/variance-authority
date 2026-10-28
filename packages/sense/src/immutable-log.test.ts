@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
 import { native } from './addon.js';
 import { BadLogPath, openImmutableLog } from './immutable-log.js';
+import { decodeSourceIndex, encodeSourceIndex } from './source-index-format.js';
 
 /**
  * Segments written as the addon writes them. With nothing read, a save's layers
@@ -11,6 +12,11 @@ import { BadLogPath, openImmutableLog } from './immutable-log.js';
  */
 function publish(file: string, ...segments: string[]): void {
   expect(native()!.appendSourceIndex(file, [], false, segments.map((text) => Buffer.from(text)))).toBeNull();
+}
+
+/** A segment that is an index, with nothing in it but its configuration: a save over a chain reads its base. */
+function index(config: string): Buffer {
+  return encodeSourceIndex({ config, parses: new Map(), records: new Map(), directories: new Map() });
 }
 
 describe('the immutable segment log', () => {
@@ -35,18 +41,18 @@ describe('the immutable segment log', () => {
 
   it('keeps the chain up to the first segment that fails its digest', async () => {
     const file = await path();
-    publish(file, 'one', 'two', 'three');
+    expect(native()!.appendSourceIndex(file, [], false, ['one', 'two', 'three'].map(index))).toBeNull();
     const [, second] = (await openImmutableLog(file)).digests;
     await writeFile(join(`${file}.segments`, `${second!.replace(':', '-')}.bin`), 'changed');
 
     const opened = await openImmutableLog(file);
-    expect(opened.segments.map(String)).toEqual(['one']);
+    expect(opened.segments.map((segment) => decodeSourceIndex(segment).config)).toEqual(['one']);
     expect(opened.dropped).toBe(2);
 
     // A save over the prefix it read replaces what the manifest named past it.
-    expect(native()!.appendSourceIndex(file, [...opened.digests], false, [Buffer.from('four')])).toBeNull();
+    expect(native()!.appendSourceIndex(file, [...opened.digests], false, [index('four')])).toBeNull();
     const next = await openImmutableLog(file);
-    expect(next.segments.map(String)).toEqual(['one', 'four']);
+    expect(next.segments.map((segment) => decodeSourceIndex(segment).config)).toEqual(['one', 'four']);
     expect(next.dropped).toBe(0);
   });
 

@@ -1,0 +1,154 @@
+/**
+ * Where a member is declared and used, which no import names.
+ *
+ * A method or property of an interface, a type literal or a class is reached
+ * through a value, never imported, so the module graph lists nobody who
+ * declares or calls one. Its declarations are a fact of the parse: the scan
+ * records every member each file declares, on the container that holds it,
+ * and this reads the ones by one name off the source index.
+ *
+ * So are its uses where the line writes the value's type: a binding annotated
+ * as the container, a cast to it, an object literal written as one, a pattern
+ * destructuring one. The scan records the type's name as each file writes it,
+ * and the index joins that name to the declaration through the import that
+ * binds it, so each use is listed under the one declaration it belongs to,
+ * whatever other container shares the member's name.
+ *
+ * A value whose type the line does not write — inferred from a call, a
+ * generic, a subtype, a JSX attribute, a utility type — has the type a type
+ * checker gives it, and none runs here. Type resolution is the checker's of the
+ * declaration's language, TypeScript's for JavaScript and TypeScript, so the
+ * answer says where its own reading stops and names the declaration to ask
+ * that checker's find-references about, rather than copying a type rule or
+ * passing a text search off as the uses.
+ */
+
+// compass: variance-authority.report.agent-surface
+
+import type { Use } from '@variance-authority/package/help';
+import { LANGUAGES, type LanguageId, languageOf, memberDeclarationsOf, readsMembers } from '@variance-authority/sense';
+import { ownerOf } from './by-path.js';
+import type { Spelling } from '@variance-authority/mcp/tools';
+
+/** The declarations of a member by one name. */
+export interface Members {
+  /** Each declaration, `by` the container it is on. */
+  readonly declared: readonly Use[];
+  /**
+   * Each declaration on a named container, in `declared`'s order, with every
+   * line that uses the member through a value written as that container, `by`
+   * the package and how it uses it.
+   */
+  readonly used: readonly { readonly declared: Use; readonly uses: readonly (Use & { readonly how: string })[] }[];
+  /** Why the declarations were not read, when they were not. */
+  readonly unread?: string;
+  /**
+   * The languages of the files the source index holds whose members the scan
+   * does not record, by name; absent when the declarations were not read.
+   */
+  readonly elsewhere?: readonly string[];
+}
+
+/**
+ * The declarations of member `name` the source index of the checkout at
+ * `root` records, in the package `wanted` names when it names one; none, and
+ * why, when no checkout is named or the index does not read.
+ */
+export function membersOf(root: string | undefined, name: string, wanted: string | undefined): Members {
+  if (root === undefined) return { declared: [], used: [], unread: 'this host named no checkout to read the source index of' };
+  let found: ReturnType<typeof memberDeclarationsOf>;
+  try {
+    found = memberDeclarationsOf(root, name);
+  } catch (error) {
+    return { declared: [], used: [], unread: `${error instanceof Error ? error.message : String(error)}; run \`variance index\`` };
+  }
+  if (found === undefined) return { declared: [], used: [], unread: 'no source index is published; run `variance index`' };
+  const owner = wanted === undefined ? undefined : ownerOf(wanted);
+  const sites = found.sites.filter((site) => owner === undefined || site.by === owner);
+  const declared = sites.map((site): Use => ({ at: site.at, line: site.line, by: site.on, kind: site.kind, type: false }));
+  const used = sites.flatMap((site, at) =>
+    site.uses === undefined
+      ? []
+      : [{ declared: declared[at]!, uses: site.uses.map((use) => ({ at: use.at, line: use.line, by: use.by, kind: use.kind, type: false, how: use.how })) }],
+  );
+  return { declared, used, elsewhere: unreadMemberLanguages(found.extensions) };
+}
+
+/** Which uses the answer lists, and which it leaves to a type checker, said once under the uses. */
+export const TYPED =
+  "A use is listed here only where its line writes the value's type. A use through an inferred value, a generic, a subtype by `extends` or `implements`, " +
+  "a JSX attribute, a utility type or an inline type literal is not: which type a value has is a type checker's answer, and none runs here.";
+
+/**
+ * Where the uses no line types are found: find-references on the one
+ * declaration of member `name`, or, when several declare it, on the one the
+ * reader means among those the answer lists, which `package` narrows to when
+ * the list is cut. It is asked of the type checker of the language the
+ * declarations are written in: TypeScript's language service for JavaScript
+ * and TypeScript, that language's own language server for any other, and each
+ * declaration's own when they are written in more than one.
+ */
+export function routes(name: string, members: Members, spell: Spelling): readonly string[] {
+  const only = members.declared.length === 1 ? members.declared[0]! : undefined;
+  // A container with a name is one `used` lists; one without is named by the member alone.
+  const named = members.used.some(({ declared }) => declared === only);
+  const at =
+    only === undefined
+      ? `the declaration you mean, each listed above with its file and line (\`${spell.input('package')}\` narrows the declarations to one package)`
+      : `\`${named ? `${only.by}.${name}` : name}\` at ${only.at}:${only.line}`;
+  const languages = new Set(members.declared.map((site) => languageOf(site.at)));
+  const ask =
+    languages.size > 1
+      ? "Ask the declaration's own language's type checker for those: its find-references"
+      : languages.has('module')
+        ? "Ask TypeScript for those: its language service's find-references"
+        : "Ask the declaration's own language for those: its language server's find-references";
+  const stop = membersStop(name, members);
+  return ['', TYPED, `${ask} on ${at}.`, ...(stop === undefined ? [] : [stop])];
+}
+
+/**
+ * What each language whose members the scan does not record is called in a
+ * sentence. A stylesheet declares no members, so it has no name here.
+ */
+const UNREAD_MEMBERS: Readonly<Record<Exclude<LanguageId, 'module' | 'style'>, string>> = {
+  python: 'Python',
+  rust: 'Rust',
+  java: 'Java',
+  kotlin: 'Kotlin',
+  swift: 'Swift',
+};
+
+/**
+ * The languages of files by these `extensions` whose members the scan does
+ * not record, by name, in the order a reader is looked for.
+ */
+function unreadMemberLanguages(extensions: readonly string[]): readonly string[] {
+  const held = new Set(extensions.map(languageOf));
+  return LANGUAGES.filter((id): id is keyof typeof UNREAD_MEMBERS => held.has(id) && !readsMembers(id) && id in UNREAD_MEMBERS).map(
+    (id) => UNREAD_MEMBERS[id],
+  );
+}
+
+/**
+ * Where a reading of member `name` stops, given the languages `elsewhere`
+ * names: members are read from JavaScript and TypeScript only, so a member of
+ * those languages' files is their language server's to find, beside any
+ * declaration the answer lists. Nothing when there are none, or the
+ * declarations were not read.
+ */
+export function membersStop(name: string, members: Members): string | undefined {
+  const languages = members.elsewhere ?? [];
+  if (languages.length === 0) return undefined;
+  const there = members.declared.length === 0 ? 'there' : 'there too';
+  const named = languages.length === 1 ? languages[0]! : `${languages.slice(0, -1).join(', ')} and ${languages.at(-1)!}`;
+  return (
+    `Members are read from JavaScript and TypeScript files only, and this workspace's ${named} files were not read for them: ` +
+    `if \`${name}\` is a member ${there}, ask their language server's workspace symbols for it, then its find-references on the declaration.`
+  );
+}
+
+/** `N places`, in words a sentence takes. */
+export function places(count: number): string {
+  return `${count} ${count === 1 ? 'place' : 'places'}`;
+}

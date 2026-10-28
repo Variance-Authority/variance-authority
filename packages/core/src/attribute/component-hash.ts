@@ -136,7 +136,7 @@ function byCodeUnit(a: string, b: string): number {
  * The arithmetic behind cause-first ranking, and the reason a baseline carries
  * its component hashes at all. `rankRegions` takes a list of cause names and,
  * given none, falls back to area — which
- * [journal 0013](../../../../docs/context/journal/0013-observability.md)
+ * [journal 0013](https://github.com/Variance-Authority/variance-authority/blob/main/docs/context/journal/0013-observability.md)
  * measured as backwards by 6×, because area measures displacement rather than
  * cause. This is where that list comes from on a path with no second document.
  *

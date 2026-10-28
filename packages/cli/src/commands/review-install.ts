@@ -16,7 +16,7 @@
  * `narrowByJourneys`, which is how a selection over a journey file hears a bump.
  */
 
-import { affectedBy, beyondReach, EDGE_KINDS, nodeAt, trailOf, type NodeId, type Relations } from '@variance-authority/core/relate';
+import { affectedBy, beyondReach, EDGE_KINDS, RUNTIME_EDGES, nodeAt, trailOf, type NodeId, type Relations } from '@variance-authority/core/relate';
 import { narrowByJourneys, type ExecutionIndex } from '@variance-authority/sense/test-selection';
 import type { Review } from './review.js';
 
@@ -64,7 +64,7 @@ export function packagesReached(
   index: ExecutionIndex,
 ): readonly PackageReach[] {
   return names.map((name) => {
-    const { files, traversal } = affectedBy(relations, [{ kind: 'package', name }]);
+    const { files, traversal } = affectedBy(relations, [{ kind: 'package', name }], { through: RUNTIME_EDGES });
     const chains = new Map<NodeId, readonly string[]>();
     const chainOf = (id: NodeId): readonly string[] => {
       let chain = chains.get(id);

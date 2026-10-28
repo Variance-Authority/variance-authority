@@ -268,6 +268,15 @@ same suites. At that
 cost you can record on every run, which keeps the record current.
 [Test-level coverage](test-level-coverage.md#what-you-already-believe-this-costs)
 has the measurements and how they were made.
+When a test file is the grain you select at,
+[`mode: 'loads'`](../packages/sense/README.md#record-only-what-each-test-file-loaded)
+records at Ekstazi's grain: the modules each test file loaded, with one line
+added after each module and nothing inside it. It is coarser than Ekstazi in
+two ways. Ekstazi compares a class by a checksum that leaves out debug
+information, so an edit to a comment selects nothing; under `loads` any change
+to a file's text selects every test file that loaded it. Ekstazi also records
+the resource files a test opens, where `loads` sees only what the run transforms; a file
+read with `fs` is a [precondition](execution-record.md) you declare.
 
 **It records blocks, and names them by position in the tree.** A region is a
 function, a branch arm, a loop body or a handler, and its identity is its
@@ -455,7 +464,7 @@ unmodified fork with one commit of setup:
 | Test files | 202 | 188 |
 | One-line edit, package graph | 201 files | 168 files, from `nx affected` |
 | One-line edit, test files that load the changed module | 197 files | 149 files |
-| One-line edit, the record | 6 files in 8 runs, 1.5 s instead of 8.2 s | 10 files, 4.4 s instead of 12.7 s |
+| One-line edit, the record | 6 files in 8 runs, 1.5 s instead of 8.2 s | 9 files, 758 of 4,523 tests |
 | Test file runs skipped over sixty commits | 57% | 93% |
 | Recording cost, at most | 1.02× | 1.08× |
 

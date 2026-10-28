@@ -22,6 +22,13 @@ export function provenance(match: ThirdPartyMatch): string {
   return `${version} · ${declared} · ${used}`;
 }
 
+/** One installed declaration in full: its door, version, why it is offered, where it is written, and what it says. */
+export function thirdBlock(entry: ThirdPartyMatch): string {
+  return `${entry.specifier} · ${entry.name} [${entry.kind}] · ${entry.package}${entry.version === undefined ? '' : `@${entry.version}`}` +
+    `${entry.declarationProvider === undefined ? '' : ` · declarations: ${entry.declarationProvider}`}` +
+    `\n${provenance(entry)}\n${entry.at}:${entry.line}${entry.signature === undefined ? '' : `\n${entry.signature}`}${entry.doc === undefined ? '' : `\n${entry.doc}`}`;
+}
+
 /** One hit of a search, on a line. */
 export const thirdLine = (match: ThirdPartyMatch): string =>
   `${match.specifier} · ${match.name} [${match.kind}] ${provenance(match)} — ${match.summary ?? 'UNDOCUMENTED'}`;

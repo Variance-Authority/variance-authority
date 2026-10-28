@@ -210,10 +210,14 @@ display:flex;align-items:center;gap:.35rem}
 .stage[data-mode=blend]~.modes .blend{display:block}
 .modes:has(~.stage[data-mode=blend]) .blend{display:block}
 .stage{position:relative;display:grid;gap:.5rem;background:#0000004d;border:1px solid var(--hairline);
-border-radius:6px;padding:.5rem;overflow:hidden}
-.stage img{display:block;max-width:100%;max-height:72vh;width:auto;height:auto;image-rendering:pixelated;
+border-radius:6px;padding:.5rem;max-height:85vh;overflow:auto;overscroll-behavior:contain}
+.stage img{display:block;max-width:100%;width:auto;height:auto;image-rendering:pixelated;
 background:repeating-conic-gradient(#2a2f31 0% 25%,#202426 0% 50%) 0 0/16px 16px}
-.stage .boxes,.stage .handle{display:none}
+.stage .boxes,.stage .handle,.stage .change{display:none}
+
+/* change — the crops at one image pixel per screen pixel */
+.stage[data-mode=change] img{display:none}
+.stage[data-mode=change] .change{display:block;max-width:none}
 
 /* trio — before · diff · after, and the diff is why the page is open */
 .stage[data-mode=trio]{grid-template-columns:repeat(3,minmax(0,1fr));align-items:start}
@@ -233,8 +237,8 @@ grid-area:1/1}
 .stage[data-mode=regions] img{grid-area:1/1}
 .stage[data-mode=wipe]{cursor:ew-resize}
 .stage[data-mode=wipe] .after{clip-path:inset(0 0 0 var(--wipe,50%))}
-.stage[data-mode=wipe] .handle{display:block;position:absolute;top:0;bottom:0;
-left:calc(.5rem + (100% - 1rem) * var(--wipe-n,.5));width:1px;background:var(--orange);
+.stage[data-mode=wipe] .handle{display:block;grid-area:1/1;align-self:stretch;justify-self:start;
+margin-left:calc(100% * var(--wipe-n,.5));width:1px;background:var(--orange);
 pointer-events:none;box-shadow:0 0 0 1px #0006}
 .stage[data-mode=blend] .after{opacity:var(--blend,.5)}
 @keyframes blink{0%,49%{opacity:0}50%,100%{opacity:1}}
@@ -244,7 +248,7 @@ pointer-events:none}
 .stage[data-mode=regions] .boxes b{position:absolute;border:1px solid var(--orange);
 background:#ff4a1914;pointer-events:auto;cursor:pointer}
 .stage[data-mode=regions] .boxes b.collateral{border-color:var(--warm);background:#756d6714}
-.stage[data-mode=regions] .boxes b.on{background:#ff4a1940;box-shadow:0 0 0 1px var(--orange)}
+.stage[data-mode=regions] .boxes b.on,.stage[data-mode=regions] .boxes b.asked{background:#ff4a1940;box-shadow:0 0 0 1px var(--orange)}
 .none{color:var(--warm);font-size:12px;margin:.25rem 0}
 
 /* tables */
@@ -253,6 +257,7 @@ th{text-align:left;font-weight:500;color:var(--warm);font-size:10px;letter-spaci
 text-transform:uppercase;padding:.25rem .5rem;border-bottom:1px solid var(--hairline)}
 td{padding:.25rem .5rem;border-bottom:1px solid #ffffff0a;vertical-align:top}
 tbody tr:hover,tbody tr.on{background:#ffffff08}
+tr[data-box]{cursor:pointer}
 tr.cause td{border-left:2px solid var(--orange)}
 .num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap;font-family:var(--mono)}
 .moves td:last-child{width:45%}
@@ -305,6 +310,7 @@ font-variant-numeric:tabular-nums;margin-left:auto}
   background:#ffffff08;white-space:nowrap;cursor:default}
 .age.new{color:var(--orange);background:#ff4a191f}
 .truncated{display:flex;gap:.5rem;align-items:center;margin:.35rem 0 0;font-size:11px}
+.left{display:flex;gap:.5rem;align-items:center;flex-wrap:wrap;margin:.35rem 0 0;font-size:11px;color:var(--warm)}
 .hidden{display:none!important}
 `;
 

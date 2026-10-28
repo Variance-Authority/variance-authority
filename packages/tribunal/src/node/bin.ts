@@ -8,6 +8,7 @@ import { createDirectoryBucket } from './bucket.js';
 import { openDatabase, type TribunalDatabase } from './database.js';
 import { serveTribunal, type TribunalService } from './serve.js';
 import { createTribunal } from '../worker.js';
+import { grant } from '../worker-auth.js';
 import type { Capability } from '../next.js';
 
 /**
@@ -20,7 +21,7 @@ import type { Capability } from '../next.js';
  * the same code.
  *
  * Configuration is environment variables rather than flags, matching
- * [`server`](../../../server/src/bin.ts) — a service is started by a supervisor,
+ * [`server`](https://github.com/Variance-Authority/variance-authority/blob/main/packages/server/src/bin.ts) — a service is started by a supervisor,
  * a unit file or a container, and all three pass an environment.
  *
  * ## The three things this refuses
@@ -176,15 +177,11 @@ export function readConfig(env: Readonly<Record<string, string | undefined>>): T
  * 3. **On a network bind, no token is no capability** — and the surface is not
  *    served at all, so there is no page to be tricked into carrying one.
  */
-export function authorizeFor(config: TribunalConfig): (request: Request) => Capability | null {
-  return (request: Request) => {
-    const bearer = bearerOf(request);
-    if (bearer !== null) {
-      if (bearer === config.ingestToken) return 'ingest';
-      if (bearer === config.reviewToken) return 'review';
-      if (config.shareToken !== undefined && bearer === config.shareToken) return 'share';
-      return null;
-    }
+export function authorizeFor(config: TribunalConfig): (request: Request) => Promise<Capability | null> {
+  return async (request: Request) => {
+    // The Worker's own check, so a token is compared in constant time here as
+    // it is there: one place decides which token a request presented.
+    if (bearerOf(request) !== null) return grant(request, config);
     return config.loopback ? 'review' : null;
   };
 }

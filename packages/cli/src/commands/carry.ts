@@ -151,9 +151,11 @@ const git = promisify(execFile);
 /**
  * Where the change starts, asked of git.
  *
- * On a pull request the checkout is the merge of its head into the base, and
- * the merge's first parent is the base tip, so the change is the pull
- * request's own and not whatever the base gained since it branched. On a push
+ * On a pull request the checkout is a merge of its head, and the merge's first
+ * parent is where the change starts: the base tip in the merge the host makes,
+ * or the commit the mainline's record was made at when the workflow merged the
+ * head with that instead. Either way the change is the pull request's own and
+ * not whatever the base gained since it branched. On a push
  * it is the commit the push replaced, which the event names; a push with none
  * (a new branch) or any other event starts one commit back.
  */

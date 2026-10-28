@@ -1,0 +1,41 @@
+{
+  "name": "@variance-authority/reads",
+  "version": "0.21.0",
+  "description": "Say, on the element that shows it, which files a page showed, so an edit to one photographs only the pages that show it.",
+  "keywords": [
+    "variance-authority",
+    "visual-regression",
+    "test-selection",
+    "ssr",
+    "static-site"
+  ],
+  "license": "MIT",
+  "author": "Machine Garden",
+  "homepage": "https://variance-authority.dev/reference/packages/reads",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Variance-Authority/variance-authority.git",
+    "directory": "packages/reads"
+  },
+  "bugs": "https://github.com/Variance-Authority/variance-authority/issues",
+  "engines": {
+    "node": ">=22"
+  },
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist",
+    "!dist/**/*.d.ts.map",
+    "mark.svg"
+  ],
+  "scripts": {
+    "build": "tsc --build"
+  }
+}

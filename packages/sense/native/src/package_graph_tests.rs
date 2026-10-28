@@ -107,8 +107,9 @@ fn publish(index: &str) {
         &[
             parse(&index_ts, &format!(r#"{{"requests": [{}]}}"#, request("@t/b/local", "imports", &["helper"]))),
             parse("git:0d0d", &format!(r#"{{"requests": [{}]}}"#, request("@t/b", "imports", &["never"]))),
+            // `util.format; util.default.inner`: `default` is a name `@t/a` is taken for, and `inner` is read off it, so it is not.
             parse(&main, &format!(
-                r#"{{"requests": [{}, {}, {}], "members": [{{"request": 1, "name": "format", "line": 4}}]}}"#,
+                r#"{{"requests": [{}, {}, {}], "members": [{{"request": 1, "name": "format", "line": 4}}, {{"request": 1, "name": "default", "line": 5}}, {{"request": 1, "name": "inner", "line": 5, "throughDefault": true}}]}}"#,
                 request("@t/a", "imports", &["x", "y"]),
                 request("@t/a/util", "imports", &["*"]),
                 request("./local", "imports", &["local"]),
@@ -124,10 +125,11 @@ fn publish(index: &str) {
             record("packages/c/src/c.ts", &c_new, &["packages/a/src/index.ts", "packages/a/src/index.ts"]),
             record("packages/a/src/removed.ts", "git:0e0e", &[]),
         ],
+        // `export { y, type t } from '@t/a'`: a name re-exported type-only is taken all the same.
         &[parse(&c_new, &format!(
-            r#"{{"requests": [{}, {}], "exports": [{{"exported": "y", "imported": "y", "from": "@t/a", "type": false, "line": 2}}]}}"#,
+            r#"{{"requests": [{}, {}], "exports": [{{"exported": "y", "imported": "y", "from": "@t/a", "type": false, "line": 2}}, {{"exported": "t", "imported": "t", "from": "@t/a", "type": true, "line": 2}}]}}"#,
             request("@t/a", "imports", &["x"]),
-            request("@t/a", "reexports", &["y"]),
+            r#"{"value": "@t/a", "kind": "reexports", "line": 2, "bindings": [{"imported": "y", "local": "y", "type": false, "line": 2}, {"imported": "t", "local": "t", "type": true, "line": 2}], "republishes": true}"#,
         ))],
         &["packages/a/src/gone.ts"],
         &[format!("{c_old}\\u0000.ts\\u0000+")],
@@ -186,10 +188,11 @@ fn a_published_chain_reads_back_as_shares_between_packages() {
     // `helper` is all `@t/a` takes, and half of what `@t/b` gives outside it.
     assert_eq!(rows(&a.takes), "1 units, 0 unread: @t/b 1.00 [helper 0.50]");
     // The replaced record's `z` and the deleted record's `never` are gone; the
-    // republished `y` is read from the exports, and the namespace from its member.
-    // The record with no parse is counted on the side it would have been read on.
-    assert_eq!(rows(&a.taken), "5 units, 1 unread: @t/b 0.60 [format 0.20, x 0.20, y 0.20]; @t/c 0.40 [x 0.20, y 0.20]");
-    assert_eq!(rows(&b.takes), "3 units, 0 unread: @t/a 1.00 [format 0.20, x 0.20, y 0.20]");
+    // republished `y` and the type-only `t` are read from the exports, and the
+    // namespace from its member. The record with no parse is counted on the
+    // side it would have been read on.
+    assert_eq!(rows(&a.taken), "7 units, 1 unread: @t/b 0.57 [default 0.14, format 0.14, x 0.14, y 0.14]; @t/c 0.43 [t 0.14, x 0.14, y 0.14]");
+    assert_eq!(rows(&b.takes), "4 units, 0 unread: @t/a 1.00 [default 0.14, format 0.14, x 0.14, y 0.14]");
     // A file no manifest names is a party of its own, and a bare import is the whole module.
     assert_eq!(rows(&b.taken), "2 units, 0 unread: @t/a 0.50 [helper 0.50]; - 0.50 [* 0.50]");
 
@@ -202,14 +205,14 @@ fn a_name_is_weighed_against_everything_its_package_gives_outside() {
     let answer = asking("provider", Limits { rows: 5, names: 5 }, &["packages/c/src/c.ts"]);
     let [c] = &answer.packages[..] else { unreachable!() };
     assert_eq!(c.indexed, 2);
-    assert_eq!(rows(&c.takes), "2 units, 1 unread: @t/a 1.00 [x 0.20, y 0.20]");
+    assert_eq!(rows(&c.takes), "3 units, 1 unread: @t/a 1.00 [t 0.14, x 0.14, y 0.14]");
     assert_eq!(rows(&c.taken), "0 units, 0 unread: ");
 }
 
 #[test]
 fn what_falls_past_a_limit_is_counted_with_its_share() {
     let answer = read("limits", Limits { rows: 1, names: 2 });
-    assert_eq!(rows(&answer.packages[0].taken), "5 units, 1 unread: @t/b 0.60 [format 0.20, x 0.20] +1; +1 0.40");
+    assert_eq!(rows(&answer.packages[0].taken), "7 units, 1 unread: @t/b 0.57 [default 0.14, format 0.14] +2; +1 0.43");
 }
 
 #[test]

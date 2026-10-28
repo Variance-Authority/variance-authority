@@ -370,6 +370,8 @@ export interface NativeJourneysListing {
     out: string,
     /** The runtime's own modules, which no function of the checkout answers. */
     builtins: readonly string[],
+    /** The `tsconfig` the scan that built the index resolved under. */
+    tsconfig?: string | false,
   ): NativeJourneysPrepared | null;
 }
 
@@ -386,6 +388,8 @@ export interface NativeJourneys {
     out: string,
     /** The runtime's own modules, which no function of the checkout answers. */
     builtins: readonly string[],
+    /** The `tsconfig` the scan that built the index resolved under. */
+    tsconfig?: string | false,
   ): NativeJourneysPrepared | null;
   /** Answer each ask from the journeys kept at `out`. */
   journeysFor?(root: string, index: string, recording: string, out: string, asks: NativeJourneysAsk[]): NativeJourneysAnswer;

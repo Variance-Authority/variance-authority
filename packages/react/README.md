@@ -5,6 +5,7 @@
 > Read React provenance from rendered DOM nodes: owner chains, props digests and portals, without importing the app’s React.
 
 Part of [Variance Authority](https://variance-authority.dev).
+Point your coding agent at [`llms.txt`](https://variance-authority.dev/llms.txt).
 
 ## What you get
 
@@ -86,7 +87,7 @@ Two functions return this, and they differ only in what they return on failure:
 
 | | returns | use it when |
 |---|---|---|
-| `resolveProvenance(node)` | `{ status: 'resolved', provenance }`, or `{ status: 'no-fiber', reason }` where `reason` is `'no-client-fiber'` or `'unmounted'` | the reason belongs in a diagnostic |
+| `resolveProvenance(node)` | `{ status: 'resolved', provenance }`, or `{ status: 'no-fiber', reason }` where `reason` is `'no-client-fiber'`, `'unmounted'` or `'uncommitted'` | the reason belongs in a diagnostic |
 | `provenanceOf(node)` | the `Provenance` value, or `undefined` | you are filling a field that is optional anyway |
 
 `provenanceOf` is `resolveProvenance` with the reason discarded. Neither throws:
@@ -231,6 +232,25 @@ The options are caller policy rather than hidden defaults:
 | `awaitSuspense` | `timeoutMs`, `pollMs` and `confirmations`, as above |
 | `walkFiberSubtree` | `limit` caps the fibers one read-only walk visits, 500,000 by default; at the limit the walk returns `truncated: true` rather than a short answer that looks complete |
 
+## Name React objects in a test story
+
+A [test story](https://variance-authority.dev/docs/test-stories) shows each
+object a function was handed as a ref and a kind. Without help, a context, a
+memo and an element are each `Object`, because that is their constructor. Add
+this package's `story` entry to your suite's setup files, and the story names
+each by the `$$typeof` mark React gave it — `react.context`, `react.memo`,
+`react.forward_ref`:
+
+```ts
+// vitest.config.ts
+export default defineConfig({
+  test: { setupFiles: ['@variance-authority/react/story'] },
+});
+```
+
+In Jest the same entry goes in `setupFiles`. It reads the mark as a property
+and runs none of React's code.
+
 ## Where the source location comes from
 
 Nothing here reads layout, `getComputedStyle`, or any Chromium-only API, so the
@@ -275,6 +295,24 @@ reaches past the component that rendered the node.
   `'unmounted'` for a node whose tree was torn down. An empty chain would be a
   claim — "owned by nobody" — and indistinguishable from a node rendered
   directly by a root.
+- **Nothing is read under a root React has not committed.** While a root is
+  still hydrating, or on its first render, the nodes React has reached carry a
+  fiber, and the render they belong to may be thrown away. Such a node reports
+  `{ status: 'no-fiber', reason: 'uncommitted' }`, and `wiringOf`,
+  `holdingOf` and `componentFiberOf` return nothing for it; the same node
+  resolves once the root commits. `awaitHydration` waits for that commit for
+  as long as React has work it can do; stuck on a promise, or with no root yet,
+  it waits only while its `outstanding` option says something is still arriving,
+  and otherwise returns at once. It asks `outstanding('script')` when the tap saw
+  no React load, because only a script brings a renderer, and
+  `outstanding('any')` otherwise. No clock decides either. Given `tap`, a
+  `tapCommits` tap installed before React loaded, it also waits for the effects
+  of a root's commits, says `loaded: false` of a page React never loaded on, and
+  reports the markup that changed after the hydration commit — the tap copies it
+  there, `tap.hydration(root)` — and the root's components that changed it. The
+  check is per root: a Suspense boundary still hydrating under a committed root
+  is `awaitSuspense`'s to report, and a subject read while one is open is a
+  subject still arriving.
 - **`createdBy` is development-only.** React populates `_debugOwner` from
   `element._owner`, which production builds leave empty; the field is then
   omitted and attribution degrades to the enclosing component.
@@ -289,4 +327,4 @@ reaches past the component that rendered the node.
 
 ---
 
-**[@variance-authority/react](https://variance-authority.dev/reference/packages/react)** is part of [Variance Authority](https://variance-authority.dev) — [documentation](https://variance-authority.dev/docs) · MIT
+**[@variance-authority/react](https://variance-authority.dev/reference/packages/react)** is part of [Variance Authority](https://variance-authority.dev) — [documentation](https://variance-authority.dev/docs) · [GitHub](https://github.com/Variance-Authority/variance-authority/tree/main/packages/react) · MIT

@@ -8,7 +8,7 @@ import { digestString } from '../digest.js';
 import { INSTRUMENTATION_ID } from '../instrument/index.js';
 import { editKey, editReadings, type EditReading } from './edit-readings.js';
 import { encodeTestCoverage } from './format.js';
-import { mergeCoverage } from './merge.js';
+import { laidCoverage } from './__fixtures__/laid.js';
 import type { TestCoverage } from './index.js';
 
 const FILE = 'src/decide.ts';
@@ -52,7 +52,7 @@ const CURRENT = recorded('1111111111111111111111111111111111111111', AFTER, ['te
 function demotedBy(reading: EditReading | undefined): string[] {
   const readings = new Map<string, EditReading>();
   if (reading !== undefined) readings.set(editKey(FILE, digestString(BEFORE), digestString(AFTER)), reading);
-  return mergeCoverage(PREVIOUS, CURRENT, new Map(), readings)
+  return laidCoverage(PREVIOUS, CURRENT, new Map(), readings)
     .tests.filter((test) => !test.complete).map((test) => test.file);
 }
 

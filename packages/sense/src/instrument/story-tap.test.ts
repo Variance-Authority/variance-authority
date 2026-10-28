@@ -218,10 +218,11 @@ describe('what a case says on the way', () => {
     tap.note('x'.repeat(300));
 
     const { notes, taped } = tap.read();
-    expect(notes.map(([at, key]) => [at, key])).toEqual([[0, 'case'], [taped, 'case']]);
-    expect(notes[0]![2]).toBe('before anything ran');
-    expect(notes[1]![2]).toHaveLength(240);
-    expect(notes[1]![2].endsWith('…')).toBe(true);
+    // Between them, what `cart` and `price` were handed, each after its own entry.
+    expect(notes.map(([at, key]) => [at, key])).toEqual([[0, 'case'], [1, 'case'], [2, 'case'], [taped, 'case']]);
+    expect(notes.map(([, , text]) => text).slice(0, 3)).toEqual(['before anything ran', 'handed n=1', 'handed n=1']);
+    expect(notes[3]![2]).toHaveLength(240);
+    expect(notes[3]![2].endsWith('…')).toBe(true);
   });
 
   it('is counted, not kept, past the limit, and starts again with the tape', () => {
@@ -256,6 +257,110 @@ describe('what a case says on the way', () => {
       "console.log stock 0 { sku: 'A1' }",
       'vae once checkout upsell decided',
     ]);
+  });
+});
+
+const HANDED = `
+const cart = { items: new Array(1000).fill(0) };
+const label = 'x'.repeat(100);
+class Till {}
+function total(c, { tax }, ...rest) { return c.items.length + tax + rest.length }
+function* lines(c) { yield c }
+function checkout(n) { out.push(total(cart, { tax: n }, label, new Till())); out.push([...lines(cart)].length) }
+`;
+
+/** {@link HANDED} evaluated once against a fresh engine's root, or a tap in front of it. */
+function handed(tapped: boolean) {
+  const engine = probeLog.createEngine(false);
+  engine.use(engine.open('case'));
+  const tap = tapped ? storyTap.createTap(engine, storyTap.TAPE_LIMIT) : undefined;
+  const context = createContext({ out: [], __VA__: tap?.root ?? engine.root });
+  runInContext(instrument(HANDED, 'fixture.js')!.code, context, { filename: 'fixture.js' });
+  return { tap, run: (code: string): unknown => runInContext(code, context) };
+}
+
+describe('what a function was handed, and what a module holds', () => {
+  it('names an object by a ref, the same one wherever it goes, and never its contents', () => {
+    const { tap, run } = handed(true);
+
+    run('checkout(2)');
+
+    expect(tap!.read().notes.map(([, , text]) => text)).toEqual([
+      `holds cart=ref1 Object, label='${'x'.repeat(39)}…', Till=ref2 class Till, total=ref3 function total, lines=ref4 function lines, checkout=ref5 function checkout`,
+      'handed n=2',
+      'handed c=ref1 Object, tax=2, rest=ref6 Array(2)',
+    ]);
+    // A generator's body is left as it was: what it was handed is not asked for.
+    expect(run('out')).toEqual([1004, 1]);
+  });
+
+  it('names an object by the same ref in a later case, since the realm still holds it', () => {
+    const { tap, run } = handed(true);
+
+    run('checkout(2)');
+    tap!.reset();
+    run('checkout(3)');
+
+    expect(tap!.read().notes.map(([, , text]) => text)).toContain('handed c=ref1 Object, tax=3, rest=ref7 Array(2)');
+  });
+
+  it('keeps what each module holds past a reset, since a module runs once and its cases come after', () => {
+    const { tap, run } = handed(true);
+
+    tap!.reset();
+    run('checkout(2)');
+
+    const { held, notes } = tap!.read();
+    expect(notes.map(([, , text]) => text)).not.toContainEqual(expect.stringMatching(/^holds /));
+    expect([...held]).toEqual([['fixture.js', expect.stringMatching(/^holds cart=ref1 Object, label=/)]]);
+  });
+
+  it('names an object by what its framework calls it, when the framework said so to the realm', () => {
+    const engine = probeLog.createEngine(false);
+    engine.use(engine.open('case'));
+    const tap = storyTap.createTap(engine, storyTap.TAPE_LIMIT);
+    const branded = (value: object): string | undefined => {
+      const brand = Object.getOwnPropertyDescriptor(value, 'brand')?.value;
+      return typeof brand === 'string' ? brand : undefined;
+    };
+    const failing = (): string => {
+      throw new Error('a framework that cannot tell');
+    };
+    const scope = { __VA__: tap.root, [Symbol.for('variance-authority.story.kind')]: [failing, branded] };
+    storyTap.listen(tap, scope);
+    const source = "const Theme = { brand: 'ui.theme' };\nconst Plain = { other: 1 };\n";
+    runInContext(instrument(source, 'fixture.js')!.code, createContext(scope), { filename: 'fixture.js' });
+
+    // A namer that throws is passed over, and an object no namer knows is named as before.
+    expect(tap.read().notes.map(([, , text]) => text)).toEqual(['holds Theme=ref1 ui.theme, Plain=ref2 Object']);
+  });
+
+  it('never crowds out what the code said, however often a function is handed something', () => {
+    const { tap, run } = handed(true);
+
+    for (let call = 0; call <= storyTap.NOTE_LIMIT; call += 1) run('total(cart, { tax: 0 })');
+    tap!.note('console.log done');
+
+    const notes = tap!.read().notes.map(([, , text]) => text);
+    expect(notes.at(-1)).toBe('console.log done');
+    expect(notes.filter((text) => text.startsWith('handed '))).toHaveLength(storyTap.NOTE_LIMIT - 1);
+  });
+
+  it('spells a string on one line', () => {
+    const { tap, run } = handed(true);
+
+    run(`total(cart, { tax: 'a\\nb' })`);
+
+    expect(tap!.read().notes.at(-1)![2]).toBe("handed c=ref1 Object, tax='a\\nb', rest=ref6 Array(0)");
+  });
+
+  it('asks nothing of a module when no story listens', () => {
+    const { run } = handed(false);
+
+    run('checkout(2)');
+
+    expect(run('out')).toEqual([1004, 1]);
+    expect(run('__vaL')).toBeUndefined();
   });
 });
 

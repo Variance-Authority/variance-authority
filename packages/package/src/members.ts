@@ -1,6 +1,6 @@
-import { existsSync, readFileSync, realpathSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync, realpathSync } from 'node:fs';
 import { dirname, join, posix } from 'node:path';
-import { globSync } from 'tinyglobby';
+import { globSync, isDynamicPattern } from 'tinyglobby';
 import { parse } from 'yaml';
 
 /**
@@ -21,7 +21,9 @@ import { parse } from 'yaml';
  */
 
 /** Directories no member list reaches into, whatever its entries say — pnpm's own two. */
-const NEVER = ['**/node_modules/**', '**/bower_components/**'];
+/** Directories no member list reaches into, as a glob and as a listed path. */
+const NEVER_DIRS = ['node_modules', 'bower_components'];
+const NEVER = NEVER_DIRS.map((dir) => `**/${dir}/**`);
 
 /**
  * The manifest names a member directory is read by, in the order one is
@@ -82,8 +84,11 @@ export function members(root: string, read: (path: string) => Record<string, unk
   if (entries.length === 0) return [manifest];
 
   const names = pnpm === undefined ? NPM_MANIFESTS : PNPM_MANIFESTS;
+  const negated = negatedIn(entries);
   const excluded = new Set(
-    globSync(manifestGlobs(negatedIn(entries), names), { cwd: root, expandDirectories: false, dot: true, ignore: NEVER }),
+    negated.length === 0
+      ? []
+      : globSync(manifestGlobs(negated, names), { cwd: root, expandDirectories: false, dot: true, ignore: NEVER }),
   );
 
   const seen = new Set<string>();
@@ -98,10 +103,34 @@ export function members(root: string, read: (path: string) => Record<string, unk
   add(manifest);
   for (const entry of entries) {
     if (entry.startsWith('!')) continue;
-    const matched = globSync(manifestGlobs([entry], names), { cwd: root, expandDirectories: false, ignore: NEVER });
+    const matched = isDynamicPattern(entry)
+      ? globSync(manifestGlobs([entry], names), { cwd: root, expandDirectories: false, ignore: NEVER })
+      : manifestsIn(root, entry, names);
     for (const path of preferred(matched.filter((path) => !excluded.has(path)), names)) add(join(root, path));
   }
   return found;
+}
+
+/**
+ * The manifests in the one directory a path entry names, spelled as the glob
+ * for it would answer them: relative to the root, normalized, with the file
+ * name in the case it is written on disk.
+ *
+ * A path is the common case of a large list: a monorepo that writes its two
+ * thousand members out one by one asks one `readdir` each here, where a glob
+ * per entry set up a walk per entry. Under `node_modules` it is nothing, as the
+ * glob's ignore makes it.
+ */
+function manifestsIn(root: string, entry: string, names: readonly string[]): string[] {
+  const dir = posix.normalize(entry.replace(/\/+$/, ''));
+  if (dir.split('/').some((segment) => NEVER_DIRS.includes(segment))) return [];
+  let held: ReadonlySet<string>;
+  try {
+    held = new Set(readdirSync(join(root, dir)));
+  } catch {
+    return [];
+  }
+  return names.filter((name) => held.has(name)).map((name) => (dir === '.' ? name : `${dir}/${name}`));
 }
 
 /** One glob per manifest name for the directories each entry names, as pnpm's `normalizePatterns` writes it. */

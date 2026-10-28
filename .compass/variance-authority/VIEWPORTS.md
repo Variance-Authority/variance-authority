@@ -309,7 +309,7 @@ sequenceDiagram
 
   Note over AGA,ALO: only now, and in this order
   CMP->>AGA: the verdict, and what this subject is asserted on
-  AGA->>COL: collect it again — same world, seconds later
+  AGA->>COL: collect it again — same world, right after
   COL-->>AGA: a second document
   alt the two documents disagree
     AGA->>INS: two snapshots that should have agreed
@@ -360,7 +360,7 @@ sequenceDiagram
   `packages/storybook-collector/src/index.ts` and
   `packages/playwright-test/src/fixture.ts`.
 - Collector to run. `Collector.collect(subject: PlannedSubject):
-  Promise<Collected>` in `packages/cli/src/commands/collector.ts`; `Collected`
+  Promise<Collected | Visit>` in `packages/cli/src/commands/collector.ts`; `Collected`
   is a discriminated union whose failure arm is `{ ok: false, because }` — a
   value, not an exception, so one unreachable subject costs the other subjects
   nothing and is still named. Every collection in this trace, including both

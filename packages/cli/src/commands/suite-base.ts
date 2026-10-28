@@ -32,7 +32,7 @@
  * the order.
  */
 
-import { stat } from 'node:fs/promises';
+import { readFile, stat } from 'node:fs/promises';
 import type { LastFetched, OwnLayer, Repin } from '@variance-authority/sense/test-selection';
 import type { Env } from '../share-lines.js';
 import { mainlineBase, type MainlineMissed, type MainlineRecord } from './mainline-base.js';
@@ -104,7 +104,7 @@ export async function suiteBase(root: string, options: SuiteBaseOptions = {}): P
 
 /**
  * Lay the mainline's record into a checkout's own layer, where the run it
- * makes next lands on it: the coverage record and its per-case index
+ * makes next lands on it: the coverage record, which carries its cases,
  * unaltered, and the runs record as a seed with `runs: 0`, by the same
  * `layFetchedMainline` a runner seam lays it with. Nothing is made up in place
  * of a runs record the entry did not carry.
@@ -113,20 +113,67 @@ export async function suiteBase(root: string, options: SuiteBaseOptions = {}): P
  * when something reads the own layer before the first run: CI's
  * `keep the base record` step copies the base aside before the suite layers
  * the change onto it. Nothing is laid over a record the checkout already has.
- * Returns the path laid, or `undefined` when nothing was laid.
+ *
+ * `instrumentation` is the probes of the run that lands next. A record written
+ * under other probes is passed over and returned as such, because that run
+ * could not be laid over it (`foreignProbes`): laid, it would fail every run
+ * that lands on it. `undefined` is a landing that lays no coverage, which lays
+ * over a base under any probes.
  */
 export async function layMainline(
   root: string,
   record: MainlineRecord,
+  instrumentation: string | undefined,
   options: { readonly cacheRoot?: string } = {},
-): Promise<string | undefined> {
+): Promise<MainlineLaid> {
   const selection = await import('@variance-authority/sense/test-selection');
   const own = selection.testCoverageFile(root, {
     suite: record.suite,
     ...(options.cacheRoot === undefined ? {} : { cacheRoot: options.cacheRoot }),
   });
+  if (instrumentation !== undefined) {
+    const bytes = await readFile(record.coverage).catch(() => undefined);
+    const written = bytes === undefined ? undefined : selection.foreignProbes(bytes, instrumentation);
+    if (written !== undefined) {
+      return { passed: { suite: record.suite, file: record.coverage, instrumentation: written, run: instrumentation } };
+    }
+  }
   const laid = await selection.layFetchedMainline(fetchedOf(record), own);
-  return laid ? own : undefined;
+  return laid ? { laid: own } : undefined;
+}
+
+/**
+ * A mainline record {@link layMainline} did not lay: it was written under the
+ * probes `instrumentation`, and the run about to land records under `run`, so
+ * that run could not be laid over it.
+ */
+export interface MainlinePassedOver {
+  readonly suite: string;
+  /** The record passed over. */
+  readonly file: string;
+  /** The probes it was written under. */
+  readonly instrumentation: string;
+  /** The probes the run records under. */
+  readonly run: string;
+}
+
+/**
+ * What {@link layMainline} did: the path it laid the record at, or the record
+ * it passed over for its probes; `undefined` when it laid nothing for any other
+ * reason: the checkout has a record of its own, or this build does not read
+ * the base.
+ */
+export type MainlineLaid = { readonly laid: string } | { readonly passed: MainlinePassedOver } | undefined;
+
+/**
+ * The note a reader gives for a mainline record {@link layMainline} passed over
+ * for its probes: the record, the probes it was written under, and the probes
+ * the run records under.
+ */
+export function mainlinePassedOver(passed: MainlinePassedOver): string {
+  return `record of "${passed.suite}": the mainline's record at ${passed.file} was written under the probes ` +
+    `\`${passed.instrumentation}\`, and this run records under \`${passed.run}\`, so no run here can be laid over it ` +
+    'and it was not laid';
 }
 
 /** A read of the mainline, as the seams name what was fetched. */

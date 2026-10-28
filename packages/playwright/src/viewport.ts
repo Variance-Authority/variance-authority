@@ -1,4 +1,4 @@
-import type { PageRegion, Viewport } from '@variance-authority/core/format';
+import { atWidth, type PageRegion, type Viewport } from '@variance-authority/core/format';
 
 /**
  * What a subject can ask of a page that is already open, and what it cannot.
@@ -98,11 +98,7 @@ export function widthsOf<S extends WidthPlanned, P extends { readonly subjects: 
         : distinct.map(
             (width) =>
               ({
-                ...planned,
-                subject: { ...planned.subject, id: `${planned.subject.id}@${width}` },
-                // The id says the width, and so must the name: a baseline path
-                // filed by title and name would otherwise hold every width in one file.
-                ...(planned.name === undefined ? {} : { name: `${planned.name} @${width}` }),
+                ...atWidth(planned, width),
                 // One subject, one module graph: a shard keeps its widths together.
                 declaredIn: planned.declaredIn ?? planned.subject.id,
                 viewport: { ...viewport, width },

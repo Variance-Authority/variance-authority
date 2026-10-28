@@ -1,3 +1,4 @@
+import { laidCoverage } from './__fixtures__/laid.js';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -6,7 +7,6 @@ import { INSTRUMENTATION_ID, instrument, type Block } from '../instrument/index.
 import { coverageBlock } from './coverage-rows.js';
 import {
   journeysApart,
-  mergeCoverage,
   narrowByExecution,
   writeTestCoverage,
   type CoverageBlock,
@@ -172,7 +172,7 @@ describe('a decision written after the recorded journeys', () => {
       );
     }
 
-    const current = mergeCoverage(previous, after());
+    const current = laidCoverage(previous, after());
     const [divergence] = await journeysApart(await snapshot(current), { observers: OBSERVERS });
 
     expect(divergence?.parted).toContainEqual(expect.objectContaining({
@@ -185,7 +185,7 @@ describe('a decision written after the recorded journeys', () => {
   });
 
   it('answers a born region from the nearest recorded junction, never from an invented empty', async () => {
-    const carried = mergeCoverage(before(), unrelated(), new Map([[PICK, DECISION_INSIDE]]));
+    const carried = laidCoverage(before(), unrelated(), new Map([[PICK, DECISION_INSIDE]]));
     const selected = await narrowByExecution(await snapshot(carried), editedInside, {
       sourceAt: (file, commit) => file === PICK && commit === CURRENT ? DECISION_INSIDE : undefined,
     });

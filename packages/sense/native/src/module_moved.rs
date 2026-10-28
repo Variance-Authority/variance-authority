@@ -152,7 +152,7 @@ impl<'s, 'a> Top<'s, 'a> {
             }
             it => {
                 let refers = references(|found| found.visit_declaration(it));
-                for name in crate::module_readers::declared(it) {
+                for name in crate::module_readers::declared(it, crate::module_readers::Erased::Kept) {
                     self.define(name, Definition::Declaration(it), refers.clone());
                 }
             }

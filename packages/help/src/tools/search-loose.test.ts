@@ -45,8 +45,9 @@ describe('a name the substring cannot reach', () => {
     const text = ask({ query: 'meesure' });
     expect(text).toContain('measure');
     expect(text).toContain('loosely');
-    // The fact about the substring is still told, whole, above the offer.
-    expect(text).toContain('Nothing in this repository is named or documented with `meesure`');
+    // The fact about the substring is still told above the offer, as a miss of the text and not of the code.
+    expect(text).toContain('No name in this repository, nor the doc of one, writes `meesure` as typed. The nearest follow.');
+    expect(text).not.toContain('Nothing in this repository');
   });
 
   it('allows one character off a long word, and not two, because an agent does not mistype', () => {
@@ -62,11 +63,20 @@ describe('a name the substring cannot reach', () => {
     // and contains the query as text nowhere.
     const text = ask({ query: 'numbers order' });
     expect(text).toContain('Span');
-    expect(text).toContain('loosely');
+  });
+
+  it('leaves a name the described section holds to it, since that section prints first', () => {
+    // Both readings hold `Span`; it is offered once, where the reader meets it first.
+    const text = ask({ query: 'numbers order' });
+    expect(text).toMatch(/Span .*\[holds: numbers, order\]/);
+    expect(text).not.toContain('loosely');
   });
 
   it('requires every word to land, so a two-word query is not the union', () => {
-    expect(ask({ query: 'numbers unwritten' })).not.toContain('Span');
+    // Any of the words is the described section's rule, and it says which it holds.
+    const text = ask({ query: 'numbers unwritten' });
+    expect(text).not.toContain('loosely');
+    expect(text).toMatch(/Span .*\[holds: numbers\]/);
   });
 });
 
@@ -90,6 +100,16 @@ describe('what it may never do', () => {
     // rules `measure` out — and a widening must not be a way back in.
     expect(ask({ query: 'meesure', from: 'packages/beta/src/inner/deeper.ts' })).not.toContain('measure');
     expect(ask({ query: 'meesure', from: 'packages/beta/src/again.ts' })).toContain('measure');
+  });
+
+  it('keeps the way to widen when a miss inside an area has the nearest in reach to show', () => {
+    // The text may be written outside the start point's reach, so the nearest
+    // names in reach do not replace the way to widen.
+    const text = ask({ query: 'meesure', from: 'packages/beta/src/again.ts' });
+    expect(text).toContain('measure');
+    expect(text).toContain('No name in reach of that start point, nor the doc of one, writes `meesure` as typed');
+    expect(text).toContain('ask again without `from`/`to` to search the whole workspace');
+    expect(text).not.toContain('Nothing in reach');
   });
 
   it('leaves an empty answer empty when the wider net catches nothing either', () => {

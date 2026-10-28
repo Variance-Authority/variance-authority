@@ -31,7 +31,7 @@
  * be wrong the first time a package moved. Specifiers go in; edges do not.
  */
 
-import type { SourceSymbol } from './harvest.js';
+import type { SourceSymbol, TextSpan } from './harvest.js';
 import type { Export, Request } from './read.js';
 import type { ImportDiff } from './taint/index.js';
 import { openSourceIndexFile } from './source-index-file.js';
@@ -75,9 +75,45 @@ export interface Parsed {
    * and absent from any reader but the native one.
    */
   readonly members?: readonly Member[];
+  /**
+   * Every member of an interface, a type literal or a class the file declares.
+   * Absent when it declares none, and absent from any reader but the native one.
+   */
+  readonly memberDeclarations?: readonly MemberDeclaration[];
+  /**
+   * Every line that reads, writes or destructures a member through a value
+   * whose type the line writes. Absent when there are none, and absent from any
+   * reader but the native one.
+   */
+  readonly memberUses?: readonly MemberUse[];
+  /**
+   * Every line that uses a name the file declares at its top level, by scope
+   * rather than by import. Absent when there are none, and absent from any
+   * reader but the native module reader and the Rust one.
+   */
+  readonly ownUses?: readonly OwnUse[];
+  /**
+   * Every function a function's body declares: a `function` statement, or a
+   * variable whose value is a function. Kept apart from `symbols`, which is the
+   * file's top level. Absent when there are none, and absent from any reader
+   * but the native module reader.
+   */
+  readonly nested?: readonly NestedDeclaration[];
+  /**
+   * Every name read off a binding a named import takes. Absent when there are
+   * none, and absent from any reader but the native module one.
+   */
+  readonly bindingMembers?: readonly BindingMember[];
   readonly unknown?: string;
   /** How big the module is. Absent from a reader that does not measure, which is the stylesheet one, and from a file its grammar could not parse at all. */
   readonly size?: SourceSize;
+  /**
+   * The module's own doc comment, inside its marks, in UTF-16 units: the first
+   * `/**` before the first statement that is not an import, documenting no
+   * such statement. Absent when it writes none, and from any reader but the
+   * JavaScript and TypeScript one.
+   */
+  readonly doc?: TextSpan;
 }
 
 /**
@@ -100,6 +136,67 @@ export interface SourceSize {
 export interface Member {
   /** The index, in the same parse's `requests`, of the request the name is read through. */
   readonly request: number;
+  readonly name: string;
+  readonly line: number;
+  /**
+   * The name is read off the module's `default`, which under interop is a
+   * CommonJS module's `module.exports`: `(await import('m')).default.name`.
+   * `*` for a name is the module, or its `default`, going somewhere the reader
+   * does not follow, so what it reads there is not listed.
+   */
+  readonly throughDefault?: true;
+}
+
+/** One member a file declares, on the interface, type alias or class that holds it. */
+export interface MemberDeclaration {
+  readonly name: string;
+  readonly line: number;
+  /** The container's name, or `a type literal` or `a class` when it has none. */
+  readonly on: string;
+}
+
+/** One line that uses a member through a value whose type the file writes. */
+export interface MemberUse {
+  readonly name: string;
+  readonly line: number;
+  /** The type's name as the file writes it: its own declaration's, or the local name of an import. */
+  readonly of: string;
+  readonly how: 'destructure' | 'read' | 'write';
+}
+
+/** One function a function's body declares, with the function that holds it. */
+export interface NestedDeclaration {
+  readonly name: string;
+  /** `function`, or the variable keyword. */
+  readonly kind: string;
+  readonly line: number;
+  /** The declaration up to its body, in UTF-16 units of its file. */
+  readonly signature: TextSpan;
+  readonly doc?: TextSpan;
+  /** The name of the function that holds it; absent when nothing names that function, as for a callback. */
+  readonly holder?: string;
+  /** The line the function that holds it starts on. */
+  readonly holderLine: number;
+}
+
+/** One line that uses a name its file declares at its top level. */
+export interface OwnUse {
+  readonly name: string;
+  readonly line: number;
+}
+
+/**
+ * One name read off a binding a named import takes: `ns.name` after
+ * `import { ns } from 'm'`. It reads `name` of a module only where `m` passes
+ * `ns` on as `export * as ns`.
+ */
+export interface BindingMember {
+  /** The index of the request, in the same parse, the value is read through. */
+  readonly request: number;
+  /** The export of the module the value is, or is read off: the name a named import takes, the first name read off a namespace import, or `default`. */
+  readonly binding: string;
+  /** The names read off `binding` before `name`, nearest first. Absent when the value is `binding` itself. */
+  readonly within?: readonly string[];
   readonly name: string;
   readonly line: number;
 }

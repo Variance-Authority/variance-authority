@@ -243,6 +243,7 @@ describe('a test that did not run at the journal commit', () => {
 
     await expect(refused).rejects.toBeInstanceOf(OperatorError);
     await expect(refused).rejects.toThrow(`the runs record at ${commitRunsFile(file)} is not JSON`);
+    await expect(refused).rejects.toThrow(/tests that should run\.$/);
   });
 
   it('refuses a runs record that is there and cannot be read, rather than reading it as absent', async () => {
@@ -254,7 +255,7 @@ describe('a test that did not run at the journal commit', () => {
 
     await expect(refused).rejects.toBeInstanceOf(OperatorError);
     await expect(refused).rejects.toThrow(`the runs record at ${commitRunsFile(file)} could not be read`);
-    await expect(refused).rejects.toThrow('delete it first only if it is a directory');
+    await expect(refused).rejects.toThrow(/tests that should run\.$/);
   });
 
   it("runs, from a worktree that has not run, what the primary checkout's runs record says last ran before the journal's commit", async () => {
@@ -282,7 +283,8 @@ describe('a test that did not run at the journal commit', () => {
     const refused = selectOutput({ cwd: worktree, format: 'plain' });
 
     await expect(refused).rejects.toThrow(`the runs record at ${commitRunsFile(file)} is not JSON`);
-    await expect(refused).rejects.toThrow("It is another checkout's record: run the suite here, which writes this checkout's own.");
+    await expect(refused).rejects.toThrow("tests that should run. It is another checkout's record, read here because this checkout holds none of its own.");
+    await expect(refused).rejects.not.toThrow(/run the suite|delete it/i);
   });
 
   it('says a runs record that is not JSON went unread under `--diff`, and does not refuse', async () => {

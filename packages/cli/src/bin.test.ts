@@ -4,7 +4,8 @@ import { BOOLEAN } from './args.js';
 import { USAGE, main, parseArgs } from './bin.js';
 import { openRenderer } from './renderer.js';
 import { EXIT_CLEAN, EXIT_OPERATOR, OperatorError } from './exit.js';
-import { QUESTIONS, argumentsOf, questionOf } from './commands/asking.js';
+import { verbOf } from '@variance-authority/mcp/tools';
+import { QUESTIONS, argumentsOf } from './commands/asking.js';
 import { flagsFor, helpFor, isCommand } from './usage.js';
 
 describe('parseArgs', () => {
@@ -429,11 +430,10 @@ describe('parseArgs', () => {
     // schemas, so the usage line advertises nothing the parser refuses.
     const refused: string[] = [];
     const accepted = flagsOf('ask');
-
     for (const question of QUESTIONS) {
       for (const argument of argumentsOf(question.tool)) {
         // Questions are typed as words after `intersection`, never behind a flag.
-        if (argument.kind !== 'questions' && !accepted.includes(argument.flag)) refused.push(`${questionOf(question.tool)}: ${argument.flag}`);
+        if (argument.kind !== 'questions' && !accepted.includes(argument.flag)) refused.push(`${verbOf(question.tool)}: ${argument.flag}`);
       }
     }
 

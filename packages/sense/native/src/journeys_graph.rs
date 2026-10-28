@@ -13,7 +13,7 @@
 
 // compass: variance-authority.reach.relations
 
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::path::Path;
 
 use rayon::prelude::*;
@@ -21,7 +21,8 @@ use rayon::prelude::*;
 use crate::compact::Layer;
 use crate::journeys_parse::{parse, Callee, Export, Parsed};
 use crate::package_graph::{fold, join_parses, At, Crossing};
-use crate::resolve::Resolvers;
+use crate::resolve::{Resolvers, Tsconfig};
+use crate::resolve_export::{resolve_export, Bound, Exports, Modules, Passes};
 
 /// How a resolved call names its target.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -199,7 +200,8 @@ impl Graph {
     /// The graph over everything `seeds` reach, read from the index's layers.
     /// `seeds` are interned first and in order, so their ids are their places.
     /// `commit` is the commit the recording ran at, or why there is none.
-    pub(crate) fn build(root: &str, layers: &[Layer], commit: Result<&str, &str>, seeds: &[String]) -> Graph {
+    /// `tsconfig` is the config the scan that built the index resolved under.
+    pub(crate) fn build(root: &str, layers: &[Layer], commit: Result<&str, &str>, seeds: &[String], tsconfig: Tsconfig) -> Graph {
         let (then, index) = rayon::join(
             || commit.map_err(str::to_owned).and_then(|commit| text_at(root, commit)),
             || {
@@ -214,7 +216,7 @@ impl Graph {
             },
         );
         let by_file: HashMap<&str, usize> = index.iter().enumerate().map(|(at, crossing)| (crossing.file, at)).collect();
-        let resolvers = Resolvers::new(None, None);
+        let resolvers = Resolvers::new(tsconfig, None);
         let absolute = Path::new(root);
         let mut graph = Graph {
             files: Vec::new(),
@@ -338,29 +340,10 @@ impl Graph {
         self.specs.get(file as usize).and_then(|specs| specs.get(spec)).copied().flatten()
     }
 
-    /// An exported name followed to the file and local name that declare it.
-    pub(crate) fn declaration_of(&self, file: u32, name: &str, seen: &mut HashSet<(u32, String)>) -> Option<(u32, String)> {
-        if !seen.insert((file, name.to_owned())) {
-            return None;
-        }
-        let parsed = self.parsed(file)?;
-        match parsed.exports.get(name) {
-            Some(Export::Local(local)) => match parsed.imports.get(local) {
-                Some(import) => {
-                    let to = self.resolve(file, &import.spec)?;
-                    self.declaration_of(to, &import.name, seen)
-                }
-                None => Some((file, local.clone())),
-            },
-            Some(Export::From { spec, name }) => {
-                let to = self.resolve(file, spec)?;
-                self.declaration_of(to, name, seen)
-            }
-            None => parsed.star.iter().find_map(|spec| {
-                let to = self.resolve(file, spec)?;
-                self.declaration_of(to, name, seen)
-            }),
-        }
+    /// An exported name followed to the file and local name that declare it,
+    /// as ECMAScript resolves the export (`resolve_export.rs`).
+    pub(crate) fn declaration_of(&self, file: u32, name: &str) -> Option<(u32, String)> {
+        resolve_export(self, &file, name).declaration()
     }
 
     /// What a call written in function `from` of `file` calls.
@@ -396,20 +379,46 @@ impl Graph {
             }
             if let Some(import) = parsed.imports.get(id) {
                 let declaration =
-                    self.resolve(file, &import.spec).and_then(|to| self.declaration_of(to, &import.name, &mut HashSet::new()));
+                    self.resolve(file, &import.spec).and_then(|to| self.declaration_of(to, &import.name));
                 return declaration.map_or(Target::External, |declaration| declared(declaration, How::Import));
             }
             return Target::Free;
         }
         if let (Some(ns), Some(prop)) = (&callee.ns, &callee.prop) {
             if let Some(import) = parsed.imports.get(ns).filter(|import| import.name == "*") {
-                let declaration = self.resolve(file, &import.spec).and_then(|to| self.declaration_of(to, prop, &mut HashSet::new()));
+                let declaration = self.resolve(file, &import.spec).and_then(|to| self.declaration_of(to, prop));
                 if let Some(declaration) = declaration {
                     return declared(declaration, How::Namespace);
                 }
             }
         }
         Target::Member
+    }
+}
+
+impl Modules for Graph {
+    type File = u32;
+    type Declaration = (u32, String);
+
+    /// A name the file exports and neither imports nor declares as a function
+    /// or a value is taken for a declaration of the file, which the journeys
+    /// then read as no function.
+    fn exports(&self, file: &u32, name: &str) -> Exports<u32, (u32, String)> {
+        let file = *file;
+        let Some(parsed) = self.parsed(file) else { return Exports::Unread };
+        let stars = || parsed.star.iter().map(|spec| self.resolve(file, spec)).collect();
+        match parsed.exports.get(name) {
+            Some(Export::Local(local)) => Exports::Own(match parsed.imports.get(local) {
+                Some(import) if import.name == "*" => Bound::Unbound,
+                Some(import) => Bound::Imported(self.resolve(file, &import.spec), import.name.clone()),
+                None => Bound::Declared((file, local.clone())),
+            }),
+            Some(Export::From { spec, name }) => Exports::Passes(Passes {
+                named: Some(if name == "*" { None } else { self.resolve(file, spec).map(|to| (to, name.clone())) }),
+                stars: stars(),
+            }),
+            None => Exports::Passes(Passes { named: None, stars: stars() }),
+        }
     }
 }
 

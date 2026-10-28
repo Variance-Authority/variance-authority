@@ -5,7 +5,7 @@ import { runCommand, type CommandRunner } from './lfs.js';
 /**
  * Reading baseline updates back out of the repository that holds them.
  *
- * The write half is a commit message ([`report`](../../report/src/changelog-message.ts)).
+ * The write half is a commit message ([`report`](https://github.com/Variance-Authority/variance-authority/blob/main/packages/report/src/changelog-message.ts)).
  * This is the other direction, and it exists because a record nothing can read is
  * a record nobody keeps: the whole argument for putting the explanation in the
  * commit is that the explanation outlives the CI job, and outliving it means

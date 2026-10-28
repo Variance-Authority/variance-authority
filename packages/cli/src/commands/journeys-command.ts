@@ -11,6 +11,7 @@ import { landJourneys } from './land.js';
 import { recordedJourneys } from './resources.js';
 import { subjectsInReport } from './run-report.js';
 import { landingRecord, suiteRecord } from './suite-record.js';
+import { probesGap, probesNote } from './probes-gap.js';
 
 /** What `variance journeys` was asked for, once the flags are off the command line. */
 export interface JourneysRequest {
@@ -68,7 +69,20 @@ export async function journeysOutput(request: JourneysRequest): Promise<string> 
     }),
   );
 
-  return `${landed === undefined ? '' : `${formatLanding(landed)}\n\n`}${reading}\n`;
+  // A record cut under other probes is read as it holds it, and the note before the reading says what that leaves open.
+  const gap = await probesGap(record, request.cwd, request.suite);
+  const said = gap === undefined ? '' : `${probesNote(gap)}\n\n`;
+  return `${landed === undefined ? '' : `${formatLanding(landed)}\n\n`}${said}${reading}\n`;
+}
+
+/**
+ * The shards at `shards` landed on `suite`'s record in the checkout at `cwd`,
+ * as `variance journeys <shards> --suite` lands them, and the landing said
+ * without the reading: a CI fan-in folds for the jobs after it, and nobody
+ * reads a whole journal in its log.
+ */
+export async function landSuite(cwd: string, shards: readonly string[], suite: string): Promise<string> {
+  return formatLanding(await landJourneys(cwd, shards, await landingRecord(cwd, suite)));
 }
 
 /** The reading `variance journeys` takes, without a fold-only operation. */

@@ -51,7 +51,7 @@ function seam(config: UserConfig): Seam {
     onFinished(files: readonly unknown[]): Promise<void>;
   }>).at(-1)!;
   return {
-    plugin: (configured.plugins as unknown as Seam['plugin'][]).at(-1)!,
+    plugin: (configured.plugins as unknown as Array<Seam['plugin'] & { name: string }>).find(({ name }) => name === 'variance-authority:test-selection' || name === 'variance-authority:test-selection-config')!,
     finish: async () => {
       await reporter.onFinished([{ filepath: resolve(root, 'case.test.ts'), tasks: [] }]);
       const [test] = decodeTestCoverage(await readFile(coverageFile)).tests;

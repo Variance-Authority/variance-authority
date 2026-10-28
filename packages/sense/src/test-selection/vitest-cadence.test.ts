@@ -30,6 +30,10 @@ describe('a test file is cut at each statement of its tests, unless the run turn
     expect(transform({}, { cadence: false }).handler(TEST, resolve(root, 'src/add.test.ts'))).toBeNull();
   });
 
+  it('leaves a test file as it is under the `loads` recipe, which probes nothing a cut could be read against', () => {
+    expect(transform({}, { mode: 'loads' }).handler(TEST, resolve(root, 'src/add.test.ts'))).toBeNull();
+  });
+
   it('leaves a module built from a test file, such as its `?raw` text, uncut', () => {
     expect(transform().handler(TEST, `${resolve(root, 'src/add.test.ts')}?raw`)?.code ?? '').not.toContain('__vaC');
   });

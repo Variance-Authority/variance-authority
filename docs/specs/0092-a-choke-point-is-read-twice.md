@@ -97,8 +97,11 @@ Not as a new question. A choke point is a line in answers that already exist:
 1. A dominator pass over `Relations` with tests as entries, runtime edges,
    barrels resolved by name and mocks cut. Fixtures for a diamond, a cycle, a
    barrel that re-exports two unrelated files, a mocked choke point, and a test
-   importing Y directly. `dominatorsOf` in `core/relate` computes the
-   dominators of one root; several test entries hang from a virtual root.
+   importing Y directly. The pass is not built. Its engine is
+   `graph_dominators.rs` in the sense addon, which `distill` already runs over
+   one test file's imports; several test entries hang from a virtual root. It
+   has no binding to JavaScript: `distill` calls it from Rust, in
+   `distill_own.rs`. The pass needs one, or runs in the addon beside it.
 2. The reality pass: set inclusion over executed files, restricted to files
    with an import path to Y. One fixture where a setup file every case runs is
    not a choke point, one where a dynamic import whose specifier is not a quoted

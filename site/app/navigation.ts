@@ -112,6 +112,7 @@ export const NAVIGATION = [
       { href: "/docs/composition", label: "Group repeated changes", cluster: "Explain a change" },
       { href: "/docs/flakiness", label: "Trace instability to its owner", cluster: "Keep comparisons reliable" },
       { href: "/docs/stabilization", label: "Page stabilization", cluster: "Keep comparisons reliable" },
+      { href: "/docs/late-content", label: "Wait for content that loads late", cluster: "Keep comparisons reliable" },
       { href: "/docs/sensitivity", label: "Choose which changes matter", cluster: "Keep comparisons reliable" },
       { href: "/docs/ignores", label: "Exclude noise without hiding it", cluster: "Keep comparisons reliable" },
       { href: "/docs/compose-observation", label: "Compose an observation", cluster: "Compose an observation" },

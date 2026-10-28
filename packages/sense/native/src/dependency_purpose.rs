@@ -8,6 +8,7 @@
 
 // compass: variance-authority.report.agent-surface
 
+use std::collections::BTreeSet;
 use std::fs;
 use std::path::Path;
 
@@ -39,29 +40,53 @@ pub(super) struct Purpose {
 /// Stems kept from names and documentation: a very large package is a vocabulary, not a description.
 const NAMED: usize = 1500;
 
-const STOP: &[&str] = &["the", "and", "for", "with", "that", "this", "from", "into", "how", "use", "using", "used",
-    "you", "your", "are", "can", "has", "have", "not", "all", "any", "its", "our", "via", "when", "which", "will",
-    "library", "package", "module", "modules", "tool", "tools", "simple", "small", "fast", "based", "make", "get", "set"];
+/// Words that say how a question is put, never what it is about: dropped from every text.
+const FUNCTION: &[&str] = &["the", "and", "for", "with", "that", "this", "from", "into", "how", "you", "your", "are",
+    "can", "has", "have", "not", "all", "any", "its", "our", "via", "when", "which", "will", "what", "where", "who",
+    "whom", "whose", "why", "does", "did", "was", "were", "been", "there", "their", "them", "they", "then", "than",
+    "but", "about", "each"];
+
+/// Words every package says about itself, so they tell no package from another;
+/// in code they name things (`packageOf`, `useStore`), so code keeps them.
+const DESCRIPTION: &[&str] = &["use", "using", "used", "library", "package", "module", "modules", "tool", "tools",
+    "simple", "small", "fast", "based", "make", "get", "set"];
 
 /// A word reduced to what a plural, a tense or a noun form would share with it.
+///
+/// An inflection comes off once — a plural, a tense, a participle — and then
+/// the noun and agent endings come off until none does, so `instrumenting`,
+/// `instrumentation` and `instrument` all reach `instru`. A noun ending needs
+/// four letters left, so `comment` stays apart from `come` and `generation`
+/// from `gene`; a plural `s` stays on after `s` or `u`, so `process` is not
+/// `proces`, and `ed` stays on after `e`, so `proceed` is not `proc`.
 pub(super) fn stem(word: &str) -> String {
     let mut stem = word.to_lowercase();
-    for suffix in ["ations", "ation", "ments", "ment", "ings", "ing", "ers", "er", "ies", "ed", "es", "s"] {
+    for suffix in ["ings", "ing", "ies", "ed", "es", "s"] {
         if let Some(rest) = stem.strip_suffix(suffix) {
+            if suffix == "s" && (rest.ends_with('s') || rest.ends_with('u')) { break; }
+            if suffix == "ed" && rest.ends_with('e') { break; }
             if rest.chars().count() >= 3 { stem = rest.to_owned(); break; }
         }
+    }
+    'ending: loop {
+        for (suffix, left) in [("ation", 4), ("ment", 4), ("er", 4)] {
+            if let Some(rest) = stem.strip_suffix(suffix) {
+                if rest.chars().count() >= left { stem = rest.to_owned(); continue 'ending; }
+            }
+        }
+        break;
     }
     if stem.ends_with('e') && stem.chars().count() > 3 { stem.pop(); }
     stem
 }
 
-/// The stems of the words in `text`, splitting camelCase and punctuation; short words and stopwords dropped.
-pub(super) fn stems(text: &str) -> Vec<String> {
+/// The stems of the words in `text`, splitting camelCase and punctuation; short words and the words `dropped` names left out.
+fn cut(text: &str, dropped: impl Fn(&str) -> bool) -> Vec<String> {
     let mut out = Vec::new();
     let mut word = String::new();
     let mut last_lower = false;
     let flush = |word: &mut String, out: &mut Vec<String>| {
-        if word.chars().count() >= 3 && !STOP.contains(&word.to_lowercase().as_str()) { out.push(stem(word)); }
+        if word.chars().count() >= 3 && !dropped(&word.to_lowercase()) { out.push(stem(word)); }
         word.clear();
     };
     for ch in text.chars() {
@@ -72,6 +97,31 @@ pub(super) fn stems(text: &str) -> Vec<String> {
     }
     flush(&mut word, &mut out);
     out
+}
+
+/// The stems a package is described by: function words and the words every package says about itself dropped.
+pub(crate) fn stems(text: &str) -> Vec<String> {
+    cut(text, |word| FUNCTION.contains(&word) || DESCRIPTION.contains(&word))
+}
+
+/// The stems code is described by: function words dropped, and `package`,
+/// `module` or `use` kept, since a repository's names are written in them.
+pub(crate) fn code_stems(text: &str) -> Vec<String> {
+    cut(text, |word| FUNCTION.contains(&word))
+}
+
+/// How many of the adjacent word pairs of `query` `text` also writes adjacent:
+/// a doc that says the question's phrase, not only its words. Both are read as
+/// [`code_stems`] reads them, so the pairs are of the words a question is
+/// about: `it is` or `of a` are how any sentence is put, and two docs sharing
+/// them share nothing.
+pub(crate) fn near(query: &str, text: &str) -> u32 {
+    let (asked, said) = (code_stems(query), code_stems(text));
+    let pairs = |words: &'_ [String]| -> BTreeSet<(String, String)> {
+        words.windows(2).map(|pair| (pair[0].clone(), pair[1].clone())).collect()
+    };
+    let written = pairs(&said);
+    pairs(&asked).iter().filter(|pair| written.contains(*pair)).count() as u32
 }
 
 fn sorted(mut words: Vec<String>) -> Vec<String> { words.sort_unstable(); words.dedup(); words }
@@ -114,4 +164,33 @@ pub(super) fn purpose(root: &Path, runtime: &Option<Identity>, declarations: &Op
     named.truncate(NAMED);
     let found = Purpose { description, keywords, headings, said: sorted(said), named };
     (found.description.is_some() || !found.keywords.is_empty() || !found.headings.is_empty() || !found.named.is_empty()).then_some(found)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::stem;
+
+    #[test]
+    fn a_word_and_its_inflections_share_one_stem() {
+        for (inflected, plain) in [("instrumenting", "instrument"), ("instrumented", "instrument"), ("instrumentation", "instrument"),
+            ("orders", "order"), ("placement", "place"), ("placed", "place"), ("modules", "module"), ("probes", "probe"),
+            ("processes", "process"), ("proceeds", "proceed"), ("rendered", "render")] {
+            assert_eq!(stem(inflected), stem(plain), "{inflected} and {plain}");
+        }
+    }
+
+    #[test]
+    fn a_shorter_word_inside_a_longer_one_keeps_its_own_stem() {
+        for (longer, shorter) in [("generation", "gene"), ("process", "proceed"), ("comment", "come"), ("segment", "seg"),
+            ("element", "ele"), ("processes", "proceeds")] {
+            assert_ne!(stem(longer), stem(shorter), "{longer} and {shorter}");
+        }
+    }
+
+    #[test]
+    fn a_stem_is_its_own_stem() {
+        for word in ["instrumenting", "instrument", "order", "placement", "statements", "settings", "process", "renderers"] {
+            assert_eq!(stem(&stem(word)), stem(word), "{word}");
+        }
+    }
 }

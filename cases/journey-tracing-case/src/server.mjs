@@ -28,14 +28,14 @@ async function instrumented() {
   const source = resolve(root, 'src/pricing.mjs');
   const code = await readFile(source, 'utf8');
   const probes = testSelectionProbes({ root, label: process.env.VARIANCE_AUTHORITY_HEAD });
-  const transformed = probes.transform(code, source);
+  const transformed = probes.transform.handler(code, source);
 
   // The collector import is the page's half, and this realm already has a
   // factory that knows more than it does. Everything else is byte-for-byte what
   // a bundler would have emitted, at the line numbers the inventory recorded.
   const built = resolve(root, 'node_modules/.variance-case/pricing.mjs');
   await mkdir(dirname(built), { recursive: true });
-  await writeFile(built, transformed.code.replace(/^import "[^"]+";/, ''), 'utf8');
+  await writeFile(built, transformed.code.replace(/\n;import "[^"]+";$/, ''), 'utf8');
   return import(pathToFileURL(built).href);
 }
 

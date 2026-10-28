@@ -1,5 +1,6 @@
 import type { BlockKind } from '../instrument/index.js';
 import { packBlob, packBytes, packWords } from './columns.js';
+import { LAYOUT } from './record-layout.js';
 
 /**
  * How a snapshot is laid out: what it versions, which sections it holds, and
@@ -14,7 +15,7 @@ import { packBlob, packBytes, packWords } from './columns.js';
  * The snapshot's own version: what `TestCoverage` means, which a producer
  * states and a merge carries.
  */
-export const MODEL = 3;
+export const MODEL = LAYOUT.coverage.model;
 
 /**
  * The byte layout's version, which moves when the model does not. A reader
@@ -51,30 +52,35 @@ export const MODEL = 3;
  * holding bytes of its own. The layout before it stays readable as a record
  * that kept no cases, which is what it is to every reader: the case index it
  * may have had beside it is not read.
+ *
+ * And again for `tests.phases`, what the runner said each test file spent
+ * before its first case. The layout before it stays readable, as a record whose
+ * runner reported no phases.
  */
-export const FORMAT = 10;
+export const FORMAT = LAYOUT.coverage.format;
+
+/** The layout before `tests.phases`, read as one whose runner reported no phases. */
+export const UNPHASED_FORMAT = LAYOUT.coverage.unphased;
 
 /** The layout before the case sections, read as a record that kept no cases. */
-export const UNCASED_FORMAT = 9;
+export const UNCASED_FORMAT = LAYOUT.coverage.uncased;
 
 /** The layout before `tests.duration`, read as one whose runner reported no durations. */
-export const UNTIMED_FORMAT = 8;
+export const UNTIMED_FORMAT = LAYOUT.coverage.untimed;
 
 /** The layouts a reader opens. */
-export function readableFormat(
-  version: unknown,
-): version is typeof FORMAT | typeof UNCASED_FORMAT | typeof UNTIMED_FORMAT {
-  return version === FORMAT || version === UNCASED_FORMAT || version === UNTIMED_FORMAT;
+export function readableFormat(version: unknown): version is number {
+  return version === FORMAT || version === UNPHASED_FORMAT || version === UNCASED_FORMAT || version === UNTIMED_FORMAT;
 }
 
-const ALIGNMENT = 8;
-export const NO_OWNER = 0xffff_ffff;
+const ALIGNMENT = LAYOUT.alignment;
+export const NO_OWNER = LAYOUT.coverage.noOwner;
 
 /**
  * A test file whose runner reported no duration. Not zero: zero milliseconds is
  * a duration a runner can report, and a file nobody timed did not cost nothing.
  */
-export const NO_DURATION = 0xffff_ffff;
+export const NO_DURATION = LAYOUT.coverage.noDuration;
 
 /**
  * The word `tests.duration` holds for a duration: whole milliseconds, as the
@@ -94,40 +100,23 @@ export function durationWord(duration: number | undefined): number {
  * repository-sized snapshot and worth nothing on the ones that hold a handful
  * of rows, where the run index alone would be most of the section.
  */
-const PACK_ABOVE = 1 << 16;
+const PACK_ABOVE = LAYOUT.packAbove;
 
 /** Every section the file holds, in the order it holds them. */
-export const NAMES = [
-  'strings.blob',
-  'strings.off',
-  'snapshot.instrumentation',
-  'snapshot.commit',
-  'tests.path',
-  'tests.complete',
-  'tests.preconditions',
-  'preconditions.name',
-  'preconditions.digest',
-  'modules.path',
-  'modules.source',
-  'modules.instrumented',
-  'modules.blocks',
-  'blocks.ordinal',
-  'blocks.kind',
-  'blocks.owner',
-  'blocks.digest',
-  'blocks.name',
-  'blocks.path',
-  'blocks.start',
-  'blocks.end',
-  'blocks.source',
-  'blocks.set',
-  'blocks.loadedSet',
-  'sets.blob',
-  'sets.off',
-] as const;
+export const NAMES: readonly string[] = LAYOUT.coverage.sections.filter((name) =>
+  name !== LAYOUT.coverage.duration && name !== LAYOUT.coverage.phases);
 
 /** The section the layouts after `UNTIMED_FORMAT` added: one word a test, see {@link NO_DURATION}. */
-export const DURATION = 'tests.duration';
+export const DURATION = LAYOUT.coverage.duration;
+
+/**
+ * The section the layouts after `UNPHASED_FORMAT` added: {@link PHASE_NAMES}
+ * words a test, each a duration as `tests.duration` holds one.
+ */
+export const PHASES = LAYOUT.coverage.phases;
+
+/** The phases of a test file, its cases last, in the order a test's words in {@link PHASES} hold them. */
+export const PHASE_NAMES = LAYOUT.coverage.phaseNames;
 
 export interface Section {
   readonly name: string;
@@ -157,22 +146,12 @@ export interface Stored {
  * `blocks.kind` holds for it. The order is append-only — move a member and every
  * artifact an older build wrote decodes into a different vocabulary.
  *
- * `BlockKind` owns the vocabulary and this list owns only its numbering, and
- * both halves of that correspondence are checked where they are written.
- * `satisfies` rejects a name here the union does not carry; `kindId` hands a
- * `BlockKind` to `indexOf`, whose parameter is this tuple's own element type, so
- * a member added to the union stops the build there until it is appended here.
+ * `BlockKind` owns the vocabulary and `record-layout.json` owns only its
+ * numbering, which the native addon reads too. `record-layout.test.ts` holds
+ * the union against the list, so a kind added to one and not the other fails
+ * there; `kindId` refuses a kind the list does not number.
  */
-export const BLOCK_KINDS = [
-  'module',
-  'function',
-  'branch',
-  'continuation',
-  'resume',
-  'loop',
-  'case',
-  'handler',
-] as const satisfies readonly BlockKind[];
+export const BLOCK_KINDS: readonly BlockKind[] = LAYOUT.coverage.blockKinds;
 
 export function kindId(kind: BlockKind): number {
   const id = BLOCK_KINDS.indexOf(kind);

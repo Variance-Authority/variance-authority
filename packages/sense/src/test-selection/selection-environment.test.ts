@@ -98,7 +98,7 @@ describe('the selection the environment asks for', () => {
 });
 
 describe('the times a shard is placed by', () => {
-  it('are a reason, not a failure, when the installed cli throws as it loads', async () => {
+  it('stop the run, naming why, when the installed cli throws as it loads', async () => {
     const root = await mkdtemp(resolve(tmpdir(), 'variance-times-broken-cli-'));
     try {
       const cli = resolve(root, 'node_modules', '@variance-authority', 'cli');
@@ -106,7 +106,9 @@ describe('the times a shard is placed by', () => {
       await writeFile(resolve(cli, 'package.json'), JSON.stringify({ name: '@variance-authority/cli', type: 'module', main: 'index.js' }));
       await writeFile(resolve(cli, 'index.js'), "throw new Error('a broken install');");
 
-      await expect(timesFrom({ root })()).resolves.toEqual({ unread: 'a broken install' });
+      await expect(timesFrom({ root })()).rejects.toThrow(
+        'variance-authority: the times this shard is placed by could not be read, and a shard placed without them may take files another shard takes: a broken install',
+      );
     } finally {
       await rm(root, { recursive: true, force: true });
     }

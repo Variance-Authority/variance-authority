@@ -31,7 +31,7 @@
  *
  * Values are also deduplicated, code-unit sorted, and capped — `LEXICON_CAP`
  * distinct values per field, in
- * [`core/attribute/lexicon.ts`](../../core/src/attribute/lexicon.ts) where the
+ * [`core/attribute/lexicon.ts`](https://github.com/Variance-Authority/variance-authority/blob/main/packages/core/src/attribute/lexicon.ts) where the
  * fold is. What a cap cut is counted in {@link SubjectLexicon.elided}, because a
  * cap that says nothing reads as coverage. Digests never enter: a text the
  * policy declared volatile arrives as `v1:…`, and a reader matching on it would

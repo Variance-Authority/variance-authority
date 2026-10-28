@@ -1,4 +1,5 @@
 import { blob, column, type Stored } from './format-layout.js';
+import { LAYOUT } from './record-layout.js';
 
 /**
  * The test line that first reached each region a case crossed, as the case
@@ -35,10 +36,10 @@ import { blob, column, type Stored } from './format-layout.js';
  * recorded lines. Every reader, the addon's among them, unpacks a packed
  * column of variable-length rows by its `.blob` suffix.
  */
-export const LINES_COLUMN = 'lines.blob';
+export const LINES_COLUMN = LAYOUT.cases.lines;
 
 /** Where each case's bytes begin in {@link LINES_COLUMN}, and one past the last case's. */
-export const LINES_OFFSETS = 'lines.off';
+export const LINES_OFFSETS = LAYOUT.cases.linesOffsets;
 
 /** One case's lines, as a reader and a layer hold them. */
 export interface CaseLines {

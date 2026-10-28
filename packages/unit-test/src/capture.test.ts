@@ -64,7 +64,7 @@ describe('browserless capture archive', () => {
 
     await expect(collector.plan()).rejects.toMatchObject({
       varianceOperatorError: true,
-      message: expect.stringContaining('Your unit tests write it through `writeCapture`: run them first'),
+      message: expect.stringContaining('Your unit tests write it through `writeCapture`, and none has written a capture to this directory.'),
     });
   });
 

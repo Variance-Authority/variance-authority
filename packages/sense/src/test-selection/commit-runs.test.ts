@@ -63,11 +63,13 @@ describe('the runs recorded at one commit', () => {
     expect(await readCommitRuns(coverageFile)).toMatchObject({ commit: 'next', over: 'head', runs: 1, files: ['b.test.ts'] });
   });
 
-  it('names no base when the snapshot before it was recorded by other instrumentation', async () => {
+  it('refuses a run recorded by other instrumentation over the snapshot, and names no base', async () => {
+    // One build records under one set of probes: a snapshot under another is
+    // another build's, and the run is refused rather than laid over nothing.
     const { root, coverageFile } = await recorded('base');
 
-    await landRun(coverageFile, run('head', ['a.test.ts'], 'other'), root);
-
+    await expect(landRun(coverageFile, run('head', ['a.test.ts'], 'other'), root))
+      .rejects.toThrow(/probes `fixture` and the run under `other`/);
     expect((await readCommitRuns(coverageFile))?.over).toBeUndefined();
   });
 

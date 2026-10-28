@@ -30,7 +30,7 @@ import type { ModuleId } from '../instrument/index.js';
 import type { ReadJournal } from './instrumented-modules.js';
 
 /** `VAJRN` and a format version. A file that does not open with it is not one. */
-const MAGIC = [0x56, 0x41, 0x4a, 0x52, 0x4e, 0x00, 0x00, 0x02];
+const MAGIC = [0x56, 0x41, 0x4a, 0x52, 0x4e, 0x00, 0x00, 0x03];
 
 /** No snapshot: nothing was counted before the file's first test. */
 const NOTHING = new Uint32Array(0);
@@ -83,10 +83,12 @@ function encodeJournal(
   testFile: string,
   modules: ReadonlyMap<ModuleId, Uint32Array>,
   loaded: ReadonlyMap<ModuleId, Uint32Array> = new Map(),
+  collected?: number,
 ): Buffer {
   const out = new Writer();
   for (const byte of MAGIC) out.byte(byte);
   out.text(testFile);
+  out.time(collected);
   out.number(modules.size);
   for (const [id, counters] of modules) {
     out.byte(NAMED);
@@ -163,6 +165,7 @@ function encodeLog(name: string, log: LogRows): Buffer {
   const out = new Writer();
   for (const byte of MAGIC) out.byte(byte);
   out.text(name);
+  out.time(undefined);
   const { start, end, sorted } = log;
   // Whether an entry is the evaluating half of an ordinal entered both ways.
   const again = (at: number, from: number): boolean => at > from && sorted[at - 1] === (sorted[at]! ^ 1);
@@ -219,6 +222,7 @@ function decodeJournal(raw: Uint8Array): ReadJournal {
   const read = new Reader(raw);
   for (const byte of MAGIC) if (read.byte() !== byte) throw damaged();
   const testFile = read.text();
+  const collected = read.time();
   const count = read.number();
   const modules: Array<{ id: ModuleId; hits: number[]; shared: number[]; loaded: number[]; lines?: number[] }> = [];
   for (let index = 0; index < count; index += 1) {
@@ -230,7 +234,7 @@ function decodeJournal(raw: Uint8Array): ReadJournal {
     else modules.push({ ...row, lines: read.numbers(row.hits.length) });
   }
   if (!read.spent()) throw damaged();
-  return { testFile, modules };
+  return { testFile, ...(collected === undefined ? {} : { collected }), modules };
 }
 
 /**
@@ -267,6 +271,7 @@ function scanJournal(raw: Uint8Array, visit: JournalVisitor): void {
   const read = new Reader(raw);
   for (const byte of MAGIC) if (read.byte() !== byte) throw damaged();
   visit.test(read.text());
+  read.time();
   const count = read.number();
   const wants = visit.wants;
   let scratch = new Uint32Array(64);
@@ -328,6 +333,13 @@ class Writer {
     this.#bytes[this.#at++] = rest;
   }
 
+  /** A moment in milliseconds as eight bytes, a double; zero where there is none. */
+  time(value: number | undefined): void {
+    this.#room(8);
+    this.#bytes.writeDoubleLE(value ?? 0, this.#at);
+    this.#at += 8;
+  }
+
   text(value: string): void {
     const length = Buffer.byteLength(value, 'utf8');
     this.number(length);
@@ -374,6 +386,13 @@ class Reader {
       shift += 7;
       if (shift > 28) throw damaged();
     }
+  }
+
+  time(): number | undefined {
+    if (this.#at + 8 > this.#bytes.length) throw damaged();
+    const value = this.#bytes.readDoubleLE(this.#at);
+    this.#at += 8;
+    return value === 0 ? undefined : value;
   }
 
   text(): string {

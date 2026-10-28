@@ -12,16 +12,16 @@
  * - **A member nothing recorded is priced at the median of the recorded ones.**
  *   A new file is a file, and pricing it at zero would stack every new one on
  *   one shard.
- * - **With nothing recorded, a checksum decides.** Each group goes to the shard
- *   whose `sha256(key, shard)` is highest, which depends on the key and the
- *   shard count alone, so adding a group moves no other.
+ * - **With nothing recorded, every group weighs the same.** The same rule
+ *   places them, so the shards are balanced by count, ties broken by key and
+ *   then by the lowest shard, and no shard is left empty while there are as
+ *   many groups as shards.
  *
  * Every shard computes the whole placement and keeps its own part. Nothing is
  * exchanged between shards, so two shards agree exactly when they were handed
  * the same groups and the same times.
  */
 
-import { sha256Hex } from '../format/sha256.js';
 import { codeUnitOrder } from '../segment/index.js';
 
 /** One group placed whole, and the milliseconds recorded for each of its members. */
@@ -34,11 +34,12 @@ export interface Placeable {
 export interface Placement {
   /** The shard, from 1, of each group in the order they were handed in. */
   readonly owner: readonly number[];
-  readonly by: 'checksum' | 'recorded cost';
-  /** Milliseconds each group is priced at; absent when placed by checksum. */
-  readonly cost?: readonly number[];
-  /** Milliseconds each shard was given, shard 1 first; absent when placed by checksum. */
-  readonly load?: readonly number[];
+  /** `count` when nothing was recorded and every group weighed one. */
+  readonly by: 'count' | 'recorded cost';
+  /** Milliseconds each group is priced at, or one each when placed by count. */
+  readonly cost: readonly number[];
+  /** What each shard was given, shard 1 first: milliseconds, or groups when placed by count. */
+  readonly load: readonly number[];
 }
 
 /**
@@ -55,15 +56,13 @@ export function priced(groups: readonly Placeable[]): number[] | undefined {
 
 /** Place every group on one of `total` shards. */
 export function place(groups: readonly Placeable[], total: number): Placement {
-  const cost = priced(groups);
-  if (cost === undefined) {
-    return { owner: groups.map((group) => (total === 1 ? 1 : rendezvous(group.key, total))), by: 'checksum' };
-  }
+  const recorded = priced(groups);
+  const cost = recorded ?? groups.map(() => 1);
   const order = longestFirst(groups.map((group) => group.key), cost);
   const { owner, load } = packed(order.map((index) => cost[index]!), total);
   const byGroup: number[] = Array.from({ length: groups.length }, () => 0);
   order.forEach((index, at) => (byGroup[index] = owner[at]!));
-  return { owner: byGroup, by: 'recorded cost', cost, load };
+  return { owner: byGroup, by: recorded === undefined ? 'count' : 'recorded cost', cost, load };
 }
 
 /**
@@ -213,17 +212,4 @@ function packed(sorted: readonly number[], total: number): { owner: number[]; lo
     return least + 1;
   });
   return { owner, load, first };
-}
-
-function rendezvous(key: string, total: number): number {
-  let best = 1;
-  let bestScore = '';
-  for (let shard = 1; shard <= total; shard++) {
-    const score = sha256Hex(`${key}\0${shard}`);
-    if (score > bestScore) {
-      best = shard;
-      bestScore = score;
-    }
-  }
-  return best;
 }

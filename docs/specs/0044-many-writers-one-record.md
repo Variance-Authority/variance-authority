@@ -66,8 +66,8 @@ of segments — a format version, not a generation — and publishes by the same
 read-modify-write-and-rename with no expected-prior check
 (`packages/sense/src/immutable-log.ts:122-140`).
 
-**4. A demotion carries its reason.** Three sites write `{ ...test, complete:
-false }` and drop why: `packages/sense/src/test-selection/merge.ts:166`, `packages/sense/src/test-selection/merge.ts:357`, `packages/sense/src/test-selection/format-layer.ts:266`. The
+**4. A demotion carries its reason.** Two sites write `{ ...test, complete:
+false }` and drop why: `packages/sense/native/src/record_coverage_layer.rs`. The
 reason is computed — `stitchJourneys` builds a `because` string — and reaches
 stderr once, then is gone.
 
@@ -91,36 +91,32 @@ fan-in this whole feature exists for is the one place in the system with no
 ceiling**, and it is the same object model [0043](0043-a-record-costs-what-the-run-cost.md)
 indicts, N times over.
 
-**7. The two implementations of the merge agree or become one.**
-`layerTestCoverage` is documented as byte-identical to
-`encodeTestCoverage(mergeCoverage(decodeTestCoverage(bytes), current, onDisk))`
-and reimplements its rules over columns. `retired` and the multi-row claim are
-each written twice, and the `sameNumbering` gate present in the object path has
-no counterpart in the columnar one — so a re-recorded module whose regions were
-reseated is carried by one and mislaid by the other. The equivalence is asserted
-by fixtures. It needs to be a property the two are checked against, over
-generated inputs, or the second implementation needs to go.
+**7. The model merge and the lay agree over generated inputs.**
+Every writer lays through one implementation, the addon's `layRecords`
+(`packages/sense/native/src/record_coverage_layer.rs`): the runner's teardown,
+the milestone repin and `variance land`. There is no second implementation to
+check it against: the check is frozen cases
+(`__fixtures__/layer-cases.ts`, `fold-landing.test.ts`, `format-layer.test.ts`).
+It needs to be a property checked over generated inputs.
 
 **8. Three disagreements that are decisions nobody has made.**
 
-- `foldTestCoverage` keys modules by path alone and throws on a second row with
-  a different digest; `mergeCoverage` deliberately indexes a path to all of its
+- `combineRecords` keys modules by path alone and throws on a second row with
+  a different digest; the lay deliberately indexes a path to all of its
   rows and matches by digest. A shard that saw two builds of one module — a
   second environment, a second transform — **cannot be landed at all**, and the
   refusal names two shards that are both correct.
-- `land` calls `mergeCoverage(previous, folded)` with no `onDisk`
-  (`packages/cli/src/commands/land.ts:75`), so carried modules are never re-cut
+- `land` calls `landedCoverage(previous, folded)`, which reads no file on disk
+  (`packages/cli/src/commands/land.ts`), so carried modules are never re-cut
   when shards are landed. The recorder paths do pass it. Landing a CI fold over a
   local index therefore moves the index to the fold's commit while carried
   modules keep rows cut from text that has since moved, and nothing is demoted
   for it. That is a false skip, and `land.ts`'s own docblock describes the layer
   as if it behaved like the recorder's.
-- `mergeCoverage` drops the entire previous index when the instrumentation
-  recipe differs (`packages/sense/src/test-selection/merge.ts:240`), with no message anywhere. The fold refuses
-  loudly for the same disagreement between shards; the layer discards quietly. A
-  bump of the instrument throws away months of evidence on the next run's
-  teardown. Discarding is right — [0029](0029-what-a-run-remembers.md) requires
-  it — and doing it without a word is not.
+- The lay refuses a previous record written under another instrumentation
+  recipe, or one it cannot read, with the reason and the remedy: it was written
+  by another build, so delete it and run again. The fold refuses the same
+  disagreement between shards. Nothing is discarded without a word.
 
 **Acceptance:** two runs against one repository, started together and finishing
 in either order, where both contributions survive and the writer that waited says
@@ -129,7 +125,7 @@ and *both contributions in the overlay, and in the index after the fold that
 follows* once [0043](0043-a-record-costs-what-the-run-cost.md) item 3 lands. The
 two are the same requirement against two write paths, and this spec's item 1
 follows the index writer wherever that item puts it. Then a fold of sixteen shards of the 200,000-module
-fixture under `/usr/bin/time -l`, reporting a peak under the 600 MB ceiling. Then
+fixture under `/usr/bin/time -l`, reporting a peak under the 600 MiB ceiling. Then
 a landed fold over a local index whose carried modules have moved on disk, where
 every test whose ranges are no longer readable is demoted.
 
