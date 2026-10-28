@@ -49,8 +49,12 @@ export function observedBy(prior: RecordedTests | undefined, current: RanTests):
   return { observed: [...observed].sort(codeUnitOrder), partly: [...partly].sort(codeUnitOrder) };
 }
 
-/** The landings `record` holds, earliest first; a record that kept none is one landing of its own fields. */
-export function landingsOf(record: CommitRuns): readonly Landing[] {
+/**
+ * The landings `record` holds, earliest first; a record that kept none is one
+ * landing of its own fields, which names no texts: a record written before
+ * landings was written before texts were named.
+ */
+export function landingsOf(record: Pick<CommitRuns, 'files' | 'first' | 'latest' | 'runs' | 'installed' | 'landings'>): readonly Landing[] {
   if (Array.isArray(record.landings)) return record.landings;
   if (!Array.isArray(record.files) || record.files.length === 0) return [];
   return [{
@@ -59,7 +63,6 @@ export function landingsOf(record: CommitRuns): readonly Landing[] {
     latest: record.latest,
     ...(record.runs > 0 ? { runs: record.runs } : {}),
     ...(record.installed === undefined ? {} : { installed: record.installed }),
-    ...(record.texts === undefined ? {} : { texts: record.texts }),
   }];
 }
 

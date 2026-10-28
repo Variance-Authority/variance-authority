@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest';
 import { digestString } from '@variance-authority/core/format';
 import { commitRunsFile, testCoverageFile, type ExecutionIndex } from '@variance-authority/sense/test-selection';
 import { namedTestFiles } from './covering-ran.js';
-import { ASSUMED, DAY, HOUR, MINUTE, PAY, iso, recordFixture, unplaced } from './covering-record.fixture.js';
+import { ASSUMED, DAY, HOUR, MINUTE, PAY, iso, oneRun, recordFixture, unplaced } from './covering-record.fixture.js';
 
 /**
  * Where and when each test file a `covering` answer names last ran, and
@@ -22,7 +22,7 @@ describe('a covering answer says when the test files it names last ran, and over
       committed: now - (9 * HOUR + 30 * MINUTE),
       second: { committed: now - (6 * MINUTE + 30_000) },
       runs: (base, recorded) => ({
-        commit: recorded, over: base, first: iso(now - 6 * MINUTE), latest: iso(now - 6 * MINUTE), runs: 1, files: ['src/other.test.ts'], texts: {},
+        commit: recorded, over: base, ...oneRun(iso(now - 6 * MINUTE), ['src/other.test.ts']),
         standing: [{ commit: base, files: ['src/pay.test.ts'], first: iso(now - 9 * HOUR - MINUTE), latest: iso(now - 9 * HOUR - MINUTE), runs: 1, texts: {} }],
       }),
     });
@@ -41,7 +41,7 @@ describe('a covering answer says when the test files it names last ran, and over
       committed: now - (9 * HOUR + 30 * MINUTE),
       second: { committed: now - (6 * MINUTE + 30_000), pay: `${PAY}export const fee = 0;\n` },
       runs: (base, recorded) => ({
-        commit: recorded, over: base, first: iso(now - 6 * MINUTE), latest: iso(now - 6 * MINUTE), runs: 1, files: ['src/other.test.ts'], texts: {},
+        commit: recorded, over: base, ...oneRun(iso(now - 6 * MINUTE), ['src/other.test.ts']),
         standing: [{ commit: base, files: ['src/pay.test.ts'], first: iso(now - 9 * HOUR - MINUTE), latest: iso(now - 9 * HOUR - MINUTE), runs: 1, texts: {} }],
       }),
     });
@@ -61,7 +61,7 @@ describe('a covering answer says when the test files it names last ran, and over
       committed: now - (9 * HOUR + 30 * MINUTE),
       second: { committed: now - (6 * MINUTE + 30_000), pay: `${PAY}${fee}` },
       runs: (base, recorded) => ({
-        commit: recorded, over: base, first: iso(now - 6 * MINUTE), latest: iso(now - 6 * MINUTE), runs: 1, files: ['src/other.test.ts'], texts: {},
+        commit: recorded, over: base, ...oneRun(iso(now - 6 * MINUTE), ['src/other.test.ts']),
         standing: [{ commit: base, files: ['src/pay.test.ts'], first: iso(now - 9 * HOUR - MINUTE), latest: iso(now - 9 * HOUR - MINUTE), runs: 1, texts: {} }],
       }),
     });
@@ -78,7 +78,7 @@ describe('a covering answer says when the test files it names last ran, and over
       committed: now - (9 * HOUR + 30 * MINUTE),
       second: { committed: now - (6 * MINUTE + 30_000), pay: `${PAY}export const fee = 0;\n` },
       runs: (base, recorded) => ({
-        commit: recorded, over: base, first: iso(now - 6 * MINUTE), latest: iso(now - 6 * MINUTE), runs: 1, files: ['src/other.test.ts'], texts: {},
+        commit: recorded, over: base, first: iso(now - 6 * MINUTE), latest: iso(now - 6 * MINUTE), runs: 1, files: ['src/other.test.ts'],
         landings: [{ files: ['src/other.test.ts'], partly: ['src/pay.test.ts'], first: iso(now - 6 * MINUTE), latest: iso(now - 6 * MINUTE), runs: 1, texts: {} }],
         standing: [{ commit: base, files: ['src/pay.test.ts'], first: iso(now - 9 * HOUR - MINUTE), latest: iso(now - 9 * HOUR - MINUTE), runs: 1, texts: {} }],
       }),
@@ -127,20 +127,22 @@ describe('a covering answer says when the test files it names last ran, and over
     );
   });
 
-  it('gives the span the runs at the record\'s commit landed over, for a test file they ran', async () => {
+  it('gives the span a record written before landings holds, for a test file its runs ran, and names no text they ran over', async () => {
     const now = Date.now();
     const { at, commit } = await checkout({
-      runs: (_, recorded) => ({ commit: recorded, first: iso(now - (3 * HOUR + MINUTE)), latest: iso(now - (6 * MINUTE + 30_000)), runs: 2, files: ['src/pay.test.ts'], texts: {} }),
+      runs: (_, recorded) => ({ commit: recorded, first: iso(now - (3 * HOUR + MINUTE)), latest: iso(now - (6 * MINUTE + 30_000)), runs: 2, files: ['src/pay.test.ts'] }),
     });
     const { text, json } = await ask(at, '--file', 'src/pay.ts', '--function', 'pay');
 
-    expect(json).toMatchObject({ ran: { stands: [{ commit, landed: { runs: 2 }, text: 'held' }] } });
-    expect(text).toContain('src/pay.ts is the text the test file named here ran over, in runs that landed from 3 hours ago to 6 minutes ago.\n');
+    expect(json).toMatchObject({ ran: { stands: [{ commit, landed: { runs: 2 } }] } });
+    expect(text).toContain(
+      'Whether src/pay.test.ts ran over src/pay.ts as it is now, in runs that landed from 3 hours ago to 6 minutes ago, is not known: the runs record does not say which text of src/pay.ts its runs there ran over.\n',
+    );
   });
 
   it('reads a test file the runs at the record\'s commit did not observe as having run there, and says that is assumed', async () => {
     const { at, commit } = await checkout({
-      runs: (_, recorded) => ({ commit: recorded, first: iso(Date.now()), latest: iso(Date.now()), runs: 1, files: ['src/other.test.ts'], texts: {} }),
+      runs: (_, recorded) => ({ commit: recorded, ...oneRun(iso(Date.now()), ['src/other.test.ts']) }),
     });
     const { text, json } = await ask(at, '--file', 'src/pay.ts');
 
@@ -164,7 +166,7 @@ describe('a covering answer says when the test files it names last ran, and over
     const { at } = await checkout({
       fee: true,
       runs: (_, recorded) => ({
-        commit: recorded, first: iso(now - 6 * MINUTE), latest: iso(now - 6 * MINUTE), runs: 1, files: ['src/fee.test.ts'], texts: {},
+        commit: recorded, ...oneRun(iso(now - 6 * MINUTE), ['src/fee.test.ts']),
         standing: [{ commit: foreign, files: ['src/pay.test.ts'], first: iso(now - 2 * HOUR), latest: iso(now - 2 * HOUR), runs: 1, texts: {} }],
       }),
     });
@@ -221,7 +223,7 @@ describe('a covering answer says when the test files it names last ran, and over
 
   it('gives the landing time itself when it is later than this machine\'s clock', async () => {
     const later = iso(Date.now() + 2 * DAY);
-    const { at } = await checkout({ runs: (_, recorded) => ({ commit: recorded, first: later, latest: later, runs: 1, files: ['src/pay.test.ts'], texts: {} }) });
+    const { at } = await checkout({ runs: (_, recorded) => ({ commit: recorded, ...oneRun(later, ['src/pay.test.ts']) }) });
     const { text } = await ask(at, '--file', 'src/pay.ts');
 
     expect(text).toContain(`src/pay.ts is the text the test file named here ran over, in a run that landed at ${later}, later than this machine's clock.\n`);

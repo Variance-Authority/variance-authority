@@ -223,8 +223,9 @@ describe('the milestone under a checkout', () => {
     // CI ran both test files over an uncommitted text of `src/total.ts`, which its landing kept the digest of,
     // and `discounts` entered `applyDiscount` there.
     const next = await publishedNext(ci, async (record) => {
-      const runs = JSON.parse(await readFile(commitRunsFile(record), 'utf8')) as Record<string, unknown>;
-      await writeFile(commitRunsFile(record), JSON.stringify({ ...runs, texts: { 'src/total.ts': digestString(`${BEFORE}// on CI\n`) } }));
+      const runs = JSON.parse(await readFile(commitRunsFile(record), 'utf8')) as { first: string; latest: string; files: string[] };
+      const texts = { 'src/total.ts': digestString(`${BEFORE}// on CI\n`) };
+      await writeFile(commitRunsFile(record), JSON.stringify({ ...runs, landings: [{ files: runs.files, first: runs.first, latest: runs.latest, runs: 1, texts }] }));
       const block = { kind: 'function', name: 'applyDiscount', path: 'applyDiscount', startLine: 1, endLine: 3, source: true, crossings: [{ test: 0, distance: 0 }] };
       await writeFile(record, withCaseSections(await readFile(record), {
         index: encodeAsSetExecutionIndex({ tests: [DISCOUNTS], modules: [{ file: 'src/total.ts', blocks: [block] }] }),

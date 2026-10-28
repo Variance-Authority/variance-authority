@@ -15,7 +15,8 @@ const runs: CommitRuns = {
   latest: '2026-01-04T00:00:00.000Z',
   runs: 2,
   files: ['a.test.ts'],
-  texts: {},
+  // The second run finished the file again, so the first left no landing.
+  landings: [{ files: ['a.test.ts'], first: '2026-01-04T00:00:00.000Z', latest: '2026-01-04T00:00:00.000Z', runs: 1, texts: {} }],
   standing: [
     { commit: 'Q', files: ['b.test.ts'], first: '2026-01-01T00:00:00.000Z', latest: '2026-01-02T00:00:00.000Z', runs: 1, texts: { 'src/a.ts': 'digest:edited' } },
     { commit: 'R', files: ['c.test.ts'] },
@@ -27,7 +28,7 @@ describe('a test is placed where the runs record says it last ran, with the time
   it('reads the time and texts of the runs at the snapshot commit, of a carried stand, and none where the record holds none', () => {
     const { places, assumed } = testPlaces({ commit: 'H', runs, tests: ['a.test.ts', 'b.test.ts', 'c.test.ts', 'd.test.ts', 'e.test.ts'] });
     expect(Object.fromEntries(places)).toEqual({
-      'a.test.ts': { commit: 'H', first: runs.first, latest: runs.latest, runs: 2, texts: {} },
+      'a.test.ts': { commit: 'H', first: runs.latest, latest: runs.latest, runs: 1, texts: {} },
       'b.test.ts': { commit: 'Q', first: '2026-01-01T00:00:00.000Z', latest: '2026-01-02T00:00:00.000Z', runs: 1, texts: { 'src/a.ts': 'digest:edited' } },
       'c.test.ts': { commit: 'R' },
       'd.test.ts': { commit: 'S', assumed: true },
@@ -37,8 +38,9 @@ describe('a test is placed where the runs record says it last ran, with the time
   });
 
   it('keeps the time of a seeded record and says nothing of its runs, which are the base\'s', () => {
-    const { places } = testPlaces({ commit: 'H', runs: { ...runs, runs: 0 }, tests: ['a.test.ts'] });
-    expect(places.get('a.test.ts')).toEqual({ commit: 'H', first: runs.first, latest: runs.latest, texts: {} });
+    const { landings: _landings, ...enveloped } = runs;
+    const { places } = testPlaces({ commit: 'H', runs: { ...enveloped, runs: 0 }, tests: ['a.test.ts'] });
+    expect(places.get('a.test.ts')).toEqual({ commit: 'H', first: runs.first, latest: runs.latest });
   });
 
   it('holds no time for a record of another snapshot, and says so', () => {

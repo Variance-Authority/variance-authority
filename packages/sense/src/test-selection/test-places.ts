@@ -28,7 +28,7 @@ export interface TestPlace {
   readonly runs?: number;
   /**
    * The texts it ran over where they differ from `commit`'s, as the record
-   * holds them (`CommitRuns.texts`). Absent when the record does not know.
+   * holds them (`StandingEntry.texts`). Absent when the record does not know.
    */
   readonly texts?: KeptTexts;
   /**

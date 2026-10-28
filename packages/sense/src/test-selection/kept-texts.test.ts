@@ -282,11 +282,11 @@ describe('the runs record names the texts its runs ran over', () => {
   it('names each edited module by the digest of the text the run ran over, and none for a clean tree', async () => {
     await checkout(async (at) => {
       const clean = await recordOver(at, COMMITTED);
-      expect((await readCommitRuns(clean))?.texts).toEqual({});
+      expect((await readCommitRuns(clean))?.landings?.map((landing) => landing.texts)).toEqual([{}]);
     });
     await checkout(async (at) => {
       const edited = await recordOver(at, FIRST_EDITED);
-      expect((await readCommitRuns(edited))?.texts).toEqual({ [FILE]: digestString(FIRST_EDITED) });
+      expect((await readCommitRuns(edited))?.landings?.map((landing) => landing.texts)).toEqual([{ [FILE]: digestString(FIRST_EDITED) }]);
     });
   });
 
@@ -311,7 +311,8 @@ describe('the runs record names the texts its runs ran over', () => {
       };
       const coverageFile = testCoverageFile(at.root, { cacheRoot: at.cacheRoot });
       await landRun(coverageFile, current, at.root, at.cacheRoot);
-      expect((await readCommitRuns(coverageFile))?.texts).toEqual({ 'src/fixture.json': 'fixture:edited', 'src/plain.ts': 'plain:edited' });
+      expect((await readCommitRuns(coverageFile))?.landings?.map((landing) => landing.texts))
+        .toEqual([{ 'src/fixture.json': 'fixture:edited', 'src/plain.ts': 'plain:edited' }]);
     });
   });
 
@@ -335,7 +336,7 @@ describe('the runs record names the texts its runs ran over', () => {
       };
       await landRun(coverageFile, second, at.root, at.cacheRoot);
       const after = (await readCommitRuns(coverageFile))!;
-      expect(after.texts).toEqual({});
+      expect(after.landings?.map((landing) => landing.texts)).toEqual([{}]);
       expect(after.standing).toEqual([
         { commit: at.commit, files: [TESTS[0]], first: before.first, latest: before.latest, runs: 1, installed: {}, texts: { [FILE]: digestString(FIRST_EDITED) } },
       ]);

@@ -332,8 +332,7 @@ function repinnedRuns(
   }
   const standing = [...groups.values()].map(({ stand, files: its }) => ({ ...stand, files: [...new Set(its)].sort(codeUnitOrder) }));
   const installed = agreed(landings, (landing) => landing.installed);
-  const texts = agreed(landings, (landing) => landing.texts);
-  const { installed: _installed, texts: _texts, landings: _landings, ...rest } = held;
+  const { installed: _installed, landings: _landings, ...rest } = held;
   return {
     ...rest,
     ...(commit === undefined ? {} : { commit }),
@@ -342,7 +341,6 @@ function repinnedRuns(
     landings,
     standing,
     ...(installed === undefined ? {} : { installed }),
-    ...(texts === undefined ? {} : { texts }),
   };
 }
 

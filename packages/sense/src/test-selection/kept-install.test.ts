@@ -181,7 +181,11 @@ describe('the install a fold of shards ran on', () => {
 
   it('reads the texts the shards ran over as it reads the install', () => {
     const edited = { 'src/a.ts': 'digest:edited' };
-    const ran = (files: readonly string[], texts?: typeof edited) => ({ ...shard(files, {}), runs: { ...shard(files, {}).runs, ...(texts === undefined ? {} : { texts }) } });
+    // A shard's own landing names its texts; its record names none of its own.
+    const ran = (files: readonly string[], texts?: typeof edited) => ({
+      ...shard(files, {}),
+      runs: { ...shard(files, {}).runs, first: '', latest: '', landings: [{ files, first: '', latest: '', runs: 1, ...(texts === undefined ? {} : { texts }) }] },
+    });
     expect(shardsTexts([ran(['a.test.ts'], edited), ran(['b.test.ts'], { ...edited })])).toEqual(edited);
     expect(shardsTexts([ran(['a.test.ts'], {}), ran(['b.test.ts'], {})])).toEqual({});
     expect(shardsTexts([ran(['a.test.ts'], edited), ran(['b.test.ts'], {})])).toBeUndefined();

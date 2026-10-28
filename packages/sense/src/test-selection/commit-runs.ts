@@ -131,16 +131,6 @@ export interface CommitRuns {
    * all name one install, or runs at this commit over two installs. A reader compares from `commit` then.
    */
   readonly installed?: KeptInstall;
-  /**
-   * The texts the tests in `files` ran over where they differ from `commit`'s:
-   * each edited module they instrumented, by the digest of its text
-   * (`kept-texts.ts`). Empty when they ran over the commit's own. Absent when
-   * that is not known: a record written before texts were named, a run
-   * outside a checkout, a landing of shards that did not all name one set, or
-   * runs at this commit over two. A module it does not name ran over the
-   * commit's text only while the record says it knows.
-   */
-  readonly texts?: KeptTexts;
 }
 
 /** Tests that last ran at one commit, or were assumed to have when no record could say. */
@@ -155,7 +145,14 @@ export interface StandingEntry {
   readonly partly?: readonly string[];
   /** The install they ran on, as {@link CommitRuns.installed} says it; absent when not known. */
   readonly installed?: KeptInstall;
-  /** The texts they ran over, as {@link CommitRuns.texts} says it; absent when not known. */
+  /**
+   * The texts they ran over where they differ from `commit`'s: each edited
+   * module they instrumented, by the digest of its text (`kept-texts.ts`).
+   * Empty when they ran over the commit's own. Absent when that is not known:
+   * a record written before texts were named, a run outside a checkout, or a
+   * landing of shards that did not all name one set. A module it does not
+   * name ran over the commit's text only while the stand says it knows.
+   */
   readonly texts?: KeptTexts;
   /**
    * When the runs they last ran in landed, as {@link CommitRuns.first} and
@@ -345,7 +342,6 @@ export function commitRunsAfter(
   const ran = [...new Set(landings.flatMap((landing) => landing.files))].sort(codeUnitOrder);
   const standing = current.commit === undefined ? undefined : standingAfter(prior, held, retried ? held.commit : stood, ran);
   const install = agreed(landings, (landing) => landing.installed);
-  const ranOver = agreed(landings, (landing) => landing.texts);
   return {
     ...(current.commit === undefined ? {} : { commit: current.commit }),
     ...(over === undefined ? {} : { over }),
@@ -355,7 +351,6 @@ export function commitRunsAfter(
     files: ran,
     ...(standing === undefined ? {} : { standing }),
     ...(install === undefined ? {} : { installed: install }),
-    ...(ranOver === undefined ? {} : { texts: ranOver }),
     landings,
   };
 }
@@ -410,7 +405,7 @@ export async function readCommitRuns(coverageFile: string): Promise<CommitRuns |
 
 /** `record` with every install and texts it holds that are not one left out: what is not known is compared from its commit. */
 function withKnownKept(record: CommitRuns): CommitRuns {
-  const known = <T extends { readonly installed?: unknown; readonly texts?: unknown }>(of: T): Omit<T, 'installed' | 'texts'> & Pick<CommitRuns, 'installed' | 'texts'> => {
+  const known = <T extends { readonly installed?: unknown; readonly texts?: unknown }>(of: T): Omit<T, 'installed' | 'texts'> & Pick<StandingEntry, 'installed' | 'texts'> => {
     const { installed, texts, ...rest } = of;
     const install = keptInstallOf(installed);
     const ranOver = keptTextsOf(texts);
@@ -421,7 +416,9 @@ function withKnownKept(record: CommitRuns): CommitRuns {
     : (entries as T[] | undefined);
   const standing = each<StandingEntry>(record.standing);
   const landings = each<Landing>(record.landings);
-  return { ...(known(record) as CommitRuns), ...(standing === undefined ? {} : { standing }), ...(landings === undefined ? {} : { landings }) };
+  // Texts are a landing's or a stand's; the record names none of its own.
+  const { texts: _texts, ...own } = known(record) as CommitRuns & Pick<StandingEntry, 'texts'>;
+  return { ...own, ...(standing === undefined ? {} : { standing }), ...(landings === undefined ? {} : { landings }) };
 }
 
 /**

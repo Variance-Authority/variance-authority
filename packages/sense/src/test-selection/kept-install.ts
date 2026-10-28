@@ -27,8 +27,10 @@ import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { digestString } from '../digest.js';
 import { LOCKFILES } from '../lock/read.js';
+import type { CommitRuns } from './commit-runs.js';
 import { keepText, type KeptTexts, type LandedTree } from './kept-texts.js';
 import { codeUnitOrder } from './instrumented-modules.js';
+import { agreed, landingsOf } from './landings.js';
 
 /**
  * Each install file that differed from the run's commit when it ran, named from
@@ -76,7 +78,7 @@ export async function keepRecordedInstall(tree: LandedTree | undefined): Promise
 /** A shard's tests and the runs record its own landing left, as a fold of shards reads them. */
 export interface ShardRuns {
   readonly tests: { readonly commit?: string; readonly tests: readonly { readonly file: string }[] };
-  readonly runs: { readonly commit?: string; readonly runs: number; readonly files: readonly string[]; readonly installed?: KeptInstall; readonly texts?: KeptTexts } | undefined;
+  readonly runs: Pick<CommitRuns, 'commit' | 'runs' | 'files' | 'first' | 'latest' | 'installed' | 'landings'> | undefined;
 }
 
 /**
@@ -99,10 +101,11 @@ export function shardsInstall(shards: readonly ShardRuns[]): KeptInstall | undef
 /**
  * The texts a fold of `shards` ran over where the shards' commit does not hold
  * them, read as {@link shardsInstall} reads the install: the shards' own
- * records, when every one observed its whole snapshot and all name one set.
+ * records, when every one observed its whole snapshot and its landings name
+ * one set (`agreed`), and all name the same.
  */
 export function shardsTexts(shards: readonly ShardRuns[]): KeptTexts | undefined {
-  return shardsKept(shards, (runs) => runs.texts);
+  return shardsKept(shards, (runs) => agreed(landingsOf(runs), (landing) => landing.texts));
 }
 
 function shardsKept<Kept extends KeptInstall>(shards: readonly ShardRuns[], of: (runs: NonNullable<ShardRuns['runs']>) => Kept | undefined): Kept | undefined {
