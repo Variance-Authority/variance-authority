@@ -6,7 +6,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { ExecutionIndex } from '@variance-authority/sense/test-selection';
 import { observabilityToolByName } from '../tools.js';
 import { changedTests } from './changed-tests.js';
-import { readTree, type Tree } from './tree.js';
+import { readTree, treeOf, type Tree } from './tree.js';
 
 const INDEX: ExecutionIndex = {
   tests: [
@@ -152,5 +152,21 @@ describe('variance_changed_tests over the file graph', () => {
   it('says it read no file graph when the host supplied none, rather than cutting nothing silently', () => {
     expect(changedTests.run(index, { diff: diff('src/cart/total.ts', 2) }))
       .toContain('No file graph was read');
+  });
+
+  it('says so too over a tree built from records nobody read the mocks of', () => {
+    const untainted = treeOf([
+      { file: 'src/cart/total.ts', edges: [] },
+      { file: 'test/cart.test.ts', edges: [{ to: 'src/cart/total.ts', kind: 'imports' }] },
+      { file: 'test/mocked.test.ts', edges: [{ to: 'src/cart/total.ts', kind: 'imports' }] },
+    ], root);
+
+    expect(changedTests.run(index, { diff: diff('src/cart/total.ts', 2) }, { tree: untainted }))
+      .toContain('No file graph was read');
+  });
+
+  it('leaves the import walks as they were: a file that mocks a module still imports it', () => {
+    expect([...tree.reaching(['src/cart/total.ts'])].sort())
+      .toEqual(['src/cart/total.ts', 'test/cart.test.ts', 'test/mocked.test.ts']);
   });
 });

@@ -121,8 +121,10 @@ export interface Tree {
    *
    * A question about which cases stand on a module needs to know which of them
    * ran against a mock of it, and that is a fact about the tree, not about the
-   * run. Absent on a tree that holds no such graph — a view onto another root's
-   * coordinates — and a tool that needs it says it answered without it.
+   * run. Only {@link readTree} reads the mocks, so only its tree carries this;
+   * a tree built from records nobody tainted, or a view onto another root's
+   * coordinates, leaves it absent, and a tool that needs it says it answered
+   * without it.
    */
   readonly relations?: Relations;
 }
@@ -190,7 +192,6 @@ export function treeFromRelations(
     hopsFrom: (seeds) => costsFrom(relations, idsOf(relations, seeds), relations.depends, packages),
     hopsTo: (seeds) => costsFrom(relations, idsOf(relations, seeds), relations.dependents, packages, true),
     chainsTo: (seeds) => chainsTo(relations, seeds),
-    relations,
   };
 }
 
@@ -393,17 +394,16 @@ export async function readTree(options: TreeOptions): Promise<Tree> {
       },
     }),
   });
-  // The mocks are read unasked, off what the parse recorded, as every reader of
-  // the checkout's graph reads them: a case whose file mocked a module ran
-  // against the mock, and a graph that did not say so would credit it.
-  const tainted = await scanner.taintRecords(records, [scanner.mockTaint()], {
+  // The graph every reader of the checkout walks, with the mocks read off
+  // what the parse recorded, so it is the graph `variance covering --since` cuts by.
+  const relations = await scanner.runGraphOf(records, {
     root: options.root,
     ...(source === undefined ? {} : { cache: source.cache }),
   });
   await source?.save();
   if (names !== undefined) options.names?.(names);
 
-  return treeFromRelations(relationsOfFiles(tainted.records, { shadows: tainted.shadows }), options.root);
+  return { ...treeFromRelations(relations, options.root), relations };
 }
 
 function messageOf(error: unknown): string {

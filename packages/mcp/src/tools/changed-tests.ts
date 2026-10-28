@@ -57,7 +57,7 @@ export const changedTests: Tool<ExecutionIndex> = {
     const text = formatCoveringChange(answer);
     const carried = answer.some((file) => file.regions.some((region) => (region.passengers?.length ?? 0) > 0));
     return relations === undefined && carried
-      ? `${text}\n\nNo file graph was read, so a case carried in while a module evaluated is listed even where its file mocked that module. A host that supplies the source tree reads the graph with it.`
+      ? `${text}\n\nNo file graph was read, so a case carried in while a module evaluated is listed even where its file mocked that module. A host that hands the server the tree \`readTree\` reads gives it the graph.`
       : text;
   },
 };
