@@ -130,7 +130,6 @@
         "primaryRead": "function",
         "push": "function",
         "questionFor": "function",
-        "questionOf": "function",
         "questions": "function",
         "readCandidate": "function",
         "readCliRunReport": "function",
@@ -292,9 +291,11 @@
         "VALUE_RECIPE": "const",
         "ValueShaping": "interface",
         "Viewport": "interface",
+        "Widenable": "interface",
         "Wiring": "interface",
         "accessibilitySnapshot": "function",
         "assetUrl": "function",
+        "atWidth": "function",
         "canonicalNumber": "function",
         "canonicalize": "function",
         "conflicts": "function",
@@ -339,6 +340,7 @@
         "pointerToken": "function",
         "profileById": "function",
         "propsDigest": "function",
+        "realizes": "function",
         "recipeCss": "function",
         "recipeDigest": "function",
         "recipeOf": "function",
@@ -354,6 +356,7 @@
         "totalsOf": "function",
         "waitForFonts": "const",
         "waitForImages": "const",
+        "widenedFrom": "function",
         "withoutOrigin": "function"
       },
       "./share": {
@@ -768,6 +771,7 @@
         "EyesAttempt": "interface",
         "FileDistillInput": "interface",
         "FileDistillation": "interface",
+        "FileTime": "type",
         "ImportCharge": "type",
         "ImportReach": "type",
         "LoadCause": "type",
@@ -913,7 +917,8 @@
         "EventPhase": "type",
         "vaEnd": "function",
         "vaStart": "function",
-        "vae": "function"
+        "vae": "function",
+        "varianceBreadcrumb": "function"
       },
       "./collect": {
         "EVENT_HEAD_VARIABLE": "const",
@@ -1233,7 +1238,8 @@
       ],
       "engines": {
         "node": ">=22"
-      }
+      },
+      "sideEffects": true
     },
     "names": {
       "./reset": {
@@ -1243,6 +1249,87 @@
       "./reset/setup": {
         "EachHook": "type",
         "configureResetHandler": "const"
+      }
+    }
+  },
+  "@variance-authority/isolator": {
+    "declared": {
+      "type": "module",
+      "exports": {
+        ".": {
+          "types": "./dist/session.d.ts",
+          "default": "./dist/session.js"
+        },
+        "./runtime": {
+          "types": "./dist/runtime.d.ts",
+          "default": "./dist/runtime.js"
+        },
+        "./node": {
+          "types": "./dist/node.d.ts",
+          "default": "./dist/node.js"
+        },
+        "./react": {
+          "types": "./dist/react.d.ts",
+          "default": "./dist/react.js"
+        },
+        "./jest": {
+          "types": "./dist/jest.d.ts",
+          "default": "./dist/jest.js"
+        },
+        "./loader": {
+          "types": "./dist/loader.d.ts",
+          "default": "./dist/loader.js"
+        },
+        "./transform": {
+          "types": "./dist/transform.d.ts",
+          "default": "./dist/transform.js"
+        }
+      },
+      "files": [
+        "dist",
+        "!dist/**/*.d.ts.map",
+        "mark.svg"
+      ],
+      "engines": {
+        "node": ">=22.15"
+      },
+      "sideEffects": true
+    },
+    "names": {
+      ".": {
+        "SessionSource": "type",
+        "addSessionSource": "function",
+        "currentSession": "function",
+        "nextSession": "function"
+      },
+      "./runtime": {
+        "Frame": "interface",
+        "Kind": "type",
+        "frame": "function"
+      },
+      "./node": {
+        "Registrar": "type",
+        "isolateConcurrentTests": "function",
+        "isolated": "function"
+      },
+      "./react": {
+        "requestSessions": "function"
+      },
+      "./jest": {
+        "IsolatorTransformerConfig": "interface",
+        "JestTransformer": "type",
+        "createTransformer": "function",
+        "default": "object"
+      },
+      "./loader": {
+        "IsolatorLoaderContext": "interface",
+        "IsolatorLoaderOptions": "interface",
+        "default": "function"
+      },
+      "./transform": {
+        "Isolated": "interface",
+        "Left": "interface",
+        "isolate": "function"
       }
     }
   },
@@ -1387,6 +1474,7 @@
         "START_POINT_SCHEMA": "const",
         "Served": "interface",
         "SourceNames": "type",
+        "Spelling": "interface",
         "StateDifference": "type",
         "SubjectCost": "interface",
         "TOOLS": "const",
@@ -1403,6 +1491,8 @@
         "encodeSourceTree": "function",
         "entryPoints": "function",
         "eyesToolByName": "function",
+        "flagOf": "function",
+        "heldWeight": "function",
         "limitOf": "function",
         "namesOf": "function",
         "notObservedSentence": "function",
@@ -1410,17 +1500,20 @@
         "observabilityToolByName": "function",
         "pathsOf": "function",
         "presentationToolByName": "function",
+        "rarity": "function",
         "readTree": "function",
         "refusalFor": "function",
         "scenarioToolByName": "function",
         "sourceTestToolByName": "function",
+        "spellingOf": "function",
         "startPointArg": "function",
         "stringArg": "function",
         "toolByName": "function",
         "treeAtWorkspace": "function",
         "treeFromRelations": "function",
         "treeOf": "function",
-        "vantageToolByName": "function"
+        "vantageToolByName": "function",
+        "verbOf": "function"
       },
       "./protocol": {
         "EYES": "const",
@@ -1559,8 +1652,11 @@
         "gatheringUsage": "function",
         "kindOf": "function",
         "landing": "function",
+        "mayBeRead": "function",
         "opening": "function",
         "ownership": "function",
+        "passedOn": "function",
+        "reachedFrom": "function",
         "readHelp": "function",
         "readImportTargets": "function",
         "readMention": "function",
@@ -1569,6 +1665,7 @@
         "readWorkspaceManifests": "function",
         "readmes": "function",
         "requested": "function",
+        "undecided": "function",
         "undocumented": "function",
         "usageFrom": "function",
         "writeGaps": "function",
@@ -2068,6 +2165,10 @@
         ".": {
           "types": "./dist/index.d.ts",
           "default": "./dist/index.js"
+        },
+        "./story": {
+          "types": "./dist/story.d.ts",
+          "default": "./dist/story.js"
         }
       },
       "files": [
@@ -2161,6 +2262,9 @@
         "tapCommits": "function",
         "walkFiberSubtree": "function",
         "wiringOf": "function"
+      },
+      "./story": {
+        "reactKind": "function"
       }
     }
   },
@@ -2320,6 +2424,7 @@
         "LexiconField": "type",
         "LexiconReport": "interface",
         "MovementRecord": "interface",
+        "NO_RECORD": "const",
         "NotObserved": "interface",
         "NotObservedKind": "type",
         "ObservationRecord": "interface",
@@ -2346,6 +2451,7 @@
         "SubjectStructureRecord": "interface",
         "UnclaimedChange": "interface",
         "Unrecordable": "interface",
+        "UnstableSubject": "interface",
         "VariationRecord": "interface",
         "VariationStep": "interface",
         "absorbedBands": "function",
@@ -2370,6 +2476,7 @@
         "ignoreTotals": "function",
         "isActionable": "function",
         "isRecorded": "function",
+        "isUnstable": "function",
         "methodLine": "function",
         "mixedAges": "function",
         "parseCommitMessage": "function",
@@ -2381,6 +2488,7 @@
         "sensitivityShare": "function",
         "sensitivityState": "function",
         "sensitivityTotals": "function",
+        "unstableOf": "function",
         "whyNotWhole": "function"
       },
       "./file": {
@@ -2547,6 +2655,10 @@
           "types": "./dist/test-selection/cache-root.d.ts",
           "default": "./dist/test-selection/cache-root.js"
         },
+        "./side-effects": {
+          "types": "./dist/side-effects.d.ts",
+          "default": "./dist/side-effects.js"
+        },
         "./journal": {
           "types": "./dist/test-selection/journal.d.ts",
           "default": "./dist/test-selection/journal.js"
@@ -2643,6 +2755,7 @@
         "DescribedFile": "interface",
         "DurationScope": "interface",
         "EncodedSearch": "interface",
+        "ExportedDeclaration": "interface",
         "ExternalOrientation": "interface",
         "FileSize": "interface",
         "ForksBetween": "interface",
@@ -2699,7 +2812,6 @@
         "PackagesAround": "interface",
         "ParseCache": "interface",
         "Parsed": "interface",
-        "PassedOnDeclaration": "interface",
         "PathsThrough": "interface",
         "PersistentParseCache": "interface",
         "PersistentRecordCache": "interface",
@@ -2766,7 +2878,7 @@
         "checkoutListing": "function",
         "checkoutPath": "function",
         "codeMapPage": "function",
-        "declarationPassedOn": "function",
+        "declarationExported": "function",
         "declaredDescribedOf": "function",
         "declaredLooseOf": "function",
         "declaredOf": "function",
@@ -2905,6 +3017,7 @@
         "InstrumentOptions": "interface",
         "Instrumented": "interface",
         "ModuleId": "type",
+        "WalkMode": "type",
         "cadence": "function",
         "columnBehindCut": "function",
         "instrument": "function",
@@ -2922,24 +3035,25 @@
         "CARRIERS": "const",
         "CacheLayers": "interface",
         "Carrier": "type",
+        "CaseHeard": "interface",
         "CaseLanding": "type",
         "CaseMotion": "interface",
         "CaseMotionOptions": "interface",
         "CasePrecondition": "interface",
         "CaseSections": "interface",
-        "CaseTwin": "interface",
+        "Change": "interface",
         "CodeExtent": "interface",
         "CombinedRecord": "interface",
         "CombinedShard": "interface",
         "CommitRuns": "interface",
         "CountedSuite": "interface",
+        "CoverageAtDistance": "interface",
         "CoverageBlock": "type",
         "CoverageCount": "interface",
         "CoverageFile": "interface",
         "CoverageModule": "interface",
         "CoveragePrecondition": "interface",
         "CoverageTest": "interface",
-        "CoveringCaseNote": "type",
         "CoveringChange": "interface",
         "CoveringChangeHeading": "interface",
         "CoveringChangeOptions": "interface",
@@ -2952,6 +3066,8 @@
         "DistanceOptions": "interface",
         "DistillRecords": "interface",
         "EXECUTION_FORMAT": "const",
+        "EarnedCount": "interface",
+        "EarnedCoverage": "interface",
         "Entrypoints": "type",
         "EntrypointsError": "class",
         "ExecutionBlock": "interface",
@@ -2965,6 +3081,9 @@
         "FETCHED_MAINLINE": "const",
         "Face": "interface",
         "Faces": "type",
+        "FanIn": "interface",
+        "FanInFile": "interface",
+        "FanInKind": "interface",
         "FetchedMainline": "interface",
         "FilePhases": "interface",
         "FileReading": "type",
@@ -2994,6 +3113,7 @@
         "LastFetched": "interface",
         "LineRange": "interface",
         "MismatchedRow": "interface",
+        "Misuse": "interface",
         "ModuleTexts": "type",
         "MovedRegion": "interface",
         "NAME_BOUNDARY": "const",
@@ -3007,9 +3127,10 @@
         "NativeDistillRegion": "interface",
         "NativeDistillScope": "interface",
         "ObservedEyes": "interface",
-        "OutsideVocabulary": "interface",
+        "OperationAnswer": "interface",
         "OwnLayer": "interface",
         "OwnState": "interface",
+        "OwnedFile": "interface",
         "PHASE_NAMES": "const",
         "PRECISION_STEPS": "const",
         "PRUNE_EVERY_MS": "const",
@@ -3023,8 +3144,11 @@
         "PruneReason": "type",
         "Pruned": "interface",
         "RangeState": "type",
+        "Reach": "type",
+        "ReachRecord": "type",
         "ReachThrough": "interface",
         "RecordLocationOptions": "interface",
+        "RecordStorage": "interface",
         "RecordWithoutCoverage": "class",
         "RecordedEyes": "interface",
         "RecordedRun": "interface",
@@ -3036,6 +3160,7 @@
         "Repin": "type",
         "RepinRefusal": "type",
         "RootConfig": "interface",
+        "Route": "type",
         "RunsAsBefore": "type",
         "STORY_AGE_MS": "const",
         "SUITE_KINDS": "const",
@@ -3072,7 +3197,9 @@
         "TestDeviation": "interface",
         "TestDistance": "interface",
         "TestFileMotion": "interface",
+        "TestHops": "interface",
         "UNMARKED_AGE_MS": "const",
+        "Unentered": "interface",
         "Unmeasured": "type",
         "UnremovedEntry": "interface",
         "VariationDeviation": "interface",
@@ -3087,12 +3214,15 @@
         "bytesUnder": "function",
         "cacheLayers": "function",
         "cacheRootFor": "function",
+        "caseHeard": "function",
         "caseIndexOf": "function",
         "caseMotion": "function",
         "caseSectionsAt": "function",
         "caseSectionsOf": "function",
-        "caseTwins": "function",
         "casesCutApart": "function",
+        "changeOfDiff": "function",
+        "changeOfFiles": "function",
+        "changeOfPaths": "function",
         "changedLines": "function",
         "collectedRecord": "function",
         "combineRecords": "function",
@@ -3100,7 +3230,10 @@
         "commitRunsFile": "function",
         "countCoverage": "function",
         "counted": "function",
+        "coverageAtDistance": "function",
+        "coverageByOwner": "function",
         "coverageChange": "function",
+        "coverageFanIn": "function",
         "coveringChange": "function",
         "coveringTests": "function",
         "coveringTestsInFile": "function",
@@ -3109,11 +3242,13 @@
         "decodeExecutionIndex": "function",
         "decodeTestCoverage": "function",
         "defaultInclude": "function",
+        "dependsReachFromView": "function",
         "deviationOfTests": "function",
         "distanceByExecution": "function",
         "distanceFromView": "function",
         "distanceRange": "function",
         "distanceToSource": "function",
+        "earnedCoverage": "function",
         "editsBetween": "function",
         "eitherFace": "function",
         "encodeAsSetExecutionIndex": "function",
@@ -3126,13 +3261,18 @@
         "foreignProbes": "function",
         "formatCoveringChange": "function",
         "functionsUnder": "function",
+        "graphReachFromView": "function",
         "groupByDistance": "function",
+        "heardSplit": "function",
         "heldCommitRuns": "function",
         "heldText": "function",
         "heldValues": "function",
         "hunksByFile": "function",
         "hunksOf": "function",
+        "ignoredBy": "function",
+        "ignoredChange": "function",
         "importReferences": "function",
+        "importersFromView": "function",
         "indexFaces": "function",
         "innermostAt": "function",
         "isEncodedExecutionIndex": "function",
@@ -3142,6 +3282,7 @@
         "journeysApart": "function",
         "keepsCases": "function",
         "keepsEyes": "function",
+        "kept": "function",
         "keptDigests": "function",
         "keptTexts": "function",
         "landCases": "function",
@@ -3156,16 +3297,18 @@
         "lineGrain": "function",
         "machineOwners": "function",
         "mainlineReadRoot": "function",
+        "marksLoadTime": "function",
         "mib": "function",
         "nameIndex": "function",
+        "narrowByChangeFromView": "function",
         "narrowByExecution": "function",
+        "narrowByExecutionFromView": "function",
         "narrowByJourneys": "function",
         "nearestFirst": "function",
         "noteSeeded": "function",
         "openCoverageFile": "function",
         "openSetColumns": "function",
         "openTestCoverage": "function",
-        "outsideVocabulary": "function",
         "parseBefore": "function",
         "parseEntrypoints": "function",
         "parseNameGrammar": "function",
@@ -3178,33 +3321,41 @@
         "prunedLine": "function",
         "ranWhileLoading": "function",
         "rankDistillCauses": "function",
+        "reachOf": "function",
         "readCommitRuns": "function",
         "readDistillRecords": "function",
         "readFetchedMainline": "function",
         "readJourneyChange": "function",
         "readOwnLayer": "function",
+        "readRowlessFromView": "function",
+        "readSplit": "function",
         "readTestCoverage": "function",
         "readableTestCoverage": "function",
         "readingFrom": "function",
         "readingLines": "function",
+        "readsOf": "function",
         "recordBase": "function",
         "recordDigestAt": "function",
         "recordFileFor": "function",
         "recordOfCases": "function",
+        "recordStorageAt": "function",
         "recordedCases": "function",
         "recordedCommit": "function",
         "recordedEyesAt": "function",
         "recordedEyesOf": "function",
         "recordedRun": "function",
+        "regionRecord": "function",
         "regionRun": "function",
         "remaining": "function",
         "repinOwnLayer": "function",
         "repositoryLayers": "function",
         "repositoryRoot": "function",
         "rootConfig": "function",
+        "routesFromView": "function",
         "rowOf": "function",
         "runsAsBefore": "function",
         "saidAcross": "function",
+        "saidRow": "function",
         "seedTestCoverage": "function",
         "selectJourneyFile": "function",
         "selectTestFiles": "function",
@@ -3222,16 +3373,22 @@
         "stoppedBefore": "function",
         "structuralParent": "function",
         "testCoverageFile": "function",
+        "testHops": "function",
+        "testsDeclaringFromView": "function",
+        "testsEnteringFromView": "function",
         "testsGovernedBy": "function",
+        "testsLoadingFromView": "function",
         "testsReaching": "function",
         "testsReachingFromView": "function",
         "textAtRecording": "function",
         "textsAt": "function",
         "textsOf": "function",
         "timeBeforeCases": "function",
+        "unenteredSentence": "function",
         "unmeasuredOf": "function",
         "valued": "function",
         "wholeEntry": "const",
+        "whyUnentered": "function",
         "withCaseSections": "function",
         "withIndexLock": "function",
         "withoutCoverage": "function",
@@ -3244,6 +3401,9 @@
       },
       "./cache-root": {
         "cacheRootFor": "function"
+      },
+      "./side-effects": {
+        "declaresSideEffects": "function"
       },
       "./journal": {
         "AfterHook": "type",
@@ -3331,14 +3491,14 @@
         "unsettledScopes": "function"
       },
       "./precondition": {
-        "PreconditionValue": "type",
         "variancePrecondition": "function"
       },
       "./story": {
         "Arm": "interface",
         "Comparison": "interface",
         "Moment": "type",
-        "OnlyIn": "interface",
+        "Only": "interface",
+        "Order": "interface",
         "PERIOD": "const",
         "Place": "interface",
         "PlaceDifference": "interface",
@@ -3579,6 +3739,7 @@
         "BaselinePathTemplate": "interface",
         "DEFAULT_BASELINE_PATH": "const",
         "DurableStoreOptions": "interface",
+        "ImageReader": "type",
         "RenderCacheBound": "interface",
         "RenderCacheSwept": "interface",
         "createDurableStore": "function",
@@ -3590,10 +3751,13 @@
       "./lfs": {
         "CommandResult": "interface",
         "CommandRunner": "type",
+        "LFS_POINTER_HEAD_BYTES": "const",
         "LfsStore": "interface",
         "LfsStoreOptions": "interface",
         "LfsTracking": "interface",
         "createLfsStore": "function",
+        "isLfsPointer": "function",
+        "lfsSetup": "function",
         "runCommand": "const"
       },
       "./share": {
@@ -3724,6 +3888,8 @@
         "SourceScan": "interface",
         "StoryExecutionOptions": "type",
         "StorybookCollectorOptions": "interface",
+        "Visit": "interface",
+        "VisitedSubject": "interface",
         "storybookCollector": "function"
       },
       "./preset": {

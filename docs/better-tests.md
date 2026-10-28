@@ -43,7 +43,13 @@ kitchen-sink example, which is not part of the package.
 The Storybook collector holds a single preview open and switches stories over
 Storybook's own channel rather than navigating. The renderer keeps a pool of
 pages keyed by viewport, so 1x and 2x, or a phone width and a desktop one, come
-out of one browser in one run.
+out of one browser in one run. When the run reads stories in parallel, each
+worker is another page in that same browser and that same browser context, so
+it boots its preview from the HTTP cache the first page filled instead of
+fetching the bundle again. The pages share cookies and storage, as stories in
+one preview already share a document. The [clean-environment
+check](#more-stable-see-the-root-cause), which has to rule out every neighbour,
+still gets a browser of its own.
 
 That saving is available where the page is this side's to open. A shipped
 collector and the renderer decide when a browser starts, which page a subject is

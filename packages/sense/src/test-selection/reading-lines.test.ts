@@ -11,6 +11,7 @@ describe('what a selector prints about each changed file', () => {
     { file: 'src/a.ts', unread: 'hunk' },
     { file: 'src/b.ts', unread: 'parse' },
     { file: 'native/src/lib.rs', unread: 'language' },
+    { file: 'src/twice.cjs', unread: 'exports' },
   ] as const;
 
   it('says which bindings changed, why a file was not read, and names a test the graph does not explain', () => {
@@ -21,6 +22,7 @@ describe('what a selector prints about each changed file', () => {
       'read src/a.ts: unread (the diff does not apply to the recorded text) — its changed lines are charged',
       'read src/b.ts: unread (one side does not parse)',
       'read native/src/lib.rs: unread (not a JavaScript or TypeScript module)',
+      'read src/twice.cjs: unread (it names no export to follow) — every test that loaded its nearest measured importers is charged',
     ]);
   });
 

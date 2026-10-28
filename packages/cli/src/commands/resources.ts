@@ -153,9 +153,13 @@ export async function journeyAgainst(
   /**
    * What the suite declares: `unmeasured: 'nothing'` for one that declines
    * relations, so a file its record did not measure selects nobody, and its
-   * precision.
+   * precision, and the changed files it ignores.
    */
-  suite: { readonly unmeasured?: Unmeasured | undefined; readonly precision?: Precision | undefined } = {},
+  suite: {
+    readonly unmeasured?: Unmeasured | undefined;
+    readonly precision?: Precision | undefined;
+    readonly ignore?: readonly string[] | undefined;
+  } = {},
 ): Promise<ExecutionNarrowing | undefined> {
   return (await recordAgainst(root, diff, { relations, at, checkout, ...suite }))?.narrowing;
 }
@@ -195,6 +199,8 @@ export async function recordAgainst(
     readonly at?: string | undefined;
     readonly checkout?: string | undefined;
     readonly unmeasured?: Unmeasured | undefined;
+    /** The suite's `ignore` globs; absent ignores nothing. */
+    readonly ignore?: readonly string[] | undefined;
     /** The suite's precision; absent reads regions. */
     readonly precision?: Precision | undefined;
     readonly distances?: boolean;
@@ -212,7 +218,7 @@ export async function recordAgainst(
     readonly undone?: false;
   },
 ): Promise<{ readonly narrowing: ExecutionNarrowing; readonly distances?: readonly TestDistance[] } | undefined> {
-  const { relations, at, checkout = root, unmeasured, precision } = options;
+  const { relations, at, checkout = root, unmeasured, ignore, precision } = options;
   const selection = await import('@variance-authority/sense/test-selection');
   const file = at ?? (await suiteRecord(root));
   const sourceAt = selection.textAtRecording(root, selection.changedLines(diff).keys());
@@ -227,6 +233,7 @@ export async function recordAgainst(
     root,
     ...(relations === undefined ? {} : { relations }),
     ...(unmeasured === undefined ? {} : { unmeasured }),
+    ...(ignore === undefined ? {} : { ignore }),
     ...(precision === undefined ? {} : { precision }),
   };
 

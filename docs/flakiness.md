@@ -686,6 +686,15 @@ refused by name rather than ignored, because a suite that quietly does not reset
 is the defect this removes. [`@variance-authority/ioc`](https://variance-authority.dev/reference/packages/ioc)
 covers both.
 
+A handler per variable is a lot of handlers in a codebase that never wrote one.
+[`@variance-authority/isolator`](https://variance-authority.dev/reference/packages/isolator) writes them at build
+time instead: its Jest transformer and its loader for Rspack and webpack give
+every module-level `let` the module writes and does not export, and every object
+it keeps to itself,
+one value per test, and the
+same driver starts each test on a copy of what the module held once it loaded. A declaration marked
+`@isolator-ignore` stays shared.
+
 What this does not cover is a memoized value inside a package you do not author.
 There is nowhere to put a handler, and the answer stays observation rather than
 cleanup: a changed subject is read twice, and the component and band that

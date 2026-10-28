@@ -35,6 +35,9 @@ export interface Budget {
   settle(index: number): void;
 }
 
+// FIXME: `alone.limit` counts stories, not widths. A share is claimed per plan
+// index, and every width a story's visit realizes rides that one share, so a
+// story read at three widths can spend three clean collections on one.
 export function budgetOf(limit: number, queue: readonly (readonly number[])[]): Budget {
   const position = new Map<number, number>();
   for (const index of queue.flat()) position.set(index, position.size);

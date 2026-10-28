@@ -5,6 +5,7 @@
 > Faster PNG decoding for Variance Authority through sharp, for runtimes that can load a native addon.
 
 Part of [Variance Authority](https://variance-authority.dev).
+Point your coding agent at [`llms.txt`](https://variance-authority.dev/llms.txt).
 
 ## What this is for
 

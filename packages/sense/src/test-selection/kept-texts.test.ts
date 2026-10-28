@@ -8,7 +8,7 @@ import { digestString } from '../digest.js';
 import { repositoryLayers } from './cache-layers.js';
 import { landRun } from './commit-runs.js';
 import { narrowByExecution, testCoverageFile, type FileReading, type TestCoverage } from './index.js';
-import { KEPT_TEXTS, keepRecordedTexts, keepText, keptTexts, landedTree } from './kept-texts.js';
+import { KEPT_TEXTS, keepRecordedTexts, keepText, keptDigests, keptTexts, landedTree } from './kept-texts.js';
 import { openTestCoverage } from './format-view.js';
 import { encodeTestCoverage } from './format.js';
 import { textAtRecording } from './recorded-text.js';
@@ -269,6 +269,49 @@ describe('a run recorded over an edit keeps the text it ran over', () => {
       const visited = [...(await readFile(trace, 'utf8')).matchAll(/paths-visited:(\d+)/gu)].map(([, count]) => Number(count));
       expect(visited.length).toBeGreaterThan(0);
       expect(Math.max(...visited)).toBeLessThan(files);
+    });
+  });
+});
+
+/**
+ * An edit the run recorded over, then undone: the diff from the commit names
+ * nothing, and the record's kept text says the tree moved back under the tests
+ * that ran the edit.
+ */
+describe('an undone edit', () => {
+  async function undone(
+    at: Checkout,
+    ignore?: readonly string[],
+    keptText = keptTexts(at.root, at.cacheRoot),
+  ): Promise<readonly string[]> {
+    const coverageFile = await recordOver(at, FIRST_EDITED);
+    await writeFile(resolve(at.root, FILE), COMMITTED, 'utf8');
+    const diff = (await promisify(execFile)('git', ['diff', '--no-renames', at.commit], { cwd: at.root })).stdout;
+    const { entered } = await narrowByExecution(coverageFile, diff, {
+      sourceAt: textAtRecording(at.root, [FILE]),
+      keptText,
+      keptDigests: keptDigests(at.root, at.cacheRoot),
+      ...(ignore === undefined ? {} : { ignore }),
+    });
+    return entered;
+  }
+
+  it('selects the tests that ran the edit', async () => {
+    await checkout(async (at) => {
+      expect(await undone(at)).toEqual(['test/first.test.ts']);
+    });
+  });
+
+  it('selects nothing in a suite that ignores the file', async () => {
+    await checkout(async (at) => {
+      expect(await undone(at, ['src/**'])).toEqual([]);
+    });
+  });
+
+  it('selects every test that loaded the file when the text it ran over cannot be read back', async () => {
+    await checkout(async (at) => {
+      // The rows were cut from a text nobody holds: stale, and charged whole.
+      expect(await undone(at, undefined, () => undefined)).toEqual(['test/first.test.ts', 'test/second.test.ts']);
     });
   });
 });

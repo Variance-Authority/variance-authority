@@ -177,3 +177,17 @@ function byteAt(bytes: Uint8Array, at: number): number {
   if (byte === undefined) throw new Error(`read past the end of the file at ${at}`);
   return byte;
 }
+
+/**
+ * Whether a response is a GIF, by header first and extension second.
+ *
+ * Content type is what the browser will believe, so it decides. The extension is
+ * a fallback for a server that sends `application/octet-stream` — common enough
+ * on object storage — and never an override, because a `.gif` served as `png` is
+ * a PNG to every decoder that matters.
+ */
+export function isGifResponse(headers: Readonly<Record<string, string>>, url: string): boolean {
+  const type = headers['content-type'];
+  if (type !== undefined && type.length > 0) return type.toLowerCase().includes('image/gif');
+  return /\.gif(?:[?#]|$)/i.test(url);
+}

@@ -1,9 +1,9 @@
 // compass: variance-authority/runtime/attention
 import { codeUnitOrder } from '@variance-authority/core/segment';
-import { declaredSuites } from '@variance-authority/sense/test-selection';
+import { declaredSuites, heardSplit } from '@variance-authority/sense/test-selection';
 import type { ParsedReview } from '../review-args.js';
 import { review, type Reach, type Review, type ReviewRegion } from './review.js';
-import { functionOf, uncovered } from './review-scope.js';
+import { functionOf, TOP_LEVEL, uncovered } from './review-scope.js';
 import { eachSuite, nearestOfEach, NEAREST, type MissedSuite } from './review-suites.js';
 import { FRESH_MARK, MARK, REACH_WORD, unrecordedSources } from './review-text.js';
 
@@ -58,7 +58,7 @@ interface Part {
 }
 
 /** One line: a changed function, its part furthest from a case, and its part a case came nearest. */
-interface Crumb {
+interface Pointer {
   readonly file: string;
   readonly name: string;
   readonly worst: Part;
@@ -66,30 +66,30 @@ interface Crumb {
 }
 
 /**
- * Breadcrumbs for the pull request body, folded: a person sees one line, a bot
+ * Pointers for the pull request body, folded: a person sees one line, a bot
  * reads them all. A function every case reached from a test file importing it
  * is only counted: the place to look is where that is not so.
  */
 export function formatHandover(sections: readonly HandoverSection[]): string {
   const read = sections.filter((section): section is Extract<HandoverSection, { review: Review }> => 'review' in section);
-  const crumbs = byFunction(withoutTopLevel(read.flatMap(({ suite, review: answer }) => answer.files.flatMap((file) => (file.regions ?? []).map((region) => ({
+  const pointers = byFunction(withoutTopLevel(read.flatMap(({ suite, review: answer }) => answer.files.flatMap((file) => (file.regions ?? []).map((region) => ({
     file: file.file, region, ...(suite === undefined ? {} : { suite }), ran: answer.record === 'ran',
     fresh: answer.record === 'before' && region.edit === 'new' && region.cases === 0,
   }))))));
-  crumbs.sort((left, right) => rank(left.worst) - rank(right.worst) || (left.reached?.region.cases ?? 0) - (right.reached?.region.cases ?? 0) ||
+  pointers.sort((left, right) => rank(left.worst) - rank(right.worst) || (left.reached?.region.cases ?? 0) - (right.reached?.region.cases ?? 0) ||
     codeUnitOrder(left.file, right.file) || left.worst.region.startLine - right.worst.region.startLine);
-  const named = crumbs.filter(({ worst }) => !(isReached(worst) && worst.region.reach === 'near'));
+  const named = pointers.filter(({ worst }) => !(isReached(worst) && worst.region.reach === 'near'));
   const shown = named.slice(0, HANDOVER_LINES);
-  const rest = crumbs.filter((crumb) => !shown.includes(crumb));
+  const rest = pointers.filter((pointer) => !shown.includes(pointer));
   const unread = unrecordedByAll(read.map(({ review: answer }) => answer));
-  const lines = [HANDOVER_START, `<details><summary>🧭 Coverage of the changed area: ${read.length === 0 ? 'no record read' : summary(crumbs, unread.length)}</summary>`, ''];
+  const lines = [HANDOVER_START, `<details><summary>🧭 Coverage of the changed area: ${read.length === 0 ? 'no record read' : summary(pointers, unread.length)}</summary>`, ''];
   if (read.length > 0) lines.push(origin(read), '');
   const tagged = read.length > 1;
   // Read from both: what a record from before the change reached is said apart, as the old code's.
   const mixed = read.some(({ review: answer }) => answer.record === 'ran') && read.some(({ review: answer }) => answer.record !== 'ran');
-  lines.push(...shown.map((crumb) => crumbLine(crumb, tagged, mixed)));
+  lines.push(...shown.map((pointer) => pointerLine(pointer, tagged, mixed)));
   if (rest.length > 0) lines.push(...(shown.length === 0 ? [] : ['']), remainder(rest, shown.length > 0, mixed));
-  if (unread.length > 0) lines.push(...(crumbs.length === 0 ? [] : ['']), unreadLine(unread));
+  if (unread.length > 0) lines.push(...(pointers.length === 0 ? [] : ['']), unreadLine(unread));
   for (const section of sections) {
     if ('review' in section) {
       for (const note of [section.review.probes, section.review.runsUnread]) {
@@ -101,8 +101,9 @@ export function formatHandover(sections: readonly HandoverSection[]): string {
       lines.push('', `${section.suite === undefined ? 'The record' : `\`${section.suite}\``} not read: ${why}.`);
     }
   }
-  const from = read[0]?.review.from;
-  if (from !== undefined && crumbs.length > 0) lines.push('', `More on one file: \`variance covering --since ${from.slice(0, 12)} --file <path>\``);
+  // One file read in full is `--file` alone: `--since` is the whole diff, which this block already is, and the parser refuses the pair.
+  // `covering` with no `--suite` answers from every declared suite, as this block reads them.
+  if (pointers.length > 0) lines.push('', 'More on one file: `variance covering --file <path>`');
   lines.push('</details>', HANDOVER_END);
   return `${lines.join('\n')}\n`;
 }
@@ -125,31 +126,28 @@ function unreadLine(files: readonly string[]): string {
   return `Not in the record, so no function in ${files.length === 1 ? 'it' : 'them'} is named: ${listed}.`;
 }
 
-function summary(crumbs: readonly Crumb[], unread: number): string {
-  if (crumbs.length === 0) {
+function summary(pointers: readonly Pointer[], unread: number): string {
+  if (pointers.length === 0) {
     return unread === 0 ? 'no changed function' : `no changed function in the record, ${unread} changed file${unread === 1 ? '' : 's'} not in it`;
   }
-  const tops = crumbs.filter(({ name }) => name === TOP_LEVEL).length;
-  const functions = crumbs.length - tops;
+  const tops = pointers.filter(({ name }) => name === TOP_LEVEL).length;
+  const functions = pointers.length - tops;
   const counted = [
     ...(functions > 0 || tops === 0 ? [`${functions} changed function${functions === 1 ? '' : 's'}`] : []),
     ...(tops === 0 ? [] : [`${tops} ${functions === 0 ? 'changed ' : ''}top level${tops === 1 ? '' : 's'}`]),
   ].join(' and ');
   const counts = new Map<string, number>();
-  for (const { worst } of crumbs) {
+  for (const { worst } of pointers) {
     if (!isReached(worst)) counts.set(gapOf(worst), (counts.get(gapOf(worst)) ?? 0) + 1);
   }
-  const before = crumbs.filter(({ worst }) => !worst.ran).length;
-  const only = before === 0 ? '' : before < crumbs.length ? `, ${before} only ${BEFORE}` : crumbs.length === 1 ? `, ${BEFORE}` : `, all ${BEFORE}`;
-  const reached = (crumbs.length === 1 ? 'reached by a case' : crumbs.length === 2 ? 'both reached by a case' : 'every one reached by a case') + only;
+  const before = pointers.filter(({ worst }) => !worst.ran).length;
+  const only = before === 0 ? '' : before < pointers.length ? `, ${before} only ${BEFORE}` : pointers.length === 1 ? `, ${BEFORE}` : `, all ${BEFORE}`;
+  const reached = (pointers.length === 1 ? 'reached by a case' : pointers.length === 2 ? 'both reached by a case' : 'every one reached by a case') + only;
   return `${counted}, ${counts.size === 0 ? reached : [...counts].map(([gap, count]) => `${count} ${gap}`).join(', ')}`;
 }
 
 /** Where a reach read from a record made before the change was seen: on the old code. */
 const BEFORE = 'in the record before the change';
-
-/** The function name a module's own top level is given. */
-const TOP_LEVEL = 'the top level';
 
 /** What a part no case reached lacks, in the words of the record it was read from, as the review comment words it. */
 function gapOf(part: Part): string {
@@ -163,7 +161,7 @@ function withoutTopLevel(parts: readonly Part[]): Part[] {
 }
 
 /** A function's branches and closures on one line: the icon is its worst part, the test file its nearest reached one. */
-function byFunction(parts: readonly Part[]): Crumb[] {
+function byFunction(parts: readonly Part[]): Pointer[] {
   const grouped = new Map<string, Part[]>();
   for (const part of parts) {
     const key = `${part.file}\0${functionOf(part.region)}`;
@@ -208,7 +206,7 @@ function origin(read: readonly { readonly suite?: string; readonly review: Revie
   return `Read from the runs on this change for ${[named.slice(0, -1).join(', '), named.at(-1)].filter(Boolean).join(' and ')}, and from the record before it for the rest.`;
 }
 
-function crumbLine({ file, name, worst, reached }: Crumb, tagged: boolean, mixed: boolean): string {
+function pointerLine({ file, name, worst, reached }: Pointer, tagged: boolean, mixed: boolean): string {
   const tag = tagged ? tagOf(worst) : '';
   const where = `${name === TOP_LEVEL ? name : `\`${name}\``} in \`${file}\``;
   // Every part reached: the furthest one is the one to read.
@@ -220,19 +218,20 @@ function crumbLine({ file, name, worst, reached }: Crumb, tagged: boolean, mixed
   return `- ${worst.fresh ? FRESH_MARK : MARK[worst.region.reach]} ${where} — ${gap}${tag}${reach === '' ? '' : `; the rest ${reach}`}`;
 }
 
-/** How many cases reached a part, from how far, and the first test file to open. */
+/** How many cases reached a part, from how far, the first test file to open, and how those cases split by what the code read. */
 function reachedBy({ region, suite, ran }: Part, tagged: boolean, mixed: boolean): string {
   const [first, ...others] = region.tests;
   const cases = region.cases === 0 ? '' : `${region.cases} case${region.cases === 1 ? '' : 's'}${ran || !mixed ? '' : ' in the record'}, `;
   const open = first === undefined ? '' : `: \`${first}\`${others.length === 0 ? '' : ` and ${others.length} more`}`;
-  return `${cases}${REACH_WORD[region.reach]}${open}${tagged && suite !== undefined ? ` (\`${suite}\`)` : ''}`;
+  const split = heardSplit(region.called);
+  return `${cases}${REACH_WORD[region.reach]}${open}${tagged && suite !== undefined ? ` (\`${suite}\`)` : ''}${split === '' ? '' : `; ${split}`}`;
 }
 
 function tagOf({ suite }: Part): string {
   return suite === undefined ? '' : ` (\`${suite}\`)`;
 }
 
-function remainder(rest: readonly Crumb[], after: boolean, mixed: boolean): string {
+function remainder(rest: readonly Pointer[], after: boolean, mixed: boolean): string {
   const counts = new Map<string, number>();
   for (const { worst } of rest) {
     const label = !isReached(worst) ? gapOf(worst) : worst.ran || !mixed ? COUNTED[worst.region.reach] : `${COUNTED[worst.region.reach]} ${BEFORE}`;
@@ -241,7 +240,7 @@ function remainder(rest: readonly Crumb[], after: boolean, mixed: boolean): stri
   const reached = rest.every(({ worst }) => isReached(worst)) ? 'every one reached by a case' : '';
   const listed = [...counts].map(([label, count]) => `${count} ${label}`).join(', ');
   if (after) return `And ${rest.length} more${reached === '' ? '' : `, ${reached}`}: ${listed}.`;
-  // With nothing named, every crumb was reached from near.
+  // With nothing named, every pointer was reached from near.
   return `Every one reached by a case: ${listed}.`;
 }
 

@@ -80,6 +80,21 @@ export function findModules(coverage: TestCoverageView, file: string): readonly 
   return rows;
 }
 
+/**
+ * The instrumented rows recorded under each of a file's names, keyed by the
+ * name, holding only names that have one. `instrumented: false` is a build
+ * saying it never read the module, not that nothing ran in it, so its zero
+ * blocks are no answer and take nothing from the instrumented row beside it.
+ */
+export function instrumentedRows(coverage: TestCoverageView, names: readonly string[]): Map<string, readonly number[]> {
+  const rows = new Map<string, readonly number[]>();
+  for (const name of names) {
+    const held = findModules(coverage, name).filter((module) => coverage.moduleInstrumented.at(module) === 1);
+    if (held.length > 0) rows.set(name, held);
+  }
+  return rows;
+}
+
 /** The test row recorded under exactly this path, if there is one. */
 export function findTest(coverage: TestCoverageView, file: string): number | undefined {
   return search(coverage, coverage.testPath, decoded(coverage).tests, file);
@@ -189,24 +204,46 @@ function pathAt(coverage: TestCoverageView, column: WordColumn, held: Map<number
  * precondition, so when none of them is interned the table is not read at all —
  * which is every diff that touches a document, an asset, or anything else the
  * run never saw.
+ *
+ * ## Why a test that ran the arrived text is not governed
+ *
+ * `arrived` gives some names the digest of the text the caller's tree holds.
+ * The digest beside a precondition is the text that test ran over, so a row
+ * recording the arrived one is a test that already ran what is there now: a
+ * run over a dirty tree, its edit left in place or committed since. That row
+ * governs nothing, and each test is decided by its own row. A name held only by
+ * such rows is in `ranOver`, and is not `unread`: the record holds it.
  */
 export function testsGovernedBy(
   coverage: TestCoverageView,
   files: readonly string[],
-): { readonly tests: ReadonlyMap<number, readonly string[]>; readonly unread: readonly string[] } {
-  if (files.length === 0) return { tests: new Map(), unread: [] };
+  arrived: ReadonlyMap<string, string> = new Map(),
+): {
+  readonly tests: ReadonlyMap<number, readonly string[]>;
+  readonly unread: readonly string[];
+  readonly ranOver: ReadonlySet<string>;
+} {
+  if (files.length === 0) return { tests: new Map(), unread: [], ranOver: new Set() };
 
   const wanted = new Map<number, string>();
+  // The id of the arrived digest, by the name's id: compared as names are, so a
+  // digest the dictionary never interned matches no row.
+  const ran = new Map<number, number | undefined>();
   for (const file of files) {
     const id = findString(coverage, file);
-    if (id !== undefined) wanted.set(id, file);
+    if (id === undefined) continue;
+    wanted.set(id, file);
+    const digest = arrived.get(file);
+    if (digest !== undefined) ran.set(id, findString(coverage, digest));
   }
-  if (wanted.size === 0) return { tests: new Map(), unread: [...files].sort(codeUnitOrder) };
+  if (wanted.size === 0) return { tests: new Map(), unread: [...files].sort(codeUnitOrder), ranOver: new Set() };
 
   const matched = new Set<string>();
+  const over = new Set<string>();
   const tests = new Map<number, string[]>();
   const preconditions = coverage.testPreconditions;
   const named = coverage.preconditionName;
+  const digests = coverage.preconditionDigest;
 
   // The offsets are a CSR: one test's end is the next one's start, so the
   // column is read once per test rather than twice per row.
@@ -216,9 +253,14 @@ export function testsGovernedBy(
     end = preconditions.at(test + 1);
     let governing: string[] | undefined;
     for (let input = start; input < end; input += 1) {
-      const name = wanted.get(named.at(input));
+      const id = named.at(input);
+      const name = wanted.get(id);
       if (name === undefined) continue;
       matched.add(name);
+      if (ran.has(id) && digests.at(input) === ran.get(id)) {
+        over.add(name);
+        continue;
+      }
       if (governing === undefined) {
         governing = [];
         tests.set(test, governing);
@@ -227,9 +269,11 @@ export function testsGovernedBy(
     }
   }
 
+  const governs = new Set([...tests.values()].flat());
   return {
     tests,
     unread: files.filter((file) => !matched.has(file)).sort(codeUnitOrder),
+    ranOver: new Set([...over].filter((name) => !governs.has(name))),
   };
 }
 

@@ -2,6 +2,7 @@ import { readFile } from 'node:fs/promises';
 import { native, nativeRefusal } from '../addon.js';
 import { digestString } from '../digest.js';
 import { instrumentModeOf } from '../instrument/index.js';
+import { probesRegions } from '../instrument/identity.js';
 import { encodeTestCoverage } from './format.js';
 import { openTestCoverage } from './format-view.js';
 import { carriedSources } from './carried-sources.js';
@@ -85,12 +86,12 @@ export function layCoverage(
 /**
  * Each module of `onDisk` cut in the text it has now, as a record under the
  * probes `instrumentation` with no tests: a module whose text does not cut, or
- * under a recipe this build does not know, is one held not instrumented.
+ * under a recipe this build does not know or one that cuts nothing (`loads`), is one held not instrumented.
  */
 export function cutRecord(instrumentation: string, onDisk: ReadonlyMap<string, string>): Buffer {
   const mode = instrumentModeOf(instrumentation);
   const modules = [...onDisk].map(([file, text]): CoverageModule => {
-    const fresh = mode === undefined ? undefined : sourceCut(text, file, mode);
+    const fresh = mode === undefined || !probesRegions(mode) ? undefined : sourceCut(text, file, mode);
     return fresh === undefined
       ? { file, sourceDigest: digestString(text), instrumented: false, blocks: [] }
       : { file, sourceDigest: fresh.sourceDigest, instrumented: true, blocks: fresh.rows };

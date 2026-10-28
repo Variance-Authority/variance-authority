@@ -1,5 +1,6 @@
 import { restamps } from '@variance-authority/core/judge';
 import type { ObservationRecord } from './format.js';
+import { isUnstable } from './unstable.js';
 
 /**
  * Whether a promotion would land, decided before anything is promoted.
@@ -59,7 +60,7 @@ export type Promotion =
  * diagnostic that makes this refusable at all.
  */
 export function promotionOf(observation: ObservationRecord): Promotion {
-  if (observation.unstable !== undefined && observation.unstable.absorbed === undefined) {
+  if (isUnstable(observation)) {
     return {
       kind: 'refused',
       because:

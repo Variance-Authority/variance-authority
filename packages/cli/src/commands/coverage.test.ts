@@ -137,7 +137,7 @@ describe('coverage of a repository that declares suites', () => {
     expect(answer.code).toBe(0);
     expect(answer.out).toContain("against each suite's base — 3 regions (4 at the base) in 1 file the suites loaded");
     expect(answer.out).toMatch(/unit\s+unit\s+3 → 2\s+75\.0% → 66\.7%\s+\+1 newly run · −1 no longer run · −1 had run in 1 file no longer loaded/u);
-    expect(answer.out).toContain('unit: src/pay.test.ts no longer runs 1 region it ran at the base');
+    expect(answer.out).toContain('unit: src/pay.test.ts no longer runs void in src/pay.ts (1 region) at the base');
     expect(answer.out).toContain(`unit compared with ${base}`);
   });
 

@@ -18,4 +18,9 @@ function pathOf(id: ModuleId): string {
   return ID.exec(id)?.[1] ?? id;
 }
 
-export = { ID, pathOf };
+/** Mark an already identified module as an opaque input, preserving the text it actually loaded. */
+function marked(id: ModuleId): ModuleId {
+  return id.replace(/@(?=[0-9a-f]+$)/u, '@~') as ModuleId;
+}
+
+export = { ID, pathOf, marked };

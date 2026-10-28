@@ -4,8 +4,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { digestString } from '../digest.js';
-import { layCases } from './case-landing.js';
-import { caseSectionsOf } from './case-record.js';
+import { lastCaseRunOf, layCases } from './case-landing.js';
+import { caseSectionsOf, withCaseSections } from './case-record.js';
 import { encodeRecordedEyes } from './eyes-record.js';
 import { encodeAsSetExecutionIndex } from './execution-set-format.js';
 import { landRun } from './commit-runs.js';
@@ -88,6 +88,28 @@ describe('combineRecords against the TypeScript writers', () => {
       const combined = await readFile(into);
       expect(readable(combined)).toEqual(readable(whole));
       expect(Buffer.compare(combined, whole)).toBe(0);
+    }
+  });
+
+  it('folds legacy and compact last-run membership into the unsharded spelling', async () => {
+    const whole = await readFile(await recordOf('whole.bin', ['a.test.ts', 'b.test.ts']));
+    const shards = [await recordOf('a.bin', ['a.test.ts']), await recordOf('b.bin', ['b.test.ts'])];
+    const bytes = await readFile(shards[0]!);
+    const parts = caseSectionsOf(bytes);
+    await writeFile(shards[0]!, withCaseSections(bytes, { ...parts, last: Buffer.from(JSON.stringify(lastCaseRunOf(parts))) }));
+    const into = join(root, 'combined.bin');
+    combineRecords(shards, into, root);
+    expect(readable(await readFile(into))).toEqual(readable(whole));
+  });
+
+  it('refuses malformed or unresolved compact membership before writing a combined record', async () => {
+    const shard = await recordOf('a.bin', ['a.test.ts']);
+    const bytes = await readFile(shard);
+    const parts = caseSectionsOf(bytes);
+    const named = lastCaseRunOf(parts)!;
+    for (const references of [[99], [-1], [0.5]]) {
+      await writeFile(shard, withCaseSections(bytes, { ...parts, last: Buffer.from(JSON.stringify({ ...named, cases: { references } })) }));
+      expect(() => combineRecords([shard], join(root, 'combined.bin'), root)).toThrow(/last-run layer/u);
     }
   });
 

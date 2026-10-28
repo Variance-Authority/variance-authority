@@ -84,10 +84,13 @@ service for JavaScript and TypeScript, which lists those uses. Members are read
 from JavaScript and TypeScript files only, so a Python class's methods and a
 Rust struct's fields and `impl` methods are not; top-level declarations are read in
 every language the index reads, Python, Rust, Java, Kotlin and Swift
-included. `ask symbol` answers a top-level declaration of the name first, in
-any of those languages; on a name that no top-level declaration or import has,
-it names each container that declares it as a member, with the member's
-`file:line`, and points to `uses`, which lists the members beside any top-level
+included, and a function or an arrow function declared inside another
+function's body is read in JavaScript and TypeScript and answered with the
+function that holds it. `ask symbol` answers a top-level declaration of the
+name first, in any of those languages; on a name that no top-level declaration
+or import has, it names each container that declares it as a member, with the
+member's `file:line`, beside any function that declares it inside its body, and
+points to `uses`, which lists the members beside any top-level
 declaration. When the workspace also holds Python, Rust, Java, Kotlin or Swift
 files, an answer that looked for members ends with a sentence that names those
 languages, whether or not it found one, and sends you to their language
@@ -252,7 +255,9 @@ npx variance ask search --query viewport --from packages/app/ --just-answer
 
 The flags are the tool arguments, spelled `--name`, `--package`, `--subpath`,
 `--query`, `--from`, `--to` and `--limit`; `--just-answer` selects the last published
-generation. [Ask about the code and its runs from the
+generation. An answer names a flag or a next question the same way —
+`--from`, `variance ask symbol` — where the tool over MCP says `from` and
+`docs_symbol`. [Ask about the code and its runs from the
 command line](agent-cli.md#find-a-name-in-the-source) shows each one.
 
 The source questions are also tools on `variance serve`, under the same names as below, so
@@ -334,8 +339,15 @@ passes it on; `docs_uses` lists those imports, from its own package as well as
 from others. When that file only passes on another file's declaration with
 `export … from`, renamed, type-only or through `export *`, both name the
 declaration it reaches, through every file between, and `docs_symbol` shows its
-line as well. A read through an `export * as` namespace and, outside Rust, a call
-through a qualified path are not counted.
+line as well. A name a file passes on inside `export * as ns`, or inside
+`export { ns }` after `import * as ns`, is counted where you read it off `ns`, `ns.name` or `const { name } = ns`, through a namespace
+inside a namespace, `lib.ns.name`, `const { ns } = lib` and then `ns.name`, or
+`const { ns: { name } } = lib`, and through a namespace passed on as
+`default`. An entry that publishes the name only inside such a namespace
+publishes it as `ns.name`, and the first line says so: `published as
+\`shout.greet\` by @acme/lib`. A namespace imported by name that goes
+somewhere whole and, outside Rust, a call through a qualified path are not
+counted.
 
 `docs_symbol` on an interface, a type alias or a class lists its members after
 the signature, one line each as the checkout holds it, so you see what a value
@@ -362,12 +374,20 @@ path inside the file, `tests::helper`, and answers to that path or to its own
 name. A `macro_rules!` inside one keeps its own name, because a macro has no
 module path. If it is not `pub`, the same rule names who can reach it: `tests` and the
 modules inside it. If it is `pub`, the modules around it decide how far it is
-seen, so the answer says who can reach it is not recorded. A script or
-CommonJS file, a module that hands itself out with `export =` and a
-`macro_rules!` hand a name out in ways their readers cannot tell, so the answer
-says who can reach it is not recorded. `docs_uses`
-answers with the same file, line and rule in one sentence, before any member
+seen, so the answer says who can reach it is not recorded. CommonJS is read on
+a best-effort basis: the static keys of an object literal that `export =` or
+`module.exports =` assigns at the top level are the file's exports, and naming
+a declaration there passes it on, which is no use of it. An object with a
+spread or a computed key with no literal name exports nothing, because its
+names cannot be spelled.
+A script or CommonJS file, a module that hands itself out with `export =` and
+a `macro_rules!` hand a name out in ways their readers cannot tell, so the
+answer says who can reach it is not recorded. `docs_uses`
+answers with the same kind, file, line and rule in one sentence, before any member
 declared by that name, and after the imports of an export of that name elsewhere.
+The kind tells apart two declarations that share a spelling: a Rust `mod walk;`
+is answered as a `[module]`, and the imports listed above it belong to the
+`fn walk` the module exports.
 It lists the imports the source index resolved to the declaring file: for a
 Rust item the modules inside its own that name it, by a `use` or by a path
 written in a type or an expression, such as `super::flag()`, and for a Python
@@ -402,10 +422,43 @@ import the name too. A Rust item that JavaScript reaches through a native
 binding is imported by no JavaScript file under its Rust name, so ask for the
 name the binding's JavaScript side declares.
 
-A name your code reads off `import * as` or off `import()` is a site too, and the
-site names the line that loads the module. An `import()` loads it when that call
+Each file that declares a name declares another thing, so `docs_uses` answers
+for every one of them, each kept apart: under the line naming each file that
+exports the name without publishing it come that declaration's own imports, as
+the uses of a kept one come under its own heading. Pass `file`, the file one of
+them is declared in, to answer for that declaration alone: `variance ask uses
+--name greet --file packages/lib/src/greet.ts`. A `file` that only passes the
+name on with `export … from` answers for the declaration it reaches, and a
+`file` that declares nothing by the name is answered with the files that do.
+
+A name your code reads off a namespace or default import, written with
+`import type` or without, or off `import()`, is a site too, and the site names the line that loads the module. In a
+type, `typeof ns.x` and `ns.T` read `x` and `T` off whatever holds the module. An `import()` loads it when that call
 runs, not when the file loads, so the file can run without the module ever
-loading.
+loading. An `import()` written in a type, `import('./x').T` or
+`typeof import('./x')`, loads nothing: TypeScript resolves it as it resolves
+`import type`, so its site is marked type only. `typeof import('./x')` names
+the module's type and reads no name of it. A value that type is written on — a
+cast, or an annotated variable or parameter, directly or through a top-level
+alias — holds the module, and a name read off that value is a type-only site,
+as `M['x']` off the module type `M` is. What a call returns is TypeScript's
+answer, and the reader does not work it out: a name read off the value
+`await importOriginal<typeof import('./x')>()` returns is not listed, because
+the reader cannot tell which module the value came from, not because the line
+reads no name. A name read off the module's
+`default` is marked "through `default`": `default` holds the name only when the
+module is CommonJS, so the line may read it and is counted apart from the
+imports. A module your code hands to a function the same file declares, as
+`count(lib)` with `function count(held)`, is followed into that function, and
+what it reads off the parameter is what the line reads, not a type-only read,
+whatever the parameter's type says. A parameter the function writes to is not
+followed. A module that goes on
+whole anywhere else — to a call the file does not declare, a property or a
+return — may read any name it exports, because what the receiver reads is out
+of the file's sight. It is listed as a site that may
+read the name, marked "passed on whole", and counted apart too. Neither is an
+import of the name, so neither makes a name look used, and a name with only
+these is unknown rather than unused: the catalogue says where it may be read.
 
 Open those files yourself. The server names the place and the line; it does not
 serve the text, so what you read is the file as it is now.
@@ -416,8 +469,9 @@ ranking. Several words also match a name written in those words, in any order,
 so `kept reading` finds `keptReading` in that answer. Where your words land on a
 name only loosely — a word typed wrong, or two words its documentation writes
 but not beside each other — those names follow under a heading of their own,
-after that answer and never inside it. So do the names holding at least half of
-your words, matched by stem, each labelled with the words it holds; both come
+after that answer and never inside it. So do the names holding any of your
+words, matched by stem, the ones holding most of them first, each labelled with
+the words it holds; both come
 before any installed package.
 
 ## Bound a search to where you are working

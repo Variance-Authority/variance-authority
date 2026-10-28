@@ -41,8 +41,17 @@ import type { NativeScanner } from '../native.js';
  * regions they keep the same way, so a function has the same address under
  * either; what differs is how many regions there are and how much a probe set
  * costs to carry.
+ *
+ * `loads` applies none of it: no module is cut or probed, and each one runs
+ * marked as loaded, with one line after its own text. A record made so says
+ * which files each test loaded, and nothing about what in them ran, so a
+ * change to a file selects every test that loaded it. Nothing walks under it:
+ * the walks below refuse it.
  */
-export type InstrumentMode = 'presence' | 'entries';
+export type InstrumentMode = 'presence' | 'entries' | 'loads';
+
+/** The modes that cut a module into regions. */
+export type WalkMode = Exclude<InstrumentMode, 'loads'>;
 
 /** What kind of region a probe stands in front of. */
 export type BlockKind =
@@ -162,7 +171,7 @@ type WellFormed = string & { isWellFormed(): boolean };
  * With a `module`, the text carries the header that reports under that id, at
  * `headerAt`; without one it carries the probes alone.
  */
-export function spliced(source: string, file: string, mode: InstrumentMode, module?: string): Spliced | undefined {
+export function spliced(source: string, file: string, mode: WalkMode, module?: string): Spliced | undefined {
   const addon = instrumenter();
   if (!(source as WellFormed).isWellFormed()) return undefined;
 
@@ -199,7 +208,7 @@ export function placed(
   authored: string,
   transformed: string,
   map: { readonly file: string; readonly mappings: string; readonly source: number },
-  mode: InstrumentMode,
+  mode: WalkMode,
   module: string,
   carry = false,
 ): Placed | undefined {

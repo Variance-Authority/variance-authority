@@ -83,6 +83,33 @@ describe('which tests a changed file governs', () => {
     expect(answer.unread).toEqual(['src/decide.ts', 'zzz/never.ts']);
   });
 
+  it('leaves out a test whose row records the text the name arrives at, and keeps one that ran another', () => {
+    const from = openTestCoverage(
+      encodeTestCoverage({
+        ...coverage,
+        tests: coverage.tests.map((test) =>
+          test.file === 'test/beta.test.ts'
+            ? { ...test, preconditions: [{ name: test.file, digest: `source:${test.file}` }, { name: 'vitest.config.ts', digest: 'source:older' }] }
+            : test,
+        ),
+      }),
+    );
+    const answer = testsGovernedBy(from, ['vitest.config.ts'], new Map([['vitest.config.ts', 'source:config']]));
+
+    expect(named(from, answer)).toEqual({ 'test/beta.test.ts': ['vitest.config.ts'] });
+    expect([...answer.ranOver]).toEqual([]);
+    expect(answer.unread).toEqual([]);
+  });
+
+  it('names a name held only by rows that record the text it arrives at as ran over', () => {
+    const from = view();
+    const answer = testsGovernedBy(from, ['test/alpha.test.ts'], new Map([['test/alpha.test.ts', 'source:test/alpha.test.ts']]));
+
+    expect([...answer.tests]).toEqual([]);
+    expect([...answer.ranOver]).toEqual(['test/alpha.test.ts']);
+    expect(answer.unread).toEqual([]);
+  });
+
   it('lists every input of one test, in the order the table holds them', () => {
     const from = view();
     const answer = testsGovernedBy(from, ['vitest.config.ts', 'test/beta.test.ts']);

@@ -88,7 +88,7 @@ describe('variance ask uses over what a name names', () => {
     expect(out).toContain('`parseSync` is declared in no file of this workspace; it is imported from outside it in 2 places, out of thirdp.');
     expect(out).toMatch(/^packages\/tool\/src\/read\.ts:2 — @acme\/tool, from thirdp$/m);
     expect(out).toMatch(/^packages\/tool\/src\/whole\.test\.ts:2 — @acme\/tool, from thirdp \(namespace, line 1\)$/m);
-    expect(out).toContain('docs_symbol has its declaration in each package.');
+    expect(out).toContain('`variance ask symbol` has its declaration in each package.');
   }, 120_000);
 
   it('says a Rust item is not followed across a native binding', async () => {

@@ -41,6 +41,7 @@ export function jsonOf(selection: TestSelection): object {
     unread: selection.unread,
     ...(selection.install === undefined ? {} : { install }),
     ...(selection.declined === undefined ? {} : { declined: selection.declined }),
+    ...(selection.ignored === undefined ? {} : { ignored: selection.ignored }),
     stale: selection.stale,
     ...(selection.readings === undefined ? {} : { readings: selection.readings }),
     ...(selection.leg === undefined ? {} : { leg: selection.leg, left: selection.left ?? [] }),

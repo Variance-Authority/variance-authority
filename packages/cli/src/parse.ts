@@ -161,7 +161,7 @@ export type Parsed =
   | { readonly command: 'watch' }
   | { readonly command: 'prune' }
   | { readonly command: 'serve'; readonly config: string; readonly justAnswer?: boolean }
-  | { readonly command: 'doctor'; readonly config: string }
+  | { readonly command: 'doctor'; readonly config: string; readonly baselines?: true }
   | ParsedComment
   | {
       readonly command: 'help';
@@ -406,7 +406,7 @@ export function parseArgs(argv: readonly string[]): Parsed {
 
     case 'doctor':
       noPositionals(flags.positionals, 'doctor');
-      return { command: 'doctor', config };
+      return flags.present.has('--baselines') ? { command: 'doctor', config, baselines: true } : { command: 'doctor', config };
 
     case 'comment': return parseCommentArgs(flags, config);
   }

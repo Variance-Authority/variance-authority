@@ -43,13 +43,6 @@
   },
   {
     "files": [
-      "packages/cli/src/commands/covering-reach.ts",
-      "packages/sense/src/test-selection/stopped.ts"
-    ],
-    "count": 1
-  },
-  {
-    "files": [
       "packages/cli/src/commands/observe-one.ts",
       "packages/cli/src/commands/observe-one.ts"
     ],
@@ -199,6 +192,20 @@
     "files": [
       "packages/history/src/answers.ts",
       "packages/server/src/http-parse.ts"
+    ],
+    "count": 1
+  },
+  {
+    "files": [
+      "packages/isolator/src/jest-test-files.ts",
+      "packages/sense/src/test-selection/jest-test-files.ts"
+    ],
+    "count": 1
+  },
+  {
+    "files": [
+      "packages/isolator/src/jest-transformer.ts",
+      "packages/sense/src/test-selection/jest-transformer.ts"
     ],
     "count": 1
   },
@@ -354,7 +361,7 @@
       "packages/route-collector/src/serve.ts",
       "packages/storybook-collector/src/serve.ts"
     ],
-    "count": 2
+    "count": 3
   },
   {
     "files": [

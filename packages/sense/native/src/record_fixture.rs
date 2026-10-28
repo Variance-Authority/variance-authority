@@ -5,9 +5,8 @@
 
 use rustc_hash::FxHashMap;
 
-use crate::case_shard;
 use crate::journey_columns::{self, Column};
-use crate::journey_format::SetPool;
+use crate::crossing_sets::{self, SetPool};
 use crate::record_coverage;
 use crate::record_layout::LAYOUT;
 
@@ -152,7 +151,8 @@ pub fn write(spec: &Spec) -> Vec<u8> {
         bytes("modules.instrumented", spec.modules.iter().map(|module| u8::from(module.instrumented)).collect()),
         words("modules.blocks", module_blocks),
         words("blocks.ordinal", ordinal),
-        bytes("blocks.kind", vec![0; blocks]),
+        // A region with an owner is a function's, never a module's top level.
+        bytes("blocks.kind", owner.iter().map(|owner| u8::from(*owner != LAYOUT.coverage.no_owner)).collect()),
         words("blocks.owner", owner),
         words("blocks.digest", digest),
         words("blocks.name", block_name.clone()),
@@ -197,8 +197,8 @@ pub fn read(bytes: &[u8]) -> (Vec<(String, bool, Option<u32>)>, Vec<(String, boo
         })
         .collect();
     let members = |set: u32| -> Vec<String> {
-        let stored = case_shard::set_slice(&coverage.set_bytes, &coverage.set_offsets, set).unwrap();
-        case_shard::decode_set(stored, coverage.tests()).unwrap().into_iter().map(|test| files[test as usize].clone()).collect()
+        let stored = crossing_sets::set_slice(&coverage.set_bytes, &coverage.set_offsets, set).unwrap();
+        crossing_sets::decode_set(stored, coverage.tests()).unwrap().into_iter().map(|test| files[test as usize].clone()).collect()
     };
     let modules = (0..coverage.modules())
         .map(|at| {

@@ -318,6 +318,26 @@ module.exports = {
     expect(done.code).toContain('.r("src/pick.js@');
   });
 
+  it('is never asked for a recipe under the loads recipe, and the module it wrote is marked as loaded', async () => {
+    const root = await project('variance-jest-placing-');
+    await writeFile(resolve(root, 'src/pick.js'), RAW);
+    await writeFile(
+      resolve(root, 'transformer.cjs'),
+      `module.exports = {
+  senseRecipe: (mode) => { throw new Error('asked for ' + mode); },
+  process: (source) => ({ code: source }),
+};
+`,
+    );
+    const transformer = await createTransformer({ root, transformer: resolve(root, 'transformer.cjs'), mode: 'loads' });
+
+    const done = transformer.process!(RAW, resolve(root, 'src/pick.js'), transformOptions(root));
+
+    expect(done.code.startsWith(`${RAW}\n;`)).toBe(true);
+    expect(done.code).toContain('.m("src/pick.js@~');
+    expect(done.code).not.toMatch(/__va\(\d+\)/);
+  });
+
   it('is handed a module named unprobed already marked, with nothing to place', async () => {
     const root = await placing(OURS);
     const transformer = await createTransformer({
@@ -361,9 +381,8 @@ module.exports = {
 
     const done = transformer.process!(broken, resolve(root, 'src/broken.js'), transformOptions(root));
 
-    expect(done.code.startsWith(`${broken}\n;`)).toBe(true);
-    expect(done.code).toContain(JSON.stringify(markedId('src/broken.js', broken)));
-    expect(done.code.endsWith('__vaE();')).toBe(true);
+    // One reporting line after the text: no header, nothing imported.
+    expect(done.code).toBe(`${broken}\n;globalThis.__VA__.m(${JSON.stringify(markedId('src/broken.js', broken))});`);
   });
 
   it('marks a parseable module it handed back with no probe placed so that it reads back as not probed', async () => {
@@ -391,7 +410,7 @@ module.exports = {
 
     const done = await transformer.processAsync!(RAW, resolve(root, 'src/pick.js'), transformOptions(root));
 
-    expect(done.code).not.toContain('__vaE();');
+    expect(done.code).not.toContain('__VA__.m(');
   });
 
   it('reads `unprobed` as Jest reads `testMatch`, so a negated glob leaves a module probed', async () => {

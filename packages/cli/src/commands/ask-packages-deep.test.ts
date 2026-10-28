@@ -92,7 +92,7 @@ describe('variance ask over a private app that reaches into another package', ()
     expect(symbol.out).toContain("import { greet } from '@acme/lib';");
     expect(symbol.out).toContain('declared at packages/lib/src/greet.ts:1');
     expect(symbol.out).toContain(
-      'docs_uses names the 1 place another package imports this by its published path, and the imports the source index resolves to its file, nearest to a file you name first.',
+      '`variance ask uses` names the 1 place that imports this: 1 from another package, nearest to a file you name first.',
     );
 
     const uses = await run(['ask', 'uses', '--name', 'greet']);
@@ -117,7 +117,7 @@ describe('variance ask over a private app that reaches into another package', ()
     const { code, out } = await run(['ask', 'uses', '--name', 'roundTax']);
     expect(code).toBe(EXIT_CLEAN);
     expect(out).toContain(
-      '`roundTax` [const] is exported, without being published, at packages/lib/src/internal/math.ts:5, and nothing in this workspace imports it; a read through an `export * as` namespace and, outside Rust, a call through a qualified path are not counted.',
+      '`roundTax` [const] is exported, without being published, at packages/lib/src/internal/math.ts:5, and nothing in this workspace imports it; a namespace imported by name that goes somewhere whole and, outside Rust, a call through a qualified path are not counted.',
     );
   });
 
@@ -128,7 +128,9 @@ describe('variance ask over a private app that reaches into another package', ()
     const { code, out } = await run(['ask', 'symbol', '--name', 'roundTax']);
     expect(code).toBe(EXIT_CLEAN);
     expect(out).toContain('exported, without being published, at packages/lib/src/internal/math.ts:5 by @acme/lib');
-    expect(out).toContain('export const roundTax = (amount: number): number => amount;');
+    expect(out).toContain('roundTax [const]\n');
+    expect(out).toContain('const roundTax = (amount: number): number =>');
+    expect(out).not.toContain('export const roundTax');
     expect(out).toMatch(/Imported in 1 place\b/);
   });
 
@@ -141,13 +143,17 @@ describe('variance ask over a private app that reaches into another package', ()
 
     const { code, out } = await run(['ask', 'symbol', '--name', 'roundTax']);
     expect(code).toBe(EXIT_CLEAN);
-    expect(paragraph(out, /^roundTax\nexported, without being published, at packages\/lib\//)).toMatch(/Imported in 1 place\b/);
-    expect(paragraph(out, /^roundTax\nexported, without being published, at packages\/kit\//)).toContain(
-      'Nothing in this workspace imports it; a read through an `export * as` namespace and, outside Rust, a call through a qualified path are not counted.',
+    expect(paragraph(out, /^roundTax \[const\]\nexported, without being published, at packages\/lib\//)).toMatch(/Imported in 1 place\b/);
+    expect(paragraph(out, /^roundTax \[const\]\nexported, without being published, at packages\/kit\//)).toContain(
+      'Nothing in this workspace imports it; a namespace imported by name that goes somewhere whole and, outside Rust, a call through a qualified path are not counted.',
     );
 
     const uses = await run(['ask', 'uses', '--name', 'roundTax']);
-    expect(uses.out).toMatch(/^`roundTax` \[const\] is imported in 1 place, and no entry publishes it; it is exported at packages\/\w+\/src\/\S+:\d+ and 1 more\.$/m);
+    // Each declaration is answered with its own imports, never one count for both.
+    expect(uses.out).toMatch(/^`roundTax` \[const\] is exported, without being published, at packages\/kit\/src\/money\/round\.ts:1, and nothing in this workspace imports it;/m);
+    const [, lib] = uses.out.split('`roundTax` is exported, without being published, at packages/lib/src/internal/math.ts:5 as well, which is another declaration.');
+    expect(lib).toMatch(/^Imported in 1 place\.$/m);
+    expect(lib).toMatch(/^packages\/lib\/src\/internal\/rounded\.ts:1 — @acme\/lib$/m);
   });
 
   const TAXES = 'export const roundTax = (amount: number): number => amount;\nexport const rate = 1;\n';

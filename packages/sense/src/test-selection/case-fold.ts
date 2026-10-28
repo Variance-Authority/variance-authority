@@ -121,7 +121,7 @@ export async function inspectCaseRun(
             const located = { ...coordinate, file: projectPath(root, coordinate.file) };
             const key = caseKey(located);
             const held = coordinates.get(key);
-            const said = preconditions.saidField(packed);
+            const said = preconditions.heardField(packed);
             if (held === undefined) {
               scanning = {
                 ...caseOf(located),

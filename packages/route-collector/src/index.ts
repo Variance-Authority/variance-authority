@@ -320,7 +320,7 @@ export function routeCollector(
        * `readRoute` navigates whenever the page is not already on the address.
        */
       async collectAlone(planned: PlannedSubject): Promise<Collected> {
-        const alone = await openWorld({ ...recipe, harness: { ...recipe.harness, url: 'about:blank' } });
+        const alone = await openWorld({ ...recipe, harness: { ...recipe.harness, url: 'about:blank', isolated: true } });
         // This world's engine. The run's reader has met every function every
         // earlier subject rendered, and would lay all of them over this reading.
         const declaredAlone = createDeclarationReader(alone.page);

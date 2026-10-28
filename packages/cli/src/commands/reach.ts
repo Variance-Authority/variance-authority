@@ -53,6 +53,8 @@ import {
   explain,
   changedBefore,
   affectedBy,
+  dependentsOf,
+  idOf,
   nodesOfKind,
   within,
   type BeforeReach,
@@ -60,6 +62,7 @@ import {
   type Relations,
 } from '@variance-authority/core/relate';
 import type { ReachedComponent } from '@variance-authority/report';
+import { ignoredBy } from '@variance-authority/sense/test-selection';
 import { NO_INSTALL_DIFF, withoutManifests, type InstallDiff } from './installed.js';
 import { beyondOf } from './select-beyond.js';
 import { listed, many } from './prose-counts.js';
@@ -163,6 +166,11 @@ function affectsNothing<T extends object>(walk: T | Nothing): walk is Nothing {
  * it, which is nothing, and answering *no component* there would skip the whole
  * suite over the file that governs it.
  *
+ * `ignore` is the suite's: a changed file it matches moves nothing the suite
+ * rests on and reaches no component through an edge the walk infers. A module
+ * that declares it with a `/// <depends>` reads its bytes on purpose, and is
+ * seeded in its place.
+ *
  * Both callers below refuse the same readings — a changed file the scan should
  * hold and does not, and a diff no part of which is in the graph — and they are
  * written here once. A tool that ruled a subject out on one reading and printed
@@ -177,13 +185,16 @@ function seedsOf(
   install: InstallDiff = NO_INSTALL_DIFF,
   before?: BeforeReach,
   movedExports: MovedExports = new Map(),
+  ignore?: readonly string[],
 ): Seeds | Nothing | GraphRefusal {
   if ('whole' in install) return { whole: install.whole };
 
   const beyond = beyondOf(relations, install);
   const still = changed.filter((file) => movedExports.get(file)?.length === 0);
+  const read = withoutManifests(changed, install.manifests).filter((file) => !still.includes(file));
+  const ignored = ignoredBy(ignore, read);
   const files = [
-    ...withoutManifests(changed, install.manifests).filter((file) => !still.includes(file)),
+    ...new Set([...read.filter((file) => !ignored.includes(file)), ...ignored.flatMap((file) => declaring(relations, file))]),
     ...beyond.unplaced,
   ];
 
@@ -245,7 +256,8 @@ function seedsOf(
         ? many(fromPackages, 'changed package')
         : `${many(fromFiles, 'changed file')} and ${many(fromPackages, 'changed package')}`) +
     (still.length === 0 ? '' : ` (${listed(still)}: no runtime change)`) +
-    (narrowed.length === 0 ? '' : ` (${byExport(narrowed, movedExports)})`);
+    (narrowed.length === 0 ? '' : ` (${byExport(narrowed, movedExports)})`) +
+    (ignored.length === 0 ? '' : ` (${ignoredSaid(ignored)})`);
   if (unscanned.length > 0) {
     return {
       unscanned,
@@ -262,20 +274,21 @@ function seedsOf(
     // step earlier — a lockfile rewritten by a workspace version bump resolves
     // every package to what it resolved before, and changed nothing.
     if (files.length === 0 && expanded.length === 0 && changed.length > 0) {
+      const quiet = [...(still.length === 0 ? [] : [ranAsBefore(still)]), ...(ignored.length === 0 ? [] : [ignoredSaid(ignored)])];
       const settled =
         install.packages.length > 0
           ? `no file imports ${listed([...install.packages].sort(byCodeUnit))}`
-          : still.length === 0
+          : quiet.length === 0
             ? 'the diff changed only manifests, and the install resolves every package to what ' +
               'it resolved before'
             : 'the install resolves every package to what it resolved before';
       return {
         nothing:
-          still.length === 0
+          quiet.length === 0
             ? settled
-            : still.length === changed.length
-              ? ranAsBefore(still)
-              : `${ranAsBefore(still)}, and ${settled}`,
+            : still.length + ignored.length === changed.length
+              ? quiet.join(', and ')
+              : `${quiet.join(', ')}, and ${settled}`,
       };
     }
 
@@ -342,16 +355,9 @@ export function affectedFiles(
  * rather than as the selection, so the graph narrows outwards from them exactly
  * as it does from a file somebody edited.
  */
-export function affectedComponents(
-  relations: Relations,
-  changed: readonly string[],
-  changedDirs: readonly string[],
-  roots: readonly string[],
-  install: InstallDiff = NO_INSTALL_DIFF,
-  before?: BeforeReach,
-  movedExports: MovedExports = new Map(),
-): AffectedComponents | GraphRefusal {
-  const walk = seedsOf(relations, changed, changedDirs, roots, install, before, movedExports);
+export function affectedComponents(...readings: Parameters<typeof seedsOf>): AffectedComponents | GraphRefusal {
+  const [relations] = readings;
+  const walk = seedsOf(...readings);
   if (refused(walk)) return walk;
   if (affectsNothing(walk)) {
     return { components: [], files: [], seeded: 0, how: walk.nothing };
@@ -391,6 +397,18 @@ function withChain(trail: readonly string[], chains: ReadonlyMap<string, readonl
 /** The first three of a list, with a mark when there are more. */
 function sample(files: readonly string[]): string {
   return `${files.slice(0, 3).join(', ')}${files.length > 3 ? ', …' : ''}`;
+}
+
+/** The modules that declare `file` with a `/// <depends>`, near and far. */
+function declaring(relations: Relations, file: string): readonly string[] {
+  const id = idOf(relations, 'file', file);
+  if (id === undefined) return [];
+  return [...dependentsOf(relations, [id], { through: ['depends'] }).nodes].filter((other) => other !== id).map((other) => relations.names[other]!);
+}
+
+/** The sentence for the changed files a suite's `ignore` matched. */
+export function ignoredSaid(files: readonly string[]): string {
+  return `the suite ignores ${listed([...files].sort(byCodeUnit))}`;
 }
 
 /**

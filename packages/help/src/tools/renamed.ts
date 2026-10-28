@@ -12,13 +12,13 @@
 // compass: variance-authority.report.agent-surface
 
 import { codeUnitOrder } from '@variance-authority/core/segment';
-import type { Help, Use } from '@variance-authority/package/help';
+import { type Help, type Use, undecided } from '@variance-authority/package/help';
 import { aliasesOf, type Alias } from '@variance-authority/sense';
 import { queryDependencyLexicon } from '../dependency-lexicon.js';
 import { entriesNamed, isPackage, specifierOf } from './find.js';
 import { memberRows } from './container.js';
 import { block } from './format.js';
-import { passedOnRows } from './passed-on.js';
+import { exportedRows } from './passed-on.js';
 import { thirdBlock } from './third-party.js';
 
 /** How many renamed sites are worth naming on one line. */
@@ -123,18 +123,18 @@ function originalOf(help: Help, root: string, alias: Alias, wanted: string | und
   if (door !== undefined) {
     const [published, held, entry] = door;
     if (wanted !== undefined && !isPackage(published, held, wanted)) return undefined;
-    return { text: [block(published, held, entry), ...memberRows(root, entry.at, entry.name, entry.line)].join('\n'), at: [[entry.at, entry.line]] };
+    // The original's own sites are not read here, so the entry's are what may read it.
+    const may = undecided(published.name, held, entry);
+    return { text: [block(published, held, entry, { may, imported: false }), ...memberRows(root, entry.at, entry.name, entry.line)].join('\n'), at: [[entry.at, entry.line]] };
   }
   const to = alias.to ?? undefined;
   if (to !== undefined) {
     const held = help.exported.find((one) => one.name === name && one.at === to);
     if (held !== undefined) {
       if (wanted !== undefined && held.by !== wanted) return undefined;
-      const { declared, rows } = passedOnRows(root, held);
+      const { declared, rows } = exportedRows(root, name, held);
       return {
         text: [
-          name,
-          `exported, without being published, at ${held.at}:${held.line} by ${held.by}${held.type ? ' (type only)' : ''}`,
           ...rows,
           ...memberRows(root, declared.at, declared.name, declared.line),
         ].join('\n'),

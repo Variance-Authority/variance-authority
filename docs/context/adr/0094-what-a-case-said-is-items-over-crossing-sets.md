@@ -12,7 +12,7 @@ case resolved at write
 
 ## Context
 
-A precondition is configuration a case said; a gate read (spec 0102) is what
+A precondition is configuration a case said; a breadcrumb (spec 0102) is what
 the code read while the case ran. Both are near-universal — almost every case
 says or reads something — and both have few distinct values: the same
 `beforeEach` says the same thing for every case of a file, and a flag set read
@@ -126,7 +126,7 @@ written by the realm. Only Rust reads it.
   resolves, so it costs a resolve per case. Answering it from the items' sets,
   without resolving a case that holds no item under the name, is a Rust query
   this decision leaves for later; its semantics are fixed here.
-- **Gate reads take the same shape.** Spec 0102's reads are items in a section
+- **Breadcrumbs take the same shape.** Spec 0102's reads are items in a section
   `tests.read` with this layout and this owner; the said and read sets of one
   key intersect to answer *said X, read Y*.
 

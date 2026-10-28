@@ -415,3 +415,20 @@ describe('a narrow screen names what it leaves out', () => {
     expect(note).not.toContain('what was not observed');
   });
 });
+
+describe('an unstable subject on the page', () => {
+  it('is not called clean, because the check stays red over it', () => {
+    // The same run the pull-request comment heads "1 subject(s) unstable": the
+    // page reads one docket, and a page saying "clean" beside a red check is the
+    // third rendering saying something the other two do not.
+    const unstable = {
+      ...CHANGED,
+      unstable: { components: [{ name: 'Clock' }], bands: ['content'], because: 'two readings in a row differ' },
+    };
+    const html = reportHtml(reportOf({ observations: [unstable] }));
+
+    expect(html).not.toContain('<h1 class="ok">clean</h1>');
+    expect(html).toContain('<h1>1 unstable</h1>');
+    expect(html).toContain('<title>1 unstable — variance</title>');
+  });
+});

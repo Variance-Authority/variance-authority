@@ -47,7 +47,7 @@ import { sameInstall, type KeptInstall } from './kept-install.js';
 import { askCoverageFile } from './coverage-file.js';
 import { codeUnitOrder } from './instrumented-modules.js';
 import { nearestFirst, type TestDistance } from './distance.js';
-import type { ExecutionNarrowing, SelectionReason } from './select.js';
+import type { ExecutionNarrowing, SelectionReason } from './narrowing.js';
 
 /** One git invocation, answering its stdout and throwing when git fails. */
 export type Git = (...args: string[]) => string;
@@ -435,7 +435,7 @@ export interface StandAnswer<Distance extends TestDistance> {
  * merge base with a ref, is asked the first question alone. Each selector
  * builds and asks the diff itself, because each brings the hunks into its own
  * coordinates. `whole`, `readings` and the rest of the narrowing are the
- * snapshot commit's answer; `unread` and `stale` are every answer's.
+ * snapshot commit's answer; `unread`, `stale` and `ignored` are every answer's.
  */
 export async function askPerStand<Distance extends TestDistance>(
   stands: readonly Stand[],
@@ -448,6 +448,7 @@ export async function askPerStand<Distance extends TestDistance>(
   const distances = new Map<string, Distance>();
   const unread = new Set<string>();
   const stale = new Set<string>();
+  let ignored: Set<string> | undefined;
   const keep = (answer: StandAnswer<Distance>, at: number): void => {
     for (const test of answer.narrowing.entered) if (mine(at)(test)) entered.add(test);
     for (const cause of answer.narrowing.because ?? []) {
@@ -463,6 +464,7 @@ export async function askPerStand<Distance extends TestDistance>(
     }
     for (const path of answer.narrowing.unread) unread.add(path);
     for (const name of answer.narrowing.stale) stale.add(name);
+    if (answer.narrowing.ignored !== undefined) for (const path of answer.narrowing.ignored) (ignored ??= new Set()).add(path);
   };
   const here = await ask({ read: 'tree', at: undefined, whole: [] });
   keep(here, -1);
@@ -481,6 +483,7 @@ export async function askPerStand<Distance extends TestDistance>(
       }),
       unread: [...unread].sort(),
       stale: [...stale].sort(),
+      ...(ignored === undefined ? {} : { ignored: [...ignored].sort() }),
     },
     distances: [...distances.values()],
   };

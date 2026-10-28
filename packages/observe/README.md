@@ -5,6 +5,7 @@
 > Compare render documents or rasters and receive one Variance Authority observation, whatever produced the images.
 
 Part of [Variance Authority](https://variance-authority.dev).
+Point your coding agent at [`llms.txt`](https://variance-authority.dev/llms.txt).
 
 ## What this is for
 

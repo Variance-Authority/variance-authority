@@ -189,8 +189,9 @@ Choose it when the suite should own pixels but the vendor should own review and
 history.
 
 Its Chromium examples use both `--disable-lcd-text` and
-`--font-render-hinting=none`; Variance's Chromium renderer uses the same defaults
-and records the ordered launch recipe in renderer identity.
+`--font-render-hinting=none`; Variance's Chromium renderer uses the same two,
+adds `--disable-partial-raster` so a shot does not depend on what the page
+painted before it, and records the ordered launch recipe in renderer identity.
 
 Sources: [Playwright quickstart](https://argos-ci.com/docs/quickstart/playwright),
 [Vitest quickstart](https://argos-ci.com/docs/quickstart/vitest-quickstart),

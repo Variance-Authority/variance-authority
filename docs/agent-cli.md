@@ -98,7 +98,7 @@ words comes before a doc that opens with them, and that before a doc that
 says them further down; the published names are then ranked by how many
 packages import them. When neither holds your words as written, two more
 follow, each labelled as the reading it is and both before any installed
-package: the names and files holding at least half of your words, matched by
+package: the names and files holding any of your words, matched by
 stem, a file by its name and the doc it opens with, ranked by how many of
 your words each holds, then by how many its name holds, then by how much of
 your phrase its doc writes; then the names your words reach written apart or one character off,

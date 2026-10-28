@@ -153,7 +153,8 @@ matched on its words.
 
 Nothing here expands your word for you. There is no thesaurus, no stemmer beyond
 a trailing plural, and no model — the match is your words against the names the
-run recorded, ranked by how many matched and how rare each one is. What a word means
+run recorded, ranked by how many matched, how many pairs of them stand side by
+side as you typed them, and how rare each one is. What a word means
 is your half of the question, and it stays yours: you have the ticket and the
 checkout, and you already know which names this codebase is in the habit of
 writing.
@@ -404,6 +405,13 @@ creator, and `chips` on a component — four independent readings agreeing. The
 last matched `chips` on a component alone. That is the difference between a
 subject named for the thing and a subject that merely contains one, and you can
 see which one you have before you open it.
+
+A match on a word more than half the searched subjects have in that field says
+how many, as ``roles `button` (in 3 of 4)``: it found the subject and
+distinguishes nothing. Add a word only the subject you mean would show, or name
+a start point with `--from` so fewer subjects are searched. Two of your words found next to each other in one value
+print as their own line, `` `clear completed` side by side: names `Clear completed` ``,
+and rank that subject above one that has the same words apart.
 
 The order is orientation, not evidence: nothing in the answer shows whether a
 subject passed or failed, and none of it includes a pixel count or a diff to

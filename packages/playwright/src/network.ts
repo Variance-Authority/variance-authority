@@ -4,7 +4,7 @@ import {
   type Digest,
   type RenderResource,
 } from '@variance-authority/core/format';
-import type { Page, Route } from 'playwright';
+import type { Page } from 'playwright';
 import {
   type BlankRule,
   blankKey,
@@ -14,7 +14,8 @@ import {
   blankUrlAimedAt,
   imageSize,
 } from './blank.js';
-import { freezeGif } from './gif.js';
+import { freezeGif, isGifResponse } from './gif.js';
+import { type Paused, pauseByProtocol, pauseByRoute } from './pause.js';
 import { isSpeculative } from './speculative.js';
 
 /**
@@ -54,13 +55,13 @@ import { isSpeculative } from './speculative.js';
  *
  * ## What it costs, stated plainly
  *
- * Routing disables the browser's HTTP cache for what it routes, and every routed
- * request makes a round trip into Node. So only asset requests are fetched and
- * hashed; everything else is continued without being read, which is one IPC hop
- * and no body. Documents, scripts and stylesheets are deliberately not hashed:
- * their effect on the render arrives through the capture itself — the DOM, the
- * rule text — and hashing them would pay for a second copy of something already
- * covered.
+ * Every held request makes a round trip into Node, and Playwright's routing
+ * turns the HTTP cache off unless {@link NetworkOptions.cache} asks otherwise.
+ * So only asset requests are fetched and hashed; everything else is continued
+ * without being read, which is one IPC hop and no body. Documents, scripts and
+ * stylesheets are deliberately not hashed: their effect on the render arrives
+ * through the capture itself — the DOM, the rule text — and hashing them would
+ * pay for a second copy of something already covered.
  */
 
 /** Resource types whose *bytes* change the render without entering the capture. */
@@ -136,6 +137,18 @@ export interface NetworkOptions {
    * prevent.
    */
   readonly retainResources?: boolean;
+
+  /**
+   * Leave the browser's HTTP cache on. Off by default.
+   *
+   * On, requests are held through the DevTools protocol instead of Playwright's
+   * routing, which turns the cache off: a page whose context another page
+   * already filled is answered from it, and every answer still passes here. An
+   * image the same page already shows does not — it is drawn again without a
+   * request — so only a caller that never calls `reset` may turn this on.
+   * Chromium only; see `pause.ts`.
+   */
+  readonly cache?: boolean;
 }
 
 export interface NetworkObservation {
@@ -261,7 +274,9 @@ export async function observeNetwork(
   const unresolved = new Map<string, string>();
   let idle: (() => void) | undefined;
 
-  await page.route('**/*', handle);
+  const unpause = await (options.cache === true
+    ? pauseByProtocol(page, handle, (message) => diagnostics.push({ severity: 'warn', code: 'target-not-observed', message }))
+    : pauseByRoute(page, handle));
 
   return {
     assets,
@@ -293,19 +308,18 @@ export async function observeNetwork(
       inFlight = new Map();
     },
     async close(): Promise<void> {
-      await page.unroute('**/*', handle);
+      await unpause();
     },
   };
 
-  async function handle(route: Route): Promise<void> {
-    const request = route.request();
-    const url = request.url();
+  async function handle(request: Paused): Promise<void> {
+    const { url } = request;
 
     // Refused before it leaves. What the page guesses it will show next is not
     // what it shows: served, a prefetch renders another page's code on this
     // page's behalf, and when it happens depends on what scrolled into view.
-    if (isSpeculative(request.headers())) {
-      await route.abort('aborted').catch(noteRouteFailure(url));
+    if (isSpeculative(request.headers)) {
+      await request.abort().catch(noteRouteFailure(url));
       return;
     }
 
@@ -313,10 +327,10 @@ export async function observeNetwork(
     // through the capture, which already has it; paying to hash one here would
     // buy a second copy of a covered input.
     if (
-      !HASHED_TYPES.has(request.resourceType()) ||
+      !HASHED_TYPES.has(request.resourceType) ||
       (!hash && !freeze && blankRules.length === 0)
     ) {
-      await route.continue().catch(noteRouteFailure(url));
+      await request.continue().catch(noteRouteFailure(url));
       return;
     }
 
@@ -324,24 +338,25 @@ export async function observeNetwork(
     open.set(url, (open.get(url) ?? 0) + 1);
 
     try {
-      const response = await route.fetch();
-      const body = await response.body();
+      const response = await request.fetch();
+      if (response === null) return;
+      const { body, headers } = response;
 
-      if (request.resourceType() === 'image' && (await serveBlank(route, url, body))) return;
+      if (request.resourceType === 'image' && (await serveBlank(request, url, body))) return;
 
       if (hash) assets[url] = digestOf(body, ceiling);
 
-      const still = freeze && isGifResponse(response.headers(), url) ? freezeGif(body) : null;
+      const still = freeze && isGifResponse(headers, url) ? freezeGif(body) : null;
 
       if (still !== null) {
         frozen.push(url);
         // The frame, not the film. Retaining the original would hand a later
         // renderer an animation this run had already stopped.
-        keep(url, still, response.headers()['content-type'] ?? 'image/gif');
-        await route.fulfill({ response, body: Buffer.from(still) });
+        keep(url, still, headers['content-type'] ?? 'image/gif');
+        await response.fulfill(still);
       } else {
-        keep(url, body, response.headers()['content-type'] ?? 'application/octet-stream');
-        await route.fulfill({ response, body: Buffer.from(body) });
+        keep(url, body, headers['content-type'] ?? 'application/octet-stream');
+        await response.pass();
       }
     } catch (error) {
       // The request may already be gone — a navigation cancels everything it
@@ -357,7 +372,7 @@ export async function observeNetwork(
       // key can survive one unread asset as a weaker claim, and an archive that
       // is missing one cannot be painted at all.
       unresolved.set(url, `${url} could not be read: ${messageOf(error)}`);
-      await route.continue().catch(noteRouteFailure(url));
+      await request.continue().catch(noteRouteFailure(url));
     } finally {
       if (open.get(url) === 1) open.delete(url);
       else open.set(url, open.get(url)! - 1);
@@ -374,7 +389,7 @@ export async function observeNetwork(
    * discarded bytes back into the environment key and re-render every subject
    * the image appears on to rediscover that it had been thrown away.
    */
-  async function serveBlank(route: Route, url: string, body: Buffer): Promise<boolean> {
+  async function serveBlank(request: Paused, url: string, body: Buffer): Promise<boolean> {
     if (blankRules.length === 0) return false;
 
     const size = imageSize(body);
@@ -406,7 +421,7 @@ export async function observeNetwork(
     const blank = blankPng(size.width, size.height);
     keep(url, blank, 'image/png');
 
-    await route.fulfill({ status: 200, contentType: 'image/png', body: blank });
+    await request.serve('image/png', blank);
     return true;
   }
 
@@ -478,20 +493,6 @@ export async function observeNetwork(
  */
 function digestOf(body: Uint8Array, ceiling: number): string {
   return body.length > ceiling ? `size:${body.length}` : digestBytes(body);
-}
-
-/**
- * Whether a response is a GIF, by header first and extension second.
- *
- * Content type is what the browser will believe, so it decides. The extension is
- * a fallback for a server that sends `application/octet-stream` — common enough
- * on object storage — and never an override, because a `.gif` served as `png` is
- * a PNG to every decoder that matters.
- */
-function isGifResponse(headers: Readonly<Record<string, string>>, url: string): boolean {
-  const type = headers['content-type'];
-  if (type !== undefined && type.length > 0) return type.toLowerCase().includes('image/gif');
-  return /\.gif(?:[?#]|$)/i.test(url);
 }
 
 function messageOf(error: unknown): string {

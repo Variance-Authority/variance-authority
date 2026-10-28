@@ -3,7 +3,7 @@ import type { Relations } from '@variance-authority/core/relate';
 import { readDistillRecords, type DistillRecords, type NativeDistillScope } from '@variance-authority/sense/test-selection';
 import { withheldOf } from './file.js';
 import { importOf, SHARED, UNSEEN } from './own.js';
-import { formatScopeTime, scopeTime, type ScopeTime } from './time.js';
+import { fileTime, formatScopeTime, scopeTime, type FileTime, type ScopeTime } from './time.js';
 
 /** One record a scope is read from, and the suite it belongs to when one is declared. */
 export interface ScopeRecord {
@@ -89,14 +89,16 @@ function scopeOf(input: ScopeDistillInput): { readonly within?: string; readonly
 function* readingsOf(input: ScopeDistillInput, scope: NativeDistillScope): Generator<ScopeRow, void, undefined> {
   const { readings, names } = scope;
   for (let at = 0; at < readings.file.length; at += 1) {
-    const suite = input.records[readings.record[at]!]!.suite;
+    const { suite, record } = input.records[readings.record[at]!]!;
     const file = names[readings.file[at]!]!;
     const cases = readings.cases[at]!;
+    const time = fileTime(record, file);
     const withheld = withheldOf(file, readings.withheld[at]!, readings.unsettled[at]!, cases);
     yield {
       ...(suite === undefined ? {} : { suite }),
       file,
       cases,
+      ...(time === undefined ? {} : { time }),
       loaded: { modules: readings.loaded[at]!, lines: readings.loadedLines[at]! },
       ...(withheld === undefined
         ? { unentered: { modules: readings.unentered[at]!, lines: readings.unenteredLines[at]! } }
@@ -177,6 +179,8 @@ export interface ScopeRow {
   readonly file: string;
   /** How many cases the record keeps for the file. */
   readonly cases: number;
+  /** Recorded worker milliseconds by phase, even when `unentered` is withheld. Absent when no phase was timed. */
+  readonly time?: FileTime;
   /** The modules it loaded that declare a function, other than itself, and their lines. */
   readonly loaded: { readonly modules: number; readonly lines: number };
   /** Of those, the ones no case of the file entered. Absent when the reading is withheld. */

@@ -5,6 +5,7 @@
 > Measure a difference that was never zero, watch it drift, and refuse to photograph a subject that will not hold still.
 
 Part of [Variance Authority](https://variance-authority.dev).
+Point your coding agent at [`llms.txt`](https://variance-authority.dev/llms.txt).
 
 ## What this is for
 

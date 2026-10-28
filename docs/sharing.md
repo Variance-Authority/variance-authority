@@ -1189,7 +1189,9 @@ no record of the suite; the `record of "<name>":` line goes to stderr:
 - **The run tests your change on the record's commit, not on the base tip.**
   What the mainline gained since is checked where your branch is brought up to
   date before it merges: the merge queue, the required up-to-date branch or the
-  rebase.
+  rebase. A merge queue checks it only as far as the tests it runs; one that runs
+  part of the suite leaves the rest to the whole run on the mainline after the
+  merge.
 - **A head that conflicts with the record's commit stays on GitHub's merge**,
   and the run measures what the mainline gained since the record as well.
 - **Shards read the commit once and share it.** A publish can land between

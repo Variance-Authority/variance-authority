@@ -1,21 +1,17 @@
 import { describe, expect, it } from 'vitest';
 import type { SourceIndex } from '@variance-authority/core/attribute';
-import {
-  environmentKey,
-  profileById,
-  type RenderDocument,
-  type SemanticSnapshot,
-} from '@variance-authority/core/format';
+import type { RenderDocument } from '@variance-authority/core/format';
 import { packSnapshot } from '@variance-authority/observe';
 import type { Found } from '@variance-authority/raster';
 import { EXIT_CLEAN, EXIT_REVIEW, exitFor } from '../exit.js';
 import type { Collected, Collector, Plan } from './run.js';
 import {
-  VIEWPORT,
+  collectorOf,
   configOf,
   documentFor,
   painter,
   runWith,
+  snapshotFor,
   storeAnswering,
   whiteBaselineOf,
 } from './run-fixture.js';
@@ -48,48 +44,6 @@ describe('a subject that does not read the same way twice', () => {
     );
   }
 
-  /** The same reading as a snapshot, so the disagreement can be named. */
-  function snapshotOf(id: string, at: string): SemanticSnapshot {
-    return {
-      formatVersion: 1,
-      subject: { id, kind: 'fixture' },
-      profile: profileById('chromium'),
-      environment: environmentKey({
-        profile: 'chromium',
-        engine: 'chromium@131',
-        ruleset: 'test',
-        allowlist: 'test',
-        viewport: VIEWPORT,
-        fonts: [],
-        conditions: {},
-        assets: {},
-      }),
-      renderHash: 'v1:0',
-      structureHash: 'v1:0',
-      styleHash: 'v1:0',
-      root: {
-        path: '0',
-        tag: 'div',
-        attributes: {},
-        style: {},
-        provenance: { owners: [{ name: 'Clock', propsDigest: 'v1:x' }] },
-        children: [
-          {
-            path: '0/0',
-            tag: 'span',
-            attributes: {},
-            style: {},
-            text: at,
-            provenance: { owners: [{ name: 'Clock', propsDigest: 'v1:x' }] },
-            children: [],
-          },
-        ],
-      },
-      styleProvenance: [],
-      diagnostics: [],
-    };
-  }
-
   /**
    * The baseline: a plain document, painted white.
    *
@@ -110,7 +64,7 @@ describe('a subject that does not read the same way twice', () => {
    */
   function settlingBaselineOf(id: string, at: string): Found {
     const found = whiteBaselineOf(reading(id, at));
-    return { ...found, raster: { ...found.raster, snapshot: packSnapshot(snapshotOf(id, at)) } };
+    return { ...found, raster: { ...found.raster, snapshot: packSnapshot(snapshotFor(id, at)) } };
   }
 
   /**
@@ -145,7 +99,7 @@ describe('a subject that does not read the same way twice', () => {
       return {
         ok: true,
         document: reading(id, at),
-        ...(options.snapshots === true ? { snapshot: snapshotOf(id, at) } : {}),
+        ...(options.snapshots === true ? { snapshot: snapshotFor(id, at) } : {}),
         ...(options.source !== undefined ? { source: options.source } : {}),
       };
     };
@@ -303,6 +257,59 @@ describe('a subject that does not read the same way twice', () => {
     // Observed, not skipped: a subject with a verdict does not also become a hole
     // in the coverage list, which is what would happen if this threw.
     expect(report.notObserved).toEqual([]);
+  });
+
+  // What a visit could not read on the way is said whichever reading it came
+  // from, and said once however many readings said it.
+  it('carries what the second visit said into the run, once', async () => {
+    let calls = 0;
+    const collector: Collector = {
+      async plan() {
+        return {
+          subjects: [{ subject: { id: 'fixture:a', kind: 'fixture' as const } }],
+          notObserved: [],
+          warnings: [],
+        };
+      },
+      async collect(subject) {
+        calls += 1;
+        const said = calls > 1 ? ['said by both visits', 'said by the second visit'] : ['said by both visits'];
+        return { subjects: [{ planned: subject, collected: { ok: true, document: reading(subject.subject.id, '12:00') } }], warnings: said };
+      },
+      async close() {
+        /* nothing to release */
+      },
+    };
+
+    const { report } = await runWith(configOf(), collector, storeAnswering(baselineOf('fixture:a')), {
+      renderer: painter(),
+    });
+
+    expect(calls).toBe(2);
+    expect(report.warnings?.filter((warning) => warning.startsWith('said by'))).toEqual([
+      'said by both visits',
+      'said by the second visit',
+    ]);
+  });
+
+  // A second visit that realized only other subjects (the story now reads at
+  // widths) took no second reading of this one, and cannot vouch for it.
+  it('calls a second visit that read only other subjects no second reading', async () => {
+    const width = { subject: { id: 'fixture:a@375', kind: 'fixture' as const } };
+    let calls = 0;
+    const collector: Collector = {
+      ...collectorOf({ subjects: [{ subject: { id: 'fixture:a', kind: 'fixture' } }], notObserved: [], warnings: [] }, () => ({ ok: false, because: 'unused' })),
+      async collect(subject) {
+        calls += 1;
+        const document = reading(calls === 1 ? subject.subject.id : width.subject.id, '12:00');
+        return calls === 1 ? { ok: true, document } : { subjects: [{ planned: width, collected: { ok: true, document } }] };
+      },
+    };
+
+    const { report } = await runWith(configOf(), collector, storeAnswering(baselineOf('fixture:a')), { renderer: painter() });
+
+    expect(calls).toBe(2);
+    expect(report.observations[0]?.unstable?.because).toContain('reading it again produced `fixture:a@375` and not `fixture:a`');
   });
 
   it('spends the same budget the clean-world pass does, once per subject', async () => {

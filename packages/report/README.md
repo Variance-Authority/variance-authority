@@ -5,6 +5,7 @@
 > The shape a Variance Authority run leaves behind, so a person, a pull request and an agent read one format.
 
 Part of [Variance Authority](https://variance-authority.dev).
+Point your coding agent at [`llms.txt`](https://variance-authority.dev/llms.txt).
 
 ## What this is for
 

@@ -125,8 +125,7 @@ describe('a module another plugin changed before the seam read it', () => {
     const marked = probes(raw, id)?.code;
     // The text as it came, and the mark after its last line.
     expect(marked?.startsWith(raw)).toBe(true);
-    expect(marked).toMatch(/greet\.ts@~[0-9a-f]+/);
-    expect(marked?.trimEnd().endsWith('__vaE();')).toBe(true);
+    expect(marked?.slice(raw.length)).toMatch(/^\n;globalThis\.__VA__\.m\("[^"\n]*greet\.ts@~[0-9a-f]+"\);$/);
   });
 
   it('is probed after the transforms when the import asked for a variant whose map leads back to the file', () => {

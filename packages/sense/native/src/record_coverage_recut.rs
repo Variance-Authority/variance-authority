@@ -9,28 +9,38 @@
 //! region around it, already decided, since arrival nests: every test that
 //! reached the new text reached the region containing it.
 //!
+//! An occurrence names one region only where the two cuts hold the address as
+//! many times and seated every counter it passes through alike. A fresh region
+//! the row was cut without takes what the region around it took. One whose
+//! address the row disputes, holding a sibling the fresh cut lacks or seating a
+//! counter elsewhere, is decided by the caller ([`Disputed`]). The top level is
+//! one region in every cut of a module, so it always takes the top level's
+//! crossings, whatever its branches did.
+//!
 //! Nothing is cut again where the row was never measured, or its text did not
 //! move. The crossings are mislaid, and the row is carried as it was with every
-//! crosser owed a run, where the text does not cut or the cut seated its
-//! counters other than where the old one did.
+//! crosser owed a run, where the text does not cut.
 
 use rustc_hash::FxHashMap;
 
 use crate::record_coverage::{Coverage, Text};
 use crate::record_coverage_columns::{Columns, Region};
-use crate::record_coverage_layer::same_numbering;
+use crate::record_coverage_address::{addressed, Standing};
 use crate::record_layout::LAYOUT;
 
 /// What each edit reached, by `path\0from\0to`.
 pub(crate) type Readings = std::collections::HashMap<String, String>;
 
-/// Whether the edit of `file` from text `from` to text `to` reached a region of `kind`.
+/// Whether the edit of `file` from text `from` to text `to` reached a region of
+/// `kind`: it did unless the layout's `spared` names the kind under the edit's
+/// reading, the rule the case index's carry (`reaches` in `edit-readings.ts`)
+/// reads too.
 pub(crate) fn reaches(readings: &Readings, file: &str, from: &str, to: &str, kind: u8) -> bool {
-    match readings.get(&format!("{file}\0{from}\0{to}")).map(String::as_str) {
-        Some("none") => false,
-        Some("bodies") => LAYOUT.coverage.block_kinds[usize::from(kind)] != "module",
-        _ => true,
-    }
+    let kind = &LAYOUT.coverage.block_kinds[usize::from(kind)];
+    !readings
+        .get(&format!("{file}\0{from}\0{to}"))
+        .and_then(|reading| LAYOUT.coverage.spared.get(reading))
+        .is_some_and(|kinds| kinds.contains(kind))
 }
 
 /// What cutting one carried row again decides, in the previous record's regions.
@@ -40,8 +50,21 @@ pub(crate) enum Recut {
     /// Carried as it is, every crosser owed a run: its crossings have no place in the new text.
     Mislaid,
     /// Written as the fresh row: per fresh region, the previous region whose
-    /// crossings it takes, and the previous regions whose crossers the edit reached.
+    /// crossings it takes, and the previous regions whose crossers are owed a
+    /// run: the edit reached them, or a region inside them was withheld.
     Cut { from: Vec<Option<usize>>, owed: Vec<usize> },
+}
+
+/// What a fresh region whose address the row disputes takes.
+#[derive(Clone, Copy)]
+pub(crate) enum Disputed {
+    /// What the region around it took: every test that reached it reached
+    /// that region, so the superset is the only set that skips none of them.
+    Inherit,
+    /// Nothing, and nor does a region inside it: the row's crossings are not
+    /// written where the row cannot say they belong, and the crossers of the
+    /// region around it, any of whom may have run it, are owed a run.
+    Withhold,
 }
 
 /// Row `row` of `previous`, cut again as row `module` of `fresh`. `reaches`
@@ -56,7 +79,7 @@ pub(crate) fn recut(
     if previous.module_instrumented[row] != 1 || ps.at(previous.module_source[row]) == fs.at(fresh.module_source[module]) {
         return Recut::Kept;
     }
-    carried((previous, ps), row, (fresh, fs), module, reaches)
+    carried((previous, ps), row, (fresh, fs), module, Disputed::Inherit, reaches)
 }
 
 /// Row `row` of `previous` carried onto row `module` of `fresh`, whatever text
@@ -66,14 +89,15 @@ pub(crate) fn carried(
     row: usize,
     (fresh, fs): (&Coverage, Text),
     module: usize,
+    disputed: Disputed,
     reaches: impl Fn(u8) -> bool,
 ) -> Recut {
     let address = |coverage: &Coverage, strings: Text, block: usize| (strings.at(coverage.block_name[block]).to_owned(), strings.at(coverage.block_path[block]).to_owned());
-    if fresh.module_instrumented[module] != 1
-        || !same_numbering(previous.blocks(row).map(|block| address(previous, ps, block)), fresh.blocks(module).map(|block| address(fresh, fs, block)))
-    {
+    if fresh.module_instrumented[module] != 1 {
         return Recut::Mislaid;
     }
+    let standing = addressed(previous.blocks(row).map(|block| address(previous, ps, block)), fresh.blocks(module).map(|block| address(fresh, fs, block)));
+    let top = previous.blocks(row).find(|block| is_top(previous.block_kind[*block]));
     let mut seen: FxHashMap<(&str, &str), u32> = FxHashMap::default();
     let mut held: FxHashMap<(&str, &str, u32), usize> = FxHashMap::default();
     for block in previous.blocks(row) {
@@ -89,9 +113,23 @@ pub(crate) fn carried(
     for block in fresh.blocks(module) {
         let at = (fs.at(fresh.block_name[block]), fs.at(fresh.block_path[block]));
         let nth = *seen.entry(at).and_modify(|nth| *nth += 1).or_insert(1);
-        let was = held.get(&(at.0, at.1, nth)).copied().filter(|was| previous.block_kind[*was] == fresh.block_kind[block]);
+        let (was, withheld) = if is_top(fresh.block_kind[block]) {
+            (top, false)
+        } else {
+            match standing(at.0, at.1) {
+                Standing::Alike => (held.get(&(at.0, at.1, nth)).copied(), false),
+                Standing::Lacked => (None, false),
+                Standing::Disputed => (None, matches!(disputed, Disputed::Withhold)),
+            }
+        };
+        let was = was.filter(|was| previous.block_kind[*was] == fresh.block_kind[block]);
         let owner = fresh.block_owner[block];
-        let taken = was.or_else(|| if owner == LAYOUT.coverage.no_owner { None } else { decided.get(&owner).copied().flatten() });
+        let around = if owner == LAYOUT.coverage.no_owner { None } else { decided.get(&owner).copied().flatten() };
+        if let Some(around) = around.filter(|_| withheld) {
+            // Its writer may have run it from the region around it, uncut.
+            owed.push(around);
+        }
+        let taken = was.or(around.filter(|_| !withheld));
         decided.insert(fresh.block_ordinal[block], taken);
         let unmoved = was.is_some_and(|was| ps.at(previous.block_digest[was]) == fs.at(fresh.block_digest[block]));
         if let Some(taken) = taken.filter(|_| !unmoved && reaches(fresh.block_kind[block])) {
@@ -100,6 +138,11 @@ pub(crate) fn carried(
         from.push(taken);
     }
     Recut::Cut { from, owed }
+}
+
+/// Whether a region of `kind` is a module's top level.
+pub(crate) fn is_top(kind: u8) -> bool {
+    LAYOUT.coverage.block_kinds[usize::from(kind)] == "module"
 }
 
 /// Row `module` of `fresh` written at `path`, its strings ranked by `ranks`:

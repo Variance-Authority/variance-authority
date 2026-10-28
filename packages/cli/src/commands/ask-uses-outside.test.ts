@@ -155,7 +155,7 @@ describe('variance ask uses over a name a module of the runtime declares', () =>
     expect(code).toBe(EXIT_CLEAN);
     expect(out).toContain('`join` is declared in no file of this workspace; it is imported from outside it in 1 place, out of node:path.');
     expect(out).toContain("A built-in module's declaration is the runtime's, which the source index does not read.");
-    expect(out).not.toContain('docs_symbol has its declaration');
+    expect(out).not.toContain('has its declaration in each package');
   }, 120_000);
 });
 

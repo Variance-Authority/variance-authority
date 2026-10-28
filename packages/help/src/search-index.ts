@@ -30,11 +30,14 @@ export type { SearchGeneration };
 
 // The layout is written by `help_search.rs` in the sense addon.
 const MAGIC = 0x53484156; // "VAHS", little-endian
-const VERSION = 3;
+const VERSION = 4;
 const NONE = 0xffffffff;
 
-/** The tokenizer MiniSearch applies by default, which the loose pass was built with. */
-export const SPACE_OR_PUNCTUATION = /[\n\r\p{Z}\p{P}]+/u;
+/**
+ * The tokenizer MiniSearch applies by default, which the loose pass was built
+ * with, and the backtick, a symbol that delimits a code span and is never a word's.
+ */
+export const SPACE_OR_PUNCTUATION = /[\n\r\p{Z}\p{P}`]+/u;
 
 /** A query's terms: the tokens it was typed in, short ones dropped, the rest lowercased. */
 export function tokensOf(text: string): readonly string[] {
@@ -133,6 +136,8 @@ export interface SearchIndex {
   published(row: number): PublishedRow;
   /** The name id of one published row, without decoding the rest of it. */
   publishedName(row: number): number;
+  /** The bytes of one published row's doc, without decoding it; absent when it has none. */
+  publishedDocLength(row: number): number | undefined;
   /** A name's place in code-unit order among every name the index holds. */
   rank(name: number): number;
   /** The package and import counts of one published row, read off their columns. */
@@ -150,6 +155,8 @@ export interface SearchIndex {
   exported(row: number): ExportedRow;
   /** The name id of one exported row, without decoding the rest of it. */
   exportedName(row: number): number;
+  /** The bytes of one exported row's doc, without decoding it; absent when it has none. */
+  exportedDocLength(row: number): number | undefined;
   /** Where one exported row sits among source, test and story: 0, 1 or 2. */
   exportedKind(row: number): number;
   /** The file of one exported row, without decoding the rest of it. */
@@ -234,6 +241,9 @@ export function openSearchIndex(bytes: Uint8Array): SearchIndex {
     const doc = exp.doc[row] ?? NONE;
     return doc === NONE ? '' : string(doc).toLowerCase();
   };
+  // Each doc in a lowercase blob is followed by its separator, the last one included.
+  const docLength = (docs: Uint32Array, off: Uint32Array, row: number): number | undefined =>
+    (docs[row] ?? NONE) === NONE ? undefined : (off[row + 1] ?? 0) - (off[row] ?? 0) - 1;
   const slice = (off: Uint32Array, rows: Uint32Array, key: number): Uint32Array =>
     rows.subarray(off[key] ?? 0, off[key + 1] ?? 0);
 
@@ -261,6 +271,7 @@ export function openSearchIndex(bytes: Uint8Array): SearchIndex {
       };
     },
     publishedName: (row) => pub.name[row] ?? NONE,
+    publishedDocLength: (row) => docLength(pub.doc, docLowerOff, row),
     rank: (id) => nameRank[id] ?? NONE,
     usedBy: (row) => pub.usedBy[row] ?? 0,
     uses: (row) => pub.uses[row] ?? 0,
@@ -302,6 +313,7 @@ export function openSearchIndex(bytes: Uint8Array): SearchIndex {
       };
     },
     exportedName: (row) => exp.name[row] ?? NONE,
+    exportedDocLength: (row) => docLength(exp.doc, expDocLowerOff, row),
     exportedKind: (row) => expKind[row] ?? 0,
     exportedAt: (row) => string(exp.at[row] ?? NONE),
     publishedAt: (row) => string(pub.at[row] ?? NONE),

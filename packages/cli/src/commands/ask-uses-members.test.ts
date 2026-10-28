@@ -55,7 +55,7 @@ describe('variance ask uses over a member', () => {
     expect(code).toBe(EXIT_CLEAN);
     // `references.ts` binds the name at its top level, by destructuring, and
     // that declaration is answered before the member's.
-    expect(out).toContain('`resolveThings` is declared, not exported, at packages/lib/src/references.ts:3, so nothing outside that file can import it.');
+    expect(out).toContain('`resolveThings` [const] is declared, not exported, at packages/lib/src/references.ts:3, so nothing outside that file can import it.');
     expect(out).toContain('`resolveThings` is a member too, declared in 1 place:');
     expect(out).toMatch(/^packages\/lib\/src\/native\.ts:2 — Scanner$/m);
     expect(out).toContain(`${STOP}\n${ROUTE}`);

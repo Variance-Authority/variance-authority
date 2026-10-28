@@ -1,5 +1,255 @@
 # @variance-authority/playwright
 
+## 0.21.0
+
+Lockstep release — nothing in this package changed. Every `@variance-authority/*` package shares one version.
+
+## 0.20.0
+
+Lockstep release — nothing in this package changed. Every `@variance-authority/*` package shares one version.
+
+## 0.19.0
+
+Lockstep release — nothing in this package changed. Every `@variance-authority/*` package shares one version.
+
+## 0.18.0
+
+Lockstep release — nothing in this package changed. Every `@variance-authority/*` package shares one version.
+
+## 0.17.1
+
+Lockstep release — nothing in this package changed. Every `@variance-authority/*` package shares one version.
+
+## 0.17.0
+
+### Minor Changes
+
+- d0993fb: A Chromium shot no longer depends on what the page painted before it
+
+  `CHROMIUM_RASTER_ARGS` adds `--disable-partial-raster`. With partial raster, an
+  edit repaints only the damaged part of a tile, and those pixels come out one
+  colour level off a whole-tile paint. A page that mounts subject after subject
+  could shoot the same subject two ways: a baseline taken after another subject
+  differed from the same baseline taken first. Every tile is now painted whole:
+  240 mounts and shots on one page took 23.9 ms each with the flag and 24.0 ms
+  without it.
+
+  The flag is part of the ordered launch recipe, so a baseline recorded under the
+  old recipe comes back as a change caused by `rasterization`, and `accept`
+  adopts the new image. If you copy `CHROMIUM_RASTER_ARGS` into your own
+  `launchOptions`, the next run reports the same `rasterization` cause. A launch
+  list that spells the flags out by hand keeps the old recipe until you add
+  `--disable-partial-raster` to it.
+
+## 0.16.0
+
+### Minor Changes
+
+- 0d280fc: A route waits for hydration only while something can still finish it, and says when hydration changed it
+
+  No clock decides how long a route waits for React to hydrate it: the route
+  collector's `hydrationTimeoutMs` option and its two-second default are gone. React's own record decides: the collector
+  waits while a root has a render React can do or a commit has effects React has
+  not run, and, while React is stuck on a promise or has no root yet, for as long
+  as anything the page requested is still arriving. A route React stops
+  hydrating with nothing left arriving is refused at once, and the refusal says
+  React had no work it could do and nothing was arriving to give it some. A slow
+  route is waited for however long its responses take; a route held on a timer
+  or on a promise nothing settles is refused without waiting.
+
+  A route React never loaded on is read once no script it requested is still
+  arriving, because only a script brings a renderer, so a long poll on such a page
+  holds nothing: the route agent taps React's commits from before the page's first
+  script, so it knows no React came, and its `react-root-absent` warning says
+  React had not loaded and suggests `wiring: false`.
+
+  A route that hydrates is now compared. The commit tap copies the markup in
+  React's hydration commit, inert, and it is compared with the markup once React
+  has nothing left to do, so a fast machine and a slow one give the same answer.
+  A difference is reported as a `hydration-changed-markup` warning that quotes
+  the markup at the hydration commit and the client's around the change, and
+  names the components that committed after hydrating in the roots that reach
+  the subject. The route is
+  still read as it ended.
+
+  `awaitHydration` takes `tap`, a `tapCommits` tap, and `outstanding(of)`, a
+  function that resolves `true` once something the page requested has arrived and
+  `false` when nothing is in flight. `of` is an `AwaitedArrival`: `'script'` when
+  the tap saw no React load, so only scripts count, and `'any'` otherwise; without it, a root stuck on a promise is returned as
+  `hydrating` at once. Its `timeoutMs` option is gone. Its settlement carries
+  `loaded: false` when the tap saw no React load, and `changed`, a
+  `MarkupChange`, when the markup moved. A `tapCommits` tap gains
+  `effectsPending(root?)`, true while a commit's passive effects have not run on
+  that root, or on any without one, and `hydration(root)`, a `RootHydration`: the
+  markup copied at that root's hydration commit and the commits since. The tap
+  reads React 18's passive-effect flags as React 18 sets them, so a React 18 root
+  is no longer held busy by flags React 18 never clears. `detectReactVersion`
+  reads the hook through the same reader as the tap.
+
+  `watchArrivals(page)`, exported by the Playwright package, answers
+  `outstanding` from the page's own requests, leaving out event streams,
+  WebSockets and media, which are open by design, and fonts and images, which
+  React waits on neither and the asset stages wait for and name. The Playwright harness installs
+  it, and its page agent by init script before the first navigation, so the first
+  document gets the agent ahead of its own scripts, as every later one already
+  did. A page agent that fails while a request is still arriving fails naming
+  that request, with Playwright's error as the cause.
+- b7b793d: A prefetch never leaves the page
+
+  `observeNetwork` refuses a request the page sends on speculation: one marked
+  `Sec-Purpose: prefetch` or `Purpose: prefetch`, as `<link rel="prefetch">` and
+  speculation rules send it, or `Next-Router-Prefetch: 1`, as the Next.js App
+  Router and routers reproducing it send for every link in view. What the page
+  guesses it shows next is not what it shows. Served, a prefetch renders another
+  page's code under this page's journey, and when it is sent depends on what
+  scrolled into view.
+- 8605b15: A subject longer than 16,384 device pixels is refused, not photographed
+
+  A subject longer than 16,384 device pixels on either side, Chromium's largest
+  texture side, is neither captured nor clipped. The run records it as failed,
+  with its size, and names the fix: bound it with tighter roots, or leave the page
+  out.
+- bd4243a: An image, font or media request still unanswered when the network wait runs
+  out refuses the subject, naming the URL. The subject used to be read without
+  it, with a `network-not-quiet` warning. `NetworkObservation.settle()` now
+  resolves that refusal, or `undefined` once nothing is in flight; a caller that
+  ignores it reads a subject whose bytes nobody hashed.
+  Only the requests a subject started count against it: one still open from an
+  earlier subject on the same page was named in that subject's refusal.
+  One the read itself asks for and never gets makes `acquireFromAgent` throw
+  `UnansweredAssets`, which both collectors turn into that subject's refusal.
+- 52d87e4: A run starts one Chromium. Harnesses and the renderer lease one browser per launch recipe and the last to close it closes it, so a Storybook or route run with four workers launches one browser instead of five. A Storybook run's workers also share one browser context, and with it the HTTP cache: a worker's preview boots from what the first page fetched instead of downloading the bundle again (at four workers on the storybook case, 75 fetches and 29 MB became 17 fetches and 6 MB).
+
+  New options: `createHarness({ warm })` opens the page in a context shared with other warm harnesses, `createHarness({ isolated })` launches a browser of the harness's own, and `observeNetwork(page, { cache })` watches the wire through the DevTools protocol with the HTTP cache left on (Chromium only). The `alone` reading in both collectors stays in a browser of its own.
+
+### Patch Changes
+
+- 18c70d3: A run collects in parallel by default, and the report says where each subject's time went
+
+  Without `workers` in the config, a run collected in one browser world, so a
+  route suite read its pages one after another on any machine. It now collects in
+  half the machine's logical cores, at least one and never more worlds than there
+  are files: two on a 4-vCPU CI runner, eight on a 16-core laptop. A `concurrency`
+  you set holds it lower, since every world keeps a page and a subject in flight.
+  A `workers` you set still wins over both. Set `workers: 1` for a server under
+  test that cannot take concurrent pages. A collector with no `openWorker` still
+  collects in one world, and the run warns about it only when you set `workers`. Verdicts and the order
+  of observations do not depend on the count, and the report's new `workers` field
+  records it. `variance collect` takes the same width.
+
+  A changed subject read in a second world is now run alone like one read in the
+  first. A worker opens no clean world of its own, so the run asked the worker and
+  reported "not re-run alone: collector has no `collectAlone`"; it now asks the
+  collector that can open one.
+
+  The `alone.limit` budget now goes to the first subjects to change in the order
+  the run takes them. It went to whichever changed subjects reached it first, so
+  with more changed subjects than the limit, which ones carried `again` and
+  `alone` evidence depended on the number of worlds and on timing.
+
+  Each observation in the report also carries `steps` beside `costMs`: every
+  phase the subject went through, in the order it ran, with its wall time. The
+  collector's phases are named `collect.*` (`collect.navigate`,
+  `collect.wait-for-fonts`, `collect.capture`), the run's own are `compose`,
+  `inspect`, `settle`, `baseline`, `cache.get`, `cache.put`, `decode`, `compare`,
+  `write`, `again.collect` and `alone.collect`, and a painted subject adds the
+  renderer's under `render.*`. The report's `steps` sums each phase over the
+  subjects that ran it and counts them. A phase a subject skipped is absent, not
+  zero. Timings are part of no digest, so images, records and baselines do not
+  move when only timing does.
+
+  `settleRecipe`, `stabilizeForObservation`, `compareRasters` and the raster
+  `Renderer.render` take an optional step clock and report the steps they ran on
+  it. The route page agent and `readRoute` always return the steps they took.
+  `stepClock`, `timeOn` and `totalsOf` are exported from
+  `@variance-authority/core/format`.
+
+  A run that is not sharded now reads the mainline's subject costs at every
+  width, as a sharded run always did, and takes its slowest files first. One
+  world takes its subjects in the same order as several, so the budget above
+  reaches the same subjects.
+
+  `concurrency` is split evenly across the worlds and rounded up, at least one
+  per world, so by default the raster tier is as wide as the number of worlds.
+
+  The frame above a subject carries its classes in code-unit order. Storybook
+  swaps its layout class on a page it reuses, so their order said which story the
+  page showed before, and a run in parallel lanes gave the same story a different
+  document, and a render-cache miss, with the same pixels.
+- 402ce9f: A story's parameters are read when the story is reached, so no story file is imported before its story comes up
+
+  Your Storybook run used to read every story's `parameters.variance` before the
+  first story, through the preview's `extract()`. That imported every story file
+  up front: on a large Storybook you paid for the whole build before seeing one
+  story, and each file's first story then timed its import as 0 in `collect`.
+
+  The run now plans from `index.json` alone. When it reaches a story, it asks the
+  preview for that story's merged parameters, which imports only that story's
+  file, the import showing the story would have made anyway. That import is
+  charged to the story's `collect`, so the first story of each file carries what
+  its file costs. A story that excludes itself is still skipped and listed in the
+  report with its reason, and a story whose parameters cannot be read is read at
+  your run's `viewport` with a warning naming it. A preview too old to read one
+  story's parameters says so once per run, not once per story.
+
+  A story that declares `widths` is still read as `<story id>@<width>` at each
+  width, with its own baseline, and all its widths are read on the same page in
+  one visit: nothing is opened, booted or loaded again for a second width. A
+  run that does not read such a story, because `--subjects`, `--since` or a shard
+  left it out, because its visit failed, or because its parameters could not be read, still counts its width baselines as
+  planned rather than naming them as baselines your plan no longer holds. A
+  story that excludes itself when it is reached holds no subject of the run, so
+  every baseline it left, under its own id and at each width, is named. A
+  shard prices the story at the sum of the widths its last visit read.
+
+  If you write a collector, `collect` may now return a `Visit` instead of a
+  `Collected`: every subject the visit to the planned one produced, each with its own
+  result, each id the planned id or the planned id at a width (`<id>@<width>`),
+  and any warnings the visit raised. A visit that could not learn every subject
+  it realizes, such as a story read without its parameters, says `incomplete: true`.
+  A visit that produced no subject is
+  reported as a failed one, and so is a visit that produced any other id. The run and `variance collect` report each subject
+  at the position the plan gave the planned subject, and evidence parts record
+  the planned id as `of`; a merge refuses a part whose subject is neither. A
+  `--subjects` glob that names one width, such as `*@375`, now reaches the story
+  it comes from, and only a width suffix extends a story id: `button--primary`
+  no longer reaches `button--primary-large`.
+
+  `@variance-authority/core/format` exports `atWidth`, which writes a subject's
+  id and name at a width, and `widenedFrom`, which reads the planned id back
+  from a width id, and `realizes`, which says whether a visit to one id may
+  produce another.
+
+  `readParameters(page)` is now `readParameters(page, storyId)` and returns one
+  story's parameters; the up-front read of every story is gone.
+- 8c64aa2: Each width of a subject is named apart
+
+  A subject read at several widths already became one subject per width, with
+  `@375` on its id. Its name now carries the width the same way, so a baseline
+  path filed by title and name writes one file per width.
+- 406dffd: The capture harness now starts Chromium with the same text settings the renderer paints with (`--font-render-hinting=none`, `--disable-lcd-text`). On Linux, a page laid out with hinting and painted without it wrapped lines differently, so its painted image came out a different height from the layout it was read from.
+- 98d19d2: A subject set in a web font is painted in it, and a change to the font file changes its key
+
+  Pruning kept only the rules that match an element, and an `@font-face` matches
+  none, so a render document named a family it never declared and every render
+  painted the fallback. `acquireDocument` now carries each face whose family
+  appears in a computed `font-family` inside the subject or in a box its
+  frame generates, such as `body::before`, with its `url()`s
+  rewritten against the page, and `referencedAssets` adds the face's files to the
+  asset key. A face the subject is not set in is still pruned. Under jsdom, which
+  drops a face's `src`, the face is not carried and `acquireDocument` reports
+  `unreadable-font-face`.
+
+  The Playwright renderer paints a document on `about:blank`, where a face its
+  page served from its own origin is a cross-origin font that the browser refuses
+  without CORS headers. For a document that is not resource-closed and carries a
+  face, the renderer now fetches font requests itself and answers them with
+  `access-control-allow-origin: *`, as it already does for a closed document.
+
+  Baselines of subjects set in a web font move on the first run after upgrading:
+  the image is painted in the face rather than the fallback, and the key holds
+  the face's file. Review them and accept them once.
+
 ## 0.15.0
 
 ### Minor Changes

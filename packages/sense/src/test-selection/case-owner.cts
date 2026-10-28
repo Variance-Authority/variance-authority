@@ -39,7 +39,7 @@ function packCase(file: string, name: string, id: string, project?: string): str
  */
 const SETTLED = 3;
 const JOURNEY = 4;
-// Field 5 is what the case said, set by `case-preconditions.cts`.
+// Field 5 is what the case said and read, set by `case-preconditions.cts`.
 /**
  * The project that ran the case — Vitest's, Jest's or Playwright's name for one
  * configured run of a test file. Absent when the run names none, so a case of a

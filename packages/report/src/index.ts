@@ -132,6 +132,8 @@ export type { CommitMessageOptions } from './changelog-message.js';
 
 export { promotionOf, selectByShape, whyNotWhole } from './promotion.js';
 export type { Promotion } from './promotion.js';
+export { NO_RECORD, isUnstable, unstableOf } from './unstable.js';
+export type { UnstableSubject } from './unstable.js';
 
 export { byReason } from './shared-reasons.js';
 

@@ -16,7 +16,8 @@
  * why a step number, and not a caller, is what joins the parts.
  *
  * A case keeps its last readings, and `--compare` sets them against each
- * other: `story-compare.ts` says what that answers and what it leaves out.
+ * other; several `--name` set cases against each other the same way:
+ * `story-compare.ts` says what that answers and what it leaves out.
  *
  * Who runs the case is not this command's business. Any runner with the seam
  * installed writes a story for every case it runs under the variable, and
@@ -38,11 +39,11 @@ import { OperatorError } from '../exit.js';
 import { packageName, packageOf } from '../package-home.js';
 import type { ParsedStory, StoryZoom } from '../story-args.js';
 import { BUDGET, drawings, pick, type Drawing, type FileSteps, type PackageVisits, type Through } from './story-levels.js';
-import { compareStory, formatComparison, labelled } from './story-compare.js';
+import { compareCases, compareStory, formatComparison, labelled, listed, type ComparedCase } from './story-compare.js';
 import { armTree } from './story-tree.js';
 import { numbered, through, window, type FileVisits, type Gap, type Line } from './story-view.js';
 
-/** One route and how much of it to read, two sides of a case compared, or the stories to choose from when the flags name more than one case. */
+/** One route and how much of it to read, sides compared, or the stories to choose from when the flags name more than one case. */
 export type StoryAnswer =
   | {
     readonly route: Route;
@@ -58,7 +59,7 @@ export type StoryAnswer =
       readonly unmatched?: string;
     };
   }
-  | { readonly comparison: Comparison }
+  | { readonly comparison: Comparison; readonly cases?: readonly ComparedCase[] }
   | { readonly stories: readonly StoryEntry[] };
 
 /** The story the flags name, read as a route; every candidate when they name several. */
@@ -70,6 +71,10 @@ export function story(parsed: ParsedStory): StoryAnswer {
     throw new OperatorError(
       `no story in this checkout: run the test you are looking into with ${STORY_VARIABLE}=1, named by its file and the runner's own test-name filter, since every test the run runs writes one`,
     );
+  }
+  const { compare } = parsed;
+  if (typeof compare === 'object' && 'cases' in compare) {
+    return compareCases(parsed.root, all, compare.cases, { file, label: parsed.label });
   }
   const matching = all.filter(
     (entry) =>
@@ -84,7 +89,7 @@ export function story(parsed: ParsedStory): StoryAnswer {
   // Readings are listed newest first within a case, so a case's first is its newest.
   const cases = new Set(matching.map((entry) => `${entry.file}\0${entry.name}`));
   if (cases.size > 1) return { stories: matching };
-  const compared = parsed.compare === undefined ? undefined : compareStory(parsed.root, matching, parsed.compare);
+  const compared = compare === undefined ? undefined : compareStory(parsed.root, matching, compare);
   if (compared !== undefined && !('alone' in compared)) return { comparison: compared };
   const newest = compared?.alone ?? matching[0]!;
   const route = readRoute(parsed.root, newest.path);
@@ -138,7 +143,7 @@ function partOf(lines: readonly Line[], zoom: StoryZoom | undefined, packageOf: 
 const AROUND = 3;
 
 export function formatStory(answer: StoryAnswer, format: 'text' | 'json'): string {
-  if ('comparison' in answer) return formatComparison(answer.comparison, format);
+  if ('comparison' in answer) return formatComparison(answer.comparison, format, answer.cases);
   if ('stories' in answer) return storiesText(answer.stories, format);
   const { route } = answer;
   const packages = answer.packages ?? {};
@@ -319,7 +324,7 @@ function linesText(
   text: string[],
 ): void {
   const names = shortNames(lines);
-  const never = new Map(untaken.map(({ place: at, arms }) => [`${at.file}\0${at.name}`, arms]));
+  const never = new Map(untaken.map(({ place: at, arms }) => [at.at, arms]));
   text.push('', ...filesIn(names), '');
   let before: boolean | undefined;
   const blank = ' '.repeat(width);
@@ -350,7 +355,7 @@ function linesText(
       text.push(`  ${number}  ${indent}${loaded(stop.loaded.map((file) => names.get(file) ?? file))}`);
     } else {
       text.push(`  ${number}  ${indent}${placeText(stop.place, stop.entered, names)}`);
-      const key = `${stop.place.file}\0${stop.place.name}`;
+      const key = stop.place.at;
       const tree = armTree(stop.arms, never.get(key) ?? [], starts.get(key) ?? new Map());
       for (const branch of tree) text.push(`  ${blank}  ${indent}  ${branch}`);
     }
@@ -358,10 +363,13 @@ function linesText(
   });
 }
 
-/** What was said, one `»` line each, the first {@link SAID} and a count of the rest. */
+/** What was said, one `»` line each: the first {@link SAID} printed and the first {@link SAID} handed, counted apart, then a count of the rest. */
 function saidText(said: readonly string[], indent: string): string[] {
-  const shown = said.slice(0, SAID).map((line) => `${indent}» ${line}`);
-  return said.length > SAID ? [...shown, `${indent}» and ${said.length - SAID} more lines`] : shown;
+  const seen = { printed: 0, handed: 0 };
+  const kind = (line: string) => (line.startsWith('handed ') || line.startsWith('holds ') ? 'handed' : 'printed');
+  const shown = said.filter((line) => seen[kind(line)]++ < SAID).map((line) => `${indent}» ${line}`);
+  const rest = said.length - shown.length;
+  return rest > 0 ? [...shown, `${indent}» and ${rest} more ${rest === 1 ? 'line' : 'lines'}`] : shown;
 }
 
 /** The line each arm of each declaration starts on, from every step on the route that took it and every arm it never took. */
@@ -370,7 +378,7 @@ type Starts = ReadonlyMap<string, ReadonlyMap<string, number>>;
 function armStarts(lines: readonly Line[], untaken: readonly Untaken[]): Starts {
   const starts = new Map<string, Map<string, number>>();
   const add = (at: Place, arms: readonly { readonly path: string; readonly startLine?: number }[]) => {
-    const key = `${at.file}\0${at.name}`;
+    const key = at.at;
     const known = starts.get(key) ?? starts.set(key, new Map()).get(key)!;
     for (const arm of arms) if (arm.startLine !== undefined) known.set(arm.path, arm.startLine);
   };
@@ -388,8 +396,8 @@ function lineJson(line: Line | Gap | Through): unknown {
 /** What the declarations a drawing draws never went into: the route carries it once, and so does the reading. */
 function drawnUntaken(lines: readonly (Line | Gap | Through)[], untaken: readonly Untaken[]): Untaken[] {
   const drawn = new Set(lines.flatMap((line) =>
-    'gap' in line || 'through' in line || line.stop === undefined || 'loaded' in line.stop ? [] : [`${line.stop.place.file}\0${line.stop.place.name}`]));
-  return untaken.filter(({ place: at }) => drawn.has(`${at.file}\0${at.name}`));
+    'gap' in line || 'through' in line || line.stop === undefined || 'loaded' in line.stop ? [] : [line.stop.place.at]));
+  return untaken.filter(({ place: at }) => drawn.has(at.at));
 }
 
 /**
@@ -475,10 +483,6 @@ const SHOWN = 3;
 function named(names: readonly string[]): string {
   const shown = names.slice(0, SHOWN).join(', ');
   return `${shown}${names.length > SHOWN ? `, and ${names.length - SHOWN} more` : ''}`;
-}
-
-function listed(names: readonly string[]): string {
-  return names.length === 1 ? names[0]! : `${names.slice(0, -1).join(', ')} and ${names.at(-1)}`;
 }
 
 function loaded(files: readonly string[]): string {

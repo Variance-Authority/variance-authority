@@ -51,10 +51,12 @@ const SENSE_DIST = `**/${dirname(dirname(realpathSync(createRequire(import.meta.
 
 /** The subset of a Playwright configuration this reads and rewrites. */
 export interface PlaywrightSelectionConfig {
-  readonly use?: Record<string, unknown>;
+  readonly use?: object;
   readonly reporter?: string | ReadonlyArray<string | readonly [string, unknown?]>;
-  readonly projects?: ReadonlyArray<{ readonly use?: Record<string, unknown>; readonly [key: string]: unknown }>;
-  readonly [key: string]: unknown;
+  readonly projects?: ReadonlyArray<{ readonly name?: string; readonly use?: object }>;
+  readonly shard?: PlaywrightShard | null;
+  readonly build?: { readonly external?: readonly string[] };
+  readonly '@playwright/test'?: { readonly babelPlugins?: readonly unknown[] };
 }
 
 /**
@@ -78,8 +80,8 @@ export interface PlaywrightSelectionConfig {
  * than 1.62 and would split it test by test, or when a `--reporter` on the
  * command line replaces the reporter that places it by whole files.
  */
-export function withTestSelection<Config extends PlaywrightSelectionConfig>(
-  config: Config = {} as Config,
+export function withTestSelection<Config extends object = PlaywrightSelectionConfig>(
+  config: Config & PlaywrightSelectionConfig = {} as Config & PlaywrightSelectionConfig,
   recording: ExecutionRecording = {},
 ): Config {
   refuseShard(config.shard as PlaywrightShard | null | undefined);

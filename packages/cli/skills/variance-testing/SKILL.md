@@ -67,11 +67,15 @@ other: open the place it names. What differs between readings of one side is
 counted on the last line and is not the cause.
 [story](../variance-authority/references/story.md)
 
-## See a value: print it from the code
+## See a value the story does not show: print it from the code
 
-A story shows what the code printed at each step: `console` lines, Eyes entries
-in a component test, `vae` announcements. It records places, never values. When
-the question is a value, or the comparison says *nothing separates the sides*:
+A story shows, at each step, the values the function was handed — a number or
+a boolean as it is, a string quoted and cut to 40 characters, an object as a
+ref and its kind, such as `ref5 Object`, never its contents — what a module's
+top level declared, and what the code printed: `console` lines, Eyes entries in
+a component test, `vae` announcements. It does not show what an object holds, what a function returned, or a value no function
+was handed. When the question is one of those, or the comparison says *nothing
+separates the sides*:
 
 1. Add a `console.log` of the value at the line the story names, in the product
    code. The test stays as written.

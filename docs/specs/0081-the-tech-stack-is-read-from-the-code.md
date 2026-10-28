@@ -32,9 +32,9 @@ The answer turns three frequent agent defects into lookups:
 
 ## What would discharge it
 
-Each item is one backlog task under TASK-21 and closes when its test runs.
+Each item is one GitHub issue under [#579](https://github.com/Variance-Authority/variance-authority/issues/579) and closes when its test runs.
 
-**1. The project's stack, with no words** (TASK-21.11). A words-free question
+**1. The project's stack, with no words** ([#590](https://github.com/Variance-Authority/variance-authority/issues/590)). A words-free question
 (its CLI name is open until the command table is written) lists the stack in
 its two halves, *built on* and *built with*:
 
@@ -51,13 +51,13 @@ This repository is the checked case. `oxc-parser` is used directly by
 other areas import are listed as foundations. Nothing is listed as used that
 no file imports.
 
-**2. The stack at a location** (TASK-21.11). With `--from <path>`, the same
+**2. The stack at a location** ([#590](https://github.com/Variance-Authority/variance-authority/issues/590)). With `--from <path>`, the same
 answer is limited to what the code at the path uses, directly or through an
 abstraction, plus the foundation areas it imports. A path that imports a
 package directly while a local abstraction for it exists is reported at that
 site.
 
-**3. Usable here, by ownership** (TASK-21.9). Graph-scoped `search` lists a
+**3. Usable here, by ownership** ([#588](https://github.com/Variance-Authority/variance-authority/issues/588)). Graph-scoped `search` lists a
 third-party name as *usable here* only when the owning manifest of an asked
 file declares it. A package declared only by a workspace the closure imports
 is listed as *reached through*, with that workspace, or is not listed.
@@ -66,14 +66,14 @@ test-only packages as usable. The FIXME in
 [`search-answer.ts`](../../packages/help/src/tools/search-answer.ts) is
 deleted by the change.
 
-**4. Every entry shows its evidence** (TASK-21.10). Each third-party hit and
+**4. Every entry shows its evidence** ([#589](https://github.com/Variance-Authority/variance-authority/issues/589)). Each third-party hit and
 stack entry names its declaring manifest, declaration kind, installed runtime
 and declaration provider with versions, and its importers with a count and one
 site. Each part that could not be read is named. An empty answer gives its
 scope. The catalogue records the declaration kind, which it reads today and
 drops.
 
-**5. A member found by its job** (TASK-21.12). The catalogue indexes each
+**5. A member found by its job** ([#591](https://github.com/Variance-Authority/variance-authority/issues/591)). The catalogue indexes each
 installed package's `description`, `keywords`, README headings and JSDoc at
 `variance index`. A foundation area is indexed by its packages' names,
 descriptions and exported names. The measure is a committed set of at least
@@ -81,13 +81,13 @@ twenty described jobs, each with the member that should answer it, gated by a
 `*.measure.ts` or `*.check.ts` on first hit and within three as integer counts.
 The set includes jobs no member does, and their answer is empty with its scope.
 
-**6. Symbol at a location** (TASK-21.13). `ask symbol --name <name> --from
+**6. Symbol at a location** ([#592](https://github.com/Variance-Authority/variance-authority/issues/592)). `ask symbol --name <name> --from
 <path>` resolves the package from the path's owning manifest. It prints the
 signature and version installed there, whether the area uses it, and the local
 abstraction it is used through. A name not usable at the path is answered with
 the workspaces where it is usable.
 
-**7. Under a second on the checkouts it is for** (TASK-21.14). Warm question
+**7. Under a second on the checkouts it is for** ([#593](https://github.com/Variance-Authority/variance-authority/issues/593)). Warm question
 time for items 1, 2, 3 and 6 is under 1 s on Kibana and on the seven-copy MUI
 corpus, recorded by a `*.measure.ts` with the machine it ran on. Cold and warm
 catalogue refresh are recorded beside it. An index run over an unchanged

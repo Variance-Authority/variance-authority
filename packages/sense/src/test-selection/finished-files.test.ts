@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { digestString } from '../digest.js';
+import { textDigests } from '../text-digests.js';
 import { coverageTest, readFinished, readJournals } from './finished-files.js';
 import journalFormat from './journal-format.cjs';
 import type { CapturedModule } from './instrumented-modules.js';
@@ -50,10 +51,11 @@ describe('the preconditions of a test file', () => {
       ['vendor.js', module('vendor.js', false)],
     ]);
 
-    const row = await coverageTest(
+    const row = coverageTest(
       { filepath: test, complete: true },
       directory,
       [],
+      textDigests([test]),
       await readJournals(run),
       modules,
     );

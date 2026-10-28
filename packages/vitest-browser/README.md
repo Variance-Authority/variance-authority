@@ -5,6 +5,7 @@
 > Observe a component against its baseline from inside a Vitest browser-mode test, without leaving the test body.
 
 Part of [Variance Authority](https://variance-authority.dev).
+Point your coding agent at [`llms.txt`](https://variance-authority.dev/llms.txt).
 
 Your component test in Vitest browser mode has already mounted the component in
 a real engine with the real stylesheets, and the locator it awaited is proof the

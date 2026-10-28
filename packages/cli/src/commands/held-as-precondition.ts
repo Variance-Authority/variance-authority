@@ -5,8 +5,10 @@
  * loaded it without instrumenting it, and the ones that declare it.
  *
  * `variance select` reads the same table (`testsGovernedBy`) and selects every
- * one of those files whole when the file changes, so `covering` names them and
- * `review` counts them from this one reading rather than two.
+ * one of those files whole when the file changes, save a test whose row records
+ * the text the change arrives at. `covering` names them and `review` counts them
+ * from this one reading rather than two, without that exception: they ask about
+ * a file, not a diff.
  */
 
 import { askCoverageFile, findModules, testsGovernedBy } from '@variance-authority/sense/test-selection';

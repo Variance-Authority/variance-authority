@@ -1,7 +1,7 @@
 import { extname } from 'node:path';
 import { codeUnitOrder } from '@variance-authority/core/segment';
 import type { FileSet, Link, SourceNames, Tool, ToolInvocation, Tree } from '@variance-authority/mcp/tools';
-import { entryPoints, limitOf, notShown, pathsOf, refusalFor, startPointArg } from '@variance-authority/mcp/tools';
+import { entryPoints, limitOf, notShown, pathsOf, refusalFor, spellingOf, startPointArg } from '@variance-authority/mcp/tools';
 import { READABLE } from '@variance-authority/sense';
 import { ripgrep } from './ripgrep.js';
 import { importsOf as importersOf, type IndexedUse } from './unpublished.js';
@@ -293,8 +293,10 @@ function sitesOf(uses: readonly IndexedUse[]): ReadonlyMap<string, readonly Evid
   const lines = new Map<string, Evidence[]>();
   for (const use of uses) {
     const through = use.through === undefined ? '' : use.through.kind === 'dynamic' ? ' through import()' : ' through a namespace';
+    const off = use.through?.throughDefault === true ? ', through `default`: may read it' : '';
+    const whole = use.through?.whole === true ? ', passed on whole: may read it' : '';
     const list = lines.get(use.at) ?? [];
-    list.push({ line: use.line, text: `imports ${use.name} from ${use.specifier}${through}` });
+    list.push({ line: use.line, text: `imports ${use.name} from ${use.specifier}${through}${off}${whole}` });
     lines.set(use.at, list);
   }
   return lines;
@@ -402,7 +404,8 @@ export const discover: Tool<unknown> = {
   wants: () => true,
 
   run: (_subject, input, invocation) => {
-    const limit = limitOf(input, SHOWN);
+    const spell = spellingOf(invocation);
+    const limit = limitOf(input, SHOWN, spell);
     const { kept, header, answer, matched, reaches } = answered(input, invocation);
     if (answer.length === 0) return [...header, '', 'No file is in all of them.'].join('\n');
 
@@ -414,7 +417,7 @@ export const discover: Tool<unknown> = {
       for (const operand of kept) for (const evidence of operand.evidence(file)) lines.push(shown(file, evidence));
       for (const evidence of matched.get(file) ?? []) lines.push(shown(file, evidence));
     }
-    if (answer.length > limit) lines.push('', notShown(answer.length - limit));
+    if (answer.length > limit) lines.push('', notShown(answer.length - limit, spell));
     return lines.join('\n');
   },
 
@@ -443,10 +446,12 @@ function answered(input: Readonly<Record<string, unknown>>, invocation: ToolInvo
   }
   const { kept, out } = operandsOf(input, tree, invocation?.names, invocation?.root);
   if (kept.length === 0) {
+    const spell = spellingOf(invocation);
+    const sets = ['from', 'to', 'imports', 'declares'].map((name) => `\`${spell.input(name)}\``).join(', ');
     throw new Error(
       text === undefined
-        ? '`discover` needs at least one set to cross: `from`, `to`, `imports`, `declares` or `path`.'
-        : `\`text\` searches inside the files the other sets kept, and none was given. For the whole checkout, run \`rg ${JSON.stringify(text)}\`.`,
+        ? `\`discover\` needs at least one set to cross: ${sets} or \`${spell.input('path')}\`.`
+        : `\`${spell.input('text')}\` searches inside the files the other sets kept, and none was given. For the whole checkout, run \`rg ${JSON.stringify(text)}\`.`,
     );
   }
 

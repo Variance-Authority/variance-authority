@@ -1,4 +1,4 @@
-import { chromium, type Browser, type BrowserContext, type Page } from 'playwright';
+import type { BrowserContextOptions, Page } from 'playwright';
 import {
   driveBeforeLoad,
   featuresOf,
@@ -10,6 +10,7 @@ import {
 } from '@variance-authority/core/format';
 import { AGENT_GLOBAL, type CaptureRequest, type PageAgent } from './agent.js';
 import { watchArrivals } from './arrivals.js';
+import { leaseBrowser, leaseContext, ownBrowser, ownContext, type Launch } from './browsers.js';
 import { observeNetwork, type NetworkObservation, type NetworkOptions } from './network.js';
 import { CHROMIUM_RASTER_ARGS } from './renderer.js';
 import { pinnedRegion } from './viewport.js';
@@ -76,6 +77,27 @@ export interface HarnessOptions extends PageRegion {
   readonly headless?: boolean;
 
   /**
+   * Open the page in a context shared with every other harness of the same
+   * viewport and region on the same browser. Defaults to `false`.
+   *
+   * The context is the browser's HTTP cache, so a page booted in one that
+   * another page already filled is answered from memory: the second worker of a
+   * run does not fetch the preview again. The pages also share cookies and
+   * storage, which is why it is asked for rather than given.
+   */
+  readonly warm?: boolean;
+
+  /**
+   * Launch a browser of this harness's own instead of leasing the process's
+   * shared one. Defaults to `false`.
+   *
+   * For a reading whose point is that nothing else has touched its world. Every
+   * other harness shares one browser per launch recipe, which is what keeps a
+   * run with workers at one launch.
+   */
+  readonly isolated?: boolean;
+
+  /**
    * Run against the page *before* it is navigated for the first time.
    *
    * The hook exists because of a class of thing that has to be installed before
@@ -126,23 +148,44 @@ export interface Harness {
 
 export async function createHarness(options: HarnessOptions): Promise<Harness> {
   // Laid out under the text settings the renderer paints with, or a line that
-  // fits here wraps there and the painted page is a different height.
-  const browser = await chromium.launch({
-    headless: options.headless ?? true,
-    args: [...CHROMIUM_RASTER_ARGS],
-  });
+  // fits here wraps there and the painted page is a different height. The same
+  // settings are what let the renderer lease this browser rather than launch
+  // its own.
+  const launch: Launch = { headless: options.headless ?? true, args: CHROMIUM_RASTER_ARGS };
+  const browser = options.isolated === true ? await ownBrowser('chromium', launch) : await leaseBrowser('chromium', launch);
   const errors: string[] = [];
+  const region = pinnedRegion(options);
+  const contextOptions = contextOptionsFor(options.viewport, region);
+
+  let context: Awaited<ReturnType<typeof leaseContext>> | undefined;
+  let page: Page | undefined;
+  // In reverse of opening: the page, then the context if this was its last
+  // page, then the browser if this was its last holder.
+  const close = async (): Promise<void> => {
+    try {
+      await page?.close();
+    } finally {
+      try {
+        await context?.release();
+      } finally {
+        await browser.release();
+      }
+    }
+  };
 
   try {
-    const region = pinnedRegion(options);
-    const context = await newContext(browser, options.viewport, region);
-    const page = await context.newPage();
+    context =
+      options.warm === true && options.isolated !== true
+        ? await leaseContext(browser.value, contextOptions)
+        : await ownContext(browser.value, contextOptions);
+    const opened = await context.value.newPage();
+    page = opened;
 
     // A bundle that throws leaves the agent global undefined, and the failure
     // then surfaces as a timeout with no cause. Recording page-side errors turns
     // that into the actual exception text.
-    page.on('pageerror', (error) => errors.push(String(error)));
-    page.on('console', (message) => {
+    opened.on('pageerror', (error) => errors.push(String(error)));
+    opened.on('console', (message) => {
       if (message.type() === 'error') errors.push(message.text());
     });
 
@@ -150,28 +193,28 @@ export async function createHarness(options: HarnessOptions): Promise<Harness> {
     // tricks survive one and the page's first script already reads the clock
     // and the motion preference.
     const driven =
-      options.stabilize === undefined ? [] : await driveBeforeLoad(options.stabilize, page, options.features);
+      options.stabilize === undefined ? [] : await driveBeforeLoad(options.stabilize, opened, options.features);
     const features = featuresOf(forDriver(options.stabilize ?? [], driven), options.features);
-    if (options.prepare !== undefined) await options.prepare(page);
+    if (options.prepare !== undefined) await options.prepare(opened);
 
     // After the driver tricks, so the agent's first read of the clock is
     // already the driven one, and before the navigation, so the first document
     // gets the agent ahead of its own scripts as every later one does.
-    await page.addInitScript({ content: options.bundle });
-    await page.goto(options.url, { waitUntil: 'load' });
-    await checkAgent(page, errors);
+    await opened.addInitScript({ content: options.bundle });
+    await opened.goto(options.url, { waitUntil: 'load' });
+    await checkAgent(opened, errors);
 
-    const engine = `chromium@${browser.version()}`;
+    const engine = `chromium@${browser.value.version()}`;
     const subjectId = options.subjectId ?? ((subject: string) => `fixture:${subject}`);
 
     return {
       engine,
       region,
-      page,
+      page: opened,
       driven,
       pageErrors: () => [...errors],
       async capture(subject, variant) {
-        return evaluateCapture(page, {
+        return evaluateCapture(opened, {
           subject,
           variant,
           subjectId: subjectId(subject),
@@ -183,14 +226,12 @@ export async function createHarness(options: HarnessOptions): Promise<Harness> {
           ...(options.assets ? { assets: options.assets } : {}),
         });
       },
-      async close() {
-        await browser.close();
-      },
+      close,
     };
   } catch (error) {
     // The browser is a child process; an exception between launch and return
-    // would otherwise leave it running for the life of the test runner.
-    await browser.close();
+    // would otherwise leave it running, or leased, for the life of the caller.
+    await close();
     throw error;
   }
 }
@@ -240,12 +281,8 @@ export async function captureOnce(
   }
 }
 
-async function newContext(
-  browser: Browser,
-  viewport: Viewport,
-  region: Required<PageRegion>,
-): Promise<BrowserContext> {
-  return browser.newContext({
+function contextOptionsFor(viewport: Viewport, region: Required<PageRegion>): BrowserContextOptions {
+  return {
     viewport: { width: viewport.width, height: viewport.height },
     deviceScaleFactor: viewport.deviceScaleFactor,
     // Declared, never inherited from the host OS. The same case must not render
@@ -254,7 +291,7 @@ async function newContext(
     // somebody decided (spec §11.1). The timezone and the language likewise.
     colorScheme: viewport.colorScheme,
     ...region,
-  });
+  };
 }
 
 /**

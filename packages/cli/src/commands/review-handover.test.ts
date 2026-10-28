@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { caseSectionsAt, commitRunsFile, encodeExecutionIndex, testCoverageFile, withCaseSections } from '@variance-authority/sense/test-selection';
 import { main } from '../bin.js';
 import { readFlags } from '../args.js';
+import { parseCoveringArgs } from '../covering-args.js';
 import { parseReviewArgs } from '../review-args.js';
 import { flagsFor, synopsisFor } from '../usage.js';
 import { AFTER, BEFORE, DISCOUNTS, block, changed, git } from './review-fixture.js';
@@ -26,7 +27,7 @@ describe('a review handed over in the pull request body, before CI', () => {
   const cwd = process.cwd();
   afterEach(() => process.chdir(cwd));
 
-  it('leaves breadcrumbs: each changed function, whether a case reached it and from how far, and the test file to open', async () => {
+  it('points at each changed function, whether a case reached it and from how far, and the test file to open', async () => {
     const { root, first } = await changed();
     await writeFile(join(root, 'src/total.ts'), `${AFTER}// not run yet\n`);
 
@@ -43,12 +44,25 @@ describe('a review handed over in the pull request body, before CI', () => {
       '',
       'And 1 more, every one reached by a case: 1 near.',
       '',
-      `More on one file: \`variance covering --since ${first.slice(0, 12)} --file <path>\``,
+      'More on one file: `variance covering --file <path>`',
       '</details>',
       HANDOVER_END,
       '',
     ].join('\n'));
     expect(out).not.toContain(REVIEW_MARKER);
+  });
+
+  it('suggests a command for one file that the covering parser takes', async () => {
+    const { root, first } = await changed();
+    await writeFile(join(root, 'src/total.ts'), `${AFTER}// not run yet\n`);
+
+    const { out } = await printed(['--since', first, '--root', root, '--format', 'handover']);
+    const suggested = /More on one file: `variance covering ([^`]+)`/.exec(out)?.[1];
+
+    expect(suggested).toBeDefined();
+    const argv = [...suggested!.replace('<path>', 'src/total.ts').split(' '), '--root', root];
+    const asked = parseCoveringArgs(readFlags(argv, 'covering', flagsFor('covering'), synopsisFor('covering')));
+    expect(asked).toMatchObject({ file: 'src/total.ts' });
   });
 
   it('names a changed source file no record holds, a Rust one, rather than saying the change touched no function, as the review comment names it', async () => {
@@ -89,11 +103,11 @@ describe('a review handed over in the pull request body, before CI', () => {
     const review = { from: 'a'.repeat(40), record: 'before', base: 'since', files } as unknown as Review;
 
     const out = formatHandover([{ review }]);
-    const crumbs = out.split('\n').filter((line) => line.startsWith('- '));
+    const pointers = out.split('\n').filter((line) => line.startsWith('- '));
 
-    expect(crumbs).toHaveLength(HANDOVER_LINES);
-    expect(crumbs.slice(0, 4).every((line) => line.startsWith('- 🔴'))).toBe(true);
-    expect(crumbs[4]).toBe('- 🟡 `f3` in `src/f03.ts` — 2 cases, far: `test/a.test.ts` and 1 more');
+    expect(pointers).toHaveLength(HANDOVER_LINES);
+    expect(pointers.slice(0, 4).every((line) => line.startsWith('- 🔴'))).toBe(true);
+    expect(pointers[4]).toBe('- 🟡 `f3` in `src/f03.ts` — 2 cases, far: `test/a.test.ts` and 1 more');
     expect(out).toContain('<summary>🧭 Coverage of the changed area: 40 changed functions, 4 with code the record holds no case for</summary>');
     expect(out).toContain('And 28 more, every one reached by a case: 4 far, 24 near.');
   });
@@ -108,6 +122,43 @@ describe('a review handed over in the pull request body, before CI', () => {
     expect(formatHandover([{ review }]).split('\n').filter((line) => line.startsWith('- '))).toEqual([
       '- ⚪ `loaded` in `src/loaded.ts` — 1 case, ran only while its module loaded: `test/a.test.ts`',
       '- 🟠 `unplaced` in `src/unplaced.ts` — 1 case, distance not measured: `test/a.test.ts`',
+    ]);
+  });
+
+  it('says how the cases that reached a named function split by what the code read, and nothing of a record that did not listen', () => {
+    const read = (value: boolean) => [{ name: 'flags:checkout', value, site: 'src/a.ts:3', level: 0xffff }];
+    const called = [
+      { id: 'a > off', file: 'test/a.test.ts', name: 'off', preconditions: [], reads: read(false) },
+      { id: 'a > on', file: 'test/a.test.ts', name: 'on', preconditions: [], reads: read(true) },
+    ];
+    const region = (name: string, cases: ReviewRegion['called']): ReviewRegion => ({
+      kind: 'function', name, startLine: 1, endLine: 2, reach: 'far', edit: 'modified', changedLineCases: 2, cases: 2, tests: ['test/a.test.ts'], called: cases,
+    });
+    const files = [
+      { file: 'src/a.ts', recorded: true, regions: [region('total', called)] },
+      { file: 'src/b.ts', recorded: true, regions: [region('round', called.map(({ reads: _, ...unheard }) => unheard))] },
+    ];
+    const review = { from: 'a'.repeat(40), record: 'ran', base: 'since', files } as unknown as Review;
+
+    expect(formatHandover([{ review }]).split('\n').filter((line) => line.startsWith('- '))).toEqual([
+      '- 🟡 `total` in `src/a.ts` — 2 cases, far: `test/a.test.ts`; flags:checkout read false by 1, true by 1',
+      '- 🟡 `round` in `src/b.ts` — 2 cases, far: `test/a.test.ts`',
+    ]);
+  });
+
+  it('names a misused breadcrumb the cases that reached a named function met after their reads, never as a read', () => {
+    const misused = [{ argument: 'key', value: 7, site: 'src/a.ts:3', level: 0xffff }];
+    const called = [
+      { id: 'a > off', file: 'test/a.test.ts', name: 'off', preconditions: [], reads: [], misused },
+      { id: 'a > on', file: 'test/a.test.ts', name: 'on', preconditions: [], reads: [] },
+    ];
+    const region = {
+      kind: 'function', name: 'total', startLine: 1, endLine: 2, reach: 'far', edit: 'modified', changedLineCases: 2, cases: 2, tests: ['test/a.test.ts'], called,
+    } as unknown as ReviewRegion;
+    const review = { from: 'a'.repeat(40), record: 'ran', base: 'since', files: [{ file: 'src/a.ts', recorded: true, regions: [region] }] } as unknown as Review;
+
+    expect(formatHandover([{ review }]).split('\n').filter((line) => line.startsWith('- '))).toEqual([
+      '- 🟡 `total` in `src/a.ts` — 2 cases, far: `test/a.test.ts`; misused varianceBreadcrumb at src/a.ts:3 by 1: the key 7 is not a string',
     ]);
   });
 
@@ -265,6 +316,21 @@ describe('a review handed over in the pull request body, before CI', () => {
     expect(out).toContain('\nRead from the runs on this change for `integration` and `unit`, and from the record before it for the rest.\n');
   });
 
+  it('suggests a command for one file that runs in a checkout declaring suites, answered from each of them', async () => {
+    const { root, first } = await changed({ suites: ['unit', 'browser'] });
+    await writeFile(join(root, 'src/total.ts'), `${AFTER}// not run yet\n`);
+
+    for (const named of [[], ['--suite', 'unit']]) {
+      const { out } = await printed(['--since', first, ...named, '--root', root, '--format', 'handover']);
+      const suggested = /More on one file: `variance covering ([^`]+)`/.exec(out)?.[1];
+      expect(suggested).toBe('--file <path>');
+      let json = '';
+      const code = await main(['covering', ...suggested!.replace('<path>', 'src/total.ts').split(' '), '--root', root, '--format', 'json'], { out: (text) => (json += text), err: () => {} });
+      expect(code).toBe(0);
+      expect(JSON.parse(json)).toMatchObject({ file: 'src/total.ts', suites: expect.arrayContaining([expect.objectContaining({ suite: 'unit' })]) });
+    }
+  });
+
   it('reads every declared suite when none is named, and says why one could not be read', async () => {
     const { root, first } = await changed({ suites: ['unit', 'browser'] });
     await writeFile(join(root, 'src/total.ts'), `${AFTER}// not run yet\n`);
@@ -309,7 +375,10 @@ describe('a review handed over in the pull request body, before CI', () => {
     await writeFile(commitRunsFile(record), JSON.stringify({
       commit: change, first: '2026-10-09T00:00:00.000Z', latest: '2026-10-09T00:00:00.000Z', runs: 2, files: ['test/total.test.ts'],
     }));
-    expect((await printed(['--since', first, '--root', root])).err).toContain('names no commit it was recorded at');
+    // The review after CI answers too, and says that no case is compared.
+    const text = await printed(['--since', first, '--root', root]);
+    expect(text.code).toBe(0);
+    expect(text.out).toContain('Not compared: The run before the last one names no commit it was recorded at');
 
     const { code, out } = await printed(['--since', first, '--root', root, '--format', 'handover']);
 

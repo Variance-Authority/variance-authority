@@ -122,7 +122,7 @@ describe('the header', () => {
 
       expect(statements[first]).toMatchObject({
         type: 'VariableDeclaration',
-        declarations: [{ id: { name: '__vaK' } }, {}, {}],
+        declarations: [{ id: { name: '__vaK' } }, {}, {}, {}],
       });
     },
   );

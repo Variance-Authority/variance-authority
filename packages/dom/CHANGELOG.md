@@ -1,5 +1,173 @@
 # @variance-authority/dom
 
+## 0.21.0
+
+Lockstep release — nothing in this package changed. Every `@variance-authority/*` package shares one version.
+
+## 0.20.0
+
+Lockstep release — nothing in this package changed. Every `@variance-authority/*` package shares one version.
+
+## 0.19.0
+
+Lockstep release — nothing in this package changed. Every `@variance-authority/*` package shares one version.
+
+## 0.18.0
+
+Lockstep release — nothing in this package changed. Every `@variance-authority/*` package shares one version.
+
+## 0.17.1
+
+Lockstep release — nothing in this package changed. Every `@variance-authority/*` package shares one version.
+
+## 0.17.0
+
+Lockstep release — nothing in this package changed. Every `@variance-authority/*` package shares one version.
+
+## 0.16.0
+
+### Patch Changes
+
+- 18c70d3: A run collects in parallel by default, and the report says where each subject's time went
+
+  Without `workers` in the config, a run collected in one browser world, so a
+  route suite read its pages one after another on any machine. It now collects in
+  half the machine's logical cores, at least one and never more worlds than there
+  are files: two on a 4-vCPU CI runner, eight on a 16-core laptop. A `concurrency`
+  you set holds it lower, since every world keeps a page and a subject in flight.
+  A `workers` you set still wins over both. Set `workers: 1` for a server under
+  test that cannot take concurrent pages. A collector with no `openWorker` still
+  collects in one world, and the run warns about it only when you set `workers`. Verdicts and the order
+  of observations do not depend on the count, and the report's new `workers` field
+  records it. `variance collect` takes the same width.
+
+  A changed subject read in a second world is now run alone like one read in the
+  first. A worker opens no clean world of its own, so the run asked the worker and
+  reported "not re-run alone: collector has no `collectAlone`"; it now asks the
+  collector that can open one.
+
+  The `alone.limit` budget now goes to the first subjects to change in the order
+  the run takes them. It went to whichever changed subjects reached it first, so
+  with more changed subjects than the limit, which ones carried `again` and
+  `alone` evidence depended on the number of worlds and on timing.
+
+  Each observation in the report also carries `steps` beside `costMs`: every
+  phase the subject went through, in the order it ran, with its wall time. The
+  collector's phases are named `collect.*` (`collect.navigate`,
+  `collect.wait-for-fonts`, `collect.capture`), the run's own are `compose`,
+  `inspect`, `settle`, `baseline`, `cache.get`, `cache.put`, `decode`, `compare`,
+  `write`, `again.collect` and `alone.collect`, and a painted subject adds the
+  renderer's under `render.*`. The report's `steps` sums each phase over the
+  subjects that ran it and counts them. A phase a subject skipped is absent, not
+  zero. Timings are part of no digest, so images, records and baselines do not
+  move when only timing does.
+
+  `settleRecipe`, `stabilizeForObservation`, `compareRasters` and the raster
+  `Renderer.render` take an optional step clock and report the steps they ran on
+  it. The route page agent and `readRoute` always return the steps they took.
+  `stepClock`, `timeOn` and `totalsOf` are exported from
+  `@variance-authority/core/format`.
+
+  A run that is not sharded now reads the mainline's subject costs at every
+  width, as a sharded run always did, and takes its slowest files first. One
+  world takes its subjects in the same order as several, so the budget above
+  reaches the same subjects.
+
+  `concurrency` is split evenly across the worlds and rounded up, at least one
+  per world, so by default the raster tier is as wide as the number of worlds.
+
+  The frame above a subject carries its classes in code-unit order. Storybook
+  swaps its layout class on a page it reuses, so their order said which story the
+  page showed before, and a run in parallel lanes gave the same story a different
+  document, and a render-cache miss, with the same pixels.
+- 4aa7b16: A page styled with Tailwind v4 renders at the height the browser laid it out at
+
+  The capture keeps only the style rules that can match the subject, and five
+  ways of losing one, or its place in the cascade, made the render shorter or
+  taller than the page. On this project's own site the home page painted 1,486
+  pixels short and reference pages up to 7% tall; every page now paints within
+  a pixel of its live height.
+
+  - A rule written inside `:where()` or `:is()` reaches the element it names. Each
+    rule was filed under the last compound of its selector, and for
+    `:where(.docs-content h2)` that compound was read inside the arguments, as
+    `.docs-content`, so the rule was never tested against an `h2`. A rule is now
+    filed by the compound outside any arguments or attribute values, and an
+    escaped character in a class or id, `\+`, the hex escape in `.\32 xl\:p-4`
+    or the `\#` in `.accent-\[\#ff4a19\]`, is part of the name.
+  - A shorthand whose value holds a `var()` is carried under the name it was
+    declared with. Chromium leaves such a shorthand's longhands empty until the
+    value is substituted and answers only for the shorthand, and the capture
+    recovered only shorthands from a fixed list, which held neither
+    `padding-block` nor `padding-inline`: Tailwind v4's `py-*` and `px-*`.
+  - A rule keeps its cascade layer. A rule read out of `@layer base { … }` was
+    ranked by specificity alone, so the preflight's `h2 { font-size: inherit }`
+    beat an unlayered `:where(.prose h2) { font-size: 1.65rem }`. The render
+    document now declares the page's layer order and writes each rule back into
+    its layer.
+  - The values the subject inherits no longer override the root's own rules.
+    `assemble` placed them on `:root`, where they beat a carried
+    `html { line-height: 1.5 }` with its computed `24px`, and every line below the
+    root that set only a font size was laid out 24 pixels tall. They now sit in a
+    cascade layer of their own, below every rule the document carries.
+  - A body the page styles in a cascade layer keeps its padding, and the subject
+    is as wide as the box it sat in. The render's reset of the page margin was
+    unlayered, so it beat a layered `body { padding-inline: 20px }`, and the
+    container width carried was the parent's border box, so the subject painted
+    40 pixels wider than it was laid out. The reset now sits in the inherited
+    values' layer, and the width carried is the parent's own `width`, written
+    back on the same box in its own box sizing.
+
+  A document captured from a page styled any of these ways changes its digest
+  once, and its baseline renders again on the next run.
+- 81e77b6: An image shown through an object URL is painted, and acquired the same way twice
+
+  A page that computes an image (a canvas encoded to a blob, a dropped file, a
+  response read as a blob) shows it through a `blob:` URL, which names memory in
+  that page alone. The render document carried the URL, so the deferred renderer
+  painted a broken image where the page showed a picture. The URL's uuid is new on
+  every load, so one picture was also two documents, and a settled subject was
+  painted again on every run.
+
+  `acquireDocument` now reads each `blob:` URL the document carries, in an
+  attribute that names a file (`src`, every `srcset` candidate, `poster`, `data`
+  on `<object>`, `href` on SVG's `<image>` and `<use>`) or in a `url()` of an
+  element's `style`, a `<style>` in the subject, a rule the subject is painted
+  with, a value it inherits, or a box it sits in, and writes its bytes into the
+  document as a `data:` URL. An object URL that cannot be read, such as one
+  revoked after the image loaded, keeps its URL and is reported as an
+  `unreadable-object-url` error, which holds the run open. Under a host that
+  paints nothing, such as jsdom, it is a warning, since no page there showed the
+  picture.
+
+  A `srcset` is now read by HTML's rule, where a URL is a run of anything but
+  ASCII whitespace and a descriptor's parentheses close at the first `)`.
+  Splitting on every comma cut a `data:` candidate in two, and `referencedAssets`
+  listed the second half as a file next to the page; a no-break space inside a
+  URL, and a comma after a parenthesised descriptor, are now read as HTML reads
+  them too, so the asset key of such a `srcset` changes.
+- 98d19d2: A subject set in a web font is painted in it, and a change to the font file changes its key
+
+  Pruning kept only the rules that match an element, and an `@font-face` matches
+  none, so a render document named a family it never declared and every render
+  painted the fallback. `acquireDocument` now carries each face whose family
+  appears in a computed `font-family` inside the subject or in a box its
+  frame generates, such as `body::before`, with its `url()`s
+  rewritten against the page, and `referencedAssets` adds the face's files to the
+  asset key. A face the subject is not set in is still pruned. Under jsdom, which
+  drops a face's `src`, the face is not carried and `acquireDocument` reports
+  `unreadable-font-face`.
+
+  The Playwright renderer paints a document on `about:blank`, where a face its
+  page served from its own origin is a cross-origin font that the browser refuses
+  without CORS headers. For a document that is not resource-closed and carries a
+  face, the renderer now fetches font requests itself and answers them with
+  `access-control-allow-origin: *`, as it already does for a closed document.
+
+  Baselines of subjects set in a web font move on the first run after upgrading:
+  the image is painted in the face rather than the fallback, and the key holds
+  the face's file. Review them and accept them once.
+
 ## 0.15.0
 
 ### Minor Changes

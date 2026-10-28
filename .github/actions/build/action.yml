@@ -1,78 +1,113 @@
 name: build
-description: >-
-  `yarn build`, with the native scanner restored from the cache when nothing it
-  is built from has changed.
+description: Build with an exact native binary or reusable Cargo dependencies.
 
-# The native scanner is most of what `yarn build` costs on a runner: `cargo`
-# compiles the crate and its dependency graph from nothing, about three minutes,
-# for a binary that is the same one every time `packages/sense/native` is. So
-# the binary is cached, keyed by git's tree id for that directory — every input
-# `cargo` reads lives there, and git already knows whether any of it moved.
-#
-# The cache carries the binary and the tree it was built from. The build script
-# reads that stamp and skips `cargo` only when it matches the checkout, and
-# prints that it did; a miss, or a stamp that does not match, is an ordinary
-# build. Nothing here decides whether to build: this step only puts back what a
-# previous run left, and `build.mjs` owns the decision.
-#
-# The key also names the C library the binary links against, as `ldd` reports
-# it. The same workflows build on the bare runner and inside the Playwright
-# image, and a binary linked against a newer glibc than the host's does not load
-# there; the runner's OS name alone does not tell those two apart. A host with
-# no `ldd` names `none`.
-#
-# The tree id is also this action's output, for a step that asks the same
-# question of the crate: `check.yml` skips the crate's unit tests on it.
+inputs:
+  toolchain:
+    description: Resolved Rust version of this run's native producer.
+    default: ''
+  native-key:
+    description: Identity of the binary uploaded by this run's base job.
+    default: ''
+  native-tests:
+    description: Restore Cargo dependencies even on a binary hit, for native tests.
+    default: 'false'
 
 outputs:
   native-tree:
-    description: git's tree id for `packages/sense/native` at `HEAD`.
+    description: git's tree id for packages/sense/native at HEAD.
     value: ${{ steps.native.outputs.tree }}
+  toolchain:
+    description: Resolved Rust release used to build the native scanner.
+    value: ${{ steps.native.outputs.toolchain }}
+  native-inputs:
+    description: Git identity of all compiled native inputs.
+    value: ${{ steps.native.outputs.inputs }}
+  native-key:
+    description: Native inputs, resolved compiler, platform, architecture and libc identity.
+    value: ${{ steps.native.outputs.key }}
 
 runs:
   using: composite
   steps:
-    - name: name the native tree
-      id: native
-      shell: bash
-      run: |
-        # On its own line, so a git that refuses the checkout fails the step:
-        # inside `echo` it would key the cache on an empty tree, which restores
-        # whichever scanner was saved under that key first.
-        tree=$(git rev-parse HEAD:packages/sense/native)
-        echo "tree=$tree" >> "$GITHUB_OUTPUT"
-        # `awk` reads to the end: a `head` would close the pipe on `ldd`, which
-        # `pipefail` then reports as the step failing with SIGPIPE.
-        libc=$(ldd --version 2>/dev/null | awk 'NR == 1 { print $NF }' || true)
-        echo "libc=${libc:-none}" >> "$GITHUB_OUTPUT"
-
-    - name: restore the native scanner
-      id: cache
-      uses: actions/cache@v4
-      with:
-        path: |
-          packages/sense/npm/*/scan.node
-          packages/sense/npm/*/scan.node.tree
-        key: sense-native-${{ runner.os }}-${{ runner.arch }}-libc-${{ steps.native.outputs.libc }}-${{ steps.native.outputs.tree }}
-
-    # A miss means `build.mjs` compiles the crate, and the Playwright image the
-    # browser jobs run in carries no compiler: without one the build skips the
-    # scanner, and every step that reads source fails to load it. A pull request
-    # that changes the crate always misses here until some job with a compiler
-    # has built that tree, so the jobs that have none install one rather than
-    # race for the cache. The hosted runners carry `cargo`, and there this is a
-    # no-op.
+    # Resolve the toolchain before either cache: `stable` can change without
+    # changing the crate's tree. The dependency cache also keys on rustc.
     - name: a compiler for the native scanner
-      if: steps.cache.outputs.cache-hit != 'true'
       shell: bash
       run: |
         command -v cargo >/dev/null && exit 0
         if ! command -v cc >/dev/null || ! command -v curl >/dev/null; then
           apt-get update && apt-get install -y --no-install-recommends build-essential curl ca-certificates
         fi
-        curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal
+        curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal --default-toolchain none
         echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
 
+    - name: use the producer's compiler
+      if: inputs.toolchain != ''
+      shell: bash
+      env:
+        TOOLCHAIN: ${{ inputs.toolchain }}
+      run: |
+        rustup toolchain install "$TOOLCHAIN" --profile minimal
+        echo "RUSTUP_TOOLCHAIN=$TOOLCHAIN" >> "$GITHUB_ENV"
+
+    - name: name the native build
+      id: native
+      shell: bash
+      working-directory: packages/sense/native
+      env:
+        PLATFORM: ${{ runner.os }}-${{ runner.arch }}
+      run: |
+        inputs=$(node --input-type=module -e '
+          import { appendFileSync } from "node:fs";
+          import { nativeBuildInputs } from "./build-inputs.mjs";
+          const inputs = nativeBuildInputs("../../..");
+          if (!inputs?.clean) throw new Error("CI native inputs have no clean git identity");
+          appendFileSync(process.env.GITHUB_OUTPUT, `tree=${inputs.tree}\ninputs=${inputs.identity}\n`);
+          process.stdout.write(inputs.identity);
+        ')
+        libc=$(ldd --version 2>/dev/null | awk 'NR == 1 { print $NF }' || true)
+        compiler=$(rustc -vV | sha256sum | cut -d ' ' -f 1)
+        echo "toolchain=$(rustc --version | cut -d ' ' -f 2)" >> "$GITHUB_OUTPUT"
+        rustup default "$(rustup show active-toolchain | cut -d ' ' -f 1)"
+        echo "libc=${libc:-none}" >> "$GITHUB_OUTPUT"
+        echo "key=sense-native-v2-$PLATFORM-libc-${libc:-none}-$compiler-$inputs" >> "$GITHUB_OUTPUT"
+
+    # A run hands its binary directly to compatible jobs. A different tree or
+    # environment falls through to its own cache/build, never a guessed binary.
+    - name: take this run's native scanner
+      id: download
+      if: inputs.native-key != '' && inputs.native-key == steps.native.outputs.key
+      uses: actions/download-artifact@v4
+      with:
+        name: variance-native
+        path: packages/sense/npm
+
+    - name: restore the native scanner
+      id: cache
+      if: steps.download.outcome != 'success'
+      uses: actions/cache@v4
+      with:
+        path: |
+          packages/sense/npm/*/scan.node
+          packages/sense/npm/*/scan.node.tree
+        key: ${{ steps.native.outputs.key }}
+
+    # Cache compiled dependencies across source edits, rather than starting
+    # Cargo from nothing on every binary miss. rust-cache keys the resolved
+    # compiler, manifests, lockfiles and build flags; libc separates the host
+    # from containers with a different linker floor. Native-test jobs keep
+    # their debug dependencies separately, so a release-only producer cannot
+    # win a save race and discard them. Cargo owns freshness.
+    - name: restore Cargo compilation
+      if: (steps.cache.outputs.cache-hit != 'true' && steps.download.outcome != 'success') || inputs.native-tests == 'true'
+      uses: Swatinem/rust-cache@v2
+      with:
+        workspaces: packages/sense/native
+        shared-key: sense-${{ runner.os }}-${{ runner.arch }}-libc-${{ steps.native.outputs.libc }}-tests-${{ inputs.native-tests }}
+        cache-on-failure: 'true'
+        cache-bin: 'false'
+
+    # build.mjs checks the restored binary's compiled-input stamp before skipping Cargo.
     - name: build
       shell: bash
       run: yarn build

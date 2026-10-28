@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 import { main } from '../bin.js';
+import { REVIEW_JSON_VERSION, reviewJson, reviewOfJson } from './review-json.js';
 import { reviewPieces } from './review-text.js';
 import type { Review, ReviewCase, ReviewFile } from './review.js';
 
@@ -13,9 +14,10 @@ vi.mock('./review-evidence.js', () => ({ reviewWithCoverage: async () => answer.
 
 /** Cases a change's every region was entered by, as a suite's hub file is: each region lists all of them. */
 function hub(files: number, regions: number, cases: number): Review {
-  const called: ReviewCase[] = Array.from({ length: cases }, (_, at) => ({
-    id: `test/hub-${at}.test.ts > reads the hub`, file: `test/hub-${at}.test.ts`, name: 'reads the hub', preconditions: [],
-  }));
+  const called: ReviewCase[] = Array.from({ length: cases }, (_, at) => {
+    const file = `test/hub-${String(at).padStart(3, '0')}.test.ts`;
+    return { id: `${file} > reads the hub`, file, name: 'reads the hub', preconditions: [] };
+  });
   const changed: ReviewFile[] = Array.from({ length: files }, (_, file) => ({
     file: `src/hub-${file}.ts`, verdict: 'bodies', recorded: true,
     regions: Array.from({ length: regions }, (_, region) => ({
@@ -27,6 +29,25 @@ function hub(files: number, regions: number, cases: number): Review {
 }
 
 describe('review --format json', () => {
+  it('names each case once, and a region names the cases that entered it by their place in that list', async () => {
+    answer.current = hub(40, 5, 60);
+    let printed = '';
+
+    const code = await main(['review', '--since', 'cc25d6a6', '--format', 'json'], { out: (text) => (printed += text), err: () => {} });
+
+    expect(code).toBe(0);
+    const kept = JSON.parse(printed);
+    expect(kept.version).toBe(REVIEW_JSON_VERSION);
+    expect(kept.cases).toEqual(answer.current.files[0]!.regions![0]!.called);
+    expect(kept.files[0].regions[0]).toEqual({
+      kind: 'function', name: 'read0', startLine: 1, endLine: 3, reach: 'far', edit: 'modified',
+      cases: 60, changedLineCases: 60, called: Array.from({ length: 60 }, (_, at) => at),
+    });
+    // 200 regions each entered by all 60 cases spell each case's id once, not 200 times.
+    expect(printed.split('test/hub-007.test.ts > reads the hub')).toHaveLength(2);
+    expect(reviewOfJson(kept)).toEqual(answer.current);
+  });
+
   it('writes the answer as it serializes, never as one string holding every region', async () => {
     answer.current = hub(40, 5, 60);
     const writes: string[] = [];
@@ -37,21 +58,17 @@ describe('review --format json', () => {
     expect(err).toBe('');
     expect(code).toBe(0);
     const printed = writes.join('');
-    expect(JSON.parse(printed)).toEqual(answer.current);
-    expect(printed).toBe(`${JSON.stringify(answer.current, undefined, 2)}\n`);
-    // A review that moved most of a suite's regions spells more text than V8
-    // holds in one string, which is a `RangeError: Invalid string length` the
-    // reader gets instead of the answer. Written in batches, no write holds the
-    // whole answer, whatever it weighs.
+    expect(printed).toBe(`${JSON.stringify(reviewJson(answer.current), undefined, 2)}\n`);
+    // Written in batches, no write holds the whole answer, whatever it weighs.
     expect(Math.max(...writes.map((write) => write.length))).toBeLessThan(printed.length / 2);
   });
 
-  it('writes a file every case of the suite entered a region at a time, so one file never spells the answer alone', () => {
-    const one = hub(1, 40, 60);
+  it('writes a file a region at a time, so one file never spells the answer alone', () => {
+    const one = hub(1, 400, 60);
     const pieces = [...reviewPieces(one, 'json')];
-    const file = JSON.stringify(one.files[0], undefined, 2);
+    const file = JSON.stringify(reviewJson(one).files[0], undefined, 2);
 
-    expect(pieces.join('')).toBe(`${JSON.stringify(one, undefined, 2)}\n`);
+    expect(pieces.join('')).toBe(`${JSON.stringify(reviewJson(one), undefined, 2)}\n`);
     expect(Math.max(...pieces.map((piece) => piece.length))).toBeLessThan(file.length / 10);
   });
 
@@ -65,7 +82,40 @@ describe('review --format json', () => {
 
     expect(code).toBe(0);
     expect(await readFile(join(out, 'review.json'), 'utf8')).toBe(printed);
-    expect(JSON.parse(printed)).toEqual(answer.current);
+    expect(reviewOfJson(JSON.parse(printed))).toEqual(answer.current);
     await rm(kept, { recursive: true, force: true });
+  });
+});
+
+describe('a review.json read back', () => {
+  it('reads one written before cases were named once as the review it is', () => {
+    const before = hub(2, 2, 3);
+    expect(reviewOfJson(JSON.parse(JSON.stringify(before)))).toEqual(before);
+  });
+
+  it('names the version it cannot read rather than misread a newer one', () => {
+    const newer = { ...reviewJson(hub(1, 1, 1)), version: 3 };
+    expect(() => reviewOfJson(newer as never)).toThrow(/version 3, written by a newer variance/);
+  });
+
+  it('places the cases by file, title and id, so a review over the same cases gives each the same place', () => {
+    const twin = (id: string): ReviewCase => ({ id, file: 'test/a.test.ts', name: 'twice' });
+    const region = { kind: 'function', startLine: 1, endLine: 2, reach: 'far', edit: 'modified', changedLineCases: 0, tests: ['test/a.test.ts'] } as const;
+    const review: Review = {
+      from: 'cc25d6a6', base: 'since', record: 'ran',
+      files: [{ file: 'src/a.ts', regions: [
+        { ...region, name: 'b', cases: 2, called: [twin('a#2'), twin('a#1')] },
+        { ...region, name: 'c', cases: 1, called: [twin('a#2')] },
+      ] }],
+    };
+
+    const kept = reviewJson(review);
+
+    expect(kept.cases.map((test) => test.id)).toEqual(['a#1', 'a#2']);
+    expect(kept.files[0]!.regions!.map((written) => written.called)).toEqual([[0, 1], [1]]);
+    // Read back, a region lists its cases in the review's order, whatever order it was handed them in.
+    const read = reviewOfJson(JSON.parse(JSON.stringify(kept)));
+    expect(read.files[0]!.regions![0]!.called.map((test) => test.id)).toEqual(['a#1', 'a#2']);
+    expect(read.files[0]!.regions![1]).toEqual(review.files[0]!.regions![1]);
   });
 });

@@ -73,13 +73,17 @@ export interface World {
 }
 
 /**
- * Launch a browser, open a page on the preview, and watch what it is served.
+ * Open a page on the preview, and watch what it is served.
  *
- * The whole world: a fresh browser process, a fresh context and a fresh page.
- * Not a fresh *context* on the running browser, which would be cheaper and would
- * be answering a smaller question — a leak through a shared browser process is
- * rarer than a leak through a shared document and it is the harder one to find
- * by hand, so the reading that costs a launch is the one worth having.
+ * A run's worlds are pages in one browser and one context: the browser is
+ * leased, and the context is shared because it holds the HTTP cache, so a
+ * worker's preview boots from what the first world already fetched. A recipe
+ * whose harness asks for `isolated` gets the whole world instead — a fresh
+ * browser process, a fresh context and a fresh page. Not a fresh *context* on
+ * the running browser, which would be cheaper and would be answering a smaller
+ * question — a leak through a shared browser process is rarer than a leak
+ * through a shared document and it is the harder one to find by hand, so the
+ * reading that costs a launch is the one worth having.
  */
 export async function openWorld(recipe: WorldRecipe): Promise<World> {
   const { harness, network } = await createObservedHarness(recipe.harness, recipe.network);
@@ -91,8 +95,11 @@ export async function openWorld(recipe: WorldRecipe): Promise<World> {
     ...(network !== undefined ? { network } : {}),
     driven: harness.driven,
     async close(): Promise<void> {
-      await network?.close();
-      await harness.close();
+      try {
+        await network?.close();
+      } finally {
+        await harness.close();
+      }
     },
   };
 }

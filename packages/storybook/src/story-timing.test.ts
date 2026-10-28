@@ -2,6 +2,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { STORY_TIMING_KEY, watchStoryTiming } from './story-timing.js';
 import { takeStoryTiming } from './story-timing-read.js';
+import { loadStoryParameters } from './story-parameters.js';
 
 /**
  * The page timing itself against a preview built the way Storybook 9 builds
@@ -20,6 +21,11 @@ function preview() {
   const instance = {
     channel: { on: (_event: string, handler: (payload: unknown) => void) => void listeners.push(handler) },
     ready: () => store,
+    // The store's load: the file's import is what moves the clock.
+    loadStory: async ({ storyId }: { storyId: string }) => {
+      clock += 30;
+      return { parameters: { variance: { widths: [375] }, layout: 'padded', storyId } };
+    },
   };
   return {
     instance,
@@ -73,6 +79,44 @@ describe('story timing', () => {
 
     // Read again with no new render, only the load it did not pay is left.
     expect(take('price--plain')).toEqual({ ready: 0 });
+  });
+
+  it("adds the driver's load of a story to its collect, once, however many renders follow", async () => {
+    watchStoryTiming();
+    const page = preview();
+    scope.__STORYBOOK_PREVIEW__ = page.instance;
+    await page.initialize(100);
+
+    clock = 200;
+    const read = await loadStoryParameters({ key: 'variance', storyId: 'card--receipt', timingKey: STORY_TIMING_KEY });
+    expect(read).toEqual({ parameters: { widths: [375] } });
+
+    // The render that follows finds the file loaded: its own collect is the unmount.
+    page.phase(240, 'card--receipt', 'preparing');
+    page.phase(242, 'card--receipt', 'loading');
+    page.phase(250, 'card--receipt', 'finished');
+    expect(take('card--receipt')).toEqual({ ready: 100, collect: 32, cases: 8 });
+
+    // The same story read again at another width imports nothing.
+    page.phase(300, 'card--receipt', 'preparing');
+    page.phase(301, 'card--receipt', 'loading');
+    page.phase(305, 'card--receipt', 'finished');
+    expect(take('card--receipt')).toEqual({ ready: 0, collect: 1, cases: 4 });
+  });
+
+  it('says why a story it could not load has no parameters', async () => {
+    scope.__STORYBOOK_PREVIEW__ = {
+      loadStory: async () => {
+        throw new Error("Couldn't find story matching id 'gone--story'");
+      },
+    };
+    expect(await loadStoryParameters({ key: 'variance', storyId: 'gone--story', timingKey: STORY_TIMING_KEY })).toEqual({
+      unread: "the preview could not load the story: Couldn't find story matching id 'gone--story'",
+    });
+    delete scope.__STORYBOOK_PREVIEW__;
+    expect(await loadStoryParameters({ key: 'variance', storyId: 'a', timingKey: STORY_TIMING_KEY })).toEqual({
+      unsupported: 'the preview has no `__STORYBOOK_PREVIEW__.loadStory`, which Storybook 7 and later provide',
+    });
   });
 
   it('ends a render still in afterEach where it rendered, and leaves a running one without cases', async () => {

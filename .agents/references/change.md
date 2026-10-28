@@ -21,6 +21,22 @@ answers from the last recording, so for a file it has never seen, put the edit
 in the tree and read `yarn variance select --suite <slice>`: it selects from the
 diff, and says nothing about a file that has not changed.
 
+**Does it change how a record is carried or read?** Carrying, the case index,
+and the selection and comparison read off them, keep one contract: an
+ambiguous correspondence never becomes measured absence, and evidence never
+lands on a region that did not earn it. A unit test of one function cannot show
+either. A defect there shows only over a history: a cut, an edit, a run of other
+tests, then a selection that misses a test or a comparison that calls a region
+lost. So a change to these mechanisms names, in its PR, the clause of the
+contract it keeps and the journey in
+`packages/sense/src/test-selection/__fixtures__/carry-stories.ts` that exercises
+it, in-process and through the CLI, adding the journey when none does. It also
+shows the regression test failing on the code before the fix: the command and
+its failing assertion, quoted in the PR's `Pinned by` column. The
+`carry contract` step of the `rules` job in
+[`check.yml`](../../.github/workflows/check.yml) runs these journeys by path rather than by selection, because a carrying defect
+corrupts the very record a selection would be read from.
+
 **Is it this task?** A task is the sentence of done from [refine](refine.md),
 and its code is its branch's diff, `git diff origin/main`. A defect in that diff
 is the task's, whoever finds it — the agent, a reviewer, CodeRabbit, CI, the
@@ -99,6 +115,21 @@ the site, CLI output and error messages. Read it before writing any of them.
   `codeUnitOrder` from `@variance-authority/core/segment`, not a local
   comparator.
 - **500 lines per file**, enforced by `tools/shape.check.ts`.
+- **A budget per written surface**, in content lines: a file overview 15, a
+  declaration's docblock 10, a block comment in code 5, a public page's lead 15.
+  Blank lines, bare tags and pragmas such as `// compass:` do not count.
+  `tools/budgets.check.ts` reads comments with oxc and holds the debt recorded
+  in `tools/budgets.baseline.json`.
+- **A breach is a collapse, not a trim.** Write what the task needs while you
+  work; the limits are checked once, in `verify:rules`. A surface or file that
+  breaches is collapsed in the same change, as a commit of its own before the
+  feature commit, and well under the limit: a comment to about half its budget,
+  a file split by responsibility to about 300 lines each. Overflow moves to its
+  owner — down to the site it governs, up to the folder or package, or to the
+  export's docblock — and an owner that does not exist is created, held to its
+  own limit. A change that grows a surface on the debt list collapses the whole
+  surface, not the lines it added. A debt entry that shrinks is written down with
+  `yarn budgets --write`.
 - **An export a README names is run by something**, enforced by
   `tools/docs-exercised.check.ts`. The rule is deliberately shallow — it asks
   whether a test *names* the export, not whether the test is about it — and it

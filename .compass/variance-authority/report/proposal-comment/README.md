@@ -70,6 +70,10 @@ itself.
 ## Implementation coordinates
 
 - `packages/cli/src/commands/comment.ts` — `renderComment`, `commentMarker`, `DEFAULT_LIMITS`
+- `packages/cli/src/commands/comment-lead.ts` — the first screen: heading, lead
+  cause, and accept only when `promotionOf` would promote a subject
+- `packages/cli/src/commands/comment-unstable.ts` — the subjects that disagreed
+  with themselves, from `unstableOf`
 - `packages/cli/src/commands/comment-blocks.ts` — the blocks and the clamps
 - `packages/cli/src/commands/comment-text.ts` — the two primitives the fold and
   the render both write through

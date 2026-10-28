@@ -88,14 +88,21 @@ export interface Resting {
   readonly whole?: { readonly says: string; readonly rests: readonly string[] };
 }
 
-/** {@link restsOf}, said: the notes as a selection carries them, and the sentence a whole run gives. */
+/**
+ * {@link restsOf}, said: the notes as a selection carries them, and the
+ * sentence a whole run gives. `ignore` is the suite's: a file it matches moves
+ * none of its tests, so it does not run them all either.
+ */
 export async function restingOf(
   root: string,
   suite: string | undefined,
   relations: Relations,
   changed: readonly string[],
+  ignore: readonly string[] | undefined,
 ): Promise<Resting> {
-  const rest = await restsOf(root, suite, relations, changed);
+  const selection = await import('@variance-authority/sense/test-selection');
+  const ignored = new Set(selection.ignoredBy(ignore, changed));
+  const rest = await restsOf(root, suite, relations, ignored.size === 0 ? changed : changed.filter((file) => !ignored.has(file)));
   return {
     ...(rest.notes.length === 0 ? {} : { resting: rest.notes }),
     ...(rest.rests.length === 0 ? {} : { whole: { says: restsSaid(suite, rest.rests), rests: rest.rests } }),
@@ -114,4 +121,12 @@ export async function journeySuite(root: string, named: string | undefined): Pro
   const selection = await import('@variance-authority/sense/test-selection');
   const declared = selection.declaredSuites(root);
   return declared?.length === 1 ? declared[0]!.name : undefined;
+}
+
+/** The `ignore` globs of the suite {@link journeySuite} names; absent ignores nothing. */
+export async function suiteIgnore(root: string, named: string | undefined): Promise<readonly string[] | undefined> {
+  const suite = await journeySuite(root, named);
+  if (suite === undefined) return undefined;
+  const selection = await import('@variance-authority/sense/test-selection');
+  return selection.declaredSuites(root)?.find((one) => one.name === suite)?.ignore;
 }

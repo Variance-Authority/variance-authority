@@ -5,6 +5,7 @@
 > A self-hosted review service for Variance Authority baselines, history and per-subject decisions.
 
 Part of [Variance Authority](https://variance-authority.dev).
+Point your coding agent at [`llms.txt`](https://variance-authority.dev/llms.txt).
 
 Install this package when you want a place — yours, on your infrastructure — where
 a finished run lands, a person looks at what changed, and approves or rejects it

@@ -5,6 +5,7 @@
 > Carry the file and line that wrote a JSX element as far as the rendered DOM node.
 
 Part of [Variance Authority](https://variance-authority.dev).
+Point your coding agent at [`llms.txt`](https://variance-authority.dev/llms.txt).
 
 ## What this is for
 

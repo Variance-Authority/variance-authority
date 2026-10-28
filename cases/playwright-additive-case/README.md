@@ -19,9 +19,10 @@ Read [`src/spec/cart.spec.mjs`](src/spec/cart.spec.mjs) and you can check it:
 One thing is not free, and it is in the config rather than the spec.
 [`src/playwright.config.mjs`](src/playwright.config.mjs) pins `colorScheme`,
 `deviceScaleFactor` and `viewport`, and adds `CHROMIUM_RASTER_ARGS`
-(`--disable-lcd-text`, `--font-render-hinting=none`) to `launchOptions`. Those
-are the inputs a raster is only reproducible across runs if you hold still; a
-suite that has never screenshotted anything will not already have them set.
+(`--disable-lcd-text`, `--font-render-hinting=none`, `--disable-partial-raster`)
+to `launchOptions`. Those are the inputs a raster is only reproducible across
+runs if you hold still; a suite that has never screenshotted anything will not
+already have them set.
 
 ## Files
 

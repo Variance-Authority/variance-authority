@@ -3,12 +3,7 @@ import type { FileRecord } from '@variance-authority/core/relate';
 import type { BlockKind } from '../instrument/index.js';
 import type { FilePhases } from './reported-time.js';
 import { deviationFromView } from './deviation.js';
-import {
-  journeyDivergences,
-  type JourneyDivergence,
-  type JourneyDivergenceOptions,
-  type JourneyRegion,
-} from './divergence.js';
+import { journeyDivergences, type JourneyDivergence, type JourneyDivergenceOptions, type JourneyRegion } from './divergence.js';
 import { decodeTestCoverage, encodeTestCoverage } from './format.js';
 import { writeCoverageBytes } from './record-location.js';
 import { withCaseSections, type CaseSections } from './case-record.js';
@@ -16,15 +11,9 @@ import { askCoverageFile } from './coverage-file.js';
 import { NO_BASE } from './record-base.js';
 import type { SourceAudience, SourceAudienceTest, SourcePoint, SourceRegion } from './at-source.js';
 import { distanceFromView, type DistanceOptions, type TestDistance } from './distance.js';
-import {
-  narrowByExecutionFromView,
-  selectTestFilesFromView,
-  type ExecutionNarrowing,
-  type ExecutionNarrowingOptions,
-  type ImporterReason,
-  type SelectionCause,
-  type SelectionReason,
-} from './select.js';
+import { narrowByExecutionFromView, selectTestFilesFromView } from './select.js';
+import type { ImporterReason } from './importers.js';
+import type { ExecutionNarrowing, ExecutionNarrowingOptions, SelectionCause, SelectionReason } from './narrowing.js';
 
 export {
   coveringChange,
@@ -47,22 +36,35 @@ export {
   type SourceTestRange,
 } from './reverse.js';
 export { anyStopped } from './stopped.js';
-export { functionsUnder, lineGrain } from './source-target.js';
+export { unenteredSentence, whyUnentered, type Unentered } from './unentered.js';
+export { functionsUnder, lineGrain, marksLoadTime } from './source-target.js';
 export { NAME_BOUNDARY, NameGrammarError, nameIndex, parseNameGrammar, structuralParent } from './name-grammar.js';
 export type { AxisStep, GrammarAxis, NameGrammar, NameIndex, NamedAxis, StructuralLink, StructuralName } from './name-grammar.js';
-export { caseTwins, heldText, heldValues, outsideVocabulary, type CaseTwin, type OutsideVocabulary } from './case-axes.js';
-export { rowOf, saidAcross, valued, type CasePrecondition, type Said } from './case-said.js';
+export { caseHeard, heardSplit, heldText, heldValues, readSplit, readsOf, rowOf, saidAcross, saidRow, valued, type CaseHeard, type CasePrecondition, type Misuse, type Said } from './case-said.js';
 export { hunksByFile, placeInText, type HeldLines, type Hunk, type Placement } from './placed.js';
-export { stateOf, type RangeState } from './range-state.js';
+export { reachOf, regionRecord, stateOf, type RangeState, type Reach, type ReachRecord } from './range-state.js';
 export { narrowByJourneys, type JourneyRead, type JourneySelectionOptions } from './execution-select.js';
-export { unmeasuredOf, type Unmeasured } from './route.js';
+export { ignoredBy, unmeasuredOf, type Route, type Unmeasured } from './route.js';
+export { changeOfDiff, changeOfFiles, changeOfPaths, ignoredChange, type Change } from './change.js';
+export { narrowByChangeFromView, narrowByExecutionFromView } from './select.js';
+export {
+  dependsReachFromView,
+  graphReachFromView,
+  importersFromView,
+  readRowlessFromView,
+  routesFromView,
+  testsDeclaringFromView,
+  testsEnteringFromView,
+  testsLoadingFromView,
+  type OperationAnswer,
+} from './operations.js';
 export { byRelations, PRECISION_STEPS, type Precision } from './precision.js';
 export { importReferences, type FileReferences } from './references.js';
 export { readJourneyChange, type JourneyReading, type JourneyReadingOptions } from './journey-reading.js';
 export { rankDistillCauses, readDistillRecords, type DistillRecords, type NativeDistillCause } from './distill-native.js';
 export { type NativeDistillFile, type NativeDistillRegion, type NativeDistillScope } from './distill-native.js';
 export { projectJourneyFile, selectJourneyFile, type JourneyProjection } from './journey-native.js';
-export { formatCoveringChange, type CoveringCaseNote, type CoveringChangeHeading } from './covering-change-text.js';
+export { formatCoveringChange, type CoveringChangeHeading } from './covering-change-text.js';
 export {
   EXECUTION_FORMAT,
   decodeExecutionIndex,
@@ -93,7 +95,7 @@ export { shardsInstall, type KeptInstall } from './kept-install.js';
 // landing that cuts the text again puts them.
 export { sourceCut } from './coverage-rows.js';
 export { runsAsBefore, type RunsAsBefore } from './runs-as-before.js';
-export { selectedLines, type SuiteSelection, type SuiteTimes } from './suite-selection.js';
+export { kept, selectedLines, type SuiteSelection, type SuiteTimes } from './suite-selection.js';
 export { landingTimes } from './selection-environment.js';
 export { shardArgument, shardOf, type ShardAsked, type ShardPart } from './shard-placement.js';
 export { eitherFace, indexFaces, type Face, type Faces, type ReachThrough } from './faces.js';
@@ -190,7 +192,7 @@ export { landCases, lastCaseRunOf, textsOf, type CaseLanding, type LaidRun, type
 export { casesCutApart, type IndexedCut } from './case-index-cut.js';
 export { followRows, followRowsIn } from './case-cuts.js';
 export { editsBetween } from './region-edit.js';
-export { caseIndexOf, caseSectionsAt, caseSectionsOf, keepsCases, keepsEyes, recordOfCases, recordedCases, recordedEyesAt, recordedEyesOf, sharedRecord, withCaseSections, withoutCoverage, type CaseSections } from './case-record.js';
+export { caseIndexOf, caseSectionsAt, caseSectionsOf, keepsCases, keepsEyes, recordOfCases, recordStorageAt, recordedCases, recordedEyesAt, recordedEyesOf, sharedRecord, withCaseSections, withoutCoverage, type CaseSections, type RecordStorage } from './case-record.js';
 export { collectedRecord } from './collected-record.js';
 export { type EyesSection, type ObservedEyes, type RecordedEyes } from './eyes-record.js';
 export { RecordWithoutCoverage } from './format-validation.js';
@@ -219,6 +221,10 @@ export {
   type SuiteChange,
   type SuiteCount,
 } from './coverage-count.js';
+export { coverageAtDistance, testHops, type CoverageAtDistance, type TestHops } from './coverage-distance.js';
+export { earnedCoverage, type EarnedCount, type EarnedCoverage } from './coverage-earned.js';
+export { coverageFanIn, type FanIn, type FanInFile, type FanInKind } from './coverage-fan-in.js';
+export { coverageByOwner, type OwnedFile } from './coverage-owner.js';
 
 /**
  * The lines of the source a region was written on, inclusive — or neither.

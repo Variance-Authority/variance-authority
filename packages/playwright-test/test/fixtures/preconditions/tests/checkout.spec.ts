@@ -24,12 +24,12 @@ test.beforeEach(async ({ page }) => {
 });
 
 test.afterEach(() => {
-  variancePrecondition({ cleaned: true }); // after each
+  variancePrecondition('fixture', { cleaned: true }); // after each
 });
 
 test.describe('mocked', () => {
   test.beforeEach(() => {
-    variancePrecondition({ network: 'mocked' }); // mocked each
+    variancePrecondition('fixture', { network: 'mocked' }); // mocked each
   });
 
   test('pays', () => {
@@ -37,34 +37,34 @@ test.describe('mocked', () => {
   });
 
   test('refunds behind a flag', () => {
-    variancePrecondition({ flag: 'ff-on' }); // case flag
+    variancePrecondition('fixture', { flag: 'ff-on' }); // case flag
     expect(0).toBe(0);
   });
 
   test('photographs the receipt', async ({ page, variance }) => {
-    variancePrecondition({ flag: 'ff-on' }); // receipt flag
+    variancePrecondition('fixture', { flag: 'ff-on' }); // receipt flag
     // Navigated rather than set, so the page runs the fixture's init script.
     await page.route('http://receipt.test/', (route) => route.fulfill({ contentType: 'text/html', body: `<script>${COLLECTOR}</script><p>Paid</p>` }));
     await page.goto('http://receipt.test/');
     await variance(page.locator('p'), { subjectId: 'receipt--ff-on' });
-    variancePrecondition({ seeded: true }); // receipt seeded
+    variancePrecondition('fixture', { seeded: true }); // receipt seeded
   });
 });
 
 test.describe('live', () => {
   test('replays a recording', () => {
-    variancePrecondition({ network: 'recorded' }); // case network
+    variancePrecondition('fixture', { network: 'recorded' }); // case network
     expect(5).toBe(5);
   });
 });
 
 test('contradicted', () => {
-  variancePrecondition({ flag: 'ff-on' }); // contradicted on
-  variancePrecondition({ flag: 'ff-off' }); // contradicted off
+  variancePrecondition('fixture', { flag: 'ff-on' }); // contradicted on
+  variancePrecondition('fixture', { flag: 'ff-off' }); // contradicted off
 });
 
 test('crosses nothing', () => {
-  variancePrecondition({ seeded: true }); // seeded
+  variancePrecondition('fixture', { seeded: true }); // seeded
 });
 
 test('says nothing', () => {

@@ -30,8 +30,10 @@ import { useOf } from '../refresh-native.js';
 import { ownerOf } from './by-path.js';
 import { unreadLine } from './declared.js';
 import { places } from './members.js';
-import { type Site, kinds } from './sites.js';
+import { type Shown, kinds, nearestLine } from './sites.js';
+import { symbol } from './symbol.js';
 import { indexed } from './unpublished.js';
+import type { Site } from './uses-of.js';
 
 /**
  * The imports of a name from outside the workspace, the installed packages
@@ -98,8 +100,10 @@ export interface Carried {
   readonly name: string;
   readonly found: readonly (readonly [Documented, Opening, Entry])[];
   readonly exported: readonly Named[];
+  /** The exports of each other declaration by the name. */
+  readonly namesakes: readonly { readonly exported: readonly Named[] }[];
   readonly kept: readonly DeclaredName[];
-  readonly members: readonly Use[];
+  readonly members: { readonly declared: readonly Use[] };
 }
 
 /**
@@ -108,18 +112,19 @@ export interface Carried {
  * the runtime's the name is imported from. Nothing when the name is one
  * declaration.
  */
-export function carriers(carried: Carried, outside: Outside, limit: number): readonly string[] {
-  const { name, found, exported, kept, members } = carried;
+export function carriers(carried: Carried, outside: Outside, shown: Shown): readonly string[] {
+  const { name, found, kept } = carried;
   const [packages, modules] = 'sites' in outside ? [outside.packages, outside.modules] : [[], []];
   const published = new Map(found.map(([, , entry]) => [`${entry.at}:${entry.line}`, `${entry.kind}, published, at ${entry.at}:${entry.line}`]));
-  // An `export … from` passes on a declaration of another file, which is not another one.
-  const declaring = exported.filter((one) => one.declaration !== undefined);
-  const exports = (declaring.length > 0 ? declaring : exported).map((one) => `${one.declaration ?? 'export'}, exported, at ${one.at}:${one.line}`);
+  // Each declaration's exports come declaring one first; the ones passing it on are not another declaration.
+  const exports = [carried.exported, ...carried.namesakes.map((one) => one.exported)]
+    .flatMap((group) => group.slice(0, 1))
+    .map((one) => `${one.declaration ?? 'export'}, exported, at ${one.at}:${one.line}`);
   const declarations = [
     ...published.values(),
     ...exports,
     ...kept.map((one) => `${one.kind}, declared, not exported, at ${one.at}:${one.line}`),
-    ...members.map((one) => `member of \`${one.by}\` at ${one.at}:${one.line}`),
+    ...carried.members.declared.map((one) => `member of \`${one.by}\` at ${one.at}:${one.line}`),
   ];
   const lines = [
     ...declarations,
@@ -127,11 +132,11 @@ export function carriers(carried: Carried, outside: Outside, limit: number): rea
     ...modules.map((module) => `imported from ${module}, which the runtime declares`),
   ];
   if (lines.length < 2) return [];
-  const shown = lines.slice(0, limit);
+  const cut = lines.slice(0, shown.limit);
   return [
     `\`${name}\` ${carrying(declarations.length, packages.length, modules.length)}, each answered below:`,
-    ...shown.map((line) => `  ${line}`),
-    ...(lines.length > shown.length ? [`  … ${notShown(lines.length - shown.length)}`] : []),
+    ...cut.map((line) => `  ${line}`),
+    ...(lines.length > cut.length ? [`  … ${notShown(lines.length - cut.length, shown.spell)}`] : []),
     '',
   ];
 }
@@ -162,23 +167,23 @@ export interface Unread {
  * imports were not read, any of which may import the name; alone, with what
  * of the workspace was not read and may declare it too, `unread`.
  */
-export function outsideLines(name: string, outside: Outside, alone: boolean, from: string | undefined, limit: number, unread: Unread): readonly string[] {
+export function outsideLines(name: string, outside: Outside, alone: boolean, from: string | undefined, shown: Shown, unread: Unread): readonly string[] {
   if (!('sites' in outside)) return [];
   const notRead = importsUnread(outside);
   const { sites, packages, modules } = outside;
   if (sites.length === 0) return alone || notRead.length === 0 ? [] : ['', ...notRead];
   const out = [...packages, ...modules].join(', ');
   if (!alone) {
-    return ['', `\`${name}\` is imported from outside the workspace too, in ${places(sites.length)}, out of ${out}:`, ...kinds(sites, from, name, limit), ...(notRead.length === 0 ? [] : ['', ...notRead])];
+    return ['', `\`${name}\` is imported from outside the workspace too, in ${places(sites.length)}, out of ${out}:`, ...kinds(sites, from, name, shown), ...(notRead.length === 0 ? [] : ['', ...notRead])];
   }
-  const nearest = from === undefined ? 'Path order; `from` sorts nearest first.' : `Nearest to ${from} first.`;
+  const nearest = nearestLine(from, shown.spell);
   const read = unread.declarations.length === 0 ? '' : ' that the source index read';
   return [
     `\`${name}\` is declared in no file of this workspace${read}; it is imported from outside it in ${places(sites.length)}, out of ${out}.`,
     nearest,
-    ...kinds(sites, from, name, limit),
+    ...kinds(sites, from, name, shown),
     '',
-    ...(packages.length === 0 ? [] : ['docs_symbol has its declaration in each package.']),
+    ...(packages.length === 0 ? [] : [`\`${shown.spell.tool(symbol)}\` has its declaration in each package.`]),
     ...(modules.length === 0 ? [] : ["A built-in module's declaration is the runtime's, which the source index does not read."]),
     ...notRead,
     ...unreadLine(unread.declarations),

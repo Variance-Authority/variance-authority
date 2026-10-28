@@ -19,7 +19,8 @@ use crate::case_id::{self, CaseIds};
 use crate::case_lines;
 use crate::case_said;
 use crate::case_shard::{self, Inventory, Shard};
-use crate::journey_format::{self, CaseExtras, EncodedModule, Gaps, SetPool};
+use crate::crossing_sets::{self, SetPool};
+use crate::journey_format::{self, CaseExtras, EncodedModule, Gaps};
 use crate::journey_journal::{self, Test};
 use crate::journey_record::{self, Block, Module};
 use crate::order;
@@ -67,7 +68,7 @@ pub(crate) fn fold(mut shards: Vec<Shard>, inventories: HashMap<String, Vec<Inve
                 return Err(format!("case id {:?} names two cases", test.id));
             }
             before.settled = journey_journal::settled_across(before.settled, test.settled);
-            before.said = case_said::join(before.said.take(), test.said.clone());
+            before.heard = case_said::join(before.heard.take(), test.heard.clone());
         } else {
             tests_by_key.insert(key(test), test.clone());
         }
@@ -275,8 +276,8 @@ fn union_gaps(shards: &[Shard]) -> Option<Gaps> {
 }
 
 fn append_members(shard: &Shard, set: u32, out: &mut Vec<u32>, mut each: impl FnMut(u32)) -> Result<(), String> {
-    let held = case_shard::set_slice(&shard.set_bytes, &shard.set_offsets, set)?;
-    for local in case_shard::decode_set(held, shard.tests.len())? {
+    let held = crossing_sets::set_slice(&shard.set_bytes, &shard.set_offsets, set)?;
+    for local in crossing_sets::decode_set(held, shard.tests.len())? {
         out.push(shard.local_to_global[local as usize]);
         each(local);
     }

@@ -47,8 +47,10 @@ export function selectionReporter(
       byName = noteRunner(run, context);
       run.watching = context.config?.watch === true;
     },
-    onWatcherRerun: () => reopenRun(run),
-    onTestRunStart: () => reopenRun(run),
+    // Both fire before a worker reads a file of the cycle; the first cycle
+    // keeps the start the run was made at, before the configuration loaded.
+    onWatcherRerun: () => reopenRun(run, Date.now()),
+    onTestRunStart: () => reopenRun(run, run.settled ? Date.now() : run.startedAt),
     onFinished: (files: readonly RunnerTask[]) => settle(
       files.flatMap((file) => file.filepath === undefined
         ? []

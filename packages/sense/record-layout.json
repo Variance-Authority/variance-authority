@@ -90,7 +90,22 @@
       "loop",
       "case",
       "handler"
-    ]
+    ],
+    "spared": {
+      "none": [
+        "module",
+        "function",
+        "branch",
+        "continuation",
+        "resume",
+        "loop",
+        "case",
+        "handler"
+      ],
+      "bodies": [
+        "module"
+      ]
+    }
   },
   "sets": {
     "list": 0,

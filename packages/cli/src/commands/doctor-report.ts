@@ -1,6 +1,13 @@
 import { digestFileName } from '@variance-authority/core/format';
 import { EXIT_CLEAN, EXIT_OPERATOR, type ExitCode } from '../exit.js';
-import type { CachedIdentity, Diagnosis, FontFinding, Partition, RenderCacheFinding } from './doctor.js';
+import type {
+  BaselineFinding,
+  CachedIdentity,
+  Diagnosis,
+  FontFinding,
+  Partition,
+  RenderCacheFinding,
+} from './doctor.js';
 import { formatCache } from './doctor-cache.js';
 import { formatSkills } from './doctor-skills.js';
 import { formatTypescript } from './doctor-typescript.js';
@@ -18,8 +25,9 @@ import { formatTypescript } from './doctor-typescript.js';
 /**
  * Doctor's exit code.
  *
- * `2` for exactly one condition: no renderer. That is the state in which a run
- * cannot happen at all, which is what code `2` means.
+ * `2` for two conditions: no renderer, and an LFS store checked out as pointers.
+ * Those are the states in which a run cannot do the work, which is what code `2`
+ * means.
  *
  * Missing fonts deliberately do *not* move it. See this file's header: the probe
  * cannot distinguish an absent family from a metric-compatible substitute, and a
@@ -28,6 +36,10 @@ import { formatTypescript } from './doctor-typescript.js';
  * decides.
  */
 export function exitForDiagnosis(diagnosis: Diagnosis): ExitCode {
+  // First, because the store is read from this disk whether or not a renderer
+  // was asked: a remote renderer paints against the same pointers.
+  if (exitForBaselines(diagnosis.baselines) === EXIT_OPERATOR) return EXIT_OPERATOR;
+
   // Not-checked is not a failure. Exit 2 means *this machine cannot do the work*,
   // and a machine that was never asked has not answered that question either way.
   if (diagnosis.renderer.checked === false) return EXIT_CLEAN;
@@ -36,6 +48,30 @@ export function exitForDiagnosis(diagnosis: Diagnosis): ExitCode {
   // A store another machine painted is a finding, not a refusal: the run
   // compares every subject and names the machine as the cause (ADR-0090).
   return EXIT_CLEAN;
+}
+
+/**
+ * The store's part of the exit code, and all of `doctor --baselines`'s: `2` for
+ * an LFS store checked out as pointers, which the run refuses with `2` at the
+ * first subject that compares against one, and `0` for anything else.
+ */
+export function exitForBaselines(finding: BaselineFinding): ExitCode {
+  return finding.pointers !== undefined ? EXIT_OPERATOR : EXIT_CLEAN;
+}
+
+/** The store's section of the page, and all of what `doctor --baselines` prints. */
+export function formatBaselines(finding: BaselineFinding): string {
+  return [
+    `baselines: ${finding.kind}${
+      finding.pointers !== undefined
+        ? ' — POINTERS, NOT IMAGES'
+        : finding.paintedHere === false
+          ? ' — PAINTED ELSEWHERE'
+          : ''
+    }`,
+    `  ${finding.because}`,
+    ...partitionLines(finding.partitions ?? []),
+  ].join('\n');
 }
 
 export function formatDiagnosis(diagnosis: Diagnosis): string {
@@ -69,11 +105,7 @@ export function formatDiagnosis(diagnosis: Diagnosis): string {
       ? ['  exit code unaffected; a metric-compatible substitute (Arimo, Liberation Sans) also reads as missing']
       : []),
     '',
-    `baselines: ${diagnosis.baselines.kind}${
-      diagnosis.baselines.paintedHere === false ? ' — PAINTED ELSEWHERE' : ''
-    }`,
-    `  ${diagnosis.baselines.because}`,
-    ...partitionLines(diagnosis.baselines.partitions ?? []),
+    formatBaselines(diagnosis.baselines),
     '',
     `renders: ${mib(diagnosis.renders.bytes)} in ${diagnosis.renders.entries} entries`,
     `  ${diagnosis.renders.root}`,

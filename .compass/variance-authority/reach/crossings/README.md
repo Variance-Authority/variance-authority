@@ -98,6 +98,8 @@ production markup with no runtime, read only inside the photographed roots.
   against what it enters
 - `packages/sense/src/test-selection/reverse.ts` — `coveringTests`, the
   runner-independent point query
+- `packages/sense/src/test-selection/unentered.ts` — the regions on a range no
+  case entered, and the one sentence every answer says about them
 - `packages/sense/src/test-selection/format.ts` — interned paths and a
   compressed-sparse-row region-to-test relation
 - `packages/reads/src/index.ts` — `reads`, the props an element spreads to

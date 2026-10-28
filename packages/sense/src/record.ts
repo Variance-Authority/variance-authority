@@ -281,6 +281,7 @@ function parsedFrom(file: string, contents: string, way: ParseWay, language: Lan
     ...(read.harvested === true ? { harvested: true } : {}),
     ...(declares.length === 0 ? {} : { declares }),
     ...(read.ownUses === undefined ? {} : { ownUses: read.ownUses }),
+    ...(read.bindingMembers === undefined ? {} : { bindingMembers: read.bindingMembers }),
     ...(read.unknown === undefined ? {} : { unknown: read.unknown }),
     ...(read.size === undefined ? {} : { size: read.size }),
   };

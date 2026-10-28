@@ -66,7 +66,7 @@ export interface TestSelectionRule {
   /** The project's `include`, where it gave one: Rspack and webpack ask it of each file, in the process that built the rule. */
   readonly include?: (file: string) => boolean;
   readonly enforce: 'pre' | 'post';
-  readonly use: readonly [{ readonly loader: string; readonly options: ProbesLoaderOptions }];
+  readonly use: [{ readonly loader: string; readonly options: ProbesLoaderOptions }];
 }
 
 /** The loader, by absolute path. */
@@ -109,6 +109,6 @@ export function testSelectionRule(options: TestSelectionRuleOptions = {}): TestS
   };
   const enforce = options.placement === 'before-transforms' ? 'pre' : 'post';
   const test = /\.[cm]?[jt]sx?$/;
-  const use = [{ loader: PROBES_LOADER, options: loaderOptions }] as const;
+  const use: TestSelectionRule['use'] = [{ loader: PROBES_LOADER, options: loaderOptions }];
   return options.include === undefined ? { test, exclude: /[\\/]node_modules[\\/]/, enforce, use } : { test, include: options.include, enforce, use };
 }

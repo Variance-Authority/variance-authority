@@ -316,10 +316,8 @@ there is nothing to provision and the step disappears.
 
 - **npm trusted publishing** and **PyPI trusted publishers** verify the GitHub
   Actions OIDC token against a declared repository and workflow, and exchange it
-  for a short-lived upload credential. This repository's own npm release is
-  moving to it ([ADR-0060](../context/adr/0060-a-release-is-one-version-and-a-pressed-button.md));
-  its publish job still authenticates with `NPM_TOKEN` and uses its OIDC token
-  for provenance only.
+  for a short-lived upload credential. This repository's own npm release
+  publishes through it ([ADR-0060](../context/adr/0060-a-release-is-one-version-and-a-pressed-button.md)).
   The tribunal skips the exchange: it holds no sessions, so it verifies the OIDC
   token on every request, and the token's minutes-long lifetime is the session.
 - **Cloud workload identity federation** (AWS, Google Cloud, Azure) is the

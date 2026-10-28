@@ -47,6 +47,7 @@ export type Behaviour =
   | 'empty'
   | 'never-settles'
   | 'never-finishes'
+  | 'finishes-late'
   | 'finishes-badly'
   | 'throws-on-select'
   | 'exception'
@@ -99,6 +100,10 @@ export function fakePreview(
    * got. The phases are Storybook's own `StoryRender.phase` values.
    */
   const render: { id?: string; phase?: string } = {};
+  /**
+   * Storybook's own timeline, played back: each timer is when the real preview
+   * would emit, so the driver under test waits on the event and never on these.
+   */
   const pending: ReturnType<typeof setTimeout>[] = [];
   const repeating: ReturnType<typeof setInterval>[] = [];
 
@@ -178,6 +183,13 @@ export function fakePreview(
         // A render that finished and mounted nothing.
         root.replaceChildren();
         render.phase = 'finished';
+        break;
+      case 'finishes-late':
+        // Rendered at once and finished well after: an `afterEach` that holds
+        // the render for a while and then lets go, inside the driver's budget.
+        root.replaceChildren(paragraph(storyId));
+        pending.push(setTimeout(() => fire('storyRendered', storyId), 1));
+        finishes(storyId, 'success', 40);
         break;
       case 'finishes-badly':
         // Rendered, finished, and failed: a `play` that threw after the last

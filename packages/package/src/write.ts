@@ -1,5 +1,5 @@
 import type { Documented, Entry, Help, Opening } from './help.js';
-import { undocumented } from './help.js';
+import { mayBeRead, undecided, undocumented } from './help.js';
 
 /**
  * A reading, rendered for something that reads English.
@@ -75,10 +75,13 @@ export function writeLlms(help: Help, page: Page): string {
   const sections = help.packages.map((published) => {
     const links = published.openings.map((held) => {
       const used = held.entries.filter((entry) => entry.usedBy.length > 0).length;
+      // A name no other package imports by name, and one may still read, is unknown rather than unused.
+      const unknown = held.entries.filter((entry) => entry.usedBy.length === 0 && undecided(published.name, held, entry).length > 0).length;
       const written = held.entries.filter((entry) => entry.doc !== undefined).length;
       const notes = [
         counted(held.entries.length, 'name'),
         `${used} used across a package boundary`,
+        ...(unknown > 0 ? [`${unknown} unknown`] : []),
         `${written} documented`,
       ].join(', ');
       return `- [${published.name}${held.subpath === '.' ? '' : held.subpath.slice(1)}](${page.base ?? ''}${held.source}): ${notes}`;
@@ -93,11 +96,14 @@ function join(sections: readonly string[]): readonly string[] {
   return sections.flatMap((section, index) => (index === 0 ? [section] : ['', section]));
 }
 
-function entryLines(page: Page, entry: Entry): readonly string[] {
+function entryLines(page: Page, published: Documented, held: Opening, entry: Entry): readonly string[] {
+  const may = undecided(published.name, held, entry);
   const used =
-    entry.usedBy.length === 0
-      ? 'used nowhere else'
-      : `used by ${entry.usedBy.join(', ')} (${counted(entry.uses, 'import')})`;
+    entry.usedBy.length > 0
+      ? `used by ${entry.usedBy.join(', ')} (${counted(entry.uses, 'import')})${may.length > 0 ? `; it also ${mayBeRead(may)}` : ''}`
+      : may.length > 0
+        ? `not imported by name anywhere else; it ${mayBeRead(may)}, so whether it is used is unknown`
+        : 'used nowhere else';
 
   const lines = [`#### \`${entry.name}\``, '', `\`${entry.kind}\` — [${entry.at}:${entry.line}](${place(page, entry)}) — ${used}`];
 
@@ -111,7 +117,7 @@ function entryLines(page: Page, entry: Entry): readonly string[] {
 function openingLines(page: Page, published: Documented, held: Opening): readonly string[] {
   const title = `### \`${published.name}${held.subpath === '.' ? '' : held.subpath.slice(1)}\``;
   const opened = `Opened by [${held.source}](${page.base ?? ''}${held.source}).`;
-  const entries = held.entries.flatMap((entry) => ['', ...entryLines(page, entry)]);
+  const entries = held.entries.flatMap((entry) => ['', ...entryLines(page, published, held, entry)]);
   return held.entries.length === 0
     ? [title, '', opened, '', '_This entrypoint reaches no names._']
     : [title, '', opened, ...entries];

@@ -263,6 +263,13 @@ describe('discover refuses', () => {
     expect(() => ask({ text: 'dark' })).toThrow('run `rg "dark"`');
   });
 
+  it('naming the sets as the surface it was asked on takes them', () => {
+    const shell = (input: Record<string, unknown>): string => discover.run(undefined, input, { tree, names: NAMES, root, shell: 'variance ask' });
+    expect(() => ask({})).toThrow('`discover` needs at least one set to cross: `from`, `to`, `imports`, `declares` or `path`.');
+    expect(() => shell({})).toThrow('`discover` needs at least one set to cross: `--from`, `--to`, `--imports`, `--declares` or `--path`.');
+    expect(() => shell({ text: 'dark' })).toThrow('`--text` searches inside the files the other sets kept');
+  });
+
   it('a path the tree does not hold', () => {
     expect(() => ask({ from: 'src/Nope.tsx', declares: 'x' })).toThrow('`src/Nope.tsx` is not found');
   });

@@ -7,6 +7,7 @@
  * cuts that text again to learn what each ordinal means.
  */
 import { instrumentationId, type InstrumentMode, type ModuleId } from '../instrument/index.js';
+import { probesRegions } from '../instrument/identity.js';
 import { readFileSync } from 'node:fs';
 import { captureAfter, heldOriginal, type ComposedMap, placeModule } from './captured-modules.js';
 import { cleanId, defaultInclude, fileOrNone, mayTake, type ProbePlacement } from './instrumented-modules.js';
@@ -333,6 +334,10 @@ const engine = (${probeLog.createEngine.toString()})(false);
 const lists = ${probeLists.lists.toString()};
 const bucket = engine.open('');
 engine.use(bucket);
+// Under \`loads\` the mark is the only signal, and a page reused between
+// subjects evaluates a module once: each drain leaves the modules the page
+// holds in the bucket, so the next subject is charged with them too.
+const carries = ${JSON.stringify(!probesRegions(mode))};
 // A realm that already has a root has a collector that knows more than this
 // one: a Node head keys its buckets by journey, and a page has nowhere to put a
 // caller. Deferring is what lets one instrumented build serve a page and a
@@ -347,10 +352,12 @@ if (globalThis.__VA__ === undefined) {
     drain() {
       // In the order the page first registered each module, drain after drain.
       const modules = lists(engine.take(bucket), true);
+      if (carries) engine.carry();
       return { instrumentation: ${JSON.stringify(instrumentation)}, modules };
     },
     reset() {
       engine.take(bucket);
+      if (carries) engine.carry();
     },
   };
 }

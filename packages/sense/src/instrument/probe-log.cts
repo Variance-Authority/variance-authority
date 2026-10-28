@@ -1,11 +1,8 @@
 /**
- * What the emitted probe writes into: one flag per region, and a log of first
- * touches.
+ * What the emitted probe writes into: a flag per region, a log of first touches.
  *
- * Every collector this package ships — the Jest and Vitest ones, the page's,
- * a service's journeys — hands the probe the same object, and this is where it
- * comes from. The probe's side of the contract is in
- * [`index.ts`](index.ts); this file is the other side.
+ * Every collector this package ships hands the probe the same object, and this
+ * is where it comes from; [`index.ts`](index.ts) is the probe's side.
  *
  * ## Presence, logged once per segment
  *
@@ -31,15 +28,14 @@
  *
  * ## One flag array, one bucket at a time
  *
- * Flags are per realm, logs are per bucket. That works because a flag only
- * ever means *logged in the current segment*, and the segment ends before any
- * other bucket writes. An async scope that interleaves two buckets — cases
- * under `continuations`, concurrent journeys — switches at every crossing
- * between them: the root's `s` is then a function that asks the scope which
- * bucket owns the crossing and switches when the answer moved, and the probe
- * reads a row of zeros in place of the flags so that every hit reaches it.
- * Every other collector leaves `s` null, and a switch happens only when the
- * collector calls `use`.
+ * Flags are per realm, logs per bucket: a flag only means *logged in the
+ * current segment*, and the segment ends before another bucket writes. An
+ * async scope interleaving two buckets — cases under `continuations`,
+ * concurrent journeys — switches at every crossing: the root's `s` is then a
+ * function that asks the scope which bucket owns the crossing and switches
+ * when the answer moved, and the probe reads a row of zeros in place of the
+ * flags so that every hit reaches it. Every other collector leaves `s` null,
+ * and a switch happens only when the collector calls `use`.
  *
  * A bucket switched through thousands of times re-logs what it touches after
  * each switch, so its log holds repeats. A log that has to grow is compacted
@@ -64,12 +60,11 @@
  * ## Written to be sent as text
  *
  * {@link createEngine} closes over everything it uses and names nothing from
- * this module, so its source is the page collector's too: `test-selection/probes.ts` sends
- * `createEngine.toString()` across the bundler. Node-only work — encoding
- * frames, keeping the file's union, a test runner's cuts — is the callers', or handed in.
- *
- * CommonJS for the reason `test-selection/journal-format.cts` is: Jest's setup file requires
- * it from inside the sandbox, from `node_modules`, untransformed.
+ * this module, so `test-selection/probes.ts` sends `createEngine.toString()`
+ * across the bundler as the page collector's. Node-only work — frames, the
+ * file's union, a test runner's cuts — is the callers', or handed in. CommonJS
+ * for the reason `test-selection/journal-format.cts` is: Jest's setup file
+ * requires it from inside the sandbox, from `node_modules`, untransformed.
  */
 
 import type { ModuleId } from './index.js';
@@ -140,13 +135,7 @@ function createEngine(scoped: boolean, cuts?: ReturnType<typeof probeCuts.create
   };
 
   const open = (key: string): Bucket => ({
-    L: spare.pop() ?? new Int32Array(1 << 12),
-    n: 0,
-    d: 0,
-    dense: 0,
-    key,
-    open: true,
-    closed: false,
+    L: spare.pop() ?? new Int32Array(1 << 12), n: 0, d: 0, dense: 0, key, open: true, closed: false,
     cuts: cuts === undefined ? null : [],
   });
 
@@ -405,6 +394,12 @@ function createEngine(scoped: boolean, cuts?: ReturnType<typeof probeCuts.create
     }
   };
 
+  // The `loads` mark, one call: the module's own region, logged as the header's last statement logs it.
+  const loaded = (id: ModuleId): void => {
+    if (scoped) sync();
+    const { s: flags, b: base } = register(id, 1);
+    if ((flags[0]! & 2) === 0) { flags[0] = flags[0]! | 2; push(base | EVALUATING); }
+  };
   // A cut test reached `line`: what the bucket logs from here on is charged to it.
   const cut = (line: number): void => {
     if (scoped) sync();
@@ -414,14 +409,15 @@ function createEngine(scoped: boolean, cuts?: ReturnType<typeof probeCuts.create
   // What the probes and a tap read, and nothing else: `a` the activation, a
   // number `use` moves on every switch, which the story tap reads; `s` the
   // scope check, null unless the bucket follows an async scope; `v` the
-  // evaluating bit; `n`/`l`/`L` the log; `g` the slow write; `r`
-  // registration; `e`/`x` the evaluating depth; `c` a test line's cut. Built with every field in
-  // place, so its shape never changes under the probes that read it. `s` is a
-  // field of its own because an accessor is not inlined: it cost 6 ns a hit.
+  // evaluating bit; `n`/`l`/`L` the log; `g` the slow write; `r` registration;
+  // `e`/`x` the evaluating depth; `m` a module marked loaded; `c` a test line's
+  // cut. Built with every field in place, so its shape never changes under the
+  // probes that read it. `s` is a field of its own because an accessor is not
+  // inlined: it cost 6 ns a hit.
   const root = {
     a: activation,
     s: null as (() => void) | null,
-    v: 0, n: 0, l: idle.L.length, L: idle.L, g: push, r: register, e: raise, x: lower, c: cut,
+    v: 0, n: 0, l: idle.L.length, L: idle.L, g: push, r: register, e: raise, x: lower, m: loaded, c: cut,
   };
 
   const view = {
@@ -460,6 +456,10 @@ function createEngine(scoped: boolean, cuts?: ReturnType<typeof probeCuts.create
     /** The bucket the probes write into now. */
     current: (): Bucket => current,
     /** Every module whose probes registered in this realm. */ registered: (): readonly ModuleId[] => rowIds,
+    /** Log every module the realm holds as loaded: a realm outliving a test file evaluates none twice. */
+    carry(): void {
+      for (let row = 0; row < rowIds.length; row += 1) if (rowLive[row] === 1) push(rowBase[row]! | EVALUATING);
+    },
     /** The scope's resolver, where the bucket follows an async scope. */
     scope(resolver: () => Bucket): void {
       resolveNow = resolver;

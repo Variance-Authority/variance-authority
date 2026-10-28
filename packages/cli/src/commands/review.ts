@@ -30,6 +30,7 @@ import {
   type ExecutionIndex,
   type FileReading,
   type LineRange,
+  type Misuse,
 } from '@variance-authority/sense/test-selection';
 import { affectedBy, type EdgeKind } from '@variance-authority/core/relate';
 import { OperatorError } from '../exit.js';
@@ -99,7 +100,7 @@ export interface ReviewRegion {
   readonly changedLineCases: number;
   /** The test files those cases are declared in, in code-unit order. */
   readonly tests: readonly string[];
-  /** Those cases by test file and title, in code-unit order: what a reader asks the count about. */
+  /** Those cases by test file, title and id, in code-unit order: what a reader asks the count about. */
   readonly called: readonly ReviewCase[];
 }
 
@@ -111,6 +112,10 @@ export interface ReviewCase {
   readonly name: string;
   /** What it said it arranged, as `covering` reads it: empty is heard-nothing, absent is a record that did not listen. */
   readonly preconditions?: readonly CasePrecondition[];
+  /** What the code it ran read, as `covering` reads it: empty is read-nothing, absent is a record that did not listen. */
+  readonly reads?: readonly CasePrecondition[];
+  /** Each `varianceBreadcrumb` call in it that made no `dimension:key`, empty where none did; absent where the run did not listen to reads. */
+  readonly misused?: readonly Misuse[];
 }
 
 export interface ReviewFile {

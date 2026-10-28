@@ -5,6 +5,7 @@
 > A self-hosted HTTP history service for Variance Authority observations and approvals.
 
 Part of [Variance Authority](https://variance-authority.dev).
+Point your coding agent at [`llms.txt`](https://variance-authority.dev/llms.txt).
 
 Run this package when your pipeline needs to keep what it saw. A single run
 answers *did this change*. It cannot answer *how often does this component

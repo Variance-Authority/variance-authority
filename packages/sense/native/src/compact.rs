@@ -252,7 +252,11 @@ fn span(starts: U32s, ends: U32s, row: usize) -> Span {
 
 #[path = "compact_parses.rs"]
 mod parses;
-use parses::{ParseView, Parses};
+use parses::Parses;
+
+#[path = "compact_parse_view.rs"]
+mod parse_view;
+use parse_view::ParseView;
 
 #[path = "compact_records.rs"]
 mod records;

@@ -44,10 +44,10 @@ const named = (index: ExecutionIndex, line: number): readonly string[] =>
   coveringTests(index, { file: 'price.js', line }).map((test) => test.name);
 
 /** Two things a case can say it arranged, as a driver hands them over and as the index lays them on its row. */
-const MOCKED = ['network', 'mocked', 'e2e/price.spec.ts:3', preconditions.CASE_LEVEL] as const;
-const FROZEN = ['clock', 'frozen', 'e2e/price.spec.ts:4', preconditions.CASE_LEVEL] as const;
-const HEARD_MOCKED = { name: 'network', value: 'mocked', site: 'e2e/price.spec.ts:3', level: preconditions.CASE_LEVEL };
-const HEARD_FROZEN = { name: 'clock', value: 'frozen', site: 'e2e/price.spec.ts:4', level: preconditions.CASE_LEVEL };
+const MOCKED = ['fixture:network', '"mocked"', 'e2e/price.spec.ts:3', preconditions.CASE_LEVEL] as const;
+const FROZEN = ['fixture:clock', '"frozen"', 'e2e/price.spec.ts:4', preconditions.CASE_LEVEL] as const;
+const HEARD_MOCKED = { name: 'fixture:network', value: 'mocked', site: 'e2e/price.spec.ts:3', level: preconditions.CASE_LEVEL };
+const HEARD_FROZEN = { name: 'fixture:clock', value: 'frozen', site: 'e2e/price.spec.ts:4', level: preconditions.CASE_LEVEL };
 
 describe('a driver that can tell its cases apart', () => {
   it('names the case that walked the branch, inside the record the snapshot is', async () => {
@@ -364,7 +364,7 @@ describe('a run recorded by more than one process', () => {
               id: 'e2e/price.spec.ts#1',
               stopped,
               duration: 0.1 * (at + 1),
-              said: JSON.stringify([['user', attempt, 'e2e/price.spec.ts:3:5', 0]]),
+              said: JSON.stringify({ said: [['fixture:user', JSON.stringify(attempt), 'e2e/price.spec.ts:3:5', 0]] }),
               journal,
             },
           ],
@@ -396,13 +396,13 @@ describe('a run recorded by more than one process', () => {
       for (const [journal, said] of [[run.premium, MOCKED], [run.plain, FROZEN]] as const) {
         await stageExecution(directory, {
           subjects: [{ owner: 'e2e/price.spec.ts', journal, complete: true }],
-          cases: [{ file: 'e2e/price.spec.ts', name: 'case a', id: 'a', said: JSON.stringify([said]), journal }],
+          cases: [{ file: 'e2e/price.spec.ts', name: 'case a', id: 'a', said: JSON.stringify({ said: [said] }), journal }],
         });
       }
       const staged = await foldStage(directory);
       // Whichever worker's contribution is read first, the case holds both.
       expect(staged.cases!.map((observed) => observed.name)).toEqual(['case a']);
-      const joined = JSON.parse(staged.cases![0]!.said!) as unknown[];
+      const joined = (JSON.parse(staged.cases![0]!.said!) as { said: unknown[] }).said;
       expect(joined).toHaveLength(2);
       expect(joined).toEqual(expect.arrayContaining([MOCKED, FROZEN]));
       expect(staged.cases![0]).not.toHaveProperty('duration');
@@ -429,8 +429,8 @@ describe('a run recorded by more than one process', () => {
         coverageFile,
         subjects: [{ owner: 'e2e/price.spec.ts', journal: run.premium }],
         cases: [
-          { file: 'e2e/price.spec.ts', name: 'case a', id: 'a', duration: 300, said: JSON.stringify([MOCKED]), journal: run.premium },
-          { file: 'e2e/price.spec.ts', name: 'case a', id: 'a', duration: 200, said: JSON.stringify([FROZEN]), journal: run.plain },
+          { file: 'e2e/price.spec.ts', name: 'case a', id: 'a', duration: 300, said: JSON.stringify({ said: [MOCKED] }), journal: run.premium },
+          { file: 'e2e/price.spec.ts', name: 'case a', id: 'a', duration: 200, said: JSON.stringify({ said: [FROZEN] }), journal: run.plain },
           // Handed over twice and never timed: no time, rather than none summed to zero.
           { file: 'e2e/price.spec.ts', name: 'case b', id: 'b', journal: run.premium },
           { file: 'e2e/price.spec.ts', name: 'case b', id: 'b', journal: run.premium },

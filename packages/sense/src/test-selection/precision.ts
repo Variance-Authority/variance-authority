@@ -36,11 +36,12 @@ import { native } from '../addon.js';
 import { MODULE_EXTENSIONS } from '../read.js';
 import { kindId, NO_OWNER } from './format-layout.js';
 import type { TestCoverageView } from './format-view.js';
-import type { ExecutionNarrowingOptions, ImporterReason } from './importers.js';
+import type { ImporterReason } from './importers.js';
+import type { ExecutionNarrowingOptions } from './narrowing.js';
 import { findTest, testPathOf } from './lookup.js';
 import { applied, type Hunk } from './patch.js';
 import { textAtRecording } from './recorded-text.js';
-import type { ExecutionNarrowing, SelectionCause, SelectionReason } from './select.js';
+import type { ExecutionNarrowing, SelectionCause, SelectionReason } from './narrowing.js';
 
 /** The steps of precision, coarsest first. */
 export const PRECISION_STEPS = ['file', 'symbol', 'file-use', 'function-use', 'region-use'] as const;

@@ -24,7 +24,7 @@ use crate::help_declared::{declared, declared_terms, Declared, Matching};
 use crate::off_thread::{off_thread, OffThread};
 use crate::help_search::{encode, exported_digest, PublishedRows, SearchGeneration};
 use crate::help_members::{indexed_extensions, member_declarations, members_on, ContainerMember, MemberDeclarations};
-use crate::help_origin::{declaration_passed_on, PassedOnDeclaration};
+use crate::help_origin::{declaration_exported, ExportedDeclaration};
 use crate::help_outside::{outside_importers, OutsideImports};
 use crate::help_usage::{importers, usage, Importers, IndexedUsage, NamedExport};
 use crate::index_chain::read_chain;
@@ -139,19 +139,18 @@ pub fn members_on_of(index: String, file: String, on: String) -> napi::Result<Op
     opened_chain(&index, |layers| members_on(layers, &file, &on))
 }
 
-/// What the index reads of the declaration an export passes on.
+/// What the index reads of the declaration an export binds.
 #[napi(object)]
-pub struct PassedOnReading {
-    /// `None` when the file declares the name or the walk ends short of a declaration.
-    pub declaration: Option<PassedOnDeclaration>,
+pub struct ExportedReading {
+    /// `None` when the walk ends short of a declaration.
+    pub declaration: Option<ExportedDeclaration>,
 }
 
-/// The declaration the export `name` of `file`, repo-relative, passes on with
-/// `export … from`, as [`declaration_passed_on`] walks to it; `None` when
-/// there is no index.
+/// The declaration the export `name` of `file`, repo-relative, binds, as
+/// [`declaration_exported`] walks to it; `None` when there is no index.
 #[napi]
-pub fn declaration_passed_on_of(index: String, file: String, name: String) -> napi::Result<Option<PassedOnReading>> {
-    opened_chain(&index, |layers| PassedOnReading { declaration: declaration_passed_on(layers, &file, &name) })
+pub fn declaration_exported_of(index: String, file: String, name: String) -> napi::Result<Option<ExportedReading>> {
+    opened_chain(&index, |layers| ExportedReading { declaration: declaration_exported(layers, &file, &name) })
 }
 
 /// Every top-level declaration on the chain at `index` that no export of its
@@ -165,14 +164,14 @@ pub fn declared_of(root: String, index: String, query: String, containing: bool,
     opened_chain(&index, |layers| declared(&root, layers, &query, matching, files.as_deref()))
 }
 
-/// The declarations no export binds whose name and doc hold at least `needed`
-/// of `stems` — `describedWords`' stems of `query` — in `files` when they
-/// are named, each with the positions of the stems it holds and how near its
-/// doc writes `query`; and the files whose name and module doc hold as many.
+/// The declarations no export binds whose name and doc hold any of `stems` —
+/// `describedWords`' stems of `query` — in `files` when they are named, each
+/// with the positions of the stems it holds and how near its doc writes
+/// `query`; and the files whose name and module doc hold any, the same way.
 /// `None` when there is no index.
 #[napi]
-pub fn declared_described_of(root: String, index: String, query: String, stems: Vec<String>, needed: u32, files: Option<Vec<String>>) -> napi::Result<Option<Declared>> {
-    let matching = Matching::Described { stems, needed: needed.max(1) as usize, query };
+pub fn declared_described_of(root: String, index: String, query: String, stems: Vec<String>, files: Option<Vec<String>>) -> napi::Result<Option<Declared>> {
+    let matching = Matching::Described { stems, query };
     opened_chain(&index, |layers| declared(&root, layers, "", matching, files.as_deref()))
 }
 

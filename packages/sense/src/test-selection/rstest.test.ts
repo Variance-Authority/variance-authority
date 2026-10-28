@@ -79,6 +79,15 @@ describe('what a wrapped Rstest configuration becomes', () => {
     expect(shim).toContain('wrapCase');
   });
 
+  it('keeps one bucket per test file under the loads recipe, so its setup shim wraps no case', async () => {
+    const directory = await root();
+    const config = withTestSelection({ root: directory }, { coverageFile: resolve(directory, 'coverage.bin'), mode: 'loads' });
+
+    const shim = await readFile((config.setupFiles as readonly string[])[0]!, 'utf8');
+    expect(shim).toContain('.flat(globalThis)');
+    expect(shim).not.toContain('wrapCase');
+  });
+
   it('wraps the registrars a suite imports, which is a configuration without globals', async () => {
     const directory = await root();
     const config = withTestSelection(
@@ -191,11 +200,11 @@ describe('what a finished Rstest file is worth', () => {
   // skipped, which read leaf by leaf is the shape of a file that ran
   // everything it meant to. The file's own status is what tells them apart.
   it('refuses a file whose fixture threw, and keeps one whose tests were skipped by their own text', () => {
-    expect(statusesComplete('fail', ['pass', 'skip'])).toBe(false);
-    expect(statusesComplete('pass', ['pass', 'skip', 'todo'])).toBe(true);
-    expect(statusesComplete('pass', ['pass', 'fail'])).toBe(false);
+    expect(statusesComplete('fail', ['pass', 'skip'], false)).toBe(false);
+    expect(statusesComplete('pass', ['pass', 'skip', 'todo'], false)).toBe(true);
+    expect(statusesComplete('pass', ['pass', 'fail'], false)).toBe(false);
     // Nothing ran, so there is nothing to be evidence of.
-    expect(statusesComplete('pass', [])).toBe(false);
+    expect(statusesComplete('pass', [], false)).toBe(false);
   });
 });
 
@@ -247,7 +256,7 @@ describe('the Rstest loader', () => {
     const broken = 'export const pick = (;\n';
     const { handed, modules } = await loaded('src/pick.ts', broken);
 
-    expect(handed).toMatch(/^export const pick = \(;\n\n;[^]*__vaE\(\);$/);
+    expect(handed).toMatch(/^export const pick = \(;\n\n;globalThis\.__VA__\.m\("[^"\n]*"\);$/);
     expect(modules).toEqual([expect.objectContaining({ file: 'src/pick.ts', instrumented: false, blocks: [] })]);
   });
 
@@ -255,7 +264,7 @@ describe('the Rstest loader', () => {
     const page = 'export const tag = () => \'#text\';\n';
     const { handed, modules } = await loaded('src/page.ts', page, { 'src/page.ts': page }, {}, { unprobed: (file) => file.endsWith('page.ts') });
 
-    expect(handed).toMatch(/^export const tag = \(\) => '#text';\n\n;[^]*__vaE\(\);$/);
+    expect(handed).toMatch(/^export const tag = \(\) => '#text';\n\n;globalThis\.__VA__\.m\("[^"\n]*"\);$/);
     expect(handed).not.toMatch(/__va\(\d+\)/);
     expect(modules).toEqual([expect.objectContaining({ file: 'src/page.ts', instrumented: false, blocks: [] })]);
   });
@@ -286,5 +295,18 @@ describe('the Rstest loader', () => {
 
   it('leaves a test file as it is when `cadence` is off', async () => {
     expect((await loaded('src/add.test.ts', TEST, {}, {}, { cadence: false })).handed).toBe(TEST);
+  });
+
+  it('leaves a test file as it is under the loads recipe, which cuts nothing', async () => {
+    expect((await loaded('src/add.test.ts', TEST, {}, {}, { mode: 'loads' })).handed).toBe(TEST);
+  });
+
+  it('marks a module as loaded under the loads recipe, and probes nothing in it', async () => {
+    const add = 'export const add = (a, b) => a + b;\n';
+    const { handed, modules } = await loaded('src/add.ts', add, { 'src/add.ts': add }, {}, { mode: 'loads' });
+
+    expect(handed).toMatch(/^export const add = \(a, b\) => a \+ b;\n\n;globalThis\.__VA__\.m\("[^"\n]*"\);$/);
+    expect(handed).not.toMatch(/__va\(\d+\)/);
+    expect(modules).toEqual([expect.objectContaining({ file: 'src/add.ts', instrumented: false, blocks: [] })]);
   });
 });

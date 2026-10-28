@@ -40,6 +40,46 @@ export interface CaseSections {
   readonly base?: Uint8Array;
 }
 
+/** The bytes each section occupies, read from its directory without decoding its contents. */
+export interface RecordStorage {
+  readonly format: number;
+  readonly bytes: number;
+  /** The header and all bytes outside the named sections. */
+  readonly overheadBytes: number;
+  readonly sections: readonly {
+    readonly name: string;
+    readonly bytes: number;
+    /** Physical storage elements, not a count of tests or cases. */
+    readonly rows: number;
+    readonly width: number;
+    readonly packed: boolean;
+  }[];
+}
+
+/**
+ * A record's storage directory, without reading its columns or case payloads.
+ * Section sizes include any nested record: add only these top-level sizes.
+ */
+export function recordStorageAt(file: string): RecordStorage {
+  const fd = openSync(file, 'r');
+  try {
+    const bytes = descriptor(fd);
+    const { header } = directoryOf(bytes);
+    const sections = header.sections.map((section) => ({
+      name: section.name, bytes: section.length,
+      rows: section.rows ?? section.length / section.width,
+      width: section.width, packed: section.rows !== undefined,
+    }));
+    return {
+      format: header.version, bytes: bytes.length,
+      overheadBytes: bytes.length - sections.reduce((sum, section) => sum + section.bytes, 0),
+      sections,
+    };
+  } finally {
+    closeSync(fd);
+  }
+}
+
 const PARTS = Object.fromEntries(LAYOUT.coverage.parts) as Readonly<Record<keyof CaseSections, string>>;
 const ALL = Object.keys(PARTS) as readonly (keyof CaseSections)[];
 const KNOWN: ReadonlySet<string> = new Set<string>([...NAMES, DURATION, PHASES, ...Object.values(PARTS)]);
@@ -254,15 +294,21 @@ interface Opened {
   read(section: Section): Uint8Array;
 }
 
-function opened(file: Bytes): Opened {
+/** The physical directory shared by case reads and storage inspection. */
+function directoryOf(file: Bytes): { readonly header: Header; readonly base: number } {
   if (file.length < 4) throw invalid();
   const head = file.read(0, 4);
   const headerLength = Buffer.from(head.buffer, head.byteOffset, head.byteLength).readUInt32LE(0);
   if (headerLength > file.length - 4) throw invalid();
-  const text = Buffer.from(file.read(4, 4 + headerLength)).toString('utf8').replace(/\0+$/u, '');
-  const header = JSON.parse(text) as Header;
+  const header = framedHeader(Buffer.concat([head, file.read(4, 4 + headerLength)]));
+  if (header === undefined) throw invalid();
   const base = 4 + headerLength;
   if (!validSections(header.sections, file.length - base)) throw invalid();
+  return { header, base };
+}
+
+function opened(file: Bytes): Opened {
+  const { header, base } = directoryOf(file);
   const unknown = header.sections.find((section) => !KNOWN.has(section.name));
   if (unknown !== undefined) {
     throw new UnknownSection(unknown.name);

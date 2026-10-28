@@ -139,16 +139,17 @@ function cut(text: string): { readonly recut: boolean; readonly crossings: reado
 }
 
 describe('a lay over renumbered siblings', () => {
-  it('mislays a module whose sibling regions were renumbered under it', () => {
+  it('re-cuts a module whose sibling regions were renumbered, each renumbered branch taking what the function took', () => {
     // A region's address says where it is in the module's tree, and the steps of
     // that path are counted among siblings in source order. Delete the first of
     // two branches and the second one's regions are cut as `if#0/*` — the
-    // address the deleted branch had, over text it never covered — and the kinds
-    // match, because a branch replaced a branch. Nothing under the address can
-    // tell the two apart, so the numbering is compared before anything is
-    // carried and a module that renumbered is mislaid.
-    expect(cut(FIRST_GONE).recut).toBe(false);
-    expect(cut(ONE_ADDED).recut).toBe(false);
+    // address the deleted branch had, over text it never covered. The two cuts'
+    // `if` counters handed out different seats, so no branch's address names
+    // one region in both: each pairs with nothing and takes what the function
+    // around it took, a superset, never the deleted branch's tests alone. The
+    // function and the top level kept their seats and are carried.
+    expect(cut(FIRST_GONE)).toEqual({ recut: true, crossings: [[ONE, TWO], undefined] });
+    expect(cut(ONE_ADDED)).toEqual({ recut: true, crossings: [[ONE, TWO], [ONE, TWO]] });
   });
 
   it('re-cuts a module that gained regions of its own', () => {
@@ -179,12 +180,10 @@ describe('a lay over renumbered siblings', () => {
 describe('a lay over a renumbered carry', () => {
   it('keeps the tests of a module whose branches were renumbered out of the skip list', () => {
     // `two` is the only test that entered the surviving branch. Carrying the
-    // crossings by address hands that branch to `one` — the test recorded
-    // against the branch that is gone — and hands `two` nothing, while every row
-    // is written with the digest of the text standing now, so the reader that
-    // checks a module's coordinates agrees with the tree and widens on nothing.
-    // A diff inside the surviving branch is then answered with `one` and skips
-    // `two`, the one test known to have run there.
+    // crossings by address would hand that branch to `one` — the test recorded
+    // against the branch that is gone — and `two` nothing, at the digest of the
+    // text standing now. The branch pairs with nothing instead and takes the
+    // function's tests, `two` among them, and both are owed a run.
     const laid = laidCoverage(
       recorded(BASELINE, PICK),
       nothingLoaded(LOCAL),
@@ -193,22 +192,42 @@ describe('a lay over a renumbered carry', () => {
 
     expect(complete(laid, ONE)).toBe(false);
     expect(complete(laid, TWO)).toBe(false);
-    expect(held(laid, 'if#1/then')).toEqual([TWO]);
-    expect(only(laid).sourceDigest).toBe(only(recorded(BASELINE, PICK)).sourceDigest);
+    expect(held(laid, 'if#0/then')).toEqual([ONE, TWO]);
+    expect(only(laid).sourceDigest).not.toBe(only(recorded(BASELINE, PICK)).sourceDigest);
+  });
+
+  it('keeps the top level and the function their own tests in the module whose deleted branch renumbered its sibling', () => {
+    // One module, its root among its regions: the deletion renumbers `if#1` as
+    // `if#0`, and the regions that kept their seats keep what they held.
+    const laid = laidCoverage(
+      recorded(BASELINE, PICK),
+      nothingLoaded(LOCAL),
+      new Map([['src/pick.ts', FIRST_GONE]]),
+    );
+
+    expect(only(laid).blocks.map((block) => [block.kind, block.path, block.testFiles])).toEqual([
+      ['module', 'module', [ONE, TWO]],
+      ['function', 'entry', [ONE, TWO]],
+      ['branch', 'if#0/then', [ONE, TWO]],
+      ['branch', 'if#0/else', [ONE, TWO]],
+      ['continuation', 'if#0/after', [ONE, TWO]],
+    ]);
   });
 
   it('does not seat a recorded branch on one written before it', () => {
     // The same renumbering from the other side: a branch added before the
     // recorded one. Every region is one seat further down, so `one`'s branch is
     // carried onto the branch that tests `n === 0` and `two`'s onto `one`'s,
-    // and the answer to a diff anywhere in the function is the wrong test.
+    // and the answer to a diff anywhere in the function is the wrong test. No
+    // branch pairs, so every one takes the function's tests.
     const laid = laidCoverage(
       recorded(BASELINE, PICK),
       nothingLoaded(LOCAL),
       new Map([['src/pick.ts', ONE_ADDED]]),
     );
 
+    expect(complete(laid, ONE)).toBe(false);
     expect(complete(laid, TWO)).toBe(false);
-    expect(only(laid).blocks.every((block) => block.path !== 'if#2/then')).toBe(true);
+    expect(['if#0/then', 'if#1/then', 'if#2/then'].map((path) => held(laid, path))).toEqual([[ONE, TWO], [ONE, TWO], [ONE, TWO]]);
   });
 });

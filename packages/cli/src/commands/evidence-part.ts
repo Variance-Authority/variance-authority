@@ -36,10 +36,14 @@ export interface EvidencePlan {
   readonly notObserved: readonly NotObserved[];
 }
 
-/** What became of one owned subject. */
+/**
+ * What became of one subject. `of` is the planned subject at `position` when
+ * the visit realized this one from it — a story read at one of its widths —
+ * and absent when the subject is the planned one.
+ */
 export type SubjectOutcome =
-  | { readonly position: number; readonly subject: string; readonly outcome: 'collected'; readonly snapshot: boolean }
-  | { readonly position: number; readonly subject: string; readonly outcome: NotObservedKind; readonly because: string };
+  | { readonly position: number; readonly subject: string; readonly of?: string; readonly outcome: 'collected'; readonly snapshot: boolean }
+  | { readonly position: number; readonly subject: string; readonly of?: string; readonly outcome: NotObservedKind; readonly because: string };
 
 export interface EvidenceDiagnostic {
   /** Absent for what the plan or a worker said rather than one subject. */

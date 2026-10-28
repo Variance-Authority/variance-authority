@@ -77,4 +77,32 @@ describe('a case that stopped before reaching a region', () => {
     const [file] = coveringChange(index, new Map([['src/cart/total.ts', [{ start: 7, end: 7 }]]]), { relations });
     expect(ids(file?.regions[0]?.stopped)).toEqual(['staff']);
   });
+
+  it('keeps apart two neighbours a narrowing made agree when their stopped cases differ', () => {
+    // `staff` enters 1-4 and throws; `there` walks 5-12. Kept to `guest`, every
+    // range names the same case, and only where `staff` stopped tells 1-4 apart.
+    const index: ExecutionIndex = {
+      tests: [
+        { id: 'guest', file: 'test/cart.test.ts', name: 'uses the guest price', stopped: false },
+        { id: 'staff', file: 'test/cart.test.ts', name: 'refunds the staff price', stopped: true },
+        { id: 'there', file: 'test/other.test.ts', name: 'refunds twice', stopped: false },
+      ],
+      modules: [{
+        file: 'src/cart/total.ts',
+        blocks: [
+          { kind: 'function', name: 'priceOf', path: 'entry#0', startLine: 1, endLine: 4, source: true, crossings: [{ test: 0, distance: 0 }, { test: 1, distance: 0 }] },
+          { kind: 'function', name: 'refund', path: 'entry#1', startLine: 5, endLine: 8, source: true, crossings: [{ test: 0, distance: 0 }, { test: 2, distance: 0 }] },
+          { kind: 'function', name: 'refundAll', path: 'entry#2', startLine: 9, endLine: 12, source: true, crossings: [{ test: 0, distance: 0 }] },
+        ],
+      }],
+    };
+    const keep = (test: { readonly id: string }) => test.id === 'guest';
+    const folded = (ranges: ReturnType<typeof coveringTestsInFile>) =>
+      ranges.map((range) => [range.startLine, range.endLine, ids(range.tests), ids(range.stopped)]);
+
+    expect(folded(coveringTestsInFile(index, 'src/cart/total.ts', { relations, keep }))).toEqual([
+      [1, 4, ['guest'], []],
+      [5, 12, ['guest'], ['staff']],
+    ]);
+  });
 });

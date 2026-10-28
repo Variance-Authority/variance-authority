@@ -10,7 +10,6 @@ import { flagsFor, synopsisFor } from '../usage.js';
 import { digestString } from '@variance-authority/core/format';
 import { encodeExecutionIndex, recordOfCases, writeTestCoverage } from '@variance-authority/sense/test-selection';
 import { covering, formatCovering } from './covering.js';
-import { refold } from './covering-reach.js';
 import { indexOutput } from './index-command.js';
 import { INSTRUMENTATION_ID } from '@variance-authority/sense/instrument';
 
@@ -405,16 +404,6 @@ describe('narrowing the witnesses to what is nearby', () => {
     expect(answer.narrowed).toMatchObject({ kept: 1, of: 2 });
   });
 
-  it('keeps apart two neighbours whose stopped cases differ', () => {
-    const range = (startLine: number, endLine: number, stopped?: readonly string[]) => ({
-      startLine, endLine, tests: [],
-      ...(stopped === undefined ? {} : { stopped: stopped.map((id) => ({ id, file: 'a.test.ts', name: id })) }),
-    });
-
-    expect(refold([range(1, 2, ['a']), range(3, 4, ['a']), range(5, 6, ['b']), range(7, 8)]).map((one) => [one.startLine, one.endLine]))
-      .toEqual([[1, 4], [5, 6], [7, 8]]);
-  });
-
   it('prints no depth beside a witness', async () => {
     const execution = await indexFile();
 
@@ -483,6 +472,16 @@ describe('asking who loaded a region that ran while its module evaluated', () =>
 
     expect(answer.tests?.map((test) => [test.id, test.loaded])).toEqual([['near', true]]);
     expect(formatCovering(answer, 'text')).toContain('* ran only while the module evaluated (its file imports it)');
+  });
+
+  it('reads a region as loaded when it ran while its module evaluated and the graph names nobody who loaded it', async () => {
+    const { root, execution } = await checkout();
+    execFileSync('git', ['rm', '--quiet', 'total.test.ts'], { cwd: root, stdio: 'pipe' });
+    await indexOutput({ cwd: root });
+    const asked = (...flags: string[]) => covering(parse(['--file', 'src/total.ts', ...flags, '--root', root, '--execution', execution]));
+    const [answer, whole] = [await asked('--line', '3'), await asked()];
+    expect(answer.tests).toEqual([]);
+    expect([answer.state, whole.ranges?.find((range) => range.startLine === 3)?.state]).toEqual(['loaded', 'loaded']);
   });
 
   it('carries the same loaders into a change', async () => {

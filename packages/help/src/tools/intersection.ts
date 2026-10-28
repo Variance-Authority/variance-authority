@@ -2,7 +2,7 @@ import { codeUnitOrder } from '@variance-authority/core/segment';
 import type { FileSet, Tool, ToolInvocation } from '@variance-authority/mcp/tools';
 import { readsNames } from './discover.js';
 import { FoundNothing } from './find.js';
-import { limitOf, notShown } from '@variance-authority/mcp/tools';
+import { limitOf, notShown, spellingOf, verbOf } from '@variance-authority/mcp/tools';
 
 /**
  * `docs_intersection` — the files every one of several whole questions answers.
@@ -40,20 +40,6 @@ interface Question {
 }
 
 const counted = (count: number): string => `${count} ${count === 1 ? 'file' : 'files'}`;
-const verbOf = (tool: { readonly name: string }): string => tool.name.replace(/^docs_/, '').replace(/_/g, '-');
-const flagOf = (property: string): string => `--${property.replace(/[A-Z]/g, (letter) => `-${letter.toLowerCase()}`)}`;
-
-/** A value as a shell would take it back: quoted only when a word would not survive. */
-function wordOf(value: unknown): string {
-  const text = Array.isArray(value) ? value.join(',') : String(value);
-  return text !== '' && /^[\w./:@^,+=%-]+$/.test(text) ? text : `'${text.replace(/'/g, `'\\''`)}'`;
-}
-
-/** A question spelled as it is asked alone, so it can be pasted back. */
-export function spelled(question: Question): string {
-  const flags = Object.entries(question.input).map(([property, value]) => `${flagOf(property)} ${wordOf(value)}`);
-  return [question.question, ...flags].join(' ');
-}
 
 function questionsOf(input: Readonly<Record<string, unknown>>): readonly Question[] {
   const said = input['questions'];
@@ -136,7 +122,9 @@ export function intersectionOf<Subject>(operands: readonly Tool<Subject>[]): Too
         operands.find((candidate) => verbOf(candidate) === question)?.wants?.(given) === true),
 
     run: (subject, input, invocation?: ToolInvocation<Subject>) => {
-      const limit = limitOf(input, SHOWN);
+      const spell = spellingOf(invocation);
+      const limit = limitOf(input, SHOWN, spell);
+      const spelled = ({ question, input: given }: Question): string => spell.operand(question, given);
       const questions = questionsOf(input);
       // Every question is resolved before any is asked, so a misspelled third
       // question costs nothing to refuse.
@@ -181,7 +169,7 @@ export function intersectionOf<Subject>(operands: readonly Tool<Subject>[]): Too
       for (const file of common.slice(0, limit)) {
         lines.push(`${file} — ${sets.map((set, at) => `${at + 1}: ${evidenceOf(set.files.get(file)!)}`).join(' · ')}`);
       }
-      if (common.length > limit) lines.push('', notShown(common.length - limit));
+      if (common.length > limit) lines.push('', notShown(common.length - limit, spell));
       return lines.join('\n');
     },
   };

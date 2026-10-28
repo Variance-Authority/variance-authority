@@ -28,7 +28,7 @@ import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { CUT_VARIABLE, cutOf, writeCut } from './case-cut.js';
 import { projectPath } from './instrumented-modules.js';
-import { selectedLines, type SuiteSelection } from './suite-selection.js';
+import { kept, selectedLines, type SuiteSelection } from './suite-selection.js';
 
 /** The filter module a selecting configuration names, by absolute path. */
 export const SELECTION_FILTER = fileURLToPath(new URL('./jest-filter.cjs', import.meta.url));
@@ -91,7 +91,7 @@ export function selectingFilter(
     const lines = selectedLines(selection, found.map((path) => projectPath(options.root, path)));
     for (const line of told ? lines.slice(0, 1) : lines) say(line);
     told = true;
-    const filtered = found.filter((path) => !selection.skip.has(projectPath(options.root, path)));
+    const filtered = [...kept(selection, found, (path) => projectPath(options.root, path))];
     // Called once per project: what each keeps is added to the one cut, which
     // is on disk, and named in the environment, before any worker forks.
     const cases = options.cutFile === undefined ? new Map() : cutOf(selection, filtered, options.root);

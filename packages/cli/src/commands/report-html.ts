@@ -158,7 +158,9 @@ function narrowNote(
 
 function statusOf(docket: Docket): 'incomplete' | 'review' | 'clean' {
   if (docket.failed.length > 0) return 'incomplete';
-  return docket.reviewable > 0 ? 'review' : 'clean';
+  // An unstable subject holds the check red as a change does, so the page may
+  // not call the run clean over one: the comment and the exit code do not.
+  return docket.reviewable > 0 || docket.unstable.length > 0 ? 'review' : 'clean';
 }
 
 /**
@@ -170,6 +172,7 @@ function statusOf(docket: Docket): 'incomplete' | 'review' | 'clean' {
 function title(docket: Docket): string {
   const parts: string[] = [];
   if (docket.reviewable > 0) parts.push(`${docket.reviewable} to review`);
+  if (docket.unstable.length > 0) parts.push(`${docket.unstable.length} unstable`);
   if (docket.fresh > 0) parts.push(`${docket.fresh} new`);
   if (docket.failed.length > 0) parts.push(`${docket.failed.length} failed`);
   if (parts.length === 0) parts.push('clean');
@@ -242,7 +245,9 @@ function headline(docket: Docket): string {
   const [first, ...rest] = docket.causes;
   const lead =
     first === undefined
-      ? `${docket.reviewable} to review`
+      ? docket.reviewable > 0
+        ? `${docket.reviewable} to review`
+        : `${docket.unstable.length} unstable`
       : `${text(first.label)}${first.named ? '' : '<span class="mark area">by area</span>'}`;
   return (
     `<h1>${lead}` +

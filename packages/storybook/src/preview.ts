@@ -4,6 +4,7 @@ import {
   STORYBOOK_ERROR_OVERLAY,
   STORYBOOK_EVENTS,
   STORY_ROOT_SELECTORS,
+  TEST_ENVIRONMENT,
   type ErrorOverlay,
   type FinishRequest,
   type PreviewGlobals,
@@ -17,8 +18,9 @@ import { PARAMETERS_KEY, type ParametersRead } from './parameters.js';
 import { applyGlobals } from './preview-globals.js';
 import { previewUrl } from './preview-url.js';
 import { showStory } from './show-story.js';
-import { readStoryParameters } from './story-parameters.js';
+import { loadStoryParameters } from './story-parameters.js';
 import { beginFinishWatch } from './story-finished.js';
+import { enterTestEnvironment } from './story-test-environment.js';
 import { STORY_TIMING_KEY, type StoryTiming } from './story-timing.js';
 import { takeStoryTiming } from './story-timing-read.js';
 
@@ -35,8 +37,8 @@ import { takeStoryTiming } from './story-timing-read.js';
  * So this navigates once, and thereafter switches stories over Storybook's own
  * channel — the same `setCurrentStory` the manager sidebar sends. Stories then
  * share a document, which is a corner deliberately cut and paid for elsewhere:
- * the session's probe detects what one story left behind for the next
- * (ADR-0009), rather than preventing it.
+ * a run collects a changed story again, then `alone` in a clean world, which
+ * detects what one story left behind for the next rather than preventing it.
  *
  * What stays in this file is that navigation policy and the outcome it hands
  * back. The parts that answer to different constraints have their own modules
@@ -270,7 +272,7 @@ export async function collectStory(
     // prevent, and still happens on the channel-less path — comes back with the
     // project's own globals, and an addon this pass turned off would be back on
     // for every story after it.
-    if (navigated) await setGlobals(page, options, request.events.updateGlobals);
+    if (navigated) await prepareDocument(page, options, request.events.updateGlobals);
 
     // Before the story is shown, not after: a story that finishes inside the
     // round trip back to Node would otherwise finish with nobody listening, and
@@ -291,7 +293,7 @@ export async function collectStory(
         'no Storybook channel on the preview, so this story was shown by reloading the iframe: ' +
           'one navigation per subject, which is the cost a session exists to avoid (ADR-0009)',
       );
-      await setGlobals(page, options, request.events.updateGlobals);
+      await prepareDocument(page, options, request.events.updateGlobals);
       await page.evaluate(beginFinishWatch, watch);
       result = await page.evaluate(showStory, request);
     }
@@ -404,15 +406,31 @@ export async function collectStories(
 }
 
 /**
- * Every story's `parameters.variance`, from a preview that is already open.
+ * One story's `parameters.variance`, from a preview that is already open.
  *
- * Asked once per session rather than once per story: `extract()` loads every
- * story module, and after that the answer does not change until the build does.
- * A preview that cannot answer returns why, and the caller decides what a run
- * without parameters means.
+ * Asked when the story is reached, before it is shown: the preview imports the
+ * story's file to answer, which is the import `showStory` would have made, so it
+ * is paid once and charged to this story's `collect`. Nothing else is imported —
+ * a run that reads every story's parameters up front pays for the whole
+ * Storybook before its first story and times every file's import as free. A
+ * preview that cannot answer returns why, and the caller decides what reading
+ * the story without its parameters means.
  */
-export async function readParameters(page: StoryPage): Promise<ParametersRead> {
-  return page.evaluate(readStoryParameters, PARAMETERS_KEY);
+export async function readParameters(page: StoryPage, storyId: string): Promise<ParametersRead> {
+  return page.evaluate(loadStoryParameters, { key: PARAMETERS_KEY, storyId, timingKey: STORY_TIMING_KEY });
+}
+
+/**
+ * What a session sets on each document it opens, before the next story.
+ *
+ * The globals, and Storybook's test branch: with it, Storybook does not open
+ * every render with its 100 ms animation wait (`story-test-environment.ts`).
+ * The story the document opened on has already rendered by the time this runs,
+ * so the switch is paid for once per document and saves on every story after.
+ */
+async function prepareDocument(page: StoryPage, options: CollectOptions, event: string): Promise<void> {
+  await setGlobals(page, options, event);
+  await page.evaluate(enterTestEnvironment, TEST_ENVIRONMENT);
 }
 
 /**

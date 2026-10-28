@@ -5,6 +5,7 @@ import { orientIndexOf } from './holds.js';
 import { deepestUnder, enclosing } from './containment.js';
 import { anchors } from './orient.js';
 import { scopeLine } from './scope.js';
+import { rarity as rarityOf } from './rarity.js';
 import type { Orientation } from './orient.js';
 
 /**
@@ -172,8 +173,7 @@ export function placesOn(
   const parts = wordsOf(query).flatMap((word) => partsOf(word));
   if (parts.length === 0) return new Map();
 
-  const rarity = (part: string): number =>
-    Math.floor((1000 * (index.surfaces - (index.holders.get(part) ?? 0) + 1)) / (index.surfaces + 1));
+  const rarity = (part: string): number => rarityOf(index.surfaces, index.holders.get(part) ?? 0);
 
   const wanted = new Set(subjects);
   const declaredIn = report.lexicon?.declaredIn ?? {};

@@ -351,6 +351,22 @@ describe('what a change moved against the base', () => {
     ]);
   });
 
+  it('names a region whose carried case its file\'s edit dropped as not measured, never as lost', () => {
+    const region = { file: 'src/total.ts', kind: 'module', name: '', startLine: 1, endLine: 20 };
+    const carried = { id: 'b.test.ts > two', file: 'b.test.ts', name: 'two', stopped: false };
+    const moved = {
+      regions: [], counts: { lost: 0, hidden: 0, thinned: 0, gained: 0 }, testFiles: [], unread: [], renumbered: [],
+      unmeasured: [{ ...region, before: [carried], now: [] }],
+    };
+
+    expect(motionText({ base: { from: 'base.json', kind: 'record' }, moved })).toEqual([
+      '',
+      'Against base.json, no region moved.',
+      'Not measured, 1 region whose cases last ran before its file changed:',
+      expect.stringMatching(/^  src\/total\.ts 1-20 .* — was /u),
+    ]);
+  });
+
   it('leaves out what the base branch changed after the base was recorded, and names it', async () => {
     const { root, first } = await checkout();
     await writeFile(join(root, 'src/other.ts'), 'export const other = 2;\n');

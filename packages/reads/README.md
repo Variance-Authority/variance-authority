@@ -6,6 +6,7 @@
 > one of them photographs only the pages that show it.
 
 Part of [Variance Authority](https://variance-authority.dev).
+Point your coding agent at [`llms.txt`](https://variance-authority.dev/llms.txt).
 
 A recorded page run knows what code each page ran: the browser drains its own
 coverage, and the server reports what it executed under the page's journey. The

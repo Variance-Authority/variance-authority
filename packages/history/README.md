@@ -5,6 +5,7 @@
 > Retain visual-regression observations across runs and answer churn, flakiness, reach and token-drift questions.
 
 Part of [Variance Authority](https://variance-authority.dev).
+Point your coding agent at [`llms.txt`](https://variance-authority.dev/llms.txt).
 
 ## What this is for
 

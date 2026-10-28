@@ -176,6 +176,38 @@ describe.skipIf(!BROWSER_AVAILABLE)('createHarness — text settings', () => {
   }, 60_000);
 });
 
+describe.skipIf(!BROWSER_AVAILABLE)('createHarness — what the page painted before', () => {
+  it('paints the same content to the same bytes after an edit and its revert', async () => {
+    // A harness mounts subject after subject on one page. With partial raster,
+    // a remount repaints only the damaged part of each tile, and the repainted
+    // pixels come out one colour level off a whole-tile paint, so the same
+    // content painted after an edit differs from the same content painted
+    // first.
+    const harness = await createHarness(OPTIONS);
+    const page = harness.page;
+
+    try {
+      await page.setContent(
+        '<style>body{margin:8px;font:16px system-ui}div{border:1px solid #ddd;border-radius:6px;padding:12px}</style>' +
+          '<div><b>Todos</b><ul><li><input type=checkbox checked> one</li><li><input type=checkbox> two</li></ul></div>',
+      );
+      const first = await page.screenshot();
+
+      const swap = (to: string): Promise<void> =>
+        page.evaluate((html) => {
+          window.document.querySelector('li')!.firstElementChild!.outerHTML = html;
+        }, to);
+      await swap('<span style="display:inline-block;width:13px;height:13px;background:#36c"></span>');
+      await page.screenshot();
+      await swap('<input type=checkbox checked>');
+
+      expect((await page.screenshot()).equals(first)).toBe(true);
+    } finally {
+      await harness.close();
+    }
+  }, 60_000);
+});
+
 describe.skipIf(!BROWSER_AVAILABLE)('createHarness — a declared timezone and locale', () => {
   it('opens the page in the timezone and language the run declares', async () => {
     const harness = await createHarness({ ...OPTIONS, timezoneId: 'Asia/Tokyo', locale: 'de-DE' });

@@ -33,6 +33,20 @@ question open:
   with it. Record it alone with `-t` under `VARIANCE_AUTHORITY_STORY=alone`,
   then with its whole file under `VARIANCE_AUTHORITY_STORY=file`, twice each,
   and ask `story --name <name> --compare alone,file`.
+- **You need to know where one object went, or where it came from**: which
+  provider's value reached a component as a prop, whether a wrapper passed a
+  config on or made a new one. Follow the ref, read as the step lines below
+  say, from step to step: the first step handed a new ref where you expected
+  the same one is where the replacement arrived. The story does not show what made it;
+  a module's `» holds` line names it when it is a top-level binding. A return
+  value is not shown, so a value read with `useContext` or a hook shows only
+  where it is handed on.
+- **Two tests or more differ in their setup and in their result**: the flag
+  on fails and off passes, the default user passes and Mike fails. Record each
+  under `VARIANCE_AUTHORITY_STORY=1`, twice if you can, and name every one:
+  `story --name <one> --name <other>`. Each case is a side, set against the
+  others as readings of one case are; name a case two files hold as
+  `<file> > <name>`.
 
 Never record:
 
@@ -46,10 +60,15 @@ Never record:
   prints that the recording filled up, choose another test.
 - **To find which tests run a line.** That is `covering`, from the record every
   run already keeps.
-- **For a value the code does not print.** A story shows only what the code
-  emitted: `console` lines, Eyes queries and events, `vae` announcements. Add a
-  `console.log` of the value in the code under test, not in the test, and record
-  again, or use a debugger at the line it names.
+- **For what an object holds, or a value no function was handed.** A story
+  shows what the code emitted — `console` lines, Eyes queries and events, `vae`
+  announcements — and what each function step was handed: primitives as they
+  are, an object as a ref and its kind, such as `ref5 Object` or
+  `ref3 react.memo`, never its contents. A React kind such as `react.memo`
+  needs `@variance-authority/react/story` in the suite's setup files; without
+  it, a memo or a context is `Object`. Add a `console.log` of the value in
+  the code under test, not in the test, and record again, or use a debugger at
+  the line it names.
 - **When a stack trace already names the line.** Open that line.
 
 ```bash
@@ -85,6 +104,13 @@ written for is answered as that. When `--file` alone names a file with several
 recorded tests, the answer lists them with their visit counts and readings and
 prints no route; add the `--name` of the one you want. `--root
 <path>` reads the stories of the checkout at that path.
+
+In the JSON, every declaration and every branch carries `at`, its
+coordinate: the file, `#`, then the declaration's name and its region's path —
+`src/cart.ts#Cart/removeItem/if#0/then`, or `src/format.ts#module` for a top
+level — with `~2` on the second declaration of one name, `handle~2/if#0/then`.
+Match places across readings by `at`; line numbers move with every edit. A
+file the story cannot place has its path alone as `at`.
 
 The answer fits a page. It is drawn at the finest level that fits in 5,000
 characters — every step, then steps with other workspace packages passed
@@ -138,8 +164,12 @@ The answer prints a key for its marks. What the key leaves out:
   Test files are not recorded by default, so the hook itself is not a step.
 - `» text` under a step is a line the code emitted at that step: a `console`
   line as `console.log …`, an Eyes entry as `eyes …` with a query's arguments
-  and what it found, a `vae` announcement as `vae …`. Lines emitted before the
-  first step are in the header.
+  and what it found, a `vae` announcement as `vae …`. `» handed a=1, b=ref2
+  Object` is what the function was bound to on entry, and `» holds …` what a
+  module's top level declared: at its step when the test loaded it, in the
+  header for every test that goes through it when it loaded with the file. One ref is one object everywhere in
+  the run: the same ref at two steps is the same value handed on. Lines
+  emitted before the first step are in the header.
 - `loaded N files` is modules loaded one inside another. `… steps 1-2 left out`
   is what this part leaves out; ask `--around` a step at its edge to read
   further.
@@ -149,7 +179,8 @@ The answer prints a key for its marks. What the key leaves out:
 ```bash
 variance story --name "saves the total it charges" --compare outcome   # passed against threw
 variance story --name "saves the total it charges" --compare last      # newest against the one before
-variance story --name "saves the total it charges" --compare 1,flag-on # two labels
+variance story --name "saves the total it charges" --compare 1,flag-on # two labels, or more
+variance story --name "charges" --name "charges as mike" --name "charges with the flag off"   # cases against each other
 ```
 
 ```text

@@ -49,6 +49,8 @@ source facts and observations it reads, through the interfaces it already has.
   investigation, UI review, test selection, and test reduction, each carried
   through an edit and a check.
 
+Point your coding agent at [`llms.txt`](https://variance-authority.dev/llms.txt).
+
 ## One change, traced end to end
 
 | Before | After | Diff |

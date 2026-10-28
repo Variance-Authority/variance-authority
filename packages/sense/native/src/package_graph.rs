@@ -461,7 +461,7 @@ fn units<'a>(layers: &'a [Layer<'a>], owners: &Owners, parties: &Parties, crossi
                 // the parse saw any; otherwise it is the whole module.
                 let before = names.len();
                 for member in parses.members.range(parse_row) {
-                    if parses.member_request.at(member) as usize == local {
+                    if parses.member_request.at(member) as usize == local && parses.member_through_default[member] == 0 {
                         names.push(text.text(parses.member_name.at(member)));
                     }
                 }

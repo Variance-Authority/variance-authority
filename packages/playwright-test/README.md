@@ -5,6 +5,7 @@
 > Add a source-aware visual observation to a Playwright test that already gets the app into the state.
 
 Part of [Variance Authority](https://variance-authority.dev).
+Point your coding agent at [`llms.txt`](https://variance-authority.dev/llms.txt).
 
 Your Playwright test already navigates, authenticates, mounts data and
 waits for the application. This package adds one call to that test. The call
@@ -216,7 +217,7 @@ render cache. The adapter preserves the acquisition base URL but does not archiv
 resource bytes, so a remote renderer must be able to load equivalent resources.
 
 For a browser the suite already pins, capture the caller-owned locator in place.
-Configure Chromium with the exported text-rendering arguments, then declare the
+Configure Chromium with the exported rasterization arguments, then declare the
 same launch recipe to the session:
 
 ```ts

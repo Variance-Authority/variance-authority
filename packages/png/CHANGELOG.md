@@ -1,5 +1,203 @@
 # @variance-authority/png
 
+## 0.21.0
+
+Lockstep release — nothing in this package changed. Every `@variance-authority/*` package shares one version.
+
+## 0.20.0
+
+Lockstep release — nothing in this package changed. Every `@variance-authority/*` package shares one version.
+
+## 0.19.0
+
+Lockstep release — nothing in this package changed. Every `@variance-authority/*` package shares one version.
+
+## 0.18.0
+
+Lockstep release — nothing in this package changed. Every `@variance-authority/*` package shares one version.
+
+## 0.17.1
+
+Lockstep release — nothing in this package changed. Every `@variance-authority/*` package shares one version.
+
+## 0.17.0
+
+Lockstep release — nothing in this package changed. Every `@variance-authority/*` package shares one version.
+
+## 0.16.0
+
+### Minor Changes
+
+- 4c2e4a7: A colour change of more than 1% is a change
+
+  The default policy counted a pixel only when its colour changed by more than 10%
+  of the largest difference `pixelmatch`'s YIQ metric measures, which is
+  `pixelmatch`'s own default. At 10%,
+  a border colour changed from `#2f3437` to `#3a4043`, or an accent from `#ff4a19`
+  to `#ff6a19`, reported `unchanged` on every story it painted. `DEFAULT_POLICY` now
+  uses `threshold: 0.01` and still forgives antialiasing. A subject whose colour
+  changed by between 1% and 10% since its baseline reports `changed` on its next
+  run. Stored baselines are not re-keyed.
+
+  The reason for a green verdict now gives the pixels the default policy forgave,
+  when the strict policy counted any: *no pixels differ beyond the tolerance of the
+  default policy, which forgave 37 pixels as antialiasing or as a colour change of
+  at most 1%*. The same clause follows the reason for every `ignored` verdict. It
+  replaces `; 37 pixels differ with antialiasing counted`, which named
+  antialiasing for pixels that the colour threshold had forgiven.
+- 4aa7b16: Content inserted into a page is the inserted rows, not everything under them
+
+  Two images of the same width are compared row by row after their rows are
+  aligned: each row is hashed, runs of equal rows are one token, and Myers finds
+  the shortest edit between the two sequences. Each after row is then compared
+  with the before row that shows the same content, and `pixelmatch` still judges
+  every pairing; a row that moved, came or went is a change in itself, so no
+  pairing makes a page read as unchanged. A section added to a long page marks that
+  section, and the content it pushed down matches. A pairing is kept only when it
+  leaves fewer pixels differing than position does, a row it leaves unpaired
+  charged in full, so a line that changed in place is not shifted against its
+  neighbours. The rows a gap grew by are inserted, as the rows it lost are
+  removed, so a button whose padding grew has a region where it grew. Images of
+  different widths, or an edit longer than 2,000 runs of rows, are compared
+  position by position on the union box, as before.
+
+  An inserted row is marked edge to edge, since nothing says where its content
+  begins, so a region inside one is joined by its rows rather than its area: to
+  the tightest box whose rows span it. `attributeRegions` takes the inserted rows
+  as `inserted`. Joined by area, every such band went to the subject's root, and
+  a card whose button grew named the card rather than the button.
+
+  `RasterComparison.alignment` carries the pairing as `RowAlignment`: the after
+  rows `inserted`, the before rows `removed` with the after row they left from,
+  and the rows `shifted` with how far. A comparison without it was not aligned.
+
+  Content that moved is a change. A gap that grew in one place and shrank in
+  another moves what lies between them and leaves the page as tall as it was, and
+  every moved row matches the row it came from; such a subject reports `changed`,
+  never `unchanged` or `ignored`. The reason names the edit:
+  *120 pixels differ across 1 region; 3 pixel rows inserted in 1 place, moving
+  the content under them by up to 3 rows, and the subject resized from 40×5 to
+  40×8*. The Playwright fixture's evidence now writes a diff for a subject that
+  resized, drawn on the after image.
+- 27ab269: The change image shows before beside after, labelled, the change marked on both
+
+  The change image stacked before, after and a red pixel difference one under
+  the next, so a reviewer had to find a reflowed paragraph by comparing panels a
+  screen apart, and the red covered every line the paragraph pushed down.
+  `changeImages` now lays each window out as its before beside its after, row for
+  row through the alignment, with striped filler opposite rows only one side has.
+
+  The sheet reads as one picture. Every window is cut as wide as the widest,
+  framed, on a neutral canvas with a margin around and between the windows. A
+  window's top and bottom move out of any line of text they would cut. Each column
+  is labelled `Before` or `After`, beside a red or a green dot, and a new optional `labels`
+  argument sets the subject over both and where each side came from beside its
+  label; the CLI passes the subject's id, `baseline` and `this run`. The text is
+  Inter, drawn from glyphs the package ships, under the SIL Open Font License 1.1
+  in `glyphs/inter-LICENSE.txt`.
+
+  What changed is washed in red on the before and green on the after, with an
+  edge of the same colour just outside it, widened to the space either side of
+  the words it starts and ends in, so it covers no neighbouring letter. Rows that
+  only moved are not marked on the panels: a blue arrow in the gutter runs beside
+  them, its head the way they went. A run of identical rows — a blank gap, or the plain inside
+  of a box — that grew or shrank by more than a row gets a window while the changes leave one free, and a blue line across the
+  gutter instead of a mark; one that changed by a single row is rounding and is
+  left out.
+
+  `AlignedRows`, exported from `@variance-authority/png/mask`, carries two more
+  required spans for this: `grown`, the inserted rows that only repeat a run of
+  identical rows that got taller, and `shrunk`, the removed rows such a run lost.
+  Code that builds an `AlignedRows` itself has to supply both.
+- 4aa7b16: The pull-request comment shows each change at full size
+
+  The comment showed a changed subject as its whole before and after images side
+  by side at half the comment's width, so on a long page the change was a few
+  pixels tall. `changeImages` in `@variance-authority/png` cuts a window around
+  each changed region and each removed span, with 32 rows and 48 columns of
+  context and at least 320 pixels wide, and lays the three heaviest windows out as
+  before, after and the difference, one window under the next. The before panel is
+  read through the row alignment, so it shows what the after rows replaced,
+  removed rows included.
+
+  `variance run` writes it beside the before, after and diff images as
+  `<subject>.change.png` and names it in the report as `images.change`. The comment
+  embeds that one picture at its own size when the report names it, and the whole
+  before and after pair otherwise; the image refs carry the same picture, and the
+  comment's text does not grow.
+
+### Patch Changes
+
+- 18c70d3: A run collects in parallel by default, and the report says where each subject's time went
+
+  Without `workers` in the config, a run collected in one browser world, so a
+  route suite read its pages one after another on any machine. It now collects in
+  half the machine's logical cores, at least one and never more worlds than there
+  are files: two on a 4-vCPU CI runner, eight on a 16-core laptop. A `concurrency`
+  you set holds it lower, since every world keeps a page and a subject in flight.
+  A `workers` you set still wins over both. Set `workers: 1` for a server under
+  test that cannot take concurrent pages. A collector with no `openWorker` still
+  collects in one world, and the run warns about it only when you set `workers`. Verdicts and the order
+  of observations do not depend on the count, and the report's new `workers` field
+  records it. `variance collect` takes the same width.
+
+  A changed subject read in a second world is now run alone like one read in the
+  first. A worker opens no clean world of its own, so the run asked the worker and
+  reported "not re-run alone: collector has no `collectAlone`"; it now asks the
+  collector that can open one.
+
+  The `alone.limit` budget now goes to the first subjects to change in the order
+  the run takes them. It went to whichever changed subjects reached it first, so
+  with more changed subjects than the limit, which ones carried `again` and
+  `alone` evidence depended on the number of worlds and on timing.
+
+  Each observation in the report also carries `steps` beside `costMs`: every
+  phase the subject went through, in the order it ran, with its wall time. The
+  collector's phases are named `collect.*` (`collect.navigate`,
+  `collect.wait-for-fonts`, `collect.capture`), the run's own are `compose`,
+  `inspect`, `settle`, `baseline`, `cache.get`, `cache.put`, `decode`, `compare`,
+  `write`, `again.collect` and `alone.collect`, and a painted subject adds the
+  renderer's under `render.*`. The report's `steps` sums each phase over the
+  subjects that ran it and counts them. A phase a subject skipped is absent, not
+  zero. Timings are part of no digest, so images, records and baselines do not
+  move when only timing does.
+
+  `settleRecipe`, `stabilizeForObservation`, `compareRasters` and the raster
+  `Renderer.render` take an optional step clock and report the steps they ran on
+  it. The route page agent and `readRoute` always return the steps they took.
+  `stepClock`, `timeOn` and `totalsOf` are exported from
+  `@variance-authority/core/format`.
+
+  A run that is not sharded now reads the mainline's subject costs at every
+  width, as a sharded run always did, and takes its slowest files first. One
+  world takes its subjects in the same order as several, so the budget above
+  reaches the same subjects.
+
+  `concurrency` is split evenly across the worlds and rounded up, at least one
+  per world, so by default the raster tier is as wide as the number of worlds.
+
+  The frame above a subject carries its classes in code-unit order. Storybook
+  swaps its layout class on a page it reuses, so their order said which story the
+  page showed before, and a run in parallel lanes gave the same story a different
+  document, and a render-cache miss, with the same pixels.
+- 665cb38: Rows under a long edit pair with the rows they moved from
+
+  The row alignment gave up when the shortest edit between the two pages passed
+  2,000 runs of rows, and the comparison fell back to position: every row under
+  the edit sat against whatever used to be at its height. The edit counts every
+  change on the page, not only the largest, so a section rewritten and lengthened
+  on a 28,519-row documentation page, with a few lines reflowed further down,
+  went past it. The comparison reported 2,766,418 pixels, and the crops showed
+  the before and after panels holding different sections of the page.
+
+  Past that bound the two row columns are now split where they agree on a run of
+  identical rows that occurs once on each side, as patience diff does, and each
+  stretch between two such runs is aligned alone. The rows an edit only moved pair
+  with their shifted partners and the crops show the same content on both sides.
+  A stretch that shares no such run, or that the split reaches after spending as
+  much work as the search may, is compared by position within it, and the pairing is
+  still kept only when it leaves fewer pixels differing than position does.
+
 ## 0.15.0
 
 Lockstep release — nothing in this package changed. Every `@variance-authority/*` package shares one version.

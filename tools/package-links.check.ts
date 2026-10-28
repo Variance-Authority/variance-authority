@@ -46,8 +46,9 @@ const LINK = /\[[^\]]*\]\(([^)\s]+)(?:\s+"[^"]*")?\)/g;
  * Why a site URL names nothing, or `null` when it names a page.
  *
  * A page is what the site generates: an entry of its catalogue, an index over
- * it, a package's README, or one of those as Markdown at `index.md`. Anything
- * else is a file the site serves from `site/public/`.
+ * it, a package's README, or one of those as Markdown at `index.md`. A route
+ * handler such as `llms.txt` answers at its directory. Anything else is a file
+ * the site serves from `site/public/`.
  */
 function siteMiss(url: string): string | null {
   const [address = '', anchor] = url.slice(SITE.length).split('#');
@@ -58,7 +59,8 @@ function siteMiss(url: string): string | null {
     page === '/' ||
     navigationItem(page) !== undefined ||
     DOCUMENTATION_INDEXES.some((index) => index.href === page) ||
-    (/^\/reference\/packages\/[^/]+$/.test(page) && packageDocument(page.split('/')[3]!) !== undefined);
+    (/^\/reference\/packages\/[^/]+$/.test(page) && packageDocument(page.split('/')[3]!) !== undefined) ||
+    existsSync(join(ROOT, 'site/app', path, 'route.ts'));
 
   if (!published) return existsSync(join(ROOT, 'site/public', path)) && anchor === undefined ? null : 'no such page';
   if (anchor === undefined) return null;
@@ -97,6 +99,7 @@ describe('a site URL names a page the site publishes', () => {
     expect(siteMiss(`${SITE}/reference/packages/cli`)).toBeNull();
     expect(siteMiss(`${SITE}/reference/packages/nothing`)).toBe('no such page');
     expect(siteMiss(`${SITE}/mark.svg`)).toBeNull();
+    expect(siteMiss(`${SITE}/llms.txt`)).toBeNull();
   });
 
   it('reads the headings the page renders', () => {

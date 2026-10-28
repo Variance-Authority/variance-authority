@@ -296,10 +296,16 @@ export interface RasterStore {
    * *What it costs.* One baseline root serving two suites reports each suite's
    * subjects to the other, because from inside one run the other's approved
    * images are exactly what this describes: held, and not planned here.
+   *
+   * `atAnyWidth` is the subjects whose widths this run never learned: a story
+   * declares them in its own parameters, read only when it is visited, and a
+   * narrowed or sharded run does not visit every story. Each is the subject's
+   * key at a given width, and a baseline at any width of it is planned.
    */
   unplanned?(
     keys: readonly BaselineKey[],
     identity: RenderIdentity,
+    atAnyWidth?: readonly ((width: number) => BaselineKey)[],
   ): Promise<readonly string[]>;
 
   /**

@@ -266,6 +266,8 @@ export const CASES: Readonly<Record<string, Case>> = {
       '  2 function in 0 entry "decide/map.arg0" block:src/decide.ts-arg0-twin 5-7 [test/beta.test.ts]',
     ],
   },
+  // The text did not move, so alpha is not unmeasured: the top level keeps what
+  // it ran, all a run of alpha over this cut would write, and it is owed nothing.
   'a carried test whose region is gone from the re-recorded cut': {
     previous: at(BASELINE, 'test/alpha.test.ts'),
     current: {
@@ -279,7 +281,7 @@ export const CASES: Readonly<Record<string, Case>> = {
     },
     laid: [
       'commit 2222222222222222222222222222222222222222',
-      'test test/alpha.test.ts incomplete test/alpha.test.ts@source:test',
+      'test test/alpha.test.ts test/alpha.test.ts@source:test',
       'test test/beta.test.ts test/beta.test.ts@source:test',
       'module src/decide.ts source:src/decide.ts',
       '  0 module module "" block:src/decide.ts 1-8 [test/alpha.test.ts test/beta.test.ts]',

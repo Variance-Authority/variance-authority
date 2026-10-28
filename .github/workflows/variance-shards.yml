@@ -41,7 +41,7 @@ name: variance shards
 
 # ## On demand here
 #
-# It observes the same fourteen subjects `variance.yml` does, through the same
+# It observes the same thirteen subjects `variance.yml` does, through the same
 # config, and the marker is the config's project — so run on the same event the
 # two would fight over one comment, each rewriting the other. A repository picks
 # one gate. This one is kept on demand because the suite it would shard is five

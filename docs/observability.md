@@ -147,7 +147,7 @@ fields: `root` (a directory in the repository, defaults to the current directory
 recorded paths are relative to the checkout that contains it), `include`
 (which transformed modules count as product source), `mode` (`presence`,
 the default, probes every arrival region; `entries` probes modules and functions
-only), `placement` (`after-transforms`, the default, places the probes in what
+only; `loads` probes nothing and marks each module as loaded), `placement` (`after-transforms`, the default, places the probes in what
 your compilers wrote; `before-transforms` places them in each file as read),
 and `journeys` with `label` (install a journey head named `label`,
 `build` by default, before anything the build instrumented runs). The addon

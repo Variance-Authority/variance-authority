@@ -166,13 +166,21 @@ describe('locateSubjects — the rank, in integers', () => {
   it('finds a component by what the page called it, with no thesaurus', () => {
     const { hits } = locateSubjects(REPORT, 'checkbox');
     expect(hits.map((hit) => hit.subject)).toEqual(['page/todos--populated']);
-    expect(hits[0]?.matches).toEqual([{ term: 'checkbox', field: 'roles', values: ['checkbox'] }]);
+    expect(hits[0]?.matches).toEqual([
+      { term: 'checkbox', field: 'roles', values: ['checkbox'], holders: 1, common: false },
+    ]);
   });
 
   it('requires every part of a compound term to land, so a name typed whole finds the name', () => {
     const { hits } = locateSubjects(REPORT, 'TodoFooter');
     expect(hits.map((hit) => hit.subject)).toEqual(['page/footer--counts', 'page/todos--populated']);
-    expect(hits[0]?.matches[0]).toEqual({ term: 'todofooter', field: 'example', values: ['TodoFooter'] });
+    expect(hits[0]?.matches[0]).toEqual({
+      term: 'todofooter',
+      field: 'example',
+      values: ['TodoFooter'],
+      holders: 1,
+      common: false,
+    });
   });
 
   it('indexes a subject the run did not compose by its id alone, and counts it', () => {
@@ -203,7 +211,11 @@ describe('variance_locate — the answer', () => {
     expect(answer.split('\n')[0]).toBe('3 of 4 subject(s) match `footer button`.');
     expect(answer).toContain('page/footer--counts · 7 boundaries · example of TodoFooter');
     expect(answer).toContain('  footer: id `page/footer--counts`; example `TodoFooter`; components `TodoFooter`; createdBy `TodoFooter`');
-    expect(answer).toContain('  button: components `Button`; roles `button`');
+    expect(answer).toContain('  button: components `Button` (in 3 of 4); roles `button` (in 3 of 4)');
+    expect(answer).toContain(
+      '`button` is in the components and roles of more than half the 4 subjects searched, and there ' +
+        'it distinguishes none of them.',
+    );
     expect(answer).toContain('next: variance_composition {subject: "page/footer--counts"}');
   });
 

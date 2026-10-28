@@ -85,12 +85,24 @@ export interface Use {
 
 /**
  * A module held whole. `dynamic` is an `import()`, which loads the module when
- * that call runs rather than when the importing file loads; `namespace` is a
- * static `import * as`.
+ * that call runs rather than when the importing file loads, or an `import()`
+ * type, which loads nothing and whose use is a type; `namespace` is a static
+ * `import * as`.
  */
 export interface Through {
   readonly kind: 'dynamic' | 'namespace';
   readonly line: number;
+  /**
+   * The name is read off the module's `default`: `(await import('m')).default.x`.
+   * Under interop that is a CommonJS module's `module.exports`, so `x` is its export.
+   */
+  readonly throughDefault?: true;
+  /**
+   * The module goes, whole, somewhere the reader does not follow — passed to a
+   * call, returned, stored — so this line may read the name, and what it reads
+   * there is not recorded.
+   */
+  readonly whole?: true;
 }
 
 /** One name an import by path takes, and the place that takes it. */

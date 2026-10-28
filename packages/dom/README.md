@@ -5,6 +5,7 @@
 > Extract a Variance Authority capture from a mounted element, under jsdom or a browser, with CSS applicability pruning.
 
 Part of [Variance Authority](https://variance-authority.dev).
+Point your coding agent at [`llms.txt`](https://variance-authority.dev/llms.txt).
 
 Point this package at an element that is already mounted and it reads back two
 things: a **capture** — the element's tree, its ARIA, and the CSS declarations

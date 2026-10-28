@@ -103,7 +103,7 @@ describe('what reaches the site', () => {
     ['the install', 'yarn.lock'],
     ['a step of the root build', 'tools/page-agents.mjs'],
   ])('%s', async (_, file) => {
-    const { observe, because } = await siteReach(ROOT, ['backlog/tasks/unrelated.md', file], RUNNER);
+    const { observe, because } = await siteReach(ROOT, ['docs/specs/0091-a-suite-is-selected-by-a-machine.md', file], RUNNER);
 
     expect(observe).toBe(true);
     expect(because).toContain(file);
@@ -123,7 +123,6 @@ describe('what reaches the site', () => {
     ['another workflow', '.github/workflows/check.yml'],
     ['an action the job does not use', '.github/actions/ripgrep/action.yml'],
     ['a repository check', 'tools/site-packages.check.ts'],
-    ['a task', 'backlog/tasks/unrelated.md'],
     ['a changeset', '.changeset/a-change.md'],
   ])('not %s', async (_, file) => {
     const { observe, because } = await siteReach(ROOT, [file], RUNNER);

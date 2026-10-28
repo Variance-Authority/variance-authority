@@ -34,14 +34,14 @@ use napi::bindgen_prelude::Buffer;
 use napi_derive::napi;
 use rustc_hash::{FxHashMap, FxHashSet};
 
-use crate::case_shard;
 use crate::journey_columns::{self, Column};
 use crate::order;
 use crate::record_coverage::{self, Coverage, Text};
-use crate::journey_format::SetPool;
+use crate::crossing_sets::{self, SetPool};
 use crate::record_coverage_columns::{Columns, Region};
 use crate::record_coverage_dictionary::{Merged, Spelled};
-use crate::record_coverage_recut::{reaches, recut, write_cut, Readings, Recut};
+use crate::record_coverage_address::addressed_alike;
+use crate::record_coverage_recut::{is_top, reaches, recut, write_cut, Readings, Recut};
 use crate::record_layout::LAYOUT;
 
 /// What a lay reads besides the two records.
@@ -191,14 +191,29 @@ fn written(previous: &Coverage, current: &Coverage, fresh: Option<&Coverage>, re
     let inputs = current.precondition_name.len() + previous.precondition_name.len();
     let mut out = Columns::sized(current.tests() + carried, inputs, rows.len(), blocks);
 
-    let previous_members = |set: u32| case_shard::decode_set(case_shard::set_slice(&previous.set_bytes, &previous.set_offsets, set)?, previous.tests());
-    let current_members = |set: u32| case_shard::decode_set(case_shard::set_slice(&current.set_bytes, &current.set_offsets, set)?, current.tests());
+    let previous_members = |set: u32| crossing_sets::decode_set(crossing_sets::set_slice(&previous.set_bytes, &previous.set_offsets, set)?, previous.tests());
+    let current_members = |set: u32| crossing_sets::decode_set(crossing_sets::set_slice(&current.set_bytes, &current.set_offsets, set)?, current.tests());
     let mut stale = vec![false; previous.tests()];
     let mut staled = vec![false; previous.set_offsets.len() - 1];
     let mut lose = |set: u32, stale: &mut [bool]| -> Result<(), String> {
         if !std::mem::replace(&mut staled[set as usize], true) {
             for test in previous_members(set)? {
                 stale[test as usize] |= !again[test as usize];
+            }
+        }
+        Ok(())
+    };
+    // A region of `row` with no place in the new cut owes a run to each test
+    // it held that the region around it, the nearest one `taken` placed, does
+    // not hold: that region kept what the test ran there, and nothing else did.
+    let owe_unplaced = |row: usize, taken: &FxHashSet<usize>, unplaced: &[usize], stale: &mut [bool]| -> Result<(), String> {
+        let blocks = previous.blocks(row);
+        let own: Vec<Option<usize>> = blocks.clone().map(|block| taken.contains(&block).then_some(block)).collect();
+        let kept = around(previous, blocks.clone(), &own);
+        for held in unplaced {
+            let around = kept[held - blocks.start].map(|kept| previous_members(previous.block_set[kept])).transpose()?.unwrap_or_default();
+            for test in previous_members(previous.block_set[*held])? {
+                stale[test as usize] |= !around.contains(&test) && !again[test as usize];
             }
         }
         Ok(())
@@ -246,20 +261,14 @@ fn written(previous: &Coverage, current: &Coverage, fresh: Option<&Coverage>, re
                                     lose(previous.block_set[block], &mut stale)?;
                                 }
                             }
-                            Recut::Cut { from, owed } => {
+                            Recut::Cut { from, owed, .. } => {
                                 for held in owed {
                                     lose(previous.block_set[held], &mut stale)?;
                                 }
                                 // A crosser the new text holds no region for has nowhere a diff could reach it.
-                                let mut kept = FxHashSet::default();
-                                for held in from.iter().flatten() {
-                                    kept.extend(previous_members(previous.block_set[*held])?);
-                                }
-                                for held in previous.blocks(row) {
-                                    for test in previous_members(previous.block_set[held])? {
-                                        stale[test as usize] |= !kept.contains(&test) && !again[test as usize];
-                                    }
-                                }
+                                let taken: FxHashSet<usize> = from.iter().flatten().copied().collect();
+                                let unplaced: Vec<usize> = previous.blocks(row).filter(|held| !taken.contains(held)).collect();
+                                owe_unplaced(row, &taken, &unplaced, &mut stale)?;
                                 write_cut(&mut out, path, (fresh, again_ranks), module, from, |held, loaded| match held {
                                     Some(held) => remap(&mut pool, if loaded { previous.block_loaded_set[held] } else { previous.block_set[held] }),
                                     None => Ok(pool.intern(&[])),
@@ -291,11 +300,12 @@ fn written(previous: &Coverage, current: &Coverage, fresh: Option<&Coverage>, re
         let source = now[current.module_source[module] as usize];
         let blocks = current.blocks(module);
         let mut surviving: Vec<Option<usize>> = vec![None; blocks.len()];
-        if let Some(row) = claims[module] {
+        let mut unplaced: Vec<usize> = Vec::new();
+        let claimed = claims[module];
+        if let Some(row) = claimed {
             let held_source = before[previous.module_source[row] as usize];
             let address = |coverage: &Coverage, strings: Text, block: usize| (strings.at(coverage.block_name[block]).to_owned(), strings.at(coverage.block_path[block]).to_owned());
-            let placeable = held_source == source
-                || same_numbering(previous.blocks(row).map(|block| address(previous, ps, block)), blocks.clone().map(|block| address(current, cs, block)));
+            let alike = addressed_alike(previous.blocks(row).map(|block| address(previous, ps, block)), blocks.clone().map(|block| address(current, cs, block)));
             let measured = current.module_instrumented[module] == 1 && previous.module_instrumented[row] == 1;
             let mut seen: FxHashMap<(u32, u32), u32> = FxHashMap::default();
             let mut addressed = FxHashMap::default();
@@ -305,11 +315,20 @@ fn written(previous: &Coverage, current: &Coverage, fresh: Option<&Coverage>, re
                 addressed.insert((at.0, at.1, *nth), block);
             }
             seen.clear();
+            // The top level is one region in every cut, whatever its branches did.
+            let top = blocks.clone().find(|block| is_top(current.block_kind[*block]));
             for held in previous.blocks(row) {
                 let at = (before[previous.block_name[held] as usize], before[previous.block_path[held] as usize]);
                 let nth = *seen.entry(at).and_modify(|nth| *nth += 1).or_insert(1);
-                match addressed.get(&(at.0, at.1, nth)) {
-                    Some(block) if placeable && measured && previous.block_kind[held] == current.block_kind[*block] => {
+                let paired = if is_top(previous.block_kind[held]) {
+                    top.as_ref()
+                } else if alike(ps.at(previous.block_name[held]), ps.at(previous.block_path[held])) {
+                    addressed.get(&(at.0, at.1, nth))
+                } else {
+                    None
+                };
+                match paired {
+                    Some(block) if measured && previous.block_kind[held] == current.block_kind[*block] => {
                         surviving[*block - blocks.start] = Some(held);
                         if held_source != source
                             && before[previous.block_digest[held] as usize] != now[current.block_digest[*block] as usize]
@@ -318,11 +337,15 @@ fn written(previous: &Coverage, current: &Coverage, fresh: Option<&Coverage>, re
                             lose(previous.block_set[held], &mut stale)?;
                         }
                     }
+                    _ if measured => unplaced.push(held),
                     _ => lose(previous.block_set[held], &mut stale)?,
                 }
             }
         }
         let around = around(current, blocks.clone(), &surviving);
+        if let Some(row) = claimed.filter(|_| !unplaced.is_empty()) {
+            owe_unplaced(row, &surviving.iter().flatten().copied().collect(), &unplaced, &mut stale)?;
+        }
         out.module(path, source, current.module_instrumented[module] == 1);
         for (at, block) in blocks.enumerate() {
             let held = around[at];
@@ -408,8 +431,8 @@ fn ascending(coverage: &Coverage, test: usize) -> bool {
 /// handing those tests down answers only diffs that land in the new region,
 /// where demoting every holder of the module would run them on every diff in
 /// the file. Both crossing lists ride together, and the walk stops at the module
-/// root, which no cut ever bears anew; `heldAround` in `region-around.ts` walks
-/// the case index's regions by the same owners.
+/// root, which no cut ever bears anew; `landedThrough` in `region-edit.ts`
+/// hands a born case index region its owner's cases by the same owners.
 fn around(coverage: &Coverage, blocks: std::ops::Range<usize>, own: &[Option<usize>]) -> Vec<Option<usize>> {
     let ordinals: FxHashMap<u32, usize> = blocks.clone().enumerate().map(|(at, block)| (coverage.block_ordinal[block], at)).collect();
     let owner = |at: usize| {
@@ -440,54 +463,6 @@ fn around(coverage: &Coverage, blocks: std::ops::Range<usize>, own: &[Option<usi
         }
     }
     resolved.into_iter().map(Option::flatten).collect()
-}
-
-/// Whether two cuts of a module seated their counters alike: every site both
-/// number holds the same seats in each.
-pub(crate) fn same_numbering(before: impl Iterator<Item = (String, String)>, after: impl Iterator<Item = (String, String)>) -> bool {
-    let now = sites(after);
-    sites(before).into_iter().all(|(site, taken)| now.get(&site).is_none_or(|holds| *holds == taken))
-}
-
-/// The seats each site of a cut holds.
-fn sites(blocks: impl Iterator<Item = (String, String)>) -> FxHashMap<String, FxHashSet<u64>> {
-    let mut sites: FxHashMap<String, FxHashSet<u64>> = FxHashMap::default();
-    for (name, path) in blocks {
-        for (site, seat) in seats_of(&name, &path) {
-            sites.entry(site).or_default().insert(seat);
-        }
-    }
-    sites
-}
-
-/// Every counter an address passes through, with the seat it took there, as
-/// the bits of the number the seat's digits read as.
-fn seats_of(name: &str, path: &str) -> Vec<(String, u64)> {
-    let mut found = Vec::new();
-    let mut steps = |path: &str, from: String| -> String {
-        let mut at = from;
-        for step in path.split('/').filter(|_| !path.is_empty()) {
-            if let Some((prefix, seat)) = seat(step) {
-                found.push((format!("{at}/{prefix}"), seat));
-            }
-            at.push('/');
-            at.push_str(step);
-        }
-        at
-    };
-    let named = steps(name, String::new());
-    steps(path, format!("{named}\0"));
-    found
-}
-
-/// A step's counter and seat: the digits after its last `#`, which run to its
-/// end, over a prefix on one line.
-fn seat(step: &str) -> Option<(&str, u64)> {
-    let (prefix, digits) = step.rsplit_once('#')?;
-    if digits.is_empty() || !digits.bytes().all(|byte| byte.is_ascii_digit()) || prefix.contains(['\n', '\r', '\u{2028}', '\u{2029}']) {
-        return None;
-    }
-    digits.parse::<f64>().ok().map(|seat| (prefix, seat.to_bits()))
 }
 
 #[cfg(test)]

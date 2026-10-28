@@ -1,6 +1,7 @@
 use super::*;
 use crate::record_coverage;
 use crate::record_fixture::{self as fixture, block, module, spec, test};
+use crate::record_layout::LAYOUT;
 
 #[test]
 fn names_only_the_strings_the_fold_writes_in_code_unit_order() {

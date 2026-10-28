@@ -14,7 +14,11 @@
 //! older writer cut. The fold names such modules and writes nothing; handed
 //! the checkout's own cut of them, it carries every shard's crossings onto
 //! that cut by address, as a carried row is cut again (`recut`), and owes a
-//! run to every test whose crossings have no place in it.
+//! run to every test whose crossings have no place in it. A region a shard's
+//! row was cut without takes the region around it; one whose address the row
+//! disputes, and every region inside it, takes nothing from that row, and the
+//! crossers of the row's region around it, any of whom may have run it, are
+//! owed the run that measures them.
 //!
 //! Shards are added one at a time and each is dropped once added, so the fold
 //! holds the output and one shard, never every shard: a region's tests are an
@@ -30,16 +34,14 @@ use std::collections::BTreeMap;
 
 use rustc_hash::FxHashMap;
 
-use crate::case_shard;
 use crate::journey_columns::Column;
-use crate::journey_format::SetPool;
+use crate::crossing_sets::{self, SetPool};
 use crate::order;
 use crate::record_start::Agreed;
 use crate::record_coverage::{Coverage, Phases, Text};
 use crate::record_coverage_columns::{Columns, Region};
 use crate::record_coverage_dictionary::{Dictionary, Spelled};
-use crate::record_coverage_recut::{carried, Recut};
-use crate::record_layout::LAYOUT;
+use crate::record_coverage_recut::{carried, Disputed, Recut};
 
 pub(crate) struct Folded {
     /// The coverage sections, in the order a record holds them.
@@ -239,9 +241,9 @@ impl<'c> Fold<'c> {
             if let Some(id) = unions.get(&(held, set)) {
                 return Ok(*id);
             }
-            let mut members = case_shard::decode_set(case_shard::set_slice(sets.bytes(), sets.offsets(), held)?, self.universe)?;
-            let stored = case_shard::set_slice(&coverage.set_bytes, &coverage.set_offsets, set)?;
-            members.extend(case_shard::decode_set(stored, coverage.tests())?.into_iter().map(|test| test + offset));
+            let mut members = crossing_sets::decode_set(crossing_sets::set_slice(sets.bytes(), sets.offsets(), held)?, self.universe)?;
+            let stored = crossing_sets::set_slice(&coverage.set_bytes, &coverage.set_offsets, set)?;
+            members.extend(crossing_sets::decode_set(stored, coverage.tests())?.into_iter().map(|test| test + offset));
             members.sort_unstable();
             members.dedup();
             let id = sets.intern(&members);
@@ -297,20 +299,30 @@ impl<'c> Fold<'c> {
                 continue;
             }
             if let Some((cut, fresh)) = fresh {
-                // Every test that entered a region no fresh region took is owed a run.
+                // A row lends each region's crossings by address, and a region
+                // the row was cut without takes the region around it. A region
+                // whose address the row disputes takes nothing, nor does one
+                // inside it: the row's regions that have no place, and the one
+                // around a withheld region, owe their crossers the run that
+                // measures them.
+                let first = coverage.blocks(row).start;
                 let mut taken = vec![false; coverage.blocks(row).len()];
-                if let Recut::Cut { from, .. } = carried((coverage, local.strings), row, (cut.coverage, cut.text), fresh, |_| false) {
-                    let first = coverage.blocks(row).start;
+                let mut owed = Vec::new();
+                if let Recut::Cut { from, owed: around } = carried((coverage, local.strings), row, (cut.coverage, cut.text), fresh, Disputed::Withhold, |_| false) {
+                    for from in from.iter().flatten() {
+                        taken[from - first] = true;
+                    }
+                    owed = around;
                     for (kept, from) in held.blocks.iter_mut().zip(from) {
                         let Some(from) = from else { continue };
-                        taken[from - first] = true;
                         kept.called = union(kept.called, coverage.block_set[from])?;
                         kept.loaded = union(kept.loaded, coverage.block_loaded_set[from])?;
                     }
                 }
-                for (block, _) in coverage.blocks(row).zip(taken).filter(|(_, taken)| !taken) {
+                let untaken = coverage.blocks(row).zip(taken).filter(|(_, taken)| !taken).map(|(block, _)| block);
+                for block in untaken.chain(owed) {
                     for set in [coverage.block_set[block], coverage.block_loaded_set[block]] {
-                        for test in case_shard::decode_set(case_shard::set_slice(&coverage.set_bytes, &coverage.set_offsets, set)?, coverage.tests())? {
+                        for test in crossing_sets::decode_set(crossing_sets::set_slice(&coverage.set_bytes, &coverage.set_offsets, set)?, coverage.tests())? {
                             tests[(offset + test) as usize].complete = 0;
                         }
                     }
@@ -406,7 +418,7 @@ impl<'c> Fold<'c> {
             if let Some(placed) = placed[held as usize] {
                 return Ok(placed);
             }
-            let members = case_shard::decode_set(case_shard::set_slice(sets.bytes(), sets.offsets(), held)?, universe)?;
+            let members = crossing_sets::decode_set(crossing_sets::set_slice(sets.bytes(), sets.offsets(), held)?, universe)?;
             let mut members: Vec<u32> = members.into_iter().map(|test| final_id[test as usize]).collect();
             members.sort_unstable();
             let interned = (pool.intern(&members), members.len() as u32);

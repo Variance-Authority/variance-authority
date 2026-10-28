@@ -1,11 +1,12 @@
 # yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
 #
-# The rules CodeRabbit reviews against live in AGENTS.md, `.agents/references/`
-# and `.compass/`; this file points it at them and adds the one check a reviewer
-# that reads only the diff can still answer: is the change's shape ours. What a
-# tool already decides stays with the tool: `tools/owners.check.ts` holds timers,
-# navigations, reloads and new pages, and `yarn restrictions` holds which file
-# may import a runner.
+# The rules CodeRabbit reviews against live in AGENTS.md, `.agents/references/`,
+# `.compass/` and the `REVIEW.md` cascade (the root file, one per package, and
+# `site/REVIEW.md` for what the site publishes); this file points it at them
+# and adds the one check a reviewer that reads only the diff can still answer:
+# is the change's shape ours. What a tool already decides stays with the tool:
+# `tools/owners.check.ts` holds timers, navigations, reloads and new pages, and
+# `yarn restrictions` holds which file may import a runner.
 language: en-US
 reviews:
   pre_merge_checks:
@@ -27,9 +28,19 @@ reviews:
         A new dependency needs a reason in the PR body: what it owns that no
         existing dependency or engine (oxc, git, TypeScript, Chromium) already
         answers. Flag a second package that does what an existing one does.
+    - path: "{README.md,docs/*.md,packages/*/README.md,site/app/**}"
+      instructions: >-
+        This is a published page or the site that renders one. Review it
+        against the contracts in site/REVIEW.md.
+    - path: "{packages/*/src/**,packages/*/package.json,.github/actions/**}"
+      instructions: >-
+        A change of behaviour moves the published page that describes it, as
+        site/REVIEW.md says: search docs/*.md and the READMEs for every name,
+        flag and output the change touches.
 knowledge_base:
   code_guidelines:
     enabled: true
     filePatterns:
       - ".agents/references/*.md"
       - ".compass/**/*.md"
+      - "**/REVIEW.md"

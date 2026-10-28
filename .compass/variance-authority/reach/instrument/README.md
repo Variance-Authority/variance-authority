@@ -6,7 +6,8 @@
 
 Cuts a module into arrival regions and splices a presence probe in front of each
 one, producing the transformed source beside the inventory that says what every
-region is.
+region is. Under the `loads` recipe it does neither: the module keeps its text,
+with one line after it that marks it as loaded, and has no inventory.
 
 ## Bounded context
 
@@ -23,7 +24,9 @@ coordinates, the digest of its own source with child bodies excluded, and the
 ordinal of the region enclosing it. Also out: the identity of the exact input,
 and the identity of the probe recipe. For a test file, under a test-runner seam
 with cadence on: the file with a cut before each statement of its test and hook
-bodies, which reports the line it stands on, and no probes.
+bodies, which reports the line it stands on, and no probes. Under `loads` the
+module text with the load mark after it, the identity of the input, and no
+regions; a test file is not cut.
 
 ## Depends on
 

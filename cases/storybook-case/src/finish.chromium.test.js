@@ -3,7 +3,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { extname, join, normalize } from 'node:path';
 import { chromium } from 'playwright';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { collectStories } from '@variance-authority/storybook';
+import { collectStories, collectStory, harnessPage, readParameters } from '@variance-authority/storybook';
 
 /**
  * The end of a render, against a Storybook that has one.
@@ -102,6 +102,11 @@ function serveStatic(root) {
 }
 
 let server;
+/**
+ * One browser for the file and a page per test, never per story: each test runs
+ * its stories through one page, which is the session this file is about, and
+ * the next test needs a session of its own to count loads from.
+ */
 let browser;
 let baseUrl = '';
 
@@ -202,6 +207,73 @@ live('a story that is still busy when the next one is asked for', () => {
   }, 120_000);
 });
 
+/** Stories switched to over the channel, the Spinner among them: an infinite CSS animation. */
+const SWITCHED = ['case-surface--button-secondary', 'case-surface--loading', 'case-surface--card-with-actions'];
+
+live('a story switched to over the channel', () => {
+  it("pays no fixed wait of Storybook's, and keeps the animation state the page set", async () => {
+    const page = await browser.newPage({ viewport: { width: 1024, height: 768 } });
+
+    try {
+      // Storybook's `waitForAnimations` opens every story's `completing` phase
+      // with a 100 ms timer, whatever the story does, and the render waits for
+      // it to fire. Counted, not timed: the count is the same on a loaded
+      // machine, and a wall-clock bound is not. Only a timer that fires counts:
+      // the preview also sets a 100 ms timer before showing its "preparing"
+      // overlay, and clears it when the story is quicker than that.
+      await page.addInitScript(() => {
+        const original = window.setTimeout;
+        window.__variance_case_fixed_waits__ = 0;
+        window.setTimeout = function (handler, delay, ...rest) {
+          if (delay !== 100 || typeof handler !== 'function') return original.call(this, handler, delay, ...rest);
+          return original.call(
+            this,
+            (...args) => {
+              window.__variance_case_fixed_waits__ += 1;
+              return handler(...args);
+            },
+            delay,
+            ...rest,
+          );
+        };
+      });
+
+      // The first story arrives with the document, before anything the driver
+      // sets on it, so the count starts once it is on screen.
+      await collectStory(page, FIRST, { baseUrl });
+      await page.evaluate(() => {
+        window.__variance_case_fixed_waits__ = 0;
+      });
+
+      const outcomes = await collectStories(page, SWITCHED, { baseUrl });
+      expect(outcomes.map((outcome) => `${outcome.storyId}: ${outcome.status} ${outcome.readiness}`)).toEqual(
+        SWITCHED.map((id) => `${id}: rendered storyRendered`),
+      );
+      expect(await page.evaluate(() => window.__variance_case_fixed_waits__)).toBe(0);
+
+      // Skipping the wait puts Storybook on its test branch, which pauses every
+      // animation in reverse at its last keyframe. The page shows what it
+      // showed before: no sheet of Storybook's, and the Spinner runs forwards.
+      await collectStory(page, 'case-surface--loading', { baseUrl });
+      const state = await page.evaluate(() => {
+        const spinning = [...document.querySelectorAll('#storybook-root *')].find(
+          (element) => getComputedStyle(element).animationName === 'case-spin',
+        );
+        return {
+          sheets: [...document.querySelectorAll('style')].filter((style) =>
+            (style.textContent ?? '').includes('animation-direction: reverse'),
+          ).length,
+          direction: spinning ? getComputedStyle(spinning).animationDirection : null,
+          playState: spinning ? getComputedStyle(spinning).animationPlayState : null,
+        };
+      });
+      expect(state).toEqual({ sheets: 0, direction: 'normal', playState: 'running' });
+    } finally {
+      await page.close();
+    }
+  }, 120_000);
+});
+
 /** The collector's page agent, which watches each document from its start. */
 const COLLECTOR_AGENT = join(process.cwd(), 'packages', 'storybook-collector', 'dist', 'page-agent.bundle.js');
 
@@ -223,6 +295,37 @@ live('where the browser spent each story', () => {
       // The busy story's `afterEach` holds its render open for two seconds,
       // and that hook is the story's own time.
       expect(busy.cases).toBeGreaterThanOrEqual(2_000);
+    } finally {
+      await page.close();
+    }
+  }, 120_000);
+
+  it("gives a story's file to the first story read from it, when the run reached it over the channel", async () => {
+    // A document of its own, as a run's world is: what is timed is the first
+    // import of the file, and a page that already showed a story from it would
+    // have nothing left to import.
+    const page = await browser.newPage({ viewport: { width: 1024, height: 768 } });
+    const fetches = [];
+    page.on('requestfinished', (request) => {
+      if (/\/button\.stories-[^/]*\.js$/.test(request.url())) fetches.push(request.timing());
+    });
+
+    try {
+      await page.addInitScript({ path: COLLECTOR_AGENT });
+      // Where a run's world opens: the preview with no story selected, so the
+      // preview imports nothing until it is asked for a story.
+      await page.goto(`${baseUrl}/iframe.html`, { waitUntil: 'load' });
+      const driven = harnessPage({ page });
+
+      // The story's parameters, read before it is shown: this is the import.
+      expect(await readParameters(driven, FIRST)).toEqual({});
+      const outcome = await collectStory(driven, FIRST, { baseUrl });
+
+      expect(outcome.status).toBe('rendered');
+      expect(fetches).toHaveLength(1);
+      // The import holds the fetch of the file, so the time that held the
+      // import is at least as long as the wire was.
+      expect(outcome.timing?.collect).toBeGreaterThanOrEqual(fetches[0].responseEnd);
     } finally {
       await page.close();
     }

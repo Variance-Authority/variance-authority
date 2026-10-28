@@ -8,18 +8,21 @@
 
 import {
   formatCoveringChange,
+  unenteredSentence,
+  whyUnentered,
   type CoveringTest,
   type ExecutionTest,
   type HeldLines,
 } from '@variance-authority/sense/test-selection';
-import { runsText, targetText } from './covering-at.js';
-import type { CoveringFile } from './covering-files.js';
+import { runsText, targetText, type UnrunPart } from './covering-at.js';
+import { casesByFile, type CoveringFile } from './covering-files.js';
 import type { CoveringRange } from './covering-frame.js';
 import { motionText } from './covering-motion.js';
 import { preconditionText } from './covering-unloaded.js';
 import { formatCoveringRefs } from './covering-refs.js';
-import { heldText, rowOf, type CaseTwin } from '@variance-authority/sense/test-selection';
-import { caseNameOf, twinText, whereText } from './covering-where.js';
+import { heldText } from '@variance-authority/sense/test-selection';
+import { whereText } from './covering-where.js';
+import { evidenceGapText } from './evidence-gap.js';
 import { staleLines } from './covering-stale.js';
 import type { Covering, CoveringFormat, StatedChange } from './covering.js';
 
@@ -27,7 +30,7 @@ import type { Covering, CoveringFormat, StatedChange } from './covering.js';
 export function formatCovering(answer: Covering, format: CoveringFormat): string {
   if (format === 'refs') return formatCoveringRefs(answer);
   if (format === 'json') return `${JSON.stringify(answer, undefined, 2)}\n`;
-  return `${[...probesText(answer), ...scopeText(answer), ...whereText(answer), ...said(text(answer)), ...hopsText(answer), ...motionText(answer.motion)].join('\n')}\n`;
+  return `${[...probesText(answer), ...scopeText(answer), ...whereText(answer), ...said(text(answer)), ...hopsText(answer), ...motionText(answer.motion), ...(answer.gap === undefined ? [] : [evidenceGapText(answer.gap)])].join('\n')}\n`;
 }
 
 /** Why `--hops` printed no distance, said under the files it would have measured. */
@@ -51,7 +54,7 @@ function text(answer: Covering): string {
   const where = targetText(answer.target ?? { function: '' });
   if (tests.length === 0 && (answer.where?.of ?? 0) > 0) {
     // `whereText` said the filter left none of the cases that covered it; *no named test covered* would read as nothing running the code.
-    return narrowedText(answer).join('\n');
+    return [...narrowedText(answer), ...unrunText(answer.unrun)].join('\n');
   }
   if (tests.length === 0 && newlyWritten(answer)) {
     // Every asked line is new since the recording: *no named test covered* is true, and the reason is the whole answer.
@@ -60,7 +63,7 @@ function text(answer: Covering): string {
   }
   if (tests.length === 0) {
     return [
-      `No named test covered ${where} of ${answer.file}${unentered(answer.stopped)}`,
+      `No named test covered ${where} of ${answer.file}${whyUnentered(answer.stopped)}`,
       ...(answer.stopped ?? []).map((test) => `  stopped: ${test.file} > ${caseName(test)}`),
       ...grainText(answer, where),
       ...narrowedText(answer),
@@ -70,11 +73,24 @@ function text(answer: Covering): string {
     `${tests.length} named test${tests.length === 1 ? '' : 's'} covered ${where} of ${answer.file}${
       answer.state === 'alone' ? ', and it is the only case that could have' : ''
     }:`,
-    ...caseLines(tests, '  ', answer.files, answer.twins),
+    ...caseLines(tests, '  ', answer.files),
     ...legend(tests),
+    ...unrunText(answer.unrun),
     ...grainText(answer, where),
     ...narrowedText(answer),
   ].join('\n');
+}
+
+/** The parts of an asked function no case ran, which its cases do not say: `the branch at line 12`. */
+function unrunText(parts: readonly UnrunPart[] | undefined): readonly string[] {
+  if (parts === undefined || parts.length === 0) return [];
+  const named = parts.map((part) => `${unrunPart(part)} at ${part.startLine === part.endLine ? 'line' : 'lines'} ${runsText([part])}`);
+  return [`No case ran ${parts.length === 1 ? 'a part' : `${parts.length} parts`} of it: ${named.join(', ')}.`];
+}
+
+/** A part as a sentence names it: a part of the function's own body by its kind, a nested function by its name too. */
+function unrunPart(part: UnrunPart): string {
+  return part.name === undefined ? `the ${part.kind}` : `${part.kind} ${part.name}`;
 }
 
 /** Which asked lines the record holds at file grain, and which it has no place for. */
@@ -145,7 +161,7 @@ function staleText(answer: Covering): string {
   return [
     gone,
     ...header === undefined ? [] : [tests.length === 0 ? header : `${header}:`],
-    ...caseLines(tests, '  ', answer.files, answer.twins),
+    ...caseLines(tests, '  ', answer.files),
     ...legend(tests),
     ...narrowedText(answer),
   ].join('\n');
@@ -184,27 +200,41 @@ function wholeFile(answer: Covering, ranges: readonly CoveringRange[]): string {
     const carried = range.tests.filter((test) => test.loaded === true);
     const key = `${tests.map((test) => test.id).join('\n')}\0${carried.map((test) => test.id).join('\n')}`;
     if (range.tests.length === 0) {
-      // The header already says `unwalked` or `hole`; the stopped cases are the rest of a hole.
-      const said = range.state === 'unwalked' || range.state === 'hole';
-      // Under `--where` the state is read over cases the list leaves out, so an empty list says nothing about them.
+      // The header already says `loaded`, `unwalked` or `hole`; the stopped cases are the rest of a hole, and
+      // say nothing about a range that ran while its module loaded.
+      const said = range.state === 'loaded' || range.state === 'unwalked' || range.state === 'hole';
+      // Under `--where` or `--read` the state is read over cases the list leaves out, so an empty list says nothing about them.
       if (!said) {
         lines.push(answer.where === undefined
-          ? `  no named test covered this range${unentered(range.stopped)}`
-          : '  no case `--where` kept covered this range');
+          ? `  no named test covered this range${whyUnentered(range.stopped)}`
+          : `  no case ${answer.where.read === undefined ? '`--where`' : answer.where.asked.length === 0 ? '`--read`' : '`--where` and `--read`'} kept covered this range`);
       }
-      lines.push(...(range.stopped ?? []).map((test) =>
+      lines.push(...(range.state === 'loaded' ? [] : range.stopped ?? []).map((test) =>
         said ? `  stopped first: ${test.file} > ${caseName(test)}` : `    stopped: ${test.file} > ${caseName(test)}`));
     } else if (printed.has(key)) {
       const named = tests.length === 0 ? [] : [tests.length === 1 ? 'named test' : `${tests.length} named tests`];
       const loading = carried.length === 0 ? [] : [`${carried.length} case${carried.length === 1 ? '' : 's'} that only loaded the module`];
       lines.push(`  the same ${[...named, ...loading].join(', and ')}${named.length > 0 && loading.length > 0 ? ',' : ''} as ${printed.get(key)}`);
     } else {
-      lines.push(...caseLines(tests, '  ', [], answer.twins), ...loadedOnly(carried, tests.length > 0));
+      lines.push(...caseLines(tests, '  '), ...loadedOnly(carried, tests.length > 0));
       printed.set(key, place);
     }
+    lines.push(...unenteredLines(range));
   }
   lines.push(...narrowedText(answer));
   return lines.join('\n');
+}
+
+/**
+ * The regions on a range nobody entered: the range's cases are the ones an
+ * edit to its lines selects, and a region with no line of its own would read as
+ * theirs (`unentered.ts` in sense).
+ */
+function unenteredLines(range: CoveringRange): readonly string[] {
+  return (range.unentered ?? []).flatMap((region) => [
+    `  ${unenteredSentence(region)}`,
+    ...(region.stopped ?? []).map((test) => `    stopped: ${test.file} > ${caseName(test)}`),
+  ]);
 }
 
 /** The cases that reached a range only while their file imported its module, counted under the ones that called into it. */
@@ -220,20 +250,6 @@ function loadedOnly(carried: readonly CoveringTest[], more: boolean): readonly s
 function framed(answer: Covering): string {
   if (answer.frame === 'mapped') return ', placed in the text as it is now';
   return '';
-}
-
-/**
- * Why nobody entered: a hole, unwalked, or a record that cannot tell them apart.
- *
- * A case that stopped recorded where it went and nothing past that, so the
- * absence of its name is not evidence. Printing the bare *no named test* over a
- * hole would read as permission to delete the code.
- */
-function unentered(stopped: readonly ExecutionTest[] | undefined): string {
-  if (stopped === undefined) return '.';
-  if (stopped.length === 0) return ', and every case that could have reached it finished: unwalked.';
-  return ` — a hole: ${stopped.length === 1 ? 'a case' : `${stopped.length} cases`} that could have ` +
-    'reached it stopped first, so the record cannot see it.';
 }
 
 /**
@@ -267,21 +283,13 @@ export function narrowedText(answer: Covering): readonly string[] {
  * `coveringChange`, because two surfaces ask for them and a reading with two
  * renderers has two answers. All this adds is what the CLI is the only one
  * able to state: the ref the diff was taken against, the file the index was
- * read from, the commit it stands at, and each case's twin, which needs the
- * checkout's `names.axes`.
+ * read from and the commit it stands at.
  */
 function sinceText(answer: Covering, changed: readonly StatedChange[]): string {
-  const twinOf = new Map((answer.twins ?? []).map((twin) => [twin.case, twin]));
   return formatCoveringChange(changed, {
     ...(answer.since === undefined ? {} : { since: answer.since }),
     from: answer.from,
     ...(answer.at === undefined ? {} : { at: answer.at }),
-  }, (test, indent) => {
-    const twin = twinOf.get(test.id);
-    return {
-      tail: heldText(rowOf(test)),
-      under: twin === undefined ? [] : [twinText(twin, caseNameOf, indent)],
-    };
   });
 }
 
@@ -300,26 +308,11 @@ function caseLines(
   tests: readonly CoveringTest[],
   indent: string,
   files: readonly CoveringFile[] = [],
-  twins: readonly CaseTwin[] = [],
 ): readonly string[] {
-  const twinOf = new Map(twins.map((twin) => [twin.case, twin]));
-  const names = new Map(tests.map((test) => [test.id, caseName(test)]));
-  const byFile = new Map<string, CoveringTest[]>(files.map((row) => [row.file, []]));
-  for (const test of tests) {
-    const held = byFile.get(test.file);
-    if (held === undefined) byFile.set(test.file, [test]);
-    else held.push(test);
-  }
   const rows = new Map(files.map((row) => [row.file, row]));
-  return [...byFile].flatMap(([file, cases]) => [
+  return [...casesByFile(tests, files)].flatMap(([file, cases]) => [
     `${indent}${file}${fileCount(rows.get(file))}`,
-    ...cases.flatMap((test) => {
-      const twin = twinOf.get(test.id);
-      return [
-        `${indent}  ${caseName(test)}${test.loaded === true ? '*' : ''}${heldText(rowOf(test))}`,
-        ...twin === undefined ? [] : [twinText(twin, (id) => names.get(id) ?? caseNameOf(id), `${indent}    `)],
-      ];
-    }),
+    ...cases.map((test) => `${indent}  ${caseName(test)}${test.loaded === true ? '*' : ''}${heldText(test)}`),
   ]);
 }
 

@@ -112,15 +112,15 @@ describe('a lay over a re-recorded module that changed seats', () => {
     // crossings are carried; `one` did not run at all, so its are carried too.
     // Every previous address is answered by an address in the new cut, one seat
     // further down — `one`'s branch by the branch testing `n === 0`, `two`'s by
-    // `one`'s — and no row is left unmatched, so nothing is demoted to answer
-    // for it. A diff on the line `one` is the only test known to have run is
-    // then answered with `two`, and `one` is whole and in the caller's skip
-    // list.
+    // `one`'s. Paired by address, a diff on the line `one` is the only test
+    // known to have run would be answered with `two`. The `if` counters handed
+    // out different seats, so no branch pairs: each takes what the function
+    // around it took, and `one` is owed a run.
     const laid = laidCoverage(recorded, partial(ONE_ADDED));
 
     expect(complete(laid, ONE)).toBe(false);
-    expect(held(laid, 'if#1/then')).toEqual([]);
-    expect(held(laid, 'if#0/then')).toEqual([]);
+    expect(held(laid, 'if#1/then')).toEqual([ONE, TWO]);
+    expect(held(laid, 'if#0/then')).toEqual([ONE, TWO]);
   });
 
   it('carries every crossing when the seats did not move', () => {

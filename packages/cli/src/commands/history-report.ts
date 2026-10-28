@@ -43,7 +43,7 @@ export async function recordIfConfigured(input: {
   readonly at: string;
   readonly identity?: RunIdentity;
   readonly swept: boolean;
-  /** One slot per planned subject, in plan order; `null` where nothing was read. */
+  /** Each subject read, in plan order: a story read at its widths gives one per width. */
   readonly readings: readonly (SubjectHistory | null)[];
   readonly observations: readonly CliObservationRecord[];
 }): Promise<{

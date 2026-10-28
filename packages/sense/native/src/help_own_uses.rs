@@ -8,8 +8,9 @@
 //! value, a type, a `typeof`, a JSX tag. A parameter, a `const`, a catch
 //! binding or an inner function of the same name is another symbol, so what it
 //! shadows is no use. An import binding is the other file's name, answered by
-//! the import, and `export { name }` or `export default name` passes the name
-//! on, which is no use either. A property key or a member, `o.name`, is no
+//! the import, and `export { name }`, `export default name` or a key of the
+//! object `export =` or `module.exports =` hands out passes the name on, which
+//! is no use either. A property key or a member, `o.name`, is no
 //! reference at all.
 
 // compass: variance-authority.reach.relations
@@ -18,7 +19,7 @@ use std::collections::HashSet;
 
 use oxc_ast::ast::*;
 use oxc_ast_visit::{walk, Visit};
-use oxc_semantic::{Scoping, SemanticBuilder};
+use oxc_semantic::Scoping;
 use oxc_syntax::symbol::SymbolId;
 use serde::Serialize;
 
@@ -34,17 +35,15 @@ pub struct OwnUse {
 
 /// Every line `program` uses one of its top-level names on, once per name and
 /// line, by line and then by name in code units.
-pub(crate) fn own_uses_in(program: &Program<'_>, lines: &Lines) -> Vec<OwnUse> {
-    // A file whose own statements bind no name has nothing to use, and no
-    // scope tree is built for it. Which statement binds a name is
-    // `top_level`'s answer, the one every reader of the declarations takes.
+pub(crate) fn own_uses_in(program: &Program<'_>, scoping: &Scoping, lines: &Lines) -> Vec<OwnUse> {
+    // A file whose own statements bind no name has nothing to use. Which
+    // statement binds a name is `top_level`'s answer, the one every reader of
+    // the declarations takes.
     let mut binds = false;
     top_level(program, |_| binds = true);
     if !binds {
         return Vec::new();
     }
-    let built = SemanticBuilder::new().build(program);
-    let scoping = built.semantic.scoping();
     let root = scoping.root_scope_id();
     let own: HashSet<SymbolId> = scoping
         .get_bindings(root)
@@ -76,6 +75,26 @@ impl<'a> Visit<'a> for Walker<'_> {
         let Some(symbol) = self.scoping.get_reference(reference).symbol_id() else { return };
         if self.own.contains(&symbol) {
             self.seen.insert((it.name.to_string(), self.lines.at(it.span.start)));
+        }
+    }
+
+    // An object the module hands out whole, every key spelled, passes on each
+    // declaration a key names, as `export { name }` does; one with a key no
+    // reader can spell exports nothing, so naming a declaration in it is a use.
+    fn visit_program(&mut self, it: &Program<'a>) {
+        for statement in &it.body {
+            let Some(object) = crate::assigned_object::assigned(statement).filter(|it| crate::assigned_object::spelled(it)) else {
+                self.visit_statement(statement);
+                continue;
+            };
+            for property in &object.properties {
+                match property {
+                    ObjectPropertyKind::ObjectProperty(property) if crate::assigned_object::named(property).is_some() => {
+                        self.visit_property_key(&property.key);
+                    }
+                    _ => self.visit_object_property_kind(property),
+                }
+            }
         }
     }
 

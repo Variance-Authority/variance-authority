@@ -158,7 +158,9 @@ function drainEachStatement(
   // which body it is in.
   const c: Cut = (line, file) => {
     const theirs = outer?.(line, file);
-    if (file !== testInfo.file) return theirs;
+    // Once a drain was late no statement records its line, so none waits on
+    // the held drain again: the teardown drain reads what they reached.
+    if (file !== testInfo.file || late) return theirs;
     const reached = last;
     last = line;
     draining = draining.then(drain(reached));

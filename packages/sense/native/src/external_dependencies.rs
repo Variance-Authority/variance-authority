@@ -291,12 +291,16 @@ pub(crate) fn requests_of(layers: &[Layer], crossing: &Crossing, internal: &Hash
             .collect();
         if names.is_empty() { names.insert("*".to_owned()); }
         if names.contains("*") {
+            // A member `*` is the module escaping whole, which no name read narrows.
+            let mut whole = false;
             for member in parses.members.range(parse_row) {
-                if parses.member_request.at(member) as usize == request - parses.requests.at(parse_row) as usize {
-                    names.insert(text.text(parses.member_name.at(member)).to_owned());
+                if parses.member_request.at(member) as usize == request - parses.requests.at(parse_row) as usize && parses.member_through_default[member] == 0 {
+                    let name = text.text(parses.member_name.at(member));
+                    whole |= name == "*";
+                    names.insert(name.to_owned());
                 }
             }
-            if names.len() > 1 { names.remove("*"); }
+            if names.len() > 1 && !whole { names.remove("*"); }
         }
         let mut names: Vec<String> = names.into_iter().collect();
         names.sort_unstable_by(|left, right| code_unit(left, right));
@@ -341,3 +345,7 @@ pub(crate) fn unresolved_requests<'l>(layers: &'l [Layer], crossing: &Crossing) 
     }
     Ok(found)
 }
+
+#[cfg(test)]
+#[path = "external_dependencies_tests.rs"]
+mod tests;

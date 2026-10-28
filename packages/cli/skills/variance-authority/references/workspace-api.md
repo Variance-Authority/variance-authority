@@ -183,7 +183,7 @@ now before the answer is given:
 When the dependency lexicon is not published, the answer still says what the
 workspace holds, and that the installed dependencies were not checked:
 ``Whether an installed dependency publishes it is not known: the dependency
-lexicon is not published, and `variance index` publishes it.`` When the source
+lexicon is not published, and the `variance index` command publishes it.`` When the source
 index did not read some files' declarations, the answer says no file *it read*
 declares the name, and names those files last.
 
@@ -208,12 +208,15 @@ checkout holds it, and how many imports the source index resolved to that file,
 within its package as well as across. Two files that export one name are told
 apart, each with its own count, and an installed name it matches, which a file
 that passes it on exports without declaring, is said after it. A name a file
-declares and does not export is answered from the source index, as below, after
-any export of the same name in another file. A name an import binds with `as`
-is answered with that import and the original it names. A member of an
-interface, a type literal or a class, when nothing else declares or binds the
-name, is answered with its container and the file and line that declare it, one
-block per declaration.
+declares and does not export, at its top level or inside a function, is answered
+from the source index, as below, after any export of the same name in another
+file; one inside a function is answered with the function that holds it. A name
+an import binds with `as` is answered with that import and the original it
+names. A member of an interface, a type literal or a class, when nothing else
+declares or binds the name at a file's top level, is answered with its container
+and the file and line that declare it, one block per declaration, beside any
+declaration of the name inside a function. `ask search` reads top-level
+declarations only: a name declared inside a function is found by `ask symbol`.
 
 `--package` with the path of one file in a package, such as
 `@acme/lib/src/internal/math`, names the file an import of that specifier
@@ -250,7 +253,7 @@ no members is left out rather than shown empty.
 A published name that nothing imports is a different answer, not an empty list:
 
 ```
-`PagesOptions` [interface] is published and nothing in this workspace imports it; a read through an `export * as` namespace and, outside Rust, a call through a qualified path are not counted. docs_symbol has its signature and what is written above it.
+`PagesOptions` [interface] is published and nothing in this workspace imports it; a namespace imported by name that goes somewhere whole and, outside Rust, a call through a qualified path are not counted. docs_symbol has its signature and what is written above it.
 ```
 
 The imports within the name's own package come from the source index: every
@@ -261,9 +264,20 @@ on the same way, and every import that comes through it is marked `(type only)`.
 A name an entry publishes under another name than its declaration is read from
 that entry. An import of a renamed re-export ends `(as <name>)`. A Rust path
 written in a type or an expression, such as `crate::order::code_unit(…)`, is
-listed as a `use` is. A read through an `export * as` namespace, and outside
-Rust a call through a qualified path, are not listed, and the answer ends by
-saying so. With `--package` naming one subpath specifier, an import through
+listed as a `use` is. A package that passes a module on as `export * as ns`,
+or as `export { ns }` after `import * as ns`, passes each of its names as a
+member of `ns`: `import { ns } from 'pkg'` and
+then `ns.name`, or `const { name } = ns`, is listed on the line that reads it,
+ending `(namespace, line <n>)` with the line of the import. A namespace inside
+a namespace, `lib.ns.name`, one destructured off it, `const { ns } = lib` or
+`const { ns: { name } } = lib`, and a namespace passed on as `default` are
+followed the same way, and a name destructured off a namespace is that name,
+not a declaration of its own. An entry that publishes the name only inside such a namespace
+publishes it as `ns.name`, and the first line says `published as \`ns.name\` by
+<package>`. A namespace handed to a function the same file declares is followed
+into it. One that goes somewhere else whole, such as
+`[ns]`, and outside Rust a call through a qualified path, are not listed, and
+the answer ends by saying so. With `--package` naming one subpath specifier, an import through
 another specifier of the same package is left to that one. When the source
 index is missing or does not read, the imports from other packages by their
 published path are still listed, and the answer says why the rest are not.
@@ -283,13 +297,30 @@ declaration:
 `levy` is imported in 1 place, and no entry publishes it; it is exported at packages/kit/src/money/rates.ts:1, which passes on `taxOf`, declared at packages/kit/src/money/tax.ts:1.
 ```
 
+Each file that declares a name declares another thing, so `uses` answers for
+every one of them, each kept apart: the published declaration's imports, a line
+naming each file that exports the name without publishing it followed by that
+declaration's own imports, and each file that keeps it to itself. `--file
+<path>`, the file one of them is declared in, answers for that declaration
+alone; a file that only passes the name on with `export … from` answers for the
+declaration it reaches. The answer ends by saying so when it covers more than one:
+
+```
+`greet` is exported, without being published, at packages/lib/src/other.ts:1 as well, which is another declaration.
+Imported in 1 place.
+
+`file`, the file one of them is declared in, answers for that declaration alone.
+```
+
+A `--file` that declares nothing by the name is answered with the files that do.
+
 `--limit <n>` sets how many rows of each list are shown, 12 when not said:
 each kind of site, the lines of the declaring file, the member declarations
 and the uses of each member.
 Every site is still counted, and the rest are said:
 
 ```
-… 3 more not shown; a higher `limit` shows them.
+… 3 more not shown; a higher `--limit` shows them.
 ```
 
 A method or property of an interface, a type literal or a class is never
@@ -381,8 +412,13 @@ A line under *declared … without being exported* is a name its file does not
 export, matched by its name or its documentation: `symbol` gives its signature
 and who can reach it, which is only that file in a JavaScript or TypeScript
 module, its module in Rust, and any module that spells it in Python; `uses` says
-the same in one line. A script or CommonJS file, a module that hands itself out
-with `export =` and a `macro_rules!` are said to have no recorded reach: their readers cannot tell how the file hands the name out.
+the same in one line. CommonJS is read on a best-effort basis: the static keys
+of an object literal that `export =` or `module.exports =` assigns at the top
+level are the file's exports when every key is spelled, and a read off a
+default import of it is marked "through `default`". A script or CommonJS file,
+a module that hands itself out with `export =` and a `macro_rules!` are said to
+have no recorded reach: their readers cannot tell how the file hands the name
+out.
 A file whose declarations were not read, such as one over the size a read
 opens, is named under the answer, since the name may be declared there.
 
@@ -395,12 +431,14 @@ matches installed third-party declarations from the same lexicon, which is
 
 Nothing back means nothing matched, not that a ranking left it out. In a
 checkout that publishes nothing, that is the final answer. The two sections that
-follow an empty answer — names and files holding at least half of your words
+follow an empty answer — names and files holding any of your words
 by stem, in any order, in the name or its doc, whether published, exported,
 declared and not exported, or a file by its name and the doc it opens with, the
 ones holding the most of your words first, then the ones holding more of them
-in the name, then the ones whose doc writes your phrase; then names your words
-reach loosely, exported or not — are
+in the name, then the ones whose doc writes your phrase, every word any of
+them holds held by a row shown; then names your words
+reach loosely, exported or not, which takes a name holding fewer than half your
+words when it reaches it by every one — are
 suggestions, printed before the installed
 packages: they never change the sections above them, and they do not find a word
 the repository never writes. For that, expand the query as

@@ -10,7 +10,7 @@
 use rustc_hash::FxHashMap;
 
 use crate::journey_columns::Column;
-use crate::journey_format::SetPool;
+use crate::crossing_sets::SetPool;
 use crate::record_coverage::{Phases, PHASES};
 use crate::record_layout::LAYOUT;
 

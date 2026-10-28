@@ -15,7 +15,7 @@ import {
 } from '@variance-authority/core/format';
 import { absorbsEntirely, type Level } from '@variance-authority/core/judge';
 import { DEFAULT_ALONE_LIMIT } from '../config.js';
-import type { Collected, PlannedSubject } from './collector.js';
+import { visited, type Collected, type PlannedSubject, type Visit } from './collector.js';
 import type { ObserveContext } from './run-context.js';
 import type { CliObservationRecord } from './run-report.js';
 
@@ -117,9 +117,9 @@ export async function again(
   // Through the collector's one lane, for the reason every other collection goes
   // through it: the world is a single standing page and two collections at once
   // render into the same one.
-  const second = await collecting(async () =>
-    timeOn(context.steps, 'again.collect', async () => deps.collector.collect(planned)),
-  );
+  const result = await collecting(async () => timeOn(context.steps, 'again.collect', async () => deps.collector.collect(planned)));
+  if ('subjects' in result) for (const warning of result.warnings ?? []) context.said?.(warning);
+  const second = sameSubject(planned, result);
 
   if (!second.ok) {
     // Not silence, and not a `failed` coverage entry either — the subject *was*
@@ -232,4 +232,18 @@ function describeMovement(moved: Movement | undefined): string {
     )
     .join(', ');
   return `: ${named}${bands}`;
+}
+
+/**
+ * The reading of `planned` itself out of what collecting it again produced. A
+ * width asked for by its own id comes back alone; anything else — the story no
+ * longer declares that width, or read at another — is not a second reading of
+ * this subject.
+ */
+function sameSubject(planned: PlannedSubject, result: Collected | Visit): Collected {
+  const entries = visited(planned, result);
+  const own = entries.find((entry) => entry.planned.subject.id === planned.subject.id);
+  if (own !== undefined) return own.collected;
+  const read = entries.map((entry) => `\`${entry.planned.subject.id}\``).join(', ');
+  return { ok: false, because: `reading it again produced ${read} and not \`${planned.subject.id}\`` };
 }

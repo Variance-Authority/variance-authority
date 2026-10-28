@@ -65,6 +65,7 @@ let loaded: ReadonlyMap<ModuleId, Uint32Array> = new Map();
 beforeAll(() => {
   const testFile = expect.getState().testPath;
   if (testFile === undefined) throw new Error('variance-authority could not identify the current Jest file');
+  install.environmentInputs();
   loaded = collector.seal(testFile);
 });
 
@@ -102,6 +103,7 @@ afterAll(() => {
   if (testFile === undefined) throw new Error('variance-authority could not identify the current Jest file');
 
   const stamp = `${process.pid}-${crypto.randomUUID()}`;
+  install.environmentInputs();
   const { modules, frames } = collector.finish(testFile);
   heldAgainstRegistry(testFile, modules);
   fs.mkdirSync(runDirectory, { recursive: true });

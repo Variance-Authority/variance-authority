@@ -30,22 +30,40 @@ export interface ScopeTime {
 
 type Phase = (typeof PHASE_NAMES)[number];
 
+/** Recorded milliseconds for one test file. A phase the runner did not time is absent. */
+export type FileTime = Readonly<Partial<Record<Phase, number>>>;
+
+const read = new WeakMap<Uint8Array, ReadonlyMap<string, Uint32Array>>();
+
 /** Each record's timed test files by path, read once: the phase words in {@link PHASE_NAMES} order. */
 function timesOf(record: Uint8Array): ReadonlyMap<string, Uint32Array> {
+  const found = read.get(record);
+  if (found !== undefined) return found;
   const view = openTestCoverage(record);
   const phases = view.testPhases?.all();
   const times = new Map<string, Uint32Array>();
+  read.set(record, times);
   if (phases === undefined) return times;
   const paths = view.testPath.all();
   const width = PHASE_NAMES.length;
-  const collect = PHASE_NAMES.indexOf('collect');
-  const cases = PHASE_NAMES.indexOf('cases');
   for (let test = 0; test < paths.length; test += 1) {
     const own = phases.subarray(test * width, (test + 1) * width);
-    if (own[collect] === NO_DURATION || own[cases] === NO_DURATION) continue;
+    if (own.every((value) => value === NO_DURATION)) continue;
     times.set(view.string(paths[test]!), own);
   }
   return times;
+}
+
+/** One file's recorded phases, including a partial reading, from the same reader the scope sums. */
+export function fileTime(record: Uint8Array, file: string): FileTime | undefined {
+  const own = timesOf(record).get(file);
+  if (own === undefined) return undefined;
+  const phases: Partial<Record<Phase, number>> = {};
+  PHASE_NAMES.forEach((name, at) => {
+    const value = own[at]!;
+    if (value !== NO_DURATION) phases[name] = value;
+  });
+  return phases;
 }
 
 /**
@@ -56,15 +74,12 @@ export function scopeTime(
   records: readonly Uint8Array[],
   files: readonly { readonly record: number; readonly file: string }[],
 ): ScopeTime | undefined {
-  const read = new Map<number, ReadonlyMap<string, Uint32Array>>();
   const sum: (number | undefined)[] = PHASE_NAMES.map(() => undefined);
   const loadBound: { file: string; loading: number; cases: number }[] = [];
   let timed = 0;
   for (const { record, file } of files) {
-    let times = read.get(record);
-    if (times === undefined) read.set(record, (times = timesOf(records[record]!)));
-    const own = times.get(file);
-    if (own === undefined) continue;
+    const own = timesOf(records[record]!).get(file);
+    if (own === undefined || own[PHASE_NAMES.indexOf('collect')] === NO_DURATION || own[PHASE_NAMES.indexOf('cases')] === NO_DURATION) continue;
     timed += 1;
     own.forEach((value, at) => {
       if (value !== NO_DURATION) sum[at] = (sum[at] ?? 0) + value;

@@ -11,7 +11,7 @@ use oxc_syntax::scope::ScopeFlags;
 use crate::loads::requires;
 use crate::module_shape::{plain_class, pure, Lines};
 
-use super::{declared, Import, Read, Reading, Reexport, Where};
+use super::{declared, Erased, Import, Read, Reading, Reexport, Where};
 
 pub(super) fn reading_of(program: &Program, lines: &Lines) -> Reading {
     let mut walker = Walker {
@@ -147,7 +147,7 @@ impl Walker<'_> {
                 }
             }
             Statement::ExportDeclaration(it) => {
-                for name in declared(&it.declaration) {
+                for name in declared(&it.declaration, Erased::Kept) {
                     self.export_as(&name, &name);
                 }
                 self.declaration(&it.declaration);

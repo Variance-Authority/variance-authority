@@ -1,10 +1,11 @@
 import { mkdtempSync } from 'node:fs';
 import { availableParallelism, tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { configDefaults, defineConfig, mergeConfig } from 'vitest/config';
+import { defineConfig, mergeConfig } from 'vitest/config';
 import { withTestSelection } from '@variance-authority/sense/vitest';
 import { nativeSources } from './tools/native-sources.mjs';
 import { marked, probeable } from './tools/page-side.mjs';
+import { MARKERS, PLACES, excludeOf, includeOf } from './tools/slices.mjs';
 
 /** This file's directory, so the exclusions read the same from any cwd. */
 const ROOT = import.meta.dirname;
@@ -142,18 +143,6 @@ const shared = defineConfig({
   },
 });
 
-/**
- * Where tests live. A slice is these places narrowed by a marker in the file
- * name, so a file says which slice it is in and no list has to.
- */
-const PLACES = [
-  'site/app/**/*.test.{ts,tsx}',
-  'packages/*/src/**/*.test.{ts,tsx}',
-  'packages/*/test/**/*.test.ts',
-  'examples/*/src/**/*.test.{ts,tsx}',
-  'cases/*/src/**/*.test.{js,ts,tsx}',
-];
-
 /** The cores this machine offers, which every worker count below is a share of. */
 const CORES = availableParallelism();
 
@@ -182,25 +171,23 @@ const CORES = availableParallelism();
  *   Playwright. A file with no Chromium installed reports itself skipped.
  */
 export const SLICES = {
-  unit: { marker: undefined, workers: undefined },
+  unit: { workers: undefined },
   // A file here is two processes at least, and a runner it starts is more.
-  integration: { marker: 'integration', workers: Math.max(1, Math.floor(CORES / 4)) },
+  integration: { workers: Math.max(1, Math.floor(CORES / 4)) },
   // A browser is a handful of processes, each busy while a page renders.
-  chromium: { marker: 'chromium', workers: Math.max(1, Math.floor(CORES / 8)) },
+  chromium: { workers: Math.max(1, Math.floor(CORES / 8)) },
 } as const;
 
 export type SliceName = keyof typeof SLICES;
 
-const MARKERS = Object.values(SLICES).flatMap((slice) => (slice.marker === undefined ? [] : [slice.marker]));
-
 /** One slice as a Vitest config, without the recording. */
 export function slice(name: SliceName) {
-  const { marker, workers } = SLICES[name];
+  const { workers } = SLICES[name];
   return mergeConfig(shared, {
     test: {
-      include: marker === undefined ? PLACES : PLACES.map((place) => place.replace('*.test.', `*.${marker}.test.`)),
-      exclude: [...configDefaults.exclude, ...(marker === undefined ? MARKERS.map((other) => `**/*.${other}.test.*`) : [])],
-      ...(marker === undefined ? { setupFiles: ['tools/in-process.ts'] } : {}),
+      include: includeOf(name),
+      exclude: excludeOf(name),
+      ...(MARKERS[name] === undefined ? { setupFiles: ['tools/in-process.ts'] } : {}),
       ...(workers === undefined ? {} : { maxWorkers: workers, minWorkers: 1 }),
     },
   });

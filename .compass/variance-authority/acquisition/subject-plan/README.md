@@ -43,6 +43,10 @@ It does not decide which subjects a change could have moved — that narrowing
 arrives from [`reach`](../../reach/README.md) and is applied to a plan that
 already exists. It does not evaluate a story module, so it sees only what a
 built index declares: type, title, name, import path and tags, never parameters.
+A story's own parameters are read when the story is reached, and the widths
+they declare become subjects there, at the position the plan gave the story:
+evaluating every module to plan would import the whole Storybook before the
+first story is read.
 A viewport it cannot resolve is refused rather than converted, because an
 invented size renders a subject nobody asked for and reports success.
 
