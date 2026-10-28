@@ -2,7 +2,7 @@
 import os,re,json,random,time
 import subprocess; os.chdir(subprocess.run(["git","rev-parse","--show-toplevel"],capture_output=True,text=True).stdout.strip())
 S=os.environ["S"]; ENG=os.environ["ENGINE"]
-L="docs/context/journal/0075-julia-does-not-read-the-chart-yet/"; C=".compass/variance-authority/"
+L="docs/context/journal/0077-julia-does-not-read-the-chart-yet/"; C=".compass/variance-authority/"
 Bm=json.load(open(L+"ranks_direct.json"))["bm25 all READMEs (max)"]
 Gd={g["spec"]:set(g["gold"]) for g in json.load(open(L+"gold.json"))["specs"] if g["gold"]}
 cases=[s for s in Bm if s in Gd and len(set(Bm[s][:2])&Gd[s])==1]

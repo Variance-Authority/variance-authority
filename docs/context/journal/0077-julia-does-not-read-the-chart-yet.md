@@ -7,13 +7,15 @@ of work to the part of the system that owns it, and do so better than lexical
 search. The model was Julia-1, a 144M cross-encoder that scores a fixed list of
 options against a short text. The work items were 44 specs from `docs/specs/`,
 each labelled with its owning blocks in the architecture chart (`.compass/`, 11
-blocks). The bar was BM25 over every chart README, which puts the owner first or
+blocks). They are the specs numbered 0002 to 0089 whose cited file paths fall
+in at least one block, 44 of the 72 that `gold.json` in the lab directory
+lists; specs numbered after 0089 are not in the set. The bar was BM25 over every chart README, which puts the owner first or
 second for most specs.
 
 It did not get there. Across thirteen pre-registered runs, Julia beat random
 choice and never beat BM25 on content. A 9B decision model, Clef-flash, did
 not beat it either, on owner questions or on relation questions. Every script, rank file and the run-by-run
-notebook are in [the lab directory](0075-julia-does-not-read-the-chart-yet/).
+notebook are in [the lab directory](0077-julia-does-not-read-the-chart-yet/).
 
 ## The numbers
 
