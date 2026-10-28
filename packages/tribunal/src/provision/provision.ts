@@ -314,7 +314,7 @@ async function secrets(wrangler: Wrangler, must: Must, io: Provisioning, request
       io.say('Printed once: it decides subjects, so a person keeps it and CI never sees it.');
     } else {
       io.say(`${REVIEW_SECRET} is set and not shown, because no person is at this terminal.`);
-      io.say('To hold one, run this command with --rotate in your own terminal.');
+      io.say('To hold one, run this command with --rotate in your own terminal; it replaces the ingest token in both places too.');
     }
   }
 }
