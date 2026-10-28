@@ -11,7 +11,7 @@ import { thirdBlock } from './third-party.js';
 import { declarations, declaredAt, declaredBlocks, isNested, textRows, unreadLine } from './declared.js';
 import { uses } from './uses.js';
 import { type Members, membersOf, membersStop } from './members.js';
-import { boundOf, exportedRows, originOf } from './passed-on.js';
+import { boundOf, declarationOf, exportedRows, originOf } from './passed-on.js';
 import { UNCOUNTED, exportsNamed, importsOf } from './unpublished.js';
 import { type Counted, counted, spokenSplit } from './uses-count.js';
 import { type PublishedDeclaration, publishedDeclarations, usesOf } from './uses-of.js';
@@ -68,7 +68,7 @@ export const symbol: Tool<Help> = {
     // The door the workspace imports a declaration by leads it. Every adapter
     // that re-exports a core publishes the same declaration, and the first one
     // read is an alphabetical accident whose own count is usually nothing.
-    const found = publishedDeclarations(help, invocation?.root, name, wanted);
+    const found = publishedDeclarations(help, name, wanted);
 
     // Declared in a file and exported by none: still the workspace's
     // own name, and where it is written says who can reach it. Another file's
@@ -167,7 +167,7 @@ export const symbol: Tool<Help> = {
     const name = stringArg(input, 'name');
     const from = input['package'];
     const wanted = typeof from === 'string' && from !== '' ? from : undefined;
-    const published = publishedDeclarations(help, invocation?.root, name, wanted);
+    const published = publishedDeclarations(help, name, wanted);
     const at: (readonly [string, number])[] = published.map((one) => [one.at, one.line]);
     if (at.length === 0) {
       for (const site of sitesByPath(help, name, wanted)) {
@@ -233,7 +233,7 @@ function publishedBlock(help: Help, input: Readonly<Record<string, unknown>>, ro
   const [[published, opening, entry], ...more] = one.doors as [PublishedDeclaration['doors'][number], ...PublishedDeclaration['doors']];
   const also = more.length > 0 ? [`\nAlso published by: ${more.map(([held, door]) => specifierOf(held, door)).join(', ')}`] : [];
   // The sites of this declaration are the ones `uses` lists when asked for its file.
-  const listed = usesOf(help, { ...input, file: one.at }, root, spell);
+  const listed = usesOf(help, { ...input, file: one.at }, root, spell, one);
   // Inside is the declaring file's package, which a re-exporting door is not.
   const owner = listed.home ?? published.name;
   // One count of the sites `uses` lists feeds the header and the closing line, counted as `uses` counts them.
@@ -241,7 +241,7 @@ function publishedBlock(help: Help, input: Readonly<Record<string, unknown>>, ro
   const may = [...split.off, ...split.whole];
   const shown = listedLine(spell.tool(uses), owner, split, may.length > 0, listed.unread);
   const renamed = renamedSites(entry.name, listed.sites);
-  return [block(published, opening, entry, { may, imported: split.certain.length > 0 }), ...memberRows(root, entry.at, entry.name, entry.line), ...renamed.map((line) => `\n${line}`), ...also, ...shown].join('\n');
+  return [block(published, opening, entry, { may, imported: split.certain.length > 0 }), ...memberRows(root, entry.at, entry.declared, entry.line), ...renamed.map((line) => `\n${line}`), ...also, ...shown].join('\n');
 }
 
 /**
@@ -262,8 +262,8 @@ function unpublishedExports(
   if (published.length === 0) return exported;
   const declaring = new Set(published.map(([at, declared]) => `${at}\0${declared}`));
   return exported.filter((held) => {
-    const origin = held.declaration !== undefined ? undefined : originOf(root, held);
-    return !declaring.has(`${origin?.at ?? held.at}\0${origin?.name ?? held.name}`);
+    const { at, declared } = declarationOf(help, root, held);
+    return !declaring.has(`${at}\0${declared}`);
   });
 }
 

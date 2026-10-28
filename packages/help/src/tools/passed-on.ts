@@ -13,7 +13,7 @@
 
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import type { Named } from '@variance-authority/package/help';
+import type { Help, Named } from '@variance-authority/package/help';
 import { declarationExported, type ExportedDeclaration } from '@variance-authority/sense';
 import { textRows } from './declared.js';
 
@@ -35,6 +35,23 @@ export function boundOf(root: string | undefined, held: Pick<Named, 'at' | 'name
 /** The declaration `held` passes on from another file, as `boundOf` reaches it; none when its own file declares it. */
 export function originOf(root: string | undefined, held: Pick<Named, 'at' | 'name'>): ExportedDeclaration | undefined {
   return elsewhere(boundOf(root, held), held);
+}
+
+/**
+ * Which declaration `held` exports: the file that declares it and the name
+ * that file exports it under, the key the package stage gives every entry it
+ * publishes. An export that declares passes its own; one that passes another
+ * file's on takes the export of the declaring file that binds the same
+ * declaration, so `export { salute } from './greet.js'` over
+ * `export { greet as salute }` is `salute` there, not the local `greet`.
+ */
+export function declarationOf(help: Help, root: string | undefined, held: Named): { readonly at: string; readonly declared: string } {
+  const origin = held.declaration !== undefined ? undefined : originOf(root, held);
+  if (origin === undefined) return { at: held.at, declared: held.name };
+  const own = help.exported.find(
+    (other) => other.at === origin.at && other.declaration !== undefined && boundOf(root, other)?.name === origin.name,
+  );
+  return { at: origin.at, declared: own?.name ?? origin.name };
 }
 
 /** `bound`, when it is in another file than `held`. */

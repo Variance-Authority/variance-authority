@@ -70,4 +70,63 @@ describe('variance ask uses over a declaration published under another name', ()
     expect(headline).toMatch(/^`greet` \[function\] is imported in 1 place, from another package, published by @acme\/lib as `salute`/);
     expect(paragraph(out, /^`greet` \[function\]/)).toBeDefined();
   });
+
+  it('names the door that renames what the declaring file exports under another name again', async () => {
+    checkout({
+      'packages/lib/src/index.ts': "export { hello as salute } from './greet.js';\n",
+      'packages/lib/src/greet.ts': 'function greet(name: string): string {\n  return name;\n}\nexport { greet as hello };\n',
+      'apps/app/src/hello.ts': "import { salute } from '@acme/lib';\nexport const hello = salute('app');\n",
+    });
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+
+    const [headline] = (await uses('hello')).split('\n');
+    expect(headline).toMatch(/^`hello` \[function\] is imported in 1 place, from another package, published by @acme\/lib as `salute`/);
+  });
+
+  it('answers one declaration the declaring file exports under another name than it binds', async () => {
+    checkout({
+      'packages/lib/src/index.ts': "export { salute } from './greet.js';\n",
+      'packages/lib/src/greet.ts': 'function greet(name: string): string {\n  return name;\n}\nexport { greet as salute };\n',
+      'apps/app/src/hello.ts': "import { salute } from '@acme/lib';\nexport const hello = salute('app');\n",
+      'packages/lib/src/inner.ts': "import { salute } from './greet.js';\nexport const inner = salute('lib');\n",
+    });
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+
+    const out = await uses('salute');
+    expect(out).not.toMatch(/another declaration/);
+    expect(out).toMatch(/^apps\/app\/src\/hello\.ts:1 — @acme\/app; used on line 2$/m);
+    expect(out).toMatch(/^packages\/lib\/src\/inner\.ts:1 — @acme\/lib; used on line 2$/m);
+  });
+
+  it('counts, in `ask symbol`, each of two bindings one file publishes by its own importers', async () => {
+    checkout({
+      'packages/lib/src/index.ts': "export { greet as salute, salute as greeting } from './greet.js';\n",
+      'packages/lib/src/greet.ts': 'export function greet(name: string): string {\n  return name;\n}\nexport const salute = 1;\n',
+      'apps/app/src/hello.ts': "import { salute } from '@acme/lib';\nexport const hello = salute('app');\n",
+      'apps/app/src/one.ts': "import { greeting } from '@acme/lib';\nexport const one = greeting;\n",
+      'apps/app/src/two.ts': "import { greeting } from '@acme/lib';\nexport const two = greeting;\n",
+    });
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+
+    const { code, out } = await run(['ask', 'symbol', '--name', 'salute']);
+    expect(code).toBe(EXIT_CLEAN);
+    const [greeting, salute] = out.split(/^salute \[function\]$/m);
+    expect(salute).toBeDefined();
+    expect(salute).toContain('`variance ask uses` names the 1 place that imports this, from another package, nearest to a file you name first.');
+    expect(greeting).toContain('`variance ask uses` names the 2 places that import this, all from other packages, nearest to a file you name first.');
+  });
+
+  it('lists, in `ask symbol`, the members of a declaration an entry publishes under another name', async () => {
+    checkout({
+      'packages/lib/src/index.ts': "export { Tree as Forest } from './tree.js';\n",
+      'packages/lib/src/tree.ts': 'export interface Tree {\n  has(key: string): boolean;\n}\n',
+    });
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+
+    const { code, out } = await run(['ask', 'symbol', '--name', 'Forest']);
+    expect(code).toBe(EXIT_CLEAN);
+    expect(out).toMatch(/^Members:$/m);
+    expect(out).toMatch(/has\(key: string\): boolean;/);
+  });
 });
+

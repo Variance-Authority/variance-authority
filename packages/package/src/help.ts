@@ -1,7 +1,6 @@
 import { relative, resolve } from 'node:path';
-import type { Declaration } from './declare.js';
 import { type Offering, type OfferingOptions, readOfferings } from './manifest.js';
-import { createReader, namesReachedBy, type Names } from './reach.js';
+import { createReader, namesReachedBy, type Names, type Reached } from './reach.js';
 import { type Mention, type Readmes, readMention, readmes } from './mention.js';
 import { type Deep, type Named, type Usage, type UsageOptions, type Use } from './use.js';
 import { readUsage } from './read-usage.js';
@@ -43,6 +42,12 @@ export interface Entry {
   readonly kind: string;
   /** The file that declares it, relative to the workspace root. */
   readonly at: string;
+  /**
+   * The name `at` exports it under, which with `at` is which declaration this
+   * is: `export { greet as salute } from './greet.js'` publishes `salute` and
+   * declares `greet`, beside a `salute` the same file may declare too.
+   */
+  readonly declared: string;
   readonly line: number;
   /** Everything written before the body. */
   readonly signature?: string;
@@ -204,7 +209,7 @@ export function mayBeRead(places: readonly Use[]): string {
 
 function entryOf(
   name: string,
-  kinds: ReadonlyMap<string, Declaration>,
+  kinds: ReadonlyMap<string, Reached>,
   reached: Pick<Entry, 'usedBy' | 'uses' | 'sites' | 'throughDefault'>,
   found: (at: string) => Mention | undefined,
 ): Entry {
@@ -220,6 +225,7 @@ function entryOf(
     name,
     kind: [...kinds.keys()].sort().join('+'),
     at: first.at,
+    declared: first.declared,
     line: first.line,
     ...(first.signature === undefined ? {} : { signature: first.signature }),
     ...(first.doc === undefined ? {} : { doc: first.doc }),
@@ -360,4 +366,4 @@ export type { Entrypoint, Offering, OfferingOptions, WorkspaceManifests } from '
 export { readMention, readmes } from './mention.js';
 export type { Mention, Readmes } from './mention.js';
 export type { Declaration, DeclarationKind } from './declare.js';
-export type { Names } from './reach.js';
+export type { Names, Reached } from './reach.js';
