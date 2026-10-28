@@ -7,9 +7,8 @@
  * cuts the selection to one leg by import hops, as `--at-distance` does, and is
  * read only beside it. `VARIANCE_AUTHORITY_GRAIN=case` also skips, inside each
  * file that runs, the cases that ran none of the change; the file is the grain
- * otherwise. `VARIANCE_AUTHORITY_FAULT` names a region the run skips
- * (`fault.ts`), and selects the cases that entered it, which are the only ones
- * that can notice; it is not read beside a change.
+ * otherwise. `VARIANCE_AUTHORITY_FAULT` selects the cases that entered the
+ * region it skips ({@link faultSelection}).
  *
  * The reading is `selectSuite` from `@variance-authority/cli`, the function
  * `variance select` prints. It parses the execution journal through
@@ -112,7 +111,11 @@ export function selectionFrom(
   };
 }
 
-/** The cases that entered the region `fault` names, as the cli reads them from the record the run starts from. */
+/**
+ * The cases that entered the region `fault` names (`fault.ts`), as the cli
+ * reads them from the record the run starts from: the only cases that can
+ * notice it skipped. It is not read beside a change.
+ */
 function faultSelection(fault: string, since: string | undefined, request: SelectionRequest): () => Promise<SuiteSelection> {
   if (since !== undefined) {
     throw new Error(`${FAULT_VARIABLE} selects the cases that entered the region it skips, so VARIANCE_AUTHORITY_SINCE is not read beside it: unset one`);

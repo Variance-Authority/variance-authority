@@ -12,11 +12,8 @@
  *
  * The seam skips it where it reads the file, ahead of every transform, so the
  * project's transforms, the probes and the record all take the skipped text as
- * the file. Nothing of the file is written to disk: a run that is stopped
- * leaves the checkout as it was. What is written is a mark, in the cache the
- * run records into, that it read the file skipped: a run that went red before
- * it did says nothing about the region, and its caller tells the two apart by
- * the mark ({@link faultReadIn}).
+ * the file. Nothing of the file is written to disk; the run marks that it read
+ * the file skipped ({@link markFaultRead}).
  */
 
 // compass: variance-authority.reach
@@ -78,7 +75,9 @@ export function readFaulted(
 }
 
 /**
- * Mark that this run reads `fault`'s file skipped. A seam that serves the file
+ * Mark, in the cache the run records into, that this run reads `fault`'s file
+ * skipped: a run that went red before it did says nothing about the region,
+ * and its caller tells the two apart by the mark. A seam that serves the file
  * from a transform cache of its own marks it where it keys the file, which it
  * does whether or not the cache holds it.
  */

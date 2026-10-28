@@ -37,8 +37,8 @@ Two questions need that:
 
 - **What does a passing test rely on in the code I am about to change, and
   would it notice if I broke it?**
-- **When a test fails on some runs, or where its
-  [twin](case-preconditions.md#twins) passes, what should it have done?**
+- **When a test fails on some runs, or where a test one flag or one user
+  apart passes, what should it have done?**
 
 Without a story, you find the order in one of two ways:
 
@@ -518,7 +518,7 @@ edit changed, not to explain a test that fails on some runs.
 
 Say the same checkout is three tests: one with a feature flag on, one with it
 off, and one signed in as Mike. The test with Mike fails on every run. The other two
-are its [twins](case-preconditions.md#twins), the same code one flag or one user apart, and their stories say
+are its twins, the same code one flag or one user apart, and their stories say
 what the test with Mike should have done. Each
 test is a side, and the comparison sets the stories of the tests against each
 other the way it sets [readings of one test](#compare-readings-of-one-test)
