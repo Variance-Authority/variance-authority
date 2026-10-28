@@ -168,7 +168,7 @@ const RESOLVED_COLLECTOR = `\0${VIRTUAL_COLLECTOR}`;
 const COLLECTOR = `\n;import ${JSON.stringify(VIRTUAL_COLLECTOR)};`;
 
 /**
- * Instrument a build.
+ * The Vite plugin whose `transform` hook instruments each module of a build.
  *
  * ```js
  * // vite.config.ts

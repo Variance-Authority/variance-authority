@@ -39,8 +39,9 @@ export function executionIndexOf(bytes: Uint8Array): ExecutionIndex {
 }
 
 /**
- * The cases the latest run at `record` replaced, which is what an edit to a
- * test is compared with. Absent when that run replaced none, or the record does
+ * The cases the latest run at `record` replaced, each in the state it last
+ * settled in: whether it stopped, and its duration. An edit to a test is
+ * compared with them. Absent when that run replaced none, or the record does
  * not read: there is then nothing to compare with, which is not an error.
  */
 export function replacedCases(record: string): ExecutionIndex | undefined {

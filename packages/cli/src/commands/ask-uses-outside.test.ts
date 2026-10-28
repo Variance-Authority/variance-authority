@@ -56,7 +56,7 @@ describe('variance ask uses over a name an installed package declares', () => {
       '  function, published, at packages/pkg/src/help.ts:1',
       '  imported from thirdp, which declares it outside the workspace',
     ]);
-    expect(out).toMatch(/^packages\/tool\/src\/view\.ts:1 — @acme\/tool$/m);
+    expect(out).toMatch(/^packages\/tool\/src\/view\.ts:1 — @acme\/tool; used on line 2$/m);
     expect(out).toContain('`render` is imported from outside the workspace too, in 1 place, out of thirdp:');
     expect(out).toMatch(/^packages\/tool\/src\/paint\.ts:1 — @acme\/tool, from thirdp$/m);
     expect(out.indexOf('packages/tool/src/view.ts:1')).toBeLessThan(out.indexOf('packages/tool/src/paint.ts:1'));
@@ -171,7 +171,7 @@ describe('variance ask uses --package over a name declared outside the workspace
 
     const workspace = await run(['ask', 'uses', '--name', 'render', '--package', '@acme/pkg']);
     expect(workspace.code).toBe(EXIT_CLEAN);
-    expect(workspace.out).toMatch(/^packages\/tool\/src\/view\.ts:1 — @acme\/tool$/m);
+    expect(workspace.out).toMatch(/^packages\/tool\/src\/view\.ts:1 — @acme\/tool; used on line 2$/m);
     expect(workspace.out).not.toContain('from thirdp');
   }, 120_000);
 

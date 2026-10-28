@@ -42,8 +42,8 @@ export function editsAllowed(term: string, fuzzy: number): number {
  * Names reached loosely, as name ids.
  *
  * `already` names are never reached: the substring answered them. `within`,
- * file ids when given, admits a name through a row whose file is in it, and a doc
- * through the published or exported row that carries it.
+ * file ids when given, admits a name and a doc only through a row
+ * {@link rowWithin} the area.
  *
  * `through`, when given, receives the exported rows whose doc reached a name its
  * own words never did: the rows to show it through.
@@ -74,11 +74,11 @@ export function looseNames(
       for (const row of index.termPublished(id)) {
         const name = index.publishedName(row);
         if (already.has(name) || reached.has(name)) continue;
-        if (within === undefined || within.has(index.publishedFile(row))) reached.add(name);
+        if (within === undefined || rowWithin(index, 'published', row, within)) reached.add(name);
       }
       for (const row of index.termExported(id)) {
         const name = index.exportedName(row);
-        if (already.has(name) || (within !== undefined && !within.has(index.exportedFile(row)))) continue;
+        if (already.has(name) || (within !== undefined && !rowWithin(index, 'exported', row, within))) continue;
         reached.add(name);
         through?.set(name, (through.get(name) ?? new Set()).add(row));
       }
@@ -91,9 +91,21 @@ export function looseNames(
 }
 
 /**
+ * Whether one row is the area's, `within` file ids: a published row when a file
+ * of the area imports it, an exported row when the file exporting it is in the
+ * area. A published name with no import site in an area is a name the area does
+ * not use, however well it matches the question, and an exported row has no
+ * import site to count. Every section asks this one question, so a name is
+ * admitted, weighed and shown through the same rows.
+ */
+export function rowWithin(index: SearchIndex, kind: 'published' | 'exported', row: number, within: ReadonlySet<number>): boolean {
+  return kind === 'published' ? index.siteFiles(row).some((file) => within.has(file)) : within.has(index.exportedFile(row));
+}
+
+/**
  * Whether a name may be reached through its own words: never when `already`
- * holds it, and inside `within` only through a published or exported row whose
- * file is in it. Remembered per name, because every matching term asks again.
+ * holds it, and inside `within` only through a row {@link rowWithin} it.
+ * Remembered per name, because every matching term asks again.
  */
 export function admittedBy(
   index: SearchIndex,
@@ -107,8 +119,8 @@ export function admittedBy(
     let admitted = known.get(name);
     if (admitted === undefined) {
       admitted =
-        index.publishedOf(name).some((row) => within.has(index.publishedFile(row))) ||
-        index.exportedOf(name).some((row) => within.has(index.exportedFile(row)));
+        index.publishedOf(name).some((row) => rowWithin(index, 'published', row, within)) ||
+        index.exportedOf(name).some((row) => rowWithin(index, 'exported', row, within));
       known.set(name, admitted);
     }
     return admitted;

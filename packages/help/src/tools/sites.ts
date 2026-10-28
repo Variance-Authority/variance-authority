@@ -11,6 +11,7 @@ import type { Spelling } from '@variance-authority/mcp/tools';
 import { notShown } from '@variance-authority/mcp/tools';
 import type { Use } from '@variance-authority/package/help';
 import { sharedSegments } from './shared-segments.js';
+import { apart } from './uses-count.js';
 import type { Site } from './uses-of.js';
 
 /** Sites of one kind shown when `limit` is not said: how many are worth naming before the list stops being read. */
@@ -55,9 +56,20 @@ export function listed(sites: readonly Site[], heading: string, name: string, sh
     '',
     heading,
     '',
-    ...cut.map((use) => `${use.at}:${use.line} — ${use.by}${use.how ?? ''}${renamed(use)}${use.type ? ' (type only)' : ''}${held(use)}`),
+    ...cut.map((use) => `${use.at}:${use.line} — ${use.by}${use.how ?? ''}${renamed(use)}${use.type ? ' (type only)' : ''}${held(use)}${usedOn(use.lines, shown)}`),
     ...(rest > 0 ? [`… ${notShown(rest, shown.spell)}`] : []),
   ];
+}
+
+/**
+ * The lines of an importing file that use what its import binds, the first
+ * `limit` of them and the rest counted; nothing when none were read.
+ */
+function usedOn(lines: readonly number[] | undefined, shown: Shown): string {
+  if (lines === undefined || lines.length === 0) return '';
+  const cut = lines.slice(0, shown.limit);
+  const rest = lines.length - cut.length;
+  return `; used on ${lines.length === 1 ? 'line' : 'lines'} ${cut.join(', ')}${rest > 0 ? ` and ${rest} more` : ''}`;
 }
 
 /**
@@ -73,12 +85,23 @@ function held(use: Use): string {
   return ` (${loaded}${off}${whole})`;
 }
 
-/** The sites of a name, nearest first when `from` is said, stories and tests apart. */
-export function kinds(sites: readonly Site[], from: string | undefined, name: string, shown: Shown): readonly string[] {
+/**
+ * The sites of a name, nearest first when `from` is said, stories and tests
+ * apart, and each kind's sites from other packages apart from those inside
+ * `home`, the package that declares the name, when one is known.
+ */
+export function kinds(sites: readonly Site[], from: string | undefined, name: string, shown: Shown, home: string | undefined): readonly string[] {
   const sorted = order(sites, from);
-  return [
-    ...listed(sorted.filter((use) => use.kind === 'story'), 'Stories:', name, shown),
-    ...listed(sorted.filter((use) => use.kind === 'test'), 'Tests:', name, shown),
-    ...listed(sorted.filter((use) => use.kind === 'source'), 'Source:', name, shown),
-  ];
+  return (
+    [
+      ['story', 'Stories'],
+      ['test', 'Tests'],
+      ['source', 'Source'],
+    ] as const
+  ).flatMap(([kind, heading]) => {
+    const of = sorted.filter((use) => use.kind === kind);
+    if (home === undefined) return listed(of, `${heading}:`, name, shown);
+    const { outside, inside } = apart(of, home);
+    return [...listed(outside, `${heading}, from other packages:`, name, shown), ...listed(inside, `${heading}, inside ${home}:`, name, shown)];
+  });
 }

@@ -163,14 +163,14 @@ export function outsideLines(name: string, outside: Outside, alone: boolean, fro
   if (sites.length === 0) return alone || notRead.length === 0 ? [] : ['', ...notRead];
   const out = [...packages, ...modules].join(', ');
   if (!alone) {
-    return ['', `\`${name}\` is imported from outside the workspace too, in ${places(sites.length)}, out of ${out}:`, ...kinds(sites, from, name, shown), ...(notRead.length === 0 ? [] : ['', ...notRead])];
+    return ['', `\`${name}\` is imported from outside the workspace too, in ${places(sites.length)}, out of ${out}:`, ...kinds(sites, from, name, shown, undefined), ...(notRead.length === 0 ? [] : ['', ...notRead])];
   }
   const nearest = nearestLine(from, shown.spell);
   const read = unread.declarations.length === 0 ? '' : ' that the source index read';
   return [
     `\`${name}\` is declared in no file of this workspace${read}; it is imported from outside it in ${places(sites.length)}, out of ${out}.`,
     nearest,
-    ...kinds(sites, from, name, shown),
+    ...kinds(sites, from, name, shown, undefined),
     '',
     ...(packages.length === 0 ? [] : [`\`${shown.spell.tool(symbol)}\` has its declaration in each package.`]),
     ...(modules.length === 0 ? [] : ["A built-in module's declaration is the runtime's, which the source index does not read."]),

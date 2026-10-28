@@ -58,7 +58,7 @@ describe('variance ask uses over what a name names', () => {
       '  member of `Tree` at packages/tool/src/tree.ts:2',
     ]);
     // The export is answered by its imports, the member after it by its declarations.
-    expect(out).toMatch(/^packages\/tool\/src\/read\.ts:1 — @acme\/tool$/m);
+    expect(out).toMatch(/^packages\/tool\/src\/read\.ts:1 — @acme\/tool; used on line 3$/m);
     expect(out.indexOf('packages/tool/src/read.ts:1')).toBeLessThan(out.indexOf('is a member too'));
   }, 120_000);
 

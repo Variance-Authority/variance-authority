@@ -144,6 +144,11 @@ async function consume(
   return result;
 }
 
+/**
+ * Record every call a test makes on a Playwright Locator in `log`: each action,
+ * read and `expect` assertion with the targets before and after it, and each
+ * locator it derives as planned, itself instrumented the same way.
+ */
 function instrumentLocator(
   locator: Locator,
   log: EyesLog,

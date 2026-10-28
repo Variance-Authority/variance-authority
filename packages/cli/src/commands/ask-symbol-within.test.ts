@@ -42,7 +42,7 @@ describe('variance ask symbol over the imports of a published name inside its ow
     );
 
     const uses = await run(['ask', 'uses', '--name', 'greet']);
-    expect(uses.out).toContain('`greet` [function] is imported in 6 places.');
+    expect(uses.out).toContain('`greet` [function] is imported in 6 places: 1 from another package and 5 inside @acme/lib.');
   });
 
   it('counts the imports inside its own package of a name no other package imports', async () => {
@@ -52,7 +52,7 @@ describe('variance ask symbol over the imports of a published name inside its ow
     const { code, out } = await run(['ask', 'symbol', '--name', 'greet']);
     expect(code).toBe(EXIT_CLEAN);
     expect(out).toContain('no other package imports it by its published path');
-    expect(out).toContain('`variance ask uses` names the 5 places that import this: 5 inside @acme/lib, nearest to a file you name first.');
+    expect(out).toContain('`variance ask uses` names the 5 places that import this, all inside @acme/lib, nearest to a file you name first.');
   });
 
   it('counts the imports that may read the name apart, as `uses` does, and no import among them', async () => {
@@ -63,7 +63,7 @@ describe('variance ask symbol over the imports of a published name inside its ow
     expect((await run(['index'])).code).toBe(EXIT_CLEAN);
 
     const uses = await run(['ask', 'uses', '--name', 'greet']);
-    expect(uses.out).toContain('`greet` [function] is imported in 6 places. 1 more passes the module on whole');
+    expect(uses.out).toContain('`greet` [function] is imported in 6 places: 1 from another package and 5 inside @acme/lib. 1 more passes the module on whole');
 
     const symbol = await run(['ask', 'symbol', '--name', 'greet']);
     expect(symbol.out).toContain(
@@ -80,7 +80,7 @@ describe('variance ask symbol over the imports of a published name inside its ow
     expect((await run(['index'])).code).toBe(EXIT_CLEAN);
 
     const uses = await run(['ask', 'uses', '--name', 'greet']);
-    expect(uses.out).toContain('`greet` [function] is imported in 6 places. 1 more passes the module on whole');
+    expect(uses.out).toContain('`greet` [function] is imported in 6 places: 1 from another package and 5 inside @acme/lib. 1 more passes the module on whole');
 
     const symbol = await run(['ask', 'symbol', '--name', 'greet']);
     expect(symbol.out).toContain('used by 1 package: @acme/app — 1 import by published path; it also may be read in 1 place: 1 passing the module on whole');
@@ -102,10 +102,10 @@ describe('variance ask symbol over the imports of a published name inside its ow
     });
     expect((await run(['index'])).code).toBe(EXIT_CLEAN);
 
-    // The total is the count `uses` gives, however it reads the adapter's own `export … from`.
+    // The total and its split are the count `uses` gives, however it reads the adapter's own `export … from`.
     const uses = await run(['ask', 'uses', '--name', 'greet']);
-    const listed = /is imported in (\d+) places\./u.exec(uses.out)?.[1];
-    expect(listed).toBeDefined();
+    const [, listed, split] = /is imported in (\d+) places: (.*?) inside @acme\/lib\./u.exec(uses.out) ?? [];
+    expect(split).toBe(`${Number(listed) - 5} from other packages and 5`);
     const symbol = await run(['ask', 'symbol', '--name', 'greet']);
     expect(symbol.out).toContain('used by 2 packages: @acme/shop, @acme/web');
     expect(symbol.out).toContain(
@@ -121,7 +121,7 @@ describe('variance ask symbol over the imports of a published name inside its ow
     const { code, out } = await run(['ask', 'symbol', '--name', 'greet']);
     expect(code).toBe(EXIT_CLEAN);
     expect(out).toMatch(
-      /^`variance ask uses` names the 1 place that imports this: 1 from another package, nearest to a file you name first\. The imports inside @acme\/lib are read from the source index, and the source index at .* did not read: .*; run `variance index`\.$/m,
+      /^`variance ask uses` names the 1 place that imports this, from another package, nearest to a file you name first\. The imports inside @acme\/lib are read from the source index, and the source index at .* did not read: .*; run `variance index`\.$/m,
     );
   });
 });
