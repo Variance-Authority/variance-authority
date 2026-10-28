@@ -12,7 +12,7 @@ A word's rarity is counted once per name, declaration and file found, a name wri
 
 A name published by more than one package or exported from more than one file is weighed and shown through one row, never several rows' docs added up: the row its words weigh most through, then the one whose doc writes more of the question's adjacent word pairs, then the first one the published or exported section would show.
 
-A name stays in the described section only when one of its rows writes at least half the question's words; a name whose rows write that many only together is listed in the loose section, when every word finds it there.
+A name stays in the described section only when the row it is weighed through writes at least half the question's words; a name whose rows write that many only together is listed in the loose section, when every word finds it there.
 
 A name published anywhere is shown in the published section through a published row, whatever its exported rows write, and the described section weighs a name's rows before it asks whether they are published.
 

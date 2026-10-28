@@ -12,23 +12,14 @@ import { answerSearch, searchIndexOf } from './search.js';
 /**
  * A name with more than one row — published by more than one package or
  * exported from more than one file, or published and also exported — is
- * weighed, ordered and shown through one of them, never through several rows'
- * docs added up: the row its name's words and that row's doc weigh most, each
- * word by its rarity and a doc's by its length, then the one whose doc writes
- * the most of the question's adjacent word pairs, then the order its rows are
- * shown in, so when no doc adds a word, the first row in that order, the one
- * the published or exported section shows first: a published row before an
- * exported one, a published row in an area by the files there importing it,
- * then by its import sites there, then by the packages importing it, then by
- * its import sites; an exported row source first, then tests, then stories;
- * then the doc's text, then what a published row declares or the line an
- * exported row is declared on, then the row's path. A word's rarity is counted
- * per name, declaration and file reached, a name holding a word when any of
- * its rows does; the mean doc length is taken over every row reached, so no
- * name's weight depends on which row another is shown through. A name stays in
- * the described section by the words one row holds, never its rows' together.
- * In an area it is counted, weighed and ordered only through the rows the area
- * holds.
+ * weighed, ordered and shown through one of them, never several rows' docs
+ * added up: the row its words weigh most through, then the one whose doc writes
+ * the most of the question's adjacent word pairs, then the first by
+ * {@link shownRowOrder}. A word's rarity is counted per name, declaration and
+ * file reached, and the mean doc length over every row reached, so no name's
+ * weight depends on which row another is shown through. A name stays in the
+ * described section by the words of the row it is weighed through. In an area
+ * only the area's rows count.
  */
 
 const before = process.env['VARIANCE_AUTHORITY_CACHE'];

@@ -577,8 +577,8 @@ whatever either says. A word most docs say in passing tells you little about whi
 you meant, so `stopwords of a package` puts `describedNames`, whose doc says
 `stopword`, before `packageOf`, whose name says `package`. Every word one of them holds is held by a row shown, so the
 one name holding a rare word is shown however many holding a common one sort
-before it. A name no one row of which holds half the words, which the loose
-reading reaches by every word, is told there instead, so on three words or
+before it. A name weighed through a row holding fewer than half the words,
+which the loose reading reaches by every word, is told there instead, so on three words or
 more, names holding one common word never sort it out of sight.
 The words every package says about itself — `package`, `module`, `use`,
 `tool`, `get` and the like — are stopwords for an installed package and words
