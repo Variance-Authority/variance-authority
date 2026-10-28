@@ -174,6 +174,53 @@ share, its first selection reads the record your mainline
 [published](sharing.md#a-suite-your-checkout-has-not-recorded), and your runs
 are laid over it.
 
+## The loop an agent runs after each edit
+
+A coding agent edits many times before a change is whole, and it needs a
+verdict after every edit that costs less than the edit did. The compiler, then
+the tests within one import of what changed, gives it one in about a second.
+It is one line, and nothing in it is a script of ours:
+
+```bash
+tsc --build && VARIANCE_AUTHORITY_SINCE= VARIANCE_AUTHORITY_AT_DISTANCE=0-1 npx vitest run
+```
+
+Give your agent that line as the command it runs after each edit, and tell it
+to read the verdict before it makes the next one. Each edit ends one of three
+ways:
+
+- **A type error.** The compiler prints it and exits non-zero before any test
+  starts.
+- **No test runs.** The run prints `selected none of 1002` and exits 0. No
+  recorded test ran the code you changed, the tests that did already ran the
+  text you have now, or they sit further than one import away. The lines under
+  it say which.
+- **Some tests run.** The run prints `selected 1 of 1002`, runs that file, and
+  exits with its result.
+
+When a run keeps a test you did not expect, ask why.
+[`variance select`](../packages/cli/README.md#select-what-your-own-runner-may-skip) makes
+the same reading with nothing run, given your suite's name and the same range:
+
+```bash
+npx variance select --suite unit --at-distance 0-1
+```
+
+```text
+the change entered 1 test file: 1 at 1 hop.
+read packages/core/src/attribute/call-site.ts: bodies — the changed regions are charged, not the whole module
+```
+
+The loop says only that the edit broke nothing within one import. The tests
+further out still owe the edit, as each run leaves them, so before you hand the
+change over, run the same line with `VARIANCE_AUTHORITY_AT_DISTANCE=2-`.
+
+This repository runs exactly that line as `yarn test:loop`, over its 1002
+unit test files. With a one-minute load average between 10 and 13, the median
+of five runs: a type error stops in 0.09 s, an edit no test needs answers in
+0.73 s, and a body edit that keeps one test answers in 1.42 s. The compiler is
+TypeScript 7.
+
 ## When it runs everything
 
 Selection only ever removes files it can prove your edit did not reach, so
