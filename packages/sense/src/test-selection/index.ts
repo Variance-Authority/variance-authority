@@ -19,7 +19,6 @@ export {
   coveringChange,
   coveringTests,
   coveringTestsInFile,
-  innermostAt,
   ranWhileLoading,
   stoppedBefore,
   type CoveringChange,
@@ -37,7 +36,7 @@ export {
 } from './reverse.js';
 export { anyStopped } from './stopped.js';
 export { unenteredSentence, whyUnentered, type Unentered } from './unentered.js';
-export { functionsUnder, lineGrain, marksLoadTime } from './source-target.js';
+export { functionsUnder, innermostAt, lineGrain, marksLoadTime } from './source-target.js';
 export { NAME_BOUNDARY, NameGrammarError, nameIndex, parseNameGrammar, structuralParent } from './name-grammar.js';
 export type { AxisStep, GrammarAxis, NameGrammar, NameIndex, NamedAxis, StructuralLink, StructuralName } from './name-grammar.js';
 export { caseHeard, heardSplit, heldText, heldValues, readSplit, readsOf, rowOf, saidAcross, saidRow, valued, type CaseHeard, type CasePrecondition, type Misuse, type Said } from './case-said.js';
