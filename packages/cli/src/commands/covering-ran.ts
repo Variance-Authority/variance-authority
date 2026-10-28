@@ -25,7 +25,7 @@ import {
   type Placement,
   type TestPlace,
 } from '@variance-authority/sense/test-selection';
-import type { RunsRead } from './base-diff.js';
+import type { RunsRead } from './record-runs.js';
 import { runsOfLines } from './covering-at.js';
 import { evidenceOf, regionVerdict, type Evidence, type Region } from './covering-ran-evidence.js';
 import { listedIn } from './covering-where.js';

@@ -16,8 +16,9 @@ import { OperatorError } from '../exit.js';
 import type { ParsedCovering } from '../covering-args.js';
 import { keepCases, type CoveringScope } from './covering-scope.js';
 import { readExecutionIndex } from './execution-input.js';
-import { carriedOver, diffFromBase, movedOnBase, runsOnce, unnamedCommit, type RunsRead } from './base-diff.js';
+import { carriedOver, diffFromBase, movedOnBase, unnamedCommit } from './base-diff.js';
 import { cutElsewhere } from './before-texts.js';
+import { runsOnce, type RunsRead } from './record-runs.js';
 import { relationsFor } from './source-graph.js';
 import { functionOf, regionKind } from './review-scope.js';
 

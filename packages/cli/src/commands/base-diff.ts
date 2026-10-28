@@ -13,8 +13,9 @@ import { execFile } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { promisify } from 'node:util';
-import { hunksByFile, readCommitRuns, standsAt, type CommitRuns, type Hunk, type Stand } from '@variance-authority/sense/test-selection';
+import { hunksByFile, standsAt, type Hunk, type Stand } from '@variance-authority/sense/test-selection';
 import { OperatorError } from '../exit.js';
+import type { RecordRuns } from './record-runs.js';
 import { diffSince, gitIn, topLevel } from './since.js';
 
 const OBJECT_NAME = /^[0-9a-f]{40}(?:[0-9a-f]{24})?$/u;
@@ -93,43 +94,6 @@ export async function movedOnBase(
       { kind: 'undiffed' },
     );
   }
-}
-
-/**
- * The runs record beside the record at `record`, read once for a question,
- * with the checkout it is placed in. A runs record that is there and cannot be
- * read is held as `unread`, not thrown: a comparison refuses it
- * ({@link carriedOver}), and a reader that never refuses names it.
- */
-export interface RecordRuns {
-  readonly record: string;
-  /** The checkout's top level, absent when `root` is in none. */
-  readonly repository?: string;
-  /** Absent when no run has listed itself beside the record. */
-  readonly runs?: CommitRuns;
-  /** Why the runs record that is there does not read. */
-  readonly unread?: Error;
-}
-
-/** {@link RecordRuns} for the record at `record`, never thrown. */
-export async function runsOf(record: string, root: string): Promise<RecordRuns> {
-  const repository = await topLevel(root);
-  const at = { record, ...(repository === undefined ? {} : { repository }) };
-  try {
-    const runs = await readCommitRuns(record);
-    return { ...at, ...(runs === undefined ? {} : { runs }) };
-  } catch (error) {
-    return { ...at, unread: error instanceof Error ? error : new Error(String(error)) };
-  }
-}
-
-/** The one read of a record's runs a question makes, made when first asked for. */
-export type RunsRead = () => Promise<RecordRuns>;
-
-/** A {@link RunsRead} of the record at `record` that reads it once, however often it is asked. */
-export function runsOnce(record: string, root: string): RunsRead {
-  let read: Promise<RecordRuns> | undefined;
-  return () => (read ??= runsOf(record, root));
 }
 
 /**

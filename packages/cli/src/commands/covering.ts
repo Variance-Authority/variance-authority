@@ -53,7 +53,7 @@ import { scopeCases, type CoveringScope } from './covering-scope.js';
 import { listedIn, whereCases, whereOver, type CoveringWhere } from './covering-where.js';
 import { heldText, placementFor, recordOf, type CoveringRange } from './covering-frame.js';
 import { ranOf, type CoveringRan } from './covering-ran.js';
-import { runsOnce } from './base-diff.js';
+import { runsOnce } from './record-runs.js';
 import { runsOfLines, type UnrunPart } from './covering-at.js';
 import { ask, readIndex, type IndexReader } from './covering-ask.js';
 import { graphOnce, type Graph } from './gap-selection.js';

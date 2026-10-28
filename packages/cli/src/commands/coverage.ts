@@ -43,11 +43,12 @@ import {
 } from '@variance-authority/sense/test-selection';
 import type { ParsedCoverage } from '../coverage-args.js';
 import { OperatorError } from '../exit.js';
-import { carriedOver, diffFromBase, runsOf } from './base-diff.js';
+import { carriedOver, diffFromBase } from './base-diff.js';
 import { baseCommit } from './covering-motion.js';
 import { coverageSource, harnessReach, readSource, within, type CoverageSource, type MissedEntry, type Scoped } from './coverage-source.js';
 import { readExecutionIndex, recordedExecutionFile } from './execution-input.js';
 import { mainlineBase, mainlineMissed } from './mainline-base.js';
+import { runsOf } from './record-runs.js';
 import { relationsFor } from './source-graph.js';
 import { asOperator, nothingRecorded } from './suite-record.js';
 
