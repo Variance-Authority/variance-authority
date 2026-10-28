@@ -245,16 +245,11 @@ export interface OutsideImports {
 
 /**
  * Every import of `name` from outside the workspace, by any file the index at
- * `index` holds. Out of a package no manifest of the workspace declares: a
- * request the scan did not resolve to a file, whose specifier names a package
- * the file's record says it imports, the rule the external-dependency
- * orientation keeps. Out of a module the runtime owns: a request whose
- * specifier is one of `isBuiltin`'s names, with or without `node:`, unless the
- * scan resolved it to a file. An `export … from` that passes the name on is
- * one; an `export *` names no name and is none. Each use's `key` is the
- * specifier as written. Ordered by the importing file in code units, then by
- * line; `undefined` when no index was published. Throws when the index does
- * not read.
+ * `index` holds: a request the scan did not resolve to a file, out of a package
+ * no manifest of the workspace declares or out of an `isBuiltin` module, the
+ * rule the external-dependency orientation keeps. `export … from` counts,
+ * `export *` does not; `key` is the specifier as written. `undefined` when no
+ * index was published; throws when it does not read.
  */
 export function outsideImportersOf(root: string, name: string, index: string = sourceIndexPath(root)): OutsideImports | undefined {
   return entry('outsideImportersOf')(root, index, name, BUILTINS) ?? undefined;

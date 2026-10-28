@@ -99,14 +99,6 @@ import { bindingLines, carriers, outsideLines } from './uses-names.js';
  * typed as neither is a use of neither. What a type checker would infer is the
  * checker's of the declaration's language: the answer says so and names the
  * declaration to ask it about.
- *
- * ## A name is every declaration that carries it
- *
- * The asker spells a declaration by its name, and one name can be an export,
- * a member elsewhere and a name an installed package declares. When it is more
- * than one, the answer opens by naming each, and each is answered after. A
- * name an installed package declares is answered by its imports, and a Rust
- * item by its own; `uses-names.ts` says how.
  */
 
 /**

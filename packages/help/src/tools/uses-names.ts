@@ -1,23 +1,12 @@
 /**
  * What a name names, past the one declaration `docs_uses` answers by its imports.
  *
- * A name is how the asker spells a declaration, and one name can be several:
- * an export, a member of an interface elsewhere, a function another file keeps
- * to itself. Each is answered on its own, so the answer opens by naming every
- * one, and none is picked in silence.
- *
- * A name an installed package declares has its declaration outside the
- * checkout and every import of it inside: a request the scan did not resolve
- * to a file, out of a package the importing file's record names and no
- * manifest of the workspace declares. Those imports are the answer, and
- * `docs_symbol` holds the declaration, read from the package. A name a module
- * of the runtime's declares, `node:path` or a bare `path`, is answered the
- * same way; the index records no such module, so one is told by its
- * specifier, and its declaration is the runtime's.
- *
- * A Rust item JavaScript reaches through a native binding is imported by no
- * JavaScript file: the binding hands it over under the name its JavaScript
- * side declares, and which name that is is not read. The answer says so
+ * One name can be several declarations: an export, a member elsewhere, a
+ * function another file keeps. The answer opens by naming every one, so none
+ * is picked in silence. A name an installed package or a runtime module
+ * declares is answered by the workspace's imports of it; the declaration is
+ * `docs_symbol`'s. A Rust item JavaScript reaches through a native binding is
+ * imported by no JavaScript file under its Rust name, and the answer says so
  * rather than reading as *nothing uses it*.
  */
 
