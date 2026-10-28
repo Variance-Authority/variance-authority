@@ -153,9 +153,24 @@ describe('a covering answer says where the record\'s line numbers stand in the a
   it('dates a record handed in by path by the commit it names and the runs record beside it', async () => {
     const { at, commit } = await checkout({ runs: ranHere() });
     const { text, json } = await ask(at, '--file', 'src/pay.ts', '--execution', testCoverageFile(at, { suite: 'unit' }));
+    const line = await ask(at, '--file', 'src/pay.ts', '--line', '3', '--execution', testCoverageFile(at, { suite: 'unit' }));
 
-    expect(json['ran']).toMatchObject({ stands: [{ commit, tests: ['src/pay.test.ts'], text: 'held' }] });
+    expect(json).toMatchObject({ at: commit, ran: { stands: [{ commit, tests: ['src/pay.test.ts'], text: 'held' }] } });
+    expect(line.json).toMatchObject({ at: commit, ran: { stands: [{ commit, tests: ['src/pay.test.ts'], text: 'held' }] } });
     expect(text).toContain('src/pay.ts is the text the test file named here ran over, in a run that landed 6 minutes ago.\n');
+  });
+
+  it('frames a record handed in by path that names a commit as it frames the record it reads itself', async () => {
+    const { at, commit } = await checkout({ runs: ranHere() });
+    const execution = testCoverageFile(at, { suite: 'unit' });
+    const held = await ask(at, '--file', 'src/pay.ts', '--line', '3', '--execution', execution);
+    await writeFile(join(at, 'src/pay.ts'), `// fees are charged by the caller\n${PAY}`);
+    const edited = await ask(at, '--file', 'src/pay.ts', '--execution', execution);
+
+    expect(held.json).toMatchObject({ at: commit, frame: 'recorded' });
+    expect(held.text).not.toContain('numbered in');
+    expect(edited.json).toMatchObject({ at: commit, frame: 'mapped' });
+    expect(edited.text).toContain('The recorded lines of src/pay.ts are placed in its text as it is now.\n');
   });
 
   it('says the record\'s lines are its own when the file is not on disk', async () => {

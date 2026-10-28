@@ -10,9 +10,10 @@
  *
  * The held text is the file on disk unless `--text` names another: `-` reads
  * it from standard input, which is how an editor asks about a buffer it has not
- * saved. The frame is checked only when the index was read from beside the
- * snapshot, because the digest it is checked against lives in the snapshot, and
- * an index handed in by path names no snapshot of its own.
+ * saved. The frame is checked only against a snapshot, because the digest it is
+ * checked against lives there: the one the index was read from beside, or a
+ * record handed in by path that names the commit it was made at. A journey file
+ * handed in by path names no snapshot of its own.
  */
 
 import { existsSync } from 'node:fs';
@@ -43,36 +44,34 @@ export interface CoveringRange extends SourceTestRange {
 }
 
 /**
- * Frame the file a question names in `text`, the one {@link heldText} read;
- * `unheld` when no text is held to frame, the file being off disk and no
- * `--text` given; or nothing when there is no digest to frame it against.
+ * Frame the file a question names in `text`, the one {@link heldText} read,
+ * against `snapshot`, the record {@link recordOf} found; `unheld` when no text
+ * is held to frame, the file being off disk and no `--text` given; or nothing
+ * when there is no snapshot to frame it against.
  */
-export async function placementFor(request: CoveringAt, from: string, text: string | undefined): Promise<Placement | { readonly unheld: true } | undefined> {
+export async function placementFor(
+  request: CoveringAt,
+  snapshot: string | undefined,
+  text: string | undefined,
+): Promise<Placement | { readonly unheld: true } | undefined> {
   if (text === undefined) return { unheld: true };
-  const snapshot = await snapshotFor(request);
-  if (snapshot === undefined || !from.startsWith(snapshot) || !existsSync(snapshot)) return undefined;
+  if (snapshot === undefined || !existsSync(snapshot)) return undefined;
   return placeInText(snapshot, request.root, request.file, text);
 }
 
 /**
- * The snapshot the index at `from` was read from beside, and the commit it was
- * made at when it says. Nothing for a journey file handed in by path, which is
- * no record of a commit.
+ * The snapshot the index at `from` is read from, and the commit it was made at
+ * when it says: the snapshot the index lies beside, or a record handed in by
+ * path that names the commit it was made at. Nothing for a journey file handed
+ * in by path, which is no record of a commit.
  */
 export async function recordOf(
   request: CoveringSource,
   from: string,
 ): Promise<{ readonly snapshot: string; readonly at: string | undefined } | undefined> {
   const snapshot = await snapshotFor(request);
-  return snapshot !== undefined && from.startsWith(snapshot) ? { snapshot, at: await recordedCommit(snapshot) } : undefined;
-}
-
-/**
- * A record handed in by path that no declared snapshot is, as where its tests
- * last ran is read: the commit it names, with the runs record beside it.
- * Nothing when it names none, as a journey file names none.
- */
-export async function recordNamed(from: string): Promise<{ readonly snapshot: string; readonly at: string } | undefined> {
+  if (snapshot !== undefined && from.startsWith(snapshot)) return { snapshot, at: await recordedCommit(snapshot) };
+  if (request.execution === undefined) return undefined;
   const at = await recordedCommit(from);
   return at === undefined ? undefined : { snapshot: from, at };
 }

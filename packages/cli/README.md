@@ -841,9 +841,10 @@ The index comes from any run wrapped in `withTestSelection(config)` and is read
 from where that run writes it, so an agent with a line number
 needs no flag but `--file`. `--execution <path>` names an index recorded
 somewhere else, and `--root <path>` names the project root the run recorded
-against. An index named so is dated by the commit it names and the runs record
-beside it, and one that names no commit, as a journey file does, is said to name
-none. A missing index is refused rather than answered empty, because an empty
+against. A record named so that names its commit is read as the suite's own:
+its `at` is that commit, its lines are framed in your text against it, and it is
+dated by the runs record beside it. One that names no commit, as a journey file
+does, gives its lines as recorded and is said to name none. A missing index is refused rather than answered empty, because an empty
 list here reads as *no test covers this line* — the sentence that gets a test
 deleted.
 

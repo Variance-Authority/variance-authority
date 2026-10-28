@@ -58,7 +58,7 @@ import { motionFor, type CoveringMotion } from './covering-motion.js';
 import { scopeCases, type CoveringScope } from './covering-scope.js';
 import { listedIn, whereCases, whereOver, type CoveringWhere } from './covering-where.js';
 import { staleAnswer } from './covering-stale.js';
-import { heldText, placeRanges, placementFor, recordNamed, recordOf, type CoveringRange } from './covering-frame.js';
+import { heldText, placeRanges, placementFor, recordOf, type CoveringRange } from './covering-frame.js';
 import { changeSince, stated } from './covering-since.js';
 import { ranOf, type CoveringRan } from './covering-ran.js';
 import { runsOnce } from './base-diff.js';
@@ -265,7 +265,7 @@ export async function covering(request: ParsedCovering, graph: Graph = graphOnce
     text = request.since === undefined ? await heldText(request as CoveringAt) : undefined;
     const held = {
       text,
-      placing: () => (placed ??= placementFor(request as CoveringAt, from, text)),
+      placing: () => (placed ??= placementFor(request as CoveringAt, record?.snapshot, text)),
       ranOther: (other: ReadonlyMap<string, readonly string[]>) => {
         ranOther = other;
       },
@@ -309,14 +309,12 @@ export async function covering(request: ParsedCovering, graph: Graph = graphOnce
   const gap = whole === undefined ? undefined : await answerGap({ ...answer, ...(files === undefined ? {} : { files }) }, whole, source);
   const at = record?.at;
   const framed = placed === undefined ? undefined : await placed;
-  // A record handed in by path is dated by the commit it names and the runs record beside it.
-  const dated = record ?? (request.execution === undefined ? undefined : await recordNamed(answer.from));
   const ran = request.format === 'refs'
     ? undefined
     : await ranOf(answer, {
       root: request.root,
-      snapshot: dated?.snapshot,
-      at: dated?.at,
+      snapshot: record?.snapshot,
+      at,
       runs,
       ...(text === undefined ? {} : { held: text }),
       ...(framed === undefined || 'unheld' in framed ? {} : { placement: framed }),

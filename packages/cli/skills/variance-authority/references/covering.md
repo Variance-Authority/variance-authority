@@ -73,9 +73,12 @@ variance covering --file src/checkout/total.ts --line 48 --cases last
 ```
 
 The index is read from where a recorded run writes it, so `--file` is usually
-the whole command. `--execution <path>` names an index recorded elsewhere,
-dated by the commit it names and the runs record beside it, and `--root <path>`
-the project root it was recorded against. Producing the index is in
+the whole command. `--execution <path>` names an index recorded elsewhere, and
+`--root <path>` the project root it was recorded against. A record that names
+the commit it was made at is read as the suite's own is: its `at` is that
+commit, its lines are framed in your text against it, and its test files are
+dated by the runs record beside it. A journey file names no commit, so its
+lines are given as recorded and no time is said. Producing the index is in
 [producers](producers.md).
 
 When the root config declares `suites`, the question is asked of each suite's
