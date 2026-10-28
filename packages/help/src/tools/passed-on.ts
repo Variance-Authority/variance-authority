@@ -15,6 +15,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { Help, Named } from '@variance-authority/package/help';
 import { declarationExported, type ExportedDeclaration } from '@variance-authority/sense';
+import { codeUnitOrder } from '@variance-authority/core/segment';
 import { textRows } from './declared.js';
 
 /**
@@ -47,11 +48,28 @@ export function originOf(root: string | undefined, held: Pick<Named, 'at' | 'nam
  */
 export function declarationOf(help: Help, root: string | undefined, held: Named): { readonly at: string; readonly declared: string } {
   const origin = held.declaration !== undefined ? undefined : originOf(root, held);
-  if (origin === undefined) return { at: held.at, declared: held.name };
+  if (origin === undefined) return { at: held.at, declared: spellingsOf(help, root, held.at, held.name).named };
   const own = help.exported.find(
     (other) => other.at === origin.at && other.declaration !== undefined && boundOf(root, other)?.name === origin.name,
   );
-  return { at: origin.at, declared: own?.name ?? origin.name };
+  return { at: origin.at, declared: spellingsOf(help, root, origin.at, own?.name ?? origin.name).named };
+}
+
+/**
+ * The names `at` exports one binding under, and the one its declaration is
+ * keyed by: the binding's own name when the file exports it under that, else
+ * its first other name in code-unit order, and `default` only when it has no
+ * other. `export default greet` beside `export { greet }` is one declaration,
+ * `greet`, imported under either name.
+ */
+export function spellingsOf(help: Help, root: string | undefined, at: string, declared: string): { readonly named: string; readonly spellings: readonly string[] } {
+  const bound = boundOf(root, { at, name: declared });
+  if (bound === undefined || bound.at !== at) return { named: declared, spellings: [declared] };
+  const same = (other: ExportedDeclaration | undefined): boolean => other !== undefined && other.at === bound.at && other.name === bound.name && other.line === bound.line;
+  const others = help.exported.filter((other) => other.at === at && other.name !== declared && same(boundOf(root, other))).map((other) => other.name);
+  const spellings = [...new Set([declared, ...others])].sort(codeUnitOrder);
+  const named = spellings.includes(bound.name) ? bound.name : (spellings.find((one) => one !== 'default') ?? declared);
+  return { named, spellings };
 }
 
 /** `bound`, when it is in another file than `held`. */

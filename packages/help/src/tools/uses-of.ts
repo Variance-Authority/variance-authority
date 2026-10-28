@@ -21,7 +21,7 @@ import { type PathSite, how, ownerOf, sitesByPath } from './by-path.js';
 import { declarations } from './declared.js';
 import { FoundNothing, isPackage, nowhere, specifierOf } from './find.js';
 import { type Members, membersOf } from './members.js';
-import { declarationOf, originOf } from './passed-on.js';
+import { declarationOf, originOf, spellingsOf } from './passed-on.js';
 import { type IndexedUse, type Within, exportsNamed, importsOf, indexMissing } from './unpublished.js';
 import { declaredIn, membersIn, notDeclaredIn } from './uses-declarations.js';
 
@@ -58,8 +58,10 @@ type Published = readonly [Documented, Opening, Entry];
 export interface PublishedDeclaration {
   readonly at: string;
   readonly line: number;
-  /** The name its file declares it by, which a door may publish under another. */
+  /** The name its file exports it under, which a door may publish under another; its named one when the file exports it as `default` too. */
   readonly declared: string;
+  /** Every name its file exports it under, `declared` among them. */
+  readonly spellings: readonly string[];
   /** The entries that publish it, the one the workspace imports it by most first. */
   readonly doors: readonly Published[];
 }
@@ -73,16 +75,17 @@ export interface PublishedDeclaration {
  * by code unit, then to the declaring file, so the order never follows the
  * order directories were read in.
  */
-export function publishedDeclarations(help: Help, name: string, wanted: string | undefined): readonly PublishedDeclaration[] {
+export function publishedDeclarations(help: Help, root: string | undefined, name: string, wanted: string | undefined): readonly PublishedDeclaration[] {
   const doors = [...everyEntry(help)]
-    .filter(([held, opening, entry]) => (entry.name === name || entry.declared === name) && (wanted === undefined || isPackage(held, opening, wanted)))
-    .sort(byDoor);
-  const declarations = new Map<string, { at: string; line: number; declared: string; doors: Published[] }>();
-  for (const door of doors) {
+    .map((door) => [door, spellingsOf(help, root, door[2].at, door[2].declared)] as const)
+    .filter(([[held, opening, entry], { spellings }]) => (entry.name === name || spellings.includes(name)) && (wanted === undefined || isPackage(held, opening, wanted)))
+    .sort(([left], [right]) => byDoor(left, right));
+  const declarations = new Map<string, { at: string; line: number; declared: string; spellings: readonly string[]; doors: Published[] }>();
+  for (const [door, { named, spellings }] of doors) {
     const [, , entry] = door;
-    const key = `${entry.at}\0${entry.declared}`;
+    const key = `${entry.at}\0${named}`;
     const one = declarations.get(key);
-    if (one === undefined) declarations.set(key, { at: entry.at, line: entry.line, declared: entry.declared, doors: [door] });
+    if (one === undefined) declarations.set(key, { at: entry.at, line: entry.line, declared: named, spellings, doors: [door] });
     else one.doors.push(door);
   }
   return [...declarations.values()].sort((left, right) => byDoor(left.doors[0]!, right.doors[0]!) || codeUnitOrder(left.at, right.at) || codeUnitOrder(left.declared, right.declared));
@@ -122,7 +125,7 @@ export interface Namesake {
 }
 
 function declarationsOf(help: Help, root: string | undefined, name: string, wanted: string | undefined): Declarations {
-  const published = publishedDeclarations(help, name, wanted);
+  const published = publishedDeclarations(help, root, name, wanted);
   const read = declarations(root, name);
   const kept = 'refused' in read ? [] : read.names.filter((one) => wanted === undefined || one.by === wanted);
   return {
@@ -230,12 +233,45 @@ function sitesOf(found: readonly Published[], byPath: readonly Site[], within: r
 }
 
 /**
+ * Every import of one binding out of `files` under any name its file exports
+ * it by: `import greet from` and `import { greet } from` are imports of one
+ * declaration. A line two names reach is one use.
+ */
+function importsOfEvery(root: string | undefined, files: readonly string[], names: readonly string[]): Within {
+  const reads = names.map((one) => importsOf(root, files, one));
+  const unread = reads.find((read) => 'unread' in read);
+  if (unread !== undefined || reads.length === 1) return unread ?? reads[0]!;
+  const read = reads.filter((one) => 'uses' in one);
+  const once = <T extends { readonly at: string; readonly line: number }>(all: readonly T[]): readonly T[] => [...new Map(all.map((one) => [`${one.at}:${one.line}`, one] as const)).values()];
+  // One statement can import the binding under two of its names, `import greet, { greet as g2 }`: each name's lines are its uses.
+  const joined = new Map<string, IndexedUse>();
+  for (const use of read.flatMap((one) => one.uses)) {
+    const key = `${use.at}:${use.line}`;
+    const held = joined.get(key);
+    const lines = [...new Set([...(held?.lines ?? []), ...(use.lines ?? [])])].sort((a, b) => a - b);
+    joined.set(key, held === undefined ? use : { ...held, ...(held.lines === undefined && use.lines === undefined ? {} : { lines }) });
+  }
+  return {
+    uses: [...joined.values()],
+    through: [...new Set(read.flatMap((one) => one.through))],
+    namespaces: read.flatMap((one) => one.namespaces),
+    inFile: once(read.flatMap((one) => one.inFile)),
+  };
+}
+
+/** The names the file `exported` holds the export of `name` in exports that binding under, where its imports are read. */
+function spellingsAt(help: Help, root: string | undefined, exported: readonly Named[], name: string): readonly string[] {
+  const [first] = exported;
+  return first === undefined ? [name] : spellingsOf(help, root, first.at, name).spellings;
+}
+
+/**
  * The sites of one declaration: the imports by path that resolved to one of
  * its files, the imports the source index read out of them, and the lines of
  * the declaring file that use it there.
  */
-function sitesOfOne(root: string | undefined, name: string, wanted: string | undefined, found: readonly Published[], files: readonly string[], byPath: readonly Site[]) {
-  const read = files.length === 0 ? undefined : importsOf(root, files, name);
+function sitesOfOne(root: string | undefined, names: readonly string[], wanted: string | undefined, found: readonly Published[], files: readonly string[], byPath: readonly Site[]) {
+  const read = files.length === 0 ? undefined : importsOfEvery(root, files, names);
   const unread = read !== undefined && 'unread' in read ? read.unread : undefined;
   const within = read !== undefined && 'uses' in read ? read.uses.filter((use) => throughDoor(use, wanted)) : undefined;
   const inFile: readonly Use[] = read !== undefined && 'inFile' in read ? read.inFile : [];
@@ -315,12 +351,12 @@ export function usesOf(help: Help, input: Readonly<Record<string, unknown>>, roo
 
   const namesakes: readonly Namesake[] = [
     ...rest.map((other) => {
-      const one = sitesOfOne(root, other.declared, wanted, other.doors, [other.at], publishedPaths(other));
+      const one = sitesOfOne(root, other.spellings, wanted, other.doors, [other.at], publishedPaths(other));
       return { published: other.doors, declaration: other, exported: [], home: homeOf(help, other), sites: one.sites, inFile: one.inFile };
     }),
     ...others.map((group) => {
       const at = new Set(group.exported.map((held) => held.at));
-      const one = sitesOfOne(root, name, wanted, [], [...at], pathSites(at, false));
+      const one = sitesOfOne(root, spellingsAt(help, root, group.exported, name), wanted, [], [...at], pathSites(at, false));
       return { published: [], declaration: undefined, exported: group.exported, home: packageOf(group.exported[0]?.by), sites: one.sites, inFile: one.inFile };
     }),
   ];
@@ -336,7 +372,7 @@ export function usesOf(help: Help, input: Readonly<Record<string, unknown>>, roo
   }
   // A published declaration is read out of its file by the name it is declared by; the walk follows every door that renames it.
   const local = lead === undefined ? [...new Set(exported.map((held) => held.at))] : [lead.at];
-  const { sites, unread, within, inFile, namespaces } = sitesOfOne(root, lead?.declared ?? name, wanted, found, local, byPath);
+  const { sites, unread, within, inFile, namespaces } = sitesOfOne(root, lead?.spellings ?? spellingsAt(help, root, exported, name), wanted, found, local, byPath);
   if (exported.length > 0 && unread !== undefined && byPath.length === 0) throw new Error(indexMissing(name, exported, unread));
 
   // Inside is the declaring file's package, which a re-exporting door is not.

@@ -68,7 +68,7 @@ export const symbol: Tool<Help> = {
     // The door the workspace imports a declaration by leads it. Every adapter
     // that re-exports a core publishes the same declaration, and the first one
     // read is an alphabetical accident whose own count is usually nothing.
-    const found = publishedDeclarations(help, name, wanted);
+    const found = publishedDeclarations(help, invocation?.root, name, wanted);
 
     // Declared in a file and exported by none: still the workspace's
     // own name, and where it is written says who can reach it. Another file's
@@ -167,7 +167,7 @@ export const symbol: Tool<Help> = {
     const name = stringArg(input, 'name');
     const from = input['package'];
     const wanted = typeof from === 'string' && from !== '' ? from : undefined;
-    const published = publishedDeclarations(help, name, wanted);
+    const published = publishedDeclarations(help, invocation?.root, name, wanted);
     const at: (readonly [string, number])[] = published.map((one) => [one.at, one.line]);
     if (at.length === 0) {
       for (const site of sitesByPath(help, name, wanted)) {

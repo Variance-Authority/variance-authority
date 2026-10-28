@@ -18,7 +18,7 @@ import { queryDependencyLexicon } from '../dependency-lexicon.js';
 import { entriesNamed, isPackage, specifierOf } from './find.js';
 import { memberRows } from './container.js';
 import { block } from './format.js';
-import { exportedRows } from './passed-on.js';
+import { declarationOf, exportedRows } from './passed-on.js';
 import { thirdBlock } from './third-party.js';
 
 /** How many renamed sites are worth naming on one line. */
@@ -87,6 +87,9 @@ export function localNames(
   for (const group of groups.values()) {
     const [first] = group;
     if (first === undefined) continue;
+    // `import greet from` a file exporting `greet` as `default` too binds the declaration by its own name: no local name.
+    const held = first.to == null ? undefined : help.exported.find((one) => one.at === first.to && one.name === first.imported);
+    if (held !== undefined && declarationOf(help, root, held).declared === local) continue;
     const original = originalOf(help, root, first, wanted);
     if (original === undefined) continue;
     const imports = (alias: Alias): string =>

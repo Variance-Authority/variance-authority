@@ -129,5 +129,58 @@ describe('variance ask uses over a declaration published under another name', ()
     expect(out).toMatch(/has\(key: string\): boolean;/);
   });
 
-  it.todo('answers one binding its file exports under two names, `export default greet` beside `export { greet }`, as one declaration with both spellings — needs the package stage to key a declaration by its local binding and carry every name its file exports it under');
+  it('answers one binding its file exports under `default` and its own name as one declaration, by the name', async () => {
+    checkout({
+      'packages/lib/src/greet.ts': 'export function greet(name: string): string {\n  return name;\n}\nexport default greet;\n',
+      'packages/lib/src/inner.ts': "import greet from './greet.js';\nexport const inner = greet('lib');\n",
+    });
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+
+    const out = await uses('greet');
+    expect(out).not.toMatch(/another declaration/);
+    expect(out.split('\n')[0]).toMatch(/^`greet` \[function\] is imported in 2 places: 1 from another package and 1 inside @acme\/lib\.$/);
+    expect(out).toMatch(/^apps\/app\/src\/hello\.ts:1 — @acme\/app; used on line 2$/m);
+    expect(out).toMatch(/^packages\/lib\/src\/inner\.ts:1 — @acme\/lib; used on line 2$/m);
+  });
+
+  it('lists every line one import uses a binding by, under each of its names', async () => {
+    checkout({
+      'packages/lib/src/greet.ts': 'export function greet(name: string): string {\n  return name;\n}\nexport default greet;\n',
+      'packages/lib/src/both.ts': "import greet, { greet as g2 } from './greet.js';\nexport const one = greet('a');\nexport const two = g2('b');\n",
+    });
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+
+    const out = await uses('greet');
+    expect(out.match(/^packages\/lib\/src\/both\.ts:1 /gm)).toEqual(['packages/lib/src/both.ts:1 ']);
+    expect(out).toMatch(/^packages\/lib\/src\/both\.ts:1 — @acme\/lib; used on lines 2, 3$/m);
+  });
+
+  it('answers, in `ask symbol`, one binding a door publishes as `default` as one declaration, with no local name', async () => {
+    checkout({
+      'packages/lib/src/index.ts': "export { default as salute } from './greet.js';\n",
+      'packages/lib/src/greet.ts': 'export function greet(name: string): string {\n  return name;\n}\nexport default greet;\n',
+      'packages/lib/src/inner.ts': "import greet from './greet.js';\nexport const inner = greet('lib');\n",
+    });
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+
+    const { code, out } = await run(['ask', 'symbol', '--name', 'greet']);
+    expect(code).toBe(EXIT_CLEAN);
+    expect(out).toMatch(/^salute \[function\]$/m);
+    expect(out).not.toMatch(/^default \[function\]$/m);
+    expect(out).not.toMatch(/is a local name/);
+  });
+
+  it('keys a declaration a door publishes as `default` by the name its file exports it under too', async () => {
+    checkout({
+      'packages/lib/src/index.ts': "export { default as salute } from './greet.js';\n",
+      'packages/lib/src/greet.ts': 'export function greet(name: string): string {\n  return name;\n}\nexport default greet;\n',
+      'apps/app/src/hello.ts': "import { salute } from '@acme/lib';\nexport const hello = salute('app');\n",
+      'packages/lib/src/inner.ts': "import { greet } from './greet.js';\nexport const inner = greet('lib');\n",
+    });
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+
+    const out = await uses('greet');
+    expect(out).not.toMatch(/another declaration/);
+    expect(out.split('\n')[0]).toMatch(/^`greet` \[function\] is imported in 2 places: 1 from another package and 1 inside @acme\/lib, published by @acme\/lib as `salute`/);
+  });
 });
