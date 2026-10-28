@@ -11,7 +11,7 @@ import { UNCOUNTED, exportedAt } from './unpublished.js';
 import { bracketed, keptLine, namesakeLine, narrowing } from './uses-declarations.js';
 import { apart, counted, spokenSplit } from './uses-count.js';
 import { type Answer, type Namesake, type Site, packageOf, usesOf } from './uses-of.js';
-import { bindingLines, carriers, outsideLines } from './uses-names.js';
+import { bindingLines, carriers, outsideAfter, outsideAlone } from './uses-names.js';
 
 /**
  * `docs_uses` — how this repository actually writes a name.
@@ -165,7 +165,7 @@ export const uses: Tool<Help> = {
     return [
       ...head,
       ...(own === undefined ? [] : [own]),
-      ...outsideLines(name, outside, own === undefined, from, shown, unread),
+      ...(own === undefined ? outsideAlone(name, outside, from, shown, unread) : outsideAfter(name, outside, from, shown)),
       ...bindingLines(answer.files),
       ...narrowing(answer.files, answer.file, spell),
     ].join('\n');

@@ -235,7 +235,7 @@ async function scanIndexed(
   }
   options.records?.(tainted.records, where);
 
-  const joined = usage.read();
+  const joined = usage.read(records, owner);
   const recordUnknown = records.flatMap((record) => record.unknown === undefined ? [] : [record.unknown]);
   return {
     usage: recordUnknown.length === 0

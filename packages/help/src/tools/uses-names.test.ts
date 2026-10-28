@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { spellingOf } from '@variance-authority/mcp/tools';
-import { type Outside, importsUnread, outsideLines } from './uses-names.js';
+import type { Outside } from './unpublished.js';
+import { importsUnread, outsideAfter, outsideAlone } from './uses-names.js';
 
 /**
  * What the answer on a name declared outside the workspace says it could not
@@ -15,7 +16,6 @@ const outside = (notRead: readonly string[]): Outside => ({
   sites: [{ at: 'src/a.ts', line: 1, by: '@t/w, from thirdp', kind: 'source', type: false, name: 'parseSync' }],
   packages: ['thirdp'],
   modules: [],
-  passing: [],
   notRead,
 });
 
@@ -33,14 +33,14 @@ describe('importsUnread', () => {
   });
 });
 
-describe('outsideLines', () => {
+describe('outsideAlone and outsideAfter', () => {
   it('ends an answer of imports from outside alone with the members by the name that were not read', () => {
-    const lines = outsideLines('parseSync', outside([]), true, undefined, shown, { declarations: [], members: 'the index did not read' });
+    const lines = outsideAlone('parseSync', outside([]), undefined, shown, { declarations: [], members: 'the index did not read' });
     expect(lines.at(-1)).toBe('Members by this name were not read: the index did not read.');
   });
 
   it('leaves the members to the workspace answer when the imports from outside follow one', () => {
-    const lines = outsideLines('parseSync', outside([]), false, undefined, shown, { declarations: [], members: 'the index did not read' });
+    const lines = outsideAfter('parseSync', outside([]), undefined, shown);
     expect(lines.join('\n')).not.toContain('Members by this name');
   });
 });

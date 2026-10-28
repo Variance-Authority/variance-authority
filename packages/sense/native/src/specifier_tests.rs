@@ -2,7 +2,7 @@
 
 use std::collections::HashSet;
 
-use super::{extname, is_relative, kind_for, package_of, request_of};
+use super::{builtin_of, extname, is_relative, kind_for, package_of, request_of};
 
 fn set(values: &[&str]) -> HashSet<String> {
     values.iter().map(|value| (*value).to_owned()).collect()
@@ -87,5 +87,24 @@ fn extname_is_nodes() {
         ("", ""),
     ] {
         assert_eq!(extname(path), extension, "{path:?}");
+    }
+}
+
+#[test]
+fn a_builtin_is_named_with_its_scheme_after_the_trim_requestof_makes() {
+    let builtins = set(&["fs", "node:fs", "node:test"]);
+    for (written, module) in [
+        ("fs", Some("node:fs")),
+        ("node:fs", Some("node:fs")),
+        ("\u{feff} fs\u{3000}", Some("node:fs")),
+        ("node:test", Some("node:test")),
+        ("node:anything", Some("node:anything")),
+        ("test", None),
+        ("node:", None),
+        ("fs/x", None),
+        ("./fs", None),
+        ("thirdp", None),
+    ] {
+        assert_eq!(builtin_of(written, &builtins).as_deref(), module, "{written:?}");
     }
 }

@@ -13,6 +13,8 @@ use napi_derive::napi;
 use rayon::prelude::*;
 
 use crate::compact::Layer;
+use crate::external_dependencies::external_requests;
+use crate::help_outside::runtime_requests;
 use crate::help_in_file::{in_file, InFile};
 use crate::orient_map_read::beside;
 use crate::package_graph::{fold, join_parses, Crossing};
@@ -141,6 +143,13 @@ struct Targets<'a> {
     declared: HashSet<&'a str>,
 }
 
+/// What tells a module outside the workspace: the workspace's own packages,
+/// by their manifests, and Node's own list of the runtime's modules.
+struct Outside<'a> {
+    internal: HashSet<&'a str>,
+    builtins: &'a HashSet<String>,
+}
+
 /// `landing` in `package/src/entry.ts`, for a package already known to be followed into.
 enum Landing { Opened, Unfollowed, Deep, ByPath }
 
@@ -194,7 +203,22 @@ pub(crate) fn bound(layer: &Layer, row: usize, mut taken: NameUse, local: &str) 
     taken
 }
 
-fn collect(root: &str, layers: &[Layer], crossing: &Crossing, by: &str, targets: &Targets) -> Part {
+/// The specifiers of one crossing's requests out of a module outside the
+/// workspace: a package it installs, as [`external_requests`] reads them, or a
+/// module of the runtime's, as [`runtime_requests`] reads them. An `export …
+/// from` one of them passes on a declaration the workspace does not hold, so
+/// it is an import from outside, `ask uses`'s to list, and no export here. A
+/// record whose imports do not read names none.
+fn outside_specifiers<'a>(layers: &'a [Layer], crossing: &Crossing, outside: &Outside) -> HashSet<&'a str> {
+    let Some((layer, row)) = crossing.parse else { return HashSet::new() };
+    let (text, parses) = (&layers[layer].stored, &layers[layer].parses);
+    if !parses.requests.range(row).any(|request| parses.request_republishes[request] == 1) { return HashSet::new(); }
+    let installed = external_requests(layers, crossing, &outside.internal).unwrap_or_default().into_iter().map(|(request, _)| request);
+    let runtime = runtime_requests(layers, crossing, outside.builtins).into_iter().map(|(request, _)| request);
+    installed.chain(runtime).map(|request| text.text(parses.request_value.at(request))).collect()
+}
+
+fn collect(root: &str, layers: &[Layer], crossing: &Crossing, by: &str, targets: &Targets, outside: &Outside) -> Part {
     let mut part = Part::default();
     let (stored, records) = (&layers[crossing.at.0].stored, &layers[crossing.at.0].records);
     let at = crossing.file;
@@ -204,12 +228,14 @@ fn collect(root: &str, layers: &[Layer], crossing: &Crossing, by: &str, targets:
     if text.optional(parses.unknown.at(row)).is_some() { part.unreadable.push(at.to_owned()); }
     let kind = kind_of(at);
     if parses.exports_present[row] == 1 {
+        let outside = outside_specifiers(layers, crossing, outside);
         // The file is read only when an export of it is documented: the index
         // holds where each comment is, and the text is the file's.
         let mut source: Option<Vec<u16>> = None;
         for export in parses.exports.range(row) {
             let id = parses.export_exported.at(export);
             let Some(name) = text.optional(id) else { continue };
+            if text.optional(parses.export_from.at(export)).is_some_and(|from| outside.contains(from)) { continue; }
             // The TypeScript reader spans an export's doc on the export; the
             // others span it on the declaration the export binds, by its name.
             let bound = text.optional(parses.export_local.at(export)).filter(|_| text.optional(parses.export_from.at(export)).is_none()).and_then(|local| {
@@ -261,7 +287,7 @@ fn collect(root: &str, layers: &[Layer], crossing: &Crossing, by: &str, targets:
 
 /// What the files on the chain import from the workspace's packages. `opened`
 /// and `declared` are `requested` keys; `published` and `unentered` are names.
-pub(crate) fn usage(root: &str, layers: &[Layer], opened: &[String], published: &[String], unentered: &[String], declared: &[String]) -> IndexedUsage {
+pub(crate) fn usage(root: &str, layers: &[Layer], opened: &[String], published: &[String], unentered: &[String], declared: &[String], builtins: &HashSet<String>) -> IndexedUsage {
     let folded = fold(layers);
     let paths = beside(root, folded.keys().copied());
     let owners = owners(root, &paths);
@@ -278,11 +304,12 @@ pub(crate) fn usage(root: &str, layers: &[Layer], opened: &[String], published: 
         unentered: unentered.iter().map(String::as_str).collect(),
         declared: declared.iter().map(String::as_str).collect(),
     };
+    let outside = Outside { internal: owners.packages.iter().map(|package| package.name.as_str()).collect(), builtins };
     let parts: Vec<Part> = crossings
         .par_iter()
         .map(|crossing| {
             let by = if crossing.owner == NO_OWNER { "" } else { owners.packages[crossing.owner as usize].name.as_str() };
-            collect(root, layers, crossing, by, &targets)
+            collect(root, layers, crossing, by, &targets, &outside)
         })
         .collect();
     let mut out = IndexedUsage { exported: Vec::new(), deep: Vec::new(), by_path: Vec::new(), unfollowed: Vec::new(), unreadable: Vec::new(), names: Vec::new() };

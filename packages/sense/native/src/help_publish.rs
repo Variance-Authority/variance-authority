@@ -10,6 +10,7 @@
 
 // compass: variance-authority.report.agent-surface
 
+use std::collections::HashSet;
 use std::io::Write;
 use std::sync::Arc;
 
@@ -80,15 +81,16 @@ pub struct HelpPublished {
 /// imports into the packages in `published` that no entry opens, the packages
 /// in `unentered`, which declare no entry, and the specifiers in `declared`,
 /// which a manifest names whether or not the reading could follow them;
-/// `None` when there is no index.
+/// `None` when there is no index. `builtins` is Node's list of the runtime's
+/// modules, with and without the `node:` scheme.
 #[napi(ts_return_type = "Promise<HelpReading | null>")]
-pub fn read_help(root: String, index: String, opened: Vec<String>, published: Vec<String>, unentered: Vec<String>, declared: Vec<String>) -> AsyncTask<OffThread<Option<HelpReading>>> {
-    off_thread(move || reading(&root, &index, &opened, &published, &unentered, &declared))
+pub fn read_help(root: String, index: String, opened: Vec<String>, published: Vec<String>, unentered: Vec<String>, declared: Vec<String>, builtins: Vec<String>) -> AsyncTask<OffThread<Option<HelpReading>>> {
+    off_thread(move || reading(&root, &index, &opened, &published, &unentered, &declared, &builtins.into_iter().collect()))
 }
 
-fn reading(root: &str, index: &str, opened: &[String], published: &[String], unentered: &[String], declared: &[String]) -> napi::Result<Option<HelpReading>> {
+fn reading(root: &str, index: &str, opened: &[String], published: &[String], unentered: &[String], declared: &[String], builtins: &HashSet<String>) -> napi::Result<Option<HelpReading>> {
     opened_chain(index, |layers| {
-        let (mut read, tree) = rayon::join(|| usage(root, layers, opened, published, unentered, declared), || tree(layers));
+        let (mut read, tree) = rayon::join(|| usage(root, layers, opened, published, unentered, declared, builtins), || tree(layers));
         let exported = std::mem::take(&mut read.exported);
         let digest = exported_digest(&exported);
         HelpReading { held: Arc::new(Held { exported, tree, digest }), usage: Some(read) }

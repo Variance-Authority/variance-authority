@@ -19,3 +19,7 @@ resolved the request to a file; it comes back as `node:path`, marked
 `runtime`. The files whose imports cannot be read come back as `unread`, since
 any of them may import the name. The workspace's manifests are read only when
 a binding of the name waits on them. The source index format does not change.
+
+The help reading applies the same rule to exports: an `export … from` a
+package the workspace installs, or from a built-in module, is no export of the
+workspace, and the reading leaves it out of `exported`.

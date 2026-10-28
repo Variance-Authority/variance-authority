@@ -34,6 +34,7 @@ use crate::help_usage::{bound, kind_of, taken, NameUse};
 use crate::orient_map_read::beside;
 use crate::package_graph::{fold, join_parses, At, Crossing};
 use crate::package_owners::{owners, NO_OWNER};
+use crate::specifier::builtin_of;
 
 /// One import of a name from outside the workspace.
 #[napi(object)]
@@ -147,10 +148,29 @@ fn read_crossing<'l>(layers: &[Layer], crossing: &Crossing<'l>, name: &str, buil
     Read::Found(found)
 }
 
-/// Every binding of `name` off a request for a module in `builtins`, unless the
-/// scan resolved that request to a file. A record whose targets do not line up
-/// with its parse cannot say which did, so each such request is counted.
+/// Every binding of `name` off a request for a module of the runtime's, as
+/// [`runtime_requests`] reads them.
 fn runtime_uses(layers: &[Layer], crossing: &Crossing, name: &str, builtins: &HashSet<String>) -> Vec<OutsideUse> {
+    let Some((layer, row)) = crossing.parse else { return Vec::new() };
+    let (text, parses) = (&layers[layer].stored, &layers[layer].parses);
+    let kind = kind_of(crossing.file);
+    let mut found = Vec::new();
+    for (request, package) in runtime_requests(layers, crossing, builtins) {
+        let written = text.text(parses.request_value.at(request));
+        let passes_on = parses.request_republishes[request] == 1;
+        for (site, local) in taken(&layers[layer], row, request, written, "", crossing.file, kind) {
+            if site.name == name { found.push(OutsideUse { package: package.clone(), runtime: true, passes_on, site: bound(&layers[layer], row, site, if passes_on { "" } else { local }) }); }
+        }
+    }
+    found
+}
+
+/// Which of one crossing's requests are for a module of the runtime's, each as
+/// its index among the parse's requests and the module with its `node:`
+/// scheme, in source order: a specifier [`builtin_of`] names, unless the scan
+/// resolved the request to a file. A record whose targets do not line up with
+/// its parse cannot say which did, so each such request is counted.
+pub(crate) fn runtime_requests(layers: &[Layer], crossing: &Crossing, builtins: &HashSet<String>) -> Vec<(usize, String)> {
     let Some((layer, row)) = crossing.parse else { return Vec::new() };
     let (text, parses) = (&layers[layer].stored, &layers[layer].parses);
     let (record_layer, record_row) = crossing.at;
@@ -158,22 +178,13 @@ fn runtime_uses(layers: &[Layer], crossing: &Crossing, name: &str, builtins: &Ha
     let requests = parses.requests.range(row);
     let first = requests.start;
     let targets = (records.targets_present[record_row] == 1).then(|| records.targets.range(record_row)).filter(|targets| targets.len() == requests.len());
-    let kind = kind_of(crossing.file);
-    let mut found = Vec::new();
-    for request in requests {
-        let written = text.text(parses.request_value.at(request));
-        let module = written.trim();
-        if !builtins.contains(module) { continue; }
-        if let Some(targets) = &targets {
-            if stored.optional(records.target_path.at(targets.start + (request - first))).is_some() { continue; }
-        }
-        let package = if module.starts_with("node:") { module.to_owned() } else { format!("node:{module}") };
-        let passes_on = parses.request_republishes[request] == 1;
-        for (site, local) in taken(&layers[layer], row, request, written, "", crossing.file, kind) {
-            if site.name == name { found.push(OutsideUse { package: package.clone(), runtime: true, passes_on, site: bound(&layers[layer], row, site, if passes_on { "" } else { local }) }); }
-        }
-    }
-    found
+    requests
+        .filter_map(|request| {
+            let module = builtin_of(text.text(parses.request_value.at(request)), builtins)?;
+            let resolved = targets.as_ref().is_some_and(|targets| stored.optional(records.target_path.at(targets.start + (request - first))).is_some());
+            (!resolved).then_some((request, module))
+        })
+        .collect()
 }
 
 #[cfg(test)]

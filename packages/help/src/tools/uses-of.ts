@@ -21,9 +21,9 @@ import { declarations } from './declared.js';
 import { FoundNothing, entriesNamed, isPackage, nowhere, specifierOf } from './find.js';
 import { type Members, membersOf } from './members.js';
 import { originOf } from './passed-on.js';
-import { type IndexedUse, type Within, exportsNamed, importsOf, indexMissing } from './unpublished.js';
+import { type IndexedUse, type Within, exportsNamed, importsOf, indexMissing, outsideOf } from './unpublished.js';
 import { declaredIn, membersIn, notDeclaredIn } from './uses-declarations.js';
-import { importsUnread, outsideOf } from './uses-names.js';
+import { importsUnread } from './uses-names.js';
 
 /**
  * A site, how it names the module it imports when that is a file path, the
@@ -215,11 +215,7 @@ export function usesOf(help: Help, input: Readonly<Record<string, unknown>>, roo
 
   // A name declared outside the workspace is imported here whether or not the workspace declares one too.
   const outside = outsideOf(root, name, wanted);
-  // An `export … from` out of a module outside the workspace passes on that
-  // module's declaration: it is one of the imports from outside, not a declaration here.
-  const passing = new Set('sites' in outside ? outside.passing : []);
-  const read = declarationsOf(help, root, name, wanted);
-  const all = { ...read, exporting: read.exporting.filter((held) => !passing.has(`${held.at}:${held.line}`)) };
+  const all = declarationsOf(help, root, name, wanted);
   // Each declaration is another thing, so a named file answers for its own alone.
   const asked = declaredIn(input);
   const file = asked === undefined ? undefined : reached(root, all, asked);

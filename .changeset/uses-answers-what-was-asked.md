@@ -26,8 +26,10 @@ import `resolve` from `node:path`. A built-in module now counts as one more
 source the name is imported from, `node:path` or a bare `path` alike: the
 answer opens with `imported from node:path, which the runtime declares` and
 lists each import, marked as the runtime's. An `export … from` out of an
-installed package or a built-in module is listed as the import it is and no
-longer answered as a declaration of the workspace. Files whose imports were
+installed package or a built-in module is listed as the import it is, and
+the workspace reading no longer counts it among the workspace's exports, so
+`ask symbol --name readFileSync` no longer answers a workspace file's
+`export { readFileSync } from 'node:fs'` as an export of that file. Files whose imports were
 not read are counted after every answer, including one with no import from
 outside, the first three by name, and declarations or members the source index did not read are named
 rather than passed over.

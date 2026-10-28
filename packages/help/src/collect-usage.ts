@@ -4,7 +4,9 @@
  */
 
 import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { isBuiltin } from 'node:module';
+import { basename, join } from 'node:path';
+import type { FileRecord } from '@variance-authority/core/relate';
 import type { Parsed } from '@variance-authority/sense';
 import { NAMESPACE_NAME } from '@variance-authority/sense/read';
 import {
@@ -17,12 +19,20 @@ import {
   type Taken,
   type Through,
   type Usage,
+  type Named,
   type Use,
 } from '@variance-authority/package/help';
 import { docOf } from './indexed-surface.js';
 
 /** An import by path while its file's targets are still to come. */
 type Pending = { -readonly [key in keyof Deep]: Deep[key] };
+
+/** A file's `export … from` rows, with its requests' specifiers and, once the scan hands them over, their targets. */
+interface Passing {
+  readonly rows: { readonly row: Named; readonly from: string }[];
+  readonly values: readonly string[];
+  targets?: readonly (string | undefined)[];
+}
 
 /**
  * Join cached parse facts directly, without constructing a second repository.
@@ -37,10 +47,12 @@ type Pending = { -readonly [key in keyof Deep]: Deep[key] };
 export function collectingUsage(root: string, opened: ReadonlySet<string>, targets: ImportTargets): {
   accept(at: string, by: string, parsed: Parsed): void;
   targets(at: string, targets: readonly (string | undefined)[]): void;
-  read(): Usage;
+  /** The usage, once `records` — the scan's, with each file's packages — say which `export … from` rows pass on a module outside the workspace. */
+  read(records: readonly FileRecord[], owner: (at: string) => string): Usage;
 } {
   const usage = gatheringUsage();
   const pending = new Map<string, Map<number, Pending>>();
+  const passing = new Map<string, Passing>();
 
   return {
     accept(at, by, parsed) {
@@ -63,7 +75,7 @@ export function collectingUsage(root: string, opened: ReadonlySet<string>, targe
           const span = published.doc ?? bound?.doc;
           if (span !== undefined) text ??= readFileSync(join(root, at), 'utf8');
           const doc = text === undefined ? undefined : docOf(text, span);
-          usage.exported.push({
+          const row: Named = {
             name: published.exported,
             at,
             by,
@@ -72,7 +84,13 @@ export function collectingUsage(root: string, opened: ReadonlySet<string>, targe
             kind,
             ...(bound === undefined ? {} : { declaration: bound.kind }),
             ...(doc === undefined ? {} : { doc }),
-          });
+          };
+          usage.exported.push(row);
+          if (published.from !== undefined) {
+            const held = passing.get(at) ?? { rows: [], values: parsed.requests.map((asked) => asked.value) };
+            passing.set(at, held);
+            held.rows.push({ row, from: published.from });
+          }
         }
       }
 
@@ -102,9 +120,47 @@ export function collectingUsage(root: string, opened: ReadonlySet<string>, targe
         const to = targets[index];
         if (to !== undefined) held.to = to;
       }
+      const held = passing.get(at);
+      if (held !== undefined) held.targets = targets;
     },
-    read: () => usage.read(),
+    read(records, owner) {
+      const read = usage.read();
+      if (passing.size === 0) return read;
+      const outside = outsideRows(records, owner, passing);
+      return outside.size === 0 ? read : { ...read, exported: read.exported.filter((row) => !outside.has(row)) };
+    },
   };
+}
+
+/**
+ * The `export … from` rows that pass on a module outside the workspace, as
+ * `outside_specifiers` in `help_usage.rs` reads them: a request the scan did
+ * not resolve to a file, out of a package the record says the file imports and
+ * no manifest here names, or out of a module of the runtime's. Such a row
+ * passes on a declaration the workspace does not hold, so it is an import from
+ * outside, `ask uses`'s to list, and no export here. A file whose record is
+ * unknown, or whose targets do not line up with its requests, keeps its
+ * installed rows, and counts every runtime one.
+ */
+function outsideRows(records: readonly FileRecord[], owner: (at: string) => string, passing: ReadonlyMap<string, Passing>): ReadonlySet<Named> {
+  const internal = new Set(records.flatMap((record) => basename(record.file) === 'package.json' ? [owner(record.file)] : []));
+  const outside = new Set<Named>();
+  for (const record of records) {
+    const held = passing.get(record.file);
+    if (held === undefined) continue;
+    const aligned = held.targets !== undefined && held.targets.length === held.values.length;
+    const installed = new Set(record.unknown === undefined && aligned ? (record.packages ?? []).map((edge) => edge.to) : []);
+    const specifiers = new Set<string>();
+    for (const [index, value] of held.values.entries()) {
+      if (aligned && held.targets![index] !== undefined) continue;
+      const trimmed = value.trim();
+      const runtime = trimmed.startsWith('node:') ? trimmed.length > 'node:'.length : isBuiltin(trimmed);
+      const name = requested(trimmed).split(' ')[0]!;
+      if (runtime || (installed.has(name) && !internal.has(name))) specifiers.add(value);
+    }
+    for (const { row, from } of held.rows) if (specifiers.has(from)) outside.add(row);
+  }
+  return outside;
 }
 
 /** Every name one import takes: its bindings, and the members read off a module it holds whole. */

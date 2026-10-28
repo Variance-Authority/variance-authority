@@ -131,6 +131,19 @@ describe('variance ask uses over a name an installed package declares', () => {
     expect(out).toContain('`parseSync` is declared in no file of this workspace; it is imported from outside it in 3 places, out of thirdp.');
     expect(out).toMatch(/^packages\/tool\/src\/again\.ts:1 — @acme\/tool, from thirdp, passes it on$/m);
   }, 120_000);
+
+  it('reads an export … from out of an installed package or a built-in as no workspace export in symbol, as uses does', async () => {
+    checkout({ ...OUTSIDE, 'packages/tool/src/again.ts': "export { parseSync } from 'thirdp';\nexport { readFileSync } from 'node:fs';\n" });
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+
+    for (const [name, from] of [['parseSync', 'thirdp'], ['readFileSync', 'node:fs']] as const) {
+      const uses = await run(['ask', 'uses', '--name', name]);
+      expect(uses.out).toMatch(new RegExp(`^packages/tool/src/again\\.ts:\\d — @acme/tool, from ${from}.*, passes it on$`, 'm'));
+      const symbol = await run(['ask', 'symbol', '--name', name]);
+      expect(symbol.out).not.toContain('packages/tool/src/again.ts');
+      expect(symbol.out).not.toContain('exported, without being published');
+    }
+  }, 120_000);
 });
 
 const RUNTIME = {

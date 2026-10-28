@@ -14,58 +14,12 @@
 
 import { notShown } from '@variance-authority/mcp/tools';
 import type { Documented, Entry, Named, Opening, Use } from '@variance-authority/package/help';
-import { type DeclaredName, languageOf, outsideImportersOf } from '@variance-authority/sense';
-import { useOf } from '../refresh-native.js';
-import { ownerOf } from './by-path.js';
+import { type DeclaredName, languageOf } from '@variance-authority/sense';
 import { unreadLine } from './declared.js';
 import { places } from './members.js';
 import { type Shown, kinds, nearestLine } from './sites.js';
 import { symbol } from './symbol.js';
-import { indexed } from './unpublished.js';
-import type { Site } from './uses-of.js';
-
-/**
- * The imports of a name from outside the workspace, the installed packages
- * and the runtime's modules they are out of, and the files whose imports were
- * not read; or why the index was not read.
- */
-export type Outside =
-  | {
-      readonly sites: readonly Site[];
-      readonly packages: readonly string[];
-      /** The runtime's modules, each with its `node:` scheme. */
-      readonly modules: readonly string[];
-      /** The `file:line` of each site that is an `export … from`, which passes the name on. */
-      readonly passing: readonly string[];
-      readonly notRead: readonly string[];
-    }
-  | { readonly unread: string };
-
-/**
- * Every import of `name` out of a package no manifest of the workspace
- * declares, or out of a module the runtime owns, read off the source index of
- * `root`, narrowed to `wanted` when it names a package, one of its
- * specifiers, or a module of the runtime's. An `export … from` is listed as
- * the import it is, marked as passing the name on.
- */
-export function outsideOf(root: string | undefined, name: string, wanted: string | undefined): Outside {
-  const answer = indexed(root, (checkout) => outsideImportersOf(checkout, name));
-  if ('unread' in answer) return answer;
-  const { read } = answer;
-  const owner = wanted === undefined ? undefined : ownerOf(wanted);
-  const taken = read.uses.filter(({ package: of, runtime, site }) => {
-    if (wanted === undefined) return true;
-    if (runtime) return of === wanted || of === `node:${wanted}`;
-    return of === owner && (wanted === owner || site.key === wanted);
-  });
-  const sites = taken.map(({ package: of, runtime, passesOn, site }): Site => {
-    const from = `from ${of}${runtime ? ", the runtime's" : ''}${passesOn ? ', passes it on' : ''}`;
-    return { ...useOf(site), name: site.name, by: site.by === '' ? from : `${site.by}, ${from}` };
-  });
-  const passing = taken.filter((one) => one.passesOn).map(({ site }) => `${site.at}:${site.line}`);
-  const sorted = (runtime: boolean): readonly string[] => [...new Set(taken.filter((one) => one.runtime === runtime).map((one) => one.package))].sort();
-  return { sites, packages: sorted(false), modules: sorted(true), passing, notRead: read.unread };
-}
+import type { Outside } from './unpublished.js';
 
 /** How many files whose imports were not read `importsUnread` names before it counts the rest. */
 const NOT_READ_NAMED = 3;
@@ -151,30 +105,38 @@ export interface Unread {
 }
 
 /**
- * The imports of a name from outside the workspace: the whole answer when
- * `alone`, else after the workspace's. Either way it ends with the files whose
- * imports were not read, any of which may import the name; alone, with what
- * of the workspace was not read and may declare it too, `unread`.
+ * The imports of a name from outside the workspace, after the workspace's own
+ * answer, then the files whose imports were not read, any of which may import
+ * the name.
  */
-export function outsideLines(name: string, outside: Outside, alone: boolean, from: string | undefined, shown: Shown, unread: Unread): readonly string[] {
+export function outsideAfter(name: string, outside: Outside, from: string | undefined, shown: Shown): readonly string[] {
   if (!('sites' in outside)) return [];
   const notRead = importsUnread(outside);
   const { sites, packages, modules } = outside;
-  if (sites.length === 0) return alone || notRead.length === 0 ? [] : ['', ...notRead];
+  const tail = notRead.length === 0 ? [] : ['', ...notRead];
+  if (sites.length === 0) return tail;
   const out = [...packages, ...modules].join(', ');
-  if (!alone) {
-    return ['', `\`${name}\` is imported from outside the workspace too, in ${places(sites.length)}, out of ${out}:`, ...kinds(sites, from, name, shown, undefined), ...(notRead.length === 0 ? [] : ['', ...notRead])];
-  }
-  const nearest = nearestLine(from, shown.spell);
+  return ['', `\`${name}\` is imported from outside the workspace too, in ${places(sites.length)}, out of ${out}:`, ...kinds(sites, from, name, shown, undefined), ...tail];
+}
+
+/**
+ * The imports of a name from outside the workspace as the whole answer, when
+ * the workspace declares nothing by it: then the files whose imports were not
+ * read, and what of the workspace was not read and may declare it, `unread`.
+ */
+export function outsideAlone(name: string, outside: Outside, from: string | undefined, shown: Shown, unread: Unread): readonly string[] {
+  if (!('sites' in outside) || outside.sites.length === 0) return [];
+  const { sites, packages, modules } = outside;
+  const out = [...packages, ...modules].join(', ');
   const read = unread.declarations.length === 0 ? '' : ' that the source index read';
   return [
     `\`${name}\` is declared in no file of this workspace${read}; it is imported from outside it in ${places(sites.length)}, out of ${out}.`,
-    nearest,
+    nearestLine(from, shown.spell),
     ...kinds(sites, from, name, shown, undefined),
     '',
     ...(packages.length === 0 ? [] : [`\`${shown.spell.tool(symbol)}\` has its declaration in each package.`]),
     ...(modules.length === 0 ? [] : ["A built-in module's declaration is the runtime's, which the source index does not read."]),
-    ...notRead,
+    ...importsUnread(outside),
     ...unreadLine(unread.declarations),
     ...(unread.members === undefined ? [] : [`Members by this name were not read: ${unread.members}.`]),
   ];

@@ -38,6 +38,21 @@ pub fn request_of(value: &str) -> Option<&str> {
     (!bare.is_empty()).then_some(bare)
 }
 
+/// The runtime's module a written specifier names, with its `node:` scheme:
+/// one in `builtins`, Node's own list with and without the scheme, read off
+/// the specifier trimmed as [`request_of`] trims it; any `node:` specifier,
+/// since the scheme is the runtime's whatever follows it. Nothing for any
+/// other specifier.
+pub fn builtin_of(value: &str, builtins: &HashSet<String>) -> Option<String> {
+    let trimmed = value.trim_matches(js_space);
+    let bare = trimmed.strip_prefix("node:");
+    match bare {
+        Some(module) if !module.is_empty() => Some(trimmed.to_owned()),
+        Some(_) => None,
+        None => builtins.contains(trimmed).then(|| format!("node:{trimmed}")),
+    }
+}
+
 /// `isRelative` for a module.
 pub fn is_relative(request: &str) -> bool {
     request.starts_with("./") || request.starts_with("../") || request == "." || request == ".."

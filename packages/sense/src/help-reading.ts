@@ -155,7 +155,7 @@ export interface Alias {
 }
 
 export interface NativeHelp {
-  readHelp?(root: string, index: string, opened: string[], published: string[], unentered: string[], declared: string[]): Promise<HelpReading | null>;
+  readHelp?(root: string, index: string, opened: string[], published: string[], unentered: string[], declared: string[], builtins: readonly string[]): Promise<HelpReading | null>;
   encodeSearchIndex?(published: PublishedRows, exported: NamedExport[], generation: SearchGeneration | null): EncodedSearch;
   digestExported?(exported: NamedExport[]): string;
   importersOf?(root: string, index: string, files: string[], name: string): NativeImporters | null;
@@ -185,7 +185,9 @@ function entry<Name extends keyof NativeHelp>(name: Name): NonNullable<NativeHel
  * packages in `targets.unentered`, which declare no entry, and the specifiers
  * in `targets.declared`, which a manifest names whether or not the reading
  * could follow them; `null` when none was published. `opened` and
- * `targets.declared` are `<package> .<subpath>` keys.
+ * `targets.declared` are `<package> .<subpath>` keys. An `export … from` a
+ * package the workspace installs, or from a module in Node's `builtinModules`,
+ * passes on a declaration outside the workspace and is no export of it.
  */
 export function readHelp(
   root: string,
@@ -193,7 +195,7 @@ export function readHelp(
   targets: { readonly published: Iterable<string>; readonly unentered: Iterable<string>; readonly declared: Iterable<string> },
   index: string = sourceIndexPath(root),
 ): Promise<HelpReading | null> {
-  return entry('readHelp')(root, index, [...opened], [...targets.published], [...targets.unentered], [...targets.declared]);
+  return entry('readHelp')(root, index, [...opened], [...targets.published], [...targets.unentered], [...targets.declared], BUILTINS);
 }
 
 /** The search over `published` and `exported`, and the digest of `exported`. */

@@ -24,7 +24,7 @@ use crate::journeys_parse::{Callee, Parsed};
 use crate::journeys_record::{Record, NONE};
 use crate::journeys_steps::Known;
 use crate::package_owners::Owners;
-use crate::specifier::package_of;
+use crate::specifier::{builtin_of, package_of};
 
 /// One function a file exports under a name.
 struct Candidate {
@@ -94,7 +94,7 @@ impl Exported {
     /// The packages a specifier's candidates must be exported from: `None` for
     /// one no function of the checkout answers, an empty list for any package.
     fn scope(&self, spec: &str) -> Option<&[u32]> {
-        if spec.starts_with("node:") || self.builtins.contains(spec) {
+        if builtin_of(spec, &self.builtins).is_some() {
             return None;
         }
         let Some(package) = package_of(spec, &self.builtins) else { return Some(&[]) };

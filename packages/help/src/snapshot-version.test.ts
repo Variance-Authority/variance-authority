@@ -33,19 +33,19 @@ const written = (version: number) => ({
 });
 
 describe('the workspace snapshot version', () => {
-  it('is 8, the shape that keeps reads through `default` and a module passed on whole apart', () => {
-    expect(SNAPSHOT_VERSION).toBe(8);
+  it('is 9, the reading that counts no `export … from` out of an installed package or a built-in among the exports', () => {
+    expect(SNAPSHOT_VERSION).toBe(9);
   });
 
-  it('refuses a v7 value, written before that shape', async () => {
+  it('refuses a v8 value, which may count one', async () => {
     const index = join(root, 'source-index.bin');
-    await writeFile(workspaceSnapshotPath(index), JSON.stringify(written(7)));
-    await expect(readWorkspaceSnapshot(root, { index })).rejects.toThrow(`is not a ${SNAPSHOT_FORMAT} v8 value`);
+    await writeFile(workspaceSnapshotPath(index), JSON.stringify(written(8)));
+    await expect(readWorkspaceSnapshot(root, { index })).rejects.toThrow(`is not a ${SNAPSHOT_FORMAT} v9 value`);
   });
 
   it('reads a value of its own version', async () => {
     const index = join(root, 'source-index.bin');
-    await writeFile(workspaceSnapshotPath(index), JSON.stringify(written(8)));
+    await writeFile(workspaceSnapshotPath(index), JSON.stringify(written(9)));
     await expect(readWorkspaceSnapshot(root, { index })).resolves.toMatchObject({ packages: [] });
   });
 });
