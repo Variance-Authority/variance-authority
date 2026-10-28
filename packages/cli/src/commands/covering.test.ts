@@ -374,8 +374,7 @@ describe('narrowing the witnesses to what is nearby', () => {
 
     expect(answer.tests?.map((test) => test.id)).toEqual(['here']);
     expect(answer.narrowed).toMatchObject({ kept: 1, of: 2 });
-    expect(formatCovering(answer, 'text', Date.now()))
-      .toContain('1 of 2 named tests kept.');
+    expect(formatCovering(answer, 'text', Date.now())).toContain('1 of 2 named tests kept.');
   });
 
   it('joins two neighbouring ranges a narrowing made agree, and counts the cases of the file', async () => {
