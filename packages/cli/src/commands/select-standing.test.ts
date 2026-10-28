@@ -88,6 +88,24 @@ describe('a test that did not run at the journal commit', () => {
     expect(said.out).toBe('test/near.test.ts\n');
   });
 
+  it('reads a test file a run at a newer commit ran only in part from where it last finished', async () => {
+    // Everything runs at P; both modules change at H, where `near` runs whole
+    // and `far` only in part, as under `-t`. The cases of `far` that run did
+    // not execute last ran at P, so `far` still stands there, and the
+    // selection reads it from P. It runs either way, as a file held in part does.
+    const repo = checkout();
+    const P = repo.commit(sources(1), 'P');
+    await landRun(repo.file, run(repo.root, P, NAMES), repo.root);
+    const H = repo.commit(sources(2), 'H');
+    const atH = run(repo.root, H, NAMES);
+    await landRun(repo.file, { ...atH, tests: atH.tests.map((test) => ({ ...test, complete: test.file !== 'test/far.test.ts' })) }, repo.root);
+
+    const said = await repo.select();
+
+    expect(said.out).toBe('test/near.test.ts\n');
+    expect(said.err).toContain(`1 test file last ran at ${P.slice(0, 12)}, before the journal's commit`);
+  });
+
   it('runs where the runs record does not say where it last ran, and says so', async () => {
     const { root, file } = await partialRun();
     // A record written without `standing`, as a worktree's first partial run
