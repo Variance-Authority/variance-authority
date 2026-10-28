@@ -10,8 +10,8 @@ import java.util.List;
 /**
  * The plugin's reading of {@code variance covering --format json}, on the fixtures the
  * VS Code client's test reads too ({@code packages/editors/src/record.test.ts}).
- * {@code check.sh} runs it against the IDE's own jars; it exits non-zero on the first
- * reading that differs.
+ * {@code build.sh} runs it against the IDE's own jars before it packs the plugin; it exits
+ * non-zero on the first reading that differs.
  */
 final class RecordCheck {
   private RecordCheck() {}
@@ -27,11 +27,9 @@ final class RecordCheck {
         "visual visual null"));
 
     List<String> marks = new ArrayList<>();
-    for (Record.Mark mark : Record.marks(answer)) {
-      marks.add(mark.suite().name() + " " + mark.startLine() + "-" + mark.endLine() + " " + mark.range().state());
-    }
-    same("a line a nearer suite painted is not painted again, a stale suite paints nothing", marks, List.of(
-        "unit 1-4 walked", "unit 6-8 alone", "unit 10-12 hole", "integration 14-15 unwalked"));
+    for (Record.Mark mark : answer.marks()) marks.add(placed(mark));
+    same("the one mark the CLI read each run of lines as, across every suite that ran it", marks, List.of(
+        "unit+integration 1-4 walked", "unit 6-8 alone", "unit 10-12 hole", "integration 14-15 unwalked"));
 
     Record.Line line = Record.readLine(json(fixtures.resolve("covering-line-suites.json")));
     List<String> lines = new ArrayList<>();
@@ -49,15 +47,19 @@ final class RecordCheck {
         "{\"file\":\"src/sum.ts\",\"frame\":\"mapped\",\"ranges\":[{\"startLine\":1,\"endLine\":4,\"tests\":[],\"state\":\"unwalked\"}]}")
         .getAsJsonObject();
     List<String> unnamed = new ArrayList<>();
-    for (Record.Mark mark : Record.marks(Record.read(one))) {
-      unnamed.add(mark.suite().name() + " " + mark.startLine() + "-" + mark.endLine() + " " + mark.range().state());
-    }
-    same("a repository that declares no suites reads as one suite without a name", unnamed,
-        List.of("null 1-4 unwalked"));
-    one.addProperty("frame", "stale");
-    same("a stale record paints nothing", Record.marks(Record.read(one)).size(), 0);
+    for (Record.Mark mark : Record.read(one).marks()) unnamed.add(placed(mark));
+    same("a repository that declares no suites paints its ranges", unnamed, List.of("- 1-4 unwalked"));
+    JsonObject stale = JsonParser.parseString(
+        "{\"file\":\"src/sum.ts\",\"frame\":\"stale\",\"from\":\"coverage.bin\"}").getAsJsonObject();
+    same("a stale record, which places no range, paints nothing", Record.read(stale).marks().size(), 0);
+    same("a stale record reads as stale", Record.read(stale).stale(), true);
 
     System.out.println("RecordCheck: the plugin reads the fixtures as the VS Code client does");
+  }
+
+  private static String placed(Record.Mark mark) {
+    String suites = mark.suites().isEmpty() ? "-" : String.join("+", mark.suites());
+    return suites + " " + mark.startLine() + "-" + mark.endLine() + " " + mark.state();
   }
 
   private static JsonObject json(Path path) throws Exception {

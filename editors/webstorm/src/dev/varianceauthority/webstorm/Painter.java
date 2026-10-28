@@ -32,7 +32,8 @@ import org.jetbrains.annotations.NotNull;
  * <p>Every line a suite ran carries one of five words, and the gutter shows the
  * word: walked by several cases, walked by one alone, run only while its module
  * loaded, a hole a stopped case left, or unwalked by cases that all finished.
- * Where several suites are declared, the nearest suite's word is shown. The
+ * Where several suites are declared, the word is the one the CLI read across
+ * every suite that ran the line. The
  * icon's tooltip counts the cases by test file, suite by suite, and a click
  * lists them nearest first, one step from the code they declare. Nothing here
  * is a value or a step: the record says which cases went through a line, not
@@ -118,15 +119,16 @@ final class Painter implements Disposable {
       return;
     }
     Document document = editor.getDocument();
-    StringBuilder stale = new StringBuilder();
-    for (Record.Suite suite : answer.suites()) {
-      if ("stale".equals(suite.frame())) stale.append(StringUtil.escapeXmlEntities(named(suite) + said(suite))).append("<br>");
-    }
-    if (stale.length() > 0 && document.getLineCount() > 0) {
-      add(markup, 0, 0, "stale", "<b>The record is stale.</b><br>" + stale, null);
+    if (answer.stale()) {
+      StringBuilder stale = new StringBuilder();
+      for (Record.Suite suite : answer.suites()) {
+        if ("stale".equals(suite.frame())) stale.append(StringUtil.escapeXmlEntities(named(suite) + said(suite))).append("<br>");
+      }
+      if (document.getLineCount() > 0) add(markup, 0, 0, "stale", "<b>The record is stale.</b><br>" + stale, null);
+      return;
     }
     String refused = refused(answer);
-    for (Record.Mark mark : Record.marks(answer)) {
+    for (Record.Mark mark : answer.marks()) {
       int start = mark.startLine() - 1;
       int end = Math.min(mark.endLine(), document.getLineCount()) - 1;
       if (start < 0 || start > end) continue;
@@ -134,7 +136,6 @@ final class Painter implements Disposable {
       StringBuilder html = new StringBuilder();
       boolean cases = false;
       for (Record.Suite suite : answer.suites()) {
-        if ("stale".equals(suite.frame())) continue;
         for (Record.Range range : suite.ranges()) {
           if (range.endLine() < mark.startLine() || range.startLine() > mark.endLine()) continue;
           if (html.length() > 0) html.append("<hr>");
@@ -143,7 +144,7 @@ final class Painter implements Disposable {
         }
       }
       Runnable list = cases ? () -> Cases.show(editor, root, file, line) : null;
-      add(markup, start, end, mark.range().state(), html + refused, list);
+      add(markup, start, end, mark.state(), html + refused, list);
     }
   }
 
@@ -164,11 +165,6 @@ final class Painter implements Disposable {
 
   /** What one suite's record made of the file, in the VS Code client's words. */
   static String said(Record.Suite suite) {
-    if ("unloaded".equals(suite.refused())) {
-      return "Never loaded this file: a run that never loaded it has no answer about it, "
-          + "which is not the same as no test covering it.";
-    }
-    if ("unrecorded".equals(suite.refused())) return "Nothing is recorded: run the suite to record it.";
     if (suite.reason() != null) return suite.reason();
     if ("stale".equals(suite.frame())) {
       return "This file changed since the suite ran, and the text it ran over could not be found. "

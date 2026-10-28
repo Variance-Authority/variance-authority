@@ -20,9 +20,11 @@ have reached these lines. The hover names the case that stopped.
 
 When your repository declares several suites, each answers for itself, and the
 CLI answers nearest kind first: unit, integration, e2e, visual. A line carries
-the mark of the nearest suite that ran it. The hover names every suite that ran
-the line, with its kind and its own state, and then every suite with no answer
-about the file: one that never loaded it, and one with nothing recorded yet.
+one mark, which the CLI reads across every suite that ran it: two suites that
+each ran it with one case alone make it walked. The hover names every suite that
+ran the line, with its kind and its own state, and then every suite with no
+answer about the file, with the CLI's reason: one that never loaded it, and one
+with nothing recorded yet.
 **Variance: Cases through this line** lists the cases under the suite that ran
 them.
 

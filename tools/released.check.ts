@@ -208,16 +208,6 @@ describe('the release workflow', () => {
     expect(WORKFLOW).not.toMatch(/yarn verify\s*$/m);
   });
 
-  // The WebStorm plugin has no test runner of its own: its reading of the CLI's
-  // JSON is checked on the fixtures the VS Code client's test reads, against the
-  // IDE the plugin is built for, before it is built.
-  it('checks the WebStorm plugin against the IDE it is built for, before building it', () => {
-    const editors = job('editors');
-    const at = ['editors/webstorm/check.sh "$IDE"', 'packages/editors/scripts/build.mjs "$IDE"'].map((step) => editors.indexOf(step));
-    expect(at[0]).toBeGreaterThan(-1);
-    expect(at[1]).toBeGreaterThan(at[0]);
-  });
-
   // npm no longer issues a token that publishes without a second factor, so a
   // token in this job cannot publish: it is refused, or 404s once it expires.
   // The run's OIDC token is the credential, and npm trades it only when no

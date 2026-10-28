@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest';
 
 /**
  * The VS Code client's reading of `variance covering --format json`, on the
- * fixtures the WebStorm client's check reads too (`editors/webstorm/check.sh`).
+ * fixtures the WebStorm client's check reads too (`editors/webstorm/build.sh` runs that check).
  */
 
 const editors = join(import.meta.dirname, '../../../editors');
@@ -13,8 +13,8 @@ const { atLine, marksOf, suitesOf } = createRequire(import.meta.url)(join(editor
 const fixture = (name: string): unknown => JSON.parse(readFileSync(join(editors, 'fixtures', name), 'utf8'));
 
 const suites = fixture('covering-suites.json');
-const placed = (marks: readonly { suite?: string; startLine: number; endLine: number; range: { state?: string } }[]) =>
-  marks.map((mark) => `${mark.suite ?? '-'} ${mark.startLine}-${mark.endLine} ${mark.range.state ?? 'entered'}`);
+const placed = (marks: readonly { suites?: readonly string[]; startLine: number; endLine: number; state?: string }[]) =>
+  marks.map((mark) => `${mark.suites?.join('+') ?? '-'} ${mark.startLine}-${mark.endLine} ${mark.state ?? 'entered'}`);
 
 describe('a repository that declares suites', () => {
   it('reads every suite, in the order the CLI answered', () => {
@@ -28,9 +28,9 @@ describe('a repository that declares suites', () => {
       ]);
   });
 
-  it('paints each suite, a line a nearer suite painted is not painted again, and a stale suite paints nothing', () => {
+  it('paints the one mark the CLI read each run of lines as, across every suite that ran it', () => {
     expect(placed(marksOf(suites))).toEqual([
-      'unit 1-4 walked',
+      'unit+integration 1-4 walked',
       'unit 6-8 alone',
       'unit 10-12 hole',
       'integration 14-15 unwalked',
@@ -69,7 +69,7 @@ describe('a repository that declares no suites', () => {
     expect(placed(marksOf(one))).toEqual(['- 1-4 unwalked']);
   });
 
-  it('paints nothing from a stale record', () => {
-    expect(marksOf({ ...one, frame: 'stale' })).toEqual([]);
+  it('paints nothing from a stale record, which places no range', () => {
+    expect(marksOf({ file: 'src/sum.ts', frame: 'stale', from: 'coverage.bin' })).toEqual([]);
   });
 });

@@ -12,9 +12,7 @@ import java.io.File;
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
 
 /**
  * Ask the record about the text an editor holds.
@@ -37,14 +35,24 @@ final class Record {
   record Suite(String name, String kind, String frame, List<Range> ranges, String refused, String reason) {}
 
   /**
-   * The answer about one file: every suite's, nearest kind first as the CLI ordered them, or
-   * the CLI's refusal. {@code quiet} is a refusal that holds for the whole project until a
-   * run changes it: no CLI to ask, or nothing recorded.
+   * The answer about one file: every suite's, nearest kind first as the CLI ordered them, the
+   * marks to paint, or the CLI's refusal. {@code quiet} is a refusal that holds for the whole
+   * project until a run changes it: no CLI to ask, or nothing recorded.
    */
-  record Answer(List<Suite> suites, String refusal, boolean quiet) {}
+  record Answer(List<Suite> suites, List<Mark> marks, String refusal, boolean quiet) {
+    /** Every suite that answered was recorded over a text the file no longer holds. */
+    boolean stale() {
+      List<Suite> answered = suites.stream().filter((suite) -> suite.reason() == null).toList();
+      return !answered.isEmpty() && answered.stream().allMatch((suite) -> "stale".equals(suite.frame()));
+    }
+  }
 
-  /** The lines of one suite's range that the gutter paints with its state. */
-  record Mark(Suite suite, Range range, int startLine, int endLine) {}
+  /**
+   * One run of lines and the one state the gutter paints it as. Under declared suites the CLI
+   * read it across every suite that ran the lines, which {@code suites} names; without them it
+   * is one range as the record placed it.
+   */
+  record Mark(int startLine, int endLine, String state, List<String> suites) {}
 
   /** One test file among the cases that went through a line: how many of its cases did, of how many. */
   record TestFile(String file, int cases, int of, Integer hops) {}
@@ -72,7 +80,7 @@ final class Record {
 
   static Answer ask(String root, String file, String text) {
     Asked asked = run(root, text, "covering", "--file", file, "--root", root, "--text", "-", "--format", "json");
-    return asked.refusal() != null ? new Answer(List.of(), asked.refusal(), asked.quiet()) : read(asked.answer());
+    return asked.refusal() != null ? new Answer(List.of(), List.of(), asked.refusal(), asked.quiet()) : read(asked.answer());
   }
 
   /**
@@ -147,33 +155,21 @@ final class Record {
       suites.add(new Suite(string(suite, "suite"), string(suite, "kind"), string(suite, "frame"), ranges(suite),
           string(suite, "refused"), string(suite, "reason")));
     }
-    return new Answer(suites, null, false);
-  }
-
-  /**
-   * The ranges to paint, one mark per line. A line two suites ran carries the nearer
-   * suite's mark, because the CLI answers nearest first; the tooltip names the others.
-   * A stale record is placed nowhere, so it paints nothing.
-   */
-  static List<Mark> marks(Answer answer) {
-    Set<Integer> painted = new HashSet<>();
     List<Mark> marks = new ArrayList<>();
-    for (Suite suite : answer.suites()) {
-      if ("stale".equals(suite.frame())) continue;
-      for (Range range : suite.ranges()) {
-        Integer start = null;
-        for (int line = range.startLine(); line <= range.endLine() + 1; line++) {
-          boolean free = line <= range.endLine() && !painted.contains(line);
-          if (free && start == null) start = line;
-          if (!free && start != null) {
-            marks.add(new Mark(suite, range, start, line - 1));
-            start = null;
-          }
-        }
-        for (int line = range.startLine(); line <= range.endLine(); line++) painted.add(line);
+    if (!answer.has("suites")) {
+      for (Range range : suites.get(0).ranges()) {
+        marks.add(new Mark(range.startLine(), range.endLine(), range.state(), List.of()));
+      }
+    } else if (answer.has("marks")) {
+      for (JsonElement element : answer.getAsJsonArray("marks")) {
+        JsonObject mark = element.getAsJsonObject();
+        List<String> named = new ArrayList<>();
+        for (JsonElement suite : mark.getAsJsonArray("suites")) named.add(suite.getAsString());
+        marks.add(new Mark(mark.get("startLine").getAsInt(), mark.get("endLine").getAsInt(),
+            mark.has("state") ? mark.get("state").getAsString() : "entered", named));
       }
     }
-    return marks;
+    return new Answer(suites, marks, null, false);
   }
 
   /** A repository that declares suites answers under {@code suites}; one that declares none answers once. */

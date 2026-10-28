@@ -96,29 +96,14 @@ function suitesOf(answer) {
 }
 
 /**
- * The ranges to paint, one mark per line. A line two suites ran carries the
- * nearer suite's mark, because the CLI answers nearest first; the hover names
- * the others. A stale record is placed nowhere, so it paints nothing.
+ * The runs of lines to paint, each with its one state. Under `suites` the CLI
+ * has already read every suite's ranges into one mark per run (`marks`); a
+ * repository that declares none paints its ranges as they are. A stale record
+ * gives no ranges, so it paints nothing.
  */
 function marksOf(answer) {
-  const painted = new Set();
-  const marks = [];
-  for (const one of suitesOf(answer)) {
-    if (one.frame === 'stale') continue;
-    for (const range of one.ranges ?? []) {
-      let start;
-      for (let line = range.startLine; line <= range.endLine + 1; line++) {
-        const free = line <= range.endLine && !painted.has(line);
-        if (free && start === undefined) start = line;
-        if (!free && start !== undefined) {
-          marks.push({ suite: one.suite, kind: one.kind, startLine: start, endLine: line - 1, range });
-          start = undefined;
-        }
-      }
-      for (let line = range.startLine; line <= range.endLine; line++) painted.add(line);
-    }
-  }
-  return marks;
+  if (answer === undefined) return [];
+  return Array.isArray(answer.suites) ? answer.marks ?? [] : answer.ranges ?? [];
 }
 
 /**
@@ -133,7 +118,6 @@ function atLine(answer, line) {
       refused.push(one);
       continue;
     }
-    if (one.frame === 'stale') continue;
     const range = (one.ranges ?? []).find((range) => range.startLine <= line && line <= range.endLine);
     if (range !== undefined) answered.push({ suite: one.suite, kind: one.kind, range });
   }

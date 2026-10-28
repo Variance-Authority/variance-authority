@@ -283,10 +283,6 @@ jobs:
           curl -fsSL https://download.jetbrains.com/webstorm/WebStorm-2025.1.tar.gz | tar -xz -C "$RUNNER_TEMP"
           echo "IDE=$(ls -d "$RUNNER_TEMP"/WebStorm-*)" >> "$GITHUB_ENV"
 
-      # The plugin reads the CLI's JSON as the VS Code client's test reads it, on the
-      # same fixtures, compiled against the same IDE.
-      - run: editors/webstorm/check.sh "$IDE"
-
       - run: node packages/editors/scripts/build.mjs "$IDE"
 
       # The same refusal `prepack` makes at publish, made where the plugins were built.

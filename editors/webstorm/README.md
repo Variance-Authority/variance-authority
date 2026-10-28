@@ -22,10 +22,11 @@ have reached these lines. The tooltip names the case that stopped.
 
 When your repository declares several suites, each answers for itself, and the
 CLI answers nearest kind first: unit, integration, e2e, visual. A line carries
-the mark of the nearest suite that ran it. The tooltip names every suite that
-ran the line, with its kind and its own state, and then every suite with no
-answer about the file: one that never loaded it, and one with nothing recorded
-yet. The list a click opens groups its test files under the suite that ran them.
+one mark, which the CLI reads across every suite that ran it: two suites that
+each ran it with one case alone make it walked. The tooltip names every suite
+that ran the line, with its kind and its own state, and then every suite with no
+answer about the file, with the CLI's reason: one that never loaded it, and one
+with nothing recorded yet. The list a click opens groups its test files under the suite that ran them.
 
 The marks follow your edits. The plugin sends the text you hold, saved or not,
 and the CLI places every recorded range in it. If the file changed so much that

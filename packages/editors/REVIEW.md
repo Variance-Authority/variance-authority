@@ -12,10 +12,11 @@
   [README](README.md#what-this-is-for) and [`src/where.mjs`](src/where.mjs).
 - **The package never packs without both plugins.** Written in
   [`scripts/verify-pack.mjs`](scripts/verify-pack.mjs).
-- **Both plugins read the CLI's JSON alike: every suite, the nearest suite's
-  mark on a line, no mark from a stale record.** Pinned by
-  [`src/record.test.ts`](src/record.test.ts) for VS Code and by
-  `editors/webstorm/check.sh`, on the same fixtures, for WebStorm.
+- **Both plugins paint the marks the CLI reads across suites, and no mark from
+  a stale record; neither ranks a line itself.** Pinned by
+  [`src/record.test.ts`](src/record.test.ts) for VS Code and by the check
+  `editors/webstorm/build.sh` runs before packing, for WebStorm, on fixtures
+  the CLI's `covering-marks.test.ts` holds to.
 - **A plugin carries this package's version.** Written in
   [README](README.md#what-the-plugins-show) and
   [`scripts/build.mjs`](scripts/build.mjs).

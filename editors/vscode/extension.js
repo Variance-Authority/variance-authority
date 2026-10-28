@@ -4,8 +4,8 @@
  * Every line a suite ran carries one of five words, and the gutter shows the
  * word: walked by several cases, walked by one alone, run only while its module
  * loaded, a hole a stopped case left, or unwalked by cases that all finished.
- * Where several suites are declared, the nearest suite's word is shown, and a
- * hover names the cases suite by suite. Nothing here is a value or a step: the
+ * Where several suites are declared, the word is the one the CLI read across
+ * every suite that ran the line, and a hover names the cases suite by suite. Nothing here is a value or a step: the
  * record says which cases went through a line, not what they saw there.
  *
  * The buffer is asked about as it is held, saved or not, so an edit carries the
@@ -127,7 +127,7 @@ function activate(context) {
       editor.setDecorations(
         type,
         marks
-          .filter((mark) => (mark.range.state ?? 'entered') === state)
+          .filter((mark) => (mark.state ?? 'entered') === state)
           .map((mark) => new vscode.Range(mark.startLine - 1, 0, mark.endLine - 1, 0)),
       );
     }
@@ -143,10 +143,7 @@ function activate(context) {
     } else {
       const suites = suitesOf(result.answer);
       const answered = suites.filter((one) => one.reason === undefined);
-      const holes = answered
-        .filter((one) => one.frame !== 'stale')
-        .flatMap((one) => one.ranges ?? [])
-        .filter((range) => range.state === 'hole').length;
+      const holes = marksOf(result.answer).filter((mark) => mark.state === 'hole').length;
       status.text = answered.length > 0 && answered.every((one) => one.frame === 'stale')
         ? '$(warning) variance: record is stale'
         : holes === 0
@@ -244,11 +241,6 @@ function named(one) {
 
 /** What one suite's record made of the file, for the status bar's tooltip. */
 function frameText(one) {
-  if (one.refused === 'unloaded') {
-    return 'Never loaded this file: a run that never loaded it has no answer about it, ' +
-      'which is not the same as no test covering it.';
-  }
-  if (one.refused === 'unrecorded') return 'Nothing is recorded: run the suite to record it.';
   if (one.reason !== undefined) return one.reason;
   if (one.frame === 'stale') {
     return 'This file changed since the suite ran, and the text it ran over could not be found. ' +

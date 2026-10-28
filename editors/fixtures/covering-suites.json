@@ -10,8 +10,20 @@
           "startLine": 1,
           "endLine": 4,
           "tests": [
-            { "id": "src/sum.test.ts > sum > adds", "file": "src/sum.test.ts", "name": "sum > adds", "stopped": false, "distance": 0 },
-            { "id": "src/sum.test.ts > sum > adds none", "file": "src/sum.test.ts", "name": "sum > adds none", "stopped": false, "distance": 0 }
+            {
+              "id": "src/sum.test.ts > sum > adds",
+              "file": "src/sum.test.ts",
+              "name": "sum > adds",
+              "stopped": false,
+              "distance": 0
+            },
+            {
+              "id": "src/sum.test.ts > sum > adds none",
+              "file": "src/sum.test.ts",
+              "name": "sum > adds none",
+              "stopped": false,
+              "distance": 0
+            }
           ],
           "stopped": [],
           "state": "walked"
@@ -20,7 +32,13 @@
           "startLine": 6,
           "endLine": 8,
           "tests": [
-            { "id": "src/sum.test.ts > sum > adds", "file": "src/sum.test.ts", "name": "sum > adds", "stopped": false, "distance": 0 }
+            {
+              "id": "src/sum.test.ts > sum > adds",
+              "file": "src/sum.test.ts",
+              "name": "sum > adds",
+              "stopped": false,
+              "distance": 0
+            }
           ],
           "stopped": [],
           "state": "alone"
@@ -30,7 +48,11 @@
           "endLine": 12,
           "tests": [],
           "stopped": [
-            { "id": "src/sum.test.ts > sum > overflows", "file": "src/sum.test.ts", "name": "sum > overflows" }
+            {
+              "id": "src/sum.test.ts > sum > overflows",
+              "file": "src/sum.test.ts",
+              "name": "sum > overflows"
+            }
           ],
           "state": "hole"
         }
@@ -47,7 +69,14 @@
           "startLine": 1,
           "endLine": 4,
           "tests": [
-            { "id": "src/cli.integration.test.ts > cli > prints", "file": "src/cli.integration.test.ts", "name": "cli > prints", "stopped": false, "distance": 1, "loaded": true }
+            {
+              "id": "src/cli.integration.test.ts > cli > prints",
+              "file": "src/cli.integration.test.ts",
+              "name": "cli > prints",
+              "stopped": false,
+              "distance": 1,
+              "loaded": true
+            }
           ],
           "loaded": true,
           "state": "loaded"
@@ -56,6 +85,7 @@
           "startLine": 14,
           "endLine": 15,
           "tests": [],
+          "stopped": [],
           "state": "unwalked",
           "moved": true
         }
@@ -72,18 +102,49 @@
       "suite": "site",
       "kind": "e2e",
       "refused": "unrecorded",
-      "reason": "nothing is recorded for the suite `site`: no run left a per-case index.",
-      "gap": { "question": "which tests run src/sum.ts", "reason": "unrecorded", "next": [] }
+      "reason": "nothing is recorded for the suite `site`: no run left a per-case index."
     },
     {
       "suite": "visual",
       "kind": "visual",
       "file": "src/sum.ts",
-      "ranges": [
-        { "startLine": 20, "endLine": 22, "tests": [], "state": "unwalked" }
-      ],
       "frame": "stale",
       "from": "node_modules/.cache/variance-authority/share/read/visual/coverage.bin"
+    }
+  ],
+  "marks": [
+    {
+      "startLine": 1,
+      "endLine": 4,
+      "state": "walked",
+      "suites": [
+        "unit",
+        "integration"
+      ]
+    },
+    {
+      "startLine": 6,
+      "endLine": 8,
+      "state": "alone",
+      "suites": [
+        "unit"
+      ]
+    },
+    {
+      "startLine": 10,
+      "endLine": 12,
+      "state": "hole",
+      "suites": [
+        "unit"
+      ]
+    },
+    {
+      "startLine": 14,
+      "endLine": 15,
+      "state": "unwalked",
+      "suites": [
+        "integration"
+      ]
     }
   ]
 }

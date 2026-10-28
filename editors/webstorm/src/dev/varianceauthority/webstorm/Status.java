@@ -10,7 +10,6 @@ import com.intellij.openapi.wm.StatusBarWidgetFactory;
 import com.intellij.openapi.wm.WindowManager;
 import com.intellij.openapi.wm.impl.status.EditorBasedWidget;
 import java.awt.Component;
-import java.util.List;
 import org.jetbrains.annotations.NotNull;
 
 /**
@@ -61,15 +60,8 @@ final class Status extends EditorBasedWidget implements StatusBarWidget.TextPres
     // A project with no CLI or no recording is not one of ours; the bar stays as it was.
     if (answer == null || answer.quiet()) return "";
     if (answer.refusal() != null) return "variance: not painted";
-    List<Record.Suite> answered = answer.suites().stream().filter((suite) -> suite.reason() == null).toList();
-    if (!answered.isEmpty() && answered.stream().allMatch((suite) -> "stale".equals(suite.frame()))) {
-      return "variance: record is stale";
-    }
-    long holes = answered.stream()
-        .filter((suite) -> !"stale".equals(suite.frame()))
-        .flatMap((suite) -> suite.ranges().stream())
-        .filter((range) -> "hole".equals(range.state()))
-        .count();
+    if (answer.stale()) return "variance: record is stale";
+    long holes = answer.marks().stream().filter((mark) -> "hole".equals(mark.state())).count();
     return holes == 0 ? "variance" : "variance: " + holes + (holes == 1 ? " hole" : " holes");
   }
 
