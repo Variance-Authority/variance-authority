@@ -13,7 +13,7 @@
 
 import { staleFile, staleLines } from './covering-stale.js';
 import type { CoveringRan, Landed, RanStand } from './covering-ran.js';
-import type { Covering } from './covering.js';
+import type { Covering, CoveringTarget } from './covering.js';
 
 /**
  * Where the asked file's line numbers stand, said once under the answer;
@@ -22,9 +22,10 @@ import type { Covering } from './covering.js';
  * given; one about a function says it here, with what it takes away.
  */
 export function frameText(answer: Covering): readonly string[] {
-  const file = answer.file;
+  const { file, target } = answer;
   if (answer.changed !== undefined || file === undefined || staleFile(answer)) return [];
-  if (answer.frame === 'stale') return [`${staleLines(answer).gone} Which parts of ${regionName(answer)} no case ran are not said for that reason.`];
+  // A stale answer about the file or its lines was said above; this one asks of a function.
+  if (answer.frame === 'stale' && target !== undefined) return [`${staleLines(answer).gone} Which parts of ${regionName(target)} no case ran are not said for that reason.`];
   if (answer.frame === 'recorded') return [];
   if (answer.frame === 'mapped') return [`The recorded lines of ${file} are placed in its text as it is now.`];
   // A precondition has no recorded line to be the record's, nor any to number.
@@ -95,10 +96,12 @@ function subject(ran: CoveringRan, count: number, others: boolean): string {
 
 /** The asked region of a test file that ran another text, after a semicolon: whether it is the same in both texts. */
 function regionText(answer: Covering, stand: RanStand): string {
-  const region = stand.region;
-  if (region === undefined) return '';
-  const named = regionName(answer);
-  const many = answer.target !== undefined && 'lines' in answer.target;
+  const { region } = stand;
+  const { target } = answer;
+  // A stand carries a region only when a line or a function is asked.
+  if (region === undefined || target === undefined) return '';
+  const named = regionName(target);
+  const many = 'lines' in target;
   if (region === 'same') return `; ${named} ${many ? 'are' : 'is'} the same in both`;
   if (region === 'changed') return `; ${named} ${many ? 'differ' : 'differs'} between the two`;
   if (region === 'gone') return `; ${named} is not in ${answer.file!} as it is now`;
@@ -106,9 +109,7 @@ function regionText(answer: Covering, stand: RanStand): string {
 }
 
 /** The asked line, run of lines or function, as a sentence names it. */
-function regionName(answer: Covering): string {
-  const target = answer.target;
-  if (target === undefined) return 'it';
+function regionName(target: CoveringTarget): string {
   if ('function' in target) return `\`${target.function}\``;
   if ('line' in target) return `line ${String(target.line)}`;
   return `lines ${String(target.lines.startLine)}-${String(target.lines.endLine)}`;
