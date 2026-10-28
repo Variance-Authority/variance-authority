@@ -31,14 +31,20 @@ export const oneRun = (at: string, files: readonly string[], texts: Record<strin
 /** What a covering answer says of a test file the record could not place. */
 export const ASSUMED = 'The record does not say where the test file named here last ran, so where it ran is assumed, not observed.\n';
 
-/** The index the record holds: `src/pay.test.ts` entered `pay`, and with `fee`, `src/fee.test.ts` did too; no case ran its branch. */
-export function indexOf(fee = false): { readonly tests: readonly object[]; readonly modules: readonly object[] } {
-  const crossings = [{ test: 0, distance: 0 }, ...(fee ? [{ test: 1, distance: 0 }] : [])];
+/**
+ * The index the record holds: `src/pay.test.ts` entered `pay`, and with `fee`,
+ * `src/fee.test.ts` did too; no case ran its branch. With `refunds`,
+ * `src/pay.test.ts` holds a second case, `r`, which enters `pay` or not.
+ */
+export function indexOf(fee = false, refunds?: 'enters' | 'idle'): { readonly tests: readonly object[]; readonly modules: readonly object[] } {
+  const tests = [
+    { id: 'p', file: 'src/pay.test.ts', name: 'charges once' },
+    ...(fee ? [{ id: 'f', file: 'src/fee.test.ts', name: 'charges a fee' }] : []),
+    ...(refunds === undefined ? [] : [{ id: 'r', file: 'src/pay.test.ts', name: 'refunds' }]),
+  ];
+  const crossings = tests.flatMap((test, at) => (test.id !== 'r' || refunds === 'enters' ? [{ test: at, distance: 0 }] : []));
   return {
-    tests: [
-      { id: 'p', file: 'src/pay.test.ts', name: 'charges once' },
-      ...(fee ? [{ id: 'f', file: 'src/fee.test.ts', name: 'charges a fee' }] : []),
-    ],
+    tests,
     modules: [{
       file: 'src/pay.ts',
       blocks: [
@@ -60,8 +66,12 @@ export interface Fixture {
   readonly row?: 'loaded' | false;
   /** The text of `src/setup.ts`, committed and loaded by `src/pay.test.ts` without instrumenting it, when given. */
   readonly setup?: string;
+  /** The text of `src/setup.ts` the record holds `src/pay.test.ts` ran over, when not `setup`. */
+  readonly setupRanOver?: string;
   /** `src/fee.test.ts` entered `pay` too. */
   readonly fee?: true;
+  /** `src/pay.test.ts` holds a second case, `refunds`, that enters `pay` or not. */
+  readonly refunds?: 'enters' | 'idle';
   /**
    * A second commit, at `committed` ms, that the record names: it writes `pay`
    * to `src/pay.ts` when given, and `src/other.ts` otherwise.
@@ -151,14 +161,14 @@ export function recordFixture(): RecordFixture {
         file: test,
         complete: true,
         // A module the run loaded without instrumenting it is a precondition of the test file that loaded it.
-        preconditions: options.setup === undefined || test !== 'src/pay.test.ts' ? [] : [{ name: 'src/setup.ts', digest: digestString(options.setup) }],
+        preconditions: options.setup === undefined || test !== 'src/pay.test.ts' ? [] : [{ name: 'src/setup.ts', digest: digestString(options.setupRanOver ?? options.setup) }],
       })),
       modules: [
         ...(options.row === false ? [] : [pay]),
-        ...(options.setup === undefined ? [] : [{ file: 'src/setup.ts', sourceDigest: digestString(options.setup), instrumented: false, blocks: [] }]),
+        ...(options.setup === undefined ? [] : [{ file: 'src/setup.ts', sourceDigest: digestString(options.setupRanOver ?? options.setup), instrumented: false, blocks: [] }]),
       ],
     }, {
-      index: encodeExecutionIndex(indexOf(options.fee === true) as Parameters<typeof encodeExecutionIndex>[0]),
+      index: encodeExecutionIndex(indexOf(options.fee === true, options.refunds) as Parameters<typeof encodeExecutionIndex>[0]),
     });
     const runs = options.runs?.(first, commit);
     if (runs !== undefined) await writeFile(commitRunsFile(file), typeof runs === 'string' ? runs : JSON.stringify(runs));

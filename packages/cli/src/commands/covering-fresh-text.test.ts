@@ -123,6 +123,20 @@ describe('ranText', () => {
     ]);
   });
 
+  it('says a test file whose cases last ran apart part by part, the newest first, and counts it once', () => {
+    const ran: CoveringRan = { stands: [
+      { commit: 'a', tests: ['src/fee.test.ts'], landed: landed(2 * HOUR), text: 'held' },
+      { commit: 'a', assumed: true, tests: ['src/pay.test.ts'], cases: ['charges once', 'charges twice'], landed: landed(3 * HOUR), text: 'other', other: ['src/pay.ts'], region: 'changed' },
+      { commit: 'a', assumed: true, tests: ['src/pay.test.ts'], cases: ['refunds'], landed: landed(HOUR), text: 'held' },
+      { commit: 'a', assumed: true, tests: ['src/pay.test.ts'], cases: ['voids'], landed: landed(30 * MINUTE), unknown: 'that text is not held' },
+    ] };
+    expect(ranText(of(ran, { target: { function: 'pay' } }), NOW)).toEqual([
+      "src/pay.test.ts ran 'voids' over a text of src/pay.ts not known, in a run that landed 30 minutes ago, since that text is not held, 'refunds' over this text, in a run that landed 1 hour ago, and its 2 other cases named here over another text of src/pay.ts, in a run that landed 3 hours ago, in which `pay` differs.",
+      'src/pay.ts is the text the other test file named here ran over, in a run that landed 2 hours ago.',
+      'The record does not say where 1 of them last ran, so where it ran is assumed, not observed.',
+    ]);
+  });
+
   it('says how many of the test files were placed by assumption, after the lines it dates', () => {
     const one: CoveringRan = { stands: [{ commit: 'a', assumed: true, tests: ['src/pay.test.ts'], text: 'held' }], assumed: 'no runs record lies beside the snapshot' };
     expect(ranText(of(one), NOW)).toEqual([

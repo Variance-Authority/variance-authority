@@ -38,8 +38,10 @@ export function frameText(answer: Covering): readonly string[] {
  * Whether each test file the answer names ran over the asked text, and when,
  * in lines ordered by when their runs landed, the oldest first. The test files
  * that ran over it are said in one line; each group that ran over another
- * text, or whose text is not known, in one of its own, by name. A changed file
- * off disk is said first, and no line says a test file ran over it.
+ * text, or whose text is not known, in one of its own, by name; a test file
+ * whose named cases last ran in different runs, in one of its own, part by
+ * part. A changed file off disk is said first, and no line says a test file
+ * ran over it.
  *
  * @param now The clock the answer is dated against, in ms.
  */
@@ -51,24 +53,28 @@ export function ranText(answer: Covering, now: number): readonly string[] {
   const unheld = ran.unheld ?? [];
   const asked = askedFiles(answer).filter((file) => !unheld.includes(file));
   const stands = [...ran.stands].sort((one, other) => (one.landed?.latest ?? '').localeCompare(other.landed?.latest ?? ''));
-  const all = stands.reduce((sum, stand) => sum + stand.tests.length, 0);
-  const held = stands.filter((stand) => stand.text === 'held');
-  const uncompared = stands.filter((stand) => stand.text === undefined && stand.unknown === undefined);
+  // A test file whose named cases last ran in different runs is said part by part, in a line of its own.
+  const whole = stands.filter((stand) => stand.cases === undefined);
+  const parted = new Map<string, RanStand[]>();
+  for (const stand of stands) if (stand.cases !== undefined) parted.set(stand.tests[0]!, [...(parted.get(stand.tests[0]!) ?? []), stand]);
+  const all = new Set(stands.flatMap((stand) => stand.tests)).size;
+  const held = whole.filter((stand) => stand.text === 'held');
+  const uncompared = whole.filter((stand) => stand.text === undefined && stand.unknown === undefined);
   const lines: { readonly at: string; readonly said: string }[] = [];
-  const whole = (group: readonly RanStand[]): { count: number; others: boolean } => {
+  const counted = (group: readonly RanStand[]): { count: number; others: boolean } => {
     const count = group.reduce((sum, stand) => sum + stand.tests.length, 0);
     return { count, others: count < all };
   };
   if (held.length > 0) {
-    const { count, others } = whole(held);
+    const { count, others } = counted(held);
     const verb = asked.length === 1 ? 'is the text' : 'are the texts';
     lines.push({ at: earliest(held), said: `${list(asked, 'other files')} ${verb} ${subject(ran, count, others)} ran over, ${when(held, now)}.` });
   }
   if (uncompared.length > 0) {
-    const { count, others } = whole(uncompared);
+    const { count, others } = counted(uncompared);
     lines.push({ at: earliest(uncompared), said: `${capital(subject(ran, count, others))} last ran ${when(uncompared, now)}.` });
   }
-  for (const stand of stands) {
+  for (const stand of whole) {
     const names = list(stand.tests, 'other test files');
     if (stand.text === 'other') {
       const of = list(stand.other ?? asked, 'other files');
@@ -78,15 +84,55 @@ export function ranText(answer: Covering, now: number): readonly string[] {
       lines.push({ at: earliest([stand]), said: `Whether ${names} ran over ${of} as it is now, ${when([stand], now)}, is not known: ${stand.unknown}.` });
     }
   }
+  for (const [test, parts] of parted) lines.push({ at: earliest(parts), said: partsText(answer, ran, test, parts, asked, now) });
   const off = unheld.length === 1 ? 'is not on disk, so no text of it is held' : 'are not on disk, so no text of them is held';
   const said = [
     ...(unheld.length === 0 ? [] : [`${list(unheld, 'other files')} ${off}.`]),
     ...lines.sort((one, other) => one.at.localeCompare(other.at)).map((line) => line.said),
   ];
-  const assumed = stands.filter((stand) => stand.assumed === true).reduce((sum, stand) => sum + stand.tests.length, 0);
+  const assumed = new Set(stands.filter((stand) => stand.assumed === true).flatMap((stand) => stand.tests)).size;
   if (assumed === 0) return said;
   const whose = assumed === all ? subject(ran, all, false) : `${String(assumed)} of them`;
   return [...said, `The record does not say where ${whose} last ran, so where ${assumed === 1 ? 'it' : 'they'} ran is assumed, not observed.`];
+}
+
+/**
+ * One test file whose named cases last ran in different runs, part by part,
+ * the newest first: each part by its cases' names, and the oldest by how many
+ * cases it holds, with the text they ran over and when.
+ */
+function partsText(answer: Covering, ran: CoveringRan, test: string, parts: readonly RanStand[], asked: readonly string[], now: number): string {
+  const newest = [...parts].sort((one, other) => (other.landed?.latest ?? '').localeCompare(one.landed?.latest ?? ''));
+  const oldest = newest.pop()!;
+  const verb = ran.named === 'entered' ? 'that entered it' : ran.named === 'read' ? 'read here' : 'named here';
+  const count = oldest.cases!.length;
+  const said = [
+    ...newest.map((part) => `${list(part.cases!.map((name) => `'${name}'`), 'other cases')}${partText(answer, part, asked, now)}`),
+    `its ${String(count)} other case${count === 1 ? '' : 's'} ${verb}${partText(answer, oldest, asked, now)}`,
+  ];
+  return `${test} ran ${said.slice(0, -1).join(', ')}, and ${said.at(-1)!}.`;
+}
+
+/** What one part of a test file ran over and when, after its cases: ` over this text, in a run that landed 1 hour ago`. */
+function partText(answer: Covering, part: RanStand, asked: readonly string[], now: number): string {
+  const at = when([part], now);
+  if (part.text === 'held') return ` over ${asked.length === 1 ? 'this text' : 'these texts'}, ${at}`;
+  if (part.text === 'other') return ` over another text of ${list(part.other ?? asked, 'other files')}, ${at}${partRegion(answer, part)}`;
+  if (part.unknown !== undefined) return ` over a text of ${list(asked, 'other files')} not known, ${at}, since ${part.unknown}`;
+  return ` ${at}`;
+}
+
+/** The asked region of a part that ran another text, after its time: whether it is the same in both texts. */
+function partRegion(answer: Covering, part: RanStand): string {
+  const { region } = part;
+  const { target } = answer;
+  if (region === undefined || target === undefined) return '';
+  const named = regionName(target);
+  const many = 'lines' in target;
+  if (region === 'same') return `, in which ${named} ${many ? 'are' : 'is'} the same`;
+  if (region === 'changed') return `, in which ${named} ${many ? 'differ' : 'differs'}`;
+  if (region === 'gone') return `, though ${named} is not in ${answer.file!} as it is now`;
+  return `, in which whether ${named} ${many ? 'differ' : 'differs'} is not known, since ${region.unknown}`;
 }
 
 /** The files the answer asks about: the one file, or every changed one, off disk or not. */

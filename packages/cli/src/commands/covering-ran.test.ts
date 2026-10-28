@@ -302,13 +302,17 @@ describe('namedTestFiles', () => {
     ],
   } as unknown as ExecutionIndex;
 
-  it('names the test files of the cases an answer lists, and of those that stopped before it', () => {
-    expect(namedTestFiles({ file: 'src/pay.ts', tests: [tests[1]!], stopped: [tests[0]!] }, whole)).toEqual({ tests: ['src/fee.test.ts', 'src/pay.test.ts'] });
+  const entered = new Map([['src/pay.test.ts', [{ ...tests[0]!, distance: 0 }]]]);
+  const both = new Map([['src/pay.test.ts', [tests[0]!]], ['src/fee.test.ts', [tests[1]!]]]);
+
+  it('names the test files of the cases an answer lists, and of those that stopped before it, with those cases', () => {
+    expect(namedTestFiles({ file: 'src/pay.ts', tests: [tests[1]!], stopped: [tests[0]!] }, whole))
+      .toEqual({ tests: ['src/fee.test.ts', 'src/pay.test.ts'], cases: new Map([['src/fee.test.ts', [tests[1]!]], ['src/pay.test.ts', [tests[0]!]]]) });
   });
 
-  it('dates an answer naming none by the test files that entered its file, else by those of every case it was read from', () => {
-    expect(namedTestFiles({ file: 'src/pay.ts', tests: [] }, whole)).toEqual({ tests: ['src/pay.test.ts'], named: 'entered' });
-    expect(namedTestFiles({ file: 'src/idle.ts', tests: [] }, whole)).toEqual({ tests: ['src/fee.test.ts', 'src/pay.test.ts'], named: 'read' });
-    expect(namedTestFiles({ changed: [] }, whole)).toEqual({ tests: ['src/fee.test.ts', 'src/pay.test.ts'], named: 'read' });
+  it('dates an answer naming none by the cases that entered its file, else by every case it was read from', () => {
+    expect(namedTestFiles({ file: 'src/pay.ts', tests: [] }, whole)).toEqual({ tests: ['src/pay.test.ts'], named: 'entered', cases: entered });
+    expect(namedTestFiles({ file: 'src/idle.ts', tests: [] }, whole)).toEqual({ tests: ['src/fee.test.ts', 'src/pay.test.ts'], named: 'read', cases: both });
+    expect(namedTestFiles({ changed: [] }, whole)).toEqual({ tests: ['src/fee.test.ts', 'src/pay.test.ts'], named: 'read', cases: both });
   });
 });
