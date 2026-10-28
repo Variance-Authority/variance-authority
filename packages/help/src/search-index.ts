@@ -151,7 +151,6 @@ export interface SearchIndex {
   fileIds(paths: Iterable<string>): ReadonlySet<number>;
   file(id: number): string;
   exportedFile(row: number): number;
-  publishedFile(row: number): number;
   exported(row: number): ExportedRow;
   /** The name id of one exported row, without decoding the rest of it. */
   exportedName(row: number): number;
@@ -299,7 +298,6 @@ export function openSearchIndex(bytes: Uint8Array): SearchIndex {
     },
     file: string,
     exportedFile: (row) => exp.at[row] ?? NONE,
-    publishedFile: (row) => pub.at[row] ?? NONE,
     exported(row) {
       const doc = exp.doc[row] ?? NONE;
       return {
