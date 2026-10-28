@@ -85,15 +85,25 @@ mod names;
 #[path = "walk_params.rs"]
 mod params;
 
+/// What kind of region a block is, named for the construct that opens it.
+/// `kind_name` spells each as `BlockKind` in `spliced.ts` does.
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum Kind {
+    /// A module's top level.
     Module = 0,
+    /// A function body, from its parameters.
     Function = 1,
+    /// An `if`'s `then` or `else`, a missing `else` included.
     Branch = 2,
+    /// The statements after an `if`, `switch`, loop or `try`.
     Continuation = 3,
+    /// Where an `await` returns.
     Resume = 4,
+    /// A loop body.
     Loop = 5,
+    /// A `switch` clause, `default` included, a missing one written in.
     Case = 6,
+    /// A `catch` clause or a `finally` block.
     Handler = 7,
 }
 
