@@ -117,10 +117,10 @@ describe('the install the runs at one commit ran on', () => {
     });
     const ran = commitRunsAfter(at('base', ['a.test.ts', 'b.test.ts']), undefined, at('head', ['a.test.ts', 'b.test.ts']), bumped);
     const next = commitRunsAfter(at('head', ['a.test.ts', 'b.test.ts']), ran, at('next', ['a.test.ts']), {});
-    expect(next.standing).toEqual([{ commit: 'head', files: ['b.test.ts'], installed: bumped }]);
+    expect(next.standing).toEqual([{ commit: 'head', files: ['b.test.ts'], installed: bumped, first: ran.first, latest: ran.latest, runs: 1 }]);
 
     const later = commitRunsAfter(at('next', ['a.test.ts', 'b.test.ts']), next, at('later', ['a.test.ts']), {});
-    expect(later.standing).toEqual([{ commit: 'head', files: ['b.test.ts'], installed: bumped }]);
+    expect(later.standing).toEqual([{ commit: 'head', files: ['b.test.ts'], installed: bumped, first: ran.first, latest: ran.latest, runs: 1 }]);
   });
 
   it('is read as unknown when the record holds something other than an install', async () => {

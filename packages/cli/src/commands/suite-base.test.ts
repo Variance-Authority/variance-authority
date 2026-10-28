@@ -152,9 +152,9 @@ describe('the record a worktree that has run nothing measures from', () => {
     expect(laid).toEqual({ laid: own });
     expect(await readFile(own)).toEqual(await readFile(base.file));
     expect(keepsCases(own)).toBe(true);
-    // The mainline's runs record, as a seed: none of its runs are this checkout's.
-    const { first: _first, latest: _latest, ...published } = (await readCommitRuns(base.file))!;
-    expect(await readCommitRuns(own)).toEqual({ ...published, runs: 0, first: expect.any(String), latest: expect.any(String) });
+    // The mainline's runs record, as a seed: none of its runs are this checkout's, and they landed when they landed.
+    const published = (await readCommitRuns(base.file))!;
+    expect(await readCommitRuns(own)).toEqual({ ...published, runs: 0 });
     expect(await suiteBase(fresh, { env: LOCAL })).toEqual({
       from: 'own',
       suite: 'unit',
@@ -378,8 +378,8 @@ describe('every reader of a worktree that has run nothing starts from the same r
     expect(seeded).toMatchObject({ from: 'mainline', record: { mainline: 'main', commit: ci.first } });
     expect(await readFile(own)).toEqual(ci.record);
     expect(await readFile(own)).not.toEqual(record);
-    const { first: _first, latest: _latest, ...published } = (await readCommitRuns(base.file))!;
-    expect(await readCommitRuns(own)).toEqual({ ...published, runs: 0, first: expect.any(String), latest: expect.any(String) });
+    const published = (await readCommitRuns(base.file))!;
+    expect(await readCommitRuns(own)).toEqual({ ...published, runs: 0 });
   });
 
   it('`variance select` reads the mainline\'s record, and says so, where the primary checkout holds one too', async () => {

@@ -2,7 +2,7 @@ import { mkdir, mkdtemp, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
-import { commitRunsFile, landRun, readCommitRuns } from './commit-runs.js';
+import { commitRunsAfter, commitRunsFile, landRun, readCommitRuns, type CommitRuns } from './commit-runs.js';
 import { writeTestCoverage, type TestCoverage } from './index.js';
 
 /** A run of `files` that instrumented one module: a run that instrumented none records no runs at all. */
@@ -120,7 +120,7 @@ describe('the runs recorded at one commit', () => {
 
     // A retry at C keeps the order: `over` is H, and P is older than it.
     await landRun(coverageFile, run('C', ['other.test.ts']), root);
-    expect((await readCommitRuns(coverageFile))?.standing).toEqual([
+    expect((await readCommitRuns(coverageFile))?.standing).toMatchObject([
       { commit: 'P', files: ['far.test.ts'] },
       { commit: 'H', files: ['near.test.ts'] },
     ]);
@@ -132,6 +132,64 @@ describe('the runs recorded at one commit', () => {
       files: ['far.test.ts', 'other.test.ts'],
       standing: [{ commit: 'H', files: ['near.test.ts'] }],
     });
+  });
+
+  it('carries when the runs at a commit landed with the tests a run at another commit moves off it', () => {
+    // When a test last ran is when its run landed. The runs record holds that
+    // for the runs at its own commit; a run at the next commit moves the tests
+    // it did not run into `standing`, and the time goes with them, as their
+    // install does. Nothing works it out again from the commit.
+    const tests = (...files: string[]) => files.map((file) => ({ file }));
+    const atP: CommitRuns = {
+      commit: 'P',
+      over: 'O',
+      first: '2026-01-01T00:00:00.000Z',
+      latest: '2026-01-02T00:00:00.000Z',
+      runs: 2,
+      files: ['a.test.ts', 'b.test.ts', 'c.test.ts'],
+      standing: [],
+    };
+    const atH = commitRunsAfter({ instrumentation: 'fixture', commit: 'P', tests: tests('a.test.ts', 'b.test.ts', 'c.test.ts') }, atP, {
+      instrumentation: 'fixture',
+      commit: 'H',
+      tests: tests('a.test.ts'),
+    });
+    const ranAtP = { first: '2026-01-01T00:00:00.000Z', latest: '2026-01-02T00:00:00.000Z', runs: 2 };
+    expect(atH.standing).toEqual([{ commit: 'P', files: ['b.test.ts', 'c.test.ts'], ...ranAtP }]);
+
+    const atC = commitRunsAfter({ instrumentation: 'fixture', commit: 'H', tests: tests('a.test.ts', 'b.test.ts', 'c.test.ts') }, atH, {
+      instrumentation: 'fixture',
+      commit: 'C',
+      tests: tests('c.test.ts'),
+    });
+    expect(atC.standing).toEqual([
+      { commit: 'P', files: ['b.test.ts'], ...ranAtP },
+      { commit: 'H', files: ['a.test.ts'], first: atH.first, latest: atH.latest, runs: 1 },
+    ]);
+  });
+
+  it('widens the time of a stand when the runs at its commit land there again', () => {
+    // Runs at P, then at Q, then at P again: the test only the first runs at P
+    // ran stands at P beside the ones the later runs there ran, and the stand
+    // spans both.
+    const tests = (...files: string[]) => files.map((file) => ({ file }));
+    const held: CommitRuns = {
+      commit: 'P',
+      over: 'Q',
+      first: '2026-01-03T00:00:00.000Z',
+      latest: '2026-01-03T00:00:00.000Z',
+      runs: 1,
+      files: ['a.test.ts'],
+      standing: [{ commit: 'P', files: ['b.test.ts'], first: '2026-01-01T00:00:00.000Z', latest: '2026-01-01T00:00:00.000Z', runs: 1 }],
+    };
+    const after = commitRunsAfter({ instrumentation: 'fixture', commit: 'P', tests: tests('a.test.ts', 'b.test.ts', 'c.test.ts') }, held, {
+      instrumentation: 'fixture',
+      commit: 'R',
+      tests: tests('c.test.ts'),
+    });
+    expect(after.standing).toEqual([
+      { commit: 'P', files: ['a.test.ts', 'b.test.ts'], first: '2026-01-01T00:00:00.000Z', latest: '2026-01-03T00:00:00.000Z', runs: 2 },
+    ]);
   });
 
   it('leaves `standing` absent, rather than guessed, when no record speaks for the snapshot it replaces', async () => {
@@ -170,7 +228,7 @@ describe('the runs recorded at one commit', () => {
 
       expect((await readCommitRuns(coverageFile))?.standing, name).toEqual([
         { commit: 'P', files: ['b.test.ts'], assumed: true },
-        { commit: 'H', files: ['a.test.ts'] },
+        { commit: 'H', files: ['a.test.ts'], first: '', latest: '', runs: 1 },
       ]);
     }
   });

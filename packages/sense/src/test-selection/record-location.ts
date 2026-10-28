@@ -324,7 +324,9 @@ export function noteSeeded(seeded: Seeded | undefined): void {
  *
  * `runs` is 0, so the worktree's first run at the same commit is not counted
  * as another run of the base's — see `landRun` — and a review still finds that
- * no run of this checkout has listed itself.
+ * no run of this checkout has listed itself. `first` and `latest` stay the
+ * base's: they say when the runs its tests last ran in landed, which the seed
+ * does not change.
  *
  * The record is linked into place rather than renamed over it, so a runs record
  * already beside the snapshot when the link is made is kept. That protects this
@@ -341,8 +343,7 @@ async function seedCommitRuns(file: string, base: string, snapshot: TestCoverage
     return;
   }
   if (held?.commit !== commit) return;
-  const at = new Date().toISOString();
-  const record: CommitRuns = { ...held, first: at, latest: at, runs: 0 };
+  const record: CommitRuns = { ...held, runs: 0 };
   await writeCoverageOnce(commitRunsFile(file), Buffer.from(`${JSON.stringify(record, null, 2)}\n`));
 }
 

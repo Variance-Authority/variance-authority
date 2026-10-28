@@ -104,6 +104,8 @@ describe('a landing records its fold as one run at the shards\' commit', () => {
   it('at the commit the record already names, is one more run there: the files join and the base is kept', async () => {
     await partial();
     const before = await readCommitRuns(into);
+    const atP = before!.standing![0]!;
+    expect(atP).toEqual({ commit: 'P', files: ['far.test.ts', 'other.test.ts'], first: expect.any(String), latest: atP.first, runs: 1 });
 
     await land(run('H', ['other.test.ts']));
 
@@ -114,7 +116,7 @@ describe('a landing records its fold as one run at the shards\' commit', () => {
       latest: expect.any(String),
       runs: 2,
       files: ['near.test.ts', 'other.test.ts'],
-      standing: [{ commit: 'P', files: ['far.test.ts'] }],
+      standing: [{ ...atP, files: ['far.test.ts'] }],
     });
   });
 

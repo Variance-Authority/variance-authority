@@ -227,10 +227,9 @@ function opensFetched(
   return commit !== undefined && (held as CommitRuns).commit === commit ? (held as CommitRuns) : undefined;
 }
 
-/** `held` as the seed of a checkout that has not run: its runs are none of this checkout's. */
+/** `held` as the seed of a checkout that has not run: its runs are none of this checkout's, and landed when they landed. */
 function seeded(held: CommitRuns): Uint8Array {
-  const at = new Date().toISOString();
-  return Buffer.from(`${JSON.stringify({ ...held, first: at, latest: at, runs: 0 } satisfies CommitRuns, null, 2)}\n`);
+  return Buffer.from(`${JSON.stringify({ ...held, runs: 0 } satisfies CommitRuns, null, 2)}\n`);
 }
 
 async function place(file: string, bytes: Uint8Array | undefined): Promise<void> {

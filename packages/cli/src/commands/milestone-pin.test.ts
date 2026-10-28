@@ -152,10 +152,11 @@ async function standingOverTwoStates(): Promise<{ worktree: string; own: string;
   await git(worktree, 'add', 'package-lock.json', 'src/edited.ts');
   await git(worktree, 'commit', '--quiet', '-m', 'bump');
   const bumped = await git(worktree, 'rev-parse', 'HEAD');
+  const atNext = (await readCommitRuns(own))!;
   await landRun(own, ranAlone(bumped, 'test/third.test.ts'), worktree);
   const installed = { 'package-lock.json': digestString(lock) };
   expect((await readCommitRuns(own))?.standing).toEqual([
-    { commit: next, files: ['test/other.test.ts', 'test/total.test.ts'], installed },
+    { commit: next, files: ['test/other.test.ts', 'test/total.test.ts'], installed, first: atNext.first, latest: atNext.latest, runs: atNext.runs },
   ]);
   return { worktree, own, next, installed };
 }
