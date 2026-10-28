@@ -712,9 +712,6 @@
   "packages/cli/src/commands/review-suites.ts docblock": [
     11
   ],
-  "packages/cli/src/commands/review.ts block": [
-    11
-  ],
   "packages/cli/src/commands/run-context.ts docblock": [
     12,
     11

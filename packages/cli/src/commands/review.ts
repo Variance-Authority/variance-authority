@@ -52,27 +52,20 @@ import { runsBase } from './runs-base.js';
 import { sourceGraphFor } from './source-graph.js';
 import type { ReviewCoverage } from './review-coverage.js';
 /**
- * How a changed region was reached, first match wins.
- *
- * - `near`: a case from a test file that imports this file, or whose own
- *   source this file is, called into it.
- * - `far`: cases called into it, and every one of them came through another
- *   module.
- * - `unplaced`: cases called into it, none from a near test, and at least one
- *   from a test the import graph does not hold, so its distance was not measured.
- * - `loaded`: it ran only while its module was evaluated.
- * - `hole`: nothing entered it, and a case that could have stopped first.
- * - `unwalked`: nothing entered it, and every case that could have finished.
- * - `unknown`: nothing is known to have entered it: a case ran it in a text an
- *   edit wrote over, or the record cannot tell `hole` from `unwalked`.
- */
-/**
  * The edges a changed package's importers are walked through. Who imports the changed code is a question about
  * source, so a package importing only a type reads the change too; one that only reads the file, as a stylesheet or a
  * `/// <depends>` does, imports nothing.
  */
 const IMPORT_EDGES: readonly EdgeKind[] = ['imports', 'reexports', 'dynamic', 'type'];
 
+/**
+ * How a changed region was reached, first match wins: `near` when a case from a
+ * test file importing the file, or whose source it is, called into it, `far`
+ * when every one came through another module, and `unplaced` when one came
+ * from a test the import graph does not hold. The rest are the record's own
+ * `Reach` (`@variance-authority/sense/test-selection`) of a region no case
+ * called into.
+ */
 export type Reach = 'near' | 'far' | 'unplaced' | 'loaded' | 'hole' | 'unwalked' | 'unknown';
 
 export const REACHES: readonly Reach[] = ['near', 'far', 'unplaced', 'loaded', 'hole', 'unwalked', 'unknown'];

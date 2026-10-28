@@ -386,13 +386,12 @@ function summary(review: Review, code: (value: string) => string): readonly stri
   }
   const uncovered = regions.filter((region) => region.reach === 'hole' || region.reach === 'unwalked');
   const unknown = regions.filter((region) => region.reach === 'unknown');
-  const far = regions.filter((region) => region.reach === 'far');
   const holding = review.files.filter((file) => outermost(file).length > 0).length;
   const lines = [
     `${regions.length} changed region${regions.length === 1 ? '' : 's'} in ${holding} file${holding === 1 ? '' : 's'}: ${edits(regions)}.`,
     `- ${uncovered.length} no case covered${uncovered.length === 0 ? '' : `: ${edits(uncovered)}`}.`,
     ...(unknown.length === 0 ? [] : [`- ${unknown.length} no case is known to have covered: ${edits(unknown)}.`]),
-    `- ${far.length} covered only by tests further than one import away.`,
+    `- ${regions.filter((region) => region.reach === 'far').length} covered only by tests further than one import away.`,
   ];
   const unplaced = regions.filter((region) => region.reach === 'unplaced').length;
   if (unplaced > 0) lines.push(`- ${unplaced} covered by tests the import graph does not hold, so how far is not known.`);
