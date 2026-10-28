@@ -13,15 +13,18 @@ import { answerSearch, searchIndexOf } from './search.js';
  * A name with more than one row — published by more than one package or
  * exported from more than one file, or published and also exported — is
  * weighed, ordered and shown through one of them, never through several rows'
- * docs added up: the row whose doc adds the most different words to its name's,
- * then the shorter doc, then the order its rows are shown in, and when no doc
- * adds a word, the first row in that order, the one the published or exported
- * section shows first: a published row before an exported one, a published row
- * in an area by the files there importing it, then by its import sites there,
- * then by the packages importing it, then by its import sites; an exported row
- * source first, then tests, then stories; then the doc's text and the row's
- * path. In an area it is counted, weighed and ordered only through the rows the
- * area holds.
+ * docs added up: the row its name's words and that row's doc weigh most, each
+ * word by its rarity and a doc's by its length, then the order its rows are
+ * shown in, so when no doc adds a word, the first row in that order, the one
+ * the published or exported section shows first: a published row before an
+ * exported one, a published row in an area by the files there importing it,
+ * then by its import sites there, then by the packages importing it, then by
+ * its import sites; an exported row source first, then tests, then stories;
+ * then the doc's text, then what a published row declares or the line an
+ * exported row is declared on, then the row's path. A word's rarity and the
+ * mean doc length are counted over every row a name could be weighed through,
+ * whichever it is. In an area it is counted, weighed and ordered only through
+ * the rows the area holds.
  */
 
 const before = process.env['VARIANCE_AUTHORITY_CACHE'];
@@ -135,6 +138,7 @@ describe('which row a described name is weighed, ordered and shown through', () 
 
   it('weighs and shows a name through the same row whichever package publishes which doc', async () => {
     // Every doc adds two words of three: `LONG` and `c-kit`'s add `commit` and `text`, `SHARD` adds `commit` and `shard`.
+    // `SHARD` and `c-kit`'s are no longer than the mean, so they weigh alike, and a published row comes first.
     const SHARD = '/** Kept at the commit of one shard. */\n';
     const placed = async (first: string, second: string): Promise<unknown> => {
       const root = await kits({
@@ -147,7 +151,7 @@ describe('which row a described name is weighed, ordered and shown through', () 
       const line = answerSearch(index, { query: 'commit text shard' }, treeOf([], root), root).split('\n').find((one) => one.includes('Placement'));
       return { through: reached?.through.kind, words: reached?.words, line };
     };
-    const shown = { through: 'exported', words: ['commit', 'text'], line: expect.stringMatching(/packages\/c-kit\/src\/inner\.ts.*The commit text\..*\[holds: commit, text\]/u) };
+    const shown = { through: 'published', words: ['commit', 'shard'], line: expect.stringMatching(/· Placement .*Kept at the commit of one shard\..*\[holds: commit, shard\]/u) };
     expect(await placed(LONG, SHARD)).toEqual(shown);
     expect(await placed(SHARD, LONG)).toEqual(shown);
   });
@@ -156,36 +160,28 @@ describe('which row a described name is weighed, ordered and shown through', () 
   const describedBy = (root: string, query: string): unknown =>
     searchNames(searchIndexOf(readHelp(root)), { query }).described?.shown.map((one) =>
       [one.name, 'specifier' in one ? one.specifier : one.at, 'summary' in one ? one.summary : undefined, one.words]);
-  // Both docs are 31 bytes and add two words of three; `shard` is common, so the row decides where `Placement` sorts.
+  // Both docs are 31 bytes and add one word of three as rare as the other's, so the two rows weigh alike.
   const TEXT = '/** Kept at a commit with its text. */\n';
-  const SHARDS = ['alpha', 'beta', 'gamma'].map((name) => `/** One shard. */\nexport const ${name} = 1;\n`).join('');
+  const PAGE = '/** Kept at a commit with its page. */\n';
 
   it('weighs and shows a name published twice through the same row whatever its packages are called, at a tie on all else', async () => {
     const placed = async (first: string): Promise<unknown> => describedBy(await kits({
       [first]: { 'index.ts': `${TEXT}export interface Placement {\n  readonly at: string;\n}\n` },
-      'b-kit': { 'index.ts': '/** Kept at a commit for one shard. */\nexport interface Placement {\n  readonly at: string;\n}\n' },
-      'c-kit': { 'index.ts': `${SHARDS}${TEXT}export interface Other {\n  readonly at: string;\n}\n` },
-    }), 'commit text shard');
-    const named = await placed('a-kit');
-    expect(named).toEqual(await placed('z-kit'));
-    expect((named as unknown[]).slice(0, 2)).toEqual([
-      ['Other', 'c-kit', 'Kept at a commit with its text.', ['commit', 'text']],
-      ['Placement', 'b-kit', 'Kept at a commit for one shard.', ['commit', 'shard']],
-    ]);
+      'b-kit': { 'index.ts': `${PAGE}export interface Placement {\n  readonly at: string;\n}\n` },
+    }), 'commit text page');
+    const shown = [['Placement', 'b-kit', 'Kept at a commit with its page.', ['commit', 'page']]];
+    expect(await placed('a-kit')).toEqual(shown);
+    expect(await placed('z-kit')).toEqual(shown);
   });
 
   it('weighs and shows a name exported twice through the same row whatever its files are called, at a tie on all else', async () => {
     const placed = async (first: string): Promise<unknown> => describedBy(await inventedWorkspace(INVENTED_PACKAGES, ['react'], {
       [first]: `${TEXT}export interface Placement {\n  readonly at: string;\n}\n`,
-      'src/b.ts': '/** Kept at a commit for one shard. */\nexport interface Placement {\n  readonly at: string;\n}\n',
-      'src/other.ts': `${SHARDS}${TEXT}export interface Other {\n  readonly at: string;\n}\n`,
-    }), 'commit text shard');
-    const named = await placed('src/a.ts');
-    expect(named).toEqual(await placed('src/c.ts'));
-    expect((named as unknown[]).slice(0, 2)).toEqual([
-      ['Other', 'src/other.ts', 'Kept at a commit with its text.', ['commit', 'text']],
-      ['Placement', 'src/b.ts', 'Kept at a commit for one shard.', ['commit', 'shard']],
-    ]);
+      'src/b.ts': `${PAGE}export interface Placement {\n  readonly at: string;\n}\n`,
+    }), 'commit text page');
+    const shown = [['Placement', 'src/b.ts', 'Kept at a commit with its page.', ['commit', 'page']]];
+    expect(await placed('src/a.ts')).toEqual(shown);
+    expect(await placed('src/c.ts')).toEqual(shown);
   });
 
   it('weighs and shows a name through the shorter of two rows whose docs hold the same words, though the longer is published', async () => {
@@ -435,5 +431,17 @@ describe('which row a described name is weighed, ordered and shown through', () 
     };
     expect(await shown('src/a.test.ts')).toBe('src/b.ts');
     expect(await shown('src/c.test.ts')).toBe('src/b.ts');
+  });
+
+  it('weighs and shows a name through the row weighing most, a doc adding one rare word before one adding two words ten names hold', async () => {
+    const boards = Array.from({ length: 10 }, (_, at) => `/** A chart palette. */\nexport const board${at} = ${at};\n`).join('');
+    const drawn = (doc: string): string => `/** ${doc} */\nexport interface DrawKit {\n  readonly at: string;\n}\n`;
+    const root = await inventedWorkspace(INVENTED_PACKAGES, ['react'], {
+      'src/a.ts': drawn('The chart palette it is drawn with.'),
+      'src/b.ts': drawn('Drawn as a mermaid.'),
+      'src/boards.ts': boards,
+    });
+    const shown = searchNames(searchIndexOf(readHelp(root)), { query: 'kit mermaid chart palette' }).described?.shown.find(({ name }) => name === 'DrawKit');
+    expect(shown && [shown.at, 'summary' in shown ? shown.summary : undefined, shown.words]).toEqual(['src/b.ts', 'Drawn as a mermaid.', ['kit', 'mermaid']]);
   });
 });

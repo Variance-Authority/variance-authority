@@ -40,12 +40,12 @@ import { admittedBy, rowWithin, termsOfStems } from './loose.js';
  * field-weighted ranking weighs a title over a body. A doc word also counts by how
  * long the doc is, BM25's length term with a held word's count of one: a doc of
  * the mean length or shorter counts as two, a longer one less, the mean taken over
- * the reached rows that write a doc. A name is weighed through one row,
- * {@link throughOf}: of those whose doc adds a word to its name's, the one adding
- * the most different words, then the shorter measured doc, then the first by
- * {@link RowOrder}, the order its rows are shown in; else its first row by it. A long doc
- * holds most words in passing, and a doc's word stays below a name's however
- * short. That sum is multiplied by a coordination factor, {@link weightOf}. Integers throughout,
+ * the docs reached. A long doc holds most words in passing, and a doc's word stays
+ * below a name's however short. That sum is multiplied by a coordination factor,
+ * {@link weightOf}. A name is weighed through the one of its rows weighing most,
+ * then the first by {@link RowOrder}, the order its rows are shown in; a word's
+ * holders and the mean are counted over every row a name could be weighed
+ * through, so no name's row moves another's weight. Integers throughout,
  * so the order is counts, never a score, and a tie is a tie (ADR-0057). `N` is
  * everything reached, the names another section shows included, so the weight of a
  * word does not move with what is left. Then the words its name holds, then how
@@ -91,9 +91,9 @@ const rowsWithin = (index: SearchIndex, kind: DescribedRow['kind'], rows: Uint32
 export interface DescribedName extends DescribedKey {
   readonly name: number;
   /**
-   * The row it is weighed, ordered and shown through: of the published and
-   * exported rows whose doc adds a word to its name's, the one {@link throughOf}
-   * picks, else the first of its rows by {@link RowOrder}.
+   * The row it is weighed, ordered and shown through: of its published and
+   * exported rows, the one its name's words and that row's doc weigh most by
+   * {@link weightOf}, then the first by {@link RowOrder}.
    */
   readonly through: DescribedRow;
 }
@@ -105,9 +105,8 @@ export interface DescribedRow {
 }
 
 /**
- * The order one name's rows are shown in, a total order: the first of them is
- * the row a name no doc adds a word to is shown and weighed through, and it
- * settles two rows whose docs add as many words at one length.
+ * The order one name's rows are shown in, a total order: of the rows a name
+ * weighs as much through, the first is the one it is weighed and shown through.
  */
 export type RowOrder = (a: DescribedRow, b: DescribedRow) => number;
 
@@ -125,7 +124,18 @@ export interface DescribedFileHit extends DescribedKey {
 export type Described = DescribedName | DescribedDeclaration | DescribedFileHit;
 
 /** A name of the search index the description reached, before its doc is read for the phrase. */
-export type ReachedName = Omit<DescribedName, 'near'>;
+export type ReachedName = Omit<DescribedName, 'near'> & Counted;
+
+/** What one reached thing counts for in every word's rarity and the mean doc length: the same whichever row it is weighed through. */
+interface Counted {
+  /** The question's words held anywhere: in its name, or in any doc it could be weighed through. */
+  readonly holds: readonly string[];
+  /** The bytes of each doc it could be weighed through. */
+  readonly docLengths: readonly number[];
+}
+
+const countedOf = (one: Reached): Counted =>
+  'holds' in one ? one : { holds: one.words, docLengths: one.docLength === undefined ? [] : [one.docLength] };
 
 /** What a description reached, a name's phrase not yet counted. */
 export type Reached = ReachedName | DescribedDeclaration | DescribedFileHit;
@@ -140,7 +150,8 @@ export type Reached = ReachedName | DescribedDeclaration | DescribedFileHit;
  * area: a published row a file of it imports, as the published section shows
  * one, or an exported row whose file is in it, and counts only those rows.
  * `order` is the {@link RowOrder} of the section showing them; a name with no
- * row there is not reached.
+ * row there is not reached. `others`, the declarations and files reached, are
+ * counted in each word's rarity and the mean doc length a row is weighed by.
  */
 export function describedNames(
   index: SearchIndex,
@@ -148,6 +159,7 @@ export function describedNames(
   within: ReadonlySet<number> | undefined,
   already: ReadonlySet<number>,
   order: RowOrder,
+  others: readonly (DescribedDeclaration | DescribedFileHit)[] = [],
 ): readonly ReachedName[] | undefined {
   const asked = describedWordsNative(query);
   if (asked.length === 0) return undefined;
@@ -157,69 +169,54 @@ export function describedNames(
   const admits = admittedBy(index, within, already);
 
   // Per name, the positions of the asked stems its own words hold.
-  const held = new Map<number, Set<number>>();
   const named = new Map<number, Set<number>>();
-  // Per name, per published or exported row, the stems that row's doc holds:
-  // one row's doc counts for a name, never two rows' docs added up.
-  const docs = new Map<number, Map<DescribedRow, Set<number>>>();
-  const rowOf = new Map<string, DescribedRow>();
+  // Per published or exported row, the stems its doc holds: one row's doc
+  // counts for a name, never two rows' docs added up.
+  const docs = new Map<string, Set<number>>();
+  const reached = new Set<number>();
   const mark = <K>(into: Map<K, Set<number>>, key: K, position: number): void => {
-    const positions = into.get(key) ?? new Set<number>();
-    positions.add(position);
-    into.set(key, positions);
+    into.set(key, (into.get(key) ?? new Set<number>()).add(position));
   };
   const markRow = (name: number, kind: DescribedRow['kind'], row: number, position: number): void => {
-    const key = `${kind}:${row}`;
-    const one = rowOf.get(key) ?? { kind, row };
-    rowOf.set(key, one);
-    const rows = docs.get(name) ?? new Map<DescribedRow, Set<number>>();
-    docs.set(name, rows);
-    mark(rows, one, position);
+    if (already.has(name) || (within !== undefined && !rowWithin(index, kind, row, within))) return;
+    reached.add(name);
+    mark(docs, `${kind}:${row}`, position);
   };
   asked.forEach((_, position) => {
     for (const term of stemmed[position] ?? []) {
       for (const name of index.termNames(term)) {
         if (!admits(name)) continue;
-        mark(held, name, position);
+        reached.add(name);
         mark(named, name, position);
       }
-      for (const row of index.termPublished(term)) {
-        const name = index.publishedName(row);
-        if (already.has(name) || (within !== undefined && !rowWithin(index, 'published', row, within))) continue;
-        markRow(name, 'published', row, position);
-      }
-      for (const row of index.termExported(term)) {
-        const name = index.exportedName(row);
-        if (already.has(name) || (within !== undefined && !rowWithin(index, 'exported', row, within))) continue;
-        markRow(name, 'exported', row, position);
-      }
+      for (const row of index.termPublished(term)) markRow(index.publishedName(row), 'published', row, position);
+      for (const row of index.termExported(term)) markRow(index.exportedName(row), 'exported', row, position);
     }
   });
 
-  // One row's words and doc length are a name's, never two rows' words added
-  // up and a third row's length.
-  const through = new Map<number, DescribedRow>();
-  for (const [name, rows] of docs) {
-    const best = throughOf(index, held.get(name) ?? new Set<number>(), rows, order);
-    if (best === undefined) continue;
-    held.set(name, best.held);
-    through.set(name, best.row);
-  }
+  const wordsOf = (positions: ReadonlySet<number> | undefined): string[] =>
+    asked.filter((_, position) => positions?.has(position) === true).map(([, word]) => word);
+  const heldThrough = (name: number, row: DescribedRow): Set<number> =>
+    new Set([...(named.get(name) ?? []), ...(docs.get(`${row.kind}:${row.row}`) ?? [])]);
+  const candidates = [...reached].flatMap((name) => {
+    const rows: DescribedRow[] = [
+      ...[...rowsWithin(index, 'published', index.publishedOf(name), within)].map((row) => ({ kind: 'published' as const, row })),
+      ...[...rowsWithin(index, 'exported', index.exportedOf(name), within)].map((row) => ({ kind: 'exported' as const, row })),
+    ];
+    if (rows.length === 0) return [];
+    const holds = wordsOf(new Set(rows.flatMap((row) => [...heldThrough(name, row)])));
+    const docLengths = rows.flatMap((row) => rowDocLength(index, row) ?? []);
+    return [{ name, rows, holds, docLengths }];
+  });
 
-  return [...held].flatMap(([name, positions]): ReachedName[] => {
-    const published = rowsWithin(index, 'published', index.publishedOf(name), within);
-    const exported = rowsWithin(index, 'exported', index.exportedOf(name), within);
-    const row = through.get(name) ?? firstRow(order, published, exported);
-    if (row === undefined) return [];
-    return [{
-      name,
-      through: row,
-      words: asked.filter((_, position) => positions.has(position)).map(([, word]) => word),
-      named: asked.filter((_, position) => named.get(name)?.has(position) === true).map(([, word]) => word),
-      rows: published.length + exported.length,
-      rank: index.rank(name),
-      ...docLengthOf(rowDocLength(index, row)),
-    }];
+  // Every row a name could be weighed through counts, the chosen one or not.
+  const weight = weightOf([...candidates, ...others.map(countedOf)]);
+  return candidates.map(({ name, rows, holds, docLengths }): ReachedName => {
+    const own = wordsOf(named.get(name));
+    const chosen = rows
+      .map((row) => ({ through: row, words: wordsOf(heldThrough(name, row)), named: own, ...docLengthOf(rowDocLength(index, row)) }))
+      .reduce((best, one) => ((weight(best) - weight(one) || order(one.through, best.through)) < 0 ? one : best));
+    return { name, ...chosen, rows: rows.length, rank: index.rank(name), holds, docLengths };
   });
 }
 
@@ -240,10 +237,10 @@ export function describedShown(
   query: string,
   reached: readonly Reached[],
   count: number,
-  population: readonly Weighed[],
+  population: readonly Reached[],
 ): readonly Described[] {
   const words = describedWordsNative(query).map(([, word]) => word);
-  const weight = weightOf(population);
+  const weight = weightOf(population.map(countedOf));
   const level = (a: Reached, b: Reached): number => levelOrder(weight, a, b);
   const levels = [...reached].sort(level);
 
@@ -284,44 +281,6 @@ function rowDoc(index: SearchIndex, row: DescribedRow): string | undefined {
   return row.kind === 'published' ? index.published(row.row).doc : index.exported(row.row).doc;
 }
 
-/** The first of one name's `published` and `exported` rows by `order`; absent when it has none. */
-function firstRow(order: RowOrder, published: Uint32Array, exported: Uint32Array): DescribedRow | undefined {
-  let best: DescribedRow | undefined;
-  for (const [kind, rows] of [['published', published], ['exported', exported]] as const) {
-    for (const row of rows) {
-      const one = { kind, row };
-      if (best === undefined || order(one, best) < 0) best = one;
-    }
-  }
-  return best;
-}
-
-/**
- * The row of `rows` a name is weighed, ordered and shown through, with what the
- * name then holds: the most different words its doc adds to `own`, those its
- * name holds; then the shorter measured doc, an unmeasured one last; then
- * `order`, a published row first, so at a tie on the doc it is the row the name
- * is shown through when no doc adds a word. Not by the weight the section
- * orders by: a word's rarity and the mean doc length are counted over the rows
- * every other name is weighed through, so no row's weight is known before every
- * name's row is. Absent when no doc adds a word.
- */
-function throughOf(
-  index: SearchIndex,
-  own: ReadonlySet<number>,
-  rows: ReadonlyMap<DescribedRow, ReadonlySet<number>>,
-  order: RowOrder,
-): Through | undefined {
-  let best: Through | undefined;
-  for (const [row, positions] of rows) {
-    const one = { row, held: new Set([...own, ...positions]), length: rowDocLength(index, row) ?? Infinity };
-    if (one.held.size <= own.size) continue;
-    // A doc is decoded only at a tie on everything its columns say.
-    if (best === undefined || (throughOrder(one, best) || order(one.row, best.row)) < 0) best = one;
-  }
-  return best;
-}
-
 /**
  * Two rows of one kind level on every count, in every section: the doc's text,
  * an absent one last, then what a published row declares or the line an
@@ -345,17 +304,6 @@ export function rowTextOrder(index: SearchIndex, a: DescribedRow, b: DescribedRo
   const doc = docA === docB ? 0 : docA === undefined ? 1 : docB === undefined ? -1 : codeUnitOrder(docA, docB);
   return doc || codeUnitOrder(kindA, kindB) || lineA - lineB || codeUnitOrder(atA, atB) || codeUnitOrder(specifierA, specifierB);
 }
-
-/** A row a name may be weighed through: what the name then holds, and its doc's bytes, unmeasured as infinite. */
-interface Through {
-  readonly row: DescribedRow;
-  readonly held: Set<number>;
-  readonly length: number;
-}
-
-/** {@link throughOf}'s order before its {@link RowOrder}: more words held, then the shorter doc. */
-const throughOrder = (a: Through, b: Through): number =>
-  b.held.size - a.held.size || (a.length === b.length ? 0 : a.length < b.length ? -1 : 1);
 
 /** The bytes of one row's doc, without decoding it; absent when it has none. */
 function rowDocLength(index: SearchIndex, row: DescribedRow): number | undefined {
@@ -428,7 +376,7 @@ const FIELD_WEIGHTS = { name: 3, doc: 2 } as const;
 
 /**
  * The weight of what a row holds of the question: each word's {@link rarity}
- * among `population`, times what the place it holds it in counts — its name
+ * among `population`, by what each holds anywhere, times what the place it holds it in counts — its name
  * its {@link FIELD_WEIGHTS} weight in thousandths, its doc its weight times
  * the doc's {@link lengthCount}, never more than a doc of the mean length —
  * summed by {@link heldWeight}, times the rarities of the words held summed
@@ -436,16 +384,18 @@ const FIELD_WEIGHTS = { name: 3, doc: 2 } as const;
  * Lucene's coordination factor weighed by rarity, so a word's rarity weighs in
  * both factors, and a word most rows hold adds little to either. An integer.
  */
-function weightOf(population: readonly Weighed[]): Weight {
+function weightOf(population: readonly Counted[]): Weight {
   const holders = new Map<string, number>();
   let docBytes = 0;
   let docs = 0;
   for (const one of population) {
-    for (const word of one.words) holders.set(word, (holders.get(word) ?? 0) + 1);
+    for (const word of one.holds) holders.set(word, (holders.get(word) ?? 0) + 1);
     // Absent is not empty: a row without a doc says nothing of how long a doc is.
-    if (one.docLength === undefined || one.docLength === 0) continue;
-    docBytes += one.docLength;
-    docs += 1;
+    for (const length of one.docLengths) {
+      if (length === 0) continue;
+      docBytes += length;
+      docs += 1;
+    }
   }
   const rare = new Map([...holders].map(([word, n]) => [word, rarity(population.length, n)]));
   const name = FIELD_WEIGHTS.name * 1000;

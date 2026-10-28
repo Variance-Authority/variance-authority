@@ -94,7 +94,7 @@ export interface ExportedMatch {
   readonly name: string;
   /** The package that holds it; absent at the repository root. */
   readonly package?: string;
-  /** The file shown: source before tests before stories, then by its doc's text and its path. */
+  /** The file shown: the row that ranks it, where the question was found first, then {@link exportedOrder}; in the described section, the row it is weighed through. */
   readonly at: string;
   readonly line: number;
   /** How many files export it, the one shown included. */
@@ -407,8 +407,9 @@ export function searched(index: SearchIndex, question: SearchQuestion, tree?: Tr
   // The empty answer read as a description: names holding any of its words,
   // stemmed by the rule packages are.
   // A name its file keeps to itself is in no row: the source index answers for it.
-  const reached = describedNames(index, query, within, new Set([...named, ...answered]), shownRowOrder(index, area, within));
-  const described = reached === undefined ? undefined : [...reached, ...(describedDeclarations(root, query, area?.files) ?? [])];
+  const declarations = describedDeclarations(root, query, area?.files) ?? [];
+  const reached = describedNames(index, query, within, new Set([...named, ...answered]), shownRowOrder(index, area, within), declarations);
+  const described = reached === undefined ? undefined : [...reached, ...declarations];
   // Which reading a name both reach is told by is decided by what each holds,
   // never by how many rows print. A name holding at least half the stems is the
   // described section's, which prints first, and the loose pass offers none of
