@@ -3,7 +3,6 @@ import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { runInNewContext } from 'node:vm';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { EVALUATING } from '../instrument/index.js';
 import { captureAfter, captureModule, deriveModules, markModule, pathOf, planModule } from './captured-modules.js';
 import { defaultInclude } from './instrumented-modules.js';
 
@@ -197,7 +196,7 @@ describe('a module whose probes go in after the transforms', () => {
     const after = captureAfter(root, file, compiled, defaultInclude, undefined, () => ({ sources: [], mappings: '' }))!;
 
     expect(after.module).toEqual(captureModule(root, file, TYPES, defaultInclude, undefined)!.module);
-    expect(after.code).toContain('__va(');
+    expect(after.code).toContain(`.m(${JSON.stringify(after.module.id)});`);
   });
 });
 
@@ -213,14 +212,15 @@ describe('a module marked as loaded', () => {
     expect(runInNewContext(`(${total.toString()})([1, 2])`)).toBe(2);
   });
 
-  it('reports its own region once, as entered while it evaluated', async () => {
+  it('reports itself loaded in one call, after its last line', async () => {
     const { root, file } = await checkout(SCRIPT);
     const marked = markModule(root, file, SCRIPT, defaultInclude)!;
     const fake = recordingRoot();
 
     runInNewContext(marked.code!, { __VA__: fake });
 
-    expect(fake.calls).toEqual([['r', marked.module.id, 1], ['e'], ['g', EVALUATING >>> 0], ['x']]);
+    expect(fake.calls).toEqual([['m', marked.module.id]]);
+    expect(marked.code).toBe(`${SCRIPT}\n;globalThis.__VA__.m(${JSON.stringify(marked.module.id)});`);
   });
 
   it('is the module the transform would have probed, recorded as not instrumented', async () => {
@@ -233,6 +233,18 @@ describe('a module marked as loaded', () => {
       instrumented: false,
       blocks: [],
     });
+  });
+
+  it('is how the loads recipe places a module, which it never probes', async () => {
+    const { root, file } = await checkout(SOURCE);
+
+    expect(captureModule(root, file, SOURCE, defaultInclude, 'loads')).toEqual(markModule(root, file, SOURCE, defaultInclude));
+  });
+
+  it('is not marked under the loads recipe when `include` refuses it', async () => {
+    const { root, file } = await checkout(SOURCE);
+
+    expect(captureModule(root, file, SOURCE, () => false, 'loads')).toBeUndefined();
   });
 
   it('is not marked when the predicate refuses it', async () => {
@@ -293,7 +305,7 @@ describe('a module the instrumenter cannot read', () => {
     expect(captured.module.instrumented).toBe(false);
     expect(captured.code?.startsWith(BROKEN)).toBe(true);
     runInNewContext(captured.code!.slice(BROKEN.length), { __VA__: fake });
-    expect(fake.calls).toEqual([['r', captured.module.id, 1], ['e'], ['g', EVALUATING >>> 0], ['x']]);
+    expect(fake.calls).toEqual([['m', captured.module.id]]);
   });
 
   it('is not instrumented when it is cut again from the checkout', async () => {
@@ -320,6 +332,7 @@ function recordingRoot(): { calls: unknown[][] } & Record<string, unknown> {
     e: () => calls.push(['e']),
     x: () => calls.push(['x']),
     g: (entry: number) => calls.push(['g', entry >>> 0]),
+    m: (id: string) => calls.push(['m', id]),
   };
 }
 

@@ -69,6 +69,19 @@ const MACHINERY = [
   'tools/site-reach.mjs',
 ];
 
+/**
+ * The words a root script runs, with each `yarn <script>` it calls read in its
+ * place, so a build split into named halves is still every step of the build.
+ */
+function words(scripts, name, seen = new Set([name])) {
+  const said = (scripts[name] ?? '').split(/\s+/);
+  return said.flatMap((word, at) =>
+    said[at - 1] === 'yarn' && Object.hasOwn(scripts, word) && !seen.has(word)
+      ? words(scripts, word, new Set([...seen, word]))
+      : [word],
+  );
+}
+
 /** The root's checkout and install. Its build is read from `scripts.build`. */
 const INSTALL = [
   '.gitattributes',
@@ -189,7 +202,7 @@ export async function siteReach(root, changed, runner) {
     changedFilePatterns.filter((pattern) => !pattern.startsWith('!')),
     { dot: true, ignore: changedFilePatterns.filter((pattern) => pattern.startsWith('!')).map((p) => p.slice(1)) },
   );
-  const build = (JSON.parse(readFileSync(resolve(root, 'package.json'), 'utf8')).scripts?.build ?? '').split(/\s+/);
+  const build = words(JSON.parse(readFileSync(resolve(root, 'package.json'), 'utf8')).scripts ?? {}, 'build');
   const job = picomatch([...MACHINERY, ...INSTALL], { dot: true });
 
   for (const file of changed) {

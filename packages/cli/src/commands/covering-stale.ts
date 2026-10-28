@@ -10,14 +10,13 @@
  */
 
 import {
-  anyStopped,
   coveringTestsInFile,
   type CoveringTest,
   type ExecutionIndex,
-  type ExecutionModule,
 } from '@variance-authority/sense/test-selection';
 import type { CoveringAt } from '../covering-args.js';
-import { countOf, fileGraph } from './covering-at.js';
+import { countOf, loadersOf } from './covering-at.js';
+import type { Graph } from './gap-selection.js';
 import type { Narrowing } from './covering-reach.js';
 import type { Covering } from './covering.js';
 
@@ -26,9 +25,10 @@ export interface ReadStale {
   readonly index: ExecutionIndex;
   /** Under `--where`, the index before it narrowed the cases. */
   readonly before?: ExecutionIndex;
-  readonly module: ExecutionModule;
   readonly from: string;
   readonly near: Narrowing;
+  /** The checkout's file graph, read at most once per invocation. */
+  readonly graph: Graph;
   /** The commit the record stands at, when it says. */
   readonly at?: string;
 }
@@ -44,11 +44,10 @@ export async function staleAnswer(
   read: ReadStale,
   reach?: (tests: readonly CoveringTest[]) => void,
 ): Promise<Covering> {
-  const { index, before, module, from, near, at } = read;
+  const { index, before, from, near, at } = read;
   const file = request.file;
-  const graph = module.blocks.some((block) => block.loaded === true) || anyStopped(before ?? index)
-    ? { relations: await fileGraph(request.root) }
-    : {};
+  // No recorded line is a place here, so the question is the whole module's, whatever line it named.
+  const graph = await loadersOf(before ?? index, file, read.graph);
   const found = entered(coveringTestsInFile(before ?? index, file, graph).flatMap((range) => range.tests));
   const kept = near.whole ? found : found.filter(near.keep);
   if (before !== undefined) reach?.(kept);

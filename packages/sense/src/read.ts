@@ -72,7 +72,7 @@
 
 import type { EdgeKind } from '@variance-authority/core/relate';
 import { native, nativeRefusal } from './addon.js';
-import type { OwnUse, SourceSize } from './cache.js';
+import type { BindingMember, OwnUse, SourceSize } from './cache.js';
 import type { SourceSymbol, TextSpan } from './harvest.js';
 import type { ImportDiff } from './taint/index.js';
 
@@ -237,6 +237,13 @@ export interface Export {
    * once is a contradiction the reader keeps, so the check can name it.
    */
   readonly roles?: readonly DeclaredRole[];
+
+  /**
+   * A key of the object literal `export =` or `module.exports =` assigns at the
+   * top level, which CommonJS hands out as the module itself. Read on a
+   * best-effort basis: what an importer's `default` is, the reader does not say.
+   */
+  readonly assigned?: true;
 }
 
 /**
@@ -265,6 +272,9 @@ export interface Read {
 
   /** Every line that uses a name the file declares at its top level. Absent when there are none. */
   readonly ownUses?: readonly OwnUse[];
+
+  /** Every name read off a binding a named import takes. Absent when there are none. */
+  readonly bindingMembers?: readonly BindingMember[];
 
   /** Why this file's requests are not the whole set, when they are not. */
   readonly unknown?: string;

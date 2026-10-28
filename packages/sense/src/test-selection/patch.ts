@@ -83,6 +83,16 @@ export function hunksOf(diff: string): ReadonlyMap<string, readonly Hunk[]> {
 }
 
 /**
+ * The hunks that move `file`, or `undefined` when the change gives none: its
+ * lines then say where the file moved and not what it became, and no text can
+ * be arrived at from them.
+ */
+export function hunksFor(hunks: ReadonlyMap<string, readonly Hunk[]>, file: string): readonly Hunk[] | undefined {
+  const own = hunks.get(file);
+  return own === undefined || own.length === 0 ? undefined : own;
+}
+
+/**
  * The old text with the hunks applied, and the runs they changed. `undefined`
  * when a context or removed line is not the old text's line at that number.
  */

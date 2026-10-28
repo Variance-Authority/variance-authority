@@ -91,8 +91,9 @@ the megabyte it exists not to spend. It hands on component *names* and never
 hashes: a name can only answer membership, and membership is the only question
 selection is allowed to ask.
 
-A pointer file where an image should be is refused by name. It is what a clone
-without the filter installed holds, it is not a baseline, and comparing a
+A pointer file where an image should be is fetched with `git lfs pull
+--include` when `find` reads it, and refused by name when the fetch fails. It is
+what a clone without the smudge holds, it is not a baseline, and comparing a
 subject against it would be comparing a subject against a text file.
 
 ## Implementation coordinates
@@ -103,9 +104,12 @@ the sidecar's `placedFor`; `packages/store/src/path-template.ts` — `parseBasel
 `DEFAULT_BASELINE_PATH`, and the token rules; `packages/store/src/legacy.ts` —
 `legacyHolders`, where an identity-directory baseline is read from;
 `packages/store/src/pair.ts` — reading and retiring an image and its sidecar;
-`packages/store/src/lfs.ts` — `createLfsStore`,
-the tracking check, the pointer refusal, and the injectable command runner that
-separates *this is not a repository* from *this machine has no such tool*.
+`packages/store/src/lfs.ts` — `createLfsStore`, the pointer refusal, and the
+injectable command runner that separates *this is not a repository* from *this
+machine has no such tool*; `packages/store/src/lfs-tracking.ts` — what git
+resolves for a tracked path, and whether git-lfs is installed and set up to run;
+`packages/store/src/lfs-fetch.ts` — the reader that fetches a pointer's image,
+one pull at a time.
 
 ## Diagram
 

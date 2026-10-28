@@ -31,9 +31,10 @@
  * stay readable under several taints, or none, without a second recording.
  */
 
-import { RUNTIME_EDGES, dependenciesOf, idOf, nodeAt, type NodeId, type Relations } from '@variance-authority/core/relate';
+import { RUNTIME_EDGES, affectedBy, dependenciesOf, idOf, nodeAt, type NodeId, type Relations } from '@variance-authority/core/relate';
 import type { TestCoverageView } from './format-view.js';
 import { testPathOf } from './lookup.js';
+import type { ExecutionBlock, ExecutionCrossing, ExecutionIndex, ExecutionModule } from './reverse.js';
 
 /** Per test file, every file its run never reaches. */
 export type ShadowedFor = (test: string) => ReadonlySet<string>;
@@ -60,15 +61,17 @@ const NONE: ReadonlySet<string> = new Set();
  * every such file would give up the transitive half for the whole test over one
  * expression nobody could read.
  *
- * Memoized per test, because a selection asks once per crossing and the walk is
- * the cost.
+ * Memoized per test and per graph, because a selection asks once per crossing,
+ * a covering answer asks from several readers, and the walk is the cost.
  */
 export function shadowedFor(relations: Relations | undefined): ShadowedFor | undefined {
   if (relations === undefined || relations.shadows.size === 0) return undefined;
+  const kept = perGraph.get(relations);
+  if (kept !== undefined) return kept;
   const { shadows } = relations;
   const held = new Map<string, ReadonlySet<string>>();
 
-  return (test) => {
+  const answer: ShadowedFor = (test) => {
     const known = held.get(test);
     if (known !== undefined) return known;
     const direct = shadows.get(test) ?? [];
@@ -76,7 +79,12 @@ export function shadowedFor(relations: Relations | undefined): ShadowedFor | und
     held.set(test, found);
     return found;
   };
+  perGraph.set(relations, answer);
+  return answer;
 }
+
+/** One answer per graph, so every reader of one question shares its walks. */
+const perGraph = new WeakMap<Relations, ShadowedFor>();
 
 function closure(relations: Relations, test: string, direct: readonly string[]): ReadonlySet<string> {
   const found = new Set(direct);
@@ -124,4 +132,99 @@ export function disownedIn(coverage: TestCoverageView, relations: Relations | un
   return (file, test, block) =>
     shadowedBy(test).has(file) &&
     (block === undefined || coverage.crossings.has(coverage.blockLoadedSet.at(block), test));
+}
+
+/**
+ * Whether a crossing in this module belongs to its case.
+ *
+ * Every crossing a case made is its own: its mocks were installed before it
+ * ran. Only a crossing made while the module evaluated can be a mock's work —
+ * a runner evaluating the real module to shape it — and a case whose file
+ * mocked the module, or reaches it only through a mock, does not hold those.
+ * See `shadowedFor`.
+ */
+export function ownedIn(
+  index: ExecutionIndex,
+  module: ExecutionModule,
+  shadowed: ShadowedFor | undefined,
+): (crossing: ExecutionCrossing) => boolean {
+  if (shadowed === undefined) return () => true;
+  return (crossing) => {
+    if (crossing.loaded !== true) return true;
+    const file = index.tests[crossing.test]?.file;
+    return file === undefined || !shadowed(file).has(module.file);
+  };
+}
+
+/**
+ * Whether a module's run while it evaluated can belong to a case, when the
+ * record writes that on the block and names nobody (`ExecutionBlock.loaded`).
+ *
+ * The file graph names who loaded it. It is a mock's run alone when the graph
+ * holds the module and every recorded case's file, reaches none of those
+ * files, and cut one by a mock on the way: the one file that would have loaded
+ * it replaced it. Every other answer keeps the flag — no graph, no shadows, a
+ * module or a case's file the graph does not hold, so it cannot say who loaded
+ * it, a case that runs a file whose imports the scan could not all read, so the
+ * graph does not know everything that case loaded, or a run no mock explains,
+ * such as a page-side module a browser spec reached through the page. Asked
+ * only of a graph that carries shadows.
+ */
+function loadOwned(index: ExecutionIndex, file: string, relations: Relations): boolean {
+  const affected = affectedBy(relations, [file], { through: RUNTIME_EDGES });
+  if (affected.missing.length > 0) return true;
+  const recorded = new Set(index.tests.map((test) => test.file));
+  if ([...recorded].some((one) => idOf(relations, 'file', one) === undefined)) return true;
+  if (affected.files.some((one) => recorded.has(one))) return true;
+  // A case that mocks the module itself loads the mock by every route, read or
+  // not; any other case running an unread import may have loaded the real one.
+  const mocks = (test: string) => relations.shadows.get(test)?.includes(file) === true;
+  if (unreadFor(relations).some((one) => recorded.has(one) && !mocks(one))) return true;
+  return !affected.shadowed.some((one) => recorded.has(one));
+}
+
+/**
+ * The files that run a file whose imports the scan could not all read
+ * (`Relations.unknown`), itself or through what they import: the files whose
+ * every load the graph cannot name. A file that reaches one only through its
+ * own mock is not among them, by the same cut as {@link shadowedFor}, since
+ * that file ran under the mock's evaluation. One walk per graph, whatever the
+ * module asked.
+ */
+function unreadFor(relations: Relations): readonly string[] {
+  const kept = unreadPerGraph.get(relations);
+  if (kept !== undefined) return kept;
+  const seeds = [];
+  for (let id: NodeId = 0; id < relations.unknown.length; id++) {
+    const node = relations.unknown[id] === 1 ? nodeAt(relations, id) : undefined;
+    if (node?.kind === 'file') seeds.push(node);
+  }
+  const found = seeds.length === 0 ? [] : affectedBy(relations, seeds, { through: RUNTIME_EDGES }).files;
+  unreadPerGraph.set(relations, found);
+  return found;
+}
+
+const unreadPerGraph = new WeakMap<Relations, readonly string[]>();
+
+/**
+ * The module's blocks holding only what their cases own, by {@link ownedIn}
+ * and {@link loadOwned}: the one record every covering reader reads a region
+ * from, so a mock's evaluation of the real module is nobody's entry, and
+ * nobody's load, on any answer.
+ */
+export function ownedBlocks(
+  index: ExecutionIndex,
+  module: ExecutionModule,
+  relations: Relations | undefined,
+): readonly ExecutionBlock[] {
+  if (relations === undefined) return module.blocks;
+  const shadowed = shadowedFor(relations);
+  if (shadowed === undefined) return module.blocks;
+  const owned = ownedIn(index, module, shadowed);
+  const loads = module.blocks.some((block) => block.loaded === true) && !loadOwned(index, module.file, relations);
+  return module.blocks.map(({ loaded, ...block }) => ({
+    ...block,
+    ...(loaded === true && !loads ? { loaded } : {}),
+    crossings: block.crossings.filter(owned),
+  }));
 }

@@ -2,12 +2,15 @@
 
 A **test story** is the order one test ran its code in, written out as
 numbered steps: each function the test ran, the branch it took at each `if`,
-how many times each loop ran, and the lines the code printed. Every run already
-records which code each test ran. A story adds the order, the counts and the
-printed lines, and you read it from top to bottom. When a test fails only on
-some runs, you compare the stories of runs that passed with runs that failed,
-and print the value you suspect from the code under test, never from the test,
-to see what separates them.
+how many times each loop ran, the values each function was handed, and the
+lines the code printed. Every run already records which code each test ran. A
+story adds the order, the counts, the values and the printed lines, and you
+read it from top to bottom. When a test fails only on
+some runs, you compare the stories of runs that passed with runs that failed.
+When one test passes and another fails, such as the same checkout with a
+feature flag off and on, you compare the stories of the two tests. Either way
+what each function was handed is compared with the rest, and any other value
+you suspect you print from the code under test, never from the test.
 
 If you need the test statement that first ran a region,
 [cadence](test-level-coverage.md#which-test-statement-first-ran-a-region)
@@ -251,14 +254,19 @@ The comparison can also answer in three other ways:
 
 ### Choose the sides
 
-The output calls each group a side. A side is either the same test read again,
-where only the run differs, or a setup you chose, where you name what differs:
+The output calls each group a side. A side is the same test read again, where
+only the run differs, a setup you chose and labelled, or
+[another test](#why-does-one-test-pass-and-another-fail):
 
 | `--compare` | One side | The other side | What differs |
 |---|---|---|---|
 | `outcome` | the readings that passed | the readings that threw | nothing you chose: the run |
 | `last` | the newest reading | the reading before it | the run, and anything you edited between the two |
 | `<a>,<b>` | the readings labelled `a` | the readings labelled `b` | what you set up differently for each label |
+
+Naming more than two labels, as `--compare a,b,c`, makes each label a side.
+Whatever separates them is listed under the sides that hold it, such as `only
+under a and c`.
 
 You label a run by setting `VARIANCE_AUTHORITY_STORY` to a name in place of
 `1`. Use labels for a test that passes alone and fails with its file, a feature flag on and off,
@@ -271,11 +279,64 @@ VARIANCE_AUTHORITY_STORY=file yarn vitest run src/cart.test.ts
 variance story --name "cart > removes the last item" --compare alone,file
 ```
 
-`before the test`, at the top of each story, shows the code the runner ran right before the
-test, such as code another test's `afterEach` called.
+In the stories labelled `file`, `before the test`, at the top of each story,
+shows the code the runner ran right before the test, such as code another
+test's `afterEach` called.
 
 `--compare last` is always one reading against one, so use it to see what an
 edit changed, not to explain a test that fails on some runs.
+
+## Why does one test pass and another fail?
+
+Say the same checkout is three tests: one with a feature flag on, one with it
+off, and one signed in as Mike. The test with Mike fails on every run. Each
+test is a side, and the comparison sets the stories of the tests against each
+other the way it sets [readings of one test](#compare-readings-of-one-test)
+against each other.
+
+Record each test twice or more, so a side is never one run. The runner's `-t`
+matches part of a name, so one pattern can record all three; run it twice:
+
+```bash
+VARIANCE_AUTHORITY_STORY=1 yarn vitest run src/checkout.test.ts -t "charges"
+```
+
+Then name each test with its own `--name`, two or more:
+
+```bash
+variance story --name "charges with the flag on" --name "charges with the flag off" --name "charges as mike"
+```
+
+```text
+compare  src/checkout.test.ts
+  `charges with the flag on` (2 readings), `charges with the flag off` (2 readings) and `charges as mike` (2 readings, every one threw), against each other
+
+  only in `charges as mike`, on every reading:
+    went into  priceFor  src/price.ts:4-12, the then of the if on 7
+```
+
+The tests differ in their setup, and you know how. The comparison lists where
+the code they ran went differently, on every reading. The code the runner ran
+before each test, such as the `afterEach` of the test above it, depends on
+where the test sits in its file, so a comparison of tests leaves it out. A
+test's own code can still follow its place: a module an earlier test loaded
+first, or a cache an earlier test filled, shows up as a difference that
+holds on every reading.
+
+- **A name is matched whole.** `--name "charges"` is the test named
+  `charges`, not every test whose name has the word in it. Write the name as
+  `variance story` lists it, with its `describe` blocks when it has any, or
+  as `<file> > <name>`.
+- **The tests can be in different files.** Record each file with its own run,
+  then name each test; each side is named with its file. A name two test files
+  have is refused until you write it as `<file> > <name>`, or narrow every name
+  to one file with `--file`.
+- **`--label <name>` narrows every side alike**, to the readings recorded
+  under that label. `--compare` compares readings of one test, so it is
+  refused beside several `--name`.
+- **Two tests, or one test under two labels.** When each test sets the flag
+  itself, compare the tests. When one test reads the flag from outside, such as
+  an environment variable, record it under [two labels](#choose-the-sides).
 
 ## Why the journey has no order
 
@@ -332,6 +393,18 @@ story when the code does not answer your question:
   mock and not the code it names.
 - **A test fails on some runs, or fails with its file and passes alone.** Record it both ways
   and [compare the readings](#compare-readings-of-one-test).
+- **One test passes and another fails**, with a flag on and off, or as two
+  users. Record both and [compare the tests](#why-does-one-test-pass-and-another-fail).
+- **You need to know where an object went.** A theme, a store or a config
+  object is passed down through providers and wrappers, and the source shows
+  every place it could come from. The story shows
+  [what each function was handed](#what-each-function-was-handed) as a ref, so
+  the steps handed the same ref are the path that one object took. The first
+  step handed a different ref where you expected the same one is where the
+  replacement arrived. The story does not show what made it; when it is a
+  module's top-level binding, the module's `» holds` line names it. What a
+  function returns is not shown either, so a value read with `useContext` or a
+  hook appears only once the component hands it on, as a prop or an argument.
 - **You hand one test to an agent to fix or extend.** The story gives it the
   steps in order, each with its file and lines, so it reads those and not the whole package.
 
@@ -372,7 +445,14 @@ VARIANCE_AUTHORITY_STORY=1 yarn jest src/cart.test.ts -t "removes the last item"
   label.
 - **When to record again.** A story is the code as it was when the test ran.
   After you edit that code, run the test again before you read its story.
-- **As data.** `--format json` gives any story or comparison as JSON.
+- **As data.** `--format json` gives any story or comparison as JSON. Each
+  declaration and each branch carries `at`, its place in the code:
+  `src/cart.ts#Cart/removeItem/entry`, `src/cart.ts#Cart/removeItem/if#0/then`,
+  `src/format.ts#module` for a file's top level. A second declaration of one
+  name in a file is `handle~2`, and every branch inside it says so. `at` names
+  the same code in two readings of one test, so match on it, not on line
+  numbers. A file whose code the story cannot place has `at` set to the file
+  alone.
 
 ## A long story opens as a summary
 
@@ -402,10 +482,53 @@ variance story --name "checkout > pays with a saved card" --whole             # 
 When steps inside another workspace package, such as your design system, are
 shown as one line, that line names the package, and `--package` opens it.
 
+## What each function was handed
+
+Every function step lists the values its parameters were bound to, after its
+branches and loops, one line per time it was entered. A module lists what its
+top level declared, once it has run: at its step when the test loaded it, and
+in the header, as said before the test began, when it loaded with the test
+file, for every test that goes through it:
+
+```text
+  3  theme.tsx  theme.tsx:1-30
+       » holds Theme=ref1 react.context, ThemeProvider=ref2 function ThemeProvider
+  4  ThemeProvider  theme.tsx:12-20
+       » handed theme=ref5 Object, label='Save'
+  7  Panel  panel.tsx:3-9
+       » handed theme=ref5 Object
+```
+
+A number or a boolean is shown as it is, and a string in quotes, on one line
+and cut to 40 characters. An object is shown as a ref and what it is: `ref5
+Object`, `ref6 Array(3)`, `ref2 function ThemeProvider`, `ref3 react.memo`.
+A React context, memo or element is named by React's own word, such as
+`react.context`, when the suite's setup files include
+`@variance-authority/react/story` from [React](../packages/react); without it,
+each is an `Object`. A story never shows what an object holds, and it calls none of its getters to
+say what it is, though a `Proxy` still runs its traps. A string, a number or
+any other primitive is written as it is, so a token a function is handed lands
+in the story file beside the rest. The ref is the object's identity for the
+whole run, so the same ref at two steps is the same object: here `Panel` read
+the very theme `ThemeProvider` was given. The examples elsewhere on this page leave these
+lines out, so their steps read short.
+
+When you [compare readings](#compare-readings-of-one-test), a handed line is
+compared as a printed one is: a value handed on every reading of one side and
+on no reading of the other is listed with its step. A ref is numbered in the
+order the run first met each object, so across readings it is compared without
+its number: `ref Object`, by kind.
+
+The calls that hand the values over are in the instrumented code on every run,
+but they do nothing unless the run records a story: on any other run each is
+one read of a variable and a branch not taken. A generator is not shown, and
+neither is what a function returned.
+
 ## What the code prints
 
-A step shows which code ran, not the values it had. The lines the code
-prints are what give the values, and three sources write them under their step:
+For any other value — one inside an object, or one no function was handed —
+the lines the code prints are what give it, and three sources write them under
+their step:
 
 - **`console`.** Each line printed with `console.log`, `info`, `warn`, `error`
   or `debug`. The console still prints it.
@@ -415,7 +538,7 @@ prints are what give the values, and three sources write them under their step:
 - **[`vae`](../packages/event/README.md)**, when your product code uses it.
   Each announcement it makes.
 
-So when you need to know which value a call got, add a `console.log` that
+So when you need a value the story does not hold, add a `console.log` that
 prints it, record the test again, and read the line at its step. A step shows
 its first 5 lines and counts the rest.
 
@@ -431,8 +554,9 @@ Take the `console.log` out before you change the code.
 
 ## What a story does not show
 
-- **Values the code does not print.** Set a breakpoint at the line the story
-  names, or print the value and record again.
+- **What an object holds, and values never handed to a function.** A ref says
+  which object, not what is in it. Print what you need from it and record
+  again, or set a breakpoint at the line the story names.
 - **Other processes.** A story covers the test's own process. A test run by
   Playwright or in Vitest browser mode writes no story, and neither does code
   the test calls in another process, such as a server.

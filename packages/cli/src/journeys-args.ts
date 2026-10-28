@@ -29,6 +29,13 @@ export type ParsedJourneys =
     }
   | {
       readonly command: 'journeys';
+      readonly operation: 'inspect';
+      readonly config: string;
+      readonly record: string;
+      readonly format: 'text' | 'json';
+    }
+  | {
+      readonly command: 'journeys';
       readonly operation: 'finalize';
       readonly config: string;
       readonly journeyFile: string;
@@ -55,6 +62,15 @@ export function parseJourneysArgs(flags: Flags, config: string): ParsedJourneys 
   const into = flags.values.get('--into');
   const operation = flags.positionals[0];
 
+  if (operation === 'inspect') {
+    if (flags.positionals.length !== 2 || [...flags.present].some((flag) => flag !== '--format')) {
+      throw new OperatorError('`variance journeys inspect` takes one record and optional `--format text|json`');
+    }
+    const format = flags.values.get('--format') ?? 'text';
+    if (format !== 'text' && format !== 'json') throw new OperatorError('`journeys inspect --format` must be text or json');
+    return { command: 'journeys', operation, config, record: resolve(flags.positionals[1]!), format };
+  }
+  if (flags.present.has('--format')) throw new OperatorError('`journeys --format` belongs to `journeys inspect`');
 
   if (operation === 'combine') {
     const otherFlags = [...flags.present].filter((flag) => flag !== '--into');

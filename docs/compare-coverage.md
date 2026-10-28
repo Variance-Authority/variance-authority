@@ -14,7 +14,8 @@ coverage at 7556a03a against each suite's base — 4,812 regions (4,790 at the b
     checkout  e2e     3,832 → 3,900  80.0% → 81.0%  +51 newly run · −2 no longer run · +19 run in 22 added regions
     stories   visual  1,437 →   718  30.0% → 14.9%  −716 no longer run · −3 no longer run after a case stopped
     unit      unit    3,353 → 3,352  70.0% → 69.7%  +4 newly run · −9 no longer run · +4 run in 22 added regions
-  stories: src/checkout.stories.tsx no longer runs 716 regions it ran at the base
+  stories: src/checkout.stories.tsx no longer runs 212 functions in 9 files (716 regions) at the base
+  unit: src/checkout/total.test.ts no longer runs total in src/checkout/total.ts (3 regions) at the base
 ```
 
 A coverage service shows the visual suite's line as `-15.1%`. This report shows
@@ -86,8 +87,11 @@ instrument and no second run.
 |---|---|---|
 | Share of the code each suite runs | one upload per flag | one count per [declared suite](execution-record.md#one-record-for-each-suite), all over the same total |
 | Code that only one kind of suite runs | no answer | counted per kind: unit, integration, e2e, visual |
-| Why a suite's number changed | the difference of two totals | regions newly run, no longer run, added and removed, which add up to the change |
-| Which test file caused it | no answer | named |
+| Code only another package's tests run | no answer | counted per package by [whose tests ran it](own-fewer-tests.md#ask-which-code-only-distant-tests-run), and walked down to the files only another package's tests reach |
+| Code that only ran on the way to something else | no answer | counted per suite as [accidental](own-fewer-tests.md#earned-and-accidental-coverage): run by some test, never by its own package's tests within one import hop |
+| Code reached only from far away | no answer | counted by the import hops of the nearest test that ran it, with [`--at-distance`](own-fewer-tests.md#ask-which-code-only-distant-tests-run) |
+| Why a suite's number changed | the difference of two totals | regions newly run, no longer run, added and removed, which add up to the change; a region whose test has not run since its file changed is counted as unmeasured, not as no longer run |
+| Which test file accounts for it | no answer | named |
 | Files no test ran | at 0%, when the reporter is told to include every file under a glob | listed with their lines and regions, within the application `--from` names, following its imports into shared packages |
 | A suite that has not run | the last report, carried forward | `unrecorded`, never `0%` |
 

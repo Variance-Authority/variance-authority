@@ -173,22 +173,40 @@ export function sameNumbering(
   before: readonly Pick<CoverageBlock, 'name' | 'path'>[],
   after: readonly Pick<CoverageBlock, 'name' | 'path'>[],
 ): boolean {
-  const seats = (blocks: readonly Pick<CoverageBlock, 'name' | 'path'>[]): ReadonlyMap<string, ReadonlySet<number>> => {
-    const sites = new Map<string, Set<number>>();
-    for (const block of blocks) {
-      for (const [site, seat] of seatsOf(block)) {
-        const taken = sites.get(site) ?? new Set<number>();
-        taken.add(seat);
-        sites.set(site, taken);
-      }
-    }
-    return sites;
-  };
-  const now = seats(after);
-  for (const [site, taken] of seats(before)) {
+  const now = sitesOf(after);
+  for (const [site, taken] of sitesOf(before)) {
     const holds = now.get(site);
-    if (holds === undefined) continue;
-    if (holds.size !== taken.size || [...taken].some((seat) => !holds.has(seat))) return false;
+    if (holds !== undefined && !sameSeats(taken, holds)) return false;
   }
   return true;
+}
+
+/**
+ * Whether the counters an address passes through handed out the same seats in
+ * both cuts, so its number means one region in each: {@link sameNumbering}
+ * asked of one address. A counter whose population changed renumbers what it
+ * counts and everything nested under it, and nothing else.
+ */
+export function seatedAlike(
+  before: readonly Pick<CoverageBlock, 'name' | 'path'>[],
+  after: readonly Pick<CoverageBlock, 'name' | 'path'>[],
+): (block: Pick<CoverageBlock, 'name' | 'path'>) => boolean {
+  const [was, now] = [sitesOf(before), sitesOf(after)];
+  return (block) => seatsOf(block).every(([site]) => sameSeats(was.get(site), now.get(site)));
+}
+
+function sitesOf(blocks: readonly Pick<CoverageBlock, 'name' | 'path'>[]): ReadonlyMap<string, ReadonlySet<number>> {
+  const sites = new Map<string, Set<number>>();
+  for (const block of blocks) {
+    for (const [site, seat] of seatsOf(block)) {
+      const taken = sites.get(site) ?? new Set<number>();
+      taken.add(seat);
+      sites.set(site, taken);
+    }
+  }
+  return sites;
+}
+
+function sameSeats(left: ReadonlySet<number> | undefined, right: ReadonlySet<number> | undefined): boolean {
+  return left !== undefined && right !== undefined && left.size === right.size && [...left].every((seat) => right.has(seat));
 }

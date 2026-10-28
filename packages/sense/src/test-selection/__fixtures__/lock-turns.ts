@@ -55,7 +55,7 @@ export async function inTurn<T>(file: string, writers: readonly (() => Promise<T
   const nextTurn = setTimeout;
   const stopTurn = clearTimeout;
   vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
-  variancePrecondition({ clock: 'faked' });
+  variancePrecondition('fixture', { clock: 'faked' });
   try {
     const pending = new Map<number, Promise<T>>();
     const results: Promise<T>[] = [];

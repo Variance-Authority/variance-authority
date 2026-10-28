@@ -5,6 +5,7 @@ import { operatorError } from './operator.js';
 import { workspaceGeneration } from './read.js';
 import { discover } from './tools/discover.js';
 import { entrypoint } from './tools/entrypoint.js';
+import { FoundNothing } from './tools/find.js';
 import { gaps } from './tools/gaps.js';
 import { grep } from './tools/grep.js';
 import { intersectionOf } from './tools/intersection.js';
@@ -60,7 +61,7 @@ import { uses } from './tools/uses.js';
  * the names it printed.
  *
  * `docs_slowest_tests` is about the suite rather than the source: which test
- * files the latest recorded run says took longest, as the runner reported them.
+ * files the latest recorded run says took longest, as the runner timed them.
  * It sits here because it reads the same recording `docs_orient` reads.
  * `docs_journey_map` reads it too, around one file: the code the tests that
  * entered that file went on to enter, nearest first. `docs_test_composition`
@@ -86,8 +87,9 @@ function dated(tool: Tool<Help>, unseen: boolean): Tool<Help> {
         answer = tool.run(subject, input, invocation);
       } catch (refusal) {
         // A name refused by a generation nothing compared with the checkout
-        // may only be newer than it, and the refusal says so.
-        if (!unseen || at === undefined) throw refusal;
+        // may only be newer than it, and the refusal says so. A name found
+        // nothing for is an answer, which its surface dates as it gives it.
+        if (!unseen || at === undefined || refusal instanceof FoundNothing) throw refusal;
         const said = `${refusal instanceof Error ? refusal.message : String(refusal)}\n\n${snapshotLine(at, true)}`;
         const operator = (refusal as { readonly varianceOperatorError?: unknown } | undefined)?.varianceOperatorError === true;
         throw operator ? operatorError(said, { cause: refusal }) : new Error(said, { cause: refusal });
@@ -140,5 +142,5 @@ export type {
 export { searchNames } from './tools/search-answer.js';
 export type { Help };
 export { audience, block, importing, line, reach, said } from './tools/format.js';
-export { sharedSegments } from './tools/uses.js';
+export { sharedSegments } from './tools/shared-segments.js';
 export { doorOf, entriesNamed, isPackage, openingOf, packageOf, specifierOf, unfound } from './tools/find.js';

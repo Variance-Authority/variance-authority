@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { sourceIndexPath } from '@variance-authority/sense';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { EXIT_CLEAN, EXIT_OPERATOR } from '../exit.js';
+import { EXIT_CLEAN } from '../exit.js';
 import { checkout, run } from './ask-packages-fixture.js';
 
 /**
@@ -57,7 +57,7 @@ describe('variance ask symbol says what is true of a name', () => {
       expect(code).toBe(EXIT_CLEAN);
       expect(out).toContain('a member of `Scanner`, declared at packages/lib/src/native.ts:2');
       expect(out).toContain(
-        "docs_uses names the lines that use it through a value written as its container, and the declaration to ask its language's find-references about for the rest.",
+        "`variance ask uses` names the lines that use it through a value written as its container, and the declaration to ask its language's find-references about for the rest.",
       );
       expect(out).not.toContain('Members are read');
       expect(out).not.toContain('lexicon');
@@ -75,41 +75,45 @@ describe('variance ask symbol says what is true of a name', () => {
   it('says nothing in the workspace declares an absent name, and that its dependencies were not checked', async () => {
     const root = await indexed(false);
     // An answer not compared with the checkout leaves the lexicon as it found it.
-    const { code, err } = await run(['ask', 'symbol', '--name', 'nowhereWritten', '--just-answer']);
+    const { code, out, err } = await run(['ask', 'symbol', '--name', 'nowhereWritten', '--just-answer']);
     expect(lexiconFiles(root).map(existsSync)).toEqual([false, false]);
-    expect(code).toBe(EXIT_OPERATOR);
-    expect(err).not.toMatch(/^variance: the dependency lexicon is not published/m);
-    expect(err).toContain('No file in this workspace declares `nowhereWritten`, at its top level or as a member.');
-    expect(err).toContain(
-      'Whether an installed dependency publishes it is not known: the dependency lexicon is not published, and `variance index` publishes it.',
+    expect(code).toBe(EXIT_CLEAN);
+    expect(err).toBe('');
+    expect(out).not.toMatch(/^variance: the dependency lexicon is not published/m);
+    expect(out).toContain('No file in this workspace declares `nowhereWritten`, at its top level or as a member.');
+    expect(out).toContain(
+      'Whether an installed dependency publishes it is not known: the dependency lexicon is not published, and the `variance index` command publishes it.',
     );
   });
 
   it('says nothing in the workspace or its installed dependencies declares an absent name', async () => {
     await indexed(true);
-    const { code, err } = await run(['ask', 'symbol', '--name', 'nowhereWritten']);
-    expect(code).toBe(EXIT_OPERATOR);
-    expect(err).toContain('No file in this workspace declares `nowhereWritten`, at its top level or as a member.');
-    expect(err).toContain('No installed dependency publishes it either.');
-    expect(err).not.toContain('not known');
-    expect(err).not.toContain('Members are read');
+    const { code, out, err } = await run(['ask', 'symbol', '--name', 'nowhereWritten']);
+    expect(code).toBe(EXIT_CLEAN);
+    expect(err).toBe('');
+    expect(out).toContain('No file in this workspace declares `nowhereWritten`, at its top level or as a member.');
+    expect(out).toContain('No installed dependency publishes it either.');
+    expect(out).not.toContain('not known');
+    expect(out).not.toContain('Members are read');
   });
 
-  it('publishes the lexicon a refusal of an absent name needs, and says no installed dependency publishes it', async () => {
+  it('publishes the lexicon the answer for an absent name needs, and says no installed dependency publishes it', async () => {
     const root = await indexed(false);
-    const { code, err } = await run(['ask', 'symbol', '--name', 'nowhereWritten']);
+    const { code, out, err } = await run(['ask', 'symbol', '--name', 'nowhereWritten']);
     expect(lexiconFiles(root).map(existsSync)).toEqual([true, true]);
-    expect(code).toBe(EXIT_OPERATOR);
-    expect(err).toContain('No installed dependency publishes it either.');
-    expect(err).not.toContain('not known');
+    expect(code).toBe(EXIT_CLEAN);
+    expect(err).toBe('');
+    expect(out).toContain('No installed dependency publishes it either.');
+    expect(out).not.toContain('not known');
   });
 
   it('names only the installed package it checked, when asked about one package', async () => {
     await indexed(true);
-    const { code, err } = await run(['ask', 'symbol', '--name', 'nowhereWritten', '--package', '@acme/lib']);
-    expect(code).toBe(EXIT_OPERATOR);
-    expect(err).toContain('No installed dependency named `@acme/lib` publishes it either.');
-    expect(err).not.toContain('No installed dependency publishes it either.');
+    const { code, out, err } = await run(['ask', 'symbol', '--name', 'nowhereWritten', '--package', '@acme/lib']);
+    expect(code).toBe(EXIT_CLEAN);
+    expect(err).toBe('');
+    expect(out).toContain('No installed dependency named `@acme/lib` publishes it either.');
+    expect(out).not.toContain('No installed dependency publishes it either.');
   });
 
   it('says only the files the source index read declare nothing, when it declined one', async () => {
@@ -119,10 +123,11 @@ describe('variance ask symbol says what is true of a name', () => {
       'packages/lib/src/huge.ts': `export const huge = 1;\n${'// filler line\n'.repeat(80_000)}`,
     });
     expect((await run(['index'])).code).toBe(EXIT_CLEAN);
-    const { code, err } = await run(['ask', 'symbol', '--name', 'nowhereWritten']);
-    expect(code).toBe(EXIT_OPERATOR);
-    expect(err).toContain('No file in this workspace that the source index read declares `nowhereWritten`, at its top level or as a member.');
-    expect(err).toContain('The declarations of 1 file were not read into the source index, so a name declared there is not known: packages/lib/src/huge.ts.');
+    const { code, out, err } = await run(['ask', 'symbol', '--name', 'nowhereWritten']);
+    expect(code).toBe(EXIT_CLEAN);
+    expect(err).toBe('');
+    expect(out).toContain('No file in this workspace that the source index read declares `nowhereWritten`, at its top level or as a member.');
+    expect(out).toContain('The declarations of 1 file were not read into the source index, so a name declared there is not known: packages/lib/src/huge.ts.');
   });
 
   it('answers a name one file exports and another keeps with both, and gives `intersection` the one it keeps', async () => {
@@ -171,13 +176,14 @@ describe('variance ask symbol says what is true of a name', () => {
       'crates/scan/src/lib.rs': 'pub struct Scanner {\n    pub scan_things: u32,\n}\n',
     });
     expect((await run(['index'])).code).toBe(EXIT_CLEAN);
-    const { code, err } = await run(['ask', 'symbol', '--name', 'scan_things']);
-    expect(code).toBe(EXIT_OPERATOR);
-    expect(err).not.toContain('at its top level or as a member.');
-    expect(err).toContain(
+    const { code, out, err } = await run(['ask', 'symbol', '--name', 'scan_things']);
+    expect(code).toBe(EXIT_CLEAN);
+    expect(err).toBe('');
+    expect(out).not.toContain('at its top level or as a member.');
+    expect(out).toContain(
       'No file in this workspace declares `scan_things` at its top level, and no JavaScript or TypeScript file declares it as a member.',
     );
-    expect(err).toContain(
+    expect(out).toContain(
       "Members are read from JavaScript and TypeScript files only, and this workspace's Python and Rust files were not read for them: " +
         "if `scan_things` is a member there, ask their language server's workspace symbols for it, then its find-references on the declaration.",
     );

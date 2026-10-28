@@ -131,6 +131,7 @@ pub mod native {
     pub use crate::header::header;
     pub use crate::place::{place, Placed};
     pub use crate::walk::{Block, Kind};
+    pub use crate::walk::capture::{bound, declared, Erased};
 
     /// How many regions with source of their own a parsed program is cut into
     /// under `presence`.

@@ -25,6 +25,12 @@ export interface ParsedShare {
    * publish of `--suite` counts a whole run against.
    */
   readonly collected?: string;
+  /**
+   * `github` prints `commit=<sha>`, the commit of the record `--suite` reads,
+   * for `$GITHUB_OUTPUT`: what a workflow merges a pull request with before it
+   * selects. Empty when the mainline holds none.
+   */
+  readonly format?: 'text' | 'github';
 }
 
 /**
@@ -65,6 +71,13 @@ export function parseShareArgs(flags: Flags, config: string): ParsedShare {
     // own publish counts one.
     throw new OperatorError('`--collected` is for `share --suite <name> --publish`, which counts a whole run against it');
   }
+  const format = flags.values.get('--format');
+  if (format !== undefined && format !== 'text' && format !== 'github') {
+    throw new OperatorError(`--format must be text or github, not \`${format}\``);
+  }
+  if (format !== undefined && (suite === undefined || publish)) {
+    throw new OperatorError('`--format` shapes what `share --suite <name>` reads from the mainline; a publish prints what it wrote');
+  }
   return {
     command: 'share',
     config,
@@ -73,5 +86,6 @@ export function parseShareArgs(flags: Flags, config: string): ParsedShare {
     reports: flags.positionals,
     ...(suite !== undefined ? { suite } : {}),
     ...(collected !== undefined ? { collected } : {}),
+    ...(format !== undefined ? { format } : {}),
   };
 }

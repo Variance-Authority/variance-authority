@@ -266,7 +266,7 @@ describe('waiting for images', () => {
 
   beforeEach(() => {
     vi.useFakeTimers();
-    variancePrecondition({ clock: 'faked' });
+    variancePrecondition('fixture', { clock: 'faked' });
   });
 
   afterEach(() => {

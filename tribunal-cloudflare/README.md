@@ -12,6 +12,8 @@ rather than against a published version. It is a project of its own — its own
 nothing it serves. [Your own deployment](#your-own-deployment) is what you do
 with it.
 
+Point your coding agent at [`llms.txt`](https://variance-authority.dev/llms.txt).
+
 The console is the page where a person looks at what a run changed and decides
 it, one **subject** at a time — one named UI state, under the id the run used. A
 run (`npx variance run`) sends each fresh image, the **candidate**, to this
@@ -90,7 +92,7 @@ machine that needs no Cloudflare account at all.
 
 Copy from here when you want the console's pages rather than the bare API: `app/`
 is the part the package does not ship, and the `link:` in `package.json` becomes
-`"@variance-authority/tribunal": "^0.2.0"` in yours.
+a caret range on the current version of `@variance-authority/tribunal` in yours.
 
 ### The resources, in order
 

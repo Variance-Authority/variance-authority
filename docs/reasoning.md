@@ -27,6 +27,7 @@ renders those subjects.
 | What changed, and is it one cause or many? | The completed run report | `variance ask summary`, then `variance ask changes` |
 | Is this subject changing, or disagreeing with itself? | Every subject read twice in the same run | `variance run --flakes` |
 | What is this test actually exercising? | Attention markers joined to the source that execution covered | `variance distill --test <id>` |
+| An answer ended with a gap: what runs next? | [The gap's reason and the run that closes it](#fast-smart-deep) | the commands the gap prints |
 
 `select` is the one written for a runner this tool never drives — a plain
 `vitest`, a `jest`, a CI shell script. It emits a skip list of test files and
@@ -123,3 +124,87 @@ When the evidence cannot support the intended decision, the next step is one of:
 An open conclusion is still useful when it names what is missing. It keeps the
 current answer trustworthy and turns the missing observation into the next
 explicit question.
+
+### Fast, Smart, Deep
+
+Ask that next question at the cheapest reading that can answer it. The readings
+fall into three gears, Fast, Smart and Deep, FSD for short:
+
+- **Fast** reads what is known without a run: the diff, the source and the
+  [source index](source-index.md), through `variance ask` and `variance select`.
+- **Smart** reads what a run recorded, through `variance covering`: which cases
+  ran which lines, at which commit, and what the last runs found.
+- **Deep** reads [one case's story](test-stories.md), through `variance story`:
+  the functions it called, in order, and the branches it took. It runs on the
+  nearest of the tests Smart already named, at most three, never on a suite:
+  `covering` lists the nearest test files first, and a story records every step
+  of each test it runs.
+
+`variance covering` ends an answer that leaves its question open with that next
+question, a gap: what stays open, what is known, why, the run that closes it
+with the commands that run as printed, and, when a record counts it, how many
+tests in how many test files it takes. The reason in parentheses is
+one of three:
+
+- `absent`: no run of the suite is recorded;
+- `stale`: the record was made over a different version of the file than the
+  one you have checked out, or before the file existed;
+- `coarse`: the record holds the line only at file grain, so it knows which
+  tests loaded the file but not which of them ran the line.
+
+An `absent` gap and a `stale` one name a recorded run:
+
+```text
+Gap (absent) on src/total.ts: which tests ran it. Known: no run is recorded.
+Next, Record, at a cost no record counts:
+  Wire the suite's producer and record one run of it: that first run is the record.
+```
+
+```text
+Gap (stale) on lines 2-3 of src/cart.ts: which tests run it now. Known: line 3 was written since the recording.
+Next, Record, 1 test in 1 test file:
+  Run with the suite's own runner: a.test.ts
+```
+
+A `coarse` gap names Deep:
+
+```text
+Gap (coarse) on line 20 of src/ledger.ts: which of the nearest 3 ran it, and in what order. Known: 4 named tests loaded src/ledger.ts, and 1 past the nearest 3 stays unread.
+Next, Deep, 3 tests in 2 test files:
+  Run each case with the suite's own runner under VARIANCE_AUTHORITY_STORY=1, filtered by its name as a regular expression (-t; --grep under Playwright):
+    ledger.test.ts  'finds the user'\''s entry'
+    ledger.test.ts  'records an entry'
+    book.test.ts  'opens a book \(draft\)'
+  variance story --file ledger.test.ts --name 'finds the user'\''s entry'
+  variance story --file ledger.test.ts --name 'records an entry'
+  variance story --file book.test.ts --name 'opens a book (draft)'
+```
+
+You run the three cases with your runner, and each `variance story` then reads
+the story that run recorded. An answer with nothing open ends without a gap.
+
+**Record is not a fourth gear.** It is the remedy when the record Smart reads
+cannot answer, because it is `absent` or `stale`. A deeper reading does not help
+then; a recorded run of what the gap names does, and the whole suite over a record
+that exists only when selection runs it. Run the files under the suite's recording
+producer, the wrapped runner configuration [test-level coverage](test-level-coverage.md#the-process)
+sets up, so the run refreshes the record; a run without it leaves the gap
+where it was:
+
+- **No record of the suite**: `variance share --suite <name>` fetches the
+  mainline's record when the root config gives the suite `"carry": "share"`.
+  Otherwise wire the suite's producer and record one run: that first run is
+  the record.
+- **Lines written since the recording, in a file the record holds**: run the
+  test files the gap names: the ones `variance select` runs for the file under
+  the suite's own `relations`, `ignore` and `before`.
+- **A file the record is older than**, so a new file: run the recorded test
+  files `variance select` runs for it by reach. `variance reach --since
+  <commit>`, from the commit the record was made at, then takes every file
+  added since, the new test files no record
+  names among them, with no record needed.
+
+Run Deep only on a gap that names it, skip a gear only when its record cannot
+have the answer, and check a finding at the cheapest gear that could prove it
+wrong: a path a story shows against `variance covering`, a selection against
+the diff.

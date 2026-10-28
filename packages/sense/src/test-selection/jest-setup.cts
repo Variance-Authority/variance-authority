@@ -40,6 +40,7 @@ import install = require('./jest-globals.cjs');
 import journalNames = require('./jest-journal-name.cjs');
 import caseOwner = require('./case-owner.cjs');
 import journals = require('./journal-format.cjs');
+import registry = require('./jest-registry.cjs');
 import type { ModuleId } from '../instrument/index.js';
 
 const { afterAll, beforeAll, beforeEach, expect } = globals;
@@ -64,8 +65,28 @@ let loaded: ReadonlyMap<ModuleId, Uint32Array> = new Map();
 beforeAll(() => {
   const testFile = expect.getState().testPath;
   if (testFile === undefined) throw new Error('variance-authority could not identify the current Jest file');
+  install.environmentInputs();
   loaded = collector.seal(testFile);
 });
+
+/**
+ * Fail the file where Jest's registry holds a module whose probes registered
+ * and that the journal never entered, before the journal is written: see
+ * `jest-registry.cts`. `require` here is Jest's, and its `cache` the file's registry.
+ */
+function heldAgainstRegistry(testFile: string, modules: ReadonlyMap<ModuleId, Uint32Array>): void {
+  const root = process.env['VARIANCE_AUTHORITY_TEST_SELECTION_ROOT'];
+  if (root === undefined) {
+    throw new Error('variance-authority has no checkout root: the reporter withTestSelection adds must be configured too');
+  }
+  const missing = registry.unentered(root, Object.keys(require.cache), collector.registered(), [...modules.keys(), ...loaded.keys()]);
+  if (missing.length === 0) return;
+  throw new Error(
+    `variance-authority recorded none of these modules for ${testFile}, though Jest evaluated them and their probes ` +
+      `registered:\n  ${missing.join('\n  ')}\nThe journal would select too little, so it is not written. ` +
+      'This is a defect in variance-authority: report it with this message.',
+  );
+}
 
 const collected = markCollected();
 if (collector.scoped) openCaseScopes();
@@ -82,7 +103,9 @@ afterAll(() => {
   if (testFile === undefined) throw new Error('variance-authority could not identify the current Jest file');
 
   const stamp = `${process.pid}-${crypto.randomUUID()}`;
+  install.environmentInputs();
   const { modules, frames } = collector.finish(testFile);
+  heldAgainstRegistry(testFile, modules);
   fs.mkdirSync(runDirectory, { recursive: true });
   fs.writeFileSync(`${runDirectory}/${journalNames.journalName(stamp, project)}`, journals.encodeJournal(testFile, modules, loaded, collected.at));
 

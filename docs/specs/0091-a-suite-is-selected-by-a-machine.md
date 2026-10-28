@@ -10,7 +10,8 @@ decided inside the selector that answers it. No stage can be tested, replaced
 or reported on alone.
 **Built on:** `beforeReach` and `changedBefore`
 (`packages/core/src/relate/before.ts`), the install comparison
-(`packages/cli/src/commands/installed.ts`, `moved-packages.ts`),
+(`packages/cli/src/commands/installed.ts`, `select-beyond.ts`;
+`beyondReach` in `packages/core/src/relate/beyond.ts`),
 `narrowByExecution` and `answerByImporters`
 (`packages/sense/src/test-selection/`), `reach`
 (`packages/cli/src/commands/reach.ts`), and the suites in

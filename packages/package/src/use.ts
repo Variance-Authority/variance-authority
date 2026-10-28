@@ -85,12 +85,24 @@ export interface Use {
 
 /**
  * A module held whole. `dynamic` is an `import()`, which loads the module when
- * that call runs rather than when the importing file loads; `namespace` is a
- * static `import * as`.
+ * that call runs rather than when the importing file loads, or an `import()`
+ * type, which loads nothing and whose use is a type; `namespace` is a static
+ * `import * as`.
  */
 export interface Through {
   readonly kind: 'dynamic' | 'namespace';
   readonly line: number;
+  /**
+   * The name is read off the module's `default`: `(await import('m')).default.x`.
+   * Under interop that is a CommonJS module's `module.exports`, so `x` is its export.
+   */
+  readonly throughDefault?: true;
+  /**
+   * The module goes, whole, somewhere the reader does not follow — passed to a
+   * call, returned, stored — so this line may read the name, and what it reads
+   * there is not recorded.
+   */
+  readonly whole?: true;
 }
 
 /** One name an import by path takes, and the place that takes it. */
@@ -176,6 +188,8 @@ export interface Named {
   readonly type: boolean;
   /** Whether the exporting file is a story, a test, or ordinary source. */
   readonly kind: UseKind;
+  /** The kind of the declaration the export binds in its own file, as the parse records it (`function`, `class`, `const` …); absent for `export … from`, whose declaration is another file's. */
+  readonly declaration?: string;
   /** The doc comment above the export statement, or above the declaration `export { x }` binds, undented; absent when there is none. */
   readonly doc?: string;
 }
@@ -260,6 +274,8 @@ export interface Exported {
   readonly line: number;
   /** `export type { x }` and `export { type x }` alike. */
   readonly type: boolean;
+  /** The kind of the declaration the export binds in its own file, as {@link Named} carries it; absent for `export … from`. */
+  readonly declaration?: string;
   /** The doc comment above the export statement, or above the declaration `export { x }` binds, undented; absent when there is none. */
   readonly doc?: string;
 }
@@ -294,6 +310,7 @@ export function usageFrom(opened: ReadonlySet<string>, files: Iterable<Recorded>
         line: published.line,
         type: published.type,
         kind,
+        ...(published.declaration === undefined ? {} : { declaration: published.declaration }),
         ...(published.doc === undefined ? {} : { doc: published.doc }),
       });
     }

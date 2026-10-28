@@ -5,6 +5,7 @@
 > Find the code one test loads but never uses, and get a concrete substitution to try.
 
 Part of [Variance Authority](https://variance-authority.dev).
+Point your coding agent at [`llms.txt`](https://variance-authority.dev/llms.txt).
 
 ## What this is for
 
@@ -23,8 +24,9 @@ what the run loaded and ran  −  what the test demonstrably interacts with
 ```
 
 You get an ordered list of files. For a file whose import ran but whose
-functions never did, you also get the substitution to try, spelled out:
-`vi.mock('src/heavy-chart.tsx')`.
+functions never did, you also get the substitution to try: the module to mock
+in that test's file, and why. How to write the mock is your runner's, so the
+reading names no runner's call.
 
 `distill` reads files and prints. It does not open a browser, run a test, or
 edit your source, and it reads no project configuration. Rerunning the test
@@ -219,7 +221,7 @@ Covered with no addressed target attributed to the same file: 2.
 Loaded but not covered: 1 module(s).
   src/heavy-chart.tsx — the import ran its top level and this test covered nothing below it
     never covered: HeavyChart (lines 5-8)
-    substitution to try: vi.mock('src/heavy-chart.tsx') — jest.mock and sb.mock say the same thing
+    substitution to try: mock src/heavy-chart.tsx in this test's file; loading it is all this test used of it. Stand in for what it exports: an automock loads the module to read its shape
 ```
 
 Reading it:
@@ -235,8 +237,8 @@ Reading it:
   covered files are never split across Arrange, Act and Assert.
 - **`depth`** is a call depth from the test. Every entry the Vitest recorder
   writes sets it to `0`; the field exists for a recorder that measures one.
-- **`sb.mock`** is Storybook's, from `storybook/test`. `vi.mock`, `jest.mock`
-  and `sb.mock` are the three forms of the same substitution.
+- **`substitution to try`** names the module, not a call. Write it the way the
+  test file's runner mocks a module.
 - **The two finding lines** are the two classes of answer, below.
 
 ## The two classes of finding

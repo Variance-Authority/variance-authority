@@ -74,6 +74,8 @@ use oxc_ast_visit::{walk, Visit};
 use oxc_span::{GetSpan, Span};
 use oxc_syntax::scope::ScopeFlags;
 
+#[path = "walk_capture.rs"]
+pub mod capture;
 #[path = "walk_decisions.rs"]
 mod decisions;
 #[path = "walk_hoisted.rs"]
@@ -294,7 +296,7 @@ impl Walker {
     /// functions and all, is the enclosing region's, unless it is a declaration
     /// in a continuation or a case, which opens a region with nothing in it. It still
     /// takes its name, so every other function keeps the address it would have.
-    fn entered(&mut self, span: Span, own: Option<String>, params: &FormalParameters, body: Body, arrow: bool) {
+    fn entered(&mut self, span: Span, own: Option<String>, params: &FormalParameters, body: Body, arrow: bool, generator: bool) {
         let hint = self.hint.take();
         self.named(own.or(hint));
         let end = match body {
@@ -320,6 +322,7 @@ impl Walker {
 
         let entry = self.at("", owner, |w| w.open(Kind::Function, "entry", params.span.start, end, Some(owner)));
         let plan = params::plan(params, &self.probe(entry), arrow);
+        let handed = if generator { None } else { capture::call(entry, &capture::parameters(params)) };
         self.at("", entry, |w| {
             for (at, text) in plan.iter().flat_map(|plan| &plan.before) {
                 w.push(*at, format_args!("{text}"));
@@ -335,14 +338,22 @@ impl Walker {
                     if body_probe {
                         w.hit(body.span.start + 1, entry);
                     }
+                    // After the body's directives, so `"use strict"` stays one;
+                    // the `;` ends a directive written without its own.
+                    match (&handed, body.directives.last()) {
+                        (Some(handed), None) => w.push(body.span.start + 1, format_args!("{handed};")),
+                        (Some(handed), Some(last)) => w.push(last.span.end, format_args!(";{handed};")),
+                        (None, _) => {}
+                    }
                     w.list(&body.statements, "", entry);
                 }
-                Body::Expression(expression) if !body_probe => w.visit_expression(expression),
+                Body::Expression(expression) if !body_probe && handed.is_none() => w.visit_expression(expression),
                 Body::Expression(expression) => {
-                    // `(n) => n * 2` becomes `(n) => (probe, n * 2)`.
+                    // `(n) => n * 2` becomes `(n) => (probe, handed, n * 2)`.
                     let span = expression.span();
-                    let probe = w.probe(entry);
-                    w.push(span.start, format_args!("({probe},"));
+                    let probe = if body_probe { format!("{},", w.probe(entry)) } else { String::new() };
+                    let handed = handed.as_ref().map_or(String::new(), |handed| format!("{handed},"));
+                    w.push(span.start, format_args!("({probe}{handed}"));
                     w.visit_expression(expression);
                     w.push(span.end, format_args!(")"));
                 }
@@ -387,7 +398,7 @@ impl<'a> Visit<'a> for Walker {
             FunctionType::FunctionDeclaration | FunctionType::FunctionExpression => {
                 let own = it.id.as_ref().map(|id| id.name.to_string());
                 let body = it.body.as_deref().map_or(Body::None, Body::Block);
-                self.entered(it.span, own, &it.params, body, false);
+                self.entered(it.span, own, &it.params, body, false, it.generator);
             }
             // An overload signature or an `abstract` method opens nothing.
             _ => {
@@ -402,7 +413,7 @@ impl<'a> Visit<'a> for Walker {
             ArrowFunctionBody::FunctionBody(body) => Body::Block(body),
             expression => Body::Expression(expression.to_expression()),
         };
-        self.entered(it.span, None, &it.params, body, true);
+        self.entered(it.span, None, &it.params, body, true, false);
     }
 
     fn visit_class(&mut self, it: &Class<'a>) {

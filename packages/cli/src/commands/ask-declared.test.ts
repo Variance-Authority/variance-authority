@@ -98,7 +98,7 @@ describe('variance ask about a name declared and not exported', () => {
     const { code, out } = await run(['ask', 'symbol', '--name', 'addTax']);
     expect(code).toBe(EXIT_CLEAN);
     expect(out).toContain('not published: @acme/lib declares an entry, and this file is not behind it');
-    expect(paragraph(out, /^addTax \[function\]\n/)).toContain('declared, not exported, at packages/kit/src/money/levy.ts:3 by @acme/kit');
+    expect(paragraph(out, /^addTax \[function\]\ndeclared, not exported/)).toContain('declared, not exported, at packages/kit/src/money/levy.ts:3 by @acme/kit');
   });
 
   it('answers `search` with the declaration, under a heading that says it is not exported', async () => {
@@ -153,7 +153,7 @@ describe('variance ask about a name declared and not exported', () => {
     expect(err).toBe('');
     expect(code).toBe(EXIT_CLEAN);
     expect(out).toContain(
-      '`relaunch` is declared, not exported, at packages/kit/src/money/restart.ts:4, so nothing outside that file can import it.',
+      '`relaunch` [function] is declared, not exported, at packages/kit/src/money/restart.ts:4, so nothing outside that file can import it.',
     );
   });
 
@@ -167,7 +167,7 @@ describe('variance ask about a name declared and not exported', () => {
     const { code, out, err } = await run(['ask', 'uses', '--name', 'files']);
     expect(err).toBe('');
     expect(code).toBe(EXIT_CLEAN);
-    expect(out).toContain('`files` is declared, not exported, at packages/kit/src/money/count.ts:3, so nothing outside that file can import it.');
+    expect(out).toContain('`files` [function] is declared, not exported, at packages/kit/src/money/count.ts:3, so nothing outside that file can import it.');
     expect(out).toContain('`files` is a member too, declared in 1 place:');
     expect(out).toContain('packages/kit/src/money/tool.ts:2');
   });
@@ -183,8 +183,8 @@ describe('variance ask about a name declared and not exported', () => {
     expect(out).toContain(
       [
         '`tally` is declared, not exported, in 2 files:',
-        '  packages/kit/src/money/a.ts:3, so nothing outside that file can import it',
-        '  packages/kit/src/money/b.ts:3, so nothing outside that file can import it',
+        '  packages/kit/src/money/a.ts:3 [function], so nothing outside that file can import it',
+        '  packages/kit/src/money/b.ts:3 [const], so nothing outside that file can import it',
       ].join('\n'),
     );
 
@@ -265,7 +265,7 @@ describe('variance ask about a name declared and not exported', () => {
 
     const { out } = await run(['ask', 'uses', '--name', 'relaunch']);
     expect(out).toContain(
-      '`relaunch` is declared, not exported, at packages/kit/src/lib.rs:7, so only its module and the modules inside it can name it.',
+      '`relaunch` [function] is declared, not exported, at packages/kit/src/lib.rs:7, so only its module and the modules inside it can name it.',
     );
   });
 
@@ -279,9 +279,25 @@ describe('variance ask about a name declared and not exported', () => {
     const { out } = await run(['ask', 'uses', '--name', 'relaunch']);
     expect(out).toContain([
       '`relaunch` is declared, not exported, in 2 places:',
-      '  packages/kit/src/lib.rs:7, so only its module and the modules inside it can name it',
-      '  packages/kit/src/lib.rs:12 as `tests::relaunch`, so only its module and the modules inside it can name it',
+      '  packages/kit/src/lib.rs:7 [function], so only its module and the modules inside it can name it',
+      '  packages/kit/src/lib.rs:12 as `tests::relaunch` [function], so only its module and the modules inside it can name it',
     ].join('\n'));
+  });
+
+  it('answers `uses` for a Rust module apart from the function of the same name it declares: the importers under the export, the module named as a module', async () => {
+    checkout({
+      'packages/kit/Cargo.toml': '[package]\nname = "kit"\nversion = "0.1.0"\n',
+      'packages/kit/src/lib.rs': 'mod walk;\n\nuse crate::walk::walk;\n\npub fn run() {\n    walk();\n}\n',
+      'packages/kit/src/walk.rs': 'pub(crate) fn walk() {}\n',
+    });
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+
+    const { out } = await run(['ask', 'uses', '--name', 'walk']);
+    expect(out).toContain('it is exported at packages/kit/src/walk.rs:1');
+    const [exported, kept] = out.split('`walk` [module]');
+    expect(exported).toContain('packages/kit/src/lib.rs:3 — @acme/kit');
+    expect(kept).not.toContain('lib.rs:3');
+    expect(out).toContain('`walk` [module] is declared, not exported, at packages/kit/src/lib.rs:1, so only its module and the modules inside it can name it.');
   });
 
   it('answers `symbol` and `uses` for a Swift `fileprivate` and a Kotlin `private` as declared and kept to their files', async () => {
@@ -297,7 +313,7 @@ describe('variance ask about a name declared and not exported', () => {
       expect(block).toContain(`declared, not exported, at ${at}`);
       expect(block).toContain(`Nothing outside ${at.slice(0, at.lastIndexOf(':'))} can import it`);
       expect((await run(['ask', 'uses', '--name', name])).out)
-        .toContain(`\`${name}\` is declared, not exported, at ${at}, so nothing outside that file can import it.`);
+        .toContain(`\`${name}\` [function] is declared, not exported, at ${at}, so nothing outside that file can import it.`);
     }
   });
 
@@ -321,7 +337,7 @@ describe('variance ask about a name declared and not exported', () => {
 
     const { out } = await run(['ask', 'uses', '--name', '_relaunch']);
     expect(out).toContain(
-      "`_relaunch` is declared, not exported, at packages/kit/kit/restart.py:4; another module can still import it by name, which `ask grep --query '\\b_relaunch\\b' --to packages/kit/kit/restart.py` finds.",
+      "`_relaunch` [function] is declared, not exported, at packages/kit/kit/restart.py:4; another module can still import it by name, which `variance ask grep --query '\\b_relaunch\\b' --to packages/kit/kit/restart.py` finds.",
     );
   });
 
@@ -339,7 +355,7 @@ describe('variance ask about a name declared and not exported', () => {
     checkout({
       ...PRIVATE_RUST,
       'packages/kit/src/again.rs': '#[macro_export]\nmacro_rules! again {\n    () => {};\n}\n',
-      'packages/kit/src/money/legacy.cjs': 'function rerun(argv) {\n  return argv.length;\n}\nmodule.exports = { rerun };\n',
+      'packages/kit/src/money/legacy.cjs': 'function rerun(argv) {\n  return argv.length;\n}\nexports.rerun = rerun;\n',
     });
     expect((await run(['index'])).code).toBe(EXIT_CLEAN);
 
@@ -390,7 +406,7 @@ describe('variance ask about a name declared and not exported', () => {
     const uses = await run(['ask', 'uses', '--name', 'resume']);
     expect(uses.code).toBe(EXIT_CLEAN);
     expect(uses.out).toContain(
-      '`resume` is declared, not exported, at packages/kit/src/money/restart.ts:9, so nothing outside that file can import it.',
+      '`resume` [function] is declared, not exported, at packages/kit/src/money/restart.ts:9, so nothing outside that file can import it.',
     );
     expect(uses.out).not.toContain('were not read into the source index');
   });

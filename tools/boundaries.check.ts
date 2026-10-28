@@ -275,6 +275,14 @@ describe('every package says what it is', () => {
   );
 
   it.each(PACKAGES.map((workspace) => [workspace.name, workspace] as const))(
+    '%s says what a review of it keeps',
+    (_name, workspace) => {
+      const path = join(workspace.dir, 'REVIEW.md');
+      expect(existsSync(path), `${workspace.dir}/REVIEW.md is missing`).toBe(true);
+    },
+  );
+
+  it.each(PACKAGES.map((workspace) => [workspace.name, workspace] as const))(
     '%s does not open on its preconditions',
     (_name, workspace) => {
       // A published README opens for a person deciding whether this is for them.

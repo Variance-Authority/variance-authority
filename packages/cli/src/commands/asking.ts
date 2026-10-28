@@ -5,9 +5,12 @@ import {
   REVIEW_TOOLS,
   TOOLS,
   VANTAGE_TOOLS,
+  flagOf,
+  verbOf,
   type CostsSubject,
   type ReviewTool,
   type Tool,
+  type ToolInvocation,
 } from '@variance-authority/mcp/tools';
 import { OperatorError } from '../exit.js';
 
@@ -30,26 +33,8 @@ import { OperatorError } from '../exit.js';
  * spelled yet prints `<value>` and still works.
  */
 
-/**
- * The wire namespaces, one per tool set. A namespace is a fact about the
- * protocol — two servers on one client must not both offer `search` — and not a
- * word anybody types at a shell, so it is the part the question drops.
- */
-const PREFIXES = ['variance_', 'docs_'] as const;
-
 /** The part of a tool this module reads. Not `Tool`, which would drag a subject in. */
 export type Asked = Pick<Tool, 'name' | 'description' | 'inputSchema'>;
-
-/**
- * The question a tool answers, as somebody types it.
- *
- * One rule for all of them rather than a table, so a tool added to the MCP set
- * arrives here already asked, and no second list can be short by one.
- */
-export function questionOf(tool: Asked): string {
-  const prefix = PREFIXES.find((candidate) => tool.name.startsWith(candidate)) ?? '';
-  return tool.name.slice(prefix.length).replace(/_/g, '-');
-}
 
 /** A tool that answers about a suite still running, as `VANTAGE_TOOLS` types it. */
 type LiveTool = (typeof VANTAGE_TOOLS)[number];
@@ -107,11 +92,11 @@ function questionsOf(): readonly Question[] {
 
 /** The question by that name, or the refusal naming the ones that exist. */
 export function questionFor(asked: string): Question {
-  const found = QUESTIONS.find((question) => questionOf(question.tool) === asked);
+  const found = QUESTIONS.find((question) => verbOf(question.tool) === asked);
   if (found !== undefined) return found;
 
   // The names are not listed here: `variance ask` lists them with what each answers.
-  const names = QUESTIONS.map((question) => questionOf(question.tool));
+  const names = QUESTIONS.map((question) => verbOf(question.tool));
   throw new OperatorError(`\`${asked}\` is not a question.${didYouMean(asked, names)}\n\`variance ask\` lists them.`);
 }
 
@@ -184,7 +169,7 @@ export function argumentsOf(tool: Asked): readonly Argument[] {
   return Object.entries(declared).map(([property, schema]) => {
     const kind = kindOf(schema);
     return {
-      flag: `--${property.replace(/[A-Z]/g, (upper) => `-${upper.toLowerCase()}`)}`,
+      flag: flagOf(property),
       property,
       placeholder: listed(PLACEHOLDER[property], kind) ?? fallback(kind),
       required: wanted.includes(property),
@@ -286,7 +271,7 @@ export function inputFor(
       : 'Ask `summary` or `changes` first for a finished run, or `run-signals` for one still ' +
         'going; each prints the ids the narrower questions take.';
     throw new OperatorError(
-      `\`variance ask ${questionOf(tool)}\` needs ` +
+      `\`variance ask ${verbOf(tool)}\` needs ` +
         `${missing.map((argument) => argument.flag).join(' and ')}. ${first}`,
     );
   }
@@ -317,7 +302,7 @@ export function refuseWords(tool: Asked, words: readonly string[] | undefined): 
 function notTaken(tool: Asked, typed: string): string {
   const flags = argumentsOf(tool).map(spelling);
   return (
-    `\`${typed}\` is not an argument \`variance ask ${questionOf(tool)}\` takes; it ` +
+    `\`${typed}\` is not an argument \`variance ask ${verbOf(tool)}\` takes; it ` +
     `takes ${flags.length === 0 ? 'none' : flags.join(', ')}`
   );
 }
@@ -333,4 +318,12 @@ export function wrap(text: string, width: number): readonly string[] {
   }
 
   return lines;
+}
+
+/** The command every question is asked through, which every hint in an answer is spelled for. */
+const SHELL = 'variance ask';
+
+/** What a question's tool is handed: what this command read, asked through its shell. */
+export function invocationOf<Subject>(read: Omit<ToolInvocation<Subject>, 'shell'> = {}): ToolInvocation<Subject> {
+  return { ...read, shell: SHELL };
 }

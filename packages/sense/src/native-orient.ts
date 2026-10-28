@@ -397,6 +397,10 @@ export interface NativeNameUse {
   kind: 'story' | 'test' | 'source';
   through?: 'dynamic' | 'namespace' | null;
   throughLine: number;
+  /** Read off the module's `default`, which under interop is a CommonJS module's `module.exports`. */
+  throughDefault: boolean;
+  /** The module goes, whole, somewhere the reader does not follow: the line may read the name. */
+  whole: boolean;
 }
 
 /** Who imports one name out of a set of files, and which files pass it on with `export … from`. */
@@ -407,6 +411,19 @@ export interface NativeImporters {
   through: string[];
   /** Every line of a file asked about that uses the name it declares, by file in code units, then by line. */
   inFile: NativeInFile[];
+  /**
+   * Every namespace a file passes the name on inside, by file in code units,
+   * then by name: `export * as shout` passes `greet` as `shout.greet`, `name`
+   * `shout` and `members` `['greet']`, the last member the name itself.
+   */
+  namespaces: NativeNamespace[];
+}
+
+/** A namespace one file passes a name on inside, under the name it exports it as. */
+export interface NativeNamespace {
+  at: string;
+  name: string;
+  members: string[];
 }
 
 /** One line of a file that uses a name the file declares at its top level. */

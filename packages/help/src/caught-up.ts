@@ -1,4 +1,5 @@
 import { refreshDependencyLexicon } from './dependency-lexicon.js';
+import { FoundNothing } from './tools/find.js';
 
 /**
  * What a refused source question does before its refusal is believed, for every
@@ -53,7 +54,7 @@ export async function caughtUp<Answer>(
     return { subject: await again(reused), ...(packages === undefined ? {} : { footer: packages }) };
   } catch (failure) {
     const source = snapshotLine(refusedAt, `it could not be read again: ${messageOf(failure)}`);
-    return { footer: packages === undefined ? source : `${source}\n${packages}` };
+    return { footer: packages === undefined ? source : `${source}\n${packages}`, dated: true };
   }
 }
 
@@ -67,6 +68,34 @@ export interface CaughtUp<Answer> {
   readonly subject?: Answer;
   /** The lines a refusal ends with when part of the checkout could not be compared, and why. */
   readonly footer?: string;
+  /** True when `footer` opens with the date of the generation that could not be read again. */
+  readonly dated?: true;
+}
+
+/**
+ * The lines under an answer that found nothing, which {@link caughtUp} read
+ * again before it was believed: the date of the generation it was read from
+ * (`at`, `unseen` saying the checkout was not compared with it), then what part
+ * of the checkout could not be compared, and why. A footer that already dates
+ * the generation is not dated twice.
+ */
+export function foundNothingFooter(caught: CaughtUp<unknown> | undefined, at: string | undefined, unseen: boolean): string | undefined {
+  const lines = caught?.dated === true ? [caught.footer] : [at === undefined ? undefined : snapshotLine(at, unseen), caught?.footer];
+  const said = lines.filter((line) => line !== undefined);
+  return said.length === 0 ? undefined : said.join('\n');
+}
+
+/**
+ * The answer a question gives when what it threw is a {@link FoundNothing}, for
+ * every surface that asks one — `variance ask`, `variance serve`, and this
+ * package's binary and server — so a name nothing declares reads the same on
+ * each: what was read and found nothing, then {@link foundNothingFooter}'s
+ * lines. Undefined for any other throw, which stays a refusal.
+ */
+export function foundNothingAnswer(thrown: unknown, caught: CaughtUp<unknown> | undefined, at: string | undefined, unseen: boolean): string | undefined {
+  if (!(thrown instanceof FoundNothing)) return undefined;
+  const dated = foundNothingFooter(caught, at, unseen);
+  return dated === undefined ? thrown.message : `${thrown.message}\n${dated}`;
 }
 
 function messageOf(failure: unknown): string {

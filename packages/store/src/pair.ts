@@ -12,8 +12,14 @@ import { placedForIn, type PlacedFor } from './claims.js';
  * removed as a pair.
  *
  * Split from `durable.ts`, which decides *which* pair a lookup reads; this file
- * decides what a pair on disk *is*, and refuses one that is half there.
+ * decides what a pair on disk *is*, and refuses one that is half there. Every
+ * lookup the durable store makes — a baseline, a description, a cached render —
+ * reads through it, because each owes the same answer about a pair with one half
+ * missing, and two copies of that answer are two chances to disagree.
  */
+
+/** How a baseline's `.png` becomes bytes. See `DurableStoreOptions.readImage`. */
+export type ImageReader = (path: string) => Promise<Buffer>;
 
 /**
  * Where the two halves of one baseline go.
@@ -77,10 +83,13 @@ export async function retire(places: Places): Promise<void> {
  * `RenderCache` and not in a judgement made here. This still throws; the cache
  * wrapper reads the throw as a miss, and the baseline path does not.
  */
-export async function readRaster(places: Places): Promise<Read<Raster> | null> {
+export async function readRaster(
+  places: Places,
+  readImage: ImageReader = readFile,
+): Promise<Read<Raster> | null> {
   const [sidecar, bytes] = await Promise.all([
     orAbsent(() => readFile(`${places.record}.json`, 'utf8'), `${places.record}.json`),
-    orAbsent(() => readFile(`${places.image}.png`), `${places.image}.png`),
+    orAbsent(() => readImage(`${places.image}.png`), `${places.image}.png`),
   ]);
 
   if (sidecar === null && bytes === null) return null;

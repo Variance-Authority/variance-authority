@@ -137,14 +137,26 @@ export async function answerConfigless(
     // flag long and needs nothing configured. Naming the file is still allowed,
     // for the run that happened somewhere else.
     case 'covering': {
-      const { coveringAnswer, formatCoveringAnswer } = await import('./covering-suites.js');
+      const [{ answerGaps, coveringAnswer, formatCoveringAnswer }, { evidenceGapText, GapRefusal }] = await Promise.all([
+        import('./covering-suites.js'),
+        import('./evidence-gap.js'),
+      ]);
       try {
-        streams.out(formatCoveringAnswer(await coveringAnswer(parsed), parsed.format));
+        const answer = await coveringAnswer(parsed);
+        streams.out(formatCoveringAnswer(answer, parsed.format));
+        // Under `refs` stdout is a list a runner takes, so the run that closes a gap goes to the person, on stderr.
+        if (parsed.format === 'refs') for (const gap of answerGaps(answer)) streams.err(`${evidenceGapText(gap)}\n`);
       } catch (error) {
         // A program reading JSON is told which refusal this is on the stream it
         // parses; the sentence still goes to stderr, for the person.
+        const gap = error instanceof GapRefusal ? error.gap : undefined;
         if (parsed.format === 'json' && error instanceof OperatorError && error.kind !== undefined) {
-          streams.out(`${JSON.stringify({ refused: error.kind })}\n`);
+          streams.out(`${JSON.stringify({ refused: error.kind, ...(gap === undefined ? {} : { gap }) })}\n`);
+        }
+        // The person reads the run that would answer it under the sentence.
+        if (gap !== undefined) {
+          const kind = (error as OperatorError).kind;
+          throw new OperatorError(`${(error as Error).message}\n${evidenceGapText(gap)}`, { ...(kind === undefined ? {} : { kind }), cause: error });
         }
         throw error;
       }
@@ -188,13 +200,14 @@ export async function answerConfigless(
     // them. `--out` keeps the answer as files, because a workflow uploads it and
     // comments with it in steps that do not share this process's output.
     case 'review': {
-      const [{ reviewWithCoverage }, { REVIEW_ARTIFACT, reviewFromRun }, { formatReview }] = await Promise.all([
+      const [{ reviewWithCoverage }, { REVIEW_ARTIFACT, reviewFromRun }, { formatReview, reviewPieces }] = await Promise.all([
         import('./review-evidence.js'),
         import('./review-from-run.js'),
         import('./review-text.js'),
       ]);
       if (parsed.fromRun !== undefined) {
-        streams.out(formatReview(await reviewFromRun({ run: parsed.fromRun, artifact: parsed.artifact ?? REVIEW_ARTIFACT, root: parsed.root }), parsed.format));
+        const kept = await reviewFromRun({ run: parsed.fromRun, artifact: parsed.artifact ?? REVIEW_ARTIFACT, root: parsed.root });
+        await writePieces(reviewPieces(kept, parsed.format), streams);
         return EXIT_CLEAN;
       }
       if (parsed.format === 'handover') {
@@ -205,12 +218,10 @@ export async function answerConfigless(
       const answer = await reviewWithCoverage(parsed);
       if (parsed.out !== undefined) {
         await mkdir(parsed.out, { recursive: true });
-        // FIXME: review.json is unbounded — every moved region carries its cases in full, and a change that moves
-        // most of a suite's regions writes hundreds of megabytes (430 MB on a pull request's CI run).
-        await writeFile(join(parsed.out, 'review.json'), formatReview(answer, 'json'));
+        await writeFile(join(parsed.out, 'review.json'), reviewPieces(answer, 'json'));
         await writeFile(join(parsed.out, 'review.md'), formatReview(answer, 'markdown'));
       }
-      streams.out(formatReview(answer, parsed.format));
+      await writePieces(reviewPieces(answer, parsed.format), streams);
       return EXIT_CLEAN;
     }
 

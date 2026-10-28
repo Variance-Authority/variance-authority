@@ -9,7 +9,7 @@ import { withCaseSections } from './test-selection/case-record.js';
 import { encodeExecutionIndex } from './test-selection/execution-format.js';
 import { encodeTestCoverage } from './test-selection/format.js';
 import { testCoverageFile } from './test-selection/record-location.js';
-import type { CoverageModule, ExecutionIndex, TestCoverage } from './test-selection/index.js';
+import type { CoverageModule, ExecutionIndex, FilePhases, TestCoverage } from './test-selection/index.js';
 
 /**
  * The reading `variance ask slowest-tests` is made of: the durations a
@@ -31,17 +31,18 @@ function module(file: string, testFiles: readonly string[]): CoverageModule {
 }
 
 function coverage(
-  tests: readonly (readonly [string, number | undefined])[],
+  tests: readonly (readonly [string, number | undefined, FilePhases?])[],
   modules: readonly CoverageModule[] = [],
 ): TestCoverage {
   return {
     version: 3,
     instrumentation: 'fixture-instrumentation',
-    tests: tests.map(([file, duration]) => ({
+    tests: tests.map(([file, duration, phases]) => ({
       file,
       complete: true,
       preconditions: [],
       ...(duration === undefined ? {} : { duration }),
+      ...(phases === undefined ? {} : { phases }),
     })),
     modules,
   };
@@ -69,6 +70,19 @@ function record(snapshot: TestCoverage, cases?: ExecutionIndex): string {
 
 const NO_CASES = { unread: 'no run kept its cases there' };
 
+/**
+ * Three ways a runner times a file. Vitest's duration is its cases alone, and
+ * the phases before them are where an import-heavy file spends its time; Jest's
+ * is the whole file, which its phases add up to less than; and a runner that
+ * reports phases but no duration still timed the file.
+ */
+const TIMED_THREE_WAYS: readonly (readonly [string, number | undefined, FilePhases?])[] = [
+  ['test/vitest.test.ts', 33, { prepare: 125, environment: 979, setup: 15, collect: 4258, cases: 33 }],
+  ['test/jest.test.ts', 1000, { environment: 100, setup: 10, collect: 300, cases: 400 }],
+  ['test/phased.test.ts', undefined, { collect: 700, cases: 20 }],
+  ['test/plain.test.ts', 900],
+];
+
 describe('the slowest recorded test files', () => {
   it('lists the slowest first, breaks ties by path, and counts the untimed apart', () => {
     const at = record(coverage([
@@ -92,6 +106,19 @@ describe('the slowest recorded test files', () => {
         scope: { unrecorded: [] },
         cases: { recording: at, ...NO_CASES },
       },
+    ]);
+  });
+
+  it('ranks a file by what running it cost, the phases before its first case included', () => {
+    record(coverage(TIMED_THREE_WAYS));
+
+    const [suite] = recordedDurations(root, 4);
+
+    expect(suite !== undefined && 'slowest' in suite ? suite.slowest : suite).toEqual([
+      { file: 'test/vitest.test.ts', duration: 5410 },
+      { file: 'test/jest.test.ts', duration: 1000 },
+      { file: 'test/plain.test.ts', duration: 900 },
+      { file: 'test/phased.test.ts', duration: 720 },
     ]);
   });
 
@@ -208,6 +235,19 @@ describe('the times a shard places its files by', () => {
 
     const read = `sha256:${createHash('sha256').update(readFileSync(at)).digest('hex')}`;
     expect(times).toEqual({ recording: at, read, commit: 'c'.repeat(40), times: new Map([['test/a.test.ts', 40], ['test/c.test.ts', 0]]) });
+  });
+
+  it('places a file by what running it cost, the phases before its first case included', () => {
+    const at = record(coverage(TIMED_THREE_WAYS));
+
+    const times = recordedTimes(at);
+
+    expect('times' in times ? times.times : times).toEqual(new Map([
+      ['test/vitest.test.ts', 5410],
+      ['test/jest.test.ts', 1000],
+      ['test/phased.test.ts', 720],
+      ['test/plain.test.ts', 900],
+    ]));
   });
 
   it('throws when what is recorded there does not read, because a shard placed without it may disagree with one that read it', () => {

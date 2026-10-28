@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { createAbsentStore, type HistoryStore, type Instability, type Observation, type RunRecord } from '@variance-authority/history';
 import type { Config } from '../config.js';
+import type { PlannedSubject, Visit } from './collector.js';
+import { collectorOf, configOf, documentFor, runWith, snapshotFor, storeAnswering } from './run-fixture.js';
 import { recordRun } from './history.js';
 import { recordIfConfigured } from './history-report.js';
 import type { CliObservationRecord } from './run-report.js';
@@ -286,5 +288,37 @@ describe('what the run reports about the record', () => {
     });
 
     expect(asked).toEqual([]);
+  });
+});
+
+describe('a run that records a story read at its widths', () => {
+  // One visit, two subjects: each width is a reading of its own, recorded under
+  // its own id and in the story's place in the plan.
+  it('records a reading for each width the visit realized', async () => {
+    const story: PlannedSubject = { subject: { id: 'story:card', kind: 'story' } };
+    const atWidth = (width: number): PlannedSubject => ({ subject: { id: `story:card@${width}`, kind: 'story' } });
+    const collector = {
+      ...collectorOf({ subjects: [story], notObserved: [], warnings: [] }, () => ({ ok: true, document: documentFor('x') })),
+      async collect(): Promise<Visit> {
+        return {
+          subjects: [atWidth(375), atWidth(800)].map((planned) => ({
+            planned,
+            collected: { ok: true, document: documentFor(planned.subject.id), snapshot: snapshotFor(planned.subject.id, '12:00') },
+          })),
+        };
+      },
+    };
+    const written: Written[] = [];
+
+    await runWith(configOf({ history: CONFIG.history }), collector, storeAnswering(null), {
+      identity: { run: 'r1', commit: 'c1' },
+      history: store([], written),
+    });
+
+    // One observation per band, so each subject appears once per band it has.
+    expect([...new Set(written.flatMap((write) => write.observations.map((observation) => observation.subject)))]).toEqual([
+      'story:card@375',
+      'story:card@800',
+    ]);
   });
 });

@@ -57,22 +57,32 @@ interface PartSubject {
 
 /**
  * The part a shard writes, from the plan-indexed compositions and the lexicon
- * it read over them. `reading.values` follows the non-null slots in order.
+ * it read over them. `reading.values` follows the compositions in order. A
+ * position holds every subject its visit read — a story at each of its widths —
+ * so it may hold more than one.
  */
 export function suitePartOf(
-  compositions: readonly (SubjectComposition | null)[],
+  compositions: readonly (readonly SubjectComposition[])[],
   reading: LexiconReading | undefined,
   commit: string | undefined,
   shard?: { readonly index: number; readonly total: number },
 ): SuitePart {
   const subjects: PartSubject[] = [];
-  let read = 0;
-  compositions.forEach((composition, position) => {
-    if (composition === null) return;
-    const lexicon = reading?.values[read++];
-    if (lexicon === undefined) return;
-    subjects.push({ position, subject: composition.subject, instances: composition.instances, lexicon });
-  });
+  // No reading is no snapshot read, and no subject is composed; a reading is
+  // one value per composition, and one that is not would hand every position
+  // after the gap another subject's names.
+  if (reading !== undefined) {
+    const total = compositions.reduce((sum, held) => sum + held.length, 0);
+    if (reading.values.length !== total) {
+      throw new Error(`suitePartOf was given ${String(reading.values.length)} lexicon values for ${String(total)} compositions`);
+    }
+    let read = 0;
+    compositions.forEach((held, position) => {
+      for (const composition of held) {
+        subjects.push({ position, subject: composition.subject, instances: composition.instances, lexicon: reading.values[read++]! });
+      }
+    });
+  }
   return {
     version: 1,
     ...(commit === undefined ? {} : { commit }),
@@ -130,12 +140,17 @@ export function composeSuiteIndex(parts: readonly SuitePart[], commit: string): 
   const planned = new Set(parts.map((part) => part.planned));
   if (planned.size > 1) return `the shards planned ${[...planned].join(' and ')} subjects; they are not one build`;
 
-  const rows = parts.flatMap((part) => part.subjects).sort((left, right) => left.position - right.position);
-  for (let i = 1; i < rows.length; i += 1) {
-    if (rows[i]!.position === rows[i - 1]!.position) {
-      return `${rows[i]!.subject} was composed by two shards; they are not one build`;
+  // A position is one planned subject, and every subject its visit realized
+  // came from the one shard that owns it.
+  const owner = new Map<number, SuitePart>();
+  for (const part of parts) {
+    for (const row of part.subjects) {
+      const held = owner.get(row.position);
+      if (held !== undefined && held !== part) return `${row.subject} was composed by two shards; they are not one build`;
+      owner.set(row.position, part);
     }
   }
+  const rows = parts.flatMap((part) => part.subjects).sort((left, right) => left.position - right.position);
   if (rows.length === 0) return undefined;
 
   const present = rows.map(({ subject, instances }) => ({ subject, instances }));

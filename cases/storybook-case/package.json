@@ -8,7 +8,8 @@
     "build-storybook": "storybook build -o storybook-static --quiet",
     "build-storybook:a11y": "storybook build -c .storybook-a11y -o storybook-a11y --quiet",
     "variance": "node ../../packages/cli/dist/bin.js",
-    "build-storybook:changed": "VITE_CASE_MUTATION=wide-button storybook build -o storybook-changed --quiet"
+    "build-storybook:changed": "VITE_CASE_MUTATION=wide-button storybook build -o storybook-changed --quiet",
+    "bench": "node scripts/bench.mjs"
   },
   "dependencies": {
     "@variance-authority/storybook-collector": "workspace:^",
@@ -22,6 +23,7 @@
     "@variance-authority/core": "workspace:^",
     "@variance-authority/dom": "workspace:^",
     "@variance-authority/jsx-source": "workspace:^",
+    "@variance-authority/playwright": "workspace:^",
     "@variance-authority/react": "workspace:^",
     "@variance-authority/storybook": "workspace:^",
     "esbuild": "^0.25.0",

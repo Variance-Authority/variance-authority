@@ -2,7 +2,7 @@ import type { Readable, Writable } from 'node:stream';
 import { serve } from '@variance-authority/mcp';
 import type { Tree } from '@variance-authority/mcp/tools';
 import { readOfferings, type Help } from '@variance-authority/package/help';
-import { caughtUp } from './caught-up.js';
+import { caughtUp, foundNothingAnswer } from './caught-up.js';
 import {
   readWorkspaceForAnswer,
   workspaceGeneration,
@@ -100,6 +100,8 @@ export function serveWorkspace(root: string, options: WorkspaceOptions = {}): ()
         return caughtUp(workspaceGeneration(refused), started, root, async (current) => (current ? readNow(0) : refused));
       },
     }),
+    // A name nothing declares is the answer once it has been read again, said as `variance ask` says it.
+    answered: (thrown: unknown, subject: Help, again) => foundNothingAnswer(thrown, again, workspaceGeneration(subject), justAnswer),
     subject: async () => {
       try {
         const at = cached === undefined ? undefined : workspaceGeneration(cached);

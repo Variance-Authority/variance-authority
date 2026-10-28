@@ -5,11 +5,13 @@ import { fileURLToPath } from 'node:url';
 import { isCI } from 'ci-info';
 import { messageOf } from './config-values.js';
 import { EXIT_CLEAN, EXIT_OPERATOR, isOperatorError, type ExitCode } from './exit.js';
+import { directCallLine } from './direct-call.js';
 import { CLI_VERSION } from './version.js';
 import { USAGE, parseArgs, type Parsed } from './parse.js';
 import { helpFor } from './usage.js';
 import { readerOf } from './reader.js';
 import { skillLine } from './skill.js';
+import { unbuiltOf } from './unbuilt.js';
 import type { Streams } from './commands/configless.js';
 
 /**
@@ -33,7 +35,9 @@ export { USAGE, parseArgs, type Parsed } from './parse.js';
  * defect in this tool. The two print differently, because an operator reading
  * "cannot read the config file" should edit their config and an operator reading
  * a stack trace should file a bug, and a CLI that dresses the second up as the
- * first costs somebody an afternoon.
+ * first costs somebody an afternoon. One error looks like a defect and is not:
+ * a module of the program's own that an interrupted build never wrote. That is
+ * the operator's to fix by rebuilding one package, and `unbuiltOf` names which.
  */
 export async function main(
   argv: readonly string[],
@@ -84,6 +88,11 @@ export async function main(
       streams.err(`${messageOf(error)}\n${skillLine()}`);
       return EXIT_OPERATOR;
     }
+    const unbuilt = unbuiltOf(error);
+    if (unbuilt !== undefined) {
+      streams.err(`${unbuilt}\n${skillLine()}`);
+      return EXIT_OPERATOR;
+    }
     streams.err(
       `variance failed in a way it does not have a code for, which is a defect in the tool ` +
         `rather than a finding about your project:\n${stackOf(error)}\n`,
@@ -128,6 +137,9 @@ if (entry !== undefined && isProgram(entry)) {
     // nothing is left running: the step is the log, and the log is whole.
     ...(isCI ? {} : { detach: relaunch }),
   });
+  // After the answer and on stderr, so neither the answer nor the exit code changes;
+  // not in CI, where nobody reads it and nobody would call the program another way.
+  if (!isCI) process.stderr.write(directCallLine(process.argv.slice(2), process.env, process.cwd(), fileURLToPath(import.meta.url)));
 }
 
 /**
@@ -138,8 +150,12 @@ if (entry !== undefined && isProgram(entry)) {
 function relaunch(argv: readonly string[], log: string): number | undefined {
   const out = openSync(log, 'w');
   try {
+    // Without the launcher's mark: nobody typed the child's command, so its log names no faster call.
+    const env = { ...process.env };
+    delete env['npm_config_user_agent'];
     const child = spawn(process.execPath, [...process.execArgv, fileURLToPath(import.meta.url), ...argv], {
       detached: true,
+      env,
       stdio: ['ignore', out, out],
     });
     // A refused spawn has no id and reports it as an event: unheard, that event

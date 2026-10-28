@@ -15,6 +15,10 @@ import { parseSync } from 'oxc-parser';
  * the same five tokens. So this reads the parse tree for the shape of each idiom
  * and names the owner.
  *
+ * A timer and a fresh page joined them for the same reason: a wait on the clock
+ * and a page thrown away each look like a fix where they are written, and each
+ * was kept out only by somebody reading every diff.
+ *
  * A ratchet, like `documented.mjs`. What is here today is recorded per file, a
  * new site fails, and a site that moved to its owner tightens the baseline.
  *
@@ -30,6 +34,9 @@ export const BASELINE = join(ROOT, 'tools/owners.baseline.json');
  *
  * Atomic writing has no owner across packages. The message says so and names
  * the writer the same package already has, which is the nearest thing to one.
+ * A timer has no owner file either: what owns it is a rule, readiness by
+ * signal, so the message names it. A fresh page has both: the rule, one page
+ * per session, and the files that lease the session its browser and pages.
  */
 export const IDIOMS = {
   digest: {
@@ -47,7 +54,24 @@ export const IDIOMS = {
     owner: 'no shared owner yet; call the writer this package already has',
     owns: [],
   },
+  timer: {
+    owner:
+      'the signal that says the thing is ready: an event, a promise, `aria-busy`, the harness hook. A timer ' +
+      'is a deadline that names what never answered, never a wait for something to settle',
+    owns: [],
+  },
+  'fresh-page': {
+    owner:
+      'the page the session already holds, switched in place through the harness API (ADR-0009); ' +
+      'a navigation, a reload, or a new browser, page or context per subject is the isolation that was measured and rejected; ' +
+      'a browser, context or page is leased from `browsers.ts` or `PagePool` in `@variance-authority/playwright`',
+    owns: ['packages/playwright/src/browsers.ts', 'packages/playwright/src/page-pool.ts'],
+  },
 };
+
+// Each call that waits on the clock, and each call that throws the page away.
+const TIMERS = new Set(['setTimeout', 'setInterval', 'waitForTimeout']);
+const FRESH_PAGES = new Set(['goto', 'launch', 'launchPersistentContext', 'newContext', 'newPage', 'reload']);
 
 /**
  * Production sources: what ships, and the tools that write what ships.
@@ -62,7 +86,7 @@ export function sources() {
     'git',
     // Without `:(glob)`, `*` crosses directories: these reach every depth. A
     // package can also ship JavaScript, under `src/` or as a shim at its root.
-    ['ls-files', '--', ...['ts', 'tsx', 'mts', 'cts', 'js', 'mjs', 'cjs'].map((extension) => `packages/*/src/*.${extension}`),
+    ['ls-files', '--', ...SCRIPT.map((extension) => `packages/*/src/*.${extension}`),
       ':(glob)packages/*/*.js', ':(glob)packages/*/*.mjs', ':(glob)packages/*/*.cjs', 'tools/*.mjs', 'tools/*.ts'],
     { cwd: ROOT, encoding: 'utf8' },
   )
@@ -72,11 +96,40 @@ export function sources() {
     .filter((file) => existsSync(join(ROOT, file)));
 }
 
-const isTest = (file) =>
-  /\.(test|spec|check|measure)\.[cm]?[jt]sx?$/.test(file) || /(^|\/)(__tests__|__fixtures__|fixtures|test)\//.test(file);
+/**
+ * Test-named files under the roots runners collect from, read for waits and
+ * fresh pages only.
+ *
+ * A visual test is where a wait on the clock or a reload does its damage: the
+ * run gets slower and the pixel it waited for is still not promised. The other
+ * idioms stay out of tests, where the platform's answer is the oracle.
+ */
+export function tests() {
+  return execFileSync('git', ['ls-files', '--', ...COLLECTED.flatMap((place) => SCRIPT.map((extension) => `${place}*.${extension}`))], {
+    cwd: ROOT,
+    encoding: 'utf8',
+  })
+    .trim()
+    .split('\n')
+    .filter((file) => COLLECTED_NAME.test(file) && !FIXTURE.test(file))
+    .filter((file) => existsSync(join(ROOT, file)));
+}
+
+// Where the runner configurations collect from: `PLACES` in `vitest.config.mts`,
+// and the checks and measurements under `tools/` and `packages/`.
+const COLLECTED = ['packages/', 'cases/', 'examples/', 'site/app/', 'tools/'];
+const SCRIPT = ['ts', 'tsx', 'mts', 'cts', 'js', 'mjs', 'cjs'];
+const IN_TESTS = new Set(['timer', 'fresh-page']);
+
+// A name a runner collects, and the directories that hold what a test reads.
+// `COLLECTED` is wider than any one runner's configuration on purpose: a wait
+// in a file no runner collects yet is still a wait.
+const COLLECTED_NAME = /\.(test|spec|check|measure)\.[cm]?[jt]sx?$/;
+const FIXTURE = /(^|\/)(__fixtures__|fixtures)\//;
+const isTest = (file) => COLLECTED_NAME.test(file) || FIXTURE.test(file) || /(^|\/)(__tests__|test)\//.test(file);
 
 /** Every site of every idiom in one file's text, outside the files that own it. */
-export function sitesIn(file, text) {
+export function sitesIn(file, text, read = Object.keys(IDIOMS)) {
   const parsed = parseSync(file, text);
   if (parsed.errors.length > 0) {
     throw new Error(`${file}: ${parsed.errors[0].message}`);
@@ -84,7 +137,7 @@ export function sitesIn(file, text) {
   const lineOf = lines(text);
   const sites = [];
   const found = (idiom, node, name) => {
-    if (IDIOMS[idiom].owns.includes(file)) return;
+    if (!read.includes(idiom) || IDIOMS[idiom].owns.includes(file)) return;
     sites.push({ idiom, at: file, line: lineOf(node.start), name });
   };
 
@@ -92,14 +145,17 @@ export function sitesIn(file, text) {
     if (node.type === 'CallExpression' && isHashCall(node)) found('digest', node, scope.name);
     if (node.type === 'ConditionalExpression' && isCodeUnitOrder(node)) found('code-unit-order', node, scope.name);
     if (isFunction(node) && writesThenRenames(node)) found('atomic-write', node, nameOf(node, scope));
+    if (node.type === 'CallExpression' && TIMERS.has(calleeName(node.callee))) found('timer', node, scope.name);
+    if (node.type === 'CallExpression' && isFreshPage(node.callee)) found('fresh-page', node, scope.name);
   });
 
   return sites;
 }
 
-/** Every site in the repository, in code-unit order of file and line. */
+/** Every site in the repository: production sources, then the tests. */
 export function sites() {
-  return sources().flatMap((file) => sitesIn(file, readFileSync(join(ROOT, file), 'utf8')));
+  const read = (file, idioms) => sitesIn(file, readFileSync(join(ROOT, file), 'utf8'), idioms);
+  return [...sources().flatMap((file) => read(file)), ...tests().flatMap((file) => read(file, [...IN_TESTS]))];
 }
 
 /** One row per idiom per file: what the baseline records. */
@@ -178,6 +234,10 @@ function writesThenRenames(fn) {
   const renames = called.has('rename') || called.has('renameSync');
   return writes && renames;
 }
+
+// A method on a page, a context, a browser or `location`. A bare `reload()` is
+// the caller's own function, such as a view fetching its data again.
+const isFreshPage = (callee) => callee.type === 'MemberExpression' && FRESH_PAGES.has(calleeName(callee));
 
 function calleeName(callee) {
   if (callee.type === 'Identifier') return callee.name;

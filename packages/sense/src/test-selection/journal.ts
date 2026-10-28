@@ -98,6 +98,9 @@ export {
 export type { ModuleId };
 export { moduleId } from './captured-modules.js';
 
+/** Replacing one hook of a resolved Vite plugin, keeping its `order` and `filter`. */
+export { afterHook, type AfterHook, type HookedPlugin } from './plugin-hooks.js';
+
 /** The probe recipe both halves of this seam have to agree on. */
 export type { InstrumentMode };
 
@@ -118,7 +121,7 @@ export {
 } from './observed.js';
 export type { ObservedEyes } from './eyes-record.js';
 export { listenForPreconditions, type PreconditionListener, type PreconditionStanding } from './precondition-listener.js';
-export { preconditionText, type CasePrecondition } from './case-precondition-column.js';
+export { preconditionText, SAID_NOTHING, saidAcross, type CasePrecondition, type Said } from './case-said.js';
 export {
   STAGE_VARIABLE,
   closeStage,
@@ -375,6 +378,7 @@ export async function recordExecution(
         complete: whole,
         preconditions: [...held].map(([name, digest]) => ({ name, digest })),
         ...(subject.duration === undefined ? {} : { duration: subject.duration }),
+        ...(subject.phases === undefined ? {} : { phases: subject.phases }),
       };
     })
     .sort((left, right) => codeUnitOrder(left.file, right.file));

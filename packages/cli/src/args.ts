@@ -23,17 +23,22 @@ export interface Flags {
   /** Flags that appeared, valued or not. Lets `--all` be a boolean without a value. */
   readonly present: Set<string>;
   readonly positionals: readonly string[];
-  /** Every value of a flag in {@link REPEATABLE}, in the order given; `values` holds the last. */
+  /** Every value of a flag its command lists in {@link REPEATABLE}, in the order given; `values` holds the last. */
   readonly repeated: Map<string, readonly string[]>;
 }
 
 /**
- * Flags that may be given more than once, each time adding a condition.
+ * Flags a command takes more than once, each time adding one more of a kind.
  *
- * Every other flag is refused when repeated. `--where` is the exception because
- * its repetitions do not contradict: each one is a condition, and all of them hold.
+ * Every other flag is refused when repeated. These are the exceptions because
+ * their repetitions do not contradict: each `--where` and `--read` of
+ * `covering` is a condition, and all of them hold; each `--name` of `story` is a case, and
+ * all of them are compared.
  */
-export const REPEATABLE = new Set(['--where']);
+export const REPEATABLE: Readonly<Record<string, ReadonlySet<string>>> = {
+  covering: new Set(['--read', '--where']),
+  story: new Set(['--name']),
+};
 
 /**
  * Flags that stand alone, and the one list that says so.
@@ -48,6 +53,7 @@ export const REPEATABLE = new Set(['--where']);
  */
 export const BOOLEAN = new Set([
   '--all',
+  '--baselines',
   '--marker',
   '--flakes',
   '--publish',
@@ -63,6 +69,7 @@ export const BOOLEAN = new Set([
   '--embed-images',
   '--packages',
   '--coverage',
+  '--fan-in',
 ]);
 
 /**
@@ -145,7 +152,8 @@ export function readFlags(
           `${didYouMean(name, accepted)}\n\n${usage}`,
       );
     }
-    if (present.has(name) && !REPEATABLE.has(name)) {
+    const repeatable = REPEATABLE[command]?.has(name) === true;
+    if (present.has(name) && !repeatable) {
       // Repeated flags are refused rather than last-wins: two contradicting
       // `--subjects` on one line means the operator believes one of them is in
       // force, and picking either silently makes half of those beliefs wrong.
@@ -168,7 +176,7 @@ export function readFlags(
     }
     if (inline === undefined) index += 1;
     values.set(name, value);
-    if (REPEATABLE.has(name)) repeated.set(name, [...repeated.get(name) ?? [], value]);
+    if (repeatable) repeated.set(name, [...repeated.get(name) ?? [], value]);
   }
 
   return { values, present, positionals, repeated };

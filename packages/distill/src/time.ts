@@ -1,6 +1,6 @@
 // compass: variance-authority/runtime/attention
 import { codeUnitOrder } from '@variance-authority/core/segment';
-import { NO_DURATION, openTestCoverage, PHASE_NAMES } from '@variance-authority/sense/test-selection';
+import { NO_DURATION, openTestCoverage, PHASE_NAMES, timeBeforeCases } from '@variance-authority/sense/test-selection';
 
 /**
  * Where a scope's worker time went, as the runner timed each test file, phase
@@ -20,28 +20,50 @@ export interface ScopeTime {
   readonly collect: number;
   /** Running the cases and their hooks. */
   readonly cases: number;
-  /** Files whose loading took longer than their cases, the longest loading first. */
-  readonly loadBound: readonly { readonly file: string; readonly collect: number; readonly cases: number }[];
+  /**
+   * Files whose loading took longer than their cases, the longest loading
+   * first. A file's `loading` is everything before its first case: the phases
+   * above, summed, as `timeBeforeCases` reads them.
+   */
+  readonly loadBound: readonly { readonly file: string; readonly loading: number; readonly cases: number }[];
 }
 
 type Phase = (typeof PHASE_NAMES)[number];
 
+/** Recorded milliseconds for one test file. A phase the runner did not time is absent. */
+export type FileTime = Readonly<Partial<Record<Phase, number>>>;
+
+const read = new WeakMap<Uint8Array, ReadonlyMap<string, Uint32Array>>();
+
 /** Each record's timed test files by path, read once: the phase words in {@link PHASE_NAMES} order. */
 function timesOf(record: Uint8Array): ReadonlyMap<string, Uint32Array> {
+  const found = read.get(record);
+  if (found !== undefined) return found;
   const view = openTestCoverage(record);
   const phases = view.testPhases?.all();
   const times = new Map<string, Uint32Array>();
+  read.set(record, times);
   if (phases === undefined) return times;
   const paths = view.testPath.all();
   const width = PHASE_NAMES.length;
-  const collect = PHASE_NAMES.indexOf('collect');
-  const cases = PHASE_NAMES.indexOf('cases');
   for (let test = 0; test < paths.length; test += 1) {
     const own = phases.subarray(test * width, (test + 1) * width);
-    if (own[collect] === NO_DURATION || own[cases] === NO_DURATION) continue;
+    if (own.every((value) => value === NO_DURATION)) continue;
     times.set(view.string(paths[test]!), own);
   }
   return times;
+}
+
+/** One file's recorded phases, including a partial reading, from the same reader the scope sums. */
+export function fileTime(record: Uint8Array, file: string): FileTime | undefined {
+  const own = timesOf(record).get(file);
+  if (own === undefined) return undefined;
+  const phases: Partial<Record<Phase, number>> = {};
+  PHASE_NAMES.forEach((name, at) => {
+    const value = own[at]!;
+    if (value !== NO_DURATION) phases[name] = value;
+  });
+  return phases;
 }
 
 /**
@@ -52,29 +74,27 @@ export function scopeTime(
   records: readonly Uint8Array[],
   files: readonly { readonly record: number; readonly file: string }[],
 ): ScopeTime | undefined {
-  const read = new Map<number, ReadonlyMap<string, Uint32Array>>();
   const sum: (number | undefined)[] = PHASE_NAMES.map(() => undefined);
-  const loadBound: { file: string; collect: number; cases: number }[] = [];
+  const loadBound: { file: string; loading: number; cases: number }[] = [];
   let timed = 0;
   for (const { record, file } of files) {
-    let times = read.get(record);
-    if (times === undefined) read.set(record, (times = timesOf(records[record]!)));
-    const own = times.get(file);
-    if (own === undefined) continue;
+    const own = timesOf(records[record]!).get(file);
+    if (own === undefined || own[PHASE_NAMES.indexOf('collect')] === NO_DURATION || own[PHASE_NAMES.indexOf('cases')] === NO_DURATION) continue;
     timed += 1;
     own.forEach((value, at) => {
       if (value !== NO_DURATION) sum[at] = (sum[at] ?? 0) + value;
     });
-    const collect = own[PHASE_NAMES.indexOf('collect')]!;
+    // A timed file reported its collect, so something came before its cases.
+    const loading = timeBeforeCases(own)!;
     const cases = own[PHASE_NAMES.indexOf('cases')]!;
-    if (collect > cases) loadBound.push({ file, collect, cases });
+    if (loading > cases) loadBound.push({ file, loading, cases });
   }
   if (timed === 0) return undefined;
   const phases: Partial<Record<Phase, number>> = {};
   PHASE_NAMES.forEach((name, at) => {
     if (sum[at] !== undefined) phases[name] = sum[at];
   });
-  loadBound.sort((left, right) => right.collect - left.collect || (codeUnitOrder(left.file, right.file)));
+  loadBound.sort((left, right) => right.loading - left.loading || (codeUnitOrder(left.file, right.file)));
   return { timed, ...phases, collect: phases.collect!, cases: phases.cases!, loadBound };
 }
 
@@ -91,7 +111,7 @@ export function formatScopeTime(time: ScopeTime, files: number): readonly string
   const row = (label: string, value: number | undefined): readonly string[] =>
     value === undefined ? [] : [`  ${label}: ${duration(value)}, ${total === 0 ? 0 : Math.round((100 * value) / total)}%`];
   const bound = time.loadBound;
-  const sum = (key: 'collect' | 'cases'): number => bound.reduce((total, file) => total + file[key], 0);
+  const sum = (key: 'loading' | 'cases'): number => bound.reduce((total, file) => total + file[key], 0);
   return [
     `Where the time went, as the runner timed ${time.timed} of the ${files} test file(s): ${duration(total)}.`,
     ...row('prepare, the worker readying the file', time.prepare),
@@ -103,9 +123,9 @@ export function formatScopeTime(time: ScopeTime, files: number): readonly string
       ? []
       : [
         `Loading took longer than the cases in ${bound.length} test file(s): ` +
-          `${duration(sum('collect'))} against ${duration(sum('cases'))}.`,
+          `${duration(sum('loading'))} against ${duration(sum('cases'))}.`,
         ...bound.slice(0, LOAD_BOUND_SHOWN).map((file) =>
-          `  ${file.file}: ${duration(file.collect)} loading, ${duration(file.cases)} in its cases`),
+          `  ${file.file}: ${duration(file.loading)} loading, ${duration(file.cases)} in its cases`),
         ...(bound.length > LOAD_BOUND_SHOWN ? [`  and ${bound.length - LOAD_BOUND_SHOWN} more`] : []),
       ]),
   ];

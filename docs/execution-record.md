@@ -165,10 +165,11 @@ for (const module of coverage.modules) {
 
 `readTestCoverage` decodes the whole file into `TestCoverage`, the model the
 rest of this page describes: tests with their preconditions, modules with their
-blocks, and on each block the test files that crossed it. Budget a second and
-three hundred megabytes of heap for a repository-scale snapshot — thirty times
-the file it came from — because the model is made of objects where the file is
-made of columns.
+blocks, and on each block the test files that crossed it. The model is made of
+objects where the file is made of columns, so its heap is many times the file:
+about a second and three hundred megabytes for a ten-megabyte record, and four
+and a half minutes and over five gigabytes for a 77 MB record of 200,000
+modules.
 
 When you want one module's regions rather than the repository's, open the file
 instead of decoding it. `openCoverageFile(file)` parses the section index and
@@ -193,7 +194,7 @@ they return are the ones this page describes.
 |---|---|
 | `@variance-authority/sense/instrument` | `instrument`, `instrumentationId`, `instrumentModeOf`, `probeRecipe`, `probeRuntime`, `INSTRUMENTATION_ID`, `EVALUATING`; types `Block`, `BlockKind`, `Instrumented`, `InstrumentOptions`, `ModuleId` |
 | `@variance-authority/sense/test-selection` | `testCoverageFile`, `readableTestCoverage`, `seedTestCoverage`, `readTestCoverage`, `writeTestCoverage`, `writeCoverageBytes`, `openCoverageFile`, `askCoverageFile`, `BLOCK_KINDS`, `caseSectionsAt`, `openSetColumns`, `selectTestFiles`, `narrowByExecution`, `landedCoverage`, `combineRecords`, `changedLines`, `coveringTests`, `coveringTestsInFile`, `recordedCommit`, `cacheLayers`, `cacheRootFor`, `CACHE_CONFIG`, `repositoryLayers`, `layeredFiles`; types `CacheLayers`, `TestCoverage`, `CoverageModule`, `CoverageBlock`, `CoverageTest`, `CoveragePrecondition`, `CoverageFile`, `CombinedRecord`, `CombinedShard`, `ExecutionIndex`, `SetColumns`, `TestColumns`, `StringTable` |
-| `@variance-authority/sense/journal` | `testSelectionProbes`, `testSelectionRule`, `drainExecution`, `recordExecution`, `joinObservations`, `moduleId`, `EXECUTION_GLOBAL`; types `ExecutedModule`, `ExecutionJournal`, `EvaluatingPage`, `ObservedSubject`, `ProbePlacement`, `TestSelectionProbeOptions`, `TestSelectionRuleOptions` |
+| `@variance-authority/sense/journal` | `testSelectionProbes`, `testSelectionRule`, `drainExecution`, `recordExecution`, `joinObservations`, `moduleId`, `afterHook`, `EXECUTION_GLOBAL`; types `AfterHook`, `ExecutedModule`, `ExecutionJournal`, `EvaluatingPage`, `HookedPlugin`, `ObservedSubject`, `ProbePlacement`, `TestSelectionProbeOptions`, `TestSelectionRuleOptions` |
 | `@variance-authority/sense/journey` | `collectJourneys`, `stitchJourneys`, `mintJourney`, `journeyOf`, `JOURNEY_COOKIE`, `JOURNEY_VARIABLE`, `JOURNEY_HEAD_VARIABLE`; types `JourneyAccount`, `JourneyReport`, `StitchedJourneys` |
 
 Nothing else on this page is importable. Where the sections below describe the
@@ -493,12 +494,13 @@ parent has rows: child rows for parent `i` are `[off[i], off[i + 1])`.
 | sets | `sets.blob`, `sets.off` | the pool both of those name: one copy of each distinct set of tests, however many regions name it |
 
 **Durations.** `tests.duration` is the runner's own figure for the file, never a
-second clock: Vitest's file result, Jest's `perfStats.runtime`, Rstest's file
-duration, Playwright's `testInfo.duration` summed over the file's tests, or the
+second clock: Vitest's file result, which is its cases alone, Jest's
+`perfStats.runtime`, which spans the file's run, Rstest's file duration,
+Playwright's `testInfo.duration` summed over the file's tests, or the
 `duration` you pass to `startRecording().finish()`. A file the runner reported
-nothing for stores the sentinel, and a reader answers it as
-absent, not as zero. When two projects record the same file, its duration is
-their sum, and it is absent if either is.
+nothing for stores the sentinel, and a reader answers it as absent, not as
+zero. When two projects record the same file, its duration is their sum, and it
+is absent if either is.
 
 **Phases.** `tests.phases` splits a file's time into what is part of a test
 and what is not: readying the file in its worker, the test environment, the
@@ -509,8 +511,24 @@ collecting ended — when jest-circus starts the file's run, before any hook —
 a clock the test's fake timers do not replace, so the rest splits into collect
 and cases there; Jest readies no file apart from those, so its prepare is
 absent. A mark outside the file's own span splits nothing, and the file has no
-collect or cases. Phases are summed across projects as durations are. A record
-written before phases were kept opens with every file unphased.
+collect or cases. A story is timed by its page: `prepare` is the document's
+start until the preview is ready, navigation included, which only the first
+story read on the document pays, so every later one reads 0; `collect` is
+importing the story's file and unmounting the story shown before it; and `cases`
+is the render through `afterEach`, or to the phase it ended on when it errored,
+was aborted or was read before `afterEach` finished. Phases are summed across
+projects and readings as durations are. A record written before phases were kept
+opens with every file unphased.
+
+**A file's cost.** What running a file cost is the larger of its duration and
+its phases summed. Each counts part of the same run: Jest's runtime spans the
+file's run with the gaps between phases, and Vitest's duration is only the last
+of its five phases. So a Vitest file that spends 5.4 s importing and 33 ms in
+its cases costs 5.4 s, not 33 ms, and a Jest file costs its runtime unless its
+phases add up to more. A file without phases costs its duration, and a file
+with neither is untimed. Two projects' figures are summed before the larger is
+taken, so the cost is that of both runs. `variance ask slowest-tests` ranks
+files by this cost and a sharded run places them by it.
 
 The case index beside the snapshot carries the same figure for each case, in a
 `tests.duration` column of its own: Vitest's task result, Jest's assertion
@@ -524,6 +542,17 @@ the runner's report by the id the runner gave it, or by its declaration path
 under the file where the runner gives none. A path the file declares twice
 cannot be matched to one of the two cases, so neither is timed. A case index
 written before cases carried durations opens with every case untimed.
+
+The case index also carries what each case said, its
+[case preconditions](case-preconditions.md), in a `tests.said` section. Each
+distinct `(name, value, site, level)` is one item, and the cases that said it are
+a set in the same pool the crossings use, so a value every case of a file says
+costs one item and a set the record usually holds already. The section stores
+every item, an overridden one too, and a case's row is resolved when it is read.
+One more set names the cases a recorder listened to: a case outside it is
+unmeasured, a case inside it and under no item said nothing. A case index
+without the section, including one written before it existed, opens with every
+case unmeasured.
 
 A Storybook run is its own runner, so its figure is the time the run spent on
 each story, from its first collection to its decision: the same time
@@ -859,7 +888,9 @@ test: regions covered as a consequence of loading. Presence only: the counts
 never leave the process. The ordinals index the recipe the build instrumented
 under — `sense:instrument/presence-v6`, or `sense:instrument/entries-v3` when
 the seam was asked for `mode: 'entries'`, which numbers the module and each
-function and nothing between. A run refuses to fold a journal, or lay itself
+function and nothing between. Under `mode: 'loads'`, `sense:instrument/loads-v1`,
+a module has no ordinals: its id is spelled `path@~digest`, it is recorded with
+no blocks, and its arrival is the only hit it reports. A run refuses to fold a journal, or lay itself
 over a snapshot, cut under another recipe. A reader answers from such a
 snapshot as it holds it, and names both recipes and the regions the difference
 leaves unanswered.

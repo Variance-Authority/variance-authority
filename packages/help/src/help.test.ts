@@ -8,6 +8,7 @@ import { readHelp } from '@variance-authority/package/help';
 import { HELP, HELP_TOOLS, audience } from './tools.js';
 import { serveWorkspace } from './server.js';
 import { writePages } from './write.js';
+import { FoundNothing } from './tools/find.js';
 
 const WORKSPACE = join(dirname(fileURLToPath(import.meta.url)), './__fixtures__/workspace');
 const READING = readHelp(WORKSPACE);
@@ -148,8 +149,14 @@ describe('one name in full', () => {
     );
   });
 
-  it('refuses an unknown name by pointing at the question that finds one', () => {
-    expect(() => call('docs_symbol', { name: 'nope' })).toThrow(/ask `search`/);
+  it('answers an unknown name as found nothing, pointing at the question that finds one', () => {
+    expect(() => call('docs_symbol', { name: 'nope' })).toThrow(FoundNothing);
+    expect(() => call('docs_symbol', { name: 'nope' })).toThrow(/ask `docs_search`/);
+  });
+
+  it('answers the files of an unknown name as found nothing, as its answer is', () => {
+    const symbol = HELP_TOOLS.find((tool) => tool.name === 'docs_symbol')!;
+    expect(() => symbol.files!(READING, { name: 'nope' })).toThrow(FoundNothing);
   });
 
   it('refuses an empty name rather than answering about the first thing it finds', () => {
@@ -180,7 +187,7 @@ describe('what the workspace says when the declaration says nothing', () => {
 describe('where the repository already writes a name', () => {
   it('names every place it is imported, with a line to open', () => {
     const text = call('docs_uses', { name: 'behind' });
-    expect(text).toContain('`behind` is imported in 4 places.');
+    expect(text).toContain('`behind` [const] is imported in 4 places.');
     expect(text).toContain('packages/beta/src/index.ts:2 — beta');
   });
 
@@ -210,12 +217,13 @@ describe('where the repository already writes a name', () => {
 
   it('answers plainly when no other package imports a published name, and says the imports within its own were not read', () => {
     expect(call('docs_uses', { name: 'Span' })).toBe(
-      '`Span` is published and no other package imports it; the imports within its own package are read from the source index, and this host named no checkout to read the source index of.',
+      '`Span` [type] is published and no other package imports it; the imports within its own package are read from the source index, and this host named no checkout to read the source index of.',
     );
   });
 
-  it('refuses an unknown name by pointing at the question that finds one', () => {
-    expect(() => call('docs_uses', { name: 'nope' })).toThrow(/ask `search`/);
+  it('answers an unknown name as found nothing, pointing at the question that finds one', () => {
+    expect(() => call('docs_uses', { name: 'nope' })).toThrow(FoundNothing);
+    expect(() => call('docs_uses', { name: 'nope' })).toThrow(/ask `docs_search`/);
   });
 });
 

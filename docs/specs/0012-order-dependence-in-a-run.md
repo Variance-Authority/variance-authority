@@ -48,7 +48,7 @@ so a reader of the decision meets it there too.
    installed" — [`packages/playwright/src/harness.ts`](../../packages/playwright/src/harness.ts).
 
 2. **The detector exists and runs nowhere.** `@variance-authority/session` is
-   1,060 lines of implementation across four files — the shared-state probe, the
+   1,189 lines of implementation across six files — the shared-state probe, the
    write ledger, reads derived from each subject's own capture, latent coupling,
    `verify()`, and a `report()` that emits the agent-ready text with a `fix:`
    line. **No manifest in the repo depends on it.** The only references outside
