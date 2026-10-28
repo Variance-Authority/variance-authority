@@ -365,15 +365,21 @@ function imported(answer: Answer, from: string | undefined, own: readonly string
   const named = `\`${name}\`${declaredAs(answer)}`;
   // An entry may publish the name only as a member of a namespace it exports.
   const member = inside.length === 0 ? undefined : `published as ${inside.join(' and as ')}`;
+  // An answer that covers more than one declaration says which one it counts first.
+  const [door] = found;
+  const many = answer.file === undefined && new Set(answer.files).size > 1;
+  const declaration = many && door !== undefined ? publishedAt(door, found) : undefined;
+  const which = declaration === undefined ? '' : `, ${declaration}`;
+  const publishedAs = declaration === undefined ? 'published' : `${declaration},`;
   if (sites.length === 0 && exported.length > 0) {
     const how = member === undefined ? `exported, without being published, at ${exportedAt(exported)}` : `${member}, and exported at ${exportedAt(exported)}`;
     return [`${named} is ${how}${passed}, and nothing in this workspace imports it; ${UNCOUNTED}.`, ...own].join('\n');
   }
   if (sites.length === 0 && unread !== undefined) {
-    return `${named} is published and no other package imports it; the imports within its own package are read from the source index, and ${unread}.`;
+    return `${named} is ${publishedAs} and no other package imports it; the imports within its own package are read from the source index, and ${unread}.`;
   }
   if (sites.length === 0) {
-    return [`${named} is published and nothing in this workspace imports it; ${UNCOUNTED}. \`${shown.spell.tool(symbol)}\` has its signature and what is written above it.`, ...own].join('\n');
+    return [`${named} is ${publishedAs} and nothing in this workspace imports it; ${UNCOUNTED}. \`${shown.spell.tool(symbol)}\` has its signature and what is written above it.`, ...own].join('\n');
   }
 
   const nearest = nearestLine(from, shown.spell);
@@ -386,9 +392,6 @@ function imported(answer: Answer, from: string | undefined, own: readonly string
   const loaded = dynamic === 0 ? '.' : `, ${dynamic} through import(), which loads the module when the call runs.`;
   const may = mayRead(split, name);
   const exportedHere = exported.length > 0 ? `; it is exported at ${exportedAt(exported)}${passed}` : '';
-  // Among namesakes, the declaration counted first says which one it is.
-  const [door] = found;
-  const which = answer.namesakes.length > 0 && door !== undefined ? `, ${publishedAt(door, found)}` : '';
   const published = found.length > 0 ? which : `, ${member ?? 'and no entry publishes it'}${exportedHere}`;
   const taken =
     certain.length === 0

@@ -90,6 +90,26 @@ describe('variance ask uses over a name several files declare', () => {
     expect(headline).toMatch(/^`greet` \[function\] is imported in 1 place, from another package, published by @acme\/lib, declared at packages\/lib\/src\/greet\.ts:\d+\.$/);
   });
 
+  it('names the published declaration it answers first when a kept one shares its name', async () => {
+    checkout({ 'packages/lib/src/kept.ts': NAMESAKES['packages/lib/src/kept.ts'] });
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+
+    const [headline] = (await uses()).split('\n');
+    expect(headline).toMatch(/^`greet` \[function\] is imported in 1 place, from another package, published by @acme\/lib, declared at packages\/lib\/src\/greet\.ts:\d+\.$/);
+  });
+
+  it('names the published declaration nothing imports when another shares its name', async () => {
+    checkout({
+      'apps/app/src/hello.ts': 'export const hello = 1;\n',
+      'packages/second/package.json': JSON.stringify({ name: '@acme/second', exports: { '.': './src/index.ts' } }),
+      'packages/second/src/index.ts': 'export const greet = 2;\n',
+    });
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+
+    const [headline] = (await uses()).split('\n');
+    expect(headline).toMatch(/^`greet` \[function\] is published by @acme\/lib, declared at packages\/lib\/src\/greet\.ts:\d+, and nothing in this workspace imports it; /);
+  });
+
   it('answers a value and a type one file declares under one name as one declaration', async () => {
     checkout({
       'packages/second/package.json': JSON.stringify({ name: '@acme/second', exports: { '.': './src/index.ts' } }),
