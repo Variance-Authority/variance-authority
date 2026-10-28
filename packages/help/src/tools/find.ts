@@ -115,7 +115,8 @@ export function unfound(help: Help, name: string, within: string | undefined, sp
   // `symbol` and `uses` answer an export no entry publishes, so one reaches
   // here only from outside the package asked about: the name is right, the
   // package is not, and the file says which one exports it.
-  const exported = help.exported.filter((held) => held.name === name && held.kind === 'source');
+  // `default` is a slot: a default nothing names was answered before here, and a named one is another name's.
+  const exported = name === 'default' ? [] : help.exported.filter((held) => held.name === name && held.kind === 'source');
   if (exported.length > 0) {
     const [first] = exported;
     const more = exported.length > 1 ? ` and ${exported.length - 1} more` : '';

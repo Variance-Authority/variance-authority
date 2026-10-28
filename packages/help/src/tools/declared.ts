@@ -57,7 +57,8 @@ export function declarations(
   }
   if (read === undefined) return { refused: 'no source index is published; run `variance index`' };
   // Stable, so the index's file-then-line order holds within a kind.
-  const names = [...read.names].sort((left, right) => KIND_ORDER[left.fileKind] - KIND_ORDER[right.fileKind]);
+  // `default` is no binding a file can keep: the index reads a default export's declaration by it, and that is exported.
+  const names = read.names.filter((one) => one.name !== 'default').sort((left, right) => KIND_ORDER[left.fileKind] - KIND_ORDER[right.fileKind]);
   return { names, unread: read.unread };
 }
 
@@ -255,7 +256,8 @@ export function declaredMatches(
   if ('refused' in read) return undefined;
   // Stable, so the index's order holds within each.
   const written = (one: DeclaredName): number => exactness(one.name, query) ?? 2;
-  const names = [...read.names].sort((left, right) => written(left) - written(right));
+  // `default` is no binding a file can keep: the index reads a default export's declaration by it, and that is exported.
+  const names = read.names.filter((one) => one.name !== 'default').sort((left, right) => written(left) - written(right));
   return { total: names.length, shown: names.slice(0, cap).map(declaredMatch), unread: read.unread };
 }
 

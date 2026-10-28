@@ -11,7 +11,7 @@ import { thirdBlock } from './third-party.js';
 import { declarations, declaredAt, declaredBlocks, isNested, textRows, unreadLine } from './declared.js';
 import { uses } from './uses.js';
 import { type Members, membersOf, membersStop } from './members.js';
-import { boundOf, declarationOf, exportedRows, originOf } from './passed-on.js';
+import { boundOf, declarationOf, exportedRows, originOf, spellingsOf } from './passed-on.js';
 import { UNCOUNTED, exportsNamed, importsOf } from './unpublished.js';
 import { type Counted, counted, spokenSplit } from './uses-count.js';
 import { type PublishedDeclaration, publishedDeclarations, usesOf } from './uses-of.js';
@@ -79,7 +79,10 @@ export const symbol: Tool<Help> = {
 
     // A name no entry publishes, that another package imports by the path of
     // the file exporting it, is used here — and that import is what says so.
-    const byPath = found.length === 0 ? sitesByPath(help, name, wanted) : [];
+    // An import by path of `default` out of a file whose default has a name is that declaration's, not the slot's.
+    const byPath = (found.length === 0 ? sitesByPath(help, name, wanted) : []).filter(
+      (site) => name !== 'default' || site.held.to === undefined || spellingsOf(help, invocation?.root, site.held.to, name).named === name,
+    );
     // A name an import binds to an export of another name: the import, and the export it names.
     const aliased = localNames(help, invocation?.root, name, wanted).blocks;
 
@@ -258,7 +261,7 @@ function unpublishedExports(
   wanted: string | undefined,
   published: readonly (readonly [string, string])[],
 ): readonly Named[] {
-  const exported = exportsNamed(help, name, wanted);
+  const exported = exportsNamed(help, root, name, wanted);
   if (published.length === 0) return exported;
   const declaring = new Set(published.map(([at, declared]) => `${at}\0${declared}`));
   return exported.filter((held) => {
@@ -363,7 +366,7 @@ function exportedOnly(name: string, exported: readonly Named[], root: string | u
  * resolved to it: a file that passes on another one's export is left out.
  */
 function declaringExports(name: string, exported: readonly Named[], root: string | undefined) {
-  const read = exported.map((held) => [held, importsOf(root, [held.at], name)] as const);
+  const read = exported.map((held) => [held, importsOf(root, [held.at], held.name)] as const);
   const passing = new Set(read.flatMap(([, within]) => ('through' in within ? within.through : [])));
   // Files that pass the name on to each other and declare it nowhere else are all shown.
   const declaring = read.filter(([held]) => !passing.has(held.at));

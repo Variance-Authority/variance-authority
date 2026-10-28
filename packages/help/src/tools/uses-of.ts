@@ -78,7 +78,7 @@ export interface PublishedDeclaration {
 export function publishedDeclarations(help: Help, root: string | undefined, name: string, wanted: string | undefined): readonly PublishedDeclaration[] {
   const doors = [...everyEntry(help)]
     .map((door) => [door, spellingsOf(help, root, door[2].at, door[2].declared)] as const)
-    .filter(([[held, opening, entry], { spellings }]) => (entry.name === name || spellings.includes(name)) && (wanted === undefined || isPackage(held, opening, wanted)))
+    .filter(([[held, opening, entry], { named, spellings }]) => (name === 'default' ? named === name : entry.name === name || named === name || spellings.includes(name)) && (wanted === undefined || isPackage(held, opening, wanted)))
     .sort(([left], [right]) => byDoor(left, right));
   const declarations = new Map<string, { at: string; line: number; declared: string; spellings: readonly string[]; doors: Published[] }>();
   for (const [door, { named, spellings }] of doors) {
@@ -127,10 +127,11 @@ export interface Namesake {
 function declarationsOf(help: Help, root: string | undefined, name: string, wanted: string | undefined): Declarations {
   const published = publishedDeclarations(help, root, name, wanted);
   const read = declarations(root, name);
+  // The index reads a default export's declaration as `default`, which its file exports and so does not keep.
   const kept = 'refused' in read ? [] : read.names.filter((one) => wanted === undefined || one.by === wanted);
   return {
     published,
-    exporting: exportsNamed(help, name, wanted),
+    exporting: exportsNamed(help, root, name, wanted),
     kept,
     members: membersOf(root, name, wanted),
     undeclared: 'refused' in read ? [] : read.unread,
@@ -259,10 +260,10 @@ function importsOfEvery(root: string | undefined, files: readonly string[], name
   };
 }
 
-/** The names the file `exported` holds the export of `name` in exports that binding under, where its imports are read. */
+/** The names the file of the first of `exported` exports that binding under, where its imports are read: `default` for a default named by its binding. */
 function spellingsAt(help: Help, root: string | undefined, exported: readonly Named[], name: string): readonly string[] {
   const [first] = exported;
-  return first === undefined ? [name] : spellingsOf(help, root, first.at, name).spellings;
+  return first === undefined ? [name] : spellingsOf(help, root, first.at, first.name).spellings;
 }
 
 /**
@@ -347,7 +348,8 @@ export function usesOf(help: Help, input: Readonly<Record<string, unknown>>, roo
     of.filter((site) => (site.held.to !== undefined && to.has(site.held.to)) || (stray && !claimed(site))).map((site) => ({ ...site.taken, how: how(site) }));
   const publishedPaths = (one: PublishedDeclaration): readonly Site[] =>
     pathSites(new Set([one.at]), false, one.declared === name ? paths : sitesByPath(help, one.declared, wanted));
-  const byPath = lead !== undefined ? publishedPaths(lead) : pathSites(new Set(exported.map((held) => held.at)), file === undefined);
+  // An import by path of `default` is the declaration its file's default is named by, never a stray of the slot.
+  const byPath = lead !== undefined ? publishedPaths(lead) : pathSites(new Set(exported.map((held) => held.at)), file === undefined && name !== 'default');
 
   const namesakes: readonly Namesake[] = [
     ...rest.map((other) => {
