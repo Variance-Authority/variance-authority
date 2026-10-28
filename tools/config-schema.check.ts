@@ -1,4 +1,3 @@
-import { execFileSync } from 'node:child_process';
 import { readFileSync, readdirSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -6,6 +5,7 @@ import { Ajv2020 } from 'ajv/dist/2020.js';
 import { parseSync } from 'oxc-parser';
 import { describe, expect, it } from 'vitest';
 import { parseConfig } from '@variance-authority/cli';
+import { tracked } from './modules.js';
 
 /**
  * The config the parsers accept, and the schema an editor reads.
@@ -411,19 +411,16 @@ describe('the schema accepts what the readers accept', () => {
     expect(schemaRefusal(SELECTS)).toBe('');
   });
 
-  it('refuses half a render, as parseConfig does', () => {
-    const { project, profile } = RENDERS;
-    expect(parserRefusal({ ...SELECTS, project, profile })).not.toBe('');
-    expect(schemaRefusal({ ...SELECTS, project, profile })).not.toBe('');
+  it.each(Object.keys(RENDERS))('refuses a render without `%s`, as parseConfig does', (key) => {
+    // Each of the five, dropped alone: the schema asks for exactly the keys the
+    // parser asks for, so neither can make one optional without the other.
+    const { [key]: _dropped, ...rest } = { ...SELECTS, ...RENDERS } as Record<string, unknown>;
+    expect(parserRefusal(rest)).not.toBe('');
+    expect(schemaRefusal(rest)).not.toBe('');
   });
 
   it("accepts every variance.config.json in the repository, the repository's own included", () => {
-    const files = execFileSync('git', ['ls-files', '--', 'variance.config.json', '**/variance.config.json'], {
-      cwd: ROOT,
-      encoding: 'utf8',
-    })
-      .split('\n')
-      .filter(Boolean);
+    const files = tracked('variance.config.json', '**/variance.config.json');
 
     expect(files).toContain('variance.config.json');
     for (const file of files) {
