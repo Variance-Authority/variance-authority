@@ -12,8 +12,9 @@
  * change to every line of it (`wholeEntry`), and only words and counts what
  * selection named.
  *
- * Selection names recorded test files only: a test file the record never ran
- * is not in it. Reach owns those, and the gap names `variance reach --since`
+ * Selection names recorded test files only: the ones the record holds whole
+ * that a changed line reached, and every one it holds only in part, which
+ * runs whatever changed. A test file the record never ran is not in it. Reach owns those, and the gap names `variance reach --since`
  * from the record's commit rather than walking again.
  *
  * The file graph is read once per invocation and handed to every reader that
@@ -73,7 +74,8 @@ export async function selectedFor(source: GapSource, file: string): Promise<Sele
       relations: await source.graph(),
     });
     if (reading.declined !== undefined) return { whole: reading.declined };
-    const files = [...reading.whole].filter((one) => !reading.skip.has(one)).sort();
+    // A test file the record holds no whole observation of runs whatever changed, as selection runs it.
+    const files = [...new Set([...[...reading.whole].filter((one) => !reading.skip.has(one)), ...(reading.reading.incomplete ?? [])])].sort();
     return files.length === 0 ? { none: true } : { files };
   } catch (error) {
     if (error instanceof OperatorError) return { unread: error.message };
