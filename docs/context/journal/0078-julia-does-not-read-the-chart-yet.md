@@ -9,13 +9,13 @@ options against a short text. The work items were 44 specs from `docs/specs/`,
 each labelled with its owning blocks in the architecture chart (`.compass/`, 11
 blocks). They are the specs numbered 0002 to 0089 whose cited file paths fall
 in at least one block, 44 of the 72 that `gold.json` in the lab directory
-lists; specs numbered after 0089 are not in the set. The bar was BM25 over every chart README, which puts the owner first or
-second for most specs.
+lists; specs numbered after 0089 are not in the set. The bar was BM25 over
+every chart README, which puts the owner first or second for most specs.
 
 It did not get there. Across thirteen pre-registered runs, Julia beat random
 choice and never beat BM25 on content. A 9B decision model, Clef-flash, did
 not beat it either, on owner questions or on relation questions. Every script, rank file and the run-by-run
-notebook are in [the lab directory](0077-julia-does-not-read-the-chart-yet/).
+notebook are in [the lab directory](0078-julia-does-not-read-the-chart-yet/).
 
 ## The numbers
 
@@ -120,11 +120,12 @@ a scratch directory that was later wiped; only the numbers survive.
 **Date:** 2026-10-07
 
 Every run above asks which block owns the work, with the blocks side by side.
-Elastic's ESCI rerankers ask a different question: one candidate at a time,
-what is this candidate's relation to the need? The policy that ranks the
-answers is deterministic and outside the model. The thesis borrowed from that
-was that a decision model's value is the relation, which lexical match cannot
-see, and the expected result was more than BM25's 29 on the 35 hard pairs.
+Rerankers trained on Amazon's ESCI dataset ask a different question: one
+candidate at a time, what is this candidate's relation to the need? The policy
+that ranks the answers is deterministic and outside the model. The thesis
+borrowed from that was that a decision model's value is the relation, which
+lexical match cannot see, and the expected result was more than BM25's 29 on the
+35 hard pairs.
 
 - **Setup.** For each of the 35 pairs, each of BM25's top two blocks went to the model
   alone, in a random order, without its BM25 rank. The state was the spec's
@@ -152,15 +153,16 @@ Pairs right out of 35, and out of the 9 whose owner is not `reach`:
 - **Julia has no relation reading.** It put 0.48 on CONSEQUENCE and 0.36 on
   CONSUMER on average and argmaxed PRIMARY for 1 of 70 candidates. Its three
   phrasings scored 13, 14 and 17.
-- **Clef's errors are not BM25's.** In both rounds it fixed 4 of BM25's 6
-  misses (0031, 0043, 0079, 0089). It broke 6 of BM25's right answers in
-  round 1 (0036, 0045, 0046, 0067, 0072, 0087) and 5 in round 2 (0036, 0045,
-  0046, 0047, 0072), and every one has `reach` as an owner. It scores `reach`
-  below `runtime`, `retention` and `stability`. With the code paths it got all
-  9 pairs whose owner is not `reach` right on every scorer. Those 9 are not the
-  7 pairs in the tr11 notebook entry: those are the pairs that do not offer
-  `reach` at all, where BM25 scores 6. The margins are 0.01 to 0.24, and the
-  round-1 phrasings scored 23, 27 and 28.
+- **Clef's errors are not BM25's.** With the code paths it fixed 4 of BM25's 6
+  misses (0031, 0043, 0079, 0089) on both scorers; without them, 4 by expected
+  utility and 3 by the higher probability of PRIMARY, which misses 0089. It
+  broke 6 of BM25's right answers in round 1 (0036, 0045, 0046, 0067, 0072,
+  0087) and 5 in round 2 (0036, 0045, 0046, 0047, 0072), and every one has
+  `reach` as an owner. It scores `reach` below `runtime`, `retention` and
+  `stability`. With the code paths it got all 9 pairs whose owner is not `reach`
+  right on every scorer. Those 9 are not the 7 pairs in the tr11 notebook entry:
+  those are the pairs that do not offer `reach` at all, where BM25 scores 6. The
+  margins are 0.01 to 0.24, and the round-1 phrasings scored 23, 27 and 28.
 - **Neither model passed.** 28 is one pair short of 29, and four short of the
   `reach` rule.
 

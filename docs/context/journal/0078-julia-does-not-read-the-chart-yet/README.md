@@ -1,7 +1,7 @@
-# Lab material for journal 0077
+# Lab material for journal 0078
 
 These are the scripts, inputs and rank files behind
-[the journal entry](../0077-julia-does-not-read-the-chart-yet.md).
+[the journal entry](../0078-julia-does-not-read-the-chart-yet.md).
 
 - [`notebook.md`](notebook.md) is the run-by-run checkpoint. Each run was
   arranged and its readbacks written down before it ran. It also holds the
