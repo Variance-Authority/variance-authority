@@ -183,6 +183,19 @@ function sitesOfOne(root: string | undefined, name: string, wanted: string | und
   return { sites: sitesOf(found, byPath, within ?? [], read), unread, within, inFile, namespaces: read !== undefined && 'namespaces' in read ? read.namespaces : [] };
 }
 
+/** Whether an import by path resolved to one of the files in `to`. */
+const resolvedTo = (site: PathSite, to: ReadonlySet<string>): boolean => site.held.to !== undefined && to.has(site.held.to);
+
+/** An import by path as a site, saying how it names the file. */
+const asSite = (site: PathSite): Site => ({ ...site.taken, how: how(site) });
+
+/**
+ * The files a published name is read from: its declaration, and each entry
+ * file that publishes it, since an entry that renames it, `export { greet as
+ * salute }`, passes on a name the declaring file never exports.
+ */
+const publishedFiles = (found: readonly Published[]): readonly string[] => [...new Set(found.flatMap(([, opening, entry]) => [entry.at, opening.source]))];
+
 /**
  * The doors that publish a name only inside a namespace, `shout.greet` by
  * `@acme/lib` for an entry doing `export * as shout`: each namespace the
@@ -242,7 +255,7 @@ export function usesOf(help: Help, input: Readonly<Record<string, unknown>>, roo
   const everyFile = new Set([...declared, ...groups.flatMap((group) => group.exported.map((held) => held.at))]);
   const claimed = (site: PathSite): boolean => site.held.to !== undefined && everyFile.has(site.held.to);
   const pathSites = (to: ReadonlySet<string>, stray: boolean): readonly Site[] =>
-    paths.filter((site) => (site.held.to !== undefined && to.has(site.held.to)) || (stray && !claimed(site))).map((site) => ({ ...site.taken, how: how(site) }));
+    paths.filter((site) => resolvedTo(site, to) || (stray && !claimed(site))).map(asSite);
   const byPath = found.length > 0 ? pathSites(declared, false) : pathSites(new Set(exported.map((held) => held.at)), file === undefined);
 
   const namesakes: readonly Namesake[] = others.map((group) => {
@@ -260,11 +273,8 @@ export function usesOf(help: Help, input: Readonly<Record<string, unknown>>, roo
     // The answer `symbol` gives: what was read and declares nothing, and where else the name may be.
     throw new FoundNothing(nowhere(help, name, wanted, root, members, undefined, spell));
   }
-  // A published name is read from its entry file as well as its declaration:
-  // an entry that renames it, `export { greet as salute }`, passes on a name
-  // the declaring file never exports.
-  const local = found.length === 0 ? exported.map((held) => held.at) : found.flatMap(([, opening, entry]) => [entry.at, opening.source]);
-  const { sites, unread, within, inFile, namespaces } = sitesOfOne(root, name, wanted, found, [...new Set(local)], byPath);
+  const local = found.length === 0 ? [...new Set(exported.map((held) => held.at))] : publishedFiles(found);
+  const { sites, unread, within, inFile, namespaces } = sitesOfOne(root, name, wanted, found, local, byPath);
   if (exported.length > 0 && unread !== undefined && byPath.length === 0) throw new Error(indexMissing(name, exported, unread));
 
   // Inside is the declaring file's package, which a re-exporting door is not.
