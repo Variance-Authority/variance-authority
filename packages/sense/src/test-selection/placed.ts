@@ -39,27 +39,20 @@ export interface Placement {
 }
 
 /**
- * Frame each held text against the snapshot that recorded its file.
- *
- * The recorder wrote a digest of every module's text beside its rows, so the
- * snapshot answers whether a text is the one it measured; `frameOf` asks it,
- * once for the held text and once for the text at the recorded commit — or,
- * for a run recorded over an edit, the text its landing kept. The
- * line map between the recorded text and the held one is git's: `diff
- * --no-index` over the two, which is the same hunk arithmetic every other
- * reading of a change here takes from git. The snapshot is opened once, and
- * the recorded texts are read together.
- *
- * A file the snapshot holds no instrumented row for is absent, so there is no
- * digest to hold its text against — which is not a frame, and not `stale`.
+ * Frame each held text against the snapshot that recorded its file, by the
+ * digest the recorder wrote beside its rows (`frameOf`), and map its lines from
+ * the recorded text, the one at the recorded commit or the one its landing
+ * kept, by git's `diff --no-index`. A file with no instrumented row is absent.
  */
 export function placeInTexts(snapshot: string, root: string, texts: ReadonlyMap<string, string>): ReadonlyMap<string, Placement> {
+  // The snapshot is opened once, and the recorded texts are read together.
   const asked = askCoverageFile(snapshot, (coverage) => {
     const sourceAt = textAtRecording(root, texts.keys());
     const kept = keptTexts(root);
     const frames = new Map<string, { readonly frame: 'recorded' } | { readonly frame: 'stale' } | { readonly frame: 'mapped'; readonly text: string }>();
     for (const [file, text] of texts) {
       const rows = findModules(coverage, file).filter((module) => coverage.moduleInstrumented.at(module) === 1);
+      // No digest to hold the text against, which is not a frame, and not `stale`.
       if (rows.length === 0) continue;
       const rowsOf = new Map([[file, rows]]);
       if (frameOf(coverage, [file], rowsOf, () => text) !== 'stale') {

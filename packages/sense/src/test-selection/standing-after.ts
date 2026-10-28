@@ -17,19 +17,11 @@ import { installKey } from './kept-install.js';
 import { landingsOf } from './landings.js';
 
 /**
- * Where each test the snapshot held before this run last ran, leaving out the
- * tests `ran` observed, or `undefined` when that is not known.
- *
- * `base` is the commit this run was laid over. Only a `held` record naming it
- * knows: a test one of its landings finished stood there, with that landing's
- * time, install and texts (`landings.ts`); a test its `standing` lists stood
- * where it says; any other stood at its `over`, assumed, where `test:since`
- * read it from, and stays there when a later run moves `over`. A test this run
- * did not observe is listed where it last ran, this run's own commit included.
- * Each landing is its own stand, so no stand's time is another run's.
- *
- * A stand that ran a file in part is kept while that file stands elsewhere
- * and no run has finished it, so a reader can name both.
+ * Where each test the snapshot held before this run last ran, this run's own
+ * commit included, leaving out the tests `ran` observed, or `undefined` when
+ * that is not known: only a `held` record naming `base`, the commit this run
+ * was laid over, knows. Each landing is its own stand, so no stand's time is
+ * another run's.
  */
 export function standingAfter(
   prior: RecordedTests | undefined,
@@ -58,10 +50,12 @@ export function standingAfter(
   }
   // Earliest landing first: the record's own order, then the start it names,
   // then its own landings, which landed after every other. That is not oldest
-  // first when a run landed at a commit older than the one before it.
+  // first when a run landed at a commit older than the one before it. A test
+  // nothing lists stood at `over`, assumed, where `test:since` read it from.
   const start = held.over === undefined ? undefined : standKey({ commit: held.over, assumed: true });
   if (start !== undefined && !stands.has(start)) stands.set(start, { commit: held.over!, files: [], assumed: true });
-  // A seeded record's runs are the base's, so it counts none as its own.
+  // A test a landing finished stood at `base`, with that landing's time, install
+  // and texts. A seeded record's runs are the base's, so it counts none as its own.
   for (const landing of landingsOf(held)) stand({ commit: base, files: [], ...ranOn(landing), ...landedOf(landing) }, landing.files, landing.partly);
   const grouped = new Map<string, string[]>();
   for (const test of unobserved) {
@@ -69,6 +63,8 @@ export function standingAfter(
     if (at === undefined) return undefined;
     grouped.set(at, [...(grouped.get(at) ?? []), test]);
   }
+  // A stand that ran a file in part is kept while the file stands elsewhere
+  // unfinished, so a reader can name both.
   const pending = new Set(unobserved);
   return [...stands].flatMap(([at, entry]) => {
     const files = [...new Set(grouped.get(at))].sort(codeUnitOrder);

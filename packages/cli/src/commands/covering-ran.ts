@@ -1,23 +1,11 @@
 // compass: variance-authority.reach
 /**
  * Where and when the test files a `covering` answer names last ran, and
- * whether they ran over the asked text, which is how fresh and how actual the
- * answer is for the question.
- *
- * A snapshot names the commit of its latest run, and a partial run is a run:
- * after one, the snapshot stands at a commit most of its tests never ran at.
- * The runs record beside it says where each test last ran, when those runs
- * landed, and which texts they ran over where those were not the commit's
- * (`testPlaces`), so the answer is dated and placed from it, for the test files
- * it names and no others. Locality is by digest at the grain of the question:
- * the file, and for a line or a function, that region of it, read across the
- * two texts. Nothing here walks history or counts commits.
- *
- * `ranOf` reads, and nothing after it does: the runs record (once, shared
- * with the motion reading), the held texts, the committed text at each place,
- * the kept texts the places name, and how the snapshot's lines stand in the
- * held texts. `verdictOf` decides from what it read, and
- * `covering-fresh-text.ts` says it.
+ * whether they ran over the asked text: how fresh and how actual the answer is.
+ * The runs record beside the snapshot says where each test file last ran, when
+ * that run landed, and which texts it ran over off its commit (`testPlaces`).
+ * Locality is by digest at the question's grain: the file, or the asked line or
+ * function across the two texts. Nothing here walks history or counts commits.
  */
 
 import { readFile, realpath } from 'node:fs/promises';
@@ -156,7 +144,13 @@ export function namedTestFiles(answer: RanNamed, index: ExecutionIndex | undefin
   return read.length === 0 ? { tests: [] } : { tests: read, named: 'read' };
 }
 
-/** Where, when and over which text the test files `answer` names last ran; absent when it names none. */
+/**
+ * Where, when and over which text the test files `answer` names last ran;
+ * absent when it names none. It does every read: the runs record, once and
+ * shared with the motion reading, the held texts, the committed and kept texts
+ * at each place, and the snapshot's placements. `verdictOf` decides from them,
+ * and `covering-fresh-text.ts` says it.
+ */
 export async function ranOf(answer: RanNamed, question: RanQuestion): Promise<CoveringRan | undefined> {
   const { tests, named } = namedTestFiles(answer, question.index);
   if (tests.length === 0) return undefined;
@@ -316,18 +310,8 @@ async function evidenceOf(
 
 /**
  * One place's verdict for the asked files, each held text against the text
- * the place's runs ran over: a place whose record names its texts ran over the
- * one it names, else over the committed one; a place the record observed
- * without naming its texts ran over a text it does not know; a place read by
- * assumption ran over the snapshot's own text at the snapshot's commit, and
- * the committed one anywhere else. A place whose text is not known is not
- * known, and no other place is touched by it.
- *
- * A test file a later run ran in part holds cases of each run, case by case,
- * and the runs record does not say which case ran in which. Where those runs
- * ran over one text, or every one of them over another, that is said of the
- * file; where some ran over the asked text and some did not, which text its
- * cases ran over is not known.
+ * each of the place's runs ran over (`ranOver`). A place whose text is not
+ * known is not known, and no other place is touched by it.
  */
 function verdictOf(place: TestPlace, held: ReadonlyMap<string, string>, evidence: Evidence, at: string | undefined, region: Region): Verdict {
   const other: string[] = [];
@@ -342,6 +326,9 @@ function verdictOf(place: TestPlace, held: ReadonlyMap<string, string>, evidence
     }
     const others = rans.flatMap((ran) => (ran !== 'held' && 'text' in ran ? [ran.text] : []));
     if (others.length === 0) continue;
+    // A file a later run ran in part holds each run's cases, and the record does
+    // not say which ran in which, so runs that ran over the asked text and runs
+    // that did not leave no text its cases ran over.
     if (others.length < rans.length) {
       unknown ??= apart(file);
       continue;
@@ -360,7 +347,13 @@ function apart(file: string): string {
   return `its cases ran in runs over different texts of ${file}, and the runs record does not say which case ran in which`;
 }
 
-/** Whether `place` ran over `text` of `file`, or the text it ran over instead when that is found, or why that is not known. */
+/**
+ * Whether `place` ran over `text` of `file`, or the text it ran over instead
+ * when that is found, or why that is not known: a place whose record names its
+ * texts ran over the one it names, else over the committed one; one observed
+ * without naming them ran over a text the record does not know; one read by
+ * assumption over the snapshot's text at its commit, the committed one elsewhere.
+ */
 function ranOver(place: TestPlace, file: string, text: string, evidence: Evidence, at: string | undefined): 'held' | { readonly text: string | undefined } | { readonly unknown: string } {
   const digest = digestString(text);
   if (readsTheSnapshot(place, at)) {
