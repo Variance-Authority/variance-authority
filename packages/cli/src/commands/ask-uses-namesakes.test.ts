@@ -79,6 +79,30 @@ describe('variance ask uses over a name several files declare', () => {
     expect(second).not.toMatch(/hello\.ts/);
   });
 
+  it('names the published declaration it answers first when another shares its name', async () => {
+    checkout({
+      'packages/second/package.json': JSON.stringify({ name: '@acme/second', exports: { '.': './src/index.ts' } }),
+      'packages/second/src/index.ts': 'export const greet = 2;\n',
+    });
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+
+    const [headline] = (await uses()).split('\n');
+    expect(headline).toMatch(/^`greet` \[function\] is imported in 1 place, from another package, published by @acme\/lib, declared at packages\/lib\/src\/greet\.ts:\d+\.$/);
+  });
+
+  it('answers a value and a type one file declares under one name as one declaration', async () => {
+    checkout({
+      'packages/second/package.json': JSON.stringify({ name: '@acme/second', exports: { '.': './src/index.ts' } }),
+      'packages/second/src/index.ts': 'export const greet = 2;\nexport type greet = number;\n',
+      'apps/app/src/second.ts': "import { greet } from '@acme/second';\nexport const second = greet;\n",
+    });
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+
+    const out = await uses();
+    expect(out.match(/^`greet` is published by @acme\/second, declared at /gm)).toHaveLength(1);
+    expect(out.match(/^apps\/app\/src\/second\.ts:1 /gm)).toHaveLength(1);
+  });
+
   it('answers for the published declaration alone when `--file` names its file', async () => {
     checkout(NAMESAKES);
     expect((await run(['index'])).code).toBe(EXIT_CLEAN);

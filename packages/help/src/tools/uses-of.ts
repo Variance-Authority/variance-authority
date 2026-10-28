@@ -48,9 +48,10 @@ export function sureness(sites: readonly Site[]): { readonly certain: readonly S
 type Published = readonly [Documented, Opening, Entry];
 
 /**
- * One published declaration, by the file and line that declare it, and every
+ * One published declaration, by the file that declares the name, and every
  * entry that publishes it: a barrel and a subpath that pass one declaration on
- * are two doors to one thing, and two files that declare the name are two.
+ * are two doors to one thing, and two files that declare the name are two. The
+ * file is the key every reading selects a declaration by, `--file` among them.
  */
 export interface PublishedDeclaration {
   readonly at: string;
@@ -72,12 +73,11 @@ export function publishedDeclarations(help: Help, name: string, wanted: string |
   const declarations = new Map<string, { at: string; line: number; doors: Published[] }>();
   for (const door of doors) {
     const [, , entry] = door;
-    const key = `${entry.at}:${entry.line}`;
-    const one = declarations.get(key);
-    if (one === undefined) declarations.set(key, { at: entry.at, line: entry.line, doors: [door] });
+    const one = declarations.get(entry.at);
+    if (one === undefined) declarations.set(entry.at, { at: entry.at, line: entry.line, doors: [door] });
     else one.doors.push(door);
   }
-  return [...declarations.values()].sort((left, right) => byDoor(left.doors[0]!, right.doors[0]!) || codeUnitOrder(left.at, right.at) || left.line - right.line);
+  return [...declarations.values()].sort((left, right) => byDoor(left.doors[0]!, right.doors[0]!) || codeUnitOrder(left.at, right.at));
 }
 
 /** The door the workspace imports by most first, then by published name and subpath in code-unit order. */

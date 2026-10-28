@@ -8,7 +8,7 @@ import { passesOn } from './passed-on.js';
 import { sharedSegments } from './shared-segments.js';
 import { symbol } from './symbol.js';
 import { UNCOUNTED, exportedAt } from './unpublished.js';
-import { bracketed, keptLine, namesakeLine, narrowing } from './uses-declarations.js';
+import { bracketed, keptLine, namesakeLine, narrowing, publishedAt } from './uses-declarations.js';
 import { type Counted, apart, counted, spokenSplit } from './uses-count.js';
 import { type Answer, type Namesake, type Site, packageOf, usesOf } from './uses-of.js';
 
@@ -386,7 +386,10 @@ function imported(answer: Answer, from: string | undefined, own: readonly string
   const loaded = dynamic === 0 ? '.' : `, ${dynamic} through import(), which loads the module when the call runs.`;
   const may = mayRead(split, name);
   const exportedHere = exported.length > 0 ? `; it is exported at ${exportedAt(exported)}${passed}` : '';
-  const published = found.length > 0 ? '' : `, ${member ?? 'and no entry publishes it'}${exportedHere}`;
+  // Among namesakes, the declaration counted first says which one it is.
+  const [door] = found;
+  const which = answer.namesakes.length > 0 && door !== undefined ? `, ${publishedAt(door, found)}` : '';
+  const published = found.length > 0 ? which : `, ${member ?? 'and no entry publishes it'}${exportedHere}`;
   const taken =
     certain.length === 0
       ? `${named} is imported by name nowhere${published}.`

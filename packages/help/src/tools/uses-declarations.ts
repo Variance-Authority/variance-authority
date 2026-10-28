@@ -62,8 +62,13 @@ export function membersIn(members: Members, file: string): Members {
 export function namesakeLine(name: string, one: Pick<Namesake, 'published' | 'exported'>): string {
   const [door] = one.published;
   if (door === undefined) return `\`${name}\` is exported, without being published, at ${exportedAt(one.exported)} as well, which is another declaration.`;
-  const by = one.published.map(([held, opening]) => specifierOf(held, opening)).join(', ');
-  return `\`${name}\` is published by ${by}, declared at ${door[2].at}:${door[2].line} as well, which is another declaration.`;
+  return `\`${name}\` is ${publishedAt(door, one.published)} as well, which is another declaration.`;
+}
+
+/** The entries that publish one declaration and where it is declared, which tells it from a namesake. */
+export function publishedAt([, , declared]: Namesake['published'][number], doors: Namesake['published']): string {
+  const by = doors.map(([held, opening]) => specifierOf(held, opening)).join(', ');
+  return `published by ${by}, declared at ${declared.at}:${declared.line}`;
 }
 
 /** How to ask for one declaration, said when the answer covers more than one and no file was named. */
