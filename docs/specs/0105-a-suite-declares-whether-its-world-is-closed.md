@@ -1,17 +1,24 @@
 # Spec 0105 — a suite declares whether its world is closed
 
-**Missing:** a check that selection narrows. Each precision step runs every
-test a finer one runs, but `file` and `symbol` get there by union: they add
-what the record's file use read to what the import walk reached. A test the
-record holds and the graph does not is kept without a word. A region a test
-entered in a file whose load the record never saw is compared with nothing.
-So when the record and the graph disagree, which is when selection is about to
-be wrong, nothing says so. And nothing tells a suite where the disagreement is
-the defect apart from one where it is expected: a test that drives a second
-service runs code its own process never records, and is read the same way as a
-unit test.
+**Missing:** a check that selection narrows, held between the walk and the
+record. Each precision step runs every test a finer one runs, but `file` and
+`symbol` get there by union: they add what the record's file use read to what
+the import walk reached. A test the record holds and the graph does not is kept
+without a word. Inside the record, one runner is already held to it: a Jest
+file fails when its CommonJS registry holds a module whose probes registered
+and its journal never entered
+([`jest-registry.cts`](../../packages/sense/src/test-selection/jest-registry.cts)).
+Nothing holds an ES module, a symlinked root, a `dist/` file read as its source
+or another runner to the same rule. And nothing tells a suite where the
+disagreement is the defect apart from one where it is expected: a test that
+drives a second service runs code its own process never records, and is read
+the same way as a unit test.
 **Built on:** the mocks a test declares, read off its tree
-([`mocks.ts`](../../packages/sense/src/taint/mocks.ts)); the precision ladder and its union
+([`mocks.ts`](../../packages/sense/src/taint/mocks.ts)); the evaluation a runner
+makes of a module it mocks, disowned at load time
+([`shadowed.ts`](../../packages/sense/src/test-selection/shadowed.ts)); Jest's
+registry held against the journal
+([`jest-registry.cts`](../../packages/sense/src/test-selection/jest-registry.cts)); the precision ladder and its union
 ([`precision.ts`](../../packages/sense/src/test-selection/precision.ts)), whose
 test keeps a test the graph does not reach
 ([`precision.test.ts`](../../packages/sense/src/test-selection/precision.test.ts));
@@ -71,10 +78,11 @@ them. The record carries, for each importer, the specifier it asked for and the
 file the runner served, and the walk takes that answer over its own resolver's
 for that specifier. A mock a test declares in its own text — `jest.mock`,
 `vi.mock`, a literal `requireActual` — is already read off the tree and cut or
-added as an edge. So a mapped or mocked file is reached through the specifier
-that asked for it, and a breach is left to a load no specifier in the source
-asked for: a dynamic import by a computed name, a module the runtime loads by
-itself.
+added as an edge, and the real module a runner evaluates to shape an automock
+is already disowned at load time, so neither is a breach today. So a mapped or
+mocked file is reached through the specifier that asked for it, and a breach
+is left to a load no specifier in the source asked for: a dynamic import by a
+computed name, a module the runtime loads by itself.
 
 `world` and `relations` answer different questions and are declared apart.
 `relations` says whether the graph steps may run at all. `world` says whether
@@ -107,7 +115,9 @@ The two breaches mean different things, and the report says which:
 - **File use missed a load.** A file whose functions or regions a test entered
   is not in the test's file use. The cause is a gap in the module system's
   recording: a loader the hook does not see, a cache hit served before it, a
-  module evaluated in another realm.
+  module evaluated in another realm. Jest's CommonJS registry already fails a
+  file on this breach; the check is that one, carried to every runner and to
+  what that registry cannot show.
 
 ## An open world reports growth
 
@@ -146,12 +156,15 @@ coverage alone it is a lower bound.
 - The record carries each importer's specifier and the file the runner served
   for it, and the walk resolves through it. A fixture with a
   `moduleNameMapper` entry and one with a `__mocks__` file each pass in a
-  closed world, and fail first without it.
+  closed world, and fail first without it. Automock and a declared mock are
+  pinned already (`select-mocks.test.ts`, `audit.test.ts`,
+  `vitest-hoisted-mocks.integration.test.ts`) and stay green.
+- A fixture whose journal loses an ES module, under Jest and under Vitest,
+  fails the file the way `jest-registry.integration.test.ts` fails a lost
+  CommonJS module, and fails first.
 - The test that keeps a test the record holds and the graph does not, at
   `file`, is amended to expect a safety violation in a closed world and a named
   growth in an open one, and fails first.
-- A fixture whose test enters a region in a file the record never saw it load
-  fails the same way, naming the module-system gap.
 - A record carries whether its file use was recorded or inferred, and the file-
   use check reports itself skipped where it was inferred.
 
