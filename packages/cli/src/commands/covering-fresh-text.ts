@@ -101,6 +101,7 @@ function regionText(answer: Covering, stand: RanStand): string {
   const many = answer.target !== undefined && 'lines' in answer.target;
   if (region === 'same') return `; ${named} ${many ? 'are' : 'is'} the same in both`;
   if (region === 'changed') return `; ${named} ${many ? 'differ' : 'differs'} between the two`;
+  if (region === 'gone') return `; ${named} is not in ${answer.file!} as it is now`;
   return `; whether ${named} ${many ? 'differ' : 'differs'} is not known: ${region.unknown}`;
 }
 

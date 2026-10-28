@@ -67,8 +67,12 @@ export interface RanStand {
   readonly other?: readonly string[];
   /** Why whether they ran over the asked text is not known. */
   readonly unknown?: string;
-  /** With `other` and an asked line or function: whether it is the same in both texts, or why that is not known. */
-  readonly region?: 'same' | 'changed' | { readonly unknown: string };
+  /**
+   * With `other` and an asked line or function: whether it is the same in
+   * both texts, `gone` when no block of the function is in the asked text, or
+   * why that is not known.
+   */
+  readonly region?: 'same' | 'changed' | 'gone' | { readonly unknown: string };
 }
 
 /**
@@ -193,22 +197,26 @@ function byPrecondition(where: RanStand, file: string, held: ReadonlyMap<string,
 /** The verdict of one stand: `text`, `other`, `unknown` and `region` of {@link RanStand}. */
 type Verdict = Pick<RanStand, 'text' | 'other' | 'unknown' | 'region'>;
 
-/** The asked region of the held text, in its lines: the line or lines asked, or the asked function's blocks placed in it. */
-type Region = readonly HeldLines[] | { readonly unknown: string } | undefined;
+/**
+ * The asked region of the held text, in its lines: the line or lines asked,
+ * or the asked function's blocks placed in it, none when an edit removed the
+ * function. A function written inside the asked one lies inside its block, so
+ * an edit that removed only the inner one moved the outer one, which is placed.
+ */
+type Region = { readonly held: readonly HeldLines[] } | { readonly unknown: string } | undefined;
 
 function regionOf(answer: RanNamed, question: RanQuestion): Region {
   const target = answer.target;
   if (target === undefined) return undefined;
-  if ('line' in target) return [{ startLine: target.line, endLine: target.line }];
-  if ('lines' in target) return [target.lines];
+  if ('line' in target) return { held: [{ startLine: target.line, endLine: target.line }] };
+  if ('lines' in target) return { held: [target.lines] };
   const placement = question.placement;
   const module = question.index?.modules.find((candidate) => candidate.file === answer.file);
   if (placement === undefined || module === undefined) return undefined;
   if (placement.frame === 'stale') return { unknown: `the record's lines of ${answer.file!} are not placed in its text as it is now` };
-  return functionsUnder(module.blocks, target.function).flatMap((block) => {
-    const placed = placement.place(block);
-    return placed === undefined ? [] : [placed.lines];
-  });
+  const blocks = functionsUnder(module.blocks, target.function);
+  if (blocks.length === 0) return undefined;
+  return { held: blocks.flatMap((block) => placement.place(block)?.lines ?? []) };
 }
 
 /** What the verdicts are read from, read once for every place. */
@@ -328,12 +336,17 @@ function ranOver(place: TestPlace, file: string, text: string, evidence: Evidenc
   return digestString(committed) === digest ? 'held' : { text: committed };
 }
 
-/** Whether the asked region of `held` is the same in `ran`, the text a test file ran over; absent when no region is asked. */
+/**
+ * Whether the asked region of `held` is the same in `ran`, the text a test
+ * file ran over; absent when no region is asked, and `gone` when the asked
+ * function is not in `held` at all.
+ */
 function regionVerdict(region: Region, held: string, ran: string | undefined, file: string): RanStand['region'] {
   if (region === undefined || 'unknown' in region) return region;
+  if (region.held.length === 0) return 'gone';
   if (ran === undefined) return { unknown: `the text of ${file} that run ran over is neither kept nor committed` };
   const place = placeAcross(held, ran);
-  return region.every((range) => place(range)?.moved === false) ? 'same' : 'changed';
+  return region.held.every((range) => place(range)?.moved === false) ? 'same' : 'changed';
 }
 
 /**

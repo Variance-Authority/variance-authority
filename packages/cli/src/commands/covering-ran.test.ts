@@ -53,6 +53,24 @@ describe('a covering answer says when the test files it names last ran, and over
     expect(named.text).toContain('src/pay.test.ts ran over another text of src/pay.ts, in a run that landed 9 hours ago; `pay` is the same in both.\n');
   });
 
+  it('says the asked function is not in the file as it is now when an edit removed every block of it, never that it is the same', async () => {
+    const now = Date.now();
+    const fee = 'export const fee = 0;\n';
+    const { at } = await checkout({
+      committed: now - (9 * HOUR + 30 * MINUTE),
+      second: { committed: now - (6 * MINUTE + 30_000), pay: `${PAY}${fee}` },
+      runs: (base, recorded) => ({
+        commit: recorded, over: base, first: iso(now - 6 * MINUTE), latest: iso(now - 6 * MINUTE), runs: 1, files: ['src/other.test.ts'], texts: {},
+        standing: [{ commit: base, files: ['src/pay.test.ts'], first: iso(now - 9 * HOUR - MINUTE), latest: iso(now - 9 * HOUR - MINUTE), runs: 1, texts: {} }],
+      }),
+    });
+    await writeFile(join(at, 'src/pay.ts'), fee);
+    const { text, json } = await ask(at, '--file', 'src/pay.ts', '--function', 'pay');
+
+    expect(json).toMatchObject({ frame: 'mapped', ran: { stands: [{ text: 'other', region: 'gone' }] } });
+    expect(text).toContain('src/pay.test.ts ran over another text of src/pay.ts, in a run that landed 9 hours ago; `pay` is not in src/pay.ts as it is now.\n');
+  });
+
   it('says whether a test file ran the asked text is not known for a stand the record holds no text for', async () => {
     const { at } = await checkout({
       second: { committed: Date.now() - MINUTE },
