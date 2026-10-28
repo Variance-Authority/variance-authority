@@ -128,5 +128,6 @@ describe('variance ask uses over a declaration published under another name', ()
     expect(out).toMatch(/^Members:$/m);
     expect(out).toMatch(/has\(key: string\): boolean;/);
   });
-});
 
+  it.todo('answers one binding its file exports under two names, `export default greet` beside `export { greet }`, as one declaration with both spellings — needs the package stage to key a declaration by its local binding and carry every name its file exports it under');
+});
