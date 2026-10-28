@@ -170,8 +170,8 @@ export async function readRoute(
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
 
-    // An empty response or a reset stays this page's: the server answered,
-    // once, badly.
+    // Only a refused connection ends the read; an empty response or a reset
+    // stays this page's failure, since the server answered, once, badly.
     if (message.includes(CONNECTION_REFUSED)) {
       throw operatorError(
         `nothing is listening at ${new URL(url).origin}: the browser's connection was ` +
