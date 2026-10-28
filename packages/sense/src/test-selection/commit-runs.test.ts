@@ -1,9 +1,10 @@
-import { mkdir, mkdtemp, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 import { commitRunsAfter, commitRunsFile, landRun, readCommitRuns, type CommitRuns } from './commit-runs.js';
 import { writeTestCoverage, type TestCoverage } from './index.js';
+import { whatLanded } from './landings.js';
 
 /** A run of `files` that instrumented one module: a run that instrumented none records no runs at all. */
 function run(commit: string | undefined, files: readonly string[], instrumentation = 'fixture'): TestCoverage {
@@ -21,6 +22,12 @@ function run(commit: string | undefined, files: readonly string[], instrumentati
   };
 }
 
+/** The test files the runs record at `coverageFile` says its landings finished. */
+async function landedAt(coverageFile: string): Promise<readonly string[] | undefined> {
+  const runs = await readCommitRuns(coverageFile);
+  return runs === undefined ? undefined : whatLanded(runs.landings).files;
+}
+
 async function recorded(at: string): Promise<{ root: string; coverageFile: string }> {
   const root = await mkdtemp(join(tmpdir(), 'variance-commit-runs-'));
   const coverageFile = join(root, 'coverage.bin');
@@ -35,7 +42,8 @@ describe('the runs recorded at one commit', () => {
     await landRun(coverageFile, run('head', ['a.test.ts']), root);
 
     expect(commitRunsFile(coverageFile)).toBe(join(root, 'coverage.runs.json'));
-    expect(await readCommitRuns(coverageFile)).toMatchObject({ commit: 'head', over: 'base', runs: 1, files: ['a.test.ts'] });
+    expect(await readCommitRuns(coverageFile)).toMatchObject({ commit: 'head', over: 'base', runs: 1 });
+    expect(await landedAt(coverageFile)).toEqual(['a.test.ts']);
   });
 
   it('keeps that commit and adds the files when a shard or a retry runs at the same commit', async () => {
@@ -45,13 +53,8 @@ describe('the runs recorded at one commit', () => {
     const first = await readCommitRuns(coverageFile);
     await landRun(coverageFile, run('head', ['a.test.ts']), root);
 
-    expect(await readCommitRuns(coverageFile)).toMatchObject({
-      commit: 'head',
-      over: 'base',
-      first: first!.first,
-      runs: 2,
-      files: ['a.test.ts', 'b.test.ts'],
-    });
+    expect(await readCommitRuns(coverageFile)).toMatchObject({ commit: 'head', over: 'base', runs: 2, landings: [first!.landings[0], {}] });
+    expect(await landedAt(coverageFile)).toEqual(['a.test.ts', 'b.test.ts']);
   });
 
   it('starts again at a new commit, laid over the last one', async () => {
@@ -60,7 +63,8 @@ describe('the runs recorded at one commit', () => {
     await landRun(coverageFile, run('head', ['a.test.ts']), root);
     await landRun(coverageFile, run('next', ['b.test.ts']), root);
 
-    expect(await readCommitRuns(coverageFile)).toMatchObject({ commit: 'next', over: 'head', runs: 1, files: ['b.test.ts'] });
+    expect(await readCommitRuns(coverageFile)).toMatchObject({ commit: 'next', over: 'head', runs: 1 });
+    expect(await landedAt(coverageFile)).toEqual(['b.test.ts']);
   });
 
   it('refuses a run recorded by other instrumentation over the snapshot, and names no base', async () => {
@@ -98,7 +102,8 @@ describe('the runs recorded at one commit', () => {
     await writeTestCoverage(coverageFile, run('O', all));
 
     await landRun(coverageFile, run('P', all), root);
-    expect(await readCommitRuns(coverageFile)).toMatchObject({ commit: 'P', over: 'O', files: all, standing: [] });
+    expect(await readCommitRuns(coverageFile)).toMatchObject({ commit: 'P', over: 'O', standing: [] });
+    expect(await landedAt(coverageFile)).toEqual(all);
 
     await landRun(coverageFile, run('H', ['near.test.ts']), root);
     expect(await readCommitRuns(coverageFile)).toMatchObject({
@@ -111,12 +116,12 @@ describe('the runs recorded at one commit', () => {
     expect(await readCommitRuns(coverageFile)).toMatchObject({
       commit: 'C',
       over: 'H',
-      files: ['other.test.ts'],
       standing: [
         { commit: 'P', files: ['far.test.ts'] },
         { commit: 'H', files: ['near.test.ts'] },
       ],
     });
+    expect(await landedAt(coverageFile)).toEqual(['other.test.ts']);
 
     // A retry at C keeps the order: `over` is H, and P is older than it.
     await landRun(coverageFile, run('C', ['other.test.ts']), root);
@@ -129,9 +134,9 @@ describe('the runs recorded at one commit', () => {
     expect(await readCommitRuns(coverageFile)).toMatchObject({
       commit: 'C',
       over: 'H',
-      files: ['far.test.ts', 'other.test.ts'],
       standing: [{ commit: 'H', files: ['near.test.ts'] }],
     });
+    expect(await landedAt(coverageFile)).toEqual(['far.test.ts', 'other.test.ts']);
   });
 
   it('carries when the runs at a commit landed with the tests a run at another commit moves off it', () => {
@@ -143,11 +148,10 @@ describe('the runs recorded at one commit', () => {
     const atP: CommitRuns = {
       commit: 'P',
       over: 'O',
-      first: '2026-01-01T00:00:00.000Z',
       latest: '2026-01-02T00:00:00.000Z',
       runs: 2,
-      files: ['a.test.ts', 'b.test.ts', 'c.test.ts'],
       standing: [],
+      landings: [{ files: ['a.test.ts', 'b.test.ts', 'c.test.ts'], first: '2026-01-01T00:00:00.000Z', latest: '2026-01-02T00:00:00.000Z', runs: 2 }],
     };
     const atH = commitRunsAfter({ instrumentation: 'fixture', commit: 'P', tests: tests('a.test.ts', 'b.test.ts', 'c.test.ts') }, atP, {
       instrumentation: 'fixture',
@@ -164,7 +168,7 @@ describe('the runs recorded at one commit', () => {
     });
     expect(atC.standing).toEqual([
       { commit: 'P', files: ['b.test.ts'], ...ranAtP },
-      { commit: 'H', files: ['a.test.ts'], first: atH.first, latest: atH.latest, runs: 1 },
+      { commit: 'H', files: ['a.test.ts'], first: atH.landings[0]!.first, latest: atH.latest, runs: 1 },
     ]);
   });
 
@@ -176,11 +180,10 @@ describe('the runs recorded at one commit', () => {
     const held: CommitRuns = {
       commit: 'P',
       over: 'Q',
-      first: '2026-01-03T00:00:00.000Z',
       latest: '2026-01-03T00:00:00.000Z',
       runs: 1,
-      files: ['a.test.ts'],
       standing: [{ commit: 'P', files: ['b.test.ts'], first: '2026-01-01T00:00:00.000Z', latest: '2026-01-01T00:00:00.000Z', runs: 1 }],
+      landings: [{ files: ['a.test.ts'], first: '2026-01-03T00:00:00.000Z', latest: '2026-01-03T00:00:00.000Z', runs: 1 }],
     };
     const after = commitRunsAfter({ instrumentation: 'fixture', commit: 'P', tests: tests('a.test.ts', 'b.test.ts', 'c.test.ts') }, held, {
       instrumentation: 'fixture',
@@ -200,11 +203,10 @@ describe('the runs recorded at one commit', () => {
     const held: CommitRuns = {
       commit: 'P',
       over: 'Q',
-      first: '2026-01-03T00:00:00.000Z',
       latest: '2026-01-03T00:00:00.000Z',
       runs: 1,
-      files: ['a.test.ts'],
       standing: [{ commit: 'P', files: ['b.test.ts'] }],
+      landings: [{ files: ['a.test.ts'], first: '2026-01-03T00:00:00.000Z', latest: '2026-01-03T00:00:00.000Z', runs: 1 }],
     };
     const after = commitRunsAfter({ instrumentation: 'fixture', commit: 'P', tests: tests('a.test.ts', 'b.test.ts', 'c.test.ts') }, held, {
       instrumentation: 'fixture',
@@ -293,9 +295,9 @@ describe('the runs recorded at one commit', () => {
     expect(await readCommitRuns(coverageFile)).toMatchObject({
       commit: 'P',
       over: 'Q',
-      files: ['a.test.ts'],
       standing: [{ commit: 'P', files: ['b.test.ts'] }],
     });
+    expect(await landedAt(coverageFile)).toEqual(['a.test.ts']);
   });
 
   it('reads no retried landing outside a checkout, where neither the snapshot nor the run names a commit', async () => {
@@ -310,7 +312,8 @@ describe('the runs recorded at one commit', () => {
     await landRun(coverageFile, run(undefined, ['b.test.ts']), root);
 
     const runs = await readCommitRuns(coverageFile);
-    expect(runs).toMatchObject({ runs: 1, files: ['b.test.ts'] });
+    expect(runs).toMatchObject({ runs: 1 });
+    expect(await landedAt(coverageFile)).toEqual(['b.test.ts']);
     expect(runs).not.toHaveProperty('over');
     expect(runs).not.toHaveProperty('commit');
   });
@@ -359,7 +362,8 @@ describe('the runs recorded at one commit', () => {
       warn.mockRestore();
     }
     const written = await readCommitRuns(coverageFile);
-    expect(written).toMatchObject({ commit: 'C', over: 'H', runs: 1, files: ['a.test.ts'] });
+    expect(written).toMatchObject({ commit: 'C', over: 'H', runs: 1 });
+    expect(await landedAt(coverageFile)).toEqual(['a.test.ts']);
     expect(written?.standing).toBeUndefined();
   });
 
@@ -371,6 +375,68 @@ describe('the runs recorded at one commit', () => {
       await expect(landRun(coverageFile, run('C', ['a.test.ts']), root)).rejects.toThrow();
     } finally {
       warn.mockRestore();
+    }
+  });
+});
+
+describe('what the runs record stores', () => {
+  const DAY1 = '2026-01-01T00:00:00.000Z';
+  const DAY2 = '2026-01-02T00:00:00.000Z';
+  const DAY3 = '2026-01-03T00:00:00.000Z';
+  it('reads a record written before landings as one landing of its envelope', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'variance-commit-runs-'));
+    const coverageFile = join(root, 'coverage.bin');
+    const standing = [{ commit: 'O', files: ['c.test.ts'] }];
+    const records = {
+      'two runs': [
+        { commit: 'P', over: 'O', first: DAY1, latest: DAY2, runs: 2, files: ['a.test.ts', 'b.test.ts'], standing, installed: {} },
+        { commit: 'P', over: 'O', latest: DAY2, runs: 2, standing, landings: [{ files: ['a.test.ts', 'b.test.ts'], first: DAY1, latest: DAY2, runs: 2, installed: {} }] },
+      ],
+      // A seed was stamped when it was seeded, so its time says nothing of its tests.
+      'a seed': [
+        { commit: 'P', first: DAY3, latest: DAY3, runs: 0, files: ['a.test.ts'] },
+        { commit: 'P', latest: DAY3, runs: 0, landings: [{ files: ['a.test.ts'] }] },
+      ],
+      'no files': [
+        { commit: 'P', first: DAY3, latest: DAY3, runs: 1, files: [], installed: {} },
+        { commit: 'P', latest: DAY3, runs: 1, landings: [] },
+      ],
+    };
+    for (const [name, [written, read]] of Object.entries(records)) {
+      await writeFile(commitRunsFile(coverageFile), JSON.stringify(written));
+      expect(await readCommitRuns(coverageFile), name).toEqual(read);
+    }
+  });
+
+  it('writes no list of files or install over a record written before landings, and keeps its landing first', async () => {
+    const { root, coverageFile } = await recorded('P');
+    await writeFile(
+      commitRunsFile(coverageFile),
+      JSON.stringify({ commit: 'P', over: 'O', first: DAY1, latest: DAY2, runs: 2, files: ['a.test.ts'], standing: [], installed: {} }),
+    );
+
+    await landRun(coverageFile, run('P', ['b.test.ts']), root);
+
+    const written = JSON.parse(await readFile(commitRunsFile(coverageFile), 'utf8')) as Record<string, unknown>;
+    expect(Object.keys(written).sort()).toEqual(['commit', 'landings', 'latest', 'over', 'runs', 'standing']);
+    expect(written).toMatchObject({ commit: 'P', over: 'O', runs: 3, landings: [{ files: ['a.test.ts'], first: DAY1, latest: DAY2, runs: 2, installed: {} }, { files: ['b.test.ts'] }] });
+  });
+
+  it('refuses a record whose landings or stands do not say what they are, naming the file', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'variance-commit-runs-'));
+    const coverageFile = join(root, 'coverage.bin');
+    const named = `the runs record at ${commitRunsFile(coverageFile)}`;
+    const records = {
+      [`${named} holds \`landings\` that is not a list`]: { commit: 'P', latest: DAY1, runs: 1, landings: {} },
+      [`${named} holds a landing with no list of the test files it finished`]: { commit: 'P', latest: DAY1, runs: 1, landings: [{ first: DAY1 }] },
+      [`${named} has no list of the test files that ran at its commit`]: { commit: 'P', latest: DAY1, runs: 1 },
+      [`${named} holds a \`standing\` that is not a list`]: { commit: 'P', latest: DAY1, runs: 1, landings: [], standing: {} },
+      [`${named} holds a \`standing\` entry with no list of test files`]: { commit: 'P', latest: DAY1, runs: 1, landings: [], standing: [{ commit: 'O' }] },
+      [`${named} holds a \`standing\` entry that names no commit`]: { commit: 'P', latest: DAY1, runs: 1, landings: [], standing: [{ files: [] }] },
+    };
+    for (const [refusal, record] of Object.entries(records)) {
+      await writeFile(commitRunsFile(coverageFile), JSON.stringify(record));
+      await expect(readCommitRuns(coverageFile)).rejects.toThrow(refusal);
     }
   });
 });

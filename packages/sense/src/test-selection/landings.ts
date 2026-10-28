@@ -11,9 +11,11 @@
  * not observe at all.
  */
 
-import type { CommitRuns, RecordedTests, StandingEntry } from './commit-runs.js';
+// compass: variance-authority.reach
+
+import { codeUnitOrder } from '@variance-authority/core/segment';
+import type { RecordedTests, StandingEntry } from './commit-runs.js';
 import type { CoverageTest, TestCoverage } from './index.js';
-import { codeUnitOrder } from './instrumented-modules.js';
 import { sameInstall, type KeptInstall } from './kept-install.js';
 import type { KeptTexts } from './kept-texts.js';
 
@@ -91,23 +93,6 @@ export function partlyIn(of: Pick<Landing, 'partly' | 'cases'>, keep: (file: str
 }
 
 /**
- * The landings `record` holds, earliest first; a record that kept none is one
- * landing of its own fields, which names no texts: a record written before
- * landings was written before texts were named. One with no runs of its own
- * was seeded then, and a seed stamped the moment of seeding, so its time is
- * not held.
- */
-export function landingsOf(record: Pick<CommitRuns, 'files' | 'first' | 'latest' | 'runs' | 'installed' | 'landings'>): readonly Landing[] {
-  if (Array.isArray(record.landings)) return record.landings;
-  if (!Array.isArray(record.files) || record.files.length === 0) return [];
-  return [{
-    files: record.files,
-    ...(record.runs > 0 ? { first: record.first, latest: record.latest, runs: record.runs } : {}),
-    ...(record.installed === undefined ? {} : { installed: record.installed }),
-  }];
-}
-
-/**
  * The landings once a run at `at` lands over `earlier`, the ones at its
  * commit: what it observed leaves every earlier landing, and one with nothing
  * left to answer for is gone.
@@ -155,4 +140,19 @@ export function agreed<Kept extends KeptInstall>(landings: readonly Landing[], o
     kept = its;
   }
   return kept;
+}
+
+/** What the landings at one commit say together: the files they finished, and the install they agree on. */
+export interface WhatLanded {
+  /** Every test file a landing finished, in code-unit order. */
+  readonly files: readonly string[];
+  /** The install every landing that finished a file names, when they all name one (`agreed`). */
+  readonly installed?: KeptInstall;
+}
+
+/** What `landings` say together, read off them rather than stored beside them. */
+export function whatLanded(landings: readonly Landing[]): WhatLanded {
+  const files = [...new Set(landings.flatMap((landing) => landing.files))].sort(codeUnitOrder);
+  const installed = agreed(landings, (landing) => landing.installed);
+  return { files, ...(installed === undefined ? {} : { installed }) };
 }

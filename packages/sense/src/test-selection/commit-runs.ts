@@ -41,6 +41,8 @@
  * they ran, so it is recorded by the same rules as a run.
  */
 
+// compass: variance-authority.reach
+
 import { readFile } from 'node:fs/promises';
 import { followRowsIn } from './case-cuts.js';
 import { editsBetween } from './region-edit.js';
@@ -50,11 +52,10 @@ import { askCoverageFile } from './coverage-file.js';
 import { anotherBuilds, layeredOver, recordBytes } from './format-layer.js';
 import { RecordWithoutCoverage } from './format-validation.js';
 import { openTestCoverage } from './format-view.js';
-import { codeUnitOrder } from './instrumented-modules.js';
 import type { TestCoverage } from './index.js';
 import { keepRecordedInstall, keptInstallOf, type KeptInstall } from './kept-install.js';
 import { keepRecordedTexts, keptTextsOf, landedTree, ranOverTexts, type KeptTexts } from './kept-texts.js';
-import { agreed, landingsAfter, landingsOf, observedBy, type Landing, type RanTests } from './landings.js';
+import { landingsAfter, observedBy, whatLanded, type Landing, type RanTests } from './landings.js';
 import { ownLayerAfter, readOwnLayer, workingTree, writeOwnLayer } from './own-layer.js';
 import { recordBase, takeReadFor } from './record-base.js';
 import { standingAfter } from './standing-after.js';
@@ -84,12 +85,10 @@ export interface CommitRuns {
    */
   readonly over?: string;
   /**
-   * When the first and the latest of the runs landed. A seeded record keeps
-   * the base's: they say when the runs its tests last ran in landed, which
-   * the seed does not change. A record seeded before landings were kept was
-   * stamped when it was seeded, so its time is not read (`landingsOf`).
+   * When the latest run at `commit` landed, the one that wrote the snapshot,
+   * also one that observed no test. A seeded record keeps the base's. When a
+   * test file ran is its landing's to say.
    */
-  readonly first: string;
   readonly latest: string;
   /**
    * How many runs landed at this commit. 0 in a worktree's record before its
@@ -99,20 +98,17 @@ export interface CommitRuns {
    */
   readonly runs: number;
   /**
-   * Every test file the runs at `commit` observed, in code-unit order: each
-   * one a run finished, and each one it ran that the snapshot did not hold.
-   */
-  readonly files: readonly string[];
-  /**
    * Each run at `commit` while a test file it finished has not been finished
    * again there, earliest first (`landings.ts`): a file's time, install and
-   * texts are the one landing's that lists it. A record without them reads as
-   * one landing of the fields above.
+   * texts are the one landing's that lists it, and the files the runs at
+   * `commit` observed are the ones their landings list (`whatLanded`). A record
+   * written before landings were kept reads as one landing of the files, span
+   * and install it held (`commitRunsIn`).
    */
-  readonly landings?: readonly Landing[];
+  readonly landings: readonly Landing[];
   /**
    * The commit each other test in the snapshot last ran at, each with its test
-   * files in code-unit order. A test in `files` is not listed. The commits are
+   * files in code-unit order. A test a landing lists is not listed. The commits are
    * in the order their runs landed, earliest first, which is oldest first only
    * along one line of history: a run may land at a commit older than the last.
    *
@@ -124,15 +120,6 @@ export interface CommitRuns {
    * `over` or to `commit`, says it did.
    */
   readonly standing?: readonly StandingEntry[];
-  /**
-   * The install the tests in `files` ran on, where it differs from `commit`'s:
-   * each lockfile and manifest the runs found edited, by the digest of the
-   * text kept for it, or `null` for one they found deleted (`kept-install.ts`).
-   * Empty when they ran on the commit's own. Absent when that is not known: a
-   * record written before installs were kept, a landing of shards that did not
-   * all name one install, or runs at this commit over two installs. A reader compares from `commit` then.
-   */
-  readonly installed?: KeptInstall;
 }
 
 /** Tests that last ran at one commit, or were assumed to have when no record could say. */
@@ -152,7 +139,7 @@ export interface StandingEntry {
    * not known.
    */
   readonly cases?: Readonly<Record<string, readonly string[]>>;
-  /** The install they ran on, as {@link CommitRuns.installed} says it; absent when not known. */
+  /** The install they ran on, as the landing they ran in said it (`kept-install.ts`); absent when not known. */
   readonly installed?: KeptInstall;
   /**
    * The texts they ran over where they differ from `commit`'s: each edited
@@ -164,9 +151,8 @@ export interface StandingEntry {
    */
   readonly texts?: KeptTexts;
   /**
-   * When the runs they last ran in landed, as {@link CommitRuns.first} and
-   * `latest` said it while those runs were the record's own, and how many
-   * there were. Carried from record to record with the tests, never worked out
+   * When the runs they last ran in landed, as their landing said it while it
+   * was the record's own, and how many there were. Carried from record to record with the tests, never worked out
    * again. Absent when that is not known: an assumed stand, and a record
    * written before stands carried it.
    */
@@ -350,19 +336,15 @@ export function commitRunsAfter(
   const retried =
     current.commit !== undefined && stood === current.commit && held?.commit !== undefined && held.commit !== current.commit;
   const over = again ? held.over : retried ? held.commit : stood;
-  const landings = landingsAfter(again ? landingsOf(held) : [], observedBy(prior, current), at, installed, texts);
-  const ran = [...new Set(landings.flatMap((landing) => landing.files))].sort(codeUnitOrder);
+  const landings = landingsAfter(again ? held.landings : [], observedBy(prior, current), at, installed, texts);
+  const ran = whatLanded(landings).files;
   const standing = current.commit === undefined ? undefined : standingAfter(prior, held, retried ? held.commit : stood, ran);
-  const install = agreed(landings, (landing) => landing.installed);
   return {
     ...(current.commit === undefined ? {} : { commit: current.commit }),
     ...(over === undefined ? {} : { over }),
-    first: again ? held.first : at,
     latest: at,
     runs: again ? held.runs + 1 : 1,
-    files: ran,
     ...(standing === undefined ? {} : { standing }),
-    ...(install === undefined ? {} : { installed: install }),
     landings,
   };
 }
@@ -379,16 +361,12 @@ export async function writeCommitRuns(to: string, record: CommitRuns): Promise<v
  * The runs recorded into the snapshot at `coverageFile`, or `undefined` when no
  * run has listed itself: when there is no file at all.
  *
- * A record that is there and cannot be read, or is not a JSON object, throws,
- * naming the file: it says where each test last ran, and a reader that took it
- * for *no record* would place every test at the journal's commit, which can
- * skip a test that should run. Each caller says what the record was for and
- * what to do. A writer need not refuse: {@link heldCommitRuns} lets it write a
- * record that says less, and says so.
- *
- * An install or texts the record holds that are not one are left out, where
- * they stand and at the record's commit: an install not known compares from
- * the commit, which runs more and skips nothing, and texts not known say so.
+ * A record that is there and cannot be read throws, naming the file, and so
+ * does one {@link commitRunsIn} refuses: it says where each test last ran, and a
+ * reader that took it for *no record* would place every test at the journal's
+ * commit, which can skip a test that should run. Each caller says what the
+ * record was for and what to do. A writer need not refuse: {@link heldCommitRuns}
+ * lets it write a record that says less, and says so.
  */
 export async function readCommitRuns(coverageFile: string): Promise<CommitRuns | undefined> {
   const file = commitRunsFile(coverageFile);
@@ -401,36 +379,72 @@ export async function readCommitRuns(coverageFile: string): Promise<CommitRuns |
       cause: error,
     });
   }
+  return commitRunsIn(text, `the runs record at ${file}`);
+}
+
+type Fields = { readonly [field: string]: unknown };
+
+const fieldsOf = (value: unknown): value is Fields => typeof value === 'object' && value !== null && !Array.isArray(value);
+
+/**
+ * The runs record `text` holds, as this build writes it, or a throw that starts
+ * with `named`: it is JSON a run wrote, read without its writer's types, so a
+ * shape it does not have is refused by name, never met as a `TypeError` by the
+ * reader that trusted it. A record written before landings reads as one
+ * landing, and a list of files or an install stored beside the landings is not
+ * read: the landings say both (`whatLanded`).
+ */
+export function commitRunsIn(text: string, named: string): CommitRuns {
   let parsed: unknown;
   try {
     parsed = JSON.parse(text);
   } catch (error) {
-    throw new Error(`the runs record at ${file} is not JSON: ${error instanceof Error ? error.message : String(error)}`, {
-      cause: error,
-    });
+    throw new Error(`${named} is not JSON: ${error instanceof Error ? error.message : String(error)}`, { cause: error });
   }
-  if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
-    throw new Error(`the runs record at ${file} is not a JSON object`);
+  if (!fieldsOf(parsed)) throw new Error(`${named} is not a JSON object`);
+  const { standing, landings: kept, files } = parsed;
+  if (standing !== undefined && !Array.isArray(standing)) throw new Error(`${named} holds a \`standing\` that is not a list`);
+  const stands: readonly unknown[] = standing ?? [];
+  for (const entry of stands) {
+    if (!fieldsOf(entry) || !Array.isArray(entry.files)) throw new Error(`${named} holds a \`standing\` entry with no list of test files`);
+    if (typeof entry.commit !== 'string') throw new Error(`${named} holds a \`standing\` entry that names no commit`);
   }
-  return withKnownKept(parsed as CommitRuns);
-}
-
-/** `record` with every install and texts it holds that are not one left out: what is not known is compared from its commit. */
-function withKnownKept(record: CommitRuns): CommitRuns {
-  const known = <T extends { readonly installed?: unknown; readonly texts?: unknown }>(of: T): Omit<T, 'installed' | 'texts'> & Pick<StandingEntry, 'installed' | 'texts'> => {
+  let landings: readonly unknown[];
+  if (kept !== undefined) {
+    if (!Array.isArray(kept)) throw new Error(`${named} holds \`landings\` that is not a list`);
+    landings = kept;
+  } else if (!Array.isArray(files)) {
+    throw new Error(`${named} has no list of the test files that ran at its commit`);
+  } else {
+    // Written before landings: one landing of the files it listed, with its span
+    // and install. One of no runs was a seed, stamped when it was seeded, so its
+    // time is not held; it names no texts, which came after it.
+    landings = files.length === 0 ? [] : [{
+      files,
+      ...(typeof parsed.runs === 'number' && parsed.runs > 0 ? { first: parsed.first, latest: parsed.latest, runs: parsed.runs } : {}),
+      ...(parsed.installed === undefined ? {} : { installed: parsed.installed }),
+    }];
+  }
+  if (!landings.every((landing) => fieldsOf(landing) && Array.isArray(landing.files))) {
+    throw new Error(`${named} holds a landing with no list of the test files it finished`);
+  }
+  // An install or texts that are not one are left out, where they stand and on
+  // a landing: an install not known compares from the record's commit, which
+  // runs more and skips nothing, and texts not known say so.
+  const known = (of: Fields): Fields => {
     const { installed, texts, ...rest } = of;
     const install = keptInstallOf(installed);
     const ranOver = keptTextsOf(texts);
     return { ...rest, ...(install === undefined ? {} : { installed: install }), ...(ranOver === undefined ? {} : { texts: ranOver }) };
   };
-  const each = <T>(entries: unknown): T[] | undefined => Array.isArray(entries)
-    ? entries.map((entry) => (typeof entry !== 'object' || entry === null ? entry : known(entry)) as T)
-    : (entries as T[] | undefined);
-  const standing = each<StandingEntry>(record.standing);
-  const landings = each<Landing>(record.landings);
-  // Texts are a landing's or a stand's; the record names none of its own.
-  const { texts: _texts, ...own } = known(record) as CommitRuns & Pick<StandingEntry, 'texts'>;
-  return { ...own, ...(standing === undefined ? {} : { standing }), ...(landings === undefined ? {} : { landings }) };
+  return {
+    ...(parsed.commit === undefined ? {} : { commit: parsed.commit }),
+    ...(parsed.over === undefined ? {} : { over: parsed.over }),
+    latest: parsed.latest,
+    runs: parsed.runs,
+    ...(standing === undefined ? {} : { standing: (stands as Fields[]).map(known) }),
+    landings: (landings as Fields[]).map(known),
+  } as unknown as CommitRuns;
 }
 
 /**

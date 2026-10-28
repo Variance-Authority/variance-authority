@@ -11,10 +11,12 @@
  * when the base had no record to copy.
  */
 
+// compass: variance-authority.reach
+
+import { codeUnitOrder } from '@variance-authority/core/segment';
 import type { CommitRuns, RecordedTests, StandingEntry } from './commit-runs.js';
-import { codeUnitOrder } from './instrumented-modules.js';
 import { installKey } from './kept-install.js';
-import { landingsOf, partlyIn } from './landings.js';
+import { partlyIn } from './landings.js';
 
 /**
  * Where each test the snapshot held before this run last ran, this run's own
@@ -58,7 +60,7 @@ export function standingAfter(
   if (start !== undefined && !stands.has(start)) stands.set(start, { commit: held.over!, files: [], assumed: true });
   // A test a landing finished stood at `base`, with that landing's time, install
   // and texts. A seeded record's landings are its base's, as they are.
-  for (const landing of landingsOf(held)) stand({ commit: base, files: [], ...ranOn(landing), ...landedOf(landing) }, landing.files, landing);
+  for (const landing of held.landings) stand({ commit: base, files: [], ...ranOn(landing), ...landedOf(landing) }, landing.files, landing);
   const grouped = new Map<string, string[]>();
   for (const test of unobserved) {
     const at = listed.get(test) ?? start;

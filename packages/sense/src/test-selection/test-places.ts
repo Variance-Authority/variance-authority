@@ -4,10 +4,11 @@
  * here: a selector reads the commit, `covering` the commit and the time.
  */
 
+// compass: variance-authority.reach
+
 import { codeUnitOrder } from '@variance-authority/core/segment';
 import type { CommitRuns, StandingEntry } from './commit-runs.js';
 import type { KeptTexts } from './kept-texts.js';
-import { landingsOf } from './landings.js';
 import type { ExecutionTest } from './reverse.js';
 
 /** Where one test last ran. */
@@ -107,7 +108,7 @@ function placesOf({ commit, runs, tests }: TestsAt<string | undefined>): Places<
     for (const file of stand.partly ?? []) parts.set(file, [...(parts.get(file) ?? []), its]);
   };
   for (const entry of runs.standing ?? []) place(entry, entry.files);
-  for (const landing of landingsOf(runs)) place({ ...landing, ...(commit === undefined ? {} : { commit }) }, landing.files);
+  for (const landing of runs.landings) place({ ...landing, ...(commit === undefined ? {} : { commit }) }, landing.files);
   // A test placed and run in part since is one place per pair, shared alike.
   const shared = new Map<TestPlace, Map<string, TestPlace>>();
   const withParts = (at: TestPlace, part: readonly TestPlace[] | undefined): TestPlace => {

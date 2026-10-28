@@ -44,6 +44,7 @@
 
 import type { CommitRuns } from './commit-runs.js';
 import { sameInstall, type KeptInstall } from './kept-install.js';
+import { whatLanded } from './landings.js';
 import { testPlaces } from './test-places.js';
 import { askCoverageFile } from './coverage-file.js';
 import { codeUnitOrder } from './instrumented-modules.js';
@@ -298,10 +299,11 @@ export function standsAt(
   const gone = new Set([...stands].filter(([test, stand]) => stand !== commit && !exists(test)).map(([test]) => test));
   const tests = recorded.tests.filter((test) => !gone.has(test));
   const reading = readingFrom({ commit, ref: undefined, runs, tests, git });
-  const ran = new Set(runs?.files);
+  const landed = runs === undefined ? undefined : whatLanded(runs.landings);
+  const ran = new Set(landed?.files);
   const installed =
-    runs?.commit === commit && runs.installed !== undefined && tests.every((test) => stands.get(test) !== commit || ran.has(test))
-      ? { installed: runs.installed }
+    runs?.commit === commit && landed?.installed !== undefined && tests.every((test) => stands.get(test) !== commit || ran.has(test))
+      ? { installed: landed.installed }
       : {};
   return { ...reading, ...(gone.size === 0 ? {} : { gone: [...gone].sort(codeUnitOrder) }), ...installed };
 }

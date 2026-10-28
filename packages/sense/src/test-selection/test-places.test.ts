@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { CommitRuns } from './commit-runs.js';
+import { commitRunsIn, type CommitRuns } from './commit-runs.js';
 import { lastRunsOf, testPlaces, type TestPlace } from './test-places.js';
 
 /**
@@ -11,10 +11,8 @@ import { lastRunsOf, testPlaces, type TestPlace } from './test-places.js';
 const runs: CommitRuns = {
   commit: 'H',
   over: 'P',
-  first: '2026-01-03T00:00:00.000Z',
   latest: '2026-01-04T00:00:00.000Z',
   runs: 2,
-  files: ['a.test.ts'],
   // The second run finished the file again, so the first left no landing.
   landings: [{ files: ['a.test.ts'], first: '2026-01-04T00:00:00.000Z', latest: '2026-01-04T00:00:00.000Z', runs: 1, texts: {} }],
   standing: [
@@ -43,8 +41,8 @@ describe('a test is placed where the runs record says it last ran, with the time
   });
 
   it('holds no time for a record seeded before landings, whose time was when it was seeded', () => {
-    const { landings: _landings, ...enveloped } = runs;
-    const { places } = testPlaces({ commit: 'H', runs: { ...enveloped, runs: 0 }, tests: ['a.test.ts'] });
+    const seeded = { commit: 'H', over: 'P', first: runs.latest, latest: runs.latest, runs: 0, files: ['a.test.ts'], standing: runs.standing };
+    const { places } = testPlaces({ commit: 'H', runs: commitRunsIn(JSON.stringify(seeded), 'the runs record'), tests: ['a.test.ts'] });
     expect(places.get('a.test.ts')).toEqual({ commit: 'H' });
   });
 
@@ -56,7 +54,7 @@ describe('a test is placed where the runs record says it last ran, with the time
 
   it('places the test files a run outside a checkout finished by its landing, with its time and at no commit', () => {
     const at = '2026-01-03T00:00:00.000Z';
-    const outside: CommitRuns = { first: at, latest: at, runs: 1, files: ['a.test.ts'], landings: [{ files: ['a.test.ts'], first: at, latest: at, runs: 1 }] };
+    const outside: CommitRuns = { latest: at, runs: 1, landings: [{ files: ['a.test.ts'], first: at, latest: at, runs: 1 }] };
     const { places, assumed } = testPlaces({ commit: undefined, runs: outside, tests: ['a.test.ts', 'b.test.ts'] });
 
     expect(places.get('a.test.ts')).toEqual({ first: at, latest: at, runs: 1 });

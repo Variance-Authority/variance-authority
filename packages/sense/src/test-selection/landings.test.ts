@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { commitRunsAfter, type CommitRuns, type RecordedTests } from './commit-runs.js';
-import type { Landing } from './landings.js';
+import { commitRunsAfter, commitRunsIn, type CommitRuns, type RecordedTests } from './commit-runs.js';
+import { whatLanded, type Landing } from './landings.js';
 import { testPlaces } from './test-places.js';
 
 const DAY1 = '2026-01-01T00:00:00.000Z';
@@ -31,11 +31,7 @@ function ranCases(commit: string, files: readonly string[], partly: Readonly<Rec
 
 /** The record one run at `commit` left at `at`: its one landing finished `files`, over the commit's texts unless `kept` says otherwise. */
 function record(commit: string, at: string, files: readonly string[], kept: Pick<Landing, 'installed' | 'texts'> = { texts: {} }): CommitRuns {
-  return {
-    commit, first: at, latest: at, runs: 1, files,
-    ...(kept.installed === undefined ? {} : { installed: kept.installed }),
-    landings: [{ files, first: at, latest: at, runs: 1, ...kept }],
-  };
+  return { commit, latest: at, runs: 1, landings: [{ files, first: at, latest: at, runs: 1, ...kept }] };
 }
 
 /** `commitRunsAfter`, landing at `at`. */
@@ -58,7 +54,7 @@ describe('a run observes the test files it finished', () => {
     const held = record('P', DAY1, ['a.test.ts', 'b.test.ts']);
     const after = landAt(DAY2, snapshot('P', 'a.test.ts', 'b.test.ts'), held, ran('R', ['a.test.ts'], ['b.test.ts']), {}, { 'src/m.ts': 'dirty' });
 
-    expect(after.files).toEqual(['a.test.ts']);
+    expect(whatLanded(after.landings).files).toEqual(['a.test.ts']);
     expect(after.standing).toEqual([{ commit: 'P', files: ['b.test.ts'], first: DAY1, latest: DAY1, runs: 1, texts: {} }]);
     expect(after.landings).toEqual([
       { files: ['a.test.ts'], partly: ['b.test.ts'], first: DAY2, latest: DAY2, runs: 1, installed: {}, texts: { 'src/m.ts': 'dirty' } },
@@ -69,7 +65,7 @@ describe('a run observes the test files it finished', () => {
     const held = record('P', DAY1, ['a.test.ts']);
     const after = landAt(DAY2, snapshot('P', 'a.test.ts'), held, ran('R', ['a.test.ts'], ['n.test.ts']), undefined, {});
 
-    expect(after.files).toEqual(['a.test.ts', 'n.test.ts']);
+    expect(whatLanded(after.landings).files).toEqual(['a.test.ts', 'n.test.ts']);
     expect(after.landings).toEqual([{ files: ['a.test.ts', 'n.test.ts'], first: DAY2, latest: DAY2, runs: 1, texts: {} }]);
   });
 
@@ -77,7 +73,8 @@ describe('a run observes the test files it finished', () => {
     const held: CommitRuns = { ...record('P', DAY1, ['a.test.ts', 'b.test.ts'], { installed: {}, texts: {} }), over: 'O' };
     const after = landAt(DAY2, snapshot('P', 'a.test.ts', 'b.test.ts'), held, ran('P', ['b.test.ts'], ['a.test.ts']), {}, { 'src/m.ts': 'dirty' });
 
-    expect(after).toMatchObject({ commit: 'P', over: 'O', first: DAY1, latest: DAY2, runs: 2, files: ['a.test.ts', 'b.test.ts'], installed: {} });
+    expect(after).toMatchObject({ commit: 'P', over: 'O', latest: DAY2, runs: 2 });
+    expect(whatLanded(after.landings)).toEqual({ files: ['a.test.ts', 'b.test.ts'], installed: {} });
     expect(after).not.toHaveProperty('texts');
     expect(after.landings).toEqual([
       { files: ['a.test.ts'], first: DAY1, latest: DAY1, runs: 1, installed: {}, texts: {} },
@@ -170,7 +167,8 @@ describe('each run is its own landing', () => {
     const one = landAt(DAY1, undefined, undefined, outside(['a.test.ts', 'b.test.ts']), {}, {});
     const two = landAt(DAY2, { instrumentation: 'fixture', tests: [{ file: 'a.test.ts' }, { file: 'b.test.ts' }] }, one, outside(['b.test.ts'], ['a.test.ts']), {}, {});
 
-    expect(two).toMatchObject({ first: DAY1, latest: DAY2, runs: 2, files: ['a.test.ts', 'b.test.ts'] });
+    expect(two).toMatchObject({ latest: DAY2, runs: 2 });
+    expect(whatLanded(two.landings).files).toEqual(['a.test.ts', 'b.test.ts']);
     expect(two.landings).toEqual([
       { files: ['a.test.ts'], first: DAY1, latest: DAY1, runs: 1, installed: {}, texts: {} },
       { files: ['b.test.ts'], partly: ['a.test.ts'], first: DAY2, latest: DAY2, runs: 1, installed: {}, texts: {} },
@@ -180,9 +178,40 @@ describe('each run is its own landing', () => {
   });
 
   it('reads a record written before landings as one landing of its envelope, which names no texts', () => {
-    const held: CommitRuns = { commit: 'P', first: DAY1, latest: DAY2, runs: 2, files: ['a.test.ts'], installed: {} };
+    const held = commitRunsIn(JSON.stringify({ commit: 'P', first: DAY1, latest: DAY2, runs: 2, files: ['a.test.ts'], installed: {} }), 'the runs record');
     const { places } = testPlaces({ commit: 'P', runs: held, tests: ['a.test.ts'] });
 
     expect(places.get('a.test.ts')).toEqual({ commit: 'P', first: DAY1, latest: DAY2, runs: 2 });
+  });
+});
+
+describe('the runs record stores its landings', () => {
+  it('stores each landing, and no list of files or install the landings already say', () => {
+    const one = landAt(DAY1, snapshot('O', 'a.test.ts', 'b.test.ts'), undefined, ran('P', ['b.test.ts']), {}, {});
+    const two = landAt(DAY2, snapshot('P', 'a.test.ts', 'b.test.ts'), one, ran('P', ['a.test.ts']), {}, {});
+
+    expect(two).toMatchObject({ commit: 'P', over: 'O', latest: DAY2, runs: 2 });
+    expect(two.landings.map((landing) => [landing.files, landing.latest])).toEqual([[['b.test.ts'], DAY1], [['a.test.ts'], DAY2]]);
+    expect(two).not.toHaveProperty('files');
+    expect(two).not.toHaveProperty('first');
+    expect(two).not.toHaveProperty('installed');
+    expect(whatLanded(two.landings)).toEqual({ files: ['a.test.ts', 'b.test.ts'], installed: {} });
+  });
+
+  it('counts a run that observed nothing, and dates the record by it, leaving the landings as they were', () => {
+    const one = landAt(DAY1, snapshot('O', 'a.test.ts'), undefined, ran('P', ['a.test.ts']), {}, {});
+    const two = landAt(DAY2, snapshot('P', 'a.test.ts'), one, { ...ranCases('P', [], { 'a.test.ts': [] }) }, {}, {});
+
+    expect(two).toEqual({ ...one, latest: DAY2, runs: 2 });
+  });
+
+  it('says which files its landings finished, and the install when every landing that finished one names the same', () => {
+    expect(whatLanded([
+      { files: ['b.test.ts'], installed: {} },
+      { files: [], partly: ['c.test.ts'] },
+      { files: ['a.test.ts'], installed: {} },
+    ])).toEqual({ files: ['a.test.ts', 'b.test.ts'], installed: {} });
+    expect(whatLanded([{ files: ['b.test.ts'], installed: {} }, { files: ['a.test.ts'] }])).toEqual({ files: ['a.test.ts', 'b.test.ts'] });
+    expect(whatLanded([])).toEqual({ files: [] });
   });
 });

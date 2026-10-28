@@ -38,7 +38,7 @@ import { editsBetween, type EditOf } from './region-edit.js';
 import { withIndexLock } from './index-lock.js';
 import type { TestCoverage } from './index.js';
 import { codeUnitOrder } from './instrumented-modules.js';
-import { agreed, landingsOf, partlyIn, type Landing } from './landings.js';
+import { partlyIn, whatLanded, type Landing } from './landings.js';
 import { landedOf, ranOn, standKey } from './standing-after.js';
 import { opensFetched, type LastFetched } from './mainline-layer.js';
 import { readOwnLayer, writeOwnLayer, type OwnLayer, type OwnState } from './own-layer.js';
@@ -287,7 +287,7 @@ function repinnedRuns(
   // another, they would be compared from the wrong one, so they are dropped
   // and compared from the new commit.
   const moved = commit !== undefined && commit !== held.commit;
-  const landings = landingsOf(held).flatMap((landing): Landing[] => {
+  const landings = held.landings.flatMap((landing): Landing[] => {
     const files = landing.files.filter((file) => kept.has(file));
     const part = partlyIn(landing, (file) => kept.has(file));
     if (files.length === 0 && part.partly === undefined) return [];
@@ -300,8 +300,7 @@ function repinnedRuns(
       ...(moved || texts === undefined ? {} : { texts }),
     }];
   });
-  const files = [...new Set(landings.flatMap((landing) => landing.files))].sort(codeUnitOrder);
-  const here = new Set(files);
+  const here = new Set(whatLanded(landings).files);
   // Where each test stands, and what it ran on there, as the runs record said
   // it. A test the ledger places at a commit no entry names it at keeps none
   // of it, and is compared from that commit.
@@ -318,7 +317,7 @@ function repinnedRuns(
     groups.set(standKey(stand), group);
   };
   const milestone = new Set(recorded.filter((file) => !kept.has(file)));
-  for (const landing of published === undefined ? [] : landingsOf(published)) {
+  for (const landing of published?.landings ?? []) {
     for (const file of landing.files.filter((one) => milestone.delete(one))) {
       standAt({ commit: record.commit, files: [], ...ranOn(landing), ...landedOf(landing) }, file);
     }
@@ -331,16 +330,14 @@ function repinnedRuns(
     }
   }
   const standing = [...groups.values()].map(({ stand, files: its }) => ({ ...stand, files: [...new Set(its)].sort(codeUnitOrder) }));
-  const installed = agreed(landings, (landing) => landing.installed);
-  const { installed: _installed, landings: _landings, ...rest } = held;
+  const at = commit ?? held.commit;
   return {
-    ...rest,
-    ...(commit === undefined ? {} : { commit }),
+    ...(at === undefined ? {} : { commit: at }),
     over: record.commit,
-    files,
-    landings,
+    latest: held.latest,
+    runs: held.runs,
     standing,
-    ...(installed === undefined ? {} : { installed }),
+    landings,
   };
 }
 

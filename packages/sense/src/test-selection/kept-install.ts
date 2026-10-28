@@ -30,7 +30,7 @@ import { LOCKFILES } from '../lock/read.js';
 import type { CommitRuns } from './commit-runs.js';
 import { keepText, type KeptTexts, type LandedTree } from './kept-texts.js';
 import { codeUnitOrder } from './instrumented-modules.js';
-import { agreed, landingsOf } from './landings.js';
+import { agreed, whatLanded } from './landings.js';
 
 /**
  * Each install file that differed from the run's commit when it ran, named from
@@ -78,7 +78,7 @@ export async function keepRecordedInstall(tree: LandedTree | undefined): Promise
 /** A shard's tests and the runs record its own landing left, as a fold of shards reads them. */
 export interface ShardRuns {
   readonly tests: { readonly commit?: string; readonly tests: readonly { readonly file: string }[] };
-  readonly runs: Pick<CommitRuns, 'commit' | 'runs' | 'files' | 'first' | 'latest' | 'installed' | 'landings'> | undefined;
+  readonly runs: Pick<CommitRuns, 'commit' | 'runs' | 'landings'> | undefined;
 }
 
 /**
@@ -95,7 +95,7 @@ export interface ShardRuns {
  * reader compares from the commit.
  */
 export function shardsInstall(shards: readonly ShardRuns[]): KeptInstall | undefined {
-  return shardsKept(shards, (runs) => runs.installed);
+  return shardsKept(shards, (runs) => whatLanded(runs.landings).installed);
 }
 
 /**
@@ -105,7 +105,7 @@ export function shardsInstall(shards: readonly ShardRuns[]): KeptInstall | undef
  * one set (`agreed`), and all name the same.
  */
 export function shardsTexts(shards: readonly ShardRuns[]): KeptTexts | undefined {
-  return shardsKept(shards, (runs) => agreed(landingsOf(runs), (landing) => landing.texts));
+  return shardsKept(shards, (runs) => agreed(runs.landings, (landing) => landing.texts));
 }
 
 function shardsKept<Kept extends KeptInstall>(shards: readonly ShardRuns[], of: (runs: NonNullable<ShardRuns['runs']>) => Kept | undefined): Kept | undefined {
@@ -113,9 +113,7 @@ function shardsKept<Kept extends KeptInstall>(shards: readonly ShardRuns[], of: 
   for (const { tests, runs } of shards) {
     const its = runs === undefined ? undefined : of(runs);
     if (runs === undefined || its === undefined || runs.runs === 0 || tests.commit === undefined || runs.commit !== tests.commit) return undefined;
-    // A record read off disk is a JSON object, its fields as written: files that are not a list name no test.
-    if (!Array.isArray(runs.files)) return undefined;
-    const ran = new Set(runs.files);
+    const ran = new Set(whatLanded(runs.landings).files);
     if (!tests.tests.every((test) => ran.has(test.file))) return undefined;
     if (kept !== undefined && !sameInstall(kept, its)) return undefined;
     kept = its;

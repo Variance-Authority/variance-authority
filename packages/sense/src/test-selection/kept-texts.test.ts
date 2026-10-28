@@ -336,9 +336,9 @@ describe('the runs record names the texts its runs ran over', () => {
       };
       await landRun(coverageFile, second, at.root, at.cacheRoot);
       const after = (await readCommitRuns(coverageFile))!;
-      expect(after.landings?.map((landing) => landing.texts)).toEqual([{}]);
+      expect(after.landings.map((landing) => landing.texts)).toEqual([{}]);
       expect(after.standing).toEqual([
-        { commit: at.commit, files: [TESTS[0]], first: before.first, latest: before.latest, runs: 1, installed: {}, texts: { [FILE]: digestString(FIRST_EDITED) } },
+        { commit: at.commit, files: [TESTS[0]], first: before.landings[0]!.first, latest: before.latest, runs: 1, installed: {}, texts: { [FILE]: digestString(FIRST_EDITED) } },
       ]);
     });
   });

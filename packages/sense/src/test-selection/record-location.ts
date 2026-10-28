@@ -304,11 +304,10 @@ export function noteSeeded(seeded: Seeded | undefined): void {
  * The primary checkout's record is the recording of `main` as of its last run,
  * and it is what every worktree starts from, so a test the worktree has not run
  * last ran where that record says it did. The runs record beside it says that
- * per test, and it is carried rather than worked out again: `commit`, `over`,
- * `files` and `standing` as the base wrote them. Without it the worktree's first
- * partial run finds no record to carry `standing` forward from, and until a run
- * observes every test, a test it did not run is read from the worktree's own
- * first commit — which skips it after a change it never ran against.
+ * per test, and it is carried as the base wrote it, not worked out again.
+ * Without it the worktree's first partial run has no `standing` to carry, and
+ * until a run observes every test, a test it did not run is read from the
+ * worktree's first commit — which skips it after a change it never ran against.
  *
  * A copy, and nothing added to it: an entry the base marked assumed stays
  * marked, and a test the base's record does not place is read from the base's
@@ -324,7 +323,8 @@ export function noteSeeded(seeded: Seeded | undefined): void {
  *
  * `runs` is 0, so the worktree's first run at the same commit is not counted
  * as another run of the base's (see `landRun`), and a review still finds no
- * run of this checkout listed; `first` and `latest` stay the base's landings.
+ * run of this checkout listed. `latest` and the landings, each with the time
+ * it landed, stay the base's, as {@link readCommitRuns} reads them.
  *
  * The record is linked into place rather than renamed over it, so a runs record
  * already beside the snapshot when the link is made is kept. That protects this

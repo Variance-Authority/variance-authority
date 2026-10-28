@@ -28,7 +28,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { mkdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { cacheRootFor, primaryCacheRoot } from './cache-layers.js';
-import { commitRunsFile, type CommitRuns } from './commit-runs.js';
+import { commitRunsFile, commitRunsIn, type CommitRuns } from './commit-runs.js';
 import { caseSectionsOf } from './case-record.js';
 import { decodeExecutionTests } from './execution-format.js';
 import { openSetExecutionIndex } from './execution-set-format.js';
@@ -204,8 +204,9 @@ function fetchedMainlineReads(record: LastFetched): boolean {
 /**
  * Throws unless this build reads each part. Opening parses the section index
  * and nothing else, which is the whole of what "this build can read it" means;
- * the runs record reads when it is a JSON object, as `readCommitRuns` has it.
- * Returns the runs record when it names the snapshot's own commit. A record
+ * the runs record reads when `commitRunsIn` reads it, a record written before
+ * landings as one landing. Returns the runs record when it names the
+ * snapshot's own commit. A record
  * whose run instrumented nothing reads, for its cases, and names no commit any
  * test stands at, so no runs record is laid beside it.
  */
@@ -222,9 +223,8 @@ export function opensFetched(
   const { index } = caseSectionsOf(coverage);
   if (index !== undefined && openSetExecutionIndex(index) === undefined) decodeExecutionTests(index);
   if (runs === undefined) return undefined;
-  const held: unknown = JSON.parse(Buffer.from(runs).toString('utf8'));
-  if (typeof held !== 'object' || held === null || Array.isArray(held)) throw new Error('the runs record is not a JSON object');
-  return commit !== undefined && (held as CommitRuns).commit === commit ? (held as CommitRuns) : undefined;
+  const held = commitRunsIn(Buffer.from(runs).toString('utf8'), 'the runs record');
+  return commit !== undefined && held.commit === commit ? held : undefined;
 }
 
 /** `held` as the seed of a checkout that has not run: its runs are none of this checkout's, and landed when they landed. */
