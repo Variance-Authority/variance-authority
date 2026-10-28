@@ -290,6 +290,31 @@ describe('the runs record names the texts its runs ran over', () => {
     });
   });
 
+  it('names an edited module the run did not instrument, and an edited precondition, by the digests the run recorded', async () => {
+    await checkout(async (at) => {
+      await writeFile(resolve(at.root, 'src/plain.ts'), 'export const plain = 1;\n', 'utf8');
+      await writeFile(resolve(at.root, 'src/fixture.json'), '{"value":1}\n', 'utf8');
+      await writeFile(resolve(at.root, 'src/clean.json'), '{"value":0}\n', 'utf8');
+      await at.git('add', '--all');
+      await at.git('commit', '--quiet', '--message', 'a plain module and two fixtures');
+      const commit = await at.git('rev-parse', 'HEAD');
+      await writeFile(resolve(at.root, 'src/plain.ts'), 'export const plain = 2;\n', 'utf8');
+      await writeFile(resolve(at.root, 'src/fixture.json'), '{"value":2}\n', 'utf8');
+      const run = recording(COMMITTED, commit);
+      const current: TestCoverage = {
+        ...run,
+        tests: run.tests.map((test) => ({
+          ...test,
+          preconditions: [...test.preconditions, { name: 'src/fixture.json', digest: 'fixture:edited' }, { name: 'src/clean.json', digest: 'fixture:clean' }],
+        })),
+        modules: [...run.modules, { file: 'src/plain.ts', sourceDigest: 'plain:edited', instrumented: false, blocks: [] }],
+      };
+      const coverageFile = testCoverageFile(at.root, { cacheRoot: at.cacheRoot });
+      await landRun(coverageFile, current, at.root, at.cacheRoot);
+      expect((await readCommitRuns(coverageFile))?.texts).toEqual({ 'src/fixture.json': 'fixture:edited', 'src/plain.ts': 'plain:edited' });
+    });
+  });
+
   it('carries the texts with the tests a run at another commit did not observe', async () => {
     await checkout(async (at) => {
       const coverageFile = await recordOver(at, FIRST_EDITED);

@@ -34,6 +34,7 @@ import { digestString } from '../digest.js';
 import { workingTreeChanges, type WorkingTreeChanges } from '../working-tree-changes.js';
 import { layeredFiles, repositoryLayers } from './cache-layers.js';
 import type { TestCoverageView } from './format-view.js';
+import type { CoverageTest, TestCoverage } from './index.js';
 import { codeUnitOrder } from './instrumented-modules.js';
 import { findModules, findString } from './lookup.js';
 import { writeCoverageBytes } from './record-location.js';
@@ -119,23 +120,33 @@ export type KeptTexts = Readonly<Record<string, string>>;
 
 /**
  * The texts `current` ran over where its commit does not hold them: every
- * module it instrumented that git says differs from `HEAD`, named by the
- * digest the run recorded for it, in code-unit order. A module the run
- * recorded as clean ran over the commit's text, and is not named.
+ * module it read and every precondition its tests named that git says differs
+ * from `HEAD`, by the digest the run recorded for it, in code-unit order. A
+ * module the run recorded as clean ran over the commit's text, and is not
+ * named. A path that is both a module and a precondition is named by the
+ * module's digest; one the tests named by two digests, by the first test's.
  *
  * The digest is the run's own, not the disk's: a module edited again while the
  * suite ran is named by the text the tests ran over, which `keepRecordedTexts`
  * then has no text for. `undefined` with no tree to ask, which is outside a
  * checkout or git not answering.
  */
-export function ranOverTexts(tree: LandedTree | undefined, current: { readonly modules: readonly { readonly file: string; readonly sourceDigest: string; readonly instrumented: boolean }[] }): KeptTexts | undefined {
+export function ranOverTexts(
+  tree: LandedTree | undefined,
+  current: Pick<TestCoverage, 'modules'> & { readonly tests: readonly Pick<CoverageTest, 'preconditions'>[] },
+): KeptTexts | undefined {
   if (tree === undefined) return undefined;
   const moved = new Set([...tree.changes.changed, ...tree.changes.gone]);
-  const texts: Record<string, string> = {};
+  const texts = new Map<string, string>();
   for (const module of current.modules) {
-    if (module.instrumented && moved.has(module.file)) texts[module.file] = module.sourceDigest;
+    if (moved.has(module.file)) texts.set(module.file, module.sourceDigest);
   }
-  return Object.fromEntries(Object.entries(texts).sort(([a], [b]) => codeUnitOrder(a, b)));
+  for (const test of current.tests) {
+    for (const { name, digest } of test.preconditions) {
+      if (moved.has(name) && !texts.has(name)) texts.set(name, digest);
+    }
+  }
+  return Object.fromEntries([...texts].sort(([a], [b]) => codeUnitOrder(a, b)));
 }
 
 /**
