@@ -3,4 +3,16 @@
 '@variance-authority/cli': minor
 ---
 
-`ask search` labels each count it prints with what it counts. Beside a published name it now says the places that import it and the packages those sit in — `imported in 5 places in 2 packages` — counted as `ask uses` counts them, so the two agree; it is counted for the rows shown only, the Help value is opened only when those rows include a published name, and the stored index is unchanged. Before, it printed `2 packages, 3 imports`, which counted only other packages' imports by a published path and read as every import. Without the Help value, and in `entrypoint`'s rows, the count that is printed says so: `3 imports by published path from 2 other packages`. In JSON a published match carries `importedIn: { places, packages }`, and its `packages` and `imports` fields are renamed `otherPackages` and `otherImports`; the answer carries `importsUnread` when the source index did not read and imports by file path could not be counted. When the Help value is published and does not open, an answer that shows a published name says so beside the index's counts it prints instead.
+`ask search` now prints, beside each published name, the places that import it and the packages those places sit in, counted as `ask uses` counts them: `imported in 5 places in 2 packages`, or `imported nowhere`. Before, it printed `2 packages, 3 imports`. That number counted only imports by a published path from other packages, but it read as every import. The rows a page shows are ordered by the count they print. Search counts only the rows it shows, and opens the Help value only when one of them is a published name.
+
+Without the Help value, and in `entrypoint`'s rows, the narrower count is printed under its own name: `3 imports by published path from 2 other packages`, or `no other package imports it by its published path`.
+
+JSON changes:
+
+- A published match carries `importedIn: { places, packages }`.
+- Its `packages` and `imports` fields are renamed `otherPackages` and `otherImports`.
+- The answer carries `importsUnread` when the source index did not read, so imports by file path were not counted.
+
+When the Help value is published but does not open, an answer that shows a published name says so beside the index counts it prints instead.
+
+Breaking for code that builds a `SearchReading` itself: it now requires `value`, a thunk that reads the Help value on demand. `countingShown` calls it.

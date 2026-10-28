@@ -150,4 +150,13 @@ describe('variance ask search counts the places that import a published name as 
     expect(greetRows(out)).toEqual(['@acme/lib · greet [function] 1 import by published path from 1 other package — UNDOCUMENTED']);
     expect(out).toMatch(/^The published value at .* did not open \(.*\); the published search, with the counts it carries, was read instead\.$/mu);
   });
+
+  it('says no other package imports a name by its published path when that count is zero', async () => {
+    const root = checkout({ ...FIVE_WITHIN, 'apps/app/src/hello.ts': 'export const hello = 1;\n' });
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+    writeFileSync(workspaceSnapshotPath(sourceIndexPath(root)), 'not a value');
+
+    const { out } = await run(['ask', 'search', '--query', 'greet']);
+    expect(greetRows(out)).toEqual(['@acme/lib · greet [function] no other package imports it by its published path — UNDOCUMENTED']);
+  });
 });

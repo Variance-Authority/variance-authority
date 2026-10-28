@@ -106,22 +106,23 @@ This package is for the workspace that does not run one.
 
 ### What you get
 
-Text, on stdout. `search` answers in two sections: the names a manifest
-publishes, ranked by where they hold your words (the name, then the doc's
-first paragraph, then the rest of it) and then by how many other packages
-import them by a published path, each labelled with the places that import it
-and the packages those sit in, counted as `uses` counts them; then the names the source exports without publishing. A third follows
-when your words match a name they do not contain. Run against this repository, abridged to the first few lines of
-each section:
+Text, on stdout. `search` answers in two sections. The first holds the names a
+manifest publishes, ranked by where they hold your words: the name, then the
+doc's first paragraph, then the rest of it. Each is labelled with the places
+that import it and the packages those places sit in, counted as `uses` counts
+them, and the rows shown are ordered by those packages, then those places. The
+second holds the names the source exports without publishing. A third follows
+when your words match a name they do not contain. Run against this repository,
+abridged to the first few lines of each section:
 
 ```
 16 published matches for `viewport`
 
 @variance-authority/core/format · Viewport [interface] imported in 68 places in 18 packages — UNDOCUMENTED
 @variance-authority/storybook · StoryViewport [interface] imported in 1 place in 1 package — A per-story viewport override.
+@variance-authority/storybook · declarationOf [function] imported in 2 places in 2 packages — One story's `parameters.variance`, checked against the run's viewport.
 @variance-authority/core/format · documentDigest [function] imported in 33 places in 13 packages — Content address of a document: *what is to be painted*.
-@variance-authority/dom · conditionsFor [function] imported in 2 places in 2 packages — The condition environment a capture of this document would be flattened against.
-@variance-authority/core · CaptureMaterial [type] imported nowhere — Material already captured from a host, before retention or reporting.
+@variance-authority/core/format · PageRegion [interface] imported in 16 places in 6 packages — The timezone a page's clock reads in and the language it formats for, as Playwright names them.
 
 22 more names are exported somewhere in the repository without being published:
 
