@@ -59,14 +59,14 @@ export function spokenSplit(count: Pick<Counted, 'inside' | 'outside'>, home: st
 }
 
 /** How many places import a name, and how many packages those places sit in. */
-export interface Importing {
+export interface ImportedIn {
   readonly places: number;
   /** The packages the places sit in, the declaring one included; a place no manifest holds is in none. */
   readonly packages: number;
 }
 
 /** The places among `sites` that {@link counted} counts, and the packages they sit in. */
-export function importingIn(sites: readonly Site[]): Importing {
+export function importingIn(sites: readonly Site[]): ImportedIn {
   const { certain } = counted(sites, undefined);
   return { places: certain.length, packages: new Set(certain.flatMap((site) => packageOf(site.by) ?? [])).size };
 }

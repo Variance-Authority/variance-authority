@@ -1,6 +1,6 @@
 import type { DescribedMatch, ExportedMatch, DeclaredMatch, SearchAnswer } from './search-answer.js';
 import type { Help } from '@variance-authority/package/help';
-import { type Importing, importingIn } from './uses-count.js';
+import { type ImportedIn, importingIn } from './uses-count.js';
 import { publishedSitesOf } from './uses-of.js';
 
 // compass: variance-authority.report.agent-surface
@@ -33,7 +33,7 @@ export interface PublishedMatch {
    * them for its name and its file. Absent when the answer was given without
    * the Help value those are read from.
    */
-  readonly importedIn?: Importing;
+  readonly importedIn?: ImportedIn;
   /** Packages other than its own that import it by a specifier it is published from: the order rows sort on. */
   readonly otherPackages: number;
   /** The imports those packages write by such a specifier. */
@@ -67,7 +67,7 @@ export function withImporting(answer: SearchAnswer, importingOf: ImportingOf | u
 
 /** What imports one published declaration, and why the imports within its package were not read, when they were not. */
 export interface ImportingOne {
-  readonly importing: Importing;
+  readonly importing: ImportedIn;
   readonly unread?: string;
 }
 
