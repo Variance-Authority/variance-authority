@@ -52,7 +52,7 @@ const SCHEMA = join(ROOT, 'packages/cli/schema/variance.config.schema.json');
  * Three readers, and each is named rather than exempted by shape. `{ "env": "NAME" }` is
  * read by `secret` and `declaredSecret` in `config-values.ts`, field by field,
  * because the alternative shape is a bare string and `object` answers one
- * question about one value. `{ "kind", "carry", "before", "relations", "precision" }` under `suites` is
+ * question about one value. `{ "kind", "carry", "before", "ignore", "relations", "precision" }` under `suites` is
  * read by `parseSuites` in `@variance-authority/sense`, because every test runner seam
  * reads the declaration itself and the CLI carries that reading rather than
  * writing its rules a second time. `{ "axes" }` and `{ "axis", "values" }` under
@@ -64,7 +64,7 @@ const SCHEMA = join(ROOT, 'packages/cli/schema/variance.config.schema.json');
  */
 const HAND_READ: readonly (readonly string[])[] = [
   ['env'],
-  ['kind', 'carry', 'before', 'relations', 'precision'],
+  ['kind', 'carry', 'before', 'ignore', 'relations', 'precision'],
   ['axes'],
   ['axis', 'values'],
 ];

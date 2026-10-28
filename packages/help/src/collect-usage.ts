@@ -15,6 +15,7 @@ import {
   type Deep,
   type ImportTargets,
   type Taken,
+  type Through,
   type Usage,
   type Use,
 } from '@variance-authority/package/help';
@@ -91,9 +92,8 @@ export function collectingUsage(root: string, opened: ReadonlySet<string>, targe
         for (const binding of asked.bindings) {
           if (binding.imported !== NAMESPACE_NAME) usage.take(key, binding.imported, { ...renamed(binding), by, at, line: binding.line, type: binding.type, kind });
         }
-        const through = { kind: asked.kind === 'dynamic' ? 'dynamic' : 'namespace', line: asked.line } as const;
         for (const member of parsed.members ?? []) {
-          if (member.request === index) usage.take(key, member.name, { by, at, line: member.line, type: false, kind, through });
+          if (member.request === index) usage.take(key, member.name, { by, at, line: member.line, type: asked.kind === 'type', kind, through: throughOf(asked, member) });
         }
       }
     },
@@ -121,11 +121,23 @@ function takenBy(
     if (binding.imported === NAMESPACE_NAME) continue;
     taken.push({ name: binding.imported, ...renamed(binding), by, at, line: binding.line, type: binding.type, kind });
   }
-  const through = { kind: asked.kind === 'dynamic' ? 'dynamic' : 'namespace', line: asked.line } as const;
   for (const member of parsed.members ?? []) {
-    if (member.request === index) taken.push({ name: member.name, by, at, line: member.line, type: false, kind, through });
+    if (member.request === index) taken.push({ name: member.name, by, at, line: member.line, type: asked.kind === 'type', kind, through: throughOf(asked, member) });
   }
   return taken;
+}
+
+/**
+ * The request a member is read through, and how: off its `default`, or the module escaping whole as `*`.
+ * Only an `import()` type holds a module through a `type` request, so it is an `import()`, and its reads are types.
+ */
+function throughOf(asked: Parsed['requests'][number], member: NonNullable<Parsed['members']>[number]): Through {
+  return {
+    kind: asked.kind === 'dynamic' || asked.kind === 'type' ? 'dynamic' : 'namespace',
+    line: asked.line,
+    ...(member.throughDefault === true ? { throughDefault: true } : {}),
+    ...(member.name === NAMESPACE_NAME ? { whole: true } : {}),
+  };
 }
 
 /** The `local` of a use of `binding`, when its statement renames it with `as`. */

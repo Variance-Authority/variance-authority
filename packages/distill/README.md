@@ -5,6 +5,7 @@
 > Find the code one test loads but never uses, and get a concrete substitution to try.
 
 Part of [Variance Authority](https://variance-authority.dev).
+Point your coding agent at [`llms.txt`](https://variance-authority.dev/llms.txt).
 
 ## What this is for
 

@@ -7,7 +7,7 @@
  * names import nothing.
  */
 
-import type { InstrumentMode } from './spliced.js';
+import type { InstrumentMode, WalkMode } from './spliced.js';
 
 /** Changes whenever two instrumented block universes must not share observations. */
 export const INSTRUMENTATION_ID = 'sense:instrument/presence-v6';
@@ -21,6 +21,7 @@ export const INSTRUMENTATION_ID = 'sense:instrument/presence-v6';
 const IDS: Readonly<Record<InstrumentMode, string>> = {
   presence: INSTRUMENTATION_ID,
   entries: 'sense:instrument/entries-v3',
+  loads: 'sense:instrument/loads-v1',
 };
 
 /**
@@ -35,4 +36,14 @@ export function instrumentationId(mode: InstrumentMode = 'presence'): string {
 /** The mode an identity names, or nothing for a recipe this build does not emit. */
 export function instrumentModeOf(instrumentation: string): InstrumentMode | undefined {
   return (Object.keys(IDS) as InstrumentMode[]).find((mode) => IDS[mode] === instrumentation);
+}
+
+/**
+ * Whether `mode` probes regions. A test file is cut, and a case scoped, only
+ * to say which test line and which case reached a region first; `loads` marks
+ * a module as its file loads it, before any case opens, and has no region to
+ * charge to either. No mode is `presence`.
+ */
+export function probesRegions(mode: InstrumentMode | undefined): mode is WalkMode | undefined {
+  return mode !== 'loads';
 }

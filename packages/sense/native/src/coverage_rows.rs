@@ -17,7 +17,8 @@
 use std::ops::Range;
 
 use crate::journey_columns::{self, Decoded};
-use crate::case_shard::{decode_set, strings};
+use crate::case_shard::strings;
+use crate::crossing_sets::decode_set;
 use crate::record_layout::LAYOUT;
 /// `BLOCK_KINDS` in `format-layout.ts`.
 pub(crate) const MODULE: u32 = 0;

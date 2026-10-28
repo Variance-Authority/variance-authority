@@ -21,7 +21,7 @@ const MAC: RenderIdentity = {
 };
 
 describe('a description that cannot be trusted', () => {
-  beforeEach(() => variancePrecondition({ network: 'stubbed', remote: 'garbled' }));
+  beforeEach(() => variancePrecondition('fixture', { network: 'stubbed', remote: 'garbled' }));
   it('refuses a description body that is not an answer', async () => {
     // The cheap route is the one a caller reaches for on every subject, so a body
     // it is willing to guess at is a body that settles a whole run.

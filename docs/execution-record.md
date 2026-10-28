@@ -165,10 +165,11 @@ for (const module of coverage.modules) {
 
 `readTestCoverage` decodes the whole file into `TestCoverage`, the model the
 rest of this page describes: tests with their preconditions, modules with their
-blocks, and on each block the test files that crossed it. Budget a second and
-three hundred megabytes of heap for a repository-scale snapshot — thirty times
-the file it came from — because the model is made of objects where the file is
-made of columns.
+blocks, and on each block the test files that crossed it. The model is made of
+objects where the file is made of columns, so its heap is many times the file:
+about a second and three hundred megabytes for a ten-megabyte record, and four
+and a half minutes and over five gigabytes for a 77 MB record of 200,000
+modules.
 
 When you want one module's regions rather than the repository's, open the file
 instead of decoding it. `openCoverageFile(file)` parses the section index and
@@ -542,6 +543,17 @@ under the file where the runner gives none. A path the file declares twice
 cannot be matched to one of the two cases, so neither is timed. A case index
 written before cases carried durations opens with every case untimed.
 
+The case index also carries what each case said, its
+[case preconditions](case-preconditions.md), in a `tests.said` section. Each
+distinct `(name, value, site, level)` is one item, and the cases that said it are
+a set in the same pool the crossings use, so a value every case of a file says
+costs one item and a set the record usually holds already. The section stores
+every item, an overridden one too, and a case's row is resolved when it is read.
+One more set names the cases a recorder listened to: a case outside it is
+unmeasured, a case inside it and under no item said nothing. A case index
+without the section, including one written before it existed, opens with every
+case unmeasured.
+
 A Storybook run is its own runner, so its figure is the time the run spent on
 each story, from its first collection to its decision: the same time
 `variance ask costs` answers from and the next run balances its shards on. It is
@@ -876,7 +888,9 @@ test: regions covered as a consequence of loading. Presence only: the counts
 never leave the process. The ordinals index the recipe the build instrumented
 under — `sense:instrument/presence-v6`, or `sense:instrument/entries-v3` when
 the seam was asked for `mode: 'entries'`, which numbers the module and each
-function and nothing between. A run refuses to fold a journal, or lay itself
+function and nothing between. Under `mode: 'loads'`, `sense:instrument/loads-v1`,
+a module has no ordinals: its id is spelled `path@~digest`, it is recorded with
+no blocks, and its arrival is the only hit it reports. A run refuses to fold a journal, or lay itself
 over a snapshot, cut under another recipe. A reader answers from such a
 snapshot as it holds it, and names both recipes and the regions the difference
 leaves unanswered.

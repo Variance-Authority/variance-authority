@@ -77,6 +77,19 @@ pub struct HeldSymbol {
     reach: Option<String>,
 }
 
+#[derive(Debug, Deserialize)]
+pub struct HeldNested {
+    name: String,
+    kind: String,
+    #[serde(default)]
+    line: u32,
+    signature: Option<HeldSpan>,
+    doc: Option<HeldSpan>,
+    holder: Option<String>,
+    #[serde(default, rename = "holderLine")]
+    holder_line: u32,
+}
+
 #[derive(Debug, Default, Deserialize)]
 pub struct HeldMocks {
     #[serde(default)]
@@ -92,6 +105,8 @@ pub struct HeldMember {
     name: String,
     #[serde(default)]
     line: u32,
+    #[serde(default, rename = "throughDefault")]
+    through_default: bool,
 }
 
 #[derive(Debug, Deserialize)]
@@ -122,6 +137,18 @@ pub struct HeldOwnUse {
 }
 
 #[derive(Debug, Deserialize)]
+pub struct HeldBindingMember {
+    #[serde(default)]
+    request: u32,
+    binding: String,
+    #[serde(default)]
+    within: Vec<String>,
+    name: String,
+    #[serde(default)]
+    line: u32,
+}
+
+#[derive(Debug, Deserialize)]
 pub struct HeldParse {
     requests: Vec<HeldRequest>,
     exports: Option<Vec<HeldExport>>,
@@ -140,6 +167,10 @@ pub struct HeldParse {
     member_uses: Vec<HeldMemberUse>,
     #[serde(default, rename = "ownUses")]
     own_uses: Vec<HeldOwnUse>,
+    #[serde(default)]
+    nested: Vec<HeldNested>,
+    #[serde(default, rename = "bindingMembers")]
+    binding_members: Vec<HeldBindingMember>,
     unknown: Option<String>,
     #[serde(default)]
     size: Option<crate::source_size::Size>,
@@ -185,6 +216,16 @@ impl ParseRow for HeldParse {
             values.insert(&used.how);
         }
         values.extend(self.own_uses.iter().map(|used| used.name.as_str()));
+        for nested in &self.nested {
+            values.insert(&nested.name);
+            values.insert(&nested.kind);
+            values.extend(nested.holder.as_deref());
+        }
+        for read in &self.binding_members {
+            values.insert(&read.binding);
+            values.extend(read.within.iter().map(String::as_str));
+            values.insert(&read.name);
+        }
         values.extend(self.declares.iter().flatten().map(String::as_str));
         values.extend(self.unknown.as_deref());
     }
@@ -222,7 +263,7 @@ impl ParseRow for HeldParse {
         }
         into.mock(self.mocks.minus.iter().map(|value| id(value)), self.mocks.plus.iter().map(|value| id(value)));
         for member in &self.members {
-            into.member(member.request, id(&member.name), member.line);
+            into.member(member.request, id(&member.name), member.line, member.through_default);
         }
         for declared in &self.member_declarations {
             into.member_declaration(id(&declared.name), declared.line, id(&declared.on));
@@ -232,6 +273,13 @@ impl ParseRow for HeldParse {
         }
         for used in &self.own_uses {
             into.own_use(id(&used.name), used.line);
+        }
+        for nested in &self.nested {
+            let holder = strings.optional(nested.holder.as_deref());
+            into.nested(id(&nested.name), id(&nested.kind), nested.line, span(nested.signature), span(nested.doc), holder, nested.holder_line);
+        }
+        for read in &self.binding_members {
+            into.binding_member(read.request, id(&read.binding), read.within.iter().map(|name| id(name)), id(&read.name), read.line);
         }
     }
 

@@ -78,7 +78,8 @@ describe('variance ask symbol over a container', () => {
     expect(members(box.out)).toEqual(['packages/lib/src/shapes.ts:17 — size = 1;', 'packages/lib/src/shapes.ts:18 — open(): void {}']);
 
     const flat = await run(['ask', 'symbol', '--name', 'Flat']);
-    expect(flat.out).toContain('export type Flat = { one: 1; two: 2 };');
+    expect(flat.out).toContain('Flat [type]\n');
+    expect(flat.out).toContain('type Flat = { one: 1; two: 2 }');
     expect(members(flat.out)).toEqual([]);
 
     const id = await run(['ask', 'symbol', '--name', 'Id']);

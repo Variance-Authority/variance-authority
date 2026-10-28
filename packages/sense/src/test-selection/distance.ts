@@ -42,12 +42,12 @@
  * first, which is the right place for it and the wrong reason.
  */
 
-import { RUNTIME_EDGES, dependenciesOf, idOf, nodeAt, trailOf, type NodeId, type Relations } from '@variance-authority/core/relate';
+import { EDGE_KINDS, RUNTIME_EDGES, dependenciesOf, idOf, nodeAt, trailOf, type NodeId, type Relations, type Traversal } from '@variance-authority/core/relate';
 import { reachThroughs, type Faces, type ReachThrough } from './faces.js';
 import type { TestCoverageView } from './format-view.js';
 import { findTest } from './lookup.js';
 import { reachesThrough } from './reading.js';
-import type { ExecutionNarrowing, SelectionCause } from './select.js';
+import type { ExecutionNarrowing, SelectionCause } from './narrowing.js';
 
 /**
  * What the path from a change to a test is, in one word.
@@ -309,48 +309,17 @@ function walk(
   const { relations } = options;
   if (relations === undefined) return { because: 'no import graph was supplied' };
   if (seeds.length === 0) return { because: 'nothing named a file to measure from' };
-  const knownAs = options.knownAs ?? ownName;
   const held = options.enumerated ?? ((): boolean => true);
-
-  // Every name, not the first one that resolves. One module can be two nodes —
-  // a workspace package is imported through its manifest, so an importer's edge
-  // lands on `dist` while the snapshot recorded `src`, and picking either one
-  // leaves the other cut out of the graph at exactly the hop that mattered.
-  // `knownAs` is documented as every name a file is held under; honouring one of
-  // them would make that sentence false.
-  const nodes = (file: string): readonly NodeId[] => {
-    const found: NodeId[] = [];
-    for (const name of knownAs(file)) {
-      const id = idOf(relations, 'file', name);
-      if (id !== undefined) found.push(id);
-    }
-    return found;
-  };
+  const nodes = nodesOf(relations, options.knownAs ?? ownName);
 
   const start = nodes(test);
   if (start.length === 0) return { because: `the graph does not hold ${test}` };
 
-  // Everything the test did not enter is removed from the graph. The test's own
-  // file is never a module row — nothing instruments one — so it is admitted by
-  // name, and so is every seed: a changed module the test entered is in
+  // Every seed is admitted by name: a changed module the test entered is in
   // `entered` already, and one it did not is unreachable either way.
-  const open = new Uint8Array(relations.names.length);
-  for (const id of start) open[id] = 1;
-  // A module the test ran and the graph never read is a hole in the middle of
-  // the route, not a shorter route. Counted, because a walk that failed with one
-  // of these on the frontier has not measured anything — see `Walked`.
-  let blind = 0;
-  for (const file of entered) {
-    const found = nodes(file);
-    if (found.length === 0) blind += 1;
-    for (const id of found) open[id] = 1;
-  }
   const wanted = new Map<NodeId, string>();
   for (const seed of seeds) {
-    for (const id of nodes(seed)) {
-      wanted.set(id, seed);
-      open[id] = 1;
-    }
+    for (const id of nodes(seed)) wanted.set(id, seed);
   }
   if (wanted.size === 0) {
     const [first] = seeds;
@@ -359,10 +328,7 @@ function walk(
     };
   }
 
-  const avoid: NodeId[] = [];
-  for (let id = 0; id < open.length; id += 1) if (open[id] !== 1) avoid.push(id);
-
-  const traversal = dependenciesOf(relations, start, { through: RUNTIME_EDGES, avoid });
+  const { traversal, blind } = executed(relations, start, entered, [...wanted.keys()], nodes);
   let best: readonly NodeId[] | undefined;
   for (const id of wanted.keys()) {
     if (traversal.mask[id] !== 1) continue;
@@ -400,6 +366,103 @@ function walk(
   const named: string[] = [];
   for (const id of best) named.push(nodeAt(relations, id)?.name ?? '');
   return { trail: named.reverse() };
+}
+
+/**
+ * Import hops from a test's file to every module it entered, walked over the
+ * modules it entered alone — the walk {@link distanceFromView} measures a
+ * change by, read for every module at once. A module the walk could not reach
+ * from the test's file is absent, never far: the graph has no executed path to
+ * it, which says nothing of how far it is. The test's own file is 0.
+ *
+ * Breadth-first over the entered nodes only, so a test costs the imports of
+ * what it entered and never the size of the graph: `coverage --at-distance`
+ * walks once per test file.
+ */
+export function hopsFromTest(
+  test: string,
+  entered: ReadonlySet<string>,
+  options: DistanceOptions,
+): ReadonlyMap<string, number> | { readonly because: string } {
+  const { relations } = options;
+  if (relations === undefined) return { because: 'no import graph was supplied' };
+  const nodes = nodesOf(relations, options.knownAs ?? ownName);
+  const start = nodes(test);
+  if (start.length === 0) return { because: `the graph does not hold ${test}` };
+  const open = new Set<NodeId>(start);
+  for (const file of entered) for (const id of nodes(file)) open.add(id);
+  const depth = new Map<NodeId, number>(start.map((id) => [id, 0]));
+  const { offset, target, kind } = relations.depends;
+  for (let queue = [...start], next: NodeId[] = [], hop = 1; queue.length > 0; queue = next, next = [], hop += 1) {
+    for (const from of queue) {
+      for (let edge = offset[from]!; edge < offset[from + 1]!; edge += 1) {
+        const to = target[edge]!;
+        if (!RUNTIME_KINDS[kind[edge]!] || !open.has(to) || depth.has(to)) continue;
+        depth.set(to, hop);
+        next.push(to);
+      }
+    }
+  }
+  const hops = new Map<string, number>();
+  for (const file of entered) {
+    for (const id of nodes(file)) {
+      const length = depth.get(id);
+      if (length !== undefined && length < (hops.get(file) ?? Infinity)) hops.set(file, length);
+    }
+  }
+  return hops;
+}
+
+/** Whether each edge kind, by its index, is one a run loads through. */
+const RUNTIME_KINDS = EDGE_KINDS.map((one) => RUNTIME_EDGES.includes(one));
+
+/**
+ * Every node one file is held under. Every name, not the first one that
+ * resolves: one module can be two nodes — a workspace package is imported
+ * through its manifest, so an importer's edge lands on `dist` while the
+ * snapshot recorded `src`, and picking either one leaves the other cut out of
+ * the graph at exactly the hop that mattered. `knownAs` is documented as every
+ * name a file is held under; honouring one of them would make that sentence
+ * false.
+ */
+function nodesOf(relations: Relations, knownAs: (file: string) => readonly string[]): (file: string) => readonly NodeId[] {
+  return (file) => {
+    const found: NodeId[] = [];
+    for (const name of knownAs(file)) {
+      const id = idOf(relations, 'file', name);
+      if (id !== undefined) found.push(id);
+    }
+    return found;
+  };
+}
+
+/**
+ * The walk from a test's file with everything the test did not enter removed
+ * from the graph. The test's own file is never a module row — nothing
+ * instruments one — so it is admitted by name, and so is everything in
+ * `admitted`. `blind` counts the modules the test ran that the graph never
+ * read: a hole in the middle of the route, not a shorter route, and a walk that
+ * failed with one of these on the frontier has not measured anything.
+ */
+function executed(
+  relations: Relations,
+  start: readonly NodeId[],
+  entered: ReadonlySet<string>,
+  admitted: readonly NodeId[],
+  nodes: (file: string) => readonly NodeId[],
+): { readonly traversal: Traversal; readonly blind: number } {
+  const open = new Uint8Array(relations.names.length);
+  for (const id of start) open[id] = 1;
+  for (const id of admitted) open[id] = 1;
+  let blind = 0;
+  for (const file of entered) {
+    const found = nodes(file);
+    if (found.length === 0) blind += 1;
+    for (const id of found) open[id] = 1;
+  }
+  const avoid: NodeId[] = [];
+  for (let id = 0; id < open.length; id += 1) if (open[id] !== 1) avoid.push(id);
+  return { traversal: dependenciesOf(relations, start, { through: RUNTIME_EDGES, avoid }), blind };
 }
 
 /**

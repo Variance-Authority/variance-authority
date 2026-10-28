@@ -5,6 +5,7 @@
 > Decode, compare and diff PNGs without a browser: two buffers in, a mask out.
 
 Part of [Variance Authority](https://variance-authority.dev).
+Point your coding agent at [`llms.txt`](https://variance-authority.dev/llms.txt).
 
 ## What this is for
 

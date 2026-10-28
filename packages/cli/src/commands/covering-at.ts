@@ -18,9 +18,11 @@
 
 import {
   anyStopped,
+  coveringChange,
   coveringTests,
   functionsUnder,
   lineGrain,
+  marksLoadTime,
   ranWhileLoading,
   stateOf,
   stoppedBefore,
@@ -30,14 +32,17 @@ import {
   type ExecutionTest,
   type HeldLines,
   type Placement,
+  type RangeState,
   type SourceTestTarget,
 } from '@variance-authority/sense/test-selection';
 import type { Relations } from '@variance-authority/core/relate';
 import { OperatorError } from '../exit.js';
 import type { CoveringAt } from '../covering-args.js';
 import type { Narrowing } from './covering-reach.js';
+import { outermostOf, unrunOf } from './covering-frame.js';
 import { relationsFor } from './source-graph.js';
 import type { Covering, CoveringTarget } from './covering.js';
+import type { Graph } from './gap-selection.js';
 
 /** What the command already read before the question narrowed past the file. */
 export interface ReadForTarget {
@@ -48,6 +53,8 @@ export interface ReadForTarget {
   readonly from: string;
   readonly placement?: Placement;
   readonly near: Narrowing;
+  /** The checkout's file graph, read at most once per invocation. */
+  readonly graph: Graph;
 }
 
 /**
@@ -101,23 +108,74 @@ export async function coveringAt(
     return undefined;
   }
 
-  const graph = await loadersFor(before ?? index, target, request.root);
+  const graph = await loadersOf(before ?? index, file, read.graph, target);
   const found = coveringTests(index, target, graph);
   const kept = near.whole ? found : found.filter(near.keep);
   const reached = before === undefined ? kept : coveringTests(before, target, graph).filter(near.keep);
   if (before !== undefined) reach?.(reached);
   const stopped = stoppedBefore(before ?? index, target, graph);
+  // Parts are read over every case, so whether any case entered the function is asked before `--at-distance` narrows them.
+  const entered = (): boolean => (before === undefined ? found : coveringTests(before, target, graph)).length > 0;
+  const unrun = 'function' in asked && entered() ? unrunParts(before ?? index, module, asked.function, graph, placement) : [];
   return {
     file,
     target: asked,
     tests: kept,
     ...(stopped === undefined ? {} : { stopped }),
-    ...stateFor(reached, stopped),
+    ...(unrun.length === 0 ? {} : { unrun }),
+    ...stateFor(reached, ranWhileLoading(before ?? index, target, graph), stopped),
     ...grain,
     ...(placement === undefined || 'function' in asked ? {} : { frame: placement.frame }),
     from,
     ...countOf(near, kept.length, found.length),
   };
+}
+
+/**
+ * A part of an asked function no case ran: a branch no case took, or a
+ * function inside it no case called. Lines are the held text's.
+ */
+export interface UnrunPart {
+  readonly kind: string;
+  /** Absent for a part of the asked scope's own body, as a branch of it; present for a function nested in it. */
+  readonly name?: string;
+  readonly startLine: number;
+  readonly endLine: number;
+  /** `hole` when a case that could have reached it stopped, `unwalked` when every one finished; absent when the record cannot tell. */
+  readonly state?: RangeState;
+}
+
+/**
+ * The outermost recorded regions under the scope that no case called, read
+ * with the review's `unrunOf` and `outermostOf`. A part inside one no case
+ * called is not a second finding.
+ */
+function unrunParts(
+  index: ExecutionIndex,
+  module: ExecutionModule,
+  scope: string,
+  graph: { readonly relations?: Relations },
+  placement: Placement | undefined,
+): readonly UnrunPart[] {
+  const spans = functionsUnder(module.blocks, scope).map((block) => ({ start: block.startLine, end: block.endLine }));
+  const regions = (coveringChange(index, new Map([[module.file, spans]]), graph)[0]?.regions ?? [])
+    .filter((region) => region.kind !== 'module' && (region.name === scope || region.name.startsWith(`${scope}/`)))
+    .map((region) => ({ region, kind: region.kind, startLine: region.startLine, endLine: region.endLine, reach: unrunOf(region) ?? ('entered' as const) }));
+  const parts: UnrunPart[] = [];
+  for (const { region, reach } of outermostOf(regions)) {
+    if (reach === 'entered' || reach === 'loaded') continue;
+    const where = placement === undefined ? { lines: region, moved: false } : placement.place(region);
+    // A part every line of which an edit removed has nowhere in the held text to be named.
+    if (where === undefined) continue;
+    parts.push({
+      kind: region.kind,
+      ...(region.name === scope ? {} : { name: region.name }),
+      startLine: where.lines.startLine,
+      endLine: where.lines.endLine,
+      ...(reach === 'unknown' ? {} : { state: reach }),
+    });
+  }
+  return parts;
 }
 
 /** What the question named, as an answer says it: `line 7`, `lines 7-20`, `function Ledger`. */
@@ -195,9 +253,16 @@ function runsOf(lines: readonly number[]): readonly HeldLines[] {
   return runs;
 }
 
-/** The state of one place, from the cases that entered it and those that stopped, before `--where`. */
-function stateFor(tests: readonly CoveringTest[], stopped: readonly ExecutionTest[] | undefined): Pick<Covering, 'state'> {
-  const state = stateOf({ startLine: 0, endLine: 0, tests, ...(stopped === undefined ? {} : { stopped }) });
+/**
+ * The state of one place, from the cases that entered it, whether it ran while
+ * its module evaluated, and the cases that stopped, before `--where`.
+ */
+function stateFor(
+  tests: readonly CoveringTest[],
+  loaded: boolean,
+  stopped: readonly ExecutionTest[] | undefined,
+): Pick<Covering, 'state'> {
+  const state = stateOf({ tests, ...(loaded ? { loaded: true as const } : {}), ...(stopped === undefined ? {} : { stopped }) });
   return state === undefined ? {} : { state };
 }
 
@@ -211,21 +276,25 @@ export function countOf(
 }
 
 /**
- * The file graph, read only when a region the question landed on ran while its
- * module evaluated, or when a recorded case stopped and a hole has to be told
- * from a region nobody walked.
+ * The file graph, read only when the record marks load time on the region the
+ * question landed on — or on any block of the module when the question named
+ * no region — on a block or a crossing, or when a recorded case stopped and a
+ * hole has to be told from a region nobody walked.
  *
  * The record credits no case with that: a module evaluates once per realm, for
  * whichever case imported it first. The graph names every case whose file
  * imports the module, and rules out one that mocked it. A question about a
- * region only a case called into never pays for the scan.
+ * region only a case called into never pays for the scan. Every covering
+ * answer, fresh or stale, whole file or one line, decides here.
  */
-async function loadersFor(
+export async function loadersOf(
   index: ExecutionIndex,
-  target: SourceTestTarget,
-  root: string,
+  file: string,
+  graph: Graph,
+  target?: SourceTestTarget,
 ): Promise<{ readonly relations?: Relations }> {
-  return ranWhileLoading(index, target) || anyStopped(index) ? { relations: await fileGraph(root) } : {};
+  const module = index.modules.find((candidate) => candidate.file === file);
+  return (module !== undefined && marksLoadTime(module.blocks, target)) || anyStopped(index) ? { relations: await graph() } : {};
 }
 
 /** The file graph of the checkout, which names who imports what and who mocked it. */

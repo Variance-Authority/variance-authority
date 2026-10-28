@@ -20,6 +20,7 @@ const here = dirname(fileURLToPath(import.meta.url));
 const repository = resolve(here, '../../../..');
 const fixture = resolve(repository, 'packages/sense/test/fixtures/cases-vitest');
 const source = 'packages/sense/test/fixtures/cases-vitest/src/decide.ts';
+const cases = 'packages/sense/test/fixtures/cases-vitest';
 // The repository's root declares its suites, so the fixture records as the
 // first of them and every question names it.
 const suite = declaredSuites(repository)?.[0]?.name;
@@ -74,7 +75,7 @@ describe('a file answered in the text somebody holds', () => {
     expect(formatCovering(answer, 'text')).toContain('placed in the text as it is now');
   });
 
-  it('asks a held line as the line it was, and answers that the edit wrote one', async () => {
+  it('asks a held line as the line it was, answers that the edit wrote one, and names the run that answers it now', async () => {
     const held = await edited();
     const answer = await covering(parse(['--file', source, '--root', repository, ...named, '--text', held, '--line', '7']));
 
@@ -83,7 +84,8 @@ describe('a file answered in the text somebody holds', () => {
     expect(answer.target).toEqual({ line: 7 });
     const written = await covering(parse(['--file', source, '--root', repository, ...named, '--text', held, '--line', '1']));
     expect(written).toMatchObject({ target: { line: 1 }, tests: [], written: [{ startLine: 1, endLine: 1 }] });
-    expect(formatCovering(written, 'text')).toBe(`Line 1 of ${source} was written since the recording, so no case has run it.\n`);
+    expect(formatCovering(written, 'text')).toBe(`Line 1 of ${source} was written since the recording, so no case has run it.\n` +
+      `Gap (stale) on line 1 of ${source}: which tests run it now. Known: line 1 was written since the recording.\nNext, Record, 5 tests in 2 test files:\n  Run with the suite's own runner: ${cases}/test/branch.case.ts ${cases}/test/concurrent.case.ts\n`);
   });
 
   it('answers a held run of lines from the lines it was, and names the lines the edit wrote', async () => {
@@ -100,7 +102,8 @@ describe('a file answered in the text somebody holds', () => {
     expect(formatCovering(answer, 'refs')).toContain('; written since 1-2');
     const written = await covering(parse(['--file', source, '--root', repository, ...named, '--text', held, '--line', '1-2']));
     expect(written).toMatchObject({ tests: [], written: [{ startLine: 1, endLine: 2 }] });
-    expect(formatCovering(written, 'text')).toBe(`Lines 1-2 of ${source} were written since the recording, so no case has run them.\n`);
+    expect(formatCovering(written, 'text')).toBe(`Lines 1-2 of ${source} were written since the recording, so no case has run them.\n` +
+      `Gap (stale) on lines 1-2 of ${source}: which tests run it now. Known: lines 1-2 were written since the recording.\nNext, Record, 5 tests in 2 test files:\n  Run with the suite's own runner: ${cases}/test/branch.case.ts ${cases}/test/concurrent.case.ts\n`);
     expect(formatCovering(written, 'refs')).not.toMatch(/[Rr]un the suite/);
   });
 });

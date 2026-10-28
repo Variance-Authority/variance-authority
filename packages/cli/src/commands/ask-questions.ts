@@ -1,7 +1,7 @@
 import { HELP_TOOLS, type Help } from '@variance-authority/help/tools';
-import { COSTS_TOOLS, REVIEW_TOOLS, TOOLS, VANTAGE_TOOLS, type Tool } from '@variance-authority/mcp/tools';
+import { COSTS_TOOLS, REVIEW_TOOLS, TOOLS, VANTAGE_TOOLS, verbOf, type Tool } from '@variance-authority/mcp/tools';
 import { VANTAGE_VARIABLE } from '@variance-authority/vantage';
-import { questionOf, takes, wrap, type Asked } from './asking.js';
+import { takes, wrap, type Asked } from './asking.js';
 
 /**
  * The questions, each with what it takes and what it answers.
@@ -55,7 +55,7 @@ export function questions(): string {
 
 function entry(tool: Asked): readonly string[] {
   return [
-    `${questionOf(tool)}${takes(tool)}`,
+    `${verbOf(tool)}${takes(tool)}`,
     ...wrap(tool.description, 76).map((line) => `    ${line}`),
     '',
   ];

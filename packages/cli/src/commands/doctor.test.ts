@@ -70,6 +70,7 @@ function probesWith(
       };
     },
     exists: async () => exists,
+    pointers: async () => [],
     partitions: async () => partitions,
     // Nothing cached. The cache is reported, never diagnosed: it holds only
     // images this machine can repaint.
@@ -84,6 +85,7 @@ function refusingProbes(): DoctorProbes {
       throw new Error('Executable does not exist at /ms-playwright/chromium/chrome');
     },
     exists: async () => true,
+    pointers: async () => [],
     partitions: async () => [],
     // Nothing cached. The cache is reported, never diagnosed: it holds only
     // images this machine can repaint.

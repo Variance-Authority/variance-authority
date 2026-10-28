@@ -20,6 +20,7 @@ use std::collections::{HashMap, HashSet};
 
 use napi_derive::napi;
 
+use crate::case_said;
 use crate::journey_journal;
 use crate::journey_read::{overlaps, pairs, Journey};
 
@@ -42,9 +43,9 @@ pub struct JourneyTest {
     pub name: String,
     /// `ExecutionTest.stopped`: absent when the file does not say how the case settled.
     pub stopped: Option<bool>,
-    /// `ExecutionTest.preconditions` as `tests.casePreconditions` spells them:
-    /// absent for a case nobody listened to.
-    pub preconditions: Option<String>,
+    /// Everything the case said it arranged and the code read, as a frame
+    /// spells it (`case_said::spell`): absent for a case nobody listened to.
+    pub said: Option<String>,
 }
 
 #[napi(object)]
@@ -77,6 +78,7 @@ pub struct JourneyProjection {
 
 fn project(file: &str, changed: &[JourneyChange]) -> Result<JourneyProjection, String> {
     let journey = Journey::open(file)?;
+    let heard = journey.heard()?;
     let tests = (0..journey.tests())
         .map(|at| Ok(JourneyTest {
             id: journey.test_id(at)?.to_owned(),
@@ -87,7 +89,7 @@ fn project(file: &str, changed: &[JourneyChange]) -> Result<JourneyProjection, S
                 Some(journey_journal::FINISHED) => Some(false),
                 _ => None,
             },
-            preconditions: journey.test_said(at)?.map(str::to_owned),
+            said: heard[at].as_ref().map(case_said::spell),
         }))
         .collect::<Result<Vec<_>, String>>()?;
 

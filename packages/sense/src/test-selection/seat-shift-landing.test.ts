@@ -182,10 +182,11 @@ describe('a local leg at the mainline commit, over a function written in front o
   it('keeps each older test on the region it ran when the function written in front is anonymous', async () => {
     const { coverage, cases, complete } = await landBoth(ANONYMOUS, ANONYMOUS_INSERTED);
 
-    // The rows part anonymous siblings by seat, and the seat shifted: they carry
-    // nothing across it and the tests run again. The index is laid through the
-    // edit, which wrote one callback and left the two older ones whole.
-    expect(coverage).toEqual({ 'n + 1': [], 'n * 2': [], 'n - 1': [THREE] });
+    // The rows part anonymous siblings by seat, and the seat shifted: no
+    // callback's address names one region in both cuts, so each takes what the
+    // top level around it took, and the tests run again. The index is laid
+    // through the edit, which wrote one callback and left the two older ones whole.
+    expect(coverage).toEqual({ 'n + 1': [ONE, TWO], 'n * 2': [ONE, TWO], 'n - 1': [ONE, THREE, TWO] });
     expect(cases).toEqual({ 'n + 1': [caseOf(ONE)], 'n * 2': [caseOf(TWO)], 'n - 1': [caseOf(THREE)] });
     expect(complete).toEqual([THREE]);
   });

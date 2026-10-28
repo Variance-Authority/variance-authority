@@ -33,13 +33,21 @@
 
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
-import { createRequire } from 'node:module';
 import { resolve } from 'node:path';
-import { pathToFileURL } from 'node:url';
-import picomatch from 'picomatch';
+import {
+  globMatcher,
+  isTestFile,
+  jestCacheKey,
+  loadTransformer,
+  slashed,
+  type JestTestFiles,
+  type JestTransformer as JestShapedTransformer,
+  type JestTransformOptions,
+} from './jest-transformer.js';
 import { cadence, type CutTestFile } from '../instrument/cadence.js';
 import { behindCut, inlineBehindCut } from './cut-map.js';
 import { probeRecipe, type InstrumentMode, type ModuleId } from '../instrument/index.js';
+import { probesRegions } from '../instrument/identity.js';
 import { markUnplaced, placeModule, planModule } from './captured-modules.js';
 import { defaultInclude, projectPath, type ProbePlacement } from './instrumented-modules.js';
 import { probedAfter } from './jest-after.js';
@@ -47,21 +55,15 @@ import type { SelectionTransformerConfig } from './jest.js';
 import { namesItsMap, type TransformSourceMap } from './source-lines.js';
 
 /** The fields of Jest's project configuration this reads. */
-export interface JestProjectConfig {
+export interface JestProjectConfig extends JestTestFiles {
   readonly cacheDirectory: string;
   /** Jest's own hash of this project's configuration: which build made this text. */
   readonly id?: string;
-  /** Globs, with `<rootDir>` already replaced, as Jest normalizes them. */
-  readonly testMatch?: readonly string[];
-  readonly testRegex?: string | readonly string[];
 }
 
 /** The fields of Jest's `TransformOptions` this reads. */
-export interface JestTransformRequest {
+export interface JestTransformRequest extends JestTransformOptions {
   readonly config: JestProjectConfig;
-  readonly configString: string;
-  readonly instrument: boolean;
-  readonly transformerConfig?: unknown;
   /** What a transformer with a `senseRecipe` places in this module; absent places nothing. */
   readonly senseProbes?: SenseProbes;
 }
@@ -84,8 +86,7 @@ export interface JestTransformedSource {
 }
 
 /** The shape of a transformer as Jest loads one, sync or async. */
-export interface JestTransformer {
-  readonly canInstrument?: boolean;
+export interface JestTransformer extends JestShapedTransformer<JestTransformRequest, JestTransformedSource> {
   /**
    * The recipe this transformer places sense's probes with under `mode`, from
    * the instrumenter crate's `recipe`. A transformer that has one is handed
@@ -93,21 +94,6 @@ export interface JestTransformer {
    * recipe is not this package's is refused before it transforms anything.
    */
   senseRecipe?(mode: InstrumentMode): string;
-  getCacheKey?(source: string, path: string, options: JestTransformRequest): string;
-  getCacheKeyAsync?(source: string, path: string, options: JestTransformRequest): Promise<string>;
-  process?(source: string, path: string, options: JestTransformRequest): JestTransformedSource;
-  processAsync?(
-    source: string,
-    path: string,
-    options: JestTransformRequest,
-  ): Promise<JestTransformedSource>;
-}
-
-interface TransformerModule {
-  readonly createTransformer?: (config?: unknown) => JestTransformer | Promise<JestTransformer>;
-  readonly default?: TransformerModule;
-  readonly process?: unknown;
-  readonly processAsync?: unknown;
 }
 
 /**
@@ -131,22 +117,21 @@ export async function createTransformer(
   const root = resolve(config.root);
   const inner = config.transformer === undefined
     ? undefined
-    : await loadTransformer(root, config.transformer);
-  const innerConfig = typeof config.transformer === 'string' ? undefined : config.transformer?.[1];
+    : await loadTransformer<JestTransformRequest, JestTransformedSource, JestTransformer>(root, config.transformer);
   const mode = config.mode ?? 'presence';
   const recipe = probeRecipe(mode);
-  const theirs = inner?.senseRecipe?.(mode);
+  // Under `loads` nothing is placed, so a transformer that places probes is not asked to.
+  const theirs = !probesRegions(mode) ? undefined : inner?.transformer.senseRecipe?.(mode);
   const places = theirs !== undefined;
   if (places && theirs !== recipe) {
-    const name = typeof config.transformer === 'string' ? config.transformer : config.transformer?.[0];
     throw new Error(
-      `${name} places sense's probes as ${theirs}, and this sense reads ${recipe}: ` +
+      `${inner?.name} places sense's probes as ${theirs}, and this sense reads ${recipe}: ` +
         'build it against node_modules/@variance-authority/sense/native/instrument',
     );
   }
   const excluded = new Set((config.exclude ?? []).map((file) => resolve(file)));
   const how: Placing = { mode, excluded, unprobed: unprobedMatcher(config.unprobed), placement: config.placement ?? 'after-transforms' };
-  const cuts = config.cadence !== false;
+  const cuts = config.cadence !== false && probesRegions(mode);
   const cutOf = (source: string, path: string, options: JestTransformRequest): CutTestFile | undefined =>
     cuts && isTestFile(path, options.config) ? cadence(source, path) : undefined;
   // The project's transformer maps the cut text, so its map is moved back to
@@ -160,19 +145,15 @@ export async function createTransformer(
     }
     return { ...transformed, map: behindCut(transformed.map, cut.shifts) };
   };
-  const forInner = (options: JestTransformRequest): JestTransformRequest => ({
-    ...options,
-    ...(innerConfig === undefined ? {} : { transformerConfig: innerConfig }),
-  });
-  const keyOf = (source: string, path: string, options: JestTransformRequest, innerKey: string | undefined): string =>
+  const keyOf = (path: string, innerKey: string): string =>
     createHash('sha1')
       .update(recipe)
       .update('\0')
-      .update(innerKey ?? defaultKey(source, path, options))
+      .update(innerKey)
       .update('\0')
       .update(path)
       .update('\0')
-      .update(JSON.stringify(innerConfig ?? null))
+      .update(JSON.stringify(inner?.options ?? null))
       .update('\0')
       .update(excluded.has(resolve(path)) ? 'excluded' : '')
       .update('\0')
@@ -193,7 +174,7 @@ export async function createTransformer(
   const mapless = <T>(path: string, source: string, again: () => T): T => {
     if (!warned && !namesItsMap(source)) {
       warned = true;
-      const name = typeof config.transformer === 'string' ? config.transformer : config.transformer?.[0] ?? 'the transformer';
+      const name = inner?.name ?? 'the transformer';
       console.warn(
         `variance-authority: \`${name}\` returned no source map back to \`${projectPath(root, path)}\`, so the probes cannot ` +
           'be placed in what it wrote, and it transforms each such module twice: once to read, once on the probed file. ' +
@@ -203,37 +184,36 @@ export async function createTransformer(
     }
     return again();
   };
-  const innerKeyAsync = inner?.getCacheKeyAsync ?? inner?.getCacheKey;
-  const innerProcessAsync = inner?.processAsync ?? inner?.process;
+  const innerProcessAsync = inner?.processAsync;
 
   const transformer: JestTransformer = {
     canInstrument: inner?.canInstrument ?? false,
     getCacheKey: (source, path, options) =>
-      keyOf(source, path, options, inner?.getCacheKey?.(source, path, forInner(options))),
+      keyOf(path, inner?.cacheKey(source, path, options) ?? jestCacheKey(source, path, options)),
     getCacheKeyAsync: async (source, path, options) =>
-      keyOf(source, path, options, await innerKeyAsync?.(source, path, forInner(options))),
+      keyOf(path, (await inner?.cacheKeyAsync(source, path, options)) ?? jestCacheKey(source, path, options)),
     processAsync: async (source, path, options) => {
       const cut = cutOf(source, path, options);
       const text = cut?.code ?? source;
       if (innerProcessAsync === undefined) return bare(root, path, options, text, how, cut);
-      const handed = places ? handOver(root, path, forInner(options), text, how) : undefined;
+      const handed = places ? handOver(root, path, options, text, how) : undefined;
       if (handed !== undefined) return behind(marked(await innerProcessAsync(text, path, handed), handed), cut);
-      const first = async () => await innerProcessAsync(place(root, path, options, text, how), path, forInner(options));
+      const first = async () => await innerProcessAsync(place(root, path, options, text, how), path, options);
       if (places || !after(path, options, how)) return behind(await first(), cut);
-      return probedAfter(root, path, source, await innerProcessAsync(text, path, forInner(options)), how.mode, how.unprobed) ?? mapless(path, source, first);
+      return probedAfter(root, path, source, await innerProcessAsync(text, path, options), how.mode, how.unprobed) ?? mapless(path, source, first);
     },
   };
-  const innerProcess = inner?.process?.bind(inner);
+  const innerProcess = inner?.process;
   if (inner === undefined || innerProcess !== undefined) {
     transformer.process = (source, path, options) => {
       const cut = cutOf(source, path, options);
       const text = cut?.code ?? source;
       if (innerProcess === undefined) return bare(root, path, options, text, how, cut);
-      const handed = places ? handOver(root, path, forInner(options), text, how) : undefined;
+      const handed = places ? handOver(root, path, options, text, how) : undefined;
       if (handed !== undefined) return behind(marked(innerProcess(text, path, handed), handed), cut);
-      const first = () => innerProcess(place(root, path, options, text, how), path, forInner(options));
+      const first = () => innerProcess(place(root, path, options, text, how), path, options);
       if (places || !after(path, options, how)) return behind(first(), cut);
-      return probedAfter(root, path, source, innerProcess(text, path, forInner(options)), how.mode, how.unprobed) ?? mapless(path, source, first);
+      return probedAfter(root, path, source, innerProcess(text, path, options), how.mode, how.unprobed) ?? mapless(path, source, first);
     };
   }
   return transformer;
@@ -336,103 +316,6 @@ function originalOf(path: string, source: string): (at: string) => string {
  */
 function unprobedMatcher(globs: readonly string[] | undefined): ((file: string) => boolean) | undefined {
   return globs === undefined || globs.length === 0 ? undefined : globMatcher(globs.map(slashed));
-}
-
-/** What Jest hashes when a transformer declares no key of its own. */
-function defaultKey(source: string, path: string, options: JestTransformRequest): string {
-  return createHash('sha1')
-    .update(source)
-    .update('\0')
-    .update(options.configString)
-    .update('\0')
-    .update(options.instrument ? 'instrument' : '')
-    .update('\0')
-    .update(path)
-    .digest('hex');
-}
-
-const testMatchers = new Map<string, (path: string) => boolean>();
-
-/**
- * Jest's own reading of `testMatch` and `testRegex`: a glob list read by
- * {@link globMatcher}, and a regex list where any pattern decides.
- */
-function isTestFile(path: string, config: JestProjectConfig): boolean {
-  const globs = config.testMatch ?? [];
-  const regexes = typeof config.testRegex === 'string' ? [config.testRegex] : config.testRegex ?? [];
-  const identity = JSON.stringify([globs, regexes]);
-  let matcher = testMatchers.get(identity);
-  if (matcher === undefined) {
-    const matches = globMatcher(globs);
-    const patterns = regexes.map((regex) => new RegExp(regex));
-    matcher = (candidate) => matches(candidate) || patterns.some((pattern) => pattern.test(candidate));
-    testMatchers.set(identity, matcher);
-  }
-  return matcher(path);
-}
-
-/**
- * Jest's reading of a glob list: a path matches one positive pattern and no
- * negated one, dotfiles included, with a Windows separator read as `/`.
- */
-function globMatcher(globs: readonly string[]): (path: string) => boolean {
-  const positive = globs.filter((glob) => !glob.startsWith('!')).map((glob) => picomatch(glob, { dot: true }));
-  const negative = globs.filter((glob) => glob.startsWith('!')).map((glob) => picomatch(glob.slice(1), { dot: true }));
-  return (path) => {
-    const candidate = slashed(path);
-    return positive.some((match) => match(candidate)) && !negative.some((match) => match(candidate));
-  };
-}
-
-/** Jest's `replacePathSepForGlob`: a backslash is a separator unless it escapes a glob's special character. */
-function slashed(path: string): string {
-  return path.replaceAll(/\\(?![$()+.?^{}])/g, '/');
-}
-
-/**
- * Load the wrapped transformer the way Jest would have: resolved from the
- * project, `import`ed when it is ES, and built by its `createTransformer`
- * factory when it has one. Jest's own default, `babel-jest`, is a dependency of
- * `jest-config` rather than of the project, and is found where Jest finds it.
- */
-async function loadTransformer(
-  root: string,
-  named: string | readonly [string, Record<string, unknown>],
-): Promise<JestTransformer> {
-  const [name, config] = typeof named === 'string' ? [named, undefined] : named;
-  const path = resolveTransformer(root, name);
-  let loaded: TransformerModule;
-  try {
-    // Jest awaits a CommonJS transformer's export before it asks whether that
-    // value is a transformer or a factory. Jira's Babel transformer uses that
-    // contract: `module.exports` is the Promise returned by its asynchronous
-    // configuration load. Inspecting the Promise itself reports that a valid
-    // transformer has neither `process` nor `createTransformer`.
-    loaded = (await createRequire(path)(path)) as TransformerModule;
-  } catch (error) {
-    const code = error instanceof Error && 'code' in error ? error.code : undefined;
-    if (code !== 'ERR_REQUIRE_ESM' && code !== 'ERR_REQUIRE_ASYNC_MODULE') throw error;
-    loaded = (await import(pathToFileURL(path).href)) as TransformerModule;
-  }
-  for (const candidate of [loaded, loaded.default]) {
-    if (candidate === undefined) continue;
-    if (candidate.createTransformer !== undefined) return candidate.createTransformer(config);
-    if (typeof candidate.process === 'function' || typeof candidate.processAsync === 'function') {
-      return candidate as JestTransformer;
-    }
-  }
-  throw new Error(`${name} exports neither a transformer nor a createTransformer factory`);
-}
-
-function resolveTransformer(root: string, name: string): string {
-  const fromProject = createRequire(resolve(root, 'package.json'));
-  try {
-    return fromProject.resolve(name);
-  } catch (error) {
-    const code = error instanceof Error && 'code' in error ? error.code : undefined;
-    if (code !== 'MODULE_NOT_FOUND') throw error;
-    return createRequire(fromProject.resolve('jest-config')).resolve(name);
-  }
 }
 
 // Jest unwraps `default` when a host loader transpiles this module to CommonJS

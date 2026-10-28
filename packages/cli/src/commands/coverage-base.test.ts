@@ -3,7 +3,7 @@ import { cp, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { encodeExecutionIndex, testCoverageFile, writeTestCoverage } from '@variance-authority/sense/test-selection';
+import { commitRunsFile, encodeExecutionIndex, testCoverageFile, writeTestCoverage } from '@variance-authority/sense/test-selection';
 import { main } from '../bin.js';
 import type { Coverage } from './coverage.js';
 
@@ -205,6 +205,23 @@ describe('coverage against a base whose commit it cannot diff from', () => {
     expect(answer.code).toBe(2);
     expect(JSON.parse(answer.out)).toEqual({ refused: 'undiffed' });
     expect(answer.err).toContain('git could not read the diff from it to the working tree');
+  });
+});
+
+describe('coverage against a base, beside a runs record that cannot be read', () => {
+  it('refuses, naming the record, rather than reading every carried case as run', async () => {
+    const unread = await copyOf('unread');
+    await publishIndex(unread);
+    const current = testCoverageFile(unread, { suite: 'unit' });
+    await record(current, NOW);
+    const runs = commitRunsFile(current);
+    await mkdir(runs, { recursive: true });
+
+    const answer = await ask(['coverage', '--root', unread, '--suite', 'unit', '--against', base, '--format', 'json']);
+
+    expect(answer.code).toBe(2);
+    expect(answer.err).toContain(`the runs record at ${runs} could not be read`);
+    expect(answer.err).toContain('a comparison that read it as absent would call a case no test ran no longer run');
   });
 });
 

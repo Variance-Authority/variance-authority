@@ -103,8 +103,12 @@ export class OperatorError extends Error {
  * it, which is a statement about the suite, not about the file's tests.
  * `undiffed`: a base's regions are paired with the current ones only through
  * the diff from the commit the base was recorded at, and that diff cannot be
- * read here — a review that would report its other evidence fails on this one
- * instead of leaving it out.
+ * read here: the base names a commit this clone lacks or cannot diff from, or
+ * a base asked for by name — `--against`, `--cases last` — names no commit. A
+ * review that would report its other evidence fails on this one instead of
+ * leaving it out. A review of the runs at one commit whose retired layer names
+ * no commit is not refused: that is the record's own state, and the review
+ * carries the same sentence as `motion.undiffed`, comparing nothing.
  * `older`: the record holds no row for the file because the commit it was made
  * at did not hold the file: a record older than the file.
  */

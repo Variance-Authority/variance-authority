@@ -273,16 +273,3 @@ export function reachingPast(help: Help, owner: string, specifier?: string): rea
 
 /** A name a reader could ask `uses` about: not the whole module, not a side effect. */
 export const isName = (name: string): boolean => name !== '' && name !== '*';
-
-/**
- * Where the name an import takes is declared: the export in the file the index
- * resolved the import to, or, when the reading has no resolution, the one
- * export of that name its package holds. Two candidates and no resolution is
- * no answer, and says nothing.
- */
-export function declaration(help: Help, name: string, site: PathSite): { readonly at: string; readonly line: number } | undefined {
-  const to = site.held.to;
-  if (to !== undefined) return help.exported.find((held) => held.name === name && held.at === to);
-  const owned = help.exported.filter((held) => held.name === name && held.by === site.owner);
-  return owned.length === 1 ? owned[0] : undefined;
-}

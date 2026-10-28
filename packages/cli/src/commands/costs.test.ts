@@ -122,7 +122,7 @@ describe('subject costs', () => {
       '',
       'Slowest subjects:',
       '  120 ms  story:b  src/b.stories.tsx',
-      '  and 1 more subject; `--limit` lists more',
+      '  and 1 more subject; a higher `limit` lists them',
     ]);
     await expect(costsSubject(configOf(), [], { env: LOCAL, cwd: dir })).rejects.toThrow(/no subject costs on the mainline/);
   });

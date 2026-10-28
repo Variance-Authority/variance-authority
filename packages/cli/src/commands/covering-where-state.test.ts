@@ -8,7 +8,7 @@ import { main } from '../bin.js';
 import { parseCoveringArgs } from '../covering-args.js';
 import { flagsFor, synopsisFor } from '../usage.js';
 import {
-  encodeExecutionIndex,
+  encodeAsSetExecutionIndex,
   writeTestCoverage,
   type ExecutionIndex,
   type ExecutionTest,
@@ -16,14 +16,14 @@ import {
 import { covering, formatCovering } from './covering.js';
 
 /**
- * `--where flag=ff-on` keeps one case of three, and every other case either ran
+ * `--where flags:checkout=ff-on` keeps one case of three, and every other case either ran
  * the code or stopped before it. A region's state is a claim about every case
  * that could have gone there, so it is read before `--where` narrows them.
  */
 function said(file: string, name: string, flag: string, stopped: boolean): ExecutionTest {
   return {
     id: `${file} > ${name}`, file, name, stopped,
-    preconditions: [{ name: 'flag', value: flag, site: `${file}:3`, level: 1 }],
+    said: JSON.stringify({ said: [['flags:checkout', JSON.stringify(flag), `${file}:3`, 1]] }),
   };
 }
 
@@ -58,11 +58,11 @@ const git = (at: string, args: readonly string[]): void => {
 };
 
 /** A checkout whose test files import `src/cart.ts`, with every function edited since `main`, run from inside it. */
-async function checkout(): Promise<{ root: string; execution: string }> {
+async function checkout(index: ExecutionIndex = INDEX): Promise<{ root: string; execution: string }> {
   const root = await mkdtemp(join(tmpdir(), 'variance-covering-where-state-'));
   const execution = join(await mkdtemp(join(tmpdir(), 'variance-covering-where-state-')), 'coverage.bin');
   await writeTestCoverage(execution, { version: 3, instrumentation: 'fixture-instrumentation', tests: [], modules: [] }, {
-    index: encodeExecutionIndex(INDEX),
+    index: encodeAsSetExecutionIndex(index),
   });
   const cart = (edit: boolean) => ['total', 'round', 'discount', 'fee']
     .map((name, at) => `export function ${name}() {\n  return ${at};${edit ? ' // edited' : ''}\n}\n`).join('\n');
@@ -99,7 +99,7 @@ describe('`--where` narrows the cases listed, never the state of what they cover
   it('keeps a line other cases also ran walked, and says no "only case"', async () => {
     const record = await checkout();
 
-    const answer = await ask(record, ['--file', 'src/cart.ts', '--line', '2', '--where', 'flag=ff-on']);
+    const answer = await ask(record, ['--file', 'src/cart.ts', '--line', '2', '--where', 'flags:checkout=ff-on']);
 
     expect(ids(answer.tests)).toEqual(['a.test.ts > on']);
     expect(answer.state).toBe('walked');
@@ -109,7 +109,7 @@ describe('`--where` narrows the cases listed, never the state of what they cover
   it('keeps a function walked, and names the case that stopped, when `--where` left out the stopped case', async () => {
     const record = await checkout();
 
-    const answer = await ask(record, ['--file', 'src/cart.ts', '--function', 'round', '--where', 'flag=ff-on']);
+    const answer = await ask(record, ['--file', 'src/cart.ts', '--function', 'round', '--where', 'flags:checkout=ff-on']);
 
     expect(ids(answer.tests)).toEqual(['a.test.ts > on']);
     expect(ids(answer.stopped)).toEqual(['b.test.ts > stops']);
@@ -119,7 +119,7 @@ describe('`--where` narrows the cases listed, never the state of what they cover
   it('keeps a hole a hole when `--where` left out the case that stopped', async () => {
     const record = await checkout();
 
-    const answer = await ask(record, ['--file', 'src/cart.ts', '--line', '10', '--where', 'flag=ff-on']);
+    const answer = await ask(record, ['--file', 'src/cart.ts', '--line', '10', '--where', 'flags:checkout=ff-on']);
 
     expect(answer.state).toBe('hole');
     expect(formatCovering(answer, 'text')).toContain('a hole: a case that could have reached it stopped first');
@@ -128,7 +128,7 @@ describe('`--where` narrows the cases listed, never the state of what they cover
   it('states each range of the whole file over every case, and lists only the kept ones', async () => {
     const record = await checkout();
 
-    const answer = await ask(record, ['--file', 'src/cart.ts', '--where', 'flag=ff-on']);
+    const answer = await ask(record, ['--file', 'src/cart.ts', '--where', 'flags:checkout=ff-on']);
 
     expect(answer.ranges?.map((range) => [range.startLine, range.endLine, range.state, ids(range.tests)])).toEqual([
       [1, 3, 'walked', ['a.test.ts > on']],
@@ -144,7 +144,7 @@ describe('`--where` narrows the cases listed, never the state of what they cover
   it('states each changed region over every case', async () => {
     const record = await checkout();
 
-    const answer = await ask(record, ['--since', 'main', '--where', 'flag=ff-on']);
+    const answer = await ask(record, ['--since', 'main', '--where', 'flags:checkout=ff-on']);
 
     expect(answer.changed?.[0]?.regions.map((region) => [region.name, region.state, ids(region.tests), ids(region.stopped)])).toEqual([
       ['total', 'walked', ['a.test.ts > on'], ['b.test.ts > stops']],
@@ -157,9 +157,21 @@ describe('`--where` narrows the cases listed, never the state of what they cover
   it('words a changed region only an unlisted case ran as covered, not as a hole', async () => {
     const record = await checkout();
 
-    const text = formatCovering(await ask(record, ['--since', 'main', '--where', 'flag=ff-on']), 'text');
+    const text = formatCovering(await ask(record, ['--since', 'main', '--where', 'flags:checkout=ff-on']), 'text');
 
     expect(text).toContain('4 changed regions: 1 nothing covered (1 of them a hole), 0 covered by one case.');
     expect(text).toContain('13-15 function fee — covered only by cases not listed here, and 1 case that could have reached it stopped first');
+  });
+
+  it('names a part no case ran under a function `--where` left no case of', async () => {
+    const [module] = INDEX.modules;
+    const record = await checkout({ ...INDEX, modules: [{ ...module!, blocks: [...module!.blocks,
+      { kind: 'branch', name: 'fee', path: 'if#0/then', startLine: 14, endLine: 14, source: true, crossings: [] }] }] });
+
+    const answer = await ask(record, ['--file', 'src/cart.ts', '--function', 'fee', '--where', 'flags:checkout=ff-on']);
+
+    expect(answer.tests).toEqual([]);
+    expect(answer.unrun).toEqual([{ kind: 'branch', startLine: 14, endLine: 14, state: 'hole' }]);
+    expect(formatCovering(answer, 'text')).toContain('\nNo case ran a part of it: the branch at line 14.');
   });
 });

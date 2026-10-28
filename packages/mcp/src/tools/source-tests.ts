@@ -3,6 +3,7 @@ import {
   coveringTestsInFile,
   functionsUnder,
   ranWhileLoading,
+  unenteredSentence,
   type CoveringTest,
   type ExecutionIndex,
 } from '@variance-authority/sense/test-selection';
@@ -101,6 +102,10 @@ function wholeFile(index: ExecutionIndex, file: string): string {
       ? [range.loaded === true ? '  no named test called into this range' : '  no named test reached this range']
       : range.tests.map((test) => `  ${formatTest(test)}`)));
     if (range.loaded === true) lines.push('  ran while its module evaluated');
+    // The range's cases are the ones an edit to its lines selects; a region with no line of its own would read as theirs.
+    for (const region of range.unentered ?? []) {
+      lines.push(`  ${unenteredSentence(region)}`);
+    }
   }
   if (ranges.some((range) => range.loaded === true)) lines.push(UNNAMED_LOADERS);
   return lines.join('\n');

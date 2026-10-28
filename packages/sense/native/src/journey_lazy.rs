@@ -143,6 +143,11 @@ impl Lazy {
         }
     }
 
+    /// Every byte of a byte column.
+    pub fn all_bytes(&self, column: Handle) -> Result<Vec<u8>, String> {
+        (0..self.rows(column)).map(|row| self.byte(column, row)).collect()
+    }
+
     /// Entry `id` of a blob, bounded by its offset column.
     pub fn entry(&self, blob: Handle, offsets: Handle, id: usize) -> Result<&[u8], String> {
         if id + 1 >= self.rows(offsets) {

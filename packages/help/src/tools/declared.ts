@@ -1,16 +1,17 @@
 /**
- * Names a file declares at its top level and does not export, answered rather
- * than refused.
+ * Names a file declares and does not export, answered rather than refused.
  *
  * Every export list stops at what a file hands out, and a file keeps most of
  * what it declares to itself: the helper a function calls, the constant beside
  * it. A caller who typed such a name exactly is not wrong about the name, and
  * `git grep` would find it at once. The source index harvested every top-level
- * declaration of every file it parsed, so the declaration is read from there,
+ * declaration of every file it parsed, and every function a function's body
+ * declares, so the declaration is read from there,
  * with who can reach it, as the reader of its language recorded: an ES
  * module's own name, and a Swift or Kotlin `private` one, is its file's alone,
  * a Rust item that is not `pub` is its module's and the modules inside it, and
- * a Python module keeps no name from an import that spells it. A reader that
+ * a Python module keeps no name from an import that spells it, and a closure is
+ * its holder's alone. A reader that
  * cannot tell — a script, a `macro_rules!` — records nothing, and the answer
  * says that.
  */
@@ -22,6 +23,9 @@ import { join } from 'node:path';
 import { declaredOf, type DeclaredName } from '@variance-authority/sense';
 import { docOf, headOf } from '../indexed-surface.js';
 import type { DeclaredMatch, Matches } from './search-answer.js';
+import { sharedSegments } from './shared-segments.js';
+import type { Spelling } from '@variance-authority/mcp/tools';
+import { grep } from './grep.js';
 
 /** How many declarations of one name `symbol` writes out before it counts the rest. */
 const DECLARED_CAP = 5;
@@ -64,17 +68,28 @@ export function declarations(
  * documentation are left out when the file no longer holds the name where the
  * index read it.
  */
-function declaredBlock(root: string, held: DeclaredName): string {
-  const text = textAt(root, held);
-  const signature = text === undefined ? undefined : headOf(text, spanOf(held.signatureStart, held.signatureEnd));
-  const doc = text === undefined ? undefined : docOf(text, spanOf(held.docStart, held.docEnd));
+function declaredBlock(root: string, held: DeclaredName, spell: Spelling): string {
   return [
     `${held.name} [${held.kind}]`,
     `declared, not exported, at ${held.at}:${held.line}${held.by === '' ? '' : ` by ${held.by}`}`,
-    ...(signature === undefined ? [] : [signature]),
-    ...(doc === undefined ? [] : [doc]),
-    reachSentences(held).block,
+    ...textRows(root, held),
+    reachSentences(held, spell).block,
   ].join('\n');
+}
+
+/** Where a declaration is, and the spans of its signature and documentation. */
+type Spanned = Pick<DeclaredName, 'at' | 'name' | 'line' | 'signatureStart' | 'signatureEnd' | 'docStart' | 'docEnd'>;
+
+/**
+ * A declaration's signature and documentation, as the checkout holds them;
+ * neither when the file no longer holds the name where the index read it.
+ */
+export function textRows(root: string, held: Spanned): readonly string[] {
+  const text = textAt(root, held);
+  if (text === undefined) return [];
+  const signature = headOf(text, spanOf(held.signatureStart, held.signatureEnd));
+  const doc = docOf(text, spanOf(held.docStart, held.docEnd));
+  return [...(signature === undefined ? [] : [signature]), ...(doc === undefined ? [] : [doc])];
 }
 
 /**
@@ -82,8 +97,22 @@ function declaredBlock(root: string, held: DeclaredName): string {
  * recorded: the sentence `symbol` ends a declaration with, and the clause `uses`
  * ends its line with.
  */
-export function reachSentences(held: Pick<DeclaredName, 'at' | 'name' | 'reach'>): { readonly block: string; readonly clause: string } {
+export function reachSentences(
+  held: Pick<DeclaredName, 'at' | 'name' | 'reach' | 'holder' | 'holderLine'>,
+  spell: Spelling,
+): { readonly block: string; readonly clause: string } {
   const { at, name } = held;
+  // Declared inside a function: that function alone can name it, and a
+  // callback nobody named is told by the line it is written at.
+  if (isNested(held)) {
+    const holder = held.holder === undefined || held.holder === null ? undefined : `\`${held.holder}\``;
+    const who = holder ?? `the function written at ${at}:${held.holderLine}`;
+    const inside = holder ?? 'that function';
+    return {
+      block: `Only ${who} can name it: it is declared inside ${inside}.`,
+      clause: `, so only ${who} can name it: it is declared inside ${inside}`,
+    };
+  }
   switch (held.reach) {
     case 'file':
       return {
@@ -100,7 +129,7 @@ export function reachSentences(held: Pick<DeclaredName, 'at' | 'name' | 'reach'>
       const kept = held.reach === 'underscore' ? 'a leading underscore' : '`__all__`';
       return {
         block: `Another module can still import it by name: ${kept} keeps it out of \`from … import *\` only.`,
-        clause: `; another module can still import it by name, which \`ask grep --query '\\b${name}\\b' --to ${at}\` finds`,
+        clause: `; another module can still import it by name, which ${spell.question(grep, { query: `\\b${name}\\b`, to: at })} finds`,
       };
     }
     default:
@@ -139,7 +168,7 @@ function spanOf(start: number | null | undefined, end: number | null | undefined
 }
 
 /** The file's text, when it still holds the name on the line the index read it at. */
-function textAt(root: string, held: DeclaredName): string | undefined {
+function textAt(root: string, held: Pick<DeclaredName, 'at' | 'name' | 'line'>): string | undefined {
   let text: string;
   try {
     text = readFileSync(join(root, held.at), 'utf8');
@@ -155,24 +184,54 @@ function textAt(root: string, held: DeclaredName): string | undefined {
 /**
  * The blocks `symbol` answers a name's file-private declarations with — alone
  * when no file exports it, after the exports when another file does: one per
- * declaration, source first, the first `DECLARED_CAP` of them, a count of the
- * rest, and the files whose declarations were not read; nothing when the
+ * declaration, source first and nearest a path in `from` first, the first
+ * `DECLARED_CAP` of them, a count of the rest, and the files whose
+ * declarations were not read; nothing when the
  * source index is not at hand, since a name nothing exports is then unknown.
+ * `topLevel` says whether one of them is a file's top-level declaration: one
+ * inside a function is the workspace's too, and stands for no member.
  */
-export function declaredBlocks(root: string | undefined, name: string, wanted: string | undefined): readonly string[] {
+export function declaredBlocks(
+  root: string | undefined,
+  name: string,
+  wanted: string | undefined,
+  spell: Spelling,
+  from: readonly string[] = [],
+): { readonly blocks: readonly string[]; readonly topLevel: boolean } {
   const read = declarations(root, name);
-  if (root === undefined || 'refused' in read) return [];
-  const held = read.names.filter((one) => wanted === undefined || one.by === wanted);
-  if (held.length === 0) return [];
+  if (root === undefined || 'refused' in read) return { blocks: [], topLevel: false };
+  const held = nearestFirst(
+    read.names.filter((one) => wanted === undefined || one.by === wanted),
+    from,
+  );
+  if (held.length === 0) return { blocks: [], topLevel: false };
   const more = held.length - DECLARED_CAP;
-  return [
-    ...held.slice(0, DECLARED_CAP).map((one) => declaredBlock(root, one)),
+  const blocks = [
+    ...held.slice(0, DECLARED_CAP).map((one) => declaredBlock(root, one, spell)),
     ...(more > 0 ? [`${more} more ${more === 1 ? 'declaration' : 'declarations'} of \`${name}\` not shown.`] : []),
     ...unreadLine(read.unread),
   ];
+  return { blocks, topLevel: held.some((one) => !isNested(one)) };
 }
 
-/** The file-private declarations of the name, source first; none when the index is not at hand. */
+/** Whether a function's body declares it, rather than its file's top level. */
+export const isNested = (one: Pick<DeclaredName, 'holderLine'>): boolean => one.holderLine !== undefined && one.holderLine !== null;
+
+/**
+ * The declarations, those in a file nearest one of `from` first: the more
+ * leading path segments they share, as `uses` orders its sites. Stable, so the
+ * source-first order holds among equals; no `from` leaves the order as it is.
+ */
+function nearestFirst(held: readonly DeclaredName[], from: readonly string[]): readonly DeclaredName[] {
+  if (from.length === 0) return held;
+  const near = (at: string): number => Math.max(...from.map((one) => sharedSegments(one, at)));
+  return held.map((one) => [one, near(one.at)] as const).sort((left, right) => right[1] - left[1]).map(([one]) => one);
+}
+
+/**
+ * The file-private declarations of the name, source first, top-level or
+ * inside a function as `isNested` tells; none when the index is not at hand.
+ */
 export function declaredAt(root: string | undefined, name: string, wanted: string | undefined): readonly DeclaredName[] {
   const read = declarations(root, name);
   if ('refused' in read) return [];
@@ -182,7 +241,9 @@ export function declaredAt(root: string | undefined, name: string, wanted: strin
 /**
  * The declarations whose names hold `query`, as the `search` section lists
  * them: the first `cap`, source first, in `files` when an area named them;
- * nothing when no checkout was named or its index could not be read.
+ * nothing when no checkout was named or its index could not be read. A name
+ * that is the query as written comes first, the same name in another case
+ * second, and every name only holding it after them.
  */
 export function declaredMatches(
   root: string | undefined,
@@ -192,7 +253,19 @@ export function declaredMatches(
 ): (Matches<DeclaredMatch> & { readonly unread: readonly string[] }) | undefined {
   const read = declarations(root, query, files === undefined ? { containing: true } : { containing: true, files });
   if ('refused' in read) return undefined;
-  return { total: read.names.length, shown: read.names.slice(0, cap).map(declaredMatch), unread: read.unread };
+  // Stable, so the index's order holds within each.
+  const written = (one: DeclaredName): number => exactness(one.name, query) ?? 2;
+  const names = [...read.names].sort((left, right) => written(left) - written(right));
+  return { total: names.length, shown: names.slice(0, cap).map(declaredMatch), unread: read.unread };
+}
+
+/**
+ * How exactly a name is the question, as every `search` list ranks it: 0 as
+ * written, 1 the same name in another case, nothing when it only holds it.
+ */
+export function exactness(written: string, question: string): 0 | 1 | undefined {
+  if (written === question) return 0;
+  return written.toLowerCase() === question.toLowerCase() ? 1 : undefined;
 }
 
 /** One declaration, as a `search` section holds it. */

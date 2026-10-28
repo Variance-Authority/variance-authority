@@ -71,7 +71,7 @@ import { chargeLine, rowsOf } from './blocks-around.js';
 import { askCoverageFile } from './coverage-file.js';
 import { distanceFromView, type DistanceOptions, type TestDistance } from './distance.js';
 import { findModules } from './lookup.js';
-import type { SelectionCause, SelectionReason } from './select.js';
+import type { SelectionCause, SelectionReason } from './narrowing.js';
 import { NO_LINE } from './written-lines.js';
 
 /**

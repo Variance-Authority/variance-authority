@@ -14,8 +14,7 @@
  * against whichever the project installed.
  */
 
-import { readFile } from 'node:fs/promises';
-import { digestString } from '../digest.js';
+import type { Digest } from '../digest.js';
 import type { ModuleId } from '../instrument/index.js';
 import journalFormat from './journal-format.cjs';
 import {
@@ -318,16 +317,16 @@ export function runnerSkipped(context: RunnerContext | undefined, reason?: strin
 
 /**
  * The same reading for a runner that reports a file as one status and its tests
- * as a flat list of them.
- *
- * Rstest is that runner: `onTestRunEnd` hands a result per file whose `results`
- * are its leaves, with no tree between them. The file's own status carries what
- * {@link stopped} reads out of a task tree — a `beforeAll` that throws leaves
- * the file failed and every test in it skipped — so asking it first refuses the
- * thrown-fixture case for the same reason and with the same consequence.
+ * as a flat list of them: Rstest's `results`, and Jest's statuses in these
+ * words. The file's own status carries what {@link stopped} reads out of a task
+ * tree — a `beforeAll` that throws leaves the file failed and every test in it
+ * skipped — so asking it first refuses the thrown-fixture case for the same
+ * reason. Where the runner may have skipped a
+ * test on its own, only a pass is an outcome.
  */
-export function statusesComplete(file: string, tests: readonly string[]): boolean {
-  return usableOutcome(file) && tests.length > 0 && tests.every(usableOutcome);
+export function statusesComplete(file: string, tests: readonly string[], runnerSkipped: boolean): boolean {
+  return usableOutcome(file) && tests.length > 0
+    && tests.every((state) => (runnerSkipped ? state === 'pass' : usableOutcome(state)));
 }
 
 export function reportedComplete(module: ReportedModule, runnerSkipped: boolean): boolean {
@@ -399,13 +398,15 @@ export function oneRowPerFile(
   return [...byPath.values()];
 }
 
-export async function coverageTest(
+export function coverageTest(
   task: FinishedFile,
   root: string,
   preconditionFiles: readonly string[],
+  /** Every file's text digest, from `textDigests`, read once for the whole run. */
+  digests: ReadonlyMap<string, Digest>,
   journals: readonly ReadJournal[],
   modules: ReadonlyMap<ModuleId, CapturedModule>,
-): Promise<CoverageTest> {
+): CoverageTest {
   const file = projectPath(root, task.filepath);
   // By name, because the same fact can arrive more than once: a file two
   // projects both ran left a journal under each of them, and the modules those
@@ -418,7 +419,7 @@ export async function coverageTest(
   for (const input of [task.filepath, ...preconditionFiles]) {
     require({
       name: projectPath(root, input),
-      digest: digestString(await readFile(input, 'utf8')),
+      digest: digests.get(input)!,
     });
   }
   // Whether this file left a journal at all. A file with every test skipped is

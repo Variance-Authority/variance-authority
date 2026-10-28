@@ -1,12 +1,22 @@
 import type { LexiconField, RunReport } from '@variance-authority/report';
 import { stringArg, type Tool } from './tool.js';
-import { codeUnit, entriesMatching, indexOf, lower, partsOf, type LocateField } from './locate-index.js';
+import {
+  adjacent,
+  codeUnit,
+  entriesMatching,
+  indexOf,
+  lower,
+  partsOf,
+  type LocateField,
+  type LocateIndex,
+} from './locate-index.js';
 import { orient } from './orient.js';
 import { askedFor, STOPLIST } from './question.js';
 import { renderOrientation } from './place.js';
 import { render } from './locate-print.js';
 import { scopeOf, type Scope } from './scope.js';
 import { startPointArg, START_POINT_SCHEMA } from './start-point.js';
+import { heldWeight, rarity as rarityOf } from './rarity.js';
 import type { Tree } from './tree.js';
 
 export { tokensOf, type LocateField } from './locate-index.js';
@@ -24,12 +34,13 @@ export { tokensOf, type LocateField } from './locate-index.js';
  * ## What it is not
  *
  * Not a search engine. The corpus is a few hundred short names per subject and
- * the ranking is three integers and a string: how many of the query's words a
- * subject matched, how rare each matched word is in the field it matched in
- * across the suite weighted by that field, then the smaller subject first and
- * the id in code-unit order. No term frequency, because three chips in one
+ * the ranking is four integers and a string: how many of the query's words a
+ * subject matched, how many adjacent pairs of them it holds in one value, how
+ * rare each matched word is in the field it matched in across the suite
+ * weighted by that field, then the smaller subject first and the id in
+ * code-unit order. No term frequency, because three chips in one
  * footer is a fact about a list and not a better match; no length
- * normalisation, because the size of a subject is already the third key; no
+ * normalisation, because the size of a subject is already the fourth key; no
  * floats anywhere, because two machines summing logarithms in different orders
  * can disagree at the last bit and reorder two hits.
  *
@@ -39,6 +50,25 @@ export { tokensOf, type LocateField } from './locate-index.js';
  * counted once across all fields it would be worth nothing in the two ids that
  * say `card` either, and the one subject named for the card would lose to a
  * sibling that matched some other word.
+ *
+ * A word more than half the searched subjects hold in a field picks none of
+ * them out there — the rule that calls a component more than half a suite
+ * holds structure — and every match says so, with how many hold it, so the
+ * reader sees which of a hit's words are evidence. When every word of a
+ * question is that common wherever it occurs, the answer says nothing was
+ * picked out. It does not drop the word from the rank. Measured on questions
+ * written for a suite by an author who never saw the index, dropping it lost
+ * more first places than it won: a word held by one subject more than half is
+ * a cliff, and the subject that held it in its text alone fell behind a decoy
+ * that held it in a label too.
+ *
+ * A pair is two adjacent words of the question, adjacent again in one recorded
+ * value: `clear completed` in the label *Clear completed*, not `Clear` in one
+ * label and `completed` in another, nor both somewhere in one paragraph. The
+ * value is cut as tokens are, so `ClearCompleted` says the pair too, and a
+ * stopword between the two is passed over as the question passed it over. It
+ * orders subjects that matched the same number of words before weight does,
+ * so a pair can pick a subject out where neither of its words alone does.
  *
  * Not semantic, either, and the reason it does not need to be is the one the
  * whole system rests on: the run recorded five names for each thing. A `Toggle`
@@ -216,11 +246,15 @@ export const FIELD_WEIGHTS: Readonly<Record<LocateField, number>> = {
   tokens: 1,
 };
 
-/** One field a query term matched in one subject, and the values it matched. */
+/** One field a query term, or a pair of them, matched in one subject, and the values it matched. */
 export interface LocateMatch {
   readonly term: string;
   readonly field: LocateField;
   readonly values: readonly string[];
+  /** Subjects searched that hold the term in this field. */
+  readonly holders: number;
+  /** `holders` is more than half the subjects searched: the match picks none of them out. */
+  readonly common: boolean;
 }
 
 export interface LocateHit {
@@ -229,9 +263,13 @@ export interface LocateHit {
   /** Components this subject is the narrow example of. */
   readonly example: readonly string[];
   readonly matches: readonly LocateMatch[];
+  /** Adjacent pairs of query terms this subject holds in one value, as `a b`. */
+  readonly together: readonly LocateMatch[];
   /** Distinct query terms matched. The first rank key. */
   readonly terms: number;
-  /** Σ over matched (term, field) of weight × rarity of the term in that field. The second rank key. */
+  /** Distinct adjacent pairs of query terms held. The second rank key. */
+  readonly pairs: number;
+  /** Σ over matched (term, field) of weight × rarity of the term in that field. The third rank key. */
   readonly weight: number;
 }
 
@@ -248,6 +286,16 @@ export interface Located {
   readonly unread: readonly LexiconField[];
   /** Subjects indexed, over all fields or by id alone. */
   readonly indexed: number;
+  /** Subjects searched: the scope when one was given, else every subject indexed. */
+  readonly searched: number;
+  /** Terms matched only where more than half the subjects searched hold them. */
+  readonly common: readonly string[];
+  /**
+   * Whether anything asked picks a subject out: a term matched somewhere fewer
+   * than half the searched subjects hold it, or a pair any hit says side by
+   * side that fewer than half say. False is the answer that abstains.
+   */
+  readonly distinguished: boolean;
   /** Subjects the run indexed by id only, because it wrote no lexicon for them. */
   readonly idOnly: number;
   /**
@@ -288,62 +336,42 @@ export function locateSubjects(
     .map((word) => lower(word).replace(/^[^a-z0-9]+|[^a-z0-9]+$/g, ''))
     .filter((word) => word !== '');
   const dropped = [...new Set(words.filter((word) => STOPLIST.has(word)))];
-  const terms = [...new Set(words.filter((word) => !STOPLIST.has(word)))];
+  const kept = words.filter((word) => !STOPLIST.has(word));
+  const terms = [...new Set(kept)];
 
-  // Every (subject, term, field) match first, because rarity is a count over
-  // subjects per (term, field) and the score needs it before any subject is
-  // scored. `holders` is per term, for the words nothing holds at all. Entry
-  // ids ascend in subject, field, value order, so one pass groups them.
-  const matched = new Map<string, LocateMatch[]>();
-  const holders = new Map<string, Set<string>>();
-  const holdersIn = new Map<string, Set<string>>();
-  for (const term of terms) {
-    const parts = partsOf(term);
-    if (parts.length === 0) continue;
-    let open: { subject: string; field: LocateField; values: string[] } | undefined;
-    const close = () => {
-      if (open === undefined) return;
-      let list = matched.get(open.subject);
-      if (list === undefined) matched.set(open.subject, (list = []));
-      list.push({ term, field: open.field, values: open.values });
-      let set = holders.get(term);
-      if (set === undefined) holders.set(term, (set = new Set()));
-      set.add(open.subject);
-      let inField = holdersIn.get(`${open.field} ${term}`);
-      if (inField === undefined) holdersIn.set(`${open.field} ${term}`, (inField = new Set()));
-      inField.add(open.subject);
-    };
-    for (const id of entriesMatching(index, parts)) {
-      const entry = index.entries[id]!;
-      if (within !== undefined && !within.has(entry.subject)) continue;
-      if (open !== undefined && open.subject === entry.subject && open.field === entry.field) {
-        open.values.push(entry.value);
-        continue;
-      }
-      close();
-      open = { subject: entry.subject, field: entry.field, values: [entry.value] };
-    }
-    close();
-  }
+  // A pair is two adjacent words of what was asked, the stoplist gone, so
+  // `clear the completed` still pairs `clear` with `completed`.
+  const pairs = [
+    ...new Set(
+      kept.slice(1).flatMap((word, at) => (word === kept[at] ? [] : [`${kept[at]} ${word}`])),
+    ),
+  ];
 
   // Counted over the scope when there is one. This is the half of a start
   // point that removing rows does not buy: inside one area of an application,
   // the area's own vocabulary stops distinguishing anything.
   const total = within === undefined ? index.subjects.size : within.size;
-  const rarity = (term: string, field: LocateField): number =>
-    Math.floor((1000 * (total - (holdersIn.get(`${field} ${term}`)?.size ?? 0) + 1)) / (total + 1));
+  const single = collect(index, terms, within, total);
+  const together = collect(index, pairs, within, total);
+  const rarity = (match: LocateMatch): number => rarityOf(total, match.holders);
 
-  const hits: LocateHit[] = [...matched].map(([subject, list]) => ({
-    subject,
-    boundaries: index.subjects.get(subject)?.boundaries ?? 0,
-    example: index.examples.get(subject) ?? index.subjects.get(subject)?.terms.example ?? [],
-    matches: list,
-    terms: new Set(list.map((match) => match.term)).size,
-    weight: list.reduce((sum, match) => sum + FIELD_WEIGHTS[match.field] * rarity(match.term, match.field), 0),
-  }));
+  const hits: LocateHit[] = [...single.matched].map(([subject, list]) => {
+    const held = together.matched.get(subject) ?? [];
+    return {
+      subject,
+      boundaries: index.subjects.get(subject)?.boundaries ?? 0,
+      example: index.examples.get(subject) ?? index.subjects.get(subject)?.terms.example ?? [],
+      matches: list,
+      together: held,
+      terms: new Set(list.map((match) => match.term)).size,
+      pairs: new Set(held.map((match) => match.term)).size,
+      weight: heldWeight(list, rarity, (match) => FIELD_WEIGHTS[match.field]),
+    };
+  });
   hits.sort(
     (left, right) =>
       right.terms - left.terms ||
+      right.pairs - left.pairs ||
       right.weight - left.weight ||
       left.boundaries - right.boundaries ||
       codeUnit(left.subject, right.subject),
@@ -352,14 +380,65 @@ export function locateSubjects(
   return {
     terms,
     dropped,
-    unmatched: terms.filter((term) => !holders.has(term)),
+    unmatched: terms.filter((term) => !single.held.has(term)),
     read: index.read,
     unread: index.unread,
     indexed: index.subjects.size,
+    searched: total,
+    common: single.common,
+    distinguished: single.common.length < single.held.size || together.common.length < together.held.size,
     idOnly: index.idOnly,
     cover: hits[0]?.terms ?? 0,
     hits,
     names: index.names,
     ...(scope === undefined ? {} : { scope }),
   };
+}
+
+/**
+ * Every (subject, term, field) match, grouped by subject, with how many
+ * searched subjects hold the term in that field. Rarity and the count of
+ * holders are both over subjects per (term, field), so every match is found
+ * before any is weighed. A pair is held where one value says its two words
+ * next to each other. Entry ids ascend in subject, field, value order, so one pass groups.
+ */
+function collect(
+  index: LocateIndex,
+  terms: readonly string[],
+  within: ReadonlySet<string> | undefined,
+  total: number,
+): { matched: Map<string, LocateMatch[]>; held: Set<string>; common: readonly string[] } {
+  const found: { subject: string; term: string; field: LocateField; values: string[] }[] = [];
+  const holdersIn = new Map<string, number>();
+  for (const term of terms) {
+    const words = term.split(' ');
+    const parts = words.flatMap((word) => partsOf(word));
+    if (parts.length === 0) continue;
+    let open: (typeof found)[number] | undefined;
+    for (const id of entriesMatching(index, parts)) {
+      const entry = index.entries[id]!;
+      if (within !== undefined && !within.has(entry.subject)) continue;
+      if (words.length > 1 && !adjacent(entry.value, words, STOPLIST)) continue;
+      if (open !== undefined && open.subject === entry.subject && open.field === entry.field) {
+        open.values.push(entry.value);
+        continue;
+      }
+      open = { subject: entry.subject, term, field: entry.field, values: [entry.value] };
+      found.push(open);
+      holdersIn.set(`${entry.field} ${term}`, (holdersIn.get(`${entry.field} ${term}`) ?? 0) + 1);
+    }
+  }
+
+  const matched = new Map<string, LocateMatch[]>();
+  const held = new Set<string>();
+  const distinct = new Set<string>();
+  for (const { subject, term, field, values } of found) {
+    const holders = holdersIn.get(`${field} ${term}`)!;
+    let list = matched.get(subject);
+    if (list === undefined) matched.set(subject, (list = []));
+    list.push({ term, field, values, holders, common: holders * 2 > total });
+    held.add(term);
+    if (holders * 2 <= total) distinct.add(term);
+  }
+  return { matched, held, common: terms.filter((term) => held.has(term) && !distinct.has(term)) };
 }

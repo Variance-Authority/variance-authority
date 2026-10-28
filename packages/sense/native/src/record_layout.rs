@@ -59,6 +59,9 @@ pub struct Coverage {
     /// The case parts, `(part, section)`, in the order a record holds them after the coverage sections.
     pub parts: Vec<(String, String)>,
     pub block_kinds: Vec<String>,
+    /// The kinds of region each reading of an edit leaves running as they ran;
+    /// a reading absent here spares nothing.
+    pub spared: std::collections::HashMap<String, Vec<String>>,
 }
 
 impl Coverage {
@@ -128,5 +131,12 @@ mod tests {
         assert!(LAYOUT.coverage.readable(LAYOUT.coverage.uncased));
         assert!(!LAYOUT.coverage.readable(LAYOUT.coverage.untimed - 1));
         assert!(!LAYOUT.coverage.readable(LAYOUT.coverage.format + 1));
+    }
+
+    #[test]
+    fn spares_every_kind_under_no_change_and_the_top_level_under_a_body_edit() {
+        assert_eq!(LAYOUT.coverage.spared["none"], LAYOUT.coverage.block_kinds);
+        assert_eq!(LAYOUT.coverage.spared["bodies"], ["module"]);
+        assert!(!LAYOUT.coverage.spared.contains_key("load"));
     }
 }

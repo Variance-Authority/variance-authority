@@ -13,8 +13,7 @@ and the `new → accept → unchanged → changed` cycle completed with each cha
 region resolved to the component and line that wrote it.
 
 The Storybook and its design system are authored here, so this case says nothing
-about a third-party component library, a hosted review service, Storybook's own
-chrome, or hydration.
+about a third-party component library, Storybook's own chrome, or hydration.
 
 ## Two words this file uses
 
@@ -77,7 +76,8 @@ yarn workspace @variance-authority/case-storybook storybook
 | `src/*.stories.jsx` | the sixteen stories, in five files under one title |
 | `src/ds.jsx` | the design system they render — `Button`, `Stack`, `Card`, `Spinner`, `Clock`, `AsyncPanel`, `Panel`, `SheetLeak`, and the Suspense trees |
 | `collector/index.mjs` | the case's collector: which story defers readiness and by what marker, which story is about its own loading state, and where the components live |
-| `variance.config.json` | project, viewport, fonts, baselines, and `excludeTags: ["no-variance"]` |
+| `variance.config.json` | project, viewport, fonts, baselines, and `excludeTags: ["no-variance", "ticking"]` |
+| `variance.lfs.config.json` | the same subjects, with baselines committed under `baselines/` through git-LFS; run by the `lfs` job of `.github/workflows/variance.yml` |
 | `.storybook/` | the build every suite but one reads |
 | `.storybook-a11y/` | a second build with `@storybook/addon-a11y` installed |
 | `src/storybook.chromium.test.js` | the adapter against the real index and preview |
@@ -85,6 +85,7 @@ yarn workspace @variance-authority/case-storybook storybook
 | `src/alone.chromium.test.js` | order dependence told apart from a regression |
 | `src/suspense.chromium.test.js` | a never-resolving boundary, declared and undeclared |
 | `src/finish.chromium.test.js` | a story still busy after `storyRendered` |
+| `src/parameters.chromium.test.js` | a story's parameters read when it is reached, with no other story file imported |
 | `src/globals.chromium.test.js` | the a11y addon stood down for a visual pass |
 
 ## What is in the stories
@@ -94,10 +95,11 @@ adapter meets the cases that actually decide whether it is any good. The files
 share the title `Case/Surface`, so the story ids do not name them, and they are
 split so `variance run --shard` has more than one file to place: the stories of
 one file always go to the same shard. **Thirteen** are read, and one of those is
-read at two widths, so the run has **fourteen** subjects. Two stories carry
-`tags: ['no-variance']`, which `variance.config.json` honours, and one excludes
-itself in its own `parameters.variance`. The run names all three and reports
-`14 of 17 subject(s) observed`.
+read at two widths, so the stories make **fourteen** subjects. Two stories carry
+`tags: ['no-variance']` and one excludes itself in its own
+`parameters.variance`. `variance.config.json` also excludes the `ticking` tag,
+so the gate reads thirteen, names all four it skipped, and reports
+`13 of 17 subject(s) observed`.
 
 Fourteen of the sixteen — everything except `AsyncPanel — settles late` and
 `Clock — ticking` — are collected through **one page and one navigation**. Those
@@ -116,15 +118,16 @@ two are exercised separately.
 | `Suspense — arrives late` | a boundary no marker could cover: the component that would carry one has not rendered |
 | `Suspense — boundary inside a boundary` | a boundary that only exists once the first one resolves, so one clean reading is not enough |
 | `Suspense — never resolves` | a boundary that never resolves, which is a flake source and is refused unless declared in `collector/index.mjs` |
-| `Card — receipt at two widths` | declares `widths: [375, 800]` in its own parameters, which the index does not carry, so it becomes two subjects, `@375` and `@800`, only if the collector asks the running preview |
+| `Card — receipt at two widths` | declares `widths: [375, 800]` in its own parameters, which the index does not carry, so it becomes two subjects, `@375` and `@800`, only once the collector reaches it and asks the running preview; both are read on that one page |
 
 The first five rows are the five a `Button` edit moves. Of the nine subjects below
 them, eight read the same way every time. `Clock — ticking` does not: nothing
 freezes its clock, and its text counts the time since it mounted. Two
 consecutive readings of one mount never agree, and a reading agrees with its
 baseline, which is another mount, only when both were taken the same 50 ms
-step after mounting. It has the tag `ticking`, so a run that asserts `unchanged`
-can exclude it.
+step after mounting. It has the tag `ticking`, and `variance.config.json`
+excludes it: a gate that compares it against a baseline goes red on a coin flip.
+It is read in [its own sweep](#a-flake-is-diagnosed-not-retried-away).
 
 `Card — receipt not read` declares `exclude: true` in the same place. The report
 lists it as excluded by its own parameters rather than leaving it out.
@@ -276,11 +279,9 @@ than two independent runs compared afterwards.
 
 Four steps, which is the workflow a team actually runs. `cli.chromium.test.js`
 writes the cycle's two configs, one per build. Besides their project name,
-temporary paths and the build each reads, they differ from `variance.config.json`
-by also excluding the `ticking` tag, so the cycle reads thirteen subjects and
-leaves `Clock — ticking` to [its own sweep](#a-flake-is-diagnosed-not-retried-away). If you run
-`variance.config.json` by hand, it reads all fourteen, and the clock's verdict
-against its baseline varies from run to run.
+temporary paths and the build each reads, they are `variance.config.json`: both
+exclude the `ticking` tag, so the cycle reads thirteen subjects and leaves
+`Clock — ticking` to [its own sweep](#a-flake-is-diagnosed-not-retried-away).
 
 | step | verdicts | exit |
 |---|---|---|

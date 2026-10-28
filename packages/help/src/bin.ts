@@ -1,13 +1,12 @@
 #!/usr/bin/env node
 import { relative } from 'node:path';
 import type { Tree } from '@variance-authority/mcp/tools';
-import { ask, askSearch, askSearchJson, inputFrom, toolNamed, verbs } from './ask.js';
-import { caughtUp, foundNothingFooter, snapshotLine } from './caught-up.js';
+import { ask, askSearch, askSearchJson, inputFrom, invocationOf, toolNamed, verbs } from './ask.js';
+import { caughtUp, foundNothingAnswer, snapshotLine } from './caught-up.js';
 import { readWorkspaceForAnswer, workspaceGeneration } from './read.js';
 import { readNamedTree } from './names-read.js';
 import { readSearchForAnswer } from './search-read.js';
 import { discover } from './tools/discover.js';
-import { FoundNothing } from './tools/find.js';
 import { intersection, namesWanted } from './tools.js';
 import { search } from './tools/search.js';
 import { serveWorkspace } from './server.js';
@@ -42,7 +41,7 @@ async function crossNamed(root: string, reading: Reading, args: readonly string[
   const at = workspaceGeneration(help);
   return {
     answer: () => {
-      const answer = intersection.run(help, input, { ...names, root });
+      const answer = intersection.run(help, input, invocationOf({ ...names, root }));
       return at === undefined ? answer : `${answer}\n${snapshotLine(at, reading.justAnswer)}`;
     },
     at,
@@ -165,7 +164,7 @@ if (asking(verb) && verb !== undefined) {
       }
       if (tool === discover) {
         const named = await readNamedTree(root, inputFrom(tool, ownArgs));
-        return { answer: () => discover.run(undefined, inputFrom(tool, ownArgs), { ...named, root }), at: undefined };
+        return { answer: () => discover.run(undefined, inputFrom(tool, ownArgs), invocationOf({ ...named, root })), at: undefined };
       }
       if (tool === intersection && namesWanted(inputFrom(tool, ownArgs))) return crossNamed(root, reading, ownArgs);
       const help = await readWorkspaceForAnswer(root, reading);
@@ -188,14 +187,12 @@ if (asking(verb) && verb !== undefined) {
         answer = caught.subject.answer();
       } catch (still) {
         // A name not found is an answer once nothing newer can be read, dated as any other.
-        if (still instanceof FoundNothing) {
-          const dated = foundNothingFooter(caught, caught?.subject !== undefined ? caught.subject.at : first.at, justAnswer);
-          answer = dated === undefined ? still.message : `${still.message}\n${dated}`;
-        }
-        else {
+        const found = foundNothingAnswer(still, caught, caught?.subject !== undefined ? caught.subject.at : first.at, justAnswer);
+        if (found === undefined) {
           if (footer !== undefined && still instanceof Error) still.message += `\n\n${footer}`;
           throw still;
         }
+        answer = found;
       }
     }
 

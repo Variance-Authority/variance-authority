@@ -1,5 +1,5 @@
-import { markFinishAbsent, readFinishRecord } from './story-finished.js';
-import { FINISHED_RECORD_KEY, type ShowRequest } from './preview-protocol.js';
+import { markFinishAbsent, readFinishRecord, waitFinishRecord } from './story-finished.js';
+import { FINISHED_RECORD_KEY, type FinishRecord, type ShowRequest } from './preview-protocol.js';
 import type { StoryPage } from './preview.js';
 
 /**
@@ -25,10 +25,11 @@ import type { StoryPage } from './preview.js';
  * stop and then reloads the entire preview (`StoryRender.teardown`), which
  * discards everything injected into the page — so every story after this one is
  * read from a document that has been reset. The wait is what makes the switch
- * safe, and it is *here*, in Node, rather than in the page function, because the
- * page's clock belongs to whoever is testing: a project that pinned it with
- * `page.clock.install` would have a grace timer scheduled in page scope that
- * never fires. See `story-finished.ts`.
+ * safe. The page answers when the finish arrives, and the deadline is *here*,
+ * in Node, rather than in the page function, because the page's clock belongs
+ * to whoever is testing: a project that pinned it with `page.clock.install`
+ * would have a grace timer scheduled in page scope that never fires. See
+ * `story-finished.ts`.
  *
  * Only a rendered result waits. A story that threw, timed out or is missing has
  * nothing left to finish, and holding those back would pay the grace on the
@@ -44,13 +45,7 @@ import type { StoryPage } from './preview.js';
  * pays this wait again, and is not worth a warning on every subject.
  */
 export async function awaitFinish(page: StoryPage, request: ShowRequest): Promise<string | undefined> {
-  const deadline = Date.now() + request.timeoutMs;
-  let record = await page.evaluate(readFinishRecord, FINISHED_RECORD_KEY);
-
-  while (record !== null && !record.absent && !record.hit && Date.now() < deadline) {
-    await new Promise((resolve) => setTimeout(resolve, request.pollMs));
-    record = await page.evaluate(readFinishRecord, FINISHED_RECORD_KEY);
-  }
+  const record = await heardOrSpent(page, request.timeoutMs);
 
   if (record === null || record.absent) return undefined;
 
@@ -67,6 +62,37 @@ export async function awaitFinish(page: StoryPage, request: ShowRequest): Promis
     `reloads the whole preview when a render it is replacing is still pending, so the ` +
     `stories after this one may be read from a page that has been reset.`
   );
+}
+
+/**
+ * The record when the finish arrives, or as it stands when the budget is spent.
+ *
+ * One question to the page, answered by the event itself, so a story costs the
+ * same round trips however long its `afterEach` takes and nothing is paid after
+ * the finish has arrived. The deadline is a Node timer for the reason
+ * `story-finished.ts` gives. When it comes first, or the document the question
+ * was asked in is replaced under it, the record is read once more: a page that
+ * was closed throws there as it would anywhere, and a page that reloaded
+ * answers `null`.
+ */
+async function heardOrSpent(page: StoryPage, timeoutMs: number): Promise<FinishRecord | null> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const spent = new Promise<'spent'>((resolve) => {
+    timer = setTimeout(() => resolve('spent'), timeoutMs);
+  });
+  const heard = page.evaluate(waitFinishRecord, FINISHED_RECORD_KEY).then(
+    (record) => ({ record }),
+    () => 'gone' as const,
+  );
+
+  try {
+    const answer = await Promise.race([heard, spent]);
+    if (typeof answer === 'object') return answer.record;
+  } finally {
+    clearTimeout(timer);
+  }
+
+  return page.evaluate(readFinishRecord, FINISHED_RECORD_KEY);
 }
 
 /**

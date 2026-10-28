@@ -44,7 +44,7 @@ describe('variance ask uses --limit', () => {
     expect(code).toBe(EXIT_CLEAN);
     expect(out).toContain('`greet` [function] is imported in 5 places');
     expect(sites(out)).toEqual(sites(all.out).slice(0, 2));
-    expect(out).toContain('… 3 more not shown; a higher `limit` shows them.');
+    expect(out).toContain('… 3 more not shown; a higher `--limit` shows them.');
   });
 
   it('cuts the imports of a name its module keeps to itself at the same limit', async () => {
@@ -60,7 +60,7 @@ describe('variance ask uses --limit', () => {
 
     const all = await run(['ask', 'uses', '--name', 'flag']);
     expect(all.code).toBe(EXIT_CLEAN);
-    expect(all.out).toContain('`flag` is declared, not exported, at packages/kit/src/lexicon.rs:8');
+    expect(all.out).toContain('`flag` [function] is declared, not exported, at packages/kit/src/lexicon.rs:8');
     const rust = (out: string): readonly string[] => out.split('\n').filter((line) => /^\S+\.rs:\d+\b/.test(line));
     expect(rust(all.out)).toHaveLength(3);
 
@@ -69,7 +69,7 @@ describe('variance ask uses --limit', () => {
     expect(code).toBe(EXIT_CLEAN);
     expect(out).toContain('Imported in 3 places.');
     expect(rust(out)).toEqual(rust(all.out).slice(0, 1));
-    expect(out).toContain('… 2 more not shown; a higher `limit` shows them.');
+    expect(out).toContain('… 2 more not shown; a higher `--limit` shows them.');
   });
 
   it('cuts the lines of the declaring file at the same limit', async () => {
@@ -102,7 +102,7 @@ describe('variance ask uses --limit', () => {
     expect(err).toBe('');
     expect(code).toBe(EXIT_CLEAN);
     expect(own(out)).toEqual(own(all.out).slice(0, 1));
-    expect(out).toContain('… 2 more not shown; a higher `limit` shows them.');
+    expect(out).toContain('… 2 more not shown; a higher `--limit` shows them.');
   });
 
   it('marks each site it shows with the name its import binds, and counts the renamed ones it cuts', async () => {
@@ -116,6 +116,6 @@ describe('variance ask uses --limit', () => {
     expect(code).toBe(EXIT_CLEAN);
     expect(sites(out)).toEqual(sites(all.out).slice(0, 2));
     expect(sites(all.out).filter((line) => / \(as [a-d]Greet\)$/.test(line))).toHaveLength(4);
-    expect(out).toContain('… 3 more not shown; a higher `limit` shows them.');
+    expect(out).toContain('… 3 more not shown; a higher `--limit` shows them.');
   });
 });

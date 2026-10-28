@@ -16,9 +16,10 @@ import { searched, searchedFiles } from './search-answer.js';
  * it; and several words, over the words a name is written in, each word
  * matching one that starts with it or shares its stem. A match there is a fact
  * about the text, so it is reported first and whole, ordered first by where it
- * was found — the name, the doc's opening paragraph, the rest of the doc — and
- * then by who imports it: a name holding the word is that thing, and a doc
- * saying it three paragraphs down only mentions it.
+ * was found — the whole name, as written and then in another case, part of the
+ * name, the doc's opening paragraph, the rest of the doc — and then by who
+ * imports it: a name that is the word is what was asked for, a name holding it
+ * is that thing, and a doc saying it three paragraphs down only mentions it.
  *
  * ## Two halves, because most code is not published
  *
@@ -52,29 +53,36 @@ import { searched, searchedFiles } from './search-answer.js';
  * cannot be reached by a name they already returned. It appends names they did
  * not, under a heading that says how they were matched, and when it has nothing
  * to append it prints nothing at all. So an answer that used to be clean stays
- * clean, and *nothing matched* still means the substring matched nothing — now
- * said over a wider net, and saying so.
+ * clean, and the line above what it appends still says the substring matched
+ * nothing — as a miss of the text typed, since *nothing* over a list of names
+ * would read as a miss of the code.
  *
  * The order inside it is the order the sections above use, by consumers and
  * then by name. The index decides membership; it is never allowed to decide
  * position, because a caller who can see why a name is in a list can check it,
  * and a caller reading a rank has to trust it.
  *
- * ## A description, read the way a package's is
+ * ## A description, stemmed the way a package's is
  *
  * An agent that cannot name the thing describes it, and a description holds
  * words the name does not: `which tests entered a file`. Beside the loose pass
  * runs the reading the installed packages already get — the question cut into
- * stems, stopwords dropped, and a name answering when it holds half of them —
- * so the repository's own names answer before any package that says the same
- * words. A file answers beside them, by its own name and the doc it opens with,
+ * stems, stopwords dropped — with one difference: a package answers when it
+ * holds half of them, and the repository's own name when it holds any. So the
+ * repository's own names answer before any package that says the same
+ * words, and a name holding one word of three is answered rather than reported
+ * as nothing. A file answers beside them, by its own name and the doc it opens with,
  * since what a file is for is said once at its top and by no one declaration
  * in it. Its order is counts, written next to each row as the words it holds:
  * a caller can check `[holds: file, tests]`, and could not check a score.
  * Between two that hold as many, the one whose name holds more of them comes
  * first, then the one whose doc writes more of the question's adjacent word
- * pairs adjacent. It prints first, so a name it holds is not offered again by
- * the loose pass.
+ * pairs adjacent. Every word one of them holds is held by a row shown, so a name
+ * holding the one rare word is shown however many holding a common one sort
+ * before it. It prints first, so a name holding at least half the stems
+ * is not offered again by the loose pass. A name holding fewer is the loose
+ * pass's when that pass reaches it, by every word, so on three words or more a
+ * long list of names holding one stem cannot sort it past the rows shown.
  *
  * ## Where the substring stops being enough
  *
@@ -202,8 +210,8 @@ export function answerSearch(index: SearchIndex, input: Readonly<Record<string, 
       ? []
       : [
           '',
-          `${held.total} ${held.total === 1 ? 'name or file in this repository holds' : 'names and files in this repository hold'} at least half the words of \`${query}\`, ` +
-            'read by stem as the packages are, best first: the words held at all, then the words in the name, then the phrase its doc writes.',
+          `${held.total} ${held.total === 1 ? 'name or file in this repository holds' : 'names and files in this repository hold'} words of \`${query}\`, ` +
+            'read by stem as the packages are, best first: the words held, each counted by how few of these hold it and more in the name than in a doc, then the words in the name, then the phrase its doc writes; a row holding each word is shown however it sorts.',
           '',
           ...held.shown.map(describedRow),
           ...(held.total > held.shown.length ? [`\n${held.total - held.shown.length} more not shown.`] : []),
@@ -234,8 +242,18 @@ export function answerSearch(index: SearchIndex, input: Readonly<Record<string, 
         ];
 
   if (found.total === 0 && rest.total === 0 && declared.total === 0 && (third?.total ?? 0) === 0) {
+    // A miss of the text is not a miss of the code: when this repository's own
+    // names answer the words, the line above them says only that the text was
+    // not written, so a reader who stops at the first line does not stop at *nothing*.
+    // It names what the substring read, names and their docs: the doc a file
+    // opens with is read only for the words, so a file may still write the phrase.
+    // Inside an area the text may be written outside it, so the way to widen stays.
     const nowhere =
-      area === undefined
+      own.length > 0
+        ? area === undefined
+          ? `No name in this repository, nor the doc of one, writes \`${query}\` as typed. The nearest follow.`
+          : `No name in reach of that start point, nor the doc of one, writes \`${query}\` as typed — ask again without \`from\`/\`to\` to search the whole workspace. The nearest in reach follow.`
+        : area === undefined
         ? `Nothing in this repository is named or documented with \`${query}\`. \`packages\` lists every entrypoint; \`entrypoint\` lists what one opens.`
         : `Nothing in reach of that start point is named or documented with \`${query}\`. That is a fact about the area, not about the word — ask again without \`from\`/\`to\` to search the whole workspace.`;
     return [...where, nowhere, ...declaredSection, ...own, ...thirdSection, ...describedSection, ...missing].join('\n');
@@ -302,7 +320,7 @@ export const search: Tool<Help> = {
     'names appear separately when the third-party API catalogue is published, followed by the installed ' +
     'packages that describe your words — in their own description, keywords and README headings, or in ' +
     'the words of their names — so a job reaches a package by what it does. When nothing in this ' +
-    'repository holds the query as written, its own names and files holding at least half of your words, ' +
+    'repository holds the query as written, its own names and files holding any of your words, ' +
     'read by stem, come before any installed package, a file by its name and the doc it opens with, best ' +
     'first by the words held, then by the words in the name, then by how much of your phrase its doc writes, ' +
     'each labelled with the words it holds; names that match loosely — your words apart, or within a ' +
