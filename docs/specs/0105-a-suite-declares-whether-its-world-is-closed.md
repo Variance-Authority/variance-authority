@@ -84,6 +84,14 @@ mocked file is reached through the specifier that asked for it, and a breach
 is left to a load no specifier in the source asked for: a dynamic import by a
 computed name, a module the runtime loads by itself.
 
+Mocking is normal, so a closed world is silent on it. Every way a runner lets a
+test stand a module in — a mapper entry, a `__mocks__` file beside the module or
+under the root, automock, a factory, `requireActual` and `importOriginal`,
+`resetModules` and `isolateModules` — is a load some specifier asked for, and
+none of them is a breach. A breach reported on one is a defect in Variance, not
+in the suite, and is fixed here; the suite is never asked to declare itself
+`open` to get past it.
+
 `world` and `relations` answer different questions and are declared apart.
 `relations` says whether the graph steps may run at all. `world` says whether
 absence from the record is evidence. A unit suite is `closed` with relations
@@ -154,11 +162,19 @@ coverage alone it is a lower bound.
 - The walk starts at the suite's `before`, and a recorded file outside reach
   is named at every precision step, the union kept.
 - The record carries each importer's specifier and the file the runner served
-  for it, and the walk resolves through it. A fixture with a
-  `moduleNameMapper` entry and one with a `__mocks__` file each pass in a
-  closed world, and fail first without it. Automock and a declared mock are
-  pinned already (`select-mocks.test.ts`, `audit.test.ts`,
+  for it, and the walk resolves through it.
+- Each runner has one fixture shaped as a real project sets it up, not one
+  case per mechanism: a Jest project with `moduleNameMapper` for styles,
+  assets and a path alias, `__mocks__` beside a module and under the root for
+  a package, `automock` on with opt-outs, factory mocks with `requireActual`,
+  and `isolateModules`; a Vitest project with `resolve.alias`, `vi.mock` with
+  and without a factory, `importOriginal` and `vi.resetModules`. Each is
+  recorded in a closed world with no breach and no report, on every run, and
+  each fails first on the walk without the served file. Automock and a
+  declared mock are pinned already (`select-mocks.test.ts`, `audit.test.ts`,
   `vitest-hoisted-mocks.integration.test.ts`) and stay green.
+- The same two fixtures with one dynamic import by a computed name added
+  fail with exactly that one breach, naming the file, the test and the step.
 - A fixture whose journal loses an ES module, under Jest and under Vitest,
   fails the file the way `jest-registry.integration.test.ts` fails a lost
   CommonJS module, and fails first.
