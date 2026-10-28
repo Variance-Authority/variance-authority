@@ -91,6 +91,23 @@ describe('variance ask search counts the places that import a published name as 
     expect(row?.importedIn).toEqual({ places: 6, packages: 2 });
   });
 
+  it('ranks a name imported in more packages, then in more places, above one imported in fewer', async () => {
+    // The shape MUI showed: `TouchRippleClasses`, imported in one place within its package, sorted below `TouchRippleProps`, imported nowhere, because neither is imported from another package by a published path.
+    checkout({
+      'packages/lib/src/index.ts': "export { greet } from './greet.js';\nexport { toneLoud, toneQuiet } from './tone.js';\n",
+      'packages/lib/src/tone.ts': 'export const toneLoud = 1;\nexport const toneQuiet = 2;\n',
+      'packages/lib/src/quiet.ts': "import { toneQuiet } from './tone.js';\nexport const quiet = toneQuiet;\n",
+    });
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+
+    const search = await run(['ask', 'search', '--query', 'tone']);
+    expect(search.code).toBe(EXIT_CLEAN);
+    expect(search.out.split('\n').filter((line) => / · tone\w+ \[/u.test(line))).toEqual([
+      '@acme/lib · toneQuiet [const] imported in 1 place in 1 package — UNDOCUMENTED',
+      '@acme/lib · toneLoud [const] imported nowhere — UNDOCUMENTED',
+    ]);
+  });
+
   it('says a name nothing imports is imported nowhere', async () => {
     checkout({ 'apps/app/src/hello.ts': 'export const hello = 1;\n' });
     expect((await run(['index'])).code).toBe(EXIT_CLEAN);

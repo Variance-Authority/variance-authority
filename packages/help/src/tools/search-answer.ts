@@ -11,7 +11,7 @@ import { declaredKey, looseDeclarations } from './loose-declared.js';
 import { queryDependencyLexicon, type LexiconMatches } from '../dependency-lexicon.js';
 import { declaredMatches, exactness } from './declared.js';
 import { docRows, exported, exportedOrder, first } from './exported-matches.js';
-import { type ImportingOf, type InArea, type PublishedMatch, withImporting } from './published-match.js';
+import { counting, type ImportingOf, type InArea, type PublishedMatch } from './published-match.js';
 
 /**
  * What `search` found, before a word of it is written.
@@ -247,23 +247,34 @@ const surfaceOrder = (index: SearchIndex) => (a: Hit, b: Hit): number =>
   a.rank - b.rank ||
   rowTextOrder(index, { kind: 'published', row: a.row }, { kind: 'published', row: b.row });
 
-function published(index: SearchIndex, hits: readonly Hit[], count: number): Matches<PublishedMatch> {
+/**
+ * The first `count` of `hits`, each counted by `importingOf` when it is given
+ * and then ordered by that count in place of the index's. Which rows the page
+ * holds stays the index's to say: counting a row reads the source index, so
+ * counting every candidate would cost the question a read per match.
+ */
+function published(index: SearchIndex, hits: readonly Hit[], count: number, importingOf?: ImportingOf): Matches<PublishedMatch> {
+  const order = surfaceOrder(index);
+  const page = first(hits, count, order).map((hit) => {
+    const entry = index.published(hit.row);
+    const importedIn = importingOf?.(entry.name, entry.at).importing;
+    return { entry, importedIn, hit: importedIn === undefined ? hit : { ...hit, usedBy: importedIn.packages, uses: importedIn.places } };
+  });
+  if (importingOf !== undefined) page.sort((a, b) => order(a.hit, b.hit));
   return {
     total: hits.length,
-    shown: first(hits, count, surfaceOrder(index)).map((hit) => {
-      const entry = index.published(hit.row);
-      return {
-        source: 'published',
-        name: entry.name,
-        specifier: entry.specifier,
-        kind: entry.kind,
-        ...(entry.doc === undefined ? {} : { summary: opening(entry.doc) }),
-        at: entry.at,
-        otherPackages: entry.usedBy.length,
-        otherImports: entry.uses,
-        ...(hit.scoped === undefined ? {} : { inArea: hit.scoped }),
-      };
-    }),
+    shown: page.map(({ entry, importedIn, hit }) => ({
+      source: 'published',
+      name: entry.name,
+      specifier: entry.specifier,
+      kind: entry.kind,
+      ...(entry.doc === undefined ? {} : { summary: opening(entry.doc) }),
+      at: entry.at,
+      ...(importedIn === undefined ? {} : { importedIn }),
+      otherPackages: entry.usedBy.length,
+      otherImports: entry.uses,
+      ...(hit.scoped === undefined ? {} : { inArea: hit.scoped }),
+    })),
   };
 }
 
@@ -349,8 +360,19 @@ export function searchedFiles(index: SearchIndex, question: SearchQuestion, tree
   return files;
 }
 
-/** The search over an opened index, and the area the text answer names. */
-export function searched(index: SearchIndex, question: SearchQuestion, tree?: Tree, root?: string): Searched {
+/**
+ * The search over an opened index, and the area the text answer names. Each
+ * published row shown is counted by `importingOf` when it is given, as `uses`
+ * counts that name.
+ */
+export function searched(index: SearchIndex, question: SearchQuestion, tree?: Tree, root?: string, importingOf?: ImportingOf): Searched {
+  const count = importingOf === undefined ? undefined : counting(importingOf);
+  const found = searchedBy(index, question, tree, root, count?.of);
+  const unread = count?.unread();
+  return unread === undefined ? found : { ...found, answer: { ...found.answer, importsUnread: unread } };
+}
+
+function searchedBy(index: SearchIndex, question: SearchQuestion, tree: Tree | undefined, root: string | undefined, importingOf: ImportingOf | undefined): Searched {
   const found = matched(index, question, tree);
   if ('refused' in found) return { answer: { query: found.query, refused: found.refused }, area: found.area };
   const { query, area, within, named, hits, answered, rest } = found;
@@ -368,7 +390,7 @@ export function searched(index: SearchIndex, question: SearchQuestion, tree?: Tr
   const answer: SearchAnswer = {
     query,
     ...(counted === undefined ? {} : { area: counted }),
-    published: published(index, hits, CAP),
+    published: published(index, hits, CAP, importingOf),
     exported: { total: rest.total, shown: rest.head(ELSEWHERE_CAP) },
     ...(declared === undefined ? {} : { declared }),
     ...(thirdParty === undefined ? {} : { thirdParty }),
@@ -403,7 +425,7 @@ export function searched(index: SearchIndex, question: SearchQuestion, tree?: Tr
   const viaDoc = new Map<number, Set<number>>();
   const loose = looseNames(index, query, FUZZY, within, claimed, viaDoc);
   const alsoHits = loose.size === 0 ? [] : surface(index, publishedOf(index, loose), area, within);
-  const alsoFound = published(index, alsoHits, LOOSE_CAP);
+  const alsoFound = published(index, alsoHits, LOOSE_CAP, importingOf);
   const alsoRest = exported(index, loose, new Set(alsoHits.map((hit) => hit.name)), within, viaDoc);
   // A name its file keeps to itself is in no dictionary row: the source index
   // answers for it, by the same rule, after every name that is.
@@ -418,7 +440,7 @@ export function searched(index: SearchIndex, question: SearchQuestion, tree?: Tr
       // The row it was weighed through is the row shown.
       const { through } = one;
       const row = through.kind === 'published'
-        ? published(index, surface(index, [through.row], area, within), 1).shown[0]
+        ? published(index, surface(index, [through.row], area, within), 1, importingOf).shown[0]
         : exported(index, [one.name], new Set(), within, new Map([[one.name, new Set([through.row])]])).head(1)[0];
       return row === undefined ? [] : [{ ...row, words: one.words }];
     });
@@ -467,8 +489,9 @@ function ascending(left: readonly number[], right: readonly number[]): readonly 
  * published names first, then the names the source exports without
  * publishing, then — only when both are empty — the names a looser reading
  * finds and the names that hold any of the words. Each published row shown is
- * counted by `importingOf` when it is given, as `uses` counts that name.
+ * counted by `importingOf` when it is given, as `uses` counts that name, and
+ * the rows shown are ordered by that count.
  */
 export function searchNames(index: SearchIndex, question: SearchQuestion, tree?: Tree, root?: string, importingOf?: ImportingOf): SearchAnswer {
-  return withImporting(searched(index, question, tree, root).answer, importingOf);
+  return searched(index, question, tree, root, importingOf).answer;
 }

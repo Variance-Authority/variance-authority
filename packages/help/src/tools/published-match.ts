@@ -1,4 +1,4 @@
-import type { DescribedMatch, ExportedMatch, DeclaredMatch, SearchAnswer } from './search-answer.js';
+import type { SearchAnswer } from './search-answer.js';
 import type { Help } from '@variance-authority/package/help';
 import { type ImportedIn, importingIn } from './uses-count.js';
 import { publishedSitesOf } from './uses-of.js';
@@ -34,7 +34,11 @@ export interface PublishedMatch {
    * the Help value those are read from.
    */
   readonly importedIn?: ImportedIn;
-  /** Packages other than its own that import it by a specifier it is published from: the order rows sort on. */
+  /**
+   * Packages other than its own that import it by a specifier it is published
+   * from: the order the index picks the rows shown by. The rows shown sort on
+   * {@link importedIn} when it is counted.
+   */
   readonly otherPackages: number;
   /** The imports those packages write by such a specifier. */
   readonly otherImports: number;
@@ -42,33 +46,29 @@ export interface PublishedMatch {
   readonly inArea?: InArea;
 }
 
-/**
- * The answer with each published row it shows counted as `uses` counts it, in
- * every section that shows one; unchanged when there is nothing to count it
- * with. Only the rows shown are counted, never every row a question matched.
- */
-export function withImporting(answer: SearchAnswer, importingOf: ImportingOf | undefined): SearchAnswer {
-  if (importingOf === undefined) return answer;
+/** {@link ImportingOf}, and the first reason it gave that imports within a package were not read. */
+export interface Counting {
+  readonly of: ImportingOf;
+  readonly unread: () => string | undefined;
+}
+
+/** `importingOf`, keeping the first reason it gives for imports it did not read: an answer says it once, as `uses` does. */
+export function counting(importingOf: ImportingOf): Counting {
   let unread: string | undefined;
-  const counted = <T extends PublishedMatch | ExportedMatch | DeclaredMatch | DescribedMatch>(match: T): T => {
-    if (match.source !== 'published') return match;
-    const one = importingOf(match.name, match.at);
-    unread ??= one.unread;
-    return { ...match, importedIn: one.importing };
+  return {
+    of: (name, at) => {
+      const one = importingOf(name, at);
+      unread ??= one.unread;
+      return one;
+    },
+    unread: () => unread,
   };
-  const { published, loose, described } = answer;
-  const shown = {
-    ...(published === undefined ? {} : { published: { ...published, shown: published.shown.map(counted) } }),
-    ...(loose === undefined ? {} : { loose: { ...loose, shown: loose.shown.map(counted) } }),
-    ...(described === undefined ? {} : { described: { ...described, shown: described.shown.map(counted) } }),
-  };
-  return { ...answer, ...shown, ...(unread === undefined ? {} : { importsUnread: unread }) };
 }
 
 /**
- * Whether `answer` shows a row {@link withImporting} would count: a published
- * row in a section it counts. Only then is the value those counts are read
- * from worth opening.
+ * Whether `answer` shows a row a search counts: a published row in a section
+ * that shows one. Only then is the value those counts are read from worth
+ * opening.
  */
 export function showsPublished(answer: SearchAnswer): boolean {
   const { published, loose, described } = answer;

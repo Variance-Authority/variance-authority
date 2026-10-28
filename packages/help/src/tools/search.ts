@@ -8,7 +8,7 @@ import { describedLine, thirdLine, thirdScope } from './third-party.js';
 import type { DeclaredMatch, DescribedMatch, ExportedMatch, FileMatch, PublishedMatch, SearchQuestion } from './search-answer.js';
 import { declaredLine, unreadLine } from './declared.js';
 import { searched, searchedFiles } from './search-answer.js';
-import { type ImportingOf, importingOf, withImporting } from './published-match.js';
+import { type ImportingOf, importingOf } from './published-match.js';
 import { byPublishedPath, plural } from './format.js';
 
 /**
@@ -176,9 +176,7 @@ export function searchQuestionOf(input: Readonly<Record<string, unknown>>): Sear
 /** The search over an opened index — what `docs_search` answers, without the Help value. */
 export function answerSearch(index: SearchIndex, input: Readonly<Record<string, unknown>>, tree?: Tree, root?: string, importing?: ImportingOf): string {
   const question = searchQuestionOf(input);
-  const searchedOnce = searched(index, question, tree, root);
-  const { area } = searchedOnce;
-  const answer = withImporting(searchedOnce.answer, importing);
+  const { answer, area } = searched(index, question, tree, root, importing);
   const { query } = answer;
   if (area?.refused !== undefined) return areaLine(area);
 
