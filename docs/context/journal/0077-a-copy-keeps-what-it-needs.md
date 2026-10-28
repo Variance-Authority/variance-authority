@@ -194,8 +194,8 @@ What it names on the branch now, 7 of the 40 new functions it asks about, is
 left as it is:
 
 - `mergeBase` in `needs.mjs`, against the private `mergeBase` of sense's
-  `stands.ts`. The CLI's `changedSince` answers the same and is not exported
-  either; publishing one is a change of its own.
+  `stands.ts`. The CLI's `since.ts` and `share-lines.ts` each hold a private
+  one too; no package publishes it, and publishing one is a change of its own.
 - `git` in `needs.mjs`, against the git runners `site-reach.mjs`,
   `bundle-carried.mjs` and the CLI's `since.ts` each write for themselves.
   Joining them is a change of its own.

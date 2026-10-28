@@ -110,7 +110,7 @@ export function tests() {
 // Where the runner configurations collect from: `PLACES` in `vitest.config.mts`,
 // and the checks and measurements under `tools/` and `packages/`.
 const COLLECTED = ['packages/', 'cases/', 'examples/', 'site/app/', 'tools/'];
-export const SCRIPT = ['ts', 'tsx', 'mts', 'cts', 'js', 'mjs', 'cjs'];
+const SCRIPT = ['ts', 'tsx', 'mts', 'cts', 'js', 'mjs', 'cjs'];
 const IN_TESTS = new Set(['timer', 'fresh-page']);
 
 // A name a runner collects, and the directories that hold what a test reads.
@@ -118,7 +118,7 @@ const IN_TESTS = new Set(['timer', 'fresh-page']);
 // in a file no runner collects yet is still a wait.
 const COLLECTED_NAME = /\.(test|spec|check|measure)\.[cm]?[jt]sx?$/;
 const FIXTURE = /(^|\/)(__fixtures__|fixtures)\//;
-export const isTest = (file) => COLLECTED_NAME.test(file) || FIXTURE.test(file) || /(^|\/)(__tests__|test)\//.test(file);
+const isTest = (file) => COLLECTED_NAME.test(file) || FIXTURE.test(file) || /(^|\/)(__tests__|test)\//.test(file);
 
 /**
  * Whether a path is a production source: a script under a package's `src/` at
