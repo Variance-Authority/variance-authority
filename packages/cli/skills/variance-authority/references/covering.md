@@ -73,9 +73,10 @@ variance covering --file src/checkout/total.ts --line 48 --cases last
 ```
 
 The index is read from where a recorded run writes it, so `--file` is usually
-the whole command. `--execution <path>` names an index recorded elsewhere, and
-`--root <path>` the project root it was recorded against. Producing the index is
-in [producers](producers.md).
+the whole command. `--execution <path>` names an index recorded elsewhere,
+dated by the commit it names and the runs record beside it, and `--root <path>`
+the project root it was recorded against. Producing the index is in
+[producers](producers.md).
 
 When the root config declares `suites`, the question is asked of each suite's
 record, and the answer is one block per suite, headed `<suite> (<kind>):`,
@@ -231,42 +232,59 @@ src/pay.ts is the text the other test file named here ran over, in a run that la
   `--function` it adds that the parts no case ran are not said. Under `mapped`
   a part of the function no case ran that an edit touched prints as `edited`.
 - A group is the test files one run last finished: it ran them whole, or the
-  record held no cases of them. A later run that ran one in part (`-t`, a
-  filter, a skip) leaves it placed by the earlier run, and its line spans both
-  runs' times. Your text, `--text` or the file on disk, is compared by digest
-  with the texts the runs record names for each run, else the committed ones
-  at its commit. The groups that ran over it share one line; a group that ran
-  over another text, or whose text is not known, is named. A test file whose
-  runs ran over different texts, only some of them yours, has cases whose text
-  is not known.
+  record held no cases of them. A run that executed none of a file's cases did
+  not run it. A later run in part (`-t`, a filter, a skip) names the cases it
+  ran, so each named case is dated and compared by the run that last ran it,
+  and a test file whose named cases last ran apart is said part by part on one
+  line, newest first: ``src/pay.test.ts ran 'refunds' over this text, in a run
+  that landed 1 hour ago, and its 1 other case named here over another text of
+  src/pay.ts, in a run that landed 3 days ago, in which `pay` is the same.`` A
+  run in part whose landing names no cases leaves the file placed by the
+  earlier run, its line spanning both times, and if only some of those runs
+  ran over your text, which text its cases ran over is not known.
+- Your text, `--text` or the file on disk, is compared by digest with the
+  texts the runs record names for each run, else the committed ones at its
+  commit. The groups that ran over it share one line; a group that ran over
+  another text, or whose text is not known, is named. A file the group's commit
+  lacks is said not to have existed where it ran; a commit or text this clone
+  lacks leaves it not known. Every asked file and its verdict is said.
 - For `--line`, `--lines` and `--function`, a named group's line says whether
   that region is the same in both texts, gone from yours, or why that is not
   known. Under `--function` it says nothing of the region when the record does
   not say which text its lines are numbered in.
 - The time is when that run landed, spanned when a line says several runs. A
   commit's date is never used. A group the record holds no time or texts for
-  says what it does not hold. A run outside a git checkout is dated by its
-  landing and compared with the snapshot's rows. A test file read from a newer
-  mainline record is dated and compared by the run that published it.
-- A test file the runs record does not place is read where the record assumes
-  it, and a last line says how many were. An answer naming no test file is
-  dated by the test files that entered the file, else by every case it read.
+  says what it does not hold; a record seeded before landings holds no time,
+  since the seed stamped it when it was copied. Runs outside a git checkout
+  stand at one place, each dated by its landing, and only the one that wrote
+  the snapshot is compared with its rows; an earlier one's text is not known.
+  A test file read from a newer mainline record is dated and compared by the
+  run that published it.
+- A test file the runs record does not place, and every one when no runs
+  record lies beside the snapshot or it is of another commit, is read where
+  the record assumes it, at no time and over a text not known, and a last line
+  says how many were. An answer naming no test file is dated by the test files
+  that entered the file, else by every case it read.
 - `--since` says the same under its regions, over every changed file, with no
   region; a changed file not on disk is named first, and no test file is said
   to have run over it.
 
 In JSON, `at` is the record's commit and `ran.stands` the groups: each a
-`commit` (absent for a run outside a git checkout), its `tests`, `landed`
+`commit` (absent for a run outside a git checkout), its `tests`, `cases` (the
+cases of its one test file when that file is said part by part), `landed`
 (`first`, `latest`, and `runs` when counted), `partly` (the `commit` and
-`landed` of each later run that ran them in part), `text` (`held` or `other`),
-`other` naming the asked files it ran another text of, `region` (`same`,
-`changed`, `gone` or `{ "unknown": <why> }`), `unknown` for why its text is not
-known, and `assumed: true` with `ran.assumed` saying how. `ran.unheld` names the
-changed files not on disk, `ran.named` is `entered` or `read` when the answer
-names no test file, and `ran.unread` stands in for the stands when where they
-ran cannot be read; `ran` is absent under `--format refs`. `moved: true` marks a
-`--function` answer and each `unrun` part an edit touched, and `unheld: true` a
-file that is not on disk.
+`landed` of each later run that ran them in part without naming its cases),
+`text` (`held` when they ran over your text of every asked file, `other` when
+they ran over another text of some, or over none), `other` naming the asked
+files they ran another text of, `absent` those that did not exist where they
+ran, `held` those whose text is yours when not every one is, `region` (`same`,
+`changed`, `gone` or `{ "unknown": <why> }`), `unknown` for why the rest's text
+is not known, and `assumed: true` with `ran.assumed` saying how. `ran.unheld`
+names the changed files not on disk, `ran.named` is `entered` or `read` when the
+answer names no test file, and `ran` holds `tests` and `unread` in place of
+`stands` when where they ran cannot be read; `ran` is absent under `--format
+refs`. `moved: true` marks a `--function` answer and each `unrun` part an edit
+touched, and `unheld: true` a file that is not on disk.
 
 ## Ask about the whole change at review time
 

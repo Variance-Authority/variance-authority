@@ -751,18 +751,34 @@ numbered in gives them as recorded. A file not on disk is answered in the
 record's lines, and its test files are dated with no text to compare.
 
 A group is the test files one run last finished. A run finishes a test file it
-runs whole, and one the record held no cases of. A later run that runs one in
-part, under `-t`, a filter or a skip, leaves it placed by the earlier run, since
-the cases that run did not reach are still the earlier run's, and its line then
-spans both runs' times. Each run is read where it stood: its commit, when it
-landed, and the texts it ran over that were not committed there, as the runs
-record keeps them. Your text, the `--text` buffer or else the file on disk, is
-compared by digest with the text the runs record names for that run, else with
-the committed one at its commit. The test files that ran over your text share
-one line. A group that ran over another text, or whose text is not known, is
-named. When a test file's runs ran over different texts and only some of them
-over yours, which text its cases ran over is not known, because the record does
+runs whole, and one the record held no cases of; a run that executes none of a
+test file's cases, every one skipped or filtered out, did not run it. A later
+run that runs one in part, under `-t`, a filter or a skip, names the cases it
+ran, so each case the answer names is dated by the run that last ran it and
+compared with that run's texts. A test file whose named cases last ran in
+different runs is said part by part on one line, newest first:
+
+```text
+src/pay.test.ts ran 'refunds' over this text, in a run that landed 1 hour ago, and its 1 other case named here over another text of src/pay.ts, in a run that landed 3 days ago, in which `pay` is the same.
+```
+
+A run in part whose landing does not name the cases it ran leaves the test
+file placed by the run that last finished it, and its line spans both runs'
+times. When those runs ran over different texts and only some of them over
+yours, which text its cases ran over is not known, because that landing does
 not say which case ran in which run.
+
+Each run is read where it stood: its commit, when it landed, and the texts it
+ran over that were not committed there, as the runs record keeps them. Your
+text, the `--text` buffer or else the file on disk, is compared by digest with
+the text the runs record names for that run, else with the committed one at its
+commit. The test files that ran over your text share one line. A group that ran
+over another text, or whose text is not known, is named. A file that did not
+exist at the commit a group ran at is said so, as in `src/extra.ts did not
+exist where src/fee.test.ts ran`, while a commit or a text this clone lacks
+leaves the text not known. Every asked file is said: a group that ran over your
+text of one file and another text of the next says both, so no file's verdict
+hides another's.
 
 When you asked about a line, a run of lines or a function, a named group's line
 goes on to say whether that region is the same in both texts, read by placing
@@ -778,32 +794,43 @@ ago`. A line that says several groups, or a test file a later run ran in part,
 spans their landings, `in runs that landed from 3 days ago to 3 hours ago`, and
 so does a group whose runs record keeps one span for every run at its commit.
 It is never when a commit was made, which says nothing of when a test ran. A
-group the record holds no time for says so, and one whose texts the record does
-not hold says that whether the text is yours is not known, and why. A record of
-a run outside a git checkout names no commit: its test files are dated by when
-that run landed, and compared with the text the snapshot's rows were recorded
-over. A test file your checkout reads from a newer mainline record is dated and
-compared by the run that published it.
+group the record holds no time for says it ran `at a time the record does not
+hold`, as does a record seeded before runs kept their landings, since the seed
+stamped it when it was copied. One whose texts the record does not hold says
+that whether the text is yours is not known, and why. A record of runs outside
+a git checkout names no commit: a later run there leaves the test files an
+earlier one finished where they ran, as at one commit, and each is dated by
+when its run landed. Only the run that wrote the snapshot is compared with the
+text the snapshot's rows were recorded over; an earlier run's rows a later one
+may have written over, so its text is not known. A test file your checkout
+reads from a newer mainline record is dated and compared by the run that
+published it.
 
-A test file the runs record does not place is read where the record assumes it
-ran, over the text the snapshot names at its own commit and the committed one
-anywhere else, and a last line says how many were read so. An answer that names
-no test file is dated by the test files that entered the file, else by every
-test file of the cases it was read from. Under `--since`, a changed file that is
-not on disk is named first, and no line says a test file ran over it.
+A test file the runs record does not place, and every test file when no runs
+record lies beside the snapshot or the one there is of another commit, is read
+where the record assumes it ran, at a time it does not hold, and which text it
+ran over is not known; a last line says how many were read so. An answer that
+names no test file is dated by the test files that entered the file, else by
+every test file of the cases it was read from. Under `--since`, a changed file
+that is not on disk is named first, and no line says a test file ran over it.
 
 In JSON, `at` is the commit the record stands at, on every answer whose record
 names one. `ran.stands` holds one entry per group: its `commit`, absent for a
-run outside a git checkout, its `tests`, `landed` with ISO `first` and `latest`
-and, when the record counts them, `runs`, and `partly` with the `commit` and
-`landed` of each later run that ran them in part. Then `text` is `held` or
-`other`, with `other` naming the asked files they ran another text of and
-`region` as `same`, `changed`, `gone` or `{ "unknown": <why> }`. `unknown` says
-why `text` is not known, and `assumed: true` marks a group the record did not
+run outside a git checkout, its `tests`, `cases` naming the cases of its one
+test file when that file is said part by part, `landed` with ISO `first` and
+`latest` and, when the record counts them, `runs`, and `partly` with the
+`commit` and `landed` of each later run that ran them in part without naming
+its cases. Then `text` is `held` when they ran over your text of every asked
+file, else `other`, with `other` naming the asked files they ran another text
+of, `absent` the ones that did not exist where they ran, `held` the ones whose
+text is yours when not every one is, and `region` as `same`, `changed`, `gone`
+or `{ "unknown": <why> }`. `unknown` says why the text of the files none of
+those name is not known, and `assumed: true` marks a group the record did not
 place, with `ran.assumed` saying how. `ran.unheld` names the changed files under
 `--since` that are not on disk, and `ran.named` is `entered` or `read` when the
 answer names no test file and the groups are the ones it is dated by instead.
-`ran.unread` stands in for the stands when where they ran cannot be read.
+`ran` holds `tests` and `unread`, saying why, in place of `stands` when where
+they ran cannot be read.
 `moved: true` marks a `--function` answer and each `unrun` part an edit touched,
 and `unheld: true` a file that is not on disk. `ran` is left out under
 `--format refs`.
@@ -812,7 +839,9 @@ The index comes from any run wrapped in `withTestSelection(config)` and is read
 from where that run writes it, so an agent with a line number
 needs no flag but `--file`. `--execution <path>` names an index recorded
 somewhere else, and `--root <path>` names the project root the run recorded
-against. A missing index is refused rather than answered empty, because an empty
+against. An index named so is dated by the commit it names and the runs record
+beside it, and one that names no commit, as a journey file does, is said to name
+none. A missing index is refused rather than answered empty, because an empty
 list here reads as *no test covers this line* — the sentence that gets a test
 deleted.
 
