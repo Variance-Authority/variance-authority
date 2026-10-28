@@ -320,12 +320,14 @@ pub struct Namespace {
 /// What an `export … from` passes on is `passed_on`'s answer, the one the
 /// package graph reads: that is no use, and the file that writes it is
 /// followed instead under the name it exports, so an import through a barrel
-/// is listed and the barrel is not. A bare `export *` passes on every name but
-/// `default`. The question is about source, so a type-only re-export passes
-/// its names on too, and every use that came through one is a type use,
-/// whatever its importer wrote. Each file is followed once per name, and once
-/// more when a value path reaches a name a type-only one reached first, so a
-/// cycle of re-exports ends.
+/// is listed and the barrel is not. A bare `export *` passes a name on only
+/// where ECMAScript's export resolution says it does (`star_passes`): never
+/// `default`, never past the file's own export or named `export … from` of the
+/// name, and never when another star reaches a different declaration. The
+/// question is about source, so a type-only re-export passes its names on too,
+/// and every use that came through one is a type use, whatever its importer
+/// wrote. Each file is followed once per name, and once more when a value path
+/// reaches a name a type-only one reached first, so a cycle of re-exports ends.
 ///
 /// A file asked about that declares the name uses it by scope, not by import,
 /// and the scan read those lines with its parse: they are `in_file`.
