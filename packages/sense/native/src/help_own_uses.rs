@@ -4,11 +4,13 @@
 //! names it by scope, and only scope tells it from a local of the same name. So
 //! the scope is oxc's: `oxc_semantic` binds every identifier reference to the
 //! symbol it resolves to, innermost binding first, and a use here is a
-//! reference whose symbol is one the file's own scope declares — a call, a
+//! reference whose symbol is one the file's own scope binds — a call, a
 //! value, a type, a `typeof`, a JSX tag. A parameter, a `const`, a catch
 //! binding or an inner function of the same name is another symbol, so what it
-//! shadows is no use. An import binding is the other file's name, answered by
-//! the import, and `export { name }`, `export default name` or a key of the
+//! shadows is no use. An import binding is a top-level binding too: its uses
+//! are where the importing file uses what the import names, which `importers`
+//! hands out beside the import, and the file's imports tell them from the
+//! uses of a name it declares. `export { name }`, `export default name` or a key of the
 //! object `export =` or `module.exports =` hands out passes the name on, which
 //! is no use either. A property key or a member, `o.name`, is no
 //! reference at all.
@@ -24,7 +26,6 @@ use oxc_syntax::symbol::SymbolId;
 use serde::Serialize;
 
 use crate::read::Lines;
-use crate::top_level::top_level;
 
 /// One line that uses a name the module declares at its top level.
 #[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize)]
@@ -36,21 +37,8 @@ pub struct OwnUse {
 /// Every line `program` uses one of its top-level names on, once per name and
 /// line, by line and then by name in code units.
 pub(crate) fn own_uses_in(program: &Program<'_>, scoping: &Scoping, lines: &Lines) -> Vec<OwnUse> {
-    // A file whose own statements bind no name has nothing to use. Which
-    // statement binds a name is `top_level`'s answer, the one every reader of
-    // the declarations takes.
-    let mut binds = false;
-    top_level(program, |_| binds = true);
-    if !binds {
-        return Vec::new();
-    }
     let root = scoping.root_scope_id();
-    let own: HashSet<SymbolId> = scoping
-        .get_bindings(root)
-        .values()
-        .copied()
-        .filter(|symbol| !scoping.symbol_flags(*symbol).is_import())
-        .collect();
+    let own: HashSet<SymbolId> = scoping.get_bindings(root).values().copied().collect();
     if own.is_empty() {
         return Vec::new();
     }

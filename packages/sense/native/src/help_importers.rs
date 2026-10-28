@@ -198,7 +198,8 @@ fn importers_of(root: &str, layers: &[Layer], folded: &HashMap<&str, At>, wanted
                 let Some(names) = resolved[request - first].and_then(|path| wanted.get(path)) else { continue };
                 if parses.request_republishes[request] != 1 {
                     let written = text.text(parses.request_value.at(request));
-                    for (taken, local) in taken(&layers[layer], row, request, written, by, crossing.file, kind) {
+                    for (mut taken, local) in taken(&layers[layer], row, request, written, by, crossing.file, kind) {
+                        if !local.is_empty() { taken.lines = Some(bound_lines(&layers[layer], row, local)); }
                         found.extend(answered(names, taken, local));
                     }
                     let at = Site { key: written, by, at: crossing.file, kind };
@@ -242,6 +243,13 @@ fn importers_of(root: &str, layers: &[Layer], folded: &HashMap<&str, At>, wanted
         passed.extend(passes);
     }
     (found, passed)
+}
+
+/// The lines the parse at `row` uses its top-level binding `local` on, as the
+/// scan recorded them with the file's parse, in line order.
+fn bound_lines(layer: &Layer, row: usize, local: &str) -> Vec<u32> {
+    let (text, parses) = (&layer.stored, &layer.parses);
+    parses.own_uses.range(row).filter(|&at| text.text(parses.own_use_name.at(at)) == local).map(|at| parses.own_use_line.at(at)).collect()
 }
 
 /// The wants one name a request takes answers: a module that escapes whole
@@ -325,6 +333,7 @@ fn read_off(layer: &Layer, row: usize, request: usize, names: &HashMap<Want, Has
                 through_line: parses.request_line.at(request),
                 through_default: false,
                 whole: false,
+                lines: None,
             };
             found.push(Taken { origin, taken, local: String::new() });
         }

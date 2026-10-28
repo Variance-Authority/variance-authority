@@ -75,12 +75,14 @@ member of an interface, a type literal or a class is never imported: `uses`
 names where a member by that name is declared, after any imports, and under
 each declaration the lines that call, read, write or destructure it through a
 value whose type the line writes, joined to that declaration through the import that
-binds the type's name. A line whose value's type a checker would infer, or a JSX
-attribute, is not in that list, and the answer ends by saying so and naming the
+binds the type's name, and the members of the classes that write `implements`
+of that declaration. A line whose value's type a checker would infer, a JSX
+attribute, or an object that implements the member with no type on its line,
+such as one passed as `deps:`, is not in that list, and the answer ends by saying so and naming the
 declaration's `file:line`, or with several declarations the one you
 pick from its list, for
-find-references in that language's tooling, TypeScript's language
-service for JavaScript and TypeScript, which lists those uses. Members are read
+find-references and go-to-implementation in that language's tooling, TypeScript's language
+service for JavaScript and TypeScript, which lists those uses and implementations. Members are read
 from JavaScript and TypeScript files only, so a Python class's methods and a
 Rust struct's fields and `impl` methods are not; top-level declarations are read in
 every language the index reads, Python, Rust, Java, Kotlin and Swift
@@ -313,9 +315,10 @@ the sites arrive ordered by how many leading path segments they share with it.
 Each kind of site, and each list after the imports, shows twelve and counts the
 rest; pass `limit` to show more.
 
-`docs_uses` lists the imports within the name's own package too: every import
+`docs_uses` lists the imports within the name's own package too, counted and
+listed apart from the ones from other packages: every import
 that resolved to the file declaring it, or to a file that passes it on with
-`export … from`. That file is followed under the name it exports and is not
+`export … from`. Each import ends with the lines its file uses the name on. That file is followed under the name it exports and is not
 listed itself, in another package as well, so an import through a barrel is
 counted once. A site that knows the name by another one is marked with it,
 `(as salute)`: an import that renames it with `as`, or an import of a re-export

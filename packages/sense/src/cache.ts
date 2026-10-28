@@ -161,7 +161,7 @@ export interface MemberUse {
   readonly line: number;
   /** The type's name as the file writes it: its own declaration's, or the local name of an import. */
   readonly of: string;
-  readonly how: 'destructure' | 'read' | 'write';
+  readonly how: 'destructure' | 'implement' | 'read' | 'write';
 }
 
 /** One function a function's body declares, with the function that holds it. */
