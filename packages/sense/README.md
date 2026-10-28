@@ -1904,6 +1904,19 @@ const tainted = await taintRecords(records, [mockTaint()], { root: '.', cache: s
 await source.save();
 ```
 
+`runGraphOf` is that whole fold in one call, the graph `variance covering
+--since` and an MCP host's source tree both walk: the mocks read unasked, your
+`taints` joined after them, and the result folded with its shadows. Pass
+`depends` from the lockfile to reach a transitive bump, and `uses` to say how
+each file uses what its parse imports; an edge a taint added was never parsed,
+so it is read as used whole:
+
+```ts
+import { runGraphOf } from '@variance-authority/sense';
+
+const relations = await runGraphOf(records, { root: '.', cache: source.cache, taints: [await taintFile('variance.taint.json')] });
+```
+
 ### Check a taint against the record
 
 A taint is the static reading of what a file's run reaches; a coverage record

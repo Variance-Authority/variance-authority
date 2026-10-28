@@ -781,9 +781,6 @@
     12,
     11
   ],
-  "packages/cli/src/commands/source-graph.ts block": [
-    6
-  ],
   "packages/cli/src/commands/source-graph.ts docblock": [
     16
   ],
