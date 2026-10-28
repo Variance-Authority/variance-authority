@@ -38,9 +38,9 @@ describe('variance ask over a renamed import', () => {
 
     const { code, out } = await run(['ask', 'uses', '--name', 'greet']);
     expect(code).toBe(EXIT_CLEAN);
-    expect(out).toMatch(/^apps\/app\/src\/hello\.ts:1 — @acme\/app$/m);
-    expect(out).toMatch(/^apps\/app\/src\/welcome\.ts:1 — @acme\/app \(as welcome\)$/m);
-    expect(out).toMatch(/^packages\/lib\/src\/hailed\.ts:1 — @acme\/lib \(as hail\)$/m);
+    expect(out).toMatch(/^apps\/app\/src\/hello\.ts:1 — @acme\/app; used on line 2$/m);
+    expect(out).toMatch(/^apps\/app\/src\/welcome\.ts:1 — @acme\/app \(as welcome\); used on line 2$/m);
+    expect(out).toMatch(/^packages\/lib\/src\/hailed\.ts:1 — @acme\/lib \(as hail\); used on line 2$/m);
   });
 
   it('names the local name of a renamed import of what a type-only re-export passes on in `uses`', async () => {
@@ -52,7 +52,7 @@ describe('variance ask over a renamed import', () => {
 
     const { code, out } = await run(['ask', 'uses', '--name', 'greet']);
     expect(code).toBe(EXIT_CLEAN);
-    expect(out).toMatch(/^packages\/lib\/src\/called\.ts:1 — @acme\/lib \(as Called\) \(type only\)$/m);
+    expect(out).toMatch(/^packages\/lib\/src\/called\.ts:1 — @acme\/lib \(as Called\) \(type only\); used on line 2$/m);
     expect(out).not.toMatch(/typed\.ts/);
   });
 
@@ -62,7 +62,7 @@ describe('variance ask over a renamed import', () => {
 
     const { code, out } = await run(['ask', 'uses', '--name', 'inner']);
     expect(code).toBe(EXIT_CLEAN);
-    expect(out).toMatch(/^packages\/lib\/src\/shout\.ts:1 — @acme\/lib \(as shout\)$/m);
+    expect(out).toMatch(/^packages\/lib\/src\/shout\.ts:1 — @acme\/lib \(as shout\); used on line 2$/m);
   });
 
   it('names the renamed imports of the original in `symbol`', async () => {

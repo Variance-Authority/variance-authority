@@ -308,18 +308,23 @@ npx variance-authority-help uses collect --from packages/cli/src/index.ts
 ```
 
 ```
-`collect` [function] is imported in 24 places.
+`collect` [function] is imported in 32 places: 25 from other packages and 7 inside @variance-authority/dom, 1 through import(), which loads the module when the call runs.
 Nearest to packages/cli/src/index.ts first.
 
-Tests:
+Tests, from other packages:
 
-examples/todomvc/src/changeset.test.tsx:13 — @variance-authority/example-todomvc
-examples/todomvc/src/closure.test.tsx:6 — @variance-authority/example-todomvc
+examples/todomvc/src/changeset.test.tsx:13 — @variance-authority/example-todomvc; used on line 50
+examples/todomvc/src/closure.test.tsx:6 — @variance-authority/example-todomvc; used on line 22
 
-Source:
+Tests, inside @variance-authority/dom:
 
-packages/playwright-test/src/page-agent.ts:1 — @variance-authority/playwright-test
-packages/presentation/src/browser-agent.ts:3 — @variance-authority/presentation
+packages/dom/src/attributed.test.ts:7 — @variance-authority/dom; used on lines 31, 101
+packages/dom/src/generated-box.test.ts:5 — @variance-authority/dom; used on lines 31, 36
+
+Source, from other packages:
+
+packages/playwright-test/src/page-agent.ts:1 — @variance-authority/playwright-test; used on line 201
+packages/presentation/src/browser-agent.ts:3 — @variance-authority/presentation; used on line 58
 ```
 
 That ordering is a claim about the filesystem, not about the import graph.
