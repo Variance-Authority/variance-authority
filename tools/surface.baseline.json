@@ -2876,7 +2876,6 @@
         "checkoutListing": "function",
         "checkoutPath": "function",
         "codeMapPage": "function",
-        "committedAt": "function",
         "declarationExported": "function",
         "declaredDescribedOf": "function",
         "declaredLooseOf": "function",

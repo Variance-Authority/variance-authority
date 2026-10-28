@@ -157,7 +157,7 @@ export {
   type PreparedCodeMap,
   type ShippedFiles,
 } from './code-map.js';
-export { checkoutListing, checkoutPath, committedAt, existedAt, type CheckoutListing, type CheckoutPath } from './checkout-path.js';
+export { checkoutListing, checkoutPath, existedAt, type CheckoutListing, type CheckoutPath } from './checkout-path.js';
 export {
   forksBetween,
   journeysAmong,
