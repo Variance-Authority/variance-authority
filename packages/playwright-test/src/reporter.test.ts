@@ -9,7 +9,9 @@ import {
   type ExecutionJournal,
 } from '@variance-authority/sense/journal';
 import { readTestCoverage } from '@variance-authority/sense/test-selection';
-import { describe, expect, it } from 'vitest';
+import type { FullConfig, Suite } from '@playwright/test/reporter';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { SkippedFiles, fileSelection, selectFiles } from './file-selection.js';
 import ExecutionReporter from './reporter.js';
 import { decodeExecutionIndex } from '@variance-authority/sense/test-selection';
 
@@ -127,5 +129,56 @@ describe('the reporter that folds what the workers recorded', () => {
     } finally {
       await rm(checkout, { recursive: true, force: true });
     }
+  });
+});
+
+describe('the verdict on a run that found no tests', () => {
+  const config = { projects: [{ testMatch: '**/*.spec.ts' }] } as unknown as FullConfig;
+  const nothing = { allTests: () => [] } as unknown as Suite;
+  const noTests = { message: 'Error: No tests found.' };
+
+  afterEach(() => {
+    (globalThis as Record<symbol, unknown>)[Symbol.for('variance-authority:playwright-selection')] = undefined;
+    vi.restoreAllMocks();
+  });
+
+  /** A selection read over `tests/`, with `skip` dropped and every other file let through. */
+  async function selecting(root: string, skip: readonly string[], found: readonly string[]): Promise<void> {
+    const read = async () => ({ whole: new Set(found), skip: new Set(skip), notes: [] });
+    selectFiles(root, read);
+    fileSelection()!.selection = await read();
+    const drop = new SkippedFiles();
+    for (const file of found) drop.test(resolve(root, file));
+  }
+
+  async function verdict(root: string): Promise<unknown> {
+    const reporter = new ExecutionReporter({ root, cacheRoot: await instrumented(root), coverageFile: resolve(root, 'coverage.bin') });
+    reporter.onBegin(config, nothing);
+    reporter.onError(noTests);
+    return reporter.onEnd({ status: 'failed', startTime: new Date(), duration: 0 });
+  }
+
+  it('passes it, and says what was selected, when the selection dropped every spec file', async () => {
+    await inRoot(async (root) => {
+      const stderr = vi.spyOn(process.stderr, 'write').mockReturnValue(true);
+      await selecting(root, ['tests/a.spec.ts', 'tests/b.spec.ts'], ['tests/a.spec.ts', 'tests/b.spec.ts', 'tests/helpers.ts']);
+
+      expect(await verdict(root)).toEqual({ status: 'passed' });
+      expect(stderr.mock.calls.map(([line]) => String(line)).join('')).toContain('selected');
+    });
+  });
+
+  it('leaves it failed when the selection kept a spec file the run then filtered out', async () => {
+    await inRoot(async (root) => {
+      await selecting(root, ['tests/b.spec.ts'], ['tests/a.spec.ts', 'tests/b.spec.ts']);
+      expect(await verdict(root)).toBeUndefined();
+    });
+  });
+
+  it('leaves it failed when the selection dropped nothing', async () => {
+    await inRoot(async (root) => {
+      await selecting(root, [], ['tests/a.spec.ts']);
+      expect(await verdict(root)).toBeUndefined();
+    });
   });
 });
