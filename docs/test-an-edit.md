@@ -179,41 +179,53 @@ are laid over it.
 A coding agent edits many times before a change is whole, and it needs a
 verdict after every edit that costs less than the edit did. The compiler, then
 the tests within one import of what changed, gives it one in about a second.
-It is one line, and nothing in it is a script of ours:
+It is one line on the configuration you wrapped and recorded above, and nothing
+in it is a script of ours:
 
 ```bash
 tsc --build && VARIANCE_AUTHORITY_SINCE= VARIANCE_AUTHORITY_AT_DISTANCE=0-1 npx vitest run
 ```
 
 Give your agent that line as the command it runs after each edit, and tell it
-to read the verdict before it makes the next one. Each edit ends one of three
+to read the verdict before it makes the next one. Each edit ends one of four
 ways:
 
 - **A type error.** The compiler prints it and exits non-zero before any test
   starts.
-- **No test runs.** The run prints `selected none of 1002` and exits 0. No
+- **No test runs.** The run prints `selected none of 340` and exits 0. No
   recorded test ran the code you changed, the tests that did already ran the
   text you have now, or they sit further than one import away. The lines under
-  it say which.
-- **Some tests run.** The run prints `selected 1 of 1002`, runs that file, and
+  it say which: a file left for a later leg is counted with the range that
+  runs it, `2-`, which is `VARIANCE_AUTHORITY_AT_DISTANCE=2-` in this line.
+  Exit 0 here says nothing near the edit failed, not that the change is done.
+- **Some tests run.** The run prints `selected 1 of 340`, runs that file, and
   exits with its result.
+- **Every test runs.** The run prints `declined:` and a reason: the record
+  could not answer this edit, as [below](#when-it-runs-everything).
 
-When a run keeps a test you did not expect, ask why.
-[`variance select`](../packages/cli/README.md#select-what-your-own-runner-may-skip) makes
-the same reading with nothing run, given your suite's name and the same range:
+When a run keeps or leaves out a test you did not expect, ask why.
+[`variance select`](../packages/cli/README.md#select-what-your-own-runner-may-skip)
+reads the same change with nothing run, given the same range, and `--suite` with
+the name of the suite when `variance.config.json` declares suites:
 
 ```bash
 npx variance select --suite unit --at-distance 0-1
 ```
 
+Its stdout lists every test file it skips, one path per line, so a test missing
+from that list is one the loop runs. Its stderr says why, for the selection as a
+whole:
+
 ```text
-the change entered 1 test file: 1 at 1 hop.
-read packages/core/src/attribute/call-site.ts: bodies — the changed regions are charged, not the whole module
+the change entered 3 test files: 2 at 3 hops, and 1 at 4 hops.
+3 selected test files are left for a later leg: the same command with `--at-distance 2-` runs them.
+read tools/slices.mjs: none (the record was taken over this text) — a test recorded over an earlier text of an edited region is not skipped
 ```
 
 The loop says only that the edit broke nothing within one import. The tests
 further out still owe the edit, as each run leaves them, so before you hand the
-change over, run the same line with `VARIANCE_AUTHORITY_AT_DISTANCE=2-`.
+change over, run the same line with `VARIANCE_AUTHORITY_AT_DISTANCE=2-`. The
+two legs split the selection as `0-2` and `3-` do above.
 
 This repository runs exactly that line as `yarn test:loop`, over its 1002
 unit test files. With a one-minute load average between 10 and 13, the median
