@@ -25,8 +25,9 @@ import { readJourneyChange } from './journey-reading.js';
  *
  * The edit between the two texts decides where they land. A region the edit
  * left alone keeps its cases at the lines the edit places it. A region it
- * touched carries none, and a region it wrote takes the cases of the function
- * around it. No region is paired with another by its name: two callbacks given
+ * touched carries none as cases that ran it: they ran another text there, so
+ * each is kept on it flagged, which a selection runs and no reader names. A
+ * region it wrote takes the cases of the function around it. No region is paired with another by its name: two callbacks given
  * to `useEffect` are both `useEffect.arg0`, and deleting the first while
  * writing one behind the second must not hand the first's cases to the second's
  * seat.
@@ -129,7 +130,10 @@ function onEffects(text: string, blocks: readonly { readonly name: string; reado
 
 interface Landed {
   readonly coverage: Record<string, string[]>;
+  /** The cases that ran each effect. */
   readonly cases: Record<string, string[]>;
+  /** The cases flagged on each effect: they ran another text there, so whether they ran it is not known. */
+  readonly unknown: Record<string, string[]>;
   /** The cases `variance covering --line` names at the line of the call in the landed text. */
   readonly covering: (call: string) => string[];
   /** The test files the selection enters for a diff rewriting the line of each call in the landed text. */
@@ -193,7 +197,8 @@ async function landBoth(base: string, dirty: string, options: { readonly commitB
       selects,
       covering: (call) => coveringTests(index, { file: FILE, line: lines.findIndex((line) => line.includes(call)) + 1 }).map((test) => test.id).sort(),
       coverage: onEffects(dirty, module.blocks.map((block) => ({ ...block, on: block.testFiles }))),
-      cases: onEffects(dirty, caseModule.blocks.map((block) => ({ ...block, on: block.crossings.map((crossing) => index.tests[crossing.test]!.id) }))),
+      cases: onEffects(dirty, caseModule.blocks.map((block) => ({ ...block, on: block.crossings.filter((crossing) => crossing.overwritten !== true).map((crossing) => index.tests[crossing.test]!.id) }))),
+      unknown: onEffects(dirty, caseModule.blocks.map((block) => ({ ...block, on: block.crossings.filter((crossing) => crossing.overwritten === true).map((crossing) => index.tests[crossing.test]!.id) }))),
     };
   } finally {
     await rm(scratch, { recursive: true, force: true });
@@ -212,19 +217,23 @@ describe('the cases of a mainline run, carried onto a local leg through the edit
   });
 
   it('hands the effect written behind the survivor no case of the one that was deleted', async () => {
-    const { cases } = await landBoth(TWO_EFFECTS, SWAPPED);
+    const { cases, unknown } = await landBoth(TWO_EFFECTS, SWAPPED);
 
     expect(cases['third();']).not.toContain(caseOf(TWO));
+    // TWO ran the function around it in a text without it, so an edit to it runs TWO.
+    expect(unknown['third();']).toContain(caseOf(TWO));
   });
 
   it('carries no case onto the effect whose body was edited, nor onto the function around it', async () => {
-    const { cases } = await landBoth(TWO_EFFECTS, EDITED);
+    const { cases, unknown } = await landBoth(TWO_EFFECTS, EDITED);
 
     // `first()` stands where it stood and keeps its test. The edit is inside the
     // second effect and so inside the function around it: both changed, and the
     // tests that ran them run again instead of being credited with the new text.
     expect(cases['first();']).toEqual([caseOf(ONE)]);
     expect(cases['second();']).toEqual([]);
+    // They ran another text there, so an edit to it runs them, and no reader names them.
+    expect(unknown).toEqual({ 'first();': [], 'second();': [caseOf(TWO)] });
   });
 
   it('finds the text the first run recorded over in the kept texts when the commit holds another', async () => {

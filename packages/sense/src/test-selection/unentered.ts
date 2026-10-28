@@ -44,7 +44,8 @@ export function unenteredOn(
     if (!block.source) continue;
     const record = recordOf(block);
     const reach = reachOf(record);
-    if (reach === 'entered' || reach === 'loaded') continue;
+    // A region a case is not known to have run is not shown as one nobody entered.
+    if (reach === 'entered' || reach === 'loaded' || record.overwritten !== undefined) continue;
     found.push({
       kind: block.kind, name: block.name, path: block.path, startLine: block.startLine, endLine: block.endLine,
       ...(record.stopped === undefined ? {} : { stopped: record.stopped }),

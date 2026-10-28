@@ -145,6 +145,27 @@ describe('formatCoveringChange', () => {
     );
   });
 
+  it('says a region a case ran in another text is neither covered nor unwalked, and its one case not alone', () => {
+    const other = { id: 'refund', file: 'test/cart.test.ts', name: 'refunds' };
+    const text = formatCoveringChange([file({
+      regions: [
+        region({ stopped: [], overwritten: [other] }),
+        region({ startLine: 8, endLine: 10, tests: [witness('guest')], stopped: [], overwritten: [other] }),
+      ],
+    })]);
+
+    expect(text.split('\n')[0]).toBe(
+      '1 changed file, 2 changed regions: 0 nothing covered, 1 covered only in another text, 0 covered by one case.',
+    );
+    expect(text).toContain(
+      "1-6 function priceOf — in a text a case ran over, but the record's lines are numbered in another, so which case ran it is not known\n",
+    );
+    expect(text).toContain(
+      "8-10 function priceOf — 1 case; it is also in a text a case ran over, but the record's lines are numbered in another, so which other case ran it is not known\n",
+    );
+    expect(text).not.toMatch(/no case covered|finished|only witness/);
+  });
+
   it('carries what each listed case said on its line, and nothing under it', () => {
     const said = (name: string): CoveringTest => ({ ...witness(name), said: JSON.stringify({ said: [['fixture:flag', '"ff-on"', 'test/cart.test.ts:3', 1]] }) });
     const text = formatCoveringChange(

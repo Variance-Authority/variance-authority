@@ -15,6 +15,7 @@ export class Translation {
   readonly #sets: CrossingSets;
   readonly #members: Uint32Array[] = [];
   readonly #unions = new Map<string, SetId>();
+  readonly #differences = new Map<string, SetId>();
 
   constructor(testCount: number) {
     this.#sets = new CrossingSets(testCount);
@@ -48,6 +49,25 @@ export class Translation {
     if (found === undefined) {
       found = this.#intern(Uint32Array.from(new Set([...this.#members[left]!, ...this.#members[right]!])).sort());
       this.#unions.set(key, found);
+    }
+    return found;
+  }
+
+  /** The output set of `members`, which are output cases. */
+  of(members: Iterable<number>): SetId {
+    return this.#intern(Uint32Array.from(new Set(members)).sort());
+  }
+
+  /** The cases of `left` that `right` does not hold. */
+  minus(left: SetId, right: SetId): SetId {
+    if (left === EMPTY || right === EMPTY) return left;
+    if (left === right) return EMPTY;
+    const key = `${left}-${right}`;
+    let found = this.#differences.get(key);
+    if (found === undefined) {
+      const without = new Set(this.#members[right]!);
+      found = this.#intern(this.#members[left]!.filter((test) => !without.has(test)));
+      this.#differences.set(key, found);
     }
     return found;
   }

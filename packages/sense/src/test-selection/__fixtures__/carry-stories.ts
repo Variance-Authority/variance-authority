@@ -12,7 +12,7 @@ import { expect } from 'vitest';
 import { digestString } from '@variance-authority/core/format';
 import { caseSectionsAt } from '../case-record.js';
 import { keepRecord, type Compare } from './carry-comparison.js';
-import { caseOf, commit, held, noted, owed, runElsewhere, runTests, selected, touching, walking, type Walk } from './carry-contract.js';
+import { caseOf, commit, flagged, held, noted, owed, runElsewhere, runTests, selected, touching, walking, type Walk } from './carry-contract.js';
 import type { Ran, Stood } from './carry-ran.js';
 
 export const A = 'test/a.test.ts';
@@ -257,6 +257,31 @@ export async function ranOverThenKeptForgotten(ask: Ask, forget: (walk: Walk) =>
     await forget(walk);
     check(walk, 'owed, no text kept', await owed(walk), [B]);
     check(walk, 'the edit, no text kept', await ask(walk, edited), [A, B]);
+  });
+}
+
+/**
+ * A run of one test over an uncommitted edit inside the region only the other
+ * test entered, the tree set back to HEAD after.
+ *
+ * The landing lays the record in the edited text, where the edit wrote over
+ * the second effect and the function around it: B ran them in another text,
+ * so whether B runs these is not known. The record names A alone on the
+ * function, which A ran in the edited text, no case on the second effect, and
+ * keeps B on both flagged, so an edit to either selects B and no reader takes
+ * B's absence as evidence: an ambiguous correspondence never becomes measured
+ * absence. The module's region holds both, since the edit wrote no line of it.
+ */
+export async function ranOverAnotherTestsRegion(ask: Ask): Promise<void> {
+  await walking(effects(), { [A]: ['top', 'outer', 'first'], [B]: ['top', 'outer', 'second'] }, async (walk) => {
+    await runTests(walk, [A, B]);
+    await runTests(walk, [A], { over: touching(walk.text, 'second') });
+
+    check(walk, 'the cases that ran each region', (await held(walk)).cases, { top: [A, B], outer: [A], first: [A], second: [] });
+    check(walk, 'the cases not known to have run it', await flagged(walk), { outer: [B], second: [B] });
+    check(walk, 'owed', await owed(walk), [B]);
+    check(walk, 'an edit in the second effect', await ask(walk, touching(walk.text, 'second')), [B]);
+    check(walk, 'an edit in the first effect', await ask(walk, touching(walk.text, 'first')), [A]);
   });
 }
 

@@ -1,6 +1,6 @@
 import { relationsOfFiles } from '@variance-authority/core/relate';
 import { describe, expect, it } from 'vitest';
-import { reachOf, regionRecord } from './range-state.js';
+import { reachOf, regionRecord, stateOf } from './range-state.js';
 import { coveringChange, coveringTests, coveringTestsInFile, ranWhileLoading, stoppedBefore, type CoveringRegion, type ExecutionIndex } from './reverse.js';
 
 /**
@@ -208,5 +208,18 @@ describe('the reach of a region', () => {
     expect(reachOf({ tests: [], stopped: [tests[0]!] })).toBe('hole');
     expect(reachOf({ tests: [], stopped: [] })).toBe('unwalked');
     expect(reachOf({ tests: [] })).toBe('unknown');
+  });
+
+  it('is unknown where a case ran it in another text, whatever else is on it, unless a case called in', () => {
+    const guest = { ...tests[0]!, distance: 0 };
+    const overwritten = [tests[1]!];
+    // No absence was measured: the case may have run the text there now.
+    expect(reachOf({ tests: [], stopped: [], overwritten })).toBe('unknown');
+    expect(reachOf({ tests: [], stopped: [tests[0]!], overwritten })).toBe('unknown');
+    expect(reachOf({ tests: [{ ...guest, loaded: true }], overwritten })).toBe('unknown');
+    expect(stateOf({ tests: [], stopped: [], overwritten })).toBeUndefined();
+    // One case called in beside another that may have: not the only one that could have.
+    expect(reachOf({ tests: [guest], stopped: [], overwritten })).toBe('entered');
+    expect(stateOf({ tests: [guest], stopped: [], overwritten })).toBe('walked');
   });
 });

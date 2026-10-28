@@ -91,6 +91,12 @@ function hashingTo(text: string | undefined, digest: string): string | undefined
 
 type Cut = Pick<SetExecutionModule, 'blocks' | 'owner'>;
 
+/** Per recorded region, the held region its cases land from, and the one whose cases the edit overwrote; -1 for none. */
+export interface Landing {
+  readonly lands: Int32Array;
+  readonly overwrote: Int32Array;
+}
+
 /**
  * For each region of `recorded`, the held region its cases carry from, or -1.
  *
@@ -111,14 +117,22 @@ type Cut = Pick<SetExecutionModule, 'blocks' | 'owner'>;
  * and its tests count as changed. An edit with no hunks — the same text, cut
  * into more regions — reaches nothing.
  *
+ * `overwrote` names, for a region the edit reached, the held region whose
+ * cases would have landed there: they ran another text at the region, so
+ * whether they cross it is not known. It is -1 wherever `lands` names a
+ * region or no held region stands for it.
+ *
  * Without a `change` — a text could not be found — the whole module changed
  * and nothing lands.
  */
 // FIXME: the snapshot's `carried` in record_coverage_recut.rs pairs by the same
 // rule in Rust; the case index should ask the addon for its landing instead.
-export function landedThrough(held: Cut, recorded: Cut, change: Edit | undefined): Int32Array {
+export function landedThrough(held: Cut, recorded: Cut, change: Edit | undefined): Landing {
   const lands = new Int32Array(recorded.blocks.length).fill(-1);
-  if (change === undefined) return lands;
+  const overwrote = new Int32Array(recorded.blocks.length).fill(-1);
+  // FIXME: a text that cannot be found drops every held case instead of
+  // holding each as overwritten in the module, which reads as measured absence.
+  if (change === undefined) return { lands, overwrote };
   // A text the edit left whole runs as it did, as the recut keeps a row whose text did not move.
   const reading = change.hunks.length === 0 ? 'none' : change.reading;
   // The held regions the edit left alone, at the lines it places them, in order.
@@ -164,8 +178,9 @@ export function landedThrough(held: Cut, recorded: Cut, change: Edit | undefined
       ? was
       : owner === undefined || owner === NO_OWNER ? -1 : decided[owner]!;
     if (!reaches(reading, block.kind)) lands[at] = decided[at]!;
+    else overwrote[at] = decided[at]!;
   }
-  return lands;
+  return { lands, overwrote };
 }
 
 function seatOf(kind: string, startLine: number, endLine: number): string {

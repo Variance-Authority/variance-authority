@@ -11,6 +11,7 @@ import {
   importEditedThenRunElsewhere,
   lackedCallbackThenComment,
   lastRunAfterCarry,
+  ranOverAnotherTestsRegion,
   ranOverThenCommittedElsewhere,
   ranOverThenKeptForgotten,
   typeWrittenThenRunElsewhere,
@@ -44,6 +45,10 @@ describe('a record carried through a history, asked in-process', () => {
 
   it('skips a test that ran over a kept edit and owes the one carried from the earlier text, and charges every loader once the text is forgotten', async () => {
     await ranOverThenKeptForgotten(selectedFromTree, forgetKept);
+  });
+
+  it('keeps the case that ran a region in another text on it, run by an edit there and named by no reader, when a run over an edit inside it did not enter it', async () => {
+    await ranOverAnotherTestsRegion(selected);
   });
 
   it('charges every loader when both tests ran over an uncommitted edit and no text was kept, since the digest cannot stand in for it', async () => {

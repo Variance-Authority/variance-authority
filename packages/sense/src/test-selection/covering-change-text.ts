@@ -71,9 +71,13 @@ export function formatCoveringChange(
 ): string {
   const witness = (test: CoveringTest | ExecutionTest): readonly string[] => [`    ${describe(test)}${heldText(test)}`];
   const regions = changed.flatMap((file) => file.regions);
-  const blind = regions.filter((region) => region.tests.length === 0 && !covered(region.state));
+  const unlisted = regions.filter((region) => region.tests.length === 0 && !covered(region.state));
+  // A region a case ran in another text is neither covered here nor known not to be.
+  const blind = unlisted.filter((region) => region.overwritten === undefined);
+  const elsewhere = unlisted.length - blind.length;
   const holes = blind.filter((region) => (region.stopped?.length ?? 0) > 0);
-  const alone = regions.filter((region) => region.state === undefined ? region.tests.length === 1 : region.state === 'alone');
+  const alone = regions.filter((region) =>
+    region.state === undefined ? region.tests.length === 1 && region.overwritten === undefined : region.state === 'alone');
   const silent = changed.filter((file) => !file.recorded && file.cases.length === 0);
 
   const lines = [
@@ -81,7 +85,7 @@ export function formatCoveringChange(
       heading.since === undefined ? '' : ` since ${heading.since}`
     }, ${count(regions.length, 'changed region')}: ${blind.length} nothing covered${
       holes.length === 0 ? '' : ` (${holes.length} of them ${holes.length === 1 ? 'a hole' : 'holes'})`
-    }, ${alone.length} covered by one case.`,
+    }, ${elsewhere === 0 ? '' : `${elsewhere} covered only in another text, `}${alone.length} covered by one case.`,
     ...source(heading),
   ];
 
@@ -157,6 +161,11 @@ function claim(region: StatedCoveringRegion): string {
   const tests = region.tests.length;
   const stopped = region.stopped?.length ?? 0;
   const also = stopped === 0 ? '' : `, and ${count(stopped, 'case')} that could have reached it stopped first`;
+  if (region.overwritten !== undefined) {
+    // A case ran it in another text: no case entering here is no measured absence, and one entering is not alone.
+    if (tests === 0 && !covered(region.state)) return `${UNKNOWN} case ran it is not known${also}`;
+    return `${tests === 0 ? 'covered by cases not listed here' : count(tests, 'case')}${also}; it is also ${UNKNOWN} other case ran it is not known`;
+  }
   if (tests === 0 && covered(region.state)) {
     return `covered only by ${region.state === 'alone' ? 'a case' : 'cases'} not listed here${also}`;
   }
@@ -170,6 +179,9 @@ function claim(region: StatedCoveringRegion): string {
   if (tests === 1) return stopped === 0 ? '1 case, and it is the only witness' : `1 case${also}`;
   return `${tests} cases${also}`;
 }
+
+/** How a region no case is known to have run, nor known not to, is said, up to the case. */
+const UNKNOWN = "in a text a case ran over, but the record's lines are numbered in another, so which";
 
 /** A state that says a case went there, whether or not it is listed. */
 function covered(state: RangeState | undefined): boolean {

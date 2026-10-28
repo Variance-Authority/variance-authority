@@ -3,7 +3,7 @@ import { CrossingSets } from './crossing-sets.js';
 import { decodeExecutionIndex } from './execution-format.js';
 import { NO_OWNER } from './format-layout.js';
 import { CaseLinesBuilder, lineAt, linesOf, lineValue } from './case-lines.js';
-import { encodeSetExecutionIndex, openSetColumns, openSetExecutionIndex, type SetExecutionModule } from './execution-set-format.js';
+import { encodeAsSetExecutionIndex, encodeSetExecutionIndex, openSetColumns, openSetExecutionIndex, type SetExecutionModule } from './execution-set-format.js';
 import { blob, column, sections } from './format-layout.js';
 
 const tests = [
@@ -30,6 +30,31 @@ describe('the journey set spelling', () => {
       { ...shape, startLine: 1, endLine: 3, loaded: true, crossings: [{ test: 0, distance: 0 }] },
       { ...shape, startLine: 5, endLine: 7, crossings: [{ test: 1, distance: 0 }] },
     ]);
+  });
+
+  it('keeps a case whose crossing of a region is not known apart from the cases that called in', () => {
+    const index = {
+      tests,
+      modules: [{
+        file: 'src/m.ts',
+        blocks: [
+          { ...shape, startLine: 1, endLine: 3, crossings: [{ test: 0, distance: 0 }, { test: 1, distance: 0, overwritten: true as const }] },
+          { ...shape, startLine: 5, endLine: 7, crossings: [{ test: 1, distance: 0 }] },
+        ],
+      }],
+    };
+    const bytes = encodeAsSetExecutionIndex(index);
+
+    expect(decodeExecutionIndex(bytes)).toEqual(index);
+    expect(openSetColumns(bytes)?.blockOverwritten).toHaveLength(2);
+  });
+
+  it('writes no overwritten column for an index that holds no such case, and reads its absence as none', () => {
+    const index = { tests, modules: [{ file: 'src/m.ts', blocks: [{ ...shape, startLine: 1, endLine: 3, crossings: [{ test: 0, distance: 0 }] }] }] };
+    const bytes = encodeAsSetExecutionIndex(index);
+
+    expect(openSetColumns(bytes)?.blockOverwritten).toBeUndefined();
+    expect(decodeExecutionIndex(bytes)).toEqual(index);
   });
 
   it('keeps whether each case finished, stopped, or could not be told', () => {

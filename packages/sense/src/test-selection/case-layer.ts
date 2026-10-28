@@ -3,7 +3,7 @@ import { openSetExecutionIndex, type OpenedSetExecutionIndex, type SetExecutionM
 import { LaidLines } from './case-layer-lines.js';
 import { HeldIndex, writeLaid, type CarriedModule, type LaidModule, type LaidTest } from './held-case-index.js';
 import { codeUnitOrder } from './instrumented-modules.js';
-import { landedThrough, NO_EDIT, type EditOf } from './region-edit.js';
+import { landedThrough, NO_EDIT, type EditOf, type Landing } from './region-edit.js';
 import { relined, strayed } from './region-landing.js';
 import type { ExecutionTest } from './reverse.js';
 import { EMPTY, Translation } from './set-translation.js';
@@ -141,6 +141,8 @@ export function layerCaseIndex(
   if (held === undefined) return { merged: Buffer.from(fresh), cases: () => last, last, announced };
 
   const { tests, fromHeld, fromRun, merged, heldAt, runAt } = layeredCases(held, run, files);
+  // Every case this run ran crossed the recorded text or was seen not to.
+  const ran = merged.of(runAt);
   const runModules = new Map(run.modules.map((module) => [module.file, module]));
   const runModuleAt = new Map(run.modules.map((module, at) => [module, at]));
   const lines = LaidLines.open(held.columns.testLines, run.lines, heldAt, runAt, tests.length);
@@ -157,12 +159,12 @@ export function layerCaseIndex(
     const before = row === undefined ? undefined : held.module(row);
     // The held cases land through the edit from the text they were cut at to
     // the text this run recorded: the regions it left alone, where it places them.
-    const lands = before === undefined ? undefined : landedThrough(before, recorded, (files.edit ?? (() => NO_EDIT))(recorded.file));
+    const landing = before === undefined ? undefined : landedThrough(before, recorded, (files.edit ?? (() => NO_EDIT))(recorded.file));
     modules.push(laidOn(
       recorded,
-      (block) => fromRun(recorded.called[block]!),
-      before === undefined ? undefined : { row: row!, module: before, lands: lands! },
-      { fromHeld, merged, lines, at: modules.length, runModule: runModuleAt.get(recorded)! },
+      fromRun,
+      before === undefined ? undefined : { row: row!, module: before, landing: landing! },
+      { fromHeld, merged, lines, at: modules.length, runModule: runModuleAt.get(recorded)!, ran },
     ));
   }
 
@@ -199,36 +201,60 @@ export function layerCaseIndex(
 }
 
 /**
- * `recorded`'s regions, each with the cases `own` names and the held cases that
- * land on it from `held`: the region `held.lands` names for it
- * ({@link landedThrough}). Each region is handed to `layer.lines`
- * as a region of the `layer.at`-th module written.
+ * `recorded`'s regions, each with the cases its own sets name, translated by
+ * `own`, and the held cases that land on it from `held`: the region
+ * `held.landing.lands` names for it ({@link landedThrough}). Each region is
+ * handed to `layer.lines` as a region of the `layer.at`-th module written.
+ *
+ * A held case the edit overwrote — a case of the region
+ * `held.landing.overwrote` names, or one the held index already held as
+ * overwritten — ran a text this one does not hold, so where it runs here is not
+ * known. It is written into the region's overwritten set unless the region
+ * names it, or it is one of `layer.ran`: a case of the run, measured at this
+ * text. The set is written only where some region holds one.
  */
 export function laidOn(
   recorded: SetExecutionModule,
-  own: (block: number) => SetId,
-  held: { readonly row: number; readonly module: SetExecutionModule; readonly lands: Int32Array } | undefined,
+  own: (set: SetId) => SetId,
+  held: { readonly row: number; readonly module: SetExecutionModule; readonly landing: Landing } | undefined,
   layer: {
     readonly fromHeld: (set: SetId) => SetId;
     readonly merged: Translation;
     readonly lines: LaidLines | undefined;
     readonly at: number;
     readonly runModule: number;
+    readonly ran: SetId;
   },
 ): SetExecutionModule {
   const { fromHeld, merged, lines } = layer;
   const called = new Uint32Array(recorded.blocks.length);
   const loaded = new Uint8Array(recorded.blocks.length);
+  const overwritten = new Uint32Array(recorded.blocks.length);
+  const heldOver = (from: number): SetId => (held!.module.overwritten === undefined ? EMPTY : fromHeld(held!.module.overwritten[from]!));
   for (let block = 0; block < recorded.blocks.length; block += 1) {
-    const mine = own(block);
-    const from = held?.lands[block] ?? -1;
+    const mine = own(recorded.called[block]!);
+    const from = held?.landing.lands[block] ?? -1;
+    const over = held?.landing.overwrote[block] ?? -1;
     const carriedIn = from < 0 ? undefined : fromHeld(held!.module.called[from]!);
     called[block] = carriedIn === undefined ? mine : merged.union(mine, carriedIn);
     lines?.recorded(layer.at, block, layer.runModule, merged.members(mine),
       carriedIn === undefined ? undefined : { row: held!.row, block: from, members: merged.members(carriedIn) });
     loaded[block] = recorded.loaded[block]! | (from < 0 ? 0 : held!.module.loaded[from]!);
+    const unknown = merged.union(
+      from < 0 ? EMPTY : heldOver(from),
+      over < 0 ? EMPTY : merged.union(fromHeld(held!.module.called[over]!), heldOver(over)),
+    );
+    const ownOver = recorded.overwritten === undefined ? EMPTY : own(recorded.overwritten[block]!);
+    overwritten[block] = merged.minus(merged.union(merged.minus(unknown, layer.ran), ownOver), called[block]!);
   }
-  return { file: recorded.file, blocks: recorded.blocks, called, loaded, ...(recorded.owner === undefined ? {} : { owner: recorded.owner }) };
+  return {
+    file: recorded.file,
+    blocks: recorded.blocks,
+    called,
+    loaded,
+    ...(recorded.owner === undefined ? {} : { owner: recorded.owner }),
+    ...(overwritten.some((set) => set !== EMPTY) ? { overwritten } : {}),
+  };
 }
 
 /** A case of the output, with the keys it is ordered by: see {@link HeldIndex.key}. */
@@ -388,25 +414,30 @@ function beforeRun(
 
 /** A held row read at the regions it was stored with, or nothing when no case is left in it; `unloaded` clears its load flags. */
 export function carriedRow(held: HeldIndex, row: number, from: (set: SetId) => SetId, unloaded: boolean): CarriedModule | undefined {
-  const { moduleBlocks, blockCalled, blockLoaded } = held.columns;
+  const { moduleBlocks, blockCalled, blockLoaded, blockOverwritten } = held.columns;
   const [first, last] = [moduleBlocks[row]!, moduleBlocks[row + 1]!];
   const called = new Uint32Array(last - first);
   for (let block = first; block < last; block += 1) called[block - first] = from(blockCalled[block]!);
   const loaded = unloaded ? new Uint8Array(last - first) : blockLoaded.subarray(first, last);
+  const overwritten = blockOverwritten === undefined ? undefined : Uint32Array.from(blockOverwritten.subarray(first, last), from);
+  const kept = overwritten?.some((set) => set !== EMPTY) === true ? { row, called, loaded, overwritten } : { row, called, loaded };
   for (let block = 0; block < called.length; block += 1) {
-    if (called[block] !== EMPTY || loaded[block] === 1) return { row, called, loaded };
+    if (called[block] !== EMPTY || loaded[block] === 1 || (kept.overwritten?.[block] ?? EMPTY) !== EMPTY) return kept;
   }
   return undefined;
 }
 
 /** A module object read at the regions it was recorded with, or nothing when no case is left in it. */
 function carried(module: SetExecutionModule, from: (set: SetId) => SetId): SetExecutionModule | undefined {
+  const { overwritten: was, ...rest } = module;
   const called = module.called.map(from);
+  const overwritten = was?.map(from);
   let entered = false;
   for (let block = 0; block < called.length; block += 1) {
-    if (called[block] !== EMPTY || module.loaded[block] === 1) entered = true;
+    if (called[block] !== EMPTY || module.loaded[block] === 1 || (overwritten?.[block] ?? EMPTY) !== EMPTY) entered = true;
   }
-  return entered ? { ...module, called } : undefined;
+  if (!entered) return undefined;
+  return overwritten?.some((set) => set !== EMPTY) === true ? { ...rest, called, overwritten } : { ...rest, called };
 }
 
 /**

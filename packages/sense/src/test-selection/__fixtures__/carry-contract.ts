@@ -333,7 +333,7 @@ export function caseOf(file: string): string {
 
 /** What the record holds of the subject, by the label each region stands for. */
 export interface Held {
-  /** The test files whose cases the case index holds on each labelled region. */
+  /** The test files whose cases the case index holds as having run each labelled region. */
   readonly cases: Readonly<Record<string, readonly string[]>>;
   /** The test files the snapshot's row of each labelled region names. */
   readonly rows: Readonly<Record<string, readonly string[]>>;
@@ -380,10 +380,27 @@ export async function held(walk: Walk): Promise<Held> {
   if (sections.index !== undefined) {
     const index = decodeExecutionIndex(sections.index);
     const module = index.modules.find((one) => one.file === SUBJECT);
-    for (const block of module?.blocks ?? []) put(cases, block, block.crossings.map((crossing) => index.tests[crossing.test]!.file));
+    for (const block of module?.blocks ?? []) {
+      put(cases, block, block.crossings.filter((crossing) => crossing.overwritten !== true).map((crossing) => index.tests[crossing.test]!.file));
+    }
   }
   const loadedBy = [...(row?.blocks.find((block) => block.kind === 'module')?.loadedBy ?? [])].sort();
   return { cases, rows, loadedBy };
+}
+
+/**
+ * The test files whose cases the case index holds flagged on each labelled
+ * region, which ran another text there; only the regions that hold one.
+ */
+export async function flagged(walk: Walk): Promise<Readonly<Record<string, readonly string[]>>> {
+  const named = namer(walk);
+  const index = decodeExecutionIndex(caseSectionsAt(walk.coverageFile).index!);
+  const found: Record<string, string[]> = {};
+  for (const block of index.modules.find((one) => one.file === SUBJECT)?.blocks ?? []) {
+    const tests = block.crossings.filter((crossing) => crossing.overwritten === true).map((crossing) => index.tests[crossing.test]!.file);
+    if (tests.length > 0) found[named(block)] = [...new Set(tests)].sort();
+  }
+  return found;
 }
 
 /**

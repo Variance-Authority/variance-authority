@@ -325,6 +325,15 @@ describe('the preconditions each case named', () => {
     expect(() => decodeExecutionIndex(withHeader(set, short))).toThrow(/not a variance-authority execution index/);
   });
 
+  it('is refused by the row spelling, which has no place for a case whose crossing is not known', () => {
+    const flagged: ExecutionIndex = {
+      tests: [{ id: 'a.test.ts > one', file: 'a.test.ts', name: 'one' }],
+      modules: [{ file: 'src/m.ts', blocks: [{ kind: 'function', name: 'f', path: 'f', startLine: 1, endLine: 2, source: true, crossings: [{ test: 0, distance: 0, overwritten: true }] }] }],
+    };
+
+    expect(() => encodeExecutionIndex(flagged)).toThrow(/src\/m\.ts .*row spelling cannot hold/);
+  });
+
   it('is refused by the row spelling, which has no pool to lay it in, a case that said nothing included', () => {
     expect(() => encodeExecutionIndex(said)).toThrow(/row spelling cannot hold what a case said/);
     expect(() => encodeExecutionIndex({ tests: [said.tests[1]!], modules: [] })).toThrow(/row spelling cannot hold/);

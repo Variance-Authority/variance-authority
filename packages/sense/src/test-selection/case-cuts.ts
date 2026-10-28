@@ -158,9 +158,9 @@ function followCuts(previous: Uint8Array, cuts: RowCuts, edit: EditOf): Buffer |
     // A region whose cases land names their lines to `lines` as it is laid, so
     // a module that keeps none named nothing, and leaving it out shifts nobody.
     const module = held.module(row);
-    const laid = laidOn(cut, () => EMPTY, { row, module, lands: landedThrough(module, cut, edit(module.file)) },
-      { fromHeld, merged, lines, at: modules.length, runModule: -1 });
-    if (laid.called.some((set) => set !== EMPTY) || laid.loaded.includes(1)) modules.push(laid);
+    const laid = laidOn(cut, () => EMPTY, { row, module, landing: landedThrough(module, cut, edit(module.file)) },
+      { fromHeld, merged, lines, at: modules.length, runModule: -1, ran: EMPTY });
+    if (laid.called.some((set) => set !== EMPTY) || laid.loaded.includes(1) || laid.overwritten !== undefined) modules.push(laid);
   }
   return writeLaid(held, tests.map((test) => test.laid), modules, merged.pool(), lines?.finish());
 }
