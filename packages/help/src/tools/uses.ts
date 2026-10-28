@@ -8,7 +8,7 @@ import { passesOn } from './passed-on.js';
 import { sharedSegments } from './shared-segments.js';
 import { symbol } from './symbol.js';
 import { UNCOUNTED, exportedAt } from './unpublished.js';
-import { bracketed, keptLine, namesakeLine, narrowing, publishedAt } from './uses-declarations.js';
+import { bracketed, keptLine, namesakeLine, narrowing, publishedAt, renamed } from './uses-declarations.js';
 import { type Counted, apart, counted, spokenSplit } from './uses-count.js';
 import { type Answer, type Namesake, type Site, packageOf, usesOf } from './uses-of.js';
 
@@ -366,9 +366,10 @@ function imported(answer: Answer, from: string | undefined, own: readonly string
   // An entry may publish the name only as a member of a namespace it exports.
   const member = inside.length === 0 ? undefined : `published as ${inside.join(' and as ')}`;
   // An answer that covers more than one declaration says which one it counts first.
-  const [door] = found;
+  // So does one whose door or file spells it by another name than the one asked.
+  const { lead } = answer;
   const many = answer.file === undefined && new Set(answer.files).size > 1;
-  const declaration = many && door !== undefined ? publishedAt(door, found) : undefined;
+  const declaration = lead !== undefined && (many || renamed(lead, name)) ? publishedAt(lead, name) : undefined;
   const which = declaration === undefined ? '' : `, ${declaration}`;
   const publishedAs = declaration === undefined ? 'published' : `${declaration},`;
   if (sites.length === 0 && exported.length > 0) {

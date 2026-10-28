@@ -68,7 +68,7 @@ export const symbol: Tool<Help> = {
     // The door the workspace imports a declaration by leads it. Every adapter
     // that re-exports a core publishes the same declaration, and the first one
     // read is an alphabetical accident whose own count is usually nothing.
-    const found = publishedDeclarations(help, name, wanted);
+    const found = publishedDeclarations(help, invocation?.root, name, wanted);
 
     // Declared in a file and exported by none: still the workspace's
     // own name, and where it is written says who can reach it. Another file's
@@ -87,7 +87,7 @@ export const symbol: Tool<Help> = {
     // said first. An installed name it matches is said after it, since a file
     // that passes an installed binding on exports it without declaring it.
     // A published namesake is another declaration, so it never hides this one.
-    const exported = unpublishedExports(help, invocation?.root, name, wanted, found.map((one) => one.at));
+    const exported = unpublishedExports(help, invocation?.root, name, wanted, found.map((one) => [one.at, one.declared] as const));
     const others = exported.length > 0 ? [exportedOnly(name, exported, invocation?.root, spell)] : [];
     if (byPath.length > 0) {
       const imported = new Set(byPath.flatMap((site) => [site.held.to ?? site.held.specifier, declaration(help, name, site)?.at ?? '']));
@@ -167,7 +167,8 @@ export const symbol: Tool<Help> = {
     const name = stringArg(input, 'name');
     const from = input['package'];
     const wanted = typeof from === 'string' && from !== '' ? from : undefined;
-    const at: (readonly [string, number])[] = publishedDeclarations(help, name, wanted).map((one) => [one.at, one.line]);
+    const published = publishedDeclarations(help, invocation?.root, name, wanted);
+    const at: (readonly [string, number])[] = published.map((one) => [one.at, one.line]);
     if (at.length === 0) {
       for (const site of sitesByPath(help, name, wanted)) {
         const declared = declaration(help, name, site);
@@ -175,7 +176,7 @@ export const symbol: Tool<Help> = {
       }
     }
     {
-      const exported = unpublishedExports(help, invocation?.root, name, wanted, at.map(([file]) => file));
+      const exported = unpublishedExports(help, invocation?.root, name, wanted, published.length > 0 ? published.map((one) => [one.at, one.declared] as const) : at.map(([file]) => [file, name] as const));
       for (const [held] of declaringExports(name, exported, invocation?.root)) {
         at.push([held.at, held.line]);
         const origin = originOf(invocation?.root, held);
@@ -245,15 +246,25 @@ function publishedBlock(help: Help, input: Readonly<Record<string, unknown>>, ro
 
 /**
  * The exports of the name no entry publishes: every export of ordinary source
- * whose declaration is none of `published`, the files the published entries
- * declare it in. A barrel that passes a published declaration on is that
- * declaration, and a file that declares its own is another thing.
+ * whose declaration is none of `published`, each a file and the name the
+ * published entries' declaration is declared by there. A barrel that passes a
+ * published declaration on is that declaration, and another binding, in its
+ * file or another, is another thing.
  */
-function unpublishedExports(help: Help, root: string | undefined, name: string, wanted: string | undefined, published: readonly string[]): readonly Named[] {
+function unpublishedExports(
+  help: Help,
+  root: string | undefined,
+  name: string,
+  wanted: string | undefined,
+  published: readonly (readonly [string, string])[],
+): readonly Named[] {
   const exported = exportsNamed(help, name, wanted);
   if (published.length === 0) return exported;
-  const declaring = new Set(published);
-  return exported.filter((held) => !declaring.has(held.at) && !declaring.has(originOf(root, held)?.at ?? held.at));
+  const declaring = new Set(published.map(([at, declared]) => `${at}\0${declared}`));
+  return exported.filter((held) => {
+    const origin = held.declaration !== undefined ? undefined : originOf(root, held);
+    return !declaring.has(`${origin?.at ?? held.at}\0${origin?.name ?? held.name}`);
+  });
 }
 
 /**
