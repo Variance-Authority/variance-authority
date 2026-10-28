@@ -7,31 +7,12 @@ import { ROOT, countedBy, parse, ratchet, sources, visit } from './owners.mjs';
 /**
  * What colour each package is, and the sites where a package takes on another.
  *
- * A specialist package means one thing. `sense` reads source and selects tests;
- * `react` knows React; `storybook` knows Storybook. A generic package, such as
- * the CLI, composes them and has no colour of its own: it is `mixed`. When a
- * specialist learns a second domain, the knowledge has two homes, the next
- * change to that domain updates one of them, and the package can no longer be
- * read as what its name says. The fix is never to move the check somewhere
- * quieter: the specialist exposes an extension point, and the package of that
- * colour fills it.
- *
- * `sense` learning React's element brands to name a story's components is the
- * case that made this a check. A reviewer caught it and the finding was set
- * aside; a rule that is only read can be.
- *
- * A colour is seen two ways in the parse tree, never in comments or prose:
- *
- * - an import of that domain's packages, or of one of ours that has that colour
- *   or is `mixed`;
- * - that domain's private vocabulary, as an identifier, a property or a string:
- *   the names a runtime does not publish and only its own package should know.
- *
- * A ratchet, like `owners.mjs`. What is here today is recorded per file, a new
- * site fails, and a site that moved to its colour tightens the baseline.
- *
- * `yarn colours` prints the list; `--write` records it.
- * `tools/colours.check.ts` compares the two.
+ * Holds **A specialist keeps its colour** in `.agents/references/change.md`. A
+ * colour is read from the parse tree, never from comments: an import of a
+ * domain's packages or of ours of that colour, or a domain's private name as an
+ * identifier, a property or a string. A ratchet, like `owners.mjs`: `yarn
+ * colours` prints the sites, `--write` records them, `tools/colours.check.ts`
+ * fails a new one.
  */
 
 export const BASELINE = join(ROOT, 'tools/colours.baseline.json');

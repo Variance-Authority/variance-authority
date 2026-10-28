@@ -11,6 +11,8 @@
  * answer with two objects, and the fallback session answers instead.
  */
 
+// FIXME: React's colour in a `none` package; `react` should make each request a
+// session through `addSessionSource`, the extension point `isolator` exposes.
 import { cache } from 'react';
 import { addSessionSource } from './session.js';
 
