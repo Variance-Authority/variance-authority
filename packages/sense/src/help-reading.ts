@@ -160,6 +160,7 @@ export interface NativeHelp {
   digestExported?(exported: NamedExport[]): string;
   importersOf?(root: string, index: string, files: string[], name: string): NativeImporters | null;
   outsideImportersOf?(root: string, index: string, name: string, builtins: readonly string[]): OutsideImports | null;
+  outsideRequestsOf?(root: string, indexed: string[], files: ScannedRequests[], builtins: readonly string[]): OutsideRequests[];
   memberDeclarationsOf?(root: string, index: string, name: string): MemberDeclarations | null;
   membersOnOf?(index: string, file: string, on: string): ContainerMember[] | null;
   declarationExportedOf?(index: string, file: string, name: string): { readonly declaration?: ExportedDeclaration | null } | null;
@@ -256,6 +257,38 @@ export interface OutsideImports {
  */
 export function outsideImportersOf(root: string, name: string, index: string = sourceIndexPath(root)): OutsideImports | undefined {
   return entry('outsideImportersOf')(root, index, name, BUILTINS) ?? undefined;
+}
+
+/** One file's requests as a scan left them, before it writes an index. */
+export interface ScannedRequests {
+  /** The specifiers as the file wrote them, in source order. */
+  readonly specifiers: string[];
+  /** Request by request, whether the scan resolved it to a file; absent when the record holds no targets. */
+  readonly resolved?: boolean[];
+  /** The packages the record says the file imports. */
+  readonly packages: string[];
+  /** The record did not read. */
+  readonly unknown: boolean;
+}
+
+/** Which of one file's requests are out of a module outside the workspace. */
+export interface OutsideRequests {
+  /** The indices among its specifiers of the requests out of a module outside the workspace, or that may be. */
+  outside: number[];
+  /** `false` when the file's imports do not read and some of `outside` only may be. */
+  decided: boolean;
+}
+
+/**
+ * Which of each file's requests are out of a module outside the workspace at
+ * `root`, by the rule `outsideImportersOf` and `readHelp` read off an index: a
+ * request the scan did not resolve to a file, out of a package the record
+ * names and no manifest of the workspace declares, or out of a module named in
+ * Node's `builtinModules`. `indexed` is every file the scan holds, beside
+ * which the manifests are read.
+ */
+export function outsideRequestsOf(root: string, indexed: readonly string[], files: readonly ScannedRequests[]): OutsideRequests[] {
+  return entry('outsideRequestsOf')(root, [...indexed], [...files], BUILTINS);
 }
 
 /**

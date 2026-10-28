@@ -103,6 +103,21 @@ fn reads_each_unresolved_request_of_an_outside_package_that_binds_the_name() {
 }
 
 #[test]
+fn a_record_that_does_not_line_up_with_its_parse_is_unread_only_when_the_parse_takes_the_name() {
+    let root = fixture("unread-name");
+    let bytes = layer(&[
+        file("src/a.ts", &["thirdp"], &[None], Some("src/a.ts — import(x)"), &[request("thirdp", "imports", 1, "render", false)]),
+        file("src/b.ts", &["thirdp"], &[None], Some("src/b.ts — import(x)"), &[request("x", "imports", 1, "parseSync", false)]),
+        file("src/c.ts", &["thirdp"], &[], None, &[request("thirdp", "imports", 1, "render", false)]),
+    ]);
+    let layer = Layer::open(&bytes).unwrap();
+
+    let read = outside_importers(root.0.to_str().unwrap(), std::slice::from_ref(&layer), "parseSync", &builtins());
+
+    assert_eq!(read.unread, ["src/a.ts", "src/b.ts"], "c.ts's parse names every request it has, and none takes `parseSync`; a.ts did not read, so it may take it off a request no parse names");
+}
+
+#[test]
 fn a_package_of_the_workspace_is_no_outside_package() {
     let root = fixture("internal");
     let bytes = layer(&[file("src/a.ts", &["@t/w"], &[None], None, &[request("@t/w", "imports", 1, "parseSync", false)])]);
@@ -210,4 +225,25 @@ fn a_name_passed_on_binds_nothing_so_the_files_own_uses_of_that_name_are_not_its
         [("src/a.ts", true, None), ("src/b.ts", false, Some(vec![7])), ("src/c.ts", true, None)],
         "a.ts and c.ts declare their own `resolve` and `parseSync`; an `export … from` binds no local, so those lines are not the import's",
     );
+}
+
+/// `outside_among` over one file's requests, the indices it decides outside, or `Err` with those that may be.
+fn among(specifiers: &[&str], resolved: Option<&[bool]>, packages: &[&str], unknown: bool, internal: &[&str]) -> Result<Vec<usize>, Vec<usize>> {
+    let packages: HashSet<&str> = packages.iter().copied().collect();
+    let internal: HashSet<&str> = internal.iter().copied().collect();
+    super::outside_among(specifiers.iter().copied(), resolved.map(|resolved| resolved.iter().copied()), &packages, unknown, &internal, &builtins())
+}
+
+#[test]
+fn decides_a_request_out_of_a_package_the_workspace_holds_no_outside_one() {
+    let specifiers = ["@t/own", "thirdp/sub", "./near", "node:fs"];
+    assert_eq!(among(&specifiers, Some(&[false, false, true, false]), &["@t/own", "thirdp"], false, &["@t/own"]), Ok(vec![1, 3]));
+}
+
+#[test]
+fn cannot_decide_a_file_whose_targets_do_not_line_up_only_when_it_names_an_outside_package() {
+    let specifiers = ["@t/own", "thirdp", "./near", "node:fs"];
+    assert_eq!(among(&specifiers, Some(&[false]), &["@t/own"], false, &["@t/own"]), Ok(vec![3]));
+    assert_eq!(among(&specifiers, None, &["@t/own", "thirdp"], false, &["@t/own"]), Err(vec![0, 1, 3]));
+    assert_eq!(among(&specifiers, Some(&[false, false, false, false]), &[], true, &[]), Err(vec![0, 1, 3]));
 }

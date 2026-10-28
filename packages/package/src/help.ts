@@ -1,5 +1,5 @@
 import { relative, resolve } from 'node:path';
-import type { Declaration } from './declare.js';
+import type { Declaration, PassedOn } from './declare.js';
 import { type Offering, type OfferingOptions, readOfferings } from './manifest.js';
 import { createReader, namesReachedBy, type Names } from './reach.js';
 import { type Mention, type Readmes, readMention, readmes } from './mention.js';
@@ -48,6 +48,8 @@ export interface Entry {
   readonly signature?: string;
   /** The block comment written above it, undented. */
   readonly doc?: string;
+  /** What a `foreign` entry passes on, when no file the workspace reads declares it. */
+  readonly passesOn?: PassedOn;
   /** Packages that import this name, in the order they were found. */
   readonly usedBy: readonly string[];
   /** How many places import it, counting each import statement once. */
@@ -223,6 +225,7 @@ function entryOf(
     line: first.line,
     ...(first.signature === undefined ? {} : { signature: first.signature }),
     ...(first.doc === undefined ? {} : { doc: first.doc }),
+    ...(first.passesOn === undefined ? {} : { passesOn: first.passesOn }),
     ...(mention === undefined ? {} : { mention }),
     ...reached,
   };
@@ -359,5 +362,5 @@ export { landing, type ImportTargets } from './entry.js';
 export type { Entrypoint, Offering, OfferingOptions, WorkspaceManifests } from './manifest.js';
 export { readMention, readmes } from './mention.js';
 export type { Mention, Readmes } from './mention.js';
-export type { Declaration, DeclarationKind } from './declare.js';
+export type { Declaration, DeclarationKind, PassedOn } from './declare.js';
 export type { Names } from './reach.js';

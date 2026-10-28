@@ -217,6 +217,7 @@ export {
   membersOn,
   readHelp,
   outsideImportersOf,
+  outsideRequestsOf,
   type Alias,
   type ContainerMember,
   type DeclaredName,
@@ -229,8 +230,10 @@ export {
   type MemberDeclarations,
   type MemberSite,
   type OutsideImports,
+  type OutsideRequests,
   type OutsideUse,
   type PublishedRows,
+  type ScannedRequests,
   type SearchGeneration,
 } from './help-reading.js';
 

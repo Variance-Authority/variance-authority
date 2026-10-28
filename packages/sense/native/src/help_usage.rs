@@ -13,8 +13,7 @@ use napi_derive::napi;
 use rayon::prelude::*;
 
 use crate::compact::Layer;
-use crate::external_dependencies::external_requests;
-use crate::help_outside::runtime_requests;
+use crate::help_outside::outside_among;
 use crate::help_in_file::{in_file, InFile};
 use crate::orient_map_read::beside;
 use crate::package_graph::{fold, join_parses, Crossing};
@@ -204,18 +203,25 @@ pub(crate) fn bound(layer: &Layer, row: usize, mut taken: NameUse, local: &str) 
 }
 
 /// The specifiers of one crossing's requests out of a module outside the
-/// workspace: a package it installs, as [`external_requests`] reads them, or a
-/// module of the runtime's, as [`runtime_requests`] reads them. An `export …
-/// from` one of them passes on a declaration the workspace does not hold, so
-/// it is an import from outside, `ask uses`'s to list, and no export here. A
-/// record whose imports do not read names none.
-fn outside_specifiers<'a>(layers: &'a [Layer], crossing: &Crossing, outside: &Outside) -> HashSet<&'a str> {
-    let Some((layer, row)) = crossing.parse else { return HashSet::new() };
+/// workspace, as [`outside_among`] reads them. An `export … from` one of them
+/// passes on a declaration the workspace does not hold, so it is an import
+/// from outside, `ask uses`'s to list, and no export here. `Err` holds those
+/// that may be, when the record's imports do not read.
+fn outside_specifiers<'a>(layers: &'a [Layer], crossing: &Crossing, outside: &Outside) -> Result<HashSet<&'a str>, HashSet<&'a str>> {
+    let Some((layer, row)) = crossing.parse else { return Ok(HashSet::new()) };
     let (text, parses) = (&layers[layer].stored, &layers[layer].parses);
-    if !parses.requests.range(row).any(|request| parses.request_republishes[request] == 1) { return HashSet::new(); }
-    let installed = external_requests(layers, crossing, &outside.internal).unwrap_or_default().into_iter().map(|(request, _)| request);
-    let runtime = runtime_requests(layers, crossing, outside.builtins).into_iter().map(|(request, _)| request);
-    installed.chain(runtime).map(|request| text.text(parses.request_value.at(request))).collect()
+    if !parses.requests.range(row).any(|request| parses.request_republishes[request] == 1) { return Ok(HashSet::new()); }
+    let (record_layer, record_row) = crossing.at;
+    let (stored, records) = (&layers[record_layer].stored, &layers[record_layer].records);
+    let packages: HashSet<&str> = records.packages_of(stored, record_row).collect();
+    let resolved = (records.targets_present[record_row] == 1)
+        .then(|| records.targets.range(record_row).map(|target| stored.optional(records.target_path.at(target)).is_some()));
+    let requests = parses.requests.range(row);
+    let first = requests.start;
+    let specifiers = requests.map(|request| text.text(parses.request_value.at(request)));
+    let unknown = records.unknown_of(stored, record_row).is_some();
+    let named = |found: Vec<usize>| found.into_iter().map(|index| text.text(parses.request_value.at(first + index))).collect();
+    outside_among(specifiers, resolved, &packages, unknown, &outside.internal, outside.builtins).map(named).map_err(named)
 }
 
 fn collect(root: &str, layers: &[Layer], crossing: &Crossing, by: &str, targets: &Targets, outside: &Outside) -> Part {
@@ -228,7 +234,13 @@ fn collect(root: &str, layers: &[Layer], crossing: &Crossing, by: &str, targets:
     if text.optional(parses.unknown.at(row)).is_some() { part.unreadable.push(at.to_owned()); }
     let kind = kind_of(at);
     if parses.exports_present[row] == 1 {
-        let outside = outside_specifiers(layers, crossing, outside);
+        // A file whose imports do not read cannot say whose declaration an
+        // `export … from` a package passes on, so it passes on none here and
+        // is named unread; a record that did not read is named by its reason.
+        let outside = outside_specifiers(layers, crossing, outside).unwrap_or_else(|undecided| {
+            if records.unknown_of(stored, crossing.at.1).is_none() { part.unreadable.push(at.to_owned()); }
+            undecided
+        });
         // The file is read only when an export of it is documented: the index
         // holds where each comment is, and the text is the file's.
         let mut source: Option<Vec<u16>> = None;

@@ -111,12 +111,23 @@ export function importing(published: Documented, held: Opening, entry: Entry): s
   return `import { ${entry.name} } from '${specifier}';`;
 }
 
+/**
+ * Where a name is written: the line that declares it, or, for a name no file the
+ * workspace reads declares, the line that passes it on from the module that does.
+ */
+export function placed(published: Documented, entry: Entry): string {
+  const passed = entry.passesOn;
+  if (passed === undefined) return `declared at ${entry.at}:${entry.line}`;
+  const what = passed.name === '*' ? `everything ${passed.from} exports` : `${passed.from}'s \`${passed.name}\``;
+  return `published by ${published.name}, passes on ${what} at ${entry.at}:${entry.line}`;
+}
+
 /** One name in full, including the head somebody would copy. */
 export function block(published: Documented, held: Opening, entry: Entry, undecided: Undecided): string {
   const lines = [
     `${entry.name} [${entry.kind}]`,
     importing(published, held, entry),
-    `declared at ${entry.at}:${entry.line}`,
+    placed(published, entry),
     reach(entry, undecided),
   ];
 

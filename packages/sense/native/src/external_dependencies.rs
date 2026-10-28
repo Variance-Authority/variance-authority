@@ -325,25 +325,40 @@ pub(crate) fn external_requests<'l>(layers: &'l [Layer], crossing: &Crossing, in
 pub(crate) fn unresolved_requests<'l>(layers: &'l [Layer], crossing: &Crossing) -> Result<Vec<(usize, &'l str)>, ()> {
     let (record_layer, record_row) = crossing.at;
     let (stored, records) = (&layers[record_layer].stored, &layers[record_layer].records);
-    let indexed = records.indexed(stored, record_row);
-    let packages: HashSet<&str> = indexed.record.packages.as_deref().unwrap_or(&[]).iter().map(|edge| edge.to.as_str()).collect();
-    if indexed.record.unknown.is_some() { return Err(()); }
-    if packages.is_empty() { return Ok(Vec::new()); }
-    if indexed.targets.is_none() { return Err(()); }
-    let Some((parse_layer, parse_row)) = crossing.parse else { return Err(()) };
+    let packages: HashSet<&str> = records.packages_of(stored, record_row).collect();
+    let unknown = records.unknown_of(stored, record_row).is_some();
+    let resolved = (records.targets_present[record_row] == 1)
+        .then(|| records.targets.range(record_row).map(|target| stored.optional(records.target_path.at(target)).is_some()));
+    let Some((parse_layer, parse_row)) = crossing.parse else { return unresolved_among(std::iter::empty(), resolved, &packages, unknown) };
     let (text, parses) = (&layers[parse_layer].stored, &layers[parse_layer].parses);
     let requests = parses.requests.range(parse_row);
-    let targets = records.targets.range(record_row);
-    if requests.len() != targets.len() { return Err(()); }
-    let mut found = Vec::new();
-    for (request, target) in requests.zip(targets) {
-        if stored.optional(records.target_path.at(target)).is_some() { continue; }
-        let specifier = text.text(parses.request_value.at(request));
-        let Some(package) = request_of(specifier).and_then(|name| package_of(name, &HashSet::new())) else { continue };
-        if !packages.contains(package) { continue; }
-        found.push((request, package));
-    }
-    Ok(found)
+    let first = requests.start;
+    let found = unresolved_among(requests.map(|request| text.text(parses.request_value.at(request))), resolved, &packages, unknown)?;
+    Ok(found.into_iter().map(|(index, package)| (first + index, package)).collect())
+}
+
+/// [`unresolved_requests`] over one file's requests as the scan left them, each as its index among `specifiers`:
+/// `resolved` says request by request whether the scan resolved it to a file, `None` when the record holds no
+/// targets, and `packages` are the packages the record says the file imports. `Err` when the record is `unknown`, or
+/// names a package and its targets are absent or do not line up with its requests.
+pub(crate) fn unresolved_among<'s>(
+    specifiers: impl ExactSizeIterator<Item = &'s str>,
+    resolved: Option<impl ExactSizeIterator<Item = bool>>,
+    packages: &HashSet<&str>,
+    unknown: bool,
+) -> Result<Vec<(usize, &'s str)>, ()> {
+    if unknown { return Err(()); }
+    if packages.is_empty() { return Ok(Vec::new()); }
+    let Some(resolved) = resolved.filter(|resolved| resolved.len() == specifiers.len()) else { return Err(()) };
+    Ok(specifiers
+        .zip(resolved)
+        .enumerate()
+        .filter_map(|(index, (specifier, resolved))| {
+            if resolved { return None; }
+            let package = request_of(specifier).and_then(|name| package_of(name, &HashSet::new()))?;
+            packages.contains(package).then_some((index, package))
+        })
+        .collect())
 }
 
 #[cfg(test)]

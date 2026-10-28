@@ -187,7 +187,9 @@ export async function indexedNames(
       );
 
       if (published.exported === undefined) {
-        if (target === undefined) add(found, `* from '${specifier}'`, written);
+        if (target === undefined) {
+          add(found, `* from '${specifier}'`, specifier === undefined ? written : { ...written, passesOn: { from: specifier, name: '*' } });
+        }
         else for (const [name, kinds] of namesAt(target, stack)) {
           for (const value of kinds.values()) add(found, name, value);
         }
@@ -219,10 +221,13 @@ export async function indexedNames(
         const imported = source.parsed.requests.flatMap((request, index) =>
           request.bindings
             .filter((binding) => binding.local === bound)
-            .map((binding) => ({ name: binding.imported, target: typed(source.targets[index]) })),
+            .map((binding) => ({ name: binding.imported, from: request.value, target: typed(source.targets[index]) })),
         )[0];
+        const passed = imported === undefined
+          ? written
+          : { ...written, passesOn: { from: imported.from, name: imported.name } };
         if (imported?.target === undefined) {
-          if (imported !== undefined) add(found, name, written);
+          if (imported !== undefined) add(found, name, passed);
           else throw new Error(`${file} exports \`${name}\`, and no declaration there says what it is`);
           continue;
         }
@@ -231,7 +236,7 @@ export async function indexedNames(
           continue;
         }
         if (!sources.has(imported.target)) {
-          add(found, name, written);
+          add(found, name, passed);
           continue;
         }
         const kinds = namesAt(imported.target, stack).get(imported.name);
@@ -240,7 +245,7 @@ export async function indexedNames(
         }
         for (const declared of kinds.values()) add(found, name, declared);
       } else if (target === undefined) {
-        add(found, name, written);
+        add(found, name, { ...written, passesOn: { from: specifier, name: published.imported ?? DEFAULT } });
       } else {
         const linked = source.parsed.requests
           .find((request) => request.value === specifier && request.kind === 'imports')

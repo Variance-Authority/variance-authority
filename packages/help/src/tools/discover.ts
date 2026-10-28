@@ -4,7 +4,7 @@ import type { FileSet, Link, SourceNames, Tool, ToolInvocation, Tree } from '@va
 import { entryPoints, limitOf, notShown, pathsOf, refusalFor, spellingOf, startPointArg } from '@variance-authority/mcp/tools';
 import { READABLE } from '@variance-authority/sense';
 import { ripgrep } from './ripgrep.js';
-import { importsOf as importersOf, type IndexedUse } from './unpublished.js';
+import { importsOf as importersOf, type IndexedUse } from './indexed-imports.js';
 
 /**
  * `docs_discover` — the files in every one of several sets.

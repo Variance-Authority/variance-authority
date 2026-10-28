@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { spellingOf } from '@variance-authority/mcp/tools';
-import type { Outside } from './unpublished.js';
+import type { Outside } from './indexed-imports.js';
 import { importsUnread, outsideAfter, outsideAlone } from './uses-names.js';
 
 /**

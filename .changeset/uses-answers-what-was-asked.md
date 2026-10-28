@@ -37,3 +37,9 @@ rather than passed over.
 A Rust item's answer now says that a use from JavaScript through a native
 binding imports no Rust name, so it is not listed, and to ask for the name the
 binding's JavaScript side declares.
+
+A published entry that passes on a name out of an installed package,
+`export type { JSX } from 'react/jsx-dev-runtime'`, said it was declared at
+that line. `ask symbol --name JSX` now says it is published by its package
+and passes on `react/jsx-dev-runtime`'s `JSX` at that line, and `ask uses`
+no longer counts it among the workspace's declarations of the name.

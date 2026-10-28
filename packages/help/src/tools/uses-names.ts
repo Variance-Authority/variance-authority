@@ -19,7 +19,7 @@ import { unreadLine } from './declared.js';
 import { places } from './members.js';
 import { type Shown, kinds, nearestLine } from './sites.js';
 import { symbol } from './symbol.js';
-import type { Outside } from './unpublished.js';
+import type { Outside } from './indexed-imports.js';
 
 /** How many files whose imports were not read `importsUnread` names before it counts the rest. */
 const NOT_READ_NAMED = 3;
@@ -58,7 +58,10 @@ export interface Carried {
 export function carriers(carried: Carried, outside: Outside, shown: Shown): readonly string[] {
   const { name, found, kept } = carried;
   const [packages, modules] = 'sites' in outside ? [outside.packages, outside.modules] : [[], []];
-  const published = new Map(found.map(([, , entry]) => [`${entry.at}:${entry.line}`, `${entry.kind}, published, at ${entry.at}:${entry.line}`]));
+  // A published name that only passes on an installed package's is that package's, and is answered as an import from it.
+  const published = new Map(found
+    .filter(([, , entry]) => entry.passesOn === undefined)
+    .map(([, , entry]) => [`${entry.at}:${entry.line}`, `${entry.kind}, published, at ${entry.at}:${entry.line}`]));
   // Each declaration's exports come declaring one first; the ones passing it on are not another declaration.
   const exports = [carried.exported, ...carried.namesakes.map((one) => one.exported)]
     .flatMap((group) => group.slice(0, 1))

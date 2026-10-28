@@ -147,3 +147,22 @@ describe('publishing the questions from the index', () => {
     expect(read.readWorkspaceOver).not.toHaveBeenCalled();
   });
 });
+
+describe('the first reading and the refresh', () => {
+  it('count an export … from a workspace package the scan did not resolve the same way, so the refresh applies', async () => {
+    // `c` declares no entry, so the scan resolves no import of it to a file;
+    // it is still the workspace's own package, not one installed from outside.
+    write('package.json', JSON.stringify({ name: 'root', private: true, workspaces: ['packages/a', 'packages/b', 'packages/c'] }));
+    write('packages/c/package.json', JSON.stringify({ name: 'c' }));
+    write('packages/c/src/index.ts', 'export const sea = 1;\n');
+    write('packages/b/package.json', JSON.stringify({ name: 'b', exports: { '.': './src/index.ts' }, dependencies: { c: '*' } }));
+    write('packages/b/src/index.ts', "import { see } from 'a';\nexport const b = see;\nexport { sea } from 'c';\n");
+    await updateSourceIndex(root, { index });
+    await publishWorkspaceFromIndex(root, { index });
+    forget();
+
+    await publishWorkspaceFromIndex(root, { index });
+
+    expect(read.readWorkspaceOver).not.toHaveBeenCalled();
+  });
+});

@@ -12,7 +12,8 @@ import { declarations, declaredAt, declaredBlocks, isNested, textRows, unreadLin
 import { uses } from './uses.js';
 import { type Members, membersOf, membersStop } from './members.js';
 import { boundOf, exportedRows, originOf } from './passed-on.js';
-import { UNCOUNTED, exportsNamed, importsOf } from './unpublished.js';
+import { importsOf } from './indexed-imports.js';
+import { UNCOUNTED, exportsNamed } from './unpublished.js';
 import { type Counted, counted, spokenSplit } from './uses-count.js';
 import { usesOf } from './uses-of.js';
 import { localNames, renamedSites } from './renamed.js';

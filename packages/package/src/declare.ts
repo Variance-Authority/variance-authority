@@ -66,6 +66,21 @@ export interface Declaration {
   readonly signature?: string;
   /** The block comment written above it, undented. Absent is the finding. */
   readonly doc?: string;
+  /**
+   * What a `foreign` name is, when no file the workspace reads declares it: the
+   * request it comes through and the name it has there, `*` for everything an
+   * `export * from` passes on. The line above is where it is passed on, never
+   * where it is declared.
+   */
+  readonly passesOn?: PassedOn;
+}
+
+/** A name one module takes from another and publishes as its own. */
+export interface PassedOn {
+  /** The request, as the statement writes it: `react/jsx-dev-runtime`. */
+  readonly from: string;
+  /** The name it has in that module. */
+  readonly name: string;
 }
 
 /**
@@ -143,6 +158,7 @@ export function declarationOf(
   context: Around,
   kind: DeclarationKind,
   head: string,
+  passesOn?: PassedOn,
 ): Declaration {
   return {
     kind,
@@ -150,6 +166,7 @@ export function declarationOf(
     line: context.line,
     ...(head === '' ? {} : { signature: head }),
     ...(context.doc === undefined ? {} : { doc: context.doc }),
+    ...(passesOn === undefined ? {} : { passesOn }),
   };
 }
 

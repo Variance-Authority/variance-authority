@@ -21,7 +21,8 @@ import { declarations } from './declared.js';
 import { FoundNothing, entriesNamed, isPackage, nowhere, specifierOf } from './find.js';
 import { type Members, membersOf } from './members.js';
 import { originOf } from './passed-on.js';
-import { type IndexedUse, type Within, exportsNamed, importsOf, indexMissing, outsideOf } from './unpublished.js';
+import { type IndexedUse, type Within, importsOf, outsideOf } from './indexed-imports.js';
+import { exportsNamed, indexMissing } from './unpublished.js';
 import { declaredIn, membersIn, notDeclaredIn } from './uses-declarations.js';
 import { importsUnread } from './uses-names.js';
 

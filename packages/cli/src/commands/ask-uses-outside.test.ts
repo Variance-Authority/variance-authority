@@ -144,6 +144,29 @@ describe('variance ask uses over a name an installed package declares', () => {
       expect(symbol.out).not.toContain('exported, without being published');
     }
   }, 120_000);
+
+  it('answers a published entry that passes on a name out of an installed package by what it passes on, and counts it as no declaration', async () => {
+    checkout({
+      ...OUTSIDE,
+      'packages/pkg/package.json': JSON.stringify({
+        name: '@acme/pkg',
+        type: 'module',
+        dependencies: { thirdp: '1.0.0' },
+        exports: { './help': { types: './dist/help.d.ts', default: './dist/help.js' } },
+      }),
+      'packages/pkg/src/help.ts': "export function render(text: string): string {\n  return text;\n}\nexport { parseSync } from 'thirdp';\n",
+    });
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+
+    const symbol = await run(['ask', 'symbol', '--name', 'parseSync']);
+    expect(symbol.out).toContain("published by @acme/pkg, passes on thirdp's `parseSync` at packages/pkg/src/help.ts:4");
+    expect(symbol.out).not.toContain('declared at packages/pkg/src/help.ts');
+
+    const uses = await run(['ask', 'uses', '--name', 'parseSync']);
+    expect(uses.out).not.toContain('published, at packages/pkg/src/help.ts');
+    expect(uses.out).not.toMatch(/names \d+ declarations?/);
+    expect(uses.out).toMatch(/^packages\/pkg\/src\/help\.ts:4 — @acme\/pkg, from thirdp.*, passes it on$/m);
+  }, 120_000);
 });
 
 const RUNTIME = {

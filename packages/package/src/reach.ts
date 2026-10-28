@@ -123,7 +123,7 @@ export function namesReachedBy(reader: Reader, file: string, stack: Set<string> 
       // `export * from './x.js'` republishes a set this file never names.
       if (entry.exportName.kind === 'None') {
         if (to === undefined) {
-          add(found, `* from '${specifier}'`, declarationOf(source, context, 'foreign', written));
+          add(found, `* from '${specifier}'`, declarationOf(source, context, 'foreign', written, specifier === undefined ? undefined : { from: specifier, name: '*' }));
         } else for (const [name, kinds] of namesReachedBy(reader, to, stack)) {
           for (const declaration of kinds.values()) add(found, name, declaration);
         }
@@ -151,7 +151,8 @@ export function namesReachedBy(reader: Reader, file: string, stack: Set<string> 
       }
 
       if (to === undefined) {
-        add(found, name, declarationOf(source, context, 'foreign', written));
+        const passesOn = { from: specifier, name: entry.importName.name ?? 'default' };
+        add(found, name, declarationOf(source, context, 'foreign', written, passesOn));
         continue;
       }
 

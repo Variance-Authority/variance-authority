@@ -4,10 +4,9 @@
  */
 
 import { readFileSync } from 'node:fs';
-import { isBuiltin } from 'node:module';
-import { basename, join } from 'node:path';
+import { join } from 'node:path';
 import type { FileRecord } from '@variance-authority/core/relate';
-import type { Parsed } from '@variance-authority/sense';
+import { outsideRequestsOf, type Parsed } from '@variance-authority/sense';
 import { NAMESPACE_NAME } from '@variance-authority/sense/read';
 import {
   gatheringUsage,
@@ -30,7 +29,7 @@ type Pending = { -readonly [key in keyof Deep]: Deep[key] };
 /** A file's `export … from` rows, with its requests' specifiers and, once the scan hands them over, their targets. */
 interface Passing {
   readonly rows: { readonly row: Named; readonly from: string }[];
-  readonly values: readonly string[];
+  readonly specifiers: string[];
   targets?: readonly (string | undefined)[];
 }
 
@@ -48,7 +47,7 @@ export function collectingUsage(root: string, opened: ReadonlySet<string>, targe
   accept(at: string, by: string, parsed: Parsed): void;
   targets(at: string, targets: readonly (string | undefined)[]): void;
   /** The usage, once `records` — the scan's, with each file's packages — say which `export … from` rows pass on a module outside the workspace. */
-  read(records: readonly FileRecord[], owner: (at: string) => string): Usage;
+  read(records: readonly FileRecord[]): Usage;
 } {
   const usage = gatheringUsage();
   const pending = new Map<string, Map<number, Pending>>();
@@ -87,7 +86,7 @@ export function collectingUsage(root: string, opened: ReadonlySet<string>, targe
           };
           usage.exported.push(row);
           if (published.from !== undefined) {
-            const held = passing.get(at) ?? { rows: [], values: parsed.requests.map((asked) => asked.value) };
+            const held = passing.get(at) ?? { rows: [], specifiers: parsed.requests.map((asked) => asked.value) };
             passing.set(at, held);
             held.rows.push({ row, from: published.from });
           }
@@ -123,44 +122,47 @@ export function collectingUsage(root: string, opened: ReadonlySet<string>, targe
       const held = passing.get(at);
       if (held !== undefined) held.targets = targets;
     },
-    read(records, owner) {
+    read(records) {
       const read = usage.read();
       if (passing.size === 0) return read;
-      const outside = outsideRows(records, owner, passing);
-      return outside.size === 0 ? read : { ...read, exported: read.exported.filter((row) => !outside.has(row)) };
+      const outside = outsideRows(root, records, passing);
+      return outside.rows.size === 0 && outside.unread.length === 0
+        ? read
+        : { ...read, exported: read.exported.filter((row) => !outside.rows.has(row)), unreadable: [...read.unreadable, ...outside.unread] };
     },
   };
 }
 
 /**
  * The `export … from` rows that pass on a module outside the workspace, as
- * `outside_specifiers` in `help_usage.rs` reads them: a request the scan did
- * not resolve to a file, out of a package the record says the file imports and
- * no manifest here names, or out of a module of the runtime's. Such a row
- * passes on a declaration the workspace does not hold, so it is an import from
- * outside, `ask uses`'s to list, and no export here. A file whose record is
- * unknown, or whose targets do not line up with its requests, keeps its
- * installed rows, and counts every runtime one.
+ * `outsideRequestsOf` decides them, the rule the native reading keeps: such a
+ * row passes on a declaration the workspace does not hold, so it is an import
+ * from outside, `ask uses`'s to list, and no export here. A file whose imports
+ * do not read cannot say whose declaration a row out of a package passes on,
+ * so it passes on none here and is named unread; a record that did not read
+ * is named by its reason.
  */
-function outsideRows(records: readonly FileRecord[], owner: (at: string) => string, passing: ReadonlyMap<string, Passing>): ReadonlySet<Named> {
-  const internal = new Set(records.flatMap((record) => basename(record.file) === 'package.json' ? [owner(record.file)] : []));
-  const outside = new Set<Named>();
-  for (const record of records) {
-    const held = passing.get(record.file);
-    if (held === undefined) continue;
-    const aligned = held.targets !== undefined && held.targets.length === held.values.length;
-    const installed = new Set(record.unknown === undefined && aligned ? (record.packages ?? []).map((edge) => edge.to) : []);
-    const specifiers = new Set<string>();
-    for (const [index, value] of held.values.entries()) {
-      if (aligned && held.targets![index] !== undefined) continue;
-      const trimmed = value.trim();
-      const runtime = trimmed.startsWith('node:') ? trimmed.length > 'node:'.length : isBuiltin(trimmed);
-      const name = requested(trimmed).split(' ')[0]!;
-      if (runtime || (installed.has(name) && !internal.has(name))) specifiers.add(value);
-    }
-    for (const { row, from } of held.rows) if (specifiers.has(from)) outside.add(row);
+function outsideRows(root: string, records: readonly FileRecord[], passing: ReadonlyMap<string, Passing>): { rows: ReadonlySet<Named>; unread: string[] } {
+  const asked = records.filter((record) => passing.has(record.file));
+  const decided = outsideRequestsOf(root, records.map((record) => record.file), asked.map((record) => {
+    const held = passing.get(record.file)!;
+    return {
+      specifiers: held.specifiers,
+      ...(held.targets === undefined ? {} : { resolved: held.targets.map((to) => to !== undefined) }),
+      packages: (record.packages ?? []).map((edge) => edge.to),
+      unknown: record.unknown !== undefined,
+    };
+  }));
+  const rows = new Set<Named>();
+  const unread: string[] = [];
+  for (const [at, record] of asked.entries()) {
+    const held = passing.get(record.file)!;
+    const { outside, decided: read } = decided[at]!;
+    if (!read && record.unknown === undefined) unread.push(record.file);
+    const specifiers = new Set(outside.map((index) => held.specifiers[index]));
+    for (const { row, from } of held.rows) if (specifiers.has(from)) rows.add(row);
   }
-  return outside;
+  return { rows, unread };
 }
 
 /** Every name one import takes: its bindings, and the members read off a module it holds whole. */
