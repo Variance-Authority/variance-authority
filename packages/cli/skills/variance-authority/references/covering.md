@@ -216,8 +216,9 @@ record's text has no place for, but a text that a case which entered the file
 ran over holds, is answered with no case too and named in `overwritten`: a
 later run over another text numbered the record's lines, so a case ran over
 your line, and which one ran it is not known. So is a line of a region a run in
-part landed an edit over: that run numbered the record's lines in its text, and
-the cases that ran the region before it ran another text there. Every line of
+part landed an edit over: the cases that ran the region before it ran another
+text there, and the record lost which of them ran each line, even once a later
+run numbers its lines in your text again. Every line of
 that region is said so, under `--line`, `--lines`, `--function`, the whole file
 and `--since`, unless a case the answer names entered it; the whole file says
 it of the range, and a range a named case entered says it also holds one.

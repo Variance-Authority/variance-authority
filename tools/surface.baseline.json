@@ -3301,6 +3301,7 @@
         "layeredCoverage": "function",
         "layeredFiles": "function",
         "lineGrain": "function",
+        "lostText": "function",
         "machineOwners": "function",
         "mainlineReadRoot": "function",
         "marksLoadTime": "function",

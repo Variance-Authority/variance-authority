@@ -722,13 +722,14 @@ variance covering --file src/checkout/total.ts --text - --format json < buffer.t
 `--text <path>` reads the held text from a file, and `--text -` reads it from
 standard input, which is how an editor queries a buffer you have not saved.
 `--line` then names a line in that text. A line the edit wrote is answered
-with no case, and the answer says the edit wrote it. A line a case ran in
-another text than the one the record's lines are numbered in is answered with
-no case for it either, and named in `overwritten`. A run of one case under
-`-t`, over an edit to a region, lands the record in that run's text, where the
-cases that ran the region before ran another text, so which case runs the line
-now is not known. Over the whole file, `--format json` names those cases under
-the range's own `overwritten`.
+with no case, and the answer says the edit wrote it. A line a case ran over,
+where a run over another text has landed since, is answered with no case for it
+either, and named in `overwritten`: a line your text holds and the record's
+does not, and every line of a region a run in part under `-t` landed an edit
+over, where the cases that ran the region before ran another text. The record
+lost which case ran the line, and a later run that numbers the record in your
+text again does not bring that back. Over the whole file, `--format json` names
+those cases under the range's own `overwritten`.
 
 #### How fresh and how actual the answer is
 

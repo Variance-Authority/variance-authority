@@ -20,15 +20,12 @@ import type { CoveringRange } from './covering-frame.js';
 import { motionText } from './covering-motion.js';
 import { preconditionText } from './covering-unloaded.js';
 import { formatCoveringRefs } from './covering-refs.js';
-import { heldText } from '@variance-authority/sense/test-selection';
+import { heldText, lostText } from '@variance-authority/sense/test-selection';
 import { whereText } from './covering-where.js';
 import { evidenceGapText } from './evidence-gap.js';
 import { staleFile, staleLines } from './covering-stale.js';
 import { frameText, ranText } from './covering-fresh-text.js';
 import type { Covering, CoveringFormat, StatedChange } from './covering.js';
-
-/** How a place no case is known to have run, nor known not to, is said, up to the case. */
-const UNKNOWN = "in a text a case ran over, but the record's lines are numbered in another, so which";
 
 /**
  * Say the answer in the shape the caller asked for.
@@ -140,10 +137,10 @@ function unplacedText(answer: Covering, of: string): readonly string[] {
     said.push(`${one} ${runsText(answer.written)}${of} ${verb} written since the recording, so no case has run ${it}.`);
   }
   if (answer.overwritten !== undefined) {
-    const [one, verb, it] = single(answer.overwritten) ? ['Line', 'is', 'it'] : ['Lines', 'are', 'them'];
+    const [one, verb, it] = single(answer.overwritten) ? (['Line', 'is', 'it'] as const) : (['Lines', 'are', 'them'] as const);
     // Beside a named case, saying no case is known to have run a line it entered would say two things about it.
-    const other = (answer.tests ?? []).length === 0 ? '' : 'other ';
-    said.push(`${one} ${runsText(answer.overwritten)}${of} ${verb} ${UNKNOWN} ${other}case ran ${it} is not known.`);
+    const other = (answer.tests ?? []).length > 0;
+    said.push(`${one} ${runsText(answer.overwritten)}${of} ${verb} ${lostText({ other, it })}.`);
   }
   return said;
 }
@@ -256,7 +253,7 @@ function wholeFile(answer: Covering, ranges: readonly CoveringRange[]): string {
         lines.push(answer.where === undefined
           ? range.overwritten === undefined
             ? `  no named test covered this range${whyUnentered(range.stopped)}`
-            : `  this range is ${UNKNOWN} case ran it is not known`
+            : `  this range is ${lostText({ other: false, it: 'it' })}`
           : `  no case ${answer.where.read === undefined ? '`--where`' : answer.where.asked.length === 0 ? '`--read`' : '`--where` and `--read`'} kept covered this range`);
       }
       lines.push(...(range.state === 'loaded' ? [] : range.stopped ?? []).map((test) =>
@@ -269,7 +266,7 @@ function wholeFile(answer: Covering, ranges: readonly CoveringRange[]): string {
       lines.push(...caseLines(tests, '  '), ...loadedOnly(carried, tests.length > 0));
       printed.set(key, place);
     }
-    if (range.tests.length > 0 && range.overwritten !== undefined) lines.push(`  it is also ${UNKNOWN} other case ran it is not known`);
+    if (range.tests.length > 0 && range.overwritten !== undefined) lines.push(`  it is also ${lostText({ other: true, it: 'it' })}`);
     lines.push(...unenteredLines(range));
   }
   lines.push(...narrowedText(answer));

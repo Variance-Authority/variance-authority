@@ -80,9 +80,9 @@ describe('a covering answer dates each case it names by the run that last ran it
       });
       expect(json['gap']).toMatchObject({
         remedy: 'record',
-        known: "line 5 is in a text a case ran over, but the record's lines are numbered in another",
+        known: "line 5 is in a text a case ran over, but a run over another text has landed there since",
       });
-      expect(text).toContain("Line 5 of src/pay.ts is in a text a case ran over, but the record's lines are numbered in another, so which case ran it is not known.\n");
+      expect(text).toContain("Line 5 of src/pay.ts is in a text a case ran over, but a run over another text has landed there since, so which case ran it is not known.\n");
       expect(text).not.toContain('written since');
     }
   });

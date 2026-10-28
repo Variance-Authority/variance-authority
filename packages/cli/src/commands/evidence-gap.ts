@@ -31,7 +31,7 @@
  * be a guess the reader cannot check.
  */
 
-import type { CoveringTest, ExecutionIndex, HeldLines } from '@variance-authority/sense/test-selection';
+import { lostText, type CoveringTest, type ExecutionIndex, type HeldLines } from '@variance-authority/sense/test-selection';
 import { OperatorError, type RefusalKind } from '../exit.js';
 import { runsText, targetText } from './covering-at.js';
 import { casesByFile, type CoveringFile } from './covering-files.js';
@@ -78,7 +78,7 @@ export interface EvidenceGap {
   readonly scope: string;
   /** What the answer does hold. */
   readonly known: string;
-  /** `absent`: no record; `stale`: the record is of another text; `coarse`: the record holds it at a grain finer questions cannot read. */
+  /** `absent`: no record; `stale`: the record, or what it holds of the asked lines, was written over another text; `coarse`: the record holds it at a grain finer questions cannot read. */
   readonly reason: 'absent' | 'stale' | 'coarse';
   /** What closes the gap: `record`, a recorded run of the named test files; `deep`, a story of the named cases, the Deep gear. */
   readonly remedy: 'record' | 'deep';
@@ -125,7 +125,7 @@ export async function answerGap(answer: Covering, whole: ExecutionIndex, source:
   }
   const unplaced = [
     ...unplacedKnown(answer.written, ['was', 'were'], 'written since the recording'),
-    ...unplacedKnown(answer.overwritten, ['is', 'are'], "in a text a case ran over, but the record's lines are numbered in another"),
+    ...unplacedKnown(answer.overwritten, ['is', 'are'], lostText()),
   ];
   if (unplaced.length > 0) return selected('which tests run it now', scope, unplaced.join(', and '), await selectedFor(source, file), whole);
   const moved = (answer.ranges ?? []).filter((range) => range.moved === true);

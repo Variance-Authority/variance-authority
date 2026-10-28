@@ -69,7 +69,7 @@ describe('the whole-file answer over a range a case also ran in another text', (
       'lines 4-8 — walked',
       '  a.test.ts',
       '    adds',
-      "  it is also in a text a case ran over, but the record's lines are numbered in another, so which other case ran it is not known",
+      "  it is also in a text a case ran over, but a run over another text has landed there since, so which other case ran it is not known",
       '',
     ].join('\n'));
   });

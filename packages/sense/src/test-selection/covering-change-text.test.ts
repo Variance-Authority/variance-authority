@@ -158,10 +158,10 @@ describe('formatCoveringChange', () => {
       '1 changed file, 2 changed regions: 0 nothing covered, 1 covered only in another text, 0 covered by one case.',
     );
     expect(text).toContain(
-      "1-6 function priceOf — in a text a case ran over, but the record's lines are numbered in another, so which case ran it is not known\n",
+      "1-6 function priceOf — in a text a case ran over, but a run over another text has landed there since, so which case ran it is not known\n",
     );
     expect(text).toContain(
-      "8-10 function priceOf — 1 case; it is also in a text a case ran over, but the record's lines are numbered in another, so which other case ran it is not known\n",
+      "8-10 function priceOf — 1 case; it is also in a text a case ran over, but a run over another text has landed there since, so which other case ran it is not known\n",
     );
     expect(text).not.toMatch(/no case covered|finished|only witness/);
   });

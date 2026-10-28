@@ -163,8 +163,8 @@ function claim(region: StatedCoveringRegion): string {
   const also = stopped === 0 ? '' : `, and ${count(stopped, 'case')} that could have reached it stopped first`;
   if (region.overwritten !== undefined) {
     // A case ran it in another text: no case entering here is no measured absence, and one entering is not alone.
-    if (tests === 0 && !covered(region.state)) return `${UNKNOWN} case ran it is not known${also}`;
-    return `${tests === 0 ? 'covered by cases not listed here' : count(tests, 'case')}${also}; it is also ${UNKNOWN} other case ran it is not known`;
+    if (tests === 0 && !covered(region.state)) return `${lostText({ other: false, it: 'it' })}${also}`;
+    return `${tests === 0 ? 'covered by cases not listed here' : count(tests, 'case')}${also}; it is also ${lostText({ other: true, it: 'it' })}`;
   }
   if (tests === 0 && covered(region.state)) {
     return `covered only by ${region.state === 'alone' ? 'a case' : 'cases'} not listed here${also}`;
@@ -180,8 +180,19 @@ function claim(region: StatedCoveringRegion): string {
   return `${tests} cases${also}`;
 }
 
-/** How a region no case is known to have run, nor known not to, is said, up to the case. */
-const UNKNOWN = "in a text a case ran over, but the record's lines are numbered in another, so which";
+/**
+ * How a place is said that a case ran over in a text, where a run over another
+ * text has landed since, so the record lost which case ran it: no case is known
+ * to have run it, nor known not to. `which` ends it with that, said of the
+ * place as `it` or `them`, and of a case `other` than the ones named beside it.
+ *
+ * It holds whatever frame the record's lines are in: a run that numbers them in
+ * the asked text again does not bring back a crossing the record lost.
+ */
+export function lostText(which?: { readonly other: boolean; readonly it: 'it' | 'them' }): string {
+  const lost = 'in a text a case ran over, but a run over another text has landed there since';
+  return which === undefined ? lost : `${lost}, so which ${which.other ? 'other ' : ''}case ran ${which.it} is not known`;
+}
 
 /** A state that says a case went there, whether or not it is listed. */
 function covered(state: RangeState | undefined): boolean {
