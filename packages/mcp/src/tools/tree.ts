@@ -116,6 +116,15 @@ export interface Tree {
    * thousand files pays for ten chains.
    */
   chainsTo(seeds: Iterable<string>): Chains;
+  /**
+   * The graph the walks above read, with what each test file mocks beside it.
+   *
+   * A question about which cases stand on a module needs to know which of them
+   * ran against a mock of it, and that is a fact about the tree, not about the
+   * run. Absent on a tree that holds no such graph — a view onto another root's
+   * coordinates — and a tool that needs it says it answered without it.
+   */
+  readonly relations?: Relations;
 }
 
 /** What rests on a set of files, and the evidence for each. */
@@ -181,6 +190,7 @@ export function treeFromRelations(
     hopsFrom: (seeds) => costsFrom(relations, idsOf(relations, seeds), relations.depends, packages),
     hopsTo: (seeds) => costsFrom(relations, idsOf(relations, seeds), relations.dependents, packages, true),
     chainsTo: (seeds) => chainsTo(relations, seeds),
+    relations,
   };
 }
 
@@ -383,10 +393,17 @@ export async function readTree(options: TreeOptions): Promise<Tree> {
       },
     }),
   });
+  // The mocks are read unasked, off what the parse recorded, as every reader of
+  // the checkout's graph reads them: a case whose file mocked a module ran
+  // against the mock, and a graph that did not say so would credit it.
+  const tainted = await scanner.taintRecords(records, [scanner.mockTaint()], {
+    root: options.root,
+    ...(source === undefined ? {} : { cache: source.cache }),
+  });
   await source?.save();
   if (names !== undefined) options.names?.(names);
 
-  return treeOf(records, options.root);
+  return treeFromRelations(relationsOfFiles(tainted.records, { shadows: tainted.shadows }), options.root);
 }
 
 function messageOf(error: unknown): string {

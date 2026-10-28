@@ -224,8 +224,8 @@ nothing for is named as such, since *no row* and *no test* are opposite facts.
 The diff is measured from the commit the record was written at, so record before
 you read. `variance_changed_tests` answers the same question over MCP, on a host
 that serves it ([MCP](mcp.md#tools-no-binary-serves)), taking the unified diff
-as an argument, but answers without the file graph: a case whose file mocked the
-changed module can be listed under it.
+as an argument. It reads the file graph off the source tree the host supplies,
+so a case whose file mocked the changed module is not listed under it.
 
 A review agent reads the same answer with `--format refs`, and adds the base
 branch's case index to see what the change did in files the diff does not name:
