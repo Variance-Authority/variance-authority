@@ -317,7 +317,7 @@ When the declaring file exports it and others pass it on under the same name,
 the line names the declaration first and then the files that pass it on:
 
 ```
-`levy` [function] is imported in 1 place, and no entry publishes it; it is exported at packages/kit/src/money/tax.ts:1, passed on at packages/kit/src/money/index.ts:1.
+`levy` [function] is imported in 1 place, inside @acme/kit, and no entry publishes it; it is exported at packages/kit/src/money/tax.ts:1, passed on at packages/kit/src/money/index.ts:1.
 ```
 
 Each file that declares a name declares another thing, so `uses` answers for
