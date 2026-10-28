@@ -416,7 +416,8 @@ another package, a name an installed package or a built-in module declares.
 When it is more than one, `docs_uses` opens with one line for each, what it is
 and where, and answers each after. A name an installed package declares, such
 as a parser's `parseSync`, is answered with every import of it out of that
-package, and `docs_symbol` has the declaration. A name a built-in module
+package, each with the lines its file uses it on as the workspace's own
+imports are, and `docs_symbol` has the declaration. A name a built-in module
 declares, such as `resolve` from `node:path` or a bare `path`, is answered the
 same way, marked as the runtime's. An `export … from` that passes such a name
 on is one of those imports, marked as such, not a declaration of your own, and

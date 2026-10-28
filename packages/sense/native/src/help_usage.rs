@@ -183,6 +183,17 @@ pub(crate) fn taken<'a>(layer: &'a Layer, row: usize, request: usize, key: &str,
     names
 }
 
+/// `taken` with the lines the parse at `row` uses the top-level binding
+/// `local` on, as the scan recorded them with the file's parse, in line order.
+/// A member read binds nothing, `local` empty, and keeps none: its lines are
+/// not known.
+pub(crate) fn bound(layer: &Layer, row: usize, mut taken: NameUse, local: &str) -> NameUse {
+    if local.is_empty() { return taken; }
+    let (text, parses) = (&layer.stored, &layer.parses);
+    taken.lines = Some(parses.own_uses.range(row).filter(|&at| text.text(parses.own_use_name.at(at)) == local).map(|at| parses.own_use_line.at(at)).collect());
+    taken
+}
+
 fn collect(root: &str, layers: &[Layer], crossing: &Crossing, by: &str, targets: &Targets) -> Part {
     let mut part = Part::default();
     let (stored, records) = (&layers[crossing.at.0].stored, &layers[crossing.at.0].records);

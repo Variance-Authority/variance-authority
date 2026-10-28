@@ -58,7 +58,7 @@ describe('variance ask uses over a name an installed package declares', () => {
     ]);
     expect(out).toMatch(/^packages\/tool\/src\/view\.ts:1 — @acme\/tool; used on line 2$/m);
     expect(out).toContain('`render` is imported from outside the workspace too, in 1 place, out of thirdp:');
-    expect(out).toMatch(/^packages\/tool\/src\/paint\.ts:1 — @acme\/tool, from thirdp$/m);
+    expect(out).toMatch(/^packages\/tool\/src\/paint\.ts:1 — @acme\/tool, from thirdp; used on line 2$/m);
     expect(out.indexOf('packages/tool/src/view.ts:1')).toBeLessThan(out.indexOf('packages/tool/src/paint.ts:1'));
   }, 120_000);
 
@@ -72,7 +72,7 @@ describe('variance ask uses over a name an installed package declares', () => {
     expect(out).toContain('Nearest to packages/other/src/deep/here.ts first.');
     const source = out.split('\n').filter((line) => line.startsWith('packages/'));
     expect(source).toEqual([
-      'packages/other/src/deep/near.ts:1 — @acme/other, from thirdp',
+      'packages/other/src/deep/near.ts:1 — @acme/other, from thirdp; used on line 2',
       'packages/tool/src/lazy.ts:3 — @acme/tool, from thirdp (import() on line 2)',
     ]);
   }, 120_000);
@@ -143,8 +143,8 @@ describe('variance ask uses over a name a module of the runtime declares', () =>
       '  imported from node:path, which the runtime declares',
     ]);
     expect(out).toContain('`resolve` is imported from outside the workspace too, in 2 places, out of node:path:');
-    expect(out).toMatch(/^packages\/tool\/src\/bare\.ts:1 — @acme\/tool, from node:path, the runtime's \(as resolved\)$/m);
-    expect(out).toMatch(/^packages\/tool\/src\/where\.ts:1 — @acme\/tool, from node:path, the runtime's$/m);
+    expect(out).toMatch(/^packages\/tool\/src\/bare\.ts:1 — @acme\/tool, from node:path, the runtime's \(as resolved\); used on line 2$/m);
+    expect(out).toMatch(/^packages\/tool\/src\/where\.ts:1 — @acme\/tool, from node:path, the runtime's; used on line 2$/m);
   }, 120_000);
 
   it('answers a name only the runtime declares by its imports, and says the declaration is the runtime’s', async () => {
@@ -166,7 +166,7 @@ describe('variance ask uses --package over a name declared outside the workspace
 
     const outside = await run(['ask', 'uses', '--name', 'render', '--package', 'thirdp']);
     expect(outside.code).toBe(EXIT_CLEAN);
-    expect(outside.out).toMatch(/^packages\/tool\/src\/paint\.ts:1 — @acme\/tool, from thirdp$/m);
+    expect(outside.out).toMatch(/^packages\/tool\/src\/paint\.ts:1 — @acme\/tool, from thirdp; used on line 2$/m);
     expect(outside.out).not.toContain('packages/tool/src/view.ts');
 
     const workspace = await run(['ask', 'uses', '--name', 'render', '--package', '@acme/pkg']);
@@ -183,8 +183,8 @@ describe('variance ask uses --package over a name declared outside the workspace
       const { code, out } = await run(['ask', 'uses', '--name', 'resolve', '--package', asked]);
       expect(code).toBe(EXIT_CLEAN);
       expect(out).toContain('`resolve` is declared in no file of this workspace; it is imported from outside it in 2 places, out of node:path.');
-      expect(out).toMatch(/^packages\/tool\/src\/bare\.ts:1 — @acme\/tool, from node:path, the runtime's \(as resolved\)$/m);
-      expect(out).toMatch(/^packages\/tool\/src\/where\.ts:1 — @acme\/tool, from node:path, the runtime's$/m);
+      expect(out).toMatch(/^packages\/tool\/src\/bare\.ts:1 — @acme\/tool, from node:path, the runtime's \(as resolved\); used on line 2$/m);
+      expect(out).toMatch(/^packages\/tool\/src\/where\.ts:1 — @acme\/tool, from node:path, the runtime's; used on line 2$/m);
       expect(out).not.toContain('packages/other/src/resolve.ts');
     }
   }, 120_000);

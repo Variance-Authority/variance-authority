@@ -14,7 +14,8 @@ after.
 `variance ask uses --name parseSync`, a function `oxc-parser` declares, said no
 file of the workspace declares it, while `ask symbol` answered it from the
 installed package. `uses` now lists every import of such a name out of the
-package it is installed from, nearest first and with the module-whole reads
+package it is installed from, nearest first, each binding with the lines its
+file uses it on as an import from the workspace has, the module-whole reads
 and each `export … from` that passes it on marked, and points to
 `ask symbol` for the declaration. A name both the workspace and an installed
 package carry opens by counting each apart: `render` names 1 declaration and

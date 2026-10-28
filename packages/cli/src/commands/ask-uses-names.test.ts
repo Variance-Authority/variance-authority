@@ -86,7 +86,7 @@ describe('variance ask uses over what a name names', () => {
     const { code, out } = await run(['ask', 'uses', '--name', 'parseSync']);
     expect(code).toBe(EXIT_CLEAN);
     expect(out).toContain('`parseSync` is declared in no file of this workspace; it is imported from outside it in 2 places, out of thirdp.');
-    expect(out).toMatch(/^packages\/tool\/src\/read\.ts:2 — @acme\/tool, from thirdp$/m);
+    expect(out).toMatch(/^packages\/tool\/src\/read\.ts:2 — @acme\/tool, from thirdp; used on line 4$/m);
     expect(out).toMatch(/^packages\/tool\/src\/whole\.test\.ts:2 — @acme\/tool, from thirdp \(namespace, line 1\)$/m);
     expect(out).toContain('`variance ask symbol` has its declaration in each package.');
   }, 120_000);

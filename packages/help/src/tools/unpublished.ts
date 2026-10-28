@@ -94,7 +94,7 @@ export function importsOf(root: string | undefined, files: readonly string[], na
   if ('unread' in answer) return answer;
   const { read } = answer;
   const inFile = read.inFile.map((use): Use => ({ at: use.at, line: use.line, by: use.by, kind: use.kind, type: false }));
-  const uses = read.uses.map((use): IndexedUse => ({ name: use.name, specifier: use.key, ...useOf(use), ...(use.lines == null ? {} : { lines: use.lines }) }));
+  const uses = read.uses.map((use): IndexedUse => ({ name: use.name, specifier: use.key, ...useOf(use) }));
   return { uses, through: read.through, namespaces: read.namespaces, inFile };
 }
 

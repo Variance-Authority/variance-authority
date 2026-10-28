@@ -9,7 +9,8 @@ lists every import of `name` out of a package no manifest of the workspace
 declares, or out of a built-in module: each binding, each read through
 `import * as` or `import()`, and each `export … from` that passes the name on,
 marked `passesOn`, with its file, line, the package and the specifier as
-written. An `export *` names no name and is not listed. It reads the source
+written, and, for a binding, the `lines` its file uses it on, as
+`importersOf` gives them. An `export *` names no name and is not listed. It reads the source
 index as it stands. A package is told by the rule the external-dependency list
 already keeps: a request the scan did not resolve to a file, out of a package
 the file's record says it imports. A built-in module is told by its

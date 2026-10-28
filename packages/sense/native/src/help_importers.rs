@@ -8,7 +8,7 @@ use std::collections::{HashMap, HashSet};
 
 use rayon::prelude::*;
 
-use super::{kind_of, taken, Namespace, NameUse};
+use super::{bound, kind_of, taken, Namespace, NameUse};
 use crate::compact::Layer;
 use crate::help_origin::star_passes;
 use crate::orient_map_read::beside;
@@ -199,9 +199,8 @@ fn importers_of(root: &str, layers: &[Layer], folded: &HashMap<&str, At>, wanted
                 let Some((from, names)) = resolved[request - first].and_then(|path| Some((path, wanted.get(path)?))) else { continue };
                 if parses.request_republishes[request] != 1 {
                     let written = text.text(parses.request_value.at(request));
-                    for (mut taken, local) in taken(&layers[layer], row, request, written, by, crossing.file, kind) {
-                        if !local.is_empty() { taken.lines = Some(bound_lines(&layers[layer], row, local)); }
-                        found.extend(answered(names, taken, local));
+                    for (one, local) in taken(&layers[layer], row, request, written, by, crossing.file, kind) {
+                        found.extend(answered(names, bound(&layers[layer], row, one, local), local));
                     }
                     let at = Site { key: written, by, at: crossing.file, kind };
                     found.extend(read_off(&layers[layer], row, request, names, &at));
@@ -247,13 +246,6 @@ fn importers_of(root: &str, layers: &[Layer], folded: &HashMap<&str, At>, wanted
         passed.extend(passes);
     }
     (found, passed)
-}
-
-/// The lines the parse at `row` uses its top-level binding `local` on, as the
-/// scan recorded them with the file's parse, in line order.
-fn bound_lines(layer: &Layer, row: usize, local: &str) -> Vec<u32> {
-    let (text, parses) = (&layer.stored, &layer.parses);
-    parses.own_uses.range(row).filter(|&at| text.text(parses.own_use_name.at(at)) == local).map(|at| parses.own_use_line.at(at)).collect()
 }
 
 /// The wants one name a request takes answers: a module that escapes whole
