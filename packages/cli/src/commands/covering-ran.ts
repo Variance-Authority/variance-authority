@@ -241,7 +241,7 @@ export async function ranOf(answer: RanNamed, question: RanQuestion): Promise<Ra
     });
   const stands = standsOf(units, (unit) => (evidence === undefined ? {} : verdictOf(unit, judged(unit.test), held.size, evidence, region)));
   // Oldest first, by when their runs first landed; a stand the record holds no time for comes first.
-  stands.sort((one, other) => (one.landed?.first ?? '').localeCompare(other.landed?.first ?? ''));
+  stands.sort((one, other) => codeUnitOrder(one.landed?.first ?? '', other.landed?.first ?? ''));
   const ran = { stands, ...(assumed === undefined ? {} : { assumed }), ...(unheld.length === 0 ? {} : { unheld }), ...as };
   const fileText = answer.file === undefined ? undefined : held.get(answer.file);
   const lines = evidence === undefined || fileText === undefined ? undefined : ranLines(answer.written ?? [], writers, answer.file!, fileText, evidence);

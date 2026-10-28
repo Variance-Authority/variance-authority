@@ -54,7 +54,7 @@ export function ranText(answer: Covering, now: number): readonly string[] {
   // A changed file off disk has no text to compare, so no line says any test file ran over it.
   const unheld = ran.unheld ?? [];
   const asked = askedFiles(answer).filter((file) => !unheld.includes(file));
-  const stands = [...ran.stands].sort((one, other) => (one.landed?.latest ?? '').localeCompare(other.landed?.latest ?? ''));
+  const stands = [...ran.stands].sort((one, other) => codeUnitOrder(one.landed?.latest ?? '', other.landed?.latest ?? ''));
   // A test file whose named cases last ran in different runs is said part by part, in a line of its own.
   const whole = stands.filter((stand) => stand.cases === undefined);
   const parted = new Map<string, RanStand[]>();
@@ -98,7 +98,7 @@ export function ranText(answer: Covering, now: number): readonly string[] {
   const off = unheld.length === 1 ? 'is not on disk, so no text of it is held' : 'are not on disk, so no text of them is held';
   const said = [
     ...(unheld.length === 0 ? [] : [`${list(unheld, 'other files')} ${off}.`]),
-    ...lines.sort((one, other) => one.at.localeCompare(other.at)).map((line) => line.said),
+    ...lines.sort((one, other) => codeUnitOrder(one.at, other.at)).map((line) => line.said),
   ];
   const assumed = new Set(stands.filter((stand) => stand.assumed === true).flatMap((stand) => stand.tests)).size;
   if (assumed === 0) return said;
@@ -112,7 +112,7 @@ export function ranText(answer: Covering, now: number): readonly string[] {
  * cases it holds, with the text they ran over and when.
  */
 function partsText(answer: Covering, ran: CoveringRan, test: string, parts: readonly RanStand[], asked: readonly string[], now: number): string {
-  const newest = [...parts].sort((one, other) => (other.landed?.latest ?? '').localeCompare(one.landed?.latest ?? ''));
+  const newest = [...parts].sort((one, other) => codeUnitOrder(other.landed?.latest ?? '', one.landed?.latest ?? ''));
   const oldest = newest.pop()!;
   const verb = ran.named === 'entered' ? 'that entered it' : ran.named === 'read' ? 'read here' : 'named here';
   const count = oldest.cases!.length;
