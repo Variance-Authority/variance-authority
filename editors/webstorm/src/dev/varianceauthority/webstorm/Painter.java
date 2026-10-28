@@ -29,12 +29,14 @@ import org.jetbrains.annotations.NotNull;
 /**
  * The record, painted in one editor's gutter.
  *
- * <p>Every line the suite ran carries one of five words, and the gutter shows the
+ * <p>Every line a suite ran carries one of five words, and the gutter shows the
  * word: walked by several cases, walked by one alone, run only while its module
  * loaded, a hole a stopped case left, or unwalked by cases that all finished.
- * The icon's tooltip counts the cases by test file, and a click lists them
- * nearest first, one step from the code they declare. Nothing here is a value or a step: the
- * record says which cases went through a line, not what they saw there.
+ * Where several suites are declared, the nearest suite's word is shown. The
+ * icon's tooltip counts the cases by test file, suite by suite, and a click
+ * lists them nearest first, one step from the code they declare. Nothing here
+ * is a value or a step: the record says which cases went through a line, not
+ * what they saw there.
  *
  * <p>The buffer is asked about as it is held, saved or not, so an edit carries
  * the paint with the code it belongs to instead of leaving it at the recorded
@@ -116,21 +118,65 @@ final class Painter implements Disposable {
       return;
     }
     Document document = editor.getDocument();
-    if ("stale".equals(answer.frame()) && document.getLineCount() > 0) {
-      add(markup, 0, 0, "stale", "<b>The record is stale.</b> This file changed since the suite ran, "
-          + "and the text it ran over could not be found. Run the suite to record it again.", null);
-      return;
+    StringBuilder stale = new StringBuilder();
+    for (Record.Suite suite : answer.suites()) {
+      if ("stale".equals(suite.frame())) stale.append(StringUtil.escapeXmlEntities(named(suite) + said(suite))).append("<br>");
     }
-    String frame = "mapped".equals(answer.frame())
-        ? "<br><i>Placed in the text as it is now: the file changed since the suite ran.</i>" : "";
-    for (Record.Range range : answer.ranges()) {
-      int start = range.startLine() - 1;
-      int end = Math.min(range.endLine(), document.getLineCount()) - 1;
+    if (stale.length() > 0 && document.getLineCount() > 0) {
+      add(markup, 0, 0, "stale", "<b>The record is stale.</b><br>" + stale, null);
+    }
+    String refused = refused(answer);
+    for (Record.Mark mark : Record.marks(answer)) {
+      int start = mark.startLine() - 1;
+      int end = Math.min(mark.endLine(), document.getLineCount()) - 1;
       if (start < 0 || start > end) continue;
-      int line = range.startLine();
-      Runnable list = range.cases().isEmpty() ? null : () -> Cases.show(editor, root, file, line);
-      add(markup, start, end, range.state(), tooltip(range) + frame, list);
+      int line = mark.startLine();
+      StringBuilder html = new StringBuilder();
+      boolean cases = false;
+      for (Record.Suite suite : answer.suites()) {
+        if ("stale".equals(suite.frame())) continue;
+        for (Record.Range range : suite.ranges()) {
+          if (range.endLine() < mark.startLine() || range.startLine() > mark.endLine()) continue;
+          if (html.length() > 0) html.append("<hr>");
+          html.append(tooltip(suite, range));
+          cases |= !range.cases().isEmpty();
+        }
+      }
+      Runnable list = cases ? () -> Cases.show(editor, root, file, line) : null;
+      add(markup, start, end, mark.range().state(), html + refused, list);
     }
+  }
+
+  /** A suite as the CLI names it, {@code unit (unit) — }, or nothing when the repository declares none. */
+  static String named(Record.Suite suite) {
+    return suite.name() == null ? "" : suite.name() + " (" + suite.kind() + ") — ";
+  }
+
+  /** Every suite that could not answer about the file, named once under each mark. */
+  private static String refused(Record.Answer answer) {
+    StringBuilder html = new StringBuilder();
+    for (Record.Suite suite : answer.suites()) {
+      if (suite.reason() == null) continue;
+      html.append(html.length() == 0 ? "<hr>" : "<br>").append(StringUtil.escapeXmlEntities(named(suite) + said(suite)));
+    }
+    return html.toString();
+  }
+
+  /** What one suite's record made of the file, in the VS Code client's words. */
+  static String said(Record.Suite suite) {
+    if ("unloaded".equals(suite.refused())) {
+      return "Never loaded this file: a run that never loaded it has no answer about it, "
+          + "which is not the same as no test covering it.";
+    }
+    if ("unrecorded".equals(suite.refused())) return "Nothing is recorded: run the suite to record it.";
+    if (suite.reason() != null) return suite.reason();
+    if ("stale".equals(suite.frame())) {
+      return "This file changed since the suite ran, and the text it ran over could not be found. "
+          + "Run the suite to record it again.";
+    }
+    return "mapped".equals(suite.frame())
+        ? "Placed in the text as it is now: the file changed since the suite ran."
+        : "Painted from the recording of the last run.";
   }
 
   /** The answer painted last, which the status bar reads. */
@@ -165,11 +211,14 @@ final class Painter implements Disposable {
    * case would be a page nobody reads. The files are named with their counts, a
    * handful of them, and the click answers the rest in order.
    */
-  private static String tooltip(Record.Range range) {
+  private static String tooltip(Record.Suite suite, Record.Range range) {
     State state = STATES.getOrDefault(range.state(), STATES.get("entered"));
-    StringBuilder html = new StringBuilder()
+    StringBuilder html = new StringBuilder(StringUtil.escapeXmlEntities(named(suite)))
         .append("<b>").append(state.title()).append("</b> — ").append(state.sentence());
     if (range.moved()) html.append(" These lines were edited since the recording.");
+    if ("mapped".equals(suite.frame())) {
+      html.append("<br><i>Placed in the text as it is now: the file changed since the suite ran.</i>");
+    }
     Map<String, Integer> files = new LinkedHashMap<>();
     for (Record.Case test : range.cases()) files.merge(test.file(), 1, Integer::sum);
     int named = 0;

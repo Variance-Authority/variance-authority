@@ -1,0 +1,39 @@
+{
+  "file": "src/sum.ts",
+  "suites": [
+    {
+      "suite": "unit",
+      "kind": "unit",
+      "file": "src/sum.ts",
+      "target": { "line": 2 },
+      "tests": [
+        { "id": "src/sum.test.ts > sum > adds", "file": "src/sum.test.ts", "name": "sum > adds", "stopped": false, "distance": 0 },
+        { "id": "src/sum.test.ts > sum > adds none", "file": "src/sum.test.ts", "name": "sum > adds none", "stopped": false, "distance": 0 }
+      ],
+      "stopped": [],
+      "state": "walked",
+      "frame": "recorded",
+      "from": "node_modules/.cache/variance-authority/share/read/unit/coverage.bin",
+      "files": [{ "file": "src/sum.test.ts", "cases": 2, "of": 3, "hops": 1 }]
+    },
+    {
+      "suite": "integration",
+      "kind": "integration",
+      "file": "src/sum.ts",
+      "target": { "line": 2 },
+      "tests": [
+        { "id": "src/cli.integration.test.ts > cli > prints", "file": "src/cli.integration.test.ts", "name": "cli > prints", "stopped": false, "distance": 1, "loaded": true }
+      ],
+      "stopped": [],
+      "state": "loaded",
+      "from": "node_modules/.cache/variance-authority/share/read/integration/coverage.bin",
+      "files": []
+    },
+    {
+      "suite": "chromium",
+      "kind": "e2e",
+      "refused": "unloaded",
+      "reason": "`src/sum.ts` is not in the index at `node_modules/.cache/variance-authority/share/read/chromium/coverage.bin`: no case of this suite loaded it."
+    }
+  ]
+}

@@ -1,0 +1,89 @@
+{
+  "file": "src/sum.ts",
+  "suites": [
+    {
+      "suite": "unit",
+      "kind": "unit",
+      "file": "src/sum.ts",
+      "ranges": [
+        {
+          "startLine": 1,
+          "endLine": 4,
+          "tests": [
+            { "id": "src/sum.test.ts > sum > adds", "file": "src/sum.test.ts", "name": "sum > adds", "stopped": false, "distance": 0 },
+            { "id": "src/sum.test.ts > sum > adds none", "file": "src/sum.test.ts", "name": "sum > adds none", "stopped": false, "distance": 0 }
+          ],
+          "stopped": [],
+          "state": "walked"
+        },
+        {
+          "startLine": 6,
+          "endLine": 8,
+          "tests": [
+            { "id": "src/sum.test.ts > sum > adds", "file": "src/sum.test.ts", "name": "sum > adds", "stopped": false, "distance": 0 }
+          ],
+          "stopped": [],
+          "state": "alone"
+        },
+        {
+          "startLine": 10,
+          "endLine": 12,
+          "tests": [],
+          "stopped": [
+            { "id": "src/sum.test.ts > sum > overflows", "file": "src/sum.test.ts", "name": "sum > overflows" }
+          ],
+          "state": "hole"
+        }
+      ],
+      "frame": "recorded",
+      "from": "node_modules/.cache/variance-authority/share/read/unit/coverage.bin"
+    },
+    {
+      "suite": "integration",
+      "kind": "integration",
+      "file": "src/sum.ts",
+      "ranges": [
+        {
+          "startLine": 1,
+          "endLine": 4,
+          "tests": [
+            { "id": "src/cli.integration.test.ts > cli > prints", "file": "src/cli.integration.test.ts", "name": "cli > prints", "stopped": false, "distance": 1, "loaded": true }
+          ],
+          "loaded": true,
+          "state": "loaded"
+        },
+        {
+          "startLine": 14,
+          "endLine": 15,
+          "tests": [],
+          "state": "unwalked",
+          "moved": true
+        }
+      ],
+      "from": "node_modules/.cache/variance-authority/share/read/integration/coverage.bin"
+    },
+    {
+      "suite": "chromium",
+      "kind": "e2e",
+      "refused": "unloaded",
+      "reason": "`src/sum.ts` is not in the index at `node_modules/.cache/variance-authority/share/read/chromium/coverage.bin`: no case of this suite loaded it."
+    },
+    {
+      "suite": "site",
+      "kind": "e2e",
+      "refused": "unrecorded",
+      "reason": "nothing is recorded for the suite `site`: no run left a per-case index.",
+      "gap": { "question": "which tests run src/sum.ts", "reason": "unrecorded", "next": [] }
+    },
+    {
+      "suite": "visual",
+      "kind": "visual",
+      "file": "src/sum.ts",
+      "ranges": [
+        { "startLine": 20, "endLine": 22, "tests": [], "state": "unwalked" }
+      ],
+      "frame": "stale",
+      "from": "node_modules/.cache/variance-authority/share/read/visual/coverage.bin"
+    }
+  ]
+}

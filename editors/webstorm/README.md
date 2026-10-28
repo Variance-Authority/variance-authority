@@ -20,14 +20,22 @@ A hole is not the same as untested. A case that failed, or a flake your CI
 suppressed, stopped before the end, so the record cannot tell whether it would
 have reached these lines. The tooltip names the case that stopped.
 
+When your repository declares several suites, each answers for itself, and the
+CLI answers nearest kind first: unit, integration, e2e, visual. A line carries
+the mark of the nearest suite that ran it. The tooltip names every suite that
+ran the line, with its kind and its own state, and then every suite with no
+answer about the file: one that never loaded it, and one with nothing recorded
+yet. The list a click opens groups its test files under the suite that ran them.
+
 The marks follow your edits. The plugin sends the text you hold, saved or not,
 and the CLI places every recorded range in it. If the file changed so much that
 the text the suite ran over cannot be found, one warning mark on the first line
-says the record is stale, and nothing else is painted. Coming back to the IDE
+says the record is stale, and nothing else is painted from it. Coming back to the IDE
 after a run in a terminal repaints every open editor.
 
 The status bar says what the record made of the file in front of you: how many
-holes it has, or that the record is stale. When the CLI refuses a file, it says
+holes it has across every suite, or that the record is stale. Its tooltip says
+what each suite made of the file. When the CLI refuses a file, it says
 `variance: not painted`, and its tooltip gives the reason.
 
 In a project with no CLI to ask, or no run recorded, the plugin shows nothing

@@ -271,9 +271,6 @@
   "docs/understand-execution.md lead": [
     16
   ],
-  "editors/vscode/record.js block": [
-    7
-  ],
   "examples/kitchen-sink/scripts/agent-bundle.mjs block": [
     6
   ],

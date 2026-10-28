@@ -12,7 +12,9 @@ import java.io.File;
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 /**
  * Ask the record about the text an editor holds.
@@ -28,11 +30,21 @@ final class Record {
   record Range(int startLine, int endLine, String state, boolean moved, List<Case> cases, List<String> stopped) {}
 
   /**
-   * The answer about one file: its ranges and the frame they stand in, or the CLI's refusal.
-   * {@code quiet} is a refusal that holds for the whole project until a run changes it:
-   * no CLI to ask, or nothing recorded.
+   * One suite's answer about one file: its ranges and the frame they stand in, or why its
+   * record could not answer ({@code reason}, and {@code refused} when the CLI names the kind).
+   * A repository that declares no suites answers once, as a suite with no {@code name}.
    */
-  record Answer(List<Range> ranges, String frame, String refusal, boolean quiet) {}
+  record Suite(String name, String kind, String frame, List<Range> ranges, String refused, String reason) {}
+
+  /**
+   * The answer about one file: every suite's, nearest kind first as the CLI ordered them, or
+   * the CLI's refusal. {@code quiet} is a refusal that holds for the whole project until a
+   * run changes it: no CLI to ask, or nothing recorded.
+   */
+  record Answer(List<Suite> suites, String refusal, boolean quiet) {}
+
+  /** The lines of one suite's range that the gutter paints with its state. */
+  record Mark(Suite suite, Range range, int startLine, int endLine) {}
 
   /** One test file among the cases that went through a line: how many of its cases did, of how many. */
   record TestFile(String file, int cases, int of, Integer hops) {}
@@ -40,8 +52,11 @@ final class Record {
   /** One case by the file that declares it. */
   record Case(String file, String name) {}
 
-  /** The answer about one line: its test files nearest first, and their cases, or the CLI's refusal. */
-  record Line(List<TestFile> files, List<Case> cases, String refusal) {}
+  /** One suite's answer about one line: its test files nearest first, and their cases, or why it has none. */
+  record SuiteLine(String name, String kind, String state, List<TestFile> files, List<Case> cases, String reason) {}
+
+  /** The answer about one line: every suite's, or the CLI's refusal. */
+  record Line(List<SuiteLine> suites, String refusal) {}
 
   private Record() {}
 
@@ -55,12 +70,9 @@ final class Record {
     return local.canExecute() ? local.getPath() : "variance";
   }
 
-  // TODO: a repository that declares suites answers under `suites`, one answer
-  // per suite with its `kind`, `frame` and ranges; this reads only `ranges`, so
-  // the gutter paints nothing there until it groups the marks and the popup by suite.
   static Answer ask(String root, String file, String text) {
     Asked asked = run(root, text, "covering", "--file", file, "--root", root, "--text", "-", "--format", "json");
-    return asked.refusal() != null ? new Answer(List.of(), null, asked.refusal(), asked.quiet()) : read(asked.answer());
+    return asked.refusal() != null ? new Answer(List.of(), asked.refusal(), asked.quiet()) : read(asked.answer());
   }
 
   /**
@@ -71,28 +83,28 @@ final class Record {
   static Line askLine(String root, String file, String text, int line) {
     Asked asked = run(root, text, "covering", "--file", file, "--line", Integer.toString(line), "--hops",
         "--root", root, "--text", "-", "--format", "json");
-    if (asked.refusal() != null) return new Line(List.of(), List.of(), asked.refusal());
-    JsonObject answer = asked.answer();
-    List<TestFile> files = new ArrayList<>();
-    if (answer.has("files")) {
-      for (JsonElement element : answer.getAsJsonArray("files")) {
-        JsonObject row = element.getAsJsonObject();
-        files.add(new TestFile(
-            row.get("file").getAsString(),
-            row.get("cases").getAsInt(),
-            row.get("of").getAsInt(),
-            row.has("hops") ? row.get("hops").getAsInt() : null));
+    return asked.refusal() != null ? new Line(List.of(), asked.refusal()) : readLine(asked.answer());
+  }
+
+  /** The CLI's answer about one line, suite by suite. */
+  static Line readLine(JsonObject answer) {
+    List<SuiteLine> suites = new ArrayList<>();
+    for (JsonObject suite : suitesOf(answer)) {
+      List<TestFile> files = new ArrayList<>();
+      if (suite.has("files")) {
+        for (JsonElement element : suite.getAsJsonArray("files")) {
+          JsonObject row = element.getAsJsonObject();
+          files.add(new TestFile(
+              row.get("file").getAsString(),
+              row.get("cases").getAsInt(),
+              row.get("of").getAsInt(),
+              row.has("hops") ? row.get("hops").getAsInt() : null));
+        }
       }
+      suites.add(new SuiteLine(string(suite, "suite"), string(suite, "kind"), string(suite, "state"), files,
+          suite.has("tests") ? called(suite.getAsJsonArray("tests")) : List.of(), string(suite, "reason")));
     }
-    List<Case> cases = new ArrayList<>();
-    if (answer.has("tests")) {
-      for (JsonElement element : answer.getAsJsonArray("tests")) {
-        JsonObject test = element.getAsJsonObject();
-        if (test.has("loaded") && test.get("loaded").getAsBoolean()) continue;
-        cases.add(new Case(test.get("file").getAsString(), test.get("name").getAsString()));
-      }
-    }
-    return new Line(files, cases, null);
+    return new Line(suites, null);
   }
 
   private record Asked(JsonObject answer, String refusal, boolean quiet) {}
@@ -128,17 +140,71 @@ final class Record {
     }
   }
 
-  private static Answer read(JsonObject answer) {
-    List<Range> ranges = new ArrayList<>();
-    JsonArray found = answer.has("ranges") ? answer.getAsJsonArray("ranges") : new JsonArray();
-    for (JsonElement element : found) {
-      JsonObject range = element.getAsJsonObject();
-      List<Case> cases = new ArrayList<>();
-      for (JsonElement test : range.getAsJsonArray("tests")) {
-        JsonObject named = test.getAsJsonObject();
-        if (named.has("loaded") && named.get("loaded").getAsBoolean()) continue;
-        cases.add(new Case(named.get("file").getAsString(), named.get("name").getAsString()));
+  /** The CLI's answer about one file, suite by suite. */
+  static Answer read(JsonObject answer) {
+    List<Suite> suites = new ArrayList<>();
+    for (JsonObject suite : suitesOf(answer)) {
+      suites.add(new Suite(string(suite, "suite"), string(suite, "kind"), string(suite, "frame"), ranges(suite),
+          string(suite, "refused"), string(suite, "reason")));
+    }
+    return new Answer(suites, null, false);
+  }
+
+  /**
+   * The ranges to paint, one mark per line. A line two suites ran carries the nearer
+   * suite's mark, because the CLI answers nearest first; the tooltip names the others.
+   * A stale record is placed nowhere, so it paints nothing.
+   */
+  static List<Mark> marks(Answer answer) {
+    Set<Integer> painted = new HashSet<>();
+    List<Mark> marks = new ArrayList<>();
+    for (Suite suite : answer.suites()) {
+      if ("stale".equals(suite.frame())) continue;
+      for (Range range : suite.ranges()) {
+        Integer start = null;
+        for (int line = range.startLine(); line <= range.endLine() + 1; line++) {
+          boolean free = line <= range.endLine() && !painted.contains(line);
+          if (free && start == null) start = line;
+          if (!free && start != null) {
+            marks.add(new Mark(suite, range, start, line - 1));
+            start = null;
+          }
+        }
+        for (int line = range.startLine(); line <= range.endLine(); line++) painted.add(line);
       }
+    }
+    return marks;
+  }
+
+  /** A repository that declares suites answers under {@code suites}; one that declares none answers once. */
+  private static List<JsonObject> suitesOf(JsonObject answer) {
+    if (!answer.has("suites")) return List.of(answer);
+    List<JsonObject> suites = new ArrayList<>();
+    for (JsonElement suite : answer.getAsJsonArray("suites")) suites.add(suite.getAsJsonObject());
+    return suites;
+  }
+
+  private static String string(JsonObject object, String key) {
+    return object.has(key) ? object.get(key).getAsString() : null;
+  }
+
+  /** The cases that called into a line, without the ones that only loaded its module. */
+  private static List<Case> called(JsonArray tests) {
+    List<Case> cases = new ArrayList<>();
+    for (JsonElement test : tests) {
+      JsonObject named = test.getAsJsonObject();
+      if (named.has("loaded") && named.get("loaded").getAsBoolean()) continue;
+      cases.add(new Case(named.get("file").getAsString(), named.get("name").getAsString()));
+    }
+    return cases;
+  }
+
+  private static List<Range> ranges(JsonObject suite) {
+    List<Range> ranges = new ArrayList<>();
+    if (!suite.has("ranges")) return ranges;
+    for (JsonElement element : suite.getAsJsonArray("ranges")) {
+      JsonObject range = element.getAsJsonObject();
+      List<Case> cases = called(range.getAsJsonArray("tests"));
       List<String> stopped = new ArrayList<>();
       if (range.has("stopped")) {
         for (JsonElement test : range.getAsJsonArray("stopped")) {
@@ -154,8 +220,7 @@ final class Record {
           cases,
           stopped));
     }
-    String frame = answer.has("frame") ? answer.get("frame").getAsString() : null;
-    return new Answer(ranges, frame, null, false);
+    return ranges;
   }
 
   /** Whether a refusal says the project has nothing recorded, by its kind and never by its words. */
