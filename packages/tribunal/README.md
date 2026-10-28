@@ -178,7 +178,7 @@ export { default } from '@variance-authority/tribunal/worker-entry';
     {
       "binding": "DB",
       "database_name": "variance-tribunal",
-      "database_id": "PLACEHOLDER — replace with the id `wrangler d1 create` prints",
+      "database_id": "",  // provisioning writes it
       // The package's generated migrations, read where they are installed. Never
       // copied: a database migrated by a copy that drifted is a second schema
       // history wearing the same name.
@@ -191,14 +191,25 @@ export { default } from '@variance-authority/tribunal/worker-entry';
 ```
 
 ```bash
-wrangler d1 create variance-tribunal        # put the printed id in your wrangler.jsonc
-wrangler r2 bucket create variance-tribunal
-wrangler d1 migrations apply variance-tribunal --remote
-wrangler secret put INGEST_TOKEN            # 16 characters or more
-wrangler secret put REVIEW_TOKEN            # 16 characters or more, and not the other one
-wrangler secret put SHARE_TOKEN             # optional: 16 characters or more, and neither of the others
+npx variance-authority-tribunal-provision --config wrangler.jsonc
 wrangler deploy
 ```
+
+`variance-authority-tribunal-provision` makes what the config names and writes
+back what it learns, so nothing is copied out of a dashboard. It creates the D1
+database and the R2 bucket, writes the database's id into `database_id`, and
+applies the migrations. It puts Cloudflare Access in front of the review pages,
+admitting `--reviewer` (your Cloudflare login's email when absent), and lets the
+bearer paths through. It writes `ACCESS_TEAM_DOMAIN` and `ACCESS_AUD` into
+`vars`. It mints `INGEST_TOKEN` into the Worker and the same value into the
+repository's `VARIANCE_INGEST_TOKEN` secret, read from `gh` or named with
+`--repository owner/name`, without printing it. It mints `REVIEW_TOKEN` and
+prints it once. A second run changes nothing. `--rotate` replaces both tokens,
+and `--mount /api` places the bypass under a host that serves the API there.
+When your Cloudflare login lacks Access, the command logs in again with it added.
+When R2 is off on the account, it prints the dashboard address where you enable
+it. `SHARE_TOKEN` is optional and set by hand: `wrangler secret put SHARE_TOKEN`,
+16 characters or more and neither of the others.
 
 `wrangler d1 migrations apply` is what puts the schema into your database, and
 Wrangler records which steps it has applied — so run that same command again

@@ -128,6 +128,7 @@ when its condition holds, not before.
 | What does this workspace publish? Where is a name declared, and who imports it? Where are the words of a task, and which packages are they in? | [workspace API](references/workspace-api.md) | you need why a name exists or what it connects to: [what is written about a name](references/written-about-a-name.md) |
 | Where am I in this codebase, what runs here, what can this file import, and which tests are slowest? | [orient](references/orient.md) | |
 | The client holds an MCP connection, or you are writing its config | [MCP](references/mcp.md) | then the row for the question itself |
+| A Cloudflare tribunal needs setting up, a token, or its Access values; CI says the ingest token is not set | [deploy a tribunal](references/deploy-a-tribunal.md) | |
 
 ## Rules every answer shares
 
