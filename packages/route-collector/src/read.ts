@@ -34,9 +34,11 @@ import type { RouteWorld } from './world.js';
 const DEFAULT_READY_TIMEOUT_MS = 10_000;
 
 /**
- * Chromium's name for a connection nothing accepted. The world is always
- * Chromium, and Playwright carries the browser's net error in its message,
- * which is the one place this answer is held.
+ * Chromium's name for a connection nothing accepted: the server is gone, and
+ * every route left would be refused the same way. It ends the read with an
+ * operator error, not a failure about one route, which would bury the one line
+ * that matters under a copy per route and exit as if changes were found. The
+ * world is always Chromium, and Playwright carries the net error in its message.
  */
 const CONNECTION_REFUSED = 'net::ERR_CONNECTION_REFUSED';
 
@@ -168,13 +170,8 @@ export async function readRoute(
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
 
-    // A refused connection is the server gone, not this page failing: nothing
-    // is listening, and every route left would be refused the same way. Thrown
-    // rather than returned, because a returned failure is about one subject and
-    // the run asks for the next — fifty identical failures that bury the one
-    // line saying the server stopped, in a run that then exits as if it had
-    // found changes. An empty response or a reset stays this page's: the
-    // server answered, once, badly.
+    // An empty response or a reset stays this page's: the server answered,
+    // once, badly.
     if (message.includes(CONNECTION_REFUSED)) {
       throw operatorError(
         `nothing is listening at ${new URL(url).origin}: the browser's connection was ` +
