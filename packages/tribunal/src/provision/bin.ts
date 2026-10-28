@@ -13,7 +13,7 @@ import { provision, type Command, type ProvisionRequest, type RunOptions } from 
  * `variance-authority-tribunal-provision` — a Cloudflare tribunal's account and
  * repository setup, in one command an agent can run.
  *
- *     npx variance-authority-tribunal-provision --config deploy/wrangler.jsonc
+ *     npx -p @variance-authority/tribunal variance-authority-tribunal-provision --config deploy/wrangler.jsonc
  *
  * `--repository owner/name` names the repository whose CI pushes builds; the
  * one `gh` sees in the working directory when absent. `--reviewer <email>` is
@@ -85,6 +85,7 @@ async function main(): Promise<void> {
       write: (path, text) => writeFile(path, text),
       say: (line) => void process.stdout.write(`${line}\n`),
       mint: () => randomBytes(24).toString('hex'),
+      terminal: process.stdout.isTTY === true,
       cloudflare: (token, account) => cloudflare(token, account, fetch),
     },
     request,

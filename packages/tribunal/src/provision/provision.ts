@@ -47,6 +47,9 @@ export const LOGIN_SCOPES: readonly string[] = [
 ];
 
 export const INGEST_SECRET = 'INGEST_TOKEN';
+/** Cloudflare's code for a Worker the account does not have. */
+const WORKER_NOT_FOUND = 10007;
+
 export const REVIEW_SECRET = 'REVIEW_TOKEN';
 /** The repository secret the `variance` workflow reads. */
 export const REPOSITORY_INGEST_SECRET = 'VARIANCE_INGEST_TOKEN';
@@ -72,6 +75,8 @@ export interface Provisioning {
   write(path: string, text: string): Promise<void>;
   say(line: string): void;
   mint(): string;
+  /** A person reads the output, not an agent or a log. */
+  readonly terminal: boolean;
   cloudflare(token: string, account: string): Cloudflare;
 }
 
@@ -273,8 +278,12 @@ async function app(
 
 async function secrets(wrangler: Wrangler, must: Must, io: Provisioning, request: ProvisionRequest, made: string[]) {
   // A Worker that was never deployed has no secrets to list and nothing to
-  // hold one. `secret put` makes it.
+  // hold one; `secret put` makes it. Any other failure answers nothing, and a
+  // token replaced on no answer would cut off the CI that holds it.
   const listed = await wrangler(['secret', 'list', '--format', 'json']);
+  if (listed.code !== 0 && !listed.stderr.includes(`[code: ${WORKER_NOT_FOUND}]`)) {
+    throw new Error(`wrangler secret list failed:\n${listed.stderr}`);
+  }
   const worker = new Set(
     listed.code === 0 ? (JSON.parse(listed.stdout) as { name: string }[]).map((each) => each.name) : [],
   );
@@ -298,7 +307,14 @@ async function secrets(wrangler: Wrangler, must: Must, io: Provisioning, request
     const token = io.mint();
     await must(['secret', 'put', REVIEW_SECRET], { input: token });
     made.push(REVIEW_SECRET);
-    io.say(`${REVIEW_SECRET}=${token}`);
-    io.say('Printed once: it decides subjects, so a person keeps it and CI never sees it.');
+    // It decides subjects, so it goes to a person or nowhere: output an agent
+    // reads ends up in a transcript.
+    if (io.terminal) {
+      io.say(`${REVIEW_SECRET}=${token}`);
+      io.say('Printed once: it decides subjects, so a person keeps it and CI never sees it.');
+    } else {
+      io.say(`${REVIEW_SECRET} is set and not shown, because no person is at this terminal.`);
+      io.say('To hold one, run this command with --rotate in your own terminal.');
+    }
   }
 }

@@ -191,7 +191,7 @@ export { default } from '@variance-authority/tribunal/worker-entry';
 ```
 
 ```bash
-npx variance-authority-tribunal-provision --config wrangler.jsonc
+npx -p @variance-authority/tribunal variance-authority-tribunal-provision --config wrangler.jsonc
 wrangler deploy
 ```
 
@@ -204,7 +204,8 @@ bearer paths through. It writes `ACCESS_TEAM_DOMAIN` and `ACCESS_AUD` into
 `vars`. It mints `INGEST_TOKEN` into the Worker and the same value into the
 repository's `VARIANCE_INGEST_TOKEN` secret, read from `gh` or named with
 `--repository owner/name`, without printing it. It mints `REVIEW_TOKEN` and
-prints it once. A second run changes nothing. `--rotate` replaces both tokens,
+prints it once when you run it in a terminal; piped or run by an agent, it sets
+the token and does not show it. A second run changes nothing. `--rotate` replaces both tokens,
 and `--mount /api` places the bypass under a host that serves the API there.
 When your Cloudflare login lacks Access, the command logs in again with it added.
 When R2 is off on the account, it prints the dashboard address where you enable

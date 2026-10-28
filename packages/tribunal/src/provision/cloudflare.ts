@@ -22,6 +22,7 @@ export const NOT_AUTHORIZED = 10000;
 export class CloudflareError extends Error {
   constructor(
     readonly codes: readonly number[],
+    readonly status: number,
     message: string,
   ) {
     super(message);
@@ -83,6 +84,7 @@ export function cloudflare(token: string, account: string, fetcher: typeof fetch
       const errors = envelope.errors ?? [];
       throw new CloudflareError(
         errors.map((each) => each.code),
+        response.status,
         `${method} ${path}: ${errors.map((each) => `${each.code} ${each.message}`).join('; ') || response.status}`,
       );
     }
@@ -98,7 +100,11 @@ export function cloudflare(token: string, account: string, fetcher: typeof fetch
       try {
         return (await call<{ auth_domain?: string }>('GET', `${at}/access/organizations`)).auth_domain;
       } catch (error) {
-        if (error instanceof CloudflareError && !error.codes.includes(NOT_AUTHORIZED)) return undefined;
+        // Absent is a 404; anything else is no answer, and creating an
+        // organization on no answer writes to the operator's account.
+        if (error instanceof CloudflareError && error.status === 404 && !error.codes.includes(NOT_AUTHORIZED)) {
+          return undefined;
+        }
         throw error;
       }
     },

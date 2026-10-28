@@ -8,7 +8,7 @@ interface Sent {
   readonly body?: unknown;
 }
 
-function api(answer: (sent: Sent) => unknown): { client: ReturnType<typeof cloudflare>; sent: Sent[] } {
+function api(answer: (sent: Sent) => unknown, status = 200): { client: ReturnType<typeof cloudflare>; sent: Sent[] } {
   const sent: Sent[] = [];
   const fetcher = (async (url: string, init: RequestInit) => {
     const one: Sent = {
@@ -18,7 +18,7 @@ function api(answer: (sent: Sent) => unknown): { client: ReturnType<typeof cloud
       ...(init.body === undefined ? {} : { body: JSON.parse(init.body as string) }),
     };
     sent.push(one);
-    return new Response(JSON.stringify(answer(one)), { status: 200 });
+    return new Response(JSON.stringify(answer(one)), { status });
   }) as typeof fetch;
   return { client: cloudflare('tok', 'acc', fetcher), sent };
 }
@@ -46,8 +46,13 @@ describe('the Cloudflare client', () => {
   });
 
   it('answers no team domain when the account has no organization', async () => {
-    const { client } = api(() => failed(9999));
+    const { client } = api(() => failed(9999), 404);
     expect(await client.teamDomain()).toBeUndefined();
+  });
+
+  it('throws on a failure that does not say the organization is absent', async () => {
+    const { client } = api(() => failed(9999), 500);
+    await expect(client.teamDomain()).rejects.toBeInstanceOf(CloudflareError);
   });
 
   it('throws when the login may not read Access', async () => {

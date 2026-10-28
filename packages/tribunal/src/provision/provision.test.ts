@@ -26,6 +26,8 @@ interface World {
   migrations: number;
   r2Enabled: boolean;
   accounts: { id: string; name: string }[];
+  /** What `secret list` meets: a Worker, none, or a failure of its own. */
+  worker: 'deployed' | 'never deployed' | 'unreachable';
 }
 
 function world(overrides: Partial<World> = {}): World {
@@ -42,13 +44,14 @@ function world(overrides: Partial<World> = {}): World {
     migrations: 0,
     r2Enabled: true,
     accounts: [{ id: 'acc', name: 'Acme' }],
+    worker: 'deployed',
     ...overrides,
   };
 }
 
 const ok = (stdout = ''): Command => ({ code: 0, stdout, stderr: '' });
 
-function harness(state: World, text = CONFIG) {
+function harness(state: World, text = CONFIG, terminal = false) {
   const files = new Map([['wrangler.jsonc', text]]);
   const said: string[] = [];
   let minted = 0;
@@ -58,7 +61,7 @@ function harness(state: World, text = CONFIG) {
     email: async () => 'owner@example.dev',
     workersSubdomain: async () => 'acme',
     teamDomain: async () => {
-      if (!state.authorized) throw new CloudflareError([NOT_AUTHORIZED], 'Authentication error');
+      if (!state.authorized) throw new CloudflareError([NOT_AUTHORIZED], 403, 'Authentication error');
       return state.teamDomain;
     },
     createOrganization: async (_, domain) => (state.teamDomain = domain),
@@ -77,6 +80,7 @@ function harness(state: World, text = CONFIG) {
     write: async (path, content) => void files.set(path, content),
     say: (line) => void said.push(line),
     mint: () => `token${++minted}`,
+    terminal,
     cloudflare: () => api,
     run: async (program, args, options) => {
       const line = [program, ...args].join(' ');
@@ -113,6 +117,10 @@ function harness(state: World, text = CONFIG) {
         return ok();
       }
       if (verb === 'secret' && noun === 'list') {
+        if (state.worker === 'never deployed') {
+          return { code: 1, stdout: '', stderr: 'This Worker does not exist on your account. [code: 10007]' };
+        }
+        if (state.worker === 'unreachable') return { code: 1, stdout: '', stderr: 'fetch failed' };
         return ok(JSON.stringify([...state.workerSecrets.keys()].map((name) => ({ name, type: 'secret_text' }))));
       }
       if (verb === 'secret' && noun === 'put') {
@@ -204,6 +212,48 @@ describe('provision', () => {
     expect(state.apps).toHaveLength(before.apps);
     expect(state.migrations).toBe(2);
     expect(said.at(-1)).toMatch(/already provisioned/);
+  });
+
+  it('keeps the review token off the output when nobody is at a terminal', async () => {
+    const state = world();
+    const { run, said } = harness(state);
+
+    expect(await run()).toBe(0);
+
+    expect(state.workerSecrets.get('REVIEW_TOKEN')).toBe('token2');
+    expect(said.join('\n')).not.toContain('token2');
+    expect(said.join('\n')).toContain('--rotate');
+  });
+
+  it('prints the review token once to a person at a terminal', async () => {
+    const state = world();
+    const { run, said } = harness(state, CONFIG, true);
+
+    expect(await run()).toBe(0);
+
+    expect(said.filter((line) => line.includes('token2'))).toEqual(['REVIEW_TOKEN=token2']);
+  });
+
+  it('mints both tokens into a Worker that was never deployed', async () => {
+    const state = world({ worker: 'never deployed' });
+    const { run } = harness(state);
+
+    expect(await run()).toBe(0);
+
+    expect(state.workerSecrets.get('INGEST_TOKEN')).toBe('token1');
+    expect(state.workerSecrets.get('REVIEW_TOKEN')).toBe('token2');
+  });
+
+  it('replaces no token when the Worker cannot be asked what it holds', async () => {
+    const state = world({ worker: 'unreachable' });
+    state.workerSecrets.set('INGEST_TOKEN', 'old');
+    state.githubSecrets.set('VARIANCE_INGEST_TOKEN', 'old');
+    const { run } = harness(state);
+
+    await expect(run()).rejects.toThrow('fetch failed');
+
+    expect(state.workerSecrets.get('INGEST_TOKEN')).toBe('old');
+    expect(state.githubSecrets.get('VARIANCE_INGEST_TOKEN')).toBe('old');
   });
 
   it('mints a new ingest token when the repository lost its copy', async () => {
