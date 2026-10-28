@@ -772,11 +772,15 @@ different runs is said part by part on one line, newest first:
 src/pay.test.ts ran 'refunds' over this text, in a run that landed 1 hour ago, and its 1 other case named here over another text of src/pay.ts, in a run that landed 3 days ago, in which `pay` is the same.
 ```
 
-A run in part whose landing does not name the cases it ran leaves the test
-file placed by the run that last finished it, and its line spans both runs'
-times. When those runs ran over different texts and only some of them over
-yours, which text its cases ran over is not known, because that landing does
-not say which case ran in which run.
+A run in part that kept no cases, because its seam recorded none, says it
+laid none of them, so each case the answer names is dated by the run that last
+finished the file, whose cases the index still holds. A test file the answer
+names no case of spans the times of every run that wrote its lines: the one
+that last finished it, and each later run in part. So does a case of a test
+file whose later run in part does not say which cases it laid, as a runs record
+another tool wrote may not. When those runs ran over different texts and only
+some of them over yours, which text its cases ran over is not known, because
+the record does not say which case ran in which run.
 
 Each run is read where it stood: its commit, when it landed, and the texts it
 ran over that were not committed there, as the runs record keeps them. Your
@@ -834,8 +838,8 @@ names one. `ran.stands` holds one entry per group: its `commit`, absent for a
 run outside a git checkout, its `tests`, `cases` naming the cases of its one
 test file when that file is said part by part, `landed` with ISO `first` and
 `latest` and, when the record counts them, `runs`, and `partly` with the
-`commit` and `landed` of each later run that ran them in part without naming
-its cases. `files` names the asked files they are compared on when fewer than
+`commit` and `landed` of each later run in part that may have run them: every
+one when no case is named, else each that does not say which cases it laid. `files` names the asked files they are compared on when fewer than
 all. Then `text` is `held` when they ran over your text of every file they are
 compared on, else `other`, with `other` naming the files they ran another text
 of, `absent` the ones that did not exist where they ran, `held` the ones whose

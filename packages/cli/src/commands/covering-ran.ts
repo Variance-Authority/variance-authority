@@ -55,9 +55,10 @@ export interface RanStand {
   /** Absent when the record holds no time for them. */
   readonly landed?: Landed;
   /**
-   * The later runs that ran them only in part and do not say which cases,
-   * earliest first, each with when it landed when the record holds it: some
-   * of their cases may be those runs'. Absent when none did.
+   * The later runs that ran them only in part and may have run what they are
+   * read for, earliest first, each with when it landed when the record holds
+   * it: every one when no case of them is named, since each wrote some of their
+   * lines, else those that do not say which cases they laid. Absent when none did.
    */
   readonly partly?: readonly { readonly commit?: string; readonly landed?: Landed }[];
   /**

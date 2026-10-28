@@ -255,9 +255,12 @@ src/pay.ts is the text the other test file named here ran over, in a run that la
   line, newest first: ``src/pay.test.ts ran 'refunds' over this text, in a run
   that landed 1 hour ago, and its 1 other case named here over another text of
   src/pay.ts, in a run that landed 3 days ago, in which `pay` is the same.`` A
-  run in part whose landing names no cases leaves the file placed by the
-  earlier run, its line spanning both times, and if only some of those runs
-  ran over your text, which text its cases ran over is not known.
+  run in part that kept no cases says it laid none, so each named case is
+  dated by the earlier run. A test file the answer names no case of, and a case
+  of one whose later run in part does not say which it laid (a record another
+  tool wrote), is placed by the earlier run, its line spanning both times, and
+  if only some of those runs ran over your text, which text its cases ran over
+  is not known.
 - Your text, `--text` or the file on disk, is compared by digest with the
   texts the runs record names for each run, else the committed ones at its
   commit. A group is compared only on the files its runs read: the asked file
@@ -294,7 +297,8 @@ In JSON, `at` is the record's commit and `ran.stands` the groups: each a
 `commit` (absent for a run outside a git checkout), its `tests`, `cases` (the
 cases of its one test file when that file is said part by part), `landed`
 (`first`, `latest`, and `runs` when counted), `partly` (the `commit` and
-`landed` of each later run that ran them in part without naming its cases),
+`landed` of each later run in part that may have run them: every one when no
+case is named, else each that does not say which cases it laid),
 `files` (the asked files they are compared on, when fewer than all), `text`
 (`held` when they ran over your text of every file they are compared on,
 `other` when they ran over another text of some, or over none), `other` naming
