@@ -55,7 +55,7 @@ const REACH_TEXT: Readonly<Record<Reach, string>> = {
   loaded: 'ran only while its module loaded',
   hole: 'no case covered it, and a case that could have stopped first',
   unwalked: 'no case covered it',
-  unknown: 'no case covered it, and the record cannot say whether one stopped first',
+  unknown: 'no case is known to have covered it: a case ran it in a text an edit wrote over, or none did and the record cannot say whether one stopped first',
 };
 
 /** A review in words. JSON is {@link reviewPieces}'s: it can spell more than one string holds. */
@@ -384,12 +384,14 @@ function summary(review: Review, code: (value: string) => string): readonly stri
       ...absent,
     ];
   }
-  const uncovered = regions.filter((region) => region.reach === 'hole' || region.reach === 'unwalked' || region.reach === 'unknown');
+  const uncovered = regions.filter((region) => region.reach === 'hole' || region.reach === 'unwalked');
+  const unknown = regions.filter((region) => region.reach === 'unknown');
   const far = regions.filter((region) => region.reach === 'far');
   const holding = review.files.filter((file) => outermost(file).length > 0).length;
   const lines = [
     `${regions.length} changed region${regions.length === 1 ? '' : 's'} in ${holding} file${holding === 1 ? '' : 's'}: ${edits(regions)}.`,
     `- ${uncovered.length} no case covered${uncovered.length === 0 ? '' : `: ${edits(uncovered)}`}.`,
+    ...(unknown.length === 0 ? [] : [`- ${unknown.length} no case is known to have covered: ${edits(unknown)}.`]),
     `- ${far.length} covered only by tests further than one import away.`,
   ];
   const unplaced = regions.filter((region) => region.reach === 'unplaced').length;

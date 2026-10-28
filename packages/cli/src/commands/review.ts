@@ -63,7 +63,8 @@ import type { ReviewCoverage } from './review-coverage.js';
  * - `loaded`: it ran only while its module was evaluated.
  * - `hole`: nothing entered it, and a case that could have stopped first.
  * - `unwalked`: nothing entered it, and every case that could have finished.
- * - `unknown`: the record cannot tell `hole` from `unwalked`.
+ * - `unknown`: nothing is known to have entered it: a case ran it in a text an
+ *   edit wrote over, or the record cannot tell `hole` from `unwalked`.
  */
 /**
  * The edges a changed package's importers are walked through. Who imports the changed code is a question about

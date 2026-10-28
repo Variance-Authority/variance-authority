@@ -253,6 +253,23 @@ describe('a review handed over in the pull request body, before CI', () => {
       .toContain('3 changed functions, every one reached by a case, 2 only in the record before the change</summary>');
   });
 
+  it('says of a part no case is known to have run that none is known to, not that none ran', () => {
+    const part = (startLine: number, endLine: number, reach: ReviewRegion['reach'], tests: readonly string[]): ReviewRegion => ({
+      kind: 'function', name: 'total', startLine, endLine, reach, edit: 'modified', changedLineCases: tests.length, cases: tests.length, tests, called: [],
+    });
+    const at = (record: string, regions: readonly ReviewRegion[]) =>
+      ({ from: 'a'.repeat(40), record, base: 'since', files: [{ file: 'src/a.ts', recorded: true, regions }] }) as unknown as Review;
+    const pointers = (out: string) => out.split('\n').filter((line) => line.startsWith('- '));
+
+    const ran = formatHandover([{ suite: 'unit', review: at('ran', [part(5, 20, 'near', ['test/a.test.ts']), part(8, 9, 'unknown', [])]) }]);
+    const before = formatHandover([{ suite: 'unit', review: at('before', [part(5, 9, 'unknown', [])]) }]);
+
+    expect(pointers(ran)).toEqual(['- 🔴 `total` in `src/a.ts` — a part no case is known to have run; the rest 1 case, near: `test/a.test.ts`']);
+    expect(ran).toContain('1 changed function, 1 with code no case is known to have run</summary>');
+    expect(pointers(before)).toEqual(['- 🔴 `total` in `src/a.ts` — no case in the record is known to have run it']);
+    expect(before).toContain('1 changed function, 1 with code no case in the record is known to have run</summary>');
+  });
+
   it('names a function a suite ran on the change without a case, though a suite read from before counts it new', () => {
     const region = (reach: ReviewRegion['reach']): ReviewRegion => ({
       kind: 'function', name: 'round', startLine: 5, endLine: 9, reach, edit: 'new', changedLineCases: 0, cases: 0, tests: [], called: [],

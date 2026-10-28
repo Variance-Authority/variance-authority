@@ -119,6 +119,15 @@ describe('a review of what a change did, after the run that recorded it', () => 
     expect(markdown).toContain('- `test/total.test.ts`\n  - + rounds');
   });
 
+  it('counts a region no case is known to have run apart from the ones no case ran', () => {
+    const region = (name: string, reach: 'unwalked' | 'unknown') =>
+      ({ kind: 'function', name, startLine: name === 'round' ? 5 : 1, endLine: name === 'round' ? 7 : 3, reach, edit: 'modified', cases: 0, changedLineCases: 0, tests: [], called: [] });
+    const text = formatReview({ from: 'a'.repeat(40), record: 'ran', base: 'since', files: [{ file: 'src/total.ts', recorded: true, regions: [region('applyDiscount', 'unwalked'), region('round', 'unknown')] }] } as never, 'text');
+
+    expect(text).toContain('- 1 no case covered: 1 modified.\n- 1 no case is known to have covered: 1 modified.\n');
+    expect(text).toContain('  src/total.ts:5-7 function round — no case is known to have covered it: a case ran it in a text an edit wrote over, or none did and the record cannot say whether one stopped first (modified)');
+  });
+
   it('says which package the changed functions are in, whose tests ran them and which packages import them', async () => {
     const { root, first } = await changed();
     await writeFile(join(root, 'src/package.json'), JSON.stringify({ name: '@o/total' }));
