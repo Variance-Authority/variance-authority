@@ -261,8 +261,8 @@ function hitOf(index: SearchIndex, row: number, area: Area | undefined, inArea: 
 }
 
 /**
- * The order {@link surface}'s rows are read in. A rank is a name's own, so {@link rowTextOrder}
- * settles rows of one name, by what they say and never by the package names the index follows.
+ * The order {@link surface}'s rows are read in. A rank is a name's own, so {@link rowTextOrder} settles rows of
+ * one name: by the doc's text, then the kind, then the row's path and specifier, never by where the index wrote them.
  */
 const surfaceOrder = (index: SearchIndex) => (a: Hit, b: Hit): number =>
   a.field - b.field ||

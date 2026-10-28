@@ -324,20 +324,26 @@ function throughOf(
 
 /**
  * Two rows of one kind level on every count, in every section: the doc's text,
- * an absent one last, then the file, then a published row's specifier, in
- * code-unit order. Where the index wrote a row follows its package and file
- * names, which say nothing about the name, so it settles nothing.
+ * an absent one last, then what a published row declares or the line an
+ * exported one is declared on, then the file, then a published row's specifier,
+ * in code-unit order. Where the index wrote a row follows its package and file
+ * names, which say nothing about the name, so it settles nothing; the path and
+ * the specifier settle only rows alike in all else: one name two files export
+ * on one line under one doc, or one declaration two specifiers publish.
  */
 export function rowTextOrder(index: SearchIndex, a: DescribedRow, b: DescribedRow): number {
-  const text = (row: DescribedRow): readonly [string | undefined, string, string] => {
-    if (row.kind === 'exported') return [index.exported(row.row).doc, index.exportedAt(row.row), ''];
-    const { doc, at, specifier } = index.published(row.row);
-    return [doc, at, specifier];
+  const text = (row: DescribedRow): readonly [string | undefined, string, number, string, string] => {
+    if (row.kind === 'exported') {
+      const { doc, line, at } = index.exported(row.row);
+      return [doc, '', line, at, ''];
+    }
+    const { doc, kind, at, specifier } = index.published(row.row);
+    return [doc, kind, 0, at, specifier];
   };
-  const [docA, atA, specifierA] = text(a);
-  const [docB, atB, specifierB] = text(b);
+  const [docA, kindA, lineA, atA, specifierA] = text(a);
+  const [docB, kindB, lineB, atB, specifierB] = text(b);
   const doc = docA === docB ? 0 : docA === undefined ? 1 : docB === undefined ? -1 : codeUnitOrder(docA, docB);
-  return doc || codeUnitOrder(atA, atB) || codeUnitOrder(specifierA, specifierB);
+  return doc || codeUnitOrder(kindA, kindB) || lineA - lineB || codeUnitOrder(atA, atB) || codeUnitOrder(specifierA, specifierB);
 }
 
 /** A row a name may be weighed through: what the name then holds, and its doc's bytes, unmeasured as infinite. */

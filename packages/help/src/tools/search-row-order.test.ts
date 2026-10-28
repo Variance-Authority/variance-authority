@@ -10,11 +10,15 @@ import { searchIndexOf } from './search.js';
  * One name's rows are in one order in every section: the published section
  * lists them in it, the exported section shows the first of them, and the
  * described section shows a name no doc adds a word to through the first. A
- * published row goes by the files of the area importing it, then its import
- * sites there, then the packages importing it anywhere, then its import sites
- * anywhere; an exported row source first, then tests, then stories; then the
- * doc's text and the row's path, so renaming a package or a file moves no row
- * whose doc differs from the other's.
+ * row goes first by where the question was found in it, with the question
+ * found alike in each in the described section: the name whole, then in its
+ * words, then in its doc's opening, then later in the doc. Then a published row
+ * goes by the files of the area importing it, then its import sites there, then
+ * the packages importing it anywhere, then its import sites anywhere; an
+ * exported row source first, then tests, then stories; then the doc's text,
+ * then what a published row declares or the line an exported row is declared
+ * on, then the row's path, so renaming a package or a file moves no row that
+ * differs from the other in anything but its path.
  */
 
 const before = process.env['VARIANCE_AUTHORITY_CACHE'];
@@ -159,5 +163,39 @@ describe('the order one name\'s rows are shown in', () => {
     const expected = [['b-kit', 0, 'The kit for zebra rides.'], ['<renamed>', 1, 'A kit.']];
     expect(await listed('a-kit')).toEqual(expected);
     expect(await listed('z-kit')).toEqual(expected);
+  });
+
+  it('orders a name published twice under one doc by its declaration\'s kind before its package\'s name', async () => {
+    const shown = async (first: string, declared: string, other: string, doc: string): Promise<unknown> => {
+      const index = searchIndexOf(readHelp(await kits({ [first]: { 'index.ts': `${doc}${declared}` }, 'm-kit': { 'index.ts': `${doc}${other}` } })));
+      const kinds = (query: string, section: 'published' | 'described'): unknown =>
+        searchNames(index, { query })[section]?.shown.map((one) => ['specifier' in one ? one.specifier : one.at, 'kind' in one ? one.kind : undefined]);
+      return JSON.parse(JSON.stringify({ published: kinds('PlacementKit', 'published'), described: kinds('placement kit zebra', 'described') }).replaceAll(first, '<renamed>'));
+    };
+    const INTERFACE = 'export interface PlacementKit {\n  readonly at: string;\n}\n';
+    const FUNCTION = 'export function PlacementKit(): string {\n  return "";\n}\n';
+    const TYPE = 'export type PlacementKit = {\n  readonly at: string;\n};\n';
+    const documentedKinds = { published: [['m-kit', 'function'], ['<renamed>', 'interface']], described: [['m-kit', 'function']] };
+    expect(await shown('a-kit', INTERFACE, FUNCTION, '/** The placement kit. */\n')).toEqual(documentedKinds);
+    expect(await shown('z-kit', INTERFACE, FUNCTION, '/** The placement kit. */\n')).toEqual(documentedKinds);
+    const undocumented = { published: [['<renamed>', 'interface'], ['m-kit', 'type']], described: [['<renamed>', 'interface']] };
+    expect(await shown('a-kit', INTERFACE, TYPE, '')).toEqual(undocumented);
+    expect(await shown('z-kit', INTERFACE, TYPE, '')).toEqual(undocumented);
+  });
+
+  it('shows a name exported twice under one doc through the row declared on the earlier line before the file\'s name', async () => {
+    const shown = async (first: string): Promise<unknown> => {
+      const fillers = ['one', 'two', 'three', 'four'].map((name) => `export const ${name} = 1;\n`).join('');
+      const index = searchIndexOf(readHelp(await inventedWorkspace(INVENTED_PACKAGES, ['react'], {
+        [`src/${first}.ts`]: placed('The placement kit.'),
+        'src/m.ts': `${fillers}${placed('The placement kit.')}`,
+      })));
+      const lines = (query: string, section: 'exported' | 'described'): unknown =>
+        searchNames(index, { query })[section]?.shown.filter((one) => one.name === 'PlacementKit').map((one) => [one.at, 'line' in one ? one.line : undefined]);
+      return JSON.parse(JSON.stringify({ exported: lines('PlacementKit', 'exported'), described: lines('placement kit zebra', 'described') }).replaceAll(`src/${first}.ts`, '<renamed>'));
+    };
+    const expected = { exported: [['<renamed>', 2]], described: [['<renamed>', 2]] };
+    expect(await shown('a')).toEqual(expected);
+    expect(await shown('z')).toEqual(expected);
   });
 });
