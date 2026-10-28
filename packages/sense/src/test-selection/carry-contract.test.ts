@@ -50,7 +50,7 @@ describe('a record carried through a history, asked in-process', () => {
     await bothRanOverAnUnkeptEdit(selectedFromTree, forgetKept);
   });
 
-  it('dates a test file by the landing it last ran in, never by a later one that carried it, and calls a region the same only over a text it holds', async () => {
+  it('dates a test file by the landing it last ran in, never by a later one that carried it, and holds the text it ran over only while it is kept or committed', async () => {
     await ranOverThenCommittedElsewhere(ranInProcess, forgetKept);
   });
 

@@ -9,6 +9,7 @@
  */
 
 import { expect } from 'vitest';
+import { digestString } from '@variance-authority/core/format';
 import { caseSectionsAt } from '../case-record.js';
 import { keepRecord, type Compare } from './carry-comparison.js';
 import { caseOf, commit, held, noted, owed, runElsewhere, runTests, selected, touching, walking, type Walk } from './carry-contract.js';
@@ -282,15 +283,15 @@ export async function bothRanOverAnUnkeptEdit(ask: Ask, forget: (walk: Walk) => 
 /**
  * A run of both tests over an uncommitted edit inside `outer`, a commit of
  * another edit inside the first effect, a run of A alone, a run of other
- * tests, and the texts landings kept forgotten, with each step asked how fresh
- * and how actual the answer for a line is.
+ * tests, and the texts landings kept forgotten, with each step asked where,
+ * when and over which text the test files a line names last ran.
  *
  * B last ran in the first landing, over the uncommitted text, and nothing
- * since ran it: the later landings carry it and none re-dates it. The second
- * effect is the same in that text and in HEAD's; the component around it is
- * not. A ran over HEAD's text. Once the uncommitted text is forgotten, nothing
- * can show which of its lines the asked ones are, so whether the second effect
- * is the same in both is not known, and never said to be.
+ * since ran it: the later landings carry it, and none re-dates it or names
+ * another text for it. A ran over HEAD's text. The record holds each text
+ * under the digest it names, kept or committed, until the uncommitted one is
+ * forgotten: then it names the digest and holds no text behind it. Whether a
+ * region is the same in both texts is `covering`'s verdict, and is asked of it.
  */
 export async function ranOverThenCommittedElsewhere(ask: Ran, forget: (walk: Walk) => Promise<void>): Promise<void> {
   await walking(effects(), { [A]: ['top', 'outer', 'first'], [B]: ['top', 'outer', 'second'] }, async (walk) => {
@@ -302,33 +303,38 @@ export async function ranOverThenCommittedElsewhere(ask: Ran, forget: (walk: Wal
     };
     const commits: Record<string, string> = {};
     const named = (when: string): string => landings.find(([, from, to]) => from <= Date.parse(when) && Date.parse(when) <= to)?.[0] ?? when;
-    // Each stand by the commit and the landings the walk named, so a landing that re-dated it shows as the wrong name.
-    const read = (stood: Readonly<Record<string, Stood>>): Record<string, unknown> => Object.fromEntries(Object.entries(stood).map(([test, { landed, ...rest }]) => [test, {
+    const edit = touching(walk.text, 'outer');
+    const texts = (): Record<string, string> => ({ [digestString(edit)]: 'the edit', [digestString(walk.text)]: "HEAD's text" });
+    // Each stand by the commit, the landings and the texts the walk named, so a
+    // landing that re-dated it or named another text shows as the wrong name.
+    const read = (stood: Readonly<Record<string, Stood>>): Record<string, unknown> => Object.fromEntries(Object.entries(stood).map(([test, { landed, digest, text, ...rest }]) => [test, {
       ...rest,
       commit: commits[rest.commit] ?? rest.commit,
       landed: landed === undefined ? 'not held' : `${named(landed.first)} to ${named(landed.latest)}, runs ${String(landed.runs)}`,
+      ran: digest === undefined ? 'not named' : texts()[digest] ?? digest,
+      held: text === undefined ? 'no text' : texts()[digestString(text)] ?? 'another text',
     }]));
     const lines = walk.text.split('\n');
     const second = { line: lines.findIndex((line) => line.includes("hit('second')")) + 1 };
     const component = { lines: { startLine: lines.findIndex((line) => line.startsWith('export function component')) + 1, endLine: lines.lastIndexOf('}') + 1 } };
 
     commits[walk.head] = 'the first commit';
-    await landing('both over an edit', () => runTests(walk, [A, B], { over: touching(walk.text, 'outer') }));
+    await landing('both over an edit', () => runTests(walk, [A, B], { over: edit }));
     await commit(walk, touching(walk.text, 'first'), 'an edit inside the first effect');
     commits[walk.head] = 'the second commit';
     await landing('A alone', () => runTests(walk, [A]));
 
-    const b = { commit: 'the first commit', text: 'other', landed: 'both over an edit to both over an edit, runs 1' };
-    check(walk, 'the second effect', read(await ask(walk, second)), { [B]: { ...b, region: 'same' } });
+    const b = { commit: 'the first commit', landed: 'both over an edit to both over an edit, runs 1', ran: 'the edit', held: 'the edit' };
+    check(walk, 'the second effect', read(await ask(walk, second)), { [B]: b });
     check(walk, 'the component', read(await ask(walk, component)), {
-      [A]: { commit: 'the second commit', text: 'held', landed: 'A alone to A alone, runs 1' },
-      [B]: { ...b, region: 'changed' },
+      [A]: { commit: 'the second commit', landed: 'A alone to A alone, runs 1', ran: "HEAD's text", held: "HEAD's text" },
+      [B]: b,
     });
 
     await landing('elsewhere', () => runElsewhere(walk));
-    check(walk, 'the second effect after a run of other tests', read(await ask(walk, second)), { [B]: { ...b, region: 'same' } });
+    check(walk, 'the second effect after a run of other tests', read(await ask(walk, second)), { [B]: b });
 
     await forget(walk);
-    check(walk, 'the second effect, no text kept', read(await ask(walk, second)), { [B]: { ...b, region: 'unknown' } });
+    check(walk, 'the second effect, no text kept', read(await ask(walk, second)), { [B]: { ...b, held: 'no text' } });
   });
 }
