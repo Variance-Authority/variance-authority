@@ -54,7 +54,7 @@ import { listedIn, whereCases, whereOver, type CoveringWhere } from './covering-
 import { heldText, placementFor, recordOf, type CoveringRange } from './covering-frame.js';
 import { ranOf, type CoveringRan } from './covering-ran.js';
 import { runsOnce } from './base-diff.js';
-import type { UnrunPart } from './covering-at.js';
+import { runsOfLines, type UnrunPart } from './covering-at.js';
 import { ask, readIndex, type IndexReader } from './covering-ask.js';
 import { graphOnce, type Graph } from './gap-selection.js';
 import type { CoveringAt, ParsedCovering } from '../covering-args.js';
@@ -115,9 +115,11 @@ export interface Covering {
    */
   readonly written?: readonly HeldLines[];
   /**
-   * Under a run of lines: the lines a text a case that entered the file ran
-   * over holds, and the text the record's lines are numbered in does not, so
-   * which case ran them is not known. In the text as it is now.
+   * Under a run of lines or a function: the lines a case ran in another text
+   * than the one the record's lines are numbered in, so which case ran them is
+   * not known. A line written since the recording that a text a case ran over
+   * holds is one; so is a line of a region whose cases ran it where an edit
+   * wrote over it, and which no named case entered. In the text as it is now.
    */
   readonly overwritten?: readonly HeldLines[];
   /** Present when the question named a line or a function. */
@@ -341,10 +343,21 @@ export async function covering(request: ParsedCovering, graph: Graph = graphOnce
   };
 }
 
-/** `answer` with its written lines split as `lines` says; a part `lines` leaves out is absent. */
+/**
+ * `answer` with its written lines split as `lines` says; a part `lines` leaves
+ * out is absent. The lines a written one ran over join the lines of a region
+ * the answer already said so, which are lines the record holds, so none is
+ * said twice.
+ */
 function withLines(answer: Covering, lines: Pick<Covering, 'written' | 'overwritten'>): Covering {
-  const { written: _written, overwritten: _overwritten, ...rest } = answer;
-  return { ...rest, ...lines };
+  const { written: _written, overwritten: regions, ...rest } = answer;
+  const unknown = [...regions ?? [], ...lines.overwritten ?? []].flatMap(({ startLine, endLine }) =>
+    Array.from({ length: endLine - startLine + 1 }, (_, at) => startLine + at));
+  return {
+    ...rest,
+    ...(lines.written === undefined ? {} : { written: lines.written }),
+    ...(unknown.length === 0 ? {} : { overwritten: runsOfLines([...new Set(unknown)].sort((left, right) => left - right)) }),
+  };
 }
 
 /** The refusals that say what the record holds of the file, and so are answered from it with its gap beside them. */

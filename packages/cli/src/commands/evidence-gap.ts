@@ -107,9 +107,10 @@ export function gapScope(file: string, target: Covering['target']): string {
 
 /**
  * The gap an answer about one file leaves open, read in order: a record of
- * another text first, then lines the record's text has no place for, then
- * ranges edited since, then a line held only at file grain. Nothing open is no
- * gap. `source` is where the record was read, which selection is asked of.
+ * another text first, then lines the record measured no run of, written since
+ * or run in another text, then ranges edited since, then a line held only at
+ * file grain. Nothing open is no gap. `source` is where the record was read,
+ * which selection is asked of.
  */
 export async function answerGap(answer: Covering, whole: ExecutionIndex, source: GapSource): Promise<EvidenceGap | undefined> {
   const file = answer.file;
@@ -124,7 +125,7 @@ export async function answerGap(answer: Covering, whole: ExecutionIndex, source:
   }
   const unplaced = [
     ...unplacedKnown(answer.written, ['was', 'were'], 'written since the recording'),
-    ...unplacedKnown(answer.overwritten, ['is', 'are'], "in a text a case ran over, but not in the one the record's lines are numbered in"),
+    ...unplacedKnown(answer.overwritten, ['is', 'are'], "in a text a case ran over, but the record's lines are numbered in another"),
   ];
   if (unplaced.length > 0) return selected('which tests run it now', scope, unplaced.join(', and '), await selectedFor(source, file), whole);
   const moved = (answer.ranges ?? []).filter((range) => range.moved === true);
@@ -140,7 +141,7 @@ export async function answerGap(answer: Covering, whole: ExecutionIndex, source:
   return undefined;
 }
 
-/** What is known of asked lines the record's text has no place for, `said` of them: none when there are none. */
+/** What is known of asked lines the record measured no run of, `said` of them: none when there are none. */
 function unplacedKnown(runs: readonly HeldLines[] | undefined, verbs: readonly [string, string], said: string): readonly string[] {
   if (runs === undefined || runs.length === 0) return [];
   const one = runs.length === 1 && runs[0]!.startLine === runs[0]!.endLine;

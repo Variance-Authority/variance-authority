@@ -83,18 +83,18 @@ function bodyOf(answer: Covering, table: Table): readonly string[] {
   const where = targetText(answer.target ?? { function: '' });
   return [`${answer.file} ${where}${answer.grain === 'file' ? ' at file grain' : ''}${
     answer.state === undefined ? '' : ` ${answer.state}`
-  }${answer.moved === true ? ' edited' : ''}: ${witnesses(answer.tests ?? [], answer.stopped, table)}${
+  }${answer.moved === true ? ' edited' : ''}: ${witnesses(answer.tests ?? [], answer.stopped, table, answer.overwritten !== undefined)}${
     answer.fileGrain === undefined ? '' : `; file grain at ${runsText(answer.fileGrain)}`
   }${answer.outside === undefined ? '' : `; outside every region at ${runsText(answer.outside)}`}${
     answer.written === undefined ? '' : `; written since ${runsText(answer.written)}`
-  }${answer.overwritten === undefined ? '' : `; in a text a case ran over, not the record's, at ${runsText(answer.overwritten)}`}${answer.unrun === undefined ? '' : `; no case ran ${answer.unrun.map((part) => `${runsText([part])} ${part.name === undefined ? part.kind : `${part.kind} ${part.name}`}${part.state === undefined ? '' : ` ${part.state}`}${part.moved === true ? ' edited' : ''}`).join(', ')}`}`];
+  }${answer.overwritten === undefined ? '' : `; ${unknownCase(answer.tests ?? [])} not known at ${runsText(answer.overwritten)}`}${answer.unrun === undefined ? '' : `; no case ran ${answer.unrun.map((part) => `${runsText([part])} ${part.name === undefined ? part.kind : `${part.kind} ${part.name}`}${part.state === undefined ? '' : ` ${part.state}`}${part.moved === true ? ' edited' : ''}`).join(', ')}`}`];
 }
 
 function rangeLine(range: CoveringRange, table: Table): string {
   const lines = range.startLine === range.endLine ? `${range.startLine}` : `${range.startLine}-${range.endLine}`;
   return `${lines}${range.state === undefined ? '' : ` ${range.state}`}${range.moved === true ? ' edited' : ''}: ${
-    witnesses(range.tests, range.stopped, table)
-  }${(range.unentered ?? []).map((region) => `; unentered ${region.kind} ${
+    witnesses(range.tests, range.stopped, table, range.overwritten !== undefined)
+  }${range.overwritten === undefined ? '' : `; ${unknownCase(range.tests)} not known`}${(range.unentered ?? []).map((region) => `; unentered ${region.kind} ${
     region.startLine === region.endLine ? region.startLine : `${region.startLine}-${region.endLine}`
   }${whyNobodyEntered(region, table)}`).join('')}`;
 }
@@ -111,16 +111,27 @@ function regionLine(region: StatedRegion, table: Table): string {
     : region.passengers.length === 0 ? '' : `; carried ${table.refs(region.passengers)}`;
   return `${region.startLine}-${region.endLine} ${regionKind(region)}${
     region.state === undefined ? '' : ` ${region.state}`
-  }: ${witnesses(region.tests, region.stopped, table)}${carried}`;
+  }: ${witnesses(region.tests, region.stopped, table, region.overwritten !== undefined)}${
+    region.overwritten === undefined ? '' : `; ${unknownCase(region.tests)} not known`
+  }${carried}`;
 }
 
-/** The cases that entered, or why none did: a hole names the cases that stopped. */
-function witnesses(tests: readonly CoveringTest[], stopped: readonly ExecutionTest[] | undefined, table: Table): string {
+/**
+ * The cases that entered, or why none did: a hole names the cases that
+ * stopped. Beside a case that ran it in another text, none entering is no
+ * measured absence.
+ */
+function witnesses(tests: readonly CoveringTest[], stopped: readonly ExecutionTest[] | undefined, table: Table, unknown: boolean): string {
   if (stopped === undefined || stopped.length === 0) {
     if (tests.length > 0) return table.refs(tests);
-    return stopped === undefined ? 'none' : 'none, and every case that could have reached it finished';
+    return stopped === undefined || unknown ? 'none' : 'none, and every case that could have reached it finished';
   }
   return `${tests.length === 0 ? 'none' : table.refs(tests)}; stopped first ${table.refs(stopped)}`;
+}
+
+/** What is not known of a place a case ran in another text: which case ran it, or which other one beside the named. */
+function unknownCase(tests: readonly CoveringTest[]): string {
+  return tests.length === 0 ? 'which case ran it' : 'which other case ran it';
 }
 
 /** Every case the answer names, wherever it names it. */

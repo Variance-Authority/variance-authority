@@ -55,16 +55,27 @@ export function marksOf(suites: readonly SuiteAnswer[]): readonly GutterMark[] |
 /**
  * The ranges of several suites over one run of lines, read as one: a stop nobody recorded stays
  * unknown, and a case two suites both ran is one case, since deleting it leaves both without it.
+ * A case one suite ran in another text is not known to have run the lines unless another suite
+ * says it called in.
  */
-function joined(ranges: readonly CoveringRange[]): Pick<CoveringRange, 'tests' | 'loaded' | 'stopped'> {
+function joined(ranges: readonly CoveringRange[]): Pick<CoveringRange, 'tests' | 'loaded' | 'stopped' | 'overwritten'> {
   const stopped: ExecutionTest[] | undefined = ranges.every((range) => range.stopped !== undefined)
     ? once(ranges.flatMap((range) => range.stopped!))
     : undefined;
+  const tests = once(ranges.flatMap((range) => range.tests));
+  const called = new Set(tests.filter((test) => test.loaded !== true).map(key));
+  const overwritten = once(ranges.flatMap((range) => range.overwritten ?? [])).filter((test) => !called.has(key(test)));
   return {
-    tests: once(ranges.flatMap((range) => range.tests)),
+    tests,
     ...(ranges.some((range) => range.loaded === true) ? { loaded: true as const } : {}),
     ...(stopped === undefined ? {} : { stopped }),
+    ...(overwritten.length === 0 ? {} : { overwritten }),
   };
+}
+
+/** A declared case by where it is declared, since each record numbers its own cases. */
+function key(test: ExecutionTest): string {
+  return `${test.file}\0${test.name}`;
 }
 
 /**
@@ -74,9 +85,8 @@ function joined(ranges: readonly CoveringRange[]): Pick<CoveringRange, 'tests' |
 function once<Case extends ExecutionTest & { readonly loaded?: true }>(cases: readonly Case[]): Case[] {
   const kept = new Map<string, Case>();
   for (const one of cases) {
-    const key = `${one.file}\0${one.name}`;
-    const held = kept.get(key);
-    if (held === undefined || (held.loaded === true && one.loaded !== true)) kept.set(key, one);
+    const held = kept.get(key(one));
+    if (held === undefined || (held.loaded === true && one.loaded !== true)) kept.set(key(one), one);
   }
   return [...kept.values()];
 }
