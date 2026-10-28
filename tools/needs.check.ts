@@ -4,7 +4,7 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { READS, git, needs, remember, said, twinsOf, unitsIn } from './needs.mjs';
+import { READS, advice, git, needs, remember, said, twinsOf, unitsIn } from './needs.mjs';
 
 /**
  * Existing code with the needs of a function just written.
@@ -336,5 +336,24 @@ describe('needs', () => {
 
   it('keys its cache by every text that shapes a bag, the word splitter included', () => {
     expect(READS.some((path: string) => readFileSync(path, 'utf8').includes('export function tokensOf('))).toBe(true);
+  });
+});
+
+describe('advice', () => {
+  const made: string[] = [];
+  afterEach(async () => {
+    for (const dir of made.splice(0)) await rm(dir, { recursive: true, force: true });
+  });
+
+  it('names what kept the list from being read, in one line, instead of failing the loop', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'needs-'));
+    made.push(dir);
+    const run = (...args: string[]) => execFileSync('git', args, { cwd: dir, encoding: 'utf8' });
+    run('init', '-q', '-b', 'main');
+    await writeFile(join(dir, 'a.ts'), 'export const a = 1;\n');
+    run('add', '.');
+    run('-c', 'user.email=a@b.c', '-c', 'user.name=a', 'commit', '-qm', 'one');
+
+    expect(await advice(dir)).toBe('needs: not read, no merge base with origin/main to measure the branch from\n');
   });
 });

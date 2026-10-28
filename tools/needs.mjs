@@ -2,7 +2,7 @@ import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { dirname, extname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { parseSync } from 'oxc-parser';
 import { digestString } from '@variance-authority/core/format';
 import { codeUnitOrder } from '@variance-authority/core/segment';
@@ -21,7 +21,8 @@ import { isFunction, isSource, lines, visit } from './owners.mjs';
  * every unit that exists by the weight of the needs both hold over the weight
  * of the needs either holds. A neighbour at {@link SHARED} or above is a lead
  * to read, not a verdict.
- * `yarn test:loop` prints the list; journal entry 0077 holds the measurements.
+ * `yarn test:loop` runs this file after a green run and prints the list; journal
+ * entry 0077 holds the measurements.
  */
 
 // FIXME: the bags belong to the scan's harvest, asked through `variance ask`.
@@ -186,6 +187,25 @@ export async function remember(cache) {
   if (!cache.changed && blobs.size === cache.blobs.size) return;
   const bytes = new TextEncoder().encode(JSON.stringify({ reader: cache.reader, blobs: Object.fromEntries(blobs) }));
   await writeCoverageBytes(cache.file, bytes);
+}
+
+/**
+ * The list for `root`, or one line naming what kept it from being read: the
+ * list is advice, so it never fails the loop that prints it.
+ */
+export async function advice(root) {
+  try {
+    const found = needs(root);
+    const list = said(found);
+    try {
+      await remember(found.cache);
+    } catch (error) {
+      return `${list}needs: cache not written, ${String(error?.message ?? error).split('\n')[0]}\n`;
+    }
+    return list;
+  } catch (error) {
+    return `needs: not read, ${String(error?.message ?? error).split('\n')[0]}\n`;
+  }
 }
 
 const require = createRequire(import.meta.url);
@@ -367,4 +387,10 @@ function rarityIn(units) {
   const holders = new Map();
   for (const unit of units) for (const token of unit.bag) holders.set(token, (holders.get(token) ?? 0) + 1);
   return (token) => rarity(units.length, holders.get(token) ?? 0);
+}
+
+// Run as `node tools/needs.mjs`, the last step of `yarn test:loop`: the list on
+// stderr, beside the runner's own, and exit 0 whatever it says.
+if (process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  process.stderr.write(await advice(process.cwd()));
 }

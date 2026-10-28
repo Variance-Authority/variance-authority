@@ -11,7 +11,7 @@ copy cannot rename is what it needs, the calls it makes, the fields it reads,
 the strings and types it names. `tools/needs.mjs` reads every function as the
 set of those needs and names the existing functions that need the same. It
 names the owner of 21 of the 44 copied functions, 12 of them copies neither
-earlier detector saw, and `yarn test:loop` prints its list after the tests,
+earlier detector saw, and `yarn test:loop` prints its list after a green run,
 while the second implementation is still being written.
 
 ## The labels
@@ -230,6 +230,6 @@ cache holds each blob's bags, 6.4 MB for the repository.
 
 ```bash
 # The list alone; remove node_modules/.cache/variance-authority/needs.json first for a cold run
-time node --input-type=module -e 'const { needs, said, remember } = await import("./tools/needs.mjs"); const found = needs(process.cwd()); process.stdout.write(said(found)); await remember(found.cache)'
+time node tools/needs.mjs
 node tools/needs-measure.mjs     # the Results, from tools/needs-measure.json
 ```
