@@ -23,7 +23,7 @@ describe('a covering answer says where the record\'s line numbers stand in the a
     expect(file.json).toMatchObject({ at: commit, frame: 'recorded', ran: { stands: [{ commit, assumed: true, tests: ['src/pay.test.ts'], text: 'held' }] } });
     expect(line.json).toMatchObject({ at: commit, frame: 'recorded' });
     expect(named.json).toMatchObject({ at: commit, frame: 'recorded', unrun: [{ kind: 'branch', startLine: 2, endLine: 4 }] });
-    for (const { text, json } of [file, line, named]) {
+    for (const { text } of [file, line, named]) {
       expect(text).not.toContain('numbered in');
       expect(text).toContain('src/pay.ts is the text the test file named here ran over, at a time the record does not hold.\n');
       expect(text).toContain(ASSUMED);
