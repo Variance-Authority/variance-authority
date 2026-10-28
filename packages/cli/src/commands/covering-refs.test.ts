@@ -64,6 +64,42 @@ describe('an answer with every case named once', () => {
     ]);
   });
 
+  it('says a place a case ran in another text has no known case, and claims no absence there', () => {
+    const file = 'packages/ioc/src/reset/index.ts';
+    const beta = at('beta > adds');
+    const ranges: Covering = {
+      file,
+      from: 'coverage.bin',
+      ranges: [
+        { startLine: 1, endLine: 5, state: 'walked', tests: [EVERY[0]!], stopped: [], overwritten: [beta] },
+        { startLine: 7, endLine: 9, tests: [], stopped: [], overwritten: [beta] },
+      ],
+    };
+    expect(formatCovering(ranges, 'refs', Date.now()).split('\n').slice(0, 3)).toEqual([
+      `${file} — 2 recorded ranges`,
+      '1-5 walked: 1; which other case ran it not known',
+      '7-9: none; which case ran it not known',
+    ]);
+    const line: Covering = { file, from: 'coverage.bin', target: { line: 8 }, tests: [], stopped: [], overwritten: [{ startLine: 7, endLine: 9 }] };
+    expect(formatCovering(line, 'refs', Date.now())).toBe(`${file} line 8: none; which case ran it not known at 7-9\n`);
+    const changed: Covering = {
+      file,
+      from: 'coverage.bin',
+      since: 'origin/main',
+      changed: [{
+        file,
+        recorded: true,
+        cases: [],
+        regions: [{ kind: 'function', name: 'beta', startLine: 6, endLine: 10, tests: [], stopped: [], overwritten: [beta], passengers: [] }],
+      }],
+    };
+    expect(formatCovering(changed, 'refs', Date.now()).split('\n').slice(0, 3)).toEqual([
+      '1 changed file since origin/main, read from coverage.bin',
+      file,
+      '  6-10 function beta: none; which case ran it not known',
+    ]);
+  });
+
   it('keeps the text answer to one file heading, and says a repeated list in one line', () => {
     const text = formatCovering(WHOLE_FILE, 'text', Date.now());
 
