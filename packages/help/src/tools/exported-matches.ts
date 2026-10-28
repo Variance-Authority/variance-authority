@@ -1,5 +1,6 @@
 import { opening } from '@variance-authority/package/help';
 import type { SearchIndex } from '../search-index.js';
+import { rowTextOrder } from './described.js';
 import { rowWithin } from './loose.js';
 import type { ExportedMatch } from './search-answer.js';
 
@@ -104,16 +105,19 @@ export function exported(
 }
 
 /**
- * The row of one name's `rows` an exported section shows: source before tests
- * before stories, and the first written within a kind. The kind column orders
- * the rows, so only the one shown is read.
+ * The order one name's exported rows are shown in: source before tests before
+ * stories, then {@link rowTextOrder}, by what the rows say and never by where
+ * the index wrote them, which follows file names. The kind column orders first,
+ * so a row is read only at a tie on it.
  */
+export const exportedOrder = (index: SearchIndex) => (a: number, b: number): number =>
+  index.exportedKind(a) - index.exportedKind(b) || rowTextOrder(index, { kind: 'exported', row: a }, { kind: 'exported', row: b });
+
+/** The row of one name's `rows` an exported section shows: the first by {@link exportedOrder}. */
 function exportedShown(index: SearchIndex, rows: Iterable<number>): number | undefined {
+  const order = exportedOrder(index);
   let chosen: number | undefined;
-  for (const row of rows) {
-    if (chosen === undefined || index.exportedKind(row) < index.exportedKind(chosen)) chosen = row;
-    if (index.exportedKind(chosen) === 0) break;
-  }
+  for (const row of rows) if (chosen === undefined || order(row, chosen) < 0) chosen = row;
   return chosen;
 }
 

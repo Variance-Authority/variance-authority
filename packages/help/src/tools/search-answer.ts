@@ -10,7 +10,7 @@ import { describedDeclarations, describedNames, describedShown, fileMatch, rowTe
 import { declaredKey, looseDeclarations } from './loose-declared.js';
 import { queryDependencyLexicon, type LexiconMatches } from '../dependency-lexicon.js';
 import { declaredMatches, exactness } from './declared.js';
-import { docRows, exported, first } from './exported-matches.js';
+import { docRows, exported, exportedOrder, first } from './exported-matches.js';
 
 /**
  * What `search` found, before a word of it is written.
@@ -94,7 +94,7 @@ export interface ExportedMatch {
   readonly name: string;
   /** The package that holds it; absent at the repository root. */
   readonly package?: string;
-  /** The file shown: source before tests before stories. */
+  /** The file shown: source before tests before stories, then by its doc's text and its path. */
   readonly at: string;
   readonly line: number;
   /** How many files export it, the one shown included. */
@@ -231,8 +231,6 @@ function usedWithin(index: SearchIndex, row: number, area: Area, inArea: Readonl
  * The rows arrive as a set rather than a rule because the same ordering has
  * to hold for names the substring found and names the loose pass added. Two
  * orderings would be two answers, and the second would look like a ranking.
- * The last key is the row, which is the order `everyEntry` walks, so ties land
- * where the stable sort over that walk always put them.
  *
  * The area enters here rather than at the call sites for the same reason: it
  * decides both what is admitted and how what is admitted is ordered, and a
@@ -251,29 +249,34 @@ function surface(
   inArea: ReadonlySet<number> | undefined,
   field?: (row: number, name: number) => number,
 ): readonly Hit[] {
-  const hits: Hit[] = [];
-  for (const row of new Set(rows)) {
-    if (area !== undefined && inArea !== undefined && !rowWithin(index, 'published', row, inArea)) continue;
-    const scoped = area === undefined || inArea === undefined ? undefined : usedWithin(index, row, area, inArea);
-    const name = index.publishedName(row);
-    hits.push({ row, name, rank: index.rank(name), usedBy: index.usedBy(row), uses: index.uses(row), field: field?.(row, name) ?? 0, scoped });
-  }
-  return hits;
+  const admitted = [...new Set(rows)].filter((row) => area === undefined || inArea === undefined || rowWithin(index, 'published', row, inArea));
+  return admitted.map((row) => hitOf(index, row, area, inArea, field));
 }
 
-const surfaceOrder = (a: Hit, b: Hit): number =>
+/** One published row's {@link Hit}, the area's counts of it included when there is one. */
+function hitOf(index: SearchIndex, row: number, area: Area | undefined, inArea: ReadonlySet<number> | undefined, field?: (row: number, name: number) => number): Hit {
+  const scoped = area === undefined || inArea === undefined ? undefined : usedWithin(index, row, area, inArea);
+  const name = index.publishedName(row);
+  return { row, name, rank: index.rank(name), usedBy: index.usedBy(row), uses: index.uses(row), field: field?.(row, name) ?? 0, scoped };
+}
+
+/**
+ * The order {@link surface}'s rows are read in. A rank is a name's own, so {@link rowTextOrder}
+ * settles rows of one name, by what they say and never by the package names the index follows.
+ */
+const surfaceOrder = (index: SearchIndex) => (a: Hit, b: Hit): number =>
   a.field - b.field ||
   (b.scoped?.files ?? 0) - (a.scoped?.files ?? 0) ||
   (b.scoped?.imports ?? 0) - (a.scoped?.imports ?? 0) ||
   b.usedBy - a.usedBy ||
   b.uses - a.uses ||
   a.rank - b.rank ||
-  a.row - b.row;
+  rowTextOrder(index, { kind: 'published', row: a.row }, { kind: 'published', row: b.row });
 
 function published(index: SearchIndex, hits: readonly Hit[], count: number): Matches<PublishedMatch> {
   return {
     total: hits.length,
-    shown: first(hits, count, surfaceOrder).map((hit) => {
+    shown: first(hits, count, surfaceOrder(index)).map((hit) => {
       const entry = index.published(hit.row);
       return {
         source: 'published',
@@ -291,24 +294,21 @@ function published(index: SearchIndex, hits: readonly Hit[], count: number): Mat
 }
 
 /**
- * The described section's {@link RowOrder}: published rows first, by the most
- * files of the area importing them, then import sites there, and with no area
- * by the most packages importing them, then import sites; exported rows by
- * kind, source before tests before stories; then {@link rowTextOrder}.
+ * The described section's {@link RowOrder}, the sections' own: a published row before an exported
+ * one, then {@link surfaceOrder} with the question found alike in each, or {@link exportedOrder}.
  */
 export function shownRowOrder(index: SearchIndex, area: Area | undefined, within: ReadonlySet<number> | undefined): RowOrder {
-  const scoped = new Map<number, InArea>();
-  const counts = (row: number): readonly [number, number] => {
-    if (area === undefined || within === undefined) return [index.usedBy(row), index.uses(row)];
-    const seen = scoped.get(row) ?? usedWithin(index, row, area, within);
-    scoped.set(row, seen);
-    return [seen.files, seen.imports];
+  const hits = new Map<number, Hit>();
+  const hit = (row: number): Hit => {
+    const one = hits.get(row) ?? hitOf(index, row, area, within);
+    hits.set(row, one);
+    return one;
   };
-  const most = ([a1, a2]: readonly [number, number], [b1, b2]: readonly [number, number]): number => b1 - a1 || b2 - a2;
+  const publishedOrder = surfaceOrder(index);
+  const exportedRows = exportedOrder(index);
   return (a, b) =>
     (a.kind === b.kind ? 0 : a.kind === 'published' ? -1 : 1) ||
-    (a.kind === 'published' ? most(counts(a.row), counts(b.row)) : index.exportedKind(a.row) - index.exportedKind(b.row)) ||
-    rowTextOrder(index, a, b);
+    (a.kind === 'published' ? publishedOrder(hit(a.row), hit(b.row)) : exportedRows(a.row, b.row));
 }
 
 /** Every published row of the names given. */

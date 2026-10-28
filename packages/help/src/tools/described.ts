@@ -299,8 +299,8 @@ function firstRow(order: RowOrder, published: Uint32Array, exported: Uint32Array
 /**
  * The row of `rows` a name is weighed, ordered and shown through, with what the
  * name then holds: the most different words its doc adds to `own`, those its
- * name holds; then the shorter measured doc, an unmeasured one last; then a
- * published row; then `order`, so at a tie on the doc it is the row the name
+ * name holds; then the shorter measured doc, an unmeasured one last; then
+ * `order`, a published row first, so at a tie on the doc it is the row the name
  * is shown through when no doc adds a word. Not by the weight the section
  * orders by: a word's rarity and the mean doc length are counted over the rows
  * every other name is weighed through, so no row's weight is known before every
@@ -323,10 +323,10 @@ function throughOf(
 }
 
 /**
- * Two rows of one kind level on every count: the doc's text, an absent one
- * last, then the file, then a published row's specifier, in code-unit order.
- * Where the index wrote a row follows its package and file names, which say
- * nothing about the name, so it settles nothing.
+ * Two rows of one kind level on every count, in every section: the doc's text,
+ * an absent one last, then the file, then a published row's specifier, in
+ * code-unit order. Where the index wrote a row follows its package and file
+ * names, which say nothing about the name, so it settles nothing.
  */
 export function rowTextOrder(index: SearchIndex, a: DescribedRow, b: DescribedRow): number {
   const text = (row: DescribedRow): readonly [string | undefined, string, string] => {
@@ -347,11 +347,9 @@ interface Through {
   readonly length: number;
 }
 
-/** {@link throughOf}'s order: more words held, then the shorter doc, then a published row. */
+/** {@link throughOf}'s order before its {@link RowOrder}: more words held, then the shorter doc. */
 const throughOrder = (a: Through, b: Through): number =>
-  b.held.size - a.held.size ||
-  (a.length === b.length ? 0 : a.length < b.length ? -1 : 1) ||
-  Number(a.row.kind === 'exported') - Number(b.row.kind === 'exported');
+  b.held.size - a.held.size || (a.length === b.length ? 0 : a.length < b.length ? -1 : 1);
 
 /** The bytes of one row's doc, without decoding it; absent when it has none. */
 function rowDocLength(index: SearchIndex, row: DescribedRow): number | undefined {

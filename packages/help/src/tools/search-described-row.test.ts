@@ -15,11 +15,13 @@ import { answerSearch, searchIndexOf } from './search.js';
  * weighed, ordered and shown through one of them, never through several rows'
  * docs added up: the row whose doc adds the most different words to its name's,
  * then the shorter doc, then the order its rows are shown in, and when no doc
- * adds a word, the first row in that order: a published row before an exported
- * one, a published row by the packages importing it, or in an area by the
- * files there importing it, then by its import sites; an exported row source
- * first, then tests, then stories; then the doc's text and the row's path. In an
- * area it is counted, weighed and ordered only through the rows the area holds.
+ * adds a word, the first row in that order, the one the published or exported
+ * section shows first: a published row before an exported one, a published row
+ * in an area by the files there importing it, then by its import sites there,
+ * then by the packages importing it, then by its import sites; an exported row
+ * source first, then tests, then stories; then the doc's text and the row's
+ * path. In an area it is counted, weighed and ordered only through the rows the
+ * area holds.
  */
 
 const before = process.env['VARIANCE_AUTHORITY_CACHE'];
@@ -322,25 +324,29 @@ describe('which row a described name is weighed, ordered and shown through', () 
     expect(reached?.through).toEqual({ kind: 'published', row: shownRow });
   });
 
-  it('shows a name in an area no doc adds a word to through the row the area uses most, whatever is imported outside it', async () => {
-    // `app` imports `PlacementKit` from `a-kit` and from `b-kit` once each; `far`, outside the area, imports `b-kit`'s too.
-    const shown = async (far: boolean): Promise<unknown> => {
+  it('shows a name in an area no doc adds a word to through the row more files there import, however many import another outside it', async () => {
+    // `app/src/index.ts` imports `PlacementKit` from both kits and `more.ts`, which it imports, from `b-kit` again;
+    // `far` and `wide`, outside the area, import `a-kit`'s, whose doc sorts first.
+    const shown = async (outside: readonly string[]): Promise<unknown> => {
       const kit = (name: string, doc: string): Record<string, string> => ({ 'index.ts': `/** ${doc} */\nexport interface ${name} {\n  readonly at: string;\n}\n` });
       const root = await kits({
-        'a-kit': kit('PlacementKit', 'The placement kit.'),
-        'b-kit': kit('PlacementKit', 'A kit for one placement.'),
-        'c-kit': kit('KitPlacement', 'The placement kit.'),
-        'app': { 'index.ts': "import type { PlacementKit } from 'a-kit';\nimport type { PlacementKit as Kit } from 'b-kit';\nimport type { KitPlacement } from 'c-kit';\nexport type Used = PlacementKit | Kit | KitPlacement;\n" },
-        ...(far ? { far: { 'index.ts': "import type { PlacementKit } from 'b-kit';\nexport type Far = PlacementKit;\n" } } : {}),
-      }, { app: ['a-kit', 'b-kit', 'c-kit'], far: ['b-kit'] });
-      const files = ['a-kit', 'b-kit', 'c-kit'].map((name) => `packages/${name}/src/index.ts`);
-      const tree = treeOf([{ file: APP, edges: files.map((to) => ({ to, kind: 'imports' as const })) }, ...files.map((file) => ({ file }))], root);
+        'a-kit': kit('PlacementKit', 'A kit for one placement.'),
+        'b-kit': kit('PlacementKit', 'The placement kit.'),
+        'app': {
+          'index.ts': "import type { PlacementKit } from 'a-kit';\nimport type { PlacementKit as Kit } from 'b-kit';\nimport type { More } from './more.js';\nexport type Used = PlacementKit | Kit | More;\n",
+          'more.ts': "import type { PlacementKit } from 'b-kit';\nexport type More = PlacementKit;\n",
+        },
+        ...Object.fromEntries(outside.map((name) => [name, { 'index.ts': "import type { PlacementKit } from 'a-kit';\nexport type Far = PlacementKit;\n" }])),
+      }, { app: ['a-kit', 'b-kit'], ...Object.fromEntries(outside.map((name) => [name, ['a-kit']])) });
+      const [one, two, more] = ['packages/a-kit/src/index.ts', 'packages/b-kit/src/index.ts', 'packages/app/src/more.ts'];
+      const edges = (...to: string[]) => to.map((file) => ({ to: file, kind: 'imports' as const }));
+      const tree = treeOf([{ file: APP, edges: edges(one, two, more) }, { file: more, edges: edges(two) }, { file: one }, { file: two }], root);
       return searchNames(searchIndexOf(readHelp(root)), { query: 'placement kit zebra', from: APP }, tree).described?.shown.map((one) =>
         [one.name, 'specifier' in one ? one.specifier : one.at, 'summary' in one ? one.summary : undefined]);
     };
-    const alone = await shown(false);
-    expect(alone).toEqual(await shown(true));
-    expect(alone).toEqual([['KitPlacement', 'c-kit', 'The placement kit.'], ['PlacementKit', 'b-kit', 'A kit for one placement.']]);
+    const alone = await shown([]);
+    expect(alone).toEqual(await shown(['far', 'wide']));
+    expect(alone).toEqual([['PlacementKit', 'b-kit', 'The placement kit.']]);
   });
 
   it('shows a name in an area no doc adds a word to through the same exported row there whatever its files are called', async () => {
