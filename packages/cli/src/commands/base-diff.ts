@@ -1,4 +1,4 @@
-// compass: variance-authority/runtime/attention
+// compass: variance-authority.reach.crossings
 /**
  * The diff a base is compared through.
  *
