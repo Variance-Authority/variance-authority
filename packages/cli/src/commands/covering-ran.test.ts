@@ -209,7 +209,7 @@ describe('a covering answer says when the test files it names last ran, and over
     const landed = iso(now - 6 * MINUTE);
     const { at } = await checkout({
       recordedAt: null,
-      runs: () => ({ first: landed, latest: landed, runs: 1, files: ['src/pay.test.ts'], landings: [{ files: ['src/pay.test.ts'], first: landed, latest: landed, runs: 1 }] }),
+      runs: () => ({ latest: landed, runs: 1, landings: [{ files: ['src/pay.test.ts'], first: landed, latest: landed, runs: 1 }] }),
     });
     const held = await ask(at, '--file', 'src/pay.ts');
     await writeFile(join(at, 'src/pay.ts'), PAY.replace('return amount;', 'return amount + 0;'));

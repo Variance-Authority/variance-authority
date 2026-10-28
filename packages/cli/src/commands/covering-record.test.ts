@@ -97,7 +97,7 @@ describe('a covering answer says where the record\'s line numbers stand in the a
     const { at } = await checkout({
       row: 'loaded',
       recordedAt: null,
-      runs: () => ({ first: landed, latest: landed, runs: 1, files: ['src/pay.test.ts'], landings: [{ files: ['src/pay.test.ts'], first: landed, latest: landed, runs: 1 }] }),
+      runs: () => ({ latest: landed, runs: 1, landings: [{ files: ['src/pay.test.ts'], first: landed, latest: landed, runs: 1 }] }),
     });
     const { text, json } = await ask(at, '--file', 'src/pay.ts');
 

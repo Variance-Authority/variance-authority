@@ -219,8 +219,9 @@ describe('a review of what a change did, after the run that recorded it', () => 
     const answer = await review(parse(['--root', root]));
 
     expect(answer).toMatchObject({ from: first, base: 'recording', runs: { runs: 2 } });
-    // Where each other test last ran is `test:since`'s reading, not the review's.
-    expect(answer.runs).not.toHaveProperty('standing');
+    // Where each other test last ran is `test:since`'s reading, not the review's; a record
+    // written before landings says which files its runs finished as one landing of them.
+    expect(answer.runs).toEqual({ over: first, latest: '2026-09-26T00:00:00.000Z', runs: 2, files: ['test/total.test.ts'] });
     expect(formatReview(answer, 'text')).toContain('the commit the recording was at before these runs. 2 runs recorded 1 test file.');
     const select = `\`variance select --since ${first.slice(0, 12)}\``;
     // The runs record names no commit of its own, so the comment names none either.
@@ -261,7 +262,9 @@ describe('a review of what a change did, after the run that recorded it', () => 
 
     const answer = await review(parse(['--root', root]));
 
-    expect(answer).toMatchObject({ from: first, base: 'recording', runs: { commit: first, over: first, runs: 1 } });
+    expect(answer).toMatchObject({ from: first, base: 'recording', runs: { commit: first, over: first, runs: 1, files: ['test/total.test.ts'] } });
+    // The files are what its landings finished, and the landings themselves are the record's.
+    expect(Object.keys(answer.runs!).sort()).toEqual(['commit', 'files', 'installed', 'latest', 'over', 'runs']);
     // From the commit it stands at, the change is the working tree's.
     expect(formatReview(answer, 'text')).toContain('2 changed regions in 1 file');
   });

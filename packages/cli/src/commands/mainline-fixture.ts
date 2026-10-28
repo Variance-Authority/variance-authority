@@ -285,7 +285,7 @@ export async function recordIn(
  */
 export async function ranWhole(record: string, commit: string): Promise<void> {
   const at = '2026-01-01T00:00:00.000Z';
-  const runs = { commit, first: at, latest: at, runs: 1, files: ['test/other.test.ts', 'test/total.test.ts'], standing: [] };
+  const runs = { commit, latest: at, runs: 1, landings: [{ files: ['test/other.test.ts', 'test/total.test.ts'], first: at, latest: at, runs: 1 }], standing: [] };
   await writeFile(commitRunsFile(record), `${JSON.stringify(runs, null, 2)}\n`);
 }
 
@@ -349,8 +349,9 @@ export async function ranHere(dir: string, at: string): Promise<void> {
     }],
   });
   await keepCases(record, casesOf([DISCOUNTS, ROUNDS]));
+  const landed = '2026-09-26T00:00:00.000Z';
   await writeFile(commitRunsFile(record), JSON.stringify({
-    commit: at, first: '2026-09-26T00:00:00.000Z', latest: '2026-09-26T00:00:00.000Z', runs: 1, files: ['test/total.test.ts'],
+    commit: at, latest: landed, runs: 1, landings: [{ files: ['test/total.test.ts'], first: landed, latest: landed, runs: 1 }],
   }));
   // What the pipeline's `variance index` step publishes after the run; under CI, review refuses to build it itself.
   await updateSourceIndex(dir);

@@ -16,6 +16,7 @@ import {
   recordedEyesAt,
   seedTestCoverage,
   testCoverageFile,
+  whatLanded,
   withCaseSections,
   writeTestCoverage,
   type TestCoverage,
@@ -209,12 +210,13 @@ describe('the milestone under a checkout', () => {
     // `other` reads the new milestone's row; `total` keeps its own, which entered nothing.
     expect(crossers(await readTestCoverage(own))).toEqual(['test/other.test.ts']);
     // `other` stands where the publishing run ran it, when that run landed.
-    expect(await readCommitRuns(own)).toMatchObject({
+    const runs = await readCommitRuns(own);
+    expect(runs).toMatchObject({
       commit: next,
       over: next,
-      files: ['test/total.test.ts'],
       standing: [{ commit: next, files: ['test/other.test.ts'], first: '2026-01-01T00:00:00.000Z', latest: '2026-01-01T00:00:00.000Z', runs: 1 }],
     });
+    expect(whatLanded(runs!.landings).files).toEqual(['test/total.test.ts']);
   });
 
   it('answers a test file standing at the new milestone over the text the publishing run ran it over, when that run landed', async () => {
@@ -223,9 +225,9 @@ describe('the milestone under a checkout', () => {
     // CI ran both test files over an uncommitted text of `src/total.ts`, which its landing kept the digest of,
     // and `discounts` entered `applyDiscount` there.
     const next = await publishedNext(ci, async (record) => {
-      const runs = JSON.parse(await readFile(commitRunsFile(record), 'utf8')) as { first: string; latest: string; files: string[] };
+      const runs = JSON.parse(await readFile(commitRunsFile(record), 'utf8')) as { landings: Record<string, unknown>[] };
       const texts = { 'src/total.ts': digestString(`${BEFORE}// on CI\n`) };
-      await writeFile(commitRunsFile(record), JSON.stringify({ ...runs, landings: [{ files: runs.files, first: runs.first, latest: runs.latest, runs: 1, texts }] }));
+      await writeFile(commitRunsFile(record), JSON.stringify({ ...runs, landings: runs.landings.map((landing) => ({ ...landing, texts })) }));
       const block = { kind: 'function', name: 'applyDiscount', path: 'applyDiscount', startLine: 1, endLine: 3, source: true, crossings: [{ test: 0, distance: 0 }] };
       await writeFile(record, withCaseSections(await readFile(record), {
         index: encodeAsSetExecutionIndex({ tests: [DISCOUNTS], modules: [{ file: 'src/total.ts', blocks: [block] }] }),
@@ -254,15 +256,17 @@ describe('the milestone under a checkout', () => {
     await landRun(own, ranAlone(next, 'test/total.test.ts'), worktree);
     // A crash left the record naming the old commit, with an install measured against it.
     const runs = commitRunsFile(own);
-    const held = JSON.parse(await readFile(runs, 'utf8')) as Record<string, unknown>;
-    await writeFile(runs, JSON.stringify({ ...held, commit: first, installed: { 'package-lock.json': digestString('measured at the old commit') } }));
+    const held = JSON.parse(await readFile(runs, 'utf8')) as { landings: Record<string, unknown>[] };
+    const installed = { 'package-lock.json': digestString('measured at the old commit') };
+    await writeFile(runs, JSON.stringify({ ...held, commit: first, landings: held.landings.map((landing) => ({ ...landing, installed })) }));
     await refetch(worktree, next);
 
     expect(await suiteBase(worktree, { env: LOCAL })).toMatchObject({ repin: { repinned: true } });
 
     const repinned = await readCommitRuns(own);
     expect(repinned).toMatchObject({ commit: next });
-    expect(repinned).not.toHaveProperty('installed');
+    expect(repinned!.landings.length).toBeGreaterThan(0);
+    expect(repinned!.landings.filter((landing) => landing.installed !== undefined)).toEqual([]);
   });
 
   it('keeps the install a standing test ran on when it moves to a newer snapshot', async () => {

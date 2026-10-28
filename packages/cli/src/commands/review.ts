@@ -25,12 +25,14 @@ import {
   changedLines,
   readCommitRuns,
   readJourneyChange,
+  whatLanded,
   type CasePrecondition,
   type CommitRuns,
   type ExecutionIndex,
   type FileReading,
   type LineRange,
   type Misuse,
+  type WhatLanded,
 } from '@variance-authority/sense/test-selection';
 import { affectedBy, type EdgeKind } from '@variance-authority/core/relate';
 import { OperatorError } from '../exit.js';
@@ -214,8 +216,8 @@ export interface Review {
     /** Why the cases it published were not compared with, when it published cases that do not read. */
     readonly casesUnread?: string;
   };
-  /** The runs recorded at this commit, when they listed themselves, less `test:since`'s `standing`. */
-  readonly runs?: Omit<CommitRuns, 'standing'>;
+  /** The runs recorded at this commit, when they listed themselves. */
+  readonly runs?: ReviewRuns;
   readonly files: readonly ReviewFile[];
   /** The packages holding changed functions, by directory. Absent when no changed function was located. */
   readonly changedPackages?: readonly ChangedPackage[];
@@ -232,6 +234,9 @@ export interface Review {
   /** Why no case is said to have moved, when the runs record could not be read and `--since` named the base. */
   readonly runsUnread?: string;
 }
+
+/** The runs at this commit as a review reports them: where and when they ran, how many, and what their landings say together. */
+export interface ReviewRuns extends Pick<CommitRuns, 'commit' | 'over' | 'latest' | 'runs'>, WhatLanded {}
 
 /** `motion: false` leaves out the cases moved against the base, for a reading made before CI that reports none. */
 export async function review(request: ParsedReview, { motion: moves = true } = {}): Promise<Review> {
@@ -358,7 +363,7 @@ export async function review(request: ParsedReview, { motion: moves = true } = {
     record,
     base: request.since !== undefined ? 'since' : mainline === undefined ? 'recording' : 'mainline',
     ...(mainline === undefined ? {} : { mainline: mainlineOf(mainline) }),
-    ...(runs === undefined ? {} : { runs: Object.fromEntries(Object.entries(runs).filter(([key]) => key !== 'standing')) as Omit<CommitRuns, 'standing'> }),
+    ...(runs === undefined ? {} : { runs: reviewRuns(runs) }),
     files,
     ...(changedPackages.length === 0 ? {} : { changedPackages }),
     ...(suite === undefined ? {} : {
@@ -371,6 +376,11 @@ export async function review(request: ParsedReview, { motion: moves = true } = {
     ...(gap === undefined ? {} : { probes: probesNote(gap) }),
     ...(unread === undefined ? {} : { runsUnread: runsUnreadNote(unread, against !== undefined) }),
   };
+}
+
+/** `runs` as a review reports it: no `standing`, and its landings as what they say together. */
+function reviewRuns({ standing: _standing, landings, ...runs }: CommitRuns): ReviewRuns {
+  return { ...runs, ...whatLanded(landings) };
 }
 
 /** What an unreadable runs record leaves open beside an answer from a named base. */

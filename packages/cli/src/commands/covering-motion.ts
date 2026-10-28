@@ -11,20 +11,7 @@
  * the edit you just ran.
  */
 
-import {
-  anyStopped,
-  caseMotion,
-  caseSectionsAt,
-  decodeExecutionIndex,
-  lastCaseRunOf,
-  recordedCommit,
-  type CaseMotion,
-  type CommitRuns,
-  type ExecutionIndex,
-  type ExecutionTest,
-  type LastCaseRun,
-  type MovedRegion,
-} from '@variance-authority/sense/test-selection';
+import { anyStopped, caseMotion, caseSectionsAt, decodeExecutionIndex, lastCaseRunOf, recordedCommit, whatLanded, type CaseMotion, type CommitRuns, type ExecutionIndex, type ExecutionTest, type LastCaseRun, type MovedRegion } from '@variance-authority/sense/test-selection';
 import { OperatorError } from '../exit.js';
 import type { ParsedCovering } from '../covering-args.js';
 import { keepCases, type CoveringScope } from './covering-scope.js';
@@ -114,18 +101,19 @@ export type RunsWrote =
   }
   | { readonly lastRunUnread: string };
 
-export async function runsWrote(from: string, runs: CommitRuns): Promise<RunsWrote> {
+export async function runsWrote(from: string, runs: Pick<CommitRuns, 'commit' | 'landings'>): Promise<RunsWrote> {
   const last = lastRun(from);
   if (last === 'unreadable') return { lastRunUnread: from };
-  if (last === undefined) return { compared: new Set(runs.files) };
-  if (last.commit === undefined || last.commit !== runs.commit) return { compared: new Set(), unwritten: [...runs.files] };
+  const { files } = whatLanded(runs.landings);
+  if (last === undefined) return { compared: new Set(files) };
+  if (last.commit === undefined || last.commit !== runs.commit) return { compared: new Set(), unwritten: [...files] };
   const written = new Set(last.files);
   const unbased = new Set(last.unbased ?? []);
   const compared = new Set(last.files.filter((test) => !unbased.has(test)));
   return {
     compared,
     ...(last.before === undefined ? {} : { at: last.before }),
-    unwritten: runs.files.filter((test) => !written.has(test)),
+    unwritten: files.filter((test) => !written.has(test)),
     ...(unbased.size === 0 ? {} : { unbased: [...unbased] }),
   };
 }

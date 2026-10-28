@@ -24,7 +24,7 @@ describe('a covering answer places the asked region across two texts once per pa
     const { at } = await checkout({
       fee: true,
       runs: (_, recorded) => ({
-        commit: recorded, first: iso(now - 2 * HOUR), latest: iso(now - 6 * MINUTE), runs: 2, files: ['src/fee.test.ts', 'src/pay.test.ts'],
+        commit: recorded, latest: iso(now - 6 * MINUTE), runs: 2,
         landings: [landing('src/pay.test.ts', iso(now - 2 * HOUR)), landing('src/fee.test.ts', iso(now - 6 * MINUTE))],
       }),
     });

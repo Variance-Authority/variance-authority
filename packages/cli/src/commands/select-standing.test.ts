@@ -146,10 +146,10 @@ describe('a test that did not run at the journal commit', () => {
     await landRun(repo.file, run(repo.root, P, [...NAMES, 'gone']), repo.root);
     rmSync(join(repo.root, 'test/gone.test.ts'));
     const H = repo.commit(sources(2, NAMES), 'H');
-    const atP = (await readCommitRuns(repo.file))!;
+    const [atP] = (await readCommitRuns(repo.file))!.landings;
     await landRun(repo.file, run(repo.root, H, NAMES), repo.root);
     expect((await readCommitRuns(repo.file))?.standing).toEqual([
-      { commit: P, files: ['test/gone.test.ts'], installed: {}, texts: {}, first: atP.first, latest: atP.latest, runs: atP.runs },
+      { commit: P, files: ['test/gone.test.ts'], installed: {}, texts: {}, first: atP!.first, latest: atP!.latest, runs: atP!.runs },
     ]);
 
     const said = await repo.select();
@@ -232,10 +232,10 @@ describe('a test that did not run at the journal commit', () => {
     await landRun(repo.file, run(repo.root, S, ['far']), repo.root);
     repo.git('checkout', '--quiet', 'main');
     const H = repo.commit({ 'notes.txt': 'unrelated\n' }, 'H');
-    const atS = (await readCommitRuns(repo.file))!;
+    const [atS] = (await readCommitRuns(repo.file))!.landings;
     await landRun(repo.file, run(repo.root, H, ['near']), repo.root);
     expect((await readCommitRuns(repo.file))?.standing).toEqual([
-      { commit: S, files: ['test/far.test.ts'], installed: {}, texts: {}, first: atS.first, latest: atS.latest, runs: atS.runs },
+      { commit: S, files: ['test/far.test.ts'], installed: {}, texts: {}, first: atS!.first, latest: atS!.latest, runs: atS!.runs },
     ]);
     expect(repo.git('merge-base', S, H)).toBe(P);
 
@@ -250,7 +250,7 @@ describe('a test that did not run at the journal commit', () => {
     const gone = 'e'.repeat(40);
     const runs = (await readCommitRuns(file))!;
     const standing = [{ commit: P, files: ['test/far.test.ts'] }, { commit: gone, files: ['test/near.test.ts'] }];
-    writeFileSync(commitRunsFile(file), `${JSON.stringify({ ...runs, files: [], landings: [], standing }, null, 2)}\n`);
+    writeFileSync(commitRunsFile(file), `${JSON.stringify({ ...runs, landings: [], standing }, null, 2)}\n`);
 
     const said = await selectOutput({ cwd: root, format: 'plain' });
 
@@ -345,7 +345,7 @@ describe('a test that did not run at the journal commit', () => {
     expect(JSON.parse(readFileSync(commitRunsFile(repo.file), 'utf8'))).toMatchObject({
       commit: H,
       over: P,
-      files: ['test/near.test.ts'],
+      landings: [{ files: ['test/near.test.ts'] }],
       standing: [{ commit: P, files: ['test/far.test.ts'] }],
     });
     process.chdir(repo.root);

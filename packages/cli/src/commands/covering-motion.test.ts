@@ -9,7 +9,6 @@ import { flagsFor, synopsisFor } from '../usage.js';
 import {
   encodeExecutionIndex,
   writeTestCoverage,
-  type CommitRuns,
   type ExecutionBlock,
   type ExecutionIndex,
 } from '@variance-authority/sense/test-selection';
@@ -248,7 +247,7 @@ describe('what the runs at one commit moved', () => {
       ] },
     });
 
-    const wrote = await runsWrote(execution, { commit: 'c', files: ['flow.test.tsx', 'total.test.ts'] } as CommitRuns);
+    const wrote = await runsWrote(execution, { commit: 'c', landings: [{ files: ['flow.test.tsx', 'total.test.ts'] }] });
     const motion = await motionOfRuns(full, execution, wrote, root);
 
     expect(motion.moved?.regions).toEqual([]);
@@ -273,7 +272,7 @@ describe('what the runs at one commit moved', () => {
       ] },
     });
 
-    const wrote = await runsWrote(execution, { commit: first, files: ['total.test.ts'] } as CommitRuns);
+    const wrote = await runsWrote(execution, { commit: first, landings: [{ files: ['total.test.ts'] }] });
     const motion = await motionOfRuns(full, execution, wrote, root);
 
     expect(motion.moved?.regions.map((region) => [region.name, region.motion])).toEqual([['round', 'thinned']]);

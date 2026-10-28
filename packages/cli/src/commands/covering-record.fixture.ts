@@ -27,7 +27,7 @@ export const unplaced = (commit: string | undefined): string =>
   `no runs record lies beside the snapshot, so every test is read as though it last ran at ${sha(commit)}`;
 /** A runs record's fields for one run that landed `at` and finished `files` over `texts`, the commit's own unless named. */
 export const oneRun = (at: string, files: readonly string[], texts: Record<string, string> = {}) =>
-  ({ first: at, latest: at, runs: 1, files, landings: [{ files, first: at, latest: at, runs: 1, texts }] });
+  ({ latest: at, runs: 1, landings: [{ files, first: at, latest: at, runs: 1, texts }] });
 /** What a covering answer says of a test file the record could not place. */
 export const ASSUMED = 'The record does not say where the test file named here last ran, so where it ran is assumed, not observed.\n';
 
