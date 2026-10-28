@@ -86,9 +86,10 @@ computed name, a module the runtime loads by itself.
 
 Mocking is normal, so a closed world is silent on it. Every way a runner lets a
 test stand a module in — a mapper entry, a `__mocks__` file beside the module or
-under the root, automock, a factory, `requireActual` and `importOriginal`,
-`resetModules` and `isolateModules` — is a load some specifier asked for, and
-none of them is a breach. A breach reported on one is a defect in Variance, not
+under the root, automock, a factory, `requireActual` and `importOriginal` by a
+literal name, `resetModules` and `isolateModules` — is a load some specifier in
+the source asked for, and none of them is a breach. A `requireActual` by a
+computed name is a dynamic import by another spelling, and breaches as one. A breach reported on one is a defect in Variance, not
 in the suite, and is fixed here; the suite is never asked to declare itself
 `open` to get past it.
 
@@ -96,7 +97,10 @@ in the suite, and is fixed here; the suite is never asked to declare itself
 `relations` says whether the graph steps may run at all. `world` says whether
 absence from the record is evidence. A unit suite is `closed` with relations
 on. A suite that drives a deployed app sets `relations: false`, names the app
-in `before` as spec 0091 has it, and is `open`.
+in `before` as spec 0091 has it, and is `open`. A suite with `relations: false`
+has no walk, so the first inclusion has nothing to hold the record against
+whatever its world: its check is skipped and named, never reported green, and a
+closed world there holds only the second.
 
 ## A closed world enforces the funnel
 
@@ -181,6 +185,8 @@ coverage alone it is a lower bound.
 - The test that keeps a test the record holds and the graph does not, at
   `file`, is amended to expect a safety violation in a closed world and a named
   growth in an open one, and fails first.
+- A closed suite with `relations: false` reports the reach check skipped and
+  still fails a file-use breach.
 - A record carries whether its file use was recorded or inferred, and the file-
   use check reports itself skipped where it was inferred.
 
