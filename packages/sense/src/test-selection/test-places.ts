@@ -10,8 +10,11 @@ import { landingsOf } from './landings.js';
 
 /** Where one test last ran. */
 export interface TestPlace {
-  /** The commit it last ran at, or the one read instead with `assumed`. */
-  readonly commit: string;
+  /**
+   * The commit it last ran at, or the one read instead with `assumed`. Absent
+   * for a run outside a checkout, which only a snapshot naming no commit holds.
+   */
+  readonly commit?: string;
   /** The record could not say where it ran, and `commit` is the fallback. */
   readonly assumed?: true;
   /**
@@ -35,43 +38,60 @@ export interface TestPlace {
   readonly partly?: readonly TestPlace[];
 }
 
+/** The tests to place, under the snapshot at `commit` and the runs record beside it. */
+interface TestsAt<Commit extends string | undefined> {
+  readonly commit: Commit;
+  readonly runs: CommitRuns | undefined;
+  readonly tests: readonly string[];
+}
+
+/** Each test's place, and, in the runs record's words, how the reading fell back where it could not say. */
+interface Places<Place extends TestPlace> {
+  readonly places: Map<string, Place>;
+  readonly assumed: string | undefined;
+}
+
 /**
  * Where each of `tests` last ran, as the runs beside the snapshot at `commit`
- * recorded it.
+ * recorded it. Under a snapshot that names a commit, every place names one.
+ * A snapshot of a run outside a checkout names none, and its places name one
+ * only where its runs started at one (`over`).
  *
  * A test a run at the snapshot's commit finished stands where that run's
  * landing puts it, with its time and texts. Any other stands where `standing`
- * lists it. A later run that ran it in part is named beside its place. Where the record does not say, the reading
- * falls back, and `assumed` is the sentence that says how: a test `standing`
- * lists as assumed is read from where an earlier record assumed it, a test the
- * record does not list is read from `over`, where the runs at the snapshot's
- * commit started, and with no record for this snapshot at all, from the
- * snapshot's commit. Runs recorded at another commit describe some other
- * snapshot and say nothing about this one.
+ * lists it. A later run that ran it in part is named beside its place. Where
+ * the record does not say, the reading falls back, and `assumed` is the
+ * sentence that says how: a test `standing` lists as assumed is read from
+ * where an earlier record assumed it, a test the record does not list is read
+ * from `over`, where the runs at the snapshot's commit started, and with no
+ * record for this snapshot at all, from the snapshot's commit. Runs recorded
+ * at another commit describe some other snapshot and say nothing about this
+ * one.
  */
-export function testPlaces({ commit, runs, tests }: { readonly commit: string; readonly runs: CommitRuns | undefined; readonly tests: readonly string[] }): {
-  readonly places: Map<string, TestPlace>;
-  readonly assumed: string | undefined;
-} {
-  const fallen: TestPlace = { commit, assumed: true };
+export function testPlaces(of: TestsAt<string>): Places<TestPlace & { readonly commit: string }>;
+export function testPlaces(of: TestsAt<string | undefined>): Places<TestPlace>;
+export function testPlaces({ commit, runs, tests }: TestsAt<string | undefined>): Places<TestPlace> {
+  const fallen: TestPlace = { ...(commit === undefined ? {} : { commit }), assumed: true };
   const places = new Map(tests.map((test) => [test, fallen]));
-  const at = commit.slice(0, 12);
-  const everyTest = `so every test is read as though it last ran at ${at}`;
+  const at = commit?.slice(0, 12);
+  const everyTest = `so every test is read as though it last ran ${at === undefined ? 'where the snapshot was recorded' : `at ${at}`}`;
   if (runs === undefined) return { places, assumed: tests.length === 0 ? undefined : `no runs record lies beside the snapshot, ${everyTest}` };
   if (runs.commit !== commit) {
     const whose = runs.commit === undefined ? 'a run outside a checkout' : `${runs.commit.slice(0, 12)}'s`;
-    return { places, assumed: tests.length === 0 ? undefined : `the runs record beside the snapshot is ${whose}, not ${at}'s, ${everyTest}` };
+    const not = at === undefined ? 'and the snapshot names no commit' : `not ${at}'s`;
+    return { places, assumed: tests.length === 0 ? undefined : `the runs record beside the snapshot is ${whose}, ${not}, ${everyTest}` };
   }
   // Each landing and each stand is one place, so a reader that groups by place
   // groups the tests that ran together.
   const listed = new Map<string, TestPlace>();
   const parts = new Map<string, TestPlace[]>();
   const ids = new Map<TestPlace, number>();
-  const place = (stand: Omit<StandingEntry, 'files'>, files: readonly string[]): void => {
+  const place = (stand: Omit<StandingEntry, 'files' | 'commit'> & Pick<TestPlace, 'commit'>, files: readonly string[]): void => {
+    const where = stand.commit === undefined ? {} : { commit: stand.commit };
     const its: TestPlace = stand.assumed === true
-      ? { commit: stand.commit, assumed: true }
+      ? { ...where, assumed: true }
       : {
-          commit: stand.commit,
+          ...where,
           ...(stand.first === undefined || stand.latest === undefined ? {} : { first: stand.first, latest: stand.latest }),
           ...(stand.runs === undefined ? {} : { runs: stand.runs }),
           ...(stand.texts === undefined ? {} : { texts: stand.texts }),
@@ -81,7 +101,7 @@ export function testPlaces({ commit, runs, tests }: { readonly commit: string; r
     for (const file of stand.partly ?? []) parts.set(file, [...(parts.get(file) ?? []), its]);
   };
   for (const entry of runs.standing ?? []) place(entry, entry.files);
-  for (const landing of landingsOf(runs)) place({ ...landing, commit }, landing.files);
+  for (const landing of landingsOf(runs)) place({ ...landing, ...(commit === undefined ? {} : { commit }) }, landing.files);
   // A test placed and run in part since is one place per pair, shared alike.
   const shared = new Map<TestPlace, Map<string, TestPlace>>();
   const withParts = (at: TestPlace, part: readonly TestPlace[] | undefined): TestPlace => {
@@ -93,7 +113,8 @@ export function testPlaces({ commit, runs, tests }: { readonly commit: string; r
     those.set(key, its);
     return its;
   };
-  const fallback: TestPlace = { commit: runs.over ?? commit, assumed: true };
+  const over = runs.over ?? commit;
+  const fallback: TestPlace = { ...(over === undefined ? {} : { commit: over }), assumed: true };
   let unlisted = 0;
   const from = new Set<string>();
   for (const test of tests) {
@@ -101,11 +122,14 @@ export function testPlaces({ commit, runs, tests }: { readonly commit: string; r
     places.set(test, stand);
     if (stand.assumed !== true) continue;
     unlisted += 1;
-    from.add(stand.commit);
+    if (stand.commit !== undefined) from.add(stand.commit);
   }
   if (unlisted === 0) return { places, assumed: undefined };
+  // Only under a snapshot that names no commit, whose runs started at none.
   const where =
-    from.size === 1 && runs.over === undefined && from.has(commit)
+    from.size === 0
+      ? 'where the snapshot was recorded'
+      : from.size === 1 && runs.over === undefined && commit !== undefined && from.has(commit)
       ? `${at}, where the snapshot was recorded`
       : from.size === 1 && runs.over !== undefined && from.has(runs.over)
         ? `${runs.over.slice(0, 12)}, where its runs started`

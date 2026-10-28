@@ -46,4 +46,23 @@ describe('a test is placed where the runs record says it last ran, with the time
     expect(places.get('a.test.ts')).toEqual({ commit: 'X', assumed: true });
     expect(assumed).toBe("the runs record beside the snapshot is H's, not X's, so every test is read as though it last ran at X");
   });
+
+  it('places the test files a run outside a checkout finished by its landing, with its time and at no commit', () => {
+    const at = '2026-01-03T00:00:00.000Z';
+    const outside: CommitRuns = { first: at, latest: at, runs: 1, files: ['a.test.ts'], landings: [{ files: ['a.test.ts'], first: at, latest: at, runs: 1 }] };
+    const { places, assumed } = testPlaces({ commit: undefined, runs: outside, tests: ['a.test.ts', 'b.test.ts'] });
+
+    expect(places.get('a.test.ts')).toEqual({ first: at, latest: at, runs: 1 });
+    expect(places.get('b.test.ts')).toEqual({ assumed: true });
+    expect(assumed).toBe('the runs record beside the snapshot does not say where 1 test(s) last ran, so they are read from where the snapshot was recorded');
+  });
+
+  it('reads every test from where the snapshot was recorded when it names no commit and nothing else says', () => {
+    expect(testPlaces({ commit: undefined, runs: undefined, tests: ['a.test.ts'] })).toEqual({
+      places: new Map([['a.test.ts', { assumed: true }]]),
+      assumed: 'no runs record lies beside the snapshot, so every test is read as though it last ran where the snapshot was recorded',
+    });
+    expect(testPlaces({ commit: undefined, runs, tests: ['a.test.ts'] }).assumed)
+      .toBe("the runs record beside the snapshot is H's, and the snapshot names no commit, so every test is read as though it last ran where the snapshot was recorded");
+  });
 });

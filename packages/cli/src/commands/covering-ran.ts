@@ -50,8 +50,8 @@ export interface Landed {
 
 /** Some of the test files an answer names: where they last ran, when, and over which text. */
 export interface RanStand {
-  /** The commit they last ran at, or the one read instead with `assumed`. */
-  readonly commit: string;
+  /** The commit they last ran at, or the one read instead with `assumed`; absent for a run outside a checkout. */
+  readonly commit?: string;
   /** The runs record does not say where they ran, and `commit` is the fallback. */
   readonly assumed?: true;
   /** In code-unit order. */
@@ -63,7 +63,7 @@ export interface RanStand {
    * it landed when the record holds it: their cases those runs ran are those
    * runs', and the rest are this stand's. Absent when none did.
    */
-  readonly partly?: readonly { readonly commit: string; readonly landed?: Landed }[];
+  readonly partly?: readonly { readonly commit?: string; readonly landed?: Landed }[];
   /**
    * `held` when they ran over the asked text of every asked file, `other`
    * when they ran over another text of the files in `other`. Absent when no
@@ -117,8 +117,9 @@ export interface RanNamed {
 /** What the reading of an answer's freshness is handed. */
 export interface RanQuestion {
   readonly root: string;
-  /** The snapshot and the commit it names; absent for a record that names none. */
+  /** The snapshot the index was read beside, absent for one handed in by path, which is no record of a commit. */
   readonly snapshot: string | undefined;
+  /** The commit the snapshot names, absent for one of a run outside a checkout. */
   readonly at: string | undefined;
   readonly runs: RunsRead;
   /** The asked file's text, from `--text` or disk, under a question about one file; absent when none is held. */
@@ -152,7 +153,7 @@ export async function ranOf(answer: RanNamed, question: RanQuestion): Promise<Co
   if (tests.length === 0) return undefined;
   const as = named === undefined ? {} : { named };
   const { snapshot, at } = question;
-  if (at === undefined || snapshot === undefined) return { tests, unread: 'the record names no commit', ...as };
+  if (snapshot === undefined) return { tests, unread: 'the record names no commit', ...as };
   const read = await question.runs();
   if (read.unread !== undefined) return { tests, unread: read.unread.message, ...as };
   const { places, assumed } = testPlaces({ commit: at, runs: read.runs, tests });
@@ -165,7 +166,7 @@ export async function ranOf(answer: RanNamed, question: RanQuestion): Promise<Co
   }
   const region = regionOf(answer, question);
   const evidence = answer.preconditionOf === undefined && held.size > 0
-    ? await evidenceOf([...byPlace.keys()].flatMap(runsOf), held, { ...question, at, snapshot, repository: read.repository, region: region !== undefined })
+    ? await evidenceOf([...byPlace.keys()].flatMap(runsOf), held, { ...question, snapshot, repository: read.repository, region: region !== undefined })
     : undefined;
   const stands = [...byPlace].flatMap(([place, group]): RanStand[] => {
     const where = standOf(place, group);
@@ -180,12 +181,16 @@ export async function ranOf(answer: RanNamed, question: RanQuestion): Promise<Co
 /** Where and when `group` last ran, as `place` says. */
 function standOf(place: TestPlace, group: readonly string[]): RanStand {
   return {
-    commit: place.commit,
+    ...commitOf(place),
     ...(place.assumed === true ? { assumed: true as const } : {}),
     tests: group,
     ...landedOf(place),
-    ...(place.partly === undefined ? {} : { partly: place.partly.map((part) => ({ commit: part.commit, ...landedOf(part) })) }),
+    ...(place.partly === undefined ? {} : { partly: place.partly.map((part) => ({ ...commitOf(part), ...landedOf(part) })) }),
   };
+}
+
+function commitOf(place: TestPlace): { readonly commit?: string } {
+  return place.commit === undefined ? {} : { commit: place.commit };
 }
 
 function landedOf(place: TestPlace): { readonly landed?: Landed } {
@@ -247,12 +252,13 @@ interface Evidence {
 }
 
 /**
- * A place read by assumption at the snapshot's own commit: its test files ran
- * where the snapshot was recorded, and the snapshot's rows are the evidence of
- * which text they ran over.
+ * A place whose test files ran in the run that wrote the snapshot, so the
+ * snapshot's rows are the evidence of which text they ran over: one read by
+ * assumption at the snapshot's own commit, and, under a snapshot that names
+ * no commit, the one landing its runs record keeps, which is that run's.
  */
-function readsTheSnapshot(place: TestPlace, at: string): boolean {
-  return place.assumed === true && place.texts === undefined && place.commit === at;
+function readsTheSnapshot(place: TestPlace, at: string | undefined): boolean {
+  return place.texts === undefined && place.commit === at && (place.assumed === true || at === undefined);
 }
 
 /**
@@ -264,7 +270,7 @@ function readsTheSnapshot(place: TestPlace, at: string): boolean {
 async function evidenceOf(
   places: readonly TestPlace[],
   held: ReadonlyMap<string, string>,
-  question: RanQuestion & { readonly at: string; readonly snapshot: string; readonly repository: string | undefined; readonly region: boolean },
+  question: RanQuestion & { readonly snapshot: string; readonly repository: string | undefined; readonly region: boolean },
 ): Promise<Evidence> {
   const { at, snapshot, repository, root } = question;
   const files = [...held.keys()];
@@ -272,10 +278,11 @@ async function evidenceOf(
   if (repository !== undefined) {
     const under = relative(await realpath(repository), await realpath(root));
     const repoPath = (file: string): string => (under === '' ? file : join(under, file).split(sep).join('/'));
-    const blobs = textsAt(repository, new Map(places.map((place) => [place.commit, files.map(repoPath)])));
-    for (const place of places) {
-      const texts = blobs.get(place.commit);
-      committed.set(place.commit, new Map(files.flatMap((file) => {
+    const commits = [...new Set(places.flatMap((place) => place.commit ?? []))];
+    const blobs = textsAt(repository, new Map(commits.map((commit) => [commit, files.map(repoPath)])));
+    for (const commit of commits) {
+      const texts = blobs.get(commit);
+      committed.set(commit, new Map(files.flatMap((file) => {
         const text = texts?.get(repoPath(file));
         return text === undefined ? [] : [[file, text] as const];
       })));
@@ -312,7 +319,7 @@ async function evidenceOf(
  * file; where some ran over the asked text and some did not, which text its
  * cases ran over is not known.
  */
-function verdictOf(place: TestPlace, held: ReadonlyMap<string, string>, evidence: Evidence, at: string, region: Region): Verdict {
+function verdictOf(place: TestPlace, held: ReadonlyMap<string, string>, evidence: Evidence, at: string | undefined, region: Region): Verdict {
   const other: string[] = [];
   let unknown: string | undefined;
   let regional: RanStand['region'];
@@ -344,7 +351,7 @@ function apart(file: string): string {
 }
 
 /** Whether `place` ran over `text` of `file`, or the text it ran over instead when that is found, or why that is not known. */
-function ranOver(place: TestPlace, file: string, text: string, evidence: Evidence, at: string): 'held' | { readonly text: string | undefined } | { readonly unknown: string } {
+function ranOver(place: TestPlace, file: string, text: string, evidence: Evidence, at: string | undefined): 'held' | { readonly text: string | undefined } | { readonly unknown: string } {
   const digest = digestString(text);
   if (readsTheSnapshot(place, at)) {
     const placement = evidence.placements.get(file);
@@ -354,7 +361,7 @@ function ranOver(place: TestPlace, file: string, text: string, evidence: Evidenc
   if (place.texts === undefined && place.assumed !== true) {
     return { unknown: `the runs record does not say which text of ${file} its runs there ran over` };
   }
-  const committed = evidence.committed.get(place.commit)?.get(file);
+  const committed = place.commit === undefined ? undefined : evidence.committed.get(place.commit)?.get(file);
   const named = place.texts?.[file];
   if (named !== undefined) {
     if (named === digest) return 'held';
@@ -362,9 +369,11 @@ function ranOver(place: TestPlace, file: string, text: string, evidence: Evidenc
   }
   if (committed === undefined) {
     return {
-      unknown: evidence.repository
-        ? `this clone holds no committed text of ${file} where that run stood`
-        : `the checkout is in no git repository, so no committed text of ${file} can be read`,
+      unknown: place.commit === undefined
+        ? `that run stood at no commit, so no committed text of ${file} can be read`
+        : evidence.repository
+          ? `this clone holds no committed text of ${file} where that run stood`
+          : `the checkout is in no git repository, so no committed text of ${file} can be read`,
     };
   }
   return digestString(committed) === digest ? 'held' : { text: committed };

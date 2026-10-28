@@ -182,13 +182,34 @@ describe('a covering answer says when the test files it names last ran, and over
     ].join('\n  '));
   });
 
-  it('says where and when the test file last ran is not known when the record names no commit', async () => {
+  it('dates a record of a run outside a checkout by when it landed, and reads its text from the snapshot it wrote', async () => {
+    const now = Date.now();
+    const landed = iso(now - 6 * MINUTE);
+    const { at } = await checkout({
+      recordedAt: null,
+      runs: () => ({ first: landed, latest: landed, runs: 1, files: ['src/pay.test.ts'], landings: [{ files: ['src/pay.test.ts'], first: landed, latest: landed, runs: 1 }] }),
+    });
+    const held = await ask(at, '--file', 'src/pay.ts');
+    await writeFile(join(at, 'src/pay.ts'), PAY.replace('return amount;', 'return amount + 0;'));
+    const edited = await ask(at, '--file', 'src/pay.ts');
+
+    expect(held.json).not.toHaveProperty('at');
+    expect(held.json['ran']).toEqual({ stands: [{ tests: ['src/pay.test.ts'], landed: { first: landed, latest: landed, runs: 1 }, text: 'held' }] });
+    expect(held.text).toContain('src/pay.ts is the text the test file named here ran over, in a run that landed 6 minutes ago.\n');
+    expect(edited.json['ran']).toMatchObject({ stands: [{ text: 'other', other: ['src/pay.ts'] }] });
+    expect(edited.text).toContain('src/pay.test.ts ran over another text of src/pay.ts, in a run that landed 6 minutes ago.\n');
+  });
+
+  it('reads a record that names no commit, with no runs beside it, as its own run\'s', async () => {
     const { at } = await checkout({ recordedAt: null });
     const { text, json } = await ask(at, '--file', 'src/pay.ts');
 
-    expect(json).toMatchObject({ frame: 'recorded', ran: { tests: ['src/pay.test.ts'], unread: 'the record names no commit' } });
-    expect(json).not.toHaveProperty('at');
-    expect(text).toContain('Where and when the test file named here last ran is not known: the record names no commit.\n');
+    expect(json['ran']).toEqual({
+      stands: [{ assumed: true, tests: ['src/pay.test.ts'], text: 'held' }],
+      assumed: 'no runs record lies beside the snapshot, so every test is read as though it last ran where the snapshot was recorded',
+    });
+    expect(text).toContain(ASSUMED);
+    expect(text).toContain('src/pay.ts is the text the test file named here ran over, at a time the record does not hold.\n');
   });
 
   it('says why when the runs record beside the snapshot cannot be read', async () => {
