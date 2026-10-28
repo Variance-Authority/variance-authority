@@ -52,6 +52,7 @@ export interface ShownCounting {
  * none never opens it.
  */
 export async function countingShown(reading: SearchReading, question: SearchQuestion, tree: Tree | undefined, root: string | undefined): Promise<ShownCounting> {
+  // Named no checkout: `root` adds declared names and other sections, never a published row.
   const opened = showsPublished(searchNames(reading.index, question, tree)) ? await reading.value() : {};
   const unopened = [...(reading.unopened ?? []), ...(opened.unopened === undefined ? [] : [opened.unopened])];
   return {
