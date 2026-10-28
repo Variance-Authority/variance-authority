@@ -186,7 +186,8 @@ in it is a script of ours:
 tsc --build && VARIANCE_AUTHORITY_SINCE= VARIANCE_AUTHORITY_AT_DISTANCE=0-1 npx vitest run
 ```
 
-Under Jest 30 the same two variables go in front of `npx jest`. Give your agent that line as the command it runs after each edit, and tell it
+Under Jest 30 the same two variables go in front of `npx jest`; under Rstest,
+`variance select` with the same range prints the files your script leaves out. Give your agent that line as the command it runs after each edit, and tell it
 to read the verdict before it makes the next one. Each edit ends one of four
 ways:
 
