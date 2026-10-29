@@ -20,10 +20,11 @@ export interface CaseRunFiles {
    * The edit between the text the index's regions of `file` were cut from and
    * the text the run recorded it from, as git's hunks between the two and the
    * selector's reading of them. Held cases land on the regions it left alone,
-   * at the lines it places them; a region it touched keeps them only where the
-   * reading spares its kind ({@link landedThrough}). Absent when `file`'s text on either side
-   * cannot be had: the whole module is then read as changed. A caller that
-   * gives no `edit` knows no texts and reads the two cuts as one text.
+   * at the lines it places them; a region it touched keeps them where the
+   * reading spares its kind, and as overwritten elsewhere ({@link landedThrough}).
+   * Absent when `file`'s text on either side cannot be had: every held case of
+   * the module is then overwritten on every region. A caller that gives no
+   * `edit` knows no texts and reads the two cuts as one text.
    */
   readonly edit?: EditOf;
   /**
