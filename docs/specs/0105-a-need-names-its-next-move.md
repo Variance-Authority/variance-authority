@@ -8,12 +8,15 @@ question" section in four pages of `docs/`, each written apart and none
 checked against the commands. Only `orient`, `packages` and `entrypoint`
 end with a footer of next commands; the rest name one in passing, if at all.
 Nothing tells a need with no command apart from a command no need calls.
-**Built on:** the `variance ask` catalogue and the top-level commands, the
-skill in `packages/cli/skills/variance-authority/`, and the answer object of
-[0104](0104-the-four-code-questions.md).
-**Held by:** a table test over the catalogue, and one acceptance test per row
-that runs the row's command on `ask-acceptance.fixture.ts` and compares the
-printed next moves with the row.
+**Built on:** the `variance ask` catalogue, which reads each question's facts
+off its tool's definition; the top-level command table; the next moves
+`orient`, `packages` and `entrypoint` already build from their reading and
+print through `narrower`; the skill in `packages/cli/skills/variance-authority/`;
+and the answer object of [0104](0104-the-four-code-questions.md).
+**Held by:** the compiler, for a command with no need; a test that every need
+an answer opens is some command's need or a marked gap; a check that the
+generated skill matches its source; a decision test per follow-up builder; and
+one acceptance test, on `ask-acceptance.fixture.ts`, per tracer command.
 
 ## Purpose
 
@@ -28,8 +31,8 @@ So the CLI is a table automaton. A row is keyed by the need, the situation; its
 behaviour is the command, bound to values from the answer before it; its
 impact is the need the answer opens. Three things read the one table:
 
-- **the CLI** ends each answer with its next moves, the row's impact rendered
-  as commands with the answer's own values filled in;
+- **every answer**, on the command line and over MCP alike, ends with its next
+  moves: the row's impact as commands, filled in from the answer's reading;
 - **the skill** is generated from it, so the routing an agent reads is the
   routing the CLI prints;
 - **the tests** hold every need to a row or a marked gap, every command to a
@@ -45,8 +48,8 @@ not what must be.
 
 Each row: the need, the commands that answer it, and the needs its answer
 opens. A need is the row's key: every entry under Opens is the Need of another
-row, word for word, and the test holds that. A move is bound to values the
-answer printed; a move it cannot bind is not printed.
+row, word for word, and the test holds that. A move is filled in from values the
+answer's reading holds; a move it cannot fill is not printed.
 
 ### Before the edit
 
@@ -125,15 +128,15 @@ command's answer as another's input — `ask summary` reads a `run`'s report,
 `accept` takes the shapes a changelog names — that is the input, not an order.
 
 A command whose answer serves no step of a change is still an option, listed
-under the need it does serve:
+under the need it does serve, a row like any other:
 
-| Need | Command |
-|---|---|
-| know which published names have no documentation | `ask gaps` |
-| know what changed since I last asked | `ask diff` |
-| answer over MCP | `serve` |
-| check the setup, or clear the cache | `doctor`, `prune` |
-| deliver a run: a report, a comment, the mainline's record | `report`, `comment`, `push`, `share` |
+| Need | Command | Opens |
+|---|---|---|
+| know which published names have no documentation | `ask gaps` | — |
+| know what changed since I last asked | `ask diff` | — |
+| answer over MCP | `serve` | — |
+| check the setup, or clear the cache | `doctor`, `prune` | — |
+| deliver a run: a report, a comment, the mainline's record | `report`, `comment`, `push`, `share` | — |
 
 ## The gaps
 
@@ -149,13 +152,25 @@ under the need it does serve:
 
 ## What is left
 
-1. The table as data in `packages/cli`, one row per need above.
-2. The test over it: every catalogue command is in a row, every row's command
-   exists, and every entry under Opens is the Need of a row.
-3. Next moves rendered from the row on `symbol`, `uses`, `covering` and
-   `select`, the tracer: one acceptance test each, failing first. Today only
-   `orient`, `packages` and `entrypoint` print a footer of next moves, through
-   `narrower` in `packages/help/src/tools/format.ts`; `symbol` names `uses` in
-   a sentence, which the row's move replaces.
-4. The skill's routing table generated from the rows.
-5. The remaining rows, then the gaps above, each a row of its own.
+The table has no second home: a row is two fields, `need` and `opens`, on the
+definition that already declares the command. The tables above are what those
+fields hold.
+
+1. `need` and `opens` as required fields on each `ask` tool's definition, read
+   by the catalogue the way it reads a tool's name and flags, and on a record
+   beside the top-level command table. A command with no need does not
+   compile.
+2. The test over them: every need under `opens` is some command's need, or a
+   gap marked with `it.todo`.
+3. Next moves on `symbol`, `uses`, `covering` and `select`, the tracer: each
+   tool's follow-up builder turns `opens` into commands filled in from its
+   reading, as `orient`'s `followUps` does today, and `narrower` in
+   `packages/help/src/tools/format.ts` prints them. A decision test per
+   builder, and one acceptance test per command, failing first. `symbol`'s
+   sentence naming `uses` gives way to the move.
+4. The skill's routing table generated from the fields, with a `--write` mode
+   and a check that fails when the committed skill drifts from them. A row keeps
+   the reference file it routes to today; the generated column is the command.
+   The "choose the next question" sections of `docs/` link to the skill's table
+   instead of repeating it.
+5. The remaining commands, then the gaps above, each a need of its own.
