@@ -728,9 +728,10 @@ either, and named in `overwritten`: a line your text holds and the record's
 does not, every line of a region a run in part under `-t` landed an edit
 over, where the cases that ran the region before ran another text, and every
 line of the module when that text is not kept, not committed and not on disk,
-so the run cannot place a region of it in its own. The record
-lost which case ran the line, and a later run that numbers the record in your
-text again does not bring that back. Over the whole file, `--format json` names
+so the run cannot place a region of it in its own. A line that a
+region a case called into also holds is answered with that case instead. The
+record lost which case ran the line, and a later run that numbers the record in
+your text again does not bring that back. Over the whole file, `--format json` names
 those cases under the range's own `overwritten`.
 
 #### How fresh and how actual the answer is

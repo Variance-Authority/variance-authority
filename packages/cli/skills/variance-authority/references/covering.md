@@ -219,9 +219,10 @@ your line, and which one ran it is not known. So is a line of a region a run in
 part landed an edit over: the cases that ran the region before it ran another
 text there, and the record lost which of them ran each line, even once a later
 run numbers its lines in your text again. Every line of
-that region is said so, under `--line`, `--lines`, `--function`, the whole file
-and `--since`, unless a case the answer names entered it; the whole file says
-it of the range, and a range a named case entered says it also holds one.
+that region is said so under `--line`, `--lines` and `--function`, unless a case
+called into a region that holds the line: that case ran it, so the line is not
+in `overwritten`. The whole file says it of the range and `--since` of the
+region, and one a named case entered says it also holds one.
 Neither is *no test covers it*:
 the answer ends with a Record gap naming the test files
 `variance select` runs for the file, under the suite's own `relations`, `ignore` and `before`. A `stale` frame and a `moved` range end the
