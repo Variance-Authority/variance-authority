@@ -25,6 +25,12 @@ interface World {
   logins: number;
   migrations: number;
   r2Enabled: boolean;
+  /** `r2 bucket info` fails on its own, not on the bucket. */
+  r2Unreachable: boolean;
+  /** `gh secret set` refuses. */
+  githubRefuses: boolean;
+  /** `wrangler secret put` refuses. */
+  workerRefuses: boolean;
   accounts: { id: string; name: string }[];
   /** What `secret list` meets: a Worker, none, or a failure of its own. */
   worker: 'deployed' | 'never deployed' | 'unreachable';
@@ -43,6 +49,9 @@ function world(overrides: Partial<World> = {}): World {
     logins: 0,
     migrations: 0,
     r2Enabled: true,
+    r2Unreachable: false,
+    githubRefuses: false,
+    workerRefuses: false,
     accounts: [{ id: 'acc', name: 'Acme' }],
     worker: 'deployed',
     ...overrides,
@@ -64,7 +73,7 @@ function harness(state: World, text = CONFIG, terminal = false) {
       if (!state.authorized) throw new CloudflareError([NOT_AUTHORIZED], 403, 'Authentication error');
       return state.teamDomain;
     },
-    createOrganization: async (_, domain) => (state.teamDomain = domain),
+    createOrganization: async () => (state.teamDomain = 'frosty-moon-7a3b.cloudflareaccess.com'),
     identityProviderTypes: async () => state.providers,
     createOneTimePin: async () => void state.providers.push('onetimepin'),
     apps: async () => state.apps,
@@ -89,6 +98,11 @@ function harness(state: World, text = CONFIG, terminal = false) {
       }
       if (program === 'gh') {
         if (args[1] === 'list') return ok(JSON.stringify([...state.githubSecrets.keys()].map((name) => ({ name }))));
+        if (args[1] === 'delete') {
+          state.githubSecrets.delete(args[2]!);
+          return ok();
+        }
+        if (state.githubRefuses) return { code: 1, stdout: '', stderr: 'HTTP 403' };
         state.githubSecrets.set(args[2]!, options?.input ?? '');
         return ok();
       }
@@ -108,9 +122,13 @@ function harness(state: World, text = CONFIG, terminal = false) {
         state.migrations += 1;
         return ok();
       }
-      if (verb === 'r2' && args[3] === 'list') {
-        if (!state.r2Enabled) return { code: 1, stdout: '', stderr: 'code: 10042' };
-        return ok(state.buckets.map((name) => `name:           ${name}\ncreation_date:  x\n`).join('\n'));
+      if (verb === 'r2' && args[3] === 'info') {
+        if (state.r2Unreachable) return { code: 1, stdout: '', stderr: 'Not logged in.' };
+        if (!state.r2Enabled) return { code: 1, stdout: '', stderr: 'Account not entitled to this feature. [code: 10042]' };
+        if (!state.buckets.includes(args[4]!)) {
+          return { code: 1, stdout: '', stderr: 'The specified bucket does not exist. [code: 10006]' };
+        }
+        return ok(`name:           ${args[4]}\n`);
       }
       if (verb === 'r2' && args[3] === 'create') {
         state.buckets.push(args[4]!);
@@ -124,6 +142,7 @@ function harness(state: World, text = CONFIG, terminal = false) {
         return ok(JSON.stringify([...state.workerSecrets.keys()].map((name) => ({ name, type: 'secret_text' }))));
       }
       if (verb === 'secret' && noun === 'put') {
+        if (state.workerRefuses) return { code: 1, stdout: '', stderr: 'Authentication error [code: 10000]' };
         state.workerSecrets.set(args[3]!, options?.input ?? '');
         return ok();
       }
@@ -153,7 +172,7 @@ describe('provision', () => {
 
     const written = files.get('wrangler.jsonc')!;
     expect(written).toContain('"database_id": "uuid-1"');
-    expect(written).toContain('"ACCESS_TEAM_DOMAIN": "tribunal-example.cloudflareaccess.com"');
+    expect(written).toContain('"ACCESS_TEAM_DOMAIN": "frosty-moon-7a3b.cloudflareaccess.com"');
     expect(written).toContain('"ACCESS_AUD": "aud0"');
     expect(state.providers).toEqual(['onetimepin']);
   });
@@ -273,7 +292,7 @@ describe('provision', () => {
     const state = world({ authorized: false });
     expect(await harness(state).run()).toBe(0);
     expect(state.logins).toBe(1);
-    expect(state.teamDomain).toBe('tribunal-example.cloudflareaccess.com');
+    expect(state.teamDomain).toBe('frosty-moon-7a3b.cloudflareaccess.com');
   });
 
   it("takes the login's only account when the config names none, and writes it", async () => {
@@ -296,5 +315,48 @@ describe('provision', () => {
     expect(await run()).toBe(1);
     expect(said.join('\n')).toContain('https://dash.cloudflare.com/acc/r2');
     expect(state.workerSecrets.size).toBe(0);
+  });
+  it('lets Cloudflare pick the Access team domain, which is unique across accounts', async () => {
+    const state = world();
+    const { run, files } = harness(state);
+    expect(await run()).toBe(0);
+    expect(files.get('wrangler.jsonc')).toContain('"ACCESS_TEAM_DOMAIN": "frosty-moon-7a3b.cloudflareaccess.com"');
+  });
+
+  it('finds the bucket by name, however many buckets the account has', async () => {
+    const state = world({ buckets: [...Array.from({ length: 25 }, (_, index) => `other${index}`), 'bucket'] });
+    expect(await harness(state).run()).toBe(0);
+    expect(state.buckets.filter((name) => name === 'bucket')).toHaveLength(1);
+  });
+
+  it('reports an R2 failure that is not billing as itself', async () => {
+    const state = world({ r2Unreachable: true });
+    const { run, said } = harness(state);
+    await expect(run()).rejects.toThrow('Not logged in.');
+    expect(said.join('\n')).not.toContain('dash.cloudflare.com');
+  });
+
+  it('leaves no half-rotated ingest token for the next run to call provisioned', async () => {
+    const state = world();
+    const { run } = harness(state);
+    await run();
+    state.workerRefuses = true;
+
+    await expect(run(true)).rejects.toThrow(/secret put/);
+    state.workerRefuses = false;
+    await run();
+
+    expect(state.githubSecrets.get('VARIANCE_INGEST_TOKEN')).toBe(state.workerSecrets.get('INGEST_TOKEN'));
+  });
+
+  it('changes neither copy when the repository refuses the ingest token', async () => {
+    const state = world();
+    state.workerSecrets.set('INGEST_TOKEN', 'old');
+    state.githubSecrets.set('VARIANCE_INGEST_TOKEN', 'old');
+    state.githubRefuses = true;
+
+    await expect(harness(state).run(true)).rejects.toThrow(/gh secret set/);
+
+    expect(state.workerSecrets.get('INGEST_TOKEN')).toBe('old');
   });
 });

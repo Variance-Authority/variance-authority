@@ -56,8 +56,10 @@ export function withDatabaseId(text: string, id: string): string {
   return text.replace(entry, `$1${id}$2`);
 }
 
-/** The config with a top-level `account_id`, added after `name`. */
+/** The config with a top-level `account_id`: an empty one filled, a missing one added after `name`. */
 export function withAccountId(text: string, id: string): string {
+  const existing = /("account_id"\s*:\s*)"[^"]*"/;
+  if (existing.test(text)) return text.replace(existing, `$1${JSON.stringify(id)}`);
   const name = /("name"\s*:\s*"[^"]*"\s*,)(\s*)/;
   if (!name.test(text)) throw new Error('the config has no `name` to place `account_id` beside');
   return text.replace(name, (_, entry: string, space: string) => `${entry}${space}"account_id": ${JSON.stringify(id)},${space}`);

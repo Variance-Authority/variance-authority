@@ -56,6 +56,12 @@ describe('withAccountId', () => {
     const none = CONFIG.replace('  "account_id": "acc",\n', '');
     expect(withAccountId(none, 'acc')).toBe(CONFIG);
   });
+
+  it('fills an empty `account_id` in place rather than adding a second', () => {
+    const text = withAccountId(CONFIG.replace('"account_id": "acc"', '"account_id": ""'), 'resolved');
+    expect(readDeployment(text).accountId).toBe('resolved');
+    expect(text.match(/"account_id"/g)).toHaveLength(1);
+  });
 });
 
 describe('withVariable', () => {

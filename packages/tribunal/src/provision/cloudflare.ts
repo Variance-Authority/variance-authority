@@ -65,7 +65,12 @@ export interface Cloudflare {
   workersSubdomain(): Promise<string>;
   /** The organization's team domain, or `undefined` when the account has none. */
   teamDomain(): Promise<string | undefined>;
-  createOrganization(name: string, teamDomain: string): Promise<string>;
+  /**
+   * Makes the organization and answers its team domain. The domain is left to
+   * Cloudflare: it is unique across every account, so one derived from the
+   * Worker's name is taken by the first installation that shares the name.
+   */
+  createOrganization(name: string): Promise<string>;
   identityProviderTypes(): Promise<readonly string[]>;
   createOneTimePin(): Promise<void>;
   apps(): Promise<readonly AccessApp[]>;
@@ -108,9 +113,8 @@ export function cloudflare(token: string, account: string, fetcher: typeof fetch
         throw error;
       }
     },
-    createOrganization: async (name, teamDomain) =>
-      (await call<{ auth_domain: string }>('POST', `${at}/access/organizations`, { name, auth_domain: teamDomain }))
-        .auth_domain,
+    createOrganization: async (name) =>
+      (await call<{ auth_domain: string }>('POST', `${at}/access/organizations`, { name })).auth_domain,
     identityProviderTypes: async () =>
       (await call<readonly { type: string }[]>('GET', `${at}/access/identity_providers`)).map((each) => each.type),
     createOneTimePin: async () => {

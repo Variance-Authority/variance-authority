@@ -49,6 +49,10 @@ export const LOGIN_SCOPES: readonly string[] = [
 export const INGEST_SECRET = 'INGEST_TOKEN';
 /** Cloudflare's code for a Worker the account does not have. */
 const WORKER_NOT_FOUND = 10007;
+/** R2's code for a bucket the account does not have. */
+const BUCKET_NOT_FOUND = 10006;
+/** R2's code for an account with no R2 subscription. */
+const R2_NOT_ENTITLED = 10042;
 
 export const REVIEW_SECRET = 'REVIEW_TOKEN';
 /** The repository secret the `variance` workflow reads. */
@@ -181,9 +185,11 @@ async function database(deployment: Deployment, must: Must, io: Provisioning, pa
 }
 
 async function bucket(deployment: Placed, wrangler: Wrangler, must: Must, io: Provisioning, made: string[]) {
-  // `r2 bucket list` has no JSON mode: a block of `key: value` lines per bucket.
-  const listing = await wrangler(['r2', 'bucket', 'list']);
-  if (listing.code !== 0) {
+  // Asked by name: `r2 bucket list` answers only its first page and says
+  // nothing of the rest.
+  const info = await wrangler(['r2', 'bucket', 'info', deployment.bucket]);
+  if (info.code === 0) return;
+  if (info.stderr.includes(`[code: ${R2_NOT_ENTITLED}]`)) {
     // R2 is off until somebody agrees to a storage plan in the dashboard; no
     // API call can agree for them.
     io.say('R2 is not enabled on this account. Enabling it is agreeing to a storage plan,');
@@ -192,8 +198,9 @@ async function bucket(deployment: Placed, wrangler: Wrangler, must: Must, io: Pr
     io.say('Then run this again. Everything before this step is done.');
     throw new Stop();
   }
-  const names = listing.stdout.split('\n').flatMap((line) => (line.startsWith('name:') ? [line.slice(5).trim()] : []));
-  if (names.includes(deployment.bucket)) return;
+  if (!info.stderr.includes(`[code: ${BUCKET_NOT_FOUND}]`)) {
+    throw new Error(`wrangler r2 bucket info failed:\n${info.stderr || info.stdout}`);
+  }
   await must(['r2', 'bucket', 'create', deployment.bucket]);
   made.push(`R2 bucket ${deployment.bucket}`);
 }
@@ -223,7 +230,7 @@ async function access(
   }
 
   if (teamDomain === undefined) {
-    teamDomain = await cloudflare.createOrganization(deployment.name, `${deployment.name}.cloudflareaccess.com`);
+    teamDomain = await cloudflare.createOrganization(deployment.name);
     made.push(`Access organization ${teamDomain}`);
   }
   if (!(await cloudflare.identityProviderTypes()).includes('onetimepin')) {
@@ -292,14 +299,27 @@ async function secrets(wrangler: Wrangler, must: Must, io: Provisioning, request
   const repository = new Set((JSON.parse(github.stdout) as { name: string }[]).map((each) => each.name));
 
   // Nothing can read a secret back, so a copy missing on either side is a new
-  // token on both.
+  // token on both, and the names present on both sides are the only proof the
+  // copies match. A write that fails halfway therefore leaves a copy missing,
+  // never two different ones: the repository is written first, and taken back
+  // if the Worker refuses, so the next run sees it gone and mints again.
   if (request.rotate || !worker.has(INGEST_SECRET) || !repository.has(REPOSITORY_INGEST_SECRET)) {
     const token = io.mint();
-    await must(['secret', 'put', INGEST_SECRET], { input: token });
     const set = await io.run('gh', ['secret', 'set', REPOSITORY_INGEST_SECRET, '-R', request.repository], {
       input: token,
     });
     if (set.code !== 0) throw new Error(`gh secret set failed:\n${set.stderr}`);
+    const put = await wrangler(['secret', 'put', INGEST_SECRET], { input: token });
+    if (put.code !== 0) {
+      const taken = await io.run('gh', ['secret', 'delete', REPOSITORY_INGEST_SECRET, '-R', request.repository]);
+      throw new Error(
+        `wrangler secret put ${INGEST_SECRET} failed:\n${put.stderr || put.stdout}\n` +
+          (taken.code === 0
+            ? `${REPOSITORY_INGEST_SECRET} was taken back from ${request.repository}; run this again to mint a pair.`
+            : `${REPOSITORY_INGEST_SECRET} in ${request.repository} no longer matches the Worker and could not be ` +
+              `taken back:\n${taken.stderr}\nRun this again with --rotate.`),
+      );
+    }
     made.push(`${INGEST_SECRET} (Worker and ${request.repository})`);
   }
 
