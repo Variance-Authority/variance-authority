@@ -219,12 +219,10 @@ pub(crate) fn fold(mut shards: Vec<Shard>, inventories: HashMap<String, Vec<Inve
         for (mut called, mut overwritten) in called_by_block.into_iter().zip(overwritten_by_block) {
             called.sort_unstable();
             called.dedup();
-            // A case one shard ran over another text and another saw call the
-            // region is named there; the two sets stay disjoint.
-            // FIXME: a case one shard ran and saw miss the region stays
-            // overwritten where another shard carries it so from the record
-            // both were laid over: the index does not say which shard ran it.
-            // That over-includes, and never reads as absence.
+            // A case is one shard's: combine refuses a test file two shards
+            // hold, a stitch's journals flag no case, and the before layers
+            // carry one earlier index alike. An input that names a case both
+            // ways at a region is read by its called set; the two stay disjoint.
             overwritten.retain(|test| called.binary_search(test).is_err());
             overwritten.sort_unstable();
             overwritten.dedup();

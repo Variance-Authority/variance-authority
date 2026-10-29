@@ -234,20 +234,25 @@ fn index(file: &str, runner: &str, regions: u32, lines: Vec<u8>) -> Vec<u8> {
         settled: FINISHED,
         heard: None,
     }];
-    let regions_of = Module {
-        id: "src/a.ts".to_owned(),
-        file: "src/a.ts".to_owned(),
-        blocks: (0..regions)
-            .map(|at| Block { kind: "function".to_owned(), name: format!("f{at}"), path: format!("f{at}"), start_line: at + 1, end_line: at + 1, source: true })
-            .collect(),
-        owners: None,
-    };
+    let regions_of = regions_in(regions);
     let mut sets = SetPool::new(1);
     let called: Vec<u32> = (0..regions).map(|at| if at == 0 { sets.intern(&[0]) } else { sets.intern(&[]) }).collect();
     let loaded = vec![false; regions as usize];
     let modules = [EncodedModule { module: &regions_of, called: &called, loaded: &loaded, overwritten: &[] }];
     let extras = CaseExtras { durations: Vec::new(), lines: if lines.is_empty() { Vec::new() } else { vec![lines] }, ..CaseExtras::default() };
     journey_format::encode(&tests, &extras, &modules, &mut sets, None).unwrap()
+}
+
+/// `src/a.ts` cut into `regions` functions, `f0` first.
+fn regions_in(regions: u32) -> Module {
+    Module {
+        id: "src/a.ts".to_owned(),
+        file: "src/a.ts".to_owned(),
+        blocks: (0..regions)
+            .map(|at| Block { kind: "function".to_owned(), name: format!("f{at}"), path: format!("f{at}"), start_line: at + 1, end_line: at + 1, source: true })
+            .collect(),
+        owners: None,
+    }
 }
 
 fn last(commit: &str, files: &[&str], cases: &[&str]) -> Vec<u8> {
@@ -321,6 +326,28 @@ fn refuses_a_case_file_two_shards_ran_by_both_names_whatever_their_order() {
     for message in [refused(&[&one, &other]), refused(&[&other, &one])] {
         assert!(message.contains("`a.test.ts` has cases in shard-"), "{message}");
         assert!(message.contains("shard-0.bin") && message.contains("shard-1.bin"), "{message}");
+        assert!(message.contains("combine only one of the two"), "{message}");
+    }
+}
+
+#[test]
+fn refuses_a_laid_shard_that_carries_a_case_another_shard_ran_whatever_their_order() {
+    // A shard laid over a record carries the cases it did not run: here
+    // `a.test.ts`'s, flagged at the region its edit wrote over. The shard that
+    // ran that case saw it miss the region, which the fold cannot tell from
+    // the carried flag, so a test file two shards hold is refused before it.
+    let tests: Vec<Test> = ["a.test.ts", "b.test.ts"]
+        .iter()
+        .map(|file| Test { id: format!("{file} > adds"), file: (*file).to_owned(), name: "adds".to_owned(), project: None, runner: Some("1".to_owned()), settled: FINISHED, heard: None })
+        .collect();
+    let regions_of = regions_in(2);
+    let mut sets = SetPool::new(2);
+    let (called, overwritten) = ([sets.intern(&[1]), sets.intern(&[])], [sets.intern(&[]), sets.intern(&[0])]);
+    let modules = [EncodedModule { module: &regions_of, called: &called, loaded: &[false, false], overwritten: &overwritten }];
+    let laid = cases_alone(journey_format::encode(&tests, &CaseExtras::default(), &modules, &mut sets, None).unwrap(), "b.test.ts");
+    let ran = cases_alone(index("a.test.ts", "1", 2, Vec::new()), "a.test.ts");
+    for message in [refused(&[&laid, &ran]), refused(&[&ran, &laid])] {
+        assert!(message.contains("`a.test.ts` has cases in shard-"), "{message}");
         assert!(message.contains("combine only one of the two"), "{message}");
     }
 }
