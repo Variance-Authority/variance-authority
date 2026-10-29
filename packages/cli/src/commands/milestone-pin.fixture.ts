@@ -10,9 +10,8 @@ import { readdir, utimes } from 'node:fs/promises';
 import { join } from 'node:path';
 import { expect } from 'vitest';
 import { declaredSuites, seedTestCoverage, testCoverageFile, writeTestCoverage, type TestCoverage } from '@variance-authority/sense/test-selection';
-import { digestString } from '@variance-authority/core/format';
 import type { Env } from '../share-lines.js';
-import { BEFORE, collectedBoth, DISCOUNTS, git as gitIn, gitPublished, probedModule, PUSH, ranWhole, recordIn } from './mainline-fixture.js';
+import { collectedBoth, git as gitIn, gitPublished, probedModule, PUSH, ranWhole, totalCoverage, totalModule } from './mainline-fixture.js';
 import { mainlineBase } from './mainline-base.js';
 import { suiteBase } from './suite-base.js';
 import { publishSuite } from './suite-share.js';
@@ -46,26 +45,9 @@ export async function publishedNext(home: string, ci: string, sections?: (record
   await git(ci, 'commit', '--quiet', '--allow-empty', '-m', 'next');
   const next = await git(ci, 'rev-parse', 'HEAD');
   await git(ci, 'push', '--quiet', 'origin', 'main');
-  await recordIn(ci, next, ['test/other.test.ts', 'test/total.test.ts'], [DISCOUNTS]);
+  const both = ['test/other.test.ts', 'test/total.test.ts'];
   // A record opened whole, as a run writes one: the module's first block is the module.
-  await writeTestCoverage(testCoverageFile(ci, { suite: 'unit' }), {
-    version: 3,
-    instrumentation: 'fixture',
-    commit: next,
-    tests: [
-      { file: 'test/other.test.ts', complete: true, preconditions: [] },
-      { file: 'test/total.test.ts', complete: true, preconditions: [] },
-    ],
-    modules: [{
-      file: 'src/total.ts',
-      sourceDigest: digestString(BEFORE),
-      instrumented: true,
-      blocks: [{
-        ordinal: 0, kind: 'module', digest: digestString('module'), name: '', path: 'module',
-        startLine: 1, endLine: 3, source: true, testFiles: ['test/other.test.ts', 'test/total.test.ts'],
-      }],
-    }],
-  });
+  await writeTestCoverage(testCoverageFile(ci, { suite: 'unit' }), totalCoverage(next, both, [totalModule(both)]));
   await ranWhole(testCoverageFile(ci, { suite: 'unit' }), next);
   await sections?.(testCoverageFile(ci, { suite: 'unit' }));
   const done = await publishSuite(ci, 'unit', { env: PUSH }, { collected: await collectedBoth(home) });

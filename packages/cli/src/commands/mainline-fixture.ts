@@ -13,6 +13,7 @@ import {
   testCoverageFile,
   withCaseSections,
   writeTestCoverage,
+  type CoverageBlock,
   type ExecutionBlock,
   type ExecutionIndex,
   type TestCoverage,
@@ -253,28 +254,30 @@ export async function recordIn(
 ): Promise<void> {
   const record = testCoverageFile(dir, { suite: 'unit' });
   await mkdir(dirname(record), { recursive: true });
-  await writeTestCoverage(record, {
+  await writeTestCoverage(record, totalCoverage(commit, ['test/total.test.ts', 'test/other.test.ts'], [totalModule(covering), {
+    ordinal: 1, owner: 0, kind: 'function', digest: digestString('applyDiscount'), name: 'applyDiscount', path: 'applyDiscount',
+    startLine: 1, endLine: 3, source: true, testFiles: [...covering],
+  }]));
+  await keepCases(record, casesOf(cases));
+}
+
+/** What a run of `tests`, each whole, records at `commit` over `src/total.ts` as `BEFORE` holds it: `blocks`, the module first. */
+export function totalCoverage(commit: string, tests: readonly string[], blocks: readonly CoverageBlock[]): TestCoverage {
+  return {
     version: 3,
     instrumentation: 'fixture',
     commit,
-    tests: [
-      { file: 'test/total.test.ts', complete: true, preconditions: [] },
-      { file: 'test/other.test.ts', complete: true, preconditions: [] },
-    ],
-    modules: [{
-      file: 'src/total.ts',
-      sourceDigest: digestString(BEFORE),
-      instrumented: true,
-      blocks: [{
-        ordinal: 0, kind: 'module', digest: digestString('module'), name: '', path: 'module',
-        startLine: 1, endLine: 3, source: true, testFiles: [...covering],
-      }, {
-        ordinal: 1, owner: 0, kind: 'function', digest: digestString('applyDiscount'), name: 'applyDiscount', path: 'applyDiscount',
-        startLine: 1, endLine: 3, source: true, testFiles: [...covering],
-      }],
-    }],
-  });
-  await keepCases(record, casesOf(cases));
+    tests: tests.map((file) => ({ file, complete: true, preconditions: [] })),
+    modules: [{ file: 'src/total.ts', sourceDigest: digestString(BEFORE), instrumented: true, blocks: [...blocks] }],
+  };
+}
+
+/** The module block of `src/total.ts`, which the tests in `covering` entered. */
+export function totalModule(covering: readonly string[]): CoverageBlock {
+  return {
+    ordinal: 0, kind: 'module', digest: digestString('module'), name: '', path: 'module',
+    startLine: 1, endLine: 3, source: true, testFiles: [...covering],
+  };
 }
 
 /**
