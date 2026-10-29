@@ -47,10 +47,9 @@ export type RanTests = Pick<TestCoverage, 'instrumentation' | 'commit'> & {
    * The cases of each test file it laid into the case index, by the id the
    * index names them by (`casesRan`): the ones it executed, so a file it
    * executed none of has none. `none` when it kept no cases, so it laid none of
-   * any file's. Absent when its index cannot name them, so which it laid is not
-   * known.
+   * any file's.
    */
-  readonly laid?: ReadonlyMap<string, readonly string[]> | 'none';
+  readonly laid: ReadonlyMap<string, readonly string[]> | 'none';
 };
 
 /** What a run observed: the files it finished, and the ones it ran in part with the cases it laid of them. */
@@ -62,10 +61,10 @@ export interface Observed extends Pick<Landing, 'cases'> {
 /**
  * The files `current` observed, and the ones it ran only in part where the
  * snapshot `prior` already held them, each in code-unit order, with the cases
- * it laid of those where it can name them: none, when it kept no cases. A run
- * that kept cases did not observe a file the snapshot held that it executed no
- * case of. A file the snapshot did not hold has no other cases, so a run
- * observes it either way; with no snapshot, it observes every file it ran.
+ * it laid of those: none, when it kept no cases. A run that kept cases did not
+ * observe a file the snapshot held that it executed no case of. A file the
+ * snapshot did not hold has no other cases, so a run observes it either way;
+ * with no snapshot, it observes every file it ran.
  */
 export function observedBy(prior: RecordedTests | undefined, current: RanTests): Observed {
   const held = prior === undefined ? undefined : new Set(prior.tests.map((test) => test.file));
@@ -74,14 +73,14 @@ export function observedBy(prior: RecordedTests | undefined, current: RanTests):
   const partly = new Set<string>();
   for (const test of current.tests) {
     if (test.complete || held === undefined || !held.has(test.file)) observed.add(test.file);
-    else if (laid === undefined || laid === 'none' || (laid.get(test.file)?.length ?? 0) > 0) partly.add(test.file);
+    else if (laid === 'none' || (laid.get(test.file)?.length ?? 0) > 0) partly.add(test.file);
   }
   for (const file of observed) partly.delete(file);
   const part = [...partly].sort(codeUnitOrder);
   return {
     observed: [...observed].sort(codeUnitOrder),
     partly: part,
-    ...(laid === undefined || part.length === 0 ? {} : { cases: Object.fromEntries(part.map((file) => [file, laid === 'none' ? [] : laid.get(file)!])) }),
+    ...(part.length === 0 ? {} : { cases: Object.fromEntries(part.map((file) => [file, laid === 'none' ? [] : laid.get(file)!])) }),
   };
 }
 

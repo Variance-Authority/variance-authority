@@ -12,12 +12,13 @@ function snapshot(commit: string, ...files: string[]): RecordedTests {
   return { instrumentation: 'fixture', commit, tests: files.map((file) => ({ file })) };
 }
 
-/** A run at `commit`: each file finished unless it is named in `partly`. */
+/** A run at `commit` that kept no cases: each file finished unless it is named in `partly`. */
 function ran(commit: string, files: readonly string[], partly: readonly string[] = []) {
   return {
     instrumentation: 'fixture',
     commit,
     tests: [...files.map((file) => ({ file, complete: true })), ...partly.map((file) => ({ file, complete: false }))],
+    laid: 'none' as const,
   };
 }
 
@@ -57,7 +58,7 @@ describe('a run observes the test files it finished', () => {
     expect(whatLanded(after.landings).files).toEqual(['a.test.ts']);
     expect(after.standing).toEqual([{ commit: 'P', files: ['b.test.ts'], first: DAY1, latest: DAY1, runs: 1, texts: {} }]);
     expect(after.landings).toEqual([
-      { files: ['a.test.ts'], partly: ['b.test.ts'], first: DAY2, latest: DAY2, runs: 1, installed: {}, texts: { 'src/m.ts': 'dirty' } },
+      { files: ['a.test.ts'], partly: ['b.test.ts'], cases: { 'b.test.ts': [] }, first: DAY2, latest: DAY2, runs: 1, installed: {}, texts: { 'src/m.ts': 'dirty' } },
     ]);
   });
 
@@ -78,7 +79,7 @@ describe('a run observes the test files it finished', () => {
     expect(after).not.toHaveProperty('texts');
     expect(after.landings).toEqual([
       { files: ['a.test.ts'], first: DAY1, latest: DAY1, runs: 1, installed: {}, texts: {} },
-      { files: ['b.test.ts'], partly: ['a.test.ts'], first: DAY2, latest: DAY2, runs: 1, installed: {}, texts: { 'src/m.ts': 'dirty' } },
+      { files: ['b.test.ts'], partly: ['a.test.ts'], cases: { 'a.test.ts': [] }, first: DAY2, latest: DAY2, runs: 1, installed: {}, texts: { 'src/m.ts': 'dirty' } },
     ]);
   });
 
@@ -122,7 +123,7 @@ describe('a run observes the cases it executed', () => {
     // Jest with no case directory, Vitest in a page, a driver that asked for no cases: the
     // coverage row says the file ran in part, and the run laid no case into the index.
     const held = record('P', DAY1, ['a.test.ts', 'b.test.ts']);
-    const after = landAt(DAY2, snapshot('P', 'a.test.ts', 'b.test.ts'), held, { ...ran('P', ['a.test.ts'], ['b.test.ts']), laid: 'none' }, {}, {});
+    const after = landAt(DAY2, snapshot('P', 'a.test.ts', 'b.test.ts'), held, ran('P', ['a.test.ts'], ['b.test.ts']), {}, {});
 
     expect(after.landings).toEqual([
       { files: ['b.test.ts'], first: DAY1, latest: DAY1, runs: 1, texts: {} },
@@ -133,16 +134,6 @@ describe('a run observes the cases it executed', () => {
     expect(lastRunsOf(place, 'b.test.ts', [{ id: 'refunds', name: 'refunds' }]).map(({ runs }) => runs.map((run) => run.first))).toEqual([[DAY1]]);
     // Its rows are both runs', so the file is said by both.
     expect(lastRunsOf(place, 'b.test.ts', undefined).map(({ runs }) => runs.map((run) => run.first))).toEqual([[DAY1, DAY2]]);
-  });
-
-  it('does not say which cases of a file it ran in part are its own when its index cannot name them', () => {
-    // A record this build did not write, or an index naming a case it does not place.
-    const held = record('P', DAY1, ['a.test.ts', 'b.test.ts']);
-    const after = landAt(DAY2, snapshot('P', 'a.test.ts', 'b.test.ts'), held, ran('P', ['a.test.ts'], ['b.test.ts']), {}, {});
-
-    expect(after.landings.at(-1)).toEqual({ files: ['a.test.ts'], partly: ['b.test.ts'], first: DAY2, latest: DAY2, runs: 1, installed: {}, texts: {} });
-    const place = testPlaces({ commit: 'P', runs: after, tests: ['b.test.ts'] }).places.get('b.test.ts')!;
-    expect(lastRunsOf(place, 'b.test.ts', [{ id: 'refunds', name: 'refunds' }]).map(({ runs }) => runs.map((run) => run.first))).toEqual([[DAY1, DAY2]]);
   });
 });
 
@@ -165,9 +156,10 @@ describe('each run is its own landing', () => {
 
     expect(places.get('a.test.ts')).toEqual({
       commit: 'P', first: DAY1, latest: DAY1, runs: 1, texts: { 'src/m.ts': 'one' },
-      partly: [{ commit: 'P', first: DAY2, latest: DAY2, runs: 1, texts: { 'src/m.ts': 'two' } }],
+      partly: [{ commit: 'P', first: DAY2, latest: DAY2, runs: 1, texts: { 'src/m.ts': 'two' }, cases: { 'a.test.ts': [] } }],
     });
-    expect(places.get('b.test.ts')).toEqual({ commit: 'P', first: DAY2, latest: DAY2, runs: 1, texts: { 'src/m.ts': 'two' } });
+    // One landing is one place: the file it finished shares it with the one it ran in part.
+    expect(places.get('b.test.ts')).toEqual({ commit: 'P', first: DAY2, latest: DAY2, runs: 1, texts: { 'src/m.ts': 'two' }, cases: { 'a.test.ts': [] } });
   });
 
   it('carries a stand that ran a file in part into the next record, until a run finishes the file', () => {
@@ -177,10 +169,10 @@ describe('each run is its own landing', () => {
 
     expect(three.standing).toEqual([
       { commit: 'P', files: ['b.test.ts'], first: DAY1, latest: DAY1, runs: 1, texts: {} },
-      { commit: 'R', files: [], partly: ['b.test.ts'], first: DAY2, latest: DAY2, runs: 1, texts: {} },
+      { commit: 'R', files: [], partly: ['b.test.ts'], cases: { 'b.test.ts': [] }, first: DAY2, latest: DAY2, runs: 1, texts: {} },
     ]);
     const { places } = testPlaces({ commit: 'S', runs: three, tests: ['b.test.ts'] });
-    expect(places.get('b.test.ts')?.partly).toEqual([{ commit: 'R', first: DAY2, latest: DAY2, runs: 1, texts: {} }]);
+    expect(places.get('b.test.ts')?.partly).toEqual([{ commit: 'R', first: DAY2, latest: DAY2, runs: 1, texts: {}, cases: { 'b.test.ts': [] } }]);
 
     const four = landAt(DAY3, snapshot('S', 'a.test.ts', 'b.test.ts'), three, ran('T', ['b.test.ts']), undefined, {});
     expect(four.standing).toEqual([{ commit: 'S', files: ['a.test.ts'], first: DAY3, latest: DAY3, runs: 1, texts: {} }]);
@@ -198,10 +190,10 @@ describe('each run is its own landing', () => {
     expect(whatLanded(two.landings).files).toEqual(['a.test.ts', 'b.test.ts']);
     expect(two.landings).toEqual([
       { files: ['a.test.ts'], first: DAY1, latest: DAY1, runs: 1, installed: {}, texts: {} },
-      { files: ['b.test.ts'], partly: ['a.test.ts'], first: DAY2, latest: DAY2, runs: 1, installed: {}, texts: {} },
+      { files: ['b.test.ts'], partly: ['a.test.ts'], cases: { 'a.test.ts': [] }, first: DAY2, latest: DAY2, runs: 1, installed: {}, texts: {} },
     ]);
     const { places } = testPlaces({ commit: undefined, runs: two, tests: ['a.test.ts'] });
-    expect(places.get('a.test.ts')).toEqual({ first: DAY1, latest: DAY1, runs: 1, texts: {}, partly: [{ first: DAY2, latest: DAY2, runs: 1, texts: {} }] });
+    expect(places.get('a.test.ts')).toEqual({ first: DAY1, latest: DAY1, runs: 1, texts: {}, partly: [{ first: DAY2, latest: DAY2, runs: 1, texts: {}, cases: { 'a.test.ts': [] } }] });
   });
 
   it('reads a record written before landings as one landing of its envelope, which names no texts', () => {
