@@ -357,7 +357,7 @@ describe('the runs recorded at one commit', () => {
     expect(await landedAt(coverageFile)).toEqual(['a.test.ts']);
   });
 
-  it('reads no retried landing outside a checkout, where neither the snapshot nor the run names a commit', async () => {
+  it('reads no retried landing, and names no texts, outside a checkout, where neither the snapshot nor the run names a commit', async () => {
     const root = await mkdtemp(join(tmpdir(), 'variance-commit-runs-'));
     const coverageFile = join(root, 'coverage.bin');
     await writeTestCoverage(coverageFile, run(undefined, ['a.test.ts']));
@@ -373,7 +373,6 @@ describe('the runs recorded at one commit', () => {
     expect(await landedAt(coverageFile)).toEqual(['b.test.ts']);
     expect(runs).not.toHaveProperty('over');
     expect(runs).not.toHaveProperty('commit');
-    // No commit to read a text against, so the landing names none: a place that names texts stood at a commit.
     expect(runs?.landings?.map((landing) => landing.texts)).toEqual([undefined]);
   });
 
