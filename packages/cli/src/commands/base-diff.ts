@@ -33,15 +33,15 @@ export function unnamedCommit(base: { readonly name: string; readonly unnamed?: 
 
 /**
  * The diff by file from `at`, the commit the base `base` names was recorded at,
- * to the tree at `root`, with that commit. `base` opens each refusal, as a
- * sentence's subject; `unnamed`, when given, says why a base of that kind can
- * name no commit.
+ * to the tree at `root`, with that commit and the checkout it was diffed in.
+ * `base` opens each refusal, as a sentence's subject; `unnamed`, when given,
+ * says why a base of that kind can name no commit.
  */
 export async function diffFromBase(
   at: string | undefined,
   root: string,
   base: { readonly name: string; readonly unnamed?: string },
-): Promise<{ readonly commit: string; readonly diff: ReadonlyMap<string, readonly Hunk[]> }> {
+): Promise<{ readonly commit: string; readonly diff: ReadonlyMap<string, readonly Hunk[]>; readonly repository: string }> {
   const refuse = (why: string): never => {
     throw new OperatorError(`${base.name} ${why}`, { kind: 'undiffed' });
   };
@@ -60,7 +60,7 @@ export async function diffFromBase(
   }
   const diff = await diffSince(at, [], at, { cwd: root, unified: 0 });
   if (diff === undefined) return refuse(`was recorded at ${at}, and git could not read the diff from it to the working tree, so it is not compared.`);
-  return { commit: at, diff: hunksByFile(diff) };
+  return { commit: at, diff: hunksByFile(diff), repository };
 }
 
 /**
@@ -97,20 +97,15 @@ export async function movedOnBase(
 }
 
 /**
- * The stands of the record `read` read: the test files that did not run at its
- * commit, and the files changed since each last ran, so a case the record
+ * The stands of the record `read` read, in `repository`, the checkout
+ * {@link diffFromBase} diffed the base in: the test files that did not run at
+ * its commit, and the files changed since each last ran, so a case the record
  * carried over an edit is not read as gone. A runs record that is there and
  * cannot be read is refused, naming it: read as absent, it would place every
  * test at the record's commit, and a case no test ran would be called no
  * longer run.
  */
-export function carriedOver(read: RecordRuns, root: string): { readonly stands?: readonly Stand[] } {
-  const { record, repository } = read;
-  if (repository === undefined) {
-    throw new OperatorError(`\`${root}\` is not in a git checkout, so where each test in ${record} last ran is not read and nothing is compared.`, {
-      kind: 'undiffed',
-    });
-  }
+export function carriedOver(read: RecordRuns, repository: string): { readonly stands?: readonly Stand[] } {
   if (read.unread !== undefined) {
     throw new OperatorError(
       `${read.unread.message}. It says where each test in the record last ran, and ` +
@@ -118,6 +113,6 @@ export function carriedOver(read: RecordRuns, root: string): { readonly stands?:
       { cause: read.unread },
     );
   }
-  const reading = standsAt(record, read.runs, gitIn(repository), (test) => existsSync(join(repository, test)));
+  const reading = standsAt(read.record, read.runs, gitIn(repository), (test) => existsSync(join(repository, test)));
   return reading === undefined ? {} : { stands: reading.stands };
 }

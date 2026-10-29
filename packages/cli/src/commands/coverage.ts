@@ -192,7 +192,7 @@ export async function coverage(request: ParsedCoverage): Promise<Coverage> {
       continue;
     }
     const base = within(await readExecutionIndex(found.from), scope);
-    const { commit, diff } = await diffFromBase(found.commit, request.root, found);
+    const { commit, diff, repository } = await diffFromBase(found.commit, request.root, found);
     bases.push({ ...(one === undefined ? {} : { name: one.name, kind: one.kind }), index: base });
     suites.push({
       ...named,
@@ -201,7 +201,7 @@ export async function coverage(request: ParsedCoverage): Promise<Coverage> {
       base: {
         from: found.from,
         commit,
-        change: coverageChange(base, index, { diff, ...carriedOver(await runsOf(record, request.root), request.root) }),
+        change: coverageChange(base, index, { diff, ...carriedOver(await runsOf(record, request.root), repository) }),
       },
     });
   }

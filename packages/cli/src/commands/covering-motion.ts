@@ -186,7 +186,7 @@ async function againstBefore(
   } catch (error) {
     throw new OperatorError(`the cases the last run retired in ${from} do not read (${error instanceof Error ? error.message : String(error)}), so what the run moved cannot be compared.`);
   }
-  const { commit, diff } = await diffFromBase(at, root, BEFORE_LAYER);
+  const { commit, diff, repository } = await diffFromBase(at, root, BEFORE_LAYER);
   const parting = since === undefined ? undefined : await movedOnBase(commit, since, root);
   const base: MotionBase = { ...unread, ...(parting === undefined ? {} : { mergeBase: parting.mergeBase, leftOut: parting.files }) };
   if (files !== undefined) held = keepFiles(held, files);
@@ -200,7 +200,7 @@ async function againstBefore(
   // at both ends. A case a run here recorded says nothing of what came before.
   const retained = keepCases(full, new Set(full.tests.filter((test) => !asked.has(test.id) && !ran.has(test.file)).map((test) => test.id)));
   const exclude = new Set([...(parting?.files ?? []), ...elsewhere]);
-  const moved = caseMotion(held, now, { ...(await graphFor(now, root)), ...carriedOver(await runs(), root), exclude, retained, diff });
+  const moved = caseMotion(held, now, { ...(await graphFor(now, root)), ...carriedOver(await runs(), repository), exclude, retained, diff });
   return { base, moved: file === undefined ? moved : within(moved, file), ...(elsewhere.length === 0 ? {} : { unmeasured: elsewhere }) };
 }
 
@@ -270,11 +270,11 @@ export async function motionAgainst(
     );
   }
   const now = await readExecutionIndex(from);
-  const { commit, diff } = await diffFromBase(await baseCommit(against), root, { name: `The base \`${against}\`` });
+  const { commit, diff, repository } = await diffFromBase(await baseCommit(against), root, { name: `The base \`${against}\`` });
   const parting = await movedOnBase(commit, since, root);
   const base: MotionBase = { from: against, kind: 'record', at: commit, mergeBase: parting.mergeBase, leftOut: parting.files };
   const exclude = new Set(parting.files);
-  return { base, moved: caseMotion(held, now, { ...(await graphFor(now, root)), ...carriedOver(await runs(), root), exclude, diff }) };
+  return { base, moved: caseMotion(held, now, { ...(await graphFor(now, root)), ...carriedOver(await runs(), repository), exclude, diff }) };
 }
 
 /**
