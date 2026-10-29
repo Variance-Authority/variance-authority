@@ -119,7 +119,7 @@ interface Landed {
   /** The cases that ran each region. */
   readonly cases: Record<string, string[]>;
   /** The cases flagged on each region: they ran another text there, so whether they ran it is not known. */
-  readonly unknown: Record<string, string[]>;
+  readonly overwritten: Record<string, string[]>;
   /** The tests the record holds as wholly recorded. */
   readonly complete: readonly string[];
 }
@@ -163,7 +163,7 @@ async function landBoth(base: string, dirty: string): Promise<Landed> {
     return {
       coverage: landedOn(dirty, module.blocks.map((block) => ({ ...block, on: block.testFiles }))),
       cases: landedOn(dirty, caseModule.blocks.map((block) => ({ ...block, on: block.crossings.filter((crossing) => crossing.overwritten !== true).map((crossing) => index.tests[crossing.test]!.id) }))),
-      unknown: landedOn(dirty, caseModule.blocks.map((block) => ({ ...block, on: block.crossings.filter((crossing) => crossing.overwritten === true).map((crossing) => index.tests[crossing.test]!.id) }))),
+      overwritten: landedOn(dirty, caseModule.blocks.map((block) => ({ ...block, on: block.crossings.filter((crossing) => crossing.overwritten === true).map((crossing) => index.tests[crossing.test]!.id) }))),
       complete: landed.tests.filter((test) => test.complete).map((test) => test.file).sort(),
     };
   } finally {
@@ -173,7 +173,7 @@ async function landBoth(base: string, dirty: string): Promise<Landed> {
 
 describe('a local leg at the mainline commit, over a function written in front of a recorded one', () => {
   it('keeps each older test on the region it ran when the function is named', async () => {
-    const { coverage, cases, unknown, complete } = await landBoth(NAMED, NAMED_INSERTED);
+    const { coverage, cases, overwritten, complete } = await landBoth(NAMED, NAMED_INSERTED);
 
     // The rows hand the new region the crossings around it (`around`),
     // a rule for a region no run has been asked about. The case index hands it
@@ -182,13 +182,13 @@ describe('a local leg at the mainline commit, over a function written in front o
     expect(coverage).toEqual({ 'n + 1': [ONE], 'n * 2': [TWO], 'n - 1': [ONE, THREE, TWO] });
     expect(cases).toEqual({ 'n + 1': [caseOf(ONE)], 'n * 2': [caseOf(TWO)], 'n - 1': [caseOf(THREE)] });
     // The older cases ran a text without the function, so an edit to it runs them.
-    expect(unknown).toEqual({ 'n + 1': [], 'n * 2': [], 'n - 1': [caseOf(ONE), caseOf(TWO)] });
+    expect(overwritten).toEqual({ 'n + 1': [], 'n * 2': [], 'n - 1': [caseOf(ONE), caseOf(TWO)] });
     // The module's own region changed text, so the tests on it run again.
     expect(complete).toEqual([THREE]);
   });
 
   it('keeps each older test on the region it ran when the function written in front is anonymous', async () => {
-    const { coverage, cases, unknown, complete } = await landBoth(ANONYMOUS, ANONYMOUS_INSERTED);
+    const { coverage, cases, overwritten, complete } = await landBoth(ANONYMOUS, ANONYMOUS_INSERTED);
 
     // The rows part anonymous siblings by seat, and the seat shifted: no
     // callback's address names one region in both cuts, so each takes what the
@@ -196,7 +196,7 @@ describe('a local leg at the mainline commit, over a function written in front o
     // through the edit, which wrote one callback and left the two older ones whole.
     expect(coverage).toEqual({ 'n + 1': [ONE, TWO], 'n * 2': [ONE, TWO], 'n - 1': [ONE, THREE, TWO] });
     expect(cases).toEqual({ 'n + 1': [caseOf(ONE)], 'n * 2': [caseOf(TWO)], 'n - 1': [caseOf(THREE)] });
-    expect(unknown).toEqual({ 'n + 1': [], 'n * 2': [], 'n - 1': [caseOf(ONE), caseOf(TWO)] });
+    expect(overwritten).toEqual({ 'n + 1': [], 'n * 2': [], 'n - 1': [caseOf(ONE), caseOf(TWO)] });
     expect(complete).toEqual([THREE]);
   });
 });

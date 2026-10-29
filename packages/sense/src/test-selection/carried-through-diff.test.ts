@@ -133,7 +133,7 @@ interface Landed {
   /** The cases that ran each effect. */
   readonly cases: Record<string, string[]>;
   /** The cases flagged on each effect: they ran another text there, so whether they ran it is not known. */
-  readonly unknown: Record<string, string[]>;
+  readonly overwritten: Record<string, string[]>;
   /** The cases `variance covering --line` names at the line of the call in the landed text. */
   readonly covering: (call: string) => string[];
   /** The test files the selection enters for a diff rewriting the line of each call in the landed text. */
@@ -198,7 +198,7 @@ async function landBoth(base: string, dirty: string, options: { readonly commitB
       covering: (call) => coveringTests(index, { file: FILE, line: lines.findIndex((line) => line.includes(call)) + 1 }).map((test) => test.id).sort(),
       coverage: onEffects(dirty, module.blocks.map((block) => ({ ...block, on: block.testFiles }))),
       cases: onEffects(dirty, caseModule.blocks.map((block) => ({ ...block, on: block.crossings.filter((crossing) => crossing.overwritten !== true).map((crossing) => index.tests[crossing.test]!.id) }))),
-      unknown: onEffects(dirty, caseModule.blocks.map((block) => ({ ...block, on: block.crossings.filter((crossing) => crossing.overwritten === true).map((crossing) => index.tests[crossing.test]!.id) }))),
+      overwritten: onEffects(dirty, caseModule.blocks.map((block) => ({ ...block, on: block.crossings.filter((crossing) => crossing.overwritten === true).map((crossing) => index.tests[crossing.test]!.id) }))),
     };
   } finally {
     await rm(scratch, { recursive: true, force: true });
@@ -217,15 +217,15 @@ describe('the cases of a mainline run, carried onto a local leg through the edit
   });
 
   it('hands the effect written behind the survivor no case of the one that was deleted', async () => {
-    const { cases, unknown } = await landBoth(TWO_EFFECTS, SWAPPED);
+    const { cases, overwritten } = await landBoth(TWO_EFFECTS, SWAPPED);
 
     expect(cases['third();']).not.toContain(caseOf(TWO));
     // TWO ran the function around it in a text without it, so an edit to it runs TWO.
-    expect(unknown['third();']).toContain(caseOf(TWO));
+    expect(overwritten['third();']).toContain(caseOf(TWO));
   });
 
   it('carries no case onto the effect whose body was edited, nor onto the function around it', async () => {
-    const { cases, unknown } = await landBoth(TWO_EFFECTS, EDITED);
+    const { cases, overwritten } = await landBoth(TWO_EFFECTS, EDITED);
 
     // `first()` stands where it stood and keeps its test. The edit is inside the
     // second effect and so inside the function around it: both changed, and the
@@ -233,7 +233,7 @@ describe('the cases of a mainline run, carried onto a local leg through the edit
     expect(cases['first();']).toEqual([caseOf(ONE)]);
     expect(cases['second();']).toEqual([]);
     // They ran another text there, so an edit to it runs them, and no reader names them.
-    expect(unknown).toEqual({ 'first();': [], 'second();': [caseOf(TWO)] });
+    expect(overwritten).toEqual({ 'first();': [], 'second();': [caseOf(TWO)] });
   });
 
   it('finds the text the first run recorded over in the kept texts when the commit holds another', async () => {
