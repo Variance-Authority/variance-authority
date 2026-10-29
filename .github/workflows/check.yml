@@ -37,7 +37,7 @@ on:
 # `pull-requests: write` is for the review comment and nothing else. A pull
 # request from a fork gets a read-only token whatever this says; the comment step
 # warns and continues there, and the review is still in the job summary and the
-# run's artifacts. `issues: read` is for the `idea` step, which reads the labels
+# run's artifacts. `issues: read` is for the `idea` job, which reads the labels
 # of the issue a pull request closes.
 permissions:
   contents: read
@@ -118,44 +118,6 @@ jobs:
         env:
           BASE: ${{ github.base_ref }}
         run: yarn changeset status --since="origin/$BASE"
-
-      # A pull request carries an idea that passed review before its code was
-      # written: it says `Closes #<n>` or `Part of #<n>`, and each issue it
-      # names carries `idea: build`, put on when the `occam` reviewer's idea
-      # review let it through (refine, "The idea loop"). The version pull
-      # request and pull requests a bot opens are not asked. The body is read
-      # at run time, so re-running the job picks up an edit or a new label.
-      - name: idea
-        if: ${{ github.event_name == 'pull_request' && github.event.pull_request.user.type != 'Bot' && !(github.head_ref == 'changeset-release/main' && github.event.pull_request.head.repo.full_name == github.repository) }}
-        shell: bash
-        env:
-          GH_TOKEN: ${{ github.token }}
-          PR: ${{ github.event.pull_request.number }}
-        run: |
-          first=$(gh pr view "$PR" --repo "$GITHUB_REPOSITORY" --json body --jq '.body | split("\n") | .[0]')
-          issues=$(grep -oiE '^(close[sd]?|fix(e[sd])?|resolve[sd]?|part of) #[0-9]+' <<<"$first" | grep -oE '[0-9]+' || true)
-          if [ -z "$issues" ]; then
-            echo "::error::The body's first line names no issue as 'Closes #<n>' or 'Part of #<n>'. Every change starts as an issue that passed the idea loop (.agents/references/refine.md)."
-            exit 1
-          fi
-          # The label approves the issue as it read then: an edit to its body
-          # after the label was put on needs the review again.
-          read -r labelled edited < <(gh api graphql -F owner="${GITHUB_REPOSITORY%/*}" -F name="${GITHUB_REPOSITORY#*/}" -F n="$issues" -f query='
-            query($owner: String!, $name: String!, $n: Int!) { repository(owner: $owner, name: $name) { issue(number: $n) {
-              lastEditedAt
-              timelineItems(itemTypes: LABELED_EVENT, last: 50) { nodes { ... on LabeledEvent { createdAt label { name } } } }
-              labels(first: 50) { nodes { name } } } } }' --jq '.data.repository.issue |
-              [ (if any(.labels.nodes[]; .name == "idea: build")
-                 then ([.timelineItems.nodes[] | select(.label.name == "idea: build") | .createdAt] | last) else "none" end),
-                (.lastEditedAt // "never") ] | @tsv')
-          if [ "$labelled" = none ]; then
-            echo "::error::#$issues does not carry 'idea: build': its idea has not passed review."
-            exit 1
-          fi
-          if [ "$edited" != never ] && [[ "$edited" > "$labelled" ]]; then
-            echo "::error::#$issues was edited at $edited, after 'idea: build' was put on at $labelled. Review it again (refine, 'The idea loop')."
-            exit 1
-          fi
 
       # Build first, and not only to catch type errors: the documentation check
       # compiles each README example against each package's built `.d.ts`,
@@ -1426,16 +1388,69 @@ jobs:
           yarn variance index
           VARIANCE_AUTHORITY_SINCE='' VARIANCE_AUTHORITY_AT_DISTANCE=0-2 yarn "test:$SUITE" ${SHARD:+--shard "$SHARD"}
 
+  # A pull request carries an idea that passed review before its code was
+  # written: its body's first line says `Closes #<n>` or `Part of #<n>`, and the
+  # issue carries `idea: build`, put on when the `occam` reviewer's idea review
+  # let it through, with no edit to its body after (refine, "The idea loop").
+  # It runs on the pull request and again in the merge queue, so an issue
+  # edited after the pull request's last run still stops the merge. The version
+  # pull request and pull requests a bot opens are not asked.
+  idea:
+    if: github.event_name == 'pull_request' || github.event_name == 'merge_group'
+    runs-on: ubuntu-24.04
+    steps:
+      - name: read the issue's verdict
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+          QUEUED: ${{ github.event.merge_group.head_ref }}
+        run: |
+          set -euo pipefail
+          pr=${PR:-$(grep -oE '/pr-[0-9]+-' <<<"$QUEUED" | grep -oE '[0-9]+')}
+          IFS=$'\t' read -r bot fork head first < <(gh pr view "$pr" --repo "$GITHUB_REPOSITORY" \
+            --json author,isCrossRepository,headRefName,body \
+            --jq '[.author.is_bot, .isCrossRepository, .headRefName, (.body | split("\n") | .[0])] | @tsv')
+          if [ "$bot" = true ] || { [ "$fork" = false ] && [ "$head" = changeset-release/main ]; }; then
+            echo "#$pr is not asked: a bot's, or the version pull request."
+            exit 0
+          fi
+          issues=$(grep -oiE '^(close[sd]?|fix(e[sd])?|resolve[sd]?|part of) #[0-9]+' <<<"$first" | grep -oE '[0-9]+' || true)
+          if [ -z "$issues" ]; then
+            echo "::error::The body's first line names no issue as 'Closes #<n>' or 'Part of #<n>'. Every change starts as an issue that passed the idea loop (.agents/references/refine.md)."
+            exit 1
+          fi
+          # The label approves the issue as it read then: an edit to its body
+          # after the label was put on needs the review again. The query's
+          # variables are GraphQL's, not the shell's.
+          # shellcheck disable=SC2016
+          read -r labelled edited < <(gh api graphql -F owner="${GITHUB_REPOSITORY%/*}" -F name="${GITHUB_REPOSITORY#*/}" -F n="$issues" -f query='
+            query($owner: String!, $name: String!, $n: Int!) { repository(owner: $owner, name: $name) { issue(number: $n) {
+              lastEditedAt
+              timelineItems(itemTypes: LABELED_EVENT, last: 50) { nodes { ... on LabeledEvent { createdAt label { name } } } }
+              labels(first: 50) { nodes { name } } } } }' --jq '.data.repository.issue |
+              [ (if any(.labels.nodes[]; .name == "idea: build")
+                 then ([.timelineItems.nodes[] | select(.label.name == "idea: build") | .createdAt] | last) else "none" end),
+                (.lastEditedAt // "never") ] | @tsv')
+          if [ "$labelled" = none ]; then
+            echo "::error::#$issues does not carry 'idea: build': its idea has not passed review."
+            exit 1
+          fi
+          if [ "$edited" != never ] && [[ "$edited" > "$labelled" ]]; then
+            echo "::error::#$issues was edited at $edited, after 'idea: build' was put on at $labelled. Review it again (refine, 'The idea loop')."
+            exit 1
+          fi
+
   # The one check a branch rule names, and the one line that combines the
-  # harnesses its event runs: `plan` and `queue` for a merge group, and `rules`, `measure`,
-  # `base`, `suite` and `record` for everything else. `needs` alone would skip this job when one of them failed,
+  # harnesses its event runs: `plan`, `queue` and `idea` for a merge group, and `rules`, `measure`,
+  # `base`, `suite` and `record` for everything else, with `idea` on a pull request. `needs` alone would skip this job when one of them failed,
   # and a skipped job counts as passing to a branch rule — so it runs
   # `always()` and turns every harness's result into its own colour. Anything
   # but `success` is red, `cancelled` and `skipped` included: a harness that did
   # not finish said nothing about the change. The jobs the event does not run
   # are skipped on purpose and are not read.
   check:
-    needs: [rules, measure, base, suite, record, plan, queue]
+    needs: [rules, measure, base, suite, record, plan, queue, idea]
     if: ${{ always() }}
     runs-on: ubuntu-24.04
     steps:
@@ -1446,11 +1461,11 @@ jobs:
           EVENT: ${{ github.event_name }}
         run: |
           set -euo pipefail
-          if [ "$EVENT" = merge_group ]; then
-            gate='["plan","queue"]'
-          else
-            gate='["rules","measure","base","suite","record"]'
-          fi
+          case "$EVENT" in
+            merge_group) gate='["plan","queue","idea"]' ;;
+            pull_request) gate='["rules","measure","base","suite","record","idea"]' ;;
+            *) gate='["rules","measure","base","suite","record"]' ;;
+          esac
           missing=$(echo "$RESULTS" | jq -r --argjson gate "$gate" '$gate - keys | join(", ")')
           if [ -n "$missing" ]; then
             echo "::error::check reads $missing, which it does not need"

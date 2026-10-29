@@ -136,12 +136,15 @@ with the reason it was set aside.
 A diff-mode rejection that the idea review could have seen is an escape: it
 goes into [`escapes`](escapes.md), whatever becomes of the change.
 
-Pushing is gated: the git `pre-push` hook (`tools/gate.mjs`, set by `yarn
-install`) refuses an agent's push of any commit whose tree `yarn verify:near`
-and `yarn verify:rules` have not recorded green. CI's `idea` step reads the
-body's first line and fails a pull request whose issue does not carry `idea:
-build`, or was edited after the label went on. Both guard the workflow; they
-are records, not proof that a review or a wave ran.
+Pushing is gated: `tools/gate.mjs`, which `yarn install` registers as a
+configured `pre-push` hook beside Git LFS's, refuses an agent's push of any
+commit whose tree `yarn verify:near` and `yarn verify:rules` have not recorded
+green in that worktree. A pull request only names a branch a push put there,
+so the push is the one gate. CI's `idea` job reads the body's first line and
+fails a pull request whose issue does not carry `idea: build`, or was edited
+after the label went on; it runs again in the merge queue, so an edit made
+after the last run still stops the merge. Both guard the workflow; they are
+records, not proof that a review or a wave ran.
 
 ## Opening it
 

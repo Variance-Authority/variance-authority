@@ -1,9 +1,0 @@
-#!/bin/sh
-# Git LFS's pre-push, then the gate: an agent's push passes only commits whose
-# tree `yarn verify:near` and `yarn verify:rules` recorded green
-# (tools/gate.mjs). A person's push is not asked.
-refs=$(cat)
-command -v git-lfs >/dev/null 2>&1 || { printf >&2 "\n%s\n\n" "This repository is configured for Git LFS but 'git-lfs' was not found on your path."; exit 2; }
-printf '%s\n' "$refs" | git lfs pre-push "$@" || exit $?
-[ -n "$CLAUDECODE" ] || exit 0
-printf '%s\n' "$refs" | exec node "$(git rev-parse --show-toplevel)/tools/gate.mjs" pre-push

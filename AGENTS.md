@@ -16,7 +16,7 @@ The idea loop runs before any code and is the hardest gate: a change that
 should not exist costs more than any defect in it. A red anywhere after it
 sends you back into the build loop. A `pre-push` hook refuses an agent's push of a commit
 the waves did not record green, and CI refuses a pull request whose issue lacks
-`idea: build` or was edited after it. No loop waits on the owner; the merge is hers.
+`idea: build` or was edited after it, and again in the merge queue. No loop waits on the owner; the merge is hers.
 
 Every phase opens with **look around**: questions answered by reading and
 running, before acting. They are not a formality. Each one is there because
@@ -196,7 +196,8 @@ yarn verify:far     # 3. the rest of the selection, once, before the PR
 
 `near` and `rules` stamp the tree they ran on, and only a clean tree is
 stamped, so commit before the wave. An agent's push is refused until every
-pushed commit's tree carries both. A green wave is not run again on unchanged code. The full `yarn verify` and
+pushed commit's tree carries both. Stamps live in the worktree's own git
+directory: push from the worktree that ran the waves. A green wave is not run again on unchanged code. The full `yarn verify` and
 `yarn measure` are CI's: run one locally only to reproduce a check that failed
 there.
 
