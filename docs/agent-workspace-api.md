@@ -449,6 +449,23 @@ read the name, marked "passed on whole", and counted apart too. Neither is an
 import of the name, so neither makes a name look used, and a name with only
 these is unknown rather than unused: the catalogue says where it may be read.
 
+`docs_uses` answers who depends on a declaration of this workspace. For a name
+no file here declares that your code imports from a package outside the
+workspace or a runtime module, whether or not it is installed, such as
+`parseSync` from `oxc-parser`, it names each package or module the name is
+imported from and the next question to ask: `variance ask discover --imports
+oxc-parser#parseSync`, run in the checkout, lists every file that imports
+`parseSync` from `oxc-parser`, with the line of each import. The server holds
+no scan of the names your files import, so `docs_discover` refuses that
+question.
+
+An import whose specifier the source index resolved to no file, such as
+`./gone.js` after the file was moved, is not read, so a use behind it is not
+listed. When such an import could take the name, because it is relative or
+names the package that declares the name, the answer names each file that
+holds one, the first three and a count of the rest. Fix the specifier, or read
+those files for the name.
+
 Open those files yourself. The server names the place and the line; it does not
 serve the text, so what you read is the file as it is now.
 

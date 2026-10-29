@@ -84,6 +84,8 @@ export type Within =
     readonly through: readonly string[];
     readonly namespaces: readonly PassedInside[];
     readonly inFile: readonly Use[];
+    /** Every file with an import the index resolved to no file that could take the name. */
+    readonly unresolved: readonly string[];
   }
   | { readonly unread: string };
 
@@ -103,7 +105,7 @@ export function importsOf(root: string | undefined, files: readonly string[], na
   if (read === undefined) return { unread: 'no source index is published; run `variance index`' };
   const inFile = read.inFile.map((use): Use => ({ at: use.at, line: use.line, by: use.by, kind: use.kind, type: false }));
   const uses = read.uses.map((use): IndexedUse => ({ name: use.name, specifier: use.key, ...useOf(use), ...(use.lines == null ? {} : { lines: use.lines }) }));
-  return { uses, through: read.through, namespaces: read.namespaces, inFile };
+  return { uses, through: read.through, namespaces: read.namespaces, inFile, unresolved: read.unresolved };
 }
 
 /** The refusal when the imports cannot be read: the export is known, the index that holds its importers is not. */

@@ -215,6 +215,7 @@ export {
   importersOf,
   memberDeclarationsOf,
   membersOn,
+  outsideSourcesOf,
   readHelp,
   type Alias,
   type ContainerMember,
