@@ -329,9 +329,9 @@ export const search: Tool<Help> = {
   description:
     'Find names whose name or documentation contains a string, case-insensitive, or whose words ' +
     'start with or share the stem of every word you typed. Published names come first, a name holding ' +
-    'your words before a doc opening with them before a doc saying them later, then by the packages, ' +
-    'then the places, that import them, each labelled with those places and packages as docs_uses ' +
-    'counts them, and carrying the import specifier it ' +
+    'your words before a doc opening with them before a doc saying them later, then by the other packages ' +
+    'that import them by a published path; the names on the page are then ordered by the packages, then the places, ' +
+    'that import them, each labelled with those places and packages as docs_uses counts them, and carrying the import specifier it ' +
     'is published from so it can be passed straight to docs_symbol. Names the repository exports ' +
     'but does not publish follow, with the file and line that exports them, then names a file ' +
     'declares at its top level without exporting, by their names or their documentation, with the file and line that declare them. Installed third-party ' +
