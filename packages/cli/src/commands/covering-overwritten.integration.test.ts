@@ -9,6 +9,7 @@ import { updateSourceIndex } from '@variance-authority/sense';
 import { repositoryLayers, testCoverageFile } from '@variance-authority/sense/test-selection';
 import { readFlags } from '../args.js';
 import { parseCoveringArgs } from '../covering-args.js';
+import { main } from '../bin.js';
 import { flagsFor, synopsisFor } from '../usage.js';
 import { covering, formatCovering, type Covering } from './covering.js';
 
@@ -275,5 +276,76 @@ describe('a module a run in part laid over a text the landing cannot find', () =
       expect(text).toContain('which case ran');
       expect(text).not.toMatch(/No named test covered|no case covered|unwalked/);
     }
+  });
+});
+
+// A full run, an edit inside the branch of `gamma`, and a run of the one case
+// that calls `gamma` without taking it, over the edited text. The case that
+// took the branch ran it in the committed text, so which case runs the branch
+// now is not known, though a case called into `gamma` over this text.
+const BRANCHED = `export function gamma(value: number): number {
+  if (value > 0) {
+    return value - 1;
+  }
+  return 0;
+}
+`;
+
+const GAMMA = `import { describe, expect, it } from 'vitest';
+import { gamma } from './a.js';
+
+describe('a', () => {
+  it('gamma subtracts', () => expect(gamma(2)).toBe(1));
+  it('gamma zero', () => expect(gamma(0)).toBe(0));
+});
+`;
+
+describe('a branch a run in part cut to another text, inside a function a case called into there', () => {
+  const cwd = process.cwd();
+  const previous = process.env['VARIANCE_AUTHORITY_CACHE'];
+  let root: string;
+  let cache: string;
+
+  const review = async (format: string): Promise<string> => {
+    let out = '';
+    await main(['review', '--since', 'HEAD', '--root', root, '--format', format], { out: (text) => (out += text), err: () => {} });
+    return out;
+  };
+
+  beforeAll(async () => {
+    cache = await mkdtemp(join(tmpdir(), 'variance-covering-overwritten-cache-'));
+    process.env['VARIANCE_AUTHORITY_CACHE'] = cache;
+    root = await checkout({ 'src/a.ts': BRANCHED, 'src/a.test.ts': GAMMA });
+    await vitest(root);
+    await writeFile(join(root, 'src/a.ts'), BRANCHED.replace('return value - 1;', 'return value - 1 + 0;'));
+    await vitest(root, 'src/a.test.ts', '-t', 'gamma zero');
+    await updateSourceIndex(root);
+    process.chdir(root);
+  }, 120_000);
+
+  afterAll(async () => {
+    process.chdir(cwd);
+    if (previous === undefined) delete process.env['VARIANCE_AUTHORITY_CACHE'];
+    else process.env['VARIANCE_AUTHORITY_CACHE'] = previous;
+    await Promise.all([root, cache].map((path) => rm(path, { recursive: true, force: true })));
+  });
+
+  it('names the line of the branch no case called into as not known under --function, not as a part no case ran', async () => {
+    const { answer, text } = await ask(root, '--file', 'src/a.ts', '--function', 'gamma');
+    expect(answer.unrun).toBeUndefined();
+    expect(answer.overwritten).toEqual([{ startLine: 3, endLine: 3 }]);
+    expect(text).toContain(`Line 3 ${UNKNOWN}`);
+  });
+
+  it('counts the branch in the review comment, the handover and the text as code no case is known to have run', async () => {
+    const markdown = await review('markdown');
+    expect(markdown).toContain('**1 of 1 changed function has code no case is known to have run:** `gamma`.');
+    expect(markdown).toContain('<summary>❔ Where no case is known to have run: 1 place in 1 function</summary>');
+    expect(markdown).toContain('| `src/a.ts` | function bodies only | 🟢 1 near · ❔ 1 overwritten |');
+    expect(markdown).not.toContain('Where no case ran');
+    expect(await review('handover')).toContain('- ❔ `gamma` in `src/a.ts` — a part no case is known to have run; the rest 1 case, near: `src/a.test.ts`');
+    const plain = await review('text');
+    expect(plain).toContain('- 0 no case covered.\n- 1 no case is known to have covered: 1 modified.');
+    expect(plain).toContain('src/a.ts:2-4 branch gamma — no case is known to have covered it: a case ran it in a text an edit wrote over (modified)');
   });
 });
