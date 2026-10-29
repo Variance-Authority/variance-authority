@@ -725,8 +725,10 @@ standard input, which is how an editor queries a buffer you have not saved.
 with no case, and the answer says the edit wrote it. A line a case ran over,
 where a run over another text has landed since, is answered with no case for it
 either, and named in `overwritten`: a line your text holds and the record's
-does not, and every line of a region a run in part under `-t` landed an edit
-over, where the cases that ran the region before ran another text. The record
+does not, every line of a region a run in part under `-t` landed an edit
+over, where the cases that ran the region before ran another text, and every
+line of the module when that text is not kept, not committed and not on disk,
+so the run cannot place a region of it in its own. The record
 lost which case ran the line, and a later run that numbers the record in your
 text again does not bring that back. Over the whole file, `--format json` names
 those cases under the range's own `overwritten`.
