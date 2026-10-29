@@ -66,6 +66,7 @@ src/checkout/total.ts
   41-60 function applyDiscount — 3 cases
     applies a percentage discount — src/checkout/total.test.ts [total.test.ts::applies a percentage discount]
   62-66 branch applyDiscount — no case covered this region
+src/checkout/total.test.ts ran over another text of src/checkout/total.ts, in a run that landed 2 hours ago.
 ```
 
 The two counts in the first line are the findings. A region **no case covered**
@@ -83,8 +84,10 @@ covers this line*, which is the sentence that gets a test deleted.
 
 The diff is measured from the commit the record was written at, not from the
 merge base with the ref, because the index spells its line ranges in that
-commit's coordinates. Record before you review: an index behind the tree
-answers fluently about regions that have moved.
+commit's coordinates. Under the regions, the answer names each test file that
+ran over another text of a changed file, and when its run landed. Record before
+you review: a case that ran another text is evidence about that text, not about
+your change.
 
 This reading needs [test-level coverage](test-level-coverage.md) — the same
 recording with a case axis, which every run wrapped in `withTestSelection`
