@@ -11,6 +11,7 @@ import type { DeclaredName } from '@variance-authority/sense';
 import { reachSentences } from './declared.js';
 import { specifierOf } from './find.js';
 import { type Members, places } from './members.js';
+import { SLOT } from './declaration-key.js';
 import { exportedAt } from './unpublished.js';
 import type { Namesake, PublishedDeclaration } from './uses-of.js';
 
@@ -70,7 +71,7 @@ export function namesakeLine(name: string, one: Pick<Namesake, 'declaration' | '
  * `asked` says that name, and so does a file that declares it by another.
  */
 export function publishedAt(one: PublishedDeclaration, asked: string): string {
-  const as = (spelled: string): string => (spelled === asked ? '' : ` as \`${spelled}\``);
+  const as = (spelled: string): string => (spelled === asked ? '' : spelled === SLOT ? ' as its default' : ` as \`${spelled}\``);
   const by = one.doors.map(([held, opening, entry]) => `${specifierOf(held, opening)}${as(entry.name)}`).join(', ');
   return `published by ${by}, declared${as(one.declared)} at ${one.at}:${one.line}`;
 }

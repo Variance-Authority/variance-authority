@@ -21,7 +21,7 @@ import { type PathSite, how, ownerOf, sitesByPath } from './by-path.js';
 import { declarations } from './declared.js';
 import { FoundNothing, isPackage, nowhere, specifierOf } from './find.js';
 import { type Members, membersOf } from './members.js';
-import { declarationOf, originOf, spellingsOf } from './passed-on.js';
+import { answers, keyOf, originKey, originOf, says, SLOT } from './declaration-key.js';
 import { type IndexedUse, type Within, exportsNamed, importsOf, indexMissing } from './unpublished.js';
 import { declaredIn, membersIn, notDeclaredIn } from './uses-declarations.js';
 
@@ -77,8 +77,8 @@ export interface PublishedDeclaration {
  */
 export function publishedDeclarations(help: Help, root: string | undefined, name: string, wanted: string | undefined): readonly PublishedDeclaration[] {
   const doors = [...everyEntry(help)]
-    .map((door) => [door, spellingsOf(help, root, door[2].at, door[2].declared)] as const)
-    .filter(([[held, opening, entry], { named, spellings }]) => (name === 'default' ? named === name : entry.name === name || named === name || spellings.includes(name)) && (wanted === undefined || isPackage(held, opening, wanted)))
+    .filter(([held, opening, entry]) => (says(entry.name, name) || answers(help, root, { at: entry.at, name: entry.declared }, name)) && (wanted === undefined || isPackage(held, opening, wanted)))
+    .map((door) => [door, keyOf(help, root, { at: door[2].at, name: door[2].declared })] as const)
     .sort(([left], [right]) => byDoor(left, right));
   const declarations = new Map<string, { at: string; line: number; declared: string; spellings: readonly string[]; doors: Published[] }>();
   for (const [door, { named, spellings }] of doors) {
@@ -115,7 +115,6 @@ interface Declarations {
  * and the sites of it.
  */
 export interface Namesake {
-  readonly published: readonly Published[];
   /** The declaration the entries publish, when one does. */
   readonly declaration: PublishedDeclaration | undefined;
   readonly exported: readonly Named[];
@@ -143,15 +142,15 @@ function declarationsOf(help: Help, root: string | undefined, name: string, want
  * the name, else the declaration it passes the name on from, as a barrel or
  * an entry does with `export … from`.
  */
-function reached(root: string | undefined, all: Declarations, asked: string): string {
+function reached(help: Help, root: string | undefined, all: Declarations, asked: string): string {
   const declares =
     all.published.some((one) => one.at === asked) ||
-    all.exporting.some((held) => held.at === asked && held.declaration !== undefined) ||
+    all.exporting.some((held) => held.at === asked && held.bound !== undefined) ||
     all.kept.some((one) => one.at === asked) ||
     all.members.declared.some((one) => one.at === asked);
   if (declares) return asked;
   const passing = all.exporting.find((held) => held.at === asked);
-  const origin = passing === undefined ? undefined : originOf(root, passing)?.at;
+  const origin = passing === undefined ? undefined : originOf(help, root, passing)?.at;
   return origin ?? all.published.find((one) => one.doors.some(([, opening]) => opening.source === asked))?.at ?? asked;
 }
 
@@ -161,7 +160,7 @@ function chosen(all: Declarations, file: string | undefined): Declarations {
   return {
     ...all,
     published: all.published.filter((one) => one.at === file),
-    exporting: all.exporting.filter((held) => held.at === file || held.declaration === undefined),
+    exporting: all.exporting.filter((held) => held.at === file || held.bound === undefined),
     kept: all.kept.filter((one) => one.at === file),
     members: membersIn(all.members, file),
   };
@@ -177,13 +176,13 @@ function chosen(all: Declarations, file: string | undefined): Declarations {
 function exportGroups(help: Help, root: string | undefined, exporting: readonly Named[]): readonly Group[] {
   const groups = new Map<string, { at: string; declared: string; exported: Named[] }>();
   for (const held of exporting) {
-    const { at, declared } = declarationOf(help, root, held);
+    const { at, named: declared } = keyOf(help, root, held);
     const key = `${at}\0${declared}`;
     const group = groups.get(key);
     if (group === undefined) groups.set(key, { at, declared, exported: [held] });
     else group.exported.push(held);
   }
-  const declaringFirst = (left: Named, right: Named): number => Number(left.declaration === undefined) - Number(right.declaration === undefined);
+  const declaringFirst = (left: Named, right: Named): number => Number(left.bound === undefined) - Number(right.bound === undefined);
   return [...groups.values()]
     .sort((left, right) => codeUnitOrder(left.at, right.at) || codeUnitOrder(left.declared, right.declared))
     .map((group) => ({ ...group, exported: [...group.exported].sort(declaringFirst) }));
@@ -263,7 +262,7 @@ function importsOfEvery(root: string | undefined, files: readonly string[], name
 /** The names the file of the first of `exported` exports that binding under, where its imports are read: `default` for a default named by its binding. */
 function spellingsAt(help: Help, root: string | undefined, exported: readonly Named[], name: string): readonly string[] {
   const [first] = exported;
-  return first === undefined ? [name] : spellingsOf(help, root, first.at, first.name).spellings;
+  return first === undefined ? [name] : keyOf(help, root, first).spellings;
 }
 
 /**
@@ -313,7 +312,7 @@ export function usesOf(help: Help, input: Readonly<Record<string, unknown>>, roo
   const all = declarationsOf(help, root, name, wanted);
   // Each declaration is another thing, so a named file answers for its own alone.
   const asked = declaredIn(input);
-  const file = asked === undefined ? undefined : reached(root, all, asked);
+  const file = asked === undefined ? undefined : reached(help, root, all, asked);
   const { published: answered, exporting, kept, members, undeclared } = chosen(all, file);
   const published = declaration === undefined ? answered : answered.filter((one) => one.at === declaration.at && one.declared === declaration.declared);
   // The declaration answered first, through every door that publishes it; each other published one is a namesake.
@@ -322,7 +321,7 @@ export function usesOf(help: Help, input: Readonly<Record<string, unknown>>, roo
   // Every file declaring a thing by the name, whichever one `file` names.
   const files = [
     ...all.published.map((one) => one.at),
-    ...all.exporting.filter((held) => held.declaration !== undefined).map((held) => held.at),
+    ...all.exporting.filter((held) => held.bound !== undefined).map((held) => held.at),
     ...all.kept.map((one) => one.at),
     ...all.members.declared.map((one) => one.at),
   ];
@@ -331,7 +330,7 @@ export function usesOf(help: Help, input: Readonly<Record<string, unknown>>, roo
   const isPublished = (group: Group): boolean => published.some((one) => one.at === group.at && one.declared === group.declared);
   // Beside a published one, only an export that declares the name is another declaration.
   const groups = exportGroups(help, root, exporting).filter(
-    (group) => !isPublished(group) && (file !== undefined ? group.at === file : found.length === 0 || group.exported[0]!.declaration !== undefined),
+    (group) => !isPublished(group) && (file !== undefined ? group.at === file : found.length === 0 || group.exported[0]!.bound !== undefined),
   );
   const primary = found.length > 0 ? undefined : groups[0];
   const others = found.length > 0 ? groups : groups.slice(1);
@@ -349,24 +348,24 @@ export function usesOf(help: Help, input: Readonly<Record<string, unknown>>, roo
   const publishedPaths = (one: PublishedDeclaration): readonly Site[] =>
     pathSites(new Set([one.at]), false, one.declared === name ? paths : sitesByPath(help, one.declared, wanted));
   // An import by path of `default` is the declaration its file's default is named by, never a stray of the slot.
-  const byPath = lead !== undefined ? publishedPaths(lead) : pathSites(new Set(exported.map((held) => held.at)), file === undefined && name !== 'default');
+  const byPath = lead !== undefined ? publishedPaths(lead) : pathSites(new Set(exported.map((held) => held.at)), file === undefined && name !== SLOT);
 
   const namesakes: readonly Namesake[] = [
     ...rest.map((other) => {
       const one = sitesOfOne(root, other.spellings, wanted, other.doors, [other.at], publishedPaths(other));
-      return { published: other.doors, declaration: other, exported: [], home: homeOf(help, other), sites: one.sites, inFile: one.inFile };
+      return { declaration: other, exported: [], home: homeOf(help, other), sites: one.sites, inFile: one.inFile };
     }),
     ...others.map((group) => {
       const at = new Set(group.exported.map((held) => held.at));
       const one = sitesOfOne(root, spellingsAt(help, root, group.exported, name), wanted, [], [...at], pathSites(at, false));
-      return { published: [], declaration: undefined, exported: group.exported, home: packageOf(group.exported[0]?.by), sites: one.sites, inFile: one.inFile };
+      return { declaration: undefined, exported: group.exported, home: packageOf(group.exported[0]?.by), sites: one.sites, inFile: one.inFile };
     }),
   ];
   const { keptSites, keptInFile } = keptUses(root, name, kept);
   const shared = { name, lead, found, exported, namesakes, byPath, members, kept, keptSites, keptInFile, file, files };
   if (found.length === 0 && byPath.length === 0 && exported.length === 0) {
     if (kept.length > 0 || members.declared.length > 0) {
-      return { ...shared, home: undefined as string | undefined, sites: [] as readonly Site[], unread: undefined, within: undefined, inFile: [] as readonly Use[], undeclared, origin: undefined, inside: [] as readonly string[] };
+      return { ...shared, home: undefined as string | undefined, sites: [] as readonly Site[], unread: undefined, within: undefined, inFile: [] as readonly Use[], undeclared, origin: undefined, originNamed: undefined as string | undefined, inside: [] as readonly string[] };
     }
     if (file !== undefined && files.length > 0) throw new FoundNothing(notDeclaredIn(name, file, files));
     // The answer `symbol` gives: what was read and declares nothing, and where else the name may be.
@@ -381,8 +380,9 @@ export function usesOf(help: Help, input: Readonly<Record<string, unknown>>, roo
   const home = lead !== undefined ? homeOf(help, lead) : packageOf(exported[0]?.by);
   const [only] = exported;
   // The answer names one export's place, so only a name exported once is followed.
-  const origin = only === undefined || exported.length > 1 ? undefined : originOf(root, only);
-  return { ...shared, home, sites, unread, within, inFile, undeclared: [] as readonly string[], origin, inside: publishedInside(help, namespaces) };
+  const origin = only === undefined || exported.length > 1 ? undefined : originOf(help, root, only);
+  const originNamed = origin === undefined ? undefined : originKey(help, root, origin).named;
+  return { ...shared, home, sites, unread, within, inFile, undeclared: [] as readonly string[], origin, originNamed, inside: publishedInside(help, namespaces) };
 }
 
 /** The package a published declaration is declared in, which a re-exporting door is not. */

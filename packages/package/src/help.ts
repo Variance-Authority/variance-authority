@@ -344,7 +344,7 @@ export function undocumented(help: Help): readonly Entry[] {
  */
 export { opening, PARAGRAPH_BREAK, writeGaps, writeIndex, writeLlms } from './write.js';
 export type { Page } from './write.js';
-export { gatheringUsage, kindOf, usageFrom } from './use.js';
+export { gatheringUsage, kindOf, ownBinding, usageFrom } from './use.js';
 export { readUsage } from './read-usage.js';
 export type {
   Bound,

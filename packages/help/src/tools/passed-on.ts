@@ -14,117 +14,22 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { Help, Named } from '@variance-authority/package/help';
-import { aliasesOf, declarationExported, importersOf, type ExportedDeclaration } from '@variance-authority/sense';
-import { codeUnitOrder } from '@variance-authority/core/segment';
+import type { ExportedDeclaration } from '@variance-authority/sense';
+import { boundOf, originKey, SLOT } from './declaration-key.js';
 import { textRows } from './declared.js';
-import { sharedSegments } from './shared-segments.js';
 
-/**
- * The declaration `held` binds: its file's own, or the one it passes on
- * through every file that passes it on. None when the walk ends short of a
- * declaration, when no checkout is named, and when the index is not published
- * or does not read, which the imports of the same answer already say.
- */
-export function boundOf(root: string | undefined, held: Pick<Named, 'at' | 'name'>): ExportedDeclaration | undefined {
-  if (root === undefined) return undefined;
-  try {
-    return declarationExported(root, held.at, held.name) ?? undefined;
-  } catch {
-    return undefined;
-  }
-}
-
-/** The declaration `held` passes on from another file, as `boundOf` reaches it; none when its own file declares it. */
-export function originOf(root: string | undefined, held: Pick<Named, 'at' | 'name'>): ExportedDeclaration | undefined {
-  return elsewhere(boundOf(root, held), held);
-}
-
-/**
- * Which declaration `held` exports: the file that declares it and the name
- * that file exports it under, the key the package stage gives every entry it
- * publishes. An export that declares passes its own; one that passes another
- * file's on takes the export of the declaring file that binds the same
- * declaration, so `export { salute } from './greet.js'` over
- * `export { greet as salute }` is `salute` there, not the local `greet`.
- */
-export function declarationOf(help: Help, root: string | undefined, held: Named): { readonly at: string; readonly declared: string } {
-  const origin = held.declaration !== undefined ? undefined : originOf(root, held);
-  if (origin === undefined) return { at: held.at, declared: spellingsOf(help, root, held.at, held.name).named };
-  const own = help.exported.find(
-    (other) => other.at === origin.at && other.declaration !== undefined && boundOf(root, other)?.name === origin.name,
-  );
-  return { at: origin.at, declared: spellingsOf(help, root, origin.at, own?.name ?? origin.name).named };
-}
-
-/**
- * The names `at` exports one binding under, and the one its declaration is
- * keyed by. `default` is a slot every module has, not a name, so it is the
- * key only when nothing names the binding: the binding's own name when the
- * file exports it under that, else its first other name in code-unit order,
- * else the name its declaration binds, `export default function Button`, and
- * for an anonymous default the name of the import nearest its file.
- * `export default greet` beside `export { greet }` is one declaration,
- * `greet`, imported under either name.
- */
-export function spellingsOf(help: Help, root: string | undefined, at: string, declared: string): { readonly named: string; readonly spellings: readonly string[] } {
-  const bound = boundOf(root, { at, name: declared });
-  if (bound === undefined) return { named: declared === 'default' ? (nearestImportName(root, at) ?? declared) : declared, spellings: [declared] };
-  if (bound.at !== at) return { named: declared, spellings: [declared] };
-  const same = (other: ExportedDeclaration | undefined): boolean => other !== undefined && other.at === bound.at && other.name === bound.name && other.line === bound.line;
-  const others = help.exported.filter((other) => other.at === at && other.name !== declared && same(boundOf(root, other))).map((other) => other.name);
-  const spellings = [...new Set([declared, ...others])].sort(codeUnitOrder);
-  const named = spellings.includes(bound.name) ? bound.name : (spellings.find((one) => one !== 'default') ?? bound.name);
-  return { named, spellings };
-}
-
-/**
- * The name an anonymous default export of `at` is known by: the local name of
- * the import nearest its file, the one sharing the most leading path segments
- * with it, then the first by file in code-unit order and by line. None when no
- * import binds it to a name or the source index does not read.
- */
-export function nearestImportName(root: string | undefined, at: string): string | undefined {
-  if (root === undefined) return undefined;
-  let read: ReturnType<typeof importersOf>;
-  try {
-    read = importersOf(root, [at], 'default');
-  } catch {
-    return undefined;
-  }
-  const named = (read?.uses ?? []).filter((use) => typeof use.local === 'string' && use.local !== '');
-  const [nearest] = named.sort((left, right) => sharedSegments(at, right.at) - sharedSegments(at, left.at) || codeUnitOrder(left.at, right.at) || left.line - right.line);
-  return nearest?.local ?? undefined;
-}
-
-/**
- * Every default export `spellingsOf` keys by `name`: one whose declaration
- * binds `name`, and an anonymous one an import nearest its file binds to it.
- * An anonymous default is looked for only in the files an import of `default`
- * as `name` resolved to, so a question reads the index once per candidate.
- */
-export function defaultsNamed(help: Help, root: string | undefined, name: string): readonly Named[] {
-  if (root === undefined || name === 'default') return [];
-  let imported: ReadonlySet<string>;
-  try {
-    imported = new Set((aliasesOf(root, name) ?? []).flatMap((alias) => (alias.imported === 'default' && alias.to != null ? [alias.to] : [])));
-  } catch {
-    return [];
-  }
-  return help.exported.filter((held) => {
-    if (held.name !== 'default' || held.kind !== 'source') return false;
-    const bound = held.declaration === undefined ? undefined : boundOf(root, held);
-    if (bound === undefined) return imported.has(held.at) && nearestImportName(root, held.at) === name;
-    return bound.at === held.at && bound.name === name && spellingsOf(help, root, held.at, held.name).named === name;
-  });
-}
 
 /** `bound`, when it is in another file than `held`. */
 const elsewhere = (bound: ExportedDeclaration | undefined, held: Pick<Named, 'at'>): ExportedDeclaration | undefined =>
   bound === undefined || bound.at === held.at ? undefined : bound;
 
-/** `passes on `taxOf`, declared at <file>:<line>`, for a sentence to carry. */
-export function passesOn(origin: ExportedDeclaration): string {
-  return `passes on \`${origin.name}\`, declared at ${origin.at}:${origin.line}`;
+/**
+ * `passes on `taxOf`, declared at <file>:<line>`, for a sentence to carry. An
+ * anonymous default binds the slot `default`, so it is said by `named`, the
+ * name `originKey` keys it by.
+ */
+export function passesOn(origin: ExportedDeclaration, named: string): string {
+  return `passes on \`${origin.name === SLOT ? named : origin.name}\`, declared at ${origin.at}:${origin.line}`;
 }
 
 /**
@@ -137,7 +42,7 @@ export function passesOn(origin: ExportedDeclaration): string {
  * named. `declared` is where the declaration is, `held` when it passes none
  * on.
  */
-export function exportedRows(root: string | undefined, name: string, held: Named): { readonly declared: Named; readonly rows: readonly string[] } {
+export function exportedRows(help: Help, root: string | undefined, name: string, held: Named): { readonly declared: Named; readonly rows: readonly string[] } {
   const bound = boundOf(root, held);
   const origin = elsewhere(bound, held);
   const declared: Named = origin === undefined ? held : { ...held, at: origin.at, name: origin.name, line: origin.line };
@@ -147,7 +52,7 @@ export function exportedRows(root: string | undefined, name: string, held: Named
     rows: [
       bound === undefined ? name : `${name} [${bound.kind}]`,
       `exported, without being published, at ${held.at}:${held.line} by ${held.by}${held.type ? ' (type only)' : ''}`,
-      ...(origin === undefined ? [] : [`It ${passesOn(origin)}:`]),
+      ...(origin === undefined ? [] : [`It ${passesOn(origin, originKey(help, root, origin).named)}:`]),
       ...text,
     ],
   };

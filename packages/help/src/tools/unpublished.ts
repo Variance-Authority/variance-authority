@@ -18,7 +18,7 @@ import type { Help, Named, Taken, Use } from '@variance-authority/package/help';
 import { importersOf } from '@variance-authority/sense';
 import { useOf } from '../refresh-native.js';
 import { importsByPath } from './by-path.js';
-import { defaultsNamed, spellingsOf } from './passed-on.js';
+import { answers, says } from './declaration-key.js';
 
 /** What an import count leaves out: a use that names the export without importing it. */
 export const UNCOUNTED = 'a namespace imported by name that goes somewhere whole and, outside Rust, a call through a qualified path are not counted';
@@ -28,11 +28,11 @@ export const UNCOUNTED = 'a namespace imported by name that goes somewhere whole
  * and every default export its declaration is named `name` by.
  */
 export function exportsNamed(help: Help, root: string | undefined, name: string, within: string | undefined): readonly Named[] {
-  // `default` is a slot, not a name: asked for, it is the default exports nothing names.
-  const named = help.exported.filter((held) => held.name === name && held.kind === 'source' && (name !== 'default' || spellingsOf(help, root, held.at, name).named === name));
-  // A file that exports the binding by the name too is answered by that export.
-  const defaults = defaultsNamed(help, root, name).filter((held) => !named.some((other) => other.at === held.at));
-  return [...named, ...defaults].filter((held) => within === undefined || held.by === within || fileOf(help, held, within));
+  const answering = help.exported.filter((held) => held.kind === 'source' && answers(help, root, held, name));
+  // A file that exports the binding by the name is answered by that export, not by its other names.
+  const spelled = answering.filter((held) => says(held.name, name));
+  const keyed = answering.filter((held) => !says(held.name, name) && !spelled.some((other) => other.at === held.at));
+  return [...spelled, ...keyed].filter((held) => within === undefined || held.by === within || fileOf(help, held, within));
 }
 
 /**

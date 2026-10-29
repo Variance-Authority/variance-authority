@@ -18,7 +18,8 @@ import { queryDependencyLexicon } from '../dependency-lexicon.js';
 import { entriesNamed, isPackage, specifierOf } from './find.js';
 import { memberRows } from './container.js';
 import { block } from './format.js';
-import { declarationOf, exportedRows } from './passed-on.js';
+import { keyOf, SLOT } from './declaration-key.js';
+import { exportedRows } from './passed-on.js';
 import { thirdBlock } from './third-party.js';
 
 /** How many renamed sites are worth naming on one line. */
@@ -89,11 +90,14 @@ export function localNames(
     if (first === undefined) continue;
     // `import greet from` a file exporting `greet` as `default` too binds the declaration by its own name: no local name.
     const held = first.to == null ? undefined : help.exported.find((one) => one.at === first.to && one.name === first.imported);
-    if (held !== undefined && declarationOf(help, root, held).declared === local) continue;
-    const original = originalOf(help, root, first, wanted);
+    const declared = held === undefined ? undefined : keyOf(help, root, held).named;
+    if (declared === local) continue;
+    // The slot `default` is said by the name its declaration is keyed by.
+    const named = first.imported === SLOT ? (declared ?? first.imported) : first.imported;
+    const original = originalOf(help, root, first, wanted, named);
     if (original === undefined) continue;
     const imports = (alias: Alias): string =>
-      `${alias.at}:${alias.line} imports \`${alias.imported}\` as \`${local}\` from '${alias.specifier}'${alias.type ? ' (type only)' : ''}`;
+      `${alias.at}:${alias.line} imports \`${named}\`${named === alias.imported ? '' : ` (its \`${alias.imported}\`)`} as \`${local}\` from '${alias.specifier}'${alias.type ? ' (type only)' : ''}`;
     const also = group.slice(1);
     blocks.push([
       `\`${local}\` is a local name: ${imports(first)}.`,
@@ -116,7 +120,7 @@ export function localNames(
  * Said as unknown, not left out, when none answers.
  * `undefined` when `wanted` names another package.
  */
-function originalOf(help: Help, root: string, alias: Alias, wanted: string | undefined): Original | undefined {
+function originalOf(help: Help, root: string, alias: Alias, wanted: string | undefined, said: string): Original | undefined {
   const name = alias.imported;
   const named = entriesNamed(help, name);
   // An import across packages names the entry by its specifier; one within the package names the file, which the index resolved.
@@ -135,7 +139,7 @@ function originalOf(help: Help, root: string, alias: Alias, wanted: string | und
     const held = help.exported.find((one) => one.name === name && one.at === to);
     if (held !== undefined) {
       if (wanted !== undefined && held.by !== wanted) return undefined;
-      const { declared, rows } = exportedRows(root, name, held);
+      const { declared, rows } = exportedRows(help, root, said, held);
       return {
         text: [
           ...rows,

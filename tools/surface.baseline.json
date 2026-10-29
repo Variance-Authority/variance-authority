@@ -1656,6 +1656,7 @@
         "landing": "function",
         "mayBeRead": "function",
         "opening": "function",
+        "ownBinding": "function",
         "ownership": "function",
         "passedOn": "function",
         "reachedFrom": "function",

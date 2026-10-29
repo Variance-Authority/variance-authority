@@ -11,7 +11,8 @@ import { thirdBlock } from './third-party.js';
 import { declarations, declaredAt, declaredBlocks, isNested, textRows, unreadLine } from './declared.js';
 import { uses } from './uses.js';
 import { type Members, membersOf, membersStop } from './members.js';
-import { boundOf, declarationOf, exportedRows, originOf, spellingsOf } from './passed-on.js';
+import { exportedRows } from './passed-on.js';
+import { answers, boundOf, keyOf, originOf, SLOT } from './declaration-key.js';
 import { UNCOUNTED, exportsNamed, importsOf } from './unpublished.js';
 import { type Counted, counted, spokenSplit } from './uses-count.js';
 import { type PublishedDeclaration, publishedDeclarations, usesOf } from './uses-of.js';
@@ -81,7 +82,7 @@ export const symbol: Tool<Help> = {
     // the file exporting it, is used here — and that import is what says so.
     // An import by path of `default` out of a file whose default has a name is that declaration's, not the slot's.
     const byPath = (found.length === 0 ? sitesByPath(help, name, wanted) : []).filter(
-      (site) => name !== 'default' || site.held.to === undefined || spellingsOf(help, invocation?.root, site.held.to, name).named === name,
+      (site) => name !== SLOT || site.held.to === undefined || answers(help, invocation?.root, { at: site.held.to, name }, name),
     );
     // A name an import binds to an export of another name: the import, and the export it names.
     const aliased = localNames(help, invocation?.root, name, wanted).blocks;
@@ -91,11 +92,11 @@ export const symbol: Tool<Help> = {
     // that passes an installed binding on exports it without declaring it.
     // A published namesake is another declaration, so it never hides this one.
     const exported = unpublishedExports(help, invocation?.root, name, wanted, found.map((one) => [one.at, one.declared] as const));
-    const others = exported.length > 0 ? [exportedOnly(name, exported, invocation?.root, spell)] : [];
+    const others = exported.length > 0 ? [exportedOnly(help, name, exported, invocation?.root, spell)] : [];
     if (byPath.length > 0) {
       const imported = new Set(byPath.flatMap((site) => [site.held.to ?? site.held.specifier, declaration(help, name, site)?.at ?? '']));
       const rest = exported.filter((held) => !imported.has(held.at));
-      return [importedByPath(help, invocation?.root, name, byPath), ...(rest.length > 0 ? [exportedOnly(name, rest, invocation?.root, spell)] : []), ...declared, ...aliased].join('\n\n');
+      return [importedByPath(help, invocation?.root, name, byPath), ...(rest.length > 0 ? [exportedOnly(help, name, rest, invocation?.root, spell)] : []), ...declared, ...aliased].join('\n\n');
     }
     const kept = [
       ...(found.length === 0 ? others : []),
@@ -182,7 +183,7 @@ export const symbol: Tool<Help> = {
       const exported = unpublishedExports(help, invocation?.root, name, wanted, published.length > 0 ? published.map((one) => [one.at, one.declared] as const) : at.map(([file]) => [file, name] as const));
       for (const [held] of declaringExports(name, exported, invocation?.root)) {
         at.push([held.at, held.line]);
-        const origin = originOf(invocation?.root, held);
+        const origin = originOf(help, invocation?.root, held);
         if (origin !== undefined) at.push([origin.at, origin.line]);
       }
     }
@@ -243,8 +244,10 @@ function publishedBlock(help: Help, input: Readonly<Record<string, unknown>>, ro
   const split = counted(listed.sites, owner);
   const may = [...split.off, ...split.whole];
   const shown = listedLine(spell.tool(uses), owner, split, may.length > 0, listed.unread);
-  const renamed = renamedSites(entry.name, listed.sites);
-  return [block(published, opening, entry, { may, imported: split.certain.length > 0 }), ...memberRows(root, entry.at, entry.declared, entry.line), ...renamed.map((line) => `\n${line}`), ...also, ...shown].join('\n');
+  // A default export is headed by the name its declaration is keyed by, as every import of it is read.
+  const named = entry.name === SLOT ? keyOf(help, root, { at: entry.at, name: entry.declared }).named : entry.name;
+  const renamed = renamedSites(named, listed.sites);
+  return [block(published, opening, entry, { may, imported: split.certain.length > 0 }, named), ...memberRows(root, entry.at, entry.declared, entry.line), ...renamed.map((line) => `\n${line}`), ...also, ...shown].join('\n');
 }
 
 /**
@@ -265,8 +268,8 @@ function unpublishedExports(
   if (published.length === 0) return exported;
   const declaring = new Set(published.map(([at, declared]) => `${at}\0${declared}`));
   return exported.filter((held) => {
-    const { at, declared } = declarationOf(help, root, held);
-    return !declaring.has(`${at}\0${declared}`);
+    const { at, named } = keyOf(help, root, held);
+    return !declaring.has(`${at}\0${named}`);
   });
 }
 
@@ -294,7 +297,7 @@ function importedByPath(help: Help, root: string | undefined, name: string, site
     }[first.kind];
     return [
       bound === undefined ? name : `${name} [${bound.kind}]`,
-      ...(name === 'default' ? [] : [`import { ${name} } from '${first.held.specifier}';`]),
+      ...(name === SLOT ? [] : [`import { ${name} } from '${first.held.specifier}';`]),
       ...(declared === undefined ? [] : [`declared at ${declared.at}:${declared.line}`]),
       why,
       ...(root === undefined || bound === undefined ? [] : textRows(root, bound)),
@@ -348,10 +351,10 @@ function declaration(help: Help, name: string, site: PathSite): Named | undefine
  * passes on a declaration of another file is followed to it, and that line is
  * shown too. The members of an interface, a type alias or a class come last.
  */
-function exportedOnly(name: string, exported: readonly Named[], root: string | undefined, spell: Spelling): string {
+function exportedOnly(help: Help, name: string, exported: readonly Named[], root: string | undefined, spell: Spelling): string {
   return declaringExports(name, exported, root)
     .map(([held, within]) => {
-      const { declared, rows } = exportedRows(root, name, held);
+      const { declared, rows } = exportedRows(help, root, name, held);
       return [
         ...rows,
         ...('uses' in within ? [importedIn(within.uses.length, spell), ...renamedSites(name, within.uses)] : root === undefined ? [] : [`Who imports it is read from the source index, and ${within.unread}.`]),

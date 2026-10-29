@@ -23,6 +23,7 @@ import { join } from 'node:path';
 import { declaredOf, type DeclaredName } from '@variance-authority/sense';
 import { docOf, headOf } from '../indexed-surface.js';
 import type { DeclaredMatch, Matches } from './search-answer.js';
+import { SLOT } from './declaration-key.js';
 import { sharedSegments } from './shared-segments.js';
 import type { Spelling } from '@variance-authority/mcp/tools';
 import { grep } from './grep.js';
@@ -58,7 +59,7 @@ export function declarations(
   if (read === undefined) return { refused: 'no source index is published; run `variance index`' };
   // Stable, so the index's file-then-line order holds within a kind.
   // `default` is no binding a file can keep: the index reads a default export's declaration by it, and that is exported.
-  const names = read.names.filter((one) => one.name !== 'default').sort((left, right) => KIND_ORDER[left.fileKind] - KIND_ORDER[right.fileKind]);
+  const names = read.names.filter((one) => one.name !== SLOT).sort((left, right) => KIND_ORDER[left.fileKind] - KIND_ORDER[right.fileKind]);
   return { names, unread: read.unread };
 }
 
@@ -256,8 +257,7 @@ export function declaredMatches(
   if ('refused' in read) return undefined;
   // Stable, so the index's order holds within each.
   const written = (one: DeclaredName): number => exactness(one.name, query) ?? 2;
-  // `default` is no binding a file can keep: the index reads a default export's declaration by it, and that is exported.
-  const names = read.names.filter((one) => one.name !== 'default').sort((left, right) => written(left) - written(right));
+  const names = [...read.names].sort((left, right) => written(left) - written(right));
   return { total: names.length, shown: names.slice(0, cap).map(declaredMatch), unread: read.unread };
 }
 

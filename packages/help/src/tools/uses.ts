@@ -5,7 +5,7 @@ import type { DeclaredName } from '@variance-authority/sense';
 import { unreadLine } from './declared.js';
 import { type Members, places, routes } from './members.js';
 import { passesOn } from './passed-on.js';
-import { sharedSegments } from './shared-segments.js';
+import { nearestTo } from './shared-segments.js';
 import { symbol } from './symbol.js';
 import { UNCOUNTED, exportedAt } from './unpublished.js';
 import { bracketed, keptLine, namesakeLine, narrowing, publishedAt, renamed } from './uses-declarations.js';
@@ -116,12 +116,7 @@ function nearestLine(from: string | undefined, spell: Spelling): string {
 }
 
 function order(sites: readonly Site[], from: string | undefined): readonly Site[] {
-  return [...sites].sort(
-    (a, b) =>
-      (from === undefined ? 0 : sharedSegments(from, b.at) - sharedSegments(from, a.at)) ||
-      (a.at < b.at ? -1 : a.at > b.at ? 1 : 0) ||
-      a.line - b.line,
-  );
+  return [...sites].sort(nearestTo(from));
 }
 
 /**
@@ -359,9 +354,9 @@ function memberLines(members: Members, from: string | undefined, name: string, s
 
 /** The imports of an exported name, as `uses` has always answered them. */
 function imported(answer: Answer, from: string | undefined, own: readonly string[], shown: Shown): string {
-  const { name, found, exported, sites, unread, within, origin, inside } = answer;
+  const { name, found, exported, sites, unread, within, origin, originNamed, inside } = answer;
   // An export that only passes the name on is followed to the declaration.
-  const passed = origin === undefined ? '' : `, which ${passesOn(origin)}`;
+  const passed = origin === undefined ? '' : `, which ${passesOn(origin, originNamed ?? origin.name)}`;
   const named = `\`${name}\`${declaredAs(answer)}`;
   // An entry may publish the name only as a member of a namespace it exports.
   const member = inside.length === 0 ? undefined : `published as ${inside.join(' and as ')}`;
