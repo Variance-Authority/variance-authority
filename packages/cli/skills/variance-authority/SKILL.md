@@ -41,7 +41,9 @@ whole suite again over a record that exists:
   a file the record holds** — `covering` answers a line your edit wrote with no
   case and names it in `written`. A line a case ran over, where a run over
   another text has landed since, is named in `overwritten`, under any frame:
-  which case ran it is not known. A `stale` frame or a `moved` range is the
+  which case ran it is not known. A line the record cannot say a case ran over,
+  since it does not say which text one that crossed the file ran, is named in
+  `unknown`, with `why`. A `stale` frame or a `moved` range is the
   same gap. Record: the test files the gap names, the ones `variance select`
   runs for the file, among them every test file the record holds only in part.
   Run what the gap's `Run with the suite's own runner:` line names, `gap.run`

@@ -87,7 +87,9 @@ function bodyOf(answer: Covering, table: Table): readonly string[] {
     answer.fileGrain === undefined ? '' : `; file grain at ${runsText(answer.fileGrain)}`
   }${answer.outside === undefined ? '' : `; outside every region at ${runsText(answer.outside)}`}${
     answer.written === undefined ? '' : `; written since ${runsText(answer.written)}`
-  }${answer.overwritten === undefined ? '' : `; which case ran it not known at ${runsText(answer.overwritten)}`}${answer.unrun === undefined ? '' : `; no case ran ${answer.unrun.map((part) => `${runsText([part])} ${part.name === undefined ? part.kind : `${part.kind} ${part.name}`}${part.state === undefined ? '' : ` ${part.state}`}${part.moved === true ? ' edited' : ''}`).join(', ')}`}`];
+  }${answer.overwritten === undefined ? '' : `; which case ran it not known at ${runsText(answer.overwritten)}`}${
+    answer.unknown === undefined ? '' : `; whether a case ran it not known at ${runsText(answer.unknown.lines)}`
+  }${answer.unrun === undefined ? '' : `; no case ran ${answer.unrun.map((part) => `${runsText([part])} ${part.name === undefined ? part.kind : `${part.kind} ${part.name}`}${part.state === undefined ? '' : ` ${part.state}`}${part.moved === true ? ' edited' : ''}`).join(', ')}`}`];
 }
 
 function rangeLine(range: CoveringRange, table: Table): string {

@@ -16,7 +16,9 @@ import {
   coveringTestsInFile,
   functionsUnder,
   lastRunsOf,
+  overwrittenIn,
   ranOver,
+  readsTheSnapshot,
   testPlaces,
   type CasesLastRan,
   type ExecutionIndex,
@@ -136,13 +138,16 @@ export interface RanNamed {
 /**
  * What one reading of the runs says of an answer: where and when the test
  * files it names last ran, and, when it asked lines the record has no place
- * for, whether a case that entered the file ran over a text holding each;
- * absent when no case's text of the file is known.
+ * for, whether a case that crossed the file ran over a text holding each;
+ * absent when no case crossed it.
  */
 export interface RanRead {
   readonly ran?: CoveringRan;
-  readonly ranOver?: (held: number) => boolean;
+  readonly ranOver?: (held: number) => HoldsLine;
 }
+
+/** Whether a case ran over a text holding a line, or why that is not known. */
+export type HoldsLine = boolean | { readonly unknown: string };
 
 /** What the reading of an answer's freshness is handed. */
 export interface RanQuestion {
@@ -230,11 +235,15 @@ export async function ranOf(answer: RanNamed, question: RanQuestion): Promise<Ra
   if (tests.length === 0) return {};
   const as = named === undefined ? {} : { named };
   const { snapshot, at } = question;
-  if (snapshot === undefined) return { ran: { tests, unread: 'the record names no commit', ...as } };
-  const read = await question.runs();
-  if (read.unread !== undefined) return { ran: { tests, unread: read.unread.message, ...as } };
-  // The test files that entered the file are placed in the same reading as the named ones, and only the named are said.
+  // The test files that crossed the file are placed in the same reading as the named ones, and only the named are said.
   const writing = writersOf(answer, question, entered);
+  const unread = (why: string): RanRead => ({
+    ran: { tests, unread: why, ...as },
+    ...(writing === undefined || writing.tests.length === 0 ? {} : { ranOver: () => ({ unknown: why }) }),
+  });
+  if (snapshot === undefined) return unread('the record names no commit');
+  const read = await question.runs();
+  if (read.unread !== undefined) return unread(read.unread.message);
   const placing = writing === undefined ? tests : [...new Set([...tests, ...writing.tests])].sort(codeUnitOrder);
   const { places } = testPlaces({ commit: at, runs: read.runs, tests: placing });
   const assumed = assumedOf({ commit: at, runs: read.runs, tests }, places);
@@ -276,30 +285,44 @@ export async function ranOf(answer: RanNamed, question: RanQuestion): Promise<Ra
 }
 
 /**
- * The test files of every case that entered the asked file, with those cases,
+ * The test files of every case that crossed the asked file, with those cases,
  * when the question asked lines the record has no place for: whether one of
  * them ran a text holding a line says whether the line is new to every case.
- * Absent otherwise.
+ * A case flagged there as having run another text is one: that text may be
+ * the one held now. Absent otherwise.
  */
 function writersOf(
   answer: RanNamed,
   question: RanQuestion,
   entered: () => readonly ExecutionTest[],
 ): ReturnType<typeof filesOf> | undefined {
-  return (question.unplaced ?? []).length === 0 || answer.file === undefined ? undefined : filesOf(entered());
+  const { index } = question;
+  if ((question.unplaced ?? []).length === 0 || answer.file === undefined) return undefined;
+  const blocks = index?.modules.find((module) => module.file === answer.file)?.blocks ?? [];
+  return filesOf([...entered(), ...((index === undefined ? undefined : overwrittenIn(index, blocks)) ?? [])]);
 }
 
 /**
- * Whether a case that entered `file` ran a text holding a line of the held
+ * Whether a case that crossed `file` ran a text holding a line of the held
  * `text`: the held text itself, or another known one where the line is placed
- * unedited. A text that is not known holds no line.
+ * unedited; else why that is not known, when a case ran a text the record
+ * cannot say or does not keep. The snapshot's own text holds no line the
+ * record has no place for, and neither does a text the run's commit lacked.
  */
-function textsHolding(writers: readonly Unit[], file: string, text: string, evidence: Evidence): (held: number) => boolean {
-  const overs = writers.flatMap((unit) => unit.runs.map((run) => ranOver(run, unit.test, file, text, evidence, false)));
-  if (overs.includes('held')) return () => true;
-  const others = overs.flatMap((over) => (typeof over === 'object' && 'text' in over && over.text !== undefined ? [over.text] : []));
-  const places = [...new Set(others)].map((other) => evidence.across(text, other));
-  return (line) => places.some((place) => place({ startLine: line, endLine: line })?.moved === false);
+function textsHolding(writers: readonly Unit[], file: string, text: string, evidence: Evidence): (held: number) => HoldsLine {
+  const overs = writers.flatMap((unit) => unit.runs.map((run) => ({ run, over: ranOver(run, unit.test, file, text, evidence, false) })));
+  if (overs.some(({ over }) => over === 'held')) return () => true;
+  const others = new Set<string>();
+  const why = new Set<string>();
+  for (const { run, over } of overs) {
+    if (over === 'held' || over === 'absent') continue;
+    if ('unknown' in over) why.add(over.unknown);
+    else if (over.text !== undefined) others.add(over.text);
+    else if (!readsTheSnapshot(run, evidence.last)) why.add(`a case that crossed ${file} ran over a text of it the record does not keep`);
+  }
+  const places = [...others].map((other) => evidence.across(text, other));
+  const unknown = why.size === 0 ? false : { unknown: [...why].join('; ') };
+  return (line) => places.some((place) => place({ startLine: line, endLine: line })?.moved === false) || unknown;
 }
 
 /** The asked files one test file is judged on, each with its held text and whether the test file holds it as a precondition. */

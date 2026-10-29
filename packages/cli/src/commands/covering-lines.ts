@@ -5,14 +5,17 @@
  * the answer counts called into its regions, so it ran; else a case is flagged
  * there as having run it over a text a later run wrote over, so which case ran
  * it is not known; else no case ran it. A line the record has no place for is
- * read from the texts the cases that entered the file ran over: not known when
- * one of them holds it unmoved, written since the recording when none does.
+ * read from the texts the cases that crossed the file ran over: which case ran
+ * it is not known when one of them holds it unmoved, whether one did is not
+ * known when the record cannot say a text one of them ran over, and it was
+ * written since the recording when none holds it.
  *
- * Nothing else writes `written` or `overwritten`, so a line is never in both,
- * and never beside a case the answer names as having run it.
+ * Nothing else writes `written`, `overwritten` or `unknown`, so a line is never
+ * in two, and never beside a case the answer names as having run it.
  */
 
 import { runsOfLines } from './covering-at.js';
+import type { HoldsLine } from './covering-ran.js';
 import type { Covering } from './covering.js';
 
 /** The lines a question asks, as the case index reads them, before the texts the cases ran over are read. */
@@ -35,16 +38,24 @@ export interface PlacedLine {
 /**
  * The asked lines whose run the record did not measure, by status, each as
  * ascending runs; a status no line has is absent. `ranOver` says whether a case
- * that entered the file ran over a text holding an unplaced line.
+ * that crossed the file ran over a text holding an unplaced line, or why that
+ * is not known.
  */
-export function lineStatus(asked: AskedLines, ranOver: (held: number) => boolean): Pick<Covering, 'written' | 'overwritten'> {
+export function lineStatus(asked: AskedLines, ranOver: (held: number) => HoldsLine): Pick<Covering, 'written' | 'overwritten' | 'unknown'> {
   const overwritten: number[] = [];
   const written: number[] = [];
+  const unknown: number[] = [];
+  const why = new Set<string>();
   for (const line of asked.placed) if (line.flagged() && !line.called()) overwritten.push(line.held);
-  for (const held of asked.unplaced) (ranOver(held) ? overwritten : written).push(held);
+  for (const held of asked.unplaced) {
+    const holds = ranOver(held);
+    if (typeof holds === 'object') why.add(holds.unknown);
+    (holds === true ? overwritten : holds === false ? written : unknown).push(held);
+  }
   const ascending = (lines: number[]) => runsOfLines([...new Set(lines)].sort((left, right) => left - right));
   return {
     ...(written.length === 0 ? {} : { written: ascending(written) }),
     ...(overwritten.length === 0 ? {} : { overwritten: ascending(overwritten) }),
+    ...(unknown.length === 0 ? {} : { unknown: { lines: ascending(unknown), why: [...why].join('; ') } }),
   };
 }

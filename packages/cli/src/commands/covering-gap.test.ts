@@ -146,11 +146,12 @@ describe('a line written since the recording', () => {
     framed = mapped([20]);
     const answer = await ask('--line', '19-20');
 
-    expect(answer.written).toEqual([{ startLine: 20, endLine: 20 }]);
+    // A record that names no commit says nothing of which text its cases ran over.
+    expect(answer.unknown).toEqual({ lines: [{ startLine: 20, endLine: 20 }], why: 'the record names no commit' });
     expect(answer.gap).toEqual({
       question: 'which tests run it now',
       scope: 'lines 19-20 of src/ledger.ts',
-      known: 'line 20 was written since the recording',
+      known: 'line 20 is of a text the record cannot say a case ran over',
       reason: 'stale',
       remedy: 'record',
       run: { files: ['book.test.ts', 'ledger.test.ts', 'load.test.ts'] },

@@ -131,7 +131,7 @@ function grainText(answer: Covering, where: string): readonly string[] {
   return [...lines, ...unplacedText(answer, '')];
 }
 
-/** The asked lines the record measured no run of: written since, or in a text a case ran over where a run over another text has landed since. */
+/** The asked lines the record measured no run of: written since, in a text a case ran over where a run over another text has landed since, or not known to be either. */
 function unplacedText(answer: Covering, of: string): readonly string[] {
   const said: string[] = [];
   if (answer.written !== undefined) {
@@ -141,6 +141,9 @@ function unplacedText(answer: Covering, of: string): readonly string[] {
   if (answer.overwritten !== undefined) {
     const [one, verb, it] = single(answer.overwritten) ? (['Line', 'is', 'it'] as const) : (['Lines', 'are', 'them'] as const);
     said.push(`${one} ${runsText(answer.overwritten)}${of} ${verb} ${lostText({ other: false, it })}.`);
+  }
+  if (answer.unknown !== undefined) {
+    said.push(`Whether a case has run ${single(answer.unknown.lines) ? 'line' : 'lines'} ${runsText(answer.unknown.lines)}${of} is not known: ${answer.unknown.why}.`);
   }
   return said;
 }
@@ -155,10 +158,10 @@ function unplaced(answer: Covering, target: CoveringTarget): boolean {
   return unsaid(answer, target).length === 0;
 }
 
-/** The asked lines neither written since nor run in another text: the ones a case is known to have run, or known not to. */
+/** The asked lines neither written since, nor run in another text, nor not known to be either: the ones a case is known to have run, or known not to. */
 function unsaid(answer: Covering, target: Exclude<CoveringTarget, { readonly function: string }>): readonly HeldLines[] {
   const { startLine, endLine } = 'line' in target ? { startLine: target.line, endLine: target.line } : target.lines;
-  const out = new Set([...answer.written ?? [], ...answer.overwritten ?? []].flatMap((run) =>
+  const out = new Set([...answer.written ?? [], ...answer.overwritten ?? [], ...answer.unknown?.lines ?? []].flatMap((run) =>
     Array.from({ length: run.endLine - run.startLine + 1 }, (_, at) => run.startLine + at)));
   return runsOfLines(Array.from({ length: endLine - startLine + 1 }, (_, at) => startLine + at).filter((line) => !out.has(line)));
 }

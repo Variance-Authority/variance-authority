@@ -7,7 +7,8 @@ import { HOUR, PAY, iso, oneRun, recordFixture } from './covering-record.fixture
 /**
  * Each line a `covering` question asks has one status, decided once over the
  * case index and the texts the cases ran over: a case ran it, no case ran it,
- * which case ran it is not known, or it was written since the recording.
+ * which case ran it is not known, whether a case ran it is not known, or it was
+ * written since the recording.
  * `pay` spans lines 1-6 and its branch 2-4; an edit to line 2 charges both,
  * one to 3 or 4 the branch alone. `charges once` called into `pay` and no case
  * into the branch, and `overran` is flagged where it is given.
@@ -83,6 +84,31 @@ describe('a line the record has no place for', () => {
     expect(text).toContain(`Line 5 of src/pay.ts ${UNKNOWN}`);
   });
 
+  it('is not known when the record does not say which text a case that entered the file ran over', async () => {
+    // The landing names no texts, so whether `charges once` ran over the committed text, which holds line 5, is not known.
+    const untold = (_: string, recorded: string | undefined) => {
+      const { landings: [landing], ...run } = oneRun(iso(Date.now() - HOUR), ['src/pay.test.ts']);
+      const { texts: _texts, ...named } = landing!;
+      return { commit: recorded, ...run, landings: [named] };
+    };
+    const { at } = await checkout({ ranOver: RECORDED, kept: true, runs: untold });
+    const { text, json } = await ask(at, '--file', 'src/pay.ts', '--line', '5');
+
+    expect(json).toMatchObject({ tests: [], unknown: { lines: [{ startLine: 5, endLine: 5 }], why: 'the runs record does not say which text of src/pay.ts its runs there ran over' } });
+    expect(json).not.toHaveProperty('written');
+    expect(text).toContain('Whether a case has run line 5 of src/pay.ts is not known: the runs record does not say which text of src/pay.ts its runs there ran over.\n');
+  });
+
+  it('is not known when the only case that crossed the file is flagged there, and ran over the text as it is now', async () => {
+    // `overran` ran `pay` over the committed text, and a run over the record's text has landed on it since; the disk holds the committed text again.
+    const { at } = await checkout({ ranOver: RECORDED, kept: true, runs: committed, flagged: 'pay', unentered: true });
+    const { text, json } = await ask(at, '--file', 'src/pay.ts', '--line', '5');
+
+    expect(json).toMatchObject({ tests: [], overwritten: [{ startLine: 5, endLine: 5 }] });
+    expect(json).not.toHaveProperty('written');
+    expect(text).toContain(`Line 5 of src/pay.ts ${UNKNOWN}`);
+  });
+
   it('was written since when the only text a case ran over holds it moved', async () => {
     const { at } = await checkout({ ranOver: RECORDED, kept: true, runs: committed });
     await writeFile(join(at, 'src/pay.ts'), PAY.replace('return amount;', 'return amount * 1;'));
@@ -95,7 +121,7 @@ describe('a line the record has no place for', () => {
 
 describe('a run of lines', () => {
   it('gives each line one status: ran, not known, or written since, a call outranking a flag on the same line', async () => {
-    const { at } = await checkout({ flagged: 'branch' });
+    const { at } = await checkout({ flagged: 'branch', runs: committed });
     await writeFile(join(at, 'src/pay.ts'), PAY.replace('  }\n', '  }\n  const charged = amount;\n'));
     const { text, json } = await ask(at, '--file', 'src/pay.ts', '--line', '1-7');
 

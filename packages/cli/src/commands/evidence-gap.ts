@@ -126,6 +126,7 @@ export async function answerGap(answer: Covering, whole: ExecutionIndex, source:
   const unplaced = [
     ...unplacedKnown(answer.written, ['was', 'were'], 'written since the recording'),
     ...unplacedKnown(answer.overwritten, ['is', 'are'], lostText()),
+    ...unplacedKnown(answer.unknown?.lines, ['is', 'are'], 'of a text the record cannot say a case ran over'),
   ];
   if (unplaced.length > 0) return selected('which tests run it now', scope, unplaced.join(', and '), await selectedFor(source, file), whole);
   const moved = (answer.ranges ?? []).filter((range) => range.moved === true);

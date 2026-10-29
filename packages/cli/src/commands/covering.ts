@@ -112,10 +112,17 @@ export interface Covering {
   /**
    * Under a line or a run of lines: the lines written since the recording,
    * which no case has run: neither the text the record's lines are numbered in
-   * holds them, nor any text a case that entered the file ran over. In the text
-   * as it is now; never a line of `overwritten`.
+   * holds them, nor any text a case that crossed the file ran over. In the text
+   * as it is now; never a line of `overwritten` or `unknown`.
    */
   readonly written?: readonly HeldLines[];
+  /**
+   * Under a line or a run of lines: the lines the record has no place for
+   * where whether a case ran them is not known, since the record cannot say
+   * which text a case that crossed the file ran over, with why. In the text as
+   * it is now; never a line of `written` or `overwritten`.
+   */
+  readonly unknown?: { readonly lines: readonly HeldLines[]; readonly why: string };
   /**
    * Under a line, a run of lines or a function: the lines of a text a case ran
    * over where a run over another text has landed since, so which case ran them

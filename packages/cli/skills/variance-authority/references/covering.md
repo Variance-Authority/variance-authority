@@ -51,11 +51,13 @@ answer ends with a Deep gap: the story of its first three tests, in the order
 the answer lists them ([Fast, Smart, Deep](fsd.md)). A whole-file answer asks of
 no line, so it ends with no Deep gap: ask `--line` on the range you mean.
 Lines of a run your edit wrote are named in `written`, lines a case ran in a
-text the record does not number in `overwritten`, and no case is named for
-either; when your edit wrote every line asked, the answer says that no case has
-run them. When no line asked is in a recorded region, or every one is in one of
-those two, the answer names no case and says, for each line, whether your edit
-wrote it, a case ran it in another text, or no region holds it.
+text the record does not number in `overwritten`, lines the record cannot say a
+case ran in `unknown`, with `why`, and no case is named for any of them; when
+your edit wrote every line asked, the answer says that no case has run them.
+When no line asked is in a recorded region, or every one is in one of those
+three, the answer names no case and says, for each line, whether your edit
+wrote it, a case ran it in another text, whether a case ran it is not known, or
+no region holds it.
 
 - `--hops` puts each test file's import hops beside it and sorts nearest first.
   It needs `--line` or `--function`, and a run of lines or any `--function` is
@@ -224,7 +226,12 @@ run numbers its lines in your text again. Every line of
 that region is said so under `--line`, `--lines` and `--function`, unless a case
 called into a region that holds the line: that case ran it, so the line is not
 in `overwritten`. The whole file says it of the range and `--since` of the
-region, and one a named case entered says it also holds one.
+region, and one a named case entered says it also holds one. A line the
+record's text has no place for, where the record cannot say which text a case
+that crossed the file ran over, is answered with no case and named in
+`unknown`, with why: the runs record names no texts there, or no commit, or the
+text that case ran is not kept. Your edit wrote it only when the record shows
+every such case ran a text without it.
 Neither is *no test covers it*:
 the answer ends with a Record gap naming the test files
 `variance select` runs for the file, under the suite's own `relations`, `ignore` and `before`. A `stale` frame and a `moved` range end the

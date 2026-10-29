@@ -34,7 +34,7 @@ export {
   type SourceTestTarget,
   type SourceTestRange,
 } from './reverse.js';
-export { overwrittenOn, type OverwrittenOn } from './overwritten.js';
+export { overwrittenIn, overwrittenOn, type OverwrittenOn } from './overwritten.js';
 export { anyStopped } from './stopped.js';
 export { unenteredSentence, whyUnentered, type Unentered } from './unentered.js';
 export { functionsUnder, innermostAt, lineGrain, marksLoadTime } from './source-target.js';

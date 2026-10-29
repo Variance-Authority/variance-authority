@@ -36,19 +36,21 @@ export const ASSUMED = 'The record does not say where the test file named here l
  * `src/fee.test.ts` did too; no case ran its branch. With `refunds`,
  * `src/pay.test.ts` holds a second case, `r`, which enters `pay` or not. With
  * `flagged`, it holds a case `o` that ran `pay` or its branch over a text a run
- * over another text has landed on since, flagged there.
+ * over another text has landed on since, flagged there. With `unentered`, no
+ * case but `o` crossed `src/pay.ts`.
  */
 export function indexOf(
   fee = false,
   refunds?: 'enters' | 'idle',
   flagged?: 'pay' | 'branch',
+  unentered = false,
 ): { readonly tests: readonly object[]; readonly modules: readonly object[] } {
   const tests = [
     { id: 'p', file: 'src/pay.test.ts', name: 'charges once' },
     ...(fee ? [{ id: 'f', file: 'src/fee.test.ts', name: 'charges a fee' }] : []),
     ...(refunds === undefined ? [] : [{ id: 'r', file: 'src/pay.test.ts', name: 'refunds' }]),
   ];
-  const crossings = tests.flatMap((test, at) => (test.id !== 'r' || refunds === 'enters' ? [{ test: at, distance: 0 }] : []));
+  const crossings = unentered ? [] : tests.flatMap((test, at) => (test.id !== 'r' || refunds === 'enters' ? [{ test: at, distance: 0 }] : []));
   const flag = (on: 'pay' | 'branch') => (flagged === on ? [{ test: tests.length, distance: 0, overwritten: true }] : []);
   return {
     tests: [...tests, ...(flagged === undefined ? [] : [{ id: 'o', file: 'src/pay.test.ts', name: 'overran' }])],
@@ -83,6 +85,8 @@ export interface Fixture {
   readonly refunds?: 'enters' | 'idle';
   /** `src/pay.test.ts` holds a case, `overran`, flagged on `pay` or on its branch: it ran there over a text a later run wrote over. */
   readonly flagged?: 'pay' | 'branch';
+  /** No case but the flagged one crossed `src/pay.ts`: it is held there as having run it over a text written over since, and nowhere else. */
+  readonly unentered?: true;
   /**
    * A second commit, at `committed` ms, that the record names: it writes `pay`
    * to `src/pay.ts` when given, and `src/other.ts` otherwise.
@@ -181,7 +185,7 @@ export function recordFixture(): RecordFixture {
     }, {
       // The row spelling cannot hold a flagged case; the set spelling can.
       index: (options.flagged === undefined ? encodeExecutionIndex : encodeAsSetExecutionIndex)(
-        indexOf(options.fee === true, options.refunds, options.flagged) as Parameters<typeof encodeExecutionIndex>[0],
+        indexOf(options.fee === true, options.refunds, options.flagged, options.unentered === true) as Parameters<typeof encodeExecutionIndex>[0],
       ),
     });
     if (options.kept === true && options.ranOver !== undefined) {

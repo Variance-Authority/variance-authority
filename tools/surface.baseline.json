@@ -3337,6 +3337,7 @@
         "openCoverageFile": "function",
         "openSetColumns": "function",
         "openTestCoverage": "function",
+        "overwrittenIn": "function",
         "overwrittenOn": "function",
         "parseBefore": "function",
         "parseEntrypoints": "function",
