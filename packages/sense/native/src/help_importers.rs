@@ -24,11 +24,13 @@ pub(crate) struct Taken {
 }
 
 /// What `importers_from` walked: every use, every file that passes a wanted
-/// name on, and every namespace a file passes one on inside.
+/// name on, every namespace a file passes one on inside, and every name a
+/// wanted name is exported by along the way.
 pub(crate) struct Walked {
     pub(crate) taken: Vec<Taken>,
     pub(crate) through: HashSet<String>,
     pub(crate) namespaces: Vec<Namespace>,
+    pub(crate) exports: HashSet<String>,
 }
 
 /// A name wanted out of a file: an export of it, and the names read off that
@@ -122,6 +124,7 @@ pub(super) fn importers_folded(
             seen.extend(origins.keys().map(|&origin| ((file.clone(), want.clone(), origin), false)));
         }
     }
+    let mut exports: HashSet<String> = wanted.values().flat_map(|names| names.keys().map(|want| want.export.clone())).collect();
     let mut found: HashMap<(usize, String, u32, String, String, String), Taken> = HashMap::new();
     let mut through = HashSet::new();
     let mut namespaces = HashSet::new();
@@ -154,6 +157,7 @@ pub(super) fn importers_folded(
                 Some(&held) => held && !typed,
             };
             if follow {
+                exports.insert(want.export.clone());
                 seen.insert(key, typed);
                 through.insert(file.clone());
                 let held = wanted.entry(file).or_default().entry(want).or_default().entry(origin).or_insert(typed);
@@ -161,7 +165,7 @@ pub(super) fn importers_folded(
             }
         }
     }
-    Walked { taken: found.into_values().collect(), through, namespaces: namespaces.into_iter().collect() }
+    Walked { taken: found.into_values().collect(), through, namespaces: namespaces.into_iter().collect(), exports }
 }
 
 /// One step of `importers_from`: the uses of each wanted name out of its
