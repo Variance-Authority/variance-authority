@@ -17,9 +17,7 @@
  * - **Where.** A region every reading of some sides went into and no reading of
  *   the rest did: an arm, a loop body, a function.
  * - **What was said.** A note — a console line, an announcement, what Eyes
- *   saw — that every reading of some sides says as many times, and none of
- *   the rest does: a line said twice on one side and once on the other is
- *   `×2` on the one and plain on the other.
+ *   saw — that every reading of some sides has and none of the rest.
  * - **In what order.** Two places, or two notes, every side reaches every time,
  *   that each side reaches in one order every time, and not every side in the
  *   same one. Order is compared at first arrival, at the grain of a
@@ -200,12 +198,10 @@ function summary(side: LoadedSide): SideSummary {
   return { name: side.name, readings: side.readings.length, stopped: side.readings.filter((loaded) => loaded.story.stopped === true).length };
 }
 
-// A ref a story gives an object is the order its run first met it, so one more
-// object early in a run renumbers every ref after it. Across runs a value the
-// tap showed — handed, held, or between a note's strings — is its kind, and a
-// ref says only that it is an object. The tap writes a ref as a word of its own
-// followed by the kind, or cut short; a console line that spells one alike
-// compares as the tap's would.
+// A ref numbers objects in the order a run met them, so across runs a value
+// the tap showed — handed, held, or in a note — compares by its kind alone. A
+// ref is a word of its own, then the kind or a cut; a console line spelled
+// alike compares the same.
 const REF = /(?<=^|[\s=])ref\d+(?=[\s…]|$)/gu;
 
 /** The text a said key holds, without the times it was said. */
@@ -213,7 +209,7 @@ function textOf(key: string): string {
   return key.slice(0, key.lastIndexOf('\0'));
 }
 
-/** A said key as a person reads it: the text, and `×n` where it was said more than once. */
+/** A said key as a person reads it: the text, and `×n` where it was said more than once, so a line said twice on one side and once on the other is told apart. */
 function shownSaid(key: string): string {
   const times = key.slice(key.lastIndexOf('\0') + 1);
   return times === '1' ? textOf(key) : `${textOf(key)} ×${times}`;

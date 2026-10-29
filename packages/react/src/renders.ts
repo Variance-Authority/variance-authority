@@ -4,20 +4,11 @@ import { contextReadsOf, inputPropNames } from './inputs.js';
 import { suspenseStateOf } from './suspense.js';
 
 /**
- * Why a component rendered, read off the commit it rendered in.
- *
- * `holding.ts` reads what a component held so two readings can be told apart.
- * This reads the same cells across one render instead: a fiber that did work
- * in a commit and the `alternate` it was built from, which is what the
- * component rendered last time. React keeps both until the next render, so the
- * question React DevTools' profiler answers — *why did this render* — is a
- * comparison of two records already in memory, and nothing has to be patched
- * or wrapped to ask it.
- *
- * The answer is the inputs that moved, by `Object.is`, which is React's own
- * test: a prop, a cell of retained state, a context value. A component none of
- * whose inputs moved rendered because its parent did and nothing stopped the
- * render on the way down — the cause a `memo` would have removed.
+ * Why a component rendered: the inputs that moved, by `Object.is`, between the
+ * fiber that did work in a commit and the `alternate` it was built from, which
+ * React keeps until the next render. A prop, a cell of retained state, a
+ * context value; none moved means its parent rendered and nothing stopped it,
+ * the cause a `memo` would have removed.
  */
 export type RenderCause =
   /** No previous render: the component mounted in this commit. */

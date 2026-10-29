@@ -53,10 +53,7 @@
  * `@variance-authority/event` and `@variance-authority/eyes` call when it is
  * there, and it wraps the realm's `console` so that every line the case prints
  * is also a note. The console still prints: the wrapper says the line to the
- * tape and hands it on unchanged. A caller with values to say hands the channel
- * a template's strings and the values between them, as a tagged template does,
- * and the tap shows each value as it shows what a region was handed, so an
- * object keeps one ref across every line it appears in. Both happen only in a realm that is recording
+ * tape and hands it on unchanged. Both happen only in a realm that is recording
  * a story, which somebody asked for by name.
  *
  * ## What a region was handed
@@ -126,7 +123,9 @@ interface Tap {
   /**
    * {@link note} a template's text with each value between its strings shown
    * as a region shows what it was handed: a primitive as it is, an object as
-   * its ref and kind. Past {@link NOTE_LIMIT} nothing is shown, only counted.
+   * its ref and kind, the same ref on every line. The channel {@link listen}
+   * installs takes a tagged template's arguments for it. Past
+   * {@link NOTE_LIMIT} nothing is shown, only counted.
    */
   say(strings: readonly string[], values: readonly unknown[]): void;
   /** Ask the namers in `scope`'s kind array, as it holds them then, what each object is. */

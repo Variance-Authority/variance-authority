@@ -6,23 +6,12 @@ import { renderCausesOf, type RenderCause } from './renders.js';
 /**
  * What a test story calls a React object, and why each component rendered.
  *
- * A story shows an object a function was handed as a ref and a word, and the
- * word sense finds alone is the object's constructor: a context, a memo and an
- * element are each `Object`. React marks each with a `$$typeof` symbol, and its
- * description is the kind — `react.context`, `react.memo`. Imported as a setup
- * file, this module puts {@link reactKind} in the realm's kind array, which a
- * story's tap asks before it names an object itself.
- *
- * A setup file runs before the suite imports `react-dom`, which is the one
- * moment a commit tap can be installed. When a story is listening, this taps
- * every commit and says one line per component that rendered in it, where the
- * case stands when React commits: `rendered Summary — expanded false → true`,
- * after a `commit — <n> rendered` line that says where the commit starts.
- * A value is shown as the story shows any value, so an object keeps its ref.
- * A subtree that mounts says so once, at its top, naming each component that
- * mounted below it, over more lines where the names need them. Two cases' routes then part
- * at the render whose cause differs. With no story listening nothing is
- * tapped, and a test pays nothing.
+ * Imported as a setup file, before the suite imports `react-dom`, it puts
+ * {@link reactKind} in the realm's kind array, so a story names a context or a
+ * memo by its `$$typeof`, and taps every commit to say one line per component
+ * that rendered, where the case stood when React committed. The lines are in
+ * the package README, under *React in a test story*. With no story listening
+ * nothing is tapped, and a test pays nothing.
  */
 
 const KIND = Symbol.for('variance-authority.story.kind');
