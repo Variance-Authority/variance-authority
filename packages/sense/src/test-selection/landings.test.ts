@@ -95,13 +95,20 @@ describe('a run observes the test files it finished', () => {
 });
 
 describe('a run observes the cases it executed', () => {
-  it('does not observe a file the snapshot held that it executed no case of, which stays where it stood', () => {
-    // `-t` matched no case of b.test.ts: the runner collected it and skipped every case.
+  it('runs in part a file the snapshot held that it executed no case of, naming none, which stays where it stood', () => {
+    // `-t` matched no case of b.test.ts: the runner collected it, skipped every case, and
+    // laid its row, incomplete, with what its load ran.
     const held = record('P', DAY1, ['a.test.ts', 'b.test.ts']);
     const after = landAt(DAY2, snapshot('P', 'a.test.ts', 'b.test.ts'), held, ranCases('R', ['a.test.ts'], { 'b.test.ts': [] }), {}, {});
 
-    expect(after.landings).toEqual([{ files: ['a.test.ts'], first: DAY2, latest: DAY2, runs: 1, installed: {}, texts: {} }]);
+    expect(after.landings).toEqual([
+      { files: ['a.test.ts'], partly: ['b.test.ts'], cases: { 'b.test.ts': [] }, first: DAY2, latest: DAY2, runs: 1, installed: {}, texts: {} },
+    ]);
     expect(after.standing).toEqual([{ commit: 'P', files: ['b.test.ts'], first: DAY1, latest: DAY1, runs: 1, texts: {} }]);
+    const place = testPlaces({ commit: 'R', runs: after, tests: ['b.test.ts'] }).places.get('b.test.ts')!;
+    // Each case it holds is the run's that finished the file; its rows are both runs'.
+    expect(lastRunsOf(place, 'b.test.ts', [{ id: 'refunds', name: 'refunds' }]).map(({ runs }) => runs.map((run) => run.first))).toEqual([[DAY1]]);
+    expect(lastRunsOf(place, 'b.test.ts', undefined).map(({ runs }) => runs.map((run) => run.first))).toEqual([[DAY1, DAY2]]);
   });
 
   it('names the cases it executed of each file it ran in part, and they travel with its landing into its stand', () => {
@@ -219,7 +226,9 @@ describe('the runs record stores its landings', () => {
 
   it('counts a run that observed nothing, and dates the record by it, leaving the landings as they were', () => {
     const one = landAt(DAY1, snapshot('O', 'a.test.ts'), undefined, ran('P', ['a.test.ts']), {}, {});
-    const two = landAt(DAY2, snapshot('P', 'a.test.ts'), one, { ...ranCases('P', [], { 'a.test.ts': [] }) }, {}, {});
+    // It laid no row of any test file, as a filter that matched none does: a run that laid
+    // a row of one, even with none of its cases, ran it in part.
+    const two = landAt(DAY2, snapshot('P', 'a.test.ts'), one, ranCases('P', [], {}), {}, {});
 
     expect(two).toEqual({ ...one, latest: DAY2, runs: 2 });
   });

@@ -3,7 +3,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 import { commitRunsAfter, commitRunsFile, landRun, readCommitRuns, type CommitRuns } from './commit-runs.js';
-import { writeTestCoverage, type TestCoverage } from './index.js';
+import { decodeExecutionTests } from './execution-format.js';
+import { caseSectionsAt, encodeAsSetExecutionIndex, writeTestCoverage, type TestCoverage } from './index.js';
 import { whatLanded } from './landings.js';
 
 /** A run of `files` that instrumented one module: a run that instrumented none records no runs at all. */
@@ -20,6 +21,13 @@ function run(commit: string | undefined, files: readonly string[], instrumentati
       blocks: [{ ordinal: 0, kind: 'module', digest: 'root', name: '', path: '', startLine: 1, endLine: 1, source: true, testFiles: [...files].sort() }],
     }],
   };
+}
+
+/** The cases a run of `tests` kept: one of each of `files`, each entering `src/a.ts`. */
+function kept(commit: string, tests: TestCoverage['tests'], files: readonly string[]) {
+  const crossings = files.map((_, test) => ({ test, distance: 0 }));
+  const modules = [{ file: 'src/a.ts', blocks: [{ kind: 'module' as const, name: '', path: '', startLine: 1, endLine: 1, source: true, crossings }] }];
+  return { fresh: encodeAsSetExecutionIndex({ tests: files.map((file) => ({ id: `${file} > one`, file, name: 'one', stopped: false })), modules }), run: { tests, commit } };
 }
 
 /** The test files the runs record at `coverageFile` says its landings finished. */
@@ -67,6 +75,20 @@ describe('the runs recorded at one commit', () => {
     await landRun(coverageFile, { ...partial, tests: partial.tests.map((test) => ({ ...test, complete: test.file !== 'a.test.ts' })) }, root);
 
     expect((await readCommitRuns(coverageFile))?.landings.at(-1)).toMatchObject({ files: ['b.test.ts'], partly: ['a.test.ts'], cases: { 'a.test.ts': [] } });
+  });
+
+  it('names none of the cases of a held file it ran in part and executed no case of, when the run kept cases', async () => {
+    // `-t` matched b's case alone: a.test.ts's every case skipped and its row laid, so it ran in part.
+    const { root, coverageFile } = await recorded('base');
+    await writeFile(join(root, 'a.test.ts'), '');
+    await landRun(coverageFile, run('head', ['a.test.ts']), root, undefined, kept('head', run('head', ['a.test.ts']).tests, ['a.test.ts']));
+    const partial = run('head', ['a.test.ts', 'b.test.ts']);
+    const tests = partial.tests.map((test) => ({ ...test, complete: test.file !== 'a.test.ts' }));
+
+    await landRun(coverageFile, { ...partial, tests }, root, undefined, kept('head', tests, ['b.test.ts']));
+
+    expect((await readCommitRuns(coverageFile))?.landings.at(-1)).toMatchObject({ files: ['b.test.ts'], partly: ['a.test.ts'], cases: { 'a.test.ts': [] } });
+    expect(decodeExecutionTests(caseSectionsAt(coverageFile).index!).map((test) => test.id)).toEqual(['a.test.ts > one', 'b.test.ts > one']);
   });
 
   it('starts again at a new commit, laid over the last one', async () => {

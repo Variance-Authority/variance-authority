@@ -7,10 +7,9 @@
  * ran whole. A file it ran in part (`-t`, a filter, a skip) keeps the cases it
  * did not run (`layerCaseIndex`), so it stays where it stood, and the run lists
  * it as run in part, with the cases it laid into the case index of it, so a
- * reader dates each case by the run that laid its rows. A run that kept no
- * cases laid none, and says so: the file's rows are both runs', its cases the
- * earlier one's. A run that kept cases and executed no case of a file did not
- * observe that file at all.
+ * reader dates each case by the run that laid its rows. A run that laid no
+ * case of the file, because it kept none or executed none of the file's, says
+ * so: the file's rows are both runs', its cases the earlier one's.
  */
 
 // compass: variance-authority.reach
@@ -61,10 +60,11 @@ export interface Observed extends Pick<Landing, 'cases'> {
 /**
  * The files `current` observed, and the ones it ran only in part where the
  * snapshot `prior` already held them, each in code-unit order, with the cases
- * it laid of those: none, when it kept no cases. A run that kept cases did not
- * observe a file the snapshot held that it executed no case of. A file the
- * snapshot did not hold has no other cases, so a run observes it either way;
- * with no snapshot, it observes every file it ran.
+ * it laid of those: none, when it kept no cases or executed none of the file's.
+ * Such a file is still run in part: its incomplete row, with what its load
+ * ran, is laid over the file's rows. A file the snapshot did not hold has no
+ * other cases, so a run observes it either way; with no snapshot, it observes
+ * every file it ran.
  */
 export function observedBy(prior: RecordedTests | undefined, current: RanTests): Observed {
   const held = prior === undefined ? undefined : new Set(prior.tests.map((test) => test.file));
@@ -73,14 +73,14 @@ export function observedBy(prior: RecordedTests | undefined, current: RanTests):
   const partly = new Set<string>();
   for (const test of current.tests) {
     if (test.complete || held === undefined || !held.has(test.file)) observed.add(test.file);
-    else if (laid === 'none' || (laid.get(test.file)?.length ?? 0) > 0) partly.add(test.file);
+    else partly.add(test.file);
   }
   for (const file of observed) partly.delete(file);
   const part = [...partly].sort(codeUnitOrder);
   return {
     observed: [...observed].sort(codeUnitOrder),
     partly: part,
-    ...(part.length === 0 ? {} : { cases: Object.fromEntries(part.map((file) => [file, laid === 'none' ? [] : laid.get(file)!])) }),
+    ...(part.length === 0 ? {} : { cases: Object.fromEntries(part.map((file) => [file, laid === 'none' ? [] : (laid.get(file) ?? [])])) }),
   };
 }
 
