@@ -80,7 +80,7 @@ export async function coveringAt(
   let target: SourceTestTarget;
   let asked: CoveringTarget;
   let grain: Pick<Covering, 'grain' | 'fileGrain' | 'outside'> = {};
-  let onRecord: AskedLines['placed'];
+  let onRecord: readonly RecordedLine[];
   let unplaced: readonly number[] = [];
   if (request.line !== undefined || request.lines !== undefined) {
     const held = request.lines ?? { startLine: request.line!, endLine: request.line! };
@@ -89,7 +89,7 @@ export async function coveringAt(
     if (lines.lines.length === 0) {
       // No asked line is in a recorded region: each is new, or has none to be covered, and saying which is the answer.
       // No line is placed, so the case index is asked of none of them.
-      reading?.({ placed: [], unplaced: lines.unplaced, called: () => false, flagged: () => false });
+      reading?.({ placed: [], unplaced: lines.unplaced });
       return {
         file,
         target: asked,
@@ -124,10 +124,12 @@ export async function coveringAt(
   // Each placed line is read on its own: a call into one of its regions outranks a flag there, whatever the rest of the target holds.
   const line = (recorded: number): SourceTestTarget => ({ file, line: recorded });
   reading?.({
-    placed: onRecord,
+    placed: onRecord.map(({ held, recorded }) => ({
+      held,
+      called: () => coveringTests(before ?? index, line(recorded), graph).length > 0,
+      flagged: () => overwrittenOn(before ?? index, line(recorded), graph) !== undefined,
+    })),
     unplaced,
-    called: (recorded) => coveringTests(before ?? index, line(recorded), graph).length > 0,
-    flagged: (recorded) => overwrittenOn(before ?? index, line(recorded), graph) !== undefined,
   });
   const found = coveringTests(index, target, graph);
   const kept = near.whole ? found : found.filter(near.keep);
@@ -222,6 +224,12 @@ export function runsText(runs: readonly HeldLines[]): string {
   return runs.map((run) => (run.startLine === run.endLine ? `${run.startLine}` : `${run.startLine}-${run.endLine}`)).join(', ');
 }
 
+/** An asked line a recorded region holds: where it stands in the held text, and the recorded line it is placed at. */
+interface RecordedLine {
+  readonly held: number;
+  readonly recorded: number;
+}
+
 /** The asked lines, sorted by what the record holds them at. */
 interface ReadLines {
   /** In the record's coordinates: every asked line a recorded region holds. */
@@ -270,7 +278,7 @@ function recordedLines(held: HeldLines, module: ExecutionModule, placement: Plac
  * that the record places in a recorded region, ascending. A function is named,
  * not numbered, so a line written inside it is not asked: `moved` says it.
  */
-function functionLines(module: ExecutionModule, named: string, placement: Placement | undefined): AskedLines['placed'] {
+function functionLines(module: ExecutionModule, named: string, placement: Placement | undefined): readonly RecordedLine[] {
   const held = new Set<number>();
   for (const block of functionsUnder(module.blocks, named)) {
     const where = placement === undefined ? block : placement.place(block)?.lines;

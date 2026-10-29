@@ -17,14 +17,19 @@ import type { Covering } from './covering.js';
 
 /** The lines a question asks, as the case index reads them, before the texts the cases ran over are read. */
 export interface AskedLines {
-  /** Each asked line a recorded region holds: where it stands in the held text, and the recorded line it is placed at. */
-  readonly placed: readonly { readonly held: number; readonly recorded: number }[];
+  /** Each asked line a recorded region holds. */
+  readonly placed: readonly PlacedLine[];
   /** In the held text: the asked lines the record has no place for. */
   readonly unplaced: readonly number[];
+}
+
+/** An asked line a recorded region holds: where it stands in the held text, and what the case index says of the recorded line it is placed at. */
+export interface PlacedLine {
+  readonly held: number;
   /** Whether a case the answer counts called into a region the recorded line lands on. */
-  readonly called: (recorded: number) => boolean;
+  readonly called: () => boolean;
   /** Whether a region the recorded line lands on holds a case flagged as having run it over a text written over since. */
-  readonly flagged: (recorded: number) => boolean;
+  readonly flagged: () => boolean;
 }
 
 /**
@@ -35,7 +40,7 @@ export interface AskedLines {
 export function lineStatus(asked: AskedLines, ranOver: (held: number) => boolean): Pick<Covering, 'written' | 'overwritten'> {
   const overwritten: number[] = [];
   const written: number[] = [];
-  for (const { held, recorded } of asked.placed) if (asked.flagged(recorded) && !asked.called(recorded)) overwritten.push(held);
+  for (const line of asked.placed) if (line.flagged() && !line.called()) overwritten.push(line.held);
   for (const held of asked.unplaced) (ranOver(held) ? overwritten : written).push(held);
   const ascending = (lines: number[]) => runsOfLines([...new Set(lines)].sort((left, right) => left - right));
   return {
