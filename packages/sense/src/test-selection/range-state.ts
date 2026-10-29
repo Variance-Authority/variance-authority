@@ -11,18 +11,11 @@ import type { CoveringRegion, SourceTestRange } from './reverse.js';
 export type RangeState = 'walked' | 'alone' | 'loaded' | 'hole' | 'unwalked';
 
 /**
- * How far the record says cases got into a range, the one reading every
- * covering answer and the review handover take a range's reach from:
- *
- * - `entered`: a case called into it.
- * - `loaded`: the only entry was while its module evaluated.
- * - `hole`: nobody entered it, and a case that could have reached it stopped.
- * - `unwalked`: nobody entered it, and every case that could have reached it
- *   finished.
- * - `overwritten`: a case ran it in a text an edit wrote over it, so which
- *   case ran it is not known.
- * - `unknown`: nobody entered it, and whether a case that could have reached
- *   it stopped was not recorded.
+ * How far the record says cases got into a range, read by every covering answer
+ * and the review: `entered`, a case called in; `loaded`, only while its module
+ * evaluated; `overwritten`, a case ran it in a text an edit wrote over, so which
+ * case is not known; and with nobody in, `hole` when a case that could have
+ * reached it stopped, `unwalked` when each finished, `unknown` when not recorded.
  */
 export type Reach = 'entered' | 'loaded' | 'overwritten' | 'hole' | 'unwalked' | 'unknown';
 
