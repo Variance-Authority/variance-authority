@@ -12,10 +12,12 @@ is the unit these files count, shard and gate on.
 
 If you copy one file, change two things: the `--config` path, so it points at
 your own `variance.config.json`, and the step that builds the thing being
-observed (here, a Storybook). Copy [`../actions/variance`](../actions/variance)
-alongside `variance.yml` and `variance-shards.yml` — it is a composite action in
-this repository, not one published to the Marketplace, so `uses:
-./.github/actions/variance` only resolves if the directory came with the file.
+observed (here, a Storybook). Then point the step that runs the gate at the
+released [composite action](../actions/variance), by the version of the CLI you
+installed: `uses:
+Variance-Authority/variance-authority/.github/actions/variance@v0.20.0`. These
+files say `./.github/actions/variance` because they test the action as it
+stands in this checkout.
 
 | File | Asks | Costs |
 |---|---|---|
@@ -77,7 +79,7 @@ something the workflow fetches. The composite action's `command` input defaults
 to `npx --no-install variance`, which is what your copy should use:
 
 ```yaml
-- uses: ./.github/actions/variance
+- uses: Variance-Authority/variance-authority/.github/actions/variance@v0.20.0
   with:
     config: variance.config.json
     profile: chromium

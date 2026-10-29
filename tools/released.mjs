@@ -147,6 +147,16 @@ export async function unborn(packages, { ask = onRegistry } = {}) {
   return packages.filter((_, at) => !held[at]);
 }
 
+/**
+ * The tags a release at `version` leaves on origin: one per package, which is
+ * what `changeset tag` writes, and `v<version>` for the repository. The second
+ * is the ref an adopter's workflow names the composite action by, so the action
+ * it runs is the one released with the CLI it installed.
+ */
+export function releaseTags(packages, version) {
+  return [...packages.map((entry) => `${entry.name}@${version}`), `v${version}`];
+}
+
 /** Every tag on the remote, by name. One call, because thirty-eight is not thirty-eight calls. */
 function tagsOnRemote() {
   const printed = execFileSync('git', ['ls-remote', '--tags', 'origin'], { cwd: ROOT, encoding: 'utf8' });
@@ -235,13 +245,14 @@ CONTRIBUTING.md, under Releasing, says what that publishes and why.`);
 
   const absent = await missing(packages, version, wait);
   const tags = skipTags ? null : tagsOnRemote();
-  const untagged = tags === null ? [] : packages.filter((entry) => !tags.has(`${entry.name}@${version}`));
+  const untagged = tags === null ? [] : releaseTags(packages, version).filter((tag) => !tags.has(tag));
 
   for (const entry of packages) {
     const published = !absent.includes(entry);
-    const tagged = tags === null || !untagged.includes(entry);
+    const tagged = !untagged.includes(`${entry.name}@${version}`);
     console.log(`${published ? 'npm' : ' — '} ${tagged ? 'tag' : ' — '}  ${entry.name}`);
   }
+  if (tags !== null) console.log(`    ${untagged.includes(`v${version}`) ? ' — ' : 'tag'}  v${version}`);
 
   if (absent.length > 0) {
     console.error(`\n${absent.length} of ${packages.length} packages are not on the registry at ${version}:`);
@@ -249,9 +260,9 @@ CONTRIBUTING.md, under Releasing, says what that publishes and why.`);
     console.error('`tools/publish.mjs` skips what is already there — running it again completes this.');
   }
   if (untagged.length > 0) {
-    console.error(`\n${untagged.length} of ${packages.length} versions have no tag on origin:`);
-    for (const entry of untagged) console.error(`  ${entry.name}@${version}`);
-    console.error('`yarn changeset tag && git push origin --tags` creates and pushes them.');
+    console.error(`\n${untagged.length} of ${packages.length + 1} tags are not on origin:`);
+    for (const tag of untagged) console.error(`  ${tag}`);
+    console.error('The release job\'s tagging lines create and push them, and skip the ones origin has.');
   }
   if (absent.length > 0 || untagged.length > 0) process.exit(1);
   console.log(`\n${version} is fully published${tags === null ? '' : ' and fully tagged'}.`);

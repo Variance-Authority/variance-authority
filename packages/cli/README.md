@@ -2840,6 +2840,23 @@ must look at, and `2` when the run did not happen as configured. Do not grep the
 output: the three integers are the contract, and a check whose colour depends on
 a sentence changes meaning the day the wording improves.
 
+On GitHub, the composite action does the rest of the job around that step: it
+posts the result to the pull request as one comment updated in place, restores
+and saves what [`carry`](#what-the-next-job-reads) names, and accepts on a label.
+Name it by the version of this package you installed, so the action and the CLI
+it calls were released together:
+
+```yaml
+- uses: Variance-Authority/variance-authority/.github/actions/variance@v0.20.0
+  with:
+    config: variance.config.json
+    github-token: ${{ secrets.GITHUB_TOKEN }}
+```
+
+It runs the CLI from your `node_modules` and downloads nothing during the run.
+Its inputs are in
+[`action.yml`](https://github.com/Variance-Authority/variance-authority/blob/main/.github/actions/variance/action.yml).
+
 ### What the next job reads
 
 A job ends and its machine goes away, and three things it wrote are what the
@@ -2937,8 +2954,8 @@ and the directory to pass `variance review --out`. They have no key, because
 an upload is not looked up again.
 
 Posting the report back to the pull request is the one thing a command line
-cannot do for itself. Read the report path out of your config and post it with
-whichever commenting action you already use.
+cannot do for itself. On GitHub the composite action posts it. Elsewhere, render
+the body with `variance comment` and post it with your platform's API:
 
 ```yaml
 # bitbucket-pipelines.yml
@@ -2982,7 +2999,7 @@ none does. A docket rendered before the marker named its project carries
 it takes a comment carrying it over, when none carries its own marker, and keeps
 an open pull request at one comment through the upgrade. A gate that never
 commented before leaves it alone, because it is another gate's docket. The
-composite action above does the same steps against GitHub's API, and adopts the
+composite action does the same steps against GitHub's API, and adopts the
 old marker the same way unless `adopt-unkeyed-comment` is `'false'`.
 
 The YAML is a platform example. Its `script` invokes the same `variance` binary

@@ -419,6 +419,15 @@ jobs:
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           yarn changeset tag
+          # And one for the repository, which an adopter's workflow names the
+          # composite action by: `@v0.20.0` for the version of the CLI it
+          # installed. A package tag would put a scope and a second
+          # `@` in that line. The checkout fetched no tags, so origin is asked
+          # whether a pressed-again release already made it.
+          version="$(node -p "require('./packages/cli/package.json').version")"
+          if ! git ls-remote --exit-code --tags origin "refs/tags/v$version" >/dev/null; then
+            git tag -a "v$version" -m "variance-authority $version"
+          fi
           git push origin --tags
 
           # Both halves, for the record and for the next person reading a green
