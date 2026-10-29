@@ -68,7 +68,16 @@ export interface Listed {
 /** One name in a list: what it is, how used it is, and the first thing its doc says. */
 export function line(entry: Listed): string {
   const said = entry.doc === undefined ? 'UNDOCUMENTED' : opening(entry.doc);
-  return `${entry.name} [${entry.kind}] ${entry.usedBy.length} packages, ${entry.uses} imports — ${said}`;
+  return `${entry.name} [${entry.kind}] ${byPublishedPath(entry.uses, entry.usedBy.length)} — ${said}`;
+}
+
+/**
+ * The imports of a name other packages write by a path it is published from,
+ * and how many packages write them: what the Help value counts beside each
+ * entry, which leaves out the imports within its own package and by file path.
+ */
+export function byPublishedPath(imports: number, packages: number): string {
+  return imports === 0 ? 'no other package imports it by its published path' : `${plural(imports, 'import')} by published path from ${plural(packages, 'other package')}`;
 }
 
 /** `block` after what `lines` already holds, a blank line between them. */
