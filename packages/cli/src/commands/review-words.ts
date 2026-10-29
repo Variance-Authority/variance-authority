@@ -1,4 +1,4 @@
-// compass: variance-authority/runtime/attention
+// compass: variance-authority.reach.crossings
 /**
  * What each reach is called, in every review a reader sees: the mark a table,
  * a fold and the diagram paint, the few words a pointer says, the sentence the
