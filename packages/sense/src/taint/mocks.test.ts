@@ -22,6 +22,24 @@ describe.each([
     { source: "jest.mock('./api', () => jest.requireActual('./panel'));", diff: { minus: ['./api'], plus: ['./panel'] } },
     { source: "vi.mock('./api', async () => await vi.importActual('./api'));", diff: undefined },
     { source: "vi.mock('./api', async (importOriginal) => await importOriginal());", diff: undefined },
+    { source: "vi.mock('./api', async (original) => ({ ...(await original()) }));", diff: undefined },
+    { source: "vi.mock('./api', async (load) => { const real = load; return real(); });", diff: undefined },
+    { source: "vi.mock('./api', async (load) => wrap(load));", diff: undefined },
+    { source: "vi.mock('./api', async (...given) => given[0]());", diff: undefined },
+    { source: "vi.mock('./api', async (load = fallback) => load());", diff: undefined },
+    { source: "vi.mock('./api', async function () { return arguments[0](); });", diff: undefined },
+    { source: "vi.mock('./api', async (original) => ({ api: 1 }));", diff: { minus: ['./api'] } },
+    { source: "vi.mock('./api', async ({ name }) => ({ name }));", diff: { minus: ['./api'] } },
+    { source: "vi.mock('./api', async (load) => ({ load: other.load }));", diff: { minus: ['./api'] } },
+    { source: "vi.mock('./api', async (load) => ({ load }));", diff: undefined },
+    { source: "vi.mock('./api', async (...[load]) => load());", diff: undefined },
+    { source: "vi.mock('./api', (load) => { class A { load = 1; load() {} } return {}; });", diff: { minus: ['./api'] } },
+    { source: "vi.mock('./api', (load) => { load: for (;;) break load; return {}; });", diff: { minus: ['./api'] } },
+    { source: "vi.mock('./api', (load) => { function f(load) {} const { load: x } = y; try {} catch (load) {} return {}; });", diff: { minus: ['./api'] } },
+    { source: "vi.mock('./api', (meta) => ({ url: import.meta.url }));", diff: { minus: ['./api'] } },
+    { source: "vi.mock('./api', (load) => { const [a = load] = []; return a; });", diff: undefined },
+    { source: "vi.mock('./api', () => ({ importOriginal: 1 }));", diff: { minus: ['./api'] } },
+    { source: "vi.mock('./api', () => ({ api: vi.fn() }));", diff: { minus: ['./api'] } },
     { source: "vi.mock('./api', factory);", diff: undefined },
     { source: "sb.mock(import('./api'), { spy: true });", diff: undefined },
     { source: "jest.mock('./api', () => require('./api'));", diff: undefined },
@@ -31,6 +49,19 @@ describe.each([
     { source: "jest.mock('./api', () => ({}), { value: jest.requireActual('./api') });", diff: { plus: ['./api'] } },
     { source: "jest.requireActual('./api');", diff: { plus: ['./api'] } },
     { source: "jest.mock('./api'); beforeEach(() => jest.requireActual('./api'));", diff: { plus: ['./api'] } },
+  ])('normalizes $source', ({ source, diff }) => {
+    expect(read(source)).toEqual(diff);
+  });
+});
+
+
+describe.each([
+  { name: 'native', read: (source: string) => readModule('src/a.test.tsx', source).mocks },
+  { name: 'oracle', read: (source: string) => mockDiff(source, () => parseSync('src/a.test.tsx', source).program as Node) },
+])('$name mock factory in JSX', ({ read }) => {
+  it.each([
+    { source: "vi.mock('./api', (Load) => ({ View: () => <Load.Part /> }));", diff: undefined },
+    { source: "vi.mock('./api', (load) => ({ View: () => <load load={1} /> }));", diff: { minus: ['./api'] } },
   ])('normalizes $source', ({ source, diff }) => {
     expect(read(source)).toEqual(diff);
   });

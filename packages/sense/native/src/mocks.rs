@@ -160,31 +160,80 @@ fn spies(argument: &Argument<'_>) -> bool {
     })
 }
 
-/// A factory naming `importOriginal`, or loading an original by a specifier this cannot read.
+/// A factory referring to the loader it is passed first, whatever its name, or
+/// loading an original by a specifier this cannot read. `original` in `mockDiff`
+/// owns the reasoning.
 fn original(argument: &Argument<'_>) -> bool {
-    let mut reach = Reaches(false);
+    let mut reach = Reaches { names: loaders(argument), found: false };
     reach.visit_argument(argument);
-    reach.0
+    reach.found
 }
 
-struct Reaches(bool);
+/// The names a factory literal holds its loader by: its first parameter when
+/// that binds the whole loader, every name a rest first parameter binds, and
+/// `arguments` in a `function` factory.
+fn loaders<'a>(argument: &Argument<'a>) -> Vec<&'a str> {
+    let (params, arguments) = match argument {
+        Argument::ArrowFunctionExpression(arrow) => (&arrow.params, false),
+        Argument::FunctionExpression(function) => (&function.params, true),
+        _ => return Vec::new(),
+    };
+    let mut names = Vec::new();
+    match params.items.first() {
+        Some(parameter) => loader_of(&parameter.pattern, &mut names),
+        None => {
+            if let Some(rest) = &params.rest {
+                bound(&rest.rest.argument, &mut names);
+            }
+        }
+    }
+    if arguments {
+        names.push("arguments");
+    }
+    names
+}
 
-impl<'a> Visit<'a> for Reaches {
+fn loader_of<'a>(pattern: &BindingPattern<'a>, names: &mut Vec<&'a str>) {
+    match pattern {
+        BindingPattern::BindingIdentifier(binding) => names.push(binding.name.as_str()),
+        BindingPattern::AssignmentPattern(assigned) => loader_of(&assigned.left, names),
+        _ => {}
+    }
+}
+
+/// Every name a binding pattern binds.
+fn bound<'a>(pattern: &BindingPattern<'a>, names: &mut Vec<&'a str>) {
+    match pattern {
+        BindingPattern::BindingIdentifier(binding) => names.push(binding.name.as_str()),
+        BindingPattern::AssignmentPattern(assigned) => bound(&assigned.left, names),
+        BindingPattern::ArrayPattern(array) => {
+            array.elements.iter().flatten().for_each(|element| bound(element, names));
+            if let Some(rest) = &array.rest {
+                bound(&rest.argument, names);
+            }
+        }
+        BindingPattern::ObjectPattern(object) => {
+            object.properties.iter().for_each(|property| bound(&property.value, names));
+            if let Some(rest) = &object.rest {
+                bound(&rest.argument, names);
+            }
+        }
+    }
+}
+
+struct Reaches<'a> {
+    names: Vec<&'a str>,
+    found: bool,
+}
+
+impl<'a> Visit<'a> for Reaches<'_> {
     fn visit_identifier_reference(&mut self, it: &IdentifierReference<'a>) {
-        self.0 |= it.name == "importOriginal";
-    }
-
-    fn visit_binding_identifier(&mut self, it: &BindingIdentifier<'a>) {
-        self.0 |= it.name == "importOriginal";
-    }
-
-    fn visit_identifier_name(&mut self, it: &IdentifierName<'a>) {
-        self.0 |= it.name == "importOriginal";
+        self.found |= self.names.contains(&it.name.as_str());
     }
 
     fn visit_call_expression(&mut self, it: &CallExpression<'a>) {
         let actual = matches!(method_of(it), Some("importActual" | "requireActual"));
-        self.0 |= actual && it.arguments.first().and_then(specifier_of).is_none();
+        self.found |= actual && it.arguments.first().and_then(specifier_of).is_none();
         walk::walk_call_expression(self, it);
     }
 }
@@ -211,7 +260,7 @@ mod tests {
 
     #[test]
     fn a_factory_reaching_the_original_cuts_nothing() {
-        let found = read("vi.mock('./a', async (importOriginal) => ({ ...(await importOriginal()) })); vi.mock('./b', factory);");
+        let found = read("vi.mock('./a', async (original) => ({ ...(await original()) })); vi.mock('./b', factory);");
         assert!(found.minus.is_empty());
         assert!(found.plus.is_empty());
     }
