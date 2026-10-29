@@ -69,9 +69,10 @@ answer. The catalogue says what can follow. Only the answer says what does.
   executable, as Held by says.
 
 A move is a fact about the answer: *this name has importers in two other
-packages*, so `uses` is a question worth asking. It is never a procedure. Told
-to work test-first with no tests named, an agent broke more tests than with no
-instruction at all; given the tests to check, it broke fewer
+packages*, so `uses` is a question worth asking. It is never a procedure. In
+one experiment a generic test-first instruction did not stop an agent's
+destructive patches, while the tests a change was likely to break went with
+much less breakage
 ([TDAD](../context/prior-art.md#codebase-orientation-for-agents)). Hypermedia
 controls and git's `hint:` lines do the same thing for other readers: the
 response names what can follow from it. The catalogue names what can be asked

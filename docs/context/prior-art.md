@@ -403,14 +403,21 @@ declare only what no owner knows.**
 an agent should be told before it edits. Built from an AST code-to-test graph
 with weighted impact analysis, it hands the agent the tests a change is most
 likely to break, and the agent reads them with `grep` and runs them with
-`pytest`. On 100 SWE-bench Verified instances with a quantized Qwen3-Coder
-30B, the test-first instructions plus the named tests cut test-level regressions
-from 6.08% under a plain prompt to 1.82%. The test-first instructions alone, with
-no tests named, raised them to 9.94%, worse than saying nothing. Their
-conclusion is that naming which tests to check does more than prescribing how
-to work. The samples are small, the model is local, a second model on 25
-instances regressed nothing in either arm, and it is a preprint. For us, it means
-an answer names the facts and the questions they open, and never a procedure
+`pytest`. In a 100-instance SWE-bench Verified experiment using a quantized
+Qwen3-Coder 30B, the test-first prompt produced a 9.94% test-level regression
+rate against 6.08% for the plain prompt. The increase was concentrated in
+catastrophic failures, a few patches that broke every test they were checked
+against, and the arms differed in more than the prompt: they ran one after
+another, and which skill file and test map the third arm used is not clear.
+The result does not establish that genuine test-first development increases
+regressions. The more defensible finding is that generic workflow instructions
+were not enough to prevent destructive patches, while targeted test-impact
+information was associated with much lower aggregate breakage, 1.82%, in this
+experiment. The samples are small, no significance test is run, a second model
+on 25 instances regressed nothing in either arm, and it is a preprint. Its map
+is static and file-level, and says nothing of when it was built; ours is
+recorded per case. For us, it means an answer names the facts and the
+questions they open, and a workflow instruction is no substitute for them
 ([spec 0105](../specs/0105-a-need-names-its-next-move.md)).
 
 **Crossing facts about files** is a query language's job, and the field has
