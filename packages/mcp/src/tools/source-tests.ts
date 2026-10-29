@@ -75,6 +75,7 @@ function optionalFunction(input: Readonly<Record<string, unknown>>): string | un
  * named by no case and read as no absence.
  */
 function focused(index: ExecutionIndex, where: string, target: SourceTestTarget): string {
+  // FIXME: say of each named test file whether it ran over the file as it is now, and when, as `covering` does (#817).
   const tests = coveringTests(index, target);
   const unknown = overwrittenOn(index, target) !== undefined;
   const lines = tests.length > 0
