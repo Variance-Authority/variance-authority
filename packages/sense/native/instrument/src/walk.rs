@@ -66,7 +66,7 @@
 //! mapping to the JavaScript side's UTF-16 offsets is monotone and every
 //! comparison made here in bytes answers the same there.
 
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 use std::fmt::Write;
 
 use oxc_ast::ast::*;
@@ -82,6 +82,7 @@ mod decisions;
 mod hoisted;
 #[path = "walk_names.rs"]
 mod names;
+use names::Scope;
 #[path = "walk_params.rs"]
 mod params;
 
@@ -132,18 +133,6 @@ enum Body<'b, 'a> {
     Expression(&'b Expression<'a>),
 }
 
-struct Scope {
-    name: String,
-    counts: HashMap<String, u32>,
-    anon: u32,
-}
-
-impl Scope {
-    fn new(name: String) -> Self {
-        Self { name, counts: HashMap::new(), anon: 0 }
-    }
-}
-
 pub struct Walker {
     entries: bool,
     /// The functions whose text leaves this realm, by span: `crossing.rs`.
@@ -162,6 +151,8 @@ pub struct Walker {
     /// The authored regions each region of this text fires, when the text is a
     /// project's transform of the file the regions were cut from: `place.rs`.
     pub fires: Option<Vec<Vec<u32>>>,
+    /// How each region is skipped, when a fault asks: `fault.rs`.
+    pub skips: Option<Vec<crate::fault::Skip>>,
 }
 
 impl Walker {
@@ -179,6 +170,7 @@ impl Walker {
             declared: None,
             cased: None,
             fires: None,
+            skips: None,
         }
     }
 
@@ -235,6 +227,7 @@ impl Walker {
             let ordinal = self.at(path, current, |w| {
                 w.open(Kind::Continuation, &format!("{label}/after"), start, last, Some(current))
             });
+            self.skip(ordinal, start, last, ";");
             self.hit(start, ordinal);
             current = ordinal;
         }
@@ -287,6 +280,8 @@ impl Walker {
         let span = body.span();
         let block = matches!(body, Statement::BlockStatement(_));
         let (ordinal, closer) = self.enter((span.start, span.end), block, kind, path);
+        let (start, end, with) = if block { (span.start + 1, span.end - 1, "") } else { (span.start, span.end, ";") };
+        self.skip(ordinal, start, end, with);
         self.at(path, ordinal, |w| w.statement(body));
         self.close(closer);
     }
@@ -331,6 +326,14 @@ impl Walker {
         };
 
         let entry = self.at("", owner, |w| w.open(Kind::Function, "entry", params.span.start, end, Some(owner)));
+        match body {
+            Body::Block(body) => {
+                let start = body.directives.last().map_or(body.span.start + 1, |last| last.span.end);
+                self.skip(entry, start, body.span.end - 1, "");
+            }
+            Body::Expression(expression) => self.skip(entry, expression.span().start, expression.span().end, "void 0"),
+            Body::None => {}
+        }
         let plan = params::plan(params, &self.probe(entry), arrow);
         let handed = if generator { None } else { capture::call(entry, &capture::parameters(params)) };
         self.at("", entry, |w| {

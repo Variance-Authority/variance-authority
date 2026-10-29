@@ -24,6 +24,8 @@
  * reporter's empty-record note is what the user reads.
  */
 
+// FIXME: the loader does not read VARIANCE_AUTHORITY_FAULT, so a faulted
+// Rstest run never marks the file read and `covering --checked` refuses it.
 import { cadence, type CutSourceMap } from '../instrument/cadence.js';
 import { placeModule } from './captured-modules.js';
 import { cleanId } from './instrumented-modules.js';

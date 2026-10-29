@@ -137,6 +137,11 @@ export async function answerConfigless(
     // flag long and needs nothing configured. Naming the file is still allowed,
     // for the run that happened somewhere else.
     case 'covering': {
+      if (parsed.checked !== undefined) {
+        const { checkedAnswer, formatCheckedAnswer } = await import('./covering-checked.js');
+        streams.out(formatCheckedAnswer(await checkedAnswer({ ...parsed, checked: parsed.checked }), parsed.format === 'json' ? 'json' : 'text'));
+        return EXIT_CLEAN;
+      }
       const [{ answerGaps, coveringAnswer, formatCoveringAnswer }, { evidenceGapText, GapRefusal }] = await Promise.all([
         import('./covering-suites.js'),
         import('./evidence-gap.js'),

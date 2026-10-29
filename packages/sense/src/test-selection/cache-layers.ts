@@ -55,6 +55,9 @@ export const CACHE_CONFIG = 'variance.config.json';
 /** The variable that names the cache directory itself, for a caller isolating its runs. */
 export const CACHE_VARIABLE = 'VARIANCE_AUTHORITY_CACHE';
 
+/** The region a run skips (`fault.ts`), named here so the cache root loads no parser to read it. */
+export const FAULT_VARIABLE = 'VARIANCE_AUTHORITY_FAULT';
+
 const configs = new Map<string, RootConfig | undefined>();
 
 /**
@@ -133,6 +136,8 @@ export function primaryCacheRoot(here: string): string {
 
 /** {@link cacheRootFor} for a directory known to be a checkout's root. */
 function cacheRootOf(repository: string): string {
+  const faulted = process.env[FAULT_VARIABLE];
+  if (faulted !== undefined && faulted !== '') return faultedCacheRoot(faulted);
   const config = configOf(repository);
   const named = config === undefined ? undefined : cacheRootIn(config);
   if (named !== undefined) return named;
@@ -140,6 +145,37 @@ function cacheRootOf(repository: string): string {
   if (isolated !== undefined && isAbsolute(isolated)) return resolve(isolated);
 
   return resolve(repository, 'node_modules', '.cache', 'variance-authority');
+}
+
+/**
+ * Where a run with a region skipped records: only the absolute
+ * `VARIANCE_AUTHORITY_CACHE` its caller set, whatever `cacheRoot` says. Its
+ * record holds a text nobody wrote, and landing it where the checkout's is read
+ * would answer every later question about that file from it.
+ */
+function faultedCacheRoot(fault: string): string {
+  const isolated = process.env[CACHE_VARIABLE];
+  if (isolated !== undefined && isAbsolute(isolated)) return resolve(isolated);
+  throw new Error(
+    `${FAULT_VARIABLE}=${fault} is set, and a run with a region skipped records only into an absolute ${CACHE_VARIABLE}, ` +
+      'so it never lands in the record the checkout reads: set it to an empty directory',
+  );
+}
+
+/**
+ * Refuse a record a run with a region skipped would land outside the cache its
+ * caller set: a file the configuration names is the caller's own, and the run
+ * would write a text nobody wrote over it.
+ */
+export function faultedRecordInside(file: string): void {
+  const faulted = process.env[FAULT_VARIABLE];
+  if (faulted === undefined || faulted === '') return;
+  const inside = relative(faultedCacheRoot(faulted), file);
+  if (inside !== '' && !inside.startsWith('..') && !isAbsolute(inside)) return;
+  throw new Error(
+    `${FAULT_VARIABLE}=${faulted} is set, and a run with a region skipped records only into ${CACHE_VARIABLE}, which does not hold ${file}: ` +
+      'name no coverage file while a region is skipped',
+  );
 }
 
 function cacheRootIn({ file, value: config }: RootConfig): string | undefined {

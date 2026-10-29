@@ -112,6 +112,13 @@ pub fn probe_header(module: String, count: u32) -> String {
     header(&module, count as usize)
 }
 
+/// The module's text with region `ordinal` skipped, on the same lines, or
+/// `null` where it has no text of its own: `native/instrument/src/fault.rs`.
+#[napi(js_name = "faulted", catch_unwind)]
+pub fn faulted_module(source: String, file: String, ordinal: u32) -> Option<String> {
+    variance_sense_instrument::faulted(&source, &file, ordinal)
+}
+
 /// What this build writes under a mode: `recipe()` of the instrumenter crate.
 #[napi(js_name = "probeRecipe")]
 pub fn probe_recipe(entries: bool) -> String {

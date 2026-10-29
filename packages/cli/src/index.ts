@@ -171,6 +171,7 @@ export type { MainlineMissed, MainlineRecord, MissedMainline } from './commands/
  */
 export { selectSuite } from './commands/select-command.js';
 export { suiteTimes, type TimesRequest } from './commands/suite-times.js';
+export { selectFault, type FaultRequest } from './commands/select-fault.js';
 export type { SuiteReading, SuiteRequest } from './commands/select-suite.js';
 export type { Leg } from './commands/select-leg.js';
 

@@ -1,15 +1,18 @@
-# Where one test goes, in order
+# Why one test passes, in order
 
-`variance story` gives the code one test ran, in the order it ran it: each
-function, the branch taken at each `if`, the branches never taken, and loop
-counts, in one answer under 5,000 characters. Of the root
+`variance story` gives what one test did on its way to passing, in the order
+it ran the code: each function, the branch taken at each `if`, the branches
+never taken, loop counts and what each function was handed, in one answer
+under 5,000 characters. It says what a passing test relies on in the code you
+are about to change, and what it never touches, so it passes whatever an edit
+there does. A test that fails is read against the runs or the tests that pass. Of the root
 `variance.config.json` it reads only `suites` and `cacheRoot`, to find where
 stories are kept.
 
 It is for a close look at a few tests, never at a suite. Record one only when
-you can write the question in one line about named tests: which path does this
-test take through this function, why does it pass or fail, does it reach the
-real code or a mock. Read the source first, and record only when it leaves the
+you can write the question in one line about named tests: what does this passing
+test rely on in this function, which of its branches does it never take, does
+it reach the real code or a mock, why does it fail where another run passes. Read the source first, and record only when it leaves the
 question open:
 
 - **You are about to change code you do not know, and reading does not show what
@@ -19,6 +22,23 @@ question open:
   first three tests it lists, and no more. Their steps
   name the files and lines to open. A branch marked `✗` is code they never ran,
   so they pass whatever an edit there does.
+- **You need to know whether the tests that run a file would notice an edit
+  there**: a branch marked `✗` is one they never ran, but one they ran may
+  still be one they never check. Ask `covering --file <path> --checked --
+  <the command that runs those tests>`, not a story: it runs the command once,
+  then once per region its cases entered with that region left out, each time
+  only the cases that entered it. A region whose run `passed without it` is
+  one an edit there goes unnoticed in. Name the test files in the command, as
+  for a story; a whole suite is one run per region.
+- **You need to know which object a passing test was handed, and where it
+  came from**: which
+  provider's value reached a component as a prop, whether a wrapper passed a
+  config on or made a new one. Follow the ref, read as the step lines below
+  say, from step to step: the first step handed a new ref where you expected
+  the same one is where the replacement arrived. The story does not show what made it;
+  a module's `» holds` line names it when it is a top-level binding. A return
+  value is not shown, so a value read with `useContext` or a hook shows only
+  where it is handed on.
 - **A test's result surprises you and nothing names the cause**: an assertion
   failed on a value made elsewhere, or a test passes when it should not. Find
   the step where the route left the path you expected, or the `✗` on the
@@ -33,14 +53,6 @@ question open:
   with it. Record it alone with `-t` under `VARIANCE_AUTHORITY_STORY=alone`,
   then with its whole file under `VARIANCE_AUTHORITY_STORY=file`, twice each,
   and ask `story --name <name> --compare alone,file`.
-- **You need to know where one object went, or where it came from**: which
-  provider's value reached a component as a prop, whether a wrapper passed a
-  config on or made a new one. Follow the ref, read as the step lines below
-  say, from step to step: the first step handed a new ref where you expected
-  the same one is where the replacement arrived. The story does not show what made it;
-  a module's `» holds` line names it when it is a top-level binding. A return
-  value is not shown, so a value read with `useContext` or a hook shows only
-  where it is handed on.
 - **Two tests or more differ in their setup and in their result**: the flag
   on fails and off passes, the default user passes and Mike fails. Record each
   under `VARIANCE_AUTHORITY_STORY=1`, twice if you can, and name every one:

@@ -48,6 +48,9 @@ impl Walker {
             let head = clause.consequent.first().map_or(clause.span.end, |s| s.span().start);
             let ordinal = self.open(Kind::Case, &step, head, clause.span.end, Some(owner));
             self.hit(head, ordinal);
+            if head < clause.span.end {
+                self.skip(ordinal, head, clause.span.end, "break;");
+            }
 
             if let Some(test) = &clause.test {
                 self.at(&path, owner, |w| w.visit_expression(test));
@@ -82,12 +85,14 @@ impl Walker {
             }
             let path = format!("{label}/catch");
             let (caught, _) = self.enter((handler.body.span.start, handler.body.span.end), true, Kind::Handler, &path);
+            self.skip(caught, handler.body.span.start + 1, handler.body.span.end - 1, "");
             self.list(&handler.body.body, &path, caught);
         }
 
         if let Some(finalizer) = &it.finalizer {
             let path = format!("{label}/finally");
             let (finished, _) = self.enter((finalizer.span.start, finalizer.span.end), true, Kind::Handler, &path);
+            self.skip(finished, finalizer.span.start + 1, finalizer.span.end - 1, "");
             self.list(&finalizer.body, &path, finished);
         }
         label

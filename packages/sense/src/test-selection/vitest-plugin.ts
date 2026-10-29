@@ -13,6 +13,7 @@ import { readFinished, type FinishedFile } from './finished-files.js';
 import { browserSetupSource } from './worker-source.js';
 import { declareConfig, type ResolvedViteConfig } from './governing-config.js';
 import { removeSeamModules, writeSeamModule, type SelectionRun } from './selection-run.js';
+import { readFaulted } from './fault.js';
 import { handedTexts, namesItsMap } from './source-lines.js';
 import { type UnmappedNotes, type UnmappedStep, refuseTransformsAfter, unmappedSteps, watchUnmapped } from './unmapped-transforms.js';
 import { readCommandLine, seedInBanner, type BannerContext } from './vitest-sequencer.js';
@@ -198,7 +199,7 @@ export function selectionPlugin(
     },
     // Ahead of every transform not ordered first, wherever its plugin sits: a
     // compiler at `enforce: 'pre'` would otherwise hand the cut its output.
-    transform: { order: 'pre', handler(code, id) {
+    transform: { order: 'pre', handler(handed, id) {
       // The setup module installs the probe log; instrumented, its own header
       // would ask for the log's root before the module has installed it.
       // The runner module is this seam's too, and both sit under the root the
@@ -236,7 +237,11 @@ export function selectionPlugin(
       if (id !== file && late) return null;
       // Under `node_modules`, `include` is asked first: no map there is read.
       const read = id === file && late && takes(file);
-      const text = read ? fileOrNone(file, (at) => readFileSync(at, 'utf8')) : undefined;
+      const disk = read ? fileOrNone(file, (at) => readFileSync(at, 'utf8')) : undefined;
+      // A fault skips its region in the file as read: every step after this one
+      // takes the skipped text as the file, the probes and the record included.
+      const { code, text } = id === file ? readFaulted(projectPath(root, file), handed, disk) : { code: handed, text: disk };
+      const unchanged = code === handed ? null : { code, map: null };
       if (id === file && late) {
         if (text === undefined || !namesItsMap(text)) {
           // A case says which line of the file on disk was running, so a test
@@ -247,7 +252,7 @@ export function selectionPlugin(
             throw changedOnArrival(root, file, (notes?.get(id) ?? []).map((step) => step.plugin));
           }
           if (text !== undefined) held.set(id, text);
-          return cutOf(code) ?? null;
+          return cutOf(code) ?? unchanged;
         }
         first.add(id);
       }
@@ -256,7 +261,7 @@ export function selectionPlugin(
       // fold joins them (see `joinReadings`). Vitest re-transforms every run in
       // this process, so the modules stay in this map.
       const captured = capture(file, code, heldOriginal(file, text));
-      if (captured === undefined) return cutOf(code) ?? null;
+      if (captured === undefined) return cutOf(code) ?? unchanged;
       // Only the file itself: any query, such as `?raw`, asks for a module built
       // from it. In a page, `vi.mock` loads its mock under the file's name.
       // Otherwise its lines are not the author's, so it fails its importers.

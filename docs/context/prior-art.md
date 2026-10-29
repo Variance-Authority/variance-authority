@@ -340,11 +340,26 @@ entered at ρ = 0.62 and with the single-witness share at ρ = 0.26.
 The warning is that **witness count is not assertion strength**, and the two
 must not be conflated on a product page. A region entered by six tests that
 assert nothing about it has six witnesses and no evidence. Schuler & Zeller
-measured the difference and Petrović et al. shipped the stronger answer; we
-record reach, not checking, and any claim that our reading beats a percentage
-has to say which of the two it is beating it on. Nothing here slices to the
-assertion, and [spec 0035](../specs/0035-a-flake-is-what-the-run-did-not-execute.md)
+measured the difference and Petrović et al. shipped the stronger answer; the
+record holds reach, not checking, and any claim that our reading beats a
+percentage has to say which of the two it is beating it on. Nothing here slices
+to the assertion, and [spec 0035](../specs/0035-a-flake-is-what-the-run-did-not-execute.md)
 is the nearest place that changes.
+
+**Extreme mutation** is how checking is read here instead. **Niedermayr,
+Juergens & Wagner** (CSD 2016) named the *pseudo-tested method*: one the tests
+run, whose body can be removed without any test failing. **Descartes**, the
+engine for PIT, mutates that way, a method at a time, and needs far fewer
+mutants than operator-level mutation because the unit is the method, not the
+expression. `variance covering --checked` takes the same deletion one level
+finer, a function body or one branch arm per run, which is the region the
+record already names. The cost is held down the way **Stryker**'s `perTest`
+coverage analysis holds it: each mutant runs only the tests that reached it, and
+here those are the cases the record says entered the region, cut by the seam
+inside the runner rather than by a list on the command line. One run per region
+transforms the file afresh; **mutant schemata** (Untch, Offutt & Harrold, ISSTA
+1993) compile every mutant into one program behind a switch instead, which is
+the cheaper shape when the runs are many and the transform is the cost.
 
 ## Codebase orientation for agents
 

@@ -10,7 +10,22 @@ use oxc_ast::ast::*;
 use oxc_ast_visit::Visit;
 use oxc_syntax::number::ToJsString;
 
-use super::{Scope, Walker};
+use std::collections::HashMap;
+
+use super::Walker;
+
+/// The names a function's scope has handed out: each path's step counts and its anonymous functions.
+pub(super) struct Scope {
+    pub(super) name: String,
+    counts: HashMap<String, u32>,
+    anon: u32,
+}
+
+impl Scope {
+    pub(super) fn new(name: String) -> Self {
+        Self { name, counts: HashMap::new(), anon: 0 }
+    }
+}
 
 impl Walker {
     /// `if#0`, `if#1`, `for#0` — numbered within the path that contains them.

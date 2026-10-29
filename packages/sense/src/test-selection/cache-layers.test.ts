@@ -14,6 +14,7 @@ import {
   noteSeeded,
   readTestCoverage,
   readableTestCoverage,
+  recordFileFor,
   RecordWithoutCoverage,
   seedTestCoverage,
   testCoverageFile,
@@ -75,6 +76,35 @@ describe('where the repository says the cache is', () => {
     const at = await repository({ project: 'p' });
     vi.stubEnv('VARIANCE_AUTHORITY_CACHE', '/isolated');
     expect(cacheRootFor(at)).toBe(resolve('/isolated'));
+    vi.unstubAllEnvs();
+  });
+
+  test('a run with a fault skipped records into VARIANCE_AUTHORITY_CACHE, over `cacheRoot`', async () => {
+    const at = await repository({ project: 'p', cacheRoot: '.variance/cache' });
+    vi.stubEnv('VARIANCE_AUTHORITY_FAULT', 'src/a.js#3');
+    vi.stubEnv('VARIANCE_AUTHORITY_CACHE', '/isolated');
+    expect(cacheRootFor(at)).toBe(resolve('/isolated'));
+    vi.unstubAllEnvs();
+  });
+
+  test('a run with a fault skipped and no absolute VARIANCE_AUTHORITY_CACHE is refused', async () => {
+    const at = await repository({ project: 'p' });
+    vi.stubEnv('VARIANCE_AUTHORITY_FAULT', 'src/a.js#3');
+    vi.stubEnv('VARIANCE_AUTHORITY_CACHE', 'relative');
+    expect(() => cacheRootFor(at)).toThrow(
+      'VARIANCE_AUTHORITY_FAULT=src/a.js#3 is set, and a run with a region skipped records only into an absolute VARIANCE_AUTHORITY_CACHE',
+    );
+    vi.unstubAllEnvs();
+  });
+
+  test('a run with a fault skipped refuses a record its caller named outside VARIANCE_AUTHORITY_CACHE', async () => {
+    const at = await repository({ project: 'p' });
+    vi.stubEnv('VARIANCE_AUTHORITY_FAULT', 'src/a.js#3');
+    vi.stubEnv('VARIANCE_AUTHORITY_CACHE', '/isolated');
+    expect(recordFileFor(at, at, { coverageFile: '/isolated/coverage.bin' })).toBe(resolve('/isolated/coverage.bin'));
+    expect(() => recordFileFor(at, at, { coverageFile: 'coverage.bin' })).toThrow(
+      `VARIANCE_AUTHORITY_FAULT=src/a.js#3 is set, and a run with a region skipped records only into VARIANCE_AUTHORITY_CACHE, which does not hold ${resolve(at, 'coverage.bin')}`,
+    );
     vi.unstubAllEnvs();
   });
 

@@ -149,7 +149,7 @@ variance index   [--no-git] [--wait | --follow-ups]
 variance select  [--since <ref>] [--execution <journey-file> [--diff <patch>|-] | --suite <name>] [--at-distance <hops>] [--format plain|json|vitest|jest] [--no-git]
 variance shards  [--setup <seconds>] [--budget <seconds>] [--max <n>] [--workers <n>] [--since <ref> [--collected <file>]] [--at-distance <hops>] [--suite <name>] [--unrecorded <n>] [--format text|json]
 variance reach   --since <ref> [--format plain|json] [--whole-files] [--no-git]
-variance covering --file <path> [--line <n>|<a>-<b>] [--function <name>] [--at-distance <hops>] [--in-package] [--hops] [--text <path>|-] | --since <ref> [--against <record>] [--cases last|<test file>] [--where <name>[=<value>]]... [--read <name>[=<value>]]... [--execution <path> | --suite <name>] [--root <path>] [--format text|refs|json]
+variance covering --file <path> [--line <n>|<a>-<b>] [--function <name>] [--at-distance <hops>] [--in-package] [--hops] [--text <path>|-] | --file <path> --checked -- <command> | --since <ref> [--against <record>] [--cases last|<test file>] [--where <name>[=<value>]]... [--read <name>[=<value>]]... [--execution <path> | --suite <name>] [--root <path>] [--format text|refs|json]
 variance coverage [--suite <name> [--against <record>]] [--from <dir> | --packages] [--at-distance <hops>] [--fan-in] [--root <path>] [--format text|markdown|json]
 variance layers  [--against <index>] [--root <path>] [--format text|markdown|json]
 variance restrictions [--root <path>] [--format text|json]
@@ -735,6 +735,33 @@ When no run has recorded the project at all, `--format json` also prints
 `{"refused":"unrecorded"}` on standard output. A program asking on every edit
 can then stop asking without reading the sentence, which still goes to standard
 error for a person.
+
+#### Asking whether the covering tests would notice
+
+A case that entered a region ran it, which is not the same as checking what it
+did. `--checked` answers the second question by running: the command after
+`--` runs once as written, then once per region of the file a case entered,
+with that region left out and only the cases that entered it selected.
+
+```bash
+variance covering --file src/checkout/total.ts --checked -- yarn vitest run
+```
+
+```text
+src/checkout/total.ts: 3 regions the cases entered; 1 passes whatever it does
+  lines 4-12  total entry: 2 test files entered it, and went red without it
+  lines 7-9  total if#0/then: 1 test file entered it, and went red without it
+  line 11  total for#0/after: 1 test file entered it, and passed without it
+1 region no case entered
+```
+
+A run that fails, or is still running at three times the plain run and at least
+ten seconds, noticed the region gone; one that passes names a region the cases
+ran and never looked at. The command must pass as written, every run records
+into a directory of its own that is removed after, and the record the other
+questions read is never touched. `--checked` reads every region of the file,
+so `--line`, `--function`, `--since` and the narrowing flags are refused beside
+it.
 
 ### Covering a change: what a review needs before reading the diff
 

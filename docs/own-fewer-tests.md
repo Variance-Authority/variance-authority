@@ -193,7 +193,7 @@ layer depend on those sets; the statement lines add attribution to the
 recording. `variance ask test-composition` lists the regions and their source
 locations, rather than inserting annotations between the lines of your test.
 For the sequence of calls and their repeats, read a [test
-story](test-stories.md#why-the-journey-has-no-order).
+story](test-stories.md#why-coverage-keeps-no-order).
 
 Every count is execution, so a piece is a test that ran the same code, not one
 that checks the same thing. A test that mocks a module runs none of it, and

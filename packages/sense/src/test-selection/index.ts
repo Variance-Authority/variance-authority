@@ -103,6 +103,7 @@ export type { JourneyDivergence, JourneyDivergenceOptions, JourneyRegion };
 export { journeyDivergences };
 export {
   CACHE_CONFIG,
+  FAULT_VARIABLE,
   cacheLayers,
   cacheRootFor,
   layeredFiles,
@@ -174,6 +175,8 @@ export {
 // write over, carried, with this run's rows on top.
 export { foreignProbes, layeredCoverage } from './format-layer.js';
 export { recordBase, recordDigestAt } from './record-base.js';
+// The region a run skips, which the run's own selection is read for.
+export { faultOf, faultReadIn, skippable, type Fault } from './fault.js';
 // A snapshot read where it lies, for a caller asking several questions of one
 // file and not wanting the seventy megabytes the answers do not touch. The
 // file-taking queries below are this plus a `finally`.

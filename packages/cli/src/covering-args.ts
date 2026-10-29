@@ -81,6 +81,12 @@ export interface CoveringAt extends CoveringSource {
    * a buffer it has not saved. Line numbers are asked and answered in it.
    */
   readonly text?: string;
+  /**
+   * `--checked -- <command>`: run the command once as written, then once per
+   * region of the file its cases entered, with that region skipped, and say
+   * which of those runs stayed green.
+   */
+  readonly checked?: readonly string[];
   readonly since?: undefined;
 }
 
@@ -91,6 +97,7 @@ export interface CoveringSince extends CoveringSource {
   /** `--against <record>`: the base's case index, compared with this one region by region. */
   readonly against?: string;
   readonly file?: undefined;
+  readonly checked?: undefined;
 }
 
 export type ParsedCovering = CoveringAt | CoveringSince;
@@ -138,6 +145,7 @@ function lineOrRange(raw: string): Pick<CoveringAt, 'line'> | Required<Pick<Cove
  * from, so both are refused beside `--since`.
  */
 export function parseCoveringArgs(flags: Flags): ParsedCovering {
+  if (flags.present.has('--checked')) return checkedArgs(flags);
   noPositionals(flags.positionals, 'covering');
 
   const since = flags.values.get('--since');
@@ -211,6 +219,27 @@ export function parseCoveringArgs(flags: Flags): ParsedCovering {
     ...(flags.present.has('--hops') ? { hops: true as const } : {}),
     ...(text === undefined ? {} : { text }),
   };
+}
+
+/**
+ * `--checked -- <command>`: a whole file, and the command that runs its cases.
+ *
+ * Every region of the file is the question, so a coordinate or a narrowing of
+ * the witnesses beside it is refused rather than read as a subset of regions.
+ */
+function checkedArgs(flags: Flags): CoveringAt & { readonly checked: readonly string[] } {
+  for (const other of ['--since', '--line', '--function', '--text', '--at-distance', '--in-package', '--hops', '--cases', '--where', '--execution', '--against'] as const) {
+    if (!flags.present.has(other) && flags.values.get(other) === undefined) continue;
+    throw new OperatorError(`\`--checked\` reads every region of the file the command's cases entered, so \`${other}\` is not read beside it`);
+  }
+  if (flags.positionals.length === 0) {
+    throw new OperatorError('`--checked` runs the command after `--`, and none was given: `variance covering --file <path> --checked -- <command>`');
+  }
+  const file = flags.values.get('--file');
+  if (file === undefined || file === '') throw new OperatorError('`--checked` needs `--file <path>`, the file whose regions are skipped one at a time.');
+  const source = executionAnd(flags);
+  if (source.format === 'refs') throw new OperatorError('`--checked` answers in text or json; a region is not a ref.');
+  return { ...source, file: checkoutFile(source.root, file, '--file'), checked: flags.positionals };
 }
 
 /**

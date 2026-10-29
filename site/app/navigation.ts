@@ -133,7 +133,7 @@ export const NAVIGATION = [
       { href: "/agents", label: "Choose an agent workflow" },
       { href: "/agents/questions", label: "Everything an agent can ask" },
       { href: "/agents/code-review", label: "Review a change against what the code did" },
-      { href: "/docs/test-stories", label: "Read what one test ran" },
+      { href: "/docs/test-stories", label: "Read why a test passes" },
       { href: "/agents/cli", label: "Ask about the code and its runs from the command line", alternative: true },
       { href: "/agents/mcp", label: "Query evidence over MCP", alternative: true },
       { href: "/agents/live-run", label: "Inspect a live run", alternative: true },

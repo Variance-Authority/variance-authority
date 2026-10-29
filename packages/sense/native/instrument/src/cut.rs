@@ -209,8 +209,18 @@ pub(crate) fn walk_firing<'a>(
     entries: bool,
     fires: Option<Vec<Vec<u32>>>,
 ) -> Walker {
+    walk_with(program, typescript, entries, |walker| walker.fires = fires)
+}
+
+/// The walk, with the walker prepared by `prepare` before it descends.
+pub(crate) fn walk_with<'a>(
+    program: &'a Program<'a>,
+    typescript: bool,
+    entries: bool,
+    prepare: impl FnOnce(&mut Walker),
+) -> Walker {
     let mut walker = Walker::new(entries, crate::crossing::crossing(program));
-    walker.fires = fires;
+    prepare(&mut walker);
     let start = if typescript { typescript_start(program) } else { program.span.start };
     walker.open(Kind::Module, "module", start, program.span.end, None);
     walker.list(&program.body, "", 0);

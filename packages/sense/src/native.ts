@@ -24,9 +24,7 @@ import type { NativeIndexGraph, NativeIndexGraphOptions } from './native-index-g
 import type {
   NativeJourneyGraph, NativeJourneySelection, NativeJourneyChange,
   NativeJourneyProjection, NativeJourneyFold, NativeJourneyFoldResult,
-  NativeJourneyModule,
-  NativeJourneyStitch,
-  NativeJourneyStitchResult,
+  NativeJourneyModule, NativeJourneyStitch, NativeJourneyStitchResult,
 } from './native-journey.js';
 import type { NativeCasesEntered, NativeDependencyLexicon, NativeExternalOrientation, NativeOrientation, NativeOrientMapListing, NativeOrientMaps } from './native-orient.js';
 import type { NativeDistill } from './native-distill.js';
@@ -131,6 +129,8 @@ export interface NativeScanner extends NativeOrientMaps, NativeDependencyLexicon
   place(...args: [string, string, string, string, number, boolean, string, boolean]): NativePlaced | null;
   /** The header one module carries: `native/instrument/src/header.rs`. */
   probeHeader(module: string, count: number): string;
+  /** The text with region `ordinal` skipped, or `null`: `native/instrument/src/fault.rs`. */
+  faulted(source: string, file: string, ordinal: number): string | null;
   /** The instrumenter crate's `recipe()` for `presence`, or for `entries`. */
   probeRecipe(entries: boolean): string;
   /**
