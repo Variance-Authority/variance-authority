@@ -71,7 +71,6 @@ export async function recordOf(
 ): Promise<{ readonly snapshot: string; readonly at: string | undefined } | undefined> {
   const snapshot = await snapshotFor(request);
   if (snapshot !== undefined && from.startsWith(snapshot)) return { snapshot, at: await recordedCommit(snapshot) };
-  if (request.execution === undefined) return undefined;
   const at = await recordedCommit(from);
   return at === undefined ? undefined : { snapshot: from, at };
 }
