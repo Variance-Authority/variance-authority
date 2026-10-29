@@ -108,8 +108,8 @@ pub fn importers_of(root: String, index: String, files: Vec<String>, name: Strin
 /// module no file answers, out of which an import takes `name`, in code-unit
 /// order; `None` when there is no index.
 #[napi]
-pub fn outside_sources_of(index: String, name: String) -> napi::Result<Option<Vec<String>>> {
-    opened_chain(&index, |layers| crate::help_usage::sources(layers, &name))
+pub fn outside_sources_of(root: String, index: String, name: String) -> napi::Result<Option<Vec<String>>> {
+    opened_chain(&index, |layers| crate::help_usage::sources(&root, layers, &name))
 }
 
 /// Every import on the chain at `index` that binds `local` to an export of

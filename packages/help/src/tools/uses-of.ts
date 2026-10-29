@@ -16,7 +16,7 @@ import type { Spelling } from '@variance-authority/mcp/tools';
 import { stringArg } from '@variance-authority/mcp/tools';
 import type { Documented, Entry, Help, Named, Opening, Use } from '@variance-authority/package/help';
 import { everyEntry } from '@variance-authority/package/help';
-import type { DeclaredName } from '@variance-authority/sense';
+import { type DeclaredName, outsideSourcesOf } from '@variance-authority/sense';
 import { type PathSite, how, ownerOf, sitesByPath } from './by-path.js';
 import { declarations } from './declared.js';
 import { FoundNothing, isPackage, nowhere, specifierOf } from './find.js';
@@ -404,7 +404,8 @@ export function usesOf(help: Help, input: Readonly<Record<string, unknown>>, roo
     }
     if (file !== undefined && files.length > 0) throw new FoundNothing(notDeclaredIn(name, file, files));
     // The answer `symbol` gives: what was read and declares nothing, and where else the name may be.
-    throw new FoundNothing(nowhere(help, name, wanted, root, members, outsideLine(root, name, wanted, spell), spell));
+    const outside = root === undefined ? [] : (outsideSourcesOf(root, name) ?? []).filter((source) => wanted === undefined || source === wanted || source.startsWith(`${wanted}/`));
+    throw new FoundNothing(nowhere(help, name, wanted, root, members, outsideLine(name, outside, spell), spell));
   }
   // A published declaration is read out of its file by the name it is declared by; the walk follows every door that renames it.
   const { sites, unread, within, inFile, namespaces, unresolved } = answeredFirst ?? sitesOfOne(root, spellingsAt(help, root, exported, name), wanted, found, [...new Set(exported.map((held) => held.at))], byPath);

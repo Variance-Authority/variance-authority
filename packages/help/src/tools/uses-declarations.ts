@@ -6,8 +6,8 @@
 
 // compass: variance-authority.report.agent-surface
 
-import { conjoined, type Spelling } from '@variance-authority/mcp/tools';
-import { type DeclaredName, outsideSourcesOf } from '@variance-authority/sense';
+import { conjoined, spellingOf, type Spelling } from '@variance-authority/mcp/tools';
+import type { DeclaredName } from '@variance-authority/sense';
 import { reachSentences } from './declared.js';
 import { discover } from './discover.js';
 import { specifierOf } from './find.js';
@@ -95,21 +95,15 @@ export function notDeclaredIn(name: string, file: string, files: readonly string
 
 /**
  * Where a name no file here declares is imported from, outside the workspace,
- * and the `discover` question that lists the files importing it from each
- * source: `uses` answers for a declaration of this workspace, and an outside
- * one is another question. Absent when no file imports the name from outside,
- * or the source index does not read.
+ * and the `discover` question that lists the files importing it from each of
+ * `sources`: `uses` answers for a declaration of this workspace, and an
+ * outside one is another question. Absent when `sources` is empty.
  */
-export function outsideLine(root: string | undefined, name: string, wanted: string | undefined, spell: Spelling): string | undefined {
-  if (root === undefined) return undefined;
-  let read: readonly string[] | undefined;
-  try {
-    read = outsideSourcesOf(root, name);
-  } catch {
-    return undefined;
-  }
-  const sources = (read ?? []).filter((source) => wanted === undefined || source === wanted || source.startsWith(`${wanted}/`));
+export function outsideLine(name: string, sources: readonly string[], spell: Spelling): string | undefined {
   if (sources.length === 0) return undefined;
-  const questions = sources.map((source) => spell.question(discover, { imports: `${source}#${name}` }));
-  return `\`${name}\` is imported from ${conjoined(sources.map((source) => `\`${source}\``))}, outside this workspace: ${conjoined(questions)} ${questions.length === 1 ? 'lists' : 'list'} the files that import it.`;
+  // A wire host holds no scan's names, so `discover` there refuses `imports` of a package: the question is the checkout's.
+  const wire = spell === spellingOf(undefined);
+  const asked = wire ? spellingOf({ shell: 'variance ask' }) : spell;
+  const questions = sources.map((source) => asked.question(discover, { imports: `${source}#${name}` }));
+  return `\`${name}\` is imported from ${conjoined(sources.map((source) => `\`${source}\``))}, outside this workspace: ${conjoined(questions)}${wire ? ', asked in the checkout,' : ''} ${questions.length === 1 ? 'lists' : 'list'} the files that import it.`;
 }

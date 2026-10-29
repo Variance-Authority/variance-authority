@@ -67,6 +67,21 @@ describe('variance ask uses names the files whose imports did not resolve', () =
     ]);
   });
 
+  it('names a file whose unresolved import takes a name the walk passed the declaration on by, or passes the name on', async () => {
+    checkout({
+      'packages/kit-private/src/salute.ts': "export { greet as salute } from '@acme/lib';\n",
+      'packages/kit-private/src/lost.ts': "import { salute } from './gone.js';\nexport const lost = salute;\n",
+      'packages/lib/src/passed.ts': "export { greet } from './missing.js';\n",
+      'packages/lib/src/other.ts': "export { shout } from './missing.js';\n",
+    });
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+
+    const { out } = await run(['ask', 'uses', '--name', 'greet']);
+    expect(unreadOf(out)).toEqual([
+      '2 files import a specifier the index could not resolve to a file, and each could take `greet`, so a use there is not listed: packages/kit-private/src/lost.ts, packages/lib/src/passed.ts.',
+    ]);
+  });
+
   it('says nothing when every import resolved', async () => {
     checkout();
     expect((await run(['index'])).code).toBe(EXIT_CLEAN);

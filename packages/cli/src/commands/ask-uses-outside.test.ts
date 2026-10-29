@@ -36,6 +36,20 @@ describe('variance ask uses points a name imported only from outside at discover
     );
   });
 
+  it('names a source a namespace reads the name off, and not a path alias that did not resolve', async () => {
+    checkout({
+      'packages/lib/src/whole.ts': "import * as oxc from 'oxc-parser';\nexport const whole = oxc.parseSync;\n",
+      'apps/app/src/alias.ts': "import { parseSync } from '@/lib/ghost';\nexport const alias = parseSync;\n",
+      'apps/app/src/tilde.ts': "import { parseSync } from '~/lib/ghost';\nexport const tilde = parseSync;\n",
+    });
+    expect((await run(['index'])).code).toBe(0);
+
+    const { out } = await run(['ask', 'uses', '--name', 'parseSync']);
+    expect(out.match(/`parseSync` is imported from .+? the files that import it\./g)).toEqual([
+      '`parseSync` is imported from `oxc-parser`, outside this workspace: `variance ask discover --imports oxc-parser#parseSync` lists the files that import it.',
+    ]);
+  });
+
   it('says nothing of discover for a name no file imports', async () => {
     checkout();
     expect((await run(['index'])).code).toBe(0);

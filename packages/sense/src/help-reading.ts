@@ -158,7 +158,7 @@ export interface NativeHelp {
   encodeSearchIndex?(published: PublishedRows, exported: NamedExport[], generation: SearchGeneration | null): EncodedSearch;
   digestExported?(exported: NamedExport[]): string;
   importersOf?(root: string, index: string, files: string[], name: string): NativeImporters | null;
-  outsideSourcesOf?(index: string, name: string): string[] | null;
+  outsideSourcesOf?(root: string, index: string, name: string): string[] | null;
   memberDeclarationsOf?(root: string, index: string, name: string): MemberDeclarations | null;
   membersOnOf?(index: string, file: string, on: string): ContainerMember[] | null;
   declarationExportedOf?(index: string, file: string, name: string): { readonly declaration?: ExportedDeclaration | null } | null;
@@ -231,7 +231,7 @@ export function importersOf(
  * when the index does not read.
  */
 export function outsideSourcesOf(root: string, name: string, index: string = sourceIndexPath(root)): readonly string[] | undefined {
-  return entry('outsideSourcesOf')(index, name) ?? undefined;
+  return entry('outsideSourcesOf')(root, index, name) ?? undefined;
 }
 
 /**
