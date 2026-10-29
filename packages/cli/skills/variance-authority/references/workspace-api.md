@@ -328,6 +328,18 @@ Imported in 1 place, inside @acme/lib.
 `file`, the file one of them is declared in, answers for that declaration alone.
 ```
 
+A declaration is the file that declares it and the name that file exports it
+under, so two packages that each publish `withTestSelection` are two answers,
+each with its own entry points and count. One binding a file exports under
+several names, `export default greet` beside `export { greet }`, is one
+declaration, named by the name it binds. `default` is a slot every module has,
+not a name: `export default function Badge` is `Badge`, and an anonymous
+`export default function ()` is named by the local name of the import nearest
+its file, the one sharing the most leading path segments, then by path and
+line, else by the nearest re-export that names it. Every local name an import
+gives an anonymous default answers it; the nearest one heads the answer. Asked
+by `default`, `symbol` and `uses` answer only the defaults nothing names.
+
 A `--file` that declares nothing by the name is answered with the files that do.
 
 `--limit <n>` sets how many rows of each list are shown, 12 when not said:

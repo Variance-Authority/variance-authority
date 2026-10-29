@@ -29,7 +29,17 @@ import { requested } from './manifest.js';
  * — and the second arrival of a kind already recorded is the same declaration,
  * not a second one.
  */
-export type Names = Map<string, Map<DeclarationKind, Declaration>>;
+export type Names = Map<string, Map<DeclarationKind, Reached>>;
+
+/**
+ * A declaration a name reaches, with the name its declaring file exports it
+ * under. That file and that name are which declaration it is: an entry doing
+ * `export { greet as salute } from './greet.js'` publishes `salute` and reaches
+ * `greet`, beside a `salute` the same file may declare too.
+ */
+export interface Reached extends Declaration {
+  readonly declared: string;
+}
 
 /**
  * Relative specifiers only. A bare one names a package, and packages are
@@ -84,7 +94,7 @@ function targetOf(reader: Reader, from: string, specifier: string): string | und
   }
 }
 
-function add(into: Names, name: string, declaration: Declaration): void {
+function add(into: Names, name: string, declaration: Reached): void {
   const held = into.get(name);
   if (held === undefined) into.set(name, new Map([[declaration.kind, declaration]]));
   else if (!held.has(declaration.kind)) held.set(declaration.kind, declaration);
@@ -123,7 +133,8 @@ export function namesReachedBy(reader: Reader, file: string, stack: Set<string> 
       // `export * from './x.js'` republishes a set this file never names.
       if (entry.exportName.kind === 'None') {
         if (to === undefined) {
-          add(found, `* from '${specifier}'`, declarationOf(source, context, 'foreign', written));
+          const star = `* from '${specifier}'`;
+          add(found, star, { ...declarationOf(source, context, 'foreign', written), declared: star });
         } else for (const [name, kinds] of namesReachedBy(reader, to, stack)) {
           for (const declaration of kinds.values()) add(found, name, declaration);
         }
@@ -137,7 +148,7 @@ export function namesReachedBy(reader: Reader, file: string, stack: Set<string> 
       // draws here: a bare `export *` omits the default and is answered above,
       // and a namespace object carries it.
       if (entry.importName.kind === 'All') {
-        add(found, name, declarationOf(source, context, 'namespace-object', written));
+        add(found, name, { ...declarationOf(source, context, 'namespace-object', written), declared: name });
         continue;
       }
 
@@ -146,12 +157,12 @@ export function namesReachedBy(reader: Reader, file: string, stack: Set<string> 
         if (declaration === undefined) {
           throw new Error(`${at} exports \`${name}\`, and no declaration there says what it is`);
         }
-        add(found, name, declaration);
+        add(found, name, { ...declaration, declared: name });
         continue;
       }
 
       if (to === undefined) {
-        add(found, name, declarationOf(source, context, 'foreign', written));
+        add(found, name, { ...declarationOf(source, context, 'foreign', written), declared: name });
         continue;
       }
 

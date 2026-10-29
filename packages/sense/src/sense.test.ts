@@ -155,9 +155,9 @@ describe('reading a module', () => {
 
     expect(read.exports?.map(({ signature: _, doc: __, ...published }) => published)).toEqual([
       { exported: 'x', local: 'x', type: false, line: 1 },
-      // An anonymous default is exported and not locally accessible, so there
-      // is no declaration behind it to name.
-      { exported: 'default', type: false, line: 2 },
+      // An anonymous default is exported and not locally accessible: what it
+      // binds is the slot, the name the harvest gives its declaration.
+      { exported: 'default', local: 'default', type: false, line: 2 },
       // The set behind `export * from` is whatever the other file publishes.
       // Absent is not empty: asking whether this file exports `Card` has to
       // follow `from`, and answering no from here would be a missed edge in

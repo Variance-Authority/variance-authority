@@ -13,37 +13,23 @@
 
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import type { Named } from '@variance-authority/package/help';
-import { declarationExported, type ExportedDeclaration } from '@variance-authority/sense';
+import type { Help, Named } from '@variance-authority/package/help';
+import type { ExportedDeclaration } from '@variance-authority/sense';
+import { boundOf, originKey, SLOT } from './declaration-key.js';
 import { textRows } from './declared.js';
 
-/**
- * The declaration `held` binds: its file's own, or the one it passes on
- * through every file that passes it on. None when the walk ends short of a
- * declaration, when no checkout is named, and when the index is not published
- * or does not read, which the imports of the same answer already say.
- */
-export function boundOf(root: string | undefined, held: Pick<Named, 'at' | 'name'>): ExportedDeclaration | undefined {
-  if (root === undefined) return undefined;
-  try {
-    return declarationExported(root, held.at, held.name) ?? undefined;
-  } catch {
-    return undefined;
-  }
-}
-
-/** The declaration `held` passes on from another file, as `boundOf` reaches it; none when its own file declares it. */
-export function originOf(root: string | undefined, held: Pick<Named, 'at' | 'name'>): ExportedDeclaration | undefined {
-  return elsewhere(boundOf(root, held), held);
-}
 
 /** `bound`, when it is in another file than `held`. */
 const elsewhere = (bound: ExportedDeclaration | undefined, held: Pick<Named, 'at'>): ExportedDeclaration | undefined =>
   bound === undefined || bound.at === held.at ? undefined : bound;
 
-/** `passes on `taxOf`, declared at <file>:<line>`, for a sentence to carry. */
-export function passesOn(origin: ExportedDeclaration): string {
-  return `passes on \`${origin.name}\`, declared at ${origin.at}:${origin.line}`;
+/**
+ * `passes on `taxOf`, declared at <file>:<line>`, for a sentence to carry. An
+ * anonymous default binds the slot `default`, so it is said by `named`, the
+ * name `originKey` keys it by.
+ */
+export function passesOn(origin: ExportedDeclaration, named: string): string {
+  return `passes on \`${origin.name === SLOT ? named : origin.name}\`, declared at ${origin.at}:${origin.line}`;
 }
 
 /**
@@ -56,7 +42,7 @@ export function passesOn(origin: ExportedDeclaration): string {
  * named. `declared` is where the declaration is, `held` when it passes none
  * on.
  */
-export function exportedRows(root: string | undefined, name: string, held: Named): { readonly declared: Named; readonly rows: readonly string[] } {
+export function exportedRows(help: Help, root: string | undefined, name: string, held: Named): { readonly declared: Named; readonly rows: readonly string[] } {
   const bound = boundOf(root, held);
   const origin = elsewhere(bound, held);
   const declared: Named = origin === undefined ? held : { ...held, at: origin.at, name: origin.name, line: origin.line };
@@ -66,7 +52,7 @@ export function exportedRows(root: string | undefined, name: string, held: Named
     rows: [
       bound === undefined ? name : `${name} [${bound.kind}]`,
       `exported, without being published, at ${held.at}:${held.line} by ${held.by}${held.type ? ' (type only)' : ''}`,
-      ...(origin === undefined ? [] : [`It ${passesOn(origin)}:`]),
+      ...(origin === undefined ? [] : [`It ${passesOn(origin, originKey(help, root, origin).named)}:`]),
       ...text,
     ],
   };

@@ -64,7 +64,11 @@ describe('ask uses', () => {
     ]);
   });
 
-  it.todo('never lists the importers of one declaration under another of the same name (`Coverage`) — needs importers grouped by the declaration their specifier resolves to');
+  it('never lists the importers of one published declaration under another of the same name', async () => {
+    const { uses: found, namesakes } = await uses('Coverage');
+    expect([filesOf(found), ...namesakes.map((one) => filesOf(one.uses))].sort()).toEqual([['apps/app/src/covered.ts'], ['apps/app/src/reviewed.ts']]);
+    expect(namesakes.map((one) => one.at)).toEqual([expect.stringMatching(/^packages\/(?:core\/src\/tree|review\/src\/index)\.ts$/u)]);
+  });
   it.todo('counts a name read off an `export * as` namespace (`text.shout` in loud.ts) — needs reads off a namespace import recorded as uses of the member read');
   it('follows a namespace passed to a function the file declares to where that function reads it, and says "may read it" only where it goes further', async () => {
     const handed = async (name: string): Promise<string[]> =>

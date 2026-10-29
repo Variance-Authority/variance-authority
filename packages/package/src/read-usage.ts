@@ -3,7 +3,7 @@ import { extname, join, relative } from 'node:path';
 import { type Parses, everyBindingIn, parseFile } from './declare.js';
 import { lineAt } from './doc.js';
 import { readImportTargets } from './manifest.js';
-import { type Bound, type Exported, type Recorded, type Usage, type UsageOptions, usageFrom } from './use.js';
+import { type Bound, type Exported, ownBinding, type Recorded, type Usage, type UsageOptions, usageFrom } from './use.js';
 
 /**
  * [`use.ts`](./use.ts) read off a checkout's disk: every module file walked,
@@ -120,11 +120,14 @@ export function readUsage(
       return held;
     };
 
+    // The names this file imports, which an export of the same name binds nothing of its own by.
+    const importedHere = new Set<string>();
     for (const statement of source.parsed.module.staticImports) {
       const held = requestAt(statement.moduleRequest.value, statement.start);
       for (const entry of statement.entries) {
         const imported = nameOf(entry.importName.kind, entry.importName.name);
         const local = entry.localName.value;
+        importedHere.add(local);
         if (imported !== undefined) held.names.push({ imported, ...(local === imported ? {} : { local }), type: entry.isType, line: held.line });
       }
     }
@@ -146,13 +149,15 @@ export function readUsage(
         // `export * from './x'` names nothing here: the set is whatever the other
         // file publishes, and inventing a name would claim one never written.
         const exported = nameOf(entry.exportName.kind, entry.exportName.name);
-        const binds = entry.moduleRequest === null ? bound(entry.localName.name, line) : undefined;
+        const own = entry.moduleRequest === null ? ownBinding(entry.localName.name, importedHere) : undefined;
+        const binds = own === undefined ? undefined : bound(entry.localName.name, line);
         const doc = above ?? binds?.doc;
         if (exported !== undefined) {
           publishes.push({
             name: exported,
             line,
             type: entry.isType,
+            ...(own === undefined ? {} : { bound: own }),
             ...(binds === undefined ? {} : { declaration: binds.kind }),
             ...(doc === undefined ? {} : { doc }),
           });
