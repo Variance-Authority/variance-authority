@@ -15,12 +15,13 @@ import { codeUnitOrder } from '@variance-authority/core/segment';
 import type { Spelling } from '@variance-authority/mcp/tools';
 import { stringArg } from '@variance-authority/mcp/tools';
 import type { Documented, Entry, Help, Named, Opening, Use } from '@variance-authority/package/help';
+import { everyEntry } from '@variance-authority/package/help';
 import type { DeclaredName } from '@variance-authority/sense';
 import { type PathSite, how, ownerOf, sitesByPath } from './by-path.js';
 import { declarations } from './declared.js';
-import { FoundNothing, entriesNamed, isPackage, nowhere, specifierOf } from './find.js';
+import { FoundNothing, isPackage, nowhere, specifierOf } from './find.js';
 import { type Members, membersOf } from './members.js';
-import { originOf } from './passed-on.js';
+import { answers, keyOf, originKey, originOf, says, SLOT } from './declaration-key.js';
 import { type IndexedUse, type Within, exportsNamed, importsOf, indexMissing } from './unpublished.js';
 import { declaredIn, membersIn, notDeclaredIn } from './uses-declarations.js';
 
@@ -48,11 +49,59 @@ export function sureness(sites: readonly Site[]): { readonly certain: readonly S
 type Published = readonly [Documented, Opening, Entry];
 
 /**
+ * One published declaration: the binding a file declares, by its file and its
+ * declared name, and every entry that publishes it. A barrel and a subpath that
+ * pass one declaration on are two doors to one thing; two files that declare
+ * the name are two, and so are two bindings of one file, which an entry doing
+ * `export { greet as salute }` beside the file's own `salute` makes.
+ */
+export interface PublishedDeclaration {
+  readonly at: string;
+  readonly line: number;
+  /** The name its file exports it under, which a door may publish under another; its named one when the file exports it as `default` too. */
+  readonly declared: string;
+  /** Every name its file exports it under, `declared` among them. */
+  readonly spellings: readonly string[];
+  /** The entries that publish it, the one the workspace imports it by most first. */
+  readonly doors: readonly Published[];
+}
+
+/**
+ * Every published declaration of a name, by the name an entry publishes or the
+ * name the declaring file exports it under, from the package asked for when
+ * one was, the one whose leading door the workspace imports most first. The
+ * package stage carries which declaration each entry reaches, so nothing here
+ * walks the exports again. Equal counts fall to the published name and subpath
+ * by code unit, then to the declaring file, so the order never follows the
+ * order directories were read in.
+ */
+export function publishedDeclarations(help: Help, root: string | undefined, name: string, wanted: string | undefined): readonly PublishedDeclaration[] {
+  const doors = [...everyEntry(help)]
+    .filter(([held, opening, entry]) => (says(entry.name, name) || answers(help, root, { at: entry.at, name: entry.declared }, name)) && (wanted === undefined || isPackage(held, opening, wanted)))
+    .map((door) => [door, keyOf(help, root, { at: door[2].at, name: door[2].declared })] as const)
+    .sort(([left], [right]) => byDoor(left, right));
+  const declarations = new Map<string, { at: string; line: number; declared: string; spellings: readonly string[]; doors: Published[] }>();
+  for (const [door, { named, spellings }] of doors) {
+    const [, , entry] = door;
+    const key = `${entry.at}\0${named}`;
+    const one = declarations.get(key);
+    if (one === undefined) declarations.set(key, { at: entry.at, line: entry.line, declared: named, spellings, doors: [door] });
+    else one.doors.push(door);
+  }
+  return [...declarations.values()].sort((left, right) => byDoor(left.doors[0]!, right.doors[0]!) || codeUnitOrder(left.at, right.at) || codeUnitOrder(left.declared, right.declared));
+}
+
+/** The door the workspace imports by most first, then by published name and subpath in code-unit order. */
+function byDoor([left, leftDoor, a]: Published, [right, rightDoor, b]: Published): number {
+  return b.usedBy.length - a.usedBy.length || b.uses - a.uses || codeUnitOrder(left.name, right.name) || codeUnitOrder(leftDoor.subpath, rightDoor.subpath);
+}
+
+/**
  * Every declaration of a name: published by an entry, exported, kept to its
  * file, or a member; `exporting` holds the files that only pass it on too.
  */
 interface Declarations {
-  readonly published: readonly Published[];
+  readonly published: readonly PublishedDeclaration[];
   readonly exporting: readonly Named[];
   readonly kept: readonly DeclaredName[];
   readonly members: Members;
@@ -60,20 +109,28 @@ interface Declarations {
   readonly undeclared: readonly string[];
 }
 
-/** One exported declaration no entry publishes, the files passing it on, and the sites of it. */
+/**
+ * One declaration beside the one answered first: the entries that publish it,
+ * or the exports that reach it when none does, the package it is declared in,
+ * and the sites of it.
+ */
 export interface Namesake {
+  /** The declaration the entries publish, when one does. */
+  readonly declaration: PublishedDeclaration | undefined;
   readonly exported: readonly Named[];
+  readonly home: string | undefined;
   readonly sites: readonly Site[];
   readonly inFile: readonly Use[];
 }
 
 function declarationsOf(help: Help, root: string | undefined, name: string, wanted: string | undefined): Declarations {
-  const published = entriesNamed(help, name).filter(([held, opening]) => wanted === undefined || isPackage(held, opening, wanted));
+  const published = publishedDeclarations(help, root, name, wanted);
   const read = declarations(root, name);
+  // The index reads a default export's declaration as `default`, which its file exports and so does not keep.
   const kept = 'refused' in read ? [] : read.names.filter((one) => wanted === undefined || one.by === wanted);
   return {
     published,
-    exporting: exportsNamed(help, name, wanted),
+    exporting: exportsNamed(help, root, name, wanted),
     kept,
     members: membersOf(root, name, wanted),
     undeclared: 'refused' in read ? [] : read.unread,
@@ -85,16 +142,16 @@ function declarationsOf(help: Help, root: string | undefined, name: string, want
  * the name, else the declaration it passes the name on from, as a barrel or
  * an entry does with `export … from`.
  */
-function reached(root: string | undefined, all: Declarations, asked: string): string {
+function reached(help: Help, root: string | undefined, all: Declarations, asked: string): string {
   const declares =
-    all.published.some(([, , entry]) => entry.at === asked) ||
-    all.exporting.some((held) => held.at === asked && held.declaration !== undefined) ||
+    all.published.some((one) => one.at === asked) ||
+    all.exporting.some((held) => held.at === asked && held.bound !== undefined) ||
     all.kept.some((one) => one.at === asked) ||
     all.members.declared.some((one) => one.at === asked);
   if (declares) return asked;
   const passing = all.exporting.find((held) => held.at === asked);
-  const origin = passing === undefined ? undefined : originOf(root, passing)?.at;
-  return origin ?? all.published.find(([, opening]) => opening.source === asked)?.[2].at ?? asked;
+  const origin = passing === undefined ? undefined : originOf(help, root, passing)?.at;
+  return origin ?? all.published.find((one) => one.doors.some(([, opening]) => opening.source === asked))?.at ?? asked;
 }
 
 /** The declarations in `file`, or all of them when none is named. */
@@ -102,34 +159,39 @@ function chosen(all: Declarations, file: string | undefined): Declarations {
   if (file === undefined) return all;
   return {
     ...all,
-    published: all.published.filter(([, , entry]) => entry.at === file),
-    exporting: all.exporting.filter((held) => held.at === file || held.declaration === undefined),
+    published: all.published.filter((one) => one.at === file),
+    exporting: all.exporting.filter((held) => held.at === file || held.bound === undefined),
     kept: all.kept.filter((one) => one.at === file),
     members: membersIn(all.members, file),
   };
 }
 
 /**
- * The exports by the declaration each reaches: an export that declares the
- * name is its own, one that passes it on joins the declaration it passes on,
- * or stands alone when the walk ends short of one. The declaring export comes
- * first in each, and the declarations in code-unit order of their file.
+ * The exports by the declaration each reaches, its file and the name it is
+ * declared by there: an export that declares the name is its own, one that
+ * passes it on joins the declaration it passes on, or stands alone when the
+ * walk ends short of one. The declaring export comes first in each, and the
+ * declarations in code-unit order of their file, then of their declared name.
  */
-function exportGroups(root: string | undefined, exporting: readonly Named[]): readonly Group[] {
-  const groups = new Map<string, Named[]>();
+function exportGroups(help: Help, root: string | undefined, exporting: readonly Named[]): readonly Group[] {
+  const groups = new Map<string, { at: string; declared: string; exported: Named[] }>();
   for (const held of exporting) {
-    const at = held.declaration !== undefined ? held.at : (originOf(root, held)?.at ?? held.at);
-    groups.set(at, [...(groups.get(at) ?? []), held]);
+    const { at, named: declared } = keyOf(help, root, held);
+    const key = `${at}\0${declared}`;
+    const group = groups.get(key);
+    if (group === undefined) groups.set(key, { at, declared, exported: [held] });
+    else group.exported.push(held);
   }
-  const declaringFirst = (left: Named, right: Named): number => Number(left.declaration === undefined) - Number(right.declaration === undefined);
-  return [...groups]
-    .sort(([left], [right]) => codeUnitOrder(left, right))
-    .map(([at, held]) => ({ at, exported: [...held].sort(declaringFirst) }));
+  const declaringFirst = (left: Named, right: Named): number => Number(left.bound === undefined) - Number(right.bound === undefined);
+  return [...groups.values()]
+    .sort((left, right) => codeUnitOrder(left.at, right.at) || codeUnitOrder(left.declared, right.declared))
+    .map((group) => ({ ...group, exported: [...group.exported].sort(declaringFirst) }));
 }
 
-/** The exports that reach one declaration, by the file it is in. */
+/** The exports that reach one declaration, by its file and the name that file exports it under. */
 interface Group {
   readonly at: string;
+  readonly declared: string;
   readonly exported: readonly Named[];
 }
 
@@ -171,12 +233,45 @@ function sitesOf(found: readonly Published[], byPath: readonly Site[], within: r
 }
 
 /**
+ * Every import of one binding out of `files` under any name its file exports
+ * it by: `import greet from` and `import { greet } from` are imports of one
+ * declaration. A line two names reach is one use.
+ */
+function importsOfEvery(root: string | undefined, files: readonly string[], names: readonly string[]): Within {
+  const reads = names.map((one) => importsOf(root, files, one));
+  const unread = reads.find((read) => 'unread' in read);
+  if (unread !== undefined || reads.length === 1) return unread ?? reads[0]!;
+  const read = reads.filter((one) => 'uses' in one);
+  const once = <T extends { readonly at: string; readonly line: number }>(all: readonly T[]): readonly T[] => [...new Map(all.map((one) => [`${one.at}:${one.line}`, one] as const)).values()];
+  // One statement can import the binding under two of its names, `import greet, { greet as g2 }`: each name's lines are its uses.
+  const joined = new Map<string, IndexedUse>();
+  for (const use of read.flatMap((one) => one.uses)) {
+    const key = `${use.at}:${use.line}`;
+    const held = joined.get(key);
+    const lines = [...new Set([...(held?.lines ?? []), ...(use.lines ?? [])])].sort((a, b) => a - b);
+    joined.set(key, held === undefined ? use : { ...held, ...(held.lines === undefined && use.lines === undefined ? {} : { lines }) });
+  }
+  return {
+    uses: [...joined.values()],
+    through: [...new Set(read.flatMap((one) => one.through))],
+    namespaces: read.flatMap((one) => one.namespaces),
+    inFile: once(read.flatMap((one) => one.inFile)),
+  };
+}
+
+/** The names the file of the first of `exported` exports that binding under, where its imports are read: `default` for a default named by its binding. */
+function spellingsAt(help: Help, root: string | undefined, exported: readonly Named[], name: string): readonly string[] {
+  const [first] = exported;
+  return first === undefined ? [name] : keyOf(help, root, first).spellings;
+}
+
+/**
  * The sites of one declaration: the imports by path that resolved to one of
  * its files, the imports the source index read out of them, and the lines of
  * the declaring file that use it there.
  */
-function sitesOfOne(root: string | undefined, name: string, wanted: string | undefined, found: readonly Published[], files: readonly string[], byPath: readonly Site[]) {
-  const read = files.length === 0 ? undefined : importsOf(root, files, name);
+function sitesOfOne(root: string | undefined, names: readonly string[], wanted: string | undefined, found: readonly Published[], files: readonly string[], byPath: readonly Site[]) {
+  const read = files.length === 0 ? undefined : importsOfEvery(root, files, names);
   const unread = read !== undefined && 'unread' in read ? read.unread : undefined;
   const within = read !== undefined && 'uses' in read ? read.uses.filter((use) => throughDoor(use, wanted)) : undefined;
   const inFile: readonly Use[] = read !== undefined && 'inFile' in read ? read.inFile : [];
@@ -190,32 +285,31 @@ const resolvedTo = (site: PathSite, to: ReadonlySet<string>): boolean => site.he
 const asSite = (site: PathSite): Site => ({ ...site.taken, how: how(site) });
 
 /**
- * The files a published name is read from: its declaration, and each entry
- * file that publishes it, since an entry that renames it, `export { greet as
- * salute }`, passes on a name the declaring file never exports.
- */
-const publishedFiles = (found: readonly Published[]): readonly string[] => [...new Set(found.flatMap(([, opening, entry]) => [entry.at, opening.source]))];
-
-/**
  * The sites of the published declaration of `name` in `at`, the ones `uses`
  * lists when asked for that name and that file, and why the source index did
- * not read the imports within its package, when it did not.
+ * not read the imports within its package, when it did not. Of two
+ * declarations of `at` that answer `name`, the row is the one an entry
+ * publishes under it.
  */
 export function publishedSitesOf(help: Help, root: string | undefined, name: string, at: string): { readonly sites: readonly Site[]; readonly unread?: string } {
-  const found = entriesNamed(help, name).filter(([, , entry]) => entry.at === at);
-  const { sites, unread } = sitesOfPublished(root, name, undefined, found, sitesByPath(help, name, undefined));
+  const inFile = publishedDeclarations(help, root, name, undefined).filter((one) => one.at === at);
+  const one = inFile.find((held) => held.doors.some(([, , entry]) => entry.name === name)) ?? inFile[0];
+  if (one === undefined) return { sites: [] };
+  const { sites, unread } = sitesOfPublished(help, root, name, undefined, one, sitesByPath(help, name, undefined));
   return unread === undefined ? { sites } : { sites, unread };
 }
 
 /**
- * The sites of a published declaration, the one assembly `uses` and the count
- * beside a search row both read: the imports by path that resolved to its
- * file, then what {@link sitesOfOne} reads from the files it is published from.
+ * The sites of one published declaration, the one assembly `uses` and the
+ * count beside a search row both read: the imports by path of the name its
+ * file declares it by that resolved to its file, then what {@link sitesOfOne}
+ * reads out of that file under every name it exports it by. `paths` are the
+ * imports by path of `name`.
  */
-function sitesOfPublished(root: string | undefined, name: string, wanted: string | undefined, found: readonly Published[], paths: readonly PathSite[]) {
-  const declared = new Set(found.map(([, , entry]) => entry.at));
-  const byPath = paths.filter((site) => resolvedTo(site, declared)).map(asSite);
-  return { byPath, ...sitesOfOne(root, name, wanted, found, publishedFiles(found), byPath) };
+function sitesOfPublished(help: Help, root: string | undefined, name: string, wanted: string | undefined, one: PublishedDeclaration, paths: readonly PathSite[]) {
+  const to = new Set([one.at]);
+  const byPath = (one.declared === name ? paths : sitesByPath(help, one.declared, wanted)).filter((site) => resolvedTo(site, to)).map(asSite);
+  return { byPath, ...sitesOfOne(root, one.spellings, wanted, one.doors, [one.at], byPath) };
 }
 
 /**
@@ -242,69 +336,89 @@ export function packageOf(by: string | undefined): string | undefined {
 /**
  * Every site of the name for the declaration asked about, and each other
  * declaration's apart, and what was read to find them, or the refusal.
+ * `declaration`, one published declaration, answers for that one alone, which
+ * `file` cannot when its file declares two bindings an entry publishes.
  */
-export function usesOf(help: Help, input: Readonly<Record<string, unknown>>, root: string | undefined, spell: Spelling) {
+export function usesOf(help: Help, input: Readonly<Record<string, unknown>>, root: string | undefined, spell: Spelling, declaration?: PublishedDeclaration) {
   const name = stringArg(input, 'name');
   const wanted = typeof input['package'] === 'string' && input['package'] !== '' ? input['package'] : undefined;
 
   const all = declarationsOf(help, root, name, wanted);
   // Each declaration is another thing, so a named file answers for its own alone.
   const asked = declaredIn(input);
-  const file = asked === undefined ? undefined : reached(root, all, asked);
-  const { published: found, exporting, kept, members, undeclared } = chosen(all, file);
+  const file = asked === undefined ? undefined : reached(help, root, all, asked);
+  const { published: answered, exporting, kept, members, undeclared } = chosen(all, file);
+  const published = declaration === undefined ? answered : answered.filter((one) => one.at === declaration.at && one.declared === declaration.declared);
+  // The declaration answered first, through every door that publishes it; each other published one is a namesake.
+  const [lead, ...rest] = published;
+  const found = lead?.doors ?? [];
   // Every file declaring a thing by the name, whichever one `file` names.
   const files = [
-    ...all.published.map(([, , entry]) => entry.at),
-    ...all.exporting.filter((held) => held.declaration !== undefined).map((held) => held.at),
+    ...all.published.map((one) => one.at),
+    ...all.exporting.filter((held) => held.bound !== undefined).map((held) => held.at),
     ...all.kept.map((one) => one.at),
     ...all.members.declared.map((one) => one.at),
   ];
 
-  // A published name is one declaration; each other file's export of it is another.
-  const declared = new Set(found.map(([, , entry]) => entry.at));
+  // A published declaration is one thing however many entries publish it; each other binding is another.
+  const isPublished = (group: Group): boolean => published.some((one) => one.at === group.at && one.declared === group.declared);
   // Beside a published one, only an export that declares the name is another declaration.
-  const groups = exportGroups(root, exporting).filter(
-    (group) =>
-      !declared.has(group.at) && (file !== undefined ? group.at === file : found.length === 0 || group.exported[0]!.declaration !== undefined),
+  const groups = exportGroups(help, root, exporting).filter(
+    (group) => !isPublished(group) && (file !== undefined ? group.at === file : found.length === 0 || group.exported[0]!.bound !== undefined),
   );
   const primary = found.length > 0 ? undefined : groups[0];
   const others = found.length > 0 ? groups : groups.slice(1);
   const exported = primary?.exported ?? [];
 
-  // An import by path joins the declaration whose file it resolved to; one no
-  // file is known for joins the declaration asked about when it is unpublished.
+  // An import by path of the name joins the declaration its file declares by
+  // that name; one no file is known for joins the declaration asked about when
+  // it is unpublished. A published declaration declared by another name is
+  // imported by path by that name.
   const paths = sitesByPath(help, name, wanted);
-  const everyFile = new Set([...declared, ...groups.flatMap((group) => group.exported.map((held) => held.at))]);
+  const everyFile = new Set([...published.filter((one) => one.declared === name).map((one) => one.at), ...groups.flatMap((group) => group.exported.map((held) => held.at))]);
   const claimed = (site: PathSite): boolean => site.held.to !== undefined && everyFile.has(site.held.to);
-  const pathSites = (to: ReadonlySet<string>, stray: boolean): readonly Site[] =>
-    paths.filter((site) => resolvedTo(site, to) || (stray && !claimed(site))).map(asSite);
-  const published = found.length > 0 ? sitesOfPublished(root, name, wanted, found, paths) : undefined;
-  const byPath = published?.byPath ?? pathSites(new Set(exported.map((held) => held.at)), file === undefined);
+  const pathSites = (to: ReadonlySet<string>, stray: boolean): readonly Site[] => paths.filter((site) => resolvedTo(site, to) || (stray && !claimed(site))).map(asSite);
+  const answeredFirst = lead === undefined ? undefined : sitesOfPublished(help, root, name, wanted, lead, paths);
+  // An import by path of `default` is the declaration its file's default is named by, never a stray of the slot.
+  const byPath = answeredFirst?.byPath ?? pathSites(new Set(exported.map((held) => held.at)), file === undefined && name !== SLOT);
 
-  const namesakes: readonly Namesake[] = others.map((group) => {
-    const at = new Set(group.exported.map((held) => held.at));
-    const one = sitesOfOne(root, name, wanted, [], [...at], pathSites(at, false));
-    return { exported: group.exported, sites: one.sites, inFile: one.inFile };
-  });
+  const namesakes: readonly Namesake[] = [
+    ...rest.map((other) => {
+      const one = sitesOfPublished(help, root, name, wanted, other, paths);
+      return { declaration: other, exported: [], home: homeOf(help, other), sites: one.sites, inFile: one.inFile };
+    }),
+    ...others.map((group) => {
+      const at = new Set(group.exported.map((held) => held.at));
+      const one = sitesOfOne(root, spellingsAt(help, root, group.exported, name), wanted, [], [...at], pathSites(at, false));
+      return { declaration: undefined, exported: group.exported, home: packageOf(group.exported[0]?.by), sites: one.sites, inFile: one.inFile };
+    }),
+  ];
   const { keptSites, keptInFile } = keptUses(root, name, kept);
-  const shared = { name, found, exported, namesakes, byPath, members, kept, keptSites, keptInFile, file, files };
+  const shared = { name, lead, found, exported, namesakes, byPath, members, kept, keptSites, keptInFile, file, files };
   if (found.length === 0 && byPath.length === 0 && exported.length === 0) {
     if (kept.length > 0 || members.declared.length > 0) {
-      return { ...shared, home: undefined as string | undefined, sites: [] as readonly Site[], unread: undefined, within: undefined, inFile: [] as readonly Use[], undeclared, origin: undefined, inside: [] as readonly string[] };
+      return { ...shared, home: undefined as string | undefined, sites: [] as readonly Site[], unread: undefined, within: undefined, inFile: [] as readonly Use[], undeclared, origin: undefined, originNamed: undefined as string | undefined, inside: [] as readonly string[] };
     }
     if (file !== undefined && files.length > 0) throw new FoundNothing(notDeclaredIn(name, file, files));
     // The answer `symbol` gives: what was read and declares nothing, and where else the name may be.
     throw new FoundNothing(nowhere(help, name, wanted, root, members, undefined, spell));
   }
-  const { sites, unread, within, inFile, namespaces } = published ?? sitesOfOne(root, name, wanted, found, [...new Set(exported.map((held) => held.at))], byPath);
+  // A published declaration is read out of its file by the name it is declared by; the walk follows every door that renames it.
+  const { sites, unread, within, inFile, namespaces } = answeredFirst ?? sitesOfOne(root, spellingsAt(help, root, exported, name), wanted, found, [...new Set(exported.map((held) => held.at))], byPath);
   if (exported.length > 0 && unread !== undefined && byPath.length === 0) throw new Error(indexMissing(name, exported, unread));
 
   // Inside is the declaring file's package, which a re-exporting door is not.
-  const home = packageOf(found.length > 0 ? (help.exported.find((held) => held.at === found[0]![2].at)?.by ?? found[0]![0].name) : exported[0]?.by);
+  const home = lead !== undefined ? homeOf(help, lead) : packageOf(exported[0]?.by);
   const [only] = exported;
   // The answer names one export's place, so only a name exported once is followed.
-  const origin = only === undefined || exported.length > 1 ? undefined : originOf(root, only);
-  return { ...shared, home, sites, unread, within, inFile, undeclared: [] as readonly string[], origin, inside: publishedInside(help, namespaces) };
+  const origin = only === undefined || exported.length > 1 ? undefined : originOf(help, root, only);
+  const originNamed = origin === undefined ? undefined : originKey(help, root, origin).named;
+  return { ...shared, home, sites, unread, within, inFile, undeclared: [] as readonly string[], origin, originNamed, inside: publishedInside(help, namespaces) };
+}
+
+/** The package a published declaration is declared in, which a re-exporting door is not. */
+function homeOf(help: Help, declaration: PublishedDeclaration): string | undefined {
+  return packageOf(help.exported.find((held) => held.at === declaration.at)?.by ?? declaration.doors[0]![0].name);
 }
 
 /**

@@ -47,7 +47,8 @@ describe('variance ask over the imports of a name within its own package', () =>
 
     const { code, out } = await run(['ask', 'uses', '--name', 'greet']);
     expect(code).toBe(EXIT_CLEAN);
-    expect(out).toContain('`greet` [function] is imported in 5 places: 1 from another package and 4 inside @acme/lib.');
+    // `other.ts` declares another `greet`, so the headline names the declaration it counts.
+    expect(out).toContain('`greet` [function] is imported in 5 places: 1 from another package and 4 inside @acme/lib, published by @acme/lib, declared at packages/lib/src/greet.ts:2.');
     expect(out).toMatch(/^apps\/app\/src\/hello\.ts:1 — @acme\/app; used on line 2$/m);
     expect(out).toMatch(/^packages\/lib\/src\/greeting\.ts:1 — @acme\/lib; used on line 2$/m);
     expect(out).toMatch(/^packages\/lib\/src\/both\.ts:2 — @acme\/lib; used on line 3$/m);

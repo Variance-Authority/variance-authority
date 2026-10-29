@@ -1,6 +1,7 @@
 import type { Documented, Entry, Help, Opening } from '@variance-authority/package/help';
 import { everyEntry } from '@variance-authority/package/help';
 import { importsByPath } from './by-path.js';
+import { says } from './declaration-key.js';
 import { declarations, unreadLine } from './declared.js';
 import { type Members, membersStop } from './members.js';
 import type { Spelling } from '@variance-authority/mcp/tools';
@@ -115,7 +116,8 @@ export function unfound(help: Help, name: string, within: string | undefined, sp
   // `symbol` and `uses` answer an export no entry publishes, so one reaches
   // here only from outside the package asked about: the name is right, the
   // package is not, and the file says which one exports it.
-  const exported = help.exported.filter((held) => held.name === name && held.kind === 'source');
+  // `default` is a slot: a default nothing names was answered before here, and a named one is another name's.
+  const exported = help.exported.filter((held) => says(held.name, name) && held.kind === 'source');
   if (exported.length > 0) {
     const [first] = exported;
     const more = exported.length > 1 ? ` and ${exported.length - 1} more` : '';

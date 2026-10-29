@@ -73,13 +73,25 @@ describe('variance ask search counts the places that import a published name as 
     });
     expect((await run(['index'])).code).toBe(EXIT_CLEAN);
 
-    // `uses` lists the entry of `@acme/relay` that passes it on among the places.
-    expect(await usesCount('greet')).toBe(3);
+    // The entry of `@acme/relay` passes it on, which is no use: the places are the two imports of `@acme/app`.
+    expect(await usesCount('greet')).toBe(2);
     const search = await run(['ask', 'search', '--query', 'greet']);
     expect(greetRows(search.out)).toEqual([
-      '@acme/lib · greet [function] imported in 3 places in 2 packages — UNDOCUMENTED',
-      '@acme/relay · greet [function] imported in 3 places in 2 packages — UNDOCUMENTED',
+      '@acme/lib · greet [function] imported in 2 places in 1 package — UNDOCUMENTED',
+      '@acme/relay · greet [function] imported in 2 places in 1 package — UNDOCUMENTED',
     ]);
+  });
+
+  it('counts an import of the declaration by its default, which uses counts as the same declaration', async () => {
+    checkout({
+      'packages/lib/src/greet.ts': 'export function greet(name: string): string {\n  return name;\n}\nexport default greet;\n',
+      'packages/lib/src/near.ts': "import greet from './greet.js';\nexport const near = greet('near');\n",
+    });
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+
+    expect(await usesCount('greet')).toBe(2);
+    const search = await run(['ask', 'search', '--query', 'greet']);
+    expect(greetRows(search.out)).toEqual(['@acme/lib · greet [function] imported in 2 places in 2 packages — UNDOCUMENTED']);
   });
 
   it('carries the count as data', async () => {

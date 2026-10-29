@@ -278,7 +278,9 @@ pub(crate) fn read_module_and_tree<'a>(file: &str, source: &'a str, allocator: &
         // The record's own bound name, which for `export default name` is
         // `name`: `exported` already says `default`, and the identifier is what
         // a reader follows through this file's imports to where it comes from.
-        let mut local = entry.local_name.name().map(|name| name.to_string());
+        // An anonymous `export default function () {}` binds the declaration
+        // the harvest names `default`, so the export is bound like any other.
+        let mut local = entry.local_name.name().map(|name| name.to_string()).or_else(|| (from.is_none() && exported.as_deref() == Some("default")).then(|| "default".to_owned()));
         if let ExportLocalName::Name(name) = &entry.local_name {
             if let Some(module) = namespaces.get(name.name.as_str()) {
                 (from, imported, local) = (Some((*module).to_owned()), Some("*".to_owned()), None);
