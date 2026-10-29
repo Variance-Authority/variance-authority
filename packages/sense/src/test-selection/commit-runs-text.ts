@@ -17,17 +17,10 @@ const fieldsOf = (value: unknown): value is Fields => typeof value === 'object' 
 
 /**
  * The runs record `text` holds, as this build writes it, or a throw that starts
- * with `named`: it is JSON a run wrote, read without its writer's types, so a
- * shape it does not have is refused by name, never met as a `TypeError` by the
- * reader that trusted it. A record written before landings reads as one
- * landing. So does one whose landings stand beside a list of files that is not
- * the one written with them (`commitRunsText`): a build that keeps no landings
- * rewrote the list and carried the landings unread, so it wrote the record. One
- * it moved to another commit with every file kept is not told apart, and its
- * landings are read at that commit: such a build moves a record only to repair
- * one a crash left naming another commit than its snapshot. The list is read
- * for nothing else, and an install stored beside the landings is not read: the
- * landings say both (`whatLanded`).
+ * with `named`: JSON a run wrote is read by its fields, so a shape it does not
+ * have is refused by name, never met as a `TypeError`. A record a build that
+ * keeps no landings wrote reads as one landing, and an install stored beside
+ * landings is not read: they say it (`whatLanded`).
  */
 export function commitRunsIn(text: string, named: string): CommitRuns {
   let parsed: unknown;
@@ -49,6 +42,11 @@ export function commitRunsIn(text: string, named: string): CommitRuns {
     landings.every((landing) => fieldsOf(landing) && Array.isArray(landing.files));
   if (kept !== undefined && !finished(kept)) throw new Error(`${named} holds a landing with no list of the test files it finished`);
   let landings: readonly unknown[];
+  // A list beside the landings that is not the one written with them
+  // (`commitRunsText`) was rewritten by a build that keeps none, which carried
+  // them unread. One it moved to another commit with every file kept is not
+  // told apart: it moves a record only to repair one a crash left naming
+  // another commit than its snapshot.
   if (kept !== undefined && (!Array.isArray(files) || listsLanded(files, kept))) {
     landings = kept;
   } else if (!Array.isArray(files)) {
