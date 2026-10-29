@@ -134,8 +134,10 @@ export function changedPackagesMarkdown(pkgs: readonly ChangedPackage[] | undefi
   } ${testedFrom(pkg)} | ${pkg.importers ?? ''} |`;
   if (ranked.length <= ROWS) return [...lines, ...ranked.map(row)];
 
-  const gaps = ranked.filter((pkg) => away(pkg) > 0 || pkg.uncovered > 0 || pkg.overwritten > 0);
-  const quiet = ranked.filter((pkg) => away(pkg) === 0 && pkg.uncovered === 0 && pkg.overwritten === 0);
+  // One predicate splits them, so a package from a review.json written before one of its counts still lands on a side.
+  const gap = (pkg: ChangedPackage): boolean => away(pkg) > 0 || pkg.uncovered > 0 || pkg.overwritten > 0;
+  const gaps = ranked.filter(gap);
+  const quiet = ranked.filter((pkg) => !gap(pkg));
   // The fold rows are rows too: the quiet one when there is any, the overflow one when the gaps do not fit beside it.
   const room = ROWS - (quiet.length > 0 ? 1 : 0);
   const shown = gaps.length <= room ? gaps.length : room - 1;

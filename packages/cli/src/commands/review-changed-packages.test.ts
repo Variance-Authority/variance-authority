@@ -209,6 +209,20 @@ describe('where a change lands, a package at a time', () => {
     expect(lines.slice(5, 7)).toEqual(['| `p` | 1 | G 1 | 1 | own | 0 |', '| 11 more packages, every function G | 11 | G 11 | 0 | | |']);
   });
 
+  it('keeps every package of a review.json written before code no case is known to have run was counted, the quiet ones in their fold', () => {
+    const before = ({ overwritten: _overwritten, ...held }: ChangedPackage): ChangedPackage => held as ChangedPackage;
+    const clean = Array.from({ length: 11 }, (_, at) => before(pkg(`c${String(at).padStart(2, '0')}`, 1, { near: 1 })));
+    const lines = changedPackagesMarkdown([...clean, before(pkg('g', 1, { far: 1 }))], mark);
+
+    expect(lines.slice(3, 8)).toEqual([
+      '| Package | Changed functions | Ran | With code no case ran | Tests from | Packages importing it |',
+      '|---|--:|---|--:|---|--:|',
+      '| `g` | 1 | Y 1 | 0 | own | 0 |',
+      '| 11 more packages, every function G | 11 | G 11 | 0 | | |',
+      '',
+    ]);
+  });
+
   it('marks a function a case ran from afar the way the table of what ran does, and counts its unrun branch apart, not under the mark no case ran', async () => {
     const root = await workspace();
     const far = ['packages/b/test/y.test.ts'];
