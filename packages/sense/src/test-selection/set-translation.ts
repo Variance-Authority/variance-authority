@@ -61,7 +61,6 @@ export class Translation {
   /** The cases of `left` that `right` does not hold. */
   minus(left: SetId, right: SetId): SetId {
     if (left === EMPTY || right === EMPTY) return left;
-    if (left === right) return EMPTY;
     const key = `${left}-${right}`;
     let found = this.#differences.get(key);
     if (found === undefined) {
