@@ -20,6 +20,7 @@ import { changedPackagesMarkdown } from './review-changed-packages.js';
 import { installLines } from './review-install.js';
 import { caseTree, functionsMarkdown, namedList, outermost, regionKind, uncoveredFunctions, uncoveredMarkdown } from './review-scope.js';
 import { REACHES, type Reach, type Review, type ReviewFile, type ReviewRegion } from './review.js';
+import { LEGEND, MARK, REACH_TEXT } from './review-words.js';
 import { describeDistance } from './share.js';
 import { jsonPieces } from '../json-pieces.js';
 import { reviewJson } from './review-json.js';
@@ -36,27 +37,6 @@ const EDITS = [
   ['values', 'top-level values'],
   ['load', 'what the module loads'],
 ] as const;
-
-/** Each answer in a few words, for a line that names a place: the handover's pointers. */
-export const REACH_WORD: Readonly<Record<Reach, string>> = {
-  near: 'near',
-  far: 'far',
-  unplaced: 'distance not measured',
-  loaded: 'ran only while its module loaded',
-  hole: 'no case',
-  unwalked: 'no case',
-  unknown: 'no case',
-};
-
-const REACH_TEXT: Readonly<Record<Reach, string>> = {
-  near: 'covered by a test that imports the file, or is the file',
-  far: 'covered only by tests further than one import away',
-  unplaced: 'covered by tests the import graph does not hold, so how far is not known',
-  loaded: 'ran only while its module loaded',
-  hole: 'no case covered it, and a case that could have stopped first',
-  unwalked: 'no case covered it',
-  unknown: 'no case is known to have covered it: a case ran it in a text an edit wrote over, or none did and the record cannot say whether one stopped first',
-};
 
 /** A review in words. JSON is {@link reviewPieces}'s: it can spell more than one string holds. */
 export function formatReview(review: Review, format: Exclude<ReviewFormat, 'json'>): string {
@@ -108,29 +88,6 @@ function text(review: Review): string {
 function editText(file: string, region: ReviewRegion): string {
   return region.edit !== 'moved' ? region.edit : region.movedFrom === undefined || region.movedFrom === file ? 'moved within the file' : `moved from ${region.movedFrom}`;
 }
-
-/**
- * One mark per answer, so a row in the table and a count in the per-file fold
- * read the same way: red is changed code no case covered, yellow and orange are
- * covered from further away than the file's own importers, green is covered
- * from one import away, white ran only while its module loaded.
- */
-export const MARK: Readonly<Record<Reach, string>> = {
-  near: '🟢',
-  far: '🟡',
-  unplaced: '🟠',
-  loaded: '⚪',
-  hole: '🔴',
-  unwalked: '🔴',
-  unknown: '🔴',
-};
-
-/** What each mark says, once, under the first table that uses it. */
-const LEGEND = '🟢 a test importing the file ran it · 🟡 only tests further away ran it · 🟠 tests outside the import graph ran it · ' +
-  '⚪ ran only while its module loaded · 🔴 no case ran it';
-
-/** Code this change wrote that no run has reached yet: read before it ran, so no case was expected. */
-export const FRESH_MARK = '🔵';
 
 /**
  * The comment, disclosed a level at a time. The first screen is the verdict:

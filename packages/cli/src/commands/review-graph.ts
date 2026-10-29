@@ -20,21 +20,12 @@
 
 import { codeUnitOrder } from '@variance-authority/core/segment';
 import { REACHES, type Reach, type Review, type ReviewFile, type ReviewRegion } from './review.js';
+import { MARK } from './review-words.js';
 
 /** Past this many functions the worst are drawn and the rest are counted. */
 const FUNCTIONS = 24;
 /** Past this many test files the ones reaching the most drawn functions are kept. */
 const TESTS = 8;
-
-const MARK: Readonly<Record<Reach, string>> = {
-  near: '🟢',
-  far: '🟡',
-  unplaced: '🟠',
-  loaded: '⚪',
-  hole: '🔴',
-  unwalked: '🔴',
-  unknown: '🔴',
-};
 
 const CLASS: Readonly<Record<Reach, string>> = {
   near: 'near',

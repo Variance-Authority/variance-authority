@@ -5,7 +5,8 @@ import type { ParsedReview } from '../review-args.js';
 import { review, type Reach, type Review, type ReviewRegion } from './review.js';
 import { functionOf, TOP_LEVEL, uncovered } from './review-scope.js';
 import { eachSuite, nearestOfEach, NEAREST, type MissedSuite } from './review-suites.js';
-import { FRESH_MARK, MARK, REACH_WORD, unrecordedSources } from './review-text.js';
+import { unrecordedSources } from './review-text.js';
+import { FRESH_MARK, MARK, REACH_WORD } from './review-words.js';
 
 /** The line a pull request body's handover starts at: a re-run replaces everything up to {@link HANDOVER_END}. */
 export const HANDOVER_START = '<!-- variance-authority: handover -->';
