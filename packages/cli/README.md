@@ -2843,14 +2843,18 @@ a sentence changes meaning the day the wording improves.
 On GitHub, the composite action does the rest of the job around that step: it
 posts the result to the pull request as one comment updated in place, restores
 and saves what [`carry`](#what-the-next-job-reads) names, and accepts on a label.
-Name it by the version of this package you installed, so the action and the CLI
-it calls were released together:
+Name it by `v` and the version of this package in your lockfile, so the action
+and the CLI it calls were released together, and bump the two in one change:
 
 ```yaml
-- uses: Variance-Authority/variance-authority/.github/actions/variance@v0.20.0
-  with:
-    config: variance.config.json
-    github-token: ${{ secrets.GITHUB_TOKEN }}
+permissions:
+  pull-requests: write # the comment
+
+steps:
+  - uses: Variance-Authority/variance-authority/.github/actions/variance@v<version>
+    with:
+      config: variance.config.json
+      github-token: ${{ secrets.GITHUB_TOKEN }}
 ```
 
 It runs the CLI from your `node_modules` and downloads nothing during the run.

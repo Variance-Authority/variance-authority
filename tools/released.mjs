@@ -262,7 +262,7 @@ CONTRIBUTING.md, under Releasing, says what that publishes and why.`);
   if (untagged.length > 0) {
     console.error(`\n${untagged.length} of ${packages.length + 1} tags are not on origin:`);
     for (const tag of untagged) console.error(`  ${tag}`);
-    console.error('The release job\'s tagging lines create and push them, and skip the ones origin has.');
+    console.error(`\`yarn changeset tag && git tag -a v${version} -m 'variance-authority ${version}' && git push origin --tags\` creates and pushes them; leave out the half origin already has.`);
   }
   if (absent.length > 0 || untagged.length > 0) process.exit(1);
   console.log(`\n${version} is fully published${tags === null ? '' : ' and fully tagged'}.`);

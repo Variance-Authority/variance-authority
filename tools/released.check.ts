@@ -226,7 +226,7 @@ describe('the release workflow', () => {
   });
 
   // An adopter's workflow names the composite action by a ref, and the ref is
-  // the version of the CLI it runs, such as `@v0.20.0`. The
+  // the version of the CLI it runs, such as `@v0.21.0`. The
   // package tags carry a scope and a second `@`, which no `uses:` line should.
   it('is tagged once per package and once for the repository', () => {
     const tags = releaseTags(publishable(), '1.2.3') as readonly string[];

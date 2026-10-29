@@ -15,7 +15,7 @@ your own `variance.config.json`, and the step that builds the thing being
 observed (here, a Storybook). Then point the step that runs the gate at the
 released [composite action](../actions/variance), by the version of the CLI you
 installed: `uses:
-Variance-Authority/variance-authority/.github/actions/variance@v0.20.0`. These
+Variance-Authority/variance-authority/.github/actions/variance@v<version>`. These
 files say `./.github/actions/variance` because they test the action as it
 stands in this checkout.
 
@@ -79,7 +79,7 @@ something the workflow fetches. The composite action's `command` input defaults
 to `npx --no-install variance`, which is what your copy should use:
 
 ```yaml
-- uses: Variance-Authority/variance-authority/.github/actions/variance@v0.20.0
+- uses: Variance-Authority/variance-authority/.github/actions/variance@v<version>
   with:
     config: variance.config.json
     profile: chromium
