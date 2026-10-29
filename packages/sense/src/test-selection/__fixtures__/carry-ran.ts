@@ -24,7 +24,7 @@ import { keptTexts } from '../kept-texts.js';
 import { textsAt } from '../recorded-text.js';
 import { coveringTests } from '../reverse.js';
 import { testPlaces } from '../test-places.js';
-import { BIN, cliEnv, SUBJECT, type Walk } from './carry-contract.js';
+import { BIN, cliEnv, indexedByCli, SUBJECT, type Walk } from './carry-contract.js';
 
 /** A line, or a run of lines, of the subject's text at HEAD. */
 export type Asked = { readonly line: number } | { readonly lines: { readonly startLine: number; readonly endLine: number } };
@@ -91,11 +91,12 @@ export async function ranInProcess(walk: Walk, asked: Asked): Promise<Readonly<R
 
 /**
  * {@link Ran} asked of `variance covering --format json` in a process of its
- * own, from its `ran` stands: `held` there is the asked text, and a region
+ * own, after `variance index` has indexed HEAD, from its `ran` stands: `held` there is the asked text, and a region
  * whose verdict is not known is one read in no text the record holds.
  */
 export async function ranByCli(walk: Walk, asked: Asked): Promise<Readonly<Record<string, Stood>>> {
   const line = 'line' in asked ? String(asked.line) : `${String(asked.lines.startLine)}-${String(asked.lines.endLine)}`;
+  await indexedByCli(walk);
   const { stdout } = await promisify(execFile)(process.execPath, [BIN, 'covering', '--file', SUBJECT, '--line', line, '--execution', walk.coverageFile, '--format', 'json'], {
     cwd: walk.root, env: cliEnv(walk), maxBuffer: 64 * 1024 * 1024,
   });

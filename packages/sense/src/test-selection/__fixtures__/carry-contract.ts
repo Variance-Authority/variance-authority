@@ -443,6 +443,13 @@ export function cliEnv(walk: Walk): NodeJS.ProcessEnv {
   return { ...process.env, VARIANCE_AUTHORITY_CACHE: walk.cacheRoot };
 }
 
+/** Runs `variance index` into the walk's cache once per HEAD, as a pipeline indexes a commit before it asks. */
+export async function indexedByCli(walk: Walk): Promise<void> {
+  if (walk.indexed === walk.head) return;
+  await run(process.execPath, [BIN, 'index', '--wait'], { cwd: walk.root, env: cliEnv(walk), maxBuffer: 64 * 1024 * 1024 });
+  walk.indexed = walk.head;
+}
+
 /**
  * {@link selected}, asked of the CLI in a process of its own that opens the
  * record cold, after `variance index` has indexed HEAD into the walk's cache,
@@ -453,10 +460,7 @@ export async function selectedByCli(walk: Walk, next: string): Promise<readonly 
   const patch = resolve(walk.scratch, `change-${walk.actions.length}.patch`);
   await writeFile(patch, diff, 'utf8');
   const options = { cwd: walk.root, env: cliEnv(walk), maxBuffer: 64 * 1024 * 1024 };
-  if (walk.indexed !== walk.head) {
-    await run(process.execPath, [BIN, 'index', '--wait'], options);
-    walk.indexed = walk.head;
-  }
+  await indexedByCli(walk);
   const { stdout } = await run(process.execPath, [BIN, 'select', '--execution', walk.coverageFile, '--diff', patch, '--format', 'json'], options);
   walk.actions.push({ action: 'select through the CLI', next, stdout });
   return testsOf(JSON.parse(stdout) as unknown);
