@@ -19,6 +19,7 @@
 
 import { open, type FileHandle } from 'node:fs/promises';
 import { EDGE_KINDS, RUNTIME_EDGES, type Relations } from '@variance-authority/core/relate';
+import { codeUnitOrder } from '@variance-authority/core/segment';
 import { native, type NativeJourneyChange, type NativeJourneyGraph } from '../native.js';
 import type { LineRange } from './diff-lines.js';
 import { declaredReach, dependsReaders, type JourneySelectionOptions } from './execution-select.js';
@@ -140,10 +141,6 @@ export interface JourneyProjection {
   readonly index: ExecutionIndex;
   /** Every file the journey holds a row for, which `index.modules` no longer is. */
   readonly files: readonly string[];
-}
-
-function codeUnitOrder(left: string, right: string): number {
-  return left < right ? -1 : left > right ? 1 : 0;
 }
 
 /**

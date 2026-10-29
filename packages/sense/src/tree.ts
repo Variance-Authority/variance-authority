@@ -30,6 +30,7 @@ import { execFile } from 'node:child_process';
 import { stat } from 'node:fs/promises';
 import { isAbsolute, join } from 'node:path';
 import { promisify } from 'node:util';
+import { codeUnitOrder } from '@variance-authority/core/segment';
 import { digestString, type Digest } from './digest.js';
 import { native, type NativeGitTree } from './native.js';
 import { directoriesOf } from './witness.js';
@@ -293,7 +294,7 @@ export async function gitTreeOf(
 export function treeOf(digests: ReadonlyMap<string, Digest>): Tree {
   let sorted: readonly string[] | undefined;
   const paths = (): readonly string[] =>
-    (sorted ??= [...digests.keys()].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0)));
+    (sorted ??= [...digests.keys()].sort(codeUnitOrder));
 
   return {
     get size() {

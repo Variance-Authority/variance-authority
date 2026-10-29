@@ -1,3 +1,4 @@
+import { codeUnitOrder } from '@variance-authority/core/segment';
 import type {
   FilePhases,
   CoverageBlock,
@@ -443,8 +444,4 @@ function uniquePreconditions(
   if (standing) return preconditions;
   const keyed = new Map(preconditions.map((value) => [`${value.name}\0${value.digest}`, value]));
   return [...keyed.values()].sort(order);
-}
-
-function codeUnitOrder(left: string, right: string): number {
-  return left < right ? -1 : left > right ? 1 : 0;
 }

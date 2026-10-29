@@ -15,13 +15,6 @@
   },
   {
     "files": [
-      "packages/cli/src/commands/changes.ts",
-      "packages/sense/src/record.ts"
-    ],
-    "count": 1
-  },
-  {
-    "files": [
       "packages/cli/src/commands/compose-fixture.ts",
       "packages/cli/src/commands/compose-fixture.ts"
     ],

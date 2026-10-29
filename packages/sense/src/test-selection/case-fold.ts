@@ -1,5 +1,6 @@
 import { readFile, readdir } from 'node:fs/promises';
 import { resolve } from 'node:path';
+import { codeUnitOrder } from '@variance-authority/core/segment';
 import type { FreshCases, LaidRun } from './case-landing.js';
 import type { ModuleId } from '../instrument/index.js';
 import { FoldLines, fileStarts, linedCases, writtenPlaces } from './case-fold-lines.js';
@@ -7,7 +8,6 @@ import { CrossingSets } from './crossing-sets.js';
 import { scanJournal, type JournalVisitor } from './crossing-fold.js';
 import { encodeSetExecutionIndex, type SetExecutionModule } from './execution-set-format.js';
 import {
-  codeUnitOrder,
   isMissing,
   projectPath,
   type CapturedModule,

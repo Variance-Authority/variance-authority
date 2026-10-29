@@ -65,12 +65,12 @@ describe('what one door opens', () => {
 
   it('carries the kind, the counts and the first line of the doc', () => {
     expect(call('docs_entrypoint', { package: 'alpha' })).toContain(
-      'measure [function] 1 packages, 1 imports — Measures the thing, and says how much of it there was.',
+      'measure [function] 1 import by published path from 1 other package — Measures the thing, and says how much of it there was.',
     );
   });
 
   it('marks a name that says nothing about itself', () => {
-    expect(call('docs_entrypoint', { package: 'alpha' })).toContain('Reading [class] 1 packages, 2 imports — UNDOCUMENTED');
+    expect(call('docs_entrypoint', { package: 'alpha' })).toContain('Reading [class] 2 imports by published path from 1 other package — UNDOCUMENTED');
   });
 
   it('answers the main entrypoint when no subpath is named', () => {

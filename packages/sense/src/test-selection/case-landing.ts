@@ -10,6 +10,7 @@
 
 import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { codeUnitOrder } from '@variance-authority/core/segment';
 import { layerBefore, layerCaseIndex } from './case-layer.js';
 import { caseSectionsAt, type CaseSections } from './case-record.js';
 import { decodeExecutionIndex, decodeExecutionTests } from './execution-format.js';
@@ -17,7 +18,6 @@ import { encodeAsSetExecutionIndex, openSetExecutionIndex } from './execution-se
 import { layEyes, readableEyes, type EyesSection } from './eyes-record.js';
 import { editsBetween } from './region-edit.js';
 import type { TestCoverageView } from './format-view.js';
-import { codeUnitOrder } from './instrumented-modules.js';
 import type { CoverageModule, CoverageTest } from './index.js';
 import type { ExecutionTest } from './reverse.js';
 

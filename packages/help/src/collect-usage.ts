@@ -11,6 +11,7 @@ import {
   gatheringUsage,
   kindOf,
   landing,
+  ownBinding,
   requested,
   type Deep,
   type ImportTargets,
@@ -50,6 +51,7 @@ export function collectingUsage(root: string, opened: ReadonlySet<string>, targe
       // The parse holds where a doc is, not what it says, so the file is read
       // once for the prose, and only when one of its exports has any.
       let text: string | undefined;
+      const importedHere = new Set(parsed.requests.flatMap((request) => request.bindings.map((binding) => binding.local)));
       for (const published of parsed.exports ?? []) {
         if (published.exported !== undefined) {
           // The TypeScript reader spans an export's doc on the export; the
@@ -63,6 +65,8 @@ export function collectingUsage(root: string, opened: ReadonlySet<string>, targe
           const span = published.doc ?? bound?.doc;
           if (span !== undefined) text ??= readFileSync(join(root, at), 'utf8');
           const doc = text === undefined ? undefined : docOf(text, span);
+          // What the export binds in its own file, by the package stage's one rule.
+          const own = published.from === undefined ? ownBinding(published.local, importedHere) : undefined;
           usage.exported.push({
             name: published.exported,
             at,
@@ -70,6 +74,7 @@ export function collectingUsage(root: string, opened: ReadonlySet<string>, targe
             line: published.line,
             type: published.type,
             kind,
+            ...(own === undefined ? {} : { bound: own }),
             ...(bound === undefined ? {} : { declaration: bound.kind }),
             ...(doc === undefined ? {} : { doc }),
           });

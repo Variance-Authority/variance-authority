@@ -22,6 +22,7 @@
 
 import { execFileSync } from 'node:child_process';
 import { readFile, rm } from 'node:fs/promises';
+import { codeUnitOrder } from '@variance-authority/core/segment';
 import { carriedSources } from './carried-sources.js';
 import { followRowsIn } from './case-cuts.js';
 import { textsIn, textsOf, type ModuleTexts } from './case-landing.js';
@@ -37,7 +38,6 @@ import { openTestCoverage, wholeCoverage } from './format-view.js';
 import { editsBetween, type EditOf } from './region-edit.js';
 import { withIndexLock } from './index-lock.js';
 import type { TestCoverage } from './index.js';
-import { codeUnitOrder } from './instrumented-modules.js';
 import { partlyIn, whatLanded, type Landing } from './landings.js';
 import { landedOf, ranOn, standKey } from './standing-after.js';
 import { opensFetched, type LastFetched } from './mainline-layer.js';

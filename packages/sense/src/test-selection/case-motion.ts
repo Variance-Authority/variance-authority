@@ -1,5 +1,6 @@
 // compass: variance-authority/runtime/attention
 import type { Relations } from '@variance-authority/core/relate';
+import { codeUnitOrder } from '@variance-authority/core/segment';
 import { addressKey } from './carried-rows.js';
 import { placeThrough, type Hunk } from './placed.js';
 import type { ExecutionBlock, ExecutionIndex, ExecutionModule, ExecutionTest } from './reverse.js';
@@ -206,14 +207,14 @@ export function caseMotion(base: ExecutionIndex, now: ExecutionIndex, options: C
       else if (before.length === 0 && after.length > 0) regions.push({ ...moved, motion: 'gained' });
     }
   }
-  regions.sort((left, right) => (left.file < right.file ? -1 : left.file > right.file ? 1 : left.startLine - right.startLine));
+  regions.sort((left, right) => (codeUnitOrder(left.file, right.file) || left.startLine - right.startLine));
   const counts = { lost: 0, hidden: 0, thinned: 0, gained: 0 };
   for (const region of regions) counts[region.motion] += 1;
   const testFiles = [...reach]
     .map(([file, { entered, left }]) => ({ file, entered: inOrder(entered), left: inOrder(left) }))
-    .sort((left, right) => (left.file < right.file ? -1 : left.file > right.file ? 1 : 0));
-  mismatched.sort((left, right) => (left.file < right.file ? -1 : left.file > right.file ? 1 : left.startLine - right.startLine));
-  unmeasured.sort((left, right) => (left.file < right.file ? -1 : left.file > right.file ? 1 : left.startLine - right.startLine));
+    .sort((left, right) => codeUnitOrder(left.file, right.file));
+  mismatched.sort((left, right) => (codeUnitOrder(left.file, right.file) || left.startLine - right.startLine));
+  unmeasured.sort((left, right) => (codeUnitOrder(left.file, right.file) || left.startLine - right.startLine));
   return { regions, counts, testFiles, unread: unread.sort(), renumbered: inOrder(renumbered), mismatched, unmeasured };
 }
 
@@ -393,6 +394,6 @@ function filesOf(tests: readonly ExecutionTest[]): ReadonlySet<string> {
 
 function inOrder(regions: readonly MovedRegion[]): readonly MovedRegion[] {
   return [...regions].sort((left, right) =>
-    left.file < right.file ? -1 : left.file > right.file ? 1 : left.startLine - right.startLine,
+    codeUnitOrder(left.file, right.file) || left.startLine - right.startLine,
   );
 }

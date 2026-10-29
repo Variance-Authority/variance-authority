@@ -469,3 +469,13 @@ fn a_namespace_imported_and_exported_by_its_local_name_is_passed_on_as_export_st
     // Passed on by name, the namespace does not go on whole from its import.
     assert_eq!(members(source), Vec::<(String, String)>::new());
 }
+
+#[test]
+fn an_anonymous_default_export_binds_the_declaration_named_default() {
+    // `export default function () {}` has no identifier, and the harvest names
+    // its declaration `default`, so the export binds that name as a named
+    // default binds its own.
+    let read = read("export default function (name: string): string {\n  return name;\n}\n");
+    let exports: Vec<_> = read.exports.iter().map(|it| (it.exported.clone(), it.local.clone())).collect();
+    assert_eq!(exports, [(Some("default".to_owned()), Some("default".to_owned()))]);
+}

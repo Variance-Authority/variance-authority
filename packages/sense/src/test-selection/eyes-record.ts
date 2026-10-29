@@ -20,8 +20,8 @@
  * empty.
  */
 
+import { codeUnitOrder } from '@variance-authority/core/segment';
 import { AMBIENT, caseIds, caseKey, type CaseCoordinate } from './cases.js';
-import { codeUnitOrder } from './instrumented-modules.js';
 
 /** One case's journal for one attempt. */
 export interface RecordedEyes {

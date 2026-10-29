@@ -413,7 +413,7 @@ describe('which row a described name is weighed, ordered and shown through', () 
       const used = { 'index.ts': "import type { Placement } from 'b-kit';\nexport type Used = Placement;\n" };
       const root = await kits({ [first]: KEPT_PLACEMENT, 'b-kit': KEPT_PLACEMENT, 'app': used }, { app: ['b-kit'] });
       const match = searchNames(searchIndexOf(readHelp(root)), { query: 'placement text' }).described?.shown.find(({ name }) => name === 'Placement');
-      return match && 'specifier' in match ? [match.specifier, match.packages] : match;
+      return match && 'specifier' in match ? [match.specifier, match.otherPackages] : match;
     };
     expect(await shown('a-kit')).toEqual(['b-kit', 1]);
     expect(await shown('z-kit')).toEqual(['b-kit', 1]);

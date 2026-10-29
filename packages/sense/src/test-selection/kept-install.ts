@@ -25,11 +25,11 @@
 
 import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
+import { codeUnitOrder } from '@variance-authority/core/segment';
 import { digestString } from '../digest.js';
 import { LOCKFILES } from '../lock/read.js';
 import type { CommitRuns } from './commit-runs.js';
 import { keepText, type KeptTexts, type LandedTree } from './kept-texts.js';
-import { codeUnitOrder } from './instrumented-modules.js';
 import { agreed, whatLanded } from './landings.js';
 
 /**
