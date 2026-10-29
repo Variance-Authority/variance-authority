@@ -197,7 +197,7 @@ async function landCombined(
     const ranCases = 'laid' in landing && landing.shards > 0 ? selection.casesRan(laid) : 'none';
     const runs = folded === undefined
       ? undefined
-      : selection.commitRunsAfter(before, held, { ...folded, ...(ranCases === undefined ? {} : { laid: ranCases }) }, installed, ranOver);
+      : selection.commitRunsAfter(before, held, { ...folded, laid: ranCases }, installed, ranOver);
     const cases = 'laid' in landing
       ? { ...landing, shards: landing.shards === 0 ? 0 : cased }
       : { ...landing, shards: [...shards] };

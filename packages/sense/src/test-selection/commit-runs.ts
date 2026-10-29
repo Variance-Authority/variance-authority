@@ -242,7 +242,7 @@ export async function landRun(
   // a retried landing, which the next run here repairs and nothing else does.
   // A run that kept no cases laid none, leaving the record's index as it was.
   const ranCases = cases === undefined ? 'none' : casesRan(laid);
-  await writeCommitRuns(commitRunsFile(coverageFile), commitRunsAfter(before, held, { ...current, ...(ranCases === undefined ? {} : { laid: ranCases }) }, installed, ranOver));
+  await writeCommitRuns(commitRunsFile(coverageFile), commitRunsAfter(before, held, { ...current, laid: ranCases }, installed, ranOver));
   // The ledger last: it names this run's tests as this checkout's, and a
   // landing that died before it leaves them read as the milestone's, which a
   // re-run here corrects. A record with no ledger was laid before there was

@@ -265,20 +265,16 @@ export function lastCaseRunOf(sections: CaseSections): LastCaseRun | undefined {
 /**
  * The cases the run that wrote `sections` last executed, by test file, each
  * file's in code-unit order: the ones it laid, which the runs record names of
- * the files that run finished only in part (`landings.ts`). `undefined` when
- * no run named its cases, or one names a case its index does not place.
+ * the files that run finished only in part (`landings.ts`). The sections are
+ * what `layCases` or `landCases` wrote, whose last-run layer names only cases
+ * its index holds.
  */
-export function casesRan(sections: CaseSections): ReadonlyMap<string, readonly string[]> | undefined {
-  const last = lastCaseRunOf(sections);
-  if (last === undefined) return undefined;
-  if (last.cases.length === 0) return new Map();
-  if (sections.index === undefined) return undefined;
-  const files = new Map(decodeExecutionTests(sections.index).map((test) => [test.id, test.file]));
+export function casesRan(sections: CaseSections): ReadonlyMap<string, readonly string[]> {
+  const last = new Set(lastCaseRunOf(sections)!.cases);
   const ran = new Map<string, string[]>();
-  for (const id of last.cases) {
-    const file = files.get(id);
-    if (file === undefined) return undefined;
-    ran.set(file, [...(ran.get(file) ?? []), id]);
+  if (last.size === 0) return ran;
+  for (const test of decodeExecutionTests(sections.index!)) {
+    if (last.has(test.id)) ran.set(test.file, [...(ran.get(test.file) ?? []), test.id]);
   }
   for (const ids of ran.values()) ids.sort(codeUnitOrder);
   return ran;
