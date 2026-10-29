@@ -64,14 +64,19 @@ The catalogue names what can be asked next, not what must be.
 An edge names its destination need, the command that answers it — the declared
 tool itself, never its name written out, so deleting the tool fails the build as
 it does for a hint today — and, for each argument the command takes, the answer
-field that supplies it. Checking a binding against a field needs a type to
+field that supplies it. A move is that tool, its input, and the context the
+answer was asked in: the report paths, or the watcher address `--at` named.
+The context is carried unchanged, since the tool's input does not hold it, and
+`spellingOf` spells it with the input. A `describe --subject` move from
+`ask changes /tmp/run-a.json` asks of `/tmp/run-a.json`, not of the configured
+report. Checking a binding against a field needs a type to
 check it against: `Tool.run` returns text today, so this check rides 0104's
 answer object becoming the tool's answer type, and until then a binding is held
 by the builder's decision test.
 
 A field is a value the answer holds, or an input it was asked with and
-echoes, such as the ref `--since` named. A field names one thing of a stated kind: a declaration, as a name and the
-package that declares it; a file; a test case, as a file and a case name; a
+echoes, such as the ref `--since` named. A field names one thing of a stated kind: a declaration, as its name, its package and its
+file; a file; a test case, as a file and a case name; a
 subject id; a ref. The kind of the edge's arguments is the kind of thing the
 move asks about.
 
@@ -83,8 +88,9 @@ move asks about.
 | no value for the field | no move |
 | a value, but no fact the destination would read | no move |
 
-So `symbol` that finds `Coverage` declared in two packages prints two `uses`
-moves, each with its `--package`. A move never picks one of several
+So `symbol` that finds `Coverage` declared in two files prints two `uses`
+moves, each with its `--package` and `--file`, whether the files share a
+package or not. A move never picks one of several
 candidates for the agent. The last row is the condition: `symbol` that finds no
 declaration opens no `uses`, and `changes` with nothing changed opens no
 `describe`. An edge is printed only when the answer holds a fact the next
@@ -94,8 +100,10 @@ is not the source answer's to know; the destination answers an absent record
 with its own gap.
 
 The catalogue may hold cycles, such as `covering` to `story` to
-`ask test-composition` and back to `covering`. A move needs a fact of its own answer, so an agent
-following moves stops where the answers stop finding anything.
+`ask test-composition` and back to `covering`. A move says what can be asked from this answer, not
+whether it was asked before, so moves alone do not end a walk: two answers can
+open each other with the same facts forever. The agent that follows a move knows
+what it has already asked, and the catalogue keeps no visited state for it.
 
 ### What a move is not
 
@@ -123,7 +131,7 @@ writes a record or a file. Every other command only reads.
 | find the part of the repository a task is in, with no word for it yet | `ask orient`, `ask orient --area <id>`, `ask orient --files <path>` | find the code a task talks about; know what a package publishes and who takes it |
 | know what a package publishes and who takes it | `ask packages`, `ask entrypoint --package <name>` | know what a name is before touching it |
 | know what a name is before touching it | `ask symbol --name <name> [--package <name>]` | know who breaks if it changes |
-| know who breaks if it changes | `ask uses --name <name> [--package <name>]` | run something that already exercises this code; find the files that take a name from outside the workspace |
+| know who breaks if it changes | `ask uses --name <name> [--package <name>] [--file <path>]` | run something that already exercises this code; find the files that take a name from outside the workspace |
 | find the files that take a name from outside the workspace | `ask discover --imports <module#name>` | run something that already exercises this code |
 | know what rests on a file at any depth | `ask discover --to <path>` | run something that already exercises this code |
 | find the files several questions agree on | `ask intersection '<question>' '<question>'`, `ask discover` with several filters | know what a name is before touching it |
@@ -133,7 +141,7 @@ writes a record or a file. Every other command only reads.
 | run something that already exercises this code | `covering --file <path> [--function <f>]`, its MCP twin `variance_source_tests`, `ask journey-map --file <path>` | see what a test actually did here |
 | see what a test actually did here | `story --file <test> --name <case>`, `distill --test <id>`; over MCP `variance_distill`, `variance_test_attention`, `variance_scenarios`, `variance_presentations` | know what a test is made of; know what a name is before touching it |
 | know what a test is made of | `ask test-composition --file <test>` | run something that already exercises this code |
-| know why a case passes on one run and throws on another | `story --compare outcome` | know what a name is before touching it |
+| know why a case passes on one run and throws on another | `story --file <test> --name <case> --compare outcome` | know what a name is before touching it |
 | know why a test fails | **gap** | — |
 | know how many tests an edit to a name would reach, before making it | **gap** | — |
 
@@ -152,13 +160,13 @@ and none stands in for another:
 | know which recorded tests entered what my change touched | `covering --since <ref>`, its MCP twin `variance_changed_tests` over a diff | see what a test actually did here |
 | know what my change reached that no test checks | `review --since <ref> --coverage` | run something that already exercises this code |
 | know what my change did to what users see | `ask summary` over the report of a `run` | know the distinct changes behind what moved |
-| know the distinct changes behind what moved | `ask changes` | know everything about one subject; know whether the edit did what I meant |
+| know the distinct changes behind what moved | `ask changes` | know everything about one subject |
 | know everything about one subject | `ask describe --subject <id>` | know why a verdict may not be a code problem |
 | know why a verdict may not be a code problem | `ask explain-verdict --subject <id>` | — |
 | know where a component appears and what it moved | `ask trace-component`, `ask composition` | know everything about one subject |
 | know what a flag or theme arm changes | `ask variations` | — |
 | know which subject a description names | `ask locate --query <words>` | know everything about one subject |
-| know whether the edit did what I meant | `adjudicate`, `ask adjudicate --claims <path>` | know everything about one subject |
+| know whether the edit did what I meant, by claims declared before reading the diff | `adjudicate`, `ask adjudicate --claims <path>` | know everything about one subject |
 | know what renders get wrong with no baseline | `ask findings` | — |
 | know what reviewers decided or suspect | `ask decisions`, `ask concerns` | settle a change |
 | know how the report reads since I last asked | `ask diff` over the report | know the distinct changes behind what moved |
@@ -294,7 +302,9 @@ entries hold.
    - Each command gets an acceptance test that asks every move it prints and
      reads the answer. The move is parsed by `asking.ts`'s own parser and asked
      in process; one case per surface spawns the CLI. The move's command must
-     answer cleanly, and about the thing the move names.
+     answer cleanly, and about the thing the move names. A move from an
+     answer asked of one of two reports, or of one of two watcher addresses,
+     must answer from that report or that watcher.
    - The source moves run on `ask-acceptance.fixture.ts`. `covering` and
      `select` run on the recorded checkouts their own tests already build.
    - `symbol`'s sentence naming `uses` gives way to the move.
