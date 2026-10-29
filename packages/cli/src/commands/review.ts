@@ -149,8 +149,8 @@ export interface ChangedPackage {
   readonly reaches: Partial<Record<Reach, number>>;
   /** How many of those functions hold changed code no case ran: the ones no case entered, and the ones a case entered that left a branch in them unrun. */
   readonly uncovered: number;
-  /** How many of the rest hold changed code no case is known to have run: a case ran it in a text an edit wrote over. */
-  readonly overwritten: number;
+  /** How many of the rest hold changed code no case is known to have run, a case having run it in a text an edit wrote over; absent, not none, from a review.json written by a build that did not count them. */
+  readonly overwritten?: number;
   /** Whether a test file in its own directory entered them. */
   readonly own: boolean;
   /** The other packages whose test files entered them, by name, in code-unit order. */

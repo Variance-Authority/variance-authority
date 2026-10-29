@@ -118,10 +118,10 @@ export function changedPackagesOf(
 export function changedPackagesMarkdown(pkgs: readonly ChangedPackage[] | undefined, mark: (reach: Reach) => string): readonly string[] {
   if (pkgs === undefined || pkgs.length < 2) return [];
   const total = pkgs.reduce((sum, pkg) => sum + pkg.functions, 0);
-  const ranked = [...pkgs].sort((left, right) => right.uncovered - left.uncovered || right.overwritten - left.overwritten || away(right) - away(left) ||
+  const ranked = [...pkgs].sort((left, right) => right.uncovered - left.uncovered || knownLost(right) - knownLost(left) || away(right) - away(left) ||
     right.functions - left.functions || codeUnitOrder(left.package, right.package));
   // The column is there only once a package holds such code: most changes have none to count.
-  const lost = pkgs.some((pkg) => pkg.overwritten > 0);
+  const lost = pkgs.some((pkg) => knownLost(pkg) > 0);
   const lines = [
     '',
     `**Where this change lands:** ${total} changed function${total === 1 ? '' : 's'} in ${pkgs.length} packages.`,
@@ -130,12 +130,12 @@ export function changedPackagesMarkdown(pkgs: readonly ChangedPackage[] | undefi
     `|---|--:|---|--:|${lost ? '--:|' : ''}---|--:|`,
   ];
   const row = (pkg: ChangedPackage): string => `| \`${pkg.package}\` | ${pkg.functions} | ${tally(pkg.reaches, mark)} | ${pkg.uncovered} |${
-    lost ? ` ${pkg.overwritten} |` : ''
+    lost ? ` ${lostIn([pkg])} |` : ''
   } ${testedFrom(pkg)} | ${pkg.importers ?? ''} |`;
   if (ranked.length <= ROWS) return [...lines, ...ranked.map(row)];
 
   // One predicate splits them, so a package from a review.json written before one of its counts still lands on a side.
-  const gap = (pkg: ChangedPackage): boolean => away(pkg) > 0 || pkg.uncovered > 0 || pkg.overwritten > 0;
+  const gap = (pkg: ChangedPackage): boolean => away(pkg) > 0 || pkg.uncovered > 0 || knownLost(pkg) > 0;
   const gaps = ranked.filter(gap);
   const quiet = ranked.filter((pkg) => !gap(pkg));
   // The fold rows are rows too: the quiet one when there is any, the overflow one when the gaps do not fit beside it.
@@ -160,7 +160,22 @@ function folded(pkgs: readonly ChangedPackage[], label: string, mark: (reach: Re
   const reaches: Partial<Record<Reach, number>> = {};
   for (const pkg of pkgs) for (const reach of REACHES) reaches[reach] = (reaches[reach] ?? 0) + (pkg.reaches[reach] ?? 0);
   const sum = (count: (pkg: ChangedPackage) => number) => pkgs.reduce((total, pkg) => total + count(pkg), 0);
-  return `| ${label} | ${sum((pkg) => pkg.functions)} | ${tally(reaches, mark)} | ${sum((pkg) => pkg.uncovered)} |${lost ? ` ${sum((pkg) => pkg.overwritten)} |` : ''} | |`;
+  return `| ${label} | ${sum((pkg) => pkg.functions)} | ${tally(reaches, mark)} | ${sum((pkg) => pkg.uncovered)} |${lost ? ` ${lostIn(pkgs)} |` : ''} | |`;
+}
+
+/** The packages' functions with code no case is known to have run, summed; blank when one of them does not hold the count. */
+function lostIn(pkgs: readonly ChangedPackage[]): string {
+  let total = 0;
+  for (const { overwritten } of pkgs) {
+    if (overwritten === undefined) return '';
+    total += overwritten;
+  }
+  return String(total);
+}
+
+/** The package's functions with code no case is known to have run, to rank and split by: a count it does not hold ranks as none known, and is never printed so. */
+function knownLost(pkg: ChangedPackage): number {
+  return pkg.overwritten ?? 0;
 }
 
 /** The functions by mark, in the marks' order: the reaches one mark stands for are summed under it. */

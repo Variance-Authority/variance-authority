@@ -43,6 +43,9 @@ const pkg = (name: string, functions: number, reaches: ChangedPackage['reaches']
   importers,
 });
 
+/** The package as a review.json written before code no case is known to have run was counted holds it. */
+const before = ({ overwritten: _overwritten, ...held }: ChangedPackage): ChangedPackage => held;
+
 describe('where a change lands, a package at a time', () => {
   it('groups changed functions by the manifest above them and names the packages whose tests entered them', async () => {
     const root = await workspace();
@@ -210,7 +213,6 @@ describe('where a change lands, a package at a time', () => {
   });
 
   it('keeps every package of a review.json written before code no case is known to have run was counted, the quiet ones in their fold', () => {
-    const before = ({ overwritten: _overwritten, ...held }: ChangedPackage): ChangedPackage => held as ChangedPackage;
     const clean = Array.from({ length: 11 }, (_, at) => before(pkg(`c${String(at).padStart(2, '0')}`, 1, { near: 1 })));
     const lines = changedPackagesMarkdown([...clean, before(pkg('g', 1, { far: 1 }))], mark);
 
@@ -220,6 +222,18 @@ describe('where a change lands, a package at a time', () => {
       '| `g` | 1 | Y 1 | 0 | own | 0 |',
       '| 11 more packages, every function G | 11 | G 11 | 0 | | |',
       '',
+    ]);
+  });
+
+  it('leaves the count of code no case is known to have run blank for a package that does not hold it, and for a fold over one, never 0', () => {
+    expect(changedPackagesMarkdown([before(pkg('a', 1, { unwalked: 1 }, [])), pkg('b', 1, { overwritten: 1 })], mark).slice(5))
+      .toEqual(['| `a` | 1 | R 1 | 1 |  | none | 0 |', '| `b` | 1 | ? 1 | 0 | 1 | own | 0 |']);
+
+    const far = Array.from({ length: 12 }, (_, at) => before(pkg(`g${String(at).padStart(2, '0')}`, 1, { far: 1 })));
+    expect(changedPackagesMarkdown([...far, pkg('b', 1, { overwritten: 1 })], mark).slice(5, -2)).toEqual([
+      '| `b` | 1 | ? 1 | 0 | 1 | own | 0 |',
+      ...far.slice(0, 8).map(({ package: name }) => `| \`${name}\` | 1 | Y 1 | 0 |  | own | 0 |`),
+      '| 4 more packages | 4 | Y 4 | 0 |  | | |',
     ]);
   });
 
