@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { commitRunsIn, type CommitRuns } from './commit-runs.js';
-import { lastRunsOf, testPlaces, type TestPlace } from './test-places.js';
+import { assumedOf, lastRunsOf, testPlaces, type TestPlace } from './test-places.js';
 
 /**
  * Where a test last ran is read from the runs record alone, and the time its
@@ -69,6 +69,17 @@ describe('a test is placed where the runs record says it last ran, with the time
     });
     expect(testPlaces({ commit: undefined, runs, tests: ['a.test.ts'] }).assumed)
       .toBe("the runs record beside the snapshot is H's, and the snapshot names no commit, so every test is read as though it last ran where the snapshot was recorded");
+  });
+});
+
+describe('how placing some of the test files one reading placed fell back', () => {
+  it('counts the ones it is asked of, read off the places that reading gave them', () => {
+    const { places } = testPlaces({ commit: 'H', runs, tests: ['a.test.ts', 'b.test.ts', 'd.test.ts', 'e.test.ts'] });
+
+    expect(assumedOf({ commit: 'H', runs, tests: ['a.test.ts', 'e.test.ts'] }, places))
+      .toBe('the runs record beside the snapshot does not say where 1 test(s) last ran, so they are read from P, where its runs started');
+    expect(assumedOf({ commit: 'H', runs, tests: ['a.test.ts', 'b.test.ts'] }, places)).toBeUndefined();
+    expect(assumedOf({ commit: 'H', runs, tests: [] }, places)).toBeUndefined();
   });
 });
 

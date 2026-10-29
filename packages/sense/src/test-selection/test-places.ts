@@ -75,18 +75,12 @@ export function testPlaces<Commit extends string | undefined>(of: TestsAt<Commit
   return placesOf(of) as Places<PlaceUnder<Commit>>;
 }
 
-function placesOf({ commit, runs, tests }: TestsAt<string | undefined>): Places<TestPlace> {
+function placesOf(of: TestsAt<string | undefined>): Places<TestPlace> {
+  const { commit, runs, tests } = of;
   const fallen: TestPlace = { ...(commit === undefined ? {} : { commit }), assumed: true };
   const places = new Map(tests.map((test) => [test, fallen]));
-  const at = commit?.slice(0, 12);
-  const everyTest = `so every test is read as though it last ran ${at === undefined ? 'where the snapshot was recorded' : `at ${at}`}`;
-  if (runs === undefined) return { places, assumed: tests.length === 0 ? undefined : `no runs record lies beside the snapshot, ${everyTest}` };
   // Runs recorded at another commit describe some other snapshot and say nothing of this one.
-  if (runs.commit !== commit) {
-    const whose = runs.commit === undefined ? 'a run outside a checkout' : `${runs.commit.slice(0, 12)}'s`;
-    const not = at === undefined ? 'and the snapshot names no commit' : `not ${at}'s`;
-    return { places, assumed: tests.length === 0 ? undefined : `the runs record beside the snapshot is ${whose}, ${not}, ${everyTest}` };
-  }
+  if (runs === undefined || runs.commit !== commit) return { places, assumed: assumedOf(of, places) };
   // Each landing and each stand is one place, so a reader that groups by place
   // groups the tests that ran together.
   const listed = new Map<string, TestPlace>();
@@ -124,16 +118,32 @@ function placesOf({ commit, runs, tests }: TestsAt<string | undefined>): Places<
   // A test the record does not list is read from where the runs at the snapshot's commit started.
   const over = runs.over ?? commit;
   const fallback: TestPlace = { ...(over === undefined ? {} : { commit: over }), assumed: true };
-  let unlisted = 0;
-  const from = new Set<string>();
-  for (const test of tests) {
-    const stand = withParts(listed.get(test) ?? fallback, parts.get(test));
-    places.set(test, stand);
-    if (stand.assumed !== true) continue;
-    unlisted += 1;
-    if (stand.commit !== undefined) from.add(stand.commit);
+  for (const test of tests) places.set(test, withParts(listed.get(test) ?? fallback, parts.get(test)));
+  return { places, assumed: assumedOf(of, places) };
+}
+
+/**
+ * In the runs record's words, how placing `tests` fell back where the record
+ * could not say, read off `places`, which one reading gave each of them;
+ * absent when none fell back. A reader that placed more test files than it
+ * names in one reading says this of the ones it names.
+ */
+export function assumedOf({ commit, runs, tests }: TestsAt<string | undefined>, places: ReadonlyMap<string, TestPlace>): string | undefined {
+  if (tests.length === 0) return undefined;
+  const at = commit?.slice(0, 12);
+  const everyTest = `so every test is read as though it last ran ${at === undefined ? 'where the snapshot was recorded' : `at ${at}`}`;
+  if (runs === undefined) return `no runs record lies beside the snapshot, ${everyTest}`;
+  if (runs.commit !== commit) {
+    const whose = runs.commit === undefined ? 'a run outside a checkout' : `${runs.commit.slice(0, 12)}'s`;
+    const not = at === undefined ? 'and the snapshot names no commit' : `not ${at}'s`;
+    return `the runs record beside the snapshot is ${whose}, ${not}, ${everyTest}`;
   }
-  if (unlisted === 0) return { places, assumed: undefined };
+  const fell = tests.flatMap((test) => {
+    const place = places.get(test);
+    return place?.assumed === true ? [place] : [];
+  });
+  if (fell.length === 0) return undefined;
+  const from = new Set(fell.flatMap((place) => (place.commit === undefined ? [] : [place.commit])));
   // Only under a snapshot that names no commit, whose runs started at none.
   const where =
     from.size === 0
@@ -143,7 +153,7 @@ function placesOf({ commit, runs, tests }: TestsAt<string | undefined>): Places<
       : from.size === 1 && runs.over !== undefined && from.has(runs.over)
         ? `${runs.over.slice(0, 12)}, where its runs started`
         : `the commits they were assumed at, ${[...from].map((stand) => stand.slice(0, 12)).join(', ')}`;
-  return { places, assumed: `the runs record beside the snapshot does not say where ${unlisted} test(s) last ran, so they are read from ${where}` };
+  return `the runs record beside the snapshot does not say where ${fell.length} test(s) last ran, so they are read from ${where}`;
 }
 
 /**

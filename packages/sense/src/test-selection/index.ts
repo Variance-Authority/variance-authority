@@ -198,7 +198,7 @@ export { type EyesSection, type ObservedEyes, type RecordedEyes } from './eyes-r
 export { RecordWithoutCoverage } from './format-validation.js';
 export { commitRunsAfter, commitRunsFile, commitRunsIn, heldCommitRuns, landRun, readCommitRuns, writeCommitRuns, type CommitRuns, type RecordedTests, type StandingEntry } from './commit-runs.js';
 export { askPerStand, readingFrom, standDiff, standsAt, wholeEntry, withoutFiles, type Git, type Stand, type StandAnswer, type StandQuestion, type StandReading } from './stands.js';
-export { lastRunsOf, testPlaces, type CasesLastRan, type TestPlace } from './test-places.js';
+export { assumedOf, lastRunsOf, testPlaces, type CasesLastRan, type TestPlace } from './test-places.js';
 export { whatLanded, type WhatLanded } from './landings.js';
 export { ranOver, readsTheSnapshot, type NotHeld, type RanOver, type RanOverEvidence } from './place-text.js';
 export { caseMotion, type CaseMotion, type CaseMotionOptions, type MismatchedRow, type MovedRegion, type RegionMotion, type RegionMotionKind, type TestFileMotion } from './case-motion.js';
