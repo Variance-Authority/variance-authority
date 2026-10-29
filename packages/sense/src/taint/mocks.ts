@@ -316,6 +316,7 @@ function refers(node: Node, names: ReadonlySet<string>): boolean {
         return false;
       case 'ClassDeclaration':
       case 'ClassExpression':
+        for (const decorator of (inner.decorators ?? []) as readonly Node[]) read(decorator);
         read(inner.superClass as Node);
         read(inner.body as Node);
         return false;
@@ -326,7 +327,7 @@ function refers(node: Node, names: ReadonlySet<string>): boolean {
     }
     if (KEYED.has(inner.type)) {
       if (inner.computed === true) read(inner.key as Node);
-      for (const key of ['value', 'typeAnnotation', 'params', 'returnType'] as const) {
+      for (const key of ['decorators', 'value', 'typeAnnotation', 'params', 'returnType'] as const) {
         for (const child of [inner[key]].flat() as Node[]) read(child);
       }
       return false;

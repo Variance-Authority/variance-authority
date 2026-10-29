@@ -40,6 +40,8 @@ describe.each([
     { source: "vi.mock('./api', (load) => { const [a = load] = []; return a; });", diff: undefined },
     { source: "vi.mock('./api', async function (this: unknown, load) { return load(); });", diff: undefined },
     { source: "vi.mock('./api', async (...[a, b = a()]) => ({}));", diff: undefined },
+    { source: "vi.mock('./api', (load) => { @decorate(load) class Api {} return { Api }; });", diff: undefined },
+    { source: "vi.mock('./api', (load) => { class Api { @decorate(load) run() {} } return { Api }; });", diff: undefined },
     { source: "vi.mock('./api', () => ({ importOriginal: 1 }));", diff: { minus: ['./api'] } },
     { source: "vi.mock('./api', () => ({ api: vi.fn() }));", diff: { minus: ['./api'] } },
     { source: "vi.mock('./api', factory);", diff: undefined },
