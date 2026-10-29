@@ -1,4 +1,4 @@
-import { mkdtemp, realpath, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -79,5 +79,42 @@ describe('the runs record under a repinned checkout', () => {
     expect(await suiteBase(worktree, { env: LOCAL })).toMatchObject({ repin: { repinned: true, to: next, kept: ['test/total.test.ts'] } });
 
     expect(await readCommitRuns(own)).toBeUndefined();
+  });
+  it('stands a kept test the runs record places nowhere where its runs started, assumed', async () => {
+    const { ci, first, worktree, own } = await laidWorktree(home);
+    const next = await publishedNext(home, ci);
+    await git(worktree, 'fetch', '--quiet', 'origin');
+    await git(worktree, 'checkout', '--quiet', '--detach', next);
+    // A run over a snapshot whose runs record names another commit says where it started, not where its tests stand.
+    const runs = commitRunsFile(own);
+    await writeFile(runs, JSON.stringify({ ...JSON.parse(await readFile(runs, 'utf8')), commit: 'f'.repeat(40) }));
+    await landRun(own, inPart(next), worktree);
+    const held = (await readCommitRuns(own))!;
+    expect([held.commit, held.over, held.standing]).toEqual([next, first, undefined]);
+    await refetch(home, worktree, next);
+
+    expect(await suiteBase(worktree, { env: LOCAL })).toMatchObject({ repin: { repinned: true, to: next, kept: ['test/other.test.ts'] } });
+
+    expect((await readCommitRuns(own))!.standing!.map((stand) => [stand.commit, stand.files, stand.assumed])).toEqual([
+      [next, ['test/total.test.ts'], undefined],
+      [first, ['test/other.test.ts'], true],
+    ]);
+  });
+
+  it('says nothing of where its tests stand when the runs record places a kept test nowhere and names no start', async () => {
+    const { ci, worktree, own } = await laidWorktree(home);
+    const next = await publishedNext(home, ci);
+    await git(worktree, 'fetch', '--quiet', 'origin');
+    await git(worktree, 'checkout', '--quiet', '--detach', next);
+    await landRun(own, inPart(next), worktree);
+    const runs = commitRunsFile(own);
+    const { over: _over, standing: _standing, ...held } = JSON.parse(await readFile(runs, 'utf8')) as Record<string, unknown>;
+    await writeFile(runs, JSON.stringify(held));
+    await refetch(home, worktree, next);
+
+    expect(await suiteBase(worktree, { env: LOCAL })).toMatchObject({ repin: { repinned: true, to: next, kept: ['test/other.test.ts'] } });
+
+    const repinned = (await readCommitRuns(own))!;
+    expect([repinned.commit, repinned.over, repinned.standing]).toEqual([next, next, undefined]);
   });
 });

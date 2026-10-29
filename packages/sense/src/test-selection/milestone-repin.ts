@@ -41,7 +41,7 @@ import { codeUnitOrder } from './instrumented-modules.js';
 import { partlyIn, whatLanded, type Landing } from './landings.js';
 import { landedOf, ranOn, standKey } from './standing-after.js';
 import { opensFetched, type LastFetched } from './mainline-layer.js';
-import { readOwnLayer, writeOwnLayer, type OwnLayer, type OwnState } from './own-layer.js';
+import { readOwnLayer, writeOwnLayer, type OwnLayer } from './own-layer.js';
 import { writeCoverageBytes } from './record-location.js';
 
 /** What {@link repinOwnLayer} did, and why it left the pin when it did. */
@@ -148,7 +148,7 @@ async function repin(coverageFile: string, record: LastFetched, root: string, la
   const cases = laid === undefined ? undefined : followRowsIn({ index: laid }, view, texts, edits).index;
   const eyes = repinnedEyes(milestoneCases.eyes, ownCases, cases, kept);
   const recorded = Array.from(view.testPath.all(), (path) => view.string(path));
-  const runs = repinnedRuns(await readCommitRuns(coverageFile), own.commit, record, published, states, recorded, kept);
+  const runs = repinnedRuns(await readCommitRuns(coverageFile), own.commit, record, published, recorded, kept);
 
   // The snapshot first: its new rows beside the old runs record read the
   // milestone's tests from the old pin, which only widens, where the new runs
@@ -268,15 +268,15 @@ function repinnedEyes(
  * milestone, each kept test standing where the record placed it, beside the
  * runs that ran it in part since, and every other test at the milestone, as
  * the run that published it landed there (`published`, which a fetch keeps
- * beside the snapshot). A kept test the record places nowhere stands where the
- * ledger last saw it run, with no time, and is compared from that commit.
+ * beside the snapshot). A kept test the record places nowhere stands where its
+ * runs started, assumed, and with no start either the record says nothing of
+ * where its tests stand.
  */
 function repinnedRuns(
   held: CommitRuns | undefined,
   commit: string | undefined,
   record: LastFetched,
   published: CommitRuns | undefined,
-  states: readonly OwnState[],
   recorded: readonly string[],
   kept: ReadonlySet<string>,
 ): CommitRuns | undefined {
@@ -322,7 +322,11 @@ function repinnedRuns(
     standAt({ commit: record.commit, files: [], ...ranOn(landing), ...landedOf(landing) }, landing.files.filter((one) => milestone.delete(one)));
   }
   standAt({ commit: record.commit, files: [] }, [...milestone]);
-  for (const state of states) standAt({ commit: state.commit, files: [] }, state.files.filter((one) => !here.has(one) && !placed.has(one)));
+  // Where the record cannot place a kept test, it stands where the runs started,
+  // assumed, and with no start the record does not say (`commit-runs.ts`).
+  const unplaced = [...kept].filter((file) => !here.has(file) && !placed.has(file));
+  if (held.over !== undefined) standAt({ commit: held.over, files: [], assumed: true }, unplaced);
+  const known = unplaced.length === 0 || held.over !== undefined;
   const standing = [...groups.values()]
     .filter(({ stand, files: its }) => its.length > 0 || stand.partly !== undefined)
     .map(({ stand, files: its }) => ({ ...stand, files: [...new Set(its)].sort(codeUnitOrder) }));
@@ -332,7 +336,7 @@ function repinnedRuns(
     over: record.commit,
     latest: held.latest,
     runs: held.runs,
-    standing,
+    ...(known ? { standing } : {}),
     landings,
   };
 }
