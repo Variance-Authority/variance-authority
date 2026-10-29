@@ -68,9 +68,10 @@ fn takes(layers: &[Layer], import: &Unresolved, exports: &HashSet<String>) -> bo
 }
 
 /// Every file, in code-unit order, with an import that resolved to no file
-/// and could take one of `exports`: a relative specifier, which could have
-/// meant any file, or one naming a package that holds one of `files` or
-/// `through`, the files the name is declared in or passed on through.
+/// and could take one of `exports`: a relative specifier, a path alias or a
+/// `#` subpath import, which could have meant any file, or one naming a
+/// package that holds one of `files` or `through`, the files the name is
+/// declared in or passed on through.
 pub(super) fn unresolved(
     root: &str,
     layers: &[Layer],
@@ -86,7 +87,12 @@ pub(super) fn unresolved(
         holding.map(|file| owners.package_of(file)).filter(|name| !name.is_empty()).map(str::to_owned).collect()
     };
     let none = HashSet::new();
-    let meant = |written: &str| is_relative(written) || package_of(written, &none).is_some_and(|package| packages.contains(package));
+    // A path alias or a `#` subpath import names a file of this workspace, so it could have meant any.
+    let meant = |written: &str| {
+        is_relative(written)
+            || written.starts_with('#')
+            || package_of(written, &none).is_some_and(|package| !named_like_a_package(package) || packages.contains(package))
+    };
     let mut found: Vec<String> =
         unresolved_imports(layers, folded, &meant).iter().filter(|import| takes(layers, import, exports)).map(|import| import.file.to_owned()).collect();
     found.dedup();

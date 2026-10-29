@@ -82,6 +82,20 @@ describe('variance ask uses names the files whose imports did not resolve', () =
     ]);
   });
 
+  it('names a file whose unresolved path alias or subpath import takes the name', async () => {
+    checkout({
+      'apps/app/src/alias.ts': "import { greet } from '@/lib/greet';\nexport const alias = greet;\n",
+      'apps/app/src/tilde.ts': "import { greet } from '~/lib/greet';\nexport const tilde = greet;\n",
+      'apps/app/src/internal.ts': "import { greet } from '#lib/greet';\nexport const internal = greet;\n",
+    });
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+
+    const { out } = await run(['ask', 'uses', '--name', 'greet']);
+    expect(unreadOf(out)).toEqual([
+      '3 files import a specifier the index could not resolve to a file, and each could take `greet`, so a use there is not listed: apps/app/src/alias.ts, apps/app/src/internal.ts, apps/app/src/tilde.ts.',
+    ]);
+  });
+
   it('says nothing when every import resolved', async () => {
     checkout();
     expect((await run(['index'])).code).toBe(EXIT_CLEAN);
