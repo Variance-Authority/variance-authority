@@ -77,5 +77,6 @@ describe('a load the import graph does not reach', () => {
     expect(unreachedLoads(RELATIONS, modules, [])).toEqual([]);
   });
 
+  it.todo('names the request the runner answered with each load, and the import step that lost it — needs the record run to keep what each request resolved to, from Jest\'s registry and Vitest\'s resolve hook');
   it.todo('fails the run that wrote the record when its suite declares `world: closed`, and reports the same rows when it declares `open` — needs the check run where a record is written, with the suite\'s `world` read from its config');
 });
