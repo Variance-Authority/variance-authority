@@ -468,7 +468,8 @@ jobs:
           find "$into" -mindepth 1 -maxdepth 1 ! -name .git -exec rm -rf {} +
           cp -R .github/actions/variance/. "$into/"
           cp LICENSE "$into/LICENSE"
+          printf '%s\n' "$version" > "$into/cli-version"
           git -C "$into" add -A
           git -C "$into" commit --allow-empty -m "variance-authority $version"
           git -C "$into" tag -a "v$version" -m "variance-authority $version"
-          git -C "$into" push origin HEAD:main "refs/tags/v$version"
+          git -C "$into" push --atomic origin HEAD:main "refs/tags/v$version"

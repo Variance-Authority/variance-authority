@@ -244,6 +244,28 @@ runs:
         echo "::error::image-ref is removed: set image-ref-prefix, such as refs/variance/project, and the action names the ref for the project and the branch"
         exit 1
 
+    # The action and the CLI are released together, at one version, and the
+    # action is written against that CLI's commands and outputs. A release
+    # writes the version beside the action; a workflow that bumped one and not
+    # the other stops here, naming both, rather than failing somewhere later on
+    # an output the other version does not write. Run from this repository's
+    # own checkout no release wrote it, and the CLI is the one built beside it.
+    - name: refuse a CLI of another version
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      env:
+        VARIANCE_COMMAND: ${{ inputs.command }}
+      run: |
+        set -euo pipefail
+        if [ ! -f "$GITHUB_ACTION_PATH/cli-version" ]; then exit 0; fi
+        released="$(tr -d '[:space:]' < "$GITHUB_ACTION_PATH/cli-version")"
+        # shellcheck disable=SC2086
+        installed="$($VARIANCE_COMMAND --version | tr -d '[:space:]')"
+        if [ "$installed" != "$released" ]; then
+          echo "::error::Variance-Authority/action@v$released runs @variance-authority/cli $released, and this job installed $installed. Name the action by the version in your lockfile: Variance-Authority/action@v$installed."
+          exit 1
+        fi
+
     # Before the run, because the baselines have to be in place before it
     # compares. A config the parser refuses stops here, with the CLI's message.
     - id: carry

@@ -2859,6 +2859,8 @@ steps:
 ```
 
 It runs the CLI from your `node_modules` and downloads nothing during the run.
+When that CLI is another version than the action's, it stops before the run and
+names both.
 Its inputs are in its
 [`action.yml`](https://github.com/Variance-Authority/action/blob/main/action.yml).
 

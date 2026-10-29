@@ -236,6 +236,12 @@ describe('the release workflow', () => {
     expect(action).toContain('ACTION_DEPLOY_KEY');
   });
 
+  it('writes the version it released beside the action, so the action can refuse another CLI', () => {
+    const publish = job('publish');
+    const action = publish.slice(publish.indexOf('tools/released.mjs --registry'));
+    expect(action).toContain('"$version" > "$into/cli-version"');
+  });
+
   it('tags this repository by package only', () => {
     const tagging = WORKFLOW.slice(WORKFLOW.indexOf('yarn changeset tag'), WORKFLOW.indexOf('git push origin --tags'));
     expect(tagging).not.toMatch(/git tag\b/);

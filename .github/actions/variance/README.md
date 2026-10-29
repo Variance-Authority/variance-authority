@@ -23,8 +23,9 @@ steps:
 
 Name the action by `v` and the version of `@variance-authority/cli` in your
 lockfile. A release publishes the CLI and the action together under one
-version, so bump the two in the same change. The action downloads nothing
-during the run; it calls the CLI from your `node_modules`.
+version, and the action stops before the run, naming both versions, when the
+CLI it finds is another one. It downloads nothing during the run; it calls the
+CLI from your `node_modules`.
 
 Every input is described in [`action.yml`](action.yml). The
 [CLI reference](https://variance-authority.dev/reference/packages/cli#run-it-in-ci) covers

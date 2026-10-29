@@ -1,6 +1,6 @@
 import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
-import { dirname, resolve } from 'node:path';
+import { dirname, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 /**
@@ -72,6 +72,41 @@ export function flat(file: string): string {
 
 export function lineOf(text: string, index: number): number {
   return text.slice(0, index).split('\n').length;
+}
+
+export interface Link {
+  /** The target as written. */
+  readonly target: string;
+  /** Line of the link in the markdown, 1-based. */
+  readonly line: number;
+  /** The file the target names, relative to the root; absent for a URL or a mail address. */
+  readonly inside?: string;
+  /** The heading the target names after `#`, when it names one. */
+  readonly anchor?: string;
+}
+
+/**
+ * Every `[text](target)` link in a page's prose, resolved against the page.
+ *
+ * A fenced block is shown, not followed: a sample of generated markdown carries
+ * the links of the artifact it depicts, not of this document. A bare `#anchor`
+ * resolves to the page itself.
+ */
+export function linksIn(file: string): readonly Link[] {
+  const text = prose(file);
+  const found: Link[] = [];
+  for (const match of text.matchAll(/\[[^\]]*\]\(([^)\s]+)(?:\s+"[^"]*")?\)/g)) {
+    const target = match[1]!;
+    const line = lineOf(text, match.index);
+    if (/^(?:https?:|mailto:)/.test(target)) {
+      found.push({ target, line });
+      continue;
+    }
+    const [path, anchor] = target.split('#') as [string, string | undefined];
+    const inside = path === '' ? file : relative(ROOT, resolve(dirname(resolve(ROOT, file)), path));
+    found.push({ target, line, inside, ...(anchor === undefined ? {} : { anchor }) });
+  }
+  return found;
 }
 
 export interface Fence {
