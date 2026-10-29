@@ -206,4 +206,38 @@ describe('the journey set spelling', () => {
     expect(() => openSetExecutionIndex(owned(Uint32Array.of(NO_OWNER, 1)))).toThrow('not a variance-authority execution index');
     expect(() => openSetExecutionIndex(owned(Uint32Array.of(NO_OWNER)))).toThrow('not a variance-authority execution index');
   });
+
+  it('refuses a file whose overwritten column does not cover every region, or names a set the pool does not hold', () => {
+    // Written by hand, as a producer that skips the encoder's check would.
+    const encoded = ['src/m.ts', 'function', 'total'].map((value) => Buffer.from(value, 'utf8'));
+    const offsets = new Uint32Array(encoded.length + 1);
+    encoded.forEach((value, at) => { offsets[at + 1] = offsets[at]! + value.length; });
+    const sets = new CrossingSets(0);
+    const empty = sets.intern([]);
+    const pool = sets.pool();
+    const overwritten = (overwrittenSet: Uint32Array): Uint8Array => sections({
+      'strings.blob': blob(Buffer.concat(encoded), offsets),
+      'strings.off': column(offsets),
+      'tests.id': column(new Uint32Array(0)),
+      'tests.file': column(new Uint32Array(0)),
+      'tests.name': column(new Uint32Array(0)),
+      'modules.file': column(Uint32Array.of(0)),
+      'modules.blocks': column(Uint32Array.of(0, 2)),
+      'blocks.kind': column(Uint32Array.of(1, 1)),
+      'blocks.name': column(Uint32Array.of(2, 2)),
+      'blocks.path': column(Uint32Array.of(2, 2)),
+      'blocks.start': column(Uint32Array.of(1, 5)),
+      'blocks.end': column(Uint32Array.of(3, 7)),
+      'blocks.source': column(Uint8Array.of(1, 1)),
+      'blocks.calledSet': column(Uint32Array.of(empty, empty)),
+      'blocks.loaded': column(Uint8Array.of(0, 0)),
+      'blocks.overwrittenSet': column(overwrittenSet),
+      'sets.blob': blob(pool.bytes, pool.offsets),
+      'sets.off': column(pool.offsets),
+    }, 3);
+
+    expect(openSetColumns(overwritten(Uint32Array.of(empty, empty)))?.blockOverwritten).toEqual(Uint32Array.of(empty, empty));
+    expect(() => openSetExecutionIndex(overwritten(Uint32Array.of(empty)))).toThrow('not a variance-authority execution index');
+    expect(() => openSetExecutionIndex(overwritten(Uint32Array.of(empty, pool.offsets.length)))).toThrow('not a variance-authority execution index');
+  });
 });
