@@ -133,6 +133,14 @@ a blocking finding. A finding still marked blocking after the second round is yo
 decide: fix it, or set it aside. Every finding not fixed is named in the body
 with the reason it was set aside.
 
+A diff-mode rejection that the idea review could have seen is an escape: it
+goes into [`escapes`](escapes.md), whatever becomes of the change.
+
+Pushing is gated: the project's `PreToolUse` hook (`tools/gate.mjs`) refuses
+`git push` and `gh pr create` on a commit that `yarn verify:near` and `yarn
+verify:rules` have not stamped green, and CI's `idea` step fails a pull
+request whose issue does not carry `idea: build`.
+
 ## Opening it
 
 Never push to `main`. The branch was cut from `origin/main` at setup, not from

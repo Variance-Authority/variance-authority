@@ -37,10 +37,12 @@ on:
 # `pull-requests: write` is for the review comment and nothing else. A pull
 # request from a fork gets a read-only token whatever this says; the comment step
 # warns and continues there, and the review is still in the job summary and the
-# run's artifacts.
+# run's artifacts. `issues: read` is for the `idea` step, which reads the labels
+# of the issue a pull request closes.
 permissions:
   contents: read
   actions: read
+  issues: read
   pull-requests: write
 
 # A pull request's newer push supersedes its older one, so the group is the ref
@@ -116,6 +118,34 @@ jobs:
         env:
           BASE: ${{ github.base_ref }}
         run: yarn changeset status --since="origin/$BASE"
+
+      # A pull request carries an idea that passed review before its code was
+      # written: it says `Closes #<n>` or `Part of #<n>`, and each issue it
+      # names carries `idea: build`, put on when the `occam` reviewer's idea
+      # review let it through (refine, "The idea loop"). The version pull
+      # request and pull requests a bot opens are not asked. The body is read
+      # at run time, so re-running the job picks up an edit or a new label.
+      - name: idea
+        if: ${{ github.event_name == 'pull_request' && github.event.pull_request.user.type != 'Bot' && !(github.head_ref == 'changeset-release/main' && github.event.pull_request.head.repo.full_name == github.repository) }}
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          body=$(gh pr view "$PR" --repo "$GITHUB_REPOSITORY" --json body --jq .body)
+          issues=$(grep -oiE '(closes|part of) #[0-9]+' <<<"$body" | grep -oE '[0-9]+' | sort -u || true)
+          if [ -z "$issues" ]; then
+            echo "::error::The body names no issue with 'Closes #<n>' or 'Part of #<n>'. Every change starts as an issue that passed the idea loop (.agents/references/refine.md)."
+            exit 1
+          fi
+          failed=0
+          for n in $issues; do
+            if ! gh issue view "$n" --repo "$GITHUB_REPOSITORY" --json labels --jq '.labels[].name' | grep -qx 'idea: build'; then
+              echo "::error::#$n does not carry 'idea: build': its idea has not passed review."
+              failed=1
+            fi
+          done
+          exit $failed
 
       # Build first, and not only to catch type errors: the documentation check
       # compiles each README example against each package's built `.d.ts`,

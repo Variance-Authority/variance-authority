@@ -40,8 +40,8 @@
     "typecheck": "tsc --build --force",
     "verify": "yarn lint && yarn check && yarn measure && yarn test",
     "verify:far": "variance index && VARIANCE_AUTHORITY_SINCE=${VARIANCE_AUTHORITY_SINCE:-} VARIANCE_AUTHORITY_GRAIN=file VARIANCE_AUTHORITY_AT_DISTANCE=3- yarn test",
-    "verify:near": "oxlint && tsc --build && variance index && VARIANCE_AUTHORITY_SINCE=${VARIANCE_AUTHORITY_SINCE:-} VARIANCE_AUTHORITY_GRAIN=file VARIANCE_AUTHORITY_AT_DISTANCE=0-2 yarn test",
-    "verify:rules": "yarn check && yarn restrictions"
+    "verify:near": "oxlint && tsc --build && variance index && VARIANCE_AUTHORITY_SINCE=${VARIANCE_AUTHORITY_SINCE:-} VARIANCE_AUTHORITY_GRAIN=file VARIANCE_AUTHORITY_AT_DISTANCE=0-2 yarn test && node tools/gate.mjs stamp near",
+    "verify:rules": "yarn check && yarn restrictions && node tools/gate.mjs stamp rules"
   },
   "devDependencies": {
     "@changesets/cli": "^3.0.1",
