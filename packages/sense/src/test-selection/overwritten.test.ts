@@ -48,4 +48,11 @@ describe('the cases whose run of a place is not known', () => {
     expect(overwrittenIn(index, blocks)).toBeUndefined();
     expect(overwrittenIn(index, [blocks[2]!])).toEqual([tests[1]]);
   });
+  it('are named in record order, whichever crossing flags one first', () => {
+    const gamma = { id: 'gamma', file: 'src/a.test.ts', name: 'a > gamma subtracts', stopped: false };
+    const flagged = indexWith([{ test: 2, distance: 0, overwritten: true }, { test: 1, distance: 0, overwritten: true }]);
+    const three = { ...flagged, tests: [...tests, gamma] };
+    expect(overwrittenOn(three, { file, line: 8 })?.tests).toEqual([tests[1], gamma]);
+    expect(overwrittenIn(three, [three.modules[0]!.blocks[2]!])).toEqual([tests[1], gamma]);
+  });
 });
