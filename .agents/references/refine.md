@@ -100,11 +100,6 @@ weighs the case for nothing against the change, checks the change against
 Three reviews that end without **build** close the issue. Nobody else is asked:
 the loop decides, and a tie goes to the smaller change.
 
-**A finding is an issue, not a branch.** A defect or an improvement you meet
-while working on something else is filed as its own issue and goes through
-this loop like any other. Fixing it on sight is how changes nobody needed
-reach review.
-
 **The loop learns.** A change that passed this loop and was later shown not to
 belong — closed unmerged, reverted, or rejected by any reviewer, a person or a
 model, on a reason the idea review could have seen — is an escape. Add it to
@@ -114,11 +109,12 @@ change that closes it.
 ## Decide, don't ask
 
 A rule that reads like accidental cruft against the goal — widening on absence,
-refusing on a guess, duplicating an owner's answer — is filed and goes through
-the idea loop like any finding. When two readings are both defensible, take
-the one the evidence supports; when it supports neither, take the smaller
-change and name the choice in the pull request's Assumptions. No task waits on
-the owner.
+refusing on a guess, duplicating an owner's answer — is fixed and reported, not
+asked about. A finding the task neither needs nor wrote is fixed in its own
+change, on its own branch, as [change](change.md) draws the line. When two
+readings are both defensible, take the one the evidence supports; when it
+supports neither, take the smaller change and name the choice in the pull
+request's Assumptions. No task waits on the owner.
 
 A limitation is a bug or a position, never an apology. Classify it before
 writing "we cannot".
