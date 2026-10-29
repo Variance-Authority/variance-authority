@@ -10,22 +10,22 @@ action does the three things a command line cannot do for itself:
 
 ```yaml
 permissions:
+  contents: read # the checkout: a declared block sets the rest to none
   pull-requests: write # the comment
 
 steps:
   - uses: actions/checkout@v4
   - run: npm ci
-  - uses: Variance-Authority/action@v<version>
+  - uses: Variance-Authority/action@v1
     with:
       config: variance.config.json
       github-token: ${{ secrets.GITHUB_TOKEN }}
 ```
 
-Name the action by `v` and the version of `@variance-authority/cli` in your
-lockfile. A release publishes the CLI and the action together under one
-version, and the action stops before the run, naming both versions, when the
-CLI it finds is another one. It downloads nothing during the run; it calls the
-CLI from your `node_modules`.
+`v1` is the major of the action's inputs and outputs, and every release that
+keeps them compatible moves it. The action calls the CLI from your
+`node_modules`, whatever version your lockfile holds, and downloads nothing
+during the run.
 
 Every input is described in [`action.yml`](action.yml). The
 [CLI reference](https://variance-authority.dev/reference/packages/cli#run-it-in-ci) covers

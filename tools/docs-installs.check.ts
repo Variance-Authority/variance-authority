@@ -68,17 +68,88 @@ describe('nothing asks a reader to copy our files', () => {
 
 /** Our raw files and our `.github` on GitHub: a URL a reader fetches or copies from. */
 const INTO_GITHUB =
-  /https?:\/\/(?:github\.com\/Variance-Authority\/variance-authority\/(?:blob|tree|raw)\/[^/\s]+\/\.github\/|raw\.githubusercontent\.com\/Variance-Authority\/variance-authority\/)[^\s)>`'"]*/gi;
+  /https?:\/\/(?:github\.com\/Variance-Authority\/variance-authority\/(?:blob|tree|raw)|raw\.githubusercontent\.com\/Variance-Authority\/variance-authority)\/[^/\s]+\/\.github\/[^\s)>`'"]*/gi;
+
+/** A `uses:` that means our action: its own repository, or a path to where its source lives here. */
+const NAMES_OUR_ACTION = /^(?:Variance-Authority\/action(?:@|$)|Variance-Authority\/variance-authority\/|(?:\.\/)?\.github\/actions\/variance(?:\/|$))/i;
+
+/** The way to name it: the major tag of its inputs, which a release moves only within one major, or a commit. */
+const INSTALLS_OUR_ACTION = /^Variance-Authority\/action@(?:v\d+|[0-9a-f]{40})$/;
+
+/**
+ * What is wrong with one example line's `uses:`, or nothing when it does not
+ * name our action or names it by its major or a commit. A branch moves under
+ * an adopter with every push, and a path is a copy of our source.
+ */
+export function wrongUse(text: string): string | undefined {
+  const uses = /^\s*-?\s*uses:\s*['"]?([^\s'"#]+)/.exec(text)?.[1];
+  if (uses === undefined || !NAMES_OUR_ACTION.test(uses)) return undefined;
+  return INSTALLS_OUR_ACTION.test(uses) ? undefined : uses;
+}
+
+/**
+ * A workflow that declares `permissions` sets every one it leaves out to none,
+ * so an example that installs our action and grants `pull-requests` must also
+ * grant `contents`, or `actions/checkout` cannot read a private repository.
+ */
+export function withoutContents(code: string): boolean {
+  const installs = code.split('\n').some((text) => /^\s*-?\s*uses:\s*['"]?Variance-Authority\/action@/.test(text));
+  return installs && /^\s*permissions:\s*$/m.test(code) && !/^\s*contents:\s*(?:read|write)\b/m.test(code);
+}
+
+describe('what names our action', () => {
+  it.each([
+    'uses: Variance-Authority/action@v1',
+    '  - uses: Variance-Authority/action@0123456789abcdef0123456789abcdef01234567',
+    'uses: ./.github/actions/other',
+    'uses: Variance-Authority/other-action@main',
+    'uses: actions/checkout@v4',
+  ])('accepts %s', (text) => {
+    expect(wrongUse(text)).toBeUndefined();
+  });
+
+  it.each([
+    ['uses: Variance-Authority/action@main', 'Variance-Authority/action@main'],
+    ['uses: Variance-Authority/action@v0.21.0', 'Variance-Authority/action@v0.21.0'],
+    ['uses: Variance-Authority/action@v<version>', 'Variance-Authority/action@v<version>'],
+    ['uses: Variance-Authority/action@anything', 'Variance-Authority/action@anything'],
+    ['uses: Variance-Authority/action', 'Variance-Authority/action'],
+    ['uses: ./.github/actions/variance', './.github/actions/variance'],
+    [
+      'uses: Variance-Authority/variance-authority/.github/actions/variance@v0.19.0',
+      'Variance-Authority/variance-authority/.github/actions/variance@v0.19.0',
+    ],
+  ])('refuses %s', (text, uses) => {
+    expect(wrongUse(text)).toBe(uses);
+  });
+
+  const steps = '\nsteps:\n  - uses: actions/checkout@v4\n  - uses: Variance-Authority/action@v1\n';
+
+  it('asks for contents beside pull-requests, since a declared block sets the rest to none', () => {
+    expect(withoutContents(`permissions:\n  pull-requests: write\n${steps}`)).toBe(true);
+    expect(withoutContents(`permissions:\n  contents: read\n  pull-requests: write\n${steps}`)).toBe(false);
+    expect(withoutContents(steps)).toBe(false);
+  });
+
+  it('reads a GitHub URL as ours only under .github', () => {
+    const urls = [
+      'https://raw.githubusercontent.com/Variance-Authority/variance-authority/main/packages/cli/schema/variance.config.schema.json',
+      'https://raw.githubusercontent.com/Variance-Authority/variance-authority/main/.github/actions/variance/action.yml',
+      'https://github.com/Variance-Authority/variance-authority/blob/main/.github/workflows/variance.yml',
+    ];
+    expect(urls.map((url) => [...url.matchAll(INTO_GITHUB)].length)).toEqual([0, 1, 1]);
+  });
+});
 
 describe('every example installs the action by its name', () => {
   it.each(READ)('%s', (file) => {
     const wrong: string[] = [];
     for (const fence of fencesIn(file)) {
+      if (withoutContents(fence.code)) wrong.push(`${file}:${fence.line} → permissions without contents`);
       fence.code.split('\n').forEach((text, at) => {
         const line = fence.line + 1 + at;
-        const uses = /^\s*-?\s*uses:\s*['"]?([^\s'"]+)/.exec(text)?.[1];
-        const ours = uses !== undefined && /^(?:\.\/|Variance-Authority\/)|actions\/variance/i.test(uses);
-        if (ours && !uses.startsWith('Variance-Authority/action@')) wrong.push(`${file}:${line} → ${uses}`);
+        const uses = wrongUse(text);
+        if (uses !== undefined) wrong.push(`${file}:${line} → ${uses}`);
         for (const match of text.matchAll(INTO_GITHUB)) wrong.push(`${file}:${line} → ${match[0]}`);
       });
     }

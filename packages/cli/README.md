@@ -2843,24 +2843,23 @@ a sentence changes meaning the day the wording improves.
 On GitHub, [`Variance-Authority/action`](https://github.com/Variance-Authority/action)
 does the rest of the job around that step: it posts the result to the pull
 request as one comment updated in place, restores and saves what
-[`carry`](#what-the-next-job-reads) names, and accepts on a label. Name it by
-`v` and the version of this package in your lockfile, so the action and the CLI
-it calls were released together, and bump the two in one change:
+[`carry`](#what-the-next-job-reads) names, and accepts on a label. `v1` is the
+major of its inputs and outputs:
 
 ```yaml
 permissions:
+  contents: read # the checkout: a declared block sets the rest to none
   pull-requests: write # the comment
 
 steps:
-  - uses: Variance-Authority/action@v<version>
+  - uses: Variance-Authority/action@v1
     with:
       config: variance.config.json
       github-token: ${{ secrets.GITHUB_TOKEN }}
 ```
 
-It runs the CLI from your `node_modules` and downloads nothing during the run.
-When that CLI is another version than the action's, it stops before the run and
-names both.
+It runs the CLI from your `node_modules`, whatever version your lockfile holds,
+and downloads nothing during the run.
 Its inputs are in its
 [`action.yml`](https://github.com/Variance-Authority/action/blob/main/action.yml).
 

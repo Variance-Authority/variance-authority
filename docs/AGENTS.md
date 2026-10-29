@@ -95,7 +95,7 @@ geometry and figure conventions every page shares.
 ## What we ship is installed, never copied
 
 A reader gets variance from a package manager or by name: `npm install
-@variance-authority/cli`, `uses: Variance-Authority/action@v<version>`. No page
+@variance-authority/cli`, `uses: Variance-Authority/action@v1`. No page
 asks them to copy or paste one of our files into their repository, and no
 public page links into `.github/`: the workflows there are this repository's
 own, and the action reaches readers as

@@ -321,6 +321,51 @@ jobs:
         with:
           fetch-depth: 0
 
+      # The action is installed the way every action is, by its own repository:
+      # `uses: Variance-Authority/action@v1`, the major of its inputs and
+      # outputs. This repository's token cannot push there, so the `npm`
+      # environment holds a deploy key with write access to that repository as
+      # `ACTION_DEPLOY_KEY`. npm cannot be taken back, so everything that push
+      # needs is asked here, in seconds, before a name is sent: the key, a
+      # `main` to push onto, and write access, which GitHub answers on a
+      # dry-run push.
+      - name: The action's repository takes a push
+        env:
+          ACTION_DEPLOY_KEY: ${{ secrets.ACTION_DEPLOY_KEY }}
+        run: |
+          if [ -z "$ACTION_DEPLOY_KEY" ]; then
+            echo "::error::ACTION_DEPLOY_KEY is not set, so Variance-Authority/action cannot be published."
+            exit 1
+          fi
+          key="$RUNNER_TEMP/action-deploy-key"
+          (umask 077 && printf '%s\n' "$ACTION_DEPLOY_KEY" > "$key")
+          ssh="ssh -i $key -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new"
+          remote=git@github.com:Variance-Authority/action.git
+          # ACTION_MAJOR is the major of the action's inputs and outputs, which
+          # adopters name. It calls whatever CLI they installed, so a CLI release
+          # moves nothing here; raise it with the change that breaks a workflow
+          # using them.
+          {
+            echo "GIT_SSH_COMMAND=$ssh"
+            echo "ACTION_REMOTE=$remote"
+            echo "ACTION_MAJOR=v1"
+          } >> "$GITHUB_ENV"
+          export GIT_SSH_COMMAND="$ssh"
+
+          # 0 is `main`, 2 is a repository without it, anything else is one not read.
+          found=0
+          git ls-remote --exit-code --heads "$remote" main >/dev/null || found=$?
+          if [ "$found" = 2 ]; then
+            echo "::error::Variance-Authority/action has no main branch to publish onto."
+            exit 1
+          elif [ "$found" != 0 ]; then
+            echo "::error::Variance-Authority/action could not be read (git ls-remote exited $found)."
+            exit 1
+          fi
+          into="$RUNNER_TEMP/action"
+          git clone --depth 1 "$remote" "$into"
+          git -C "$into" push --dry-run origin HEAD:main
+
       - uses: actions/setup-node@v4
         with:
           node-version: 24
@@ -427,49 +472,39 @@ jobs:
           # and nothing anywhere said so.
           node tools/released.mjs --wait 60
 
-      # The action is installed the way every action is, by its own repository:
-      # `uses: Variance-Authority/action@v<version>`, the version being the
-      # CLI's it runs. This repository's token cannot push there, so the `npm`
-      # environment holds a deploy key with write access to that repository as
-      # `ACTION_DEPLOY_KEY`. Without it this step fails and the release is not
-      # complete. Pressed again, it finds the tag it made and pushes nothing; a
-      # remote it cannot read is a failure, never a tag it may write.
+      # The key and the clone are the ones the first step checked. A release
+      # that did not change the action commits nothing, and the major tag is
+      # moved onto what `main` holds either way, so pressing it again repairs a
+      # tag a failed push left behind.
       - name: Publish the action to its own repository
-        env:
-          ACTION_DEPLOY_KEY: ${{ secrets.ACTION_DEPLOY_KEY }}
         run: |
-          if [ -z "$ACTION_DEPLOY_KEY" ]; then
-            echo "::error::ACTION_DEPLOY_KEY is not set, so Variance-Authority/action cannot be published."
-            exit 1
-          fi
           version="$(node -p "require('./packages/cli/package.json').version")"
-          key="$RUNNER_TEMP/action-deploy-key"
-          (umask 077 && printf '%s\n' "$ACTION_DEPLOY_KEY" > "$key")
-          export GIT_SSH_COMMAND="ssh -i $key -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new"
-          remote=git@github.com:Variance-Authority/action.git
-
-          # 0 is the tag, 2 is no such tag, anything else is a remote not read.
-          found=0
-          git ls-remote --exit-code "$remote" "refs/tags/v$version" >/dev/null || found=$?
-          if [ "$found" = 0 ]; then
-            echo "Variance-Authority/action already has v$version."
-            exit 0
-          elif [ "$found" != 2 ]; then
-            echo "::error::Variance-Authority/action could not be read (git ls-remote exited $found)."
-            exit 1
-          fi
 
           # The repository holds the action and nothing else: what this release
           # ships under `.github/actions/variance`, and the licence.
           into="$RUNNER_TEMP/action"
-          git clone --depth 1 "$remote" "$into"
           git -C "$into" config user.name 'github-actions[bot]'
           git -C "$into" config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           find "$into" -mindepth 1 -maxdepth 1 ! -name .git -exec rm -rf {} +
           cp -R .github/actions/variance/. "$into/"
           cp LICENSE "$into/LICENSE"
-          printf '%s\n' "$version" > "$into/cli-version"
           git -C "$into" add -A
-          git -C "$into" commit --allow-empty -m "variance-authority $version"
-          git -C "$into" tag -a "v$version" -m "variance-authority $version"
-          git -C "$into" push --atomic origin HEAD:main "refs/tags/v$version"
+          if ! git -C "$into" diff --cached --quiet; then
+            git -C "$into" commit -m "variance-authority $version"
+          fi
+          git -C "$into" tag -f "$ACTION_MAJOR"
+          git -C "$into" push --atomic origin HEAD:main "+refs/tags/$ACTION_MAJOR:refs/tags/$ACTION_MAJOR"
+
+      # Variance-Authority/action is what an adopter installs, so the push is
+      # not believed until it is read back the way a workflow reads it: every
+      # file the action directory tracks, at the major tag, byte for byte.
+      - name: The published action is the one this release built
+        run: |
+          at="$RUNNER_TEMP/action-at-tag"
+          git clone --depth 1 --branch "$ACTION_MAJOR" "$ACTION_REMOTE" "$at"
+          for file in $(git -C .github/actions/variance ls-files); do
+            if ! cmp -s ".github/actions/variance/$file" "$at/$file"; then
+              echo "::error::Variance-Authority/action@$ACTION_MAJOR does not hold this release's $file."
+              exit 1
+            fi
+          done
