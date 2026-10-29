@@ -220,6 +220,7 @@ describe('withTestSelection for Jest', () => {
         globals: { 'variance-authority.project': 'node' },
         setupFiles: [SELECTION_GLOBALS, '<rootDir>/setup.js'],
         setupFilesAfterEnv: [SELECTION_SETUP],
+        unmockedModulePathPatterns: [expect.any(String)],
       },
       {
         displayName: 'dom',
@@ -229,6 +230,7 @@ describe('withTestSelection for Jest', () => {
         globals: { 'variance-authority.project': 'dom' },
         setupFiles: [SELECTION_GLOBALS],
         setupFilesAfterEnv: [SELECTION_SETUP],
+        unmockedModulePathPatterns: [expect.any(String)],
       },
     ]);
     expect(configured.reporters).toEqual([
@@ -315,6 +317,18 @@ describe('withTestSelection for Jest', () => {
 
     const plain = withTestSelection({ rootDir: '/repo', transform: {} }, { coverageFile: 'coverage.bin' });
     expect(plain.transform).toEqual({ '\\.[jt]sx?$': [SELECTION_TRANSFORM, { root: '/repo' }] });
+  });
+
+  it('keeps its own collector out of automock, beside the patterns the project keeps out', () => {
+    const configured = withTestSelection(
+      { rootDir: '/repo', automock: true, unmockedModulePathPatterns: ['/styles/'] },
+      { coverageFile: 'coverage.bin' },
+    );
+    const patterns = (configured['unmockedModulePathPatterns'] as string[]).map((pattern) => new RegExp(pattern));
+
+    expect(patterns.some((pattern) => pattern.test(SELECTION_GLOBALS))).toBe(true);
+    expect(patterns.some((pattern) => pattern.test('/repo/styles/stub.cjs'))).toBe(true);
+    expect(patterns.some((pattern) => pattern.test('/repo/src/math.ts'))).toBe(false);
   });
 });
 
