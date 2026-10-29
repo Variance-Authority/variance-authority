@@ -373,6 +373,8 @@ describe('the runs recorded at one commit', () => {
     expect(await landedAt(coverageFile)).toEqual(['b.test.ts']);
     expect(runs).not.toHaveProperty('over');
     expect(runs).not.toHaveProperty('commit');
+    // No commit to read a text against, so the landing names none: a place that names texts stood at a commit.
+    expect(runs?.landings?.map((landing) => landing.texts)).toEqual([undefined]);
   });
 
   it('lists no standing outside a checkout, where a run has no commit', async () => {

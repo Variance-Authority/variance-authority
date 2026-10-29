@@ -262,28 +262,13 @@ npx variance covering --since main
 Or over MCP, where `variance_source_tests` takes a location and
 `variance_changed_tests` takes the diff the agent is already holding.
 
-**Re-record when the tree moves.** The index places each region by its lines in
-the text the suite ran over, so its coordinates belong to the commit the run was
-recorded at, and the `--since` reading measures from that commit for this
-reason. For the test files it names, `covering` says whether they ran over your
-source file as it is now, and when that run landed:
-
-```text
-src/cart/total.ts is the text the 2 test files named here ran over, in a run that landed 1 hour ago.
-```
-
-or that one of them ran over an earlier text of it, and which of the asked lines
-differ:
-
-```text
-src/cart/total.test.ts ran over another text of src/cart/total.ts, in a run that landed 3 days ago; line 14 differs between the two.
-```
-
-The second is evidence about the text that test file ran, not about yours. Which
-of its cases still hold for a region you edited is the case index's question,
-answered under **A region is a block, not a line** below. At +2% to +8% there is
-no budget argument against recording on every run, which is the cadence this
-needs.
+**Re-record when the tree moves.** A region is a range of lines in the text the
+suite ran over, so the index's coordinates belong to the commit it was recorded
+at, and the `--since` reading measures from that commit for this reason. For the
+test files it names, `covering` prints whether they ran over your source file as
+it is now, and when that run landed. A test file that ran over another text is
+evidence about that text, not about yours. At +2% to +8% there is no budget
+argument against recording on every run, which is the cadence this needs.
 
 **Fold shards, don't fold axes.** A suite split across machines ends with one
 index per shard, and folding them produces the union the unsharded run would
@@ -304,15 +289,14 @@ address in the module's tree rather than its place in the module's text. So
 inserting a function above it renumbers everything and retires nothing: a
 crossing is dropped only when the new text has no region at that address. Line
 numbers are coordinates *into* the recorded text, not the thing recorded.
-The file-level record keeps a region's crossings through an edit by that
-address, and a digest of each region's text tells it when the region at an
-address is not the one it recorded. The case index holds no digest, so it reads
-the edit from `git diff -U0` instead. A region the hunks leave alone keeps its
-cases, at the lines the hunks move it to. A region a hunk touches keeps its cases
-too. Where the edit changed what that region runs, those cases ran a text that
-is no longer there: `variance select` runs them for a change to the region, and
-`covering` answers that which case ran it is not known, rather than that no case
-did. [Identity under an edit](execution-record.md#identity-under-an-edit) walks
+The rows keep a crossing through an edit by that address, and a digest per
+region catches a mispair. The case axis holds no digest, so it follows the edit
+itself: a region the `git diff -U0` hunks leave alone keeps its cases at the
+lines the hunks place it, and a region they touch keeps its cases too. Where the
+edit changed what that region runs, those cases ran a text that is no longer
+there: `variance select` runs them for a change to the region, and `covering`
+prints that which case ran it is not known.
+[Identity under an edit](execution-record.md#identity-under-an-edit) walks
 through each kind of edit.
 
 **A crossing is a pair.** One row is *this case covered this region*, and the

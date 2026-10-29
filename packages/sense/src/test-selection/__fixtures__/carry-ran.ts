@@ -91,8 +91,9 @@ export async function ranInProcess(walk: Walk, asked: Asked): Promise<Readonly<R
 
 /**
  * {@link Ran} asked of `variance covering --format json` in a process of its
- * own, after `variance index` has indexed HEAD, from its `ran` stands: `held` there is the asked text, and a region
- * whose verdict is not known is one read in no text the record holds.
+ * own, after `variance index` has indexed HEAD, from its `ran` stands: `held`
+ * there is the asked text, and a region whose verdict is not known is one read
+ * in no text the record holds.
  */
 export async function ranByCli(walk: Walk, asked: Asked): Promise<Readonly<Record<string, Stood>>> {
   const line = 'line' in asked ? String(asked.line) : `${String(asked.lines.startLine)}-${String(asked.lines.endLine)}`;

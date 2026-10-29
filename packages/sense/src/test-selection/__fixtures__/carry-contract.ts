@@ -490,6 +490,7 @@ export async function lastCases(walk: Walk): Promise<readonly string[]> {
 
 /** The same scope read by a fresh CLI process, including its before comparison. */
 export async function lastCasesByCli(walk: Walk): Promise<readonly string[]> {
+  await indexedByCli(walk);
   const { stdout } = await run(process.execPath, [BIN, 'covering', '--file', SUBJECT, '--execution', walk.coverageFile, '--cases', 'last', '--format', 'json'], {
     cwd: walk.root, env: cliEnv(walk), maxBuffer: 64 * 1024 * 1024,
   });
