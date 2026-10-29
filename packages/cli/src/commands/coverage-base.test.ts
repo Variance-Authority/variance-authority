@@ -3,7 +3,14 @@ import { cp, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { commitRunsFile, encodeExecutionIndex, testCoverageFile, writeTestCoverage } from '@variance-authority/sense/test-selection';
+import {
+  commitRunsFile,
+  encodeExecutionIndex,
+  testCoverageFile,
+  writeCommitRuns,
+  writeTestCoverage,
+  type TestCoverage,
+} from '@variance-authority/sense/test-selection';
 import { main } from '../bin.js';
 import type { Coverage } from './coverage.js';
 
@@ -82,10 +89,15 @@ let base: string;
 const git = (...args: string[]) =>
   execFileSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', ...args], { cwd: repo, encoding: 'utf8' }).trim();
 
-async function record(at: string, index: Index, last?: { readonly commit?: string; readonly files: readonly string[] }): Promise<void> {
+async function record(
+  at: string,
+  index: Index,
+  last?: { readonly commit?: string; readonly files: readonly string[] },
+  header: Pick<TestCoverage, 'commit' | 'tests'> = { tests: [] },
+): Promise<void> {
   await mkdir(dirname(at), { recursive: true });
   const cases = { index: encodeExecutionIndex(index), ...(last === undefined ? {} : { last: Buffer.from(JSON.stringify(last)) }) };
-  await writeTestCoverage(at, { version: 3, instrumentation: 'fixture-instrumentation', tests: [], modules: [] }, cases);
+  await writeTestCoverage(at, { version: 3, instrumentation: 'fixture-instrumentation', ...header, modules: [] }, cases);
 }
 
 /** Publish the source index, the step CI runs before `coverage`, which under CI never builds one. */
@@ -222,6 +234,64 @@ describe('coverage against a base, beside a runs record that cannot be read', ()
     expect(answer.code).toBe(2);
     expect(answer.err).toContain(`the runs record at ${runs} could not be read`);
     expect(answer.err).toContain('a comparison that read it as absent would call a case no test ran no longer run');
+  });
+});
+
+describe('coverage against a base, for a test file the runs place before the record and that is no longer on disk', () => {
+  // `refund` is entered at the base by `src/gone.test.ts` alone. The run at H
+  // ran only `src/pay.test.ts`, so the runs record places `gone` at the base's
+  // commit, and the record dropped its case over the edit to `src/pay.ts`.
+  const GONE = { id: 'g', file: 'src/gone.test.ts', name: 'refunds', stopped: false };
+  const entered = (at: ReturnType<typeof region>, test: number) => ({ ...at, crossings: [{ test, distance: 0 }] });
+  const CARRIED_BASE: Index = {
+    tests: [UNIT, GONE],
+    modules: [{ file: 'src/pay.ts', blocks: [region('pick', 1, 5, true), entered(region('refund', 7, 9, false), 1)] }],
+  };
+  const CARRIED_NOW: Index = {
+    tests: [UNIT, GONE],
+    modules: [{ file: 'src/pay.ts', blocks: [region('pick', 1, 6, true), region('refund', 8, 10, false)] }],
+  };
+
+  async function carried(onDisk: boolean) {
+    const at = await copyOf(onDisk ? 'kept' : 'gone');
+    const git = (...args: string[]) =>
+      execFileSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', ...args], { cwd: at, encoding: 'utf8' }).trim();
+    const P = git('rev-parse', 'HEAD');
+    git('commit', '--quiet', '-am', 'now');
+    const H = git('rev-parse', 'HEAD');
+    if (onDisk) await writeFile(join(at, GONE.file), "import './pay.js';\n");
+    await publishIndex(at);
+    const against = join(dirname(at), 'base.bin');
+    await record(against, CARRIED_BASE, { commit: P, files: [] });
+    const current = testCoverageFile(at, { suite: 'unit' });
+    const tests = [UNIT.file, GONE.file].map((file) => ({ file, complete: true, preconditions: [] }));
+    await record(current, CARRIED_NOW, undefined, { commit: H, tests });
+    await writeCommitRuns(commitRunsFile(current), {
+      commit: H,
+      latest: '2026-01-02T00:00:00.000Z',
+      runs: 1,
+      landings: [{ files: [UNIT.file], first: '2026-01-02T00:00:00.000Z', latest: '2026-01-02T00:00:00.000Z', runs: 1 }],
+      standing: [{ commit: P, files: [GONE.file] }],
+    });
+    const answer = await ask(['coverage', '--root', at, '--suite', 'unit', '--against', against, '--format', 'json']);
+    expect(answer.code).toBe(0);
+    return (JSON.parse(answer.out) as Coverage).suites[0]!.base!.change;
+  }
+
+  it('reads a carried case the record dropped as unmeasured while the test file is on disk', async () => {
+    const change = await carried(true);
+
+    expect({ lost: change.lost, unmeasured: change.unmeasured }).toEqual({ lost: 0, unmeasured: 1 });
+    expect(change.testFiles).toEqual([]);
+  });
+
+  it('reads the region only it entered as lost once the test file is gone, and names the file as having left it', async () => {
+    const change = await carried(false);
+
+    expect({ lost: change.lost, unmeasured: change.unmeasured }).toEqual({ lost: 1, unmeasured: 0 });
+    expect(change.testFiles).toEqual([
+      { file: GONE.file, entered: [], left: [expect.objectContaining({ name: 'refund', startLine: 8 })] },
+    ]);
   });
 });
 
