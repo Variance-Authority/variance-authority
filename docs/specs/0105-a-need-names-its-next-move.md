@@ -31,12 +31,11 @@ off its tool's definition, the `Tool` of `packages/mcp/src/tools/tool.ts`; the
 top-level command table; `spelling.ts` in the same directory, the one place an
 answer spells what to ask next for the surface it was asked on; the `followUps`
 that `orient`, `packages` and `entrypoint` build from their reading; the
-evidence gap of `evidence-gap.ts`; the skill
-in `packages/cli/skills/variance-authority/`; and the answer object of
-[0104](0104-the-four-code-questions.md).
+evidence gap of `evidence-gap.ts`; and the skill
+in `packages/cli/skills/variance-authority/`.
 **Held by:** the compiler, for a command or MCP tool with no entry, for an
-edge into an entry that does not exist and, once 0104's answer object is a
-type, for a move whose argument has no source field; a check that no answer
+edge into an entry that does not exist, and for a binding or a condition that
+reads a field its entry's answer type does not hold; a check that no answer
 spells a question outside `spellingOf`; a check that the generated skill matches
 its source; and, per command, a decision test of its builder and an acceptance
 test that asks each printed move and reads its answer.
@@ -92,10 +91,25 @@ alone reads, so a builder never sees it. In a
 shell `spellingOf` spells it with the input: a `describe --subject` move from
 `ask changes /tmp/run-a.json` asks of `/tmp/run-a.json`, not of the configured
 report. Over MCP a server answers of the subject it was started on, so the
-context is the server's and the move names none. Checking a binding against a
-field needs a type to check it against: `Tool.run` returns text today, so this
-check rides 0104's answer object becoming the tool's answer type, and until then
-a binding is held by the builder's decision test.
+context is the server's and the move names none.
+
+The context is the evidence the move asks of, carried as data on every surface;
+each surface decides how to address it. A shell spells it, so a move asks of
+the report it was printed from wherever it is pasted. Over MCP the tool input
+has no place for it: a move asks of the server it is sent to, and a move
+printed by one server and sent to another answers of the second's evidence.
+That is a position, not an oversight. A move is for the session that printed
+it, and refusing it elsewhere would put the scope in every tool's input to
+guard a reuse nobody makes.
+
+A binding is checked against a type. `Tool.run` returns text today, so an entry
+declares the answer it is computed from: the tool computes a value of its
+answer type, and `run` formats that value. An edge is declared over that type,
+each binding a function from the answer to the argument it fills, so a binding
+that reads a field the answer does not hold fails the build. A command gets its
+answer type in the step that gives it an entry, the commands outside
+[0104](0104-the-four-code-questions.md) as much as its four; for those four,
+0104's answer object is that type.
 
 A field is a value the answer holds, or an input it was asked with and echoes,
 such as the ref `--since` named. A field names one thing of a stated kind: a
@@ -106,23 +120,29 @@ the kind of thing the move asks about.
 | The answer holds | The move |
 |---|---|
 | the field the edge needs, once | one move |
-| it for several things | one move per thing the answer lists, in its order and within its `limitOf` bound; the things it counts past that bound get one move that asks for them |
+| it for several things | one move per thing the answer shows, in its order and within its `limitOf` bound |
+| things counted past that bound | no move of their own; the answer's paging asks the same question again with its filters and a wider bound, and that answer prints their moves |
 | several things the command's arguments cannot tell apart | one move that asks about all of them, saying so |
 | no value for the field | no move |
-| a value, but no fact the destination would read | no move |
+| a value the edge's condition rejects | no move |
 
 So `symbol` that finds `Coverage` declared in two files prints two `uses`
 moves, each with its `--package` and `--file`, whether the files share a
 package or not. `uses` that lists fifty importers prints no fifty `covering`
 moves: its edge into `covering --file` binds the declaration's file, so it
 prints one per declaration. A move never picks one of several
-candidates for the agent. The last row is the condition: `symbol` that finds no
-declaration opens no `uses`, and `changes` with nothing changed opens no
-`describe`. An edge is printed only when the answer holds a fact the next
-answer reads. An edge into other evidence, from the source index to a
-recording, is printed when its field is present, since whether a record exists
-is not the source answer's to know; the destination answers an absent record
-with its own gap.
+candidates for the agent. Paging is the source question's, not a move's: past
+the bound the answer neither names the rest one by one nor asks of them as a
+group, and the moves for the rest come with the answer that shows them.
+
+The last row is the edge's condition, a predicate over the answer type declared
+with the edge, so two builders cannot read one edge two ways. An edge with none
+is printed when its fields are present. `symbol` that finds no declaration opens
+no `uses`, since the field is absent; `changes` with nothing changed opens no
+`describe`, since its condition is that something changed. An edge into other
+evidence, from the source index to a recording, is printed when its field is
+present, since whether a record exists is not the source answer's to know; the
+destination answers an absent record with its own gap.
 
 An entry may open itself, narrowed: `entrypoint` over every package names
 itself with one `--package`, and `uses` over several declarations names itself
@@ -334,9 +354,8 @@ that file's `// compass:` coordinate. The speller and the layout stay at
 Each step lands a move an agent sees before the next one starts:
 
 1. `symbol` to `uses`, end to end. Entries as an optional field on those two
-   tools, their builders, and the moves they print. Until 0104's answer object
-   is their answer type, a binding is held by the builder's decision test, and
-   from then on by the compiler.
+   tools, the answer types `run` formats, their builders, and the moves they
+   print, so the compiler holds the two edges' bindings from the first step.
    - `narrower` moves beside `spellingOf` in `@variance-authority/mcp/tools`,
      so `packages/cli` reaches it, and lays the moves out.
    - `symbol`'s sentence naming `uses`, and `uses`' narrowing to one file and
@@ -344,7 +363,8 @@ Each step lands a move an agent sees before the next one starts:
    - Each builder gets a decision test, written to fail first, with cases
      written apart from the edges: one declaration, two files declaring one
      name in one package, two packages declaring it, an answer with no
-     importer, an answer with no field.
+     importer, an answer with no field, and an answer past its bound, whose
+     paging answer prints the moves of the rest.
    - Each command gets an acceptance test on `ask-acceptance.fixture.ts` that
      asks every move it prints and reads the answer. The move is parsed by
      `asking.ts`'s own parser and asked in process; one case per surface spawns
