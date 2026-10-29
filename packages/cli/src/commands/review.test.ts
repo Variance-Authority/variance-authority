@@ -120,12 +120,16 @@ describe('a review of what a change did, after the run that recorded it', () => 
   });
 
   it('counts a region no case is known to have run apart from the ones no case ran', () => {
-    const region = (name: string, reach: 'unwalked' | 'unknown') =>
-      ({ kind: 'function', name, startLine: name === 'round' ? 5 : 1, endLine: name === 'round' ? 7 : 3, reach, edit: 'modified', cases: 0, changedLineCases: 0, tests: [], called: [] });
-    const text = formatReview({ from: 'a'.repeat(40), record: 'ran', base: 'since', files: [{ file: 'src/total.ts', recorded: true, regions: [region('applyDiscount', 'unwalked'), region('round', 'unknown')] }] } as never, 'text');
+    const region = (name: string, startLine: number, reach: 'unwalked' | 'unknown' | 'overwritten') =>
+      ({ kind: 'function', name, startLine, endLine: startLine + 2, reach, edit: 'modified', cases: 0, changedLineCases: 0, tests: [], called: [] });
+    const text = formatReview({ from: 'a'.repeat(40), record: 'ran', base: 'since', files: [{ file: 'src/total.ts', recorded: true, regions: [
+      region('applyDiscount', 1, 'unwalked'), region('round', 5, 'overwritten'), region('cap', 9, 'unknown'),
+    ] }] } as never, 'text');
 
-    expect(text).toContain('- 1 no case covered: 1 modified.\n- 1 no case is known to have covered: 1 modified.\n');
-    expect(text).toContain('  src/total.ts:5-7 function round — no case is known to have covered it: a case ran it in a text an edit wrote over, or none did and the record cannot say whether one stopped first (modified)');
+    // A record silent on which cases stopped still measured that none entered `cap`.
+    expect(text).toContain('- 2 no case covered: 2 modified.\n- 1 no case is known to have covered: 1 modified.\n');
+    expect(text).toContain('  src/total.ts:5-7 function round — no case is known to have covered it: a case ran it in a text an edit wrote over (modified)');
+    expect(text).toContain('  src/total.ts:9-11 function cap — no case covered it, and the record cannot say whether one stopped first (modified)');
   });
 
   it('says which package the changed functions are in, whose tests ran them and which packages import them', async () => {

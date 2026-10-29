@@ -20,7 +20,7 @@
 
 import { codeUnitOrder } from '@variance-authority/core/segment';
 import { REACHES, type Reach, type Review, type ReviewFile, type ReviewRegion } from './review.js';
-import { MARK } from './review-words.js';
+import { MARK, notKnown } from './review-words.js';
 
 /** Past this many functions the worst are drawn and the rest are counted. */
 const FUNCTIONS = 24;
@@ -32,6 +32,7 @@ const CLASS: Readonly<Record<Reach, string>> = {
   far: 'far',
   unplaced: 'far',
   loaded: 'loaded',
+  overwritten: 'notknown',
   hole: 'none',
   unwalked: 'none',
   unknown: 'none',
@@ -43,6 +44,8 @@ interface Fn {
   readonly own: ReviewRegion;
   /** Branches and closures inside it that no case ran. */
   readonly bare: number;
+  /** Branches and closures inside it a case ran in a text an edit wrote over. */
+  readonly notKnown: number;
 }
 
 /** The diagram in a fold, or nothing when the change touched no named function. */
@@ -50,16 +53,19 @@ export function changeGraph(review: Review): readonly string[] {
   const all = review.files.flatMap(functionsOf);
   if (all.length === 0) return [];
   const drawn = [...all]
-    .sort((a, b) => severity(b.own.reach) - severity(a.own.reach) || b.bare - a.bare || codeUnitOrder(a.file, b.file) || a.own.startLine - b.own.startLine)
+    .sort((a, b) => severity(b.own.reach) - severity(a.own.reach) || b.bare - a.bare || b.notKnown - a.notKnown || codeUnitOrder(a.file, b.file) || a.own.startLine - b.own.startLine)
     .slice(0, FUNCTIONS);
   const reached = new Map<string, number>();
   for (const fn of drawn) for (const test of fn.own.tests) reached.set(test, (reached.get(test) ?? 0) + 1);
   const kept = new Set([...reached.keys()].sort((a, b) => reached.get(b)! - reached.get(a)! || codeUnitOrder(a, b)).slice(0, TESTS));
 
   const none = all.filter((fn) => CLASS[fn.own.reach] === 'none').length;
+  const known = all.filter((fn) => CLASS[fn.own.reach] === 'notknown').length;
   const lines = [
     '',
-    `<details><summary>🔀 ${all.length} changed function${all.length === 1 ? '' : 's'}${none > 0 ? `, ${none} with no case` : ''}</summary>`,
+    `<details><summary>🔀 ${all.length} changed function${all.length === 1 ? '' : 's'}${none > 0 ? `, ${none} with no case` : ''}${
+      known > 0 ? `, ${known} with no case known to have run it` : ''
+    }</summary>`,
     '',
     '```mermaid',
     'flowchart LR',
@@ -75,8 +81,9 @@ export function changeGraph(review: Review): readonly string[] {
   for (const file of [...new Set(drawn.map((fn) => fn.file))].sort(codeUnitOrder)) {
     lines.push(`  subgraph ${id('f', file)}["${label(file)}"]`, '    direction LR');
     for (const fn of drawn.filter((held) => held.file === file).sort((a, b) => a.own.startLine - b.own.startLine)) {
-      const cases = fn.own.cases === 0 ? 'no case' : `${fn.own.cases} case${fn.own.cases === 1 ? '' : 's'}, ${fn.own.changedLineCases} ran a changed line`;
-      const bare = fn.bare === 0 ? '' : ` · ${fn.bare} place${fn.bare === 1 ? '' : 's'} no case ran`;
+      const cases = fn.own.cases > 0 ? `${fn.own.cases} case${fn.own.cases === 1 ? '' : 's'}, ${fn.own.changedLineCases} ran a changed line`
+        : fn.own.reach === 'overwritten' ? `${notKnown(true)} it` : 'no case';
+      const bare = `${places(fn.bare, 'no case ran')}${places(fn.notKnown, notKnown(true))}`;
       lines.push(`    ${id('r', key(fn))}["${MARK[fn.own.reach]} ${label(fn.own.name)} · ${fn.own.edit}<br/>${cases}${bare}"]:::${CLASS[fn.own.reach]}`);
     }
     lines.push('  end');
@@ -95,6 +102,7 @@ export function changeGraph(review: Review): readonly string[] {
     '  classDef far fill:#fff8c5,stroke:#9a6700,color:#1f2328',
     '  classDef near fill:#dafbe1,stroke:#1a7f37,color:#1f2328',
     '  classDef loaded fill:#f6f8fa,stroke:#8c959f,color:#1f2328',
+    '  classDef notknown fill:#fbefff,stroke:#8250df,color:#1f2328',
     '```',
   );
   if (all.length > drawn.length) lines.push('', overflow(all.length - drawn.length, all.length));
@@ -120,13 +128,14 @@ function functionsOf(file: ReviewFile): readonly Fn[] {
   return [...by].map(([name, regions]) => {
     const own = regions.find((region) => region.name === name)
       ?? [...regions].sort((a, b) => a.startLine - b.startLine || b.endLine - a.endLine)[0]!;
-    return {
-      file: file.file,
-      name,
-      own,
-      bare: regions.filter((region) => region !== own && region.cases === 0 && CLASS[region.reach] === 'none').length,
-    };
+    const inside = (kind: string) => regions.filter((region) => region !== own && region.cases === 0 && CLASS[region.reach] === kind).length;
+    return { file: file.file, name, own, bare: inside('none'), notKnown: inside('notknown') };
   });
+}
+
+/** The count of places inside a function a node adds after its cases: ` · 2 places no case ran`, or nothing. */
+function places(count: number, what: string): string {
+  return count === 0 ? '' : ` · ${count} place${count === 1 ? '' : 's'} ${what}`;
 }
 
 /** The line under a diagram that left functions out; a change this wide is named as such. */

@@ -26,6 +26,16 @@ export function uncovered(region: Pick<ReviewRegion, 'reach'>): boolean {
   return UNCOVERED.has(region.reach);
 }
 
+/** Whether a case ran the region in a text an edit wrote over, so no case is known to have run it. */
+export function overwritten(region: Pick<ReviewRegion, 'reach'>): boolean {
+  return region.reach === 'overwritten';
+}
+
+/** Whether the record names no case that ran the region: none did, or which one did is not known. */
+export function unproven(region: Pick<ReviewRegion, 'reach'>): boolean {
+  return uncovered(region) || overwritten(region);
+}
+
 /** The regions a reader counts, `outermostOf` the file's. The JSON keeps every region. */
 export function outermost(file: ReviewFile): readonly ReviewRegion[] {
   return outermostOf(file.regions ?? []);

@@ -15,6 +15,7 @@ export const REACH_WORD: Readonly<Record<Reach, string>> = {
   far: 'far',
   unplaced: 'distance not measured',
   loaded: 'ran only while its module loaded',
+  overwritten: 'not known',
   hole: 'no case',
   unwalked: 'no case',
   unknown: 'no case',
@@ -26,22 +27,25 @@ export const REACH_TEXT: Readonly<Record<Reach, string>> = {
   far: 'covered only by tests further than one import away',
   unplaced: 'covered by tests the import graph does not hold, so how far is not known',
   loaded: 'ran only while its module loaded',
+  overwritten: 'no case is known to have covered it: a case ran it in a text an edit wrote over',
   hole: 'no case covered it, and a case that could have stopped first',
   unwalked: 'no case covered it',
-  unknown: 'no case is known to have covered it: a case ran it in a text an edit wrote over, or none did and the record cannot say whether one stopped first',
+  unknown: 'no case covered it, and the record cannot say whether one stopped first',
 };
 
 /**
  * One mark per answer, so a row in the table and a count in the per-file fold
  * read the same way: red is changed code no case covered, yellow and orange are
  * covered from further away than the file's own importers, green is covered
- * from one import away, white ran only while its module loaded.
+ * from one import away, white ran only while its module loaded, and the
+ * question mark is code a case ran in a text an edit wrote over.
  */
 export const MARK: Readonly<Record<Reach, string>> = {
   near: '🟢',
   far: '🟡',
   unplaced: '🟠',
   loaded: '⚪',
+  overwritten: '❔',
   hole: '🔴',
   unwalked: '🔴',
   unknown: '🔴',
@@ -49,7 +53,12 @@ export const MARK: Readonly<Record<Reach, string>> = {
 
 /** What each mark says, once, under the first table that uses it. */
 export const LEGEND = '🟢 a test importing the file ran it · 🟡 only tests further away ran it · 🟠 tests outside the import graph ran it · ' +
-  '⚪ ran only while its module loaded · 🔴 no case ran it';
+  '⚪ ran only while its module loaded · ❔ no case is known to have run it · 🔴 no case ran it';
+
+/** What code a case ran in a text an edit wrote over is: run by a case nobody can name, in this run or in the record. */
+export function notKnown(ran: boolean): string {
+  return `no case${ran ? '' : ' in the record'} is known to have run`;
+}
 
 /** Code this change wrote that no run has reached yet: read before it ran, so no case was expected. */
 export const FRESH_MARK = '🔵';

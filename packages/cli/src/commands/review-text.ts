@@ -341,8 +341,8 @@ function summary(review: Review, code: (value: string) => string): readonly stri
       ...absent,
     ];
   }
-  const uncovered = regions.filter((region) => region.reach === 'hole' || region.reach === 'unwalked');
-  const unknown = regions.filter((region) => region.reach === 'unknown');
+  const uncovered = regions.filter((region) => region.reach === 'hole' || region.reach === 'unwalked' || region.reach === 'unknown');
+  const unknown = regions.filter((region) => region.reach === 'overwritten');
   const holding = review.files.filter((file) => outermost(file).length > 0).length;
   const lines = [
     `${regions.length} changed region${regions.length === 1 ? '' : 's'} in ${holding} file${holding === 1 ? '' : 's'}: ${edits(regions)}.`,

@@ -5,8 +5,8 @@ import type { CoveringRegion, SourceTestRange } from './reverse.js';
  * `entered` {@link Reach} is `walked` when two or more cases called in, or one
  * did beside a case that stopped or whose run of it is not known, and `alone`
  * when one did and every case that could have reached it finished; any other
- * reach is its own word. Absent when the reach is `unknown`, or when one case
- * called in and whether the others stopped was not recorded.
+ * reach is its own word. Absent when the reach is `overwritten` or `unknown`,
+ * or when one case called in and whether the others stopped was not recorded.
  */
 export type RangeState = 'walked' | 'alone' | 'loaded' | 'hole' | 'unwalked';
 
@@ -19,11 +19,12 @@ export type RangeState = 'walked' | 'alone' | 'loaded' | 'hole' | 'unwalked';
  * - `hole`: nobody entered it, and a case that could have reached it stopped.
  * - `unwalked`: nobody entered it, and every case that could have reached it
  *   finished.
- * - `unknown`: nobody is known to have entered it: a case ran it in a text an
- *   edit wrote over it, or whether a case that could have reached it stopped
- *   was not recorded.
+ * - `overwritten`: a case ran it in a text an edit wrote over it, so which
+ *   case ran it is not known.
+ * - `unknown`: nobody entered it, and whether a case that could have reached
+ *   it stopped was not recorded.
  */
-export type Reach = 'entered' | 'loaded' | 'hole' | 'unwalked' | 'unknown';
+export type Reach = 'entered' | 'loaded' | 'overwritten' | 'hole' | 'unwalked' | 'unknown';
 
 /** The part of a range its reach and its state are read from. */
 export type ReachRecord = Pick<SourceTestRange, 'tests' | 'loaded' | 'stopped' | 'overwritten'>;
@@ -31,7 +32,7 @@ export type ReachRecord = Pick<SourceTestRange, 'tests' | 'loaded' | 'stopped' |
 /** The reach a range's cases, its load flag, its stopped cases and its cases not known to have run it add up to. */
 export function reachOf(range: ReachRecord): Reach {
   if (range.tests.some((test) => test.loaded !== true)) return 'entered';
-  if ((range.overwritten?.length ?? 0) > 0) return 'unknown';
+  if ((range.overwritten?.length ?? 0) > 0) return 'overwritten';
   if (range.tests.length > 0 || range.loaded === true) return 'loaded';
   if (range.stopped === undefined) return 'unknown';
   return range.stopped.length === 0 ? 'unwalked' : 'hole';
@@ -40,7 +41,7 @@ export function reachOf(range: ReachRecord): Reach {
 /** The one state a range's cases and stopped cases add up to, or absent. */
 export function stateOf(range: ReachRecord): RangeState | undefined {
   const reach = reachOf(range);
-  if (reach === 'unknown') return undefined;
+  if (reach === 'overwritten' || reach === 'unknown') return undefined;
   if (reach !== 'entered') return reach;
   if (range.tests.filter((test) => test.loaded !== true).length >= 2) return 'walked';
   if ((range.overwritten?.length ?? 0) > 0) return 'walked';

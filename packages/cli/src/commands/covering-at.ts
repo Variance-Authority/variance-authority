@@ -194,7 +194,7 @@ function unrunParts(
   const parts: UnrunPart[] = [];
   for (const { region, reach } of outermostOf(regions)) {
     // A part a case ran in another text is not one no case ran: its lines are said as `overwritten`.
-    if (reach === 'entered' || reach === 'loaded' || region.overwritten !== undefined) continue;
+    if (reach === 'entered' || reach === 'loaded' || reach === 'overwritten') continue;
     const where = placement === undefined ? { lines: region, moved: false } : placement.place(region);
     // A part every line of which an edit removed has nowhere in the held text to be named.
     if (where === undefined) continue;

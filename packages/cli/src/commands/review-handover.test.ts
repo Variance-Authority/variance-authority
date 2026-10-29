@@ -261,13 +261,17 @@ describe('a review handed over in the pull request body, before CI', () => {
       ({ from: 'a'.repeat(40), record, base: 'since', files: [{ file: 'src/a.ts', recorded: true, regions }] }) as unknown as Review;
     const pointers = (out: string) => out.split('\n').filter((line) => line.startsWith('- '));
 
-    const ran = formatHandover([{ suite: 'unit', review: at('ran', [part(5, 20, 'near', ['test/a.test.ts']), part(8, 9, 'unknown', [])]) }]);
-    const before = formatHandover([{ suite: 'unit', review: at('before', [part(5, 9, 'unknown', [])]) }]);
+    const ran = formatHandover([{ suite: 'unit', review: at('ran', [part(5, 20, 'near', ['test/a.test.ts']), part(8, 9, 'overwritten', [])]) }]);
+    const before = formatHandover([{ suite: 'unit', review: at('before', [part(5, 9, 'overwritten', [])]) }]);
+    // A record silent on which cases stopped still measured that none entered: that part is one no case ran.
+    const silent = formatHandover([{ suite: 'unit', review: at('ran', [part(5, 20, 'near', ['test/a.test.ts']), part(8, 9, 'unknown', [])]) }]);
 
-    expect(pointers(ran)).toEqual(['- 🔴 `total` in `src/a.ts` — a part no case is known to have run; the rest 1 case, near: `test/a.test.ts`']);
+    expect(pointers(ran)).toEqual(['- ❔ `total` in `src/a.ts` — a part no case is known to have run; the rest 1 case, near: `test/a.test.ts`']);
     expect(ran).toContain('1 changed function, 1 with code no case is known to have run</summary>');
-    expect(pointers(before)).toEqual(['- 🔴 `total` in `src/a.ts` — no case in the record is known to have run it']);
+    expect(pointers(before)).toEqual(['- ❔ `total` in `src/a.ts` — no case in the record is known to have run it']);
     expect(before).toContain('1 changed function, 1 with code no case in the record is known to have run</summary>');
+    expect(pointers(silent)).toEqual(['- 🔴 `total` in `src/a.ts` — a part no case ran; the rest 1 case, near: `test/a.test.ts`']);
+    expect(silent).toContain('1 changed function, 1 with code no case ran</summary>');
   });
 
   it('names a function a suite ran on the change without a case, though a suite read from before counts it new', () => {

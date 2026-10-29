@@ -210,13 +210,15 @@ describe('the reach of a region', () => {
     expect(reachOf({ tests: [] })).toBe('unknown');
   });
 
-  it('is unknown where a case ran it in another text, whatever else is on it, unless a case called in', () => {
+  it('is overwritten where a case ran it in another text, whatever else is on it, unless a case called in', () => {
     const guest = { ...tests[0]!, distance: 0 };
     const overwritten = [tests[1]!];
-    // No absence was measured: the case may have run the text there now.
-    expect(reachOf({ tests: [], stopped: [], overwritten })).toBe('unknown');
-    expect(reachOf({ tests: [], stopped: [tests[0]!], overwritten })).toBe('unknown');
-    expect(reachOf({ tests: [{ ...guest, loaded: true }], overwritten })).toBe('unknown');
+    // No absence was measured: the case may have run the text there now. Nor is
+    // it the record's silence on stopped cases, which is still absence.
+    expect(reachOf({ tests: [], stopped: [], overwritten })).toBe('overwritten');
+    expect(reachOf({ tests: [], stopped: [tests[0]!], overwritten })).toBe('overwritten');
+    expect(reachOf({ tests: [], overwritten })).toBe('overwritten');
+    expect(reachOf({ tests: [{ ...guest, loaded: true }], overwritten })).toBe('overwritten');
     expect(stateOf({ tests: [], stopped: [], overwritten })).toBeUndefined();
     // One case called in beside another that may have: not the only one that could have.
     expect(reachOf({ tests: [guest], stopped: [], overwritten })).toBe('entered');

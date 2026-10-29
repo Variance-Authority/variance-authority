@@ -68,9 +68,9 @@ const IMPORT_EDGES: readonly EdgeKind[] = ['imports', 'reexports', 'dynamic', 't
  * `Reach` (`@variance-authority/sense/test-selection`) of a region no case
  * called into.
  */
-export type Reach = 'near' | 'far' | 'unplaced' | 'loaded' | 'hole' | 'unwalked' | 'unknown';
+export type Reach = 'near' | 'far' | 'unplaced' | 'loaded' | 'overwritten' | 'hole' | 'unwalked' | 'unknown';
 
-export const REACHES: readonly Reach[] = ['near', 'far', 'unplaced', 'loaded', 'hole', 'unwalked', 'unknown'];
+export const REACHES: readonly Reach[] = ['near', 'far', 'unplaced', 'loaded', 'overwritten', 'hole', 'unwalked', 'unknown'];
 
 export interface ReviewRegion {
   readonly kind: string;
