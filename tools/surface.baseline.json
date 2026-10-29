@@ -3218,6 +3218,7 @@
         "askCoverageFile": "function",
         "askPerStand": "function",
         "askedSelection": "function",
+        "assumedOf": "function",
         "atDistance": "function",
         "beforeOf": "function",
         "byRelations": "function",
