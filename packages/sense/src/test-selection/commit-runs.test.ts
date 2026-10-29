@@ -231,6 +231,29 @@ describe('the runs recorded at one commit', () => {
     ]);
   });
 
+  it('names the files a stand ran in part in code-unit order, whichever of its runs named one first', () => {
+    // A record seeded before landings dates neither its landing nor a stand at
+    // its commit, so the two are one stand, and each names a file it ran in part.
+    const tests = (...files: string[]) => files.map((file) => ({ file, complete: true }));
+    const held: CommitRuns = {
+      commit: 'P',
+      over: 'Q',
+      latest: '2026-01-03T00:00:00.000Z',
+      runs: 1,
+      standing: [{ commit: 'P', files: [], partly: ['z.test.ts'], cases: { 'z.test.ts': ['z1'] } }],
+      landings: [{ files: ['b.test.ts'], partly: ['a.test.ts'], cases: { 'a.test.ts': ['a1'] } }],
+    };
+    const after = commitRunsAfter({ instrumentation: 'fixture', commit: 'P', tests: tests('a.test.ts', 'b.test.ts', 'c.test.ts', 'z.test.ts') }, held, {
+      instrumentation: 'fixture',
+      commit: 'R',
+      tests: tests('c.test.ts'),
+    });
+    expect(after.standing).toEqual([
+      { commit: 'P', files: ['b.test.ts'], partly: ['a.test.ts', 'z.test.ts'], cases: { 'a.test.ts': ['a1'], 'z.test.ts': ['z1'] } },
+      { commit: 'Q', files: ['a.test.ts', 'z.test.ts'], assumed: true },
+    ]);
+  });
+
   it('leaves `standing` absent, rather than guessed, when no record speaks for the snapshot it replaces', async () => {
     const records = {
       'none beside the snapshot': undefined,
