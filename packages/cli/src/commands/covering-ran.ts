@@ -12,6 +12,7 @@ import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { codeUnitOrder } from '@variance-authority/core/segment';
 import {
+  assumedOf,
   coveringTestsInFile,
   functionsUnder,
   lastRunsOf,
@@ -165,14 +166,21 @@ export interface RanQuestion {
   readonly ranOther?: ReadonlyMap<string, readonly string[]>;
   /** In the held text: the asked lines the record has no place for. */
   readonly unplaced?: readonly number[];
+  /**
+   * The cases that entered the asked file, as the answer's own fold of the
+   * whole file read them and `--where` kept them, when it folded it; else
+   * they are folded from `index` once, when first needed.
+   */
+  readonly entered?: readonly ExecutionTest[];
 }
 
 /**
  * The test files an answer names, or, when it names none, the ones it is dated
  * by instead, with the cases of each it names or is dated by: a case is dated
- * by the run that last ran it.
+ * by the run that last ran it. `entered` gives the cases that entered the
+ * asked file, and is asked only when the answer names none.
  */
-export function namedTestFiles(answer: RanNamed, index: ExecutionIndex | undefined): {
+export function namedTestFiles(answer: RanNamed, index: ExecutionIndex | undefined, entered: () => readonly ExecutionTest[]): {
   readonly tests: readonly string[];
   readonly named?: 'entered' | 'read';
   readonly cases: ReadonlyMap<string, readonly ExecutionTest[]>;
@@ -182,10 +190,22 @@ export function namedTestFiles(answer: RanNamed, index: ExecutionIndex | undefin
   const listed = [...listedIn(answer), ...stopped, ...(index?.tests ?? []).filter((test) => holding.includes(test.file))];
   const named = [...new Set(listed.map((test) => test.file).concat(holding))].sort(codeUnitOrder);
   if (named.length > 0 || index === undefined) return { tests: named, cases: casesOf(listed) };
-  const entered = answer.file === undefined ? [] : coveringTestsInFile(index, answer.file).flatMap((range) => range.tests);
-  if (entered.length > 0) return { tests: [...new Set(entered.map((test) => test.file))].sort(codeUnitOrder), named: 'entered', cases: casesOf(entered) };
+  const into = answer.file === undefined ? [] : entered();
+  if (into.length > 0) return { ...filesOf(into), named: 'entered' };
   const read = [...new Set(index.tests.map((test) => test.file))].sort(codeUnitOrder);
   return read.length === 0 ? { tests: [], cases: new Map() } : { tests: read, named: 'read', cases: casesOf(index.tests) };
+}
+
+/** The test files of `tests`, in code-unit order, with each one's cases. */
+function filesOf(tests: readonly ExecutionTest[]): { readonly tests: readonly string[]; readonly cases: ReadonlyMap<string, readonly ExecutionTest[]> } {
+  return { tests: [...new Set(tests.map((test) => test.file))].sort(codeUnitOrder), cases: casesOf(tests) };
+}
+
+/** The cases that entered the asked file: the ones the answer's own fold handed up, else folded from the index when first asked for. */
+function enteredOnce(answer: RanNamed, question: RanQuestion): () => readonly ExecutionTest[] {
+  let entered = question.entered;
+  const { index } = question;
+  return () => (entered ??= answer.file === undefined || index === undefined ? [] : coveringTestsInFile(index, answer.file).flatMap((range) => range.tests));
 }
 
 /** Each case once, by its test file. */
@@ -205,14 +225,19 @@ function casesOf(tests: readonly ExecutionTest[]): ReadonlyMap<string, readonly 
  * says which unplaced lines a case ran over the text of (`textsHolding`).
  */
 export async function ranOf(answer: RanNamed, question: RanQuestion): Promise<RanRead> {
-  const { tests, named, cases } = namedTestFiles(answer, question.index);
+  const entered = enteredOnce(answer, question);
+  const { tests, named, cases } = namedTestFiles(answer, question.index, entered);
   if (tests.length === 0) return {};
   const as = named === undefined ? {} : { named };
   const { snapshot, at } = question;
   if (snapshot === undefined) return { ran: { tests, unread: 'the record names no commit', ...as } };
   const read = await question.runs();
   if (read.unread !== undefined) return { ran: { tests, unread: read.unread.message, ...as } };
-  const { places, assumed } = testPlaces({ commit: at, runs: read.runs, tests });
+  // The test files that entered the file are placed in the same reading as the named ones, and only the named are said.
+  const writing = writersOf(answer, question, entered);
+  const placing = writing === undefined ? tests : [...new Set([...tests, ...writing.tests])].sort(codeUnitOrder);
+  const { places } = testPlaces({ commit: at, runs: read.runs, tests: placing });
+  const assumed = assumedOf({ commit: at, runs: read.runs, tests }, places);
   const asked = answer.changed?.map((change) => change.file) ?? (answer.file === undefined ? [] : [answer.file]);
   const held = await heldTexts(question, answer, asked);
   const unheld = answer.changed === undefined ? [] : asked.filter((file) => !held.has(file));
@@ -227,7 +252,7 @@ export async function ranOf(answer: RanNamed, question: RanQuestion): Promise<Ra
     const as = readers.get(test)?.get(file);
     return as === undefined ? [] : [[file, { text, precondition: as === 'precondition' }] as const];
   }));
-  const writers = enteredUnits(answer, question, (entered) => testPlaces({ commit: at, runs: read.runs, tests: entered }).places);
+  const writers = writing === undefined ? [] : writing.tests.flatMap((test) => unitsOf(places.get(test)!, test, writing.cases.get(test)));
   const evidence = held.size === 0
     ? undefined
     : await evidenceOf([...units, ...writers].flatMap((unit) => unit.runs), held, {
@@ -251,21 +276,17 @@ export async function ranOf(answer: RanNamed, question: RanQuestion): Promise<Ra
 }
 
 /**
- * The units of every case that entered the asked file, placed by `place`,
+ * The test files of every case that entered the asked file, with those cases,
  * when the question asked lines the record has no place for: whether one of
  * them ran a text holding a line says whether the line is new to every case.
- * None otherwise.
+ * Absent otherwise.
  */
-function enteredUnits(
+function writersOf(
   answer: RanNamed,
   question: RanQuestion,
-  place: (tests: readonly string[]) => ReadonlyMap<string, TestPlace>,
-): readonly Unit[] {
-  if ((question.unplaced ?? []).length === 0 || answer.file === undefined) return [];
-  const entered = namedTestFiles({ file: answer.file }, question.index);
-  if (entered.named !== 'entered') return [];
-  const places = place(entered.tests);
-  return entered.tests.flatMap((test) => unitsOf(places.get(test)!, test, entered.cases.get(test)));
+  entered: () => readonly ExecutionTest[],
+): ReturnType<typeof filesOf> | undefined {
+  return (question.unplaced ?? []).length === 0 || answer.file === undefined ? undefined : filesOf(entered());
 }
 
 /**

@@ -1,9 +1,9 @@
 import { execFileSync } from 'node:child_process';
 import { rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { digestString } from '@variance-authority/core/format';
-import { commitRunsFile, testCoverageFile, type ExecutionIndex } from '@variance-authority/sense/test-selection';
+import { commitRunsFile, coveringTestsInFile, testCoverageFile, type ExecutionIndex } from '@variance-authority/sense/test-selection';
 import { namedTestFiles } from './covering-ran.js';
 import { ASSUMED, DAY, HOUR, MINUTE, PAY, iso, oneRun, recordFixture, unplaced } from './covering-record.fixture.js';
 
@@ -406,15 +406,21 @@ describe('namedTestFiles', () => {
 
   const entered = new Map([['src/pay.test.ts', [{ ...tests[0]!, distance: 0 }]]]);
   const both = new Map([['src/pay.test.ts', [tests[0]!]], ['src/fee.test.ts', [tests[1]!]]]);
+  /** The cases that entered `file`, as the answer's own fold reads them. */
+  const into = (file: string) => vi.fn(() => coveringTestsInFile(whole, file).flatMap((range) => range.tests));
 
   it('names the test files of the cases an answer lists, and of those that stopped before it, with those cases', () => {
-    expect(namedTestFiles({ file: 'src/pay.ts', tests: [tests[1]!], stopped: [tests[0]!] }, whole))
+    const asked = into('src/pay.ts');
+    expect(namedTestFiles({ file: 'src/pay.ts', tests: [tests[1]!], stopped: [tests[0]!] }, whole, asked))
       .toEqual({ tests: ['src/fee.test.ts', 'src/pay.test.ts'], cases: new Map([['src/fee.test.ts', [tests[1]!]], ['src/pay.test.ts', [tests[0]!]]]) });
+    expect(asked).not.toHaveBeenCalled();
   });
 
   it('dates an answer naming none by the cases that entered its file, else by every case it was read from', () => {
-    expect(namedTestFiles({ file: 'src/pay.ts', tests: [] }, whole)).toEqual({ tests: ['src/pay.test.ts'], named: 'entered', cases: entered });
-    expect(namedTestFiles({ file: 'src/idle.ts', tests: [] }, whole)).toEqual({ tests: ['src/fee.test.ts', 'src/pay.test.ts'], named: 'read', cases: both });
-    expect(namedTestFiles({ changed: [] }, whole)).toEqual({ tests: ['src/fee.test.ts', 'src/pay.test.ts'], named: 'read', cases: both });
+    expect(namedTestFiles({ file: 'src/pay.ts', tests: [] }, whole, into('src/pay.ts'))).toEqual({ tests: ['src/pay.test.ts'], named: 'entered', cases: entered });
+    expect(namedTestFiles({ file: 'src/idle.ts', tests: [] }, whole, into('src/idle.ts'))).toEqual({ tests: ['src/fee.test.ts', 'src/pay.test.ts'], named: 'read', cases: both });
+    const unasked = into('src/pay.ts');
+    expect(namedTestFiles({ changed: [] }, whole, unasked)).toEqual({ tests: ['src/fee.test.ts', 'src/pay.test.ts'], named: 'read', cases: both });
+    expect(unasked).not.toHaveBeenCalled();
   });
 });

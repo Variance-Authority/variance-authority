@@ -268,6 +268,7 @@ export async function covering(request: ParsedCovering, graph: Graph = graphOnce
   let placed: ReturnType<typeof placementFor> | undefined;
   let ranOther: ReadonlyMap<string, readonly string[]> | undefined;
   let lines: AskedLines | undefined;
+  let entered: readonly ExecutionTest[] | undefined;
   try {
     const from = request.execution ?? (await recordedExecutionFile(request.root, request.suite));
     record = await recordOf(request, from);
@@ -280,6 +281,9 @@ export async function covering(request: ParsedCovering, graph: Graph = graphOnce
       },
       lines: (asked: AskedLines) => {
         lines = asked;
+      },
+      entered: (tests: readonly ExecutionTest[]) => {
+        entered = tests;
       },
     };
     answer = await ask(request, reader, graph, { from, at: record?.at }, held, (tests) => {
@@ -332,6 +336,7 @@ export async function covering(request: ParsedCovering, graph: Graph = graphOnce
       ...(asked === undefined ? {} : { index: asked }),
       ...(ranOther === undefined ? {} : { ranOther }),
       ...(lines === undefined ? {} : { unplaced: lines.unplaced }),
+      ...(entered === undefined ? {} : { entered }),
     });
   const ran = request.format === 'refs' ? undefined : read.ran;
   const said: Covering = lines === undefined ? answer : { ...answer, ...lineStatus(lines, read.ranOver ?? (() => false)) };

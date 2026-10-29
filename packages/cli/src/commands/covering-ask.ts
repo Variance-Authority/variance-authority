@@ -110,7 +110,7 @@ export async function ask(
   const unheld = framed !== undefined && 'unheld' in framed ? { unheld: true as const } : {};
   const frame = placement === undefined ? unheld : { frame: placement.frame };
   if (placement?.frame === 'stale' && request.function === undefined) {
-    return staleAnswer(request as CoveringAt, { index, ...(before === undefined ? {} : { before }), from, near, graph, ...(placement.at === undefined ? {} : { at: placement.at }) }, reach);
+    return staleAnswer(request as CoveringAt, { index, ...(before === undefined ? {} : { before }), from, near, graph, ...(placement.at === undefined ? {} : { at: placement.at }) }, held.entered, reach);
   }
 
   const narrower = await coveringAt(request as CoveringAt, { index, ...(before === undefined ? {} : { before }), module, from, ...(placement === undefined ? {} : { placement }), near, graph }, reach, held.lines);
@@ -124,6 +124,7 @@ export async function ask(
     ? ranges
     : ranges.map((range) => ({ ...range, tests: range.tests.filter((test) => listed.has(test.id)) }));
   if (before !== undefined) reach?.(listedIn({ tests: found.flatMap((range) => range.tests).filter(near.keep) }));
+  held.entered(listing(found).flatMap((range) => range.tests));
   if (near.whole) return { file: file, ranges: listing(placeRanges(found, placement)), ...frame, from };
   // The narrowing is read inside the fold, so a range boundary still marks where the claim changes.
   const narrowed = coveringTestsInFile(before ?? index, file, { ...loaders, keep: near.keep });
@@ -144,6 +145,8 @@ export interface AskedText {
   readonly ranOther: (other: ReadonlyMap<string, readonly string[]>) => void;
   /** Handed the lines a question about a line, a run of lines or a function asks, as the case index reads them. */
   readonly lines: (asked: AskedLines) => void;
+  /** Handed the cases that entered the file, as `--where` kept them, when the answer folded the whole file to read them. */
+  readonly entered: (tests: readonly ExecutionTest[]) => void;
 }
 
 /** {@link readIndex}, and under `--where` the index before it narrowed the cases. */
