@@ -265,12 +265,11 @@ function repinnedEyes(
 /**
  * The runs record once the record stands on `record`: the runs at its commit
  * as they were, for the tests it keeps, its change now starting at the new
- * milestone, each kept test standing where it last ran, on the install, over
- * the texts and with the time of the run that put it there, and every other
- * test at the milestone, as the run that published it landed there
- * (`published`, which a fetch keeps beside the snapshot). A test no run is
- * known to have put where it stands holds no time, and is compared from that
- * commit.
+ * milestone, each kept test standing where the record placed it, beside the
+ * runs that ran it in part since, and every other test at the milestone, as
+ * the run that published it landed there (`published`, which a fetch keeps
+ * beside the snapshot). A kept test the record places nowhere stands where the
+ * ledger last saw it run, with no time, and is compared from that commit.
  */
 function repinnedRuns(
   held: CommitRuns | undefined,
@@ -301,35 +300,32 @@ function repinnedRuns(
     }];
   });
   const here = new Set(whatLanded(landings).files);
-  // Where each test stands, and what it ran on there, as the runs record said
-  // it. A test the ledger places at a commit no entry names it at keeps none
-  // of it, and is compared from that commit.
-  const stood = new Map<string, StandingEntry>();
-  for (const entry of held.standing ?? []) {
-    if (entry.assumed) continue;
-    for (const file of entry.files) stood.set(`${entry.commit} ${file}`, entry);
-  }
   // One entry per stand; a stand's time is the one run's that put it there.
   const groups = new Map<string, { readonly stand: StandingEntry; readonly files: string[] }>();
-  const standAt = (stand: StandingEntry, file: string): void => {
+  const standAt = (stand: StandingEntry, files: readonly string[]): void => {
     const group = groups.get(standKey(stand)) ?? { stand, files: [] };
-    group.files.push(file);
+    group.files.push(...files);
     groups.set(standKey(stand), group);
   };
+  // The ledger says which tests are this checkout's, and the runs record where
+  // each stands and what it ran on there: a run that ran one in part left it
+  // where it stood, and stays beside it.
+  const placed = new Set<string>();
+  for (const entry of held.standing ?? []) {
+    const { files: its, partly: _part, cases: _cases, ...stand } = entry;
+    const files = its.filter((file) => kept.has(file));
+    for (const file of files) placed.add(file);
+    standAt({ ...stand, files: [], ...partlyIn(entry, (file) => kept.has(file)) }, files);
+  }
   const milestone = new Set(recorded.filter((file) => !kept.has(file)));
   for (const landing of published?.landings ?? []) {
-    for (const file of landing.files.filter((one) => milestone.delete(one))) {
-      standAt({ commit: record.commit, files: [], ...ranOn(landing), ...landedOf(landing) }, file);
-    }
+    standAt({ commit: record.commit, files: [], ...ranOn(landing), ...landedOf(landing) }, landing.files.filter((one) => milestone.delete(one)));
   }
-  for (const file of milestone) standAt({ commit: record.commit, files: [] }, file);
-  for (const state of states) {
-    for (const file of state.files.filter((one) => !here.has(one))) {
-      const from = stood.get(`${state.commit} ${file}`);
-      standAt({ commit: state.commit, files: [], ...(from === undefined ? {} : { ...ranOn(from), ...landedOf(from) }) }, file);
-    }
-  }
-  const standing = [...groups.values()].map(({ stand, files: its }) => ({ ...stand, files: [...new Set(its)].sort(codeUnitOrder) }));
+  standAt({ commit: record.commit, files: [] }, [...milestone]);
+  for (const state of states) standAt({ commit: state.commit, files: [] }, state.files.filter((one) => !here.has(one) && !placed.has(one)));
+  const standing = [...groups.values()]
+    .filter(({ stand, files: its }) => its.length > 0 || stand.partly !== undefined)
+    .map(({ stand, files: its }) => ({ ...stand, files: [...new Set(its)].sort(codeUnitOrder) }));
   const at = commit ?? held.commit;
   return {
     ...(at === undefined ? {} : { commit: at }),

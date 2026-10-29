@@ -248,8 +248,8 @@ describe('the milestone under a checkout', () => {
     await writeFile(runs, JSON.stringify({
       ...held,
       standing: [
-        { commit: next, files: ['test/other.test.ts'], installed },
         { commit: next, files: ['test/total.test.ts'], installed: otherInstall },
+        { commit: next, files: ['test/other.test.ts'], installed },
       ],
     }));
     await refetch(home, worktree, next);
