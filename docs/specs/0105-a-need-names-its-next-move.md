@@ -154,18 +154,22 @@ under the need it does serve, a row like any other:
 
 ## What is left
 
-The table has no second home: a row is two fields, `need` and `opens`, on the
-definition that already declares the command. The tables above are what those
+The table has no second home: it lives on the definition that already
+declares the command, as a list of needs. One command can answer several —
+`ask discover` by `--text`, `--imports`, `--to` or several filters, `covering`
+by `--file` or `--since`, `story` by `--name` or `--compare` — so each entry is
+keyed by the flags that ask it and holds its `need` and its `opens`. The tables above are what those
 fields hold.
 
-1. `need` and `opens` as required fields on each `ask` tool's definition, read
-   by the catalogue the way it reads a tool's name and flags, and on a record
-   beside the top-level command table. A command with no need does not
-   compile.
+1. The needs list as a required, non-empty field on each `ask` tool's
+   definition, read by the catalogue the way it reads a tool's name and flags,
+   and on a record beside the top-level command table. A command with no need
+   does not compile.
 2. The test over them: every need under `opens` is some command's need, or a
    gap marked with `it.todo`.
 3. Next moves on `symbol`, `uses`, `covering` and `select`, the tracer: each
-   tool's follow-up builder turns `opens` into commands filled in from its
+   tool's follow-up builder takes the entry the asked flags select and turns
+   its `opens` into commands filled in from its
    reading, as `orient`'s `followUps` does today, and `narrower` in
    `packages/help/src/tools/format.ts` prints them. For `covering` and
    `select`, top-level commands, the builder sits beside the command's own
