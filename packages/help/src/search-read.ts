@@ -1,13 +1,10 @@
 import { resolve } from 'node:path';
-import type { Tree } from '@variance-authority/mcp/tools';
 import type { Help } from '@variance-authority/package/help';
 import { sourceIndexPath } from '@variance-authority/sense';
 import { operatorError } from './operator.js';
 import { readWorkspace, readWorkspaceForAnswer, workspaceSnapshotPath, type AnsweringOptions } from './read.js';
 import type { SearchIndex } from './search-index.js';
 import { readSearchSnapshot, readSearchTree, readWorkspaceSnapshot, searchOf, workspaceSearchPath } from './snapshot.js';
-import { importingOf, type ImportingOf, showsPublished } from './tools/published-match.js';
-import { searchNames, type SearchQuestion } from './tools/search-answer.js';
 
 /** A search, and whether it was read from the checkout as it is now. */
 export interface SearchReading {
@@ -29,7 +26,7 @@ export interface SearchReading {
    * The value the search was written from, which the published rows shown are
    * counted against as `uses` counts them. Read when first asked for and kept:
    * opened beside a published search, it is the parse the search file exists to
-   * spare, so {@link countingShown} asks for it only for a row it counts.
+   * spare, so the shell asks for it only for a row it counts.
    */
   readonly value: () => Promise<ValueRead>;
 }
@@ -38,27 +35,6 @@ export interface SearchReading {
 export interface ValueRead {
   readonly help?: Help;
   readonly unopened?: Unopened;
-}
-
-/** What the published rows a search shows are counted with, and every published file that did not open. */
-export interface ShownCounting {
-  readonly importing?: ImportingOf;
-  readonly unopened?: readonly Unopened[];
-}
-
-/**
- * The counts for the rows `question` shows, as `uses` gives them, read from
- * the value only when one of those rows is published: a question that prints
- * none never opens it.
- */
-export async function countingShown(reading: SearchReading, question: SearchQuestion, tree: Tree | undefined, root: string | undefined): Promise<ShownCounting> {
-  // Named no checkout: `root` adds declared names and other sections, never a published row.
-  const opened = showsPublished(searchNames(reading.index, question, tree)) ? await reading.value() : {};
-  const unopened = [...(reading.unopened ?? []), ...(opened.unopened === undefined ? [] : [opened.unopened])];
-  return {
-    ...(opened.help === undefined ? {} : { importing: importingOf(opened.help, root) }),
-    ...(unopened.length === 0 ? {} : { unopened }),
-  };
 }
 
 /** A value already in hand, as {@link SearchReading.value} hands it over. */

@@ -287,13 +287,14 @@ const asSite = (site: PathSite): Site => ({ ...site.taken, how: how(site) });
 /**
  * The sites of the published declaration of `name` in `at`, the ones `uses`
  * lists when asked for that name and that file, and why the source index did
- * not read the imports within its package, when it did not. Of two
- * declarations of `at` that answer `name`, the row is the one an entry
- * publishes under it.
+ * not read the imports within its package, when it did not. The row's door,
+ * `name` imported from `specifier`, picks the declaration: two bindings of
+ * one file published under one name by two entries are two rows.
  */
-export function publishedSitesOf(help: Help, root: string | undefined, name: string, at: string): { readonly sites: readonly Site[]; readonly unread?: string } {
-  const inFile = publishedDeclarations(help, root, name, undefined).filter((one) => one.at === at);
-  const one = inFile.find((held) => held.doors.some(([, , entry]) => entry.name === name)) ?? inFile[0];
+export function publishedSitesOf(help: Help, root: string | undefined, name: string, at: string, specifier: string): { readonly sites: readonly Site[]; readonly unread?: string } {
+  const one = publishedDeclarations(help, root, name, undefined).find(
+    (held) => held.at === at && held.doors.some(([published, opening, entry]) => entry.name === name && specifierOf(published, opening) === specifier),
+  );
   if (one === undefined) return { sites: [] };
   const { sites, unread } = sitesOfPublished(help, root, name, undefined, one, sitesByPath(help, name, undefined));
   return unread === undefined ? { sites } : { sites, unread };

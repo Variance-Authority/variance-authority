@@ -94,6 +94,25 @@ describe('variance ask search counts the places that import a published name as 
     expect(greetRows(search.out)).toEqual(['@acme/lib · greet [function] imported in 2 places in 2 packages — UNDOCUMENTED']);
   });
 
+  it('counts each binding one file publishes under one name through two entries as its own declaration', async () => {
+    checkout({
+      'packages/pair/package.json': JSON.stringify({ name: '@acme/pair', exports: { './a': './src/a.ts', './b': './src/b.ts' } }),
+      'packages/pair/src/both.ts': 'export function loud(name: string): string {\n  return name;\n}\nexport function soft(name: string): string {\n  return name;\n}\n',
+      'packages/pair/src/a.ts': "export { loud as greet } from './both.js';\n",
+      'packages/pair/src/b.ts': "export { soft as greet } from './both.js';\n",
+      'apps/app/src/first.ts': "import { greet } from '@acme/pair/a';\nexport const first = greet('first');\n",
+      'apps/app/src/second.ts': "import { greet } from '@acme/pair/a';\nexport const second = greet('second');\n",
+      'apps/app/src/third.ts': "import { greet } from '@acme/pair/b';\nexport const third = greet('third');\n",
+    });
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+
+    const search = await run(['ask', 'search', '--query', 'greet']);
+    expect(greetRows(search.out).filter((row) => row.startsWith('@acme/pair'))).toEqual([
+      '@acme/pair/a · greet [function] imported in 2 places in 1 package — UNDOCUMENTED',
+      '@acme/pair/b · greet [function] imported in 1 place in 1 package — UNDOCUMENTED',
+    ]);
+  });
+
   it('carries the count as data', async () => {
     checkout(FIVE_WITHIN);
     expect((await run(['index'])).code).toBe(EXIT_CLEAN);

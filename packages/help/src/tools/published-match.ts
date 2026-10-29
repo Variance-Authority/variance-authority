@@ -56,8 +56,8 @@ export interface Counting {
 export function counting(importingOf: ImportingOf): Counting {
   let unread: string | undefined;
   return {
-    of: (name, at) => {
-      const one = importingOf(name, at);
+    of: (name, at, specifier) => {
+      const one = importingOf(name, at, specifier);
       unread ??= one.unread;
       return one;
     },
@@ -82,7 +82,7 @@ export interface ImportingOne {
 }
 
 /** The count for the published declaration of `name` in the file `at`. */
-export type ImportingOf = (name: string, at: string) => ImportingOne;
+export type ImportingOf = (name: string, at: string, specifier: string) => ImportingOne;
 
 /**
  * The count `uses` gives for a published declaration when asked for its name
@@ -91,11 +91,11 @@ export type ImportingOf = (name: string, at: string) => ImportingOne;
  */
 export function importingOf(help: Help, root: string | undefined): ImportingOf {
   const read = new Map<string, ImportingOne>();
-  return (name, at) => {
-    const key = `${at}\0${name}`;
+  return (name, at, specifier) => {
+    const key = `${specifier}\0${name}`;
     let one = read.get(key);
     if (one === undefined) {
-      const { sites, unread } = publishedSitesOf(help, root, name, at);
+      const { sites, unread } = publishedSitesOf(help, root, name, at, specifier);
       read.set(key, (one = { importing: importingIn(sites), ...(unread === undefined ? {} : { unread }) }));
     }
     return one;

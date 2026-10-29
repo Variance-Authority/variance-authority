@@ -1,11 +1,11 @@
 #!/usr/bin/env node
 import { relative } from 'node:path';
 import type { Tree } from '@variance-authority/mcp/tools';
-import { ask, askSearch, askSearchJson, inputFrom, invocationOf, toolNamed, verbs } from './ask.js';
+import { ask, askSearch, askSearchJson, countingShown, inputFrom, invocationOf, toolNamed, verbs } from './ask.js';
 import { caughtUp, foundNothingAnswer, snapshotLine } from './caught-up.js';
 import { readWorkspaceForAnswer, workspaceGeneration } from './read.js';
 import { readNamedTree } from './names-read.js';
-import { countingShown, readSearchForAnswer } from './search-read.js';
+import { readSearchForAnswer } from './search-read.js';
 import { discover } from './tools/discover.js';
 import { intersection, namesWanted } from './tools.js';
 import { search, searchQuestionOf } from './tools/search.js';

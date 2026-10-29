@@ -257,7 +257,7 @@ function published(index: SearchIndex, hits: readonly Hit[], count: number, impo
   const order = surfaceOrder(index);
   const page = first(hits, count, order).map((hit) => {
     const entry = index.published(hit.row);
-    const importedIn = importingOf?.(entry.name, entry.at).importing;
+    const importedIn = importingOf?.(entry.name, entry.at, entry.specifier).importing;
     return { entry, importedIn, hit: importedIn === undefined ? hit : { ...hit, usedBy: importedIn.packages, uses: importedIn.places } };
   });
   if (importingOf !== undefined) page.sort((a, b) => order(a.hit, b.hit));

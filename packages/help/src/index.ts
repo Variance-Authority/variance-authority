@@ -40,7 +40,8 @@ export {
 export type { AnsweringOptions, ReadingOptions, SnapshotOptions } from './read.js';
 export { publishWorkspaceFromIndex, type FromIndexOptions } from './refresh-native.js';
 export { readNamedTree, type NamedTree } from './names-read.js';
-export { countingShown, readSearchForAnswer, unopenedLine, type SearchReading, type ShownCounting, type Unopened, type ValueRead } from './search-read.js';
+export { countingShown, type ShownCounting } from './ask.js';
+export { readSearchForAnswer, unopenedLine, type SearchReading, type Unopened, type ValueRead } from './search-read.js';
 export type { SearchIndex } from './search-index.js';
 export { serveWorkspace } from './server.js';
 export type { WorkspaceOptions } from './server.js';
