@@ -14,10 +14,10 @@
  * text is laid onto the rows' cut by the rule a run's recorded module takes the
  * held cases by ({@link laidOn}): through the edit between the two texts, where
  * a region the edit touched, or one the re-cut bore, keeps the cases of its own
- * region or of the region around it only when the edit's reading spares its
- * kind. A module none of whose cases land leaves the
- * index, as one no run kept cases of is absent from it, rather than standing at
- * lines no text holds. A module whose index already stands at the rows' lines, as one a
+ * region or of the region around it: as they ran where the edit's reading
+ * spares its kind, and as overwritten elsewhere. A module none of whose cases
+ * land or are overwritten leaves the index, as one no run kept cases of is
+ * absent from it, rather than standing at lines no text holds. A module whose index already stands at the rows' lines, as one a
  * run recorded does, is carried as it is.
  */
 
