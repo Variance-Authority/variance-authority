@@ -173,6 +173,9 @@ describe('the text a snapshot recorded each held file from', () => {
         'src/two.ts': { frame: 'stale' },
       });
       expect(placed.get('src/two.ts')).not.toHaveProperty('recorded');
+      // No held line is a recorded one where the numbering text is not found, so neither a range nor a line is placed.
+      const stale = placed.get('src/two.ts')!;
+      expect([stale.place({ startLine: 1, endLine: 2 }), stale.recordedLine(1)]).toEqual([undefined, undefined]);
       expect(placeInText(snapshot, root, 'src/pay.ts', HELD)?.recorded).toBe(RAN);
     });
   });
