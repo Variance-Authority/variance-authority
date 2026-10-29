@@ -31,9 +31,11 @@ export interface OverwrittenOn {
  */
 export function overwrittenIn(index: ExecutionIndex, blocks: readonly ExecutionBlock[]): readonly ExecutionTest[] | undefined {
   const tests = flaggedIn(blocks);
-  return tests.length === 0 ? undefined : tests.map((test) => caseAt(index, test));
+  return tests.length === 0 ? undefined : tests.map((test) => index.tests[test]!);
 }
 
+// A flagged crossing names a case the index holds: only the set spelling
+// carries the flag, and its reader refuses a set naming any other.
 function flaggedIn(blocks: readonly ExecutionBlock[]): readonly number[] {
   const called = new Set<number>();
   const flagged = new Set<number>();
@@ -63,15 +65,9 @@ export function overwrittenOn(
   if (flagged.size === 0) return undefined;
   const holds = (crossing: ExecutionCrossing): boolean => crossing.overwritten === true && flagged.has(crossing.test);
   return {
-    tests: [...flagged].map((test) => caseAt(index, test)),
+    tests: [...flagged].map((test) => index.tests[test]!),
     regions: blocks
       .filter((block) => block.source && block.crossings.some(holds))
       .map(({ kind, name, startLine, endLine }) => ({ kind, name, startLine, endLine })),
   };
-}
-
-function caseAt(index: ExecutionIndex, test: number): ExecutionTest {
-  const found = index.tests[test];
-  if (found === undefined) throw new Error(`invalid execution index: test ${test} does not exist`);
-  return found;
 }
