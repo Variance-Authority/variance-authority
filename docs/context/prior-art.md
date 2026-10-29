@@ -403,11 +403,13 @@ declare only what no owner knows.**
 an agent should be told before it edits. Built from an AST code-to-test graph
 with weighted impact analysis, it hands the agent the tests a change is most
 likely to break, and the agent reads them with `grep` and runs them with
-`pytest`. On 100 SWE-bench Verified instances it cut test-level regressions
-from 6.08% to 1.82%. Telling the same agent to work test-first, with no tests
-named, raised them to 9.94%, worse than saying nothing. Their conclusion is that
-naming which tests to check does more than prescribing how to work. The samples
-are small and the model is local, and it is a preprint. For us, it means
+`pytest`. On 100 SWE-bench Verified instances with a quantized Qwen3-Coder
+30B, the test-first instructions plus the named tests cut test-level regressions
+from 6.08% under a plain prompt to 1.82%. The test-first instructions alone, with
+no tests named, raised them to 9.94%, worse than saying nothing. Their
+conclusion is that naming which tests to check does more than prescribing how
+to work. The samples are small, the model is local, a second model on 25
+instances regressed nothing in either arm, and it is a preprint. For us, it means
 an answer names the facts and the questions they open, and never a procedure
 ([spec 0105](../specs/0105-a-need-names-its-next-move.md)).
 
