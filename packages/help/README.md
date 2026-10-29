@@ -158,9 +158,11 @@ packages/core/src/format/environment.ts:98 — readonly colorScheme: 'light' | '
 
 ## The questions
 
-Ranking is one number: how many packages in the repository import the name. A
+Ranking counts the other packages that import the name by a published path: a
 frequently imported name leads; a name nothing outside its own package imports
-stays available without taking space from the first answer.
+stays available without taking space from the first answer. A `search` row is
+labelled with every place that imports it and the packages those places sit in,
+and the rows on a page are reordered by that label.
 
 | verb / tool | takes | answers |
 |---|---|---|
@@ -270,8 +272,9 @@ a word that was written stays exactly as short as it was. It obeys `from` and
 can find a name you did not type and never a file you ruled out. A name its file
 declares and does not export is reached the same way, after every exported one.
 
-Inside it the order is the order above — by how many packages import the name,
-then by name. Membership is the only decision the looser reading makes, because
+Inside it the order is the order above — by the other packages that import the
+name by a published path, then within the page by the places and packages its
+label counts, then by name. Membership is the only decision the looser reading makes, because
 you can check why a name is on a list and can only trust where it sits on one.
 
 ### Where the declaration is undocumented

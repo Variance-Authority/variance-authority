@@ -257,7 +257,9 @@ function published(index: SearchIndex, hits: readonly Hit[], count: number, impo
   const order = surfaceOrder(index);
   const page = first(hits, count, order).map((hit) => {
     const entry = index.published(hit.row);
-    const importedIn = importingOf?.(entry.name, entry.at, entry.specifier).importing;
+    const one = importingOf?.(entry.name, entry.at, entry.specifier);
+    // With the imports within its package unread, no place found proves nothing: the row keeps the counts by published path.
+    const importedIn = one === undefined || (one.unread !== undefined && one.importing.places === 0) ? undefined : one.importing;
     return { entry, importedIn, hit: importedIn === undefined ? hit : { ...hit, usedBy: importedIn.packages, uses: importedIn.places } };
   });
   if (importingOf !== undefined) page.sort((a, b) => order(a.hit, b.hit));

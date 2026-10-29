@@ -159,6 +159,19 @@ describe('variance ask search counts the places that import a published name as 
     expect(out).toMatch(/^Imports that do not name a package path are not counted: .*run `variance index`\.$/mu);
   });
 
+  it('says only what the counts by published path prove of a name no place was found to import while the source index does not read', async () => {
+    const root = checkout({
+      'packages/lib/src/index.ts': "export { greet } from './greet.js';\nexport { toneQuiet } from './tone.js';\n",
+      'packages/lib/src/tone.ts': 'export const toneQuiet = 2;\n',
+      'packages/lib/src/quiet.ts': "import { toneQuiet } from './tone.js';\nexport const quiet = toneQuiet;\n",
+    });
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+    writeFileSync(sourceIndexPath(root), 'not a source index');
+
+    const { out } = await run(['ask', 'search', '--query', 'tone']);
+    expect(out.split('\n').filter((line) => / · toneQuiet \[/u.test(line))).toEqual(['@acme/lib · toneQuiet [const] no other package imports it by its published path — UNDOCUMENTED']);
+  });
+
   it('reads no value for a question whose rows include no published name', async () => {
     const root = checkout();
     expect((await run(['index'])).code).toBe(EXIT_CLEAN);
