@@ -1,37 +1,29 @@
-import { execFile } from 'node:child_process';
-import { mkdtemp, readdir, readFile, realpath, rm, utimes, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { promisify } from 'node:util';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
   caseSectionsAt,
   commitRunsFile,
-  declaredSuites,
   encodeAsSetExecutionIndex,
   landRun,
   readCommitRuns,
   readOwnLayer,
   readTestCoverage,
   recordedEyesAt,
-  seedTestCoverage,
-  testCoverageFile,
   whatLanded,
   withCaseSections,
-  writeTestCoverage,
   type TestCoverage,
 } from '@variance-authority/sense/test-selection';
 import { digestString } from '@variance-authority/core/format';
-import type { Env } from '../share-lines.js';
 import { readFlags } from '../args.js';
 import { parseCoveringArgs } from '../covering-args.js';
 import { flagsFor, synopsisFor } from '../usage.js';
 import { checkoutRead } from './checkout-read.js';
 import { covering } from './covering.js';
-import { BEFORE, collectedBoth, DISCOUNTS, gitPublished, probedModule, PUSH, ranWhole, recordIn, ROUNDS } from './mainline-fixture.js';
-import { mainlineBase } from './mainline-base.js';
+import { BEFORE, DISCOUNTS, probedModule, ROUNDS } from './mainline-fixture.js';
+import { git, laidWorktree, LOCAL, publishedNext, ranAlone, refetch } from './milestone-pin.fixture.js';
 import { suiteBase } from './suite-base.js';
-import { publishSuite } from './suite-share.js';
 
 /**
  * Spec 0090 item 1: the milestone under a checkout is pinned, never written,
@@ -39,8 +31,6 @@ import { publishSuite } from './suite-share.js';
  * not run itself.
  */
 
-const run = promisify(execFile);
-const LOCAL: Env = {};
 let home: string;
 
 beforeEach(async () => {
@@ -53,73 +43,6 @@ afterEach(async () => {
   await rm(home, { recursive: true, force: true });
 });
 
-async function git(at: string, ...args: string[]): Promise<string> {
-  return (await run('git', ['-c', 'user.email=fixture@example.test', '-c', 'user.name=Fixture', ...args], { cwd: at })).stdout.trim();
-}
-
-/** A laptop worktree at the mainline's first published commit, its record laid from it. */
-async function laidWorktree(): Promise<{ ci: string; first: string; worktree: string; own: string }> {
-  const { ci, origin, first } = await gitPublished(home);
-  const primary = join(home, 'clone');
-  await git(home, 'clone', '--quiet', origin, primary);
-  process.env['VARIANCE_AUTHORITY_CACHE'] = join(home, 'laptop-cache');
-  const worktree = join(home, 'feature');
-  await git(primary, 'worktree', 'add', '--quiet', '--detach', worktree);
-  expect(await suiteBase(worktree, { env: LOCAL })).toMatchObject({ from: 'mainline', mainline: { commit: first } });
-  const own = testCoverageFile(worktree, { suite: 'unit' });
-  expect(await seedTestCoverage(own, worktree, 'fixture')).toMatchObject({ from: 'mainline' });
-  return { ci, first, worktree, own };
-}
-
-/** CI pushes one more commit to main and publishes a whole run there, in which both test files run `applyDiscount`. */
-async function publishedNext(ci: string, sections?: (record: string) => Promise<void>): Promise<string> {
-  const laptop = process.env['VARIANCE_AUTHORITY_CACHE'];
-  process.env['VARIANCE_AUTHORITY_CACHE'] = join(home, 'ci-cache');
-  await git(ci, 'commit', '--quiet', '--allow-empty', '-m', 'next');
-  const next = await git(ci, 'rev-parse', 'HEAD');
-  await git(ci, 'push', '--quiet', 'origin', 'main');
-  await recordIn(ci, next, ['test/other.test.ts', 'test/total.test.ts'], [DISCOUNTS]);
-  // A record opened whole, as a run writes one: the module's first block is the module.
-  await writeTestCoverage(testCoverageFile(ci, { suite: 'unit' }), {
-    version: 3,
-    instrumentation: 'fixture',
-    commit: next,
-    tests: [
-      { file: 'test/other.test.ts', complete: true, preconditions: [] },
-      { file: 'test/total.test.ts', complete: true, preconditions: [] },
-    ],
-    modules: [{
-      file: 'src/total.ts',
-      sourceDigest: digestString(BEFORE),
-      instrumented: true,
-      blocks: [{
-        ordinal: 0, kind: 'module', digest: digestString('module'), name: '', path: 'module',
-        startLine: 1, endLine: 3, source: true, testFiles: ['test/other.test.ts', 'test/total.test.ts'],
-      }],
-    }],
-  });
-  await ranWhole(testCoverageFile(ci, { suite: 'unit' }), next);
-  await sections?.(testCoverageFile(ci, { suite: 'unit' }));
-  const done = await publishSuite(ci, 'unit', { env: PUSH }, { collected: await collectedBoth(home) });
-  if (!('published' in done)) throw new Error(`the record was to reach mainline main: ${JSON.stringify(done)}`);
-  process.env['VARIANCE_AUTHORITY_CACHE'] = laptop;
-  return next;
-}
-
-/** A run of `file` at `commit` that entered one module the fixture's source does not hold. */
-function ranAlone(commit: string, file: string): TestCoverage {
-  return { version: 3, instrumentation: 'fixture', commit, tests: [{ file, complete: true, preconditions: [] }], modules: [probedModule([file])] };
-}
-
-async function refetch(worktree: string, commit: string): Promise<void> {
-  // The share's line was read within the minute a reader reuses it for.
-  const cache = join(home, 'laptop-cache');
-  const markers = (await readdir(cache, { recursive: true })).filter((path) => path.includes('variance-fetched'));
-  await Promise.all(markers.map((path) => utimes(join(cache, path), 0, 0)));
-  const declared = declaredSuites(worktree)?.find((one) => one.name === 'unit');
-  expect(await mainlineBase(worktree, declared, { env: LOCAL, refetch: true })).toMatchObject({ commit });
-}
-
 /**
  * A checkout at the mainline's next commit whose two tests ran there over one
  * uncommitted lockfile, in two working states: `total` over the lockfile
@@ -128,8 +51,8 @@ async function refetch(worktree: string, commit: string): Promise<void> {
  * stand where they ran, on the install they ran on.
  */
 async function standingOverTwoStates(): Promise<{ worktree: string; own: string; next: string; installed: Record<string, string> }> {
-  const { ci, worktree, own } = await laidWorktree();
-  const next = await publishedNext(ci);
+  const { ci, worktree, own } = await laidWorktree(home);
+  const next = await publishedNext(home, ci);
   await git(worktree, 'fetch', '--quiet', 'origin');
   await git(worktree, 'checkout', '--quiet', '--detach', next);
   const lock = '{ "lockfileVersion": 3, "packages": {} }\n';
@@ -175,7 +98,7 @@ function crossers(record: TestCoverage): readonly string[] {
 
 describe('the milestone under a checkout', () => {
   it('is never written by a local run, and the ledger lists exactly the tests that ran here', async () => {
-    const { first, worktree, own } = await laidWorktree();
+    const { first, worktree, own } = await laidWorktree(home);
     const milestone = join(home, 'laptop-cache', 'share', 'read', 'unit', first, 'coverage.bin');
     const fetched = await readFile(milestone);
 
@@ -190,15 +113,15 @@ describe('the milestone under a checkout', () => {
   });
 
   it('moves to a newer snapshot HEAD contains: untouched tests read it, a test run over it keeps its own row', async () => {
-    const { ci, first, worktree, own } = await laidWorktree();
+    const { ci, first, worktree, own } = await laidWorktree(home);
     // Over the old milestone, so the new one answers for it.
     await landRun(own, ranAlone(first, 'test/other.test.ts'), worktree);
-    const next = await publishedNext(ci);
+    const next = await publishedNext(home, ci);
     await git(worktree, 'fetch', '--quiet', 'origin');
     await git(worktree, 'checkout', '--quiet', '--detach', next);
     await landRun(own, ranAlone(next, 'test/total.test.ts'), worktree);
     expect(crossers(await readTestCoverage(own))).toEqual([]);
-    await refetch(worktree, next);
+    await refetch(home, worktree, next);
 
     const base = await suiteBase(worktree, { env: LOCAL });
 
@@ -220,11 +143,11 @@ describe('the milestone under a checkout', () => {
   });
 
   it('answers a test file standing at the new milestone over the text the publishing run ran it over, when that run landed', async () => {
-    const { ci, first, worktree, own } = await laidWorktree();
+    const { ci, first, worktree, own } = await laidWorktree(home);
     await landRun(own, ranAlone(first, 'test/total.test.ts'), worktree);
     // CI ran both test files over an uncommitted text of `src/total.ts`, which its landing kept the digest of,
     // and `discounts` entered `applyDiscount` there.
-    const next = await publishedNext(ci, async (record) => {
+    const next = await publishedNext(home, ci, async (record) => {
       const runs = JSON.parse(await readFile(commitRunsFile(record), 'utf8')) as { landings: Record<string, unknown>[] };
       const texts = { 'src/total.ts': digestString(`${BEFORE}// on CI\n`) };
       await writeFile(commitRunsFile(record), JSON.stringify({ ...runs, landings: runs.landings.map((landing) => ({ ...landing, texts })) }));
@@ -236,7 +159,7 @@ describe('the milestone under a checkout', () => {
     await git(worktree, 'fetch', '--quiet', 'origin');
     await git(worktree, 'checkout', '--quiet', '--detach', next);
     await landRun(own, ranAlone(next, 'test/other.test.ts'), worktree);
-    await refetch(worktree, next);
+    await refetch(home, worktree, next);
     expect(await suiteBase(worktree, { env: LOCAL })).toMatchObject({ repin: { repinned: true, to: next, dropped: ['test/total.test.ts'] } });
 
     const argv = ['--file', 'src/total.ts', '--root', worktree, '--suite', 'unit'];
@@ -249,8 +172,8 @@ describe('the milestone under a checkout', () => {
   });
 
   it('drops the install of a runs record it moves to the snapshot\'s commit, which that install was not measured against', async () => {
-    const { ci, first, worktree, own } = await laidWorktree();
-    const next = await publishedNext(ci);
+    const { ci, first, worktree, own } = await laidWorktree(home);
+    const next = await publishedNext(home, ci);
     await git(worktree, 'fetch', '--quiet', 'origin');
     await git(worktree, 'checkout', '--quiet', '--detach', next);
     await landRun(own, ranAlone(next, 'test/total.test.ts'), worktree);
@@ -259,7 +182,7 @@ describe('the milestone under a checkout', () => {
     const held = JSON.parse(await readFile(runs, 'utf8')) as { landings: Record<string, unknown>[] };
     const installed = { 'package-lock.json': digestString('measured at the old commit') };
     await writeFile(runs, JSON.stringify({ ...held, commit: first, landings: held.landings.map((landing) => ({ ...landing, installed })) }));
-    await refetch(worktree, next);
+    await refetch(home, worktree, next);
 
     expect(await suiteBase(worktree, { env: LOCAL })).toMatchObject({ repin: { repinned: true } });
 
@@ -270,8 +193,8 @@ describe('the milestone under a checkout', () => {
   });
 
   it('keeps the install a standing test ran on when it moves to a newer snapshot', async () => {
-    const { ci, worktree, own } = await laidWorktree();
-    const next = await publishedNext(ci);
+    const { ci, worktree, own } = await laidWorktree(home);
+    const next = await publishedNext(home, ci);
     await git(worktree, 'fetch', '--quiet', 'origin');
     await git(worktree, 'checkout', '--quiet', '--detach', next);
     // Both tests run over a lockfile not yet committed; the bump is then
@@ -292,7 +215,7 @@ describe('the milestone under a checkout', () => {
     await landRun(own, ranAlone(bumped, 'test/total.test.ts'), worktree);
     const installed = { 'package-lock.json': digestString(lock) };
     expect(await readCommitRuns(own)).toMatchObject({ standing: [{ commit: next, files: ['test/other.test.ts'], installed }] });
-    await refetch(worktree, next);
+    await refetch(home, worktree, next);
 
     expect(await suiteBase(worktree, { env: LOCAL })).toMatchObject({ repin: { repinned: true, to: next } });
 
@@ -302,7 +225,7 @@ describe('the milestone under a checkout', () => {
   it('stands the tests that ran at one commit on one install in one entry per run, each with its own time', async () => {
     const { worktree, own, next } = await standingOverTwoStates();
     const ran = [...((await readCommitRuns(own))?.standing ?? [])].filter((entry) => entry.commit === next);
-    await refetch(worktree, next);
+    await refetch(home, worktree, next);
 
     expect(await suiteBase(worktree, { env: LOCAL })).toMatchObject({ repin: { repinned: true, to: next } });
 
@@ -329,7 +252,7 @@ describe('the milestone under a checkout', () => {
         { commit: next, files: ['test/total.test.ts'], installed: otherInstall },
       ],
     }));
-    await refetch(worktree, next);
+    await refetch(home, worktree, next);
 
     expect(await suiteBase(worktree, { env: LOCAL })).toMatchObject({ repin: { repinned: true, to: next } });
 
@@ -342,8 +265,8 @@ describe('the milestone under a checkout', () => {
   it('carries the Eyes journals of the cases it keeps: its own for the tests it ran, the newer snapshot\'s for the rest', async () => {
     const OTHER = { id: 'test/other.test.ts > other', file: 'test/other.test.ts', name: 'other' };
     const journal = (by: string) => ({ complete: true, attention: [], by });
-    const { ci, worktree, own } = await laidWorktree();
-    const next = await publishedNext(ci, async (record) => {
+    const { ci, worktree, own } = await laidWorktree(home);
+    const next = await publishedNext(home, ci, async (record) => {
       await writeFile(record, withCaseSections(await readFile(record), {
         index: encodeAsSetExecutionIndex({ tests: [DISCOUNTS, OTHER], modules: [] }),
         eyes: Buffer.from(`${JSON.stringify({
@@ -363,7 +286,7 @@ describe('the milestone under a checkout', () => {
       run: { tests: [{ file: 'test/total.test.ts', complete: true }], commit: next },
       eyes: { watched: [ROUNDS.id], journals: [{ case: ROUNDS.id, attempt: 1, journal: journal('here') }] },
     });
-    await refetch(worktree, next);
+    await refetch(home, worktree, next);
 
     expect(await suiteBase(worktree, { env: LOCAL })).toMatchObject({ repin: { repinned: true, kept: ['test/total.test.ts'] } });
 
@@ -379,15 +302,15 @@ describe('the milestone under a checkout', () => {
   });
 
   it('lays a newer snapshot whole when this checkout recorded under other probes', async () => {
-    const { ci, worktree, own } = await laidWorktree();
-    const next = await publishedNext(ci);
+    const { ci, worktree, own } = await laidWorktree(home);
+    const next = await publishedNext(home, ci);
     await git(worktree, 'fetch', '--quiet', 'origin');
     await git(worktree, 'checkout', '--quiet', '--detach', next);
     // A run is never laid over a record of other probes, so this one starts the
     // checkout's record afresh, as the record of a build under other probes.
     await rm(own);
     await landRun(own, { ...ranAlone(next, 'test/total.test.ts'), instrumentation: 'other probes' }, worktree);
-    await refetch(worktree, next);
+    await refetch(home, worktree, next);
 
     const base = await suiteBase(worktree, { env: LOCAL });
 
@@ -396,13 +319,13 @@ describe('the milestone under a checkout', () => {
   });
 
   it('is kept when the newer snapshot is of a commit HEAD does not contain', async () => {
-    const { ci, first, worktree, own } = await laidWorktree();
+    const { ci, first, worktree, own } = await laidWorktree(home);
     await landRun(own, ranAlone(first, 'test/total.test.ts'), worktree);
     const laid = await readFile(own);
-    const next = await publishedNext(ci);
+    const next = await publishedNext(home, ci);
     // Fetched, and not merged: the branch does not contain it.
     await git(worktree, 'fetch', '--quiet', 'origin');
-    await refetch(worktree, next);
+    await refetch(home, worktree, next);
 
     const base = await suiteBase(worktree, { env: LOCAL });
 
@@ -412,7 +335,7 @@ describe('the milestone under a checkout', () => {
   });
 
   it('names the tests that ran on another branch as such', async () => {
-    const { first, worktree, own } = await laidWorktree();
+    const { first, worktree, own } = await laidWorktree(home);
     await git(worktree, 'checkout', '--quiet', '-b', 'elsewhere');
     await git(worktree, 'commit', '--quiet', '--allow-empty', '-m', 'elsewhere');
     const elsewhere = await git(worktree, 'rev-parse', 'HEAD');
