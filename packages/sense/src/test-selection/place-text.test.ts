@@ -49,7 +49,6 @@ describe('which text of a file a run ran over', () => {
     expect(unknown({ commit: 'C' })).toEqual({ unknown: `the runs record does not say which text of ${FILE} its runs there ran over` });
     expect(unknown({ commit: 'F', texts: {} })).toEqual({ unknown: `this clone holds no committed text of ${FILE} where that run stood` });
     expect(unknown({ commit: 'F', texts: {} }, { ...evidence, repository: false })).toEqual({ unknown: `the checkout is in no git repository, so no committed text of ${FILE} can be read` });
-    expect(unknown({ texts: {} })).toEqual({ unknown: `that run stood at no commit, so no committed text of ${FILE} can be read` });
   });
 
   it('reads the snapshot\'s rows for the run that wrote a snapshot naming no commit', () => {

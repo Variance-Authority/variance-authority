@@ -69,12 +69,11 @@ export function ranOver(run: TestPlace, test: string, file: string, text: string
   }
   if (committed !== undefined) return digestString(committed) === digest ? 'held' : { text: committed };
   if (run.commit !== undefined && evidence.absent.get(run.commit)?.has(file) === true) return 'absent';
+  // A run outside a checkout names no texts (`ranOverTexts`), so one that names them stood at a commit.
   return {
-    unknown: run.commit === undefined
-      ? `that run stood at no commit, so no committed text of ${file} can be read`
-      : evidence.repository
-        ? `this clone holds no committed text of ${file} where that run stood`
-        : `the checkout is in no git repository, so no committed text of ${file} can be read`,
+    unknown: evidence.repository
+      ? `this clone holds no committed text of ${file} where that run stood`
+      : `the checkout is in no git repository, so no committed text of ${file} can be read`,
   };
 }
 
