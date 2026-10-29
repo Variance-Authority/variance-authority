@@ -34,8 +34,10 @@ under `No case ran a part of it`, as `unrun` in JSON (`kind`, the nested
 `name`, held-text lines, and `state`, `hole` or `unwalked`, when the record
 can tell) and `; no case ran 112 branch` in refs. They are read over every
 case, before `--where` or `--at-distance`, across the whole function, with the
-review's own reading, in each suite: a function the handover flags is answered
-here with the part to test.
+review's own reading, in each suite: a function the handover flags 🔴 is
+answered here with the part to test, and one it flags ❔, whose part a case ran
+in a text an edit wrote over, with the lines of that part no case called into
+in `overwritten`.
 
 The record holds a line no finer than its region does. A line whose edit
 charges the module's own region is held at file grain: a module-level

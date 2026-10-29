@@ -987,17 +987,18 @@ names the moved regions' cases by the numbers of its case table.
 variance review --since origin/main --format handover
 ```
 
-points to the coverage of the changed area as one folded
-`<details>` block for the pull request body. A review bot reads the body when
-the pull request opens, before any check has finished. A changed function gets
-a line when there is something to look at: 🔴 when part of it ran under no
-case, or has none in a record from before the change, 🔵 when the change wrote
-it and no case has run it yet; otherwise the review comment's mark for its
-furthest reached part: 🟡 far, 🟠 a distance not measured, ⚪ only while its
-module loaded. A reached line names how many cases and the first test file to
-open. A function every case reached from a test file that imports it is only
-counted. Absences come first; past twelve lines the rest are counted, and the
-block ends with the `variance covering` command that reads one file in full.
+points to the coverage of the changed area as one folded `<details>` block for
+the pull request body. A review bot reads the body when the pull request opens,
+before any check has finished. A changed function gets a line when there is
+something to look at: 🔴 when part of it ran under no case, or has none in a
+record from before the change, ❔ when a case ran part of it in a text an edit
+wrote over, so no case is known to have run it, 🔵 when the change wrote it and
+no case has run it yet; otherwise the review comment's mark for its furthest
+reached part: 🟡 far, 🟠 a distance not measured, ⚪ only while its module loaded.
+A reached line names how many cases and the first test file to open. A function
+every case reached from a test file that imports it is only counted. Absences
+come first; past twelve lines the rest are counted, and the block ends with the
+`variance covering` command that reads one file in full.
 Every declared suite is read, and when more than one is, each line names its
 suite; a suite whose record cannot be read is named with the reason, and one
 named with `--suite` fails instead. When a suite ran on the change, the runs
@@ -1060,11 +1061,13 @@ Each part comes from the party that owns the answer:
   file that is not source, such as `config.json`, is counted as not a module.
 - **Changed regions** counts each changed function or branch by the tests that
   covered it. When the only tests that ran a region are further than one import
-  from its file, a failure there points at code the test never names. A branch
-  inside an uncovered function is counted once, with the function;
-  `--format json` keeps every region. Each region is new, modified or moved:
-  new when the change wrote every line of it, moved when those lines are text
-  the diff removed, from that file or another, and modified otherwise.
+  from its file, a failure there points at code the test never names. A region a
+  case ran only in a text an edit wrote over is counted on its own line: no case
+  is known to have covered it. A branch inside an uncovered function is counted
+  once, with the function; `--format json` keeps every region. Each region is
+  new, modified or moved: new when the change wrote every line of it, moved when
+  those lines are text the diff removed, from that file or another, and modified
+  otherwise.
 - **Cases** added and removed are read from the case index, per test file.
 - **Before any import** names changed files the test runner loads before any
   test, such as its config, or declares in `preconditions`, and how many test
@@ -1170,21 +1173,22 @@ GitHub's merge of it, so the comment names the pull request's head, the merge
 it was tested as, and says it describes an earlier commit once the head moves
 on. Each changed place links to its lines at that commit.
 
-When the changed functions sit in more than one package, the verdict is
-followed by **Where this change lands**: one row a package, as its nearest
-`package.json` names it, with its changed functions counted by mark, how many
-of them hold code no case ran, the packages whose tests ran them (`own` for its
-own), and how many other packages import its changed files through any number
-of imports, type-only ones included. A function is counted under the mark the
-table of what ran gives it, for the nearest test that entered it, so a function
-a case entered is never counted under 🔴; a branch in it no case ran is counted
-in the next column, beside the functions no case entered. Packages with code no
-case ran come first, then those with the most functions no test importing their
-file ran. The table stays within 10 rows in a repository of any size: past
-that, the packages whose every changed function a test importing its file ran,
-in full, are folded into one row, and the packages that do not fit above it
-into another. `review.json` lists every package under
-`changedPackages`.
+When the changed functions sit in more than one package, the verdict is followed
+by **Where this change lands**: one row a package, as its nearest `package.json`
+names it, with its changed functions counted by mark, how many of them hold code
+no case ran, how many of the rest hold code no case is known to have run, a
+column shown only when one does, the packages whose tests ran them (`own` for
+its own), and how many other packages import its changed files through any
+number of imports, type-only ones included. A function is counted under the mark
+the table of what ran gives it, for the nearest test that entered it, so a
+function a case entered is never counted under 🔴; a branch in it no case ran is
+counted in the next column, beside the functions no case entered. Packages with
+code no case ran come first, then those with code no case is known to have run,
+then those with the most functions no test importing their file ran. The table
+stays within 10 rows in a repository of any size: past that, the packages whose
+every changed function a test importing its file ran, in full, are folded into
+one row, and the packages that do not fit above it into another. `review.json`
+lists every package under `changedPackages`.
 
 Changed functions are listed in one table: how the edit wrote each (new,
 modified, or moved and from where), the cases that entered it, and the cases
@@ -1203,10 +1207,12 @@ compared, and counts the rest.
 Under the table, folded, the changed functions are drawn as a Mermaid diagram,
 those no case ran included: each under its file, coloured by how near the
 nearest case that ran it is, with its edit and both counts, and an edge from
-each test file whose cases called into it. A red function with no edge is one
-no case ran. The diagram draws 24 functions, those no case ran first, then
-those a file only loaded, then those furthest from their nearest case, and the
-8 test files that reach the most of them, and counts the rest.
+each test file whose cases called into it. A red function with no edge is one no
+case ran; a ❔ function is one a case ran in a text an edit wrote over, so no
+case is known to have run it. The diagram draws 24 functions, those no case ran
+first, then those no case is known to have run, then those a file only loaded,
+then those furthest from their nearest case, and the 8 test files that reach the
+most of them, and counts the rest.
 
 GitHub rejects a comment longer than 65,536 characters, so a longer markdown
 review is cut at a line break before that length, and its last line gives the
