@@ -14,6 +14,7 @@ import { MINUTE, PAY, indexOf, iso, oneRun, recordFixture, type Fixture } from '
  */
 
 const { checkout, ask } = recordFixture();
+const cwd = process.cwd();
 /** The runs record of one run at the record's commit that finished `src/pay.test.ts` six minutes ago, over `texts` off the commit. */
 const ranHere = (texts: Record<string, string> = {}): Fixture['runs'] =>
   (_, recorded) => ({ commit: recorded, ...oneRun(iso(Date.now() - 6 * MINUTE), ['src/pay.test.ts'], texts) });
@@ -171,6 +172,22 @@ describe('a covering answer says where the record\'s line numbers stand in the a
     expect(held.text).not.toContain('numbered in');
     expect(edited.json).toMatchObject({ at: commit, frame: 'mapped' });
     expect(edited.text).toContain('The recorded lines of src/pay.ts are placed in its text as it is now.\n');
+  });
+
+  it('refuses a change it cannot read from the ref when the record names no commit to read it from, rather than saying nothing changed', async () => {
+    const { at } = await checkout({ recordedAt: null });
+    const refusal = '`--since no-such-ref` could not be read as a diff. Check the ref exists and that this is a git checkout; ' +
+      'an empty answer here would read as `your change touches nothing`.';
+    // `git` reads the change from the working directory, as it does for a person asking in their checkout.
+    process.chdir(at);
+    try {
+      const { text, json } = await ask(at, '--since', 'no-such-ref');
+
+      expect(json).toEqual({ suite: 'unit', kind: 'unit', reason: refusal });
+      expect(text).toBe(`unit (unit): ${refusal}\n`);
+    } finally {
+      process.chdir(cwd);
+    }
   });
 
   it('says the record\'s lines are its own when the file is not on disk', async () => {
