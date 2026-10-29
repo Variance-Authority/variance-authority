@@ -156,6 +156,49 @@ describe('ranText', () => {
     ]);
   });
 
+  it('names the files a part ran over as they are now when it was judged on fewer than every asked file', () => {
+    const answer = {
+      changed: [{ file: 'src/pay.ts' }, { file: 'src/fee.ts' }],
+      ran: { stands: [
+        { commit: 'a', tests: ['src/pay.test.ts'], cases: ['charges'], landed: landed(3 * HOUR), text: 'held' },
+        { commit: 'a', tests: ['src/pay.test.ts'], cases: ['refunds'], landed: landed(HOUR), files: ['src/pay.ts'], text: 'held' },
+      ] },
+    } as unknown as Covering;
+    expect(ranText(answer, NOW)).toEqual([
+      "src/pay.test.ts ran 'refunds' over the text of src/pay.ts as it is now, in a run that landed 1 hour ago, and its 1 other case named here over these texts, in a run that landed 3 hours ago.",
+    ]);
+  });
+
+  it('dates each part alone when no text was held to compare', () => {
+    const ran: CoveringRan = { stands: [
+      { commit: 'a', tests: ['src/pay.test.ts'], cases: ['charges'], landed: landed(3 * HOUR) },
+      { commit: 'a', tests: ['src/pay.test.ts'], cases: ['refunds'], landed: landed(30 * MINUTE) },
+    ] };
+    expect(ranText(of(ran, { unheld: true }), NOW)).toEqual([
+      "src/pay.test.ts ran 'refunds' in a run that landed 30 minutes ago, and its 1 other case named here in a run that landed 3 hours ago.",
+    ]);
+  });
+
+  it('says of a part that ran another text that the asked function is not in the file as it is now, or why whether it differs is not known', () => {
+    const unplaced = { unknown: "the record's lines of src/pay.ts are not placed in its text as it is now" };
+    const ran: CoveringRan = { stands: [
+      { commit: 'a', tests: ['src/pay.test.ts'], cases: ['charges'], landed: landed(3 * HOUR), text: 'other', other: ['src/pay.ts'], region: unplaced },
+      { commit: 'a', tests: ['src/pay.test.ts'], cases: ['refunds'], landed: landed(HOUR), text: 'other', other: ['src/pay.ts'], region: 'gone' },
+    ] };
+    expect(ranText(of(ran, { target: { function: 'pay' } }), NOW)).toEqual([
+      "src/pay.test.ts ran 'refunds' over another text of src/pay.ts, in a run that landed 1 hour ago, though `pay` is not in src/pay.ts as it is now, " +
+      "and its 1 other case named here over another text of src/pay.ts, in a run that landed 3 hours ago, in which whether `pay` differs is not known, since the record's lines of src/pay.ts are not placed in its text as it is now.",
+    ]);
+    const lines: CoveringRan = { stands: [
+      { commit: 'a', tests: ['src/pay.test.ts'], cases: ['charges'], landed: landed(3 * HOUR), text: 'other', other: ['src/pay.ts'], region: unplaced },
+      { commit: 'a', tests: ['src/pay.test.ts'], cases: ['refunds'], landed: landed(HOUR), text: 'held' },
+    ] };
+    expect(ranText(of(lines, { target: { lines: { startLine: 2, endLine: 4 } } }), NOW)).toEqual([
+      "src/pay.test.ts ran 'refunds' over this text, in a run that landed 1 hour ago, " +
+      "and its 1 other case named here over another text of src/pay.ts, in a run that landed 3 hours ago, in which whether lines 2-4 differ is not known, since the record's lines of src/pay.ts are not placed in its text as it is now.",
+    ]);
+  });
+
   it('says how many of the test files were placed by assumption, after the lines it dates', () => {
     const one: CoveringRan = { stands: [{ commit: 'a', assumed: true, tests: ['src/pay.test.ts'], text: 'held' }], assumed: 'no runs record lies beside the snapshot' };
     expect(ranText(of(one), NOW)).toEqual([
