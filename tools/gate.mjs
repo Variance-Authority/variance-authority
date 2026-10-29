@@ -1,18 +1,19 @@
 /**
- * The verification gate an agent's push passes: `node tools/gate.mjs stamp
- * <wave>` after a green wave, and `node tools/gate.mjs hook` as the Claude Code
- * `PreToolUse` hook on Bash.
+ * The verification gate on an agent's push: `node tools/gate.mjs stamp <wave>`
+ * ends `yarn verify:near` and `yarn verify:rules`, and `node tools/gate.mjs
+ * pre-push` is the git `pre-push` hook in `tools/git-hooks`, which `yarn
+ * install` sets as `core.hooksPath`.
  *
  * `stamp` records that a wave passed on the tree `HEAD` holds, in the
  * checkout's own git directory, so nothing tracked moves and each worktree
  * keeps its own. A tree with uncommitted changes is not stamped: the wave ran
- * on something no commit holds, and it says so.
+ * on something no commit holds. A stamp is a record the wave scripts write,
+ * not proof: anyone can write the file, and the gate guards the workflow, not
+ * against an author who means to skip it. CI is the proof.
  *
- * `hook` reads the tool call from stdin. A `git push` of a branch other than
- * `main`, or a `gh pr create`, from a checkout of this repository is refused
- * with exit 2 until `near` and `rules` are stamped on its `HEAD`. Whether the
- * change should exist at all is CI's `idea` step, which reads the issue the
- * pull request closes; this gate only says the waves ran.
+ * `pre-push` reads the refs git is about to push and refuses, with exit 1,
+ * every pushed commit whose tree lacks a `near` or `rules` stamp — the commit
+ * pushed, whichever branch is checked out. A deletion and a tag are not asked.
  */
 
 import { execFileSync } from 'node:child_process';
@@ -21,90 +22,59 @@ import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const WAVES = ['near', 'rules'];
+const ABSENT = /^0+$/;
 
-const git = (dir, ...args) =>
-  execFileSync('git', ['-C', dir, ...args], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
+const git = (...args) =>
+  execFileSync('git', args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
 
-const stampFile = (dir) => {
-  const path = resolve(dir, git(dir, 'rev-parse', '--git-path', 'variance-gate'));
+const stamps = () => {
+  const path = resolve(git('rev-parse', '--git-path', 'variance-gate'));
   mkdirSync(path, { recursive: true });
-  return join(path, git(dir, 'rev-parse', 'HEAD^{tree}'));
+  return path;
 };
 
-const stamped = (dir) => {
-  const file = stampFile(dir);
+const wavesOn = (tree) => {
+  const file = join(stamps(), tree);
   return existsSync(file) ? readFileSync(file, 'utf8').split('\n').filter(Boolean) : [];
 };
 
 const stamp = (wave) => {
-  const dir = process.cwd();
-  if (git(dir, 'status', '--porcelain') !== '') {
+  if (git('status', '--porcelain') !== '') {
     console.log(`gate: ${wave} is not stamped; the tree has uncommitted changes. Commit, then run the wave again.`);
     return;
   }
-  appendFileSync(stampFile(dir), `${wave}\n`);
-  console.log(`gate: ${wave} stamped on ${git(dir, 'rev-parse', '--short', 'HEAD')}`);
+  appendFileSync(join(stamps(), git('rev-parse', 'HEAD^{tree}')), `${wave}\n`);
+  console.log(`gate: ${wave} stamped on ${git('rev-parse', '--short', 'HEAD')}`);
 };
 
-const unquote = (word) => word.replace(/^["']|["']$/g, '');
+/**
+ * The pushed commits that lack a wave, from git's `pre-push` input: one line
+ * per ref, `<local ref> <local sha> <remote ref> <remote sha>`.
+ */
+export const unverified = (input, treeOf, wavesOn) =>
+  input
+    .split('\n')
+    .map((line) => line.trim().split(/\s+/))
+    .filter(([ref, sha, remote]) => sha && !ABSENT.test(sha) && !`${ref} ${remote}`.includes('refs/tags/'))
+    .map(([ref, sha]) => ({ ref, sha, missing: WAVES.filter((wave) => !wavesOn(treeOf(sha)).includes(wave)) }))
+    .filter(({ missing }) => missing.length > 0);
 
-// The gated calls in a command line, each with the directory it acts in: the
-// line is cut at `&&`, `||`, `;`, `|` and parentheses, a `cd <dir>` moves the
-// directory for the parts after it, and a part counts only when its own first
-// word is `git` with `push` as the subcommand, or `gh pr create`. A commit
-// message or an `echo` that spells "git push" is not a push.
-export const gatedCalls = (command, cwd) => {
-  const calls = [];
-  let dir = cwd;
-  for (const part of command.split(/&&|\|\||[;|()\n]/)) {
-    const words = part.trim().match(/"[^"]*"|'[^']*'|\S+/g) ?? [];
-    if (words[0] === 'cd' && words[1]) dir = resolve(dir, unquote(words[1]));
-    if (words[0] === 'gh' && words[1] === 'pr' && words[2] === 'create') calls.push(dir);
-    if (words[0] !== 'git') continue;
-    let at = dir;
-    let i = 1;
-    while (i < words.length && words[i].startsWith('-')) {
-      if (words[i] === '-C') at = resolve(dir, unquote(words[++i] ?? ''));
-      else if (words[i] === '-c') i++;
-      i++;
-    }
-    const rest = words.slice(i + 1);
-    if (words[i] === 'push' && !rest.some((word) => ['--delete', '-d', '--tags'].includes(word))) calls.push(at);
-  }
-  return calls;
-};
-
-const refuse = (dir) => {
-  let branch;
-  try {
-    if (!existsSync(join(git(dir, 'rev-parse', '--show-toplevel'), 'tools', 'gate.mjs'))) return false;
-    branch = git(dir, 'rev-parse', '--abbrev-ref', 'HEAD');
-  } catch {
-    return false;
-  }
-  if (branch === 'main') return false;
-  const missing = WAVES.filter((wave) => !stamped(dir).includes(wave));
-  if (missing.length === 0) return false;
-  process.stderr.write(
-    `gate: ${branch} at ${git(dir, 'rev-parse', '--short', 'HEAD')} has no green ${missing.join(' or ')} wave. ` +
-      `Commit, then run ${missing.map((wave) => `\`yarn verify:${wave}\``).join(' and ')} before pushing ` +
-      '(AGENTS.md, Pre-verify).\n',
-  );
-  return true;
-};
-
-const hook = () => {
-  const input = JSON.parse(readFileSync(0, 'utf8'));
-  const calls = gatedCalls(input.tool_input?.command ?? '', input.cwd ?? process.cwd());
-  if (calls.some(refuse)) process.exit(2);
+const prePush = () => {
+  const refused = unverified(readFileSync(0, 'utf8'), (sha) => git('rev-parse', `${sha}^{tree}`), wavesOn);
+  for (const { ref, sha, missing } of refused)
+    process.stderr.write(
+      `gate: ${ref} at ${sha.slice(0, 9)} has no green ${missing.join(' or ')} wave. Check it out, commit, then ` +
+        `run ${missing.map((wave) => `\`yarn verify:${wave}\``).join(' and ')} (AGENTS.md, Pre-verify).\n`,
+    );
+  if (refused.length > 0) process.exit(1);
 };
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const [command, wave] = process.argv.slice(2);
   if (command === 'stamp' && WAVES.includes(wave)) stamp(wave);
-  else if (command === 'hook') hook();
+  else if (command === 'pre-push') prePush();
   else {
-    console.error(`usage: node tools/gate.mjs stamp <${WAVES.join('|')}> | hook`);
+    console.error(`usage: node tools/gate.mjs stamp <${WAVES.join('|')}> | pre-push`);
     process.exit(1);
   }
 }

@@ -1,35 +1,30 @@
 import { describe, expect, it } from 'vitest';
-import { gatedCalls } from './gate.mjs';
+import { unverified } from './gate.mjs';
 
 /**
- * The push gate refuses only what it gates: `git push` as the subcommand and
- * `gh pr create`, each in the directory it acts in. A command that only spells
- * the word is not a push, so the gate never blocks the commit that would let
- * a wave be stamped.
+ * The push gate asks about the commits git pushes, not the checkout: each
+ * pushed sha's tree must carry both waves. A deletion and a tag are not asked.
  */
-describe('gatedCalls', () => {
-  it.each([
-    'git commit -m "push the gate"',
-    "git commit -m 'fix push hook'",
-    'git stash push -u -m tag',
-    'git subtree push --prefix x origin y',
-    'git log --grep push',
-    'echo git push',
-    'git push --delete origin x',
-    'git push origin --tags',
-  ])('lets %s through', (command) => {
-    expect(gatedCalls(command, '/repo')).toEqual([]);
+describe('unverified', () => {
+  const trees: Record<string, string> = { a1: 'ta', b2: 'tb', c3: 'tc' };
+  const stamped: Record<string, string[]> = { ta: ['near', 'rules'], tb: ['near'] };
+  const check = (input: string) =>
+    unverified(input, (sha: string) => trees[sha], (tree: string) => stamped[tree] ?? []).map(
+      ({ ref, missing }: { ref: string; missing: string[] }) => [ref, missing],
+    );
+
+  it('passes a commit whose tree carries both waves', () => {
+    expect(check('refs/heads/x a1 refs/heads/x 0000')).toEqual([]);
   });
 
-  it.each([
-    ['git push', ['/repo']],
-    ['git -c a=b push -u origin x', ['/repo']],
-    ['git -C /other push', ['/other']],
-    ['cd /other && git push', ['/other']],
-    ['(cd /other && git push)', ['/other']],
-    ['cd /tmp && git -C /other push', ['/other']],
-    ['cd /other && gh pr create --fill', ['/other']],
-  ])('gates %s', (command, dirs) => {
-    expect(gatedCalls(command, '/repo')).toEqual(dirs);
+  it('refuses each pushed commit by its own tree, whatever is checked out', () => {
+    expect(check('refs/heads/x a1 refs/heads/x 0000\nrefs/heads/y b2 refs/heads/f 0000\nrefs/heads/z c3 refs/heads/z 0000')).toEqual([
+      ['refs/heads/y', ['rules']],
+      ['refs/heads/z', ['near', 'rules']],
+    ]);
+  });
+
+  it('does not ask about a deletion or a tag', () => {
+    expect(check('(delete) 0000000 refs/heads/x a1\nrefs/tags/v1 c3 refs/tags/v1 0000\n')).toEqual([]);
   });
 });

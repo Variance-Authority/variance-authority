@@ -88,7 +88,8 @@ issue number, and nothing of your reasons. It opens every piece of evidence,
 weighs the case for nothing against the change, checks the change against
 [`escapes`](escapes.md), and gives one verdict:
 
-- **build** — put `idea: build` on the issue. Code may start.
+- **build** — put `idea: build` on the issue. Code may start. An edit to the
+  issue's body after that needs the review again, and CI enforces it.
 - **yes, but** — a part should not happen. Cut it from the issue. A cut taken
   whole is **build**: it only shrinks the change, and shrinking is what the
   review is for. Answering the rejection with evidence instead, or changing
@@ -98,7 +99,9 @@ weighs the case for nothing against the change, checks the change against
   found next time.
 
 Three reviews that end without **build** close the issue. Nobody else is asked:
-the loop decides, and a tie goes to the smaller change.
+the loop decides, and a tie goes to the smaller change. A closed issue is
+reopened when new evidence arrives, and the review starts over; the owner may
+reopen one at any time.
 
 **The loop learns.** A change that passed this loop and was later shown not to
 belong — closed unmerged, reverted, or rejected by any reviewer, a person or a
