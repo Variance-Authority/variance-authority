@@ -2,10 +2,13 @@ import {
   coveringTests,
   coveringTestsInFile,
   functionsUnder,
+  lostText,
+  overwrittenOn,
   ranWhileLoading,
   unenteredSentence,
   type CoveringTest,
   type ExecutionIndex,
+  type SourceTestTarget,
 } from '@variance-authority/sense/test-selection';
 import { stringArg, type Tool } from './tool.js';
 
@@ -41,12 +44,11 @@ export const sourceTests: Tool<ExecutionIndex> = {
       if (!module.blocks.some((block) =>
         block.source && block.startLine <= line && line <= block.endLine,
       )) return `Line ${line} is not indexed in ${file}.`;
-      return focused(file, `line ${line}`, coveringTests(index, { file, line }), ranWhileLoading(index, { file, line }));
+      return focused(index, `line ${line}`, { file, line });
     }
     if (functionName !== undefined) {
       if (functionsUnder(module.blocks, functionName).length === 0) return `Function ${functionName} is not indexed in ${file}.`;
-      const target = { file, function: functionName };
-      return focused(file, `function ${functionName}`, coveringTests(index, target), ranWhileLoading(index, target));
+      return focused(index, `function ${functionName}`, { file, function: functionName });
     }
     return wholeFile(index, file);
   },
@@ -66,11 +68,21 @@ function optionalFunction(input: Readonly<Record<string, unknown>>): string | un
   return stringArg(input, 'function');
 }
 
-function focused(file: string, target: string, tests: readonly CoveringTest[], loaded: boolean): string {
-  const lines = tests.length === 0
-    ? [`No named test called into ${target} in ${file}.`]
-    : [`${tests.length} named test(s) reached ${target} in ${file}:`, ...tests.map(formatTest)];
-  if (loaded) lines.push(UNNAMED_LOADERS);
+/**
+ * The cases that called into a line or function, and, where a case ran it in
+ * a text a later run wrote over, that which case ran it is not known: the
+ * record measured neither that case's run there nor its absence, so it is
+ * named by no case and read as no absence.
+ */
+function focused(index: ExecutionIndex, where: string, target: SourceTestTarget): string {
+  const tests = coveringTests(index, target);
+  const unknown = overwrittenOn(index, target) !== undefined;
+  const lines = tests.length > 0
+    ? [`${tests.length} named test(s) reached ${where} in ${target.file}:`, ...tests.map(formatTest), ...(unknown ? [`It is also ${lostText({ other: true, it: 'it' })}.`] : [])]
+    : unknown
+      ? [`${where.charAt(0).toUpperCase()}${where.slice(1)} in ${target.file} is ${lostText({ other: false, it: 'it' })}.`]
+      : [`No named test called into ${where} in ${target.file}.`];
+  if (ranWhileLoading(index, target)) lines.push(UNNAMED_LOADERS);
   return lines.join('\n');
 }
 
@@ -98,9 +110,11 @@ function wholeFile(index: ExecutionIndex, file: string): string {
     lines.push(range.startLine === range.endLine
       ? `line ${range.startLine}`
       : `lines ${range.startLine}-${range.endLine}`);
-    lines.push(...(range.tests.length === 0
-      ? [range.loaded === true ? '  no named test called into this range' : '  no named test reached this range']
-      : range.tests.map((test) => `  ${formatTest(test)}`)));
+    lines.push(...(range.tests.length > 0
+      ? [...range.tests.map((test) => `  ${formatTest(test)}`), ...(range.overwritten === undefined ? [] : [`  it is also ${lostText({ other: true, it: 'it' })}`])]
+      : range.overwritten !== undefined
+        ? [`  this range is ${lostText({ other: false, it: 'it' })}`]
+        : [range.loaded === true ? '  no named test called into this range' : '  no named test reached this range']));
     if (range.loaded === true) lines.push('  ran while its module evaluated');
     // The range's cases are the ones an edit to its lines selects; a region with no line of its own would read as theirs.
     for (const region of range.unentered ?? []) {
