@@ -35,6 +35,7 @@ import { digestString } from '../digest.js';
 import { workingTreeChanges, type WorkingTreeChanges } from '../working-tree-changes.js';
 import { layeredFiles, repositoryLayers } from './cache-layers.js';
 import type { TestCoverageView } from './format-view.js';
+import type { CoverageTest, TestCoverage } from './index.js';
 import { findModules, findString } from './lookup.js';
 import { writeCoverageBytes } from './record-location.js';
 import { repositoryRoot } from './repository-root.js';
@@ -107,6 +108,55 @@ export async function keepRecordedTexts(tree: LandedTree | undefined, record: Te
     if (await keepText(top, digest, text)) kept.push(digest);
   }
   return kept;
+}
+
+/**
+ * The text of each module a run ran over where it differs from its commit's:
+ * the module's path, by the digest of that text. A runs record carries it with
+ * the tests the run observed (`commit-runs.ts`), so a reader knows which text
+ * each test ran over long after the tree has moved on.
+ */
+export type KeptTexts = Readonly<Record<string, string>>;
+
+/**
+ * The texts `current` ran over where its commit does not hold them: every
+ * module it read and every precondition its tests named that git says differs
+ * from `HEAD`, by the digest the run recorded for it, in code-unit order. A
+ * module the run recorded as clean ran over the commit's text, and is not
+ * named. A path that is both a module and a precondition is named by the
+ * module's digest; one the tests named by two digests, by the first test's.
+ *
+ * The digest is the run's own, not the disk's: a module edited again while the
+ * suite ran is named by the text the tests ran over, which `keepRecordedTexts`
+ * then has no text for. `undefined` with no tree to ask, which is outside a
+ * checkout or git not answering.
+ */
+export function ranOverTexts(
+  tree: LandedTree | undefined,
+  current: Pick<TestCoverage, 'modules'> & { readonly tests: readonly Pick<CoverageTest, 'preconditions'>[] },
+): KeptTexts | undefined {
+  if (tree === undefined) return undefined;
+  const moved = new Set([...tree.changes.changed, ...tree.changes.gone]);
+  const texts = new Map<string, string>();
+  for (const module of current.modules) {
+    if (moved.has(module.file)) texts.set(module.file, module.sourceDigest);
+  }
+  for (const test of current.tests) {
+    for (const { name, digest } of test.preconditions) {
+      if (moved.has(name) && !texts.has(name)) texts.set(name, digest);
+    }
+  }
+  return Object.fromEntries([...texts].sort(([a], [b]) => codeUnitOrder(a, b)));
+}
+
+/**
+ * `value` as texts, read off a runs record: an object naming each path with a
+ * digest. Anything else is `undefined`, which a reader takes for texts it does
+ * not know.
+ */
+export function keptTextsOf(value: unknown): KeptTexts | undefined {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return undefined;
+  return Object.values(value).every((digest) => typeof digest === 'string') ? (value as KeptTexts) : undefined;
 }
 
 /**

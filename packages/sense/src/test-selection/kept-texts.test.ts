@@ -6,7 +6,7 @@ import { promisify } from 'node:util';
 import { describe, expect, it, vi } from 'vitest';
 import { digestString } from '../digest.js';
 import { repositoryLayers } from './cache-layers.js';
-import { landRun } from './commit-runs.js';
+import { landRun, readCommitRuns } from './commit-runs.js';
 import { narrowByExecution, testCoverageFile, type FileReading, type TestCoverage } from './index.js';
 import { KEPT_TEXTS, keepRecordedTexts, keepText, keptDigests, keptTexts, landedTree } from './kept-texts.js';
 import { openTestCoverage } from './format-view.js';
@@ -278,6 +278,72 @@ describe('a run recorded over an edit keeps the text it ran over', () => {
  * nothing, and the record's kept text says the tree moved back under the tests
  * that ran the edit.
  */
+describe('the runs record names the texts its runs ran over', () => {
+  it('names each edited module by the digest of the text the run ran over, and none for a clean tree', async () => {
+    await checkout(async (at) => {
+      const clean = await recordOver(at, COMMITTED);
+      expect((await readCommitRuns(clean))?.landings?.map((landing) => landing.texts)).toEqual([{}]);
+    });
+    await checkout(async (at) => {
+      const edited = await recordOver(at, FIRST_EDITED);
+      expect((await readCommitRuns(edited))?.landings?.map((landing) => landing.texts)).toEqual([{ [FILE]: digestString(FIRST_EDITED) }]);
+    });
+  });
+
+  it('names an edited module the run did not instrument, and an edited precondition, by the digests the run recorded', async () => {
+    await checkout(async (at) => {
+      await writeFile(resolve(at.root, 'src/plain.ts'), 'export const plain = 1;\n', 'utf8');
+      await writeFile(resolve(at.root, 'src/fixture.json'), '{"value":1}\n', 'utf8');
+      await writeFile(resolve(at.root, 'src/clean.json'), '{"value":0}\n', 'utf8');
+      await at.git('add', '--all');
+      await at.git('commit', '--quiet', '--message', 'a plain module and two fixtures');
+      const commit = await at.git('rev-parse', 'HEAD');
+      await writeFile(resolve(at.root, 'src/plain.ts'), 'export const plain = 2;\n', 'utf8');
+      await writeFile(resolve(at.root, 'src/fixture.json'), '{"value":2}\n', 'utf8');
+      const run = recording(COMMITTED, commit);
+      const current: TestCoverage = {
+        ...run,
+        tests: run.tests.map((test) => ({
+          ...test,
+          preconditions: [...test.preconditions, { name: 'src/fixture.json', digest: 'fixture:edited' }, { name: 'src/clean.json', digest: 'fixture:clean' }],
+        })),
+        modules: [...run.modules, { file: 'src/plain.ts', sourceDigest: 'plain:edited', instrumented: false, blocks: [] }],
+      };
+      const coverageFile = testCoverageFile(at.root, { cacheRoot: at.cacheRoot });
+      await landRun(coverageFile, current, at.root, at.cacheRoot);
+      expect((await readCommitRuns(coverageFile))?.landings?.map((landing) => landing.texts))
+        .toEqual([{ 'src/fixture.json': 'fixture:edited', 'src/plain.ts': 'plain:edited' }]);
+    });
+  });
+
+  it('carries the texts with the tests a run at another commit did not observe', async () => {
+    await checkout(async (at) => {
+      const coverageFile = await recordOver(at, FIRST_EDITED);
+      const before = (await readCommitRuns(coverageFile))!;
+      await writeFile(resolve(at.root, FILE), COMMITTED, 'utf8');
+      await writeFile(resolve(at.root, 'README.md'), 'another commit\n', 'utf8');
+      await at.git('add', '--all');
+      await at.git('commit', '--quiet', '--message', 'another commit');
+      const next = await at.git('rev-parse', 'HEAD');
+      const run = recording(COMMITTED, next);
+      const second = {
+        ...run,
+        tests: run.tests.filter((test) => test.file === TESTS[1]),
+        modules: run.modules.map((module) => ({
+          ...module,
+          blocks: module.blocks.map((block) => ({ ...block, testFiles: block.testFiles.filter((file) => file === TESTS[1]) })),
+        })),
+      };
+      await landRun(coverageFile, second, at.root, at.cacheRoot);
+      const after = (await readCommitRuns(coverageFile))!;
+      expect(after.landings.map((landing) => landing.texts)).toEqual([{}]);
+      expect(after.standing).toEqual([
+        { commit: at.commit, files: [TESTS[0]], first: before.landings[0]!.first, latest: before.latest, runs: 1, installed: {}, texts: { [FILE]: digestString(FIRST_EDITED) } },
+      ]);
+    });
+  });
+});
+
 describe('an undone edit', () => {
   async function undone(
     at: Checkout,

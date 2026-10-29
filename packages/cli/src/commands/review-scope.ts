@@ -1,7 +1,8 @@
 // compass: variance-authority/runtime/attention
 /**
  * Where to look, disclosed a level at a time: first the changed functions
- * holding code no case ran, by name; then, folded, each location; and for the
+ * holding code no case ran, and apart the ones holding code no case is known to
+ * have run, by name; then, folded, each location; and for the
  * rest one row a function, with the cases that entered it, the cases that ran
  * a line the change wrote, and the test files they are in. Only the record
  * knows any of it — a reader of the diff, person or agent, cannot — so every
@@ -12,6 +13,7 @@
 import { heardSplit, valued } from '@variance-authority/sense/test-selection';
 import { outermostOf } from './covering-frame.js';
 import type { Review, ReviewCase, ReviewFile, ReviewRegion } from './review.js';
+import { notKnown } from './review-words.js';
 
 /** Functions named in the first line before the rest are counted. */
 const CALLOUT = 5;
@@ -24,6 +26,16 @@ const UNCOVERED = new Set(['hole', 'unwalked', 'unknown']);
 
 export function uncovered(region: Pick<ReviewRegion, 'reach'>): boolean {
   return UNCOVERED.has(region.reach);
+}
+
+/** Whether a case ran the region in a text an edit wrote over, so no case is known to have run it. */
+export function overwritten(region: Pick<ReviewRegion, 'reach'>): boolean {
+  return region.reach === 'overwritten';
+}
+
+/** Whether the record names no case that ran the region: none did, or which one did is not known. */
+export function unproven(region: Pick<ReviewRegion, 'reach'>): boolean {
+  return uncovered(region) || overwritten(region);
 }
 
 /** The regions a reader counts, `outermostOf` the file's. The JSON keeps every region. */
@@ -47,17 +59,21 @@ export function regionKind(region: Pick<ReviewRegion, 'kind' | 'name'>): string 
 
 /**
  * The changed functions, and of them the ones holding code no case ran, by
- * name: the first thing a reader is told, before any location.
+ * name: the first thing a reader is told, before any location. Then the rest
+ * holding code no case is known to have run, each function once, under the worse.
  */
-export function uncoveredFunctions(review: Review): { readonly total: number; readonly names: readonly string[] } {
+export function uncoveredFunctions(review: Review): { readonly total: number; readonly names: readonly string[]; readonly overwritten: readonly string[] } {
   const all = new Set<string>();
-  const names: string[] = [];
+  const names = new Set<string>();
+  const lost = new Set<string>();
   for (const [file, region] of located(review)) {
     const key = `${file}\0${functionOf(region)}`;
-    if (uncovered(region) && !names.includes(key)) names.push(key);
+    if (uncovered(region)) names.add(key);
+    if (overwritten(region)) lost.add(key);
     all.add(key);
   }
-  return { total: all.size, names: names.map((key) => key.split('\0')[1]!) };
+  const named = (keys: Iterable<string>) => [...keys].map((key) => key.split('\0')[1]!);
+  return { total: all.size, names: named(names), overwritten: named([...lost].filter((key) => !names.has(key))) };
 }
 
 /** The named functions as a sentence's tail: the first few, and the rest counted. */
@@ -66,12 +82,19 @@ export function namedList(names: readonly string[]): string {
   return names.length > CALLOUT ? `${said.join(', ')} and ${names.length - CALLOUT} more` : said.join(', ');
 }
 
-/** Every location no case ran, folded under how many there are. */
+/** Every location no case ran, then every one no case is known to have run, each folded under how many there are. */
 export function uncoveredMarkdown(review: Review, mark: (region: ReviewRegion) => string): readonly string[] {
-  const rows = located(review).filter(([, region]) => uncovered(region));
+  const ran = review.record === 'ran';
+  return [
+    ...placesMarkdown(review, located(review).filter(([, region]) => uncovered(region)), ran ? 'no case ran' : 'no case in the record', mark),
+    ...placesMarkdown(review, located(review).filter(([, region]) => overwritten(region)), notKnown(ran), mark),
+  ];
+}
+
+/** The locations one answer holds, folded under how many places and functions they are, or nothing when there are none. */
+function placesMarkdown(review: Review, rows: ReturnType<typeof located>, why: string, mark: (region: ReviewRegion) => string): readonly string[] {
   if (rows.length === 0) return [];
   const functions = new Set(rows.map(([file, region]) => `${file}\0${functionOf(region)}`)).size;
-  const why = review.record === 'ran' ? 'no case ran' : 'no case in the record';
   return [
     '',
     `<details><summary>${mark(rows[0]![1])} Where ${why}: ${rows.length} place${rows.length === 1 ? '' : 's'} in ${functions} function${functions === 1 ? '' : 's'}</summary>`,
@@ -88,7 +111,7 @@ export function uncoveredMarkdown(review: Review, mark: (region: ReviewRegion) =
  * change has run, the same cases are the ones it might move.
  */
 export function functionsMarkdown(review: Review, mark: (region: ReviewRegion) => string): readonly string[] {
-  const rows = located(review).filter(([, region]) => region.kind === 'function' && !uncovered(region));
+  const rows = located(review).filter(([, region]) => region.kind === 'function' && !unproven(region));
   if (rows.length === 0) return [];
   const cases = new Set(rows.flatMap(([, region]) => region.called.map((test) => test.id))).size;
   const tests = new Set(rows.flatMap(([, region]) => region.tests)).size;
@@ -179,15 +202,15 @@ export function caseTree(titled: readonly { readonly path: readonly string[]; re
 }
 
 /**
- * The uncovered regions, then every other changed function by its own answer —
- * not the outermost, which is the module's top level whenever that ran. By
- * file and line: the order a reviewer works in.
+ * The regions no case is known to have run, then every other changed function
+ * by its own answer — not the outermost, which is the module's top level
+ * whenever that ran. By file and line: the order a reviewer works in.
  */
 export function located(review: Pick<Review, 'files'>): readonly (readonly [string, ReviewRegion])[] {
   return review.files
     .flatMap((file) => [
-      ...outermost(file).filter(uncovered),
-      ...(file.regions ?? []).filter((region) => region.kind === 'function' && !region.name.includes('/') && !uncovered(region)),
+      ...outermost(file).filter(unproven),
+      ...(file.regions ?? []).filter((region) => region.kind === 'function' && !region.name.includes('/') && !unproven(region)),
     ].map((region) => [file.file, region] as const))
     .sort(([leftFile, left], [rightFile, right]) => order(leftFile, rightFile) || left.startLine - right.startLine);
 }

@@ -16,11 +16,12 @@ answers the questions taken from it.
 In: the region inventory the transform produced; the ordinals each observer
 entered, from a runner's task tree or from a driver draining a realm; whether
 each observation was whole; the files whose identity that observation depended
-on; and the commit the recording stands at. Out: the record itself, and the
+on; the commit the recording stands at; and the run's time, its install and the
+digests of the uncommitted texts it ran over. Out: the record itself, and the
 answers taken from it — which observations entered a changed region, which
 regions two observers parted over, which regions nobody entered at all, how much
-of what a test can statically reach it actually enters, and which named tests
-reached a line.
+of what a test can statically reach it actually enters, which named tests
+reached a line, and when and over which text each of them last ran.
 
 ## Depends on
 
@@ -68,9 +69,11 @@ Evidence is retired rather than overwritten. A test file's observations are tied
 to one fixed set of preconditions, and changing a precondition starts a new
 generation for that file: what it inherited is retired, and a partial new
 generation cannot on its own justify excluding the file. The record carries the
-commit it was made at, which is the whole of its position; nothing walks lineage
-or scores a distance, and a recording that cannot say where it stands has
-nothing to diff against, so its holder runs everything.
+commit it was made at and, for each test file, the commit and the landing of the
+run that last finished it: its time, its install and the texts it ran over that
+the commit does not hold. That is the whole of its position; nothing walks
+lineage or scores a distance, and a recording that cannot say where it stands
+has nothing to diff against, so its holder runs everything.
 
 A file a **subject** showed and no code names — a document read at build time,
 a string bundled as text — has no region to cross. The element that shows it

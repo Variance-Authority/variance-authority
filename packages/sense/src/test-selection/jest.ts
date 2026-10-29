@@ -285,6 +285,8 @@ export const SELECTION_SETUP = here('./jest-setup.cjs');
 export const SELECTION_REPORTER = here('./jest-reporter.js');
 /** The host bridge a cached environment entry loads before the project environment. */
 export const TRACE_ENVIRONMENT = here('./jest-trace-environment.cjs');
+/** This package, which automock would stub under the collector its setup file installs. */
+const UNMOCKED = here('../').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 /**
  * Add source instrumentation, test-file attribution, and coverage persistence to
@@ -489,6 +491,7 @@ function instrumented(
     ...(project === undefined ? {} : { globals: { ...(config['globals'] as object | undefined), [PROJECT_GLOBAL]: project } }),
     setupFiles: [SELECTION_GLOBALS, ...(config.setupFiles ?? [])],
     setupFilesAfterEnv: [...(config.setupFilesAfterEnv ?? []), SELECTION_SETUP],
+    unmockedModulePathPatterns: [...(config['unmockedModulePathPatterns'] as string[] | undefined ?? []), UNMOCKED],
   };
 }
 

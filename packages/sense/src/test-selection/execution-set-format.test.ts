@@ -3,7 +3,7 @@ import { CrossingSets } from './crossing-sets.js';
 import { decodeExecutionIndex } from './execution-format.js';
 import { NO_OWNER } from './format-layout.js';
 import { CaseLinesBuilder, lineAt, linesOf, lineValue } from './case-lines.js';
-import { encodeSetExecutionIndex, openSetColumns, openSetExecutionIndex, type SetExecutionModule } from './execution-set-format.js';
+import { encodeAsSetExecutionIndex, encodeSetExecutionIndex, openSetColumns, openSetExecutionIndex, type SetExecutionModule } from './execution-set-format.js';
 import { blob, column, sections } from './format-layout.js';
 
 const tests = [
@@ -30,6 +30,31 @@ describe('the journey set spelling', () => {
       { ...shape, startLine: 1, endLine: 3, loaded: true, crossings: [{ test: 0, distance: 0 }] },
       { ...shape, startLine: 5, endLine: 7, crossings: [{ test: 1, distance: 0 }] },
     ]);
+  });
+
+  it('keeps a case whose crossing of a region is not known apart from the cases that called in', () => {
+    const index = {
+      tests,
+      modules: [{
+        file: 'src/m.ts',
+        blocks: [
+          { ...shape, startLine: 1, endLine: 3, crossings: [{ test: 0, distance: 0 }, { test: 1, distance: 0, overwritten: true as const }] },
+          { ...shape, startLine: 5, endLine: 7, crossings: [{ test: 1, distance: 0 }] },
+        ],
+      }],
+    };
+    const bytes = encodeAsSetExecutionIndex(index);
+
+    expect(decodeExecutionIndex(bytes)).toEqual(index);
+    expect(openSetColumns(bytes)?.blockOverwritten).toHaveLength(2);
+  });
+
+  it('writes no overwritten column for an index that holds no such case, and reads its absence as none', () => {
+    const index = { tests, modules: [{ file: 'src/m.ts', blocks: [{ ...shape, startLine: 1, endLine: 3, crossings: [{ test: 0, distance: 0 }] }] }] };
+    const bytes = encodeAsSetExecutionIndex(index);
+
+    expect(openSetColumns(bytes)?.blockOverwritten).toBeUndefined();
+    expect(decodeExecutionIndex(bytes)).toEqual(index);
   });
 
   it('keeps whether each case finished, stopped, or could not be told', () => {
@@ -180,5 +205,39 @@ describe('the journey set spelling', () => {
     expect(openSetExecutionIndex(owned(Uint32Array.of(NO_OWNER, 0)))!.modules[0]!.owner).toEqual(Uint32Array.of(NO_OWNER, 0));
     expect(() => openSetExecutionIndex(owned(Uint32Array.of(NO_OWNER, 1)))).toThrow('not a variance-authority execution index');
     expect(() => openSetExecutionIndex(owned(Uint32Array.of(NO_OWNER)))).toThrow('not a variance-authority execution index');
+  });
+
+  it('refuses a file whose overwritten column does not cover every region, or names a set the pool does not hold', () => {
+    // Written by hand, as a producer that skips the encoder's check would.
+    const encoded = ['src/m.ts', 'function', 'total'].map((value) => Buffer.from(value, 'utf8'));
+    const offsets = new Uint32Array(encoded.length + 1);
+    encoded.forEach((value, at) => { offsets[at + 1] = offsets[at]! + value.length; });
+    const sets = new CrossingSets(0);
+    const empty = sets.intern([]);
+    const pool = sets.pool();
+    const overwritten = (overwrittenSet: Uint32Array): Uint8Array => sections({
+      'strings.blob': blob(Buffer.concat(encoded), offsets),
+      'strings.off': column(offsets),
+      'tests.id': column(new Uint32Array(0)),
+      'tests.file': column(new Uint32Array(0)),
+      'tests.name': column(new Uint32Array(0)),
+      'modules.file': column(Uint32Array.of(0)),
+      'modules.blocks': column(Uint32Array.of(0, 2)),
+      'blocks.kind': column(Uint32Array.of(1, 1)),
+      'blocks.name': column(Uint32Array.of(2, 2)),
+      'blocks.path': column(Uint32Array.of(2, 2)),
+      'blocks.start': column(Uint32Array.of(1, 5)),
+      'blocks.end': column(Uint32Array.of(3, 7)),
+      'blocks.source': column(Uint8Array.of(1, 1)),
+      'blocks.calledSet': column(Uint32Array.of(empty, empty)),
+      'blocks.loaded': column(Uint8Array.of(0, 0)),
+      'blocks.overwrittenSet': column(overwrittenSet),
+      'sets.blob': blob(pool.bytes, pool.offsets),
+      'sets.off': column(pool.offsets),
+    }, 3);
+
+    expect(openSetColumns(overwritten(Uint32Array.of(empty, empty)))?.blockOverwritten).toEqual(Uint32Array.of(empty, empty));
+    expect(() => openSetExecutionIndex(overwritten(Uint32Array.of(empty)))).toThrow('not a variance-authority execution index');
+    expect(() => openSetExecutionIndex(overwritten(Uint32Array.of(empty, pool.offsets.length)))).toThrow('not a variance-authority execution index');
   });
 });

@@ -37,8 +37,11 @@ export async function eachSuite<T>(root: string, ask: (suite: string | undefined
   return readings;
 }
 
-/** Nearest last in what a reviewer should open: nothing reached it, then new and not run yet, then reached only from afar. */
-export const NEAREST: readonly (Reach | 'fresh')[] = ['hole', 'unwalked', 'unknown', 'fresh', 'loaded', 'unplaced', 'far', 'near'];
+/**
+ * Nearest last in what a reviewer should open: nothing reached it, then reached in a text an edit wrote over, then new
+ * and not run yet, then reached only from afar.
+ */
+export const NEAREST: readonly (Reach | 'fresh')[] = ['hole', 'unwalked', 'unknown', 'overwritten', 'fresh', 'loaded', 'unplaced', 'far', 'near'];
 
 /** One suite's reading of one changed region. */
 export interface SuitePart {

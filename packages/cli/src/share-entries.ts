@@ -35,9 +35,11 @@ import {
   caseSectionsOf,
   collectedRecord,
   commitRunsFile,
+  commitRunsIn,
   lastCaseRunOf,
   sharedRecord,
   testCoverageFile,
+  whatLanded,
   withoutCoverage,
   type CommitRuns,
 } from '@variance-authority/sense/test-selection';
@@ -265,27 +267,18 @@ export function wholeRunAt(
   collected?: ReadonlySet<string>,
 ): string | undefined {
   if (runs === undefined) return 'no runs record lies beside it, so nothing says which tests ran at this commit';
-  let value: unknown;
+  let parsed: CommitRuns;
   try {
-    value = JSON.parse(new TextDecoder().decode(runs));
-  } catch {
-    return 'the runs record beside it is not JSON';
+    parsed = commitRunsIn(new TextDecoder().decode(runs), 'the runs record beside it');
+  } catch (error) {
+    return error instanceof Error ? error.message : String(error);
   }
-  if (typeof value !== 'object' || value === null || Array.isArray(value)) return 'the runs record beside it is not a JSON object';
-  const parsed = value as CommitRuns;
   if (parsed.commit !== commit) return `the runs record beside it is ${parsed.commit ?? 'of no commit'}'s, not ${commit}'s`;
-  // The record is JSON a run wrote, read here without its writer's types: a
-  // shape it does not have is refused by name, never met as a TypeError.
-  if (!Array.isArray(parsed.files)) return 'the runs record beside it has no list of the test files that ran at its commit';
   if (parsed.standing === undefined) return 'the runs record beside it does not say where every test it did not run last ran';
-  if (!Array.isArray(parsed.standing)) return 'the runs record beside it holds a `standing` that is not a list';
-  if (!parsed.standing.every((entry: unknown) => typeof entry === 'object' && entry !== null && Array.isArray((entry as { files?: unknown }).files))) {
-    return 'the runs record beside it holds a `standing` entry with no list of test files';
-  }
   if (collected === undefined) {
     return 'the runner was not asked which test files it collects, so nothing says the run covered all of them: pass `--collected`';
   }
-  const listed = new Set([...parsed.files, ...parsed.standing.flatMap((entry) => entry.files)]);
+  const listed = new Set([...whatLanded(parsed.landings).files, ...parsed.standing.flatMap((entry) => entry.files)]);
   const unlisted = [...collected].filter((path) => !listed.has(path)).sort();
   if (unlisted.length > 0) {
     const named = unlisted.length > 5 ? `${unlisted.slice(0, 5).join(', ')} and ${unlisted.length - 5} more` : unlisted.join(', ');

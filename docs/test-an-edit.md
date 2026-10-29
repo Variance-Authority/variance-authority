@@ -68,8 +68,9 @@ starts any of them, and prints one line to stderr first:
 - `declined:` and a reason — the record could not answer this edit, and every
   file runs.
 
-Set and empty, the variable measures each test from the commit it last ran at,
-which the record keeps per test file. Set to a ref, such as `origin/main`, it
+Set and empty, the variable measures each test file from the commit a run last
+finished it at, which the record keeps per test file: a later run that ran only
+some of its cases does not change it. Set to a ref, such as `origin/main`, it
 names the base for a record taken outside a git checkout, which keeps no commit. Watch mode does not select, and
 neither does Playwright's `--list`. Under Jest,
 `--filter` and `--skipFilter` replace the filter the selection runs in, so
@@ -136,10 +137,11 @@ runs whole when the record cannot say which of its cases your edit reached:
   the test file, which every case of the file waits on;
 - the record holds the file as running the changed code, but none of its cases
   entering it;
-- a test of the suite last ran at an earlier commit than the latest run. Once
-  you commit between runs, the tests a selected run left out keep the commit
-  they last ran at, and every selected file runs whole until one run takes the
-  suite to a single commit.
+- a test file of the suite was last finished at an earlier commit than the
+  latest run. Once you commit between runs, the test files a selected run left
+  out or ran only some cases of keep the commit a run last finished them at,
+  and every selected file runs whole until one run takes the suite to a single
+  commit.
 
 Within a file that is cut, a case that shares its full name with a case your
 edit reached runs too, because the runner skips by name.
@@ -155,10 +157,10 @@ File grain is the default, and `VARIANCE_AUTHORITY_GRAIN=file` names it.
 
 ## Each run moves the starting point
 
-A selected run lands in the record like a full one. The tests it ran are
-measured from what they just ran, and the tests it left out keep the commit
-they last ran at, so the next edit is charged only to the tests that have not
-seen it:
+A selected run lands in the record like a full one. The test files it finished
+are measured from what they just ran, and the ones it left out or ran only some
+cases of keep the commit a run last finished them at, so the next edit is
+charged only to the tests that have not seen it:
 
 - **A test a run left out still owes the edit.** If you edit a function and run
   only the near leg, the far tests that executed that function run next time.

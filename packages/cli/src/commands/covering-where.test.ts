@@ -151,7 +151,7 @@ describe('a case read by what it said', () => {
     const record = await recorded(MEASURED.map(({ said: _, ...test }) => test));
 
     const answer = await ask(['network:api=mocked'], record);
-    const text = formatCovering(answer, 'text');
+    const text = formatCovering(answer, 'text', Date.now());
 
     expect(answer.tests).toEqual([]);
     expect(answer.where).toMatchObject({ kept: 0, of: 6, unmeasured: 6 });
@@ -164,18 +164,18 @@ describe('a case read by what it said', () => {
     const answer = await ask(['network:api=mocked'], await recorded([...MEASURED, row('unheard')]));
 
     expect(answer.where).toMatchObject({ kept: 3, of: 7, unmeasured: 1 });
-    expect(formatCovering(answer, 'text')).toMatch(/1 case was recorded without preconditions/);
+    expect(formatCovering(answer, 'text', Date.now())).toMatch(/1 case was recorded without preconditions/);
   });
 
   it('prints every case with what it said and where, in text and refs, and keeps a contradiction', async () => {
     const answer = await ask([], await recorded(MEASURED));
 
-    const text = formatCovering(answer, 'text');
+    const text = formatCovering(answer, 'text', Date.now());
     expect(text).toContain(`refunds mocked behind a flag — flags:checkout=ff-on (${at(9)}), network:api=mocked (${at(4)})`);
     expect(text).toContain(`contradicted — flags:checkout contradicted: ff-off (${at(20)}), ff-on (${at(19)})`);
-    const refs = formatCovering(answer, 'refs');
+    const refs = formatCovering(answer, 'refs', Date.now());
     expect(refs).toContain(`replays a recording — network:api=recorded (${at(14)})`);
-    const json = JSON.parse(formatCovering(answer, 'json')) as { tests: ExecutionTest[] };
+    const json = JSON.parse(formatCovering(answer, 'json', Date.now())) as { tests: ExecutionTest[] };
     expect(rowOf(json.tests.find((test) => test.name === 'pays mocked')!)).toEqual([
       { name: 'network:api', value: 'mocked', site: at(4), level: 1 },
     ]);
@@ -195,7 +195,7 @@ describe('a declared axis, which no precondition is read against until spec 0102
     const answer = await ask(['flags:checkout'], record);
     expect(names(answer)).toEqual(['contradicted', 'flag typo', 'half on', 'refunds mocked behind a flag']);
     expect(answer.where).toEqual({ asked: ['flags:checkout'], kept: 4, of: 7, unmeasured: 0 });
-    expect(formatCovering(answer, 'text')).not.toContain('is not one of');
+    expect(formatCovering(answer, 'text', Date.now())).not.toContain('is not one of');
   });
 
   it('prints no twin, in any form', async () => {
@@ -207,7 +207,7 @@ describe('a declared axis, which no precondition is read against until spec 0102
 
     for (const answer of [await ask([], record), await ask(['flags:checkout=ff-on'], record)]) {
       expect(answer).not.toHaveProperty('twins');
-      for (const format of ['text', 'refs'] as const) expect(formatCovering(answer, format)).not.toContain('twin');
+      for (const format of ['text', 'refs'] as const) expect(formatCovering(answer, format, Date.now())).not.toContain('twin');
     }
   });
 
@@ -223,7 +223,7 @@ describe('`--where` over a function', () => {
     ]));
 
     expect(answer.where).toMatchObject({ kept: 0, of: 6 });
-    const text = formatCovering(answer, 'text');
+    const text = formatCovering(answer, 'text', Date.now());
     expect(text).toContain('Kept none of the 6 cases that covered function total of src/cart.ts: none recorded network:api=live.');
     expect(text).not.toContain('No named test covered');
   });

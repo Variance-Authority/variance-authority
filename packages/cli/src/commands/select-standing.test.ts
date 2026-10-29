@@ -88,6 +88,24 @@ describe('a test that did not run at the journal commit', () => {
     expect(said.out).toBe('test/near.test.ts\n');
   });
 
+  it('reads a test file a run at a newer commit ran only in part from where it last finished', async () => {
+    // Everything runs at P; both modules change at H, where `near` runs whole
+    // and `far` only in part, as under `-t`. The cases of `far` that run did
+    // not execute last ran at P, so `far` still stands there, and the
+    // selection reads it from P. It runs either way, as a file held in part does.
+    const repo = checkout();
+    const P = repo.commit(sources(1), 'P');
+    await landRun(repo.file, run(repo.root, P, NAMES), repo.root);
+    const H = repo.commit(sources(2), 'H');
+    const atH = run(repo.root, H, NAMES);
+    await landRun(repo.file, { ...atH, tests: atH.tests.map((test) => ({ ...test, complete: test.file !== 'test/far.test.ts' })) }, repo.root);
+
+    const said = await repo.select();
+
+    expect(said.out).toBe('test/near.test.ts\n');
+    expect(said.err).toContain(`1 test file last ran at ${P.slice(0, 12)}, before the journal's commit`);
+  });
+
   it('runs where the runs record does not say where it last ran, and says so', async () => {
     const { root, file } = await partialRun();
     // A record written without `standing`, as a worktree's first partial run
@@ -128,8 +146,11 @@ describe('a test that did not run at the journal commit', () => {
     await landRun(repo.file, run(repo.root, P, [...NAMES, 'gone']), repo.root);
     rmSync(join(repo.root, 'test/gone.test.ts'));
     const H = repo.commit(sources(2, NAMES), 'H');
+    const [atP] = (await readCommitRuns(repo.file))!.landings;
     await landRun(repo.file, run(repo.root, H, NAMES), repo.root);
-    expect((await readCommitRuns(repo.file))?.standing).toEqual([{ commit: P, files: ['test/gone.test.ts'], installed: {} }]);
+    expect((await readCommitRuns(repo.file))?.standing).toEqual([
+      { commit: P, files: ['test/gone.test.ts'], installed: {}, texts: {}, first: atP!.first, latest: atP!.latest, runs: atP!.runs },
+    ]);
 
     const said = await repo.select();
 
@@ -211,8 +232,11 @@ describe('a test that did not run at the journal commit', () => {
     await landRun(repo.file, run(repo.root, S, ['far']), repo.root);
     repo.git('checkout', '--quiet', 'main');
     const H = repo.commit({ 'notes.txt': 'unrelated\n' }, 'H');
+    const [atS] = (await readCommitRuns(repo.file))!.landings;
     await landRun(repo.file, run(repo.root, H, ['near']), repo.root);
-    expect((await readCommitRuns(repo.file))?.standing).toEqual([{ commit: S, files: ['test/far.test.ts'], installed: {} }]);
+    expect((await readCommitRuns(repo.file))?.standing).toEqual([
+      { commit: S, files: ['test/far.test.ts'], installed: {}, texts: {}, first: atS!.first, latest: atS!.latest, runs: atS!.runs },
+    ]);
     expect(repo.git('merge-base', S, H)).toBe(P);
 
     const said = await repo.select();
@@ -226,7 +250,7 @@ describe('a test that did not run at the journal commit', () => {
     const gone = 'e'.repeat(40);
     const runs = (await readCommitRuns(file))!;
     const standing = [{ commit: P, files: ['test/far.test.ts'] }, { commit: gone, files: ['test/near.test.ts'] }];
-    writeFileSync(commitRunsFile(file), `${JSON.stringify({ ...runs, files: [], standing }, null, 2)}\n`);
+    writeFileSync(commitRunsFile(file), `${JSON.stringify({ ...runs, landings: [], standing }, null, 2)}\n`);
 
     const said = await selectOutput({ cwd: root, format: 'plain' });
 
@@ -321,7 +345,7 @@ describe('a test that did not run at the journal commit', () => {
     expect(JSON.parse(readFileSync(commitRunsFile(repo.file), 'utf8'))).toMatchObject({
       commit: H,
       over: P,
-      files: ['test/near.test.ts'],
+      landings: [{ files: ['test/near.test.ts'] }],
       standing: [{ commit: P, files: ['test/far.test.ts'] }],
     });
     process.chdir(repo.root);

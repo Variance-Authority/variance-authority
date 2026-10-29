@@ -36,23 +36,26 @@ export interface ReadStale {
 /**
  * The cases that ran code in the file, at file grain.
  *
+ * @param entered Handed the cases that ran code in the file, as `--where` kept them.
  * @param reach Handed the cases the question reached before `--where`
  * narrowed them, when it narrowed them.
  */
 export async function staleAnswer(
   request: CoveringAt,
   read: ReadStale,
+  entered: (tests: readonly CoveringTest[]) => void,
   reach?: (tests: readonly CoveringTest[]) => void,
 ): Promise<Covering> {
   const { index, before, from, near, at } = read;
   const file = request.file;
   // No recorded line is a place here, so the question is the whole module's, whatever line it named.
   const graph = await loadersOf(before ?? index, file, read.graph);
-  const found = entered(coveringTestsInFile(before ?? index, file, graph).flatMap((range) => range.tests));
+  const found = once(coveringTestsInFile(before ?? index, file, graph).flatMap((range) => range.tests));
   const kept = near.whole ? found : found.filter(near.keep);
   if (before !== undefined) reach?.(kept);
   const listed = before === undefined ? undefined : new Set(index.tests.map((test) => test.id));
   const tests = listed === undefined ? kept : kept.filter((test) => listed.has(test.id));
+  entered(listed === undefined ? found : found.filter((test) => listed.has(test.id)));
   const target = request.lines !== undefined
     ? { target: { lines: request.lines } }
     : request.line === undefined ? {} : { target: { line: request.line } };
@@ -60,7 +63,7 @@ export async function staleAnswer(
 }
 
 /** Each case once, in the order the ranges name them, starred only when it never called in. */
-function entered(tests: readonly CoveringTest[]): readonly CoveringTest[] {
+function once(tests: readonly CoveringTest[]): readonly CoveringTest[] {
   const once = new Map<string, CoveringTest>();
   for (const test of tests) {
     const held = once.get(test.id);
@@ -70,14 +73,22 @@ function entered(tests: readonly CoveringTest[]): readonly CoveringTest[] {
 }
 
 /**
+ * Whether the answer is the one `staleAnswer` gives: about the file, a line or
+ * a run of lines whose recorded text could not be found. A function is named,
+ * not numbered, so its cases are still the record's and its answer is the
+ * usual one, with the frame said under it.
+ */
+export function staleFile(answer: Covering): boolean {
+  return answer.frame === 'stale' && (answer.target === undefined || !('function' in answer.target));
+}
+
+/**
  * What a stale answer says before its cases: that no recorded line is a place
  * in the held text, and which reading that takes away. A header with cases
  * to name is closed by them, after a colon.
  */
 export function staleLines(answer: Covering): { readonly gone: string; readonly header?: string } {
-  const gone = `${answer.file} is not the text the suite ran over${
-    answer.at === undefined ? '' : ` at ${answer.at.slice(0, 12)}`
-  }, and that text could not be found, so no recorded line is a place in it.`;
+  const gone = `${answer.file} is not the text the record's lines are numbered in, and that text could not be found, so no recorded line is a place in it.`;
   const tests = answer.tests ?? [];
   // Under `--where`, *kept none* is said already; *no named test ran code here* would read as nothing having run it.
   if (tests.length === 0 && (answer.where?.of ?? 0) > 0) return { gone };

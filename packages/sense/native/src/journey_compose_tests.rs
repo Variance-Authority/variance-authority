@@ -62,7 +62,7 @@ fn masks_of(names: &[&str], file: impl Fn(usize) -> String, modules: &[Module], 
     let encoded: Vec<EncodedModule<'_>> = modules
         .iter()
         .enumerate()
-        .map(|(at, module)| EncodedModule { module, called: &called[at], loaded: &loaded[at] })
+        .map(|(at, module)| EncodedModule { module, called: &called[at], loaded: &loaded[at], overwritten: &[] })
         .collect();
     let bytes = encode(&tests, &CaseExtras::default(), &encoded, &mut sets, None).unwrap();
     JourneyMasks::of(Journey::of("recorded", bytes).unwrap()).unwrap()
@@ -145,7 +145,7 @@ fn several_tests_in_a_file_are_named_rather_than_chosen() {
         .collect();
     let module = Module { id: "src/x.ts".to_owned(), file: "src/x.ts".to_owned(), blocks: Vec::new(), owners: None };
     let mut sets = SetPool::new(tests.len());
-    let encoded = [EncodedModule { module: &module, called: &[], loaded: &[] }];
+    let encoded = [EncodedModule { module: &module, called: &[], loaded: &[], overwritten: &[] }];
     let mut masks = JourneyMasks::of(Journey::of("two", encode(&tests, &CaseExtras::default(), &encoded, &mut sets, None).unwrap()).unwrap()).unwrap();
     assert_eq!(
         compose(&mut masks, "x.test.ts", None).unwrap().not_recorded.unwrap(),

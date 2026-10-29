@@ -405,9 +405,11 @@ function enteredModule(
   const crossed: { block: Block; distance: number; loaded: boolean }[] = [];
   const missed: Block[] = [];
   for (const block of module.blocks) {
-    const mine = block.crossings.filter((crossing) => crossing.test === test);
+    const held = block.crossings.filter((crossing) => crossing.test === test);
+    // A case that ran the region in another text is not known to reach this one, nor known not to.
+    const mine = held.filter((crossing) => crossing.overwritten !== true);
     if (mine.length === 0) {
-      if (block.source) missed.push(block);
+      if (block.source && held.length === 0) missed.push(block);
       continue;
     }
     crossed.push({

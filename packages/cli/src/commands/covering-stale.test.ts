@@ -88,12 +88,12 @@ function asked(root: string, execution: string, argv: readonly string[]) {
   )));
 }
 
-const GONE = 'src/cart.ts is not the text the suite ran over at 0123456789ab, and that text could not be found, so no recorded line is a place in it.';
+const GONE = "src/cart.ts is not the text the record's lines are numbered in, and that text could not be found, so no recorded line is a place in it.";
 
 describe('a file whose recorded text is gone', () => {
   it('names the cases that ran code in the file, and says the line is what it cannot place', async () => {
     const answer = await ask(['--line', '6']);
-    const text = formatCovering(answer, 'text');
+    const text = formatCovering(answer, 'text', Date.now());
 
     expect(answer).toMatchObject({ frame: 'stale', target: { line: 6 }, at: '0123456789abcdef' });
     expect(answer.tests?.map((test) => test.name)).toEqual(['off', 'on', 'plain']);
@@ -116,18 +116,18 @@ describe('a file whose recorded text is gone', () => {
 
     expect(answer.ranges).toBeUndefined();
     expect(answer.tests?.map((test) => test.name)).toEqual(['off', 'on', 'plain']);
-    expect(formatCovering(answer, 'text')).toContain(`${GONE}\n3 named tests ran code in src/cart.ts; at which of its lines cannot be said:\n`);
+    expect(formatCovering(answer, 'text', Date.now())).toContain(`${GONE}\n3 named tests ran code in src/cart.ts; at which of its lines cannot be said:\n`);
   });
 
   it('numbers the cases in refs, and says the same gap', async () => {
-    const refs = formatCovering(await ask(['--line', '6']), 'refs');
+    const refs = formatCovering(await ask(['--line', '6']), 'refs', Date.now());
 
     expect(refs).toContain(`${GONE}\n3 named tests ran code in src/cart.ts; which of them ran line 6 cannot be said: 1-3\n`);
     expect(refs).not.toMatch(/[Rr]un the suite/);
   });
 
   it('counts `--where` out of the cases that ran code in the file, not out of a line it cannot place', async () => {
-    const text = formatCovering(await ask(['--line', '6', '--where', 'flags:checkout=ff-on']), 'text');
+    const text = formatCovering(await ask(['--line', '6', '--where', 'flags:checkout=ff-on']), 'text', Date.now());
 
     expect(text).toContain('Kept the 1 of 3 cases that covered src/cart.ts and recorded flags:checkout=ff-on.\n');
     expect(text).toContain('1 named test ran code in src/cart.ts; which of them ran line 6 cannot be said:');
