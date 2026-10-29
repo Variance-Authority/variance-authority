@@ -465,7 +465,7 @@ describe('what the runs record stores', () => {
     }
   });
 
-  it('writes no list of files or install over a record written before landings, and keeps its landing first', async () => {
+  it('carries no list of files or install of a record written before landings, and keeps its landing first', async () => {
     const { root, coverageFile } = await recorded('P');
     await writeFile(
       commitRunsFile(coverageFile),
@@ -475,8 +475,8 @@ describe('what the runs record stores', () => {
     await landRun(coverageFile, run('P', ['b.test.ts']), root);
 
     const written = JSON.parse(await readFile(commitRunsFile(coverageFile), 'utf8')) as Record<string, unknown>;
-    expect(Object.keys(written).sort()).toEqual(['commit', 'landings', 'latest', 'over', 'runs', 'standing']);
-    expect(written).toMatchObject({ commit: 'P', over: 'O', runs: 3, landings: [{ files: ['a.test.ts'], first: DAY1, latest: DAY2, runs: 2, installed: {} }, { files: ['b.test.ts'] }] });
+    expect(Object.keys(written).sort()).toEqual(['commit', 'files', 'landings', 'latest', 'over', 'runs', 'standing']);
+    expect(written).toMatchObject({ commit: 'P', over: 'O', runs: 3, files: ['a.test.ts', 'b.test.ts'], landings: [{ files: ['a.test.ts'], first: DAY1, latest: DAY2, runs: 2, installed: {} }, { files: ['b.test.ts'] }] });
   });
 
   it('refuses a record whose landings or stands do not say what they are, naming the file', async () => {

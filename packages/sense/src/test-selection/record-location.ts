@@ -16,6 +16,7 @@ import { statSync } from 'node:fs';
 import { link, mkdir, readFile, rename, stat, unlink, writeFile } from 'node:fs/promises';
 import { dirname, relative, resolve, sep } from 'node:path';
 import { layeredFiles, repositoryLayers } from './cache-layers.js';
+import { commitRunsText } from './commit-runs-text.js';
 import { commitRunsFile, readCommitRuns, type CommitRuns } from './commit-runs.js';
 import { caseSectionsOf, sharedRecord } from './case-record.js';
 import { decodeExecutionTests } from './execution-format.js';
@@ -341,8 +342,7 @@ async function seedCommitRuns(file: string, base: string, snapshot: TestCoverage
     return;
   }
   if (held?.commit !== commit) return;
-  const record: CommitRuns = { ...held, runs: 0 };
-  await writeCoverageOnce(commitRunsFile(file), Buffer.from(`${JSON.stringify(record, null, 2)}\n`));
+  await writeCoverageOnce(commitRunsFile(file), Buffer.from(commitRunsText({ ...held, runs: 0 })));
 }
 
 /**

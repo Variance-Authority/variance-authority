@@ -1,5 +1,5 @@
 import { execFile } from 'node:child_process';
-import { mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
@@ -82,6 +82,15 @@ async function worktreeAtPublished(): Promise<{ first: string; head: string; wor
 }
 
 describe('a worktree at the commit its mainline published', () => {
+  it('lays its seed with the files its landings finished listed beside them, the files a build that keeps no landings reads as run at its commit', async () => {
+    const { worktree } = await worktreeAtPublished();
+    const own = testCoverageFile(worktree, { suite: 'unit' });
+    await seedTestCoverage(own, worktree, 'fixture');
+
+    const written = JSON.parse(await readFile(commitRunsFile(own), 'utf8')) as Record<string, unknown>;
+    expect(written['files']).toEqual(['test/other.test.ts', 'test/total.test.ts']);
+  });
+
   it('has no run listed before it runs, and its first run starts its change there rather than where CI\'s run did', async () => {
     const { head, worktree } = await worktreeAtPublished();
     const own = testCoverageFile(worktree, { suite: 'unit' });

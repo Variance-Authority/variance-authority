@@ -48,7 +48,7 @@ import { followRowsIn } from './case-cuts.js';
 import { editsBetween } from './region-edit.js';
 import { casesRan, dropsCasesWithoutAny, layCases, textsIn, unansweredOver, type FreshCases, type ModuleTexts } from './case-landing.js';
 import { casesRecordedOver, recordOfCases, withCaseSections } from './case-record.js';
-import { commitRunsIn } from './commit-runs-text.js';
+import { commitRunsIn, commitRunsText } from './commit-runs-text.js';
 import { askCoverageFile } from './coverage-file.js';
 import { anotherBuilds, layeredOver, recordBytes } from './format-layer.js';
 import { RecordWithoutCoverage } from './format-validation.js';
@@ -104,7 +104,8 @@ export interface CommitRuns {
    * texts are the one landing's that lists it, and the files the runs at
    * `commit` observed are the ones their landings list (`whatLanded`). A record
    * written before landings were kept reads as one landing of the files, span
-   * and install it held (`commitRunsIn`).
+   * and install it held (`commitRunsIn`), and the text lists those files beside
+   * the landings, for a build that keeps none (`commitRunsText`).
    */
   readonly landings: readonly Landing[];
   /**
@@ -357,7 +358,7 @@ export function commitRunsAfter(
  * snapshot, or to a file staged beside it that the caller renames over it.
  */
 export async function writeCommitRuns(to: string, record: CommitRuns): Promise<void> {
-  await writeCoverageBytes(to, Buffer.from(`${JSON.stringify(record, null, 2)}\n`));
+  await writeCoverageBytes(to, Buffer.from(commitRunsText(record)));
 }
 
 /**

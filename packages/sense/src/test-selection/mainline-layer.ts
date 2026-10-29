@@ -28,7 +28,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { mkdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { cacheRootFor, primaryCacheRoot } from './cache-layers.js';
-import { commitRunsIn } from './commit-runs-text.js';
+import { commitRunsIn, commitRunsText } from './commit-runs-text.js';
 import { commitRunsFile, type CommitRuns } from './commit-runs.js';
 import { caseSectionsOf } from './case-record.js';
 import { decodeExecutionTests } from './execution-format.js';
@@ -230,7 +230,7 @@ export function opensFetched(
 
 /** `held` as the seed of a checkout that has not run: its runs are none of this checkout's, and landed when they landed. */
 function seeded(held: CommitRuns): Uint8Array {
-  return Buffer.from(`${JSON.stringify({ ...held, runs: 0 } satisfies CommitRuns, null, 2)}\n`);
+  return Buffer.from(commitRunsText({ ...held, runs: 0 }));
 }
 
 async function place(file: string, bytes: Uint8Array | undefined): Promise<void> {
