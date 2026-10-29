@@ -23,6 +23,10 @@ mod importers_walk;
 use importers_walk::importers_folded;
 pub(crate) use importers_walk::importers_from;
 
+#[path = "help_unresolved.rs"]
+mod unresolved_walk;
+pub(crate) use unresolved_walk::sources;
+
 #[napi(object)]
 #[derive(serde::Serialize)]
 pub struct NamedExport {
@@ -303,6 +307,9 @@ pub struct Importers {
     /// Every namespace a file passes the name on inside, by file in code
     /// units, then by name: `export * as shout` passes `greet` as `shout.greet`.
     pub namespaces: Vec<Namespace>,
+    /// Every file, in code-unit order, with an import the index resolved to
+    /// no file that could take the name: a use there is not listed.
+    pub unresolved: Vec<String>,
 }
 
 /// A namespace one file passes a name on inside: the name it exports the
@@ -343,6 +350,7 @@ pub(crate) fn importers(root: &str, layers: &[Layer], files: &[String], name: &s
     let folded = fold(layers);
     let in_file = in_file(root, layers, &folded, files, name);
     let walked = importers_folded(root, layers, &folded, origins);
+    let unresolved = unresolved_walk::unresolved(root, layers, &folded, files, &walked.through, &walked.exports);
     let mut found: Vec<NameUse> = walked.taken.into_iter().map(|taken| taken.taken).collect();
     found.sort_by(|a, b| {
         crate::order::code_unit(&a.at, &b.at)
@@ -358,7 +366,7 @@ pub(crate) fn importers(root: &str, layers: &[Layer], files: &[String], name: &s
     namespaces.sort_unstable_by(|a, b| {
         crate::order::code_unit(&a.at, &b.at).then_with(|| crate::order::code_unit(&a.name, &b.name)).then_with(|| a.members.len().cmp(&b.members.len()))
     });
-    Importers { uses: found, through, in_file, namespaces }
+    Importers { uses: found, through, in_file, namespaces, unresolved }
 }
 
 #[cfg(test)]
