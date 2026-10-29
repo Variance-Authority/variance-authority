@@ -58,9 +58,9 @@ describe('a test read alone', () => {
       [10, ['total.test.ts > discounts']],
       [30, []],
     ]);
-    const text = formatCovering(answer, 'text');
+    const text = formatCovering(answer, 'text', Date.now());
     expect(text.split('\n')[0]).toBe('Read from the 1 case of the last run at abcdef012345, not the whole suite.');
-    expect(JSON.parse(formatCovering(answer, 'json')).scope.tests).toEqual(['total.test.ts > discounts']);
+    expect(JSON.parse(formatCovering(answer, 'json', Date.now())).scope.tests).toEqual(['total.test.ts > discounts']);
   });
 
   it('answers from every case of one test file', async () => {

@@ -381,10 +381,10 @@ function sameCut(left: ExecutionModule, right: ExecutionModule): boolean {
   });
 }
 
-/** The cases that called into a region, once each, in record order. */
+/** The cases that called into a region, once each, in record order; one that ran it in another text (`overwritten`) is not known to. */
 function callers(index: ExecutionIndex, block: ExecutionBlock): readonly ExecutionTest[] {
   const at = new Set<number>();
-  for (const crossing of block.crossings) if (crossing.loaded !== true) at.add(crossing.test);
+  for (const crossing of block.crossings) if (crossing.loaded !== true && crossing.overwritten !== true) at.add(crossing.test);
   return [...at].sort((left, right) => left - right).map((test) => index.tests[test]!);
 }
 

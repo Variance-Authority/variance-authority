@@ -68,6 +68,16 @@ describe('how much of what the suites loaded each suite ran', () => {
     expect(countCoverage([{ index: record }])).toMatchObject({ regions: 3, run: 1, load: 2, none: 0 });
   });
 
+  it('counts a region a case ran only in another text as not run, and as loaded where another case loaded it', () => {
+    const record = index(module(
+      'src/total.ts',
+      block('apply', [], { crossings: [{ test: 0, distance: 0, overwritten: true }] }),
+      block('round', [], { crossings: [{ test: 0, distance: 0, overwritten: true }, { test: 1, distance: 0, loaded: true }] }),
+    ));
+
+    expect(countCoverage([{ index: record }])).toMatchObject({ regions: 2, run: 0, load: 1, none: 1 });
+  });
+
   it('counts no region that has no source of its own', () => {
     const record = index(module('src/total.ts', block('apply', [0]), block('lowered', [0], { source: false })));
 

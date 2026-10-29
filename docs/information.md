@@ -373,9 +373,11 @@ The Vitest integration consolidates temporary worker journals into a versioned
 `<cache>/test-selection/<repository-digest>/coverage.bin`, in
 [your cache](cache.md). `coverageFile` gives it an explicit path when CI must
 publish, restore, or share the artifact. The runs record beside it,
-`coverage.runs.json` for `coverage.bin`, says which runs landed at the
-snapshot's commit and where they started; publish and restore the two
-together. A snapshot restored without its runs record is read with whatever
+`coverage.runs.json` for `coverage.bin`, says where the runs at the snapshot's
+commit started and, for each of them whose evidence the snapshot holds, the
+test files it finished, the ones it ran only in part with the cases it ran,
+when it landed, the install it ran on, and the digest of each uncommitted text
+it ran over; publish and restore the two together. A snapshot restored without its runs record is read with whatever
 record already lies beside it. Temporary journals are removed after
 consolidation.
 

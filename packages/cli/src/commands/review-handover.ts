@@ -3,9 +3,10 @@ import { codeUnitOrder } from '@variance-authority/core/segment';
 import { declaredSuites, heardSplit } from '@variance-authority/sense/test-selection';
 import type { ParsedReview } from '../review-args.js';
 import { review, type Reach, type Review, type ReviewRegion } from './review.js';
-import { functionOf, TOP_LEVEL, uncovered } from './review-scope.js';
+import { functionOf, TOP_LEVEL, unproven } from './review-scope.js';
 import { eachSuite, nearestOfEach, NEAREST, type MissedSuite } from './review-suites.js';
-import { FRESH_MARK, MARK, REACH_WORD, unrecordedSources } from './review-text.js';
+import { unrecordedSources } from './review-text.js';
+import { FRESH_MARK, MARK, notKnown, REACH_WORD } from './review-words.js';
 
 /** The line a pull request body's handover starts at: a re-run replaces everything up to {@link HANDOVER_END}. */
 export const HANDOVER_START = '<!-- variance-authority: handover -->';
@@ -149,9 +150,14 @@ function summary(pointers: readonly Pointer[], unread: number): string {
 /** Where a reach read from a record made before the change was seen: on the old code. */
 const BEFORE = 'in the record before the change';
 
-/** What a part no case reached lacks, in the words of the record it was read from, as the review comment words it. */
+/**
+ * What a part no case reached lacks, in the words of the record it was read
+ * from, as the review comment words it. An `overwritten` part is not said to
+ * be one no case ran: a case ran it in a text an edit wrote over.
+ */
 function gapOf(part: Part): string {
   if (part.fresh) return 'new and not run yet';
+  if (part.region.reach === 'overwritten') return `with code ${notKnown(part.ran)}`;
   return part.ran ? 'with code no case ran' : 'with code the record holds no case for';
 }
 
@@ -189,7 +195,7 @@ function answeredElsewhere(part: Part, parts: readonly Part[]): boolean {
 }
 
 function isReached(part: Part): boolean {
-  return !part.fresh && !uncovered(part.region);
+  return !part.fresh && !unproven(part.region);
 }
 
 function rank(part: Part): number {
@@ -212,9 +218,11 @@ function pointerLine({ file, name, worst, reached }: Pointer, tagged: boolean, m
   // Every part reached: the furthest one is the one to read.
   if (isReached(worst)) return `- ${MARK[worst.region.reach]} ${where} — ${reachedBy(worst, false, mixed)}${tag}`;
   const reach = reached === undefined ? '' : reachedBy(reached, tagged && reached.suite !== worst.suite, mixed);
+  const known = notKnown(worst.ran);
   const gap = worst.fresh
     ? (reached === undefined ? 'new, not run yet' : 'a new part not run yet')
-    : worst.ran ? (reached === undefined ? 'no case' : 'a part no case ran') : reached === undefined ? 'no case in the record' : 'a part the record holds no case for';
+    : worst.region.reach === 'overwritten' ? (reached === undefined ? `${known} it` : `a part ${known}`)
+      : worst.ran ? (reached === undefined ? 'no case' : 'a part no case ran') : reached === undefined ? 'no case in the record' : 'a part the record holds no case for';
   return `- ${worst.fresh ? FRESH_MARK : MARK[worst.region.reach]} ${where} — ${gap}${tag}${reach === '' ? '' : `; the rest ${reach}`}`;
 }
 

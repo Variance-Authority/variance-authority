@@ -51,10 +51,27 @@ describe('the whole-file answer over a range that only ran while its module load
     const stopped = [{ id: 'b.test.ts > throws', file: 'b.test.ts', name: 'throws', stopped: true }];
     const ranges = [{ startLine: 1, endLine: 2, state: 'loaded' as const, loaded: true as const, tests: [], stopped }];
 
-    const text = formatCovering({ ...answer, ranges }, 'text');
+    const text = formatCovering({ ...answer, ranges }, 'text', Date.now());
 
     expect(text).toContain('lines 1-2 — loaded\n');
     expect(text).not.toContain('a hole');
+  });
+});
+
+describe('the whole-file answer over a range a case also ran in another text', () => {
+  it('names the case that ran it, and says which other case ran it is not known', async () => {
+    const answer = await ask();
+    const adds = { ...INDEX.tests[0]!, distance: 0 };
+    const keeps = { id: 'b.test.ts > keeps', file: 'b.test.ts', name: 'keeps', stopped: false, distance: 0 };
+    const ranges = [{ startLine: 4, endLine: 8, state: 'walked' as const, tests: [adds], stopped: [], overwritten: [keeps] }];
+
+    expect(formatCovering({ ...answer, ranges }, 'text', Date.now())).toContain([
+      'lines 4-8 — walked',
+      '  a.test.ts',
+      '    adds',
+      "  it is also in a text a case ran over, but a run over another text has landed there since, so which other case ran it is not known",
+      '',
+    ].join('\n'));
   });
 });
 
@@ -62,7 +79,7 @@ describe('the whole-file answer over a one-line region no case entered', () => {
   it('gives the region its own range and says nobody entered it', async () => {
     const answer = await ask();
 
-    expect(formatCovering(answer, 'text')).toBe([
+    expect(formatCovering(answer, 'text', Date.now())).toBe([
       'src/cart.ts — 3 recorded ranges, 1 named test',
       'lines 4-5 — alone',
       '  a.test.ts',
@@ -72,6 +89,8 @@ describe('the whole-file answer over a one-line region no case entered', () => {
       '  no case entered the branch on line 6, and every case that could have reached it finished: unwalked.',
       'lines 7-8 — alone',
       '  the same named test as lines 4-5',
+      "src/cart.ts is not on disk, so no text of it is held; its lines are the record's.",
+      'Where and when the test file named here last ran is not known: the record names no commit.',
       '',
     ].join('\n'));
   });
@@ -81,7 +100,7 @@ describe('the whole-file answer over a one-line region no case entered', () => {
     const stopped = [{ id: 'b.test.ts > throws', file: 'b.test.ts', name: 'throws', stopped: true }];
     const ranges = answer.ranges!.map((range) => range.unentered === undefined ? range : { ...range, unentered: range.unentered.map((region) => ({ ...region, stopped })) });
 
-    expect(formatCovering({ ...answer, ranges }, 'text')).toContain([
+    expect(formatCovering({ ...answer, ranges }, 'text', Date.now())).toContain([
       'line 6 — alone',
       '  the same named test as lines 4-5',
       '  no case entered the branch on line 6 — a hole: a case that could have reached it stopped first, so the record cannot see it.',
@@ -91,14 +110,14 @@ describe('the whole-file answer over a one-line region no case entered', () => {
   });
 
   it('says it in the refs an agent reads', async () => {
-    expect(formatCovering(await ask(), 'refs')).toContain('6 alone: 1; unentered branch 6 unwalked\n');
+    expect(formatCovering(await ask(), 'refs', Date.now())).toContain('6 alone: 1; unentered branch 6 unwalked\n');
   });
 
   it('keeps the region apart in an answer a flag narrowed', async () => {
     const answer = await ask('--in-package');
 
     expect(answer.ranges?.map((range) => [range.startLine, range.endLine])).toEqual([[4, 5], [6, 6], [7, 8]]);
-    expect(formatCovering(answer, 'text')).toContain('  no case entered the branch on line 6, and every case that could have reached it finished: unwalked.\n');
+    expect(formatCovering(answer, 'text', Date.now())).toContain('  no case entered the branch on line 6, and every case that could have reached it finished: unwalked.\n');
   });
 });
 
@@ -110,7 +129,7 @@ describe('the whole-file answer over a file edited since the run', () => {
     const answer = await ask();
 
     expect(answer.ranges?.find((range) => range.startLine === 9)?.unentered).toMatchObject([{ startLine: 9, endLine: 9 }]);
-    expect(formatCovering(answer, 'text')).toContain('  no case entered the branch on line 9, and every case that could have reached it finished: unwalked.\n');
-    expect(formatCovering(answer, 'refs')).toContain('unentered branch 9 unwalked');
+    expect(formatCovering(answer, 'text', Date.now())).toContain('  no case entered the branch on line 9, and every case that could have reached it finished: unwalked.\n');
+    expect(formatCovering(answer, 'refs', Date.now())).toContain('unentered branch 9 unwalked');
   });
 });

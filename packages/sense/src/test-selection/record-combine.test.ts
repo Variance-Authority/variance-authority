@@ -7,6 +7,7 @@ import { digestString } from '../digest.js';
 import { lastCaseRunOf, layCases } from './case-landing.js';
 import { caseSectionsOf, withCaseSections } from './case-record.js';
 import { encodeRecordedEyes } from './eyes-record.js';
+import { decodeExecutionIndex } from './execution-format.js';
 import { encodeAsSetExecutionIndex } from './execution-set-format.js';
 import { landRun } from './commit-runs.js';
 import { INSTRUMENTATION_ID } from '../instrument/index.js';
@@ -38,8 +39,10 @@ afterEach(async () => {
  * The record one run of `files` writes, every part of it through the
  * TypeScript writers: the coverage through `format.ts`, the case index and the
  * last-run layer through `case-landing.ts`, and Eyes through `eyes-record.ts`.
+ * The cases of `overwritten` ran `greet` in a text an edit wrote over, as a
+ * layering cut to the edited text keeps them (`landedThrough`).
  */
-async function recordOf(name: string, files: readonly string[]): Promise<string> {
+async function recordOf(name: string, files: readonly string[], overwritten: readonly string[] = []): Promise<string> {
   const tests = files.map((file) => ({ id: `${file} > greets`, file, name: 'greets', stopped: false }));
   const blocks = [
     { ordinal: 0, kind: 'module' as const, digest: 'module', name: '', path: '', startLine: 1, endLine: 1, source: true, testFiles: [], loadedBy: [...files] },
@@ -49,7 +52,9 @@ async function recordOf(name: string, files: readonly string[]): Promise<string>
   const fresh = encodeAsSetExecutionIndex({
     tests,
     modules: [{ file: 'src/greet.ts', blocks: blocks.map((block) => ({
-      ...block, crossings: block.kind === 'function' ? tests.map((_, test) => ({ test, distance: 0 })) : [],
+      ...block, crossings: block.kind === 'function'
+        ? tests.map(({ file }, test) => ({ test, distance: 0, ...(overwritten.includes(file) ? { overwritten: true as const } : {}) }))
+        : [],
     })) }],
   });
   const eyes = {
@@ -89,6 +94,19 @@ describe('combineRecords against the TypeScript writers', () => {
       expect(readable(combined)).toEqual(readable(whole));
       expect(Buffer.compare(combined, whole)).toBe(0);
     }
+  });
+
+  it('carries a case a shard ran over another text of a region as overwritten, never as absent', async () => {
+    const shards = [await recordOf('a.bin', ['a.test.ts'], ['a.test.ts']), await recordOf('b.bin', ['b.test.ts'])];
+    const into = join(root, 'combined.bin');
+    combineRecords(shards, into, root);
+    const index = decodeExecutionIndex(caseSectionsOf(await readFile(into)).index!);
+    const greet = index.modules[0]!.blocks.find((block) => block.name === 'greet')!;
+    // The case index lists a region's called cases before its overwritten ones.
+    expect(greet.crossings.map(({ test, overwritten }) => [index.tests[test]!.file, overwritten === true])).toEqual([
+      ['b.test.ts', false],
+      ['a.test.ts', true],
+    ]);
   });
 
   it('folds legacy and compact last-run membership into the unsharded spelling', async () => {

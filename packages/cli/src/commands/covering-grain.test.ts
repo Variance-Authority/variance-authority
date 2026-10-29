@@ -61,7 +61,7 @@ describe('asking a run of lines', () => {
     expect(answer.tests?.map((test) => test.id)).toEqual(['records']);
     expect(answer.target).toEqual({ lines: { startLine: 6, endLine: 8 } });
     expect(answer.fileGrain).toBeUndefined();
-    expect(formatCovering(answer, 'text')).toContain('1 named test covered lines 6-8 of src/ledger.ts');
+    expect(formatCovering(answer, 'text', Date.now())).toContain('1 named test covered lines 6-8 of src/ledger.ts');
   });
 
   it('names every line of a range that charges the module, whose cases are the ones that loaded the file', async () => {
@@ -71,10 +71,10 @@ describe('asking a run of lines', () => {
     expect(answer.tests?.map((test) => test.id)).toEqual(['books', 'finds', 'records', 'loads']);
     expect(answer.grain).toBeUndefined();
     expect(answer.fileGrain).toEqual([{ startLine: 9, endLine: 11 }, { startLine: 17, endLine: 20 }]);
-    expect(formatCovering(answer, 'text')).toContain(
+    expect(formatCovering(answer, 'text', Date.now())).toContain(
       'Lines 9-11, 17-20 charge the module\'s own region: for them the record names the cases that loaded the file.',
     );
-    expect(formatCovering(answer, 'refs')).toContain('; file grain at 9-11, 17-20');
+    expect(formatCovering(answer, 'refs', Date.now())).toContain('; file grain at 9-11, 17-20');
   });
 
   it('names a method\'s first and last line when a range spans the whole method', async () => {
@@ -89,8 +89,8 @@ describe('asking a run of lines', () => {
 
     expect(answer.grain).toBe('file');
     expect(answer.outside).toEqual([{ startLine: 41, endLine: 42 }]);
-    expect(formatCovering(answer, 'text')).toContain('Lines 41-42 are outside every recorded region, so no case can be said to have run them.');
-    expect(formatCovering(answer, 'refs')).toContain('; outside every region at 41-42');
+    expect(formatCovering(answer, 'text', Date.now())).toContain('Lines 41-42 are outside every recorded region, so no case can be said to have run them.');
+    expect(formatCovering(answer, 'refs', Date.now())).toContain('; outside every region at 41-42');
   });
 
   it('answers a range only the module holds at file grain, and says so', async () => {
@@ -107,11 +107,11 @@ describe('asking a line only the module holds', () => {
     const answer = await ask('--line', '20');
 
     expect(answer.tests).toHaveLength(4);
-    expect(JSON.parse(formatCovering(answer, 'json')).grain).toBe('file');
-    expect(formatCovering(answer, 'text')).toContain(
+    expect(JSON.parse(formatCovering(answer, 'json', Date.now())).grain).toBe('file');
+    expect(formatCovering(answer, 'text', Date.now())).toContain(
       'At file grain: an edit to line 20 charges the module\'s own region',
     );
-    expect(formatCovering(answer, 'refs')).toContain('src/ledger.ts line 20 at file grain');
+    expect(formatCovering(answer, 'refs', Date.now())).toContain('src/ledger.ts line 20 at file grain');
   });
 
   it('carries no grain on a line a function holds', async () => {
@@ -122,7 +122,7 @@ describe('asking a line only the module holds', () => {
     const answer = await ask('--line', '9');
 
     expect(answer.grain).toBe('file');
-    expect(formatCovering(answer, 'text')).toContain(
+    expect(formatCovering(answer, 'text', Date.now())).toContain(
       'At file grain: an edit to line 9 charges the module\'s own region, so the record names the cases that loaded the file.',
     );
   });

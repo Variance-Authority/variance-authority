@@ -91,34 +91,37 @@ function hashingTo(text: string | undefined, digest: string): string | undefined
 
 type Cut = Pick<SetExecutionModule, 'blocks' | 'owner'>;
 
+/** Where the cases a cut of a module held land in a recorded cut of it, region by region. */
+export interface RegionPairing {
+  /** Per recorded region, the held region its cases carry from, or -1. */
+  readonly lands: Int32Array;
+  /**
+   * Per recorded region the edit reached, the held region whose cases would
+   * have landed there, or -1: they ran another text at the region, so whether
+   * they cross it is not known. It is -1 wherever `lands` names a region.
+   */
+  readonly overwrote: Int32Array;
+  /**
+   * The edit could not be read: no held region is known to land anywhere, so
+   * every held case ran another text at every recorded region.
+   */
+  readonly unread: boolean;
+}
+
 /**
- * For each region of `recorded`, the held region its cases carry from, or -1.
- *
- * A recorded region first lands on the held region of its kind the edit left
- * alone and places at its lines, the n-th of them when several share the
- * lines; that region ran as it did whatever the edit read as. A region no
- * untouched one stands under pairs by address, as the snapshot's landing
- * pairs its rows (`carried` in `record_coverage_recut.rs`): the n-th region of
- * a name and structural path, of the same kind, where both cuts hold the
- * address as many times and seated every counter it passes through alike
- * ({@link addressedAlike}), and the held one is not already seated. The top
- * level is one region in every cut of a module and pairs with the held top
- * level whatever an edit renumbered. A region with neither was written by the
- * edit, or cannot be told from a sibling, and takes what the region around it
- * took: a superset, never a sibling's cases.
- * A region that lands by address or is born carries those cases only when
- * {@link reaches} says the edit did not reach its kind; otherwise it is -1,
- * and its tests count as changed. An edit with no hunks — the same text, cut
- * into more regions — reaches nothing.
- *
- * Without a `change` — a text could not be found — the whole module changed
- * and nothing lands.
+ * Where each region of `recorded` takes its cases from in `held`: the held
+ * region the edit left alone at its lines, which ran as it did, else the one
+ * at its address or what the region around it took, which land only where
+ * {@link reaches} says the edit did not reach the region's kind and are
+ * overwritten where it did. Without a `change` — a text could not be found —
+ * nothing lands, and the pairing says it is `unread`.
  */
-// FIXME: the snapshot's `carried` in record_coverage_recut.rs pairs by the same
-// rule in Rust; the case index should ask the addon for its landing instead.
-export function landedThrough(held: Cut, recorded: Cut, change: Edit | undefined): Int32Array {
+export function landedThrough(held: Cut, recorded: Cut, change: Edit | undefined): RegionPairing {
+  // FIXME: the snapshot's `carried` in record_coverage_recut.rs pairs by the
+  // same rule in Rust; the case index should ask the addon for its landing instead.
   const lands = new Int32Array(recorded.blocks.length).fill(-1);
-  if (change === undefined) return lands;
+  const overwrote = new Int32Array(recorded.blocks.length).fill(-1);
+  if (change === undefined) return { lands, overwrote, unread: true };
   // A text the edit left whole runs as it did, as the recut keeps a row whose text did not move.
   const reading = change.hunks.length === 0 ? 'none' : change.reading;
   // The held regions the edit left alone, at the lines it places them, in order.
@@ -133,6 +136,8 @@ export function landedThrough(held: Cut, recorded: Cut, change: Edit | undefined
     const key = seatOf(block.kind, placed.startLine, placed.endLine);
     seats.set(key, [...(seats.get(key) ?? []), at]);
   }
+  // A recorded region takes the held region of its kind seated at its lines,
+  // the n-th of them when several share the lines.
   const seated = new Int32Array(recorded.blocks.length).fill(-1);
   const taken = new Map<string, number>();
   for (const [at, block] of recorded.blocks.entries()) {
@@ -149,8 +154,10 @@ export function landedThrough(held: Cut, recorded: Cut, change: Edit | undefined
   const heldSeen = new Map<string, number>();
   for (const [at, block] of held.blocks.entries()) addressed.set(addressKey(`${block.name}\0${block.path}`, heldSeen), at);
   const seen = new Map<string, number>();
-  // What each recorded region took before the edit's reach was asked: a born
-  // region inside it takes the same, as the recut's `decided` does.
+  // What each recorded region took before the edit's reach was asked. A region
+  // with neither a seat nor an address was written by the edit, or cannot be
+  // told from a sibling, and takes what the region around it took, as the
+  // recut's `decided` does: a superset, never a sibling's cases.
   const decided = new Int32Array(recorded.blocks.length).fill(-1);
   for (const [at, block] of recorded.blocks.entries()) {
     const address = addressKey(`${block.name}\0${block.path}`, seen);
@@ -158,14 +165,20 @@ export function landedThrough(held: Cut, recorded: Cut, change: Edit | undefined
       decided[at] = lands[at] = seated[at]!;
       continue;
     }
+    // Unseated, it pairs by address, as `carried` pairs rows: the n-th region
+    // of a name and structural path, of its kind, where both cuts hold the
+    // address as many times and seated every counter it passes through alike
+    // ({@link addressedAlike}), and the held one is not seated.
     const was = block.kind === 'module' && top >= 0 ? top : alike(block) ? addressed.get(address) : undefined;
     const owner = recorded.owner?.[at];
     decided[at] = was !== undefined && !occupied.has(was) && held.blocks[was]!.kind === block.kind
       ? was
       : owner === undefined || owner === NO_OWNER ? -1 : decided[owner]!;
+    // Where the edit reached its kind, those cases ran another text there.
     if (!reaches(reading, block.kind)) lands[at] = decided[at]!;
+    else overwrote[at] = decided[at]!;
   }
-  return lands;
+  return { lands, overwrote, unread: false };
 }
 
 function seatOf(kind: string, startLine: number, endLine: number): string {

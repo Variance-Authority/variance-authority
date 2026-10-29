@@ -48,6 +48,7 @@ export function relined(held: SetExecutionModule, recorded: SetExecutionModule):
     called: Uint32Array.from(kept, (from) => held.called[from]!),
     loaded: Uint8Array.from(kept, (from) => held.loaded[from]!),
     ...(held.owner === undefined ? {} : { owner: keptOwners(held.owner, kept) }),
+    ...(held.overwritten === undefined ? {} : { overwritten: Uint32Array.from(kept, (from) => held.overwritten![from]!) }),
   };
 }
 

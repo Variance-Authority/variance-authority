@@ -143,7 +143,7 @@ export async function answerConfigless(
       ]);
       try {
         const answer = await coveringAnswer(parsed);
-        streams.out(formatCoveringAnswer(answer, parsed.format));
+        streams.out(formatCoveringAnswer(answer, parsed.format, Date.now()));
         // Under `refs` stdout is a list a runner takes, so the run that closes a gap goes to the person, on stderr.
         if (parsed.format === 'refs') for (const gap of answerGaps(answer)) streams.err(`${evidenceGapText(gap)}\n`);
       } catch (error) {

@@ -278,7 +278,7 @@ describe('several suites that never loaded the file', () => {
         unloaded('stories', 'visual'),
         { suite: 'unit', kind: 'unit', file: 'src/pay.ts', target: { line: 12 }, tests: [], from: '/cache/unit.bin' },
       ],
-    }, 'text');
+    }, 'text', Date.now());
 
     expect(said.startsWith('unit (unit):\n')).toBe(true);
     expect(said.endsWith(`\n${NOT_LOADED('checkout (e2e), stories (visual)')}\n`)).toBe(true);

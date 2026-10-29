@@ -70,7 +70,7 @@ describe('landJourneys when what it stages cannot be written', () => {
       const record = testCoverageFile(dir, { suite: 'unit' });
       const snapshot = await readFile(record);
       // The fixture leaves no runs record beside the snapshot. One is written here, so a landing that changed it would show.
-      await writeCommitRuns(commitRunsFile(record), { first: '', latest: '', runs: 1, files: ['test/total.test.ts'] });
+      await writeCommitRuns(commitRunsFile(record), { latest: '', runs: 1, landings: [{ files: ['test/total.test.ts'] }] });
       const runs = await readFile(commitRunsFile(record));
       // A shard that finished the file the index has cases for, and left none:
       // landed, it would remove the index.
