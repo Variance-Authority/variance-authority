@@ -897,6 +897,7 @@ src/checkout/total.test.ts
   a test file — 4 named cases declared here, which is what changed rather than what was reached:
     applies a percentage discount [total.test.ts::applies a percentage discount]
     ...
+src/checkout/total.test.ts ran over another text of src/checkout/total.ts, in a run that landed 2 hours ago.
 ```
 
 Two of those lines are findings and neither is a percentage. A changed region
@@ -914,13 +915,17 @@ opposite facts.
 
 The diff is measured from the commit the record was written at rather than from
 the merge base with `<ref>`, since the index's line ranges are in that commit's
-coordinates and nothing else's. Record before you read: an index behind the tree
-answers fluently about regions that have moved.
+coordinates and nothing else's.
 
 Under the regions, the answer says which changed files the test files it names
-ran over and when, as an answer about one file does, with no region. When the
-record names no commit, the `Read from` line ends `; the record names no
-commit.` in place of `recorded at`.
+ran over and when, as an answer about one file does, with no region. Record
+before you read: a case that ran another text of a changed file is evidence
+about that text, not about your change. A changed region a case ran over, where
+a run over another text has landed since, says which case ran it is not known.
+When no listed case covers it, the first line counts it as covered only in
+another text, apart from the regions nothing covered. When the record names no
+commit, the `Read from` line ends `; the record names no commit.` in place of
+`recorded at`.
 
 #### What a change moved
 
