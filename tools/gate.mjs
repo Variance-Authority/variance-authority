@@ -3,7 +3,7 @@
  * <wave>` after a green wave, and `node tools/gate.mjs hook` as the Claude Code
  * `PreToolUse` hook on Bash.
  *
- * `stamp` records that a wave passed on the commit `HEAD` names, in the
+ * `stamp` records that a wave passed on the tree `HEAD` holds, in the
  * checkout's own git directory, so nothing tracked moves and each worktree
  * keeps its own. A tree with uncommitted changes is not stamped: the wave ran
  * on something no commit holds, and it says so.
@@ -18,6 +18,7 @@
 import { execFileSync } from 'node:child_process';
 import { appendFileSync, existsSync, mkdirSync, readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 const WAVES = ['near', 'rules'];
 
@@ -27,7 +28,7 @@ const git = (dir, ...args) =>
 const stampFile = (dir) => {
   const path = resolve(dir, git(dir, 'rev-parse', '--git-path', 'variance-gate'));
   mkdirSync(path, { recursive: true });
-  return join(path, git(dir, 'rev-parse', 'HEAD'));
+  return join(path, git(dir, 'rev-parse', 'HEAD^{tree}'));
 };
 
 const stamped = (dir) => {
@@ -45,46 +46,65 @@ const stamp = (wave) => {
   console.log(`gate: ${wave} stamped on ${git(dir, 'rev-parse', '--short', 'HEAD')}`);
 };
 
-// The directory a command acts in: `git -C <dir>`, else a leading `cd <dir>`,
-// else the session's working directory.
-const targetOf = (command, cwd) => {
-  const flag = command.match(/\bgit\s+-C\s+("[^"]+"|'[^']+'|\S+)/);
-  const cd = command.match(/^\s*cd\s+("[^"]+"|'[^']+'|\S+)\s*(&&|;)/);
-  const dir = (flag ?? cd)?.[1].replace(/^["']|["']$/g, '');
-  return dir ? resolve(cwd, dir) : cwd;
+const unquote = (word) => word.replace(/^["']|["']$/g, '');
+
+// The gated calls in a command line, each with the directory it acts in: the
+// line is cut at `&&`, `||`, `;`, `|` and parentheses, a `cd <dir>` moves the
+// directory for the parts after it, and a part counts only when its own first
+// word is `git` with `push` as the subcommand, or `gh pr create`. A commit
+// message or an `echo` that spells "git push" is not a push.
+export const gatedCalls = (command, cwd) => {
+  const calls = [];
+  let dir = cwd;
+  for (const part of command.split(/&&|\|\||[;|()\n]/)) {
+    const words = part.trim().match(/"[^"]*"|'[^']*'|\S+/g) ?? [];
+    if (words[0] === 'cd' && words[1]) dir = resolve(dir, unquote(words[1]));
+    if (words[0] === 'gh' && words[1] === 'pr' && words[2] === 'create') calls.push(dir);
+    if (words[0] !== 'git') continue;
+    let at = dir;
+    let i = 1;
+    while (i < words.length && words[i].startsWith('-')) {
+      if (words[i] === '-C') at = resolve(dir, unquote(words[++i] ?? ''));
+      else if (words[i] === '-c') i++;
+      i++;
+    }
+    const rest = words.slice(i + 1);
+    if (words[i] === 'push' && !rest.some((word) => ['--delete', '-d', '--tags'].includes(word))) calls.push(at);
+  }
+  return calls;
 };
 
-const hook = () => {
-  const input = JSON.parse(readFileSync(0, 'utf8'));
-  const command = input.tool_input?.command ?? '';
-  const push = /\bgit\b[^|;&]*\bpush\b/.test(command) && !/--delete|\s-d\s|--tags/.test(command);
-  const create = /\bgh\s+pr\s+create\b/.test(command);
-  if (!push && !create) return;
-
-  const dir = targetOf(command, input.cwd ?? process.cwd());
+const refuse = (dir) => {
   let branch;
   try {
-    if (!existsSync(join(git(dir, 'rev-parse', '--show-toplevel'), 'tools', 'gate.mjs'))) return;
+    if (!existsSync(join(git(dir, 'rev-parse', '--show-toplevel'), 'tools', 'gate.mjs'))) return false;
     branch = git(dir, 'rev-parse', '--abbrev-ref', 'HEAD');
   } catch {
-    return;
+    return false;
   }
-  if (branch === 'main') return;
-
+  if (branch === 'main') return false;
   const missing = WAVES.filter((wave) => !stamped(dir).includes(wave));
-  if (missing.length === 0) return;
+  if (missing.length === 0) return false;
   process.stderr.write(
     `gate: ${branch} at ${git(dir, 'rev-parse', '--short', 'HEAD')} has no green ${missing.join(' or ')} wave. ` +
       `Commit, then run ${missing.map((wave) => `\`yarn verify:${wave}\``).join(' and ')} before pushing ` +
       '(AGENTS.md, Pre-verify).\n',
   );
-  process.exit(2);
+  return true;
 };
 
-const [command, wave] = process.argv.slice(2);
-if (command === 'stamp' && WAVES.includes(wave)) stamp(wave);
-else if (command === 'hook') hook();
-else {
-  console.error(`usage: node tools/gate.mjs stamp <${WAVES.join('|')}> | hook`);
-  process.exit(1);
+const hook = () => {
+  const input = JSON.parse(readFileSync(0, 'utf8'));
+  const calls = gatedCalls(input.tool_input?.command ?? '', input.cwd ?? process.cwd());
+  if (calls.some(refuse)) process.exit(2);
+};
+
+if (process.argv[1] === fileURLToPath(import.meta.url)) {
+  const [command, wave] = process.argv.slice(2);
+  if (command === 'stamp' && WAVES.includes(wave)) stamp(wave);
+  else if (command === 'hook') hook();
+  else {
+    console.error(`usage: node tools/gate.mjs stamp <${WAVES.join('|')}> | hook`);
+    process.exit(1);
+  }
 }

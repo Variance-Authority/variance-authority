@@ -1,7 +1,7 @@
 # Validate and correct
 
 Phases 6 and 7 of [`AGENTS.md`](../../AGENTS.md). Once the PR is open, other
-parties answer: CI, CodeRabbit, the person who asked. A PR is handed over only
+parties answer: CI and CodeRabbit. A PR is handed over only
 when every check except a running `site` is green and every finding is
 classified.
 

@@ -8,7 +8,7 @@ exits only on its own gate:
 | Idea | brief → `occam` idea review → cut | the issue carries `idea: build`, or is closed |
 | Build | edit → `yarn test:loop` | the loop is green |
 | Verify | `verify:near` → `verify:rules` | both stamped green on `HEAD` |
-| Review | four reviewers → fix | nothing blocks, or `occam` closes it |
+| Review | four reviewers → fix | nothing blocks, or each finding left is set aside and named |
 | Outer | CI and CodeRabbit → correct | every check but `site` is green |
 | Learning | an escape → [`escapes`](.agents/references/escapes.md) | the question that would have caught it is written |
 
