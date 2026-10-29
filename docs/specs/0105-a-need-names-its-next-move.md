@@ -4,10 +4,10 @@
 on a change, which command answers it and which need that answer opens next.
 Today that knowledge is spread over prose: the skill's "Open the reference for
 the question" table, `orient`'s `Narrower questions`, and a "choose the next
-question" section in five pages of `docs/`, each written apart and none
+question" section in four pages of `docs/`, each written apart and none
 checked against the commands. Only `orient`, `packages` and `entrypoint`
-print the next command. Nothing tells a need with no command apart from a command no need
-calls.
+end with a footer of next commands; the rest name one in passing, if at all.
+Nothing tells a need with no command apart from a command no need calls.
 **Built on:** the `variance ask` catalogue and the top-level commands, the
 skill in `packages/cli/skills/variance-authority/`, and the answer object of
 [0104](0104-the-four-code-questions.md).
@@ -43,76 +43,86 @@ not what must be.
 
 ## The table
 
-Each row: the need, the command, the needs its answer opens. A move is bound
-to values the answer printed; a move it cannot bind is not printed.
+Each row: the need, the commands that answer it, and the needs its answer
+opens. A need is the row's key: every entry under Opens is the Need of another
+row, word for word, and the test holds that. A move is bound to values the
+answer printed; a move it cannot bind is not printed.
 
 ### Before the edit
 
 | Need | Command | Opens |
 |---|---|---|
-| find the code a task talks about | `ask search --query <words> [--from <path>]` | what a name is |
-| find the part of the repository a task is in, with no word for it yet | `ask orient`, `ask orient --area <id>` | find the code; `ask packages` for a package's surface |
-| know what a package publishes and who takes it | `ask packages`, `ask entrypoint --package <name>` | what a name is |
-| know what a name is before touching it | `ask symbol --name <name>` | who breaks |
-| know who breaks if it changes | `ask uses --name <name>` | what already exercises it; a name declared only outside → `ask discover --imports` |
-| know what rests on a file at any depth | `ask discover --to <path>` | what already exercises it |
-| know what a file may already use, and how | `ask stack --from <path>` | the package's skill, named in the answer |
+| find the code a task talks about | `ask search --query <words>`, `ask grep --query <pattern>`, `ask discover --text <pattern>`, each with `[--from <path>]` | know what a name is before touching it |
+| find the part of the repository a task is in, with no word for it yet | `ask orient`, `ask orient --area <id>` | find the code a task talks about; know what a package publishes and who takes it |
+| know what a package publishes and who takes it | `ask packages`, `ask entrypoint --package <name>` | know what a name is before touching it |
+| know what a name is before touching it | `ask symbol --name <name>` | know who breaks if it changes |
+| know who breaks if it changes | `ask uses --name <name>` | run something that already exercises this code; find the files that take a name from outside the workspace |
+| find the files that take a name from outside the workspace | `ask discover --imports <module#name>` | run something that already exercises this code |
+| know what rests on a file at any depth | `ask discover --to <path>` | run something that already exercises this code |
+| find the files several questions agree on | `ask intersection '<question>' '<question>'`, `ask discover` with several filters | know what a name is before touching it |
+| know what a file may already use, and how | `ask stack --from <path>` | — |
 | know whether an import I am about to write is allowed | `restrictions`, `layers` | — |
-| run something that already exercises this code | `covering --file <path> [--function <f>]`, `ask journey-map --file <path>` | what a test did here |
-| see what a test actually did here | `story --file <test> --name <case>`, `distill --test <id>` | the code it went through; what it is made of |
-| know what a test is made of | `ask test-composition --file <test>` | a test nearer the code |
-| know why a case passes on one run and throws on another | `story --compare outcome` | the code where the readings part |
+| know how much of a part of the repository tests reach | `coverage --from <dir>`, `coverage --packages` | run something that already exercises this code |
+| run something that already exercises this code | `covering --file <path> [--function <f>]`, `ask journey-map --file <path>` | see what a test actually did here |
+| see what a test actually did here | `story --file <test> --name <case>`, `distill --test <id>` | know what a test is made of; know what a name is before touching it |
+| know what a test is made of | `ask test-composition --file <test>` | run something that already exercises this code |
+| know why a case passes on one run and throws on another | `story --compare outcome` | know what a name is before touching it |
 | know why a test fails | **gap** | — |
 | know how big a change will be before making it | **gap** | — |
+
+`ask stack` names the package's skill to read; that is a document, not a row.
 
 ### After the edit
 
 | Need | Command | Opens |
 |---|---|---|
-| know which tests my change must re-run | `select --since <ref>` | what it reached that no test checks |
-| know what my change reached, by file and line | `reach --since <ref>`, `covering --since <ref>` | which tests re-run |
-| know what my change reached that no test checks | `review --since <ref> --coverage` | run something that exercises it |
-| know what my change did to what users see | `run`, then `ask summary` | the changes behind it |
-| know the distinct changes behind what moved | `ask changes` | one subject; whether it is mine |
-| know everything about one subject | `ask describe --subject <id>` | why its verdict may not be code |
+| know which tests my change must re-run | `select --since <ref>` | know what my change reached that no test checks |
+| know what my change reached, by file and line | `reach --since <ref>`, `covering --since <ref>` | know which tests my change must re-run |
+| know what my change reached that no test checks | `review --since <ref> --coverage` | run something that already exercises this code |
+| know what my change did to what users see | `ask summary` over the report of a `run` | know the distinct changes behind what moved |
+| know the distinct changes behind what moved | `ask changes` | know everything about one subject; know whether the edit did what I meant |
+| know everything about one subject | `ask describe --subject <id>` | know why a verdict may not be a code problem |
 | know why a verdict may not be a code problem | `ask explain-verdict --subject <id>` | — |
-| know where a component appears and what it moved | `ask trace-component`, `ask composition` | one subject |
+| know where a component appears and what it moved | `ask trace-component`, `ask composition` | know everything about one subject |
 | know what a flag or theme arm changes | `ask variations` | — |
-| know which subject a description names | `ask locate --query <words>` | one subject |
-| know whether the edit did what I meant | `adjudicate --claims <path>` | the undelivered claims |
+| know which subject a description names | `ask locate --query <words>` | know everything about one subject |
+| know whether the edit did what I meant | `adjudicate`, `ask adjudicate --claims <path>` | know everything about one subject |
 | know what renders get wrong with no baseline | `ask findings` | — |
-| settle a change | `ask changelog`, then `accept` | — |
+| settle a change | `changelog`, `ask changelog`, and `accept` on the shapes they name | — |
 | know what reviewers decided or suspect | `ask decisions`, `ask concerns` | settle a change |
 
 ### While a suite runs
 
 | Need | Command | Opens |
 |---|---|---|
-| know whether this is the watcher the suite reports to | `watch`, `ask self` | what the suite is doing |
-| know what the suite is doing now | `ask run-signals`, `ask waiting` | one test |
+| know whether this is the watcher the suite reports to | `watch`, `ask self` | know what the suite is doing now |
+| know what the suite is doing now | `ask run-signals`, `ask waiting` | know what one running test said |
 | know what one running test said | `ask test-signals --test <id>` | — |
 
 ### Cost
 
 | Need | Command | Opens |
 |---|---|---|
-| know where the suite spends its time | `ask costs`, `ask slowest-tests` | a test nearer the code |
+| know where the suite spends its time | `ask costs`, `ask slowest-tests` | know what a test is made of |
 | split the run | `shards` | — |
 
 ### Any need
 
 | Need | Command | Opens |
 |---|---|---|
-| the answer needs a record that is missing | the producer the answer names: `index`, a recorded run, `journeys`, `collect`, `carry restore` | the need that asked |
+| the answer needs a record that is missing | the producer the answer names: `index`, a recorded `run`, `journeys`, `collect`, `carry restore` | the need whose answer named the producer |
 
 ## Options, not a route
 
 A row offers every command that answers its need, and the agent picks. Two
-commands in one row are two ways in, not a duplicate to fold: `ask grep` and
-`ask discover --text`, `ask intersection` and `ask discover`, `ask costs` and
-`ask slowest-tests`, `select`, `reach` and `covering --since`. The table
-constrains nothing beyond what a row's command takes. It does not order the
-rows, require a row before another, or refuse a command no row names.
+commands in one row are two ways in, not a duplicate to fold: `ask search`,
+`ask grep` and `ask discover --text`; `ask intersection` and `ask discover`
+with several filters; `ask costs` and `ask slowest-tests`; `reach` and
+`covering --since`; `changelog` and `ask changelog`. The table constrains
+nothing beyond what a row's command takes. It does not order the rows, require
+a row before another, or refuse a command no row names. Where a row names one
+command's answer as another's input — `ask summary` reads a `run`'s report,
+`accept` takes the shapes a changelog names — that is the input, not an order.
 
 A command whose answer serves no step of a change is still an option, listed
 under the need it does serve:
@@ -136,16 +146,16 @@ under the need it does serve:
   throwing ones, so it answers a case that fails on some runs, not a case that
   fails on every run; the cross-case half is [0103](0103-a-behaviour-names-the-cases-that-witnessed-it.md)'s
   passed-or-failed operand.
-- **Next moves.** Only `orient`, `packages` and `entrypoint` print them,
-  through `narrower` in `packages/help/src/tools/format.ts`. Every row above
-  prints its impact.
 
 ## What is left
 
 1. The table as data in `packages/cli`, one row per need above.
-2. The test over it: every catalogue command is in a row, and every row's
-   command exists.
+2. The test over it: every catalogue command is in a row, every row's command
+   exists, and every entry under Opens is the Need of a row.
 3. Next moves rendered from the row on `symbol`, `uses`, `covering` and
-   `select`, the tracer: one acceptance test each, failing first.
+   `select`, the tracer: one acceptance test each, failing first. Today only
+   `orient`, `packages` and `entrypoint` print a footer of next moves, through
+   `narrower` in `packages/help/src/tools/format.ts`; `symbol` names `uses` in
+   a sentence, which the row's move replaces.
 4. The skill's routing table generated from the rows.
 5. The remaining rows, then the gaps above, each a row of its own.
