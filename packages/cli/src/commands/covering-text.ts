@@ -25,7 +25,7 @@ import { whereText } from './covering-where.js';
 import { evidenceGapText } from './evidence-gap.js';
 import { staleFile, staleLines } from './covering-stale.js';
 import { frameText, ranText } from './covering-fresh-text.js';
-import type { Covering, CoveringFormat, StatedChange } from './covering.js';
+import type { Covering, CoveringFormat, CoveringTarget, StatedChange } from './covering.js';
 
 /**
  * Say the answer in the shape the caller asked for.
@@ -66,18 +66,20 @@ function text(answer: Covering): string {
   if (answer.ranges !== undefined) return wholeFile(answer, answer.ranges);
 
   const tests = answer.tests ?? [];
-  const where = targetText(answer.target ?? { function: '' });
+  // Past the file's ranges the answer is `coveringAt`'s, which always names what was asked.
+  const target = answer.target!;
+  const where = targetText(target);
   if (tests.length === 0 && (answer.where?.of ?? 0) > 0) {
     // `whereText` said the filter left none of the cases that covered it; *no named test covered* would read as nothing running the code.
     return [...narrowedText(answer), ...unrunText(answer.unrun)].join('\n');
   }
-  if (tests.length === 0 && unplaced(answer)) {
+  if (tests.length === 0 && unplaced(answer, target)) {
     // Every asked line was written since the recording or ran in another text: the reason is the whole answer.
     return [...unplacedText(answer, ` of ${answer.file}`), ...unrunText(answer.unrun), ...narrowedText(answer)].join('\n');
   }
   if (tests.length === 0) {
     // A case ran some asked line in another text, so the record measured neither its run nor its absence there.
-    const rest = answer.overwritten === undefined ? undefined : unsaid(answer);
+    const rest = 'function' in target || answer.overwritten === undefined ? undefined : unsaid(answer, target);
     return [
       rest === undefined
         ? `No named test covered ${where} of ${answer.file}${whyUnentered(answer.stopped)}`
@@ -148,17 +150,13 @@ function unplacedText(answer: Covering, of: string): readonly string[] {
  * ran in another text, or, asked by function, whether a case ran a part of it
  * in another text: then no named case is no measured absence.
  */
-function unplaced(answer: Covering): boolean {
-  const target = answer.target;
-  if (target === undefined) return false;
+function unplaced(answer: Covering, target: CoveringTarget): boolean {
   if ('function' in target) return answer.overwritten !== undefined;
-  return unsaid(answer)?.length === 0;
+  return unsaid(answer, target).length === 0;
 }
 
 /** The asked lines neither written since nor run in another text: the ones a case is known to have run, or known not to. */
-function unsaid(answer: Covering): readonly HeldLines[] | undefined {
-  const target = answer.target;
-  if (target === undefined || 'function' in target) return undefined;
+function unsaid(answer: Covering, target: Exclude<CoveringTarget, { readonly function: string }>): readonly HeldLines[] {
   const { startLine, endLine } = 'line' in target ? { startLine: target.line, endLine: target.line } : target.lines;
   const out = new Set([...answer.written ?? [], ...answer.overwritten ?? []].flatMap((run) =>
     Array.from({ length: run.endLine - run.startLine + 1 }, (_, at) => run.startLine + at)));
