@@ -8,8 +8,12 @@ without a word. Inside the record, one runner is already held to it: a Jest
 file fails when its CommonJS registry holds a module whose probes registered
 and its journal never entered
 ([`jest-registry.cts`](../../packages/sense/src/test-selection/jest-registry.cts)).
-Nothing holds an ES module, a symlinked root, a `dist/` file read as its source
-or another runner to the same rule. And nothing tells a suite where the
+Nothing holds an ES module, a symlinked root or a `dist/` file read as its
+source to the same rule, and no other runner has it: Vitest's module graph, the
+module list of the bundler a Storybook build runs on (rspack or webpack) and a
+Playwright page are never compared with their journals. Playwright comes
+closest: a document the test replaced marks its case incomplete, so the next
+selection runs it, which widens rather than fails. And nothing tells a suite where the
 disagreement is the defect apart from one where it is expected: a test that
 drives a second service runs code its own process never records, and is read
 the same way as a unit test.
@@ -105,7 +109,11 @@ closed world there holds only the second.
 ## A closed world enforces the funnel
 
 In a closed world both inclusions hold, and a breach is a **safety violation**:
-the selector would drop a test the run proves the change could reach. The
+the selector would drop a test the run proves the change could reach. The one
+exception is growth onto a mock the record knows is a mock: a file the runner
+served in place of the asked module, through a mapper, a `__mocks__` file, a
+declared mock or automock. That growth is the mock, not a lost edge, and it is
+neither failed nor reported. The
 check compares the walk with the record once, wherever a run writes a record,
 a pull request's run included, not on every selection, so coverage selection
 still takes no graph. It costs one walk and one set comparison per record,
