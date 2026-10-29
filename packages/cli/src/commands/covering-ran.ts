@@ -20,16 +20,14 @@ import {
   type CasesLastRan,
   type ExecutionIndex,
   type ExecutionTest,
-  type HeldLines,
   type NotHeld,
   type Placement,
   type TestPlace,
 } from '@variance-authority/sense/test-selection';
 import type { RunsRead } from './record-runs.js';
-import { runsOfLines } from './covering-at.js';
 import { evidenceOf, regionVerdict, type Evidence, type Region } from './covering-ran-evidence.js';
 import { listedIn } from './covering-where.js';
-import type { Covering, CoveringTarget } from './covering.js';
+import type { CoveringTarget } from './covering.js';
 import { heldAsPrecondition, type HeldAsPrecondition } from './held-as-precondition.js';
 
 /** When the runs a stand's test files last ran in landed, and how many there were when the record says. */
@@ -132,18 +130,17 @@ export interface RanNamed {
   }[];
   readonly stopped?: readonly ExecutionTest[];
   readonly preconditionOf?: readonly string[];
-  /** The asked lines that have no place in the text the record's lines are numbered in. */
-  readonly written?: readonly HeldLines[];
 }
 
 /**
  * What one reading of the runs says of an answer: where and when the test
- * files it names last ran, and, when some of its written lines are in a text
- * a case that entered the file ran over, its written lines split by that.
+ * files it names last ran, and, when it asked lines the record has no place
+ * for, whether a case that entered the file ran over a text holding each;
+ * absent when no case's text of the file is known.
  */
 export interface RanRead {
   readonly ran?: CoveringRan;
-  readonly lines?: Pick<Covering, 'written' | 'overwritten'>;
+  readonly ranOver?: (held: number) => boolean;
 }
 
 /** What the reading of an answer's freshness is handed. */
@@ -166,6 +163,8 @@ export interface RanQuestion {
   readonly index?: ExecutionIndex;
   /** Under a precondition answer: the test files holding the file that ran another text of it. */
   readonly ranOther?: ReadonlyMap<string, readonly string[]>;
+  /** In the held text: the asked lines the record has no place for. */
+  readonly unplaced?: readonly number[];
 }
 
 /**
@@ -203,7 +202,7 @@ function casesOf(tests: readonly ExecutionTest[]): ReadonlyMap<string, readonly 
  * text each run ran over (`covering-ran-evidence.ts`). Each named case is read
  * from the run that last ran it, so a test file a later run ran in part is
  * said part by part; `covering-fresh-text.ts` says it. The same evidence
- * splits the answer's written lines (`ranLines`).
+ * says which unplaced lines a case ran over the text of (`textsHolding`).
  */
 export async function ranOf(answer: RanNamed, question: RanQuestion): Promise<RanRead> {
   const { tests, named, cases } = namedTestFiles(answer, question.index);
@@ -228,7 +227,7 @@ export async function ranOf(answer: RanNamed, question: RanQuestion): Promise<Ra
     const as = readers.get(test)?.get(file);
     return as === undefined ? [] : [[file, { text, precondition: as === 'precondition' }] as const];
   }));
-  const writers = enteredUnits(answer, question.index, (entered) => testPlaces({ commit: at, runs: read.runs, tests: entered }).places);
+  const writers = enteredUnits(answer, question, (entered) => testPlaces({ commit: at, runs: read.runs, tests: entered }).places);
   const evidence = held.size === 0
     ? undefined
     : await evidenceOf([...units, ...writers].flatMap((unit) => unit.runs), held, {
@@ -245,50 +244,41 @@ export async function ranOf(answer: RanNamed, question: RanQuestion): Promise<Ra
   stands.sort((one, other) => codeUnitOrder(one.landed?.first ?? '', other.landed?.first ?? ''));
   const ran = { stands, ...(assumed === undefined ? {} : { assumed }), ...(unheld.length === 0 ? {} : { unheld }), ...as };
   const fileText = answer.file === undefined ? undefined : held.get(answer.file);
-  const lines = evidence === undefined || fileText === undefined ? undefined : ranLines(answer.written ?? [], writers, answer.file!, fileText, evidence);
-  return { ran, ...(lines === undefined ? {} : { lines }) };
+  const ranOver = evidence === undefined || fileText === undefined || writers.length === 0
+    ? undefined
+    : textsHolding(writers, answer.file!, fileText, evidence);
+  return { ran, ...(ranOver === undefined ? {} : { ranOver }) };
 }
 
 /**
  * The units of every case that entered the asked file, placed by `place`,
- * when the answer has written lines: whether one of them ran a text holding a
- * line says whether the line is new to every case. None otherwise.
+ * when the question asked lines the record has no place for: whether one of
+ * them ran a text holding a line says whether the line is new to every case.
+ * None otherwise.
  */
 function enteredUnits(
   answer: RanNamed,
-  index: ExecutionIndex | undefined,
+  question: RanQuestion,
   place: (tests: readonly string[]) => ReadonlyMap<string, TestPlace>,
 ): readonly Unit[] {
-  if ((answer.written ?? []).length === 0 || answer.file === undefined) return [];
-  const entered = namedTestFiles({ file: answer.file }, index);
+  if ((question.unplaced ?? []).length === 0 || answer.file === undefined) return [];
+  const entered = namedTestFiles({ file: answer.file }, question.index);
   if (entered.named !== 'entered') return [];
   const places = place(entered.tests);
   return entered.tests.flatMap((test) => unitsOf(places.get(test)!, test, entered.cases.get(test)));
 }
 
 /**
- * `written` split by whether a case that entered `file` ran a text holding
- * each line: over the asked text, or over another where the line is placed
- * unedited. Those it did are `overwritten`, since some case may have run them
- * and the record's lines, numbered in a text without them, cannot say which.
- * Absent when it did for none, and `written` is the answer's own.
+ * Whether a case that entered `file` ran a text holding a line of the held
+ * `text`: the held text itself, or another known one where the line is placed
+ * unedited. A text that is not known holds no line.
  */
-function ranLines(
-  written: readonly HeldLines[],
-  writers: readonly Unit[],
-  file: string,
-  text: string,
-  evidence: Evidence,
-): Pick<Covering, 'written' | 'overwritten'> | undefined {
+function textsHolding(writers: readonly Unit[], file: string, text: string, evidence: Evidence): (held: number) => boolean {
   const overs = writers.flatMap((unit) => unit.runs.map((run) => ranOver(run, unit.test, file, text, evidence, false)));
+  if (overs.includes('held')) return () => true;
   const others = overs.flatMap((over) => (typeof over === 'object' && 'text' in over && over.text !== undefined ? [over.text] : []));
   const places = [...new Set(others)].map((other) => evidence.across(text, other));
-  const asked = written.flatMap((run) => Array.from({ length: run.endLine - run.startLine + 1 }, (_, at) => run.startLine + at));
-  const ran = (line: number) => overs.includes('held') || places.some((place) => place({ startLine: line, endLine: line })?.moved === false);
-  const overwritten = asked.filter(ran);
-  if (overwritten.length === 0) return undefined;
-  const still = asked.filter((line) => !ran(line));
-  return { ...(still.length === 0 ? {} : { written: runsOfLines(still) }), overwritten: runsOfLines(overwritten) };
+  return (line) => places.some((place) => place({ startLine: line, endLine: line })?.moved === false);
 }
 
 /** The asked files one test file is judged on, each with its held text and whether the test file holds it as a precondition. */

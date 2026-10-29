@@ -29,13 +29,14 @@ import { staleAnswer } from './covering-stale.js';
 import { placeRanges, type placementFor, type CoveringRange } from './covering-frame.js';
 import { changeSince, stated } from './covering-since.js';
 import { coveringAt, countOf, loadersOf } from './covering-at.js';
+import type { AskedLines } from './covering-lines.js';
 import type { Graph } from './gap-selection.js';
 import type { Covering } from './covering.js';
 
 /**
  * @param record The record the question reads, and the commit it was made at when it says.
  * @param held The asked text, how it is framed, and where a precondition's
- * test files that ran another text of it are handed.
+ * test files that ran another text of it, and the asked lines, are handed.
  * @param reach Handed the cases the question reached before `--where`
  * narrowed them, read off the same graph, when it narrowed them.
  */
@@ -112,7 +113,7 @@ export async function ask(
     return staleAnswer(request as CoveringAt, { index, ...(before === undefined ? {} : { before }), from, near, graph, ...(placement.at === undefined ? {} : { at: placement.at }) }, reach);
   }
 
-  const narrower = await coveringAt(request as CoveringAt, { index, ...(before === undefined ? {} : { before }), module, from, ...(placement === undefined ? {} : { placement }), near, graph }, reach);
+  const narrower = await coveringAt(request as CoveringAt, { index, ...(before === undefined ? {} : { before }), module, from, ...(placement === undefined ? {} : { placement }), near, graph }, reach, held.lines);
   if (narrower !== undefined) return { ...narrower, ...unheld };
 
   const loaders = await loadersOf(before ?? index, file, graph);
@@ -141,6 +142,8 @@ export interface AskedText {
   /** How the record's lines are placed in `text`, read when first asked for. */
   readonly placing: () => ReturnType<typeof placementFor>;
   readonly ranOther: (other: ReadonlyMap<string, readonly string[]>) => void;
+  /** Handed the lines a question about a line, a run of lines or a function asks, as the case index reads them. */
+  readonly lines: (asked: AskedLines) => void;
 }
 
 /** {@link readIndex}, and under `--where` the index before it narrowed the cases. */

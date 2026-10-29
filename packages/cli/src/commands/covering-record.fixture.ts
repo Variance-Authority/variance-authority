@@ -4,7 +4,7 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { afterAll, beforeAll } from 'vitest';
-import { encodeExecutionIndex, repositoryLayers, testCoverageFile, writeTestCoverage, commitRunsFile } from '@variance-authority/sense/test-selection';
+import { encodeAsSetExecutionIndex, encodeExecutionIndex, repositoryLayers, testCoverageFile, writeTestCoverage, commitRunsFile } from '@variance-authority/sense/test-selection';
 import { updateSourceIndex } from '@variance-authority/sense';
 import { INSTRUMENTATION_ID } from '@variance-authority/sense/instrument';
 import { digestString } from '@variance-authority/core/format';
@@ -34,22 +34,29 @@ export const ASSUMED = 'The record does not say where the test file named here l
 /**
  * The index the record holds: `src/pay.test.ts` entered `pay`, and with `fee`,
  * `src/fee.test.ts` did too; no case ran its branch. With `refunds`,
- * `src/pay.test.ts` holds a second case, `r`, which enters `pay` or not.
+ * `src/pay.test.ts` holds a second case, `r`, which enters `pay` or not. With
+ * `flagged`, it holds a case `o` that ran `pay` or its branch over a text a run
+ * over another text has landed on since, flagged there.
  */
-export function indexOf(fee = false, refunds?: 'enters' | 'idle'): { readonly tests: readonly object[]; readonly modules: readonly object[] } {
+export function indexOf(
+  fee = false,
+  refunds?: 'enters' | 'idle',
+  flagged?: 'pay' | 'branch',
+): { readonly tests: readonly object[]; readonly modules: readonly object[] } {
   const tests = [
     { id: 'p', file: 'src/pay.test.ts', name: 'charges once' },
     ...(fee ? [{ id: 'f', file: 'src/fee.test.ts', name: 'charges a fee' }] : []),
     ...(refunds === undefined ? [] : [{ id: 'r', file: 'src/pay.test.ts', name: 'refunds' }]),
   ];
   const crossings = tests.flatMap((test, at) => (test.id !== 'r' || refunds === 'enters' ? [{ test: at, distance: 0 }] : []));
+  const flag = (on: 'pay' | 'branch') => (flagged === on ? [{ test: tests.length, distance: 0, overwritten: true }] : []);
   return {
-    tests,
+    tests: [...tests, ...(flagged === undefined ? [] : [{ id: 'o', file: 'src/pay.test.ts', name: 'overran' }])],
     modules: [{
       file: 'src/pay.ts',
       blocks: [
-        { kind: 'function', name: 'pay', path: 'entry', startLine: 1, endLine: 6, source: true, crossings },
-        { kind: 'branch', name: 'pay', path: 'if#0/then', startLine: 2, endLine: 4, source: true, crossings: [] },
+        { kind: 'function', name: 'pay', path: 'entry', startLine: 1, endLine: 6, source: true, crossings: [...crossings, ...flag('pay')] },
+        { kind: 'branch', name: 'pay', path: 'if#0/then', startLine: 2, endLine: 4, source: true, crossings: flag('branch') },
       ],
     }],
   };
@@ -74,6 +81,8 @@ export interface Fixture {
   readonly fee?: true;
   /** `src/pay.test.ts` holds a second case, `refunds`, that enters `pay` or not. */
   readonly refunds?: 'enters' | 'idle';
+  /** `src/pay.test.ts` holds a case, `overran`, flagged on `pay` or on its branch: it ran there over a text a later run wrote over. */
+  readonly flagged?: 'pay' | 'branch';
   /**
    * A second commit, at `committed` ms, that the record names: it writes `pay`
    * to `src/pay.ts` when given, and `src/other.ts` otherwise.
@@ -170,7 +179,10 @@ export function recordFixture(): RecordFixture {
         ...(options.setup === undefined ? [] : [{ file: 'src/setup.ts', sourceDigest: digestString(options.setupRanOver ?? options.setup), instrumented: false, blocks: [] }]),
       ],
     }, {
-      index: encodeExecutionIndex(indexOf(options.fee === true, options.refunds) as Parameters<typeof encodeExecutionIndex>[0]),
+      // The row spelling cannot hold a flagged case; the set spelling can.
+      index: (options.flagged === undefined ? encodeExecutionIndex : encodeAsSetExecutionIndex)(
+        indexOf(options.fee === true, options.refunds, options.flagged) as Parameters<typeof encodeExecutionIndex>[0],
+      ),
     });
     if (options.kept === true && options.ranOver !== undefined) {
       // A landing names a kept text by its digest's hex, in the layer's `.texts`.

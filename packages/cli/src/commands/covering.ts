@@ -54,7 +54,8 @@ import { listedIn, whereCases, whereOver, type CoveringWhere } from './covering-
 import { heldText, placementFor, recordOf, type CoveringRange } from './covering-frame.js';
 import { ranOf, type CoveringRan } from './covering-ran.js';
 import { runsOnce } from './record-runs.js';
-import { runsOfLines, type UnrunPart } from './covering-at.js';
+import type { UnrunPart } from './covering-at.js';
+import { lineStatus, type AskedLines } from './covering-lines.js';
 import { ask, readIndex, type IndexReader } from './covering-ask.js';
 import { graphOnce, type Graph } from './gap-selection.js';
 import type { CoveringAt, ParsedCovering } from '../covering-args.js';
@@ -109,17 +110,19 @@ export interface Covering {
   /** Under a run of lines: the lines no recorded region holds, which no case can be said to have run. In the text as it is now. */
   readonly outside?: readonly HeldLines[];
   /**
-   * Under a run of lines: the lines written since the recording, which no case
-   * has run: neither the text the record's lines are numbered in holds them,
-   * nor any text a case that entered the file ran over. In the text as it is now.
+   * Under a line or a run of lines: the lines written since the recording,
+   * which no case has run: neither the text the record's lines are numbered in
+   * holds them, nor any text a case that entered the file ran over. In the text
+   * as it is now; never a line of `overwritten`.
    */
   readonly written?: readonly HeldLines[];
   /**
-   * Under a run of lines or a function: the lines of a text a case ran over
-   * where a run over another text has landed since, so which case ran them is
-   * not known. A line written since the recording that a text a case ran over
-   * holds is one; so is a line of a region whose cases ran it where an edit
-   * wrote over it, and which no named case entered. In the text as it is now.
+   * Under a line, a run of lines or a function: the lines of a text a case ran
+   * over where a run over another text has landed since, so which case ran them
+   * is not known. A line the record has no place for that a text a case ran over
+   * holds is one; so is a line of a region a case is flagged on as having run it
+   * over a text written over since, and that no named case called into. In the
+   * text as it is now.
    */
   readonly overwritten?: readonly HeldLines[];
   /** Present when the question named a line or a function. */
@@ -264,6 +267,7 @@ export async function covering(request: ParsedCovering, graph: Graph = graphOnce
   let text: string | undefined;
   let placed: ReturnType<typeof placementFor> | undefined;
   let ranOther: ReadonlyMap<string, readonly string[]> | undefined;
+  let lines: AskedLines | undefined;
   try {
     const from = request.execution ?? (await recordedExecutionFile(request.root, request.suite));
     record = await recordOf(request, from);
@@ -273,6 +277,9 @@ export async function covering(request: ParsedCovering, graph: Graph = graphOnce
       placing: () => (placed ??= placementFor(request as CoveringAt, record?.snapshot, text)),
       ranOther: (other: ReadonlyMap<string, readonly string[]>) => {
         ranOther = other;
+      },
+      lines: (asked: AskedLines) => {
+        lines = asked;
       },
     };
     answer = await ask(request, reader, graph, { from, at: record?.at }, held, (tests) => {
@@ -312,8 +319,8 @@ export async function covering(request: ParsedCovering, graph: Graph = graphOnce
   const probes = await gapOf(request, answer.from, whole);
   const at = record?.at;
   const framed = placed === undefined ? undefined : await placed;
-  // Refs say no freshness, but the written lines they list are read off the same runs.
-  const read = request.format === 'refs' && answer.written === undefined
+  // Refs say no freshness, but whether a case ran over the text of a line the record has no place for is read off the same runs.
+  const read = request.format === 'refs' && (lines?.unplaced ?? []).length === 0
     ? {}
     : await ranOf(answer, {
       root: request.root,
@@ -324,13 +331,14 @@ export async function covering(request: ParsedCovering, graph: Graph = graphOnce
       ...(framed === undefined || 'unheld' in framed ? {} : { placement: framed }),
       ...(asked === undefined ? {} : { index: asked }),
       ...(ranOther === undefined ? {} : { ranOther }),
+      ...(lines === undefined ? {} : { unplaced: lines.unplaced }),
     });
   const ran = request.format === 'refs' ? undefined : read.ran;
-  const lines = read.lines === undefined ? answer : withLines(answer, read.lines);
+  const said: Covering = lines === undefined ? answer : { ...answer, ...lineStatus(lines, read.ranOver ?? (() => false)) };
   const source = { root: request.root, suite: request.suite, execution: request.execution, record: answer.from, graph };
-  const gap = whole === undefined ? undefined : await answerGap({ ...lines, ...(files === undefined ? {} : { files }) }, whole, source);
+  const gap = whole === undefined ? undefined : await answerGap({ ...said, ...(files === undefined ? {} : { files }) }, whole, source);
   return {
-    ...lines,
+    ...said,
     ...(at === undefined ? {} : { at }),
     ...(ran === undefined ? {} : { ran }),
     ...(probes === undefined ? {} : { probes }),
@@ -340,23 +348,6 @@ export async function covering(request: ParsedCovering, graph: Graph = graphOnce
     ...(where === undefined ? {} : { where }),
     ...(motion === undefined ? {} : { motion }),
     ...(gap === undefined ? {} : { gap }),
-  };
-}
-
-/**
- * `answer` with its written lines split as `lines` says; a part `lines` leaves
- * out is absent. The lines a written one ran over join the lines of a region
- * the answer already said so, which are lines the record holds, so none is
- * said twice.
- */
-function withLines(answer: Covering, lines: Pick<Covering, 'written' | 'overwritten'>): Covering {
-  const { written: _written, overwritten: regions, ...rest } = answer;
-  const unknown = [...regions ?? [], ...lines.overwritten ?? []].flatMap(({ startLine, endLine }) =>
-    Array.from({ length: endLine - startLine + 1 }, (_, at) => startLine + at));
-  return {
-    ...rest,
-    ...(lines.written === undefined ? {} : { written: lines.written }),
-    ...(unknown.length === 0 ? {} : { overwritten: runsOfLines([...new Set(unknown)].sort((left, right) => left - right)) }),
   };
 }
 

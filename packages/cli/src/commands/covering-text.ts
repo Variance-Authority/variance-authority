@@ -138,9 +138,7 @@ function unplacedText(answer: Covering, of: string): readonly string[] {
   }
   if (answer.overwritten !== undefined) {
     const [one, verb, it] = single(answer.overwritten) ? (['Line', 'is', 'it'] as const) : (['Lines', 'are', 'them'] as const);
-    // Beside a named case, saying no case is known to have run a line it entered would say two things about it.
-    const other = (answer.tests ?? []).length > 0;
-    said.push(`${one} ${runsText(answer.overwritten)}${of} ${verb} ${lostText({ other, it })}.`);
+    said.push(`${one} ${runsText(answer.overwritten)}${of} ${verb} ${lostText({ other: false, it })}.`);
   }
   return said;
 }
