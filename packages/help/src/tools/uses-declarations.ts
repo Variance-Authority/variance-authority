@@ -6,9 +6,10 @@
 
 // compass: variance-authority.report.agent-surface
 
-import type { Spelling } from '@variance-authority/mcp/tools';
-import type { DeclaredName } from '@variance-authority/sense';
+import { conjoined, type Spelling } from '@variance-authority/mcp/tools';
+import { type DeclaredName, outsideSourcesOf } from '@variance-authority/sense';
 import { reachSentences } from './declared.js';
+import { discover } from './discover.js';
 import { specifierOf } from './find.js';
 import { type Members, places } from './members.js';
 import { SLOT } from './declaration-key.js';
@@ -89,6 +90,26 @@ export function narrowing(files: readonly string[], file: string | undefined, sp
 /** The answer for a `file` that declares no thing by the name: the files that do. */
 export function notDeclaredIn(name: string, file: string, files: readonly string[]): string {
   const sorted = [...new Set(files)].sort();
-  const listed = sorted.length < 2 ? sorted.join('') : `${sorted.slice(0, -1).join(', ')} and ${sorted.at(-1)!}`;
-  return `\`${name}\` is not declared in ${file}; it is declared in ${listed}.`;
+  return `\`${name}\` is not declared in ${file}; it is declared in ${conjoined(sorted)}.`;
+}
+
+/**
+ * Where a name no file here declares is imported from, outside the workspace,
+ * and the `discover` question that lists the files importing it from each
+ * source: `uses` answers for a declaration of this workspace, and an outside
+ * one is another question. Absent when no file imports the name from outside,
+ * or the source index does not read.
+ */
+export function outsideLine(root: string | undefined, name: string, wanted: string | undefined, spell: Spelling): string | undefined {
+  if (root === undefined) return undefined;
+  let read: readonly string[] | undefined;
+  try {
+    read = outsideSourcesOf(root, name);
+  } catch {
+    return undefined;
+  }
+  const sources = (read ?? []).filter((source) => wanted === undefined || source === wanted || source.startsWith(`${wanted}/`));
+  if (sources.length === 0) return undefined;
+  const questions = sources.map((source) => spell.question(discover, { imports: `${source}#${name}` }));
+  return `\`${name}\` is imported from ${conjoined(sources.map((source) => `\`${source}\``))}, outside this workspace: ${conjoined(questions)} ${questions.length === 1 ? 'lists' : 'list'} the files that import it.`;
 }

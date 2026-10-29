@@ -23,7 +23,7 @@ import { FoundNothing, isPackage, nowhere, specifierOf } from './find.js';
 import { type Members, membersOf } from './members.js';
 import { answers, keyOf, originKey, originOf, says, SLOT } from './declaration-key.js';
 import { type IndexedUse, type Within, exportsNamed, importsOf, indexMissing } from './unpublished.js';
-import { declaredIn, membersIn, notDeclaredIn } from './uses-declarations.js';
+import { declaredIn, membersIn, notDeclaredIn, outsideLine } from './uses-declarations.js';
 
 /**
  * A site, how it names the module it imports when that is a file path, the
@@ -256,6 +256,7 @@ function importsOfEvery(root: string | undefined, files: readonly string[], name
     through: [...new Set(read.flatMap((one) => one.through))],
     namespaces: read.flatMap((one) => one.namespaces),
     inFile: once(read.flatMap((one) => one.inFile)),
+    unresolved: [...new Set(read.flatMap((one) => one.unresolved))].sort(),
   };
 }
 
@@ -275,7 +276,8 @@ function sitesOfOne(root: string | undefined, names: readonly string[], wanted: 
   const unread = read !== undefined && 'unread' in read ? read.unread : undefined;
   const within = read !== undefined && 'uses' in read ? read.uses.filter((use) => throughDoor(use, wanted)) : undefined;
   const inFile: readonly Use[] = read !== undefined && 'inFile' in read ? read.inFile : [];
-  return { sites: sitesOf(found, byPath, within ?? [], read), unread, within, inFile, namespaces: read !== undefined && 'namespaces' in read ? read.namespaces : [] };
+  const unresolved: readonly string[] = read !== undefined && 'unresolved' in read ? read.unresolved : [];
+  return { sites: sitesOf(found, byPath, within ?? [], read), unread, within, inFile, namespaces: read !== undefined && 'namespaces' in read ? read.namespaces : [], unresolved };
 }
 
 /** Whether an import by path resolved to one of the files in `to`. */
@@ -398,14 +400,14 @@ export function usesOf(help: Help, input: Readonly<Record<string, unknown>>, roo
   const shared = { name, lead, found, exported, namesakes, byPath, members, kept, keptSites, keptInFile, file, files };
   if (found.length === 0 && byPath.length === 0 && exported.length === 0) {
     if (kept.length > 0 || members.declared.length > 0) {
-      return { ...shared, home: undefined as string | undefined, sites: [] as readonly Site[], unread: undefined, within: undefined, inFile: [] as readonly Use[], undeclared, origin: undefined, originNamed: undefined as string | undefined, inside: [] as readonly string[] };
+      return { ...shared, home: undefined as string | undefined, sites: [] as readonly Site[], unread: undefined, within: undefined, inFile: [] as readonly Use[], unresolved: [] as readonly string[], undeclared, origin: undefined, originNamed: undefined as string | undefined, inside: [] as readonly string[] };
     }
     if (file !== undefined && files.length > 0) throw new FoundNothing(notDeclaredIn(name, file, files));
     // The answer `symbol` gives: what was read and declares nothing, and where else the name may be.
-    throw new FoundNothing(nowhere(help, name, wanted, root, members, undefined, spell));
+    throw new FoundNothing(nowhere(help, name, wanted, root, members, outsideLine(root, name, wanted, spell), spell));
   }
   // A published declaration is read out of its file by the name it is declared by; the walk follows every door that renames it.
-  const { sites, unread, within, inFile, namespaces } = answeredFirst ?? sitesOfOne(root, spellingsAt(help, root, exported, name), wanted, found, [...new Set(exported.map((held) => held.at))], byPath);
+  const { sites, unread, within, inFile, namespaces, unresolved } = answeredFirst ?? sitesOfOne(root, spellingsAt(help, root, exported, name), wanted, found, [...new Set(exported.map((held) => held.at))], byPath);
   if (exported.length > 0 && unread !== undefined && byPath.length === 0) throw new Error(indexMissing(name, exported, unread));
 
   // Inside is the declaring file's package, which a re-exporting door is not.
@@ -414,7 +416,7 @@ export function usesOf(help: Help, input: Readonly<Record<string, unknown>>, roo
   // The answer names one export's place, so only a name exported once is followed.
   const origin = only === undefined || exported.length > 1 ? undefined : originOf(help, root, only);
   const originNamed = origin === undefined ? undefined : originKey(help, root, origin).named;
-  return { ...shared, home, sites, unread, within, inFile, undeclared: [] as readonly string[], origin, originNamed, inside: publishedInside(help, namespaces) };
+  return { ...shared, home, sites, unread, within, inFile, unresolved, undeclared: [] as readonly string[], origin, originNamed, inside: publishedInside(help, namespaces) };
 }
 
 /** The package a published declaration is declared in, which a re-exporting door is not. */
