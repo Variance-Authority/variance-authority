@@ -22,9 +22,12 @@ const fieldsOf = (value: unknown): value is Fields => typeof value === 'object' 
  * reader that trusted it. A record written before landings reads as one
  * landing. So does one whose landings stand beside a list of files that is not
  * the one written with them (`commitRunsText`): a build that keeps no landings
- * rewrote the list and carried the landings unread, so it wrote the record. The
- * list is read for nothing else, and an install stored beside the landings is
- * not read: the landings say both (`whatLanded`).
+ * rewrote the list and carried the landings unread, so it wrote the record. One
+ * it moved to another commit with every file kept is not told apart, and its
+ * landings are read at that commit: such a build moves a record only to repair
+ * one a crash left naming another commit than its snapshot. The list is read
+ * for nothing else, and an install stored beside the landings is not read: the
+ * landings say both (`whatLanded`).
  */
 export function commitRunsIn(text: string, named: string): CommitRuns {
   let parsed: unknown;
