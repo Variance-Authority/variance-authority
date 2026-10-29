@@ -264,14 +264,12 @@ Or over MCP, where `variance_source_tests` takes a location and
 
 **Re-record when the tree moves.** A region is a range of lines in the text the
 suite ran over, so the index's coordinates belong to the commit it was recorded
-at, and the `--since` reading measures from that commit for this reason. An
-index behind the tree says so in its answer. It maps the recorded lines onto
-your text through the diff when it has the recorded text, it says of each test
-file it names whether that file ran over your text or another and when its run
-landed, and it says *not known* where a run over another text has landed on a
-region since a case ran it. A test file that ran over another text is evidence
-about that text, not about yours. At +2% to +8% there is no budget argument
-against recording on every run, which is the cadence this needs.
+at, and the `--since` reading measures from that commit for this reason. For
+each test file it names, `covering` prints whether that file ran over the
+file's content as it is now or an earlier one, and when that run was recorded.
+A test file that ran over an earlier content is evidence about that content,
+not about yours. At +2% to +8% there is no budget argument against recording on
+every run, which is the cadence this needs.
 
 **Fold shards, don't fold axes.** A suite split across machines ends with one
 index per shard, and folding them produces the union the unsharded run would
@@ -295,10 +293,11 @@ numbers are coordinates *into* the recorded text, not the thing recorded.
 The rows keep a crossing through an edit by that address, and a digest per
 region catches a mispair. The case axis holds no digest, so it follows the edit
 itself: a region the `git diff -U0` hunks leave alone keeps its cases at the
-lines the hunks place it. A region they touch keeps the cases that ran it too:
-as they ran where the edit changed nothing the region runs, and otherwise as
-cases of another text. Selection runs those for a change to the region, and
-`covering` says which case ran it is not known.
+lines the hunks place it. A region they touch keeps the cases that ran it as
+well, and where the edit changed what the region runs, selection runs them and
+`covering` prints that which case ran it is not known, as
+[identity under an edit](execution-record.md#identity-under-an-edit) walks
+through.
 
 **A crossing is a pair.** One row is *this case covered this region*, and the
 index is those pairs and nothing else: three parallel integer columns, sorted
