@@ -38,6 +38,7 @@
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { dirname, isAbsolute, join, relative } from 'node:path';
 import { digestOfSha256 } from '@variance-authority/core/format';
+import { codeUnitOrder } from '@variance-authority/core/segment';
 import type { BlockKind } from '../instrument/index.js';
 import { askCoverageFile } from '../test-selection/coverage-file.js';
 import { BLOCK_KINDS } from '../test-selection/format-layout.js';
@@ -151,10 +152,10 @@ export function listStories(root: string): StoryEntry[] {
     }
   }
   return entries.sort((left, right) =>
-    compare(left.file, right.file)
-    || compare(left.name, right.name)
+    codeUnitOrder(left.file, right.file)
+    || codeUnitOrder(left.name, right.name)
     || (right.written ?? 0) - (left.written ?? 0)
-    || compare(left.path, right.path));
+    || codeUnitOrder(left.path, right.path));
 }
 
 /** Every region a module holds by ordinal, for each row of `story`, where the snapshot beside it holds them. */
@@ -308,8 +309,8 @@ export function drawRoute(
     name: story.name,
     before,
     route,
-    files: [...seen].sort(compare),
-    unresolved: [...unresolved].sort(compare),
+    files: [...seen].sort(codeUnitOrder),
+    unresolved: [...unresolved].sort(codeUnitOrder),
     untaken,
     ...(opening.before.length + opening.route.length === 0 ? {} : {
       opening: {
@@ -404,8 +405,4 @@ export function placesOf(file: string, regions: readonly Region[]): Placed {
 
 export function inCheckout(root: string, file: string): string {
   return isAbsolute(file) ? relative(root, file) : file;
-}
-
-function compare(left: string, right: string): number {
-  return left < right ? -1 : left > right ? 1 : 0;
 }

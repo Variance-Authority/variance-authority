@@ -10,6 +10,7 @@
  * publish is handed it.
  */
 
+import { codeUnitOrder } from '@variance-authority/core/segment';
 import { layerCaseIndex, openPrevious } from './case-layer.js';
 import { caseSectionsOf, withCaseSections, type CaseSections } from './case-record.js';
 import { encodeAsSetExecutionIndex } from './execution-set-format.js';
@@ -17,7 +18,6 @@ import { layEyes } from './eyes-record.js';
 import { decodeTestCoverage, encodeTestCoverage } from './format.js';
 import { openTestCoverage } from './format-view.js';
 import type { TestCoverage } from './index.js';
-import { codeUnitOrder } from './instrumented-modules.js';
 import { withoutRetired } from './carried-rows.js';
 
 /**

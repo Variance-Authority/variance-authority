@@ -16,7 +16,7 @@
 
 import type { Help, Named, Taken, Use } from '@variance-authority/package/help';
 import { importersOf } from '@variance-authority/sense';
-import { useOf } from '../refresh-native.js';
+import { useOf } from '../native-use.js';
 import { importsByPath } from './by-path.js';
 import { answers, says } from './declaration-key.js';
 

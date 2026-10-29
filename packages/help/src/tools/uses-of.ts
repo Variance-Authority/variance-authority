@@ -278,6 +278,41 @@ function sitesOfOne(root: string | undefined, names: readonly string[], wanted: 
   return { sites: sitesOf(found, byPath, within ?? [], read), unread, within, inFile, namespaces: read !== undefined && 'namespaces' in read ? read.namespaces : [] };
 }
 
+/** Whether an import by path resolved to one of the files in `to`. */
+const resolvedTo = (site: PathSite, to: ReadonlySet<string>): boolean => site.held.to !== undefined && to.has(site.held.to);
+
+/** An import by path as a site, saying how it names the file. */
+const asSite = (site: PathSite): Site => ({ ...site.taken, how: how(site) });
+
+/**
+ * The sites of the published declaration of `name` in `at`, the ones `uses`
+ * lists when asked for that name and that file, and why the source index did
+ * not read the imports within its package, when it did not. The row's door,
+ * `name` imported from `specifier`, picks the declaration: two bindings of
+ * one file published under one name by two entries are two rows.
+ */
+export function publishedSitesOf(help: Help, root: string | undefined, name: string, at: string, specifier: string): { readonly sites: readonly Site[]; readonly unread?: string } {
+  const one = publishedDeclarations(help, root, name, undefined).find(
+    (held) => held.at === at && held.doors.some(([published, opening, entry]) => entry.name === name && specifierOf(published, opening) === specifier),
+  );
+  if (one === undefined) return { sites: [] };
+  const { sites, unread } = sitesOfPublished(help, root, name, undefined, one, sitesByPath(help, name, undefined));
+  return unread === undefined ? { sites } : { sites, unread };
+}
+
+/**
+ * The sites of one published declaration, the one assembly `uses` and the
+ * count beside a search row both read: the imports by path of the name its
+ * file declares it by that resolved to its file, then what {@link sitesOfOne}
+ * reads out of that file under every name it exports it by. `paths` are the
+ * imports by path of `name`.
+ */
+function sitesOfPublished(help: Help, root: string | undefined, name: string, wanted: string | undefined, one: PublishedDeclaration, paths: readonly PathSite[]) {
+  const to = new Set([one.at]);
+  const byPath = (one.declared === name ? paths : sitesByPath(help, one.declared, wanted)).filter((site) => resolvedTo(site, to)).map(asSite);
+  return { byPath, ...sitesOfOne(root, one.spellings, wanted, one.doors, [one.at], byPath) };
+}
+
 /**
  * The doors that publish a name only inside a namespace, `shout.greet` by
  * `@acme/lib` for an entry doing `export * as shout`: each namespace the
@@ -343,16 +378,14 @@ export function usesOf(help: Help, input: Readonly<Record<string, unknown>>, roo
   const paths = sitesByPath(help, name, wanted);
   const everyFile = new Set([...published.filter((one) => one.declared === name).map((one) => one.at), ...groups.flatMap((group) => group.exported.map((held) => held.at))]);
   const claimed = (site: PathSite): boolean => site.held.to !== undefined && everyFile.has(site.held.to);
-  const pathSites = (to: ReadonlySet<string>, stray: boolean, of: readonly PathSite[] = paths): readonly Site[] =>
-    of.filter((site) => (site.held.to !== undefined && to.has(site.held.to)) || (stray && !claimed(site))).map((site) => ({ ...site.taken, how: how(site) }));
-  const publishedPaths = (one: PublishedDeclaration): readonly Site[] =>
-    pathSites(new Set([one.at]), false, one.declared === name ? paths : sitesByPath(help, one.declared, wanted));
+  const pathSites = (to: ReadonlySet<string>, stray: boolean): readonly Site[] => paths.filter((site) => resolvedTo(site, to) || (stray && !claimed(site))).map(asSite);
+  const answeredFirst = lead === undefined ? undefined : sitesOfPublished(help, root, name, wanted, lead, paths);
   // An import by path of `default` is the declaration its file's default is named by, never a stray of the slot.
-  const byPath = lead !== undefined ? publishedPaths(lead) : pathSites(new Set(exported.map((held) => held.at)), file === undefined && name !== SLOT);
+  const byPath = answeredFirst?.byPath ?? pathSites(new Set(exported.map((held) => held.at)), file === undefined && name !== SLOT);
 
   const namesakes: readonly Namesake[] = [
     ...rest.map((other) => {
-      const one = sitesOfOne(root, other.spellings, wanted, other.doors, [other.at], publishedPaths(other));
+      const one = sitesOfPublished(help, root, name, wanted, other, paths);
       return { declaration: other, exported: [], home: homeOf(help, other), sites: one.sites, inFile: one.inFile };
     }),
     ...others.map((group) => {
@@ -372,8 +405,7 @@ export function usesOf(help: Help, input: Readonly<Record<string, unknown>>, roo
     throw new FoundNothing(nowhere(help, name, wanted, root, members, undefined, spell));
   }
   // A published declaration is read out of its file by the name it is declared by; the walk follows every door that renames it.
-  const local = lead === undefined ? [...new Set(exported.map((held) => held.at))] : [lead.at];
-  const { sites, unread, within, inFile, namespaces } = sitesOfOne(root, lead?.spellings ?? spellingsAt(help, root, exported, name), wanted, found, local, byPath);
+  const { sites, unread, within, inFile, namespaces } = answeredFirst ?? sitesOfOne(root, spellingsAt(help, root, exported, name), wanted, found, [...new Set(exported.map((held) => held.at))], byPath);
   if (exported.length > 0 && unread !== undefined && byPath.length === 0) throw new Error(indexMissing(name, exported, unread));
 
   // Inside is the declaring file's package, which a re-exporting door is not.

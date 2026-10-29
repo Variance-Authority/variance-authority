@@ -328,6 +328,9 @@ function storyWriter(
       const read = readingOf(each);
       if (read?.stem === stem) kept.push({ name: each, written: read.written ?? 0 });
     }
+    // FIXME: a copy of core's `codeUnitOrder`, reversed. Jest's sandbox loads
+    // this file untransformed, and core's `./segment` has no CommonJS build to
+    // require; once it has one, the tie is `codeUnitOrder(right.name, left.name)`.
     kept.sort((left, right) => right.written - left.written || (left.name < right.name ? 1 : -1));
     for (const { name: old } of kept.slice(READINGS)) fs.rmSync(path.join(directory, old), { force: true });
   };

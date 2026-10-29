@@ -106,27 +106,29 @@ This package is for the workspace that does not run one.
 
 ### What you get
 
-Text, on stdout. `search` answers in two sections: the names a manifest
-publishes, ranked by where they hold your words (the name, then the doc's
-first paragraph, then the rest of it) and then by how many packages import
-them; then the names the source exports without publishing. A third follows
-when your words match a name they do not contain. Run against this repository, abridged to the first few lines of
-each section:
+Text, on stdout. `search` answers in two sections. The first holds the names a
+manifest publishes, ranked by where they hold your words: the name, then the
+doc's first paragraph, then the rest of it. Each is labelled with the places
+that import it and the packages those places sit in, counted as `uses` counts
+them, and the rows shown are ordered by those packages, then those places. The
+second holds the names the source exports without publishing. A third follows
+when your words match a name they do not contain. Run against this repository,
+abridged to the first few lines of each section:
 
 ```
-12 published matches for `viewport`
+16 published matches for `viewport`
 
-@variance-authority/core/format · Viewport [interface] 17 packages, 60 imports — UNDOCUMENTED
-@variance-authority/core/format · documentDigest [function] 12 packages, 27 imports — Content address of a document: *what is to be painted*.
-@variance-authority/dom · conditionsFor [function] 1 packages, 1 imports — The condition environment a capture of this document would be flattened against.
-@variance-authority/storybook · harnessPage [function] 1 packages, 1 imports — Drive the page a harness already owns.
-@variance-authority/cli · ConfigError [class] 0 packages, 0 imports — A refusal that names the field.
+@variance-authority/core/format · Viewport [interface] imported in 68 places in 18 packages — UNDOCUMENTED
+@variance-authority/storybook · StoryViewport [interface] imported in 1 place in 1 package — A per-story viewport override.
+@variance-authority/storybook · declarationOf [function] imported in 2 places in 2 packages — One story's `parameters.variance`, checked against the run's viewport.
+@variance-authority/core/format · documentDigest [function] imported in 33 places in 13 packages — Content address of a document: *what is to be painted*.
+@variance-authority/core/format · PageRegion [interface] imported in 16 places in 6 packages — The timezone a page's clock reads in and the language it formats for, as Playwright names them.
 
-4 more names are exported somewhere in the repository without being published:
+22 more names are exported somewhere in the repository without being published:
 
+viewport — site · site/app/layout.tsx:48
 CORPUS_VIEWPORT — @variance-authority/example-kitchen-sink · examples/kitchen-sink/src/jsdom-profile.ts:21
-VIEWPORT — @variance-authority/cli · packages/cli/src/commands/run-fixture.ts:48
-parseViewport — @variance-authority/cli · packages/cli/src/config-sections.ts:241
+parseViewport — @variance-authority/cli · packages/cli/src/config-sections.ts:194
 ```
 
 A published name is API and comes with the specifier you would import it from.
@@ -156,9 +158,11 @@ packages/core/src/format/environment.ts:98 — readonly colorScheme: 'light' | '
 
 ## The questions
 
-Ranking is one number: how many packages in the repository import the name. A
+Ranking counts the other packages that import the name by a published path: a
 frequently imported name leads; a name nothing outside its own package imports
-stays available without taking space from the first answer.
+stays available without taking space from the first answer. A `search` row is
+labelled with every place that imports it and the packages those places sit in,
+and the rows on a page are reordered by that label.
 
 | verb / tool | takes | answers |
 |---|---|---|
@@ -257,7 +261,7 @@ No name in this repository, nor the doc of one, writes `meesure` as typed. The n
 1 more name matches loosely — your words apart, or within a character of the
 ones written. Nothing above was reordered by this.
 
-alpha · measure [function] 1 packages, 1 imports — Measures the thing, and says how much of it there was.
+alpha · measure [function] imported in 1 place in 1 package — Measures the thing, and says how much of it there was.
 ```
 
 It may only add. Nothing the two sections above answered is scored, reordered,
@@ -268,8 +272,9 @@ a word that was written stays exactly as short as it was. It obeys `from` and
 can find a name you did not type and never a file you ruled out. A name its file
 declares and does not export is reached the same way, after every exported one.
 
-Inside it the order is the order above — by how many packages import the name,
-then by name. Membership is the only decision the looser reading makes, because
+Inside it the order is the order above — by the other packages that import the
+name by a published path, then within the page by the places and packages its
+label counts, then by name. Membership is the only decision the looser reading makes, because
 you can check why a name is on a list and can only trust where it sits on one.
 
 ### Where the declaration is undocumented

@@ -136,3 +136,16 @@ describe('the names a question puts first', () => {
     expect(order.indexOf('regionCount')).toBeGreaterThan(order.indexOf('written'));
   });
 });
+
+describe('the published rows a question shows', () => {
+  it('are, named no checkout, every row it shows named one: the checkout adds declared names and other sections, never a published row', () => {
+    // `countingShown` decides whether to open the value from the answer named no checkout.
+    const shown = (query: string, checkout?: string): readonly string[] =>
+      (searchNames(index, { query }, treeOf([], root), checkout).published?.shown ?? []).map((one) => `${one.name} ${one.at}`);
+    const questions = ['instrument', 'probe', 'region', 'Region', 'tally', 'call', 'region placement', 'run time'];
+
+    expect(questions.some((query) => JSON.stringify(searchNames(index, { query }, treeOf([], root), root)) !== JSON.stringify(searchNames(index, { query }, treeOf([], root))))).toBe(true);
+    for (const query of questions) expect(shown(query)).toEqual(expect.arrayContaining([...shown(query, root)]));
+    expect(questions.flatMap((query) => shown(query, root)).length).toBeGreaterThan(0);
+  });
+});

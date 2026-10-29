@@ -10,6 +10,7 @@
 import { resolve } from 'node:path';
 import { isDeepStrictEqual } from 'node:util';
 import type { FileRecord } from '@variance-authority/core/relate';
+import { codeUnitOrder } from '@variance-authority/core/segment';
 import type { ParseCache, ParseKey, Parsed } from './cache.js';
 import { cacheLayers } from './test-selection/cache-layers.js';
 import { realPath } from './resolve.js';
@@ -197,5 +198,5 @@ export async function readSourceRecords(path: string): Promise<readonly FileReco
   const stored = (await openSourceIndexFile(path)).stored;
   return [...stored.records.values()]
     .map((held) => held.record)
-    .sort((left, right) => left.file < right.file ? -1 : left.file > right.file ? 1 : 0);
+    .sort((left, right) => codeUnitOrder(left.file, right.file));
 }

@@ -35,6 +35,7 @@ import {
   type NodeId,
   type Relations,
 } from '@variance-authority/core/relate';
+import { codeUnitOrder } from '@variance-authority/core/segment';
 import { chainBetween, holds, inside, type Decision, type RuleFile } from './restrictions.js';
 
 /** One import that carries a chain from a seed into a file a transitive rule restricts. */
@@ -50,10 +51,6 @@ export interface ChainViolation {
   readonly chain: readonly string[];
   /** How many seeds reach `from` without passing a restricted file. */
   readonly seeds: number;
-}
-
-function byCodeUnit(a: string, b: string): number {
-  return a < b ? -1 : a > b ? 1 : 0;
 }
 
 /** The part of a seed its verdicts depend on: the rule files above it and the transitive rules whose `from` holds it. */
@@ -152,5 +149,5 @@ export function restrictedChains(records: readonly FileRecord[], files: readonly
       }
     }
   }
-  return [...found.values()].sort((a, b) => byCodeUnit(a.from, b.from) || byCodeUnit(a.to, b.to));
+  return [...found.values()].sort((a, b) => codeUnitOrder(a.from, b.from) || codeUnitOrder(a.to, b.to));
 }

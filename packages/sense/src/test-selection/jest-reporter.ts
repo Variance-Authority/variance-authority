@@ -18,6 +18,7 @@
 import { randomUUID } from 'node:crypto';
 import { rm } from 'node:fs/promises';
 import { dirname, isAbsolute, resolve, sep } from 'node:path';
+import { codeUnitOrder } from '@variance-authority/core/segment';
 import type { Digest } from '../digest.js';
 import { runTexts } from '../text-digests.js';
 import { instrumentationId, type InstrumentMode, type ModuleId } from '../instrument/index.js';
@@ -36,7 +37,6 @@ import { landRun } from './commit-runs.js';
 import { markCheckout } from './cache-layers.js';
 import { repositoryRoot } from './repository-root.js';
 import {
-  codeUnitOrder,
   crossingsOf,
   loadedOf,
   projectPath,

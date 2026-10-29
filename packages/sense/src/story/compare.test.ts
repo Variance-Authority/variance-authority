@@ -98,6 +98,13 @@ describe('two sides of a case', () => {
     expect(comparison.unsteady.said).toBe(3);
   });
 
+  it('list the lines one side said every time in the order it said them, not by their text', () => {
+    const lines: [number, string][] = [[1, 'console.log zeta'], [1, 'console.log beta'], [2, 'console.log alpha']];
+    const comparison = compareLoaded(ROOT, [passed(reading([1, 4]), reading([1, 4])), threw(reading([1, 4], lines, true), reading([1, 4], lines, true))]);
+
+    expect(comparison.only.map((only) => only.said)).toEqual([['console.log zeta', 'console.log beta', 'console.log alpha']]);
+  });
+
   it('are told apart by what a function was handed, and not by the number its run gave an object', () => {
     const comparison = compareLoaded(ROOT, [
       passed(reading([1, 4], [[1, 'handed cart=ref2 Object, tax=0']]), reading([1, 4], [[1, 'handed cart=ref3 Object, tax=0']])),
