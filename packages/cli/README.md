@@ -764,22 +764,22 @@ numbered in gives them as recorded. A file not on disk is answered in the
 record's lines, and its test files are dated with no text to compare.
 
 A group is the test files one run last finished. A run finishes a test file it
-runs whole, and one the record held no cases of; a run that executes none of a
-test file's cases, every one skipped or filtered out, did not run it. A later
-run that runs one in part, under `-t`, a filter or a skip, names the cases it
-ran, so each case the answer names is dated by the run that last ran it and
-compared with that run's texts. A test file whose named cases last ran in
+runs whole, and one the record held no cases of. A later run that runs one in
+part, under `-t`, a filter or a skip, names the cases it ran, so each case the
+answer names is dated by the run that last ran it and compared with that run's
+texts. A test file whose named cases last ran in
 different runs is said part by part on one line, newest first:
 
 ```text
 src/pay.test.ts ran 'refunds' over this text, in a run that landed 1 hour ago, and its 1 other case named here over another text of src/pay.ts, in a run that landed 3 days ago, in which `pay` is the same.
 ```
 
-A run in part that kept no cases, because its seam recorded none, says it
-laid none of them, so each case the answer names is dated by the run that last
-finished the file, whose cases the index still holds. A test file the answer
-names no case of spans the times of every run that wrote its lines: the one
-that last finished it, and each later run in part. So does a case of a test
+A run in part that laid none of a test file's cases, because its seam recorded
+none or it executed none of them, every one skipped or filtered out, says so,
+so each case the answer names is dated by the run that last finished the file,
+whose cases the index still holds. A test file the answer names no case of
+spans the times of every run that wrote its lines: the one that last finished
+it, and each later run in part, one that only loaded it among them. So does a case of a test
 file whose later run in part does not say which cases it laid, as a runs record
 another tool wrote may not. When those runs ran over different texts and only
 some of them over yours, which text its cases ran over is not known, because
@@ -2020,7 +2020,12 @@ cases of every test file that shard ran to the end, in the same write as the
 coverage, and `covering`, `coverage` and `review` answer from the result. If you
 land a shard that ran a test file to the end and kept no cases, the landing
 drops the index, because no index can hold which of that file's cases run a
-line. Those commands then print that nothing is recorded until a run writes one.
+line, and a run of your own that does the same drops it too. Those commands then
+print that nothing is recorded until a run writes one. A run that keeps cases
+writes an index into a record that holds none only once it has run to the end
+every test file the record holds that your checkout still has, since an index
+of some of them would say no case of the rest runs a line; until then the record
+keeps none, and `journeys` names a test file the shards did not run to the end.
 A shard keeps no cases when its seam recorded none, and one that kept cases
 beside one that kept none is refused, because their combined record could
 answer for the cases of only some of its files. If another run is writing

@@ -251,14 +251,14 @@ src/pay.ts is the text the other test file named here ran over, in a run that la
   `--function` it adds that the parts no case ran are not said. Under `mapped`
   a part of the function no case ran that an edit touched prints as `edited`.
 - A group is the test files one run last finished: it ran them whole, or the
-  record held no cases of them. A run that executed none of a file's cases did
-  not run it. A later run in part (`-t`, a filter, a skip) names the cases it
-  ran, so each named case is dated and compared by the run that last ran it,
-  and a test file whose named cases last ran apart is said part by part on one
-  line, newest first: ``src/pay.test.ts ran 'refunds' over this text, in a run
-  that landed 1 hour ago, and its 1 other case named here over another text of
-  src/pay.ts, in a run that landed 3 days ago, in which `pay` is the same.`` A
-  run in part that kept no cases says it laid none, so each named case is
+  record held no cases of them. A later run in part (`-t`, a filter, a skip)
+  names the cases it ran, so each named case is dated and compared by the run
+  that last ran it, and a test file whose named cases last ran apart is said
+  part by part on one line, newest first: ``src/pay.test.ts ran 'refunds' over
+  this text, in a run that landed 1 hour ago, and its 1 other case named here
+  over another text of src/pay.ts, in a run that landed 3 days ago, in which
+  `pay` is the same.`` A run in part that kept no cases, or executed none of
+  the file's, every one skipped, says it laid none, so each named case is
   dated by the earlier run. A test file the answer names no case of, and a case
   of one whose later run in part does not say which it laid (a record another
   tool wrote), is placed by the earlier run, its line spanning both times, and
