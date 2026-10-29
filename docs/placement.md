@@ -270,11 +270,13 @@ arrangements, and each puts the approval somewhere else:
 | git | `directory` or `lfs`, root tracked | a commit on the pull request's branch, reviewed with the code | the commit and the pull-request review |
 | a review service | `remote` | an approval or a rejection per subject, on the service's page | the service's decisions |
 
-The [workflow recipe](../.github/workflows/variance.yml) runs any of the three,
-and one value chooses: `VARIANCE_REVIEW`, set to `cache`, `git` or `tribunal`.
-The config's `baselines` section has to agree with it. The
-[workflows README](../.github/workflows/README.md#who-accepts-a-change) lists
-what each value needs.
+On GitHub, `Variance-Authority/action` runs any of the three, and the config's
+`baselines` section chooses. With the CI cache, the action's `accept` input
+accepts, on the run a label started. With git, its `commit-baselines` input
+pushes the accepted images to the pull request's branch, which needs a token
+whose push starts a workflow. With a review service, a `variance push` step after
+the action sends the run there. The
+[CLI reference](../packages/cli/README.md#run-it-in-ci) has the step.
 
 ### The CI cache
 

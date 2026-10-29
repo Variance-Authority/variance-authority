@@ -118,7 +118,7 @@ inputs:
       others' baselines with it. For a store the
       host cache carries (`carry: actions-cache`); a committed store accepts
       through `commit-baselines` instead. Turn it on only for a run a person
-      asked for, as `.github/workflows/variance.yml` does: on every run,
+      asked for, such as one a label started: on every run,
       `accept --all` promotes the regression the check was added to catch. Off
       by default.
     required: false
@@ -130,8 +130,7 @@ inputs:
       request's head branch, as a bot. This is how a committed store accepts a
       change: the images arrive in the pull request's diff, and its review is
       the approval. Turn it on only for a run a person asked for, such as one
-      started by a label, as `.github/workflows/variance.yml` does under
-      `VARIANCE_REVIEW: git`. On every run, `accept --all` promotes the
+      started by a label. On every run, `accept --all` promotes the
       regression the check was added to catch, in the run that found it. Needs
       `contents: write` and a checkout of the head branch. Off by default.
     required: false
