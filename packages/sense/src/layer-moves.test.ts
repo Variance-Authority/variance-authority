@@ -83,4 +83,11 @@ describe('layerMoves', () => {
     const head = layered({ low: [], side: [], zeta: ['side'], alpha: ['side'] });
     expect(layerMoves(base, head).held.map((entry) => entry.package)).toEqual(['alpha', 'zeta']);
   });
+
+  it('lists packages that came or went in code-unit order, whatever order the maps give them in', () => {
+    const base = layered({ a: [], zeta: ['a'], alpha: ['a'] }).reverse();
+    const head = layered({ a: [], omega: ['a'], beta: ['a'] }).reverse();
+    const moves = layerMoves(base, head);
+    expect([moves.appeared, moves.vanished].map((entries) => entries.map((entry) => entry.package))).toEqual([['beta', 'omega'], ['alpha', 'zeta']]);
+  });
 });

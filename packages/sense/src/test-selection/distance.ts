@@ -43,6 +43,7 @@
  */
 
 import { EDGE_KINDS, RUNTIME_EDGES, dependenciesOf, idOf, nodeAt, trailOf, type NodeId, type Relations, type Traversal } from '@variance-authority/core/relate';
+import { codeUnitOrder } from '@variance-authority/core/segment';
 import { reachThroughs, type Faces, type ReachThrough } from './faces.js';
 import type { TestCoverageView } from './format-view.js';
 import { findTest } from './lookup.js';
@@ -203,7 +204,7 @@ export function nearestFirst(left: TestDistance, right: TestDistance): number {
     if (right.hops === undefined) return -1;
     return left.hops - right.hops;
   }
-  return left.test < right.test ? -1 : left.test > right.test ? 1 : 0;
+  return codeUnitOrder(left.test, right.test);
 }
 
 /**

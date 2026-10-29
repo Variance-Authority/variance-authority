@@ -42,6 +42,7 @@
  */
 
 import { readFile } from 'node:fs/promises';
+import { codeUnitOrder } from '@variance-authority/core/segment';
 import { followRowsIn } from './case-cuts.js';
 import { editsBetween } from './region-edit.js';
 import { layCases, textsIn, type FreshCases, type ModuleTexts } from './case-landing.js';
@@ -50,7 +51,6 @@ import { askCoverageFile } from './coverage-file.js';
 import { anotherBuilds, layeredOver, recordBytes } from './format-layer.js';
 import { RecordWithoutCoverage } from './format-validation.js';
 import { openTestCoverage } from './format-view.js';
-import { codeUnitOrder } from './instrumented-modules.js';
 import type { TestCoverage } from './index.js';
 import { installAfter, installKey, keepRecordedInstall, keptInstallOf, type KeptInstall } from './kept-install.js';
 import { keepRecordedTexts, landedTree } from './kept-texts.js';
