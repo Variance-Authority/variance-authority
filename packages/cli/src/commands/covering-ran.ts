@@ -243,8 +243,8 @@ export async function ranOf(answer: RanNamed, question: RanQuestion): Promise<Ra
   const unheld = answer.changed === undefined ? [] : asked.filter((file) => !held.has(file));
   const units = tests.flatMap((test) => unitsOf(places.get(test)!, test, cases.get(test)));
   const precondition = answer.preconditionOf !== undefined;
-  // A precondition has no recorded line, so no region of it is compared.
-  const region = precondition ? undefined : regionOf(answer, question);
+  // A precondition has no recorded line, and a file off disk no text, so neither has a region to compare.
+  const region = precondition || held.size === 0 ? undefined : regionOf(answer, question);
   // Under `--since` a test file that read a changed file only as a precondition is judged on it as one.
   const holding = answer.changed === undefined || held.size === 0 ? undefined : heldAsPrecondition(snapshot, [...held.keys()], held);
   const readers = readersOf(answer, { tests, named, index: question.index, holding });
@@ -400,12 +400,11 @@ function regionOf(answer: RanNamed, question: RanQuestion): Region {
   if ('line' in target) return { held: [{ startLine: target.line, endLine: target.line }] };
   if ('lines' in target) return { held: [target.lines] };
   const placement = question.placement;
-  const module = question.index?.modules.find((candidate) => candidate.file === answer.file);
-  if (placement === undefined || module === undefined) return undefined;
+  if (placement === undefined) return { unknown: `the record does not say which text of ${answer.file!} its lines are numbered in` };
   if (placement.frame === 'stale') return { unknown: `the record's lines of ${answer.file!} are not placed in its text as it is now` };
-  const blocks = functionsUnder(module.blocks, target.function);
-  if (blocks.length === 0) return undefined;
-  return { held: blocks.flatMap((block) => placement.place(block)?.lines ?? []) };
+  // `covering` answers a function only of a module the record holds a block of it in.
+  const module = question.index!.modules.find((candidate) => candidate.file === answer.file)!;
+  return { held: functionsUnder(module.blocks, target.function).flatMap((block) => placement.place(block)?.lines ?? []) };
 }
 
 /**

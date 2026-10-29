@@ -75,6 +75,25 @@ describe('a covering answer says when the test files it names last ran, and over
     expect(text).toContain('src/pay.test.ts ran over another text of src/pay.ts, in a run that landed 9 hours ago; `pay` is not in src/pay.ts as it is now.\n');
   });
 
+  it('says whether the asked function differs is not known when the record does not say which text its lines are numbered in', async () => {
+    const now = Date.now();
+    const { at } = await checkout({
+      row: false,
+      committed: now - (9 * HOUR + 30 * MINUTE),
+      second: { committed: now - (6 * MINUTE + 30_000), pay: `${PAY}export const fee = 0;\n` },
+      runs: (base, recorded) => ({
+        commit: recorded, over: base, ...oneRun(iso(now - 6 * MINUTE), ['src/other.test.ts']),
+        standing: [{ commit: base, files: ['src/pay.test.ts'], first: iso(now - 9 * HOUR - MINUTE), latest: iso(now - 9 * HOUR - MINUTE), runs: 1, texts: {} }],
+      }),
+    });
+    const { text, json } = await ask(at, '--file', 'src/pay.ts', '--function', 'pay');
+    const why = 'the record does not say which text of src/pay.ts its lines are numbered in';
+
+    expect(json).not.toHaveProperty('frame');
+    expect(json['ran']).toMatchObject({ stands: [{ tests: ['src/pay.test.ts'], text: 'other', other: ['src/pay.ts'], region: { unknown: why } }] });
+    expect(text).toContain(`src/pay.test.ts ran over another text of src/pay.ts, in a run that landed 9 hours ago; whether \`pay\` differs is not known: ${why}.\n`);
+  });
+
   it('says which text a test file a later run ran in part ran over is not known when the two runs ran over different texts, naming both times', async () => {
     const now = Date.now();
     const { at, commit, first } = await checkout({
@@ -343,6 +362,24 @@ describe('a covering answer says when the test files it names last ran, and over
       ],
     });
     expect(text).toContain('src/pay.ts did not exist where src/pay.test.ts ran, in a run that landed 2 hours ago.\n');
+  });
+
+  it('never says the asked function is the same when one run its cases may have last run in stood where the file did not exist', async () => {
+    const now = Date.now();
+    const { at, commit } = await checkout({ second: { committed: now - HOUR, pay: `${PAY}export const fee = 0;\n` } });
+    const git = (...args: string[]) => execFileSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', ...args], { cwd: at, encoding: 'utf8' }).trim();
+    const bare = git('commit-tree', git('mktree', '--missing'), '-m', 'bare');
+    // The later run in part ran over the committed text, where `pay` is as it is now.
+    await writeFile(commitRunsFile(testCoverageFile(at, { suite: 'unit' })), JSON.stringify({
+      commit, first: iso(now - 6 * MINUTE), latest: iso(now - 6 * MINUTE), runs: 1, files: ['src/other.test.ts'],
+      landings: [{ files: ['src/other.test.ts'], partly: ['src/pay.test.ts'], first: iso(now - 6 * MINUTE), latest: iso(now - 6 * MINUTE), runs: 1, texts: {} }],
+      standing: [{ commit: bare, files: ['src/pay.test.ts'], first: iso(now - 2 * HOUR), latest: iso(now - 2 * HOUR), runs: 1, texts: {} }],
+    }));
+    await writeFile(join(at, 'src/pay.ts'), `${PAY}export const dirty = 1;\n`);
+    const { json } = await ask(at, '--file', 'src/pay.ts', '--function', 'pay');
+    const why = 'its cases ran in runs over different texts of src/pay.ts, and the runs record does not say which case ran in which';
+
+    expect(json['ran']).toMatchObject({ stands: [{ commit: bare, tests: ['src/pay.test.ts'], text: 'other', other: ['src/pay.ts'], region: { unknown: why } }] });
   });
 
   it('says which file\'s text is not known beside a file a test file ran another text of, judging each on the files it read', async () => {
