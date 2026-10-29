@@ -48,6 +48,7 @@ import { baseCommit } from './covering-motion.js';
 import { coverageSource, harnessReach, readSource, within, type CoverageSource, type MissedEntry, type Scoped } from './coverage-source.js';
 import { readExecutionIndex, recordedExecutionFile } from './execution-input.js';
 import { mainlineBase, mainlineMissed } from './mainline-base.js';
+import { runsOf } from './record-runs.js';
 import { relationsFor } from './source-graph.js';
 import { asOperator, nothingRecorded } from './suite-record.js';
 
@@ -191,7 +192,7 @@ export async function coverage(request: ParsedCoverage): Promise<Coverage> {
       continue;
     }
     const base = within(await readExecutionIndex(found.from), scope);
-    const { commit, diff } = await diffFromBase(found.commit, request.root, found);
+    const { commit, diff, repository } = await diffFromBase(found.commit, request.root, found);
     bases.push({ ...(one === undefined ? {} : { name: one.name, kind: one.kind }), index: base });
     suites.push({
       ...named,
@@ -200,7 +201,7 @@ export async function coverage(request: ParsedCoverage): Promise<Coverage> {
       base: {
         from: found.from,
         commit,
-        change: coverageChange(base, index, { diff, ...(await carriedOver(record, request.root)) }),
+        change: coverageChange(base, index, { diff, ...carriedOver(await runsOf(record, request.root), repository) }),
       },
     });
   }

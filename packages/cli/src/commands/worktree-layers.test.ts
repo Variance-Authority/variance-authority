@@ -113,6 +113,20 @@ describe('a worktree that has not run', () => {
     );
   });
 
+  it('lays its seed from the primary checkout\'s runs with the files its landings finished listed beside them, for a build that keeps no landings', async () => {
+    const { primary, worktree, first } = await worktreeOf(true);
+    const base = testCoverageFile(primary, { suite: 'unit' });
+    await writeFile(commitRunsFile(base), JSON.stringify({
+      commit: first, over: first, first: '2026-09-26T00:00:00.000Z', latest: '2026-09-26T00:00:00.000Z', runs: 1,
+      files: ['test/total.test.ts', 'test/other.test.ts'],
+    }));
+    const own = testCoverageFile(worktree, { suite: 'unit' });
+    await seedTestCoverage(own, worktree, 'fixture');
+
+    const written = JSON.parse(await readFile(commitRunsFile(own), 'utf8')) as Record<string, unknown>;
+    expect(written['files']).toEqual(['test/other.test.ts', 'test/total.test.ts']);
+  });
+
   it('lands shards over the primary checkout\'s record on its first `variance land`, and drops the copied cases a shard left none for', async () => {
     const { primary, worktree, first } = await worktreeOf(true);
     const shard = join(home, 'shard-1.bin');

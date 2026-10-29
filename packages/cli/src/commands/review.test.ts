@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   caseSectionsAt,
   commitRunsFile,
+  encodeAsSetExecutionIndex,
   encodeExecutionIndex,
   landRun,
   testCoverageFile,
@@ -119,6 +120,19 @@ describe('a review of what a change did, after the run that recorded it', () => 
     expect(markdown).toContain('- `test/total.test.ts`\n  - + rounds');
   });
 
+  it('counts a region no case is known to have run apart from the ones no case ran', () => {
+    const region = (name: string, startLine: number, reach: 'unwalked' | 'unknown' | 'overwritten') =>
+      ({ kind: 'function', name, startLine, endLine: startLine + 2, reach, edit: 'modified', cases: 0, changedLineCases: 0, tests: [], called: [] });
+    const text = formatReview({ from: 'a'.repeat(40), record: 'ran', base: 'since', files: [{ file: 'src/total.ts', recorded: true, regions: [
+      region('applyDiscount', 1, 'unwalked'), region('round', 5, 'overwritten'), region('cap', 9, 'unknown'),
+    ] }] } as never, 'text');
+
+    // A record silent on which cases stopped still measured that none entered `cap`.
+    expect(text).toContain('- 2 no case covered: 2 modified.\n- 1 no case is known to have covered: 1 modified.\n');
+    expect(text).toContain('  src/total.ts:5-7 function round — no case is known to have covered it: a case ran it in a text an edit wrote over (modified)');
+    expect(text).toContain('  src/total.ts:9-11 function cap — no case covered it, and the record cannot say whether one stopped first (modified)');
+  });
+
   it('says which package the changed functions are in, whose tests ran them and which packages import them', async () => {
     const { root, first } = await changed();
     await writeFile(join(root, 'src/package.json'), JSON.stringify({ name: '@o/total' }));
@@ -137,7 +151,7 @@ describe('a review of what a change did, after the run that recorded it', () => 
 
     // The test file sits under no manifest, so the root's directory is its package.
     expect(answer.changedPackages).toEqual([
-      { package: '@o/total', path: 'src', functions: 2, reaches: { near: 1, unwalked: 1 }, uncovered: 1, own: false, tests: ['.'], importers: 2 },
+      { package: '@o/total', path: 'src', functions: 2, reaches: { near: 1, unwalked: 1 }, uncovered: 1, overwritten: 0, own: false, tests: ['.'], importers: 2 },
     ]);
   });
 
@@ -210,8 +224,9 @@ describe('a review of what a change did, after the run that recorded it', () => 
     const answer = await review(parse(['--root', root]));
 
     expect(answer).toMatchObject({ from: first, base: 'recording', runs: { runs: 2 } });
-    // Where each other test last ran is `test:since`'s reading, not the review's.
-    expect(answer.runs).not.toHaveProperty('standing');
+    // Where each other test last ran is `test:since`'s reading, not the review's; a record
+    // written before landings says which files its runs finished as one landing of them.
+    expect(answer.runs).toEqual({ over: first, latest: '2026-09-26T00:00:00.000Z', runs: 2, files: ['test/total.test.ts'] });
     expect(formatReview(answer, 'text')).toContain('the commit the recording was at before these runs. 2 runs recorded 1 test file.');
     const select = `\`variance select --since ${first.slice(0, 12)}\``;
     // The runs record names no commit of its own, so the comment names none either.
@@ -242,17 +257,21 @@ describe('a review of what a change did, after the run that recorded it', () => 
     // A worktree's first run at its base, a clone with a restored cache, or a
     // run after the record was deleted: the run is laid over its own commit.
     const { root, first } = await changed();
+    // It keeps the cases the record holds, as a cased seam's run does: one that finished the file and kept none would leave no case index.
+    const cases = { tests: [DISCOUNTS, ROUNDS], modules: [{ file: 'src/total.ts', blocks: [block('applyDiscount', 1, 3, [0]), block('round', 5, 7, [])] }] };
     await landRun(testCoverageFile(root), {
       version: 3,
       instrumentation: INSTRUMENTATION_ID,
       commit: first,
       tests: [{ file: 'test/total.test.ts', complete: true, preconditions: [] }],
       modules: [probedModule(['test/total.test.ts'])],
-    }, root);
+    }, root, undefined, { fresh: encodeAsSetExecutionIndex(cases), run: { tests: [{ file: 'test/total.test.ts', complete: true }], commit: first } });
 
     const answer = await review(parse(['--root', root]));
 
-    expect(answer).toMatchObject({ from: first, base: 'recording', runs: { commit: first, over: first, runs: 1 } });
+    expect(answer).toMatchObject({ from: first, base: 'recording', runs: { commit: first, over: first, runs: 1, files: ['test/total.test.ts'] } });
+    // The files are what its landings finished, and the landings themselves are the record's.
+    expect(Object.keys(answer.runs!).sort()).toEqual(['commit', 'files', 'installed', 'latest', 'over', 'runs']);
     // From the commit it stands at, the change is the working tree's.
     expect(formatReview(answer, 'text')).toContain('2 changed regions in 1 file');
   });

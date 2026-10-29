@@ -42,7 +42,7 @@ describe('gathering a line\'s cases by test file', () => {
       { file: 'total.test.ts', cases: 2, of: 3 },
       { file: 'flow.test.tsx', cases: 1, of: 1 },
     ]);
-    expect(formatCovering(answer, 'text')).toContain('  total.test.ts — 2/3\n    discounts\n    taxes\n');
+    expect(formatCovering(answer, 'text', Date.now())).toContain('  total.test.ts — 2/3\n    discounts\n    taxes\n');
   });
 
   it('orders the files nearest first, and an unplaced file last', () => {

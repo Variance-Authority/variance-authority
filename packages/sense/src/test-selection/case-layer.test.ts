@@ -177,8 +177,11 @@ describe('layerCaseIndex', () => {
   });
 });
 
-/** A region at one line, the cases that called it, and its name when it is not the callback's. */
-type Cut = readonly [line: number, callers: readonly string[], name?: string];
+/**
+ * A region at one line, the cases that called it, its name when it is not the
+ * callback's, and the cases held as having run it in another text.
+ */
+type Cut = readonly [line: number, callers: readonly string[], name?: string, overwritten?: readonly string[]];
 
 /** One module cut at the lines given, each region a one-line callback its callers entered. */
 function cutAt(cases: readonly string[], file: string, regions: readonly Cut[]): Buffer {
@@ -194,6 +197,9 @@ function cutAt(cases: readonly string[], file: string, regions: readonly Cut[]):
     })),
     called: Uint32Array.from(regions, ([, callers]) => sets.intern(callers.map((id) => at.get(id)!))),
     loaded: new Uint8Array(regions.length),
+    ...(regions.some(([, , , over]) => over !== undefined)
+      ? { overwritten: Uint32Array.from(regions, ([, , , over = []]) => sets.intern(over.map((id) => at.get(id)!))) }
+      : {}),
   };
   return encodeSetExecutionIndex({ tests, modules: [module], sets: sets.pool() });
 }
@@ -213,6 +219,19 @@ describe('a module the index holds at an older text than the snapshot', () => {
     const moved = caseMotion(decodeExecutionIndex(before!), decodeExecutionIndex(merged), { diff: new Map() });
     expect(moved.regions).toEqual([]);
     expect(unlined).toBeUndefined();
+  });
+
+  it('keeps a case the index holds as having run a region in another text on the region it re-lines, still not known to run it', () => {
+    const guards = 'blocks.test.ts > guards';
+    const flagged = cutAt([one, guards], 'src/blocks.ts', [[414, []], [415, [one]], [416, [], undefined, [guards]]]);
+
+    const before = decodeExecutionIndex(layerCaseIndex(flagged, fresh, same).before!);
+
+    expect(before.modules[0]!.blocks.map((block) => [block.startLine, block.crossings])).toEqual([
+      [415, []],
+      [416, [{ test: 0, distance: 0 }]],
+      [417, [{ test: 1, distance: 0, overwritten: true }]],
+    ]);
   });
 
   it('keeps the lines the index was cut at when nobody says the run recorded the text the snapshot names', () => {

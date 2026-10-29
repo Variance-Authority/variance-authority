@@ -37,12 +37,17 @@ whole suite again over a record that exists:
   record needed, and lists the files each one reaches over imports. Run the
   test files in that list. A ref such as `origin/main` diffs from its merge base
   with `HEAD`, which can already hold the file.
-- **Lines written since the recording, in a file the record holds** —
-  `covering` answers a line your edit wrote with no case and names it in
-  `written`; a `stale` frame or a `moved` range is the same gap. Record: the
-  test files that ran code in the file.
-  `variance covering --file <path> --format refs` lists them, in the cases
-  table at its end; run those.
+- **Lines written since the recording, or recorded over another text since, in
+  a file the record holds** — `covering` answers a line your edit wrote with no
+  case and names it in `written`. A line a case ran over, where a run over
+  another text has landed since, is named in `overwritten`, under any frame:
+  which case ran it is not known. A line the record cannot say a case ran over,
+  since it does not say which text one that crossed the file ran, is named in
+  `unknown`, with `why`. A `stale` frame or a `moved` range is the
+  same gap. Record: the test files the gap names, the ones `variance select`
+  runs for the file, among them every test file the record holds only in part.
+  Run what the gap's `Run with the suite's own runner:` line names, `gap.run`
+  under `--format json`.
 - **A file the suite never loaded** — `covering`'s `Not loaded by`
   (`unloaded`). The file is in the record's commit, and the recorded run of the
   suite loaded it by no import at all — static, dynamic, or a setup file's.

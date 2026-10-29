@@ -66,6 +66,7 @@ src/checkout/total.ts
   41-60 function applyDiscount — 3 cases
     applies a percentage discount — src/checkout/total.test.ts [total.test.ts::applies a percentage discount]
   62-66 branch applyDiscount — no case covered this region
+src/checkout/total.test.ts ran over another text of src/checkout/total.ts, in a run that landed 2 hours ago.
 ```
 
 The two counts in the first line are the findings. A region **no case covered**
@@ -83,8 +84,10 @@ covers this line*, which is the sentence that gets a test deleted.
 
 The diff is measured from the commit the record was written at, not from the
 merge base with the ref, because the index spells its line ranges in that
-commit's coordinates. Record before you review: an index behind the tree
-answers fluently about regions that have moved.
+commit's coordinates. Under the regions, the answer names each test file that
+ran over another text of a changed file, and when its run landed. Record before
+you review: a case that ran another text is evidence about that text, not about
+your change.
 
 This reading needs [test-level coverage](test-level-coverage.md) — the same
 recording with a case axis, which every run wrapped in `withTestSelection`
@@ -190,19 +193,21 @@ More on one file: `variance covering --file <path>`
 
 It hands over where to look, not the review. A changed function gets a line
 when there is something to look at: 🔴 means part of it ran under no case, or
-has no case in a record from before the change, 🔵 that the change wrote it and
-no case has run it yet. The other marks are the review comment's, for the
-furthest part a case reached: 🟡 from far, 🟠 from a distance not measured, ⚪
-only while its module loaded. The line names how many cases and the test file
-to open. *Near* means a case came from a test file that imports the changed
-file. *Far* means every case came from further away, through other modules;
-see [test distance](distance.md). A function every case reached from near is
-only counted: a test file that imports it is easy to find. Functions with code
-no case ran come first. Past twelve lines the rest are only counted, so the
-block stays a handful of lines on a change of any size, and its last line is
-the `covering` command that reads one file in full, from every suite the block
-reads. For a 🔴 function, `variance covering --file <path> --function <name>`
-names the part no case ran, in each suite.
+has no case in a record from before the change, ❔ that a case ran part of it in
+a text an edit wrote over, so no case is known to have run it, and 🔵 that the
+change wrote it and no case has run it yet. The other marks are the review
+comment's, for the furthest part a case reached: 🟡 from far, 🟠 from a distance
+not measured, ⚪ only while its module loaded. The line names how many cases and
+the test file to open. *Near* means a case came from a test file that imports
+the changed file. *Far* means every case came from further away, through other
+modules; see [test distance](distance.md). A function every case reached from
+near is only counted: a test file that imports it is easy to find. Functions
+with code no case ran come first, then those no case is known to have run. Past
+twelve lines the rest are only counted, so the block stays a handful of lines
+on a change of any size, and its last line is the `covering` command that reads
+one file in full, from every suite the block reads. For a 🔴 function, `variance
+covering --file <path> --function <name>` names the part no case ran, in each
+suite.
 
 The changed source files that no suite's record holds, in any language the
 [source index](source-index.md) reads, such as Rust, are named on one last line, *not in the

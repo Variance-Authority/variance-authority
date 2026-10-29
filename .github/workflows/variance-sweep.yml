@@ -1,9 +1,8 @@
 name: variance sweep
 
-# The nightly recipe: find a flake one run before it costs somebody a build.
+# The nightly sweep: find a flake one run before it costs somebody a build.
 #
-# An example workflow, meant to be copied and edited rather than read as the only
-# way to wire this up. Everything in it that is a decision is commented as one.
+# This repository's own. Everything in it that is a decision is commented as one.
 #
 # ## What this asks that the pull-request gate cannot
 #

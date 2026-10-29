@@ -77,15 +77,19 @@ impl<'a> Selecting<'a> {
         self.enter_sets(&regions)
     }
 
-    /// Enter the tests of every set `regions` point at, each set once.
+    /// Enter the tests of every set `regions` point at, each set once. A case
+    /// whose crossing of a region is not known is entered as well: it may run
+    /// the region, and a selection that leaves it out would miss it.
     fn enter_sets(&mut self, regions: &[Region]) -> Result<(), String> {
         let journey = self.journey;
         self.seen.fill(false);
         let mut sets = HashSet::new();
         for region in regions {
-            if sets.insert(region.called) {
-                let members = journey.members(region.called)?;
-                self.enter(&members);
+            for set in std::iter::once(region.called).chain(region.overwritten) {
+                if sets.insert(set) {
+                    let members = journey.members(set)?;
+                    self.enter(&members);
+                }
             }
         }
         Ok(())

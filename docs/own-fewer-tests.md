@@ -63,7 +63,9 @@ region the line sits in. `--file` on its own answers the whole recorded
 file at once, as ranges of lines that share the same cases — where a range with
 an empty list is recorded and unreached, and a line outside every recorded
 region produces no range at all, which is a different statement from nobody
-reaching it. `--format json` hands the same reading to whatever reads it next,
+reaching it. A range with an empty list where a run over another text has landed
+since a case ran it is not unreached: the answer says which case ran it is not
+known. `--format json` hands the same reading to whatever reads it next,
 which is the form an agent needs when it is about to change a line and needs the
 tests to run after.
 
@@ -94,8 +96,10 @@ Next, Deep, 3 tests in 2 test files:
 ```
 
 A record made over a different version of the file than the one checked out,
-or a line written or a range edited since the recording, names a recorded run
-of the test files `variance select` runs for the file instead. A record older
+a line written or a range edited since the recording, or a line a case ran over
+where a run over another text has landed since, names a recorded run of the test
+files `variance select` runs for the file instead, among them every
+test file the record holds only in part. A record older
 than the file means the file is new: the gap names the recorded test files
 `variance select` runs for it, then `variance reach --since <commit>`, from the commit the record was
 made at, which takes every file added since, new test files among them. The gap says what to

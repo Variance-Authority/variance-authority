@@ -12,6 +12,7 @@ import {
   LOADED_SETS_FORMAT,
   members,
   MISUSED_SECTION,
+  OVERWRITTEN_SECTION,
   READ_SECTION,
   SAID_SECTION,
   sectionsOf,
@@ -25,8 +26,9 @@ import {
   type StringTable,
   type TestColumns,
 } from './execution-set-columns.js';
-import type { ExecutionBlock, ExecutionIndex, ExecutionModule, ExecutionTest } from './reverse.js';
+import type { ExecutionBlock, ExecutionCrossing, ExecutionIndex, ExecutionModule, ExecutionTest } from './reverse.js';
 import { LAYOUT } from './record-layout.js';
+import { EMPTY } from './set-translation.js';
 
 /** What `openSetColumns` hands back, for a reader that walks every case of a large record without decoding it. */
 export type { SetColumns, StringTable, TestColumns } from './execution-set-columns.js';
@@ -42,7 +44,8 @@ export type { SetColumns, StringTable, TestColumns } from './execution-set-colum
  * each is one optional column a reader looks for by name, and a file without
  * it — the addon's journeys among them — reads as cases that said nothing.
  * `blocks.owner` joined the same way, and a file without it names no region
- * around any.
+ * around any. `blocks.overwrittenSet` did too, and a file without it holds no
+ * overwritten case.
  */
 export const SET_EXECUTION_FORMAT = LAYOUT.cases.format;
 
@@ -59,6 +62,15 @@ export interface SetExecutionModule {
    * where the index recorded none.
    */
   readonly owner?: Uint32Array;
+  /**
+   * Cases whose crossing of each block is not known, as ids in
+   * {@link SetExecutionIndex.sets}, none of them in `called`: the record was
+   * cut to a text an edit wrote over the region they were measured at
+   * (`landedThrough` in `region-edit.ts`), so they ran another text there.
+   * Absent where no block holds one; the pool's first set, the empty one, is
+   * what a module without it holds.
+   */
+  readonly overwritten?: Uint32Array;
 }
 
 export interface SetExecutionIndex {
@@ -109,17 +121,20 @@ export function encodeSetExecutionIndex(index: SetExecutionIndex): Buffer {
   const blockCalled = new Uint32Array(blockCount);
   const blockLoaded = new Uint8Array(blockCount);
   const blockOwner = modules.some((module) => module.owner !== undefined) ? new Uint32Array(blockCount) : undefined;
+  const blockOverwritten = modules.some((module) => module.overwritten !== undefined) ? new Uint32Array(blockCount).fill(EMPTY) : undefined;
 
   let block = 0;
   for (const [moduleAt, module] of modules.entries()) {
     if (module.called.length !== module.blocks.length || module.loaded.length !== module.blocks.length ||
-      (module.owner !== undefined && module.owner.length !== module.blocks.length)) {
+      (module.owner !== undefined && module.owner.length !== module.blocks.length) ||
+      (module.overwritten !== undefined && module.overwritten.length !== module.blocks.length)) {
       throw new Error('journey set columns do not match the region inventory');
     }
     if (module.owner?.some((owner, at) => owner !== NO_OWNER && owner >= at) === true) {
       throw new Error(`${module.file} names a region around one that does not come before it`);
     }
     blockOwner?.set(module.owner ?? new Uint32Array(module.blocks.length).fill(NO_OWNER), block);
+    if (module.overwritten !== undefined) blockOverwritten?.set(module.overwritten, block);
     moduleFile[moduleAt] = id(module.file);
     moduleBlocks[moduleAt] = block;
     for (const [at, held] of module.blocks.entries()) {
@@ -155,6 +170,7 @@ export function encodeSetExecutionIndex(index: SetExecutionIndex): Buffer {
     blockCalled,
     blockLoaded,
     blockOwner,
+    blockOverwritten,
     testLines: index.lines === undefined ? undefined : renamed(index.lines, order),
   }, index.sets);
 }
@@ -169,7 +185,7 @@ function renamed(lines: readonly (CaseLines | undefined)[], order: readonly numb
   });
 }
 
-/** The columns an index is written from: every one {@link SetColumns} reads, none optional but the owner and lines columns. */
+/** The columns an index is written from: every one {@link SetColumns} reads, none optional but the owner, overwritten and lines columns. */
 export interface WrittenSetColumns extends Omit<SetColumns, 'sets' | 'testStopped' | 'testDuration' | 'testSaid' | 'testLines'> {
   readonly testStopped: Uint8Array;
   readonly testDuration: Uint32Array;
@@ -210,6 +226,7 @@ export function writeSetColumns(columns: WrittenSetColumns, pool: CrossingSetsPo
     'blocks.calledSet': column(columns.blockCalled),
     'blocks.loaded': column(columns.blockLoaded),
     ...(columns.blockOwner === undefined ? {} : { 'blocks.owner': column(columns.blockOwner) }),
+    ...(columns.blockOverwritten === undefined ? {} : { [OVERWRITTEN_SECTION]: column(columns.blockOverwritten) }),
     'sets.blob': blob(sets.bytes, sets.offsets),
     'sets.off': column(sets.offsets),
   }, SET_EXECUTION_FORMAT);
@@ -261,7 +278,11 @@ export function decodeSetExecutionIndex(bytes: Uint8Array): ExecutionIndex {
       blocks: module.blocks.map((block, at): ExecutionBlock => ({
         ...block,
         ...(module.loaded[at] === 1 ? { loaded: true as const } : {}),
-        crossings: Array.from(members(sets, module.called[at]!, tests.length), (test) => ({ test, distance: 0 })),
+        crossings: [
+          ...Array.from(members(sets, module.called[at]!, tests.length), (test): ExecutionCrossing => ({ test, distance: 0 })),
+          ...(module.overwritten === undefined ? [] : Array.from(members(sets, module.overwritten[at]!, tests.length),
+            (test): ExecutionCrossing => ({ test, distance: 0, overwritten: true }))),
+        ],
       })),
     })),
   };
@@ -275,8 +296,9 @@ export function decodeSetExecutionIndex(bytes: Uint8Array): ExecutionIndex {
  * Lossless for an index whose crossings are all at distance zero, which is
  * every index a case journal becomes. A crossing marked as run while its module
  * loaded is the region's load flag here, as the set spelling records it, and
- * names no case. A measured depth has no place in the set spelling, so an index
- * with one is refused rather than flattened.
+ * names no case. An overwritten crossing is its case in the region's
+ * overwritten set. A measured depth has no place in the set spelling, so an
+ * index with one is refused rather than flattened.
  */
 export function encodeAsSetExecutionIndex(index: ExecutionIndex): Buffer {
   return encodeOwnedSetExecutionIndex(index, []);
@@ -301,21 +323,29 @@ export function encodeOwnedSetExecutionIndex(
   const modules = index.modules.map((module, place): SetExecutionModule => {
     const called = new Uint32Array(module.blocks.length);
     const loaded = new Uint8Array(module.blocks.length);
+    const overwritten = new Uint32Array(module.blocks.length);
     const blocks = module.blocks.map(({ crossings, loaded: load, ...block }, at) => {
       const cases: number[] = [];
+      const unknown: number[] = [];
       if (load === true) loaded[at] = 1;
       for (const crossing of crossings) {
         if (crossing.distance !== 0) {
           throw new Error(`${module.file} has a case at depth ${crossing.distance}, and the set spelling records no depth`);
         }
         if (crossing.loaded === true) loaded[at] = 1;
+        else if (crossing.overwritten === true) unknown.push(crossing.test);
         else cases.push(crossing.test);
       }
       called[at] = sets.intern(cases);
+      overwritten[at] = sets.intern(unknown);
       return block;
     });
     const owner = owners[place];
-    return { file: module.file, blocks, called, loaded, ...(owner === undefined ? {} : { owner }) };
+    return {
+      file: module.file, blocks, called, loaded,
+      ...(owner === undefined ? {} : { owner }),
+      ...(overwritten.some((set) => set !== EMPTY) ? { overwritten } : {}),
+    };
   });
   return encodeSetExecutionIndex({ tests: index.tests, modules, sets: sets.pool(), ...(lines === undefined ? {} : { lines }) });
 }
@@ -422,6 +452,7 @@ export function moduleAt(columns: SetColumns, at: number, string: (id: number) =
     called: columns.blockCalled.slice(first, last),
     loaded: columns.blockLoaded.slice(first, last),
     ...(columns.blockOwner === undefined ? {} : { owner: columns.blockOwner.slice(first, last) }),
+    ...(columns.blockOverwritten === undefined ? {} : { overwritten: columns.blockOverwritten.slice(first, last) }),
   };
 }
 

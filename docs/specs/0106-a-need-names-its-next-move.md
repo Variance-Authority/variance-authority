@@ -1,4 +1,4 @@
-# Spec 0105 — a need names its next move
+# Spec 0106 — a need names its next move
 
 **Missing:** two things that today live only in prose. The first is a
 catalogue: for each thing an agent needs while it works on a change, the

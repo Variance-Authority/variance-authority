@@ -8,6 +8,7 @@ import {
   landRun,
   readCommitRuns,
   readTestCoverage,
+  whatLanded,
   writeTestCoverage,
   type TestCoverage,
 } from '@variance-authority/sense/test-selection';
@@ -77,6 +78,12 @@ async function land(...runs: TestCoverage[]): Promise<void> {
   await landJourneys(home, shards, into);
 }
 
+/** The test files the landings of the runs record at `into` finished. */
+async function landedFiles(): Promise<readonly string[] | undefined> {
+  const runs = await readCommitRuns(into);
+  return runs === undefined ? undefined : whatLanded(runs.landings).files;
+}
+
 /** P ran every test, then H ran `near` alone. */
 async function partial(): Promise<void> {
   await landRun(into, run('P', ALL), home);
@@ -93,29 +100,32 @@ describe('a landing records its fold as one run at the shards\' commit', () => {
       commit: 'C',
       over: 'H',
       runs: 1,
-      files: ['other.test.ts'],
       standing: [
         { commit: 'P', files: ['far.test.ts'] },
         { commit: 'H', files: ['near.test.ts'] },
       ],
     });
+    expect(await landedFiles()).toEqual(['other.test.ts']);
   });
 
   it('at the commit the record already names, is one more run there: the files join and the base is kept', async () => {
     await partial();
     const before = await readCommitRuns(into);
+    const atP = before!.standing![0]!;
+    expect(atP).toEqual({ commit: 'P', files: ['far.test.ts', 'other.test.ts'], first: expect.any(String), latest: atP.first, runs: 1 });
 
     await land(run('H', ['other.test.ts']));
 
     expect(await readCommitRuns(into)).toEqual({
       commit: 'H',
       over: 'P',
-      first: before!.first,
       latest: expect.any(String),
       runs: 2,
-      files: ['near.test.ts', 'other.test.ts'],
-      standing: [{ commit: 'P', files: ['far.test.ts'] }],
+      // Each run keeps its own time: the first is not dated by the second.
+      landings: [...before!.landings, { files: ['other.test.ts'], first: expect.any(String), latest: expect.any(String), runs: 1 }],
+      standing: [{ ...atP, files: ['far.test.ts'] }],
     });
+    expect(await landedFiles()).toEqual(['near.test.ts', 'other.test.ts']);
   });
 
   it('leaves `standing` absent when no record says where the tests it did not run last ran', async () => {
@@ -125,8 +135,19 @@ describe('a landing records its fold as one run at the shards\' commit', () => {
     await land(run('C', ['other.test.ts']));
 
     const runs = await readCommitRuns(into);
-    expect(runs).toMatchObject({ commit: 'C', over: 'H', files: ['other.test.ts'] });
+    expect(runs).toMatchObject({ commit: 'C', over: 'H' });
+    expect(whatLanded(runs!.landings).files).toEqual(['other.test.ts']);
     expect(runs).not.toHaveProperty('standing');
+  });
+
+  it('names none of the cases of a held file its shards ran in part when they kept no cases', async () => {
+    // Shards that kept no cases lay none: every case the index holds of the file is the earlier run's.
+    await partial();
+    const shard = run('H', ['near.test.ts', 'other.test.ts']);
+
+    await land({ ...shard, tests: shard.tests.map((test) => ({ ...test, complete: test.file !== 'near.test.ts' })) });
+
+    expect((await readCommitRuns(into))?.landings.at(-1)).toMatchObject({ files: ['other.test.ts'], partly: ['near.test.ts'], cases: { 'near.test.ts': [] } });
   });
 
   it('says every test stands where it ran when the shards between them ran every test', async () => {
@@ -134,7 +155,8 @@ describe('a landing records its fold as one run at the shards\' commit', () => {
 
     await land(run('C', ['far.test.ts', 'near.test.ts']), run('C', ['other.test.ts']));
 
-    expect(await readCommitRuns(into)).toMatchObject({ commit: 'C', over: 'H', files: ALL, standing: [] });
+    expect(await readCommitRuns(into)).toMatchObject({ commit: 'C', over: 'H', standing: [] });
+    expect(await landedFiles()).toEqual(ALL);
   });
 
   it('refuses a snapshot recorded by other probes, and leaves its runs as they were', async () => {
@@ -161,9 +183,9 @@ describe('a landing records its fold as one run at the shards\' commit', () => {
     expect(await readCommitRuns(into)).toMatchObject({
       commit: fetched,
       over: local,
-      files: ['other.test.ts'],
       standing: [{ commit: local, files: ['far.test.ts', 'near.test.ts'] }],
     });
+    expect(await landedFiles()).toEqual(['other.test.ts']);
   });
 
   it('writes a runs record it cannot read afresh, as a runner does, and says so naming it', async () => {
@@ -180,7 +202,8 @@ describe('a landing records its fold as one run at the shards\' commit', () => {
 
     expect((await readTestCoverage(into)).commit).toBe('C');
     const runs = await readCommitRuns(into);
-    expect(runs).toMatchObject({ commit: 'C', over: 'H', files: ['other.test.ts'] });
+    expect(runs).toMatchObject({ commit: 'C', over: 'H' });
+    expect(whatLanded(runs!.landings).files).toEqual(['other.test.ts']);
     expect(runs).not.toHaveProperty('standing');
     expect(said).toContain(
       `variance: the runs record at ${commitRunsFile(into)} is not JSON`,
@@ -204,12 +227,12 @@ describe('a landing records its fold as one run at the shards\' commit', () => {
       commit: 'C',
       over: 'H',
       runs: 1,
-      files: ['other.test.ts'],
       standing: [
         { commit: 'P', files: ['far.test.ts'] },
         { commit: 'H', files: ['near.test.ts'] },
       ],
     });
+    expect(await landedFiles()).toEqual(['other.test.ts']);
   });
 
   it('leaves no staged file beside the snapshot or the record', async () => {

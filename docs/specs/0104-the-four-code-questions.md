@@ -23,7 +23,7 @@ An agent asks four questions of code before it edits: *what is this name and
 where is it declared*, *who uses it*, *what is the name for the thing that does
 this*, and *which tests ran this file*. Each answer is read once and acted on.
 So the answer opens with the answer, carries every row the question has, and
-ends with the questions it opens, as [0105](0105-a-need-names-its-next-move.md)'s
+ends with the questions it opens, as [0106](0106-a-need-names-its-next-move.md)'s
 catalogue names them: no other route, no documentation of a dependency, no notice
 repeated per row. The same object is returned on the command line and
 over MCP.

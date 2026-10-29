@@ -87,6 +87,27 @@ its interesting move is not selection. It **schedules** by a cost/benefit model,
 and it carries a per-target flakiness rate as a property of the test rather than
 of the run — which is what [`history.md`](../history.md) does per subject.
 
+### Safety, and the world it assumes
+
+**Rothermel and Harrold** (*Analyzing Regression Test Selection Techniques*,
+TSE 1996) set the terms selectors are still judged by: inclusiveness,
+precision, efficiency and generality. A selector is **safe** when it keeps
+every test whose outcome a change could alter, and safe only under assumptions
+it states. **Legunsen et al.** (FSE 2016) ran static selection against Ekstazi
+and found it unsafe on real projects, with reflection as the main cause; **Shi
+et al.** (OOPSLA 2019) followed with reflection-aware static selection. A breach of the stated assumption is a **safety violation**.
+
+**Livshits et al.** (*In Defense of Soundiness*, CACM 2015) gave the honest
+alternative for analyses that cannot be sound: name the language features they
+treat unsoundly instead of claiming soundness. **Reiter** (1978) named the
+assumption underneath both: under the **closed world** what is not recorded is
+false, under the open world it is unknown.
+
+**What it means here.**
+[Spec 0105](../specs/0105-a-suite-declares-whether-its-world-is-closed.md) makes
+the assumption a per-suite declaration. A closed suite fails on a safety
+violation; an open one reports where the record stops, the soundiness way.
+
 ### Dominators, and where a region begins
 
 The node every path to another node has to pass through is its **dominator**.
@@ -418,7 +439,7 @@ on 25 instances regressed nothing in either arm, and it is a preprint. Its map
 is static and file-level, and says nothing of when it was built; ours is
 recorded per case. For us, it means an answer names the facts and the
 questions they open, and a workflow instruction is no substitute for them
-([spec 0105](../specs/0105-a-need-names-its-next-move.md)).
+([spec 0106](../specs/0106-a-need-names-its-next-move.md)).
 
 **Crossing facts about files** is a query language's job, and the field has
 two ends of it. Code search — Sourcegraph's `file:`, `content:` and

@@ -45,6 +45,8 @@
 import { codeUnitOrder } from '@variance-authority/core/segment';
 import type { CommitRuns } from './commit-runs.js';
 import { sameInstall, type KeptInstall } from './kept-install.js';
+import { whatLanded } from './landings.js';
+import { testPlaces } from './test-places.js';
 import { askCoverageFile } from './coverage-file.js';
 import { nearestFirst, type TestDistance } from './distance.js';
 import type { ExecutionNarrowing, SelectionReason } from './narrowing.js';
@@ -117,59 +119,13 @@ function isAncestor(git: Git, ancestor: string, commit: string): boolean {
   }
 }
 
-/**
- * The commit each of `tests` last ran at, as the runs beside the snapshot
- * recorded it.
- *
- * A test the runs at the snapshot's commit observed stands there. Any other
- * stands where `standing` lists it. Where the record does not say, the reading
- * falls back, and `assumed` is the sentence that says how: a test `standing`
- * lists as assumed is read from where an earlier record assumed it, a test the
- * record does not list is read from `over`, where the runs at the snapshot's
- * commit started, and with no record for this snapshot at all, from the
- * snapshot's commit. Runs recorded at another commit describe some other
- * snapshot and say nothing about this one.
- */
-function standsOf({ commit, runs, tests }: { readonly commit: string; readonly runs: CommitRuns | undefined; readonly tests: readonly string[] }): {
+/** The commit each of `tests` last ran at, and why where the record could not say: {@link testPlaces}, by commit. */
+function standsOf(of: { readonly commit: string; readonly runs: CommitRuns | undefined; readonly tests: readonly string[] }): {
   readonly stands: Map<string, string>;
   readonly assumed: string | undefined;
 } {
-  const stands = new Map(tests.map((test) => [test, commit]));
-  const at = commit.slice(0, 12);
-  const everyTest = `so every test is read as though it last ran at ${at}`;
-  if (runs === undefined) return { stands, assumed: tests.length === 0 ? undefined : `no runs record lies beside the snapshot, ${everyTest}` };
-  if (runs.commit !== commit) {
-    const whose = runs.commit === undefined ? 'a run outside a checkout' : `${runs.commit.slice(0, 12)}'s`;
-    return { stands, assumed: tests.length === 0 ? undefined : `the runs record beside the snapshot is ${whose}, not ${at}'s, ${everyTest}` };
-  }
-  const ran = new Set(runs.files);
-  const listed = new Map<string, string>();
-  const guessed = new Set<string>();
-  for (const entry of runs.standing ?? []) {
-    for (const file of entry.files) {
-      listed.set(file, entry.commit);
-      if (entry.assumed === true) guessed.add(file);
-    }
-  }
-  const fallback = runs.over ?? commit;
-  let unlisted = 0;
-  const from = new Set<string>();
-  for (const test of tests) {
-    if (ran.has(test)) continue;
-    const stand = listed.get(test) ?? fallback;
-    stands.set(test, stand);
-    if (listed.has(test) && !guessed.has(test)) continue;
-    unlisted += 1;
-    from.add(stand);
-  }
-  if (unlisted === 0) return { stands, assumed: undefined };
-  const where =
-    from.size === 1 && runs.over === undefined && from.has(commit)
-      ? `${at}, where the snapshot was recorded`
-      : from.size === 1 && runs.over !== undefined && from.has(runs.over)
-        ? `${runs.over.slice(0, 12)}, where its runs started`
-        : `the commits they were assumed at, ${[...from].map((stand) => stand.slice(0, 12)).join(', ')}`;
-  return { stands, assumed: `the runs record beside the snapshot does not say where ${unlisted} test(s) last ran, so they are read from ${where}` };
+  const { places, assumed } = testPlaces(of);
+  return { stands: new Map([...places].map(([test, place]) => [test, place.commit])), assumed };
 }
 
 /** The install every test of a stand ran on, when the entries `runs` observed them in at `stand` say one alike. */
@@ -343,10 +299,11 @@ export function standsAt(
   const gone = new Set([...stands].filter(([test, stand]) => stand !== commit && !exists(test)).map(([test]) => test));
   const tests = recorded.tests.filter((test) => !gone.has(test));
   const reading = readingFrom({ commit, ref: undefined, runs, tests, git });
-  const ran = new Set(runs?.files);
+  const landed = runs === undefined ? undefined : whatLanded(runs.landings);
+  const ran = new Set(landed?.files);
   const installed =
-    runs?.commit === commit && runs.installed !== undefined && tests.every((test) => stands.get(test) !== commit || ran.has(test))
-      ? { installed: runs.installed }
+    runs?.commit === commit && landed?.installed !== undefined && tests.every((test) => stands.get(test) !== commit || ran.has(test))
+      ? { installed: landed.installed }
       : {};
   return { ...reading, ...(gone.size === 0 ? {} : { gone: [...gone].sort(codeUnitOrder) }), ...installed };
 }

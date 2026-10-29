@@ -76,3 +76,24 @@ export function marksLoadTime(blocks: readonly ExecutionBlock[], target?: Source
   return (target === undefined ? blocks : blocksOfTarget(blocks, target))
     .some((block) => block.loaded === true || block.crossings.some((crossing) => crossing.loaded === true));
 }
+
+/** The smallest recorded regions over a 1-based line, each with source of its own; none for a line no region holds. */
+export function innermostAt<Block extends Lined>(blocks: readonly Block[], line: number): readonly Block[] {
+  if (!Number.isInteger(line) || line < 1) return [];
+  const matching = blocks.filter((block) =>
+    block.source && block.startLine <= line && line <= block.endLine,
+  );
+  return matching.filter((block) =>
+    !matching.some((other) =>
+      other !== block &&
+      contains(block, other) &&
+      (block.startLine !== other.startLine || block.endLine !== other.endLine),
+    ),
+  );
+}
+
+type Lined = Pick<ExecutionBlock, 'source' | 'startLine' | 'endLine'>;
+
+function contains(outer: Lined, inner: Lined): boolean {
+  return outer.startLine <= inner.startLine && outer.endLine >= inner.endLine;
+}
