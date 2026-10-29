@@ -150,7 +150,7 @@ describe('a review of what a change did, after the run that recorded it', () => 
 
     // The test file sits under no manifest, so the root's directory is its package.
     expect(answer.changedPackages).toEqual([
-      { package: '@o/total', path: 'src', functions: 2, reaches: { near: 1, unwalked: 1 }, uncovered: 1, own: false, tests: ['.'], importers: 2 },
+      { package: '@o/total', path: 'src', functions: 2, reaches: { near: 1, unwalked: 1 }, uncovered: 1, overwritten: 0, own: false, tests: ['.'], importers: 2 },
     ]);
   });
 

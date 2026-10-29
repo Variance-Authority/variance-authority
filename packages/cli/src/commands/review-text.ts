@@ -20,7 +20,7 @@ import { changedPackagesMarkdown } from './review-changed-packages.js';
 import { installLines } from './review-install.js';
 import { caseTree, functionsMarkdown, namedList, outermost, regionKind, uncoveredFunctions, uncoveredMarkdown } from './review-scope.js';
 import { REACHES, type Reach, type Review, type ReviewFile, type ReviewRegion } from './review.js';
-import { LEGEND, MARK, REACH_TEXT } from './review-words.js';
+import { LEGEND, MARK, notKnown, REACH_TEXT } from './review-words.js';
 import { describeDistance } from './share.js';
 import { jsonPieces } from '../json-pieces.js';
 import { reviewJson } from './review-json.js';
@@ -155,7 +155,8 @@ function markdown(review: Review): string {
 /**
  * The verdict as a GitHub alert, in functions a reader knows by name: a
  * warning when changed code ran under no case, a note when the record, made
- * before the change, holds no case for it.
+ * before the change, holds no case for it, or when the only gap is code a case
+ * ran in a text an edit wrote over, which no case is known to have run.
  */
 function calloutMarkdown(review: Review): readonly string[] {
   const regions = review.files.flatMap(outermost);
@@ -166,14 +167,20 @@ function calloutMarkdown(review: Review): readonly string[] {
     }.`];
   }
   const ran = review.record === 'ran';
-  const { total, names } = uncoveredFunctions(review);
+  const { total, names, overwritten } = uncoveredFunctions(review);
+  const has = (count: number) => (count === 1 ? 'has' : 'have');
+  const of = (count: number) => `${count} of ${total} changed function${total === 1 ? '' : 's'} ${has(count)}`;
+  const lost = overwritten.length === 0 ? [] : [`> **${names.length > 0 ? `${overwritten.length} more ${has(overwritten.length)}` : of(overwritten.length)} code ${
+    notKnown(ran)
+  }:** ${namedList(overwritten)}.`];
   if (names.length > 0) {
-    const has = names.length === 1 ? 'has' : 'have';
     return [
       ran ? '> [!WARNING]' : '> [!NOTE]',
-      `> **${names.length} of ${total} changed function${total === 1 ? '' : 's'} ${has} code ${ran ? 'no case ran' : 'the record holds no case for'}:** ${namedList(names)}.`,
+      `> **${of(names.length)} code ${ran ? 'no case ran' : 'the record holds no case for'}:** ${namedList(names)}.`,
+      ...lost,
     ];
   }
+  if (lost.length > 0) return ['> [!NOTE]', ...lost];
   const every = total === 0 ? `${regions.length} changed region${regions.length === 1 ? '' : 's'}` : `${total} changed function${total === 1 ? '' : 's'}`;
   return ['> [!TIP]', `> Every one of the ${every} ${ran ? 'ran under a case' : 'has a case in the record'}.`];
 }

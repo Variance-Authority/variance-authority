@@ -29,14 +29,15 @@ async function workspace(): Promise<string> {
   return root;
 }
 
-const mark = (reach: Reach): string => (reach === 'near' ? 'G' : reach === 'far' ? 'Y' : 'R');
+const mark = (reach: Reach): string => (reach === 'near' ? 'G' : reach === 'far' ? 'Y' : reach === 'overwritten' ? '?' : 'R');
 
-const pkg = (name: string, functions: number, reaches: ChangedPackage['reaches'], tests: readonly string[] = [name], importers = 0, partly = 0): ChangedPackage => ({
+const pkg = (name: string, functions: number, reaches: ChangedPackage['reaches'], tests: readonly string[] = [name], importers = 0, partly = 0, lost = 0): ChangedPackage => ({
   package: name,
   path: `packages/${name}`,
   functions,
   reaches,
   uncovered: (reaches.hole ?? 0) + (reaches.unwalked ?? 0) + (reaches.unknown ?? 0) + partly,
+  overwritten: (reaches.overwritten ?? 0) + lost,
   own: tests.includes(name),
   tests: tests.filter((test) => test !== name),
   importers,
@@ -54,9 +55,9 @@ describe('where a change lands, a package at a time', () => {
       changed.includes('packages/a/src/x.ts') ? ['packages/a/src/x.ts', 'packages/b/src/z.ts', 'tools/run.ts'] : changed;
 
     expect(changedPackagesOf(root, files, dependents)).toEqual([
-      { package: '.', path: '.', functions: 1, reaches: { unwalked: 1 }, uncovered: 1, own: false, tests: [], importers: 0 },
-      { package: '@x/a', path: 'packages/a', functions: 1, reaches: { near: 1 }, uncovered: 0, own: true, tests: ['packages/b'], importers: 2 },
-      { package: 'packages/b', path: 'packages/b', functions: 1, reaches: { far: 1 }, uncovered: 0, own: true, tests: [], importers: 0 },
+      { package: '.', path: '.', functions: 1, reaches: { unwalked: 1 }, uncovered: 1, overwritten: 0, own: false, tests: [], importers: 0 },
+      { package: '@x/a', path: 'packages/a', functions: 1, reaches: { near: 1 }, uncovered: 0, overwritten: 0, own: true, tests: ['packages/b'], importers: 2 },
+      { package: 'packages/b', path: 'packages/b', functions: 1, reaches: { far: 1 }, uncovered: 0, overwritten: 0, own: true, tests: [], importers: 0 },
     ]);
   });
 
@@ -76,8 +77,39 @@ describe('where a change lands, a package at a time', () => {
     }];
 
     expect(changedPackagesOf(root, files, (changed) => changed)).toEqual([
-      { package: '@x/a', path: 'packages/a', functions: 3, reaches: { near: 1, far: 1, hole: 1 }, uncovered: 3, own: true, tests: ['packages/b'], importers: 0 },
+      { package: '@x/a', path: 'packages/a', functions: 3, reaches: { near: 1, far: 1, hole: 1 }, uncovered: 3, overwritten: 0, own: true, tests: ['packages/b'], importers: 0 },
     ]);
+  });
+
+  it('counts a function no case is known to have run apart from one no case ran, a function once under the worse', async () => {
+    const root = await workspace();
+    const files: ReviewFile[] = [{
+      file: 'packages/a/src/x.ts',
+      regions: [
+        region('function', 'cap', 3, 20, 'near', ['packages/a/test/x.test.ts']),
+        region('branch', 'cap', 9, 9, 'overwritten'),
+        region('function', 'round', 22, 30, 'overwritten'),
+        region('function', 'floor', 32, 40, 'unwalked'),
+        region('branch', 'floor', 35, 35, 'overwritten'),
+      ],
+    }];
+
+    expect(changedPackagesOf(root, files, (changed) => changed)).toEqual([
+      { package: '@x/a', path: 'packages/a', functions: 3, reaches: { near: 1, overwritten: 1, unwalked: 1 }, uncovered: 1, overwritten: 2, own: true, tests: [], importers: 0 },
+    ]);
+  });
+
+  it('gives code no case is known to have run a column of its own once a package holds any, and keeps that package out of the quiet fold', () => {
+    expect(changedPackagesMarkdown([pkg('a', 3, { near: 2, overwritten: 1 }, ['a'], 0, 0, 1), pkg('b', 1, { unwalked: 1 }, []), pkg('c', 1, { near: 1 })], mark).slice(3)).toEqual([
+      '| Package | Changed functions | Ran | With code no case ran | With code no case is known to have run | Tests from | Packages importing it |',
+      '|---|--:|---|--:|--:|---|--:|',
+      '| `b` | 1 | R 1 | 1 | 0 | none | 0 |',
+      '| `a` | 3 | G 2 · ? 1 | 0 | 2 | own | 0 |',
+      '| `c` | 1 | G 1 | 0 | 0 | own | 0 |',
+    ]);
+    const clean = Array.from({ length: 11 }, (_, at) => pkg(`c${String(at).padStart(2, '0')}`, 1, { near: 1 }));
+    expect(changedPackagesMarkdown([...clean, pkg('p', 1, { near: 1 }, undefined, 0, 0, 1)], mark).slice(5, 7))
+      .toEqual(['| `p` | 1 | G 1 | 0 | 1 | own | 0 |', '| 11 more packages, every function G | 11 | G 11 | 0 | 0 | | |']);
   });
 
   it('tells a package\'s own tests from another package\'s of the same name by where they live', async () => {
@@ -87,7 +119,7 @@ describe('where a change lands, a package at a time', () => {
     const files: ReviewFile[] = [{ file: 'packages/a/src/x.ts', regions: [region('function', 'f', 1, 5, 'far', ['fixtures/a/x.test.ts'])] }];
 
     expect(changedPackagesOf(root, files, (changed) => changed)).toEqual([
-      { package: '@x/a', path: 'packages/a', functions: 1, reaches: { far: 1 }, uncovered: 0, own: false, tests: ['@x/a'], importers: 0 },
+      { package: '@x/a', path: 'packages/a', functions: 1, reaches: { far: 1 }, uncovered: 0, overwritten: 0, own: false, tests: ['@x/a'], importers: 0 },
     ]);
   });
 
@@ -96,7 +128,7 @@ describe('where a change lands, a package at a time', () => {
     const files: ReviewFile[] = [{ file: 'packages/a/src/x.ts', regions: [region('function', 'f', 1, 5, 'near', ['packages/a/test/x.test.ts'])] }];
 
     expect(changedPackagesOf(root, files, () => undefined)).toEqual([
-      { package: '@x/a', path: 'packages/a', functions: 1, reaches: { near: 1 }, uncovered: 0, own: true, tests: [] },
+      { package: '@x/a', path: 'packages/a', functions: 1, reaches: { near: 1 }, uncovered: 0, overwritten: 0, own: true, tests: [] },
     ]);
     expect(changedPackagesMarkdown([{ ...pkg('a', 1, { far: 1 }), importers: undefined }, pkg('b', 1, { near: 1 })], mark).slice(5, 6)).toEqual(['| `a` | 1 | Y 1 | 0 | own |  |']);
   });
