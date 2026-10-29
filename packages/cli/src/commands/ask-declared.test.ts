@@ -98,7 +98,7 @@ describe('variance ask about a name declared and not exported', () => {
     const { code, out } = await run(['ask', 'symbol', '--name', 'addTax']);
     expect(code).toBe(EXIT_CLEAN);
     expect(out).toContain('not published: @acme/lib declares an entry, and this file is not behind it');
-    expect(paragraph(out, /^addTax \[function\]\n/)).toContain('declared, not exported, at packages/kit/src/money/levy.ts:3 by @acme/kit');
+    expect(paragraph(out, /^addTax \[function\]\ndeclared, not exported/)).toContain('declared, not exported, at packages/kit/src/money/levy.ts:3 by @acme/kit');
   });
 
   it('answers `search` with the declaration, under a heading that says it is not exported', async () => {

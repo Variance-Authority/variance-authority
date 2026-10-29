@@ -474,6 +474,16 @@ describe('asking who loaded a region that ran while its module evaluated', () =>
     expect(formatCovering(answer, 'text')).toContain('* ran only while the module evaluated (its file imports it)');
   });
 
+  it('reads a region as loaded when it ran while its module evaluated and the graph names nobody who loaded it', async () => {
+    const { root, execution } = await checkout();
+    execFileSync('git', ['rm', '--quiet', 'total.test.ts'], { cwd: root, stdio: 'pipe' });
+    await indexOutput({ cwd: root });
+    const asked = (...flags: string[]) => covering(parse(['--file', 'src/total.ts', ...flags, '--root', root, '--execution', execution]));
+    const [answer, whole] = [await asked('--line', '3'), await asked()];
+    expect(answer.tests).toEqual([]);
+    expect([answer.state, whole.ranges?.find((range) => range.startLine === 3)?.state]).toEqual(['loaded', 'loaded']);
+  });
+
   it('carries the same loaders into a change', async () => {
     const { root, execution } = await checkout();
     const text = (await readFile(join(root, 'src/total.ts'), 'utf8')).split('\n');

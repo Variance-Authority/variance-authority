@@ -1,3 +1,4 @@
+import { codeUnitOrder } from '@variance-authority/core/segment';
 import type { WordColumn } from './columns.js';
 import type { TestCoverageView } from './format-view.js';
 
@@ -306,8 +307,4 @@ export function sharedPreconditions(coverage: TestCoverageView): readonly string
     .filter(([, count]) => count === tests)
     .map(([name]) => coverage.string(name))
     .sort(codeUnitOrder);
-}
-
-function codeUnitOrder(left: string, right: string): number {
-  return left < right ? -1 : left > right ? 1 : 0;
 }

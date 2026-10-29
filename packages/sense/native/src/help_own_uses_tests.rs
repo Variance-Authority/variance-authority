@@ -41,13 +41,31 @@ fn a_local_of_the_same_name_shadows_the_top_level_one() {
 }
 
 #[test]
-fn a_property_key_a_member_and_an_import_are_no_uses_and_neither_is_an_export_of_it() {
+fn a_property_key_and_a_member_are_no_uses_and_neither_is_an_export_of_it() {
     let found = uses(
         "import { other } from './other.js';\nconst greet = 1;\nconst o = { greet: 2 };\no.greet;\nother(o);\nexport { greet };\nexport { greet as salute };\nexport default greet;\nconst short = { greet };\n",
         SourceType::ts(),
     );
-    // The shorthand property is the value `greet`: a use.
-    assert_eq!(found, vec![one("o", 4), one("o", 5), one("greet", 9)]);
+    // The shorthand property is the value `greet`: a use. So is the call of
+    // what the import binds, a use of the other file's name in this one.
+    assert_eq!(found, vec![one("o", 4), one("o", 5), one("other", 5), one("greet", 9)]);
+}
+
+#[test]
+fn a_file_that_only_imports_uses_what_its_imports_bind_under_the_name_it_binds() {
+    let found = uses(
+        "import { greet as hail } from './greet.js';
+import type { Shape } from './shape.js';
+import * as all from './all.js';
+hail(all.x as Shape);
+function local(hail: string) {
+  return hail;
+}
+export { hail };
+",
+        SourceType::ts(),
+    );
+    assert_eq!(found, vec![one("Shape", 4), one("all", 4), one("hail", 4)]);
 }
 
 #[test]

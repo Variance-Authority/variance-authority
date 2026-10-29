@@ -20,11 +20,14 @@ import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import {
   placeInText,
+  reachOf,
   readableTestCoverage,
+  regionRecord,
   stateOf,
   type CoveringRegion,
   type Placement,
   type RangeState,
+  type Reach,
   type SourceTestRange,
 } from '@variance-authority/sense/test-selection';
 import { OperatorError } from '../exit.js';
@@ -125,30 +128,20 @@ export function placeRanges(
   return placed;
 }
 
-/**
- * The state a changed region adds up to. A passenger is a case that was inside
- * the region only while its module evaluated, which is what `loaded` means on a
- * range.
- */
+/** The state a changed region adds up to, read from `regionRecord`. */
 export function regionState(region: CoveringRegion): RangeState | undefined {
-  return stateOf({
-    startLine: region.startLine,
-    endLine: region.endLine,
-    tests: [...region.tests, ...(region.passengers ?? []).map((test) => ({ ...test, loaded: true as const }))],
-    ...(region.stopped === undefined ? {} : { stopped: region.stopped }),
-  });
+  return stateOf(regionRecord(region));
 }
 
 /**
  * What a region no case called adds up to, or undefined where a case called
  * it: a case that was inside it only while its module loaded did not call it.
- * The review's reach and `covering --function`'s unrun parts both read it, so
- * the handover and `covering` cannot disagree on a part.
+ * It is `reachOf`, the reading the whole-file answer's unentered regions take
+ * too, so the handover and every `covering` answer cannot disagree on a part.
  */
-export function unrunOf(region: CoveringRegion): 'loaded' | 'hole' | 'unwalked' | 'unknown' | undefined {
-  if (region.tests.some((test) => test.loaded !== true)) return undefined;
-  const state = regionState(region);
-  return state === 'loaded' || state === 'hole' || state === 'unwalked' ? state : 'unknown';
+export function unrunOf(region: CoveringRegion): Exclude<Reach, 'entered'> | undefined {
+  const reach = reachOf(regionRecord(region));
+  return reach === 'entered' ? undefined : reach;
 }
 
 /**

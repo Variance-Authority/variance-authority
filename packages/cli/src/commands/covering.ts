@@ -35,7 +35,6 @@ import { relative, resolve } from 'node:path';
 import {
   changedLines,
   coveringChange,
-  anyStopped,
   coveringTestsInFile,
   keepsCases,
   recordedCommit,
@@ -50,11 +49,13 @@ import {
 } from '@variance-authority/sense/test-selection';
 import { existedAt } from '@variance-authority/sense';
 import { OperatorError } from '../exit.js';
+import { answerGap, GapRefusal, type EvidenceGap } from './evidence-gap.js';
+import { refusalGap } from './refusal-gap.js';
 import { readExecutionFor, recordedExecutionFile } from './execution-input.js';
 import { cutGap, probesGap, probesNote, type CutGap, type ProbesGap } from './probes-gap.js';
 import { hopsToTests, identities, nearbyWitnesses } from './covering-reach.js';
 import { coveringFiles, type CoveringFile } from './covering-files.js';
-import { addedSince, unloadedFile, unreadCommit, unreadPreconditions } from './covering-unloaded.js';
+import { addedSince, RecordOlder, unloadedFile, unreadCommit, unreadPreconditions } from './covering-unloaded.js';
 import { heldAsPrecondition } from './held-as-precondition.js';
 import { motionFor, type CoveringMotion } from './covering-motion.js';
 import { scopeCases, type CoveringScope } from './covering-scope.js';
@@ -62,7 +63,8 @@ import { listedIn, whereCases, whereOver, type CoveringWhere } from './covering-
 import { staleAnswer } from './covering-stale.js';
 import { placeRanges, placementFor, regionState, snapshotFor, type CoveringRange } from './covering-frame.js';
 import { diffSince } from './since.js';
-import { coveringAt, countOf, fileGraph, type UnrunPart } from './covering-at.js';
+import { coveringAt, countOf, loadersOf, type UnrunPart } from './covering-at.js';
+import { graphOnce, type Graph } from './gap-selection.js';
 import type { CoveringAt, ParsedCovering } from '../covering-args.js';
 
 /**
@@ -184,6 +186,8 @@ export interface Covering {
    * open, for the asked file when one was asked (`probes-gap.ts`).
    */
   readonly probes?: ProbesGap & { readonly cut?: CutGap; readonly note: string };
+  /** The one question the answer leaves open, and the run that closes it (`evidence-gap.ts`). Absent when nothing is open. */
+  readonly gap?: EvidenceGap;
 }
 
 /**
@@ -193,8 +197,11 @@ export interface Covering {
  * question needs no flag but `--file`. A missing file is refused rather than
  * answered empty: an empty list here reads as *no test covers this line*, which
  * is the sentence that gets a test deleted.
+ *
+ * @param graph The checkout's file graph, read at most once for the whole
+ * invocation: a caller asking several suites hands every one the same.
  */
-export async function covering(request: ParsedCovering): Promise<Covering> {
+export async function covering(request: ParsedCovering, graph: Graph = graphOnce(request.root)): Promise<Covering> {
   let scope: CoveringScope | undefined;
   let full: ExecutionIndex | undefined;
   let whole: ExecutionIndex | undefined;
@@ -214,19 +221,29 @@ export async function covering(request: ParsedCovering): Promise<Covering> {
   };
   let answer: Covering;
   try {
-    answer = await ask(request, reader, (tests) => {
+    answer = await ask(request, reader, graph, (tests) => {
       reached = tests;
     });
   } catch (error) {
+    if (!(error instanceof OperatorError)) throw error;
+    // The refusal is the answer: a gap that cannot be worked out leaves it standing, never replaces it.
+    const older = error instanceof RecordOlder ? { commit: error.commit, record: error.from } : {};
+    const gap = await refusalGap(error.kind, request, whole, { ...older, graph })
+      .catch((failed: unknown) => {
+        if (failed instanceof OperatorError) return undefined;
+        throw failed;
+      });
     // An answer that the record holds nothing of the file is still the record's, and still carries the gap;
     // a refusal of anything else, such as a `--where` the record never measured, is not about its probes.
-    if (!(error instanceof OperatorError) || !RECORD_SHAPED.has(error.kind ?? '')) throw error;
     // The refusal is the answer; a record that cannot be found again only leaves it without a note.
-    const from = request.execution ?? (await recordedExecutionFile(request.root, request.suite).catch(() => undefined));
-    if (from === undefined) throw error;
-    const probes = await gapOf(request, from, undefined);
-    if (probes === undefined) throw error;
-    throw new OperatorError(`${error.message} ${probes.note}`, { ...(error.kind === undefined ? {} : { kind: error.kind }), cause: error });
+    const from = !RECORD_SHAPED.has(error.kind ?? '')
+      ? undefined
+      : request.execution ?? (await recordedExecutionFile(request.root, request.suite).catch(() => undefined));
+    const probes = from === undefined ? undefined : await gapOf(request, from, undefined);
+    if (probes === undefined && gap === undefined) throw error;
+    const said = probes === undefined ? error.message : `${error.message} ${probes.note}`;
+    const kind = error.kind === undefined ? {} : { kind: error.kind };
+    throw gap === undefined ? new OperatorError(said, { ...kind, cause: error }) : new GapRefusal(said, { ...kind, gap, cause: error });
   }
   // Counts are read among every case the question reached before `--where` and `--read` narrowed it.
   if (where !== undefined) {
@@ -237,6 +254,8 @@ export async function covering(request: ParsedCovering): Promise<Covering> {
   const hops = answer.tests !== undefined && request.since === undefined && request.hops === true ? await hopsToTests(request) : undefined;
   const files = answer.tests === undefined || whole === undefined ? undefined : coveringFiles(answer.tests, whole, hops?.byFile);
   const probes = await gapOf(request, answer.from, whole);
+  const source = { root: request.root, suite: request.suite, execution: request.execution, record: answer.from, graph };
+  const gap = whole === undefined ? undefined : await answerGap({ ...answer, ...(files === undefined ? {} : { files }) }, whole, source);
   return {
     ...answer,
     ...(probes === undefined ? {} : { probes }),
@@ -245,6 +264,7 @@ export async function covering(request: ParsedCovering): Promise<Covering> {
     ...(scope === undefined ? {} : { scope }),
     ...(where === undefined ? {} : { where }),
     ...(motion === undefined ? {} : { motion }),
+    ...(gap === undefined ? {} : { gap }),
   };
 }
 
@@ -275,6 +295,7 @@ async function gapOf(request: ParsedCovering, from: string, index: ExecutionInde
 async function ask(
   request: ParsedCovering,
   readIndex: IndexReader,
+  graph: Graph,
   reach?: (tests: readonly ExecutionTest[]) => void,
 ): Promise<Covering> {
   const from = request.execution ?? (await recordedExecutionFile(request.root, request.suite));
@@ -291,7 +312,7 @@ async function ask(
     const { index, before } = await readIndex(from, changed);
     // The graph carries the mocks: a case whose file mocked the changed module
     // is not listed under it, whatever it crossed there.
-    const relations = await fileGraph(request.root);
+    const relations = await graph();
     const answer = coveringChange(index, changed, { relations });
     // Both readings land on the same blocks in the same order: `--where` narrows the cases, never the regions.
     const reached = before === undefined ? answer : coveringChange(before, changed, { relations });
@@ -338,17 +359,15 @@ async function ask(
   const placement = await placementFor(request, from);
   const frame = placement === undefined ? {} : { frame: placement.frame };
   if (placement?.frame === 'stale' && request.function === undefined) {
-    return staleAnswer(request as CoveringAt, { index, ...(before === undefined ? {} : { before }), module, from, near, ...(placement.at === undefined ? {} : { at: placement.at }) }, reach);
+    return staleAnswer(request as CoveringAt, { index, ...(before === undefined ? {} : { before }), from, near, graph, ...(placement.at === undefined ? {} : { at: placement.at }) }, reach);
   }
 
-  const at = await coveringAt(request as CoveringAt, { index, ...(before === undefined ? {} : { before }), module, from, ...(placement === undefined ? {} : { placement }), near }, reach);
+  const at = await coveringAt(request as CoveringAt, { index, ...(before === undefined ? {} : { before }), module, from, ...(placement === undefined ? {} : { placement }), near, graph }, reach);
   if (at !== undefined) return at;
 
-  const graph = module.blocks.some((block) => block.loaded === true) || anyStopped(before ?? index)
-    ? { relations: await fileGraph(request.root) }
-    : {};
+  const loaders = await loadersOf(before ?? index, file, graph);
   // Each range is read and stated over the cases before `--where`, then lists only the cases it kept.
-  const found = coveringTestsInFile(before ?? index, file, graph);
+  const found = coveringTestsInFile(before ?? index, file, loaders);
   const listed = before === undefined ? undefined : new Set(index.tests.map((test) => test.id));
   const listing = (ranges: readonly CoveringRange[]): readonly CoveringRange[] => listed === undefined
     ? ranges
@@ -356,7 +375,7 @@ async function ask(
   if (before !== undefined) reach?.(listedIn({ tests: found.flatMap((range) => range.tests).filter(near.keep) }));
   if (near.whole) return { file: file, ranges: listing(placeRanges(found, placement)), ...frame, from };
   // The narrowing is read inside the fold, so a range boundary still marks where the claim changes.
-  const narrowed = coveringTestsInFile(before ?? index, file, { ...graph, keep: near.keep });
+  const narrowed = coveringTestsInFile(before ?? index, file, { ...loaders, keep: near.keep });
   return {
     file: file,
     ranges: listing(placeRanges(narrowed, placement)),

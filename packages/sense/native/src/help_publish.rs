@@ -24,7 +24,7 @@ use crate::help_declared::{declared, declared_terms, Declared, Matching};
 use crate::off_thread::{off_thread, OffThread};
 use crate::help_search::{encode, exported_digest, PublishedRows, SearchGeneration};
 use crate::help_members::{indexed_extensions, member_declarations, members_on, ContainerMember, MemberDeclarations};
-use crate::help_origin::{declaration_passed_on, PassedOnDeclaration};
+use crate::help_origin::{declaration_exported, ExportedDeclaration};
 use crate::help_usage::{importers, usage, Importers, IndexedUsage, NamedExport};
 use crate::index_chain::read_chain;
 use crate::source_tree::tree;
@@ -127,19 +127,18 @@ pub fn members_on_of(index: String, file: String, on: String) -> napi::Result<Op
     opened_chain(&index, |layers| members_on(layers, &file, &on))
 }
 
-/// What the index reads of the declaration an export passes on.
+/// What the index reads of the declaration an export binds.
 #[napi(object)]
-pub struct PassedOnReading {
-    /// `None` when the file declares the name or the walk ends short of a declaration.
-    pub declaration: Option<PassedOnDeclaration>,
+pub struct ExportedReading {
+    /// `None` when the walk ends short of a declaration.
+    pub declaration: Option<ExportedDeclaration>,
 }
 
-/// The declaration the export `name` of `file`, repo-relative, passes on with
-/// `export … from`, as [`declaration_passed_on`] walks to it; `None` when
-/// there is no index.
+/// The declaration the export `name` of `file`, repo-relative, binds, as
+/// [`declaration_exported`] walks to it; `None` when there is no index.
 #[napi]
-pub fn declaration_passed_on_of(index: String, file: String, name: String) -> napi::Result<Option<PassedOnReading>> {
-    opened_chain(&index, |layers| PassedOnReading { declaration: declaration_passed_on(layers, &file, &name) })
+pub fn declaration_exported_of(index: String, file: String, name: String) -> napi::Result<Option<ExportedReading>> {
+    opened_chain(&index, |layers| ExportedReading { declaration: declaration_exported(layers, &file, &name) })
 }
 
 /// Every top-level declaration on the chain at `index` that no export of its

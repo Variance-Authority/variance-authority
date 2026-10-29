@@ -1,10 +1,5 @@
-/**
- * Where the suite's tests live, and which slice a file is in: read by
- * `vitest.config.mts`, which runs them, and by `tools/test-loop.mjs`, which
- * lists the unit tests the runner would discover before starting one.
- */
+/** Where the suite's tests live, and what each slice runs: read by `vitest.config.mts`. */
 
-import picomatch from 'picomatch';
 import { configDefaults } from 'vitest/config';
 
 /**
@@ -39,7 +34,3 @@ export function excludeOf(name) {
   return [...configDefaults.exclude, ...others];
 }
 
-/** Whether the slice runs the repository-relative `path`. */
-export function inSlice(name, path) {
-  return picomatch(includeOf(name))(path) && !picomatch(excludeOf(name))(path);
-}

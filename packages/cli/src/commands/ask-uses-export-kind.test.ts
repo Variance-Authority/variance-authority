@@ -29,7 +29,7 @@ describe('variance ask uses names the kind of the declaration an export binds', 
 
     const imported = await run(['ask', 'uses', '--name', 'addTax']);
     expect(imported.code).toBe(EXIT_CLEAN);
-    expect(imported.out).toContain('`addTax` [function] is imported in 1 place, and no entry publishes it;');
+    expect(imported.out).toContain('`addTax` [function] is imported in 1 place, from another package, and no entry publishes it;');
 
     const orphan = await run(['ask', 'uses', '--name', 'orphan']);
     expect(orphan.code).toBe(EXIT_CLEAN);

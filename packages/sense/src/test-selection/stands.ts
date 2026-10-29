@@ -42,10 +42,10 @@
  * skips.
  */
 
+import { codeUnitOrder } from '@variance-authority/core/segment';
 import type { CommitRuns } from './commit-runs.js';
 import { sameInstall, type KeptInstall } from './kept-install.js';
 import { askCoverageFile } from './coverage-file.js';
-import { codeUnitOrder } from './instrumented-modules.js';
 import { nearestFirst, type TestDistance } from './distance.js';
 import type { ExecutionNarrowing, SelectionReason } from './narrowing.js';
 

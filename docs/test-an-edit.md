@@ -1,6 +1,6 @@
 # Run the tests an edit needs
 
-Set `VARIANCE_AUTHORITY_SINCE` and the Vitest or Jest run you already call
+Set `VARIANCE_AUTHORITY_SINCE` and the Vitest, Jest or Playwright run you already call
 leaves out every test file a recorded run shows never executed the code you
 changed. Nothing goes on the command line and no script sits between you and
 the runner, so the edit-and-test loop you or your coding agent already runs
@@ -53,6 +53,12 @@ For Jest 30, wrap the configuration with `withTestSelection` from
 [The Jest seam](../packages/sense/README.md#cut-a-jest-run-down-to-a-diff) says
 which parts of a Jest configuration it reads and which you spell out.
 
+For Playwright, wrap the configuration with `withTestSelection` from
+`@variance-authority/playwright-test` and run `VARIANCE_AUTHORITY_SINCE= npx
+playwright test`. A spec file the selection keeps runs whole.
+[The Playwright seam](../packages/playwright-test/README.md#leave-out-the-specs-a-change-did-not-reach)
+says where the files are dropped.
+
 Every wrapped run records, whether the variable is set or not. With it set, the
 runner drops the files the record proves your edit did not reach before it
 starts any of them, and prints one line to stderr first:
@@ -64,7 +70,8 @@ starts any of them, and prints one line to stderr first:
 
 Set and empty, the variable measures each test from the commit it last ran at,
 which the record keeps per test file. Set to a ref, such as `origin/main`, it
-names the base for a record taken outside a git checkout, which keeps no commit. Watch mode does not select. Under Jest,
+names the base for a record taken outside a git checkout, which keeps no commit. Watch mode does not select, and
+neither does Playwright's `--list`. Under Jest,
 `--filter` and `--skipFilter` replace the filter the selection runs in, so
 either one turns the selection off, and stderr says so.
 
@@ -174,6 +181,64 @@ share, its first selection reads the record your mainline
 [published](sharing.md#a-suite-your-checkout-has-not-recorded), and your runs
 are laid over it.
 
+## The loop an agent runs after each edit
+
+A coding agent edits many times before a change is whole, and it needs a
+verdict after every edit that costs less than the edit did. The compiler, then
+the tests within one import of what changed, gives it one in about a second.
+It is one line on the configuration you wrapped and recorded above, and nothing
+in it is a script of ours:
+
+```bash
+tsc --build && VARIANCE_AUTHORITY_SINCE= VARIANCE_AUTHORITY_AT_DISTANCE=0-1 npx vitest run
+```
+
+Under Jest 30 the same two variables go in front of `npx jest`; under Rstest,
+`variance select` with the same range prints the files your script leaves out. Give your agent that line as the command it runs after each edit, and tell it
+to read the verdict before it makes the next one. Each edit ends one of four
+ways:
+
+- **A type error.** The compiler prints it and exits non-zero before any test
+  starts.
+- **No test runs.** The run prints `selected none of 340` and exits 0. No
+  recorded test ran the code you changed, the tests that did already ran the
+  text you have now, or they sit further than one import away. The lines under
+  it say which: a file left for a later leg is counted with the range that
+  runs it, `2-`, which is `VARIANCE_AUTHORITY_AT_DISTANCE=2-` in this line.
+  Exit 0 here says nothing near the edit failed, not that the change is done.
+- **Some tests run.** The run prints `selected 1 of 340`, runs that file, and
+  exits with its result.
+- **Every test runs.** The run prints `declined:` and a reason: the record
+  could not answer this edit, as [below](#when-it-runs-everything).
+
+When a run keeps or leaves out a test you did not expect, ask why.
+[`variance select`](../packages/cli/README.md#select-what-your-own-runner-may-skip)
+reads the same change with nothing run, given the same range, and `--suite` with
+the name of the suite when `variance.config.json` declares suites:
+
+```bash
+npx variance select --suite unit --at-distance 0-1
+```
+
+Its stdout lists every test file it skips, one path per line, so a test missing
+from that list is one the loop runs. Its stderr says why, for the selection as a
+whole:
+
+```text
+the change entered 3 test files: 2 at 3 hops, and 1 at 4 hops.
+3 selected test files are left for a later leg: the same command with `--at-distance 2-` runs them.
+```
+
+The loop says only that the edit broke nothing within one import. The tests
+further out still owe the edit, as each run leaves them, so before you hand the
+change over, run the same line with `VARIANCE_AUTHORITY_AT_DISTANCE=2-`.
+Every selected file runs in one of `0-1` and `2-`, by the same rules that place
+it in `0-2` or `3-` above.
+
+This repository's own agents run that line after each edit, as
+`yarn test:loop`; [what a selection costs](#what-a-selection-costs) gives its
+times.
+
 ## When it runs everything
 
 Selection only ever removes files it can prove your edit did not reach, so
@@ -208,8 +273,14 @@ those nine and exits in 3.4 s. Run it again on the same tree and it prints
 `selected none of 686` and exits in 0.8 s. Each of those two times is the median
 of seven warm runs.
 
+The agent loop on the same suite, grown to 1002 test files, puts the compiler
+first: a type error stops in 0.09 s, an edit no test needs answers in 0.73 s,
+and a body edit that keeps one test answers in 1.42 s. Each is the median of
+five runs, with a one-minute load average between 10 and 13.
+
 Every time in this section was measured on an Apple M4 Max with 64 GB under
-Node 24, with a one-minute load average between 4 and 9 on its 16 cores.
+Node 24, with a one-minute load average between 4 and 9 on its 16 cores unless
+it says otherwise.
 
 What recording adds to a run is measured on public suites in
 [what recording costs while the suite runs](selecting.md#what-recording-costs-while-the-suite-runs).

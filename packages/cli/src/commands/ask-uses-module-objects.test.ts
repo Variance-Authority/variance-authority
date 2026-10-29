@@ -126,7 +126,7 @@ describe('variance ask uses over a module object', () => {
     expect((await run(['index'])).code).toBe(EXIT_CLEAN);
 
     const split = await uses('split');
-    expect(split).toMatch(/^apps\/app\/src\/splitter\.ts:1 — @acme\/app$/m);
+    expect(split).toMatch(/^apps\/app\/src\/splitter\.ts:1 — @acme\/app; used on line 2$/m);
     expect(split).not.toContain('typed.ts');
     expect(split).not.toContain('mocked.test.ts');
     expect(split).not.toContain('may read it');

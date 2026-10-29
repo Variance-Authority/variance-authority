@@ -19,18 +19,27 @@ import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import {
   askCoverageFile,
+  coverageAtDistance,
   countCoverage,
+  coverageByOwner,
   coverageChange,
+  coverageFanIn,
   declaredSuites,
+  earnedCoverage,
   readableTestCoverage,
   recordedCommit,
   sharedPreconditions,
   testCoverageFile,
+  testHops,
   type CountedSuite,
   type CoverageCount,
   type DeclaredSuite,
+  type EarnedCoverage,
+  type FanIn,
+  type OwnedFile,
   type SuiteChange,
   type SuiteKind,
+  type TestHops,
 } from '@variance-authority/sense/test-selection';
 import type { ParsedCoverage } from '../coverage-args.js';
 import { OperatorError } from '../exit.js';
@@ -39,6 +48,7 @@ import { baseCommit } from './covering-motion.js';
 import { coverageSource, harnessReach, readSource, within, type CoverageSource, type MissedEntry, type Scoped } from './coverage-source.js';
 import { readExecutionIndex, recordedExecutionFile } from './execution-input.js';
 import { mainlineBase, mainlineMissed } from './mainline-base.js';
+import { relationsFor } from './source-graph.js';
 import { asOperator, nothingRecorded } from './suite-record.js';
 
 /** One suite's record and its base, or why it has neither. */
@@ -72,6 +82,35 @@ export interface Coverage {
   /** Each package with `--packages`, or each directory the root config declares entry points for, counted over its own files and over everything it reaches. Absent with `--from`. */
   readonly entries?: readonly (CoverageEntry | MissedEntry)[];
   /**
+   * With `--packages`, every recorded file but a test file, with how many of
+   * its regions its own package's tests ran and how many only other packages'
+   * tests did. A file in no listed package belongs to `.`, the root. Test
+   * files are left out, so these regions are fewer than the count above.
+   */
+  readonly ownership?: readonly OwnedFile[];
+  /**
+   * With `--packages`, each suite's regions in and out, and every suite's
+   * joined: in when a test of the region's own package called into it from at
+   * most one import hop, out when any other test did. Test files are left out,
+   * as in `ownership`.
+   */
+  readonly earned?: EarnedCoverage;
+  /**
+   * With `--fan-in`, how many test files called into each region and each
+   * file, per kind and per file, over the same regions and band as the count
+   * above.
+   */
+  readonly fanIn?: FanIn;
+  /**
+   * With `--at-distance`, the band every count above was narrowed to: a region
+   * counts as run only when the nearest test file that ran it, across every
+   * suite, is within the band of the region's module, so the bands partition
+   * what ran. `to` is absent for an open end. `unplaced` names the test files
+   * no walk could measure; `unmeasured` counts the regions only they ran, which
+   * no band holds.
+   */
+  readonly atDistance?: { readonly from: number; readonly to?: number; readonly unplaced: readonly string[]; readonly unmeasured: number };
+  /**
    * The files changed since the commit every base was recorded at, when no
    * counted suite loads any of them and no suite's count changed. Absent
    * whenever git or a record cannot say so, and whenever the change is
@@ -87,7 +126,6 @@ export interface UnloadedChange {
   readonly files: readonly string[];
 }
 
-/** Count the records the request names, and compare them with their bases. */
 /** One directory counted on its own. */
 export interface CoverageEntry {
   readonly from: string;
@@ -95,6 +133,7 @@ export interface CoverageEntry {
   readonly uses: CoverageSource;
 }
 
+/** Count the records the request names, and compare them with their bases. */
 export async function coverage(request: ParsedCoverage): Promise<Coverage> {
   const declared = asOperator(() => declaredSuites(request.root));
   const asked = request.suite === undefined ? declared : declared?.filter((one) => one.name === request.suite);
@@ -113,6 +152,10 @@ export async function coverage(request: ParsedCoverage): Promise<Coverage> {
     throw new OperatorError(`\`--from ${request.from}\` is answered by the source index, and ${reading.missed}`);
   }
   const scope = 'missed' in reading ? undefined : reading.scope;
+  // The import graph, when a band or the in and out count asks how far each test is.
+  const relations = request.atDistance !== undefined || ('ownerOf' in reading && reading.ownerOf !== undefined)
+    ? await relationsFor(request.root, ['.'], [], [])
+    : undefined;
   const suites: CoverageSuite[] = [];
   const now: CountedSuite[] = [];
   const bases: CountedSuite[] = [];
@@ -140,7 +183,9 @@ export async function coverage(request: ParsedCoverage): Promise<Coverage> {
     const recorded = await recordedCommit(record);
     for (const entry of restsOn(record)) harness.add(entry);
     now.push({ ...(one === undefined ? {} : { name: one.name, kind: one.kind }), index });
-    const found = await baseOf(request, one);
+    const found = request.atDistance === undefined
+      ? await baseOf(request, one)
+      : { missed: 'no base: `--at-distance` measures import hops on the graph of the tree as it is now, and the base ran on another' };
     if ('missed' in found) {
       suites.push({ ...named, from, ...(recorded === undefined ? {} : { recorded }), baseMissed: found.missed });
       continue;
@@ -163,6 +208,14 @@ export async function coverage(request: ParsedCoverage): Promise<Coverage> {
   if (now.length === 0) {
     throw nothingRecorded(request.root, declared === undefined ? undefined : counted.map((one) => one!.name));
   }
+  // Every suite at once: a region is in the band of its nearest test in any of them.
+  const walked: TestHops | undefined = relations === undefined ? undefined : testHops(now.map((one) => one.index), { relations });
+  // In and out are a distance split of their own: out is any other test, so they count every crossing, band or not.
+  const unbanded = [...now];
+  const narrowed = request.atDistance === undefined || walked === undefined
+    ? { indexes: now.map((one) => one.index), unplaced: [], unmeasured: 0 }
+    : coverageAtDistance(now.map((one) => one.index), request.atDistance, walked);
+  narrowed.indexes.forEach((index, at) => (now[at] = { ...now[at]!, index }));
   const at = await head(request.root);
   const count = countCoverage(now);
   const indexes = now.map((one) => one.index);
@@ -175,6 +228,15 @@ export async function coverage(request: ParsedCoverage): Promise<Coverage> {
     suites,
     ...(bases.length === now.length ? { base: countCoverage(bases) } : {}),
     ...(unloadedChange === undefined ? {} : { unloadedChange }),
+    ...(request.fanIn === true ? { fanIn: coverageFanIn(now) } : {}),
+    ...(request.atDistance === undefined ? {} : {
+      atDistance: {
+        from: request.atDistance.from,
+        ...(request.atDistance.to === Number.MAX_SAFE_INTEGER ? {} : { to: request.atDistance.to }),
+        unplaced: narrowed.unplaced,
+        unmeasured: narrowed.unmeasured,
+      },
+    }),
     ...('missed' in reading
       ? { sourceMissed: reading.missed }
       : {
@@ -188,12 +250,15 @@ export async function coverage(request: ParsedCoverage): Promise<Coverage> {
               };
               return { from: entry.from, own: counted(entry.own), uses: counted(entry.uses) };
             }),
+            ...(reading.ownerOf === undefined ? {} : {
+              ownership: coverageByOwner(now, reading.ownerOf),
+              ...(walked === undefined ? {} : { earned: earnedCoverage(unbanded, reading.ownerOf, walked) }),
+            }),
           }),
         }),
   };
 }
 
-/** The per-case index a run left for a suite, or `undefined` when none did. */
 /**
  * What every test in the recording rests on, or nothing when the recording
  * cannot be opened: the count over the case index stands without it, and the
@@ -207,6 +272,7 @@ function restsOn(file: string): readonly string[] {
   }
 }
 
+/** The per-case index a run left for a suite, or `undefined` when none did. */
 async function recordOf(root: string, suite: string | undefined, record: string): Promise<string | undefined> {
   try {
     return await recordedExecutionFile(root, suite, record);

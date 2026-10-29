@@ -25,10 +25,10 @@
 
 import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
+import { codeUnitOrder } from '@variance-authority/core/segment';
 import { digestString } from '../digest.js';
 import { LOCKFILES } from '../lock/read.js';
 import { keepText, type LandedTree } from './kept-texts.js';
-import { codeUnitOrder } from './instrumented-modules.js';
 
 /**
  * Each install file that differed from the run's commit when it ran, named from

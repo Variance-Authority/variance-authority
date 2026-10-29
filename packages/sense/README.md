@@ -1904,6 +1904,19 @@ const tainted = await taintRecords(records, [mockTaint()], { root: '.', cache: s
 await source.save();
 ```
 
+`runGraphOf` is that whole fold in one call, the graph `variance covering
+--since` and an MCP host's source tree both walk: the mocks read unasked, your
+`taints` joined after them, and the result folded with its shadows. Pass
+`depends` from the lockfile to reach a transitive bump, and `uses` to say how
+each file uses what its parse imports; an edge a taint added was never parsed,
+so it is read as used whole:
+
+```ts
+import { runGraphOf } from '@variance-authority/sense';
+
+const relations = await runGraphOf(records, { root: '.', cache: source.cache, taints: [await taintFile('variance.taint.json')] });
+```
+
 ### Check a taint against the record
 
 A taint is the static reading of what a file's run reaches; a coverage record
@@ -2310,7 +2323,7 @@ cases. `cases.last` names the commit those cases were recorded at under
 `before`, until a run at the same commit runs a file again. A share, a seed or
 a fetch carries the index and drops those two, because the run they name is
 not the taker's. `caseMotion(base, now, { diff })` compares two indexes region
-by region and names each region whose cases moved: lost, hidden, thinned or
+by region and names each region whose cases changed: lost, hidden, thinned or
 gained. `diff` is the `-U0` diff from the text `base` was recorded over to the
 text `now` was, by file, and it is the only way a region is paired: it carries
 each region at the base to the lines it stands on now. `relations` lets it name the stopped case behind a hidden region, and

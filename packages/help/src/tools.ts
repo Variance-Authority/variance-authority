@@ -20,7 +20,44 @@ import { symbol } from './tools/symbol.js';
 import { uses } from './tools/uses.js';
 
 /**
- * The questions, and the order they are meant to be asked in.
+ * `tool`, its answer dated by the workspace generation it was read from. With
+ * `unseen`, that generation was never compared with the checkout: the date says
+ * so, and a refusal adds that the name may only be newer than it.
+ */
+function dated(tool: Tool<Help>, unseen: boolean): Tool<Help> {
+  return {
+    ...tool,
+    run(subject, input, invocation) {
+      const at = workspaceGeneration(subject);
+      let answer: string;
+      try {
+        answer = tool.run(subject, input, invocation);
+      } catch (refusal) {
+        // A name refused by a generation nothing compared with the checkout
+        // may only be newer than it, and the refusal says so. A name found
+        // nothing for is an answer, which its surface dates as it gives it.
+        if (!unseen || at === undefined || refusal instanceof FoundNothing) throw refusal;
+        const said = `${refusal instanceof Error ? refusal.message : String(refusal)}\n\n${snapshotLine(at, true)}`;
+        const operator = (refusal as { readonly varianceOperatorError?: unknown } | undefined)?.varianceOperatorError === true;
+        throw operator ? operatorError(said, { cause: refusal }) : new Error(said, { cause: refusal });
+      }
+      return at === undefined ? answer : `${answer}\n${snapshotLine(at, unseen)}`;
+    },
+  };
+}
+
+/**
+ * The questions that are asked alone, in the order they are meant to be asked in.
+ * `HELP_TOOLS` is this order with `docs_intersection`, which crosses them.
+ */
+const ALONE: readonly Tool<Help>[] =
+  [packages, entrypoint, symbol, uses, search, grep, discover, orient, slowestTests, journeyMapTool, testCompositionTool, stack, gaps];
+
+/** Every question above, crossed; built over the list so a question that joins it can be an operand. */
+const intersection = intersectionOf<Help>(ALONE);
+
+/**
+ * The questions shell dispatch and the server share, in the order they are meant to be asked in.
  *
  * `docs_packages` needs nothing and counts, one row per package or specifier,
  * each row the argument `docs_entrypoint` takes; `docs_entrypoint` and
@@ -77,35 +114,6 @@ import { uses } from './tools/uses.js';
  * reading that ranks it is the same reading, and an agent that has just been
  * told a name is undocumented is the agent best placed to write the paragraph.
  */
-function dated(tool: Tool<Help>, unseen: boolean): Tool<Help> {
-  return {
-    ...tool,
-    run(subject, input, invocation) {
-      const at = workspaceGeneration(subject);
-      let answer: string;
-      try {
-        answer = tool.run(subject, input, invocation);
-      } catch (refusal) {
-        // A name refused by a generation nothing compared with the checkout
-        // may only be newer than it, and the refusal says so. A name found
-        // nothing for is an answer, which its surface dates as it gives it.
-        if (!unseen || at === undefined || refusal instanceof FoundNothing) throw refusal;
-        const said = `${refusal instanceof Error ? refusal.message : String(refusal)}\n\n${snapshotLine(at, true)}`;
-        const operator = (refusal as { readonly varianceOperatorError?: unknown } | undefined)?.varianceOperatorError === true;
-        throw operator ? operatorError(said, { cause: refusal }) : new Error(said, { cause: refusal });
-      }
-      return at === undefined ? answer : `${answer}\n${snapshotLine(at, unseen)}`;
-    },
-  };
-}
-
-const ALONE: readonly Tool<Help>[] =
-  [packages, entrypoint, symbol, uses, search, grep, discover, orient, slowestTests, journeyMapTool, testCompositionTool, stack, gaps];
-
-/** Every question above, crossed; built over the list so a question that joins it can be an operand. */
-const intersection = intersectionOf<Help>(ALONE);
-
-/** The source-orientation tools shared by shell dispatch and the server. */
 export const HELP_TOOLS: readonly Tool<Help>[] =
   [packages, entrypoint, symbol, uses, search, grep, discover, intersection, orient, slowestTests, journeyMapTool, testCompositionTool, stack, gaps];
 
@@ -129,7 +137,7 @@ export const UNCOMPARED_HELP: Served<Help> = { ...HELP, tools: HELP_TOOLS.map((t
 export { discover, entrypoint, gaps, grep, intersection, journeyMapTool, orient, packages, search, slowestTests, stack, symbol, testCompositionTool, uses };
 export { namesWanted } from './tools/intersection.js';
 export { formatOrientation, type OrientReading } from './tools/orient-format.js';
-export { answerSearch, searchIndexOf } from './tools/search.js';
+export { answerSearch, searchIndexOf, searchQuestionOf } from './tools/search.js';
 export type {
   ExportedMatch,
   InArea,
@@ -140,6 +148,8 @@ export type {
   SearchQuestion,
 } from './tools/search-answer.js';
 export { searchNames } from './tools/search-answer.js';
+export { importingOf, type ImportingOf, type ImportingOne } from './tools/published-match.js';
+export type { ImportedIn } from './tools/uses-count.js';
 export type { Help };
 export { audience, block, importing, line, reach, said } from './tools/format.js';
 export { sharedSegments } from './tools/shared-segments.js';

@@ -5,12 +5,13 @@ import type { SearchIndex } from '../search-index.js';
 import { tokensOf } from '../search-index.js';
 import type { Area } from './area.js';
 import { areaOf } from './area.js';
-import { looseNames, matchingTerms, termsOfStems } from './loose.js';
-import { describedDeclarations, describedNames, describedShown, fileMatch, type Reached } from './described.js';
+import { looseNames, matchingTerms, rowWithin, termsOfStems } from './loose.js';
+import { describedDeclarations, describedNames, describedShown, fileMatch, rowTextOrder, type Reached, type RowOrder } from './described.js';
 import { declaredKey, looseDeclarations } from './loose-declared.js';
 import { queryDependencyLexicon, type LexiconMatches } from '../dependency-lexicon.js';
-import { declaredMatches } from './declared.js';
-import { docRows, exported, first } from './exported-matches.js';
+import { declaredMatches, exactness } from './declared.js';
+import { docRows, exported, exportedOrder, first } from './exported-matches.js';
+import { counting, type ImportingOf, type InArea, type PublishedMatch } from './published-match.js';
 
 /**
  * What `search` found, before a word of it is written.
@@ -57,36 +58,7 @@ export interface SearchQuestion {
   readonly to?: string | readonly string[] | undefined;
 }
 
-/** How one published name is used inside the area. */
-export interface InArea {
-  readonly files: number;
-  readonly imports: number;
-  /** `[hops, files]`, nearest first: how many importing files sit at each distance. */
-  readonly filesByDistance: readonly (readonly [number, number])[];
-}
-
-/** A name a manifest publishes. */
-export interface PublishedMatch {
-  readonly source: 'published';
-  readonly name: string;
-  /** What to import it from. */
-  readonly specifier: string;
-  readonly kind: string;
-  /**
-   * The first paragraph of its documentation, on one line; absent when nothing
-   * documents it. The whole comment is `symbol`'s answer, not this one's: forty
-   * of them would cost more than every other field here together.
-   */
-  readonly summary?: string;
-  /** The file that declares it. */
-  readonly at: string;
-  /** Packages that import it, across the repository. */
-  readonly packages: number;
-  /** Import sites, across the repository. */
-  readonly imports: number;
-  /** Absent when no start point was said. */
-  readonly inArea?: InArea;
-}
+export type { InArea, PublishedMatch } from './published-match.js';
 
 /** A name the source exports without publishing. */
 export interface ExportedMatch {
@@ -94,7 +66,7 @@ export interface ExportedMatch {
   readonly name: string;
   /** The package that holds it; absent at the repository root. */
   readonly package?: string;
-  /** The file shown: source before tests before stories. */
+  /** The file shown: the row that ranks it, where the question was found first, then {@link exportedOrder}; in the described section, the row it is weighed through. */
   readonly at: string;
   readonly line: number;
   /** How many files export it, the one shown included. */
@@ -188,6 +160,8 @@ export interface SearchAnswer {
   readonly described?: Matches<DescribedMatch>;
   /** Installed third-party names available to this workspace or area. */
   readonly thirdParty?: LexiconMatches;
+  /** Why the imports within a package were not read for the counts shown; absent when they were, or nothing was counted. */
+  readonly importsUnread?: string;
 }
 
 /** The answer, and the resolved area the text renders its header from. */
@@ -203,7 +177,11 @@ interface Hit {
   readonly rank: number;
   readonly usedBy: number;
   readonly uses: number;
-  /** Where the question was found: 0 in the name, 1 in the doc's opening paragraph, 2 later in the doc. */
+  /**
+   * Where the question was found: 0 as the whole name as written, 1 as the
+   * whole name in another case, 2 in the name, 3 in the doc's opening
+   * paragraph, 4 later in the doc.
+   */
   readonly field: number;
   /** What the area saw of it — nothing, when there is no area. */
   readonly scoped: InArea | undefined;
@@ -227,8 +205,6 @@ function usedWithin(index: SearchIndex, row: number, area: Area, inArea: Readonl
  * The rows arrive as a set rather than a rule because the same ordering has
  * to hold for names the substring found and names the loose pass added. Two
  * orderings would be two answers, and the second would look like a ranking.
- * The last key is the row, which is the order `everyEntry` walks, so ties land
- * where the stable sort over that walk always put them.
  *
  * The area enters here rather than at the call sites for the same reason: it
  * decides both what is admitted and how what is admitted is ordered, and a
@@ -236,8 +212,8 @@ function usedWithin(index: SearchIndex, row: number, area: Area, inArea: Readonl
  * with an unscoped ranking.
  *
  * `field` says where the question was found in a row, and orders before
- * anything the area or the importers say: a name holding the word is that
- * thing, a doc opening with it says what the name is for, and a doc saying it
+ * anything the area or the importers say: a name that is the word is the thing
+ * asked for, a name holding the word is that thing, a doc opening with it says what the name is for, and a doc saying it
  * three paragraphs down mentions it. Absent, every row was reached alike.
  */
 function surface(
@@ -247,45 +223,80 @@ function surface(
   inArea: ReadonlySet<number> | undefined,
   field?: (row: number, name: number) => number,
 ): readonly Hit[] {
-  const hits: Hit[] = [];
-  for (const row of new Set(rows)) {
-    const scoped = area === undefined || inArea === undefined ? undefined : usedWithin(index, row, area, inArea);
-    // A published name with no import site in the closure is a name the area
-    // does not use, however well it matches the word.
-    if (scoped !== undefined && scoped.imports === 0) continue;
-    const name = index.publishedName(row);
-    hits.push({ row, name, rank: index.rank(name), usedBy: index.usedBy(row), uses: index.uses(row), field: field?.(row, name) ?? 0, scoped });
-  }
-  return hits;
+  const admitted = [...new Set(rows)].filter((row) => area === undefined || inArea === undefined || rowWithin(index, 'published', row, inArea));
+  return admitted.map((row) => hitOf(index, row, area, inArea, field));
 }
 
-const surfaceOrder = (a: Hit, b: Hit): number =>
+/** One published row's {@link Hit}, the area's counts of it included when there is one. */
+function hitOf(index: SearchIndex, row: number, area: Area | undefined, inArea: ReadonlySet<number> | undefined, field?: (row: number, name: number) => number): Hit {
+  const scoped = area === undefined || inArea === undefined ? undefined : usedWithin(index, row, area, inArea);
+  const name = index.publishedName(row);
+  return { row, name, rank: index.rank(name), usedBy: index.usedBy(row), uses: index.uses(row), field: field?.(row, name) ?? 0, scoped };
+}
+
+/**
+ * The order {@link surface}'s rows are read in. A rank is a name's own, so {@link rowTextOrder} settles rows of
+ * one name: by the doc's text, then the kind, then the row's path and specifier, never by where the index wrote them.
+ */
+const surfaceOrder = (index: SearchIndex) => (a: Hit, b: Hit): number =>
   a.field - b.field ||
   (b.scoped?.files ?? 0) - (a.scoped?.files ?? 0) ||
   (b.scoped?.imports ?? 0) - (a.scoped?.imports ?? 0) ||
   b.usedBy - a.usedBy ||
   b.uses - a.uses ||
   a.rank - b.rank ||
-  a.row - b.row;
+  rowTextOrder(index, { kind: 'published', row: a.row }, { kind: 'published', row: b.row });
 
-function published(index: SearchIndex, hits: readonly Hit[], count: number): Matches<PublishedMatch> {
+/**
+ * The first `count` of `hits`, each counted by `importingOf` when it is given
+ * and then ordered by that count in place of the index's. Which rows the page
+ * holds stays the index's to say: counting a row reads the source index, so
+ * counting every candidate would cost the question a read per match.
+ */
+function published(index: SearchIndex, hits: readonly Hit[], count: number, importingOf?: ImportingOf): Matches<PublishedMatch> {
+  const order = surfaceOrder(index);
+  const page = first(hits, count, order).map((hit) => {
+    const entry = index.published(hit.row);
+    const one = importingOf?.(entry.name, entry.at, entry.specifier);
+    // With the imports within its package unread, no place found proves nothing: the row keeps the counts by published path.
+    const importedIn = one === undefined || (one.unread !== undefined && one.importing.places === 0) ? undefined : one.importing;
+    return { entry, importedIn, hit: importedIn === undefined ? hit : { ...hit, usedBy: importedIn.packages, uses: importedIn.places } };
+  });
+  if (importingOf !== undefined) page.sort((a, b) => order(a.hit, b.hit));
   return {
     total: hits.length,
-    shown: first(hits, count, surfaceOrder).map((hit) => {
-      const entry = index.published(hit.row);
-      return {
-        source: 'published',
-        name: entry.name,
-        specifier: entry.specifier,
-        kind: entry.kind,
-        ...(entry.doc === undefined ? {} : { summary: opening(entry.doc) }),
-        at: entry.at,
-        packages: entry.usedBy.length,
-        imports: entry.uses,
-        ...(hit.scoped === undefined ? {} : { inArea: hit.scoped }),
-      };
-    }),
+    shown: page.map(({ entry, importedIn, hit }) => ({
+      source: 'published',
+      name: entry.name,
+      specifier: entry.specifier,
+      kind: entry.kind,
+      ...(entry.doc === undefined ? {} : { summary: opening(entry.doc) }),
+      at: entry.at,
+      ...(importedIn === undefined ? {} : { importedIn }),
+      otherPackages: entry.usedBy.length,
+      otherImports: entry.uses,
+      ...(hit.scoped === undefined ? {} : { inArea: hit.scoped }),
+    })),
   };
+}
+
+/**
+ * The described section's {@link RowOrder}: a published row before an exported one, then {@link surfaceOrder} with the
+ * question found alike in each, or {@link exportedOrder}. The published and exported sections also put a published row
+ * first, before where the question was found; the described section puts a row's weight, then its phrase, before it.
+ */
+export function shownRowOrder(index: SearchIndex, area: Area | undefined, within: ReadonlySet<number> | undefined): RowOrder {
+  const hits = new Map<number, Hit>();
+  const hit = (row: number): Hit => {
+    const one = hits.get(row) ?? hitOf(index, row, area, within);
+    hits.set(row, one);
+    return one;
+  };
+  const publishedOrder = surfaceOrder(index);
+  const exportedRows = exportedOrder(index);
+  return (a, b) =>
+    (a.kind === b.kind ? 0 : a.kind === 'published' ? -1 : 1) ||
+    (a.kind === 'published' ? publishedOrder(hit(a.row), hit(b.row)) : exportedRows(a.row, b.row));
 }
 
 /** Every published row of the names given. */
@@ -310,13 +321,20 @@ function matched(index: SearchIndex, question: SearchQuestion, tree: Tree | unde
   const named = ascending(index.namesContaining(query), namesOfWords(index, query));
   const byName = new Set(named);
   const openings = new Set(index.docOpeningsContaining(query));
-  const field = (row: number, name: number): number => (byName.has(name) ? 0 : openings.has(row) ? 1 : 2);
+  // The name that is the question is the thing asked for, however few import
+  // it: as written first, then the same word in another case.
+  const exact = new Map<number, number>();
+  for (const name of named) {
+    const tier = exactness(index.name(name), question.query);
+    if (tier !== undefined) exact.set(name, tier);
+  }
+  const field = (row: number, name: number): number => exact.get(name) ?? (byName.has(name) ? 2 : openings.has(row) ? 3 : 4);
   const hits = surface(index, [...publishedOf(index, named), ...index.docsContaining(query)], area, within, field);
   const answered = new Set(hits.map((hit) => hit.name));
   // An exported row is reached by its doc as a published one is, and inside an
   // area only through a row whose file is in it.
   const through = docRows(index, index.exportedDocsContaining(query), within, byName);
-  const rest = exported(index, ascending(named, [...through.keys()]), answered, within, through, new Set(index.exportedDocOpeningsContaining(query)));
+  const rest = exported(index, ascending(named, [...through.keys()]), answered, within, through, new Set(index.exportedDocOpeningsContaining(query)), exact);
   return { query, area, within, named, hits, answered, rest } as const;
 }
 
@@ -344,8 +362,19 @@ export function searchedFiles(index: SearchIndex, question: SearchQuestion, tree
   return files;
 }
 
-/** The search over an opened index, and the area the text answer names. */
-export function searched(index: SearchIndex, question: SearchQuestion, tree?: Tree, root?: string): Searched {
+/**
+ * The search over an opened index, and the area the text answer names. Each
+ * published row shown is counted by `importingOf` when it is given, as `uses`
+ * counts that name.
+ */
+export function searched(index: SearchIndex, question: SearchQuestion, tree?: Tree, root?: string, importingOf?: ImportingOf): Searched {
+  const count = importingOf === undefined ? undefined : counting(importingOf);
+  const found = searchedBy(index, question, tree, root, count?.of);
+  const unread = count?.unread();
+  return unread === undefined ? found : { ...found, answer: { ...found.answer, importsUnread: unread } };
+}
+
+function searchedBy(index: SearchIndex, question: SearchQuestion, tree: Tree | undefined, root: string | undefined, importingOf: ImportingOf | undefined): Searched {
   const found = matched(index, question, tree);
   if ('refused' in found) return { answer: { query: found.query, refused: found.refused }, area: found.area };
   const { query, area, within, named, hits, answered, rest } = found;
@@ -358,12 +387,12 @@ export function searched(index: SearchIndex, question: SearchQuestion, tree?: Tr
   // is what the location reaches, and a package another workspace declares is that workspace's
   // to offer, so ownership is asked of the paths the question started at and not of the closure.
   const thirdParty = root === undefined ? undefined : queryDependencyLexicon(root, query, area === undefined ? undefined : [...area.from, ...area.to]);
-  const declared = declaredMatches(root, query, area?.files, ELSEWHERE_CAP);
+  const declared = declaredMatches(root, question.query, area?.files, ELSEWHERE_CAP);
 
   const answer: SearchAnswer = {
     query,
     ...(counted === undefined ? {} : { area: counted }),
-    published: published(index, hits, CAP),
+    published: published(index, hits, CAP, importingOf),
     exported: { total: rest.total, shown: rest.head(ELSEWHERE_CAP) },
     ...(declared === undefined ? {} : { declared }),
     ...(thirdParty === undefined ? {} : { thirdParty }),
@@ -377,14 +406,15 @@ export function searched(index: SearchIndex, question: SearchQuestion, tree?: Tr
   // The empty answer read as a description: names holding any of its words,
   // stemmed by the rule packages are.
   // A name its file keeps to itself is in no row: the source index answers for it.
-  const reached = describedNames(index, query, within, new Set([...named, ...answered]));
-  const described = reached === undefined ? undefined : [...reached, ...(describedDeclarations(root, query, area?.files) ?? [])];
-  // Which reading a name both reach is told by is decided by what each holds,
-  // never by how many rows print. A name holding at least half the stems is the
-  // described section's, which prints first, and the loose pass offers none of
-  // them a second time. A name holding fewer is the loose section's when every
-  // word reaches it there, since every word one character off says more than
-  // under half the stems do: held on so few, it would sort past the rows shown.
+  const declarations = describedDeclarations(root, query, area?.files) ?? [];
+  const reached = describedNames(index, query, within, new Set([...named, ...answered]), shownRowOrder(index, area, within), declarations);
+  const described = reached === undefined ? undefined : [...reached, ...declarations];
+  // Which reading a name both reach is told by is decided by what each holds, never
+  // by how many rows print. A name holding at least half the stems through one row
+  // is the described section's, which prints first, and the loose pass offers none
+  // of them a second time. A name holding fewer is the loose section's when every
+  // word reaches it there, since every word one character off says more than under
+  // half the stems do: held on so few, it would sort past the rows shown.
   const strong = Math.ceil(describedWordsNative(query).length / 2);
   const held = (one: Reached): boolean => one.words.length >= strong;
 
@@ -397,7 +427,7 @@ export function searched(index: SearchIndex, question: SearchQuestion, tree?: Tr
   const viaDoc = new Map<number, Set<number>>();
   const loose = looseNames(index, query, FUZZY, within, claimed, viaDoc);
   const alsoHits = loose.size === 0 ? [] : surface(index, publishedOf(index, loose), area, within);
-  const alsoFound = published(index, alsoHits, LOOSE_CAP);
+  const alsoFound = published(index, alsoHits, LOOSE_CAP, importingOf);
   const alsoRest = exported(index, loose, new Set(alsoHits.map((hit) => hit.name)), within, viaDoc);
   // A name its file keeps to itself is in no dictionary row: the source index
   // answers for it, by the same rule, after every name that is.
@@ -409,8 +439,11 @@ export function searched(index: SearchIndex, question: SearchQuestion, tree?: Tr
     .flatMap((one): DescribedMatch[] => {
       if ('match' in one) return [{ ...one.match, words: one.words }];
       if ('file' in one) return [{ ...fileMatch(root, one.file), words: one.words }];
-      const row = published(index, surface(index, index.publishedOf(one.name), area, within), 1).shown[0] ??
-        exported(index, [one.name], new Set(), within, one.through === undefined ? undefined : new Map([[one.name, new Set([one.through])]])).head(1)[0];
+      // The row it was weighed through is the row shown.
+      const { through } = one;
+      const row = through.kind === 'published'
+        ? published(index, surface(index, [through.row], area, within), 1, importingOf).shown[0]
+        : exported(index, [one.name], new Set(), within, new Map([[one.name, new Set([through.row])]])).head(1)[0];
       return row === undefined ? [] : [{ ...row, words: one.words }];
     });
   const reachedNames = [...alsoFound.shown, ...alsoRest.head(LOOSE_CAP - alsoFound.shown.length)];
@@ -457,8 +490,10 @@ function ascending(left: readonly number[], right: readonly number[]): readonly 
  * The same answer `variance ask search` prints, before it is written as text:
  * published names first, then the names the source exports without
  * publishing, then — only when both are empty — the names a looser reading
- * finds and the names that hold any of the words.
+ * finds and the names that hold any of the words. Each published row shown is
+ * counted by `importingOf` when it is given, as `uses` counts that name, and
+ * the rows shown are ordered by that count.
  */
-export function searchNames(index: SearchIndex, question: SearchQuestion, tree?: Tree, root?: string): SearchAnswer {
-  return searched(index, question, tree, root).answer;
+export function searchNames(index: SearchIndex, question: SearchQuestion, tree?: Tree, root?: string, importingOf?: ImportingOf): SearchAnswer {
+  return searched(index, question, tree, root, importingOf).answer;
 }

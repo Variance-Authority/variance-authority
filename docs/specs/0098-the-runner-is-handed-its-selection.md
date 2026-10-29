@@ -115,7 +115,7 @@ every runner's flags to pass them through.
 | Jest 30 | A `filter` module. Jest runs it before sharding, sorting and `--listTests`. | `filter` is a global setting, not a project one, so the seam sets it on the global configuration and chains the project's own. A command-line `--filter` replaces it and `--skipFilter` turns it off; either means no selection, and the seam says so on stderr. Jest 29 reads the paths a filter returns as no files, so the seam declares `jest ^30.0.0` as a peer and a selecting configuration under an older Jest throws while it loads, naming the version. |
 | Vitest 2–5 | A `sequence.sequencer` that wraps the project's sequencer and removes skipped specifications before calling its `shard` and `sort`. Vitest publishes no filter hook in any major. | The sequencer is read from the root configuration only, so under `projects` the seam wraps the root. Reporters are handed the collected paths, skipped files included (`onPathsCollected` in 2, `onTestRunStart` in 4); the summary's "Test Files" count is the run's. The run the seam records is the set the sequencer kept, not the paths reporters were handed. |
 | Rstest | None found. The seam's `include` decides which bundled modules are product source, for instrumentation, and drops no test file. | Unresolved; out of the first cut until a drop point is named. |
-| Playwright Test | `--test-list-invert <file>`, a skip list as a file. | The flag, not a config hook, so the seam cannot add it alone. It matches paths relative to the config's `rootDir`, compares every test against every entry, and loads files before it drops them: the path-form and quadratic costs this spec refuses for Vitest's `test.exclude`. Out of the first cut. |
+| Playwright Test | `testIgnore`: a `RegExp` whose `test` looks the file up in the skip set. Playwright asks each project's `testIgnore` about every file it finds, before it loads one and before it places a shard. | Playwright publishes no filter hook, and `--test-list-invert` is a flag that loads files first and compares every test against every entry, so the seam takes `testIgnore`. A project's own `testIgnore` replaces the top level's, so the seam appends to each one a project sets. The configuration is evaluated synchronously, so the selection is read in a `globalSetup` the seam puts ahead of the project's own, which runs in the same process before files are collected. `--list` runs no global setup and does not select; the seam says so. The pattern's source matches nothing, so a copy serialized to a worker drops nothing. |
 | `./runner` | The `skip` function, exported as it is. The author drops files where their runner discovers them, as they place the four existing calls. | Nothing new. |
 
 Runner versions are known in the seam for that runner and nowhere else. A
@@ -139,7 +139,9 @@ own; Vitest 3 and 4 decide after, so the Vitest seam sets `passWithNoTests` on
 that run's config when the selection dropped files and left the run, or its
 shard, none. A run that drops nothing keeps the project's setting. The Jest seam
 does not set it yet, and Jest exits 1 there unless the project set
-`passWithNoTests`.
+`passWithNoTests`. Playwright reads `passWithNoTests` from the command line
+only, so its reporter turns a failed run whose one error is "No tests found"
+into a passed one when the selection kept no file.
 
 ### One selection per commit and record
 
@@ -248,7 +250,10 @@ These are the owner's to decide; each has a recommendation.
    `--changed` makes the same choice.
 6. **Runners in the first cut.** Jest and Vitest (recommended: they have a drop
    point that costs nothing per file; Rstest has none named and Playwright's
-   brings back the costs refused above), or all four together.
+   brings back the costs refused above), or all four together. Answered for
+   Playwright: `testIgnore` is a drop point that costs one lookup a file and
+   loads nothing, so it selects. Rstest still has none named and does not
+   select.
 7. **The deprecation window** for `--format vitest|jest`: one minor release
    (recommended: the documented loop uses them, so a reader gets one release of
    the message naming the variable), or removal in the change that lands item 1.

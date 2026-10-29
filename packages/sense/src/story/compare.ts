@@ -166,9 +166,6 @@ export function compareLoaded(root: string, sides: readonly LoadedSide[]): Compa
   const said = steady(reads, (read) => read.said);
   const order = orderedPairs(reads);
   const groups = [...new Set([...places.held.keys(), ...said.held.keys()])].sort(bySides);
-  // A group is first in the order the newest reading of its first side reached it.
-  const arrival = (group: string, prefix: string) => (key: string): number =>
-    reads[Number(group.split(',')[0])]![0]?.first.get(`${prefix}${key}`) ?? Infinity;
   const named = (positions: readonly number[]): string[] => positions.map((at) => sides[at]!.name);
 
   return {
@@ -177,8 +174,8 @@ export function compareLoaded(root: string, sides: readonly LoadedSide[]): Compa
     sides: sides.map(summary),
     only: groups.map((group) => ({
       sides: named(group.split(',').map(Number)),
-      places: arrived(places.held.get(group) ?? [], arrival(group, 'r')).map((key) => names.get(key)!),
-      said: arrived(said.held.get(group) ?? [], (key) => arrival(group, 's')(textOf(key))).map(shownSaid),
+      places: (places.held.get(group) ?? []).map((key) => names.get(key)!),
+      said: (said.held.get(group) ?? []).map(shownSaid),
     })),
     orders: order.differing.map(({ pair: [first, then], before }) => ({
       pair: [moments.get(first)!, moments.get(then)!] as const,
@@ -312,6 +309,9 @@ function ifLine(arm: string, regions: readonly Region[], at: readonly string[]):
  * What every reading of some sides has and no reading of the rest, by the
  * positions of the sides that hold it joined by commas; and how many things
  * some side has on some of its readings only. What every side holds is no difference.
+ * A group's keys come in the order the newest reading of its first side
+ * reached them: no side before that one holds them, and that reading holds
+ * every one, so it is where each is first met.
  */
 function steady(sides: readonly (readonly Read[])[], of: (read: Read) => ReadonlySet<string>): { held: Map<string, string[]>; unsteady: number } {
   const held = new Map<string, string[]>();
@@ -328,11 +328,6 @@ function steady(sides: readonly (readonly Read[])[], of: (read: Read) => Readonl
     held.set(group, [...held.get(group) ?? [], key]);
   }
   return { held, unsteady };
-}
-
-/** Keys in the order `arrival` puts them, a key with no arrival last, ties by code unit. */
-function arrived(keys: readonly string[], arrival: (key: string) => number): string[] {
-  return [...keys].sort((left, right) => arrival(left) - arrival(right) || (left < right ? -1 : left > right ? 1 : 0));
 }
 
 /**

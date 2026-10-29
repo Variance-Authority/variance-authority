@@ -45,6 +45,19 @@ async function ask(...flags: readonly string[]) {
   )));
 }
 
+describe('the whole-file answer over a range that only ran while its module loaded', () => {
+  it('says it is loaded once, and never calls it a hole beneath that', async () => {
+    const answer = await ask();
+    const stopped = [{ id: 'b.test.ts > throws', file: 'b.test.ts', name: 'throws', stopped: true }];
+    const ranges = [{ startLine: 1, endLine: 2, state: 'loaded' as const, loaded: true as const, tests: [], stopped }];
+
+    const text = formatCovering({ ...answer, ranges }, 'text');
+
+    expect(text).toContain('lines 1-2 — loaded\n');
+    expect(text).not.toContain('a hole');
+  });
+});
+
 describe('the whole-file answer over a one-line region no case entered', () => {
   it('gives the region its own range and says nobody entered it', async () => {
     const answer = await ask();

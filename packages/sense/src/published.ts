@@ -22,6 +22,7 @@
 import { resolve } from 'node:path';
 import type { FileRecord, Uses } from '@variance-authority/core/relate';
 import type { Digest } from '@variance-authority/core/format';
+import { codeUnitOrder } from '@variance-authority/core/segment';
 import type { ParseCache, ParseKey, Parsed } from './cache.js';
 import { seedPaths } from './files.js';
 import type { NativeGitTree } from './native.js';
@@ -77,7 +78,7 @@ export async function readPublishedSources(path: string): Promise<PublishedSourc
     ...(file.written === undefined ? {} : { written: file.written }),
     records: [...stored.records.values()]
       .map((held) => held.record)
-      .sort((left, right) => left.file < right.file ? -1 : left.file > right.file ? 1 : 0),
+      .sort((left, right) => codeUnitOrder(left.file, right.file)),
     cache,
     generation: file.generation,
     uses: usesOf(stored.records, cache),

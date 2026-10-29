@@ -20,10 +20,11 @@
 
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { codeUnitOrder } from '@variance-authority/core/segment';
 import type { InstrumentMode, ModuleId } from '../instrument/index.js';
 import { native, nativeRefusal } from '../addon.js';
 import { captureModule, heldOriginal, pathOf } from './captured-modules.js';
-import { codeUnitOrder, fileOrNone, type CapturedModule, type ReadJournal } from './instrumented-modules.js';
+import { fileOrNone, type CapturedModule, type ReadJournal } from './instrumented-modules.js';
 import { isWritten } from './written-lines.js';
 
 /** Where one reading's ordinals are in its file's record. */

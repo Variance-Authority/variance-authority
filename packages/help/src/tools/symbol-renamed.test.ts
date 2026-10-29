@@ -101,9 +101,10 @@ it('follows the original of a local name that a file only passes on to its decla
     [
       'exported, without being published, at packages/beta/src/relay.ts:1 by beta',
       'It passes on `inner`, declared at packages/beta/src/inner.ts:1:',
-      'export const inner = (text: string): string => text;',
+      'const inner = (text: string): string =>',
     ].join('\n'),
   );
+  expect(out).not.toContain('export const inner');
   const { files } = symbol.files!(readHelp(root), { name: 'echo' }, { root });
   expect(Object.fromEntries(files)).toEqual({ 'packages/beta/src/echo.ts': [1], 'packages/beta/src/inner.ts': [1], 'packages/beta/src/relay.ts': [1] });
 });

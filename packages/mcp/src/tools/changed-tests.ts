@@ -42,14 +42,22 @@ export const changedTests: Tool<ExecutionIndex> = {
     required: ['diff'],
     additionalProperties: false,
   },
-  run(index, input) {
+  // Every diff names files, and the graph that says which test files mocked them is the tree's.
+  wants: () => true,
+  run(index, input, invocation) {
     const changed = changedLines(stringArg(input, 'diff'));
     if (changed.size === 0) {
       return 'That diff names no changed file, so there is no region to ask about.';
     }
-    // TODO: pass `{ relations }` so a case whose file mocked the changed module is not
-    // listed under it, and a region that ran while its module evaluated names the cases
-    // that loaded it, as `variance covering --since` does; needs the host to hold the file graph.
-    return formatCoveringChange(coveringChange(index, changed));
+    // The graph carries the mocks, as it does for `variance covering --since`: a case whose
+    // file mocked the changed module is not listed under it, and a region that ran while its
+    // module evaluated names the cases that loaded it.
+    const relations = invocation?.tree?.relations;
+    const answer = coveringChange(index, changed, relations === undefined ? {} : { relations });
+    const text = formatCoveringChange(answer);
+    const carried = answer.some((file) => file.regions.some((region) => (region.passengers?.length ?? 0) > 0));
+    return relations === undefined && carried
+      ? `${text}\n\nNo file graph was read, so a case carried in while a module evaluated is listed even where its file mocked that module. A host that hands the server the tree \`readTree\` reads gives it the graph.`
+      : text;
   },
 };

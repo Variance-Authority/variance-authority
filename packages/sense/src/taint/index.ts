@@ -84,6 +84,7 @@
 import { readFile } from 'node:fs/promises';
 import { extname, join, resolve } from 'node:path';
 import type { FileRecord } from '@variance-authority/core/relate';
+import { codeUnitOrder } from '@variance-authority/core/segment';
 import { parseSync, rawTransferSupported, type ParserOptions } from 'oxc-parser';
 import type { ParseCache, Parsed } from '../cache.js';
 import type { Digest } from '../digest.js';
@@ -94,7 +95,7 @@ import { realPath, resolversFor, type ResolveOptions } from '../resolve.js';
 import { withDeclaredTsconfig } from '../typescript.js';
 import { worldIn } from '../world.js';
 import { rememberDiff, rememberedDiff } from './cache.js';
-import { applied, byCodeUnit, reach, targetFrom, type Said } from './join.js';
+import { applied, reach, targetFrom, type Said } from './join.js';
 
 /** The tree as it is actually read — by name, one level at a time. */
 export interface Node {
@@ -258,7 +259,7 @@ export async function taintRecords(
     }
   }
 
-  for (const file of [...unwalked].sort(byCodeUnit)) {
+  for (const file of [...unwalked].sort(codeUnitOrder)) {
     joined.push({
       file,
       unknown: `${file} is named by a taint addition and is outside the scanned directories: nothing read it, so its own imports are unknown`,

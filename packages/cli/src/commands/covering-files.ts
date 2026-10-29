@@ -71,3 +71,18 @@ function nearestFirst(left: CoveringFile, right: CoveringFile): number {
   if (left.cases !== right.cases) return right.cases - left.cases;
   return left.file < right.file ? -1 : left.file > right.file ? 1 : 0;
 }
+
+/**
+ * The cases under the test file that declares them, in the order of the
+ * answer's file rows, nearest first, then any file the rows leave out, in the
+ * order its cases come.
+ */
+export function casesByFile(tests: readonly CoveringTest[], files: readonly CoveringFile[]): ReadonlyMap<string, readonly CoveringTest[]> {
+  const byFile = new Map<string, CoveringTest[]>(files.map((row) => [row.file, []]));
+  for (const test of tests) {
+    const held = byFile.get(test.file);
+    if (held === undefined) byFile.set(test.file, [test]);
+    else held.push(test);
+  }
+  return byFile;
+}

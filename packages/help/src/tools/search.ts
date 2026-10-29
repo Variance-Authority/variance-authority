@@ -5,9 +5,11 @@ import type { SearchIndex } from '../search-index.js';
 import { encodeSearchIndex, openSearchIndex } from '../search-index.js';
 import { areaLine } from './area.js';
 import { describedLine, thirdLine, thirdScope } from './third-party.js';
-import type { DeclaredMatch, DescribedMatch, ExportedMatch, FileMatch, PublishedMatch } from './search-answer.js';
+import type { DeclaredMatch, DescribedMatch, ExportedMatch, FileMatch, PublishedMatch, SearchQuestion } from './search-answer.js';
 import { declaredLine, unreadLine } from './declared.js';
 import { searched, searchedFiles } from './search-answer.js';
+import { type ImportingOf, importingOf } from './published-match.js';
+import { byPublishedPath, plural } from './format.js';
 
 /**
  * `docs_search` — the name for a thing somebody can only describe.
@@ -16,9 +18,10 @@ import { searched, searchedFiles } from './search-answer.js';
  * it; and several words, over the words a name is written in, each word
  * matching one that starts with it or shares its stem. A match there is a fact
  * about the text, so it is reported first and whole, ordered first by where it
- * was found — the name, the doc's opening paragraph, the rest of the doc — and
- * then by who imports it: a name holding the word is that thing, and a doc
- * saying it three paragraphs down only mentions it.
+ * was found — the whole name, as written and then in another case, part of the
+ * name, the doc's opening paragraph, the rest of the doc — and then by who
+ * imports it: a name that is the word is what was asked for, a name holding it
+ * is that thing, and a doc saying it three paragraphs down only mentions it.
  *
  * ## Two halves, because most code is not published
  *
@@ -101,21 +104,28 @@ import { searched, searchedFiles } from './search-answer.js';
  * did not type and can never reach a file they ruled out.
  */
 
-/** One published match, as the text answer has always written it. */
+/**
+ * Who imports a published match, each count saying what it counts: the places
+ * and the packages they sit in, as `uses` counts them; or, given without the
+ * Help value, the imports from other packages by a published specifier.
+ */
+function importedLine(match: PublishedMatch): string {
+  const { importedIn } = match;
+  if (importedIn !== undefined) {
+    return importedIn.places === 0 ? 'imported nowhere' : `imported in ${plural(importedIn.places, 'place')} in ${plural(importedIn.packages, 'package')}`;
+  }
+  return byPublishedPath(match.otherImports, match.otherPackages);
+}
+
+/** One published match: where it is published, what it is, who imports it, and what its doc says first. */
 function publishedLine(match: PublishedMatch): string {
   const { inArea } = match;
   const said = match.summary ?? 'UNDOCUMENTED';
-  if (inArea === undefined) {
-    return `${match.specifier} · ${match.name} [${match.kind}] ${match.packages} packages, ${match.imports} imports — ${said}`;
-  }
+  if (inArea === undefined) return `${match.specifier} · ${match.name} [${match.kind}] ${importedLine(match)} — ${said}`;
   const distances = inArea.filesByDistance.map(([at, files]) => `${at}: ${files}`).join(', ');
-  const fileWord = inArea.files === 1 ? 'file' : 'files';
-  const importWord = inArea.imports === 1 ? 'import' : 'imports';
-  const packageWord = match.packages === 1 ? 'package' : 'packages';
-  const globalImportWord = match.imports === 1 ? 'import' : 'imports';
   return (
-    `${match.specifier} · ${match.name} [${match.kind}] ${inArea.files} ${fileWord}, ${inArea.imports} ${importWord} in this area ` +
-    `(files by distance: ${distances}); globally ${match.packages} ${packageWord}, ${match.imports} ${globalImportWord} — ${said}`
+    `${match.specifier} · ${match.name} [${match.kind}] ${plural(inArea.files, 'file')}, ${plural(inArea.imports, 'import')} in this area ` +
+    `(files by distance: ${distances}); across the repository ${importedLine(match)} — ${said}`
   );
 }
 
@@ -158,10 +168,15 @@ export function searchIndexOf(help: Help): SearchIndex {
   return index;
 }
 
+/** The question `search` is asked by `input`, as its schema accepted it. */
+export function searchQuestionOf(input: Readonly<Record<string, unknown>>): SearchQuestion {
+  return { query: stringArg(input, 'query'), from: startPointArg(input, 'from'), to: startPointArg(input, 'to') };
+}
+
 /** The search over an opened index — what `docs_search` answers, without the Help value. */
-export function answerSearch(index: SearchIndex, input: Readonly<Record<string, unknown>>, tree?: Tree, root?: string): string {
-  const question = { query: stringArg(input, 'query'), from: startPointArg(input, 'from'), to: startPointArg(input, 'to') };
-  const { answer, area } = searched(index, question, tree, root);
+export function answerSearch(index: SearchIndex, input: Readonly<Record<string, unknown>>, tree?: Tree, root?: string, importing?: ImportingOf): string {
+  const question = searchQuestionOf(input);
+  const { answer, area } = searched(index, question, tree, root, importing);
   const { query } = answer;
   if (area?.refused !== undefined) return areaLine(area);
 
@@ -169,7 +184,10 @@ export function answerSearch(index: SearchIndex, input: Readonly<Record<string, 
   const rest = answer.exported ?? { total: 0, shown: [] };
   const looser = answer.loose?.total ?? 0;
   const third = answer.thirdParty;
-  const missing = root !== undefined && third === undefined ? ['', 'Dependency lexicon not published; run `variance index` to prepare it.'] : [];
+  const lexicon = root !== undefined && third === undefined ? ['', 'Dependency lexicon not published; run `variance index` to prepare it.'] : [];
+  // Said once, as `uses` says it, below the rows it leaves short.
+  const unreadImports = answer.importsUnread === undefined ? [] : ['', `Imports that do not name a package path are not counted: ${answer.importsUnread}.`];
+  const missing = [...unreadImports, ...lexicon];
   const thirdSection = third === undefined ? [] : third.total === 0 ? ['', `No third-party name matches \`${query}\`. ${thirdScope(third.scope)}`] : [
     '',
     `${third.total} third-party ${third.total === 1 ? 'name' : 'names'} match \`${query}\`, ` +
@@ -311,8 +329,9 @@ export const search: Tool<Help> = {
   description:
     'Find names whose name or documentation contains a string, case-insensitive, or whose words ' +
     'start with or share the stem of every word you typed. Published names come first, a name holding ' +
-    'your words before a doc opening with them before a doc saying them later, then by how many ' +
-    'packages import them, each carrying the import specifier it ' +
+    'your words before a doc opening with them before a doc saying them later, then by the other packages ' +
+    'that import them by a published path; the names on the page are then ordered by the packages, then the places, ' +
+    'that import them, each labelled with those places and packages as docs_uses counts them, and carrying the import specifier it ' +
     'is published from so it can be passed straight to docs_symbol. Names the repository exports ' +
     'but does not publish follow, with the file and line that exports them, then names a file ' +
     'declares at its top level without exporting, by their names or their documentation, with the file and line that declare them. Installed third-party ' +
@@ -365,9 +384,9 @@ export const search: Tool<Help> = {
   // path and never on the way past.
   wants: (input) => startPointArg(input, 'from') !== undefined || startPointArg(input, 'to') !== undefined,
 
-  run: (help, input, invocation) => answerSearch(searchIndexOf(help), input, invocation?.tree, invocation?.root),
+  run: (help, input, invocation) => answerSearch(searchIndexOf(help), input, invocation?.tree, invocation?.root, importingOf(help, invocation?.root)),
 
   files: (help, input, invocation): FileSet => ({
-    files: searchedFiles(searchIndexOf(help), { query: stringArg(input, 'query'), from: startPointArg(input, 'from'), to: startPointArg(input, 'to') }, invocation?.tree),
+    files: searchedFiles(searchIndexOf(help), searchQuestionOf(input), invocation?.tree),
   }),
 };

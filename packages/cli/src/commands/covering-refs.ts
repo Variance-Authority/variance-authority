@@ -17,7 +17,7 @@ import { regionKind } from './review-scope.js';
 import { hopsText, narrowedText, probesText, scopeText } from './covering-text.js';
 import { staleLines } from './covering-stale.js';
 import type { Covering, StatedRegion } from './covering.js';
-import { heldText, unenteredState } from '@variance-authority/sense/test-selection';
+import { heldText, reachOf } from '@variance-authority/sense/test-selection';
 import { whereText } from './covering-where.js';
 
 type Case = Pick<ExecutionTest, 'id' | 'file' | 'name' | 'said'>;
@@ -101,8 +101,8 @@ function rangeLine(range: CoveringRange, table: Table): string {
 
 /** Why nobody entered a region, in the state word a range with no case would carry: ` unwalked`, ` hole, stopped first …`, or nothing. */
 function whyNobodyEntered(region: Unentered, table: Table): string {
-  const state = unenteredState(region.stopped);
-  return state === undefined ? '' : state === 'hole' ? ` hole, stopped first ${table.refs(region.stopped ?? [])}` : ` ${state}`;
+  const state = reachOf({ tests: [], ...(region.stopped === undefined ? {} : { stopped: region.stopped }) });
+  return state === 'unknown' ? '' : state === 'hole' ? ` hole, stopped first ${table.refs(region.stopped ?? [])}` : ` ${state}`;
 }
 
 function regionLine(region: StatedRegion, table: Table): string {

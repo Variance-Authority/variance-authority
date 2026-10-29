@@ -12,8 +12,8 @@
  * entered, and ranges fold only where that list agrees.
  */
 
-import type { ExecutionBlock, ExecutionIndex, ExecutionTest } from './reverse.js';
-import { outside } from './stopped.js';
+import { reachOf, type ReachRecord } from './range-state.js';
+import type { ExecutionBlock, ExecutionTest } from './reverse.js';
 
 /** A region with source that no case entered, where it is recorded. */
 export interface Unentered {
@@ -30,24 +30,26 @@ export interface Unentered {
  * Of `blocks`, the ones with source no case entered, by call or while their
  * module evaluated, each with the stopped cases that could have reached it;
  * absent when there are none, or when the range names no case and so already
- * says nobody entered it.
+ * says nobody entered it. Whether a block was entered is `reachOf` over the
+ * record `recordOf` reads for it, the reading every covering answer shares.
  */
 export function unenteredOn(
-  index: ExecutionIndex,
-  stopped: ReadonlySet<number> | undefined,
   blocks: readonly ExecutionBlock[],
   named: number,
+  recordOf: (block: ExecutionBlock) => ReachRecord,
 ): readonly Unentered[] | undefined {
   if (named === 0) return undefined;
-  const found = blocks
-    .filter((block) => block.source && block.loaded !== true && block.crossings.length === 0)
-    .map((block): Unentered => {
-      const short = outside(index, stopped, [block]);
-      return {
-        kind: block.kind, name: block.name, path: block.path, startLine: block.startLine, endLine: block.endLine,
-        ...(short === undefined ? {} : { stopped: short }),
-      };
+  const found: Unentered[] = [];
+  for (const block of blocks) {
+    if (!block.source) continue;
+    const record = recordOf(block);
+    const reach = reachOf(record);
+    if (reach === 'entered' || reach === 'loaded') continue;
+    found.push({
+      kind: block.kind, name: block.name, path: block.path, startLine: block.startLine, endLine: block.endLine,
+      ...(record.stopped === undefined ? {} : { stopped: record.stopped }),
     });
+  }
   return found.length === 0 ? undefined : found;
 }
 

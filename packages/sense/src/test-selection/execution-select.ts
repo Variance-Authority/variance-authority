@@ -38,12 +38,13 @@
  */
 
 import { RUNTIME_EDGES, affectedBy, dependentsOf, idOf, type Relations } from '@variance-authority/core/relate';
+import { codeUnitOrder } from '@variance-authority/core/segment';
 import { blocksChargedAt } from './blocks-around.js';
 import type { LineRange } from './diff-lines.js';
-import { ownedIn, type ExecutionIndex, type ExecutionModule } from './reverse.js';
+import type { ExecutionIndex, ExecutionModule } from './reverse.js';
 import type { ExecutionNarrowing } from './narrowing.js';
 import { ignoredBy, routeOf, type Unmeasured } from './route.js';
-import { shadowedFor } from './shadowed.js';
+import { ownedIn, shadowedFor } from './shadowed.js';
 
 export interface JourneySelectionOptions {
   /**
@@ -207,8 +208,4 @@ function enterEvery(index: ExecutionIndex, module: ExecutionModule, owned: Retur
   for (const block of module.blocks) {
     for (const crossing of block.crossings) if (own(crossing)) entered.add(index.tests[crossing.test]!.file);
   }
-}
-
-function codeUnitOrder(left: string, right: string): number {
-  return left < right ? -1 : left > right ? 1 : 0;
 }

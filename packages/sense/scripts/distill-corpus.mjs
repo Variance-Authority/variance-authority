@@ -16,6 +16,7 @@ import { execFileSync } from 'node:child_process';
 import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { codeUnitOrder } from '@variance-authority/core/segment';
 
 const args = Object.fromEntries(
   process.argv.slice(2).reduce((pairs, word, at, all) => (word.startsWith('--') ? [...pairs, [word.slice(2), all[at + 1]]] : pairs), []),
@@ -199,7 +200,7 @@ for (const [order, test] of tests.entries()) {
   }
 }
 
-const order = [...held.keys()].sort((left, right) => (modules[left].file < modules[right].file ? -1 : 1));
+const order = [...held.keys()].sort((left, right) => codeUnitOrder(modules[left].file, modules[right].file));
 const digest = (id) => id.toString(16).padStart(16, '0');
 const coverage = {
   version: 3, instrumentation: 'synthetic-istanbul', commit: COMMIT, tests: testRows,

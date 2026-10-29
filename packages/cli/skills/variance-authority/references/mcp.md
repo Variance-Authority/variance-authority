@@ -69,6 +69,8 @@ verb: `docs_slowest_tests` is `slowest-tests`, `docs_journey_map` is
 `OBSERVABILITY` tool set that `@variance-authority/mcp/protocol` exports. None
 of the servers above serves them. A host serves them by passing that set to
 `serve` from `@variance-authority/mcp` with its own `ObservabilitySubject`, as
-the package README shows. On such a connection, ask `variance_observability`
+the package README shows. Hand `serve` a `tree` and a `root` as well:
+`variance_changed_tests` reads the file graph off the tree, and without it a case
+whose file mocked a changed module is listed under it. On such a connection, ask `variance_observability`
 first to see which domains are present; [distill](distill.md) and
 [covering](covering.md) own the questions behind the others.

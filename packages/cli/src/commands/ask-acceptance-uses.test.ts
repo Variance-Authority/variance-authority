@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { indexAcceptance } from './ask-acceptance.fixture.js';
+import { run } from './ask-packages-fixture.js';
 import { filesOf, uses } from './ask-facts.fixture.js';
 
 /**
@@ -63,9 +64,22 @@ describe('ask uses', () => {
     ]);
   });
 
-  it.todo('never lists the importers of one declaration under another of the same name (`Coverage`) — needs importers grouped by the declaration their specifier resolves to');
+  it('never lists the importers of one published declaration under another of the same name', async () => {
+    const { uses: found, namesakes } = await uses('Coverage');
+    expect([filesOf(found), ...namesakes.map((one) => filesOf(one.uses))].sort()).toEqual([['apps/app/src/covered.ts'], ['apps/app/src/reviewed.ts']]);
+    expect(namesakes.map((one) => one.at)).toEqual([expect.stringMatching(/^packages\/(?:core\/src\/tree|review\/src\/index)\.ts$/u)]);
+  });
   it.todo('counts a name read off an `export * as` namespace (`text.shout` in loud.ts) — needs reads off a namespace import recorded as uses of the member read');
-  it.todo('follows a namespace passed on whole to where it is read, instead of answering "may read it" — needs the namespace followed into the function it is passed to, where that function reads the name off its parameter by syntax alone');
+  it('follows a namespace passed to a function the file declares to where that function reads it, and says "may read it" only where it goes further', async () => {
+    const handed = async (name: string): Promise<string[]> =>
+      (await run(['ask', 'uses', '--name', name, '--limit', '1000'])).out.split('\n').filter((line) => line.startsWith('apps/app/src/handed.ts:'));
+    expect(await handed('left')).toEqual([
+      'apps/app/src/handed.ts:8 — @acme/app (namespace, line 1)',
+      'apps/app/src/handed.ts:11 — @acme/app (import() on line 4)',
+      'apps/app/src/handed.ts:12 — @acme/app (namespace, line 1, passed on whole: may read it)',
+    ]);
+    expect(await handed('right')).toEqual(['apps/app/src/handed.ts:12 — @acme/app (namespace, line 1, passed on whole: may read it)']);
+  });
   it.todo('counts a destructured dynamic import (`const { greet } = await import(...)`) — needs destructuring of an `await import()` recorded as named imports');
   it.todo('does not mark `typeof lib.x` type-only — needs `typeof` in a type position told apart from a type-only import');
   it.todo('answers a module path (`packages/kit/src/money/tax.ts`) by the files importing it, on every surface — needs `uses` to accept a path and answer the importers of that file');

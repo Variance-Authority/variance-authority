@@ -188,6 +188,8 @@ export interface Named {
   readonly type: boolean;
   /** Whether the exporting file is a story, a test, or ordinary source. */
   readonly kind: UseKind;
+  /** The name the export binds in its own file — `greet` for `export { greet as hello }` and `export default greet`, `default` for an anonymous `export default`; absent for `export … from`, which binds nothing of its own. */
+  readonly bound?: string;
   /** The kind of the declaration the export binds in its own file, as the parse records it (`function`, `class`, `const` …); absent for `export … from`, whose declaration is another file's. */
   readonly declaration?: string;
   /** The doc comment above the export statement, or above the declaration `export { x }` binds, undented; absent when there is none. */
@@ -274,6 +276,8 @@ export interface Exported {
   readonly line: number;
   /** `export type { x }` and `export { type x }` alike. */
   readonly type: boolean;
+  /** The name the export binds in its own file — `greet` for `export { greet as hello }` and `export default greet`, `default` for an anonymous `export default`; absent for `export … from`, which binds nothing of its own. */
+  readonly bound?: string;
   /** The kind of the declaration the export binds in its own file, as {@link Named} carries it; absent for `export … from`. */
   readonly declaration?: string;
   /** The doc comment above the export statement, or above the declaration `export { x }` binds, undented; absent when there is none. */
@@ -310,6 +314,7 @@ export function usageFrom(opened: ReadonlySet<string>, files: Iterable<Recorded>
         line: published.line,
         type: published.type,
         kind,
+        ...(published.bound === undefined ? {} : { bound: published.bound }),
         ...(published.declaration === undefined ? {} : { declaration: published.declaration }),
         ...(published.doc === undefined ? {} : { doc: published.doc }),
       });
@@ -331,6 +336,17 @@ export function usageFrom(opened: ReadonlySet<string>, files: Iterable<Recorded>
   }
 
   return usage.read();
+}
+
+/**
+ * The name an export binds in its own file, which `Named.bound` carries: its
+ * local name, the slot `default` for an anonymous `export default`, and none
+ * for a name the file imports, which binds nothing of its own. One rule for
+ * every reader of exports.
+ */
+export function ownBinding(local: string | null | undefined, imported: ReadonlySet<string>): string | undefined {
+  const name = local ?? 'default';
+  return imported.has(name) ? undefined : name;
 }
 
 /** The `local` of a use of `bound`, when its statement renames it. */

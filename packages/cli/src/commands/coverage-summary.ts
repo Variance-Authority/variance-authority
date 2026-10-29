@@ -79,3 +79,10 @@ export function grouped(value: number): string {
 function files(count: number): string {
   return `${grouped(count)} file${count === 1 ? '' : 's'}`;
 }
+
+/** Columns padded to the widest cell, with no trailing space. */
+export function table(rows: readonly (readonly string[])[]): readonly string[] {
+  const widths: number[] = [];
+  for (const row of rows) row.forEach((cell, at) => (widths[at] = Math.max(widths[at] ?? 0, cell.length)));
+  return rows.map((row) => row.map((cell, at) => cell.padEnd(widths[at]!)).join('  ').trimEnd());
+}

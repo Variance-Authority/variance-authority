@@ -87,7 +87,7 @@ export interface Parsed {
    */
   readonly memberUses?: readonly MemberUse[];
   /**
-   * Every line that uses a name the file declares at its top level, by scope
+   * Every line that uses a name the file declares at its top level or binds by an import, by scope
    * rather than by import. Absent when there are none, and absent from any
    * reader but the native module reader and the Rust one.
    */
@@ -161,7 +161,7 @@ export interface MemberUse {
   readonly line: number;
   /** The type's name as the file writes it: its own declaration's, or the local name of an import. */
   readonly of: string;
-  readonly how: 'destructure' | 'read' | 'write';
+  readonly how: 'destructure' | 'implement' | 'read' | 'write';
 }
 
 /** One function a function's body declares, with the function that holds it. */
@@ -179,7 +179,7 @@ export interface NestedDeclaration {
   readonly holderLine: number;
 }
 
-/** One line that uses a name its file declares at its top level. */
+/** One line that uses a name its file declares at its top level or binds by an import. */
 export interface OwnUse {
   readonly name: string;
   readonly line: number;

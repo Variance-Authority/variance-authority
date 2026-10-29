@@ -75,12 +75,14 @@ member of an interface, a type literal or a class is never imported: `uses`
 names where a member by that name is declared, after any imports, and under
 each declaration the lines that call, read, write or destructure it through a
 value whose type the line writes, joined to that declaration through the import that
-binds the type's name. A line whose value's type a checker would infer, or a JSX
-attribute, is not in that list, and the answer ends by saying so and naming the
+binds the type's name, and the members of the classes that write `implements`
+of that declaration. A line whose value's type a checker would infer, a JSX
+attribute, or an object that implements the member with no type on its line,
+such as one passed as `deps:`, is not in that list, and the answer ends by saying so and naming the
 declaration's `file:line`, or with several declarations the one you
 pick from its list, for
-find-references in that language's tooling, TypeScript's language
-service for JavaScript and TypeScript, which lists those uses. Members are read
+find-references and go-to-implementation in that language's tooling, TypeScript's language
+service for JavaScript and TypeScript, which lists those uses and implementations. Members are read
 from JavaScript and TypeScript files only, so a Python class's methods and a
 Rust struct's fields and `impl` methods are not; top-level declarations are read in
 every language the index reads, Python, Rust, Java, Kotlin and Swift
@@ -313,9 +315,10 @@ the sites arrive ordered by how many leading path segments they share with it.
 Each kind of site, and each list after the imports, shows twelve and counts the
 rest; pass `limit` to show more.
 
-`docs_uses` lists the imports within the name's own package too: every import
+`docs_uses` lists the imports within the name's own package too, counted and
+listed apart from the ones from other packages: every import
 that resolved to the file declaring it, or to a file that passes it on with
-`export … from`. That file is followed under the name it exports and is not
+`export … from`. Each import that binds a name ends with the lines its file uses it on. That file is followed under the name it exports and is not
 listed itself, in another package as well, so an import through a barrel is
 counted once. A site that knows the name by another one is marked with it,
 `(as salute)`: an import that renames it with `as`, or an import of a re-export
@@ -434,9 +437,14 @@ the reader cannot tell which module the value came from, not because the line
 reads no name. A name read off the module's
 `default` is marked "through `default`": `default` holds the name only when the
 module is CommonJS, so the line may read it and is counted apart from the
-imports. A module your code passes on whole —
-to a call, a property or a return — may read any name it exports, because what
-the receiver reads is out of the file's sight. It is listed as a site that may
+imports. A module your code hands to a function the same file declares, as
+`count(lib)` with `function count(held)`, is followed into that function, and
+what it reads off the parameter is what the line reads, not a type-only read,
+whatever the parameter's type says. A parameter the function writes to is not
+followed. A module that goes on
+whole anywhere else — to a call the file does not declare, a property or a
+return — may read any name it exports, because what the receiver reads is out
+of the file's sight. It is listed as a site that may
 read the name, marked "passed on whole", and counted apart too. Neither is an
 import of the name, so neither makes a name look used, and a name with only
 these is unknown rather than unused: the catalogue says where it may be read.

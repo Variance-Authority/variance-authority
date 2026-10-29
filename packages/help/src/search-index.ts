@@ -30,11 +30,14 @@ export type { SearchGeneration };
 
 // The layout is written by `help_search.rs` in the sense addon.
 const MAGIC = 0x53484156; // "VAHS", little-endian
-const VERSION = 3;
+const VERSION = 4;
 const NONE = 0xffffffff;
 
-/** The tokenizer MiniSearch applies by default, which the loose pass was built with. */
-export const SPACE_OR_PUNCTUATION = /[\n\r\p{Z}\p{P}]+/u;
+/**
+ * The tokenizer MiniSearch applies by default, which the loose pass was built
+ * with, and the backtick, a symbol that delimits a code span and is never a word's.
+ */
+export const SPACE_OR_PUNCTUATION = /[\n\r\p{Z}\p{P}`]+/u;
 
 /** A query's terms: the tokens it was typed in, short ones dropped, the rest lowercased. */
 export function tokensOf(text: string): readonly string[] {
@@ -148,7 +151,6 @@ export interface SearchIndex {
   fileIds(paths: Iterable<string>): ReadonlySet<number>;
   file(id: number): string;
   exportedFile(row: number): number;
-  publishedFile(row: number): number;
   exported(row: number): ExportedRow;
   /** The name id of one exported row, without decoding the rest of it. */
   exportedName(row: number): number;
@@ -296,7 +298,6 @@ export function openSearchIndex(bytes: Uint8Array): SearchIndex {
     },
     file: string,
     exportedFile: (row) => exp.at[row] ?? NONE,
-    publishedFile: (row) => pub.at[row] ?? NONE,
     exported(row) {
       const doc = exp.doc[row] ?? NONE;
       return {

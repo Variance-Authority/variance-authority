@@ -15,13 +15,14 @@ import {
   type HeldLines,
 } from '@variance-authority/sense/test-selection';
 import { runsText, targetText, type UnrunPart } from './covering-at.js';
-import type { CoveringFile } from './covering-files.js';
+import { casesByFile, type CoveringFile } from './covering-files.js';
 import type { CoveringRange } from './covering-frame.js';
 import { motionText } from './covering-motion.js';
 import { preconditionText } from './covering-unloaded.js';
 import { formatCoveringRefs } from './covering-refs.js';
 import { heldText } from '@variance-authority/sense/test-selection';
 import { whereText } from './covering-where.js';
+import { evidenceGapText } from './evidence-gap.js';
 import { staleLines } from './covering-stale.js';
 import type { Covering, CoveringFormat, StatedChange } from './covering.js';
 
@@ -29,7 +30,7 @@ import type { Covering, CoveringFormat, StatedChange } from './covering.js';
 export function formatCovering(answer: Covering, format: CoveringFormat): string {
   if (format === 'refs') return formatCoveringRefs(answer);
   if (format === 'json') return `${JSON.stringify(answer, undefined, 2)}\n`;
-  return `${[...probesText(answer), ...scopeText(answer), ...whereText(answer), ...said(text(answer)), ...hopsText(answer), ...motionText(answer.motion)].join('\n')}\n`;
+  return `${[...probesText(answer), ...scopeText(answer), ...whereText(answer), ...said(text(answer)), ...hopsText(answer), ...motionText(answer.motion), ...(answer.gap === undefined ? [] : [evidenceGapText(answer.gap)])].join('\n')}\n`;
 }
 
 /** Why `--hops` printed no distance, said under the files it would have measured. */
@@ -199,15 +200,16 @@ function wholeFile(answer: Covering, ranges: readonly CoveringRange[]): string {
     const carried = range.tests.filter((test) => test.loaded === true);
     const key = `${tests.map((test) => test.id).join('\n')}\0${carried.map((test) => test.id).join('\n')}`;
     if (range.tests.length === 0) {
-      // The header already says `unwalked` or `hole`; the stopped cases are the rest of a hole.
-      const said = range.state === 'unwalked' || range.state === 'hole';
+      // The header already says `loaded`, `unwalked` or `hole`; the stopped cases are the rest of a hole, and
+      // say nothing about a range that ran while its module loaded.
+      const said = range.state === 'loaded' || range.state === 'unwalked' || range.state === 'hole';
       // Under `--where` or `--read` the state is read over cases the list leaves out, so an empty list says nothing about them.
       if (!said) {
         lines.push(answer.where === undefined
           ? `  no named test covered this range${whyUnentered(range.stopped)}`
           : `  no case ${answer.where.read === undefined ? '`--where`' : answer.where.asked.length === 0 ? '`--read`' : '`--where` and `--read`'} kept covered this range`);
       }
-      lines.push(...(range.stopped ?? []).map((test) =>
+      lines.push(...(range.state === 'loaded' ? [] : range.stopped ?? []).map((test) =>
         said ? `  stopped first: ${test.file} > ${caseName(test)}` : `    stopped: ${test.file} > ${caseName(test)}`));
     } else if (printed.has(key)) {
       const named = tests.length === 0 ? [] : [tests.length === 1 ? 'named test' : `${tests.length} named tests`];
@@ -307,14 +309,8 @@ function caseLines(
   indent: string,
   files: readonly CoveringFile[] = [],
 ): readonly string[] {
-  const byFile = new Map<string, CoveringTest[]>(files.map((row) => [row.file, []]));
-  for (const test of tests) {
-    const held = byFile.get(test.file);
-    if (held === undefined) byFile.set(test.file, [test]);
-    else held.push(test);
-  }
   const rows = new Map(files.map((row) => [row.file, row]));
-  return [...byFile].flatMap(([file, cases]) => [
+  return [...casesByFile(tests, files)].flatMap(([file, cases]) => [
     `${indent}${file}${fileCount(rows.get(file))}`,
     ...cases.map((test) => `${indent}  ${caseName(test)}${test.loaded === true ? '*' : ''}${heldText(test)}`),
   ]);

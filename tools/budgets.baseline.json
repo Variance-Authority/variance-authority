@@ -1,0 +1,4169 @@
+{
+  ".github/actions/variance/post-comment.mjs block": [
+    7
+  ],
+  ".github/actions/variance/post-comment.mjs overview": [
+    35
+  ],
+  ".github/scripts/variance-accept.mjs overview": [
+    31
+  ],
+  "cases/event-announcement-case/src/spec/announcement.spec.mjs block": [
+    6
+  ],
+  "cases/incumbent-case/playwright.config.ts docblock": [
+    11
+  ],
+  "cases/incumbent-case/scripts/bundle.mjs block": [
+    9
+  ],
+  "cases/incumbent-case/scripts/bundle.mjs docblock": [
+    33
+  ],
+  "cases/incumbent-case/scripts/engines.mjs block": [
+    6
+  ],
+  "cases/incumbent-case/scripts/engines.mjs docblock": [
+    12
+  ],
+  "cases/incumbent-case/scripts/engines.mjs overview": [
+    31
+  ],
+  "cases/incumbent-case/src/bundle.test.ts block": [
+    11
+  ],
+  "cases/incumbent-case/src/incumbent.spec.ts overview": [
+    17
+  ],
+  "cases/incumbent-case/src/locale.chromium.test.ts block": [
+    8,
+    7
+  ],
+  "cases/incumbent-case/src/migration.chromium.test.ts block": [
+    10,
+    8
+  ],
+  "cases/incumbent-case/src/migration.chromium.test.ts overview": [
+    20
+  ],
+  "cases/incumbent-case/src/page-agent.ts block": [
+    8
+  ],
+  "cases/incumbent-case/src/replacement.chromium.test.ts block": [
+    15,
+    6
+  ],
+  "cases/incumbent-case/src/replacement.chromium.test.ts overview": [
+    26
+  ],
+  "cases/incumbent-case/src/scenarios.ts block": [
+    7,
+    6
+  ],
+  "cases/incumbent-case/src/surface.tsx docblock": [
+    15
+  ],
+  "cases/storybook-case/.storybook-a11y/main.js docblock": [
+    17
+  ],
+  "cases/storybook-case/.storybook/main.js docblock": [
+    14,
+    13
+  ],
+  "cases/storybook-case/collector/index.mjs overview": [
+    27
+  ],
+  "cases/storybook-case/src/alone.chromium.test.js block": [
+    6
+  ],
+  "cases/storybook-case/src/alone.chromium.test.js overview": [
+    20
+  ],
+  "cases/storybook-case/src/cli.chromium.test.js block": [
+    19,
+    12,
+    12,
+    11,
+    10,
+    9,
+    7
+  ],
+  "cases/storybook-case/src/cli.chromium.test.js docblock": [
+    15
+  ],
+  "cases/storybook-case/src/cli.chromium.test.js overview": [
+    32
+  ],
+  "cases/storybook-case/src/ds.jsx block": [
+    10
+  ],
+  "cases/storybook-case/src/ds.jsx docblock": [
+    17,
+    11
+  ],
+  "cases/storybook-case/src/finish.chromium.test.js block": [
+    6
+  ],
+  "cases/storybook-case/src/finish.chromium.test.js overview": [
+    30
+  ],
+  "cases/storybook-case/src/globals.chromium.test.js overview": [
+    29
+  ],
+  "cases/storybook-case/src/one-browser.chromium.test.js overview": [
+    16
+  ],
+  "cases/storybook-case/src/page.stories.jsx docblock": [
+    34,
+    12
+  ],
+  "cases/storybook-case/src/storybook.chromium.test.js block": [
+    9
+  ],
+  "cases/storybook-case/src/suspense.chromium.test.js block": [
+    8,
+    7
+  ],
+  "cases/storybook-case/src/suspense.chromium.test.js overview": [
+    21
+  ],
+  "docs/a-b-testing.md lead": [
+    16
+  ],
+  "docs/agent-interrogate.md lead": [
+    16
+  ],
+  "docs/attribution.md lead": [
+    24
+  ],
+  "docs/better-tests.md lead": [
+    19
+  ],
+  "docs/cases.md lead": [
+    18
+  ],
+  "docs/changelog.md lead": [
+    23
+  ],
+  "docs/changes-before-and-beyond.md lead": [
+    44
+  ],
+  "docs/compare-coverage.md lead": [
+    18
+  ],
+  "docs/compare-visual-review.md lead": [
+    36
+  ],
+  "docs/composition.md lead": [
+    27
+  ],
+  "docs/distance.md lead": [
+    35
+  ],
+  "docs/distill.md lead": [
+    61
+  ],
+  "docs/execution-record.md lead": [
+    17
+  ],
+  "docs/eyes.md lead": [
+    18
+  ],
+  "docs/flakiness.md lead": [
+    19
+  ],
+  "docs/flows.md lead": [
+    44
+  ],
+  "docs/framework-reference.md lead": [
+    21
+  ],
+  "docs/framework.md lead": [
+    19
+  ],
+  "docs/history.md lead": [
+    20
+  ],
+  "docs/information.md lead": [
+    16
+  ],
+  "docs/lexicon.md lead": [
+    53
+  ],
+  "docs/locate.md lead": [
+    18
+  ],
+  "docs/metrics.md lead": [
+    18
+  ],
+  "docs/on-testing.md lead": [
+    17
+  ],
+  "docs/orientation.md lead": [
+    20
+  ],
+  "docs/parting.md lead": [
+    17
+  ],
+  "docs/performance.md lead": [
+    29
+  ],
+  "docs/placement.md lead": [
+    32
+  ],
+  "docs/polyglot.md lead": [
+    32
+  ],
+  "docs/presentation-reference.md lead": [
+    17
+  ],
+  "docs/presentation.md lead": [
+    18
+  ],
+  "docs/run-relevant-work.md lead": [
+    23
+  ],
+  "docs/scale.md lead": [
+    63
+  ],
+  "docs/scenarios.md lead": [
+    21
+  ],
+  "docs/selecting.md lead": [
+    88
+  ],
+  "docs/selection-tanstack-query.md lead": [
+    27
+  ],
+  "docs/selection-zod.md lead": [
+    27
+  ],
+  "docs/sensitivity.md lead": [
+    23
+  ],
+  "docs/sharding.md lead": [
+    18
+  ],
+  "docs/sharing.md lead": [
+    26
+  ],
+  "docs/source-index.md lead": [
+    17
+  ],
+  "docs/source.md lead": [
+    19
+  ],
+  "docs/stabilization.md lead": [
+    18
+  ],
+  "docs/start-custom.md lead": [
+    16
+  ],
+  "docs/start-routes.md lead": [
+    25
+  ],
+  "docs/surface.md lead": [
+    20
+  ],
+  "docs/test-an-edit.md lead": [
+    30
+  ],
+  "docs/understand-execution.md lead": [
+    16
+  ],
+  "examples/kitchen-sink/scripts/agent-bundle.mjs block": [
+    6
+  ],
+  "examples/kitchen-sink/src/components/Dialog.tsx overview": [
+    21
+  ],
+  "examples/kitchen-sink/src/components/Hero.tsx overview": [
+    17
+  ],
+  "examples/kitchen-sink/src/components/ItemList.tsx overview": [
+    20
+  ],
+  "examples/kitchen-sink/src/components/Tabs.tsx overview": [
+    17
+  ],
+  "examples/kitchen-sink/src/components/Wrappers.tsx overview": [
+    20
+  ],
+  "examples/kitchen-sink/src/corpus-case.ts docblock": [
+    11
+  ],
+  "examples/kitchen-sink/src/corpus-restyled.ts overview": [
+    16
+  ],
+  "examples/kitchen-sink/src/corpus.test.tsx block": [
+    8,
+    6
+  ],
+  "examples/kitchen-sink/src/corpus.ts block": [
+    6
+  ],
+  "examples/kitchen-sink/src/corpus.ts overview": [
+    22
+  ],
+  "examples/kitchen-sink/src/cruft/css-runtime.ts overview": [
+    17
+  ],
+  "examples/kitchen-sink/src/cruft/irrelevant-css.ts docblock": [
+    15
+  ],
+  "examples/kitchen-sink/src/cruft/irrelevant-css.ts overview": [
+    20
+  ],
+  "examples/kitchen-sink/src/cruft/spelling.ts overview": [
+    17
+  ],
+  "examples/kitchen-sink/src/measure.chromium.test.tsx block": [
+    11,
+    6,
+    6
+  ],
+  "examples/kitchen-sink/src/measure.test.tsx block": [
+    6
+  ],
+  "examples/kitchen-sink/src/observation.ts block": [
+    6
+  ],
+  "examples/kitchen-sink/src/styles/sheets.ts docblock": [
+    12
+  ],
+  "examples/todomvc/scripts/pixel-arm.mjs block": [
+    13,
+    8,
+    6
+  ],
+  "examples/todomvc/src/closure.test.tsx block": [
+    10
+  ],
+  "examples/todomvc/src/code-mutation.ts overview": [
+    16
+  ],
+  "examples/todomvc/src/compare.test.tsx overview": [
+    25
+  ],
+  "examples/todomvc/src/composition.test.tsx block": [
+    8
+  ],
+  "examples/todomvc/src/contrast.test.tsx block": [
+    8,
+    6
+  ],
+  "examples/todomvc/src/contrast.test.tsx overview": [
+    36
+  ],
+  "examples/todomvc/src/ds/components.tsx block": [
+    6
+  ],
+  "examples/todomvc/src/entry.test.tsx docblock": [
+    27
+  ],
+  "examples/todomvc/src/fiber.test.tsx overview": [
+    26
+  ],
+  "examples/todomvc/src/mutations.ts block": [
+    13
+  ],
+  "examples/todomvc/src/observe.chromium.test.ts block": [
+    10
+  ],
+  "examples/todomvc/src/offload.chromium.test.tsx block": [
+    10,
+    7
+  ],
+  "examples/todomvc/src/offload.chromium.test.tsx overview": [
+    19
+  ],
+  "examples/todomvc/src/page-agent.ts block": [
+    10
+  ],
+  "examples/todomvc/src/pixel.chromium.test.ts block": [
+    10,
+    8,
+    7,
+    6,
+    6,
+    6
+  ],
+  "examples/todomvc/src/pixel/instability.tsx docblock": [
+    23,
+    17
+  ],
+  "examples/todomvc/src/pixel/probes.tsx overview": [
+    21
+  ],
+  "jvm/test/record.mjs overview": [
+    16
+  ],
+  "jvm/test/suite.mjs overview": [
+    16
+  ],
+  "packages/cli/src/bin.test.ts block": [
+    6
+  ],
+  "packages/cli/src/bin.ts block": [
+    6
+  ],
+  "packages/cli/src/commands/accept-message.ts overview": [
+    19
+  ],
+  "packages/cli/src/commands/accept.test.ts block": [
+    6
+  ],
+  "packages/cli/src/commands/accept.ts overview": [
+    36
+  ],
+  "packages/cli/src/commands/adjudicate.ts overview": [
+    18
+  ],
+  "packages/cli/src/commands/affected-before.test.ts block": [
+    8
+  ],
+  "packages/cli/src/commands/affected-install.test.ts block": [
+    7
+  ],
+  "packages/cli/src/commands/affected.ts docblock": [
+    11
+  ],
+  "packages/cli/src/commands/affected.ts overview": [
+    58
+  ],
+  "packages/cli/src/commands/again.ts block": [
+    10,
+    7,
+    6
+  ],
+  "packages/cli/src/commands/again.ts docblock": [
+    45
+  ],
+  "packages/cli/src/commands/alone.ts docblock": [
+    22
+  ],
+  "packages/cli/src/commands/ask-questions.ts docblock": [
+    14
+  ],
+  "packages/cli/src/commands/ask.ts block": [
+    7
+  ],
+  "packages/cli/src/commands/ask.ts overview": [
+    47
+  ],
+  "packages/cli/src/commands/asking.ts docblock": [
+    14
+  ],
+  "packages/cli/src/commands/budget.ts overview": [
+    16
+  ],
+  "packages/cli/src/commands/carry.ts overview": [
+    27
+  ],
+  "packages/cli/src/commands/changed-since.test.ts block": [
+    7
+  ],
+  "packages/cli/src/commands/changelog.ts docblock": [
+    14
+  ],
+  "packages/cli/src/commands/changelog.ts overview": [
+    20
+  ],
+  "packages/cli/src/commands/changes.ts overview": [
+    22
+  ],
+  "packages/cli/src/commands/collector.ts docblock": [
+    24,
+    15
+  ],
+  "packages/cli/src/commands/comment-blocks.ts docblock": [
+    16,
+    12
+  ],
+  "packages/cli/src/commands/comment-images.ts docblock": [
+    12
+  ],
+  "packages/cli/src/commands/comment.ts docblock": [
+    16
+  ],
+  "packages/cli/src/commands/comment.ts overview": [
+    71
+  ],
+  "packages/cli/src/commands/compose.ts block": [
+    8
+  ],
+  "packages/cli/src/commands/compose.ts docblock": [
+    13
+  ],
+  "packages/cli/src/commands/compose.ts overview": [
+    21
+  ],
+  "packages/cli/src/commands/configless.ts block": [
+    11,
+    6
+  ],
+  "packages/cli/src/commands/configless.ts docblock": [
+    14
+  ],
+  "packages/cli/src/commands/coverage-source.ts overview": [
+    32
+  ],
+  "packages/cli/src/commands/covering-reach.ts overview": [
+    28
+  ],
+  "packages/cli/src/commands/covering-text.ts docblock": [
+    11
+  ],
+  "packages/cli/src/commands/covering.test.ts block": [
+    6
+  ],
+  "packages/cli/src/commands/covering.ts docblock": [
+    13
+  ],
+  "packages/cli/src/commands/covering.ts overview": [
+    25
+  ],
+  "packages/cli/src/commands/docket.ts block": [
+    10
+  ],
+  "packages/cli/src/commands/docket.ts docblock": [
+    11
+  ],
+  "packages/cli/src/commands/doctor-baselines.ts block": [
+    6,
+    6
+  ],
+  "packages/cli/src/commands/doctor-probes.ts docblock": [
+    13
+  ],
+  "packages/cli/src/commands/doctor.ts docblock": [
+    11
+  ],
+  "packages/cli/src/commands/doctor.ts overview": [
+    31
+  ],
+  "packages/cli/src/commands/evidence-gap.ts overview": [
+    24
+  ],
+  "packages/cli/src/commands/history-rows.ts block": [
+    6
+  ],
+  "packages/cli/src/commands/history-rows.ts docblock": [
+    11
+  ],
+  "packages/cli/src/commands/history.ts docblock": [
+    11,
+    11
+  ],
+  "packages/cli/src/commands/history.ts overview": [
+    20
+  ],
+  "packages/cli/src/commands/ignores.ts block": [
+    10,
+    7
+  ],
+  "packages/cli/src/commands/images.ts block": [
+    16,
+    13,
+    7,
+    6
+  ],
+  "packages/cli/src/commands/index-command.ts overview": [
+    27
+  ],
+  "packages/cli/src/commands/index-follow-ups.ts overview": [
+    21
+  ],
+  "packages/cli/src/commands/installed.ts docblock": [
+    17,
+    17,
+    11
+  ],
+  "packages/cli/src/commands/installed.ts overview": [
+    36
+  ],
+  "packages/cli/src/commands/journey.ts overview": [
+    40
+  ],
+  "packages/cli/src/commands/journeys.ts block": [
+    10
+  ],
+  "packages/cli/src/commands/journeys.ts overview": [
+    34
+  ],
+  "packages/cli/src/commands/land.ts block": [
+    15,
+    12,
+    8
+  ],
+  "packages/cli/src/commands/land.ts docblock": [
+    35
+  ],
+  "packages/cli/src/commands/layers-command.ts overview": [
+    16
+  ],
+  "packages/cli/src/commands/mainline-base.ts overview": [
+    32
+  ],
+  "packages/cli/src/commands/merge.ts block": [
+    9
+  ],
+  "packages/cli/src/commands/merge.ts docblock": [
+    16,
+    12
+  ],
+  "packages/cli/src/commands/merge.ts overview": [
+    34
+  ],
+  "packages/cli/src/commands/narrowing.ts docblock": [
+    12
+  ],
+  "packages/cli/src/commands/observe-one.ts block": [
+    13,
+    9,
+    6,
+    6,
+    6
+  ],
+  "packages/cli/src/commands/observe-one.ts docblock": [
+    13,
+    12,
+    11
+  ],
+  "packages/cli/src/commands/probes-gap.ts overview": [
+    19
+  ],
+  "packages/cli/src/commands/prune-cache.ts overview": [
+    16
+  ],
+  "packages/cli/src/commands/push-have.ts docblock": [
+    16
+  ],
+  "packages/cli/src/commands/push-progress.ts docblock": [
+    21
+  ],
+  "packages/cli/src/commands/push.ts block": [
+    9
+  ],
+  "packages/cli/src/commands/push.ts overview": [
+    54
+  ],
+  "packages/cli/src/commands/reach-command.ts block": [
+    8
+  ],
+  "packages/cli/src/commands/reach-command.ts overview": [
+    39
+  ],
+  "packages/cli/src/commands/reach.ts docblock": [
+    28
+  ],
+  "packages/cli/src/commands/reach.ts overview": [
+    38
+  ],
+  "packages/cli/src/commands/record.test.ts block": [
+    9,
+    6,
+    6
+  ],
+  "packages/cli/src/commands/record.ts docblock": [
+    16,
+    14,
+    11
+  ],
+  "packages/cli/src/commands/renders.ts docblock": [
+    18,
+    18,
+    12
+  ],
+  "packages/cli/src/commands/report-html-pictures.ts docblock": [
+    13
+  ],
+  "packages/cli/src/commands/report-html-pictures.ts overview": [
+    38
+  ],
+  "packages/cli/src/commands/report-html-settled.ts overview": [
+    18
+  ],
+  "packages/cli/src/commands/report-html-style.ts block": [
+    7
+  ],
+  "packages/cli/src/commands/report-html-subjects.ts docblock": [
+    18,
+    14,
+    11
+  ],
+  "packages/cli/src/commands/report-html.ts overview": [
+    38
+  ],
+  "packages/cli/src/commands/report-source.ts overview": [
+    16
+  ],
+  "packages/cli/src/commands/report.ts docblock": [
+    19
+  ],
+  "packages/cli/src/commands/report.ts overview": [
+    20
+  ],
+  "packages/cli/src/commands/resources.ts docblock": [
+    21,
+    15,
+    11
+  ],
+  "packages/cli/src/commands/review-suites.ts docblock": [
+    11
+  ],
+  "packages/cli/src/commands/review.ts block": [
+    11
+  ],
+  "packages/cli/src/commands/run-context.ts docblock": [
+    12,
+    11
+  ],
+  "packages/cli/src/commands/run-report.ts docblock": [
+    13,
+    13
+  ],
+  "packages/cli/src/commands/run-select.ts docblock": [
+    14,
+    12
+  ],
+  "packages/cli/src/commands/run-select.ts overview": [
+    22
+  ],
+  "packages/cli/src/commands/run.test.ts block": [
+    6
+  ],
+  "packages/cli/src/commands/run.ts block": [
+    12,
+    7,
+    7,
+    6,
+    6,
+    6,
+    6
+  ],
+  "packages/cli/src/commands/run.ts overview": [
+    30
+  ],
+  "packages/cli/src/commands/runs-base.ts overview": [
+    19
+  ],
+  "packages/cli/src/commands/select-command.ts block": [
+    14,
+    10,
+    6
+  ],
+  "packages/cli/src/commands/select-command.ts overview": [
+    30
+  ],
+  "packages/cli/src/commands/select-journey.ts docblock": [
+    13
+  ],
+  "packages/cli/src/commands/select-leg.ts overview": [
+    44
+  ],
+  "packages/cli/src/commands/select.ts block": [
+    6
+  ],
+  "packages/cli/src/commands/select.ts docblock": [
+    14
+  ],
+  "packages/cli/src/commands/select.ts overview": [
+    62
+  ],
+  "packages/cli/src/commands/serve.ts overview": [
+    31
+  ],
+  "packages/cli/src/commands/since.ts docblock": [
+    28,
+    26,
+    15,
+    12,
+    11
+  ],
+  "packages/cli/src/commands/source-graph.ts docblock": [
+    16
+  ],
+  "packages/cli/src/commands/step-progress.ts docblock": [
+    13
+  ],
+  "packages/cli/src/commands/story-levels.ts overview": [
+    20
+  ],
+  "packages/cli/src/commands/story-tree.ts overview": [
+    19
+  ],
+  "packages/cli/src/commands/story.ts overview": [
+    19
+  ],
+  "packages/cli/src/commands/suite-base.ts docblock": [
+    14
+  ],
+  "packages/cli/src/commands/suite-base.ts overview": [
+    27
+  ],
+  "packages/cli/src/commands/suite-record.ts docblock": [
+    16
+  ],
+  "packages/cli/src/commands/suite-share.ts overview": [
+    17
+  ],
+  "packages/cli/src/commands/unplanned.ts docblock": [
+    21,
+    12
+  ],
+  "packages/cli/src/commands/variations.ts block": [
+    9
+  ],
+  "packages/cli/src/commands/variations.ts docblock": [
+    19,
+    12
+  ],
+  "packages/cli/src/commands/variations.ts overview": [
+    41
+  ],
+  "packages/cli/src/commands/watch.ts overview": [
+    18
+  ],
+  "packages/cli/src/config-blank.ts docblock": [
+    13
+  ],
+  "packages/cli/src/config-ignore.ts docblock": [
+    12
+  ],
+  "packages/cli/src/config-sections.ts block": [
+    6
+  ],
+  "packages/cli/src/config-sections.ts docblock": [
+    16,
+    15,
+    12
+  ],
+  "packages/cli/src/config-sensitivity.ts docblock": [
+    13
+  ],
+  "packages/cli/src/config-share.ts docblock": [
+    14
+  ],
+  "packages/cli/src/config-values.ts docblock": [
+    16
+  ],
+  "packages/cli/src/config.ts docblock": [
+    19,
+    12,
+    12,
+    11
+  ],
+  "packages/cli/src/config.ts overview": [
+    32
+  ],
+  "packages/cli/src/covering-args.ts docblock": [
+    19
+  ],
+  "packages/cli/src/direct-call.ts overview": [
+    24
+  ],
+  "packages/cli/src/dispatch.ts block": [
+    7,
+    7
+  ],
+  "packages/cli/src/dispatch.ts docblock": [
+    11
+  ],
+  "packages/cli/src/exit.test.ts block": [
+    6
+  ],
+  "packages/cli/src/exit.ts docblock": [
+    45,
+    15,
+    14
+  ],
+  "packages/cli/src/exit.ts overview": [
+    24
+  ],
+  "packages/cli/src/here.ts docblock": [
+    17
+  ],
+  "packages/cli/src/index.ts overview": [
+    32
+  ],
+  "packages/cli/src/parse.ts overview": [
+    29
+  ],
+  "packages/cli/src/project-segment.ts docblock": [
+    12
+  ],
+  "packages/cli/src/reach-args.ts docblock": [
+    12
+  ],
+  "packages/cli/src/renderer.ts docblock": [
+    13,
+    12
+  ],
+  "packages/cli/src/share-entries.ts docblock": [
+    24,
+    15
+  ],
+  "packages/cli/src/share-entries.ts overview": [
+    20
+  ],
+  "packages/cli/src/share-lines.ts block": [
+    7
+  ],
+  "packages/cli/src/share-lines.ts docblock": [
+    11,
+    11
+  ],
+  "packages/core/src/attribute/boundary.ts block": [
+    20,
+    13,
+    6,
+    6
+  ],
+  "packages/core/src/attribute/boundary.ts docblock": [
+    18,
+    17,
+    13,
+    13
+  ],
+  "packages/core/src/attribute/boundary.ts overview": [
+    31
+  ],
+  "packages/core/src/attribute/call-site.test.ts block": [
+    6
+  ],
+  "packages/core/src/attribute/call-site.ts docblock": [
+    15,
+    11
+  ],
+  "packages/core/src/attribute/call-site.ts overview": [
+    25
+  ],
+  "packages/core/src/attribute/closure.ts docblock": [
+    32
+  ],
+  "packages/core/src/attribute/component-hash.ts block": [
+    7,
+    7
+  ],
+  "packages/core/src/attribute/component-hash.ts docblock": [
+    34,
+    22,
+    19,
+    12,
+    12
+  ],
+  "packages/core/src/attribute/composition.ts docblock": [
+    15,
+    15,
+    11
+  ],
+  "packages/core/src/attribute/composition.ts overview": [
+    30
+  ],
+  "packages/core/src/attribute/control.ts overview": [
+    17
+  ],
+  "packages/core/src/attribute/coverage.ts overview": [
+    35
+  ],
+  "packages/core/src/attribute/divergence.ts docblock": [
+    30,
+    14,
+    13,
+    12
+  ],
+  "packages/core/src/attribute/instability.ts overview": [
+    21
+  ],
+  "packages/core/src/attribute/instances.ts docblock": [
+    12,
+    12
+  ],
+  "packages/core/src/attribute/instances.ts overview": [
+    36
+  ],
+  "packages/core/src/attribute/landmark.ts docblock": [
+    11
+  ],
+  "packages/core/src/attribute/lexicon.ts docblock": [
+    15
+  ],
+  "packages/core/src/attribute/mask.ts docblock": [
+    14,
+    12
+  ],
+  "packages/core/src/attribute/movement.ts docblock": [
+    19,
+    12
+  ],
+  "packages/core/src/attribute/movement.ts overview": [
+    38
+  ],
+  "packages/core/src/attribute/region.test.ts block": [
+    7,
+    6
+  ],
+  "packages/core/src/attribute/region.ts block": [
+    9
+  ],
+  "packages/core/src/attribute/region.ts docblock": [
+    26,
+    11,
+    11
+  ],
+  "packages/core/src/attribute/region.ts overview": [
+    17
+  ],
+  "packages/core/src/attribute/source-map.test.ts block": [
+    6
+  ],
+  "packages/core/src/attribute/source-map.test.ts docblock": [
+    15
+  ],
+  "packages/core/src/attribute/source.ts overview": [
+    21
+  ],
+  "packages/core/src/attribute/stack.test.ts block": [
+    6
+  ],
+  "packages/core/src/attribute/stack.ts block": [
+    8
+  ],
+  "packages/core/src/attribute/stack.ts docblock": [
+    36,
+    17,
+    11
+  ],
+  "packages/core/src/attribute/subject-pieces.ts overview": [
+    18
+  ],
+  "packages/core/src/compare/band.ts block": [
+    9,
+    9
+  ],
+  "packages/core/src/compare/band.ts docblock": [
+    19
+  ],
+  "packages/core/src/compare/cascade.ts docblock": [
+    18
+  ],
+  "packages/core/src/compare/derive.ts docblock": [
+    11,
+    11
+  ],
+  "packages/core/src/compare/diff/attribution.ts block": [
+    16,
+    11,
+    9
+  ],
+  "packages/core/src/compare/diff/attribution.ts docblock": [
+    12
+  ],
+  "packages/core/src/compare/diff/compare-nodes.ts block": [
+    11,
+    11,
+    9,
+    7
+  ],
+  "packages/core/src/compare/diff/diff.test.ts block": [
+    6,
+    6
+  ],
+  "packages/core/src/compare/diff/index.ts docblock": [
+    12
+  ],
+  "packages/core/src/compare/diff/match.ts block": [
+    17
+  ],
+  "packages/core/src/compare/explain.ts docblock": [
+    15
+  ],
+  "packages/core/src/compare/impact.ts overview": [
+    17
+  ],
+  "packages/core/src/compare/instance.ts docblock": [
+    21
+  ],
+  "packages/core/src/compare/observability.ts docblock": [
+    16
+  ],
+  "packages/core/src/compare/parting.test.ts block": [
+    7
+  ],
+  "packages/core/src/compare/parting.ts docblock": [
+    31,
+    17,
+    17
+  ],
+  "packages/core/src/compare/slice.ts docblock": [
+    33
+  ],
+  "packages/core/src/compare/value.ts overview": [
+    18
+  ],
+  "packages/core/src/format/canonical.test.ts block": [
+    6
+  ],
+  "packages/core/src/format/capture.ts docblock": [
+    13,
+    12
+  ],
+  "packages/core/src/format/document.ts docblock": [
+    23,
+    18,
+    16,
+    15,
+    15,
+    12,
+    12
+  ],
+  "packages/core/src/format/drive.ts docblock": [
+    19,
+    11
+  ],
+  "packages/core/src/format/drive.ts overview": [
+    22
+  ],
+  "packages/core/src/format/environment.ts docblock": [
+    16,
+    12
+  ],
+  "packages/core/src/format/holding.hash.test.ts docblock": [
+    11
+  ],
+  "packages/core/src/format/holding.ts docblock": [
+    39,
+    11
+  ],
+  "packages/core/src/format/profile.ts docblock": [
+    11
+  ],
+  "packages/core/src/format/provenance.ts docblock": [
+    18,
+    16,
+    15,
+    13,
+    12,
+    11
+  ],
+  "packages/core/src/format/sha256.ts block": [
+    6
+  ],
+  "packages/core/src/format/sha256.ts overview": [
+    23
+  ],
+  "packages/core/src/format/snapshot.ts docblock": [
+    13
+  ],
+  "packages/core/src/format/stabilize.test.ts block": [
+    7,
+    6
+  ],
+  "packages/core/src/format/stabilize.ts block": [
+    6
+  ],
+  "packages/core/src/format/stabilize.ts docblock": [
+    20,
+    18,
+    11
+  ],
+  "packages/core/src/format/stabilize.ts overview": [
+    38
+  ],
+  "packages/core/src/format/tier.ts docblock": [
+    11
+  ],
+  "packages/core/src/format/value.ts docblock": [
+    12
+  ],
+  "packages/core/src/format/waits.ts block": [
+    19,
+    11,
+    8
+  ],
+  "packages/core/src/format/wiring.ts docblock": [
+    11
+  ],
+  "packages/core/src/format/wiring.ts overview": [
+    33
+  ],
+  "packages/core/src/index.ts overview": [
+    19
+  ],
+  "packages/core/src/judge/fingerprint.ts docblock": [
+    14,
+    11
+  ],
+  "packages/core/src/judge/fingerprint.ts overview": [
+    16
+  ],
+  "packages/core/src/judge/ignore.ts overview": [
+    38
+  ],
+  "packages/core/src/judge/index.ts overview": [
+    17
+  ],
+  "packages/core/src/judge/inspect-visibility.test.ts block": [
+    7,
+    6
+  ],
+  "packages/core/src/judge/inspect.ts block": [
+    6,
+    6
+  ],
+  "packages/core/src/judge/inspect.ts docblock": [
+    12,
+    12
+  ],
+  "packages/core/src/judge/inspect.ts overview": [
+    43
+  ],
+  "packages/core/src/judge/intent.ts docblock": [
+    12
+  ],
+  "packages/core/src/judge/intent.ts overview": [
+    16
+  ],
+  "packages/core/src/judge/locale.test.ts block": [
+    11
+  ],
+  "packages/core/src/judge/locale.ts block": [
+    6
+  ],
+  "packages/core/src/judge/locale.ts docblock": [
+    21,
+    14
+  ],
+  "packages/core/src/judge/locale.ts overview": [
+    22
+  ],
+  "packages/core/src/judge/sensitivity.test.ts block": [
+    8
+  ],
+  "packages/core/src/judge/sensitivity.ts block": [
+    9
+  ],
+  "packages/core/src/judge/sensitivity.ts docblock": [
+    13,
+    11
+  ],
+  "packages/core/src/judge/sensitivity.ts overview": [
+    29
+  ],
+  "packages/core/src/judge/trail.ts overview": [
+    34
+  ],
+  "packages/core/src/nearest.ts overview": [
+    19
+  ],
+  "packages/core/src/relate/before.ts overview": [
+    51
+  ],
+  "packages/core/src/relate/beyond.ts overview": [
+    21
+  ],
+  "packages/core/src/relate/carried.ts block": [
+    8
+  ],
+  "packages/core/src/relate/carried.ts overview": [
+    31
+  ],
+  "packages/core/src/relate/graph.ts overview": [
+    55
+  ],
+  "packages/core/src/relate/merkle.ts docblock": [
+    15
+  ],
+  "packages/core/src/relate/merkle.ts overview": [
+    35
+  ],
+  "packages/core/src/relate/narrow.ts overview": [
+    20
+  ],
+  "packages/core/src/relate/reach.ts overview": [
+    20
+  ],
+  "packages/core/src/relate/records.ts block": [
+    10
+  ],
+  "packages/core/src/relate/records.ts docblock": [
+    14
+  ],
+  "packages/core/src/rules/normalize/cascade.ts block": [
+    9,
+    7,
+    6
+  ],
+  "packages/core/src/rules/normalize/cascade.ts docblock": [
+    13
+  ],
+  "packages/core/src/rules/normalize/index.ts block": [
+    8
+  ],
+  "packages/core/src/rules/normalize/index.ts docblock": [
+    16
+  ],
+  "packages/core/src/rules/normalize/normalize.test.ts block": [
+    8
+  ],
+  "packages/core/src/rules/normalize/shorthand.ts block": [
+    7
+  ],
+  "packages/core/src/rules/normalize/wrapper.ts block": [
+    14,
+    13,
+    9
+  ],
+  "packages/core/src/rules/ruleset.ts docblock": [
+    21,
+    13,
+    11,
+    11,
+    11
+  ],
+  "packages/core/src/segment/index.ts overview": [
+    24
+  ],
+  "packages/core/src/shard/placement.ts docblock": [
+    11
+  ],
+  "packages/core/src/shard/placement.ts overview": [
+    18
+  ],
+  "packages/core/src/share/index.ts overview": [
+    21
+  ],
+  "packages/core/src/share/line.ts overview": [
+    16
+  ],
+  "packages/distill/src/attribution.ts docblock": [
+    12
+  ],
+  "packages/distill/src/charge.ts docblock": [
+    18,
+    12
+  ],
+  "packages/distill/src/file.ts docblock": [
+    13
+  ],
+  "packages/distill/src/own.ts docblock": [
+    14
+  ],
+  "packages/dom/src/aria.ts block": [
+    7,
+    7
+  ],
+  "packages/dom/src/aria.ts docblock": [
+    32,
+    16,
+    13
+  ],
+  "packages/dom/src/assets.ts overview": [
+    18
+  ],
+  "packages/dom/src/attributed.test.ts block": [
+    7
+  ],
+  "packages/dom/src/attributed.ts overview": [
+    43
+  ],
+  "packages/dom/src/collect.test.ts block": [
+    7
+  ],
+  "packages/dom/src/collect.ts block": [
+    6
+  ],
+  "packages/dom/src/collect.ts docblock": [
+    17
+  ],
+  "packages/dom/src/css-index.ts block": [
+    12,
+    10
+  ],
+  "packages/dom/src/css-index.ts docblock": [
+    20,
+    16,
+    11
+  ],
+  "packages/dom/src/css-match.ts docblock": [
+    11
+  ],
+  "packages/dom/src/declarations.ts block": [
+    11,
+    8
+  ],
+  "packages/dom/src/document.test.ts block": [
+    11
+  ],
+  "packages/dom/src/document.ts block": [
+    14
+  ],
+  "packages/dom/src/document.ts docblock": [
+    26,
+    18
+  ],
+  "packages/dom/src/document.ts overview": [
+    20
+  ],
+  "packages/dom/src/form-state.ts overview": [
+    22
+  ],
+  "packages/dom/src/generated-box.ts docblock": [
+    12
+  ],
+  "packages/dom/src/inherit.ts docblock": [
+    12
+  ],
+  "packages/dom/src/media.ts docblock": [
+    11
+  ],
+  "packages/dom/src/object-urls.ts overview": [
+    25
+  ],
+  "packages/dom/src/painted-styles.ts docblock": [
+    19
+  ],
+  "packages/dom/src/stabilize.ts block": [
+    18
+  ],
+  "packages/dom/src/stabilize.ts docblock": [
+    17
+  ],
+  "packages/dom/src/stabilize.ts overview": [
+    26
+  ],
+  "packages/dom/src/style-index.test.ts block": [
+    6,
+    6,
+    6,
+    6
+  ],
+  "packages/dom/src/style-index.test.ts overview": [
+    18
+  ],
+  "packages/dom/src/typeface.ts docblock": [
+    16
+  ],
+  "packages/event/src/head.ts overview": [
+    18
+  ],
+  "packages/event/src/index.ts docblock": [
+    21
+  ],
+  "packages/event/src/index.ts overview": [
+    51
+  ],
+  "packages/eyes/src/access.ts docblock": [
+    11
+  ],
+  "packages/eyes/src/rtl.ts docblock": [
+    16
+  ],
+  "packages/help/src/ask.ts docblock": [
+    11
+  ],
+  "packages/help/src/caught-up.ts docblock": [
+    23
+  ],
+  "packages/help/src/dependency-scale.measure.ts overview": [
+    22
+  ],
+  "packages/help/src/index.ts overview": [
+    22
+  ],
+  "packages/help/src/indexed-surface.ts block": [
+    11
+  ],
+  "packages/help/src/read.ts block": [
+    6
+  ],
+  "packages/help/src/read.ts docblock": [
+    12,
+    11
+  ],
+  "packages/help/src/read.ts overview": [
+    25
+  ],
+  "packages/help/src/refresh-native.ts docblock": [
+    17
+  ],
+  "packages/help/src/scan-scope.ts docblock": [
+    13
+  ],
+  "packages/help/src/search-index.ts overview": [
+    17
+  ],
+  "packages/help/src/search-read.ts docblock": [
+    15
+  ],
+  "packages/help/src/server.ts block": [
+    14
+  ],
+  "packages/help/src/tools.ts docblock": [
+    47
+  ],
+  "packages/help/src/tools/area.ts overview": [
+    36
+  ],
+  "packages/help/src/tools/described.ts overview": [
+    48
+  ],
+  "packages/help/src/tools/discover.ts overview": [
+    31
+  ],
+  "packages/help/src/tools/entrypoint.ts docblock": [
+    17
+  ],
+  "packages/help/src/tools/exported-matches.ts docblock": [
+    16
+  ],
+  "packages/help/src/tools/find.ts docblock": [
+    12
+  ],
+  "packages/help/src/tools/grep.ts overview": [
+    16
+  ],
+  "packages/help/src/tools/intersection.ts overview": [
+    17
+  ],
+  "packages/help/src/tools/loose.ts overview": [
+    19
+  ],
+  "packages/help/src/tools/members.ts overview": [
+    19
+  ],
+  "packages/help/src/tools/orient.ts overview": [
+    21
+  ],
+  "packages/help/src/tools/search-answer.ts block": [
+    6
+  ],
+  "packages/help/src/tools/search-answer.ts docblock": [
+    12
+  ],
+  "packages/help/src/tools/search.ts block": [
+    6
+  ],
+  "packages/help/src/tools/search.ts overview": [
+    76
+  ],
+  "packages/help/src/tools/silent.ts docblock": [
+    11
+  ],
+  "packages/help/src/tools/uses.ts overview": [
+    69
+  ],
+  "packages/history/src/absent.ts block": [
+    7
+  ],
+  "packages/history/src/absent.ts overview": [
+    19
+  ],
+  "packages/history/src/approval.ts overview": [
+    17
+  ],
+  "packages/history/src/churn.ts block": [
+    7
+  ],
+  "packages/history/src/churn.ts overview": [
+    25
+  ],
+  "packages/history/src/flakiness.ts overview": [
+    23
+  ],
+  "packages/history/src/observation.ts block": [
+    7
+  ],
+  "packages/history/src/observation.ts docblock": [
+    19,
+    13
+  ],
+  "packages/history/src/store.ts block": [
+    6
+  ],
+  "packages/history/src/store.ts docblock": [
+    24
+  ],
+  "packages/ioc/README.md lead": [
+    18
+  ],
+  "packages/ioc/src/reset/index.ts docblock": [
+    31
+  ],
+  "packages/ioc/src/reset/setup.ts docblock": [
+    24
+  ],
+  "packages/ioc/src/reset/state.ts docblock": [
+    13
+  ],
+  "packages/isolator/README.md lead": [
+    24
+  ],
+  "packages/isolator/src/jest.ts overview": [
+    21
+  ],
+  "packages/isolator/src/transform.ts overview": [
+    29
+  ],
+  "packages/jsx-source/jest-resolver.cjs overview": [
+    19
+  ],
+  "packages/jsx-source/src/under.test.ts block": [
+    8
+  ],
+  "packages/jsx-source/src/under.ts block": [
+    9
+  ],
+  "packages/mcp/README.md lead": [
+    17
+  ],
+  "packages/mcp/scripts/locate-corpus.mjs overview": [
+    27
+  ],
+  "packages/mcp/scripts/locate-place.mjs overview": [
+    23
+  ],
+  "packages/mcp/scripts/locate-sheet.mjs overview": [
+    22
+  ],
+  "packages/mcp/src/bin.ts overview": [
+    17
+  ],
+  "packages/mcp/src/index.ts overview": [
+    22
+  ],
+  "packages/mcp/src/server.ts docblock": [
+    12,
+    11
+  ],
+  "packages/mcp/src/tools.ts docblock": [
+    14
+  ],
+  "packages/mcp/src/tools.ts overview": [
+    61
+  ],
+  "packages/mcp/src/tools/adjudicate.ts docblock": [
+    17
+  ],
+  "packages/mcp/src/tools/changed-tests.ts docblock": [
+    15
+  ],
+  "packages/mcp/src/tools/changelog.ts overview": [
+    26
+  ],
+  "packages/mcp/src/tools/changes.ts docblock": [
+    12
+  ],
+  "packages/mcp/src/tools/composition.ts overview": [
+    19
+  ],
+  "packages/mcp/src/tools/continue.ts docblock": [
+    11
+  ],
+  "packages/mcp/src/tools/describe.ts block": [
+    6
+  ],
+  "packages/mcp/src/tools/describe.ts docblock": [
+    12
+  ],
+  "packages/mcp/src/tools/findings.ts docblock": [
+    22
+  ],
+  "packages/mcp/src/tools/hops.ts overview": [
+    67
+  ],
+  "packages/mcp/src/tools/locate.test.ts block": [
+    6
+  ],
+  "packages/mcp/src/tools/locate.ts docblock": [
+    13
+  ],
+  "packages/mcp/src/tools/locate.ts overview": [
+    66
+  ],
+  "packages/mcp/src/tools/orient.test.ts block": [
+    6
+  ],
+  "packages/mcp/src/tools/orient.ts block": [
+    6
+  ],
+  "packages/mcp/src/tools/orient.ts docblock": [
+    16
+  ],
+  "packages/mcp/src/tools/orient.ts overview": [
+    29
+  ],
+  "packages/mcp/src/tools/recall.ts docblock": [
+    13
+  ],
+  "packages/mcp/src/tools/scope-reach.test.ts block": [
+    7
+  ],
+  "packages/mcp/src/tools/scope.test.ts block": [
+    6,
+    6
+  ],
+  "packages/mcp/src/tools/scope.ts block": [
+    6
+  ],
+  "packages/mcp/src/tools/scope.ts docblock": [
+    15,
+    11
+  ],
+  "packages/mcp/src/tools/scope.ts overview": [
+    34
+  ],
+  "packages/mcp/src/tools/self.ts docblock": [
+    11
+  ],
+  "packages/mcp/src/tools/start-point.ts docblock": [
+    12
+  ],
+  "packages/mcp/src/tools/start-point.ts overview": [
+    39
+  ],
+  "packages/mcp/src/tools/summary.ts block": [
+    12,
+    8
+  ],
+  "packages/mcp/src/tools/summary.ts docblock": [
+    18,
+    14,
+    14,
+    11
+  ],
+  "packages/mcp/src/tools/tree.ts overview": [
+    28
+  ],
+  "packages/mcp/src/tools/variations.ts overview": [
+    18
+  ],
+  "packages/observe/src/attribution.ts docblock": [
+    13
+  ],
+  "packages/observe/src/because.ts docblock": [
+    13,
+    13
+  ],
+  "packages/observe/src/causes.test.ts block": [
+    6,
+    6
+  ],
+  "packages/observe/src/decide.ts block": [
+    17,
+    6
+  ],
+  "packages/observe/src/decide.ts docblock": [
+    13,
+    13
+  ],
+  "packages/observe/src/frame.ts docblock": [
+    17
+  ],
+  "packages/observe/src/ignore.test.ts block": [
+    7,
+    6
+  ],
+  "packages/observe/src/observe.ts block": [
+    7
+  ],
+  "packages/observe/src/observe.ts docblock": [
+    18
+  ],
+  "packages/observe/src/parity.test.ts block": [
+    7,
+    7
+  ],
+  "packages/observe/src/render-once.ts block": [
+    7
+  ],
+  "packages/observe/src/render-once.ts docblock": [
+    16,
+    12
+  ],
+  "packages/observe/src/sensitivity.test.ts overview": [
+    18
+  ],
+  "packages/observe/src/summarize.ts block": [
+    7,
+    7
+  ],
+  "packages/observe/src/summarize.ts docblock": [
+    13
+  ],
+  "packages/observe/src/unpictured.ts block": [
+    7
+  ],
+  "packages/observe/src/unpictured.ts docblock": [
+    18,
+    11
+  ],
+  "packages/package/src/doc.ts overview": [
+    23
+  ],
+  "packages/package/src/help.ts docblock": [
+    11
+  ],
+  "packages/package/src/help.ts overview": [
+    21
+  ],
+  "packages/package/src/manifest.ts block": [
+    14
+  ],
+  "packages/package/src/manifest.ts docblock": [
+    12
+  ],
+  "packages/package/src/members.ts docblock": [
+    30
+  ],
+  "packages/package/src/mention.ts overview": [
+    20
+  ],
+  "packages/package/src/use.ts overview": [
+    23
+  ],
+  "packages/package/src/write.ts overview": [
+    18
+  ],
+  "packages/playwright-test/README.md lead": [
+    22
+  ],
+  "packages/playwright-test/src/bundle.ts docblock": [
+    11
+  ],
+  "packages/playwright-test/src/cadence-babel.cts overview": [
+    17
+  ],
+  "packages/playwright-test/src/completed.ts block": [
+    6
+  ],
+  "packages/playwright-test/src/completed.ts docblock": [
+    17,
+    13
+  ],
+  "packages/playwright-test/src/docket.ts docblock": [
+    15
+  ],
+  "packages/playwright-test/src/documents.ts docblock": [
+    14
+  ],
+  "packages/playwright-test/src/documents.ts overview": [
+    18
+  ],
+  "packages/playwright-test/src/execution.ts block": [
+    10,
+    6,
+    6
+  ],
+  "packages/playwright-test/src/fixture.ts block": [
+    7,
+    7,
+    6
+  ],
+  "packages/playwright-test/src/fixture.ts overview": [
+    22
+  ],
+  "packages/playwright-test/src/in-place.ts block": [
+    7,
+    6,
+    6
+  ],
+  "packages/playwright-test/src/in-place.ts docblock": [
+    11
+  ],
+  "packages/playwright-test/src/options.ts docblock": [
+    15
+  ],
+  "packages/playwright-test/src/page-agent.ts block": [
+    6
+  ],
+  "packages/playwright-test/src/promote.ts block": [
+    6
+  ],
+  "packages/playwright-test/src/render-cache.ts docblock": [
+    11
+  ],
+  "packages/playwright-test/src/renderers.ts overview": [
+    17
+  ],
+  "packages/playwright-test/src/reporter.ts overview": [
+    25
+  ],
+  "packages/playwright-test/src/rstest.ts overview": [
+    16
+  ],
+  "packages/playwright-test/src/run.ts docblock": [
+    11
+  ],
+  "packages/playwright-test/src/vantage.ts overview": [
+    48
+  ],
+  "packages/playwright-test/src/whole-file-shard.ts overview": [
+    19
+  ],
+  "packages/playwright-test/src/with-test-selection.ts overview": [
+    18
+  ],
+  "packages/playwright/scripts/execute.mjs overview": [
+    28
+  ],
+  "packages/playwright/scripts/host.mjs docblock": [
+    15
+  ],
+  "packages/playwright/scripts/host.mjs overview": [
+    34
+  ],
+  "packages/playwright/scripts/paint.mjs overview": [
+    29
+  ],
+  "packages/playwright/src/acquire.ts docblock": [
+    32
+  ],
+  "packages/playwright/src/arrivals.ts docblock": [
+    19
+  ],
+  "packages/playwright/src/blank.ts docblock": [
+    11
+  ],
+  "packages/playwright/src/blank.ts overview": [
+    39
+  ],
+  "packages/playwright/src/browsers.ts overview": [
+    16
+  ],
+  "packages/playwright/src/capture.chromium.test.ts block": [
+    6
+  ],
+  "packages/playwright/src/capture.ts docblock": [
+    55
+  ],
+  "packages/playwright/src/declarations.ts docblock": [
+    26
+  ],
+  "packages/playwright/src/engines.chromium.test.ts block": [
+    8
+  ],
+  "packages/playwright/src/engines.chromium.test.ts overview": [
+    20
+  ],
+  "packages/playwright/src/engines.ts docblock": [
+    13
+  ],
+  "packages/playwright/src/gif.ts overview": [
+    30
+  ],
+  "packages/playwright/src/harness.chromium.test.ts block": [
+    11
+  ],
+  "packages/playwright/src/harness.ts docblock": [
+    17
+  ],
+  "packages/playwright/src/index.ts overview": [
+    20
+  ],
+  "packages/playwright/src/modules.ts docblock": [
+    15
+  ],
+  "packages/playwright/src/network.fixture.ts block": [
+    10
+  ],
+  "packages/playwright/src/network.ts overview": [
+    34
+  ],
+  "packages/playwright/src/page-pool.ts block": [
+    6
+  ],
+  "packages/playwright/src/pause.ts docblock": [
+    18
+  ],
+  "packages/playwright/src/renderer.chromium.test.ts block": [
+    8,
+    7
+  ],
+  "packages/playwright/src/renderer.ts block": [
+    23,
+    13,
+    10
+  ],
+  "packages/playwright/src/renderer.ts docblock": [
+    20,
+    16,
+    13
+  ],
+  "packages/playwright/src/resources.ts docblock": [
+    11
+  ],
+  "packages/playwright/src/viewport.ts docblock": [
+    13
+  ],
+  "packages/png-sharp/src/index.ts docblock": [
+    26
+  ],
+  "packages/png/src/align.ts docblock": [
+    28,
+    15,
+    15
+  ],
+  "packages/png/src/change.ts docblock": [
+    19
+  ],
+  "packages/png/src/compare.ts docblock": [
+    14
+  ],
+  "packages/png/src/difference.test.ts block": [
+    7
+  ],
+  "packages/png/src/edit-script.ts docblock": [
+    17
+  ],
+  "packages/png/src/foreign.ts docblock": [
+    14
+  ],
+  "packages/png/src/foreign.ts overview": [
+    26
+  ],
+  "packages/png/src/mask.ts docblock": [
+    12
+  ],
+  "packages/presentation/src/analyze.ts docblock": [
+    13
+  ],
+  "packages/raster/src/assemble.ts block": [
+    8
+  ],
+  "packages/raster/src/assemble.ts docblock": [
+    15
+  ],
+  "packages/raster/src/codec.ts block": [
+    6
+  ],
+  "packages/raster/src/difference/index.ts overview": [
+    40
+  ],
+  "packages/raster/src/difference/metric.ts docblock": [
+    28
+  ],
+  "packages/raster/src/difference/serialize.ts overview": [
+    19
+  ],
+  "packages/raster/src/ephemeral.ts docblock": [
+    17
+  ],
+  "packages/raster/src/gate.ts overview": [
+    22
+  ],
+  "packages/raster/src/index.ts overview": [
+    24
+  ],
+  "packages/raster/src/policy.ts docblock": [
+    12
+  ],
+  "packages/raster/src/renderer.ts block": [
+    8
+  ],
+  "packages/raster/src/renderer.ts docblock": [
+    19,
+    14,
+    13
+  ],
+  "packages/raster/src/settle.ts block": [
+    7
+  ],
+  "packages/raster/src/settle.ts docblock": [
+    60
+  ],
+  "packages/raster/src/store.test.ts block": [
+    9
+  ],
+  "packages/raster/src/store.ts docblock": [
+    29,
+    28,
+    18,
+    15,
+    14,
+    13,
+    13,
+    13,
+    12
+  ],
+  "packages/raster/src/store.ts overview": [
+    21
+  ],
+  "packages/react/src/arrival.ts docblock": [
+    18,
+    13
+  ],
+  "packages/react/src/callsite.test.tsx block": [
+    7
+  ],
+  "packages/react/src/commits.ts block": [
+    7
+  ],
+  "packages/react/src/commits.ts docblock": [
+    15,
+    12
+  ],
+  "packages/react/src/commits.ts overview": [
+    31
+  ],
+  "packages/react/src/declared.ts docblock": [
+    13
+  ],
+  "packages/react/src/fiber.ts docblock": [
+    17,
+    16,
+    12
+  ],
+  "packages/react/src/holding.ts block": [
+    11,
+    7
+  ],
+  "packages/react/src/holding.ts overview": [
+    43
+  ],
+  "packages/react/src/hydration.ts block": [
+    7
+  ],
+  "packages/react/src/hydration.ts docblock": [
+    13
+  ],
+  "packages/react/src/hydration.ts overview": [
+    57
+  ],
+  "packages/react/src/identity.ts overview": [
+    36
+  ],
+  "packages/react/src/index.ts overview": [
+    16
+  ],
+  "packages/react/src/names.ts docblock": [
+    13
+  ],
+  "packages/react/src/props.ts docblock": [
+    18,
+    18,
+    14
+  ],
+  "packages/react/src/resolve.ts block": [
+    7
+  ],
+  "packages/react/src/resolve.ts docblock": [
+    27,
+    14
+  ],
+  "packages/react/src/root-state.ts docblock": [
+    25,
+    16
+  ],
+  "packages/react/src/suspense.ts docblock": [
+    18,
+    13
+  ],
+  "packages/react/src/suspense.ts overview": [
+    18
+  ],
+  "packages/react/src/wiring.test.tsx block": [
+    7
+  ],
+  "packages/react/src/wiring.ts block": [
+    9
+  ],
+  "packages/react/src/wiring.ts docblock": [
+    12,
+    12
+  ],
+  "packages/react/src/wiring.ts overview": [
+    38
+  ],
+  "packages/reads/README.md lead": [
+    20
+  ],
+  "packages/remote/src/answers.ts block": [
+    13,
+    7
+  ],
+  "packages/remote/src/batch.ts block": [
+    8
+  ],
+  "packages/remote/src/batch.ts overview": [
+    21
+  ],
+  "packages/remote/src/store-described.test.ts block": [
+    6
+  ],
+  "packages/remote/src/store.test.ts block": [
+    7
+  ],
+  "packages/remote/src/store.ts block": [
+    11,
+    9
+  ],
+  "packages/remote/src/store.ts docblock": [
+    11
+  ],
+  "packages/remote/src/store.ts overview": [
+    39
+  ],
+  "packages/remote/src/transport.ts overview": [
+    24
+  ],
+  "packages/report/src/changelog-message.ts docblock": [
+    15,
+    13
+  ],
+  "packages/report/src/changelog-message.ts overview": [
+    39
+  ],
+  "packages/report/src/changelog.test.ts block": [
+    8,
+    6
+  ],
+  "packages/report/src/changelog.ts block": [
+    10,
+    6
+  ],
+  "packages/report/src/changelog.ts docblock": [
+    19
+  ],
+  "packages/report/src/changelog.ts overview": [
+    55
+  ],
+  "packages/report/src/cluster.ts block": [
+    7
+  ],
+  "packages/report/src/cluster.ts docblock": [
+    11
+  ],
+  "packages/report/src/cluster.ts overview": [
+    39
+  ],
+  "packages/report/src/composition.ts docblock": [
+    12
+  ],
+  "packages/report/src/composition.ts overview": [
+    23
+  ],
+  "packages/report/src/declarations.ts docblock": [
+    13
+  ],
+  "packages/report/src/declarations.ts overview": [
+    19
+  ],
+  "packages/report/src/file.ts docblock": [
+    11
+  ],
+  "packages/report/src/finding-record.ts docblock": [
+    12
+  ],
+  "packages/report/src/findings.ts docblock": [
+    18
+  ],
+  "packages/report/src/findings.ts overview": [
+    32
+  ],
+  "packages/report/src/format.ts docblock": [
+    16,
+    15,
+    15,
+    15,
+    14,
+    12,
+    12,
+    11,
+    11
+  ],
+  "packages/report/src/index.ts overview": [
+    21
+  ],
+  "packages/report/src/intent.ts overview": [
+    48
+  ],
+  "packages/report/src/lexicon.ts overview": [
+    44
+  ],
+  "packages/report/src/promotion.ts docblock": [
+    12
+  ],
+  "packages/report/src/promotion.ts overview": [
+    16
+  ],
+  "packages/report/src/reach.ts docblock": [
+    12
+  ],
+  "packages/report/src/reach.ts overview": [
+    35
+  ],
+  "packages/report/src/suite-index.ts docblock": [
+    35
+  ],
+  "packages/route-collector/src/alone.chromium.test.ts block": [
+    7
+  ],
+  "packages/route-collector/src/alone.chromium.test.ts overview": [
+    18
+  ],
+  "packages/route-collector/src/contract.ts docblock": [
+    16
+  ],
+  "packages/route-collector/src/directory.chromium.test.ts block": [
+    7
+  ],
+  "packages/route-collector/src/hydration.chromium.test.ts overview": [
+    21
+  ],
+  "packages/route-collector/src/index.ts block": [
+    9,
+    7,
+    6
+  ],
+  "packages/route-collector/src/index.ts docblock": [
+    20,
+    11
+  ],
+  "packages/route-collector/src/index.ts overview": [
+    26
+  ],
+  "packages/route-collector/src/object-urls.chromium.test.ts overview": [
+    19
+  ],
+  "packages/route-collector/src/operator.ts docblock": [
+    11
+  ],
+  "packages/route-collector/src/options.ts docblock": [
+    18,
+    15,
+    13,
+    13,
+    11
+  ],
+  "packages/route-collector/src/page-agent-entry.ts docblock": [
+    11
+  ],
+  "packages/route-collector/src/page-agent.ts block": [
+    9,
+    6
+  ],
+  "packages/route-collector/src/presentational.chromium.test.ts block": [
+    6
+  ],
+  "packages/route-collector/src/presentational.chromium.test.ts overview": [
+    17
+  ],
+  "packages/route-collector/src/read.ts block": [
+    8,
+    8,
+    7,
+    6,
+    6
+  ],
+  "packages/route-collector/src/sitemap.ts docblock": [
+    14,
+    13
+  ],
+  "packages/route-collector/src/source.ts overview": [
+    20
+  ],
+  "packages/route-collector/src/stabilization.chromium.test.ts docblock": [
+    11
+  ],
+  "packages/route-collector/src/stabilization.chromium.test.ts overview": [
+    19
+  ],
+  "packages/route-collector/src/web-fonts.chromium.test.ts overview": [
+    17
+  ],
+  "packages/route-collector/src/wiring.chromium.test.ts block": [
+    7
+  ],
+  "packages/route-collector/src/zero-config.chromium.test.ts block": [
+    11,
+    9,
+    7,
+    7
+  ],
+  "packages/route-collector/src/zero-config.chromium.test.ts overview": [
+    40
+  ],
+  "packages/scenario/src/assessment.ts docblock": [
+    14
+  ],
+  "packages/scenario/src/execution.ts block": [
+    6
+  ],
+  "packages/sense/README.md lead": [
+    36
+  ],
+  "packages/sense/native/build.mjs docblock": [
+    15
+  ],
+  "packages/sense/native/build.mjs overview": [
+    47
+  ],
+  "packages/sense/native/targets.mjs docblock": [
+    11
+  ],
+  "packages/sense/scripts/chunk-store.mjs overview": [
+    26
+  ],
+  "packages/sense/scripts/coverage.mjs overview": [
+    35
+  ],
+  "packages/sense/scripts/crossings.mjs block": [
+    7
+  ],
+  "packages/sense/scripts/crossings.mjs overview": [
+    25
+  ],
+  "packages/sense/scripts/depth-load.mjs overview": [
+    18
+  ],
+  "packages/sense/scripts/journey-load.mjs overview": [
+    20
+  ],
+  "packages/sense/scripts/local-sets.mjs block": [
+    12
+  ],
+  "packages/sense/scripts/local-sets.mjs overview": [
+    17
+  ],
+  "packages/sense/scripts/native.mjs overview": [
+    24
+  ],
+  "packages/sense/scripts/overhead.mjs overview": [
+    28
+  ],
+  "packages/sense/scripts/probe-write.mjs overview": [
+    23
+  ],
+  "packages/sense/scripts/published-index.mjs overview": [
+    20
+  ],
+  "packages/sense/scripts/reach-probe.mjs overview": [
+    20
+  ],
+  "packages/sense/scripts/read-width.mjs overview": [
+    27
+  ],
+  "packages/sense/scripts/record-load.mjs overview": [
+    20
+  ],
+  "packages/sense/scripts/scale-chunks.mjs block": [
+    8,
+    6
+  ],
+  "packages/sense/scripts/scale-chunks.mjs overview": [
+    27
+  ],
+  "packages/sense/scripts/scan-cost.mjs overview": [
+    17
+  ],
+  "packages/sense/scripts/selection-scale.mjs overview": [
+    23
+  ],
+  "packages/sense/scripts/shape-sweep.mjs overview": [
+    17
+  ],
+  "packages/sense/scripts/snapshot-scale.mjs block": [
+    7
+  ],
+  "packages/sense/scripts/snapshot-scale.mjs overview": [
+    28
+  ],
+  "packages/sense/scripts/source-index.mjs block": [
+    11
+  ],
+  "packages/sense/scripts/source-index.mjs overview": [
+    22
+  ],
+  "packages/sense/scripts/storage.mjs block": [
+    9
+  ],
+  "packages/sense/scripts/storage.mjs docblock": [
+    11
+  ],
+  "packages/sense/scripts/tree-cost.mjs overview": [
+    16
+  ],
+  "packages/sense/scripts/tuned-cost.mjs overview": [
+    32
+  ],
+  "packages/sense/scripts/variance-store-classes.mjs block": [
+    15,
+    8,
+    7,
+    7,
+    6
+  ],
+  "packages/sense/scripts/variance-store-query.mjs block": [
+    10,
+    6
+  ],
+  "packages/sense/scripts/variance-store-shape.mjs block": [
+    14
+  ],
+  "packages/sense/scripts/variance-store-verify.mjs block": [
+    12,
+    9,
+    7
+  ],
+  "packages/sense/scripts/variance-store.mjs overview": [
+    19
+  ],
+  "packages/sense/src/addon.ts docblock": [
+    12,
+    11
+  ],
+  "packages/sense/src/cache.ts docblock": [
+    21
+  ],
+  "packages/sense/src/cache.ts overview": [
+    25
+  ],
+  "packages/sense/src/conditions.ts block": [
+    6
+  ],
+  "packages/sense/src/conditions.ts overview": [
+    19
+  ],
+  "packages/sense/src/declaration-siblings.test.ts overview": [
+    16
+  ],
+  "packages/sense/src/emitted.ts overview": [
+    20
+  ],
+  "packages/sense/src/help-reading.ts docblock": [
+    12
+  ],
+  "packages/sense/src/index.ts overview": [
+    16
+  ],
+  "packages/sense/src/instrument/cadence.ts docblock": [
+    14
+  ],
+  "packages/sense/src/instrument/index.ts docblock": [
+    28,
+    12
+  ],
+  "packages/sense/src/instrument/index.ts overview": [
+    109
+  ],
+  "packages/sense/src/instrument/probe-log.cts block": [
+    8
+  ],
+  "packages/sense/src/instrument/probe-log.cts overview": [
+    53
+  ],
+  "packages/sense/src/instrument/spliced.ts docblock": [
+    13,
+    13
+  ],
+  "packages/sense/src/instrument/spliced.ts overview": [
+    23
+  ],
+  "packages/sense/src/instrument/story-tap.cts overview": [
+    65
+  ],
+  "packages/sense/src/journeys-share.measure.ts overview": [
+    21
+  ],
+  "packages/sense/src/jvm.ts overview": [
+    43
+  ],
+  "packages/sense/src/language.ts docblock": [
+    13
+  ],
+  "packages/sense/src/language.ts overview": [
+    26
+  ],
+  "packages/sense/src/lock/index.ts overview": [
+    18
+  ],
+  "packages/sense/src/lock/lockfile.ts overview": [
+    19
+  ],
+  "packages/sense/src/lock/pnpm.ts overview": [
+    16
+  ],
+  "packages/sense/src/lock/yaml.ts overview": [
+    16
+  ],
+  "packages/sense/src/lock/yarn.ts docblock": [
+    11
+  ],
+  "packages/sense/src/python.ts overview": [
+    36
+  ],
+  "packages/sense/src/read.ts docblock": [
+    14
+  ],
+  "packages/sense/src/read.ts overview": [
+    55
+  ],
+  "packages/sense/src/resolve.test.ts block": [
+    8
+  ],
+  "packages/sense/src/resolve.ts block": [
+    9,
+    9
+  ],
+  "packages/sense/src/resolve.ts docblock": [
+    24,
+    17,
+    16,
+    13
+  ],
+  "packages/sense/src/resolve.ts overview": [
+    18
+  ],
+  "packages/sense/src/restrictions-transitive.ts overview": [
+    17
+  ],
+  "packages/sense/src/reuse.ts overview": [
+    41
+  ],
+  "packages/sense/src/rust.ts overview": [
+    61
+  ],
+  "packages/sense/src/scan.ts block": [
+    8
+  ],
+  "packages/sense/src/scan.ts docblock": [
+    13,
+    12,
+    11,
+    11
+  ],
+  "packages/sense/src/scan.ts overview": [
+    34
+  ],
+  "packages/sense/src/sense.test.ts block": [
+    6,
+    6
+  ],
+  "packages/sense/src/source-index-file.ts block": [
+    8
+  ],
+  "packages/sense/src/source-scope.ts overview": [
+    18
+  ],
+  "packages/sense/src/specifier.ts docblock": [
+    12
+  ],
+  "packages/sense/src/story/compare.ts overview": [
+    28
+  ],
+  "packages/sense/src/story/fold.ts overview": [
+    19
+  ],
+  "packages/sense/src/story/format.cts overview": [
+    39
+  ],
+  "packages/sense/src/story/read.ts overview": [
+    30
+  ],
+  "packages/sense/src/style.ts docblock": [
+    12
+  ],
+  "packages/sense/src/swift.ts overview": [
+    40
+  ],
+  "packages/sense/src/taint/audit.ts overview": [
+    22
+  ],
+  "packages/sense/src/taint/cache.ts overview": [
+    27
+  ],
+  "packages/sense/src/taint/index.ts block": [
+    6
+  ],
+  "packages/sense/src/taint/index.ts overview": [
+    66
+  ],
+  "packages/sense/src/taint/mocks.ts overview": [
+    41
+  ],
+  "packages/sense/src/test-selection/at-distance.ts overview": [
+    42
+  ],
+  "packages/sense/src/test-selection/at-source.ts overview": [
+    52
+  ],
+  "packages/sense/src/test-selection/blocks-around.ts docblock": [
+    59
+  ],
+  "packages/sense/src/test-selection/cache-layers.ts docblock": [
+    19,
+    11
+  ],
+  "packages/sense/src/test-selection/cache-layers.ts overview": [
+    33
+  ],
+  "packages/sense/src/test-selection/captured-modules.ts docblock": [
+    13,
+    12,
+    11
+  ],
+  "packages/sense/src/test-selection/carried-rows.ts docblock": [
+    41,
+    18
+  ],
+  "packages/sense/src/test-selection/carried-sources.ts block": [
+    9
+  ],
+  "packages/sense/src/test-selection/carried-sources.ts docblock": [
+    19
+  ],
+  "packages/sense/src/test-selection/case-cuts.ts block": [
+    6
+  ],
+  "packages/sense/src/test-selection/case-cuts.ts overview": [
+    18
+  ],
+  "packages/sense/src/test-selection/case-fold.ts docblock": [
+    23
+  ],
+  "packages/sense/src/test-selection/case-landing.ts block": [
+    6
+  ],
+  "packages/sense/src/test-selection/case-landing.ts docblock": [
+    35,
+    26
+  ],
+  "packages/sense/src/test-selection/case-layer.ts block": [
+    6
+  ],
+  "packages/sense/src/test-selection/case-layer.ts docblock": [
+    30,
+    11
+  ],
+  "packages/sense/src/test-selection/case-lines.ts overview": [
+    23
+  ],
+  "packages/sense/src/test-selection/case-motion.ts docblock": [
+    11,
+    11
+  ],
+  "packages/sense/src/test-selection/case-preconditions.cts docblock": [
+    11
+  ],
+  "packages/sense/src/test-selection/case-preconditions.cts overview": [
+    26
+  ],
+  "packages/sense/src/test-selection/case-record.ts docblock": [
+    19
+  ],
+  "packages/sense/src/test-selection/cases.ts docblock": [
+    17
+  ],
+  "packages/sense/src/test-selection/cases.ts overview": [
+    96
+  ],
+  "packages/sense/src/test-selection/collectors.cts docblock": [
+    13,
+    12
+  ],
+  "packages/sense/src/test-selection/columns.test.ts block": [
+    7
+  ],
+  "packages/sense/src/test-selection/columns.ts docblock": [
+    36,
+    13
+  ],
+  "packages/sense/src/test-selection/columns.ts overview": [
+    24
+  ],
+  "packages/sense/src/test-selection/commit-runs.ts docblock": [
+    21,
+    13,
+    12,
+    11,
+    11
+  ],
+  "packages/sense/src/test-selection/commit-runs.ts overview": [
+    35
+  ],
+  "packages/sense/src/test-selection/commit.ts overview": [
+    25
+  ],
+  "packages/sense/src/test-selection/coverage-distance.ts overview": [
+    16
+  ],
+  "packages/sense/src/test-selection/coverage-file.ts docblock": [
+    13
+  ],
+  "packages/sense/src/test-selection/coverage-rows.ts block": [
+    10
+  ],
+  "packages/sense/src/test-selection/coverage-rows.ts docblock": [
+    16,
+    16,
+    11
+  ],
+  "packages/sense/src/test-selection/covering-change-text.ts block": [
+    14
+  ],
+  "packages/sense/src/test-selection/crossing-fold.ts overview": [
+    19
+  ],
+  "packages/sense/src/test-selection/crossing-function.integration.test.ts overview": [
+    19
+  ],
+  "packages/sense/src/test-selection/crossing-sets.ts overview": [
+    50
+  ],
+  "packages/sense/src/test-selection/diff-lines.ts block": [
+    11
+  ],
+  "packages/sense/src/test-selection/diff-lines.ts docblock": [
+    27
+  ],
+  "packages/sense/src/test-selection/distance.ts block": [
+    6
+  ],
+  "packages/sense/src/test-selection/distance.ts docblock": [
+    30,
+    23,
+    11,
+    11
+  ],
+  "packages/sense/src/test-selection/distance.ts overview": [
+    34
+  ],
+  "packages/sense/src/test-selection/divergence.ts overview": [
+    19
+  ],
+  "packages/sense/src/test-selection/effects.ts docblock": [
+    11
+  ],
+  "packages/sense/src/test-selection/execution-format.ts overview": [
+    29
+  ],
+  "packages/sense/src/test-selection/execution-select.ts overview": [
+    31
+  ],
+  "packages/sense/src/test-selection/eyes-frame.cts overview": [
+    17
+  ],
+  "packages/sense/src/test-selection/eyes-record.ts docblock": [
+    13
+  ],
+  "packages/sense/src/test-selection/faces.ts docblock": [
+    15,
+    14
+  ],
+  "packages/sense/src/test-selection/faces.ts overview": [
+    20
+  ],
+  "packages/sense/src/test-selection/finished-files.ts block": [
+    8,
+    8,
+    6
+  ],
+  "packages/sense/src/test-selection/finished-files.ts docblock": [
+    26,
+    20,
+    19,
+    17,
+    12
+  ],
+  "packages/sense/src/test-selection/format-layout.ts docblock": [
+    32
+  ],
+  "packages/sense/src/test-selection/format-view.ts docblock": [
+    11
+  ],
+  "packages/sense/src/test-selection/format.ts block": [
+    8,
+    7
+  ],
+  "packages/sense/src/test-selection/frame.ts docblock": [
+    22
+  ],
+  "packages/sense/src/test-selection/governing-config.ts docblock": [
+    18
+  ],
+  "packages/sense/src/test-selection/importer-walk.ts docblock": [
+    20
+  ],
+  "packages/sense/src/test-selection/importers-module.test.ts block": [
+    6
+  ],
+  "packages/sense/src/test-selection/importers.ts block": [
+    6
+  ],
+  "packages/sense/src/test-selection/importers.ts docblock": [
+    12
+  ],
+  "packages/sense/src/test-selection/importers.ts overview": [
+    47
+  ],
+  "packages/sense/src/test-selection/index-lock.test.ts block": [
+    6
+  ],
+  "packages/sense/src/test-selection/index-lock.test.ts docblock": [
+    13
+  ],
+  "packages/sense/src/test-selection/index-lock.ts block": [
+    6
+  ],
+  "packages/sense/src/test-selection/index.ts docblock": [
+    18
+  ],
+  "packages/sense/src/test-selection/inert.test.ts block": [
+    14,
+    12,
+    8
+  ],
+  "packages/sense/src/test-selection/inert.ts block": [
+    9,
+    6
+  ],
+  "packages/sense/src/test-selection/inert.ts docblock": [
+    24
+  ],
+  "packages/sense/src/test-selection/inert.ts overview": [
+    44
+  ],
+  "packages/sense/src/test-selection/instrumented-modules.ts docblock": [
+    14
+  ],
+  "packages/sense/src/test-selection/jest-globals.cts overview": [
+    34
+  ],
+  "packages/sense/src/test-selection/jest-registry.cts overview": [
+    23
+  ],
+  "packages/sense/src/test-selection/jest-reporter.ts block": [
+    9
+  ],
+  "packages/sense/src/test-selection/jest-selection.ts overview": [
+    17
+  ],
+  "packages/sense/src/test-selection/jest-setup.cts docblock": [
+    18,
+    11
+  ],
+  "packages/sense/src/test-selection/jest-setup.cts overview": [
+    28
+  ],
+  "packages/sense/src/test-selection/jest-trace-environment.cts overview": [
+    20
+  ],
+  "packages/sense/src/test-selection/jest-transform.ts block": [
+    6
+  ],
+  "packages/sense/src/test-selection/jest-transform.ts docblock": [
+    11
+  ],
+  "packages/sense/src/test-selection/jest-transform.ts overview": [
+    26
+  ],
+  "packages/sense/src/test-selection/jest.integration.test.ts block": [
+    7,
+    6
+  ],
+  "packages/sense/src/test-selection/jest.ts docblock": [
+    21,
+    19
+  ],
+  "packages/sense/src/test-selection/jest.ts overview": [
+    20
+  ],
+  "packages/sense/src/test-selection/journal-cases.test.ts block": [
+    6
+  ],
+  "packages/sense/src/test-selection/journal-format.cts docblock": [
+    16
+  ],
+  "packages/sense/src/test-selection/journal-format.cts overview": [
+    21
+  ],
+  "packages/sense/src/test-selection/journal-moved-on.test.ts block": [
+    9,
+    7,
+    7
+  ],
+  "packages/sense/src/test-selection/journal.test.ts block": [
+    6
+  ],
+  "packages/sense/src/test-selection/journal.ts block": [
+    9,
+    8,
+    7,
+    7,
+    6
+  ],
+  "packages/sense/src/test-selection/journal.ts overview": [
+    36
+  ],
+  "packages/sense/src/test-selection/journey-native.test.ts block": [
+    8
+  ],
+  "packages/sense/src/test-selection/journey-parts.ts docblock": [
+    17
+  ],
+  "packages/sense/src/test-selection/journey-reading.ts overview": [
+    19
+  ],
+  "packages/sense/src/test-selection/journey.ts docblock": [
+    13
+  ],
+  "packages/sense/src/test-selection/journey.ts overview": [
+    55
+  ],
+  "packages/sense/src/test-selection/kept-install.ts overview": [
+    17
+  ],
+  "packages/sense/src/test-selection/kept-texts.ts overview": [
+    19
+  ],
+  "packages/sense/src/test-selection/lay-carry.test.ts block": [
+    11,
+    9,
+    7,
+    6,
+    6
+  ],
+  "packages/sense/src/test-selection/lay-renumber.test.ts block": [
+    8,
+    6
+  ],
+  "packages/sense/src/test-selection/lay-reseated.test.ts block": [
+    8
+  ],
+  "packages/sense/src/test-selection/lay.test.ts block": [
+    11,
+    8,
+    6
+  ],
+  "packages/sense/src/test-selection/lookup.ts docblock": [
+    36
+  ],
+  "packages/sense/src/test-selection/lookup.ts overview": [
+    26
+  ],
+  "packages/sense/src/test-selection/mainline-layer.ts docblock": [
+    13
+  ],
+  "packages/sense/src/test-selection/mainline-layer.ts overview": [
+    18
+  ],
+  "packages/sense/src/test-selection/name-grammar.ts docblock": [
+    15
+  ],
+  "packages/sense/src/test-selection/name-grammar.ts overview": [
+    28
+  ],
+  "packages/sense/src/test-selection/narrowing.ts docblock": [
+    23,
+    21,
+    14,
+    11,
+    11
+  ],
+  "packages/sense/src/test-selection/observed.ts docblock": [
+    14,
+    11
+  ],
+  "packages/sense/src/test-selection/operations.ts docblock": [
+    13
+  ],
+  "packages/sense/src/test-selection/operations.ts overview": [
+    16
+  ],
+  "packages/sense/src/test-selection/own-layer.ts overview": [
+    21
+  ],
+  "packages/sense/src/test-selection/page-side.integration.test.ts block": [
+    6
+  ],
+  "packages/sense/src/test-selection/precision.ts overview": [
+    24
+  ],
+  "packages/sense/src/test-selection/precondition-source.ts docblock": [
+    17
+  ],
+  "packages/sense/src/test-selection/precondition.ts docblock": [
+    12
+  ],
+  "packages/sense/src/test-selection/probes-loader.ts block": [
+    8
+  ],
+  "packages/sense/src/test-selection/probes-rule.ts docblock": [
+    19
+  ],
+  "packages/sense/src/test-selection/probes.ts block": [
+    6
+  ],
+  "packages/sense/src/test-selection/probes.ts docblock": [
+    22
+  ],
+  "packages/sense/src/test-selection/prune.ts overview": [
+    27
+  ],
+  "packages/sense/src/test-selection/ran-over.ts docblock": [
+    11
+  ],
+  "packages/sense/src/test-selection/range-state.ts docblock": [
+    13
+  ],
+  "packages/sense/src/test-selection/react-compiler.integration.test.ts block": [
+    7,
+    6,
+    6
+  ],
+  "packages/sense/src/test-selection/reading.ts overview": [
+    39
+  ],
+  "packages/sense/src/test-selection/record-base.ts docblock": [
+    12
+  ],
+  "packages/sense/src/test-selection/record-combine.ts docblock": [
+    19
+  ],
+  "packages/sense/src/test-selection/record-location.ts block": [
+    8
+  ],
+  "packages/sense/src/test-selection/record-location.ts docblock": [
+    40,
+    26,
+    11
+  ],
+  "packages/sense/src/test-selection/recorded-text.ts block": [
+    6
+  ],
+  "packages/sense/src/test-selection/recorded-text.ts docblock": [
+    11
+  ],
+  "packages/sense/src/test-selection/recorded-text.ts overview": [
+    56
+  ],
+  "packages/sense/src/test-selection/region-edit.ts block": [
+    19
+  ],
+  "packages/sense/src/test-selection/region-landing.ts block": [
+    13,
+    6
+  ],
+  "packages/sense/src/test-selection/region-landing.ts docblock": [
+    14
+  ],
+  "packages/sense/src/test-selection/reporter-hooks.integration.test.ts block": [
+    10,
+    6
+  ],
+  "packages/sense/src/test-selection/reverse.test.ts block": [
+    8
+  ],
+  "packages/sense/src/test-selection/reverse.ts docblock": [
+    12
+  ],
+  "packages/sense/src/test-selection/route.ts overview": [
+    19
+  ],
+  "packages/sense/src/test-selection/rstest-after-loader.ts overview": [
+    17
+  ],
+  "packages/sense/src/test-selection/rstest-loader.ts overview": [
+    20
+  ],
+  "packages/sense/src/test-selection/rstest.integration.test.ts block": [
+    6
+  ],
+  "packages/sense/src/test-selection/rstest.ts block": [
+    8,
+    6,
+    6
+  ],
+  "packages/sense/src/test-selection/rstest.ts docblock": [
+    19
+  ],
+  "packages/sense/src/test-selection/rstest.ts overview": [
+    17
+  ],
+  "packages/sense/src/test-selection/runner.ts docblock": [
+    12
+  ],
+  "packages/sense/src/test-selection/runner.ts overview": [
+    22
+  ],
+  "packages/sense/src/test-selection/runs-as-before.ts overview": [
+    23
+  ],
+  "packages/sense/src/test-selection/select-charging.test.ts block": [
+    10,
+    7,
+    6
+  ],
+  "packages/sense/src/test-selection/select-unread.test.ts block": [
+    7,
+    6,
+    6
+  ],
+  "packages/sense/src/test-selection/select.ts block": [
+    9,
+    7,
+    7,
+    7
+  ],
+  "packages/sense/src/test-selection/selection-run.ts docblock": [
+    16,
+    13
+  ],
+  "packages/sense/src/test-selection/shadowed.ts docblock": [
+    18,
+    11
+  ],
+  "packages/sense/src/test-selection/shadowed.ts overview": [
+    27
+  ],
+  "packages/sense/src/test-selection/source-lines.test.ts block": [
+    13,
+    6
+  ],
+  "packages/sense/src/test-selection/source-lines.ts docblock": [
+    36,
+    29,
+    26,
+    16
+  ],
+  "packages/sense/src/test-selection/source-lines.ts overview": [
+    21
+  ],
+  "packages/sense/src/test-selection/source-target.ts overview": [
+    18
+  ],
+  "packages/sense/src/test-selection/stage.ts docblock": [
+    14
+  ],
+  "packages/sense/src/test-selection/stands.ts block": [
+    8
+  ],
+  "packages/sense/src/test-selection/stands.ts docblock": [
+    18,
+    12
+  ],
+  "packages/sense/src/test-selection/stands.ts overview": [
+    37
+  ],
+  "packages/sense/src/test-selection/subject-recorder.ts block": [
+    11
+  ],
+  "packages/sense/src/test-selection/suites.ts overview": [
+    23
+  ],
+  "packages/sense/src/test-selection/unmapped-transforms.ts overview": [
+    18
+  ],
+  "packages/sense/src/test-selection/vitest-plugin.ts block": [
+    9,
+    9,
+    6,
+    6,
+    6,
+    6,
+    6,
+    6,
+    6
+  ],
+  "packages/sense/src/test-selection/vitest-reporter.ts block": [
+    10
+  ],
+  "packages/sense/src/test-selection/vitest-sequencer.ts docblock": [
+    12,
+    11
+  ],
+  "packages/sense/src/test-selection/vitest-sequencer.ts overview": [
+    28
+  ],
+  "packages/sense/src/test-selection/vitest-serializers.integration.test.ts block": [
+    6
+  ],
+  "packages/sense/src/test-selection/vitest.integration.test.ts block": [
+    7,
+    7,
+    6,
+    6
+  ],
+  "packages/sense/src/test-selection/vitest.test.ts block": [
+    14,
+    12,
+    6
+  ],
+  "packages/sense/src/test-selection/vitest.ts block": [
+    9,
+    8,
+    7
+  ],
+  "packages/sense/src/test-selection/vitest.ts docblock": [
+    19,
+    18
+  ],
+  "packages/sense/src/test-selection/worker-source.ts docblock": [
+    31,
+    23,
+    12
+  ],
+  "packages/sense/src/text-digests.ts block": [
+    12,
+    6
+  ],
+  "packages/sense/src/tree.ts docblock": [
+    11
+  ],
+  "packages/sense/src/tree.ts overview": [
+    20
+  ],
+  "packages/sense/src/typescript-use.ts docblock": [
+    13
+  ],
+  "packages/sense/src/witness.ts overview": [
+    45
+  ],
+  "packages/sense/src/working-tree-changes.ts docblock": [
+    14
+  ],
+  "packages/sense/src/world.ts overview": [
+    28
+  ],
+  "packages/server/README.md lead": [
+    16
+  ],
+  "packages/server/src/answers.ts docblock": [
+    22,
+    12,
+    11
+  ],
+  "packages/server/src/backend-journey.test.ts block": [
+    6
+  ],
+  "packages/server/src/backend-sqlite.ts block": [
+    12
+  ],
+  "packages/server/src/backend.ts overview": [
+    21
+  ],
+  "packages/server/src/bin.ts overview": [
+    19
+  ],
+  "packages/server/src/http.ts overview": [
+    20
+  ],
+  "packages/server/src/index.ts overview": [
+    20
+  ],
+  "packages/server/src/sqlite-queries.ts docblock": [
+    13,
+    11
+  ],
+  "packages/server/src/sqlite-schema.ts docblock": [
+    14,
+    12
+  ],
+  "packages/session/src/cost.measure.ts block": [
+    8,
+    8
+  ],
+  "packages/session/src/cost.measure.ts overview": [
+    28
+  ],
+  "packages/session/src/index.ts overview": [
+    28
+  ],
+  "packages/session/src/session.ts block": [
+    22,
+    6
+  ],
+  "packages/session/src/session.ts docblock": [
+    19,
+    12
+  ],
+  "packages/session/src/session.ts overview": [
+    29
+  ],
+  "packages/session/src/state.ts docblock": [
+    11
+  ],
+  "packages/store/src/changelog.integration.test.ts block": [
+    8
+  ],
+  "packages/store/src/changelog.ts block": [
+    6
+  ],
+  "packages/store/src/changelog.ts overview": [
+    24
+  ],
+  "packages/store/src/durable-records.test.ts block": [
+    8
+  ],
+  "packages/store/src/durable.test.ts block": [
+    10,
+    8,
+    7
+  ],
+  "packages/store/src/durable.ts block": [
+    11
+  ],
+  "packages/store/src/durable.ts docblock": [
+    16,
+    11
+  ],
+  "packages/store/src/lfs-fetch.ts docblock": [
+    12
+  ],
+  "packages/store/src/lfs-pointer.ts docblock": [
+    17
+  ],
+  "packages/store/src/lfs.test.ts block": [
+    6
+  ],
+  "packages/store/src/lfs.ts block": [
+    6
+  ],
+  "packages/store/src/lfs.ts docblock": [
+    17,
+    11
+  ],
+  "packages/store/src/lfs.ts overview": [
+    31
+  ],
+  "packages/store/src/pair.ts docblock": [
+    22
+  ],
+  "packages/store/src/retention.ts block": [
+    6
+  ],
+  "packages/store/src/retention.ts overview": [
+    37
+  ],
+  "packages/store/src/share-git.ts block": [
+    6
+  ],
+  "packages/store/src/share.ts block": [
+    6
+  ],
+  "packages/store/src/share.ts docblock": [
+    15,
+    15
+  ],
+  "packages/storybook-collector/src/contract.ts docblock": [
+    15,
+    11
+  ],
+  "packages/storybook-collector/src/execution.ts block": [
+    10
+  ],
+  "packages/storybook-collector/src/index.ts block": [
+    11,
+    9,
+    7
+  ],
+  "packages/storybook-collector/src/index.ts docblock": [
+    23,
+    17,
+    11
+  ],
+  "packages/storybook-collector/src/operator.ts docblock": [
+    11
+  ],
+  "packages/storybook-collector/src/options.ts docblock": [
+    15,
+    14,
+    11
+  ],
+  "packages/storybook-collector/src/page-agent.ts block": [
+    6
+  ],
+  "packages/storybook-collector/src/preset.ts docblock": [
+    16
+  ],
+  "packages/storybook-collector/src/preset.ts overview": [
+    26
+  ],
+  "packages/storybook-collector/src/read.ts block": [
+    7,
+    7,
+    6
+  ],
+  "packages/storybook-collector/src/source.ts overview": [
+    20
+  ],
+  "packages/storybook/src/finish-wait.ts docblock": [
+    23,
+    13
+  ],
+  "packages/storybook/src/index-file.ts overview": [
+    23
+  ],
+  "packages/storybook/src/index.ts overview": [
+    23
+  ],
+  "packages/storybook/src/preview-fake.ts docblock": [
+    14
+  ],
+  "packages/storybook/src/preview-fake.ts overview": [
+    21
+  ],
+  "packages/storybook/src/preview-finished.test.ts block": [
+    9,
+    9,
+    7,
+    6
+  ],
+  "packages/storybook/src/preview-finished.test.ts overview": [
+    16
+  ],
+  "packages/storybook/src/preview-globals.ts overview": [
+    16
+  ],
+  "packages/storybook/src/preview-protocol.ts docblock": [
+    20,
+    15,
+    14,
+    13,
+    12
+  ],
+  "packages/storybook/src/preview-protocol.ts overview": [
+    20
+  ],
+  "packages/storybook/src/preview-readiness.test.ts block": [
+    6
+  ],
+  "packages/storybook/src/preview.test.ts block": [
+    8,
+    6
+  ],
+  "packages/storybook/src/preview.ts overview": [
+    23
+  ],
+  "packages/storybook/src/show-story.ts docblock": [
+    12
+  ],
+  "packages/storybook/src/show-story.ts overview": [
+    29
+  ],
+  "packages/storybook/src/story-finished.ts block": [
+    12,
+    6
+  ],
+  "packages/storybook/src/story-finished.ts docblock": [
+    12
+  ],
+  "packages/storybook/src/story-finished.ts overview": [
+    33
+  ],
+  "packages/storybook/src/story-parameters.ts docblock": [
+    18
+  ],
+  "packages/storybook/src/story-timing-read.ts docblock": [
+    11
+  ],
+  "packages/storybook/src/story-timing.ts overview": [
+    22
+  ],
+  "packages/storybook/src/subjects.ts overview": [
+    21
+  ],
+  "packages/tribunal/src/bindings.ts docblock": [
+    17,
+    17
+  ],
+  "packages/tribunal/src/bindings.ts overview": [
+    17
+  ],
+  "packages/tribunal/src/changelog.ts overview": [
+    25
+  ],
+  "packages/tribunal/src/concerns.ts docblock": [
+    16
+  ],
+  "packages/tribunal/src/history.ts block": [
+    10
+  ],
+  "packages/tribunal/src/history.ts overview": [
+    27
+  ],
+  "packages/tribunal/src/migration-steps-later.ts block": [
+    19,
+    16,
+    12,
+    9,
+    6
+  ],
+  "packages/tribunal/src/migration-steps.ts block": [
+    22,
+    17,
+    11,
+    11,
+    10,
+    9,
+    9,
+    9,
+    8,
+    8,
+    8,
+    8,
+    6
+  ],
+  "packages/tribunal/src/migration-steps.ts docblock": [
+    13
+  ],
+  "packages/tribunal/src/migrations.ts block": [
+    13
+  ],
+  "packages/tribunal/src/migrations.ts overview": [
+    27
+  ],
+  "packages/tribunal/src/movements.test.ts block": [
+    6
+  ],
+  "packages/tribunal/src/next.ts overview": [
+    33
+  ],
+  "packages/tribunal/src/node/bin.ts docblock": [
+    15,
+    12
+  ],
+  "packages/tribunal/src/node/bin.ts overview": [
+    22
+  ],
+  "packages/tribunal/src/node/bucket.ts docblock": [
+    11
+  ],
+  "packages/tribunal/src/node/bucket.ts overview": [
+    52
+  ],
+  "packages/tribunal/src/node/database.ts overview": [
+    23
+  ],
+  "packages/tribunal/src/node/index.ts overview": [
+    30
+  ],
+  "packages/tribunal/src/node/serve.ts docblock": [
+    11
+  ],
+  "packages/tribunal/src/node/serve.ts overview": [
+    22
+  ],
+  "packages/tribunal/src/node/ui-assets.ts overview": [
+    25
+  ],
+  "packages/tribunal/src/objects.test.ts block": [
+    10
+  ],
+  "packages/tribunal/src/objects.ts docblock": [
+    14,
+    14,
+    13,
+    11
+  ],
+  "packages/tribunal/src/objects.ts overview": [
+    57
+  ],
+  "packages/tribunal/src/repeats.ts docblock": [
+    25
+  ],
+  "packages/tribunal/src/review-baseline.ts docblock": [
+    13
+  ],
+  "packages/tribunal/src/review-ingest-types.ts docblock": [
+    12
+  ],
+  "packages/tribunal/src/review-ingest.ts block": [
+    14,
+    9,
+    7,
+    7
+  ],
+  "packages/tribunal/src/review-ingest.ts docblock": [
+    15,
+    12
+  ],
+  "packages/tribunal/src/review-sweep.ts block": [
+    16,
+    9,
+    8,
+    6
+  ],
+  "packages/tribunal/src/review-types.ts docblock": [
+    11,
+    11
+  ],
+  "packages/tribunal/src/review-write.ts block": [
+    7
+  ],
+  "packages/tribunal/src/review-write.ts docblock": [
+    19,
+    15,
+    14,
+    12,
+    11
+  ],
+  "packages/tribunal/src/review.approve.test.ts block": [
+    9,
+    6
+  ],
+  "packages/tribunal/src/review.ts block": [
+    9
+  ],
+  "packages/tribunal/src/review.ts docblock": [
+    11
+  ],
+  "packages/tribunal/src/review.ts overview": [
+    35
+  ],
+  "packages/tribunal/src/store.ts block": [
+    6,
+    6,
+    6
+  ],
+  "packages/tribunal/src/store.ts docblock": [
+    18
+  ],
+  "packages/tribunal/src/store.ts overview": [
+    40
+  ],
+  "packages/tribunal/src/testing.ts overview": [
+    18
+  ],
+  "packages/tribunal/src/ui/attribution.ts overview": [
+    19
+  ],
+  "packages/tribunal/src/ui/because.tsx overview": [
+    21
+  ],
+  "packages/tribunal/src/ui/builds.tsx docblock": [
+    13,
+    13
+  ],
+  "packages/tribunal/src/ui/carried.tsx overview": [
+    19
+  ],
+  "packages/tribunal/src/ui/cause.ts overview": [
+    26
+  ],
+  "packages/tribunal/src/ui/change-story.tsx block": [
+    6
+  ],
+  "packages/tribunal/src/ui/change-story.tsx docblock": [
+    15,
+    14
+  ],
+  "packages/tribunal/src/ui/change.tsx overview": [
+    27
+  ],
+  "packages/tribunal/src/ui/consumers.tsx docblock": [
+    12
+  ],
+  "packages/tribunal/src/ui/consumers.tsx overview": [
+    25
+  ],
+  "packages/tribunal/src/ui/control.tsx overview": [
+    27
+  ],
+  "packages/tribunal/src/ui/crossing.ts docblock": [
+    13
+  ],
+  "packages/tribunal/src/ui/declarations.tsx overview": [
+    22
+  ],
+  "packages/tribunal/src/ui/difference.ts docblock": [
+    12
+  ],
+  "packages/tribunal/src/ui/difference.ts overview": [
+    27
+  ],
+  "packages/tribunal/src/ui/distance.ts block": [
+    6
+  ],
+  "packages/tribunal/src/ui/distance.ts overview": [
+    22
+  ],
+  "packages/tribunal/src/ui/docket.test.tsx block": [
+    6
+  ],
+  "packages/tribunal/src/ui/docket.tsx block": [
+    8
+  ],
+  "packages/tribunal/src/ui/docket.tsx overview": [
+    19
+  ],
+  "packages/tribunal/src/ui/findings.tsx docblock": [
+    30,
+    13
+  ],
+  "packages/tribunal/src/ui/foreseen.ts overview": [
+    23
+  ],
+  "packages/tribunal/src/ui/glance.ts overview": [
+    32
+  ],
+  "packages/tribunal/src/ui/grouping.ts docblock": [
+    17
+  ],
+  "packages/tribunal/src/ui/grouping.ts overview": [
+    30
+  ],
+  "packages/tribunal/src/ui/handed.ts overview": [
+    34
+  ],
+  "packages/tribunal/src/ui/history.tsx overview": [
+    18
+  ],
+  "packages/tribunal/src/ui/holding.ts overview": [
+    29
+  ],
+  "packages/tribunal/src/ui/impact.tsx docblock": [
+    12
+  ],
+  "packages/tribunal/src/ui/impact.tsx overview": [
+    18
+  ],
+  "packages/tribunal/src/ui/journey-tree.ts overview": [
+    28
+  ],
+  "packages/tribunal/src/ui/journeys.tsx overview": [
+    27
+  ],
+  "packages/tribunal/src/ui/look.tsx overview": [
+    39
+  ],
+  "packages/tribunal/src/ui/moved.test.tsx block": [
+    8
+  ],
+  "packages/tribunal/src/ui/order.ts block": [
+    6
+  ],
+  "packages/tribunal/src/ui/order.ts overview": [
+    49
+  ],
+  "packages/tribunal/src/ui/origins.tsx docblock": [
+    11
+  ],
+  "packages/tribunal/src/ui/origins.tsx overview": [
+    22
+  ],
+  "packages/tribunal/src/ui/outcome.tsx overview": [
+    32
+  ],
+  "packages/tribunal/src/ui/parted.ts overview": [
+    28
+  ],
+  "packages/tribunal/src/ui/plate.tsx docblock": [
+    13
+  ],
+  "packages/tribunal/src/ui/reach.tsx overview": [
+    24
+  ],
+  "packages/tribunal/src/ui/regions.tsx docblock": [
+    14
+  ],
+  "packages/tribunal/src/ui/review.tsx overview": [
+    43
+  ],
+  "packages/tribunal/src/ui/root.tsx overview": [
+    17
+  ],
+  "packages/tribunal/src/ui/route.ts overview": [
+    29
+  ],
+  "packages/tribunal/src/ui/sense.ts docblock": [
+    14
+  ],
+  "packages/tribunal/src/ui/sense.ts overview": [
+    25
+  ],
+  "packages/tribunal/src/ui/settled.tsx overview": [
+    30
+  ],
+  "packages/tribunal/src/ui/shift.ts overview": [
+    20
+  ],
+  "packages/tribunal/src/ui/styles-docket.ts docblock": [
+    12
+  ],
+  "packages/tribunal/src/ui/styles-findings.ts docblock": [
+    15
+  ],
+  "packages/tribunal/src/ui/styles-stage.ts docblock": [
+    12
+  ],
+  "packages/tribunal/src/ui/styles.test.ts block": [
+    6
+  ],
+  "packages/tribunal/src/ui/styles.ts overview": [
+    34
+  ],
+  "packages/tribunal/src/ui/subject.tsx docblock": [
+    14
+  ],
+  "packages/tribunal/src/ui/text.ts docblock": [
+    17,
+    11
+  ],
+  "packages/tribunal/src/ui/variations.tsx docblock": [
+    22
+  ],
+  "packages/tribunal/src/ui/viewer.tsx overview": [
+    22
+  ],
+  "packages/tribunal/src/version.ts docblock": [
+    22
+  ],
+  "packages/tribunal/src/version.ts overview": [
+    19
+  ],
+  "packages/tribunal/src/worker-auth.ts docblock": [
+    11
+  ],
+  "packages/tribunal/src/worker-entry.ts overview": [
+    22
+  ],
+  "packages/tribunal/src/worker-input.ts docblock": [
+    12
+  ],
+  "packages/tribunal/src/worker-share.ts overview": [
+    31
+  ],
+  "packages/tribunal/src/worker.ts overview": [
+    44
+  ],
+  "packages/tribunal/stories/record.mjs overview": [
+    18
+  ],
+  "packages/tribunal/stories/replay.ts docblock": [
+    15
+  ],
+  "packages/unit-test/README.md lead": [
+    22
+  ],
+  "packages/unit-test/src/archive.ts docblock": [
+    14,
+    11
+  ],
+  "packages/unit-test/src/operator.ts docblock": [
+    11
+  ],
+  "packages/unit-test/src/shape.ts docblock": [
+    14
+  ],
+  "packages/unit-test/src/styles.ts overview": [
+    16
+  ],
+  "packages/unit-test/src/value.ts docblock": [
+    12
+  ],
+  "packages/vantage/src/index.ts overview": [
+    21
+  ],
+  "packages/vantage/src/observatory.ts overview": [
+    21
+  ],
+  "packages/vantage/src/watch.ts overview": [
+    16
+  ],
+  "packages/vitest-browser/README.md lead": [
+    21
+  ],
+  "packages/vitest-browser/src/node.ts block": [
+    8
+  ],
+  "packages/wire/src/index.ts overview": [
+    31
+  ],
+  "packages/wire/src/listen.ts docblock": [
+    11
+  ],
+  "site/app/components/ComparisonTable.tsx docblock": [
+    12
+  ],
+  "site/app/components/TableOfContents.tsx docblock": [
+    13
+  ],
+  "site/variance/routes.mjs overview": [
+    16
+  ],
+  "tools/bin-symlink.check.ts overview": [
+    17
+  ],
+  "tools/boundaries.check.ts block": [
+    17,
+    16,
+    11,
+    8,
+    7
+  ],
+  "tools/boundaries.check.ts overview": [
+    22
+  ],
+  "tools/changelog-tidy.mjs docblock": [
+    19
+  ],
+  "tools/comments.ts docblock": [
+    11
+  ],
+  "tools/config-schema.check.ts docblock": [
+    13
+  ],
+  "tools/config-schema.check.ts overview": [
+    29
+  ],
+  "tools/coverage.config.mts docblock": [
+    20
+  ],
+  "tools/docs-claims.check.ts block": [
+    19,
+    14,
+    14,
+    11,
+    9,
+    7,
+    7
+  ],
+  "tools/docs-cli.check.ts block": [
+    10
+  ],
+  "tools/docs-cli.check.ts docblock": [
+    31
+  ],
+  "tools/docs-links.check.ts docblock": [
+    12
+  ],
+  "tools/docs-options.check.ts block": [
+    10
+  ],
+  "tools/docs-options.check.ts docblock": [
+    11
+  ],
+  "tools/docs-proposals.check.ts overview": [
+    23
+  ],
+  "tools/documented.check.ts overview": [
+    20
+  ],
+  "tools/keep-base.mjs overview": [
+    18
+  ],
+  "tools/native-grammars.check.ts docblock": [
+    14
+  ],
+  "tools/native-packages.check.ts block": [
+    11
+  ],
+  "tools/native-packages.check.ts overview": [
+    19
+  ],
+  "tools/native-sources.mjs docblock": [
+    18
+  ],
+  "tools/package-links.check.ts block": [
+    8
+  ],
+  "tools/page-agents.mjs overview": [
+    21
+  ],
+  "tools/page-side.mjs docblock": [
+    17
+  ],
+  "tools/page-side.mjs overview": [
+    32
+  ],
+  "tools/publish.mjs docblock": [
+    16
+  ],
+  "tools/publish.mjs overview": [
+    23
+  ],
+  "tools/register-histogram.mjs overview": [
+    18
+  ],
+  "tools/released.check.ts block": [
+    6
+  ],
+  "tools/released.mjs docblock": [
+    11,
+    11
+  ],
+  "tools/released.mjs overview": [
+    26
+  ],
+  "tools/shape.check.ts block": [
+    12,
+    10
+  ],
+  "tools/site-packages.check.ts overview": [
+    20
+  ],
+  "tools/site-reach.mjs overview": [
+    40
+  ],
+  "tools/skips.check.ts block": [
+    7,
+    6
+  ],
+  "tools/skips.check.ts docblock": [
+    12
+  ],
+  "tools/skips.check.ts overview": [
+    22
+  ],
+  "tools/surface.check.ts block": [
+    16
+  ],
+  "tools/surface.check.ts overview": [
+    23
+  ],
+  "tools/surface.mjs overview": [
+    18
+  ],
+  "tools/surfaces.check.ts block": [
+    6,
+    6
+  ],
+  "tools/surfaces.check.ts docblock": [
+    18,
+    11
+  ],
+  "tools/take-base.mjs overview": [
+    16
+  ],
+  "tools/take-carried.mjs overview": [
+    23
+  ],
+  "tools/temporary-per-test.ts overview": [
+    22
+  ],
+  "tools/tribunal-ui.mjs overview": [
+    16
+  ],
+  "tools/unrun.check.ts block": [
+    8
+  ],
+  "tools/unrun.mjs overview": [
+    20
+  ],
+  "tools/workspaces.ts block": [
+    15,
+    13
+  ],
+  "tools/workspaces.ts docblock": [
+    12,
+    11
+  ],
+  "tribunal-cloudflare/app/api/[[...path]]/route.ts overview": [
+    21
+  ],
+  "vitest.config.mts block": [
+    25,
+    9,
+    6
+  ],
+  "vitest.config.mts docblock": [
+    20,
+    14
+  ],
+  "vitest.measure.config.ts overview": [
+    22
+  ]
+}

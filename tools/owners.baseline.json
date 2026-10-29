@@ -250,16 +250,6 @@
     "count": 1
   },
   {
-    "idiom": "code-unit-order",
-    "at": "packages/help/src/tools/symbol.ts",
-    "count": 1
-  },
-  {
-    "idiom": "code-unit-order",
-    "at": "packages/help/src/tools/uses.ts",
-    "count": 1
-  },
-  {
     "idiom": "timer",
     "at": "packages/history/src/client.ts",
     "count": 1
@@ -415,73 +405,8 @@
     "count": 1
   },
   {
-    "idiom": "code-unit-order",
-    "at": "packages/sense/src/emitted.ts",
-    "count": 1
-  },
-  {
     "idiom": "timer",
     "at": "packages/sense/src/index-turn.ts",
-    "count": 1
-  },
-  {
-    "idiom": "code-unit-order",
-    "at": "packages/sense/src/layer-moves.ts",
-    "count": 1
-  },
-  {
-    "idiom": "code-unit-order",
-    "at": "packages/sense/src/lock/lockfile.ts",
-    "count": 1
-  },
-  {
-    "idiom": "code-unit-order",
-    "at": "packages/sense/src/native.ts",
-    "count": 1
-  },
-  {
-    "idiom": "code-unit-order",
-    "at": "packages/sense/src/published.ts",
-    "count": 1
-  },
-  {
-    "idiom": "code-unit-order",
-    "at": "packages/sense/src/record.ts",
-    "count": 1
-  },
-  {
-    "idiom": "code-unit-order",
-    "at": "packages/sense/src/recorded-durations.ts",
-    "count": 1
-  },
-  {
-    "idiom": "code-unit-order",
-    "at": "packages/sense/src/restrictions-transitive.ts",
-    "count": 1
-  },
-  {
-    "idiom": "code-unit-order",
-    "at": "packages/sense/src/restrictions.ts",
-    "count": 1
-  },
-  {
-    "idiom": "code-unit-order",
-    "at": "packages/sense/src/scan.ts",
-    "count": 1
-  },
-  {
-    "idiom": "code-unit-order",
-    "at": "packages/sense/src/source-index.ts",
-    "count": 1
-  },
-  {
-    "idiom": "code-unit-order",
-    "at": "packages/sense/src/source-scope.ts",
-    "count": 1
-  },
-  {
-    "idiom": "code-unit-order",
-    "at": "packages/sense/src/story/compare.ts",
     "count": 1
   },
   {
@@ -490,78 +415,8 @@
     "count": 1
   },
   {
-    "idiom": "code-unit-order",
-    "at": "packages/sense/src/story/read.ts",
-    "count": 1
-  },
-  {
-    "idiom": "code-unit-order",
-    "at": "packages/sense/src/taint/audit.ts",
-    "count": 1
-  },
-  {
-    "idiom": "code-unit-order",
-    "at": "packages/sense/src/taint/join.ts",
-    "count": 1
-  },
-  {
-    "idiom": "code-unit-order",
-    "at": "packages/sense/src/taint/reach.ts",
-    "count": 1
-  },
-  {
-    "idiom": "code-unit-order",
-    "at": "packages/sense/src/test-selection/at-distance.ts",
-    "count": 1
-  },
-  {
-    "idiom": "code-unit-order",
-    "at": "packages/sense/src/test-selection/at-source.ts",
-    "count": 1
-  },
-  {
-    "idiom": "code-unit-order",
-    "at": "packages/sense/src/test-selection/case-motion.ts",
-    "count": 1
-  },
-  {
-    "idiom": "code-unit-order",
-    "at": "packages/sense/src/test-selection/deviation.ts",
-    "count": 1
-  },
-  {
-    "idiom": "code-unit-order",
-    "at": "packages/sense/src/test-selection/distance.ts",
-    "count": 1
-  },
-  {
-    "idiom": "code-unit-order",
-    "at": "packages/sense/src/test-selection/divergence.ts",
-    "count": 1
-  },
-  {
-    "idiom": "code-unit-order",
-    "at": "packages/sense/src/test-selection/execution-select.ts",
-    "count": 1
-  },
-  {
-    "idiom": "code-unit-order",
-    "at": "packages/sense/src/test-selection/format.ts",
-    "count": 1
-  },
-  {
-    "idiom": "code-unit-order",
-    "at": "packages/sense/src/test-selection/importers.ts",
-    "count": 1
-  },
-  {
     "idiom": "timer",
     "at": "packages/sense/src/test-selection/index-lock.ts",
-    "count": 1
-  },
-  {
-    "idiom": "code-unit-order",
-    "at": "packages/sense/src/test-selection/instrumented-modules.ts",
     "count": 1
   },
   {
@@ -580,29 +435,14 @@
     "count": 1
   },
   {
-    "idiom": "code-unit-order",
-    "at": "packages/sense/src/test-selection/journey-native.ts",
-    "count": 1
-  },
-  {
     "idiom": "timer",
     "at": "packages/sense/src/test-selection/journey-parts.ts",
-    "count": 1
-  },
-  {
-    "idiom": "code-unit-order",
-    "at": "packages/sense/src/test-selection/lookup.ts",
     "count": 1
   },
   {
     "idiom": "atomic-write",
     "at": "packages/sense/src/test-selection/mainline-layer.ts",
     "count": 2
-  },
-  {
-    "idiom": "code-unit-order",
-    "at": "packages/sense/src/test-selection/reading.ts",
-    "count": 1
   },
   {
     "idiom": "digest",
@@ -617,21 +457,6 @@
   {
     "idiom": "atomic-write",
     "at": "packages/sense/src/test-selection/stage.ts",
-    "count": 1
-  },
-  {
-    "idiom": "code-unit-order",
-    "at": "packages/sense/src/tier-moves.ts",
-    "count": 1
-  },
-  {
-    "idiom": "code-unit-order",
-    "at": "packages/sense/src/tree.ts",
-    "count": 1
-  },
-  {
-    "idiom": "code-unit-order",
-    "at": "packages/sense/src/world.ts",
     "count": 1
   },
   {

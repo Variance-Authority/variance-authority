@@ -12,13 +12,14 @@
 // compass: variance-authority.report.agent-surface
 
 import { codeUnitOrder } from '@variance-authority/core/segment';
-import type { Help, Use } from '@variance-authority/package/help';
+import { type Help, type Use, undecided } from '@variance-authority/package/help';
 import { aliasesOf, type Alias } from '@variance-authority/sense';
 import { queryDependencyLexicon } from '../dependency-lexicon.js';
 import { entriesNamed, isPackage, specifierOf } from './find.js';
 import { memberRows } from './container.js';
 import { block } from './format.js';
-import { passedOnRows } from './passed-on.js';
+import { keyOf, SLOT } from './declaration-key.js';
+import { exportedRows } from './passed-on.js';
 import { thirdBlock } from './third-party.js';
 
 /** How many renamed sites are worth naming on one line. */
@@ -87,10 +88,16 @@ export function localNames(
   for (const group of groups.values()) {
     const [first] = group;
     if (first === undefined) continue;
-    const original = originalOf(help, root, first, wanted);
+    // `import greet from` a file exporting `greet` as `default` too binds the declaration by its own name: no local name.
+    const held = first.to == null ? undefined : help.exported.find((one) => one.at === first.to && one.name === first.imported);
+    const declared = held === undefined ? undefined : keyOf(help, root, held).named;
+    if (declared === local) continue;
+    // The slot `default` is said by the name its declaration is keyed by.
+    const named = first.imported === SLOT ? (declared ?? first.imported) : first.imported;
+    const original = originalOf(help, root, first, wanted, named);
     if (original === undefined) continue;
     const imports = (alias: Alias): string =>
-      `${alias.at}:${alias.line} imports \`${alias.imported}\` as \`${local}\` from '${alias.specifier}'${alias.type ? ' (type only)' : ''}`;
+      `${alias.at}:${alias.line} imports \`${named}\`${named === alias.imported ? '' : ` (its \`${alias.imported}\`)`} as \`${local}\` from '${alias.specifier}'${alias.type ? ' (type only)' : ''}`;
     const also = group.slice(1);
     blocks.push([
       `\`${local}\` is a local name: ${imports(first)}.`,
@@ -113,7 +120,7 @@ export function localNames(
  * Said as unknown, not left out, when none answers.
  * `undefined` when `wanted` names another package.
  */
-function originalOf(help: Help, root: string, alias: Alias, wanted: string | undefined): Original | undefined {
+function originalOf(help: Help, root: string, alias: Alias, wanted: string | undefined, said: string): Original | undefined {
   const name = alias.imported;
   const named = entriesNamed(help, name);
   // An import across packages names the entry by its specifier; one within the package names the file, which the index resolved.
@@ -123,18 +130,18 @@ function originalOf(help: Help, root: string, alias: Alias, wanted: string | und
   if (door !== undefined) {
     const [published, held, entry] = door;
     if (wanted !== undefined && !isPackage(published, held, wanted)) return undefined;
-    return { text: [block(published, held, entry), ...memberRows(root, entry.at, entry.name, entry.line)].join('\n'), at: [[entry.at, entry.line]] };
+    // The original's own sites are not read here, so the entry's are what may read it.
+    const may = undecided(published.name, held, entry);
+    return { text: [block(published, held, entry, { may, imported: false }), ...memberRows(root, entry.at, entry.name, entry.line)].join('\n'), at: [[entry.at, entry.line]] };
   }
   const to = alias.to ?? undefined;
   if (to !== undefined) {
     const held = help.exported.find((one) => one.name === name && one.at === to);
     if (held !== undefined) {
       if (wanted !== undefined && held.by !== wanted) return undefined;
-      const { declared, rows } = passedOnRows(root, held);
+      const { declared, rows } = exportedRows(help, root, said, held);
       return {
         text: [
-          name,
-          `exported, without being published, at ${held.at}:${held.line} by ${held.by}${held.type ? ' (type only)' : ''}`,
           ...rows,
           ...memberRows(root, declared.at, declared.name, declared.line),
         ].join('\n'),

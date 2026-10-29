@@ -44,6 +44,7 @@
 
 import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
+import { codeUnitOrder } from '@variance-authority/core/segment';
 import { digestString } from '../digest.js';
 import { instrumentationId, type InstrumentMode, type ModuleId } from '../instrument/index.js';
 import { ownedExecutionIndexFrom } from './cases.js';
@@ -62,7 +63,6 @@ import { markCheckout } from './cache-layers.js';
 import { repositoryRoot } from './repository-root.js';
 import { busyIndex, withIndexLock } from './index-lock.js';
 import {
-  codeUnitOrder,
   isMissing,
   projectPath,
 } from './instrumented-modules.js';

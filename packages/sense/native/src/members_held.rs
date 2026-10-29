@@ -14,22 +14,27 @@ use super::Walker;
 /// The request a holder reads through: its index in the parse, its index in
 /// `loads.required`, which the parse appends after every `import()`, or its
 /// index in `loads.typed`, which the parse appends after those, or the
-/// `import()` type starting at an offset, whose index the walk may meet later.
+/// `import()` type starting at an offset, whose index the walk may meet later;
+/// or the parameter of a function the file declares, by its index in
+/// `Passing`, which stands in for the requests handed to it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub(super) enum Via {
     Indexed(u32),
     Required(u32),
     Typed(u32),
     TypedAt(u32),
+    Param(u32),
 }
 
 impl Via {
+    /// The request's index in the parse; a parameter's stand-in has none until it is resolved.
     pub(super) fn index(self, required: u32, typed: u32, typed_at: &HashMap<u32, u32>) -> Option<u32> {
         Some(match self {
             Via::Indexed(index) => index,
             Via::Required(index) => required + index,
             Via::Typed(index) => typed + index,
             Via::TypedAt(at) => typed + typed_at.get(&at)?,
+            Via::Param(_) => return None,
         })
     }
 }

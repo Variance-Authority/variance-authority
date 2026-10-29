@@ -770,7 +770,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@types/node@npm:latest":
+"@types/node@npm:26.4.0":
   version: 26.4.0
   resolution: "@types/node@npm:26.4.0"
   dependencies:
@@ -779,7 +779,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@types/react-dom@npm:latest":
+"@types/react-dom@npm:19.2.5":
   version: 19.2.5
   resolution: "@types/react-dom@npm:19.2.5"
   peerDependencies:
@@ -788,7 +788,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@types/react@npm:latest":
+"@types/react@npm:19.2.18":
   version: 19.2.18
   resolution: "@types/react@npm:19.2.18"
   dependencies:
@@ -1778,7 +1778,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"react-dom@npm:latest":
+"react-dom@npm:19.2.8":
   version: 19.2.8
   resolution: "react-dom@npm:19.2.8"
   dependencies:
@@ -1789,7 +1789,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"react-server-dom-webpack@npm:^19.2.8":
+"react-server-dom-webpack@npm:19.2.8":
   version: 19.2.8
   resolution: "react-server-dom-webpack@npm:19.2.8"
   dependencies:
@@ -1804,7 +1804,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"react@npm:latest":
+"react@npm:19.2.8":
   version: 19.2.8
   resolution: "react@npm:19.2.8"
   checksum: 10c0/5f86bdb56426652fd6d989d30a6f2e603c057272c47c9ca3a3fbe190a3a39ee9ccce937d63cfc039717abed1b8891d6a499134bc35311acc07eafdacd86537cd
@@ -2093,17 +2093,17 @@ __metadata:
   resolution: "tribunal-cloudflare@workspace:."
   dependencies:
     "@cloudflare/vite-plugin": "npm:^1.54.5"
-    "@types/node": "npm:latest"
-    "@types/react": "npm:latest"
-    "@types/react-dom": "npm:latest"
+    "@types/node": "npm:26.4.0"
+    "@types/react": "npm:19.2.18"
+    "@types/react-dom": "npm:19.2.5"
     "@variance-authority/tribunal": "link:../packages/tribunal"
     "@vinext/cloudflare": "npm:^1.0.0-beta.6"
     "@vitejs/plugin-react": "npm:^6.1.0"
     "@vitejs/plugin-rsc": "npm:^0.5.34"
-    react: "npm:latest"
-    react-dom: "npm:latest"
-    react-server-dom-webpack: "npm:^19.2.8"
-    typescript: "npm:latest"
+    react: "npm:19.2.8"
+    react-dom: "npm:19.2.8"
+    react-server-dom-webpack: "npm:19.2.8"
+    typescript: "npm:7.0.2"
     vinext: "npm:^1.0.0-beta.8"
     vite: "npm:^8.2.2"
     wrangler: "npm:^4.129.1"
@@ -2131,7 +2131,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"typescript@npm:latest":
+"typescript@npm:7.0.2":
   version: 7.0.2
   resolution: "typescript@npm:7.0.2"
   dependencies:
@@ -2202,7 +2202,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"typescript@patch:typescript@npm%3Alatest#optional!builtin<compat/typescript>":
+"typescript@patch:typescript@npm%3A7.0.2#optional!builtin<compat/typescript>":
   version: 7.0.2
   resolution: "typescript@patch:typescript@npm%3A7.0.2#optional!builtin<compat/typescript>::version=7.0.2&hash=3bafbf"
   dependencies:

@@ -32,7 +32,8 @@ import { relationsFor } from './source-graph.js';
  */
 export async function journeyReading(request: SuiteRequest & { readonly execution: string }): Promise<SuiteReading> {
   const selection = await import('@variance-authority/sense/test-selection');
-  if (request.diff === undefined && request.since === undefined) {
+  const given = isHanded(request);
+  if (!given && request.since === undefined) {
     throw new OperatorError(
       'a journey file names no commit, so the change has to be given: pass `--diff <patch>` ' +
         '(`-` reads stdin) or `--since <ref>`',
@@ -41,7 +42,7 @@ export async function journeyReading(request: SuiteRequest & { readonly executio
   const from = request.since ?? 'HEAD';
   // The diff is named from `cwd`, as the relations and the preimages below are, and git spells it through symlinks.
   const here = await realpath(request.root).catch(() => request.root);
-  const text = request.diff === undefined ? await diffSince(from, [], undefined, { cwd: here }) : await handedDiff(request.diff);
+  const text = given ? await handedChange(request) : await diffSince(from, [], undefined, { cwd: here });
   if (text === undefined) {
     return suiteOf({ at: request.execution, given: true, ground: { kind: 'no-diff', from } }, request.atDistance);
   }
@@ -60,13 +61,13 @@ export async function journeyReading(request: SuiteRequest & { readonly executio
         'and that is `variance reach`.',
     );
   }
-  const installed = request.diff === undefined
-    ? await installDiff(await diffPoint(from, [], here), [...selection.changedLines(text).keys()])
-    : await installDiffOfPatch(text, here);
+  const installed = given
+    ? await installDiffOfPatch(text, here)
+    : await installDiff(await diffPoint(from, [], here), [...selection.changedLines(text).keys()]);
   if (installed !== undefined && 'whole' in installed) {
     return suiteOf({ at: request.execution, given: true, ground: { kind: 'no-install', whole: installed.whole } }, request.atDistance);
   }
-  const relations = await relationsFor(request.root, ['.'], [], [], request.noGit);
+  const relations = request.relations ?? await relationsFor(request.root, ['.'], [], [], request.noGit);
   // A bump or a moved manifest is the files it changed, changed whole.
   const beyond = beyondOf(relations, installed);
   const changed = selection.changedLines(withWhole(text, beyond.files));
@@ -92,6 +93,16 @@ export async function journeyReading(request: SuiteRequest & { readonly executio
     ?? selection.narrowByJourneys((await readExecutionFor(request.execution, changed)).index, changed, options);
   const unread = [...withoutManifests(narrowing.unread, installed?.manifests ?? []), ...beyond.unplaced].sort();
   return suiteOf({ ...base, ground: { kind: 'read', narrowing: { ...narrowing, unread, readings } } }, request.atDistance);
+}
+
+/** Whether the change is handed in, as `change` text or as the `--diff` patch, rather than measured. */
+export function isHanded(request: Pick<SuiteRequest, 'diff' | 'change'>): boolean {
+  return request.change !== undefined || request.diff !== undefined;
+}
+
+/** The change handed in: the `change` text, or the `--diff` patch read. */
+export async function handedChange(request: Pick<SuiteRequest, 'diff' | 'change'>): Promise<string> {
+  return request.change ?? await handedDiff(request.diff!);
 }
 
 /** A patch handed in by `--diff`: a file, or `-` for stdin. */

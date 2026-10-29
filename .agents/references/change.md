@@ -21,6 +21,16 @@ answers from the last recording, so for a file it has never seen, put the edit
 in the tree and read `yarn variance select --suite <slice>`: it selects from the
 diff, and says nothing about a file that has not changed.
 
+**Does existing code already answer it?** Before writing, ask `yarn variance
+ask search` for what the code is to do. After, `yarn test:loop` ends by naming,
+for each function new on the branch in the package sources, the scripts a
+package ships and `tools/`, with five needs or more, the existing functions
+there that need what it needs: the same calls, fields, strings, types, imports
+and identifier words, whatever their order or shape. A name it lists is a lead to read, not a
+verdict: where it answers, call or extend it instead of keeping the new one.
+The list misses copies, so an empty list clears nothing, and it does not see a
+second path written inside a function that already existed.
+
 **Does it change how a record is carried or read?** Carrying, the case index,
 and the selection and comparison read off them, keep one contract: an
 ambiguous correspondence never becomes measured absence, and evidence never
@@ -115,6 +125,21 @@ the site, CLI output and error messages. Read it before writing any of them.
   `codeUnitOrder` from `@variance-authority/core/segment`, not a local
   comparator.
 - **500 lines per file**, enforced by `tools/shape.check.ts`.
+- **A budget per written surface**, in content lines: a file overview 15, a
+  declaration's docblock 10, a block comment in code 5, a public page's lead 15.
+  Blank lines, bare tags and pragmas such as `// compass:` do not count.
+  `tools/budgets.check.ts` reads comments with oxc and holds the debt recorded
+  in `tools/budgets.baseline.json`.
+- **A breach is a collapse, not a trim.** Write what the task needs while you
+  work; the limits are checked once, in `verify:rules`. A surface or file that
+  breaches is collapsed in the same change, as a commit of its own before the
+  feature commit, and well under the limit: a comment to about half its budget,
+  a file split by responsibility to about 300 lines each. Overflow moves to its
+  owner — down to the site it governs, up to the folder or package, or to the
+  export's docblock — and an owner that does not exist is created, held to its
+  own limit. A change that grows a surface on the debt list collapses the whole
+  surface, not the lines it added. A debt entry that shrinks is written down with
+  `yarn budgets --write`.
 - **An export a README names is run by something**, enforced by
   `tools/docs-exercised.check.ts`. The rule is deliberately shallow — it asks
   whether a test *names* the export, not whether the test is about it — and it
@@ -124,8 +149,9 @@ the site, CLI output and error messages. Read it before writing any of them.
   being typed again: a SHA-256 digest, a code-unit comparator and a
   write-then-rename. `tools/owners.check.ts` holds their sites per file and
   names each owner, and `tools/clones.check.ts` holds pasted blocks per pair of
-  files. Neither sees a long flow re-typed with new names; the Alignment
-  reviewer looks for that.
+  files. Neither sees a long flow re-typed with new names; the needs list
+  `yarn test:loop` ends with is the lead while it is written, and the
+  Alignment reviewer looks for that.
 - **One implementation.** A second way to compute an answer that already has
   one is a defect, however it is spelled: a new flag beside an old one, a fast
   path beside the general path, a fallback beside the reader that refused. The

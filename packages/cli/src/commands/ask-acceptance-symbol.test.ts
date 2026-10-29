@@ -30,7 +30,12 @@ describe('ask symbol', () => {
 
   it('tells a name exported behind no entry apart from a published one', async () => {
     const { declarations } = await symbol('clamp');
-    expect(declarations).toEqual([expect.objectContaining({ visibility: 'exported', file: 'packages/lib-exports/src/internal/clamp.ts' })]);
+    expect(declarations).toEqual([expect.objectContaining({ kind: 'const', visibility: 'exported', file: 'packages/lib-exports/src/internal/clamp.ts' })]);
+  });
+
+  it('answers a name exported for a neighbour by its kind, as a published one is', async () => {
+    const { declarations } = await symbol('limitOf');
+    expect(declarations).toEqual([expect.objectContaining({ kind: 'function', visibility: 'exported', file: 'apps/app/src/limits.ts' })]);
   });
 
   it('names the files that import a declaration under another name', async () => {
@@ -63,8 +68,20 @@ describe('ask symbol', () => {
     expect(await symbol('nothingNamedThis')).toMatchObject({ declarations: [], missed: true });
   });
 
-  it.todo('answers every declaration of a name, published first: `pngSize` in @acme/core and the exported one in apps/app — needs the reader to return every declaration a name has, not the first published one');
-  it.todo('never calls a different declaration "also published by": @acme/review declares its own `Coverage` — needs "also published by" kept for one declaration reached through two entries');
+  it('answers every declaration of a name, published first', async () => {
+    const { declarations } = await symbol('pngSize');
+    expect(declarations.map((one) => [one.visibility, one.file])).toEqual([
+      ['published', 'packages/core/src/png.ts'],
+      ['exported', 'apps/app/src/png.ts'],
+    ]);
+  });
+  it('answers each published declaration of a name apart, with the import that reaches it', async () => {
+    const { declarations } = await symbol('Coverage');
+    expect(declarations.map((one) => [one.visibility, one.file, one.specifier]).sort()).toEqual([
+      ['published', 'packages/core/src/tree.ts', '@acme/core'],
+      ['published', 'packages/review/src/index.ts', '@acme/review'],
+    ]);
+  });
   it.todo('answers a name published only inside an `export * as` namespace as published, with the import that reaches it (`text.shout`) — needs the publish walk to follow `export * as` into the namespace\'s module');
   it.todo('answers `Container.member` (`Tree.has`) as the member of that container — needs the question parsed into container and member and looked up as a pair');
   it.todo('answers a re-export of a dependency (`export { x } from \'dep\'`) as where it came from, not as a declaration — needs a re-export from a dependency recorded as a re-export, not a declaration');

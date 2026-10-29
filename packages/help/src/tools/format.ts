@@ -1,6 +1,7 @@
 import { codeUnitOrder } from '@variance-authority/core/segment';
-import type { Documented, Entry, Opening } from '@variance-authority/package/help';
-import { mayBeRead, opening, undecided } from '@variance-authority/package/help';
+import type { Documented, Entry, Opening, Use } from '@variance-authority/package/help';
+import { mayBeRead, opening } from '@variance-authority/package/help';
+import { SLOT } from './declaration-key.js';
 import { specifierOf } from './find.js';
 
 /**
@@ -28,17 +29,31 @@ export function audience(entry: Entry, cap: number): string {
   return `${entry.usedBy.length} ${entry.usedBy.length === 1 ? 'package' : 'packages'}: ${named}`;
 }
 
-/** How much of the repository reaches for this, in the words an asker ranks on. */
-export function reach(published: Documented, held: Opening, entry: Entry): string {
-  // A read off `default`, or the module passed on whole, may read the name and is no use of it.
-  const may = undecided(published.name, held, entry);
+/**
+ * What the caller read of the places that may read a name: `may`, reads off
+ * the module's `default` and the module passed on whole, which are no use of
+ * it, and whether any place imports it for certain. The caller partitions the
+ * sites, so every line of one answer names the same places.
+ */
+export interface Undecided {
+  readonly may: readonly Use[];
+  readonly imported: boolean;
+}
+
+/**
+ * How many other packages reach for this by its published path, in the words
+ * an asker ranks on, and where it may be read. The imports inside its own
+ * package are not in the Help value, and the caller that reads them counts
+ * them apart.
+ */
+export function reach(entry: Entry, { may, imported }: Undecided): string {
   if (entry.usedBy.length === 0) {
     return may.length === 0
-      ? 'used by nothing outside its own package'
-      : `not imported by name outside its own package; it ${mayBeRead(may)}, so whether it is used is unknown`;
+      ? 'no other package imports it by its published path'
+      : `no other package imports it by name through its published path; it ${mayBeRead(may)}${imported ? '' : ', so whether it is used is unknown'}`;
   }
   const also = may.length === 0 ? '' : `; it also ${mayBeRead(may)}`;
-  return `used by ${audience(entry, 12)} — ${entry.uses} ${entry.uses === 1 ? 'import' : 'imports'}${also}`;
+  return `used by ${audience(entry, 12)} — ${entry.uses} ${entry.uses === 1 ? 'import' : 'imports'} by published path${also}`;
 }
 
 /** What a list line reads of a published name: the audience counted, never named. */
@@ -53,7 +68,16 @@ export interface Listed {
 /** One name in a list: what it is, how used it is, and the first thing its doc says. */
 export function line(entry: Listed): string {
   const said = entry.doc === undefined ? 'UNDOCUMENTED' : opening(entry.doc);
-  return `${entry.name} [${entry.kind}] ${entry.usedBy.length} packages, ${entry.uses} imports — ${said}`;
+  return `${entry.name} [${entry.kind}] ${byPublishedPath(entry.uses, entry.usedBy.length)} — ${said}`;
+}
+
+/**
+ * The imports of a name other packages write by a path it is published from,
+ * and how many packages write them: what the Help value counts beside each
+ * entry, which leaves out the imports within its own package and by file path.
+ */
+export function byPublishedPath(imports: number, packages: number): string {
+  return imports === 0 ? 'no other package imports it by its published path' : `${plural(imports, 'import')} by published path from ${plural(packages, 'other package')}`;
 }
 
 /** `block` after what `lines` already holds, a blank line between them. */
@@ -91,19 +115,20 @@ export function mostUsed(
     .sort((a, b) => used(b[1]) - used(a[1]) || codeUnitOrder(specifierOf(...a), specifierOf(...b)))[0];
 }
 
-/** The line a caller writes to reach this name. */
-export function importing(published: Documented, held: Opening, entry: Entry): string {
+/** The line a caller writes to reach this name; a default export is imported by `named`, and by no line when nothing names it. */
+export function importing(published: Documented, held: Opening, entry: Entry, named = entry.name): readonly string[] {
   const specifier = specifierOf(published, held);
-  return `import { ${entry.name} } from '${specifier}';`;
+  if (entry.name !== SLOT) return [`import { ${entry.name} } from '${specifier}';`];
+  return named === SLOT ? [] : [`import ${named} from '${specifier}';`];
 }
 
-/** One name in full, including the head somebody would copy. */
-export function block(published: Documented, held: Opening, entry: Entry): string {
+/** One name in full, including the head somebody would copy; `named` is the name the declaration is keyed by. */
+export function block(published: Documented, held: Opening, entry: Entry, undecided: Undecided, named = entry.name): string {
   const lines = [
-    `${entry.name} [${entry.kind}]`,
-    importing(published, held, entry),
+    `${named} [${entry.kind}]`,
+    ...importing(published, held, entry, named),
     `declared at ${entry.at}:${entry.line}`,
-    reach(published, held, entry),
+    reach(entry, undecided),
   ];
 
   if (entry.signature !== undefined) lines.push('', entry.signature);

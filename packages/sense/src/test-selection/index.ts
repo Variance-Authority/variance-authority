@@ -3,12 +3,7 @@ import type { FileRecord } from '@variance-authority/core/relate';
 import type { BlockKind } from '../instrument/index.js';
 import type { FilePhases } from './reported-time.js';
 import { deviationFromView } from './deviation.js';
-import {
-  journeyDivergences,
-  type JourneyDivergence,
-  type JourneyDivergenceOptions,
-  type JourneyRegion,
-} from './divergence.js';
+import { journeyDivergences, type JourneyDivergence, type JourneyDivergenceOptions, type JourneyRegion } from './divergence.js';
 import { decodeTestCoverage, encodeTestCoverage } from './format.js';
 import { writeCoverageBytes } from './record-location.js';
 import { withCaseSections, type CaseSections } from './case-record.js';
@@ -42,12 +37,12 @@ export {
 } from './reverse.js';
 export { anyStopped } from './stopped.js';
 export { unenteredSentence, whyUnentered, type Unentered } from './unentered.js';
-export { functionsUnder, lineGrain } from './source-target.js';
+export { functionsUnder, lineGrain, marksLoadTime } from './source-target.js';
 export { NAME_BOUNDARY, NameGrammarError, nameIndex, parseNameGrammar, structuralParent } from './name-grammar.js';
 export type { AxisStep, GrammarAxis, NameGrammar, NameIndex, NamedAxis, StructuralLink, StructuralName } from './name-grammar.js';
 export { caseHeard, heardSplit, heldText, heldValues, readSplit, readsOf, rowOf, saidAcross, saidRow, valued, type CaseHeard, type CasePrecondition, type Misuse, type Said } from './case-said.js';
 export { hunksByFile, placeInText, type HeldLines, type Hunk, type Placement } from './placed.js';
-export { stateOf, unenteredState, type RangeState } from './range-state.js';
+export { reachOf, regionRecord, stateOf, type RangeState, type Reach, type ReachRecord } from './range-state.js';
 export { narrowByJourneys, type JourneyRead, type JourneySelectionOptions } from './execution-select.js';
 export { ignoredBy, unmeasuredOf, type Route, type Unmeasured } from './route.js';
 export { changeOfDiff, changeOfFiles, changeOfPaths, ignoredChange, type Change } from './change.js';
@@ -101,7 +96,7 @@ export { shardsInstall, type KeptInstall } from './kept-install.js';
 export { sourceCut } from './coverage-rows.js';
 export { runsAsBefore, type RunsAsBefore } from './runs-as-before.js';
 export { kept, selectedLines, type SuiteSelection, type SuiteTimes } from './suite-selection.js';
-export { landingTimes } from './selection-environment.js';
+export { askedSelection, landingTimes } from './selection-environment.js';
 export { shardArgument, shardOf, type ShardAsked, type ShardPart } from './shard-placement.js';
 export { eitherFace, indexFaces, type Face, type Faces, type ReachThrough } from './faces.js';
 export type { JourneyDivergence, JourneyDivergenceOptions, JourneyRegion };
@@ -226,6 +221,10 @@ export {
   type SuiteChange,
   type SuiteCount,
 } from './coverage-count.js';
+export { coverageAtDistance, testHops, type CoverageAtDistance, type TestHops } from './coverage-distance.js';
+export { earnedCoverage, type EarnedCount, type EarnedCoverage } from './coverage-earned.js';
+export { coverageFanIn, type FanIn, type FanInFile, type FanInKind } from './coverage-fan-in.js';
+export { coverageByOwner, type OwnedFile } from './coverage-owner.js';
 
 /**
  * The lines of the source a region was written on, inclusive — or neither.
