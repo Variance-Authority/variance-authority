@@ -4,13 +4,17 @@
  * snapshot, the committed texts and the texts landings kept.
  *
  * A record carried through landings keeps, for a test that has not run since,
- * when its runs landed and the digest of the text they ran over. A landing
- * that carries it and never ran it must not re-date it or name another text,
- * and the record holds the text behind that digest only while it is kept or
- * committed. What a reader concludes from them is `covering`'s, and is tested
- * there.
+ * when its runs landed and the text they ran over. A landing that carries it
+ * and never ran it must not re-date it or say it ran over another text, and
+ * the record holds that text only while it is kept or committed. Each reader
+ * says it in the words `covering` prints, which name no digest; what a reader
+ * concludes of a region is `covering`'s, and is tested there.
  */
 
+import { execFile } from 'node:child_process';
+import { readFile } from 'node:fs/promises';
+import { join } from 'node:path';
+import { promisify } from 'node:util';
 import { digestString } from '@variance-authority/core/format';
 import { caseSectionsAt } from '../case-record.js';
 import { readCommitRuns } from '../commit-runs.js';
@@ -20,19 +24,28 @@ import { keptTexts } from '../kept-texts.js';
 import { textsAt } from '../recorded-text.js';
 import { coveringTests } from '../reverse.js';
 import { testPlaces } from '../test-places.js';
-import { SUBJECT, type Walk } from './carry-contract.js';
+import { BIN, cliEnv, SUBJECT, type Walk } from './carry-contract.js';
 
 /** A line, or a run of lines, of the subject's text at HEAD. */
 export type Asked = { readonly line: number } | { readonly lines: { readonly startLine: number; readonly endLine: number } };
 
-/** Where and when one test file last ran, and the subject's text it ran over, as the record carries them. */
+/** Where and when one test file last ran, and over which of the subject's texts, as the record carries them. */
 export interface Stood {
   readonly commit: string;
   readonly landed?: { readonly first: string; readonly latest: string; readonly runs?: number };
-  /** The digest of the subject's text it ran over: its place's, else the one committed where it ran. Absent when the record does not say. */
-  readonly digest?: string;
-  /** The text the record holds under `digest`, kept or committed. Absent when it holds none. */
-  readonly text?: string;
+  /** `asked` when it ran over the subject's text in the tree, `other` over another one; absent when the record does not say. */
+  readonly text?: 'asked' | 'other';
+  /** With `other`: whether the record holds that text, kept or committed, so a region of it can be read in it. */
+  readonly held?: boolean;
+}
+
+/** The part of a `covering --format json` `ran` stand {@link ranByCli} reads. */
+interface RanStand {
+  readonly commit: string;
+  readonly tests: readonly string[];
+  readonly landed?: Stood['landed'];
+  readonly text?: 'held' | 'other';
+  readonly region?: string | { readonly unknown: string };
 }
 
 /** A reader of {@link Stood} for each test file the question names. */
@@ -41,9 +54,9 @@ export type Ran = (walk: Walk, asked: Asked) => Promise<Readonly<Record<string, 
 /**
  * {@link Ran} in-process, through the public readers: the test files are the
  * cases that reached the asked lines (`coveringTests`), each placed by
- * `testPlaces`; the digest is the one its place names, else the committed
- * text's; the text is the one kept under that digest, else the committed one
- * when it has that digest.
+ * `testPlaces`; the text it ran over is the one whose digest its place names,
+ * else the one committed where it ran, held when a landing kept it or that
+ * commit has it.
  */
 export async function ranInProcess(walk: Walk, asked: Asked): Promise<Readonly<Record<string, Stood>>> {
   const { commit } = await readTestCoverage(walk.coverageFile);
@@ -54,21 +67,44 @@ export async function ranInProcess(walk: Walk, asked: Asked): Promise<Readonly<R
   const { places } = testPlaces({ commit: commit!, runs: await readCommitRuns(walk.coverageFile), tests });
   const blobs = textsAt(walk.root, new Map([...places.values()].map((place) => [place.commit, [SUBJECT]])));
   const kept = keptTexts(walk.root, walk.cacheRoot);
+  const inTree = digestString(await readFile(join(walk.root, SUBJECT), 'utf8'));
   const answer: Record<string, Stood> = {};
   for (const test of tests) {
     const place = places.get(test)!;
     const blob = blobs.get(place.commit)?.get(SUBJECT);
     const digest = place.texts === undefined ? undefined : place.texts[SUBJECT] ?? (blob === undefined ? undefined : digestString(blob));
-    const text = digest === undefined ? undefined : kept(digest) ?? (blob !== undefined && digestString(blob) === digest ? blob : undefined);
     answer[test] = {
       commit: place.commit,
       ...(place.first === undefined || place.latest === undefined
         ? {}
         : { landed: { first: place.first, latest: place.latest, ...(place.runs === undefined ? {} : { runs: place.runs }) } }),
-      ...(digest === undefined ? {} : { digest }),
-      ...(text === undefined ? {} : { text }),
+      ...(digest === undefined
+        ? {}
+        : digest === inTree
+          ? { text: 'asked' as const }
+          : { text: 'other' as const, held: kept(digest) !== undefined || (blob !== undefined && digestString(blob) === digest) }),
     };
   }
   walk.actions.push({ action: 'ran in-process', asked, answer });
+  return answer;
+}
+
+/**
+ * {@link Ran} asked of `variance covering --format json` in a process of its
+ * own, from its `ran` stands: `held` there is the asked text, and a region
+ * whose verdict is not known is one read in no text the record holds.
+ */
+export async function ranByCli(walk: Walk, asked: Asked): Promise<Readonly<Record<string, Stood>>> {
+  const line = 'line' in asked ? String(asked.line) : `${String(asked.lines.startLine)}-${String(asked.lines.endLine)}`;
+  const { stdout } = await promisify(execFile)(process.execPath, [BIN, 'covering', '--file', SUBJECT, '--line', line, '--execution', walk.coverageFile, '--format', 'json'], {
+    cwd: walk.root, env: cliEnv(walk), maxBuffer: 64 * 1024 * 1024,
+  });
+  const { ran } = JSON.parse(stdout) as { readonly ran: { readonly stands: readonly RanStand[] } };
+  const answer = Object.fromEntries(ran.stands.flatMap(({ commit, tests, landed, text, region }) => tests.map((test): [string, Stood] => [test, {
+    commit,
+    ...(landed === undefined ? {} : { landed }),
+    ...(text === 'held' ? { text: 'asked' } : text === 'other' ? { text: 'other', ...(region === undefined ? {} : { held: typeof region !== 'object' }) } : {}),
+  }])));
+  walk.actions.push({ action: 'ran through the CLI', asked, stdout });
   return answer;
 }

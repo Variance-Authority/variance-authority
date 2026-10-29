@@ -49,7 +49,7 @@ describe('a record carried through a history, asked in-process', () => {
   });
 
   it('keeps the case that ran a region in another text on it, run by an edit there and named by no reader, when a run over an edit inside it did not enter it', async () => {
-    await ranOverAnotherTestsRegion(selected);
+    await ranOverAnotherTestsRegion(selectedFromTree);
   });
 
   it('charges every loader when both tests ran over an uncommitted edit and no text was kept, since the digest cannot stand in for it', async () => {
@@ -57,7 +57,7 @@ describe('a record carried through a history, asked in-process', () => {
   });
 
   it('holds every case of a module flagged at each of its regions when a run lands over a text no landing kept, never as measured absence', async () => {
-    await ranOverAnUnkeptTextThenAnother(selected, forgetKept);
+    await ranOverAnUnkeptTextThenAnother(selectedFromTree, forgetKept);
   });
 
   it('dates a test file by the landing it last ran in, never by a later one that carried it, and holds the text it ran over only while it is kept or committed', async () => {
