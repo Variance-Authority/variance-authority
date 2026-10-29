@@ -36,6 +36,7 @@
  */
 
 import { writeFileSync, readFileSync, statSync, mkdirSync, readdirSync, rmSync } from 'node:fs';
+import { codeUnitOrder } from '@variance-authority/core/segment';
 import { layCoverage } from '../dist/test-selection/format-layer.js';
 import { openTestCoverage } from '../dist/test-selection/format-view.js';
 import { selectTestFilesFromView } from '../dist/test-selection/select.js';
@@ -272,12 +273,12 @@ if (MODE === 'record') {
         file: name.testPath(at),
         complete: true,
         preconditions: [],
-      })).sort((left, right) => (left.file < right.file ? -1 : left.file > right.file ? 1 : 0)),
+      })).sort((left, right) => codeUnitOrder(left.file, right.file)),
       modules: [...captured]
         .map(([id, module]) =>
           coverageModule(module, (block) => [...(crossings.get(id)?.get(block.ordinal) ?? [])]),
         )
-        .sort((left, right) => (left.file < right.file ? -1 : left.file > right.file ? 1 : 0)),
+        .sort((left, right) => codeUnitOrder(left.file, right.file)),
     };
     console.log(`  after the object model: rss ${mb(watch())}`);
     const encoded = encodeTestCoverage(model);

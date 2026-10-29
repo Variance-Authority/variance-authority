@@ -66,10 +66,10 @@
 
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { randomUUID } from 'node:crypto';
+import { codeUnitOrder } from '@variance-authority/core/segment';
 import { channelFrom, JOURNEY_COOKIE, type Channel } from '@variance-authority/wire';
 import { INSTRUMENTATION_ID } from '../instrument/identity.js';
 import type { ModuleId } from '../instrument/index.js';
-import { codeUnitOrder } from './instrumented-modules.js';
 import { UNATTRIBUTED, type JourneyAccount } from './stitch.js';
 import type { ExecutedModule } from './probes.js';
 import probeLists from '../instrument/probe-lists.cjs';

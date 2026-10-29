@@ -148,10 +148,6 @@ export function loadedOf(
   return crossingsOf(journals, (module) => module.loaded);
 }
 
-export function codeUnitOrder(left: string, right: string): number {
-  return left < right ? -1 : left > right ? 1 : 0;
-}
-
 /**
  * Every file in a directory, as its bytes, ordered by what they hold; nothing
  * where there is no directory.

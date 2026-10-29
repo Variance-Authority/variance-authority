@@ -49,6 +49,7 @@
 
 import { extname } from 'node:path';
 import { NOTHING, WHOLE, idOf, type NodeId, type Relations } from '@variance-authority/core/relate';
+import { codeUnitOrder } from '@variance-authority/core/segment';
 import { native } from '../addon.js';
 import type { NativeModuleReaders, NativeScanner } from '../native.js';
 import { MODULE_EXTENSIONS } from '../read.js';
@@ -340,7 +341,7 @@ function readValues(
       }
     }
   }
-  return [...unseen].sort((left, right) => (left < right ? -1 : left > right ? 1 : 0));
+  return [...unseen].sort(codeUnitOrder);
 }
 
 /**

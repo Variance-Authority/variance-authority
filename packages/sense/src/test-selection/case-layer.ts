@@ -1,8 +1,8 @@
+import { codeUnitOrder } from '@variance-authority/core/segment';
 import type { SetId } from './crossing-sets.js';
 import { openSetExecutionIndex, type OpenedSetExecutionIndex, type SetExecutionModule } from './execution-set-format.js';
 import { LaidLines } from './case-layer-lines.js';
 import { HeldIndex, writeLaid, type CarriedModule, type LaidModule, type LaidTest } from './held-case-index.js';
-import { codeUnitOrder } from './instrumented-modules.js';
 import { landedThrough, NO_EDIT, type EditOf } from './region-edit.js';
 import { relined, strayed } from './region-landing.js';
 import type { ExecutionTest } from './reverse.js';

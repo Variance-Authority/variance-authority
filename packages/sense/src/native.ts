@@ -13,6 +13,7 @@
  * are nothing a worker needs.
  */
 import type { EdgeKind, FileEdge, FileRecord, PackageEdge } from '@variance-authority/core/relate';
+import { codeUnitOrder } from '@variance-authority/core/segment';
 import type { Parsed } from './cache.js';
 import type { Digest } from './digest.js';
 import type { NativeInstrumented, NativePlaced } from './instrument/spliced.js';
@@ -461,7 +462,7 @@ function builtFromBatch(
       ...(declares.length === 0 ? {} : { declares }),
       ...(unresolved.length === 0
         ? {}
-        : { unresolved: [...new Set(unresolved)].sort(byCodeUnit) }),
+        : { unresolved: [...new Set(unresolved)].sort(codeUnitOrder) }),
       ...(reasons.length === 0 ? {} : { unknown: `${file} — ${reasons.join('; ')}` }),
     };
     const witnesses = options.remembering
@@ -492,9 +493,5 @@ function dedupe<Edge extends FileEdge>(edges: readonly Edge[]): readonly Edge[] 
       seen.add(key);
       return true;
     })
-    .sort((a, b) => byCodeUnit(a.to, b.to) || byCodeUnit(a.kind, b.kind));
-}
-
-function byCodeUnit(a: string, b: string): number {
-  return a < b ? -1 : a > b ? 1 : 0;
+    .sort((a, b) => codeUnitOrder(a.to, b.to) || codeUnitOrder(a.kind, b.kind));
 }

@@ -1,4 +1,4 @@
-import { codeUnitOrder } from './instrumented-modules.js';
+import { codeUnitOrder } from '@variance-authority/core/segment';
 
 /** The dictionary the output gets, and the two ways to name a string in it. */
 export interface MergedDictionary {

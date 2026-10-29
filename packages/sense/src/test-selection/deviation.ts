@@ -1,6 +1,7 @@
 import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import type { FileRecord } from '@variance-authority/core/relate';
+import { codeUnitOrder } from '@variance-authority/core/segment';
 import { MODULE_EXTENSIONS } from '../read.js';
 import type {
   CodeExtent,
@@ -176,8 +177,4 @@ function sameTests(left: ReadonlySet<number>, right: ReadonlySet<number>): boole
   if (left.size !== right.size) return false;
   for (const test of left) if (!right.has(test)) return false;
   return true;
-}
-
-function codeUnitOrder(left: string, right: string): number {
-  return left < right ? -1 : left > right ? 1 : 0;
 }
