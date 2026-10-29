@@ -249,7 +249,7 @@ describe('the release workflow', () => {
     expect(ready).toBeLessThan(publish.indexOf('node tools/publish.mjs'));
     const asks = publish.slice(ready, publish.indexOf('- name:', ready + 1));
     expect(asks).toContain('ACTION_DEPLOY_KEY');
-    expect(asks).toMatch(/ls-remote --exit-code --heads "\$remote" main/);
+    expect(asks).toMatch(/ls-remote --exit-code "\$remote" refs\/heads\/main/);
     expect(asks).toMatch(/push --dry-run/);
     expect(asks).toMatch(/ACTION_MAJOR=v\d+/);
   });

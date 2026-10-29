@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { SOURCE, commentsOf } from './comments.js';
-import { MARKDOWN, PUBLIC_MARKDOWN, fencesIn, lineOf, linksIn, prose } from './markdown.js';
+import { INTO_GITHUB, MARKDOWN, fencesIn, lineOf, prose } from './markdown.js';
 
 /**
  * What we ship is installed, never copied.
@@ -21,9 +21,6 @@ import { MARKDOWN, PUBLIC_MARKDOWN, fencesIn, lineOf, linksIn, prose } from './m
 
 /** Records of what happened, which quote the old wording rather than ask anything of a reader. */
 const HISTORY = /^(?:docs\/context\/|backlog\/)/;
-
-/** The action's own directory: the root of `Variance-Authority/action`, which a release publishes. */
-const ACTION = '.github/actions/variance';
 
 /** One of our files, as a sentence names it: this repository, or a path under `.github/`. */
 const OURS = String.raw`(?:Variance-Authority\/variance-authority|\.github\/|actions\/variance|variance(?:-[\w-]+)?\.ya?ml)`;
@@ -65,10 +62,6 @@ describe('nothing asks a reader to copy our files', () => {
     expect(asks(file, commentsOf(file))).toEqual([]);
   });
 });
-
-/** Our raw files and our `.github` on GitHub: a URL a reader fetches or copies from. */
-const INTO_GITHUB =
-  /https?:\/\/(?:github\.com\/Variance-Authority\/variance-authority\/(?:blob|tree|raw)|raw\.githubusercontent\.com\/Variance-Authority\/variance-authority)\/[^/\s]+\/\.github\/[^\s)>`'"]*/gi;
 
 /** A `uses:` that means our action: its own repository, or a path to where its source lives here. */
 const NAMES_OUR_ACTION = /^(?:Variance-Authority\/action(?:@|$)|Variance-Authority\/variance-authority\/|(?:\.\/)?\.github\/actions\/variance(?:\/|$))/i;
@@ -154,18 +147,5 @@ describe('every example installs the action by its name', () => {
       });
     }
     expect(wrong).toEqual([]);
-  });
-});
-
-describe('no published page points into this repository’s .github', () => {
-  it.each(PUBLIC_MARKDOWN)('%s', (file) => {
-    const text = prose(file);
-    const into = [...text.matchAll(INTO_GITHUB)].map((match) => `${file}:${lineOf(text, match.index)} → ${match[0]}`);
-    for (const { target, line, inside } of linksIn(file)) {
-      if (inside === undefined) continue;
-      const withinAction = file.startsWith(`${ACTION}/`) && inside.startsWith(`${ACTION}/`);
-      if (!withinAction && (inside === '.github' || inside.startsWith('.github/'))) into.push(`${file}:${line} → ${target}`);
-    }
-    expect(into).toEqual([]);
   });
 });

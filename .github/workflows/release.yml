@@ -354,7 +354,7 @@ jobs:
 
           # 0 is `main`, 2 is a repository without it, anything else is one not read.
           found=0
-          git ls-remote --exit-code --heads "$remote" main >/dev/null || found=$?
+          git ls-remote --exit-code "$remote" refs/heads/main >/dev/null || found=$?
           if [ "$found" = 2 ]; then
             echo "::error::Variance-Authority/action has no main branch to publish onto."
             exit 1
@@ -486,7 +486,8 @@ jobs:
           git -C "$into" config user.name 'github-actions[bot]'
           git -C "$into" config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           find "$into" -mindepth 1 -maxdepth 1 ! -name .git -exec rm -rf {} +
-          cp -R .github/actions/variance/. "$into/"
+          # What git tracks there, never a file a build left beside it.
+          git archive HEAD .github/actions/variance | tar -x --strip-components=3 -C "$into"
           cp LICENSE "$into/LICENSE"
           git -C "$into" add -A
           if ! git -C "$into" diff --cached --quiet; then

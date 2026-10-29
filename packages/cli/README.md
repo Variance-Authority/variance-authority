@@ -2852,6 +2852,8 @@ permissions:
   pull-requests: write # the comment
 
 steps:
+  - uses: actions/checkout@v4
+  - run: npm ci
   - uses: Variance-Authority/action@v1
     with:
       config: variance.config.json

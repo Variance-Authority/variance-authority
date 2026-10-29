@@ -83,6 +83,11 @@ export interface Link {
   readonly inside?: string;
   /** The heading the target names after `#`, when it names one. */
   readonly anchor?: string;
+  /** Offsets of the whole link and of its label in the page's {@link prose}. */
+  readonly start: number;
+  readonly end: number;
+  readonly labelStart: number;
+  readonly labelEnd: number;
 }
 
 /**
@@ -95,19 +100,30 @@ export interface Link {
 export function linksIn(file: string): readonly Link[] {
   const text = prose(file);
   const found: Link[] = [];
-  for (const match of text.matchAll(/\[[^\]]*\]\(([^)\s]+)(?:\s+"[^"]*")?\)/g)) {
-    const target = match[1]!;
-    const line = lineOf(text, match.index);
+  for (const match of text.matchAll(/\[([^\]]*)\]\(([^)\s]+)(?:\s+"[^"]*")?\)/g)) {
+    const target = match[2]!;
+    const at = {
+      target,
+      line: lineOf(text, match.index),
+      start: match.index,
+      end: match.index + match[0].length,
+      labelStart: match.index + 1,
+      labelEnd: match.index + 1 + match[1]!.length,
+    };
     if (/^(?:https?:|mailto:)/.test(target)) {
-      found.push({ target, line });
+      found.push(at);
       continue;
     }
     const [path, anchor] = target.split('#') as [string, string | undefined];
     const inside = path === '' ? file : relative(ROOT, resolve(dirname(resolve(ROOT, file)), path));
-    found.push({ target, line, inside, ...(anchor === undefined ? {} : { anchor }) });
+    found.push({ ...at, inside, ...(anchor === undefined ? {} : { anchor }) });
   }
   return found;
 }
+
+/** Our raw files and our `.github` on GitHub: a URL a reader fetches or copies from. */
+export const INTO_GITHUB =
+  /https?:\/\/(?:github\.com\/Variance-Authority\/variance-authority\/(?:blob|tree|raw)|raw\.githubusercontent\.com\/Variance-Authority\/variance-authority)\/[^/\s]+\/\.github\/[^\s)>`'"]*/gi;
 
 export interface Fence {
   readonly file: string;

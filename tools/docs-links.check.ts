@@ -3,7 +3,7 @@ import { existsSync, readFileSync, statSync } from 'node:fs';
 import { dirname, join, resolve, relative } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { SOURCE, commentsOf } from './comments.js';
-import { MARKDOWN, PUBLIC_MARKDOWN, ROOT, lineOf, linksIn, prose } from './markdown.js';
+import { INTO_GITHUB, MARKDOWN, PUBLIC_MARKDOWN, ROOT, lineOf, linksIn, prose } from './markdown.js';
 
 /**
  * Where the documentation points, checked against what is there.
@@ -147,15 +147,32 @@ describe('every link resolves', () => {
   });
 });
 
-describe('public documentation stands without internal project history', () => {
+/** The action's own directory: the root of `Variance-Authority/action`, which a release publishes. */
+const ACTION = '.github/actions/variance';
+
+/**
+ * Where a public page does not lead: our history, and `.github/`, which holds
+ * this repository's own build. The action's README may name its own files,
+ * since it is the front page of the repository the action is installed from.
+ */
+function internalTo(file: string, inside: string): boolean {
+  if (inside.startsWith('docs/context/') || inside.startsWith('docs/specs/')) return true;
+  const withinAction = file.startsWith(`${ACTION}/`) && inside.startsWith(`${ACTION}/`);
+  return !withinAction && (inside === '.github' || inside.startsWith('.github/'));
+}
+
+
+describe('public documentation stands without this repository’s internals', () => {
   it.each(PUBLIC_MARKDOWN)('%s', (file) => {
     const text = prose(file);
     const internal: string[] = [];
 
     for (const { target, line, inside } of linksIn(file)) {
-      if (inside?.startsWith('docs/context/') || inside?.startsWith('docs/specs/')) {
-        internal.push(`${file}:${line} → ${target}`);
-      }
+      if (inside !== undefined && internalTo(file, inside)) internal.push(`${file}:${line} → ${target}`);
+    }
+
+    for (const match of text.matchAll(INTO_GITHUB)) {
+      internal.push(`${file}:${lineOf(text, match.index)} → ${match[0]}`);
     }
 
     for (const match of text.matchAll(/\b(?:ADR-\d{4}|(?:journal|spec)\s+\d{4})\b/gi)) {
