@@ -5,20 +5,27 @@ catalogue: for each thing an agent needs while it works on a change, the
 commands that answer it and the needs its answer can open. The second is the
 binding: how one answer's facts become the arguments of the next question. The
 routing is written apart in the skill's "Open the reference for the question"
-table, in `orient`'s `Narrower questions`, and in a "choose the next question"
-section in four pages of `docs/`. None of it is checked against the commands.
-Next questions are spelled in four ways. `orient`, `packages` and `entrypoint`
-end with a footer built from their reading: `orient` names `ask uses`,
-`ask symbol` and `covering --file`, and `entrypoint` names `ask uses` and itself
-narrowed to one package. `discover`, `grep`, `intersection`, `slowest-tests`,
-`symbol` and `uses` name one through `spellingOf`; `uses` names itself narrowed
-to one file, and `discover --imports` for a name from outside the workspace.
-`search` writes `ask orient --files` by hand, as do the run report's header
-naming `run --since`, the review handover naming `covering --file` and the
-unstable-subject comment naming `run --flakes`. `covering`'s evidence gap names
-the run that closes it. Every other answer names none, and nothing says which of
-these a need should get. Nothing tells a need with no command apart from a
-command no need calls.
+table, in the `Narrower questions` footer `narrower` lays out, and in a
+"choose the next question" section in four pages of `docs/`. None of it is
+checked against the commands.
+Next questions are spelled in four ways, and nothing says which of them a need
+should get. `orient`, `packages` and `entrypoint` end with a footer built from
+their reading: `orient` names `ask uses`, `ask symbol` and `covering --file`,
+and `entrypoint` names `ask uses`, `ask packages` and itself narrowed to one
+package. `symbol` and `uses` name each other through `spellingOf`; `uses` names
+itself narrowed to one file, and `discover --imports` for a name from outside
+the workspace. Many more write one by hand: `search` names `ask orient --files`,
+the run report's header `run --since`, the review handover `covering --file`,
+the unstable-subject comment and `ask composition` `run --flakes`, `ask changes`
+and the report, the comment and the tribunal `accept --shape`, `ask waiting`
+`variance_continue`, `ask summary` `variance_locate`, and others, each in the
+shell's spelling or the wire's whatever surface reads it. And a remedy for a
+missing record — `covering`'s evidence gap, the probes gap, "run
+`variance index`" — names the run that closes it. The complete set is what the
+spelling check below finds, not a list kept by hand. A hint that asks the same
+question wider, `--limit` through `limitOf`, is the answer's own paging, not a
+next question. Nothing tells a need with no command apart from a command no need
+calls.
 **Built on:** the `variance ask` catalogue, which reads each question's facts
 off its tool's definition, the `Tool` of `packages/mcp/src/tools/tool.ts`; the
 top-level command table; `spelling.ts` in the same directory, the one place an
@@ -78,7 +85,9 @@ a hint today — and, for each argument the entry's command takes, the answer
 field that supplies it. The entry already holds its need and its command, so an
 edge states neither again. A move is that command, its input, and the context
 the answer was asked in: the report paths, or the watcher address `--at` named.
-The context is carried unchanged, since the tool's input does not hold it. In a
+The context is carried unchanged, since the tool's input does not hold it, in
+one optional field of `ToolInvocation` that the host fills and `spellingOf`
+alone reads, so a builder never sees it. In a
 shell `spellingOf` spells it with the input: a `describe --subject` move from
 `ask changes /tmp/run-a.json` asks of `/tmp/run-a.json`, not of the configured
 report. Over MCP a server answers of the subject it was started on, so the
@@ -96,7 +105,7 @@ the kind of thing the move asks about.
 | The answer holds | The move |
 |---|---|
 | the field the edge needs, once | one move |
-| it for several things | one move per thing the answer lists, in its order, the things it counts and does not list counted again |
+| it for several things | one move per thing the answer lists, in its order and within its `limitOf` bound; the things it counts past that bound get one move that asks for them |
 | several things the command's arguments cannot tell apart | one move that asks about all of them, saying so |
 | no value for the field | no move |
 | a value, but no fact the destination would read | no move |
@@ -138,7 +147,8 @@ visited state for it.
   left open, why, the run that closes it and what it costs. A gap is not a move
   to another need. It is the same need, asked again once its evidence exists.
   An answer carries its moves and at most one gap, and the catalogue routes
-  neither of them through the other.
+  neither of them through the other. The gap's remedy is still a command, so
+  `spellingOf` spells it as it spells a move.
 - **Usage.** When a command is asked without an argument it requires,
   `asking.ts` says what it takes. That is the command's own usage, not a move.
 
@@ -189,11 +199,12 @@ and none stands in for another:
 | know what my change could reach through the source graph | `reach --since <ref>` | know which recorded tests entered what my change touched |
 | know which recorded tests entered what my change touched | `covering --since <ref>`, its MCP twin `variance_changed_tests` over a diff | see what a test actually did here |
 | know what my change reached that no test checks | `review --since <ref> --coverage` | run something that already exercises this code |
-| know what my change did to what users see | `ask summary` over the report of a `run` | know the distinct changes behind what moved |
-| know the distinct changes behind what moved | `ask changes` | know everything about one subject |
+| know what my change did to what users see | `ask summary` over the report of a `run` | know the distinct changes behind what moved; know which subject a description names |
+| know the distinct changes behind what moved | `ask changes` | know everything about one subject; settle a change |
 | know everything about one subject | `ask describe --subject <id>` | know why a verdict may not be a code problem |
 | know why a verdict may not be a code problem | `ask explain-verdict --subject <id>` | — |
-| know where a component appears and what it moved | `ask trace-component`, `ask composition` | know everything about one subject |
+| know where a component appears and what it moved | `ask trace-component`, `ask composition` | know everything about one subject; know whether a subject reads the same way twice |
+| know whether a subject reads the same way twice | `run --flakes`, an *operation* | know the distinct changes behind what moved |
 | know what a flag or theme arm changes | `ask variations` | — |
 | know which subject a description names | `ask locate --query <words>` | know everything about one subject |
 | know whether the edit did what I meant, by claims declared before reading the diff | `adjudicate`, `ask adjudicate --claims <path>` | know everything about one subject |
@@ -211,7 +222,7 @@ drop exactly the tests nothing has recorded yet.
 | Need | Command | Opens |
 |---|---|---|
 | know whether this is the watcher the suite reports to | `watch`, `ask self` | know what the suite is doing now |
-| know what the suite is doing now | `ask run-signals`, `ask waiting` | know what one running test said |
+| know what the suite is doing now | `ask run-signals`, `ask waiting` | know what one running test said; let a test stopped at `variance.observe()` go on |
 | know what one running test said | `ask test-signals --test <id>` | — |
 | let a test stopped at `variance.observe()` go on | `variance_continue` over MCP, an *operation* | know what the suite is doing now |
 | know how the suite's signals read since I last asked | `ask diff` over the watcher | know what one running test said |
@@ -240,9 +251,10 @@ need it does serve:
 | make the record a question reads | `index`; `run`, which also writes the report `ask summary` reads; `review --from-run`; `journeys` with `finalize`, `stitch` and `combine`; `collect`; `carry save`, `carry restore` — each an *operation* | — |
 
 An evidence gap names its own remedy, a recorded run of named test files or a
-`story` of named cases, as `evidence-gap.ts` does today. The row above is for
-an agent that sets a record up on purpose. Every command has an entry, a
-producer as much as a question.
+`story` of named cases, as `evidence-gap.ts` does today, and so does every
+other answer to a missing record, as "run `variance index`" does. The row
+above is for an agent that sets a record up on purpose. Every command has an
+entry, a producer as much as a question.
 
 ## Options, not a route
 
@@ -301,15 +313,18 @@ top-level command is declared in `@variance-authority/mcp/tools`, beside
 `covering` has `variance_source_tests` and `variance_changed_tests`. Its entries
 sit on that declaration. `spellingOf` gains one case: a top-level verb is
 spelled with no `ask`, and over MCP it is spelled as its twin, or for the shell
-with where it is asked when it has none. The command table in `packages/cli`
-keeps its usage lines, and a test holds that every verb in it is declared.
+with where it is asked when it has none. `packages/cli` keeps its usage lines
+and maps each verb of `COMMANDS` to its declaration in a
+`Record<(typeof COMMANDS)[number], …>` in `usage.ts`, as `PER_COMMAND` is held,
+so the compiler holds that every verb is declared.
 
 One command can answer several needs: `ask discover` by `--text`, `--imports`,
 `--to` or several filters; `covering` by `--file` or `--since`; `story` by
 `--name` or `--compare`. So each entry is keyed by the flags that ask it. It
 holds its `need`; whether it is an operation; the skill reference the need
 routes to, where it has one; and its edges, each with the entry it opens and
-its argument bindings. The tables above are what those entries hold.
+its argument bindings. The tables above are what those entries will hold;
+once an entry exists, it is the source and its row follows it.
 
 A builder sits beside the formatter of the command it builds for and carries
 that file's `// compass:` coordinate. The speller and the layout stay at
@@ -334,19 +349,29 @@ Each step lands a move an agent sees before the next one starts:
      `asking.ts`'s own parser and asked in process; one case per surface spawns
      the CLI. The move's command must answer cleanly, and about the thing the
      move names.
+   - The steps after this one wait on the owner's read of real cycles: an
+     agent asking a printed move where it would have reread the skill, and
+     what the moves cost per answer in tokens.
 2. `covering` and `select`, with the top-level declarations they need. Their
    builders sit beside their formatters in `packages/cli`, next to the
    evidence gap they leave alone. `select`'s stdout is substituted into a
-   runner's arguments and carries skip data alone, so its moves go to stderr
-   beside its notes and into a field of its `json` format, never to stdout.
+   runner's arguments and carries skip data alone, until
+   [0098](0098-the-runner-is-handed-its-selection.md) replaces that, so its
+   moves go to stderr beside its notes and into a field of its `json` format,
+   never to stdout.
+   The remedy `evidence-gap.ts` spells by hand, a `story` of named cases, is
+   spelled through `spellingOf`'s top-level case, so it reads over MCP too;
+   every other gap remedy follows in step 3.
    Their acceptance tests run on the recorded checkouts their own tests
    already build.
-3. Every question spelled by hand moves onto the same path: `orient`'s,
-   `packages`' and `entrypoint`'s `followUps`, the hints of `discover`, `grep`,
-   `intersection` and `slowest-tests`, `search`'s line to `orient`, the run
-   report's header, the review handover and the unstable-subject comment. Each
-   becomes an edge of its row above, and the check that no answer spells a
-   question outside `spellingOf` lands with the last of them.
+3. Every question spelled by hand moves onto the same path. The check that no
+   answer spells a question outside `spellingOf` lands first, listing what it
+   finds: it reads every string and template literal with oxc for the binary's
+   verbs and its MCP tool names, and exempts only `asking.ts`'s usage. Each
+   site it lists becomes an edge of its row above — `orient`'s, `packages`' and
+   `entrypoint`'s `followUps` among them — and a gap remedy is spelled through
+   `spellingOf` with its routing left where it is. Once the list is empty, the
+   check fails on any site it finds.
 4. Every remaining command gets its entry, each with a fixture that holds the
    evidence its answer reads. An answer asked of one of two reports, or of one
    of two watcher addresses, has its moves answer from that report or that
@@ -360,4 +385,6 @@ Each step lands a move an agent sees before the next one starts:
    against `usage.ts`, so the new check holds only the routing. The "choose
    the next question" sections of `docs/` link to the skill's table instead of
    repeating it.
-6. The gaps above, each a need with its own contract.
+6. None of the gaps above. Each is a spec of its own, the cross-case half of
+   the second 0103's; the catalogue marks them, and this spec is done without
+   them.
