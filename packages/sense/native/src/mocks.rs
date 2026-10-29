@@ -8,6 +8,7 @@ use std::sync::OnceLock;
 
 use oxc_ast::ast::*;
 use oxc_ast_visit::{walk, Visit};
+use oxc_semantic::Scoping;
 use regex::Regex;
 use serde::Serialize;
 
@@ -33,14 +34,14 @@ impl Mocks {
 
 /// The diff `mockDiff` answers for the default callers: both sides sorted by
 /// code unit and unique, empty when the file neither mocks nor loads an original.
-pub fn mocks_in(source: &str, program: &Program<'_>) -> Mocks {
+pub fn mocks_in(source: &str, program: &Program<'_>, scoping: &Scoping) -> Mocks {
     static WRITTEN: OnceLock<Regex> = OnceLock::new();
     let written = WRITTEN
         .get_or_init(|| Regex::new(r"\.(?:mock|requireActual|importActual)\b").unwrap());
     if !written.is_match(source) {
         return Mocks::default();
     }
-    let mut found = Found::default();
+    let mut found = Found { scoping, mocked: BTreeSet::new(), actual: BTreeSet::new(), preserved: BTreeSet::new(), factory: None };
     found.visit_program(program);
     let minus = found
         .mocked
@@ -60,15 +61,15 @@ fn by_code_unit(mut values: Vec<String>) -> Vec<String> {
     values
 }
 
-#[derive(Default)]
-struct Found {
+struct Found<'s> {
+    scoping: &'s Scoping,
     mocked: BTreeSet<String>,
     actual: BTreeSet<String>,
     preserved: BTreeSet<String>,
     factory: Option<String>,
 }
 
-impl<'a> Visit<'a> for Found {
+impl<'a> Visit<'a> for Found<'_> {
     fn visit_call_expression(&mut self, it: &CallExpression<'a>) {
         let specifier = it.arguments.first().and_then(specifier_of);
         let method = method_of(it);
@@ -84,7 +85,7 @@ impl<'a> Visit<'a> for Found {
             } else if method == Some("mock") {
                 let reaches = it.arguments[1..]
                     .iter()
-                    .any(|argument| opaque(argument) || spies(argument) || original(argument));
+                    .any(|argument| opaque(argument) || spies(argument) || original(argument, self.scoping));
                 if reaches {
                     self.preserved.insert(specifier.clone());
                 } else {
@@ -162,73 +163,47 @@ fn spies(argument: &Argument<'_>) -> bool {
 
 /// A factory referring to the loader it is passed first, whatever its name, or
 /// loading an original by a specifier this cannot read. `original` in `mockDiff`
-/// owns the reasoning.
-fn original(argument: &Argument<'_>) -> bool {
-    let mut reach = Reaches { names: loaders(argument), found: false };
+/// owns the reasoning; here the scope tree says which references reach the
+/// loader, so a shadowing name, a key or a label is not one.
+fn original(argument: &Argument<'_>, scoping: &Scoping) -> bool {
+    let (params, function) = match argument {
+        Argument::ArrowFunctionExpression(arrow) => (&arrow.params, false),
+        Argument::FunctionExpression(function) => (&function.params, true),
+        _ => return false,
+    };
+    let loaders = match (params.items.first(), &params.rest) {
+        (Some(parameter), _) => loader_of(&parameter.pattern).into_iter().collect(),
+        (None, Some(rest)) => rest.rest.argument.get_binding_identifiers(),
+        (None, None) => Vec::new(),
+    };
+    let referred = loaders.iter().any(|binding| {
+        binding.symbol_id.get().is_some_and(|symbol| !scoping.get_resolved_reference_ids(symbol).is_empty())
+    });
+    let mut reach = Reaches { arguments: function, found: referred };
     reach.visit_argument(argument);
     reach.found
 }
 
-/// The names a factory literal holds its loader by: its first parameter when
-/// that binds the whole loader, every name a rest first parameter binds, and
-/// `arguments` in a `function` factory.
-fn loaders<'a>(argument: &Argument<'a>) -> Vec<&'a str> {
-    let (params, arguments) = match argument {
-        Argument::ArrowFunctionExpression(arrow) => (&arrow.params, false),
-        Argument::FunctionExpression(function) => (&function.params, true),
-        _ => return Vec::new(),
-    };
-    let mut names = Vec::new();
-    match params.items.first() {
-        Some(parameter) => loader_of(&parameter.pattern, &mut names),
-        None => {
-            if let Some(rest) = &params.rest {
-                bound(&rest.rest.argument, &mut names);
-            }
-        }
-    }
-    if arguments {
-        names.push("arguments");
-    }
-    names
-}
-
-fn loader_of<'a>(pattern: &BindingPattern<'a>, names: &mut Vec<&'a str>) {
+/// The binding a first parameter holds the whole loader by; a destructured one
+/// takes the loader apart and holds none.
+fn loader_of<'a, 'b>(pattern: &'b BindingPattern<'a>) -> Option<&'b BindingIdentifier<'a>> {
     match pattern {
-        BindingPattern::BindingIdentifier(binding) => names.push(binding.name.as_str()),
-        BindingPattern::AssignmentPattern(assigned) => loader_of(&assigned.left, names),
-        _ => {}
+        BindingPattern::BindingIdentifier(binding) => Some(binding),
+        BindingPattern::AssignmentPattern(assigned) => loader_of(&assigned.left),
+        _ => None,
     }
 }
 
-/// Every name a binding pattern binds.
-fn bound<'a>(pattern: &BindingPattern<'a>, names: &mut Vec<&'a str>) {
-    match pattern {
-        BindingPattern::BindingIdentifier(binding) => names.push(binding.name.as_str()),
-        BindingPattern::AssignmentPattern(assigned) => bound(&assigned.left, names),
-        BindingPattern::ArrayPattern(array) => {
-            array.elements.iter().flatten().for_each(|element| bound(element, names));
-            if let Some(rest) = &array.rest {
-                bound(&rest.argument, names);
-            }
-        }
-        BindingPattern::ObjectPattern(object) => {
-            object.properties.iter().for_each(|property| bound(&property.value, names));
-            if let Some(rest) = &object.rest {
-                bound(&rest.argument, names);
-            }
-        }
-    }
-}
-
-struct Reaches<'a> {
-    names: Vec<&'a str>,
+/// `arguments` in a `function` factory, which holds the loader under no binding,
+/// and an `importActual` or `requireActual` this cannot read the specifier of.
+struct Reaches {
+    arguments: bool,
     found: bool,
 }
 
-impl<'a> Visit<'a> for Reaches<'_> {
+impl<'a> Visit<'a> for Reaches {
     fn visit_identifier_reference(&mut self, it: &IdentifierReference<'a>) {
-        self.found |= self.names.contains(&it.name.as_str());
+        self.found |= self.arguments && it.name == "arguments";
     }
 
     fn visit_call_expression(&mut self, it: &CallExpression<'a>) {
@@ -243,12 +218,14 @@ mod tests {
     use super::*;
     use oxc_allocator::Allocator;
     use oxc_parser::Parser;
+    use oxc_semantic::SemanticBuilder;
     use oxc_span::SourceType;
 
     fn read(source: &str) -> Mocks {
         let allocator = Allocator::default();
         let parsed = Parser::new(&allocator, source, SourceType::ts()).parse();
-        mocks_in(source, &parsed.program)
+        let built = SemanticBuilder::new().build(&parsed.program);
+        mocks_in(source, &parsed.program, built.semantic.scoping())
     }
 
     #[test]
@@ -263,6 +240,12 @@ mod tests {
         let found = read("vi.mock('./a', async (original) => ({ ...(await original()) })); vi.mock('./b', factory);");
         assert!(found.minus.is_empty());
         assert!(found.plus.is_empty());
+    }
+
+    #[test]
+    fn a_name_that_shadows_the_loader_is_not_a_reference_to_it() {
+        let found = read("vi.mock('./a', (load) => ({ f: (load) => load() })); vi.mock('./b', (load) => { { const load = 1; return { load }; } });");
+        assert_eq!(found.minus, ["./a", "./b"]);
     }
 
     #[test]

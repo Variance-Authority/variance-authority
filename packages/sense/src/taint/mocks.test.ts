@@ -38,6 +38,8 @@ describe.each([
     { source: "vi.mock('./api', (load) => { function f(load) {} const { load: x } = y; try {} catch (load) {} return {}; });", diff: { minus: ['./api'] } },
     { source: "vi.mock('./api', (meta) => ({ url: import.meta.url }));", diff: { minus: ['./api'] } },
     { source: "vi.mock('./api', (load) => { const [a = load] = []; return a; });", diff: undefined },
+    { source: "vi.mock('./api', async function (this: unknown, load) { return load(); });", diff: undefined },
+    { source: "vi.mock('./api', async (...[a, b = a()]) => ({}));", diff: undefined },
     { source: "vi.mock('./api', () => ({ importOriginal: 1 }));", diff: { minus: ['./api'] } },
     { source: "vi.mock('./api', () => ({ api: vi.fn() }));", diff: { minus: ['./api'] } },
     { source: "vi.mock('./api', factory);", diff: undefined },
@@ -61,6 +63,7 @@ describe.each([
 ])('$name mock factory in JSX', ({ read }) => {
   it.each([
     { source: "vi.mock('./api', (Load) => ({ View: () => <Load.Part /> }));", diff: undefined },
+    { source: "vi.mock('./api', (load) => ({ View: () => <load.Part /> }));", diff: undefined },
     { source: "vi.mock('./api', (load) => ({ View: () => <load load={1} /> }));", diff: { minus: ['./api'] } },
   ])('normalizes $source', ({ source, diff }) => {
     expect(read(source)).toEqual(diff);

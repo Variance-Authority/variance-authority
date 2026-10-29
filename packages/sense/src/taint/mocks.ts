@@ -220,10 +220,11 @@ function original(node: Node, callers: ReadonlySet<string>): boolean {
 /** Whether a factory literal refers to the loader it is called with. */
 function loads(node: Node): boolean {
   if (node.type !== 'ArrowFunctionExpression' && node.type !== 'FunctionExpression') return false;
-  const [first, ...others] = node.params as readonly Node[];
-  const names = new Set(loadersOf(first));
+  // A `this` parameter is a type, and the loader is the parameter after it.
+  const parameters = (node.params as readonly Node[]).filter((parameter) => parameter.type !== 'Identifier' || parameter.name !== 'this');
+  const names = new Set(loadersOf(parameters[0]));
   if (node.type === 'FunctionExpression') names.add('arguments');
-  return names.size > 0 && (others.some((other) => pattern(other, names)) || refers(node.body as Node, names));
+  return names.size > 0 && (parameters.some((parameter) => pattern(parameter, names)) || refers(node.body as Node, names));
 }
 
 /**
@@ -361,10 +362,11 @@ function pattern(node: Node, names: ReadonlySet<string>): boolean {
   }
 }
 
-/** A JSX element name reads a binding when oxc reads it as one: it does not start in lower case. */
+/** A JSX element name reads a binding when oxc reads it as one: a tag that does not start in lower case, or the root of a member tag. */
 function jsxReads(name: Node, names: ReadonlySet<string>): boolean {
-  if (name.type === 'JSXMemberExpression') return jsxReads(name.object as Node, names);
-  return name.type === 'JSXIdentifier' && !/^[a-z]/u.test(String(name.name)) && names.has(String(name.name));
+  let root = name;
+  while (root.type === 'JSXMemberExpression') root = root.object as Node;
+  return root.type === 'JSXIdentifier' && (root !== name || !/^[a-z]/u.test(String(root.name))) && names.has(String(root.name));
 }
 
 /** `{ spy: true }` — the original runs, wrapped. */
