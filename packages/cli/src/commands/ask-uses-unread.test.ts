@@ -96,6 +96,19 @@ describe('variance ask uses names the files whose imports did not resolve', () =
     ]);
   });
 
+  it('names a file whose unresolved import a bare `paths` mapping of a tsconfig takes', async () => {
+    checkout({
+      'apps/app/tsconfig.json': JSON.stringify({ compilerOptions: { paths: { 'internal/*': ['src/internal/*'] } } }),
+      'apps/app/src/bare.ts': "import { greet } from 'internal/greet';\nexport const bare = greet;\n",
+    });
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+
+    const { out } = await run(['ask', 'uses', '--name', 'greet']);
+    expect(unreadOf(out)).toEqual([
+      '1 file imports a specifier the index could not resolve to a file, and it could take `greet`, so a use there is not listed: apps/app/src/bare.ts.',
+    ]);
+  });
+
   it('says nothing when every import resolved', async () => {
     checkout();
     expect((await run(['index'])).code).toBe(EXIT_CLEAN);

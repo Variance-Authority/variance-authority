@@ -9,8 +9,9 @@ use std::collections::{HashMap, HashSet};
 use crate::compact::Layer;
 use crate::orient_map_read::beside;
 use crate::package_graph::{fold, join_parses, passed_on, At, Crossing};
-use crate::package_owners::{owners, NO_OWNER};
+use crate::package_owners::{owners, parent, NO_OWNER};
 use crate::specifier::{is_relative, package_of};
+use crate::witness_aliases::AliasesRead;
 
 /// One import the index resolved to no file: the importing file, the parse
 /// it is read from, the request's place in it and the specifier as written.
@@ -87,16 +88,62 @@ pub(super) fn unresolved(
         holding.map(|file| owners.package_of(file)).filter(|name| !name.is_empty()).map(str::to_owned).collect()
     };
     let none = HashSet::new();
-    // A path alias or a `#` subpath import names a file of this workspace, so it could have meant any.
+    let mapped = configured(root, folded);
+    // A path alias, a `#` subpath import or a configuration's mapping names a file of this workspace, so it could have meant any.
     let meant = |written: &str| {
         is_relative(written)
             || written.starts_with('#')
+            || mapped(written)
             || package_of(written, &none).is_some_and(|package| !named_like_a_package(package) || packages.contains(package))
     };
     let mut found: Vec<String> =
         unresolved_imports(layers, folded, &meant).iter().filter(|import| takes(layers, import, exports)).map(|import| import.file.to_owned()).collect();
     found.dedup();
     found
+}
+
+/// Whether a specifier names a file of this workspace through the `paths` or
+/// `baseUrl` a `tsconfig` or `jsconfig` beside an indexed file declares: it
+/// matches a mapping's pattern, or its first segment is a file or directory
+/// the index holds under a `baseUrl`. A configuration that cannot be read maps
+/// nothing.
+fn configured(root: &str, folded: &HashMap<&str, At>) -> impl Fn(&str) -> bool {
+    let mut directories: HashSet<&str> = HashSet::new();
+    for &file in folded.keys() {
+        let mut directory = parent(file);
+        while directories.insert(directory) && !directory.is_empty() {
+            directory = parent(directory);
+        }
+    }
+    let configs: Vec<String> = directories
+        .iter()
+        .flat_map(|directory| ["tsconfig.json", "jsconfig.json"].map(|name| if directory.is_empty() { name.to_owned() } else { format!("{directory}/{name}") }))
+        .filter(|config| std::path::Path::new(root).join(config).is_file())
+        .collect();
+    let AliasesRead { bases, mappings } = crate::witness_aliases::read(root, &configs).unwrap_or(AliasesRead { bases: Vec::new(), mappings: Vec::new() });
+    // The first segment of every indexed path under a `baseUrl`, with its extension and without.
+    let mut under: HashSet<String> = HashSet::new();
+    for base in &bases {
+        let prefix = if base.is_empty() { String::new() } else { format!("{base}/") };
+        for &file in folded.keys() {
+            let Some(rest) = file.strip_prefix(prefix.as_str()) else { continue };
+            let first = rest.split('/').next().unwrap_or(rest);
+            under.insert(format!("{base}\0{first}"));
+            if let Some((stem, _)) = first.rsplit_once('.') {
+                under.insert(format!("{base}\0{stem}"));
+            }
+        }
+    }
+    move |written: &str| {
+        let first = written.split('/').next().unwrap_or(written);
+        bases.iter().any(|base| under.contains(&format!("{base}\0{first}")))
+            || mappings.iter().any(|mapping| match &mapping.suffix {
+                None => written == mapping.prefix,
+                Some(suffix) => {
+                    written.len() >= mapping.prefix.len() + suffix.len() && written.starts_with(&mapping.prefix) && written.ends_with(suffix.as_str())
+                }
+            })
+    }
 }
 
 /// Whether `package` could be a package's name as npm spells one: a scope
@@ -120,8 +167,9 @@ pub(crate) fn sources(root: &str, layers: &[Layer], name: &str) -> Vec<String> {
     let paths = beside(root, folded.keys().copied());
     let workspace: HashSet<String> = owners(root, &paths).packages.into_iter().map(|package| package.name).collect();
     let none = HashSet::new();
+    let mapped = configured(root, &folded);
     let outside = |written: &str| {
-        package_of(written, &none).is_some_and(|package| named_like_a_package(package) && !workspace.contains(package))
+        !mapped(written) && package_of(written, &none).is_some_and(|package| named_like_a_package(package) && !workspace.contains(package))
     };
     let wanted = HashSet::from([name.to_owned()]);
     let mut found: Vec<String> = unresolved_imports(layers, &folded, &outside)

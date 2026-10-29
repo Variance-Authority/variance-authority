@@ -36,11 +36,13 @@ describe('variance ask uses points a name imported only from outside at discover
     );
   });
 
-  it('names a source a namespace reads the name off, and not a path alias that did not resolve', async () => {
+  it('names a source a namespace reads the name off, and not a path alias or a `paths` mapping that did not resolve', async () => {
     checkout({
       'packages/lib/src/whole.ts': "import * as oxc from 'oxc-parser';\nexport const whole = oxc.parseSync;\n",
       'apps/app/src/alias.ts': "import { parseSync } from '@/lib/ghost';\nexport const alias = parseSync;\n",
       'apps/app/src/tilde.ts': "import { parseSync } from '~/lib/ghost';\nexport const tilde = parseSync;\n",
+      'apps/app/tsconfig.json': JSON.stringify({ compilerOptions: { paths: { 'internal/*': ['src/internal/*'] } } }),
+      'apps/app/src/bare.ts': "import { parseSync } from 'internal/ghost';\nexport const bare = parseSync;\n",
     });
     expect((await run(['index'])).code).toBe(0);
 
