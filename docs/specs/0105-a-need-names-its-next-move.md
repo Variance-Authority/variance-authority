@@ -31,12 +31,14 @@ So the CLI is a table automaton. A row is keyed by the need, the situation; its
 behaviour is the command, bound to values from the answer before it; its
 impact is the need the answer opens. Three things read the one table:
 
-- **every answer**, on the command line and over MCP alike, ends with its next
-  moves: the row's impact as commands, filled in from the answer's reading;
+- **every answer** ends with its next moves: the row's impact as commands,
+  filled in from the answer's reading. An `ask` answer carries them on the
+  command line and over MCP alike; a top-level command prints them;
 - **the skill** is generated from it, so the routing an agent reads is the
   routing the CLI prints;
-- **the tests** hold every need to a row or a marked gap, every command to a
-  row, and every printed next move to its row.
+- **the compiler and the tests**: a command with no need does not compile,
+  and the tests hold every need to a row or a marked gap and every printed next
+  move to its row.
 
 A next move is a fact about the answer — *this name has importers outside its
 package*, so `uses` is the next question — and never a procedure. Prescribing
@@ -165,7 +167,9 @@ fields hold.
 3. Next moves on `symbol`, `uses`, `covering` and `select`, the tracer: each
    tool's follow-up builder turns `opens` into commands filled in from its
    reading, as `orient`'s `followUps` does today, and `narrower` in
-   `packages/help/src/tools/format.ts` prints them. A decision test per
+   `packages/help/src/tools/format.ts` prints them. For `covering` and
+   `select`, top-level commands, the builder sits beside the command's own
+   formatter in `packages/cli`. A decision test per
    builder, and one acceptance test per command, failing first. `symbol`'s
    sentence naming `uses` gives way to the move.
 4. The skill's routing table generated from the fields, with a `--write` mode
