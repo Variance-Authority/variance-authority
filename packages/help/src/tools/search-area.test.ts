@@ -70,7 +70,7 @@ describe('a start point', () => {
     const text = ask({ query: 'e', from: 'packages/beta/src/' });
     expect(text).toContain('2 files, 2 imports in this area');
     expect(text).toContain('files by distance: 0: 2');
-    expect(text).toContain('globally 1 package, 4 imports');
+    expect(text).toContain('across the repository imported in 4 places in 1 package');
     expect(text.indexOf('behind')).toBeLessThan(text.indexOf('Reading'));
     expect(text.indexOf('Reading')).toBeLessThan(text.indexOf('measure'));
   });

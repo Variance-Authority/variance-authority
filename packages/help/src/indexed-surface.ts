@@ -8,6 +8,7 @@ import {
   type DeclarationKind,
   type Names,
   type Offering,
+  type Reached,
 } from '@variance-authority/package/help';
 
 export interface IndexedSource {
@@ -18,7 +19,7 @@ export interface IndexedSource {
 const DEFAULT = 'default';
 const NAMESPACE = '*';
 
-function add(into: Names, name: string, declaration: Declaration): void {
+function add(into: Names, name: string, declaration: Reached): void {
   const held = into.get(name);
   if (held === undefined) into.set(name, new Map([[declaration.kind, declaration]]));
   else if (!held.has(declaration.kind)) held.set(declaration.kind, declaration);
@@ -187,7 +188,7 @@ export async function indexedNames(
       );
 
       if (published.exported === undefined) {
-        if (target === undefined) add(found, `* from '${specifier}'`, written);
+        if (target === undefined) add(found, `* from '${specifier}'`, { ...written, declared: `* from '${specifier}'` });
         else for (const [name, kinds] of namesAt(target, stack)) {
           for (const value of kinds.values()) add(found, name, value);
         }
@@ -196,7 +197,7 @@ export async function indexedNames(
 
       const name = published.exported;
       if (published.imported === NAMESPACE) {
-        add(found, name, written);
+        add(found, name, { ...written, declared: name });
       } else if (specifier === undefined) {
         // `local` is the name this file binds the export under, as Sense read
         // it: a declaration's own name, or the identifier `export default name`
@@ -213,7 +214,7 @@ export async function indexedNames(
         const bound = published.local ?? name;
         const value = local.get(bound);
         if (value !== undefined) {
-          add(found, name, value);
+          add(found, name, { ...value, declared: name });
           continue;
         }
         const imported = source.parsed.requests.flatMap((request, index) =>
@@ -222,16 +223,16 @@ export async function indexedNames(
             .map((binding) => ({ name: binding.imported, target: typed(source.targets[index]) })),
         )[0];
         if (imported?.target === undefined) {
-          if (imported !== undefined) add(found, name, written);
+          if (imported !== undefined) add(found, name, { ...written, declared: name });
           else throw new Error(`${file} exports \`${name}\`, and no declaration there says what it is`);
           continue;
         }
         if (imported.name === NAMESPACE) {
-          add(found, name, { ...written, kind: 'namespace-object' });
+          add(found, name, { ...written, kind: 'namespace-object', declared: name });
           continue;
         }
         if (!sources.has(imported.target)) {
-          add(found, name, written);
+          add(found, name, { ...written, declared: name });
           continue;
         }
         const kinds = namesAt(imported.target, stack).get(imported.name);
@@ -240,7 +241,7 @@ export async function indexedNames(
         }
         for (const declared of kinds.values()) add(found, name, declared);
       } else if (target === undefined) {
-        add(found, name, written);
+        add(found, name, { ...written, declared: name });
       } else {
         const linked = source.parsed.requests
           .find((request) => request.value === specifier && request.kind === 'imports')

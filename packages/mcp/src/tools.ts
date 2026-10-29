@@ -304,15 +304,16 @@ function lift<Subject>(
     name: tool.name,
     description: tool.description,
     inputSchema: tool.inputSchema,
+    ...(tool.wants === undefined ? {} : { wants: tool.wants }),
     run(subject, input, invocation) {
       const evidence = read(subject);
       if (evidence === undefined) {
         throw new Error(`${domain} evidence is unavailable to this MCP connection`);
       }
-      const previous = invocation?.previous === undefined
-        ? undefined
-        : read(invocation.previous);
-      return tool.run(evidence, input, previous === undefined ? undefined : { previous });
+      // What the host read for the call travels with it; only the previous subject is projected.
+      const { previous: before, ...host } = invocation ?? {};
+      const previous = before === undefined ? undefined : read(before);
+      return tool.run(evidence, input, { ...host, ...(previous === undefined ? {} : { previous }) });
     },
   };
 }

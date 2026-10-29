@@ -1,6 +1,7 @@
 import { codeUnitOrder } from '@variance-authority/core/segment';
 import type { Documented, Entry, Opening, Use } from '@variance-authority/package/help';
 import { mayBeRead, opening } from '@variance-authority/package/help';
+import { SLOT } from './declaration-key.js';
 import { specifierOf } from './find.js';
 
 /**
@@ -67,7 +68,16 @@ export interface Listed {
 /** One name in a list: what it is, how used it is, and the first thing its doc says. */
 export function line(entry: Listed): string {
   const said = entry.doc === undefined ? 'UNDOCUMENTED' : opening(entry.doc);
-  return `${entry.name} [${entry.kind}] ${entry.usedBy.length} packages, ${entry.uses} imports — ${said}`;
+  return `${entry.name} [${entry.kind}] ${byPublishedPath(entry.uses, entry.usedBy.length)} — ${said}`;
+}
+
+/**
+ * The imports of a name other packages write by a path it is published from,
+ * and how many packages write them: what the Help value counts beside each
+ * entry, which leaves out the imports within its own package and by file path.
+ */
+export function byPublishedPath(imports: number, packages: number): string {
+  return imports === 0 ? 'no other package imports it by its published path' : `${plural(imports, 'import')} by published path from ${plural(packages, 'other package')}`;
 }
 
 /** `block` after what `lines` already holds, a blank line between them. */
@@ -105,17 +115,18 @@ export function mostUsed(
     .sort((a, b) => used(b[1]) - used(a[1]) || codeUnitOrder(specifierOf(...a), specifierOf(...b)))[0];
 }
 
-/** The line a caller writes to reach this name. */
-export function importing(published: Documented, held: Opening, entry: Entry): string {
+/** The line a caller writes to reach this name; a default export is imported by `named`, and by no line when nothing names it. */
+export function importing(published: Documented, held: Opening, entry: Entry, named = entry.name): readonly string[] {
   const specifier = specifierOf(published, held);
-  return `import { ${entry.name} } from '${specifier}';`;
+  if (entry.name !== SLOT) return [`import { ${entry.name} } from '${specifier}';`];
+  return named === SLOT ? [] : [`import ${named} from '${specifier}';`];
 }
 
-/** One name in full, including the head somebody would copy. */
-export function block(published: Documented, held: Opening, entry: Entry, undecided: Undecided): string {
+/** One name in full, including the head somebody would copy; `named` is the name the declaration is keyed by. */
+export function block(published: Documented, held: Opening, entry: Entry, undecided: Undecided, named = entry.name): string {
   const lines = [
-    `${entry.name} [${entry.kind}]`,
-    importing(published, held, entry),
+    `${named} [${entry.kind}]`,
+    ...importing(published, held, entry, named),
     `declared at ${entry.at}:${entry.line}`,
     reach(entry, undecided),
   ];

@@ -1,6 +1,7 @@
 # ADR-0096 — The edit loop is the compiler and the unit slice at distance 0-1
 
 **Status:** accepted
+**Superseded in part by:** [ADR-0099](0099-the-edit-loop-is-the-published-recipe.md)
 **Date:** 2026-10-20
 **Relates to:** [ADR-0043](0043-an-extension-does-not-own-its-host.md),
 [spec 0098](../../specs/0098-the-runner-is-handed-its-selection.md),
@@ -18,7 +19,7 @@ which takes tens of seconds to answer.
 
 ## Decision
 
-**`yarn test:loop` is `tools/test-loop.mjs`: `tsc --build`, then `variance
+**`yarn test:loop` is a script under `tools/`: `tsc --build`, then `variance
 index` and one reading of the unit slice at `0-1`, and a runner only when that
 reading keeps a test.**
 

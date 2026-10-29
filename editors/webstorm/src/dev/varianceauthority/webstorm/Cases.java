@@ -9,6 +9,7 @@ import com.intellij.openapi.progress.ProgressManager;
 import com.intellij.openapi.progress.Task;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.ui.popup.JBPopupFactory;
+import com.intellij.openapi.ui.popup.ListSeparator;
 import com.intellij.openapi.ui.popup.PopupStep;
 import com.intellij.openapi.ui.popup.util.BaseListPopupStep;
 import com.intellij.openapi.vfs.LocalFileSystem;
@@ -24,8 +25,9 @@ import org.jetbrains.annotations.NotNull;
  * <p>A base module is reached by hundreds of test files and thousands of cases,
  * and a tooltip naming all of them answers nothing. The popup names each file
  * once with how many of its cases went through the line out of how many it
- * has, and how many imports away it sits. The CLI sorts and counts; this only
- * lists. A file opens to its cases, and a case opens where it is declared.
+ * has, and how many imports away it sits, under the suite that ran it when
+ * several are declared. The CLI sorts and counts; this only lists. A file opens
+ * to its cases, and a case opens where it is declared.
  */
 final class Cases {
   private Cases() {}
@@ -48,13 +50,20 @@ final class Cases {
         if (editor.isDisposed()) return;
         if (answer.refusal() != null) {
           HintManager.getInstance().showErrorHint(editor, answer.refusal());
-        } else if (answer.files().isEmpty()) {
-          HintManager.getInstance().showInformationHint(editor,
-              "No case called into line " + line + ".");
         } else {
-          JBPopupFactory.getInstance()
-              .createListPopup(new Files(project, root, line, answer))
-              .showInBestPositionFor(editor);
+          List<Row> rows = new ArrayList<>();
+          int cases = 0;
+          for (Record.SuiteLine suite : answer.suites()) {
+            for (Record.TestFile file : suite.files()) rows.add(new Row(suite, file));
+            cases += suite.cases().size();
+          }
+          if (rows.isEmpty()) {
+            HintManager.getInstance().showInformationHint(editor, "No case called into line " + line + ".");
+          } else {
+            JBPopupFactory.getInstance()
+                .createListPopup(new Files(project, root, cases + " cases went through line " + line, rows))
+                .showInBestPositionFor(editor);
+          }
         }
       }
     });
@@ -66,22 +75,31 @@ final class Cases {
     return file.file() + "   " + file.cases() + "/" + file.of() + hops;
   }
 
-  private static final class Files extends BaseListPopupStep<Record.TestFile> {
+  /** One test file in the list, with the suite whose record named it. */
+  private record Row(Record.SuiteLine suite, Record.TestFile file) {}
+
+  private static final class Files extends BaseListPopupStep<Row> {
     private final Project project;
     private final String root;
-    private final Record.Line answer;
 
-    Files(Project project, String root, int line, Record.Line answer) {
-      super(answer.cases().size() + " cases in " + answer.files().size() + " files went through line " + line,
-          answer.files());
+    Files(Project project, String root, String title, List<Row> rows) {
+      super(title, rows);
       this.project = project;
       this.root = root;
-      this.answer = answer;
     }
 
     @Override
-    public @NotNull String getTextFor(Record.TestFile file) {
-      return row(file);
+    public @NotNull String getTextFor(Row row) {
+      return row(row.file());
+    }
+
+    /** Each declared suite's files under its name, nearest suite first as the CLI ordered them. */
+    @Override
+    public ListSeparator getSeparatorAbove(Row row) {
+      if (row.suite().name() == null) return null;
+      int at = getValues().indexOf(row);
+      if (at > 0 && getValues().get(at - 1).suite() == row.suite()) return null;
+      return new ListSeparator(row.suite().name() + " (" + row.suite().kind() + ")");
     }
 
     @Override
@@ -90,15 +108,15 @@ final class Cases {
     }
 
     @Override
-    public boolean hasSubstep(Record.TestFile file) {
+    public boolean hasSubstep(Row row) {
       return true;
     }
 
     @Override
-    public PopupStep<?> onChosen(Record.TestFile file, boolean finalChoice) {
+    public PopupStep<?> onChosen(Row row, boolean finalChoice) {
       List<Record.Case> cases = new ArrayList<>();
-      for (Record.Case test : answer.cases()) if (test.file().equals(file.file())) cases.add(test);
-      return new CasesOf(project, root, file, cases);
+      for (Record.Case test : row.suite().cases()) if (test.file().equals(row.file().file())) cases.add(test);
+      return new CasesOf(project, root, row.file(), cases);
     }
   }
 

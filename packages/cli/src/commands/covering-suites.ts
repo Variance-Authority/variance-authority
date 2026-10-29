@@ -28,6 +28,7 @@ import { OperatorError, type RefusalKind } from '../exit.js';
 import { heldText } from './covering-frame.js';
 import { covering, formatCovering, type Covering, type CoveringFormat } from './covering.js';
 import { graphOnce, type Graph } from './gap-selection.js';
+import { marksOf, type GutterMark } from './covering-marks.js';
 import { evidenceGapText, GapRefusal, type EvidenceGap } from './evidence-gap.js';
 import { asOperator, nothingRecorded } from './suite-record.js';
 
@@ -49,6 +50,8 @@ export interface CoveringSuites {
   readonly file?: string;
   readonly since?: string;
   readonly suites: readonly SuiteAnswer[];
+  /** Under a question about a whole file: the one mark each run of lines carries, read across every suite (`covering-marks.ts`). */
+  readonly marks?: readonly GutterMark[];
 }
 
 /**
@@ -83,10 +86,12 @@ export async function coveringAnswer(request: ParsedCovering): Promise<Covering 
     throw gap === undefined ? refused : new GapRefusal(refused.message, { kind: 'unrecorded', gap });
   }
 
+  const marks = marksOf(suites);
   return {
     ...(request.file === undefined ? {} : { file: request.file }),
     ...(request.since === undefined ? {} : { since: request.since }),
     suites,
+    ...(marks === undefined ? {} : { marks }),
   };
 }
 

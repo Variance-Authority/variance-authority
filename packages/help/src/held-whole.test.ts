@@ -87,7 +87,7 @@ describe('a name read off a module held whole', () => {
 
   it('says in the answer that an import() loads the module when the call runs', () => {
     const answer = uses.run(help, { name: 'narrow' });
-    expect(answer).toContain('imported in 1 place, 1 through import(), which loads the module when the call runs.');
+    expect(answer).toContain('imported in 1 place, from another package, 1 through import(), which loads the module when the call runs.');
     expect(answer).toContain('packages/beta/src/index.ts:7 — beta (import() on line 4)');
     expect(uses.run(help, { name: 'spaced' })).toContain('packages/beta/src/index.ts:7 — beta (namespace, line 1)');
   });

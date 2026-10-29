@@ -222,7 +222,7 @@ export interface LocatableSite {
 }
 
 /**
- * The line for each site a report is about to name, and for nothing else.
+ * The source line of each site a report is about to name, from its stack frame.
  *
  * This is the demand side of the zero-install path. The page reads frames off
  * every fiber because reading them is nearly free; turning one into a file is

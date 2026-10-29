@@ -61,3 +61,21 @@ fn a_type_the_source_does_not_name_is_no_use() {
     let found = uses("function f(o: { size: number }, n: ns.Props, u: A | B, a: Props) {\n  const copy = a;\n  return o.size + n.size + u.size + copy.size + make().size + a.b.size;\n}\n");
     assert_eq!(found, vec![one("b", 3, "Props", "read")]);
 }
+
+#[test]
+fn a_class_that_implements_a_type_implements_each_instance_member_it_names() {
+    let found = uses(
+        "class Real extends Base implements Deps, ns.Other, Box<Props> {\n  constructor() { super(); }\n  static readJourney() {}\n  readJourney() {}\n  size = 1;\n  accessor count = 2;\n  #hidden = 3;\n  ['computed']() {}\n}\nclass Plain { readJourney() {} }\n",
+    );
+    assert_eq!(
+        found,
+        vec![
+            one("readJourney", 4, "Deps", "implement"),
+            one("size", 5, "Deps", "implement"),
+            one("count", 6, "Deps", "implement"),
+            one("readJourney", 4, "Box", "implement"),
+            one("size", 5, "Box", "implement"),
+            one("count", 6, "Box", "implement"),
+        ]
+    );
+}

@@ -36,7 +36,7 @@ describe('searchNames', () => {
     expect(answer.query).toBe('measure');
     const measure = answer.published?.shown.find((match) => match.name === 'measure');
     expect(measure).toMatchObject({ source: 'published', specifier: expect.any(String), at: expect.any(String) });
-    expect(measure?.packages).toBeGreaterThan(0);
+    expect(measure?.otherPackages).toBeGreaterThan(0);
     expect(measure?.inArea).toBeUndefined();
     expect(answer.area).toBeUndefined();
     // The substring answered, so the loose pass was never run — absent, not empty.
@@ -85,16 +85,20 @@ describe('searchNames', () => {
     );
   });
 
-  it('gives an export without a doc of its own no summary, though another file exports its name with one', () => {
-    // `sum` in alpha is undocumented; beta's unrelated `sum` has a doc comment.
-    const answer = searchNames(INDEX, { query: 'sum' });
-    const sum = answer.exported?.shown.find((match) => match.name === 'sum');
-    expect(sum).toMatchObject({ at: 'packages/alpha/src/count.ts', files: 2 });
-    expect(sum).not.toHaveProperty('summary');
+  it('shows a name exported from two source files through the documented one, and the other without its summary', () => {
+    // `sum` in alpha is undocumented; beta's unrelated `sum` has a doc comment,
+    // and a doc orders before none, so alpha's is shown only where beta's is not.
+    const alpha = 'packages/alpha/src/count.ts';
+    const sum = (from?: string) =>
+      searchNames(INDEX, { query: 'sum', ...(from === undefined ? {} : { from }) }, treeOf([reads(alpha)], WORKSPACE))
+        .exported?.shown.find((match) => match.name === 'sum');
+    expect(sum()).toMatchObject({ at: 'packages/beta/src/inner/deeper.ts', files: 2, summary: 'Adds up what beta counted.' });
+    expect(sum(alpha)).toMatchObject({ at: alpha, files: 1 });
+    expect(sum(alpha)).not.toHaveProperty('summary');
   });
 
   it('shows the file whose doc holds the words, not another file exporting the same name', () => {
-    // Only beta's `sum` says "beta counted"; alpha's would be shown first by kind and order.
+    // Only beta's `sum` says "beta counted".
     const doc = { name: 'sum', at: 'packages/beta/src/inner/deeper.ts', summary: 'Adds up what beta counted.' };
     expect(searchNames(INDEX, { query: 'beta counted' }).exported?.shown).toContainEqual(expect.objectContaining(doc));
     expect(searchNames(INDEX, { query: 'counted beta' }).described?.shown).toContainEqual(expect.objectContaining(doc));

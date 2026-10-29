@@ -7,11 +7,13 @@
 // compass: variance-authority.report.agent-surface
 
 import type { Spelling } from '@variance-authority/mcp/tools';
-import type { Named } from '@variance-authority/package/help';
 import type { DeclaredName } from '@variance-authority/sense';
 import { reachSentences } from './declared.js';
+import { specifierOf } from './find.js';
 import { type Members, places } from './members.js';
+import { SLOT } from './declaration-key.js';
 import { exportedAt } from './unpublished.js';
+import type { Namesake, PublishedDeclaration } from './uses-of.js';
 
 /** The file the asker names a declaration by, exactly as the checkout spells it; absent when none is named. */
 export function declaredIn(input: Readonly<Record<string, unknown>>): string | undefined {
@@ -53,9 +55,30 @@ export function membersIn(members: Members, file: string): Members {
   return { ...members, declared: members.declared.filter((one) => one.at === file), used: members.used.filter((one) => one.declared.at === file) };
 }
 
-/** The sentence naming an exported namesake of the declaration answered first, by the exports that reach it. */
-export function namesakeLine(name: string, exported: readonly Named[]): string {
-  return `\`${name}\` is exported, without being published, at ${exportedAt(exported)} as well, which is another declaration.`;
+/**
+ * The sentence naming a namesake of the declaration answered first: by the
+ * entries that publish it and where it is declared, or by the exports that
+ * reach it when no entry publishes it.
+ */
+export function namesakeLine(name: string, one: Pick<Namesake, 'declaration' | 'exported'>): string {
+  if (one.declaration === undefined) return `\`${name}\` is exported, without being published, at ${exportedAt(one.exported)} as well, which is another declaration.`;
+  return `\`${name}\` is ${publishedAt(one.declaration, name)} as well, which is another declaration.`;
+}
+
+/**
+ * The entries that publish one declaration and where it is declared, which
+ * tells it from a namesake. A door that publishes it under another name than
+ * `asked` says that name, and so does a file that declares it by another.
+ */
+export function publishedAt(one: PublishedDeclaration, asked: string): string {
+  const as = (spelled: string): string => (spelled === asked ? '' : spelled === SLOT ? ' as its default' : ` as \`${spelled}\``);
+  const by = one.doors.map(([held, opening, entry]) => `${specifierOf(held, opening)}${as(entry.name)}`).join(', ');
+  return `published by ${by}, declared${as(one.declared)} at ${one.at}:${one.line}`;
+}
+
+/** Whether a door publishes the declaration under another name than `asked`, or its file declares it by another. */
+export function renamed(one: PublishedDeclaration, asked: string): boolean {
+  return one.declared !== asked || one.doors.some(([, , entry]) => entry.name !== asked);
 }
 
 /** How to ask for one declaration, said when the answer covers more than one and no file was named. */

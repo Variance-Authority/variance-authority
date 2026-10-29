@@ -1,11 +1,12 @@
 /**
  * The record, painted beside the code in VS Code.
  *
- * Every line the suite ran carries one of five words, and the gutter shows the
+ * Every line a suite ran carries one of five words, and the gutter shows the
  * word: walked by several cases, walked by one alone, run only while its module
  * loaded, a hole a stopped case left, or unwalked by cases that all finished.
- * A hover names the cases. Nothing here is a value or a step: the record says
- * which cases went through a line, not what they saw there.
+ * Where several suites are declared, the word is the one the CLI read across
+ * every suite that ran the line, and a hover names the cases suite by suite. Nothing here is a value or a step: the
+ * record says which cases went through a line, not what they saw there.
  *
  * The buffer is asked about as it is held, saved or not, so an edit carries the
  * paint with the code it belongs to instead of leaving it at the recorded line
@@ -15,7 +16,7 @@
 'use strict';
 
 const vscode = require('vscode');
-const { ask } = require('./record.js');
+const { ask, atLine, marksOf, suitesOf } = require('./record.js');
 
 /** What each state means, in the words the CLI uses for it. */
 const STATES = {
@@ -121,13 +122,13 @@ function activate(context) {
 
   function paint(editor) {
     const result = answers.get(editor.document.uri.toString());
-    const ranges = result?.answer?.ranges ?? [];
+    const marks = marksOf(result?.answer);
     for (const [state, type] of Object.entries(decorations)) {
       editor.setDecorations(
         type,
-        ranges
-          .filter((range) => (range.state ?? 'entered') === state)
-          .map((range) => new vscode.Range(range.startLine - 1, 0, range.endLine - 1, 0)),
+        marks
+          .filter((mark) => (mark.state ?? 'entered') === state)
+          .map((mark) => new vscode.Range(mark.startLine - 1, 0, mark.endLine - 1, 0)),
       );
     }
     if (editor === vscode.window.activeTextEditor) describe(result);
@@ -139,33 +140,25 @@ function activate(context) {
     if (result.refusal !== undefined) {
       status.text = '$(circle-slash) variance';
       status.tooltip = result.refusal;
-    } else if (result.answer.frame === 'stale') {
-      status.text = '$(warning) variance: record is stale';
-      status.tooltip = 'This file changed since the suite ran, and the text it ran over could not be found. ' +
-        'Run the suite to record it again.';
     } else {
-      const ranges = result.answer.ranges ?? [];
-      const holes = ranges.filter((range) => range.state === 'hole').length;
-      status.text = holes === 0
-        ? '$(beaker) variance'
-        : `$(beaker) variance: ${holes} hole${holes === 1 ? '' : 's'}`;
-      status.tooltip = result.answer.frame === 'mapped'
-        ? 'Placed in the text as it is now: the file changed since the suite ran.'
-        : 'Painted from the recording of the last run.';
+      const suites = suitesOf(result.answer);
+      const answered = suites.filter((one) => one.reason === undefined);
+      const holes = marksOf(result.answer).filter((mark) => mark.state === 'hole').length;
+      status.text = answered.length > 0 && answered.every((one) => one.frame === 'stale')
+        ? '$(warning) variance: record is stale'
+        : holes === 0
+          ? '$(beaker) variance'
+          : `$(beaker) variance: ${holes} hole${holes === 1 ? '' : 's'}`;
+      status.tooltip = suites.map((one) => `${named(one)}${frameText(one)}`).join('\n');
     }
     status.show();
   }
 
-  function rangeAt(document, line) {
-    const ranges = answers.get(document.uri.toString())?.answer?.ranges ?? [];
-    return ranges.find((range) => range.startLine <= line && line <= range.endLine);
-  }
-
   const hover = vscode.languages.registerHoverProvider({ scheme: 'file' }, {
     provideHover(document, position) {
-      const range = rangeAt(document, position.line + 1);
-      if (range === undefined) return undefined;
-      return new vscode.Hover(hoverText(range));
+      const { answered, refused } = atLine(answers.get(document.uri.toString())?.answer, position.line + 1);
+      if (answered.length === 0) return undefined;
+      return new vscode.Hover(hoverText(answered, refused));
     },
   });
 
@@ -182,19 +175,25 @@ function activate(context) {
       command: vscode.workspace.getConfiguration('variance', editor.document.uri).get('command'),
     }).answer;
     if (refusal !== undefined) return void vscode.window.showWarningMessage(refusal);
-    const items = [
-      ...(answer.tests ?? []).map((test) => ({ label: test.name, description: test.file, file: test.file })),
-      ...(answer.stopped ?? []).map((test) => ({
-        label: `$(debug-stop) ${test.name}`,
-        description: `${test.file} — stopped before reaching this line`,
-        file: test.file,
-      })),
-    ];
+    const items = suitesOf(answer).flatMap((one) => {
+      const cases = [
+        ...(one.tests ?? []).map((test) => ({ label: test.name, description: test.file, file: test.file })),
+        ...(one.stopped ?? []).map((test) => ({
+          label: `$(debug-stop) ${test.name}`,
+          description: `${test.file} — stopped before reaching this line`,
+          file: test.file,
+        })),
+      ];
+      if (one.suite === undefined || cases.length === 0) return cases;
+      const state = one.state === undefined ? '' : ` — ${STATES[one.state].title}`;
+      return [{ label: `${one.suite} (${one.kind})${state}`, kind: vscode.QuickPickItemKind.Separator }, ...cases];
+    });
     if (items.length === 0) {
       return void vscode.window.showInformationMessage(`No case went through line ${line}.`);
     }
+    const single = suitesOf(answer).length === 1 && answer.state !== undefined;
     const picked = await vscode.window.showQuickPick(items, {
-      title: `Cases through line ${line}${answer.state ? ` — ${STATES[answer.state].title}` : ''}`,
+      title: `Cases through line ${line}${single ? ` — ${STATES[answer.state].title}` : ''}`,
     });
     if (picked !== undefined) {
       await vscode.window.showTextDocument(vscode.Uri.joinPath(folder.uri, picked.file));
@@ -235,21 +234,46 @@ function activate(context) {
   for (const editor of vscode.window.visibleTextEditors) void refresh(editor.document);
 }
 
-/** The cases behind one range, and the ones that stopped before it. */
-function hoverText(range) {
-  const state = STATES[range.state ?? 'entered'];
+/** A suite as the CLI names it, `unit (unit) — `, or nothing when the repository declares none. */
+function named(one) {
+  return one.suite === undefined ? '' : `${one.suite} (${one.kind}) — `;
+}
+
+/** What one suite's record made of the file, for the status bar's tooltip. */
+function frameText(one) {
+  if (one.reason !== undefined) return one.reason;
+  if (one.frame === 'stale') {
+    return 'This file changed since the suite ran, and the text it ran over could not be found. ' +
+      'Run the suite to record it again.';
+  }
+  return one.frame === 'mapped'
+    ? 'Placed in the text as it is now: the file changed since the suite ran.'
+    : 'Painted from the recording of the last run.';
+}
+
+/**
+ * The cases behind one line, suite by suite, nearest first, and the ones that
+ * stopped before it; then each suite that could not answer about the file.
+ */
+function hoverText(answered, refused) {
   const text = new vscode.MarkdownString();
-  text.appendMarkdown(`**${state.title}** — ${state.sentence}`);
-  if (range.moved) text.appendMarkdown(' These lines were edited since the recording.');
-  const called = range.tests.filter((test) => test.loaded !== true);
-  if (called.length > 0) {
-    text.appendMarkdown('\n\n');
-    for (const test of called) text.appendMarkdown(`- ${escape(test.name)} — \`${test.file}\`\n`);
-  }
-  if ((range.stopped ?? []).length > 0) {
-    text.appendMarkdown('\n\nStopped before reaching these lines:\n\n');
-    for (const test of range.stopped) text.appendMarkdown(`- ${escape(test.name)} — \`${test.file}\`\n`);
-  }
+  answered.forEach(({ suite, kind, range }, at) => {
+    const state = STATES[range.state ?? 'entered'];
+    if (at > 0) text.appendMarkdown('\n\n---\n\n');
+    text.appendMarkdown(`${escape(named({ suite, kind }))}**${state.title}** — ${state.sentence}`);
+    if (range.moved) text.appendMarkdown(' These lines were edited since the recording.');
+    const called = range.tests.filter((test) => test.loaded !== true);
+    if (called.length > 0) {
+      text.appendMarkdown('\n\n');
+      for (const test of called) text.appendMarkdown(`- ${escape(test.name)} — \`${test.file}\`\n`);
+    }
+    if ((range.stopped ?? []).length > 0) {
+      text.appendMarkdown('\n\nStopped before reaching these lines:\n\n');
+      for (const test of range.stopped) text.appendMarkdown(`- ${escape(test.name)} — \`${test.file}\`\n`);
+    }
+  });
+  if (refused.length > 0) text.appendMarkdown('\n\n---\n\n');
+  for (const one of refused) text.appendMarkdown(`${escape(named(one))}${escape(frameText(one))}\n\n`);
   return text;
 }
 
