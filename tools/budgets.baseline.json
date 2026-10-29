@@ -2724,11 +2724,7 @@
     6
   ],
   "packages/sense/src/test-selection/case-landing.ts docblock": [
-    35,
     26
-  ],
-  "packages/sense/src/test-selection/case-layer.ts block": [
-    6
   ],
   "packages/sense/src/test-selection/case-layer.ts docblock": [
     30,
@@ -2771,7 +2767,6 @@
     24
   ],
   "packages/sense/src/test-selection/commit-runs.ts docblock": [
-    13,
     12,
     12
   ],

@@ -18,7 +18,7 @@ import {
   type TestCoverage,
 } from '@variance-authority/sense/test-selection';
 import type { Env } from '../share-lines.js';
-import { DISCOUNTS, PUSH, gitPublished, parseReview, probedModule, recordIn, selectedIn } from './mainline-fixture.js';
+import { DISCOUNTS, PUSH, gitPublished, keptDiscounts, parseReview, probedModule, recordIn, selectedIn } from './mainline-fixture.js';
 import { review } from './review.js';
 import { suiteBase } from './suite-base.js';
 import { publishSuite } from './suite-share.js';
@@ -106,7 +106,7 @@ describe('a worktree at the commit its mainline published', () => {
       tests: [{ file: 'test/total.test.ts', complete: true, preconditions: [] }],
       modules: [probedModule(['test/total.test.ts'])],
     };
-    await landRun(own, ran, worktree);
+    await landRun(own, ran, worktree, undefined, keptDiscounts(head));
 
     const runs = await readCommitRuns(own);
     expect(runs).toMatchObject({

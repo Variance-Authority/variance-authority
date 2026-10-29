@@ -133,12 +133,9 @@ export function layerCaseIndex(
   const announced = run.tests.filter((test) => files.ran.has(test.file)).map((test) => test.id);
   const held = HeldIndex.open(previous);
   const cut = files.base === undefined ? held : HeldIndex.open(files.base);
-  // FIXME: no index is read as no other cases, and a landing that removed the
-  // index leaves exactly that. The next local run then writes its own files'
-  // cases alone, and that partial index stands for the whole suite beside a
-  // snapshot that still holds every file — the state `seedTestCoverage` keeps a
-  // worktree's first run out of. An index that is absent beside a snapshot that
-  // is not should be laid only over what it can answer for.
+  // No index is read as no other cases, so the run's are written alone. A
+  // writer lays a run over none only once its runs finished every test file
+  // the snapshot beside it holds (`unansweredOver`): they answer for all of it.
   if (held === undefined) return { merged: Buffer.from(fresh), cases: () => last, last, announced };
 
   const { tests, fromHeld, fromRun, merged, heldAt, runAt } = layeredCases(held, run, files);

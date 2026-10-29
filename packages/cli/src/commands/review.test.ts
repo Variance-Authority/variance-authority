@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   caseSectionsAt,
   commitRunsFile,
+  encodeAsSetExecutionIndex,
   encodeExecutionIndex,
   landRun,
   testCoverageFile,
@@ -256,13 +257,15 @@ describe('a review of what a change did, after the run that recorded it', () => 
     // A worktree's first run at its base, a clone with a restored cache, or a
     // run after the record was deleted: the run is laid over its own commit.
     const { root, first } = await changed();
+    // It keeps the cases the record holds, as a cased seam's run does: one that finished the file and kept none would leave no case index.
+    const cases = { tests: [DISCOUNTS, ROUNDS], modules: [{ file: 'src/total.ts', blocks: [block('applyDiscount', 1, 3, [0]), block('round', 5, 7, [])] }] };
     await landRun(testCoverageFile(root), {
       version: 3,
       instrumentation: INSTRUMENTATION_ID,
       commit: first,
       tests: [{ file: 'test/total.test.ts', complete: true, preconditions: [] }],
       modules: [probedModule(['test/total.test.ts'])],
-    }, root);
+    }, root, undefined, { fresh: encodeAsSetExecutionIndex(cases), run: { tests: [{ file: 'test/total.test.ts', complete: true }], commit: first } });
 
     const answer = await review(parse(['--root', root]));
 

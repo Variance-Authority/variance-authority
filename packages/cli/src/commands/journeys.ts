@@ -344,6 +344,13 @@ export function uncheckedReads(shards: readonly string[]): string {
 }
 
 function casesLine(cases: CaseLanding): string {
+  if ('unlaid' in cases) {
+    const [file, ...rest] = cases.unfinished;
+    const left = rest.length === 0 ? file : `${file} and ${many(rest.length, 'other test file')}`;
+    return `  no case index at ${cases.unlaid}: it had none, and ${many(cases.shards, 'snapshot')} kept cases ` +
+      `without running ${left} to the end, so an index of those cases alone would say ` +
+      `${rest.length === 0 ? 'no case of that file runs' : 'no case of those files runs'} a line.`;
+  }
   if ('laid' in cases) {
     return cases.shards === 0
       ? `  case index at ${cases.laid} left as it was: no snapshot finished a test file`

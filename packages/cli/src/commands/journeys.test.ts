@@ -262,6 +262,15 @@ describe('formatLanding', () => {
         'its record keeps no case index this build can read, so no index can say which of ' +
         "that file's cases run a line.",
     ]);
+    expect(lines({ unlaid: '/tmp/coverage.bin', shards: 1, unfinished: ['test/other.test.ts'] })).toEqual([
+      '  no case index at /tmp/coverage.bin: it had none, and 1 snapshot kept cases without running ' +
+        'test/other.test.ts to the end, so an index of those cases alone would say no case of that file runs a line.',
+    ]);
+    expect(lines({ unlaid: '/tmp/coverage.bin', shards: 2, unfinished: ['test/a.test.ts', 'test/b.test.ts', 'test/c.test.ts'] })).toEqual([
+      '  no case index at /tmp/coverage.bin: it had none, and 2 snapshots kept cases without running ' +
+        'test/a.test.ts and 2 other test files to the end, so an index of those cases alone would say no case of ' +
+        'those files runs a line.',
+    ]);
   });
 
   it('leaves the position out when the shards had none', () => {

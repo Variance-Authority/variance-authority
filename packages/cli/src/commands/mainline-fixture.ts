@@ -62,6 +62,21 @@ export function probedModule(files: readonly string[]): TestCoverage['modules'][
   };
 }
 
+/**
+ * The case a cased seam keeps of a run at `commit` that finished
+ * `test/total.test.ts`: `DISCOUNTS`, entering the module `probedModule` holds.
+ * A run that finished a test file and kept no cases leaves no case index.
+ */
+export function keptDiscounts(commit: string) {
+  return {
+    fresh: encodeAsSetExecutionIndex({
+      tests: [DISCOUNTS],
+      modules: [{ file: 'src/probed.ts', blocks: [{ kind: 'module', name: '', path: '', startLine: 1, endLine: 1, source: true, crossings: [{ test: 0, distance: 0 }] }] }],
+    }),
+    run: { tests: [{ file: 'test/total.test.ts', complete: true }], commit },
+  };
+}
+
 export interface Published {
   readonly dir: string;
   readonly origin: string;

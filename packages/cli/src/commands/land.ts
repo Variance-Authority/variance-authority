@@ -186,6 +186,8 @@ async function landCombined(
       [{ path: combinedAt, ...(run === undefined ? {} : { coverage: run }) }],
       texts,
       before?.commit,
+      undefined,
+      before?.tests,
     );
     // The landing laid at most one record, the combine's, and that record's
     // cases are those of every shard the combine folded a case index from.
@@ -198,9 +200,9 @@ async function landCombined(
     const runs = folded === undefined
       ? undefined
       : selection.commitRunsAfter(before, held, { ...folded, laid: ranCases }, installed, ranOver);
-    const cases = 'laid' in landing
-      ? { ...landing, shards: landing.shards === 0 ? 0 : cased }
-      : { ...landing, shards: [...shards] };
+    const cases = 'unanswered' in landing
+      ? { ...landing, shards: [...shards] }
+      : { ...landing, shards: landing.shards === 0 ? 0 : cased };
     const sections = landed === undefined
       ? laid
       : selection.followRowsIn(laid, landed, texts, selection.editsBetween(root, undefined, [before?.commit, landed.commit]));
