@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { commitRunsAfter, commitRunsIn, type CommitRuns, type RecordedTests } from './commit-runs.js';
+import { commitRunsIn } from './commit-runs-text.js';
+import { commitRunsAfter, type CommitRuns, type RecordedTests } from './commit-runs.js';
 import { whatLanded, type Landing } from './landings.js';
 import { lastRunsOf, testPlaces } from './test-places.js';
 

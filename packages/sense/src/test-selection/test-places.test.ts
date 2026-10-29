@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { commitRunsIn, type CommitRuns } from './commit-runs.js';
+import { commitRunsIn } from './commit-runs-text.js';
+import type { CommitRuns } from './commit-runs.js';
 import { assumedOf, lastRunsOf, testPlaces, type TestPlace } from './test-places.js';
 
 /**
