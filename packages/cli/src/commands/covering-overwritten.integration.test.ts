@@ -1,12 +1,12 @@
 import { execFile, execFileSync } from 'node:child_process';
-import { mkdir, mkdtemp, readFile, realpath, rm, symlink, writeFile } from 'node:fs/promises';
+import { access, mkdir, mkdtemp, readFile, realpath, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { updateSourceIndex } from '@variance-authority/sense';
-import { testCoverageFile } from '@variance-authority/sense/test-selection';
+import { repositoryLayers, testCoverageFile } from '@variance-authority/sense/test-selection';
 import { readFlags } from '../args.js';
 import { parseCoveringArgs } from '../covering-args.js';
 import { flagsFor, synopsisFor } from '../usage.js';
@@ -225,6 +225,55 @@ describe('a region a run in part cut to another text, after a later run numbers 
       const { text } = await ask(root, '--file', 'src/a.ts', ...argv);
       expect(text).toMatch(/so which (other )?case ran/);
       expect(text).not.toContain('numbered in another');
+    }
+  });
+});
+
+// A full run over an uncommitted edit inside `alpha`, its kept text removed as a
+// cleared cache leaves it, and a run of the one case that does not enter `beta`
+// over the committed text. The landing cannot find the text `beta adds` ran
+// over, so where its regions stand is not known: no line of the module is
+// measured absence for it.
+describe('a module a run in part laid over a text the landing cannot find', () => {
+  const cwd = process.cwd();
+  const previous = process.env['VARIANCE_AUTHORITY_CACHE'];
+  let root: string;
+  let cache: string;
+
+  beforeAll(async () => {
+    cache = await mkdtemp(join(tmpdir(), 'variance-covering-overwritten-cache-'));
+    process.env['VARIANCE_AUTHORITY_CACHE'] = cache;
+    root = await checkout({ 'src/a.ts': SOURCE, 'src/a.test.ts': TEST });
+    await writeFile(join(root, 'src/a.ts'), SOURCE.replace('  return value * 2;', '  return value * 2 + 0;'));
+    await vitest(root);
+    const kept = join(repositoryLayers(root).top, '.texts');
+    await access(kept);
+    await rm(kept, { recursive: true });
+    git(root, ['checkout', '--quiet', 'src/a.ts']);
+    await vitest(root, 'src/a.test.ts', '-t', 'alpha doubles');
+    await updateSourceIndex(root);
+    process.chdir(root);
+  }, 120_000);
+
+  afterAll(async () => {
+    process.chdir(cwd);
+    if (previous === undefined) delete process.env['VARIANCE_AUTHORITY_CACHE'];
+    else process.env['VARIANCE_AUTHORITY_CACHE'] = previous;
+    await Promise.all([root, cache].map((path) => rm(path, { recursive: true, force: true })));
+  });
+
+  it('says a line only the case it could not place ran is not known to have run, never that no named test covered it', async () => {
+    const seven = await ask(root, '--file', 'src/a.ts', '--line', '7');
+    expect(seven.text).toContain(`Line 7 of src/a.ts ${UNKNOWN}`);
+    expect(seven.text).not.toMatch(/No named test covered|unwalked/);
+    expect(seven.answer.overwritten).toEqual([{ startLine: 7, endLine: 7 }]);
+  });
+
+  it('says so of the function it ran and of the whole file', async () => {
+    for (const argv of [['--function', 'beta'], []]) {
+      const { text } = await ask(root, '--file', 'src/a.ts', ...argv);
+      expect(text).toContain('which case ran');
+      expect(text).not.toMatch(/No named test covered|no case covered|unwalked/);
     }
   });
 });

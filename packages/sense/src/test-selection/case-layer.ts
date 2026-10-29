@@ -206,12 +206,12 @@ export function layerCaseIndex(
  * `held.landing.lands` names for it ({@link landedThrough}). Each region is
  * handed to `layer.lines` as a region of the `layer.at`-th module written.
  *
- * A held case the edit overwrote — a case of the region
- * `held.landing.overwrote` names, or one the held index already held as
- * overwritten — ran a text this one does not hold, so where it runs here is not
- * known. It is written into the region's overwritten set unless the region
- * names it, or it is one of `layer.ran`: a case of the run, measured at this
- * text. The set is written only where some region holds one.
+ * A held case the edit overwrote — a case of the region `held.landing.overwrote`
+ * names, one the held index held as overwritten, or every held case of the
+ * module where the edit is `unread` — ran a text this one does not hold, so where
+ * it runs here is not known. It is written into the region's overwritten set
+ * unless the region names it, or it is one of `layer.ran`: a case of the run,
+ * measured at this text. The set is written only where some region holds one.
  */
 export function laidOn(
   recorded: SetExecutionModule,
@@ -231,6 +231,9 @@ export function laidOn(
   const loaded = new Uint8Array(recorded.blocks.length);
   const overwritten = new Uint32Array(recorded.blocks.length);
   const heldOver = (from: number): SetId => (held!.module.overwritten === undefined ? EMPTY : fromHeld(held!.module.overwritten[from]!));
+  // An edit that could not be read places no held case: each ran another text at every region.
+  const unread = held?.landing.unread !== true ? EMPTY
+    : held.module.called.reduce((every, set, from) => merged.union(every, merged.union(fromHeld(set), heldOver(from))), EMPTY);
   for (let block = 0; block < recorded.blocks.length; block += 1) {
     const mine = own(recorded.called[block]!);
     const from = held?.landing.lands[block] ?? -1;
@@ -240,10 +243,10 @@ export function laidOn(
     lines?.recorded(layer.at, block, layer.runModule, merged.members(mine),
       carriedIn === undefined ? undefined : { row: held!.row, block: from, members: merged.members(carriedIn) });
     loaded[block] = recorded.loaded[block]! | (from < 0 ? 0 : held!.module.loaded[from]!);
-    const unknown = merged.union(
+    const unknown = merged.union(unread, merged.union(
       from < 0 ? EMPTY : heldOver(from),
       over < 0 ? EMPTY : merged.union(fromHeld(held!.module.called[over]!), heldOver(over)),
-    );
+    ));
     const ownOver = recorded.overwritten === undefined ? EMPTY : own(recorded.overwritten[block]!);
     overwritten[block] = merged.minus(merged.union(merged.minus(unknown, layer.ran), ownOver), called[block]!);
   }

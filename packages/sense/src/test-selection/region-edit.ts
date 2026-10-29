@@ -101,6 +101,11 @@ export interface RegionPairing {
    * they cross it is not known. It is -1 wherever `lands` names a region.
    */
   readonly overwrote: Int32Array;
+  /**
+   * The edit could not be read: no held region is known to land anywhere, so
+   * every held case ran another text at every recorded region.
+   */
+  readonly unread: boolean;
 }
 
 /**
@@ -109,16 +114,14 @@ export interface RegionPairing {
  * at its address or what the region around it took, which land only where
  * {@link reaches} says the edit did not reach the region's kind and are
  * overwritten where it did. Without a `change` — a text could not be found —
- * nothing lands.
+ * nothing lands, and the pairing says it is `unread`.
  */
 export function landedThrough(held: Cut, recorded: Cut, change: Edit | undefined): RegionPairing {
   // FIXME: the snapshot's `carried` in record_coverage_recut.rs pairs by the
   // same rule in Rust; the case index should ask the addon for its landing instead.
   const lands = new Int32Array(recorded.blocks.length).fill(-1);
   const overwrote = new Int32Array(recorded.blocks.length).fill(-1);
-  // FIXME: a text that cannot be found drops every held case instead of
-  // holding each as overwritten in the module, which reads as measured absence.
-  if (change === undefined) return { lands, overwrote };
+  if (change === undefined) return { lands, overwrote, unread: true };
   // A text the edit left whole runs as it did, as the recut keeps a row whose text did not move.
   const reading = change.hunks.length === 0 ? 'none' : change.reading;
   // The held regions the edit left alone, at the lines it places them, in order.
@@ -175,7 +178,7 @@ export function landedThrough(held: Cut, recorded: Cut, change: Edit | undefined
     if (!reaches(reading, block.kind)) lands[at] = decided[at]!;
     else overwrote[at] = decided[at]!;
   }
-  return { lands, overwrote };
+  return { lands, overwrote, unread: false };
 }
 
 function seatOf(kind: string, startLine: number, endLine: number): string {

@@ -11,6 +11,7 @@ import {
   importEditedThenRunElsewhere,
   lackedCallbackThenComment,
   lastRunAfterCarry,
+  ranOverAnUnkeptTextThenAnother,
   ranOverAnotherTestsRegion,
   ranOverThenCommittedElsewhere,
   ranOverThenKeptForgotten,
@@ -53,6 +54,10 @@ describe('a record carried through a history, asked in-process', () => {
 
   it('charges every loader when both tests ran over an uncommitted edit and no text was kept, since the digest cannot stand in for it', async () => {
     await bothRanOverAnUnkeptEdit(selectedFromTree, forgetKept);
+  });
+
+  it('holds every case of a module flagged at each of its regions when a run lands over a text no landing kept, never as measured absence', async () => {
+    await ranOverAnUnkeptTextThenAnother(selected, forgetKept);
   });
 
   it('dates a test file by the landing it last ran in, never by a later one that carried it, and holds the text it ran over only while it is kept or committed', async () => {

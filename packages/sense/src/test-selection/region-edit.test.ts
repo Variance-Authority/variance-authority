@@ -14,10 +14,14 @@ describe('landedThrough', () => {
     expect([...landedThrough(regions, regions, NO_EDIT).lands]).toEqual([0, 1, 2]);
   });
 
-  it('lands nothing when the edit could not be had, which reads the module as changed whole', () => {
+  it('lands nothing when the edit could not be had, and says so, which reads the module as changed whole', () => {
     const regions = module(['module', 1, 9], ['function', 2, 4]);
+    const pairing = landedThrough(regions, regions, undefined);
 
-    expect([...landedThrough(regions, regions, undefined).lands]).toEqual([-1, -1]);
+    expect([...pairing.lands]).toEqual([-1, -1]);
+    expect([...pairing.overwrote]).toEqual([-1, -1]);
+    expect(pairing.unread).toBe(true);
+    expect(landedThrough(regions, regions, NO_EDIT).unread).toBe(false);
   });
 
   it('parts same-named regions by the lines the edit places them at, not by their order', () => {

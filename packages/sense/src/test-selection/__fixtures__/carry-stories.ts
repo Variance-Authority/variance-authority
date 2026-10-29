@@ -306,6 +306,30 @@ export async function bothRanOverAnUnkeptEdit(ask: Ask, forget: (walk: Walk) => 
 }
 
 /**
+ * A run of both tests over an uncommitted edit inside `outer`, the texts
+ * landings kept forgotten, and a run of A over another edit inside the second
+ * effect.
+ *
+ * The landing cannot find the text B ran over, so where B's regions stand in
+ * the text A ran is not known: B is held flagged at every region of the module,
+ * never dropped, and an edit in either effect selects it. A text that cannot be
+ * found never becomes measured absence.
+ */
+export async function ranOverAnUnkeptTextThenAnother(ask: Ask, forget: (walk: Walk) => Promise<void>): Promise<void> {
+  await walking(effects(), { [A]: ['top', 'outer', 'first'], [B]: ['top', 'outer', 'second'] }, async (walk) => {
+    await runTests(walk, [A, B], { over: touching(walk.text, 'outer') });
+    await forget(walk);
+    await runTests(walk, [A], { over: touching(walk.text, 'second') });
+
+    check(walk, 'the cases that ran each region', (await held(walk)).cases, { top: [A], outer: [A], first: [A], second: [] });
+    check(walk, 'the cases not known to have run it', await flagged(walk), { top: [B], outer: [B], first: [B], second: [B] });
+    check(walk, 'owed', await owed(walk), [B]);
+    check(walk, 'an edit in the second effect', await ask(walk, touching(walk.text, 'second')), [B]);
+    check(walk, 'an edit in the first effect', await ask(walk, touching(walk.text, 'first')), [A, B]);
+  });
+}
+
+/**
  * A run of both tests over an uncommitted edit inside `outer`, a commit of
  * another edit inside the first effect, a run of A alone, a run of other
  * tests, and the texts landings kept forgotten, with each step asked where,
