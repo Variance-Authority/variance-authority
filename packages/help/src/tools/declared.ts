@@ -147,8 +147,14 @@ export function declaredLine(held: DeclaredMatch): string {
   return `${held.name} [${held.kind}] — ${held.package ?? 'the repository'} · ${held.at}:${held.line}`;
 }
 
-/** How many unread files `unreadLine` names before it counts the rest. */
+/** How many files `unreadLine` and `unresolvedLine` name before they count the rest. */
 const UNREAD_NAMED = 3;
+
+/** The first files of `files`, then how many more there are. */
+const firstNamed = (files: readonly string[]): string => {
+  const more = files.length - UNREAD_NAMED;
+  return `${files.slice(0, UNREAD_NAMED).join(', ')}${more > 0 ? ` and ${more} more` : ''}`;
+};
 
 /**
  * The sentence that says some files' declarations were not read, and which,
@@ -158,10 +164,19 @@ const UNREAD_NAMED = 3;
 export function unreadLine(unread: readonly string[]): readonly string[] {
   if (unread.length === 0) return [];
   const files = unread.length === 1 ? '1 file' : `${unread.length} files`;
-  const named = unread.slice(0, UNREAD_NAMED).join(', ');
-  const more = unread.length - UNREAD_NAMED;
+  return [`The declarations of ${files} were not read into the source index, so a name declared there is not known: ${firstNamed(unread)}.`];
+}
+
+/**
+ * The sentence that names the files with an import the source index resolved
+ * to no file and that could take `name`, so a use there is not listed, or
+ * nothing when there is none.
+ */
+export function unresolvedLine(name: string, unresolved: readonly string[]): readonly string[] {
+  if (unresolved.length === 0) return [];
+  const one = unresolved.length === 1;
   return [
-    `The declarations of ${files} were not read into the source index, so a name declared there is not known: ${named}${more > 0 ? ` and ${more} more` : ''}.`,
+    `${one ? '1 file imports' : `${unresolved.length} files import`} a specifier the index could not resolve to a file, and ${one ? 'it' : 'each'} could take \`${name}\`, so a use there is not listed: ${firstNamed(unresolved)}.`,
   ];
 }
 

@@ -20,6 +20,7 @@
 
 // compass: variance-authority.reach.relations
 
+import { codeUnitOrder } from '@variance-authority/core/segment';
 import type { NativeOrientPackageLayer as PackageLayer } from './native-orient.js';
 
 /** One package whose own dependencies changed and whose layer moved with them. */
@@ -67,10 +68,6 @@ export interface LayerMoves {
   readonly vanished: readonly LayerPresence[];
 }
 
-function byCodeUnit(a: string, b: string): number {
-  return a < b ? -1 : a > b ? 1 : 0;
-}
-
 function without(names: readonly string[], others: readonly string[]): string[] {
   const held = new Set(others);
   return names.filter((name) => !held.has(name));
@@ -83,10 +80,10 @@ export function layerMoves(base: readonly PackageLayer[], head: readonly Package
   const presence = (entry: PackageLayer): LayerPresence => ({
     package: entry.package,
     layer: entry.layer,
-    takes: [...entry.takes].sort(byCodeUnit),
+    takes: [...entry.takes].sort(codeUnitOrder),
   });
-  const appeared = head.filter((entry) => !before.has(entry.package)).map(presence).sort((a, b) => byCodeUnit(a.package, b.package));
-  const vanished = base.filter((entry) => !after.has(entry.package)).map(presence).sort((a, b) => byCodeUnit(a.package, b.package));
+  const appeared = head.filter((entry) => !before.has(entry.package)).map(presence).sort((a, b) => codeUnitOrder(a.package, b.package));
+  const vanished = base.filter((entry) => !after.has(entry.package)).map(presence).sort((a, b) => codeUnitOrder(a.package, b.package));
 
   const moved = new Map<string, { from: PackageLayer; to: PackageLayer }>();
   const held: LayerHeld[] = [];
@@ -100,7 +97,7 @@ export function layerMoves(base: readonly PackageLayer[], head: readonly Package
       if (added.length > 0 || removed.length > 0) held.push({ package: to.package, layer: to.layer, added, removed });
     }
   }
-  held.sort((a, b) => byCodeUnit(a.package, b.package));
+  held.sort((a, b) => codeUnitOrder(a.package, b.package));
 
   const changed = (name: string): boolean => {
     const { from, to } = moved.get(name)!;
@@ -117,7 +114,7 @@ export function layerMoves(base: readonly PackageLayer[], head: readonly Package
       const seen = moved.get(dependency)!;
       return (rose ? seen.to.layer : seen.from.layer) === (rose ? to.layer : from.layer) - 1;
     });
-    return (near.length > 0 ? near : moving).sort(byCodeUnit);
+    return (near.length > 0 ? near : moving).sort(codeUnitOrder);
   };
 
   // Each mover's cause and how many dependencies down it sits from it.
@@ -158,14 +155,14 @@ export function layerMoves(base: readonly PackageLayer[], head: readonly Package
       to: to.layer,
       added: without(to.takes, from.takes),
       removed: without(from.takes, to.takes),
-      carried: (carriedBy.get(name) ?? []).sort(byCodeUnit),
+      carried: (carriedBy.get(name) ?? []).sort(codeUnitOrder),
     });
   }
   causes.sort(
     (a, b) =>
       b.carried.length - a.carried.length ||
       Math.abs(b.to - b.from) - Math.abs(a.to - a.from) ||
-      byCodeUnit(a.package, b.package),
+      codeUnitOrder(a.package, b.package),
   );
   return { causes, carried: causes.reduce((sum, cause) => sum + cause.carried.length, 0), held, appeared, vanished };
 }

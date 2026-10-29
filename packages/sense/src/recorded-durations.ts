@@ -17,6 +17,7 @@
 // compass: variance-authority.reach
 
 import { existsSync, readFileSync } from 'node:fs';
+import { codeUnitOrder } from '@variance-authority/core/segment';
 import { keepsCases } from './test-selection/case-record.js';
 import { askCoverageFile } from './test-selection/coverage-file.js';
 import { decodeExecutionIndex, decodeExecutionTests } from './test-selection/execution-format.js';
@@ -112,7 +113,7 @@ export function recordedDurations(
           if (duration === undefined) untimed += 1;
           else timed.push({ file: view.string(paths[test]!), duration });
         });
-        timed.sort((left, right) => right.duration - left.duration || order(left.file, right.file));
+        timed.sort((left, right) => right.duration - left.duration || codeUnitOrder(left.file, right.file));
         return { slowest: timed.slice(0, limit), timed: timed.length, untimed, scope: counts };
       }) };
     } catch (error) {
@@ -180,7 +181,7 @@ function caseDurations(recording: string, limit: number, scope: DurationScope): 
       else timed.push({ file: test.file, name: test.name, duration: test.duration });
     });
     timed.sort((left, right) =>
-      right.duration - left.duration || order(left.file, right.file) || order(left.name, right.name));
+      right.duration - left.duration || codeUnitOrder(left.file, right.file) || codeUnitOrder(left.name, right.name));
     return { recording, slowest: timed.slice(0, limit), timed: timed.length, untimed, scope: counts };
   } catch (error) {
     return { recording, unread: messageOf(error) };
@@ -203,11 +204,7 @@ export function recordedPaths(root: string): readonly string[] {
       // A recording that cannot be read suggests nothing; the answer already says why it is unread.
     }
   }
-  return [...paths].sort(order);
-}
-
-function order(left: string, right: string): number {
-  return left < right ? -1 : left > right ? 1 : 0;
+  return [...paths].sort(codeUnitOrder);
 }
 
 function messageOf(error: unknown): string {

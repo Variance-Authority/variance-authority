@@ -2,7 +2,7 @@ import type { FileSet, Spelling, Tool } from '@variance-authority/mcp/tools';
 import { limitOf, notShown, spellingOf } from '@variance-authority/mcp/tools';
 import type { Help, Use } from '@variance-authority/package/help';
 import type { DeclaredName } from '@variance-authority/sense';
-import { unreadLine } from './declared.js';
+import { unreadLine, unresolvedLine } from './declared.js';
 import { type Members, places, routes } from './members.js';
 import { passesOn } from './passed-on.js';
 import { nearestTo } from './shared-segments.js';
@@ -254,6 +254,7 @@ function answered(answer: Answer, input: Readonly<Record<string, unknown>>, show
   // A file that keeps a name of its own is another thing than the export of that name.
   const imports = [
     imported(answer, from, ownLines(answer.inFile, name, shown), shown),
+    ...unresolvedLine(name, answer.unresolved).map((line) => `\n${line}`),
     ...namesakeLines(name, answer.namesakes, from, shown),
     ...(kept.length === 0 ? [] : ['', ...keeping]),
   ].join('\n');

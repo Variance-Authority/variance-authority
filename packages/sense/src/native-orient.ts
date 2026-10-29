@@ -423,6 +423,11 @@ export interface NativeImporters {
    * `shout` and `members` `['greet']`, the last member the name itself.
    */
   namespaces: NativeNamespace[];
+  /**
+   * Every file, in code-unit order, with an import the index resolved to no
+   * file that could take the name: a use there is not listed.
+   */
+  unresolved: string[];
 }
 
 /** A namespace one file passes a name on inside, under the name it exports it as. */
