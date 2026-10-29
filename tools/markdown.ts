@@ -29,6 +29,21 @@ export const MARKDOWN: readonly string[] = execFileSync('git', ['ls-files', '*.m
   .split('\n')
   .filter((file) => !GENERATED.test(file));
 
+/**
+ * Pages published as product documentation, rather than repository context for
+ * contributors and maintainers. The action's README is the front page of the
+ * repository the action is installed from.
+ */
+export const PUBLIC_MARKDOWN = MARKDOWN.filter(
+  (file) =>
+    (file === 'README.md' ||
+      file === '.github/actions/variance/README.md' ||
+      /^docs\/[^/]+\.md$/.test(file) ||
+      /^(?:packages|examples|cases)\/[^/]+\/README\.md$/.test(file)) &&
+    file !== 'docs/AGENTS.md' &&
+    file !== 'docs/visual-guidelines.md',
+);
+
 /** Markdown with fenced blocks blanked out, so a prose rule cannot read an example. */
 export function prose(file: string): string {
   return readFileSync(resolve(ROOT, file), 'utf8').replace(

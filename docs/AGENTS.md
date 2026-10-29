@@ -92,6 +92,19 @@ more of the thought. Use the fewest objects and labels that can carry the idea.
 Follow [the visual guidelines](visual-guidelines.md) for the mark, palette,
 geometry and figure conventions every page shares.
 
+## What we ship is installed, never copied
+
+A reader gets variance from a package manager or by name: `npm install
+@variance-authority/cli`, `uses: Variance-Authority/action@v<version>`. No page
+asks them to copy or paste one of our files into their repository, and no
+public page links into `.github/`: the workflows there are this repository's
+own, and the action reaches readers as
+[`Variance-Authority/action`](https://github.com/Variance-Authority/action),
+which every release publishes. A capability a reader can only get by copying is
+not shipped yet; ship it as a package or an input of the action, then document
+that. `tools/docs-installs.check.ts` enforces this over every markdown file and
+every workflow comment.
+
 ## `docs/` is not a work log
 
 A `docs/` page describes the product as it stands at the end of the cycle. It is

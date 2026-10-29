@@ -4,7 +4,7 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 // @ts-expect-error -- a plain script, run by the workflow and by hand; no types to import.
-import { lockstep, missing, onRegistry, publishable, releaseTags, unborn, waiting } from './released.mjs';
+import { lockstep, missing, onRegistry, publishable, unborn, waiting } from './released.mjs';
 
 /**
  * A release is checked against the registry, and stays checked.
@@ -225,19 +225,20 @@ describe('the release workflow', () => {
     expect(job('publish')).not.toMatch(/- run: yarn build\s*$/m);
   });
 
-  // An adopter's workflow names the composite action by a ref, and the ref is
-  // the version of the CLI it runs, such as `@v0.21.0`. The
-  // package tags carry a scope and a second `@`, which no `uses:` line should.
-  it('is tagged once per package and once for the repository', () => {
-    const tags = releaseTags(publishable(), '1.2.3') as readonly string[];
-    expect(tags).toContain('@variance-authority/cli@1.2.3');
-    expect(tags).toContain('v1.2.3');
-    expect(tags).toHaveLength(publishable().length + 1);
+  // An adopter names the action the way every action is named: by its own
+  // repository, `uses: Variance-Authority/action@v<version>`, where the version
+  // is the CLI's. A path into this repository is not an install.
+  it('publishes the action to its own repository, tagged by the version it released', () => {
+    const publish = job('publish');
+    const action = publish.slice(publish.indexOf('tools/released.mjs --registry'));
+    expect(action).toContain('Variance-Authority/action');
+    expect(action).toContain('tag -a "v$version"');
+    expect(action).toContain('ACTION_DEPLOY_KEY');
   });
 
-  it('pushes the repository tag beside the package tags', () => {
-    const tagging = WORKFLOW.slice(WORKFLOW.indexOf('yarn changeset tag'), WORKFLOW.lastIndexOf('git push origin --tags'));
-    expect(tagging).toContain('git tag -a "v$version"');
+  it('tags this repository by package only', () => {
+    const tagging = WORKFLOW.slice(WORKFLOW.indexOf('yarn changeset tag'), WORKFLOW.indexOf('git push origin --tags'));
+    expect(tagging).not.toMatch(/git tag\b/);
   });
 
   it('tags from a step that can fail, and checks the tags arrived', () => {

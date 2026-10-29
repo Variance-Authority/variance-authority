@@ -3,7 +3,7 @@ import { existsSync, readFileSync, statSync } from 'node:fs';
 import { dirname, join, resolve, relative } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { SOURCE, commentsOf } from './comments.js';
-import { MARKDOWN, ROOT, lineOf, prose } from './markdown.js';
+import { MARKDOWN, PUBLIC_MARKDOWN, ROOT, lineOf, prose } from './markdown.js';
 
 /**
  * Where the documentation points, checked against what is there.
@@ -154,19 +154,6 @@ describe('every link resolves', () => {
     expect(broken).toEqual([]);
   });
 });
-
-/**
- * Pages published as product documentation, rather than repository context for
- * contributors and maintainers.
- */
-const PUBLIC_MARKDOWN = MARKDOWN.filter(
-  (file) =>
-    (file === 'README.md' ||
-      /^docs\/[^/]+\.md$/.test(file) ||
-      /^(?:packages|examples|cases)\/[^/]+\/README\.md$/.test(file)) &&
-    file !== 'docs/AGENTS.md' &&
-    file !== 'docs/visual-guidelines.md',
-);
 
 describe('public documentation stands without internal project history', () => {
   it.each(PUBLIC_MARKDOWN)('%s', (file) => {

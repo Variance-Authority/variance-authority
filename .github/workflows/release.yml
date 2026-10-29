@@ -419,15 +419,6 @@ jobs:
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           yarn changeset tag
-          # And one for the repository, which an adopter's workflow names the
-          # composite action by: `@v0.21.0` for the version of the CLI it
-          # installed. A package tag would put a scope and a second `@` in that
-          # line. The full-history checkout holds origin's tags, so a release
-          # pressed again finds the one it made and leaves it.
-          version="$(node -p "require('./packages/cli/package.json').version")"
-          if ! git rev-parse -q --verify "refs/tags/v$version" >/dev/null; then
-            git tag -a "v$version" -m "variance-authority $version"
-          fi
           git push origin --tags
 
           # Both halves, for the record and for the next person reading a green
@@ -435,3 +426,49 @@ jobs:
           # origin. 0.5.8 published all thirty-eight and tagged none of them,
           # and nothing anywhere said so.
           node tools/released.mjs --wait 60
+
+      # The action is installed the way every action is, by its own repository:
+      # `uses: Variance-Authority/action@v<version>`, the version being the
+      # CLI's it runs. This repository's token cannot push there, so the `npm`
+      # environment holds a deploy key with write access to that repository as
+      # `ACTION_DEPLOY_KEY`. Without it this step fails and the release is not
+      # complete. Pressed again, it finds the tag it made and pushes nothing; a
+      # remote it cannot read is a failure, never a tag it may write.
+      - name: Publish the action to its own repository
+        env:
+          ACTION_DEPLOY_KEY: ${{ secrets.ACTION_DEPLOY_KEY }}
+        run: |
+          if [ -z "$ACTION_DEPLOY_KEY" ]; then
+            echo "::error::ACTION_DEPLOY_KEY is not set, so Variance-Authority/action cannot be published."
+            exit 1
+          fi
+          version="$(node -p "require('./packages/cli/package.json').version")"
+          key="$RUNNER_TEMP/action-deploy-key"
+          (umask 077 && printf '%s\n' "$ACTION_DEPLOY_KEY" > "$key")
+          export GIT_SSH_COMMAND="ssh -i $key -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new"
+          remote=git@github.com:Variance-Authority/action.git
+
+          # 0 is the tag, 2 is no such tag, anything else is a remote not read.
+          found=0
+          git ls-remote --exit-code "$remote" "refs/tags/v$version" >/dev/null || found=$?
+          if [ "$found" = 0 ]; then
+            echo "Variance-Authority/action already has v$version."
+            exit 0
+          elif [ "$found" != 2 ]; then
+            echo "::error::Variance-Authority/action could not be read (git ls-remote exited $found)."
+            exit 1
+          fi
+
+          # The repository holds the action and nothing else: what this release
+          # ships under `.github/actions/variance`, and the licence.
+          into="$RUNNER_TEMP/action"
+          git clone --depth 1 "$remote" "$into"
+          git -C "$into" config user.name 'github-actions[bot]'
+          git -C "$into" config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          find "$into" -mindepth 1 -maxdepth 1 ! -name .git -exec rm -rf {} +
+          cp -R .github/actions/variance/. "$into/"
+          cp LICENSE "$into/LICENSE"
+          git -C "$into" add -A
+          git -C "$into" commit --allow-empty -m "variance-authority $version"
+          git -C "$into" tag -a "v$version" -m "variance-authority $version"
+          git -C "$into" push origin HEAD:main "refs/tags/v$version"

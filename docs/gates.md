@@ -60,8 +60,8 @@ All four are recorded either way; what changes is whether they block the
 build.
 
 Posting the result to the pull request is not part of the gate. `npx variance
-comment` writes a comment body and posts nothing. On GitHub, the composite
-action posts it as one comment updated in place; the
+comment` writes a comment body and posts nothing. On GitHub,
+`Variance-Authority/action` posts it as one comment updated in place; the
 [CLI reference](../packages/cli/README.md#run-it-in-ci) has the step. Elsewhere,
 your pipeline posts it.
 

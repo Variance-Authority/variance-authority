@@ -1,23 +1,17 @@
 # Workflows
 
-Six workflow files live here. Three of them are recipes, meant to be copied
-into your own repository and edited. Each is a complete answer to a different
-question. They all shell out to
-one tool: `@variance-authority/cli`, a devDependency, invoked as
-`npx variance <command>`.
+Six workflow files live here, and all of them are this repository's own. Three
+run variance over this repository's subjects, each answering a different
+question, through the action as it stands in this checkout,
+`./.github/actions/variance`. A release publishes that action as
+[`Variance-Authority/action`](https://github.com/Variance-Authority/action), and
+the [CLI reference](../../packages/cli/README.md#run-it-in-ci) shows an adopter's
+step. All three shell out to one tool: `@variance-authority/cli`, invoked as
+`variance <command>`.
 
 A **subject** is one named UI state observed under an id you choose — one
 Storybook story, one route at one viewport, one component mounted in a test. It
 is the unit these files count, shard and gate on.
-
-If you copy one file, change two things: the `--config` path, so it points at
-your own `variance.config.json`, and the step that builds the thing being
-observed (here, a Storybook). Then point the step that runs the gate at the
-released [composite action](../actions/variance), by the version of the CLI you
-installed: `uses:
-Variance-Authority/variance-authority/.github/actions/variance@v<version>`. These
-files say `./.github/actions/variance` because they test the action as it
-stands in this checkout.
 
 | File | Asks | Costs |
 |---|---|---|
@@ -30,7 +24,7 @@ an image. [`docs/stabilization.md`](../../docs/stabilization.md) has both.
 
 The other three files here, [`check.yml`](check.yml),
 [`release.yml`](release.yml) and [`outer-loop.yml`](outer-loop.yml), are this
-repository's own build, publish and end-to-end test, and none is a recipe.
+repository's build, publish and end-to-end test.
 `outer-loop.yml` has [its own section](#the-outer-loop). On a pull request,
 `check.yml` uses the recording `main` saved to select the tests the change
 reached. It compares the predicted time of that selection in one job with a
@@ -76,19 +70,9 @@ replace the harness jobs, and `check` still runs, reading only their results.
 
 By `yarn install` — it is a dependency of the project being observed, not
 something the workflow fetches. The composite action's `command` input defaults
-to `npx --no-install variance`, which is what your copy should use:
-
-```yaml
-- uses: Variance-Authority/variance-authority/.github/actions/variance@v<version>
-  with:
-    config: variance.config.json
-    profile: chromium
-    github-token: ${{ secrets.GITHUB_TOKEN }}
-```
-
-The three files here pass `command: node packages/cli/dist/bin.js` instead,
-because this repository builds the CLI from source and has no published copy to
-resolve.
+to `npx --no-install variance`, the CLI the project installed. The three files
+here pass `command: node packages/cli/dist/bin.js` instead, because this
+repository builds the CLI from source and has no published one to resolve.
 
 Every job runs inside `mcr.microsoft.com/playwright:v1.62.1-noble`. An approved
 image is keyed by the identity of the machine that painted it, so a moving runner
@@ -119,7 +103,7 @@ who accepts and how. `variance.yml` chooses with one value at the top of the
 file, `VARIANCE_REVIEW`. This repository runs `cache` for both subjects, and
 the other two each in a job of its own over the case.
 [`docs/placement.md`](../../docs/placement.md#who-accepts-a-change) compares the
-three arrangements. This is what each one needs in your copy:
+three arrangements. This is what each one needs:
 
 | `VARIANCE_REVIEW` | `baselines` in the config | the baseline root | secret |
 |---|---|---|---|
@@ -213,8 +197,9 @@ every project's ref for the branch.
 That ref and the report's share lines below are why `variance.yml` asks for
 `contents: write`. Anyone who can read the repository can read the images. A
 pull request from a fork runs with a read-only token, so the push is refused,
-the step warns, and the comment arrives without pictures. To turn this off in
-your copy, drop the `image-ref-prefix` input and the `images-cleanup` job.
+the step warns, and the comment arrives without pictures. Without the
+`image-ref-prefix` input the action pushes no ref, and the `images-cleanup` job
+has nothing to delete.
 
 ## Where the baselines live here
 
