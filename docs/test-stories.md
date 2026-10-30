@@ -19,8 +19,8 @@ Record a story when you need what happened next or how often it repeated.
 
 ## What you already know, and what you do not
 
-With [Sense](../packages/sense/README.md) set up for your runner, every run
-records which code each test ran: each function, branch and loop body, as ran
+With [Sense](../packages/sense/README.md) set up for your runner, as
+[Record one](#record-one) shows for each, every run records which code each test ran: each function, branch and loop body, as ran
 or not ran. That record is the test's [journey](journeys.md), and every run
 records one for every test. [`variance
 covering`](test-level-coverage.md#the-process) reads the journeys and names the
@@ -447,10 +447,10 @@ that recording set up first:
   Browser mode needs nothing more.
 - **Jest.** The [Jest seam](../packages/sense/README.md#record-jest-journeys-without-selecting-tests).
 - **Rstest.** The [Rstest seam](../packages/sense/README.md#cut-an-rstest-run-down-to-a-diff).
-- **Playwright.** `withTestSelection` in your Playwright configuration, over an
-  application built with `testSelectionProbes()`, as
+- **Playwright.** `withTestSelection` in your Playwright configuration, as
   [Playwright Test](../packages/playwright-test/README.md#record-what-each-spec-executed)
-  sets it up.
+  sets it up, over an application whose build runs
+  [`testSelectionProbes()`](../packages/sense/README.md#record-what-a-driven-page-executed).
 
 Then set
 `VARIANCE_AUTHORITY_STORY=1` and name the tests with your runner's own
