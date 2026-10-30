@@ -1,9 +1,9 @@
 // compass: variance-authority.reach
 /**
- * The text a record's rows of each file were cut from, as its digest: the text
- * the record's lines of that file are numbered in. A review asks whether the
- * file ran as the tree holds it, and a count asks which edits lie between the
- * rows and the checkout; both ask here.
+ * The text a record's rows of each file were cut from, by its digest and its
+ * git blob name: the text the record's lines of that file are numbered in. A
+ * review asks whether the file ran as the tree holds it, and a count asks
+ * which edits lie between the rows and the checkout; both ask here.
  */
 
 import {
@@ -14,23 +14,12 @@ import {
   type ExecutionIndex,
 } from '@variance-authority/sense/test-selection';
 
-/** The digest a file's rows were cut from, or why it is not known. */
-export type RowsText = string | { readonly unknown: string };
-
 /**
  * The text a file's rows were cut from: its digest, and the git blob name of
  * the same text where the record keeps one, which the source index names a
  * file on disk by. Or why it is not known.
  */
 export type RowsCut = { readonly digest: string; readonly blob?: string } | { readonly unknown: string };
-
-/**
- * Per file of `files`, the digest of the text the rows of the record at
- * `coverageFile` were cut from ({@link rowsCut}).
- */
-export function rowsText(coverageFile: string, files: Iterable<string>, index: ExecutionIndex): ReadonlyMap<string, RowsText> {
-  return new Map([...rowsCut(coverageFile, files, index)].map(([file, cut]) => [file, 'unknown' in cut ? cut : cut.digest] as const));
-}
 
 /**
  * Per file of `files`, the text the rows of the record at `coverageFile` were
