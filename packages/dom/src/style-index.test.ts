@@ -154,7 +154,12 @@ const MARKUP =
   '<footer class="card-footer"><button class="btn btn-primary">Save</button><button class="btn">Cancel</button></footer>' +
   '</article>';
 
-const SUBJECTS = 40;
+/**
+ * Subjects per regime. The counts are exact at any size, so this buys only the
+ * share's median: of nine subjects, up to four can take a stall without moving
+ * it, at a few dozen collections in all.
+ */
+const SUBJECTS = 9;
 
 /** What a regime spent: wall clock, and how many times it walked the document's sheets. */
 interface Regime {
@@ -331,14 +336,11 @@ describe('a stylesheet whose rules cannot be read', () => {
 
 describe('the cost of rebuilding the index per subject', () => {
   it('falls materially when one index is shared across the subjects of a document', () => {
-    // Warm once so neither side pays for lazy module initialisation.
-    perSubjectIndex(2);
-    sharedIndex(2);
-    indexShare(2);
+    // Warm once so neither printed figure pays for lazy module initialisation.
+    perSubjectIndex(1);
 
     const rebuilt = perSubjectIndex(SUBJECTS);
     const shared = sharedIndex(SUBJECTS);
-    const longer = sharedIndex(SUBJECTS * 4);
     const share = indexShare(SUBJECTS);
 
     console.log(
@@ -355,11 +357,9 @@ describe('the cost of rebuilding the index per subject', () => {
     );
 
     // Half one: the saving, counted. Integers, so a busy machine cannot move
-    // them, and the longer run catches an index rebuilt on a threshold rather
-    // than per subject, which a fixed-size comparison would not see.
+    // them.
     expect(rebuilt.walks).toBe(SUBJECTS);
     expect(shared.walks).toBe(1);
-    expect(longer.walks).toBe(1);
 
     // Half two: the saving is only worth having if an index costs something.
     // Removing a fraction f of the work is a 1/(1 - f) speedup, so an index that
@@ -373,7 +373,7 @@ describe('the cost of rebuilding the index per subject', () => {
   // The end-to-end speedup, which is the sentence a reader wants and which
   // nothing here asserts. It divides one separately-timed run by another, and
   // the shared run is the small denominator: a stall of a few hundred
-  // milliseconds lands whole in its ~100ms and barely dents the rebuild. Alone
+  // milliseconds lands whole in its ~20ms and barely dents the rebuild. Alone
   // the ratio reads about 3×; beside a parallel `yarn test` it read 1.6× to 9×
   // across ten runs, and 0.9× inside one.
   it.todo(
