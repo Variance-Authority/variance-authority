@@ -14,6 +14,8 @@ import { afterAll, describe, expect, it } from 'vitest';
 
 const stories = (await import('../../dist/story/format.cjs'))
   .default as typeof import('../story/format.cjs');
+// A note is read across runs as `variance story` compares them.
+const { acrossRuns } = (await import('../../dist/story/compare.js')) as typeof import('../story/compare.js');
 const execute = promisify(execFile);
 const repository = resolve(import.meta.dirname, '../../../..');
 const fixtures = resolve(repository, 'packages/sense/test/fixtures');
@@ -27,7 +29,12 @@ afterAll(async () => {
   );
 });
 
-/** What each story one run wrote says, sorted: its case, its visits in order, its notes and whether it stopped. */
+/**
+ * What each story one run wrote says, sorted: its case, its visits in order,
+ * its notes as another run reads them and whether it stopped. A ref is the
+ * order the realm met an object, and a realm shared across files numbers it
+ * by what ran there before.
+ */
 async function told(
   fixture: string,
   args: readonly string[],
@@ -59,7 +66,7 @@ async function told(
   return decoded
     .map(
       ({ name, visits, notes, stopped }) =>
-        `${name}: visits ${[...visits].join(',')}, ${notes.map(([, text]) => text).join(' | ')}${stopped ? ', stopped' : ''}`,
+        `${name}: visits ${[...visits].join(',')}, ${notes.map(([, text]) => acrossRuns(text)).join(' | ')}${stopped ? ', stopped' : ''}`,
     )
     .sort();
 }
