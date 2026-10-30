@@ -58,6 +58,21 @@ describe('the selection the environment asks for', () => {
     }
   });
 
+  it('tells the cli the leg was read from the environment, so its notes name the variable', async () => {
+    const root = await mkdtemp(resolve(tmpdir(), 'variance-selection-leg-'));
+    try {
+      const cli = resolve(root, 'node_modules', '@variance-authority', 'cli');
+      await mkdir(cli, { recursive: true });
+      await writeFile(resolve(cli, 'package.json'), JSON.stringify({ name: '@variance-authority/cli', type: 'module', main: 'index.js' }));
+      await writeFile(resolve(cli, 'index.js'), 'export async function selectSuite(request) { return { notes: [JSON.stringify(request.atDistance)] }; }');
+      const env = { VARIANCE_AUTHORITY_SINCE: '', VARIANCE_AUTHORITY_AT_DISTANCE: '0-1' };
+
+      expect((await selectionFrom(env, { root }, () => {})!()).notes).toEqual(['{"from":0,"to":1,"by":"environment"}']);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
   it('refuses by name where the checkout does not resolve the cli that reads it', async () => {
     const root = await mkdtemp(resolve(tmpdir(), 'variance-selection-environment-'));
     try {

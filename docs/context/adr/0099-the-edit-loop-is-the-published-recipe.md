@@ -60,6 +60,25 @@ lost by it: a new file is reached only through an import an edit added, and
 that edited importer charges every test that loaded it. Checked by adding a new
 module and its import, then reading the loop and `variance select` after it.
 
+## Amended 2026-10-31 — the line refreshes the source index again
+
+The consequence above does not hold: no run writes the source index, so the
+graph a selection reads is the last `variance index`, whatever ran since. A
+file added after it has no hops, and the test that imports it is placed only in
+the open leg. An edit to the new file alone then selects nothing at `0-1`
+([#777](https://github.com/Variance-Authority/variance-authority/issues/777)).
+
+The line runs `variance index` between the compiler and the runner again, as
+the script did and `verify:near` does, and the page publishes it with that step.
+It costs about 0.34 s in this repository when little changed.
+
+`yarn test:loop` hands its arguments to the runner and reads its leg from
+`VARIANCE_AUTHORITY_AT_DISTANCE`, `0-1` when unset. A flag Vitest does not take
+fails before any test runs, where it used to reach `tools/needs.mjs` unread
+([#855](https://github.com/Variance-Authority/variance-authority/issues/855));
+the leg's notes under a seam name the variable, which is how the same run asks
+for another leg.
+
 ## Amended 2026-10-28 — a green run ends with what a new function needs
 
 After the tests pass, the loop prints the existing functions that need what

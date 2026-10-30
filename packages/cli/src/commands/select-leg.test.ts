@@ -299,6 +299,18 @@ describe('one leg of the selection', () => {
     );
   });
 
+  it('names the variable, not the flag, for a leg a seam read from the environment', () => {
+    const input = read([...DISTANCES, { test: PARTIAL, bearing: 'unexplained' }], [PARTIAL]);
+    const err = selectionNotes(inLeg(skippableTests(input), input, { from: 0, to: 1, by: 'environment' }));
+
+    expect(err).toContain('outside `VARIANCE_AUTHORITY_AT_DISTANCE=0-1`;');
+    expect(err).toContain(
+      '3 selected test files are left for a later leg: the same run with `VARIANCE_AUTHORITY_AT_DISTANCE=2-` runs them',
+    );
+    expect(err).toContain('left for the open leg: the same run with `VARIANCE_AUTHORITY_AT_DISTANCE=2-` runs it');
+    expect(err).not.toContain('--at-distance');
+  });
+
   it('writes the leg and what it left into json', () => {
     const input = read();
     const json = JSON.parse(formatSelection(inLeg(skippableTests(input), input, { from: 0, to: 2 }), 'json', '/repo'));
