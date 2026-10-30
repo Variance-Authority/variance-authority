@@ -28,9 +28,8 @@
  *
  * Every run of a case writes a reading of its own, named
  * `<case>.<written>-<pid>-<n>[.<label>].story`: the digest of the case's file,
- * name and project, when it was
- * written, and the label the run gave `VARIANCE_AUTHORITY_STORY` when it gave one
- * other than `1`. A case keeps its last {@link READINGS}. One reading says
+ * name and project, when it was written, and the label the run gave
+ * `VARIANCE_AUTHORITY_STORY` when it gave one other than `1`. A case keeps its last {@link READINGS}. One reading says
  * where the case went; two sets of them say which differences come back every
  * time and which move between runs, and a difference in the order of async work
  * is only an answer when it is the first kind.

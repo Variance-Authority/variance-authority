@@ -20,11 +20,8 @@
  *   saw — that every reading of some sides has and none of the rest.
  * - **In what order.** Two places, or two notes, every side reaches every time,
  *   that each side reaches in one order every time, and not every side in the
- *   same one. Order is compared at first arrival, at the grain of a
- *   declaration or a note, which is the grain a person reads a route at. Two
- *   moments of a case that ran in pages, reached in two frames — or in a frame
- *   and the runner — under one test line, have no order to compare: what the
- *   story holds is the order their drains reached the runner in.
+ *   same one, compared at first arrival, at the grain a person reads a route
+ *   at: a declaration or a note.
  *
  * Each difference is told under the sides that hold it, so with three sides an
  * arm both failing cases took and the passing one did not is one finding, not
@@ -344,7 +341,9 @@ function steady(sides: readonly (readonly Read[])[], of: (read: Read) => Readonl
  * Pairs of moments every reading reaches, in an order each side holds on every
  * reading and not every side the same, with the positions of the sides that
  * reach the first of the pair first; and how many pairs changed order between
- * readings of one side.
+ * readings of one side. Two moments of a page case reached in two frames, or a
+ * frame and the runner, under one test line have no order: the story holds the
+ * order their drains reached the runner in, so no reading compares them.
  */
 function orderedPairs(sides: readonly (readonly Read[])[]): { differing: { pair: [string, string]; before: number[] }[]; unsteady: number } {
   const all = sides.flat();
