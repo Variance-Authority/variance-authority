@@ -37,7 +37,7 @@ export {
 export { overwrittenIn, overwrittenOn, type OverwrittenOn } from './overwritten.js';
 export { anyStopped } from './stopped.js';
 export { unenteredSentence, whyUnentered, type Unentered } from './unentered.js';
-export { functionsUnder, innermostAt, lineGrain, marksLoadTime } from './source-target.js';
+export { blocksOfTarget, functionsUnder, innermostAt, lineGrain, marksLoadTime } from './source-target.js';
 export { NAME_BOUNDARY, NameGrammarError, nameIndex, parseNameGrammar, structuralParent } from './name-grammar.js';
 export type { AxisStep, GrammarAxis, NameGrammar, NameIndex, NamedAxis, StructuralLink, StructuralName } from './name-grammar.js';
 export { caseHeard, heardSplit, heldText, heldValues, readSplit, readsOf, rowOf, saidAcross, saidRow, valued, type CaseHeard, type CasePrecondition, type Misuse, type Said } from './case-said.js';
@@ -191,7 +191,7 @@ export { withIndexLock } from './index-lock.js';
 export { casesRan, landCases, lastCaseRunOf, textsOf, type CaseLanding, type LaidRun, type LandedShard, type LastCaseRun, type ModuleTexts } from './case-landing.js';
 export { casesCutApart, type IndexedCut } from './case-index-cut.js';
 export { followRows, followRowsIn } from './case-cuts.js';
-export { editsBetween, regionTouched, type Edit, type Edits } from './region-edit.js';
+export { editOf, editsBetween, regionTouched, type Edit, type Edits } from './region-edit.js';
 export { caseIndexOf, caseSectionsAt, caseSectionsOf, keepsCases, keepsEyes, recordOfCases, recordStorageAt, recordedCases, recordedEyesAt, recordedEyesOf, sharedRecord, withCaseSections, withoutCoverage, type CaseSections, type RecordStorage } from './case-record.js';
 export { collectedRecord } from './collected-record.js';
 export { type EyesSection, type ObservedEyes, type RecordedEyes } from './eyes-record.js';

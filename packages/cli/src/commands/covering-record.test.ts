@@ -68,6 +68,19 @@ describe('a covering answer says where the record\'s line numbers stand in the a
     expect(refs).toMatch(/src\/pay\.ts function pay( \w+)? edited: .*; no case ran 2-4 branch( \w+)? edited$/mu);
   });
 
+  it('calls an asked line or function the same in both texts when the edit since its run only wrote comments in it, as a count of what ran over this text does', async () => {
+    const { at } = await checkout({ runs: ranHere() });
+    await writeFile(join(at, 'src/pay.ts'), PAY
+      .replace('  if (amount < 0) {', '  // a refund is not a payment\n  if (amount < 0) {')
+      .replace('  return amount;', '  return amount; // already rounded'));
+    const named = await ask(at, '--file', 'src/pay.ts', '--function', 'pay');
+    const line = await ask(at, '--file', 'src/pay.ts', '--line', '6');
+
+    expect(named.json).toMatchObject({ frame: 'mapped', ran: { stands: [{ text: 'other', region: 'same' }] } });
+    expect(named.text).toContain('`pay` is the same in both.\n');
+    expect(line.json).toMatchObject({ frame: 'mapped', ran: { stands: [{ text: 'other', region: 'same' }] } });
+  });
+
   it('says no recorded line is a place in a file whose numbering text could not be found', async () => {
     const ranOver = `// never committed\n${PAY}`;
     const { at, commit } = await checkout({ ranOver, runs: ranHere({ 'src/pay.ts': digestString(ranOver) }) });

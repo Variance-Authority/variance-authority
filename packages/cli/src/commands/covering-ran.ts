@@ -28,7 +28,7 @@ import {
   type TestPlace,
 } from '@variance-authority/sense/test-selection';
 import type { RunsRead } from './record-runs.js';
-import { evidenceOf, regionVerdict, type Evidence, type Region } from './covering-ran-evidence.js';
+import { evidenceOf, kindsAt, regionVerdict, type Evidence, type Region } from './covering-ran-evidence.js';
 import { listedIn } from './covering-where.js';
 import type { CoveringTarget } from './covering.js';
 import { heldAsPrecondition, type HeldAsPrecondition } from './held-as-precondition.js';
@@ -420,14 +420,19 @@ type Verdict = Pick<RanStand, 'files' | 'text' | 'other' | 'absent' | 'held' | '
 function regionOf(answer: RanNamed, question: RanQuestion): Region {
   const target = answer.target;
   if (target === undefined) return undefined;
-  if ('line' in target) return { held: [{ startLine: target.line, endLine: target.line }] };
-  if ('lines' in target) return { held: [target.lines] };
   const placement = question.placement;
+  if ('line' in target || 'lines' in target) {
+    const lines = 'line' in target ? { startLine: target.line, endLine: target.line } : target.lines;
+    return { held: kindsAt(answer.file!, lines, question.index, placement).map((kind) => ({ ...lines, kind })) };
+  }
   if (placement === undefined) return { unknown: `the record does not say which text of ${answer.file!} its lines are numbered in` };
   if (placement.frame === 'stale') return { unknown: `the record's lines of ${answer.file!} are not placed in its text as it is now` };
   // `covering` answers a function only of a module the record holds a block of it in.
   const module = question.index!.modules.find((candidate) => candidate.file === answer.file)!;
-  return { held: functionsUnder(module.blocks, target.function).flatMap((block) => placement.place(block)?.lines ?? []) };
+  return { held: functionsUnder(module.blocks, target.function).flatMap((block) => {
+    const lines = placement.place(block)?.lines;
+    return lines === undefined ? [] : [{ ...lines, kind: block.kind }];
+  }) };
 }
 
 /**

@@ -79,10 +79,14 @@ export function editsBetween(
   return (file, from, to) => {
     if (from === to) return NO_EDIT;
     const [before, after] = [textOf(file, from), textOf(file, to)];
-    if (before === undefined || after === undefined) return undefined;
-    const reading = readEdit(root, file, before, after);
-    return { hunks: hunksOf(diffTexts(before, after)), ...(reading === undefined ? {} : { reading }) };
+    return before === undefined || after === undefined ? undefined : editOf(root, file, before, after);
   };
+}
+
+/** The edit `file` went through from the text `before` to the text `after`, both in hand. */
+export function editOf(root: string, file: string, before: string, after: string): Edit {
+  const reading = readEdit(root, file, before, after);
+  return { hunks: hunksOf(diffTexts(before, after)), ...(reading === undefined ? {} : { reading }) };
 }
 
 function hashingTo(text: string | undefined, digest: string): string | undefined {
