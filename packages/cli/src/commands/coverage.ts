@@ -17,6 +17,8 @@
 
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
+import { isCI } from 'ci-info';
+import type { FileRecord } from '@variance-authority/core/relate';
 import {
   askCoverageFile,
   coverageAtDistance,
@@ -162,10 +164,11 @@ export async function coverage(request: ParsedCoverage, parts: CoverageParts = {
     );
   }
 
-  // The split names the tree's texts by the source index, brought up to the tree first, so the read below reads it too.
-  const tree = parts.over ? await treeBlobs(request.root) : undefined;
+  // The split names the tree's texts by the source index, outside CI brought up to the tree first, so the read below reads it too.
+  const updated = parts.over ? await updatedTree(request.root) : undefined;
   // Read first: `--from` narrows every record counted below to the files it reaches.
   const reading = await readSource(request.root, request.from, request.packages === true);
+  const tree = updated ?? (parts.over && isCI && !('missed' in reading) ? publishedTree(reading.records) : undefined);
   if ('missed' in reading && request.from !== undefined) {
     throw new OperatorError(`\`--from ${request.from}\` is answered by the source index, and ${reading.missed}`);
   }
@@ -370,13 +373,22 @@ function unchanged(change: SuiteChange): boolean {
 }
 
 /**
- * The source index's listing of the checkout at `root`, updated to the tree:
- * none when the update is refused, and every text is then read.
+ * The source index's names for the checkout's texts at `root`, got the way
+ * every reader gets the index: outside CI updated to the tree, in CI as the
+ * pipeline published it, which `readSource` reads, never built. None when
+ * there is no index to have, and the split then counts each text it would
+ * have named as not known.
  */
-async function treeBlobs(root: string): Promise<TreeBlobs | undefined> {
+async function updatedTree(root: string): Promise<TreeBlobs | undefined> {
+  if (isCI) return undefined;
   const { updateSourceIndex } = await import('@variance-authority/sense');
-  const update = await updateSourceIndex(root).catch(() => undefined);
-  return update?.refused === undefined ? update?.listing : undefined;
+  return (await updateSourceIndex(root).catch(() => undefined))?.listing;
+}
+
+/** The names `records`, the index as published, gives the texts it holds; a file it does not hold is named by nothing. */
+function publishedTree(records: readonly FileRecord[]): TreeBlobs {
+  const names = new Map(records.map((record) => [record.file, record.digest ?? ''] as const));
+  return { digestsFor: (files) => files.map((file) => names.get(file) ?? '') };
 }
 
 async function head(root: string): Promise<string | undefined> {

@@ -3,12 +3,16 @@ import { createHash } from 'node:crypto';
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { updateSourceIndex } from '@variance-authority/sense';
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
+import { sourceIndexPath, updateSourceIndex } from '@variance-authority/sense';
 import { INSTRUMENTATION_ID } from '@variance-authority/sense/instrument';
 import { commitRunsFile, encodeExecutionIndex, repositoryLayers, testCoverageFile, writeTestCoverage } from '@variance-authority/sense/test-selection';
 import { digestString } from '@variance-authority/core/format';
 import { main } from '../bin.js';
+
+// `ci-info` decides CI once, when it loads, so the module is cut: a test that runs as CI sets `ci.isCI`.
+const ci = vi.hoisted(() => ({ isCI: false }));
+vi.mock('ci-info', () => ({ get isCI() { return ci.isCI; } }));
 
 /** `charge` on lines 1-3 and `refund` on 5-7. */
 const PAY = 'export function charge(amount: number): number {\n  return amount;\n}\n\nexport function refund(amount: number): number {\n  return -amount;\n}\n';
@@ -317,6 +321,39 @@ describe('coverage names why a text is not known', () => {
 
     expect(said.count).toMatchObject({ run: 3, over: { older: 0, notKnown: 3, why: ['the record was made before its rows named their text by its git blob, so which text ran is not known'] } });
     expect(answer.out.split('before its rows named their text by its git blob').length).toBe(2);
+  });
+
+  describe('in CI, where coverage takes the source index as published and builds none', () => {
+    afterEach(() => {
+      ci.isCI = false;
+    });
+
+    it('counts every region run as not known when no source index is published, says so once, and reads no text', async () => {
+      const { at } = await checkout(atRecord);
+      await rm(sourceIndexPath(at), { recursive: true, force: true });
+      // An edit a read of the disk would see: with no index, nothing reads it.
+      await writeFile(join(at, PAY_FILE), REFUNDED);
+      ci.isCI = true;
+
+      const answer = await ask('--root', at);
+      const said = await json('--root', at);
+      const markdown = await ask('--root', at, '--format', 'markdown');
+
+      expect(said.count).toMatchObject({ run: 3, over: { older: 0, notKnown: 3, why: ['no source index names the checkout\'s texts, so which text ran is not known'] } });
+      expect(answer.out.split('no source index names the checkout\'s texts').length).toBe(2);
+      expect(markdown.out).toContain('\n- Not known: no source index names the checkout\'s texts, so which text ran is not known\n');
+    });
+
+    it('parts what ran by the index as published', async () => {
+      const { at } = await checkout(atRecord);
+      await writeFile(join(at, PAY_FILE), REFUNDED);
+      await updateSourceIndex(at);
+      ci.isCI = true;
+
+      const said = await json('--root', at);
+
+      expect(said.count).toMatchObject({ run: 3, over: { older: 1, notKnown: 0, why: [] } });
+    });
   });
 
   it('keeps a function whose body gained only a comment as run over this text', async () => {

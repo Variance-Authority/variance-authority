@@ -356,7 +356,10 @@ the region's code, such as a comment you add inside a function, leaves it run.
 When the version a test ran cannot be found, because the record does not say
 which commit each test file last ran at, or that version was neither kept nor
 committed, the region counts as **not known**, and the reason is named once
-under the table.
+under the table. Which version you have checked out is the
+[source index](source-index.md)'s answer. In CI the index is the one your
+pipeline published with `variance index`, and with none published every region
+run counts as not known.
 
 ## Ask how many test files an edit would run
 

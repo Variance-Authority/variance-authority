@@ -11,7 +11,8 @@
  * `editsBetween`). The source index names each file on disk by its git blob,
  * and the record's rows name the text they were cut from the same way, so a
  * file whose rows hold the tree's text, run over that text by every place that
- * ran it, reads no text and no edit at all.
+ * ran it, reads no text and no edit at all. With no index, which text is on
+ * disk is not known, and nothing reads the disk to find out.
  */
 
 import { readFile } from 'node:fs/promises';
@@ -44,11 +45,15 @@ export type TreeBlobs = Pick<NonNullable<SourceUpdate['listing']>, 'digestsFor'>
 /** Why a file whose rows name no git blob is not known, whatever its runs ran. */
 const UNKEYED: RegionText = { unknown: 'the record was made before its rows named their text by its git blob, so which text ran is not known' };
 
+/** Why a file is not known when no source index names the texts on disk. */
+const NO_INDEX: RegionText = { unknown: 'no source index names the checkout\'s texts, so which text ran is not known' };
+
 /**
  * Over which text each test file of `index` ran each region, for the record at
  * `record` made at `recorded`, against the checkout at `root` as `tree`, the
  * source index's listing of it, names its files. Never throws: what cannot be
- * read is not known, with the reason.
+ * read is not known, with the reason, and so is every region run when there is
+ * no `tree`.
  */
 export async function textOver(root: string, record: string, recorded: string | undefined, index: ExecutionIndex, tree: TreeBlobs | undefined): Promise<TextOf> {
   const read = await runsOf(record, root);
@@ -74,10 +79,8 @@ export async function textOver(root: string, record: string, recorded: string | 
   }
   const cuts = rowCuts(record, index, new Set(placedOf.keys()));
   const files = [...placedOf.keys()];
-  const onDisk = new Map(tree === undefined ? [] : (() => {
-    const names = tree.digestsFor(files);
-    return files.map((file, at) => [file, names[at]] as const);
-  })());
+  const names = tree?.digestsFor(files);
+  const onDisk = new Map(names === undefined ? [] : files.map((file, at) => [file, names[at]] as const));
 
   // A file is steady when the rows hold the tree's text and every place that ran it ran that text: one
   // that names the file ran the text it names, and one that does not ran its commit's, which git names.
@@ -88,6 +91,7 @@ export async function textOver(root: string, record: string, recorded: string | 
   for (const [file, placed] of placedOf) {
     const cut = cuts.get(file);
     if (cut !== undefined && !('unknown' in cut) && cut.blob === undefined) unkeyed.add(file);
+    else if (tree === undefined) continue;
     else if (cut !== undefined && !('unknown' in cut) && cut.blob === onDisk.get(file) && placed.every(([, place]) => ranIt(place, file, cut.digest, committed))) keyed.set(file, placed);
     else asks.set(file, placed);
   }
@@ -104,6 +108,7 @@ export async function textOver(root: string, record: string, recorded: string | 
     const place = places.get(test);
     if (place === undefined || place.assumed === true) return nowhere;
     if (unkeyed.has(file)) return UNKEYED;
+    if (tree === undefined) return NO_INDEX;
     const over = texts.get(file)?.get(test);
     if (over === undefined) return 'this';
     return Array.isArray(over) ? (regionTouched(region, over) ? 'older' : 'this') : over as RegionText;
