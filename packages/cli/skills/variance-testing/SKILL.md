@@ -58,7 +58,7 @@ a pattern or no argument, and never record in CI.
 
 | The test | Record | Then ask |
 |---|---|---|
-| fails on some runs | the same test until it has passed and thrown, twice each | `story --name <name> --compare outcome` |
+| fails on some runs | nothing first: the record keeps the runs it read; when they name nothing, the same test until it has passed and thrown, twice each | `story --name <name> --compare outcome` |
 | passes alone, fails with its file, or the other way | under `VARIANCE_AUTHORITY_STORY=alone` with `-t`, then `=file` without, twice each | `story --name <name> --compare alone,file` |
 | behaves differently under a flag or a mock | each side under its own label, such as `=flag-on` | `story --name <name> --compare 1,flag-on` |
 

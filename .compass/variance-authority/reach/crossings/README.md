@@ -21,7 +21,8 @@ digests of the uncommitted texts it ran over. Out: the record itself, and the
 answers taken from it — which observations entered a changed region, which
 regions two observers parted over, which regions nobody entered at all, how much
 of what a test can statically reach it actually enters, which named tests
-reached a line, and when and over which text each of them last ran.
+reached a line, how a case's readings differed between runs over the same
+code, and when and over which text each of them last ran.
 
 ## Depends on
 
@@ -109,6 +110,10 @@ production markup with no runtime, read only inside the photographed roots.
   name the files it showed
 - `packages/sense/src/test-selection/case-lines.ts` — per case, the test line
   that first reached each region it crossed, stored as runs over the regions
+- `packages/sense/src/test-selection/case-readings.ts` — `layReadings` and
+  `readingsOf`: a case's earlier readings over unchanged module texts, kept
+  beside the newest as what each read otherwise, so a reader can set a failing
+  run against a passing one; `record_parts.rs` folds them across shards
 
 ## Diagram
 

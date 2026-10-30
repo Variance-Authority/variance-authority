@@ -444,9 +444,12 @@ and a region already covered by then is recorded as **loaded** by that file:
 that and nothing finer, for a suite that needs the signal at the price of one
 probe per function.
 
-**For one unit test that fails on some runs, compare its runs.** Record the
-test's [story](test-stories.md) on each run: the functions and branches it ran,
-in order. The order of async code is different on every run, so two stories
+**For one unit test that fails on some runs, compare its runs.** The coverage
+record keeps the runs of each test over the same code, and `variance story
+--compare outcome` compares them by the regions each run reached and the test
+line each was charged to, with nothing recorded first. When that names nothing,
+record the test's [story](test-stories.md) on each run: the functions and
+branches it ran, in order. The order of async code is different on every run, so two stories
 of one test always differ, and a different order is not the flake. `variance
 story --compare outcome` lists only what is true of every run that passed and
 of no run that threw — a branch, a line the code printed, or two steps in the

@@ -129,7 +129,7 @@ export function compareCases(
 const PAIRS = 5;
 
 /** Differences of one kind listed for a group of sides before the rest are counted. */
-const LISTED = 12;
+export const LISTED = 12;
 
 /**
  * A comparison as text: what holds on every reading of some sides and none of
@@ -220,12 +220,12 @@ function declarationText(place: PlaceDifference['place']): string {
   return `${name}  ${place.file}${place.startLine === undefined ? '' : `:${lines(place.startLine, place.endLine)}`}`;
 }
 
-function lines(start: number, end: number | undefined): string {
+export function lines(start: number, end: number | undefined): string {
   return end === undefined || end === start ? `${start}` : `${start}-${end}`;
 }
 
 /** A region's path as the arm it names: `for#0/body/if#1/else` is the `else` of an `if`. */
-function armWords(path: string): string {
+export function armWords(path: string): string {
   const parts = path.split('/');
   const arm = parts.at(-1)!;
   const construct = parts.at(-2)?.replace(/#\d+$/u, '');
