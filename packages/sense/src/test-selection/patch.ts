@@ -39,14 +39,21 @@ export interface Hunk {
   readonly at: number;
   readonly count: number;
   readonly lines: readonly string[];
+  /**
+   * The diff adds the file: its old side is `/dev/null`. A hunk that inserts
+   * at the top of a file it edits starts at `-0,0` too, so the position alone
+   * does not say the file had no text.
+   */
+  readonly added?: true;
 }
 
 /** The hunks of every file in the diff, under the name `changedLines` gives it. */
 export function hunksOf(diff: string): ReadonlyMap<string, readonly Hunk[]> {
   const byFile = new Map<string, Hunk[]>();
   let removed: string | undefined;
+  let added = false;
   let file: string | undefined;
-  let hunk: { at: number; count: number; lines: string[] } | undefined;
+  let hunk: { at: number; count: number; lines: string[]; added?: true } | undefined;
   let oldLeft = 0;
   let newLeft = 0;
 
@@ -64,15 +71,17 @@ export function hunksOf(diff: string): ReadonlyMap<string, readonly Hunk[]> {
     if (line.startsWith('diff --git ')) {
       file = undefined;
       removed = undefined;
+      added = false;
     } else if (line.startsWith('--- ')) {
       removed = diffPath(line.slice(4));
+      added = line.slice(4).split('\t')[0] === '/dev/null';
     } else if (line.startsWith('+++ ')) {
       file = removed ?? diffPath(line.slice(4));
     } else if (file !== undefined && line.startsWith('@@ ')) {
       const match = /^@@ -(\d+)(?:,(\d+))? \+\d+(?:,(\d+))? @@/.exec(line);
       if (match === null) continue;
       const count = Number(match[2] ?? '1');
-      hunk = { at: Number(match[1]), count, lines: [] };
+      hunk = { at: Number(match[1]), count, lines: [], ...(added ? { added: true as const } : {}) };
       oldLeft = count;
       newLeft = Number(match[3] ?? '1');
       byFile.set(file, [...(byFile.get(file) ?? []), hunk]);

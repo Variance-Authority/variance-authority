@@ -386,7 +386,9 @@ A changed file selects by how the snapshot records it.
   loaded it, every test that imports it mocked it, or it sits outside what the
   run instrumented. Pass `relations` and `sourceAt` and it is read, with every
   export counted as changed; the nearest files that import it and have a row
-  answer for what that reading cannot (below). It is listed in `unread` when no test
+  answer for what that reading cannot (below). An importer with no row is read
+  from the text the change leaves it, so a file the diff adds charges only the
+  functions that read a changed export. It is listed in `unread` when no test
   declares it and the graph has no node for it either.
 - **A stylesheet, image, or JSON file** can take no probe, so it never has a
   row. Pass `relations` to answer it through the graph instead (below).

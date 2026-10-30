@@ -112,9 +112,10 @@ export function commitFrame(
 /**
  * A file no row holds as the change leaves it: its text at the record's commit
  * under the first of its names the commit holds, with `hunks` applied, which
- * for a file the change adds is the hunks alone, and that text alone when the
+ * for a file the diff adds is the hunks alone, and that text alone when the
  * change does not move it. `undefined` when neither the commit nor the change
- * gives it a text, or the hunks do not apply.
+ * gives it a text — a file the commit does not hold and the diff does not add
+ * has an old text nobody read — or the hunks do not apply.
  */
 export function arrivedFrame(
   coverage: TestCoverageView,
@@ -125,6 +126,7 @@ export function arrivedFrame(
   if (sourceAt === undefined) return undefined;
   const held = heldFrame(coverage, names, sourceAt);
   if (hunks === undefined) return held;
+  if (held === undefined && hunks.some((hunk) => hunk.added !== true)) return undefined;
   const after = applied(held?.text ?? '', hunks)?.after;
   const name = held?.name ?? names[0];
   return after === undefined || name === undefined ? undefined : { name, text: after };
