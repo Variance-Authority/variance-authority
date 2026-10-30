@@ -41,6 +41,9 @@ pub struct Cadence {
 /// `it` and `test`.
 const BODIES: [&str; 9] = ["it", "test", "fit", "xit", "xtest", "beforeEach", "afterEach", "beforeAll", "afterAll"];
 
+/// The bodies of `BODIES` that are a hook's, called alone or off a test, as Playwright's `test.beforeEach(…)`.
+const HOOKS: [&str; 4] = ["beforeEach", "afterEach", "beforeAll", "afterAll"];
+
 /// What the file declares to receive its cuts: one line, no newline.
 const DECLARATION: &str =
     ";function __vaC(l){var r=globalThis.__VA__;if(r!=null&&typeof r.c===\"function\")r.c(l)}";
@@ -52,7 +55,9 @@ const DECLARATION: &str =
 /// Playwright's page is not: a statement of an async body awaits its cut, so
 /// the collector can drain what the statement before it reached before this
 /// one runs, and the cut names `file`, so a body declared in another file is
-/// told apart. A body that cannot wait is cut as it is without it.
+/// told apart. A body that cannot wait is cut as it is without it. A hook's
+/// cut says it is a hook's, since nothing in that realm tells the hook running
+/// apart from the test; Node's collector tells them by the bucket each runs in.
 pub fn cadence(source: &str, file: &str, awaited: bool) -> Option<Cadence> {
     let allocator = Allocator::new();
     let source_type = dialect(file).unwrap_or_default();
@@ -60,8 +65,8 @@ pub fn cadence(source: &str, file: &str, awaited: bool) -> Option<Cadence> {
     if parsed.panicked || !parsed.diagnostics.is_empty() {
         return None;
     }
-    let registrars = registrars(&parsed.program);
-    let mut cuts = Cuts { lines: Lines::new(source), edits: Vec::new(), awaited, waits: false, registrars };
+    let (registrars, hooks) = registrars(&parsed.program);
+    let mut cuts = Cuts { lines: Lines::new(source), edits: Vec::new(), awaited, waits: false, hook: false, registrars, hooks };
     cuts.visit_program(&parsed.program);
     if cuts.edits.is_empty() {
         return None;
@@ -91,7 +96,7 @@ fn declaration(file: &str, awaited: bool) -> String {
     }
     let mut named = String::new();
     json_string(&mut named, file);
-    format!(";function __vaC(l){{var r=globalThis.__VA__;__vaC.w=r!=null&&typeof r.c===\"function\"?r.c(l,{named}):void 0;return __vaC.w!=null}}")
+    format!(";function __vaC(l,h){{var r=globalThis.__VA__;__vaC.w=r!=null&&typeof r.c===\"function\"?r.c(l,{named},h===1):void 0;return __vaC.w!=null}}")
 }
 
 struct Cuts {
@@ -100,15 +105,26 @@ struct Cuts {
     awaited: bool,
     /// Whether the body being cut can wait on its cuts.
     waits: bool,
+    /// Whether the body being cut is a hook's, said by an awaited cut.
+    hook: bool,
     /// The names a test or hook body is registered under in this file.
     registrars: Vec<String>,
+    /// The names among them a hook body is registered under.
+    hooks: Vec<String>,
 }
 
 impl Cuts {
     fn cut(&mut self, at: u32) {
+        let call = self.call(at);
+        self.edits.push((at, format!("{call};")));
+    }
+
+    /// The call a cut at `at` makes, waited on where the body can wait.
+    fn call(&self, at: u32) -> String {
         let line = self.lines.at(at);
+        let hook = if self.awaited && self.hook { ",1" } else { "" };
         let wait = if self.waits { "&&await __vaC.w" } else { "" };
-        self.edits.push((at, format!("__vaC({line}){wait};")));
+        format!("__vaC({line}{hook}){wait}")
     }
 
     fn body(&mut self, function: &Argument) {
@@ -119,9 +135,8 @@ impl Cuts {
                     Some(body) => self.statements(&body.statements),
                     None => {
                         let span = arrow.body.span();
-                        let line = self.lines.at(span.start);
-                        let wait = if self.waits { "&&await __vaC.w" } else { "" };
-                        self.edits.push((span.start, format!("(__vaC({line}){wait},")));
+                        let call = self.call(span.start);
+                        self.edits.push((span.start, format!("({call},")));
                         self.edits.push((span.end, ")".to_string()));
                     }
                 }
@@ -191,10 +206,12 @@ impl Cuts {
 impl<'a> Visit<'a> for Cuts {
     fn visit_call_expression(&mut self, it: &CallExpression<'a>) {
         // Playwright's `test.describe(…)` starts from `test` and holds tests.
-        let registers = root_name(&it.callee).is_some_and(|name| self.registrars.iter().any(|known| known == name));
+        let root = root_name(&it.callee);
+        let registers = root.is_some_and(|name| self.registrars.iter().any(|known| known == name));
         if !registers || has_member(&it.callee, "describe") {
             return walk::walk_call_expression(self, it);
         }
+        self.hook = root.is_some_and(|name| self.hooks.iter().any(|known| known == name)) || HOOKS.iter().any(|hook| has_member(&it.callee, hook));
         self.visit_expression(&it.callee);
         for argument in &it.arguments {
             match argument {
@@ -208,9 +225,11 @@ impl<'a> Visit<'a> for Cuts {
 /// The names a body is registered under: `BODIES`, a specifier that
 /// imports one of them under another name, and a top-level binding that
 /// `.extend` made from a registrar, as Playwright's and Vitest's `test.extend`
-/// make a test with fixtures, followed through any number of extensions.
-fn registrars(program: &Program) -> Vec<String> {
+/// make a test with fixtures, followed through any number of extensions; and
+/// the names among them a hook is registered under.
+fn registrars(program: &Program) -> (Vec<String>, Vec<String>) {
     let mut names: Vec<String> = BODIES.iter().map(|name| name.to_string()).collect();
+    let mut hooks: Vec<String> = HOOKS.iter().map(|name| name.to_string()).collect();
     let mut extended: Vec<(&str, &str)> = Vec::new();
     for statement in &program.body {
         let declaration = match statement {
@@ -220,6 +239,9 @@ fn registrars(program: &Program) -> Vec<String> {
                         let imported = it.imported.name();
                         if BODIES.contains(&imported.as_str()) && it.local.name != imported {
                             names.push(it.local.name.to_string());
+                            if HOOKS.contains(&imported.as_str()) {
+                                hooks.push(it.local.name.to_string());
+                            }
                         }
                     }
                 }
@@ -253,7 +275,7 @@ fn registrars(program: &Program) -> Vec<String> {
             }
         }
         if names.len() == before {
-            return names;
+            return (names, hooks);
         }
     }
 }
@@ -413,14 +435,30 @@ mod tests {
         assert!(out.contains("  __vaC(2)&&await __vaC.w;await page.goto('/');\n  __vaC(3)&&await __vaC.w;check();\n"), "{out}");
         assert!(out.contains("  __vaC(6);go();"), "a body that cannot wait is cut as it was: {out}");
         assert!(out.contains("async () => (__vaC(8)&&await __vaC.w,page.click())"), "{out}");
-        assert!(out.contains("r.c(l,\"/repo/e2e/a.spec.ts\")"), "{out}");
+        assert!(out.contains("r.c(l,\"/repo/e2e/a.spec.ts\",h===1)"), "{out}");
         assert_eq!(out.lines().count(), 8);
+    }
+
+    #[test]
+    fn an_awaited_cut_in_a_hook_says_it_is_a_hook() {
+        let out = awaited("import { beforeAll as once } from '@playwright/test';\ntest.beforeEach(async () => {\n  await a();\n});\nafterEach(() => {\n  b();\n});\nonce(() => {\n  c();\n});\ntest('t', async () => {\n  await d();\n});\n");
+        assert!(out.contains("__vaC(3,1)&&await __vaC.w;await a();"), "{out}");
+        assert!(out.contains("__vaC(6,1);b();"), "{out}");
+        assert!(out.contains("__vaC(9,1);c();"), "an imported alias of a hook is a hook: {out}");
+        assert!(out.contains("__vaC(12)&&await __vaC.w;await d();"), "a test's cut is not a hook's: {out}");
+    }
+
+    #[test]
+    fn a_cut_in_a_node_hook_names_only_its_line() {
+        // Node's collector tells a hook by the bucket it runs in.
+        let out = cut("beforeEach(() => {\n  a();\n});\n");
+        assert!(out.contains("__vaC(2);a();"), "{out}");
     }
 
     #[test]
     fn an_awaited_cut_escapes_its_file_as_a_string() {
         let out = cadence("test('t', () => {\n  go();\n});\n", "C:\\e2e\\\"a\".spec.js", true).expect("it parses").code;
-        assert!(out.contains("r.c(l,\"C:\\\\e2e\\\\\\\"a\\\".spec.js\")"), "{out}");
+        assert!(out.contains("r.c(l,\"C:\\\\e2e\\\\\\\"a\\\".spec.js\",h===1)"), "{out}");
     }
 
     #[test]

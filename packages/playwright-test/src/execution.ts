@@ -64,9 +64,10 @@ export interface ExecutionRecorder {
    * case whose file was cut: each region the window holds that the case has
    * not reached under an earlier line is charged to it. A case drained without
    * one carries no lines, and a region drained without one before its first is
-   * ambient.
+   * ambient. `hook` says `line` is a hook's statement, so what it reached is
+   * ambient too.
    */
-  readonly note: (page: EvaluatingPage, owner: string, subject?: ObservedTest, line?: number) => Promise<void>;
+  readonly note: (page: EvaluatingPage, owner: string, subject?: ObservedTest, line?: number, hook?: boolean) => Promise<void>;
   /**
    * The script that makes a page tape the case's story, where the run asked
    * for stories under `VARIANCE_AUTHORITY_STORY`: put on a context before its
@@ -197,7 +198,7 @@ export function createExecutionRecorder(
       const key = caseKey(owner, subject.id);
       looked.set(key, [...(looked.get(key) ?? []), ...(journal === undefined ? [] : [{ attempt, journal }])]);
     },
-    note: async (page, owner, subject, line) => {
+    note: async (page, owner, subject, line, hook) => {
       const journal = await quietly(page, () => drainExecution(page));
       if (journal === undefined) return;
       seen = true;
@@ -207,7 +208,7 @@ export function createExecutionRecorder(
       owners.set(owner, accumulated);
       if (subject === undefined) return;
       const held = caseOf(owner, subject);
-      if (line !== undefined) reached.charge(caseKey(owner, subject.id), held, journal.modules, line);
+      if (line !== undefined) reached.charge(caseKey(owner, subject.id), held, journal.modules, line, hook === true);
       absorb(held, journal);
       if (journal.story !== undefined) stories?.add(storyCase(owner, subject), journal.story);
     },

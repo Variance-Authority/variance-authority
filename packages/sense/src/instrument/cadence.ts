@@ -33,9 +33,10 @@ export interface CutTestFile {
  *
  * `awaited` is for a runner whose collector is outside the test's realm, as a
  * Playwright page is: each statement of an async body awaits what
- * `__VA__.c(line, file)` returns, so the collector can drain what the
- * statement before it reached first, and `file` tells a body declared in
- * another file apart. A body that is not async is cut as it is without it.
+ * `__VA__.c(line, file, hook)` returns, so the collector can drain what the
+ * statement before it reached first, `file` tells a body declared in another
+ * file apart, and `hook` says the statement is a hook's. A body that is not
+ * async is cut as it is without it.
  */
 export function cadence(source: string, file: string, options: { readonly awaited?: boolean } = {}): CutTestFile | undefined {
   const cut = instrumenter().cadence(source, file, options.awaited === true);

@@ -62,7 +62,7 @@ export const varianceDocumentFixtures: Fixtures<
     const statements = drainEachStatement(context, varianceRecorder, owner, testInfo);
     await use(context);
     documents.stop();
-    const { line, stalled } = await statements.stop();
+    const { line, hook, stalled } = await statements.stop();
     // A page that held the statements' drain holds this one too, and the test's
     // timeout is all that would end it: the case is not believed whole instead.
     let lost = documents.lost() || stalled;
@@ -70,7 +70,7 @@ export const varianceDocumentFixtures: Fixtures<
     for (const page of stalled ? [] : context.pages()) {
       for (const frame of page.frames()) {
         try {
-          await varianceRecorder.note(frame, owner, testOf(testInfo), line);
+          await varianceRecorder.note(frame, owner, testOf(testInfo), line, hook);
         } catch {
           // A frame detached between listing and draining, or a document torn
           // down mid-evaluation: its window is gone, which is the same fact as
@@ -97,7 +97,7 @@ interface Statements {
    * Stop draining per statement; resolves to the line the rest is charged to,
    * and whether the page held the last drain past {@link STATEMENT_WAIT_MS}.
    */
-  readonly stop: () => Promise<{ readonly line: number | undefined; readonly stalled: boolean }>;
+  readonly stop: () => Promise<{ readonly line: number | undefined; readonly hook: boolean; readonly stalled: boolean }>;
 }
 
 /** Whether `work` settles within {@link STATEMENT_WAIT_MS}. */
@@ -118,9 +118,10 @@ function settlesInTime(work: Promise<void>): Promise<boolean> {
  * reached it.
  *
  * The spec was compiled with the cadence plugin ([`cadence-babel.cts`](./cadence-babel.cts)),
- * which awaits what `__VA__.c(line, file)` returns before each statement of an
- * async test or hook body. A spec compiled without it never calls this, and
- * every region it reached is ambient. A body declared in another file names
+ * which awaits what `__VA__.c(line, file, hook)` returns before each statement
+ * of an async test or hook body. A region a hook's statement reached first is
+ * ambient under that line, as Node's collector charges it. A spec compiled
+ * without the plugin never calls this, and every region it reached is ambient. A body declared in another file names
  * that file and is not waited on: its work is charged to the spec's statement
  * that called it.
  *
@@ -136,37 +137,34 @@ function drainEachStatement(
   owner: string,
   testInfo: TestInfo,
 ): Statements {
-  type Cut = (line: number, file: string) => unknown;
+  type Cut = (line: number, file: string, hook: boolean) => unknown;
   const realm = globalThis as { __VA__?: { c?: Cut } };
   const held = realm.__VA__;
   const outer = held?.c;
   const subject = testOf(testInfo);
-  let last: number | undefined;
+  let last: { line: number; hook: boolean } | undefined;
   let late = false;
   let draining: Promise<void> = Promise.resolve();
 
-  const drain = (line: number | undefined) => async () => {
-    if (line !== undefined && !late) recorder.cut?.(owner, subject, line);
+  const drain = (reached: { line: number; hook: boolean } | undefined) => async () => {
+    if (reached !== undefined && !late) recorder.cut?.(owner, subject, reached.line);
     for (const page of context.pages()) {
       for (const frame of page.frames()) {
         try {
-          await recorder.note(frame, owner, subject, late ? undefined : line);
+          await recorder.note(frame, owner, subject, late ? undefined : reached?.line, reached?.hook);
         } catch {
           // Answered by the document watch and the teardown drain.
         }
       }
     }
   };
-  // FIXME: a `test.beforeEach` or `test.afterEach` statement is drained under the case’s own line;
-  // every other seam flags a hook's line as a hook's, and the cut does not say
-  // which body it is in.
-  const c: Cut = (line, file) => {
-    const theirs = outer?.(line, file);
+  const c: Cut = (line, file, hook) => {
+    const theirs = outer?.(line, file, hook);
     // Once a drain was late no statement records its line, so none waits on
     // the held drain again: the teardown drain reads what they reached.
     if (file !== testInfo.file || late) return theirs;
     const reached = last;
-    last = line;
+    last = { line, hook };
     draining = draining.then(drain(reached));
     const waited = settlesInTime(draining).then((inTime) => {
       if (!inTime) late = true;
@@ -184,7 +182,7 @@ function drainEachStatement(
       else held.c = outer;
       const stalled = !(await settlesInTime(draining));
       if (stalled) late = true;
-      return { line: late ? undefined : last, stalled };
+      return { line: late ? undefined : last?.line, hook: !late && last?.hook === true, stalled };
     },
   };
 }
