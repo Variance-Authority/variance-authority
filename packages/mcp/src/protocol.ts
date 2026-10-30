@@ -2,7 +2,6 @@ import type { EyesArchive } from '@variance-authority/eyes';
 import type { PresentationReport } from '@variance-authority/presentation';
 import type { RunReport } from '@variance-authority/report';
 import type { ScenarioArchiveManifest } from '@variance-authority/scenario/archive';
-import type { ExecutionIndex } from '@variance-authority/sense/test-selection';
 import type { VantageState } from '@variance-authority/vantage';
 import type { ObservabilitySubject } from './observability-subject.js';
 import type { Served } from './tools/tool.js';
@@ -11,7 +10,6 @@ import {
   OBSERVABILITY_TOOLS,
   PRESENTATION_TOOLS,
   SCENARIO_TOOLS,
-  SOURCE_TEST_TOOLS,
   TOOLS,
   VANTAGE_TOOLS,
 } from './tools.js';
@@ -46,17 +44,6 @@ export const REPORTS: Served<RunReport> = {
     'This connection reads a completed RunReport; it does not run or reconstruct the comparison. ' +
     'Produce one with `variance run` and a configured `report` path. ' +
     'Guide: https://variance-authority.dev/start/cli',
-};
-
-/** The MCP surface for agents asking which named tests exercise source. */
-export const SOURCE_TESTS: Served<ExecutionIndex> = {
-  name: SERVER_NAME,
-  version: SERVER_VERSION,
-  tools: SOURCE_TEST_TOOLS,
-  instructions: () =>
-    'This connection reads an ExecutionIndex with stable per-test identities. Sense ships the ' +
-    'query and no producer for that index; a per-file test-selection snapshot cannot substitute. ' +
-    'Guide: https://variance-authority.dev/reference/packages/sense',
 };
 
 /**

@@ -276,11 +276,6 @@
   },
   {
     "idiom": "code-unit-order",
-    "at": "packages/mcp/src/tools/source-tests.ts",
-    "count": 1
-  },
-  {
-    "idiom": "code-unit-order",
     "at": "packages/mcp/src/tools/source-tree-format.ts",
     "count": 1
   },

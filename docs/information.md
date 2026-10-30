@@ -388,8 +388,8 @@ cannot erase earlier evidence by silence. A changed instrumentation generation
 replaces the incompatible block universe.
 
 `ExecutionIndex` is the runner-independent query shape used for source-to-test
-questions. An MCP integration supplies it to the tool; the MCP server is not
-its store. The persisted Vitest coverage file and a supplied [execution
+questions, which `variance covering` asks of it. An MCP integration supplies it
+to `variance_distill`; the MCP server is not its store. The persisted Vitest coverage file and a supplied [execution
 index](execution-record.md) are two sources for the runtime domain, not copies
 of the visual run report.
 
