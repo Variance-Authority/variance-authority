@@ -451,6 +451,24 @@ describe('coverage names why a text is not known', () => {
     }
   });
 
+  it('counts the regions run in a file that does not read as not known, and says its text cannot be found', async () => {
+    // The index names the edit, so the text on disk must be read to diff it, and it does not read.
+    const { at } = await checkout(atRecord);
+    await writeFile(join(at, PAY_FILE), REFUNDED);
+    await updateSourceIndex(at);
+    await chmod(join(at, PAY_FILE), 0o000);
+    ci.isCI = true;
+    try {
+      expect((await json('--root', at)).count).toMatchObject({
+        run: 3,
+        over: { older: 0, notKnown: 2, why: [`a text of ${PAY_FILE} the record or a run names cannot be found`] },
+      });
+    } finally {
+      ci.isCI = false;
+      await chmod(join(at, PAY_FILE), 0o644);
+    }
+  });
+
   it('keeps a function whose body gained only a comment as run over this text', async () => {
     const { at } = await checkout(atRecord);
     await writeFile(join(at, PAY_FILE), PAY.replace('  return -amount;', '  // refunds are negative\n  return -amount;'));
