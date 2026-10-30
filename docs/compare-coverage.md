@@ -91,7 +91,7 @@ instrument and no second run.
 | Code that only ran on the way to something else | no answer | counted per suite as [accidental](own-fewer-tests.md#earned-and-accidental-coverage): run by some test, never by its own package's tests within one import hop |
 | Code reached only from far away | no answer | counted by the import hops of the nearest test that ran it, with [`--at-distance`](own-fewer-tests.md#ask-which-code-only-distant-tests-run) |
 | Why a suite's number changed | the difference of two totals | regions newly run, no longer run, added and removed, which add up to the change; a region whose test has not run since its file changed is counted as unmeasured, not as no longer run |
-| Code whose tests ran an older text | counted as run | counted apart, per suite, scope and [package](own-fewer-tests.md#code-that-ran-over-an-older-text): run over an older text when every test that ran a region ran it before an edit that touched it, and not known, with the reason, when the text a test ran cannot be found |
+| Code whose tests ran an older text | counted as run | counted apart, per suite, scope and [package](own-fewer-tests.md#ask-what-still-holds-since-the-code-changed): run over an older text when every test that ran a region ran it before an edit that touched it, and not known, with the reason, when the text a test ran cannot be found |
 | Which test file accounts for it | no answer | named |
 | Files no test ran | at 0%, when the reporter is told to include every file under a glob | listed with their lines and regions, within the application `--from` names, following its imports into shared packages |
 | A suite that has not run | the last report, carried forward | `unrecorded`, never `0%` |
