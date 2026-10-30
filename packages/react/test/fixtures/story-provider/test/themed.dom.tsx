@@ -1,7 +1,5 @@
-// @vitest-environment jsdom
 import { act } from 'react';
 import { createRoot } from 'react-dom/client';
-import { expect, it } from 'vitest';
 import { App } from '../src/themed.js';
 
 it('shows the theme it was given', () => {

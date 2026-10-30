@@ -12,7 +12,7 @@ export default withTestSelection(
   defineConfig({
     root,
     esbuild: { jsx: 'automatic' },
-    test: { include: ['test/*.dom.tsx'], setupFiles: ['@variance-authority/react/story'] },
+    test: { include: ['test/*.dom.tsx'], environment: 'jsdom', globals: true, setupFiles: ['@variance-authority/react/story'] },
   }),
   {
     coverageFile,

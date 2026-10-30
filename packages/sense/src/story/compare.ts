@@ -123,7 +123,7 @@ export interface SideSummary {
 interface Read {
   /** Every region it went into, by key. */
   readonly regions: Set<string>;
-  /** Every line it said, by text. */
+  /** Every line it said, by text and how many times: `text\0count`. */
   readonly said: Set<string>;
   /** Each moment's first arrival, by key, in order. */
   readonly first: Map<string, number>;
@@ -179,7 +179,7 @@ export function compareLoaded(root: string, sides: readonly LoadedSide[]): Compa
     only: groups.map((group) => ({
       sides: named(group.split(',').map(Number)),
       places: (places.held.get(group) ?? []).map((key) => names.get(key)!),
-      said: said.held.get(group) ?? [],
+      said: (said.held.get(group) ?? []).map(shownSaid),
     })),
     orders: order.differing.map(({ pair: [first, then], before }) => ({
       pair: [moments.get(first)!, moments.get(then)!] as const,
@@ -204,14 +204,26 @@ function summary(side: LoadedSide): SideSummary {
   return { name: side.name, readings: side.readings.length, stopped: side.readings.filter((loaded) => loaded.story.stopped === true).length };
 }
 
-// A ref a story gives an object is the order its run first met it, so one more
-// object early in a run renumbers every ref after it. Across runs a handed
-// value is its kind, and a ref says only that it is an object.
-const REF = /(?<=^(?:handed|holds) (?:.*, )?[\p{ID_Continue}$]+=)ref\d+(?!\d)/gu;
+// A ref numbers objects in the order a run met them, so across runs a value
+// the tap showed — handed, held, or in a note — compares by its kind alone. A
+// ref is a word of its own, then the kind or a cut; a console line spelled
+// alike compares the same.
+const REF = /(?<=^|[\s=])ref\d+(?=[\s…]|$)/gu;
 
-/** What a line said means in another run: a handed object's ref without its number. */
+/** The text a said key holds, without the times it was said. */
+function textOf(key: string): string {
+  return key.slice(0, key.lastIndexOf('\0'));
+}
+
+/** A said key as a person reads it: the text, and `×n` where it was said more than once, so a line said twice on one side and once on the other is told apart. */
+function shownSaid(key: string): string {
+  const times = key.slice(key.lastIndexOf('\0') + 1);
+  return times === '1' ? textOf(key) : `${textOf(key)} ×${times}`;
+}
+
+/** What a line said means in another run: each object's ref without its number. */
 export function acrossRuns(said: string): string {
-  return said.startsWith('handed ') || said.startsWith('holds ') ? said.replace(REF, 'ref') : said;
+  return said.replace(REF, 'ref');
 }
 
 /**
@@ -230,6 +242,9 @@ function readReading(root: string, { story, files, regions }: Loaded, names: Map
     total += count;
   }
   const read: Read = { regions: new Set(), said: new Set(), first: new Map() };
+  // A line is kept with how many times it was said: an extra commit says its
+  // lines again, and is how two tests most often render apart.
+  const times = new Map<string, number>();
   let clock = 0;
   const arrive = (key: string, moment: Moment): void => {
     if (!moments.has(key)) moments.set(key, moment);
@@ -238,7 +253,7 @@ function readReading(root: string, { story, files, regions }: Loaded, names: Map
   };
   const hear = (said: string): void => {
     const text = acrossRuns(said);
-    read.said.add(text);
+    times.set(text, (times.get(text) ?? 0) + 1);
     if (!read.first.has(`s${text}`)) read.first.set(`s${text}`, clock);
     arrive(`m\0said\0${text}`, { said: text });
   };
@@ -280,6 +295,7 @@ function readReading(root: string, { story, files, regions }: Loaded, names: Map
   if (before) walk(story.before, story.beforeNotes);
   const start = clock;
   walk(story.visits, story.notes);
+  for (const [text, count] of times) read.said.add(`${text}\0${count}`);
   if (story.parts !== undefined) {
     // A part or a line placed after `at` visits and `said` notes opens at tick `at + said`.
     const opens = (cuts: readonly (readonly [number, ...(number | undefined)[]])[], said: number): number[] => cuts.map((cut) => cut[0] + cut[said]!);

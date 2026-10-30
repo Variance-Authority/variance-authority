@@ -227,19 +227,17 @@ The options are caller policy rather than hidden defaults:
 
 | call | controls |
 |---|---|
-| `tapCommits` | `scope` supplies an isolated hook object, `nameLimit` bounds rendered-component traversal, `updaterLimit` bounds update initiators, `keep` bounds retained commits, `onCommit` streams the same record, `refuseIfLoaded` keeps a late tap from claiming coverage, and `createHook` set to `false` skips writing a hook nobody will read |
+| `tapCommits` | `scope` supplies an isolated hook object, `nameLimit` bounds rendered-component traversal, `updaterLimit` bounds update initiators, `keep` bounds retained commits, `onCommit` streams the same record, `onRender` hands over each component that rendered while its previous render is still on `fiber.alternate`, `refuseIfLoaded` keeps a late tap from claiming coverage, and `createHook` set to `false` skips writing a hook nobody will read |
 | `awaitQuiet` | `quietFor` is the required silence, `timeout` bounds the wait, `interval` controls polling; a timeout returns `settled: false` with the restless component names |
 | `awaitSuspense` | `timeoutMs`, `pollMs` and `confirmations`, as above |
 | `walkFiberSubtree` | `limit` caps the fibers one read-only walk visits, 500,000 by default; at the limit the walk returns `truncated: true` rather than a short answer that looks complete |
 
-## Name React objects in a test story
+## React in a test story
 
-A [test story](https://variance-authority.dev/docs/test-stories) shows each
-object a function was handed as a ref and a kind. Without help, a context, a
-memo and an element are each `Object`, because that is their constructor. Add
-this package's `story` entry to your suite's setup files, and the story names
-each by the `$$typeof` mark React gave it — `react.context`, `react.memo`,
-`react.forward_ref`:
+A [test story](https://variance-authority.dev/docs/test-stories) shows where
+one test went and what each function was handed. Add this package's `story`
+entry to your suite's setup files, and the story also says which component
+rendered at each step, and why, each commit opened by a line that counts the components it rendered:
 
 ```ts
 // vitest.config.ts
@@ -248,8 +246,51 @@ export default defineConfig({
 });
 ```
 
-In Jest the same entry goes in `setupFiles`. It reads the mark as a property
-and runs none of React's code.
+```text
+  1  cart.tsx ×7
+       » commit — 3 rendered
+       » rendered Cart — mounted with Badge, Summary
+       » commit — 3 rendered, started by Cart
+       » rendered Cart — useState #0 false → true
+       » rendered Badge — its parent rendered
+       » rendered Summary — expanded false → true
+```
+
+The cause is each input that moved since the component's last render, by
+`Object.is`: a prop other than `children`, a cell of retained state by its hook
+call, a class component's `this.state`, or a context value. Values are shown as
+the story shows what a function was handed: a primitive as itself, an object by
+its ref, so the callback rebuilt on every render is a new ref each time and a
+value passed down keeps the ref it had where it was made. When nothing moved
+and the props object is new, the line says `its parent rendered`; when it is
+the same object, `no input it reads moved`, a cause such as `forceUpdate` that
+the reader does not see. A component a Suspense boundary held back says `the
+Suspense boundary above it came back from its fallback` when the boundary
+retries, since what moved is the cache it read. A function that moved but was
+written by the same source says `(same source)` after its values, and a plain
+object or array equal in value `(equal value)`: the props a `useCallback` or a
+`useMemo` would have kept. A commit an update started names the component
+whose update it carried, `started by Cart`, in a development or profiling
+build, where React records it. A component rendered inside a hidden
+`<Activity>`, or behind a fallback, is named `(hidden)`, `rendered Panel
+(hidden) — mounted`, since React renders that tree ahead of showing it. A subtree that mounts says so once, at its top, with each component that
+mounted below it: `mounted with Badge, Summary`, over more lines with the same opening where the names would not fit on one. A component given a key, or
+wrapped in a keyed `memo` or fragment, is named with it, `rendered Row key="b" — …`, so the rows of one list read apart. A hook the reader does not
+know ends what it can read, and the line says `state not read past` that hook
+rather than that nothing moved; a build that keeps no record of its hooks says
+`state not read`. Compare two tests' stories, and each render line only one of
+them said is listed at its step: compare leaves a ref's number out, since a run
+numbers objects in the order it met them.
+
+The setup reads the cause from the commit React just finished, through the
+DevTools hook, so it has to run before `react-dom` loads, which a setup file
+does: `setupFiles` in Vitest, Jest and Rstest alike. The line lands at the step
+the test was on when React committed. With no story being recorded it taps
+nothing. When `react-dom` loaded and mounted before it, React announces no
+commit, and the story says `renders not read: react-already-loaded` rather than
+nothing; any other reason the tap was refused is named the same way. It also names each React object a function was handed by the
+`$$typeof` mark React gave it — `react.context`, `react.memo`,
+`react.forward_ref` — where a story would otherwise say `Object`.
 
 ## Where the source location comes from
 

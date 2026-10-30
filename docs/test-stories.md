@@ -207,7 +207,8 @@ variance story --name "saves the total it charges" --compare outcome
 
 `--compare outcome` puts the readings in two groups, the runs that passed and
 the runs that threw. It lists only what is true of every reading in one group
-and of no reading in the other:
+and of no reading in the other, and a line said is compared with how many times
+it was said, `×2` where that is more than once:
 
 ```text
 compare  src/checkout.test.ts > saves the total it charges
@@ -581,8 +582,40 @@ whole run, so the same ref at two steps is the same object: here `Panel` read
 the very theme `ThemeProvider` was given. The examples elsewhere on this page leave these
 lines out, so their steps read short.
 
-When you [compare readings](#compare-readings-of-one-test), a handed line is
-compared as a printed one is: a value handed on every reading of one side and
+The same setup file says why each React component rendered, at the step the
+test was on when React committed, after a `commit — 3 rendered` line that opens
+each commit and counts the components it rendered, `commit — 0 rendered` for one
+that rendered only host elements: `rendered Summary — expanded false → true`
+for a prop, `rendered Cart — useState #0 false → true` for a hook's state,
+`state` for a class component's, a context by its display name, `mounted` for
+a first render, said once at the top of a subtree that mounts with each component that
+mounted below it (`mounted with Badge, Summary`, over more lines where the names would not fit on one), and `its parent
+rendered` when none of its inputs moved, or `no input it reads moved` when even
+the props object is the one it had, and `the Suspense boundary above it came
+back from its fallback` when the boundary retried it after what it suspended
+on settled. A commit an update started names the component whose update it
+carried, `commit — 1 rendered, started by Cart`, in a development or profiling
+build, where React records it. A component rendered inside a hidden
+`<Activity>` or behind a fallback is named `(hidden)`, `rendered Panel (hidden)
+— mounted`, since React renders that tree before it shows it. A component
+given a key, or wrapped in a keyed `memo` or fragment, is named with it, `rendered Row key="b" — …`, so the rows of one
+list read apart. A value that moved is shown as a
+handed one is, so a callback rebuilt on every render reads `onPick ref4
+function onPick → ref9 function onPick (same source)`, and an object rebuilt
+equal in value ends `(equal value)`: what a `useCallback` or `useMemo` would
+have kept. A hook the reader does not know ends
+what it reads, and the line says `state not read past` it, or `state not
+read` alone in a build that keeps no record of its hooks. Two tests that render
+the same tree for different reasons are told apart by these lines: a comparison
+lists each line only one test said, at its step, and a line one test said more
+times than the other with how many, `commit — 1 rendered ×2`, so a test that
+commits twice reads apart from one that commits once.
+When `react-dom` loaded and mounted before the setup file, React announces no
+commit, and the story says `renders not read: react-already-loaded`; any other
+reason the tap was refused is named the same way.
+
+When you [compare readings](#compare-readings-of-one-test), a handed line or a
+render line is compared as a printed one is: a value handed on every reading of one side and
 on no reading of the other is listed with its step. A ref is numbered in the
 order the run first met each object, so across readings it is compared without
 its number: `ref Object`, by kind.
@@ -603,6 +636,9 @@ their step:
 - **[Eyes](eyes.md)**, when your tests use it. Each query with its arguments and
   what it found, each event and the element it fired on, each React commit with
   the components that rendered, and each Arrange, Act and Assert phase you mark.
+- **`@variance-authority/react/story`**, when it is in your setup files. Each
+  component React rendered at a commit, and why, after a line that opens the
+  commit, in place of Eyes' commit line.
 - **[`vae`](../packages/event/README.md)**, when your product code uses it.
   Each announcement it makes.
 

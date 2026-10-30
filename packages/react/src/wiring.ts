@@ -1,5 +1,6 @@
 import type { Wiring } from '@variance-authority/core/format';
-import { FiberTag, findCommittedFiber, isOwnerFrame, type ContextDependency, type Fiber } from './fiber.js';
+import { FiberTag, findCommittedFiber, isOwnerFrame, type Fiber } from './fiber.js';
+import { contextReadsOf } from './inputs.js';
 
 /**
  * Reading the framework's own account of a component, as a dimension.
@@ -69,9 +70,6 @@ const HOST_TAGS: ReadonlySet<number> = new Set([
 
 /** Guards the `return` walk, like every other walk in this package. */
 const MAX_FIBER_DEPTH = 10_000;
-
-/** Bounds the context list walk against a cycle in `next`. */
-const MAX_CONTEXTS = 256;
 
 /**
  * How the framework holds the component that rendered this node.
@@ -229,18 +227,6 @@ function wrappersOf(fiber: Fiber): readonly ('memo' | 'forwardRef')[] | undefine
  * load-bearing and is preserved in {@link hookNames}; subscription order is not.
  */
 function contextNames(fiber: Fiber): readonly string[] | undefined {
-  let link: ContextDependency | null | undefined = fiber.dependencies?.firstContext;
-  if (!link) return undefined;
-
-  const names = new Set<string>();
-  for (let seen = 0; seen < MAX_CONTEXTS && link; seen += 1) {
-    const displayName = link.context?.displayName;
-    // Named `(anonymous)` rather than skipped: a subscription nobody named is
-    // still a subscription, and dropping it would let a component that gained
-    // one hash equal to one that has none.
-    names.add(typeof displayName === 'string' && displayName !== '' ? displayName : '(anonymous)');
-    link = link.next;
-  }
-
+  const names = new Set(contextReadsOf(fiber).map((read) => read.name));
   return names.size === 0 ? undefined : [...names].sort();
 }

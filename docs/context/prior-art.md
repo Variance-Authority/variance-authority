@@ -238,6 +238,23 @@ reference.
 to the minimal hunk responsible. It belongs to the *attribute* rung of
 [`instruments.md`](../instruments.md) and there is nothing like it here.
 
+### Why a component rendered
+
+**React DevTools' Profiler**, with "record why each component rendered" on,
+compares each fiber with its previous render and names what moved: props by
+name, hooks by their index, state, context. **why-did-you-render** patches React
+to log a render whose props or state are equal by value but not by identity, the
+avoidable kind. **react-scan** reads the same fibers through the DevTools hook
+and paints each render on the page.
+
+All three answer the question for one person watching one session. The render
+lines a test story says answer it for a recording: the same alternate
+comparison, values shown by ref, written at the step that caused the commit, so
+two tests' stories can be compared and the render whose cause differs is listed
+where it happened. The Profiler can export a session and import it again, but
+it reads one session at a time: none of the three compares two recorded runs
+step by step.
+
 ## Web UI difference
 
 **XPERT** (Roy Choudhary, Prasad, Orso, ICSE 2013) detects cross-browser

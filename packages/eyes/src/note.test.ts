@@ -1,9 +1,10 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { createEyesLog, type TargetSnapshot } from './access.js';
-import { noteOf } from './note.js';
+import { noteOf, sayToStory } from './note.js';
 
 const NOTE = Symbol.for('variance-authority.story.note');
-const scope = globalThis as { [NOTE]?: unknown };
+const TAPPED = Symbol.for('variance-authority.react.story.tapped');
+const scope = globalThis as { [NOTE]?: unknown; [TAPPED]?: true };
 
 const button = (owner?: string): TargetSnapshot => ({
   nodeName: 'BUTTON',
@@ -16,6 +17,7 @@ const button = (owner?: string): TargetSnapshot => ({
 
 afterEach(() => {
   delete scope[NOTE];
+  delete scope[TAPPED];
 });
 
 describe('what Eyes says to a story', () => {
@@ -28,7 +30,7 @@ describe('what Eyes says to a story', () => {
       .toBe('eyes getAllByRole("row") → nothing');
   });
 
-  it('names a locator chain, an event and whether it was synthetic, a commit and a phase', () => {
+  it('names a locator chain, an event and whether it was synthetic, and a phase', () => {
     expect(noteOf({
       kind: 'playwright-locator',
       operation: 'action',
@@ -40,6 +42,22 @@ describe('what Eyes says to a story', () => {
     expect(noteOf({ kind: 'document-event', event: 'click', trusted: false, target: button('SaveBar') }))
       .toBe('eyes click (synthetic) on button#save "Save" in SaveBar');
     expect(noteOf({ kind: 'eyes-phase', phase: 'act' })).toBe('eyes act');
+  });
+
+  it('leaves a commit to the React story setup, which says each component that rendered with its cause', () => {
+    const said: string[] = [];
+    scope[NOTE] = (text: string) => said.push(text);
+    scope[TAPPED] = true;
+    sayToStory({ kind: 'react-commit', commit: { components: ['SaveBar'] } } as unknown as Parameters<typeof sayToStory>[0]);
+    sayToStory({ kind: 'eyes-phase', phase: 'act' });
+    expect(said).toEqual(['eyes act']);
+  });
+
+  it('says a commit itself where the React story setup is not in the suite', () => {
+    const said: string[] = [];
+    scope[NOTE] = (text: string) => said.push(text);
+    sayToStory({ kind: 'react-commit', commit: { components: ['SaveBar'] } } as unknown as Parameters<typeof sayToStory>[0]);
+    expect(said).toEqual(['eyes commit SaveBar']);
   });
 
   it('is said to the recorder in the realm when one listens, and a recorder that throws reaches nobody', () => {
