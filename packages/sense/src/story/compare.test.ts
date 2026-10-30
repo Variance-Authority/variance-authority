@@ -227,6 +227,49 @@ describe('two sides of a case', () => {
   });
 });
 
+describe('the test line a region was reached under', () => {
+  // A test line opens what the case does next, as a seam writes it: `test line 4` at 1 is said after the first visit.
+  const lines = (...at: [number, number][]): [number, string][] => at.map(([visit, line]) => [visit, `test line ${line}`]);
+
+  it('names a region every reading reached, under one line every time it passed and another every time it threw', () => {
+    const comparison = compareLoaded(ROOT, [
+      passed(reading([1, 4], lines([0, 3], [1, 4], [2, 5])), reading([1, 4], lines([0, 3], [1, 4], [2, 5]))),
+      threw(reading([1, 4], lines([0, 3], [1, 4], [1, 5]), true), reading([1, 4], lines([0, 3], [1, 4], [1, 5]), true)),
+    ]);
+
+    expect(comparison.charged).toEqual([{
+      place: expect.objectContaining({ path: 'entry', place: expect.objectContaining({ name: 'price' }) }),
+      lines: [{ sides: ['passed'], line: 4 }, { sides: ['threw'], line: 5 }],
+    }]);
+    expect(comparison.unsteady.charged).toBe(0);
+  });
+
+  it('counts a region whose line moves between readings of one side, and says nothing of one every side reaches under the same line', () => {
+    const comparison = compareLoaded(ROOT, [
+      passed(reading([1, 4], lines([0, 3], [1, 4])), reading([1, 4], lines([0, 3], [2, 4]))),
+      threw(reading([1, 4], lines([0, 3], [1, 4]), true), reading([1, 4], lines([0, 3], [1, 4]), true)),
+    ]);
+
+    expect(comparison.charged).toEqual([]);
+    expect(comparison.unsteady.charged).toBe(1);
+  });
+
+  it('names a region once for its declaration, not again for every arm inside it that moved with it', () => {
+    const comparison = compareLoaded(ROOT, [
+      passed(reading([1, 2, 3], lines([0, 4])), reading([1, 2, 3], lines([0, 4]))),
+      threw(reading([1, 2, 3], lines([0, 5]), true), reading([1, 2, 3], lines([0, 5]), true)),
+    ]);
+
+    expect(comparison.charged.map((charge) => charge.place.path)).toEqual(['entry']);
+  });
+
+  it('says nothing for readings no seam cut at test lines', () => {
+    const comparison = compareLoaded(ROOT, [passed(reading([1, 4]), reading([1, 4])), threw(reading([4, 1], [], true), reading([4, 1], [], true))]);
+    expect(comparison.charged).toEqual([]);
+    expect(comparison.unsteady.charged).toBe(0);
+  });
+});
+
 describe('three sides of a case', () => {
   const side = (name: string, ...readings: Loaded[]) => ({ name, readings });
 

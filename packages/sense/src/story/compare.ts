@@ -22,6 +22,12 @@
  *   that each side reaches in one order every time, and not every side in the
  *   same one. Order is compared at first arrival, at the grain of a
  *   declaration or a note, which is the grain a person reads a route at.
+ * - **Under which test line.** A region every reading reaches, first reached
+ *   under one line of the test on every reading of a side and under another on
+ *   another side: the request answered while the spec was already at its next
+ *   statement. A seam that cuts a case at its test lines says `test line N`
+ *   where each statement starts, and a region is charged to the last one said
+ *   before it was first reached.
  *
  * Each difference is told under the sides that hold it, so with three sides an
  * arm both failing cases took and the passing one did not is one finding, not
@@ -91,6 +97,13 @@ export interface Order {
   readonly after: readonly string[];
 }
 
+/** A region every reading reached, first reached under another test line on some sides than on the rest. */
+export interface Charge {
+  readonly place: PlaceDifference;
+  /** Each test line it was reached under and the sides that reached it there, in the order of the sides; no line where it was reached before any. */
+  readonly lines: readonly { readonly sides: readonly string[]; readonly line?: number }[];
+}
+
 /**
  * Sides of readings set against each other: what some sides did on every
  * reading and the rest on none, the orders the sides hold differently, and a
@@ -105,8 +118,14 @@ export interface Comparison {
   readonly only: readonly Only[];
   /** Orders the sides hold differently, first in the order the first side's newest reading reached the earlier of the two. */
   readonly orders: readonly Order[];
+  /**
+   * Regions charged to another test line on some sides than on the rest, in
+   * the order the first side's newest reading reached them; a region inside a
+   * declaration already listed under the same lines is not listed again.
+   */
+  readonly charged: readonly Charge[];
   /** What differs between readings of one side as well: counted, never listed. */
-  readonly unsteady: { readonly places: number; readonly said: number; readonly order: number };
+  readonly unsteady: { readonly places: number; readonly said: number; readonly order: number; readonly charged: number };
   /** Whether a side holds one reading, so no difference can be told from a run that just went another way. */
   readonly single: boolean;
 }
@@ -126,6 +145,8 @@ interface Read {
   readonly said: Set<string>;
   /** Each moment's first arrival, by key, in order. */
   readonly first: Map<string, number>;
+  /** The test line each region was first reached under, by key: 0 before any, absent where no seam cut the case at its lines. */
+  readonly charge: Map<string, number>;
 }
 
 /** A reading decoded, with each of its modules' regions where the record beside it holds them. */
@@ -163,6 +184,8 @@ export function compareLoaded(root: string, sides: readonly LoadedSide[]): Compa
   const places = steady(reads, (read) => read.regions);
   const said = steady(reads, (read) => read.said);
   const order = orderedPairs(reads);
+  const charged = charges(reads);
+  const told = new Set<string>();
   const groups = [...new Set([...places.held.keys(), ...said.held.keys()])].sort(bySides);
   const named = (positions: readonly number[]): string[] => positions.map((at) => sides[at]!.name);
 
@@ -180,7 +203,15 @@ export function compareLoaded(root: string, sides: readonly LoadedSide[]): Compa
       before: named(before),
       after: named(sides.map((_, at) => at).filter((at) => !before.includes(at))),
     })),
-    unsteady: { places: places.unsteady, said: said.unsteady, order: order.unsteady },
+    charged: charged.differing.flatMap(({ key, lines }) => {
+      // An arm charged as its declaration is is the declaration's finding, told once.
+      const place = names.get(key)!;
+      const finding = `${place.place.at}\0${lines.map((one) => `${one.line}:${one.sides.join(',')}`).join(' ')}`;
+      if (told.has(finding)) return [];
+      told.add(finding);
+      return [{ place, lines: lines.map(({ sides: held, line }) => ({ sides: named(held), ...(line === 0 ? {} : { line }) })) }];
+    }),
+    unsteady: { places: places.unsteady, said: said.unsteady, order: order.unsteady, charged: charged.unsteady },
     single: reads.some((side) => side.length < 2),
   };
 }
@@ -223,14 +254,18 @@ function readReading(root: string, { story, files, regions }: Loaded, names: Map
     bases.push(total);
     total += count;
   }
-  const read: Read = { regions: new Set(), said: new Set(), first: new Map() };
+  const read: Read = { regions: new Set(), said: new Set(), first: new Map(), charge: new Map() };
   let clock = 0;
+  // The test line the case is at, once a seam has said one.
+  let line: number | undefined;
   const arrive = (key: string, moment: Moment): void => {
     if (!moments.has(key)) moments.set(key, moment);
     if (!read.first.has(key)) read.first.set(key, clock);
     clock += 1;
   };
   const hear = (said: string): void => {
+    const cut = TEST_LINE.exec(said);
+    if (cut !== null) line = Number(cut[1]);
     const text = acrossRuns(said);
     read.said.add(text);
     if (!read.first.has(`s${text}`)) read.first.set(`s${text}`, clock);
@@ -267,14 +302,19 @@ function readReading(root: string, { story, files, regions }: Loaded, names: Map
       }
       read.regions.add(key);
       if (!read.first.has(`r${key}`)) read.first.set(`r${key}`, clock);
+      if (!read.charge.has(key)) read.charge.set(key, line ?? 0);
       if (visit & stories.EVALUATING) arrive(`m\0loaded\0${file}`, { loaded: file });
       else arrive(`m\0${place.at}`, { place });
     }
   };
   if (before) walk(story.before, story.beforeNotes);
   walk(story.visits, story.notes);
+  if (line === undefined) read.charge.clear();
   return read;
 }
+
+/** What a seam that cuts a case at its test lines says where each statement starts. */
+const TEST_LINE = /^test line (\d+)$/u;
 
 /** Where the `then` of the `if` an arm belongs to starts, from the module's regions; nothing for any other region. */
 function ifLine(arm: string, regions: readonly Region[], at: readonly string[]): number | undefined {
@@ -336,6 +376,39 @@ function orderedPairs(sides: readonly (readonly Read[])[]): { differing: { pair:
       if (held.some((lead) => lead === undefined)) unsteady += 1;
       else if (held.some((lead) => !lead)) differing.push({ pair, before: held.flatMap((lead, side) => (lead ? [side] : [])) });
     }
+  }
+  return { differing, unsteady };
+}
+
+/**
+ * Regions every reading reached and charged to a test line, charged to one
+ * line on every reading of each side and not every side to the same, with the
+ * sides grouped by line; and how many such regions are charged to another line
+ * on some readings of a side.
+ */
+function charges(sides: readonly (readonly Read[])[]): { differing: { key: string; lines: { sides: number[]; line: number }[] }[]; unsteady: number } {
+  const all = sides.flat();
+  if (all.length === 0 || all.some((read) => read.charge.size === 0)) return { differing: [], unsteady: 0 };
+  const differing: { key: string; lines: { sides: number[]; line: number }[] }[] = [];
+  let unsteady = 0;
+  for (const key of all[0]!.charge.keys()) {
+    if (!all.every((read) => read.charge.has(key))) continue;
+    const held = sides.map((reads) => {
+      const lines = reads.map((read) => read.charge.get(key)!);
+      return lines.every((line) => line === lines[0]) ? lines[0] : undefined;
+    });
+    if (held.some((line) => line === undefined)) {
+      unsteady += 1;
+      continue;
+    }
+    if (held.every((line) => line === held[0])) continue;
+    const lines: { sides: number[]; line: number }[] = [];
+    held.forEach((line, side) => {
+      const group = lines.find((one) => one.line === line);
+      if (group === undefined) lines.push({ sides: [side], line: line! });
+      else group.sides.push(side);
+    });
+    differing.push({ key, lines });
   }
   return { differing, unsteady };
 }

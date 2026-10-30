@@ -161,15 +161,24 @@ export function formatComparison(comparison: Comparison, format: 'text' | 'json'
     const rest = comparison.orders.length - PAIRS;
     if (rest > 0) text.push(`    and ${rest} more ${rest === 1 ? 'pair' : 'pairs'}; the first is where the orders part`);
   }
-  if (comparison.only.length + comparison.orders.length === 0) {
+  if (comparison.charged.length > 0) {
+    text.push('', '  first reached under another test line, on every reading:');
+    for (const { place, lines } of comparison.charged.slice(0, LISTED)) {
+      const under = lines.map(({ sides: held, line }) => `${line === undefined ? 'before any test line' : `under line ${line}`} ${phrase(held)}`);
+      text.push(`    ${placeText(place)}`, `      ${under.join(', ')}`);
+    }
+    if (comparison.charged.length > LISTED) text.push(`    and ${comparison.charged.length - LISTED} more places`);
+  }
+  if (comparison.only.length + comparison.orders.length + comparison.charged.length === 0) {
     text.push('', '  nothing separates the sides: whatever differs between them differs between readings of one side too');
   }
-  const { places, said, order } = comparison.unsteady;
-  if (places + said + order > 0) {
+  const { places, said, order, charged } = comparison.unsteady;
+  if (places + said + order + charged > 0) {
     const counted = [
       places > 0 ? `${places} ${places === 1 ? 'place' : 'places'}` : '',
       said > 0 ? `${said} ${said === 1 ? 'line' : 'lines'} said` : '',
       order > 0 ? `${order} ${order === 1 ? 'pair' : 'pairs'} in changing order` : '',
+      charged > 0 ? `${charged} ${charged === 1 ? 'place' : 'places'} under a changing test line` : '',
     ].filter(Boolean);
     text.push('', `  left out, because they differ between readings of one side as well: ${counted.join(', ')}`);
   }
