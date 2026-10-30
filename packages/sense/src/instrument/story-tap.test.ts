@@ -225,6 +225,30 @@ describe('what a case says on the way', () => {
     expect(notes[3]![2].endsWith('…')).toBe(true);
   });
 
+  it('opens what a test line did with the line, the last of the cuts that did nothing', () => {
+    const engine = probeLog.createEngine(false);
+    engine.use(engine.open('case'));
+    const tap = storyTap.createTap(engine, storyTap.TAPE_LIMIT);
+    const { run } = load(tap.root);
+    tap.reset();
+
+    tap.root.c(3);
+    run(0);
+    tap.root.c(4);
+    tap.root.c(5);
+    tap.note('said');
+    tap.root.c(6);
+
+    // What `cart` and `price` were handed sits between, and is not a cut.
+    const notes = tap.read().notes.filter(([, , text]) => !text.startsWith('handed'));
+    expect(notes.map(([at, key, text]) => [at, key, text])).toEqual([
+      [0, 'case', 'test line 3'],
+      [3, 'case', 'test line 5'],
+      [3, 'case', 'said'],
+      [3, 'case', 'test line 6'],
+    ]);
+  });
+
   it('is counted, not kept, past the limit, and starts again with the tape', () => {
     const engine = probeLog.createEngine(false);
     engine.use(engine.open('case'));

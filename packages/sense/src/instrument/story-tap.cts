@@ -169,6 +169,8 @@ function createTap(engine: Engine, limit: number): Tap {
   // crowds out what the code said, however hot the function.
   let spoken = 0;
   let handedOver = 0;
+  // The test line's note, while it is the last thing on the tape.
+  let cut: [number, string, string] | undefined;
   const held = new Map<ModuleId, string>();
   // Whether the next write is the module's own probe, which follows `e`.
   let rooting = false;
@@ -335,9 +337,23 @@ function createTap(engine: Engine, limit: number): Tap {
         root.g(base | -2147483648);
       }
     },
-    // A test line's cut is not a visit: the tape is what the code entered.
+    // A test line's cut is not a visit: the tape is what the code entered, and
+    // the line opens what the code entered next. A cut that nothing followed
+    // gives way to the next, as the record's cuts merge.
     c(line: number): void {
       inner.c(line);
+      const last = notes[notes.length - 1];
+      if (last !== undefined && last === cut && last[0] === taped) {
+        last[2] = `test line ${line}`;
+        return;
+      }
+      if (spoken >= NOTE_LIMIT) {
+        unnoted += 1;
+        return;
+      }
+      spoken += 1;
+      put(`test line ${line}`);
+      cut = notes[notes.length - 1];
     },
   };
 
@@ -360,6 +376,7 @@ function createTap(engine: Engine, limit: number): Tap {
     },
     reset(): void {
       notes = [];
+      cut = undefined;
       unnoted = 0;
       spoken = 0;
       handedOver = 0;
