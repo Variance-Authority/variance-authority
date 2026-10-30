@@ -30,7 +30,8 @@ export async function heldTexts(question: RanQuestion, answer: RanNamed, asked: 
 
 /**
  * Each held file's names, as `coverage` names the checkout's texts: the source
- * index's git blob name for a text on disk, brought up to the checkout first,
+ * index's git blob name for a text on disk, brought up to the checkout first
+ * and read for the held files alone,
  * and git's own for a text handed in; with its digest when the record's rows
  * were cut from the same text. And the git blob name of the text each file's
  * rows were cut from, where the record names one. A file the index cannot name
@@ -40,7 +41,7 @@ export async function namesOf(question: RanQuestion, snapshot: string, held: Rea
   readonly names: ReadonlyMap<string, Names>;
   readonly rows: ReadonlyMap<string, string>;
 }> {
-  const now = question.handed === true ? handedNames(question.root, held) : await checkoutNames(question.root);
+  const now = question.handed === true ? handedNames(question.root, held) : await checkoutNames(question.root, [...held.keys()]);
   const cut = cutsOf(snapshot, [...held.keys()], question.index);
   if ('unread' in cut) return { names: new Map([...held.keys()].map((file) => [file, { unknown: `which text ran is not known: ${cut.unread}` }])), rows: new Map() };
   const cuts = cut.cuts;

@@ -16,6 +16,7 @@ import { isAbsolute, join, relative, resolve } from 'node:path';
 import type { SourceIndex } from '@variance-authority/core/attribute';
 import type { FileRecord, Relations } from '@variance-authority/core/relate';
 import {
+  publishedNames,
   publishedSources,
   runGraphOf,
   SourceIndexUnpublished,
@@ -127,17 +128,17 @@ export async function indexUpToCheckout(root: string, ci = isCI): Promise<string
 }
 
 /**
- * The source index's names for the checkout's texts as they are now
- * ({@link indexNames}), brought up to the checkout first ({@link
- * indexUpToCheckout}); or why the checkout's texts have no names: the update
- * failed, or CI published no index.
+ * The source index's names for the texts `files` hold on disk now, read off its
+ * rows of those files alone ({@link publishedNames}), brought up to the checkout
+ * first ({@link indexUpToCheckout}); or why they have no names: the update
+ * failed, or CI published no index. A file the index holds no name for is in
+ * none.
  */
-export async function checkoutNames(root: string, ci = isCI): Promise<IndexNames | { readonly missed: string }> {
+export async function checkoutNames(root: string, files: readonly string[], ci = isCI): Promise<IndexNames | { readonly missed: string }> {
   const notUpdated = await indexUpToCheckout(root, ci);
   if (notUpdated !== undefined) return { missed: notUpdated };
   try {
-    const published = await publishedSources(root, { ci, step: 'variance index', announce: (line) => process.stderr.write(`variance: ${line}\n`) });
-    return indexNames(published.records);
+    return (await publishedNames(root, files, { ci, step: 'variance index', announce: (line) => process.stderr.write(`variance: ${line}\n`) })).names;
   } catch (error) {
     if (error instanceof SourceIndexUnpublished) return { missed: error.message };
     throw error;

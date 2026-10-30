@@ -1668,7 +1668,11 @@ runner's own answer for `ci` — the `ci-info` package is what Jest reads. A
 whole index is returned as read, whatever the checkout did since it was
 written. When you name the checkout's texts by the index, call
 `updateSourceIndex` first outside CI; if that update fails, the index does not
-describe the checkout, and a text it names is not known.
+describe the checkout, and a text it names is not known. To name a few files'
+texts, `publishedNames(root, files, options)` reads the same policy off the
+index's record rows of those files alone, and returns `names`, each file the
+index names a text for with its git blob name; `readPublishedNames(path, files)`
+is its reader without the policy.
 `sourcesWithin` returns the records a scan seeded from `dirs` and `before` would
 have produced, so a reader with a narrower question gets the narrower graph
 without scanning.
