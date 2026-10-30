@@ -3,7 +3,7 @@
  * major announces it, narrowed to which files finished and how.
  */
 
-import type { Reporter } from 'vitest/reporters';
+import type { Reporter } from 'vitest/node';
 import {
   carriedJournal,
   reportedComplete,

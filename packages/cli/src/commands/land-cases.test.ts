@@ -310,14 +310,15 @@ describe('landJourneys and a shard whose run instrumented nothing', () => {
     const other = await uncoveredShard('b'.repeat(40), index, 'shard-b.bin');
 
     // The combine hears the shards in code-unit order of their paths, whatever order they are named in.
-    await expect(landJourneys(dir, [other, at], record)).rejects.toThrow(new Error(
-      `the build failed because the sharding was unstable: ${at} started from commit \`${first}\`, and ${other} from commit \`${'b'.repeat(40)}\`. ` +
-        'Each shard split the suite against the record it started from, so the split may have left tests that ran in no shard. ' +
-        'Nothing of this build is combined, so the record before it stands. ' +
-        'Shards start alike when every one restores the same cached record: ' +
-        'the `actions/cache` step keyed `variance-${{ runner.os }}-${{ runner.arch }}-${{ github.sha }}` restores it, ' +
-        'and a shard that restored another, or none, starts apart.',
-    ));
+    await expect(landJourneys(dir, [other, at], record)).rejects.toMatchObject({
+      message:
+        `the build failed because the sharding was unstable: ${at} started from commit \`${first}\`, and ${other} from commit \`${'b'.repeat(40)}\`. ` +
+          'Each shard split the suite against the record it started from, so the split may have left tests that ran in no shard. ' +
+          'Nothing of this build is combined, so the record before it stands. ' +
+          'Shards start alike when every one restores the same cached record: ' +
+          'the `actions/cache` step keyed `variance-${{ runner.os }}-${{ runner.arch }}-${{ github.sha }}` restores it, ' +
+          'and a shard that restored another, or none, starts apart.',
+    });
     expect(await readFile(record)).toEqual(before);
   });
 

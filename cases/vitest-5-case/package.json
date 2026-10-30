@@ -5,6 +5,6 @@
   "type": "module",
   "devDependencies": {
     "@variance-authority/sense": "workspace:^",
-    "vitest": "^5.0.1"
+    "vitest": "^5.0.5"
   }
 }

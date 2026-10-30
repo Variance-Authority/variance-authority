@@ -59,7 +59,7 @@ beforeEach(() => {
 // calls no `afterAll` there and the pool ends the worker without an `exit`
 // event; the directory holds whatever the file's top level wrote under
 // `tmpdir()` — needs a `globalSetup` teardown that removes what this run made.
-afterAll((suite) => {
+afterAll(({}, suite) => {
   TEMPORARY.forEach((name, at) => {
     const value = machine[at];
     if (value === undefined) delete process.env[name];

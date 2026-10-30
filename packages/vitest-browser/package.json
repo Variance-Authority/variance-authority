@@ -56,7 +56,7 @@
     "@variance-authority/unit-test": "workspace:^"
   },
   "peerDependencies": {
-    "vitest": ">=3"
+    "vitest": ">=4.1.0"
   },
   "devDependencies": {
     "pngjs": "^7.0.0"
