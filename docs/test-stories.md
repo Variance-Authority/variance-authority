@@ -6,16 +6,16 @@ how many times each loop ran, the values each function was handed, and the
 lines the code printed. Every run already records which code each test ran. A
 story adds the order, the counts, the values and the printed lines, and you
 read it from top to bottom. When a test fails only on
-some runs, you compare the stories of runs that passed with runs that failed.
+some runs, you [compare the stories](#why-does-this-test-fail-on-some-runs) of
+runs that passed with runs that failed.
 When one test passes and another fails, such as the same checkout with a
 feature flag off and on, you compare the stories of the two tests. Either way
 what each function was handed is compared with the rest, and any other value
 you suspect you print from the code under test, never from the test.
 
-If you need the test statement that first ran a region,
-[cadence](test-level-coverage.md#which-test-statement-first-ran-a-region)
-records that on ordinary runs. Record a story when you need what happened next
-or how often it repeated.
+If you only need which line of the test first ran a piece of code, every
+ordinary run [already records that](test-level-coverage.md#which-test-statement-first-ran-a-region).
+Record a story when you need what happened next or how often it repeated.
 
 ## What you already know, and what you do not
 
@@ -55,7 +55,7 @@ and as its story.
 
 The format and the name come from [Wallaby.js](https://wallabyjs.com/docs/features/test-stories/),
 which shows a test story inside your editor. Here your own test runner records
-it, under Vitest, Jest or Rstest, and you read it with one command, in a
+it — Vitest in Node or in browser mode, Jest, Rstest or Playwright — and you read it with one command, in a
 terminal or in any editor.
 
 ## What does this test do with the code you are changing?
@@ -359,7 +359,7 @@ differently:
 | You need to know | What to read |
 | --- | --- |
 | Which code a case ran | Its journey, the set of regions it covered |
-| Which test statement first ran each region | Its cadence, the statement lines recorded with those regions |
+| Which test statement first ran each region | Its [cadence](test-level-coverage.md#which-test-statement-first-ran-a-region), the statement lines recorded with those regions |
 | In what order the code ran, including repeats | Its story, recorded when you ask for one |
 
 The recorder adds calls between test and hook statements to record cadence.
@@ -440,7 +440,19 @@ large.
 ## Record one
 
 A story comes from the same recording as the journeys, so your suite needs
-Sense set up for its runner first. Then set
+that recording set up first:
+
+- **Vitest, in Node or in browser mode.** `withTestSelection` around your
+  [Vitest configuration](../packages/sense/README.md#cut-a-vitest-run-down-to-a-diff).
+  Browser mode needs nothing more.
+- **Jest.** The [Jest seam](../packages/sense/README.md#record-jest-journeys-without-selecting-tests).
+- **Rstest.** The [Rstest seam](../packages/sense/README.md#cut-an-rstest-run-down-to-a-diff).
+- **Playwright.** `withTestSelection` in your Playwright configuration, over an
+  application built with `testSelectionProbes()`, as
+  [Playwright Test](../packages/playwright-test/README.md#record-what-each-spec-executed)
+  sets it up.
+
+Then set
 `VARIANCE_AUTHORITY_STORY=1` and name the tests with your runner's own
 arguments, one test or one file:
 

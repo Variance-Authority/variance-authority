@@ -720,7 +720,8 @@ lines.
 With `VARIANCE_AUTHORITY_STORY=1`, each case also writes a [test
 story](https://variance-authority.dev/docs/test-stories): the code its pages
 ran, in order, each stretch opened by the spec line whose statement ran it.
-Name one spec and `-g` the test, as you would record any story.
+It needs nothing beyond what this section sets up. Name one spec and `-g` the
+test, as you would record any story.
 
 ### Keep what each test looked at
 
