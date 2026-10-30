@@ -9,7 +9,8 @@
  * the evidence `covering` reads (`evidenceOf`), and whether an edit touched a
  * region is the rule a record carries its cases by (`regionTouched` over
  * `editsBetween`). Git says which files changed since each place, so a file
- * unchanged since every place that ran it reads no text at all.
+ * unchanged since every place that ran it, under rows cut from the tree's text,
+ * reads no edit at all.
  */
 
 import { execFile } from 'node:child_process';
@@ -58,22 +59,28 @@ export async function textOver(root: string, record: string, recorded: string | 
   const commits = [...new Set([...places.values()].flatMap((place) => (place.assumed === true ? [] : place.commit ?? [])))];
   const changed = new Map(await Promise.all([...new Set([...commits, ...(recorded === undefined ? [] : [recorded])])]
     .map(async (commit) => [commit, await changedSince(root, commit)] as const)));
-  // A run over the commit's text of a file git says has not changed since, under rows
-  // at a commit it has not changed since either, ran over this text.
+  // A run over the commit's text of a file git says has not changed since ran over this text.
   const unchanged = (place: TestPlace, file: string): boolean =>
-    place.commit !== undefined && place.texts !== undefined && place.texts[file] === undefined &&
-    changed.get(place.commit)?.has(file) === false && recorded !== undefined && changed.get(recorded)?.has(file) === false;
+    place.commit !== undefined && place.texts !== undefined && place.texts[file] === undefined && changed.get(place.commit)?.has(file) === false;
 
   // Only a call the count asks about is read for: a load or a case run over another text is not run.
   const asks = new Map<string, readonly (readonly [string, TestPlace])[]>();
+  const steady = new Map<string, readonly (readonly [string, TestPlace])[]>();
   for (const [file, tests] of textAsks(index)) {
     const placed = [...tests].flatMap((test) => {
       const place = places.get(test);
       return place === undefined || place.assumed === true ? [] : [[test, place] as const];
     });
-    if (placed.some(([, place]) => !unchanged(place, file))) asks.set(file, placed);
+    (placed.every(([, place]) => unchanged(place, file)) ? steady : asks).set(file, placed);
   }
-  const texts = await readTexts(root, record, index, asks, [...places.values()], read.repository, recorded, read.runs?.latest);
+  // Rows another run cut from a text the tree no longer holds are numbered in it, so the edit since is read.
+  const rows = rowDigests(record, index, new Set([...asks.keys(), ...steady.keys()]));
+  for (const [file, placed] of steady) {
+    const row = rows.get(file);
+    const text = typeof row !== 'string' ? undefined : await readFile(resolve(root, file), 'utf8').catch(() => undefined);
+    if (text === undefined || digestString(text) !== row) asks.set(file, placed);
+  }
+  const texts = await readTexts(root, rows, record, asks, [...places.values()], read.repository, recorded, read.runs?.latest);
   return (file, region, test) => {
     const place = places.get(test);
     if (place === undefined || place.assumed === true) return nowhere;
@@ -98,8 +105,8 @@ type Over = ReadonlyMap<string, readonly Edit[] | RegionText>;
  */
 async function readTexts(
   root: string,
+  rows: ReadonlyMap<string, RowsText>,
   record: string,
-  index: ExecutionIndex,
   asks: ReadonlyMap<string, readonly (readonly [string, TestPlace])[]>,
   places: readonly TestPlace[],
   repository: string | undefined,
@@ -116,7 +123,6 @@ async function readTexts(
     // A file gone from the checkout holds no region of this text; any other failure says nothing of the text.
     else if (text.code !== 'ENOENT') unread.set(file, { unknown: `${file} does not read: ${text.message}` });
   }
-  const rows = rowDigests(record, index, new Set(asks.keys()));
   const evidence: Evidence = await evidenceOf(places, held, {
     root, snapshot: record, repository, last: recorded === undefined ? latest : undefined, region: true, placement: undefined, ranOther: undefined,
   });

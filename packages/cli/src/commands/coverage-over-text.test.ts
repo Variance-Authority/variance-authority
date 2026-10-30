@@ -5,7 +5,7 @@ import { dirname, join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { updateSourceIndex } from '@variance-authority/sense';
 import { INSTRUMENTATION_ID } from '@variance-authority/sense/instrument';
-import { commitRunsFile, encodeExecutionIndex, testCoverageFile, writeTestCoverage } from '@variance-authority/sense/test-selection';
+import { commitRunsFile, encodeExecutionIndex, repositoryLayers, testCoverageFile, writeTestCoverage } from '@variance-authority/sense/test-selection';
 import { digestString } from '@variance-authority/core/format';
 import { main } from '../bin.js';
 
@@ -221,6 +221,19 @@ describe('coverage parts what ran by the text it ran over', () => {
 
     expect(said.count).toMatchObject({ run: 3, over: { older: 0, notKnown: 2 } });
     expect(answer.out).toContain(`not known: the text of ${PAY_FILE} that run ran over is neither kept nor committed`);
+  });
+
+  it('counts a region as older when the rows were cut from an uncommitted text no listed run ran, though every run ran the commit\'s text and the tree holds it', async () => {
+    // A run since moved on cut the rows from `REFUNDED` at the record's commit, which holds `PAY`, as the tree does,
+    // and kept the text it ran over, as a landing keeps every text its commit does not hold.
+    const { at } = await checkout({ ...atRecord, recorded: REFUNDED });
+    const kept = join(repositoryLayers(at).top, '.texts');
+    await mkdir(kept, { recursive: true });
+    await writeFile(join(kept, digestString(REFUNDED).replace(/^[^:]+:/u, '')), REFUNDED);
+
+    const said = await json('--root', at);
+
+    expect(said.count).toMatchObject({ run: 3, over: { older: 1, notKnown: 0, why: [] } });
   });
 
   it('changes no number when nothing changed since the runs, and counts nothing as older', async () => {
