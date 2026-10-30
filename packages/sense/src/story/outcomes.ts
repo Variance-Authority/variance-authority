@@ -88,8 +88,8 @@ export function recordedReadings(root: string, name: string, file?: string): Rec
  * A case's readings split by `stopped` and compared; absent when one outcome
  * holds none. A region is told when every reading of one outcome and none of
  * the other reached it; when both reached it under another line; or when both
- * charged one line but one side a hook's statement, or one side no line, as a
- * page case's drain that came too late is charged (ADR-0089 decision 3).
+ * charged one line but one side a hook's statement, or one side recorded no
+ * line for it, which the record does not say the cause of.
  */
 export function compareOutcomes({ file, name, readings }: RecordedCase): OutcomeComparison | undefined {
   const sides = [readings.filter((reading) => reading.stopped === false), readings.filter((reading) => reading.stopped === true)];

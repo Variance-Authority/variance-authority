@@ -285,7 +285,8 @@ impl<V: PartialEq> Settled<V> {
 /// The shards' readings sections as one: each case's readings as the shard
 /// that ran it kept them, under the id the fold calls it by, and each test
 /// file's inputs as the shard that ran it named them. A shard that only
-/// carried a case or a file from its seed yields to one that ran it. Two
+/// carried a case or a file from its seed yields to one that ran it, even
+/// where that one kept nothing of it. Two
 /// shards that ran one case otherwise are refused, as two journals of one
 /// attempt are, and so are two that ran one file over different inputs.
 pub(crate) fn fold_readings(shards: &[(&str, &[u8], &HashMap<String, String>)], cases: &HashSet<String>, ran: &HashMap<String, Ran>) -> Result<Vec<u8>, String> {
@@ -312,8 +313,15 @@ pub(crate) fn fold_readings(shards: &[(&str, &[u8], &HashMap<String, String>)], 
             })?;
         }
     }
-    let held: HashMap<String, &str> = readings.held.into_iter().map(|(case, (_, value, _))| (case, value)).collect();
-    let inputs: HashMap<String, String> = inputs.held.into_iter().map(|(file, (_, digest, _))| (file, digest)).collect();
+    // A case or a file some shard ran is that shard's to name: where it kept
+    // nothing, because its run moved the inputs or matched the index, a copy
+    // another shard carried from its seed is from before that run and goes.
+    let ran_cases: HashSet<&String> = ran.values().flat_map(|own| &own.cases).collect();
+    let ran_files: HashSet<&String> = ran.values().flat_map(|own| &own.files).collect();
+    let held: HashMap<String, &str> =
+        readings.held.into_iter().filter(|(case, (_, _, by))| *by || !ran_cases.contains(case)).map(|(case, (_, value, _))| (case, value)).collect();
+    let inputs: HashMap<String, String> =
+        inputs.held.into_iter().filter(|(file, (_, _, by))| *by || !ran_files.contains(file)).map(|(file, (_, digest, _))| (file, digest)).collect();
     let mut ids: Vec<&String> = held.keys().collect();
     ids.sort_by(|left, right| order::code_unit(left, right));
     let mut files: Vec<&String> = inputs.keys().collect();

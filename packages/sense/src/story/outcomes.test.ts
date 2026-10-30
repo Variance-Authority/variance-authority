@@ -67,7 +67,7 @@ describe('compareOutcomes', () => {
     expect(comparison).toMatchObject({ onlyPassed: [WIRE], unsteady: 0 });
   });
 
-  it('tells a region drained without a line on every failing reading', () => {
+  it('tells a region with no line recorded on every failing reading', () => {
     const comparison = compared([
       reading(false, [crossed(HANDLE, 7)], 2),
       reading(true, [crossed(HANDLE, null)], 2),

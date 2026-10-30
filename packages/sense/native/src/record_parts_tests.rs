@@ -231,3 +231,13 @@ fn refuses_two_shards_that_ran_one_file_naming_it_otherwise() {
 
     assert_eq!(message, "one and two name different inputs of `a.test.ts`, so they are not shards of one run and cannot be folded into one.");
 }
+
+#[test]
+fn drops_what_a_shard_carried_of_a_case_or_file_another_shard_ran_and_kept_nothing_of() {
+    let ran = br#"{}"#.to_vec();
+    let carried = br#"{"cases":{"a":[{"count":1}]},"inputs":{"a.test.ts":"1","b.test.ts":"1"}}"#.to_vec();
+    let who: HashMap<String, Ran> = [("one".to_owned(), Ran { cases: cases(&["a"]), files: cases(&["a.test.ts"]) })].into();
+    let folded = fold_readings(&[("two", &carried, &none()), ("one", &ran, &none())], &cases(&["a"]), &who).unwrap();
+
+    assert_eq!(String::from_utf8(folded).unwrap(), r#"{"inputs":{"b.test.ts":"1"}}"#);
+}
