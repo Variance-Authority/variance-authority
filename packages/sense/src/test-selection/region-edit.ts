@@ -105,7 +105,7 @@ type Region = { readonly kind: string } & HeldLines;
  * it does not, standing at the `lines` the hunks move it to when they place
  * it at all.
  */
-export type Landing =
+type Landing =
   | { readonly stays: HeldLines }
   | { readonly reached: boolean; readonly lines?: HeldLines };
 
@@ -114,12 +114,12 @@ export type Landing =
  * whole. A text the edit left whole runs as it did, as the recut keeps a row
  * whose text did not move.
  */
-export function editReaches(edit: Edit, kind: string): boolean {
+function editReaches(edit: Edit, kind: string): boolean {
   return reaches(edit.hunks.length === 0 ? 'none' : edit.reading, kind);
 }
 
 /** Where `edit` leaves `region`, by the rule {@link Landing} names. */
-export function landing(edit: Edit, region: Region): Landing {
+function landing(edit: Edit, region: Region): Landing {
   if (region.startLine === NO_LINE) return { stays: region };
   const through = placeThrough(edit.hunks, region);
   if (through !== undefined && !through.moved) return { stays: through.lines };
