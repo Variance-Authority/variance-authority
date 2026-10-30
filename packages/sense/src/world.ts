@@ -37,6 +37,7 @@
 
 import { readdirSync, readFileSync } from 'node:fs';
 import { join, sep } from 'node:path';
+import { codeUnitOrder } from '@variance-authority/core/segment';
 import type { Parsed } from './cache.js';
 import { parsedOnce } from './record.js';
 import { EXCLUDE_DIRS } from './repo-path.js';
@@ -92,7 +93,7 @@ export interface TreeWorld {
  * has, which is the shape a test builds and a scan never does.
  */
 export function worldIn(paths: Iterable<string>, root?: string, parse?: Parse): TreeWorld {
-  const sorted = [...new Set(paths)].sort(byCodeUnit);
+  const sorted = [...new Set(paths)].sort(codeUnitOrder);
   return worldOver(() => sorted, root, parse);
 }
 
@@ -198,7 +199,7 @@ function walk(root: string): readonly string[] {
   };
 
   descend('');
-  return found.sort(byCodeUnit);
+  return found.sort(codeUnitOrder);
 }
 
 /** A repository-relative path, in the spelling a world is keyed by. */
@@ -206,8 +207,4 @@ export function repoPathOf(root: string, absolute: string): string {
   return absolute.startsWith(root + sep)
     ? absolute.slice(root.length + 1).split(sep).join('/')
     : absolute.split(sep).join('/');
-}
-
-function byCodeUnit(a: string, b: string): number {
-  return a < b ? -1 : a > b ? 1 : 0;
 }

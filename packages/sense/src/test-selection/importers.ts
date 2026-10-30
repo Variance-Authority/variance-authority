@@ -1,6 +1,7 @@
 import {
   EDGE_KINDS, NOTHING, RUNTIME_EDGES, WHOLE, carried, dependentsOf, idOf, nodeAt, trailOf, type NodeId, type Relations,
 } from '@variance-authority/core/relate';
+import { codeUnitOrder } from '@variance-authority/core/segment';
 import type { TestCoverageView } from './format-view.js';
 import { findModules, findTest, testsGovernedBy } from './lookup.js';
 import type { ExecutionNarrowingOptions } from './narrowing.js';
@@ -403,8 +404,4 @@ export function importedAsAsset(relations: Relations, id: NodeId): boolean {
   const { offset, kind } = relations.dependents;
   for (let edge = offset[id]!; edge < offset[id + 1]!; edge += 1) if (kind[edge] === ASSET) return true;
   return false;
-}
-
-function codeUnitOrder(left: string, right: string): number {
-  return left < right ? -1 : left > right ? 1 : 0;
 }

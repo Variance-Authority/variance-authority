@@ -21,6 +21,16 @@ answers from the last recording, so for a file it has never seen, put the edit
 in the tree and read `yarn variance select --suite <slice>`: it selects from the
 diff, and says nothing about a file that has not changed.
 
+**Does existing code already answer it?** Before writing, ask `yarn variance
+ask search` for what the code is to do. After, `yarn test:loop` ends by naming,
+for each function new on the branch in the package sources, the scripts a
+package ships and `tools/`, with five needs or more, the existing functions
+there that need what it needs: the same calls, fields, strings, types, imports
+and identifier words, whatever their order or shape. A name it lists is a lead to read, not a
+verdict: where it answers, call or extend it instead of keeping the new one.
+The list misses copies, so an empty list clears nothing, and it does not see a
+second path written inside a function that already existed.
+
 **Does it change how a record is carried or read?** Carrying, the case index,
 and the selection and comparison read off them, keep one contract: an
 ambiguous correspondence never becomes measured absence, and evidence never
@@ -139,8 +149,9 @@ the site, CLI output and error messages. Read it before writing any of them.
   being typed again: a SHA-256 digest, a code-unit comparator and a
   write-then-rename. `tools/owners.check.ts` holds their sites per file and
   names each owner, and `tools/clones.check.ts` holds pasted blocks per pair of
-  files. Neither sees a long flow re-typed with new names; the Alignment
-  reviewer looks for that.
+  files. Neither sees a long flow re-typed with new names; the needs list
+  `yarn test:loop` ends with is the lead while it is written, and the
+  Alignment reviewer looks for that.
 - **One implementation.** A second way to compute an answer that already has
   one is a defect, however it is spelled: a new flag beside an old one, a fast
   path beside the general path, a fallback beside the reader that refused. The

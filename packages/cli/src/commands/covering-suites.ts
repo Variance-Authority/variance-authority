@@ -28,6 +28,7 @@ import { OperatorError, type RefusalKind } from '../exit.js';
 import { heldText } from './covering-frame.js';
 import { covering, formatCovering, type Covering, type CoveringFormat } from './covering.js';
 import { graphOnce, type Graph } from './gap-selection.js';
+import { marksOf, type GutterMark } from './covering-marks.js';
 import { evidenceGapText, GapRefusal, type EvidenceGap } from './evidence-gap.js';
 import { asOperator, nothingRecorded } from './suite-record.js';
 
@@ -49,6 +50,8 @@ export interface CoveringSuites {
   readonly file?: string;
   readonly since?: string;
   readonly suites: readonly SuiteAnswer[];
+  /** Under a question about a whole file: the one mark each run of lines carries, read across every suite (`covering-marks.ts`). */
+  readonly marks?: readonly GutterMark[];
 }
 
 /**
@@ -83,10 +86,12 @@ export async function coveringAnswer(request: ParsedCovering): Promise<Covering 
     throw gap === undefined ? refused : new GapRefusal(refused.message, { kind: 'unrecorded', gap });
   }
 
+  const marks = marksOf(suites);
   return {
     ...(request.file === undefined ? {} : { file: request.file }),
     ...(request.since === undefined ? {} : { since: request.since }),
     suites,
+    ...(marks === undefined ? {} : { marks }),
   };
 }
 
@@ -146,10 +151,10 @@ async function askSuite(request: ParsedCovering, suite: DeclaredSuite, graph: Gr
  * every refusal is printed in full, since a wrong path is then the likely
  * cause. JSON carries every refusal whole either way. Under `refs` no gap is
  * said: the list is for a runner, and {@link answerGaps} hands the gaps to the
- * caller for the person.
+ * caller for the person. Each record is dated against `now`, in ms.
  */
-export function formatCoveringAnswer(answer: Covering | CoveringSuites, format: CoveringFormat): string {
-  if (!('suites' in answer)) return formatCovering(answer, format);
+export function formatCoveringAnswer(answer: Covering | CoveringSuites, format: CoveringFormat, now: number): string {
+  if (!('suites' in answer)) return formatCovering(answer, format, now);
   if (format === 'json') return `${JSON.stringify(answer, undefined, 2)}\n`;
 
   const named = (one: SuiteAnswer): string => `${one.suite} (${one.kind})`;
@@ -157,7 +162,7 @@ export function formatCoveringAnswer(answer: Covering | CoveringSuites, format: 
     const head = `${named(one)}:`;
     const gap = one.gap === undefined || format === 'refs' ? '' : `${evidenceGapText(one.gap).replace(/^/gmu, '  ')}\n`;
     if ('reason' in one) return `${head} ${one.reason}\n${gap}`;
-    const body = formatCovering(one, format);
+    const body = formatCovering(one, format, now);
     return `${head}\n${format === 'refs' ? body : body.replace(/^(?=.)/gmu, '  ')}`;
   };
   if (answer.suites.every((one) => 'reason' in one)) return answer.suites.map(say).join('\n');

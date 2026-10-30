@@ -1,3 +1,5 @@
+Closes #<!-- the issue carrying `idea: build`; `Part of #n` for a part of it; a docs, chore, ci, test, refactor or revert change may drop this line -->
+
 ## Problem
 
 <!-- What was wrong or missing, in one or two sentences, apart from the fix.

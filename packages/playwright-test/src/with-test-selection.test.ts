@@ -7,7 +7,8 @@ import { tmpdir } from 'node:os';
 import { createRequire } from 'node:module';
 import { relative, resolve } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { SELECTION_REPORTER, withTestSelection } from './with-test-selection.js';
+import { SELECTION_SETUP, SkippedFiles, fileSelection } from './file-selection.js';
+import { SELECTION_REPORTER, selectingFiles, withTestSelection } from './with-test-selection.js';
 
 describe('a configuration that records what it ran', () => {
   it('gives the workers and the fold the same values', () => {
@@ -170,5 +171,79 @@ describe('a configuration evaluated for a shard', () => {
     const from = process.cwd();
     vi.spyOn(process, 'argv', 'get').mockReturnValue(['node', 'playwright', 'test', '--shard', '1/2', `--reporter=./${relative(from, reporter)}`]);
     expect(project).not.toThrow();
+  });
+});
+
+describe('a configuration handed a selection', () => {
+  const selection = async () => ({ whole: new Set<string>(), skip: new Set<string>(), notes: [] });
+  const asked = (argv: readonly string[], env: NodeJS.ProcessEnv = {}, config = {}) => {
+    const said: string[] = [];
+    const drop = selectingFiles(config, { suite: 'chromium' }, selection, { argv, env, say: (line) => said.push(line) });
+    return { drop, said };
+  };
+  const testing = () => vi.spyOn(process, 'argv', 'get').mockReturnValue(['node', 'playwright', 'test']);
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('drops what it skips in the main process of a playwright test', () => {
+    expect(asked(['node', 'playwright', 'test']).drop).toBeInstanceOf(SkippedFiles);
+    expect(fileSelection()?.dropped).toEqual(new Set());
+  });
+
+  it('selects nothing in a worker, or in a command that collects no files', () => {
+    expect(asked(['node', 'playwright', 'test'], { TEST_WORKER_INDEX: '0' }).drop).toBeUndefined();
+    expect(asked(['node', 'playwright', 'show-report']).drop).toBeUndefined();
+    expect(asked(['node', 'playwright', 'merge-reports']).drop).toBeUndefined();
+  });
+
+  it('says watch mode and --list do not select, and selects nothing there', () => {
+    expect(asked(['node', 'playwright', 'test', '--ui'])).toEqual({ drop: undefined, said: ['variance-authority: watch mode does not select'] });
+    expect(asked(['node', 'playwright', 'test', '--ui-port=0']).said).toEqual(['variance-authority: watch mode does not select']);
+    expect(asked(['node', 'playwright', 'test'], { PWTEST_WATCH: '1' }).said).toEqual(['variance-authority: watch mode does not select']);
+    const list = asked(['node', 'playwright', 'test', '--list']);
+    expect(list.drop).toBeUndefined();
+    expect(list.said).toEqual([expect.stringContaining('--list runs no global setup')]);
+  });
+
+  it('reads the selection in a global setup ahead of the configuration\'s own, and drops by testIgnore after its own', () => {
+    testing();
+    const wrapped = withTestSelection({ globalSetup: './setup.ts', testIgnore: '**/skip/**' }, { selection, suite: 'chromium' }) as {
+      globalSetup?: unknown;
+      testIgnore?: unknown;
+    };
+
+    expect(wrapped.globalSetup).toEqual([SELECTION_SETUP, './setup.ts']);
+    expect(wrapped.testIgnore).toEqual(['**/skip/**', expect.any(SkippedFiles)]);
+  });
+
+  it('adds the drop to a project with its own testIgnore, which replaces the top level\'s', () => {
+    testing();
+    const wrapped = withTestSelection(
+      { projects: [{ name: 'chromium', testIgnore: /legacy/u }, { name: 'webkit' }] },
+      { selection, suite: 'chromium' },
+    ) as { projects: ReadonlyArray<{ testIgnore?: unknown }> };
+
+    expect(wrapped.projects[0]!.testIgnore).toEqual([/legacy/u, expect.any(SkippedFiles)]);
+    expect(wrapped.projects[1]).not.toHaveProperty('testIgnore');
+  });
+
+  it('selects once when a configuration is wrapped twice', () => {
+    testing();
+    const twice = withTestSelection(withTestSelection({}, { selection, suite: 'chromium' }), { selection, suite: 'chromium' }) as {
+      globalSetup?: unknown[];
+      testIgnore?: unknown[];
+    };
+
+    expect(twice.globalSetup).toEqual([SELECTION_SETUP]);
+    expect(twice.testIgnore).toHaveLength(1);
+  });
+
+  it('changes nothing when no selection is asked for', () => {
+    testing();
+    const wrapped = withTestSelection({}, {});
+
+    expect(wrapped).not.toHaveProperty('globalSetup');
+    expect(wrapped).not.toHaveProperty('testIgnore');
   });
 });

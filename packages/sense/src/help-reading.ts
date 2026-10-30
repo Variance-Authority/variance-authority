@@ -133,7 +133,7 @@ export interface MemberUseSite {
   /** The package of the file, or empty when no package holds it. */
   readonly by: string;
   readonly kind: 'source' | 'story' | 'test';
-  readonly how: 'destructure' | 'read' | 'write';
+  readonly how: 'destructure' | 'implement' | 'read' | 'write';
 }
 
 /** One import that binds a local name to an export of another name. */
@@ -158,6 +158,7 @@ export interface NativeHelp {
   encodeSearchIndex?(published: PublishedRows, exported: NamedExport[], generation: SearchGeneration | null): EncodedSearch;
   digestExported?(exported: NamedExport[]): string;
   importersOf?(root: string, index: string, files: string[], name: string): NativeImporters | null;
+  outsideSourcesOf?(root: string, index: string, name: string): string[] | null;
   memberDeclarationsOf?(root: string, index: string, name: string): MemberDeclarations | null;
   membersOnOf?(index: string, file: string, on: string): ContainerMember[] | null;
   declarationExportedOf?(index: string, file: string, name: string): { readonly declaration?: ExportedDeclaration | null } | null;
@@ -221,6 +222,16 @@ export function importersOf(
   index: string = sourceIndexPath(root),
 ): NativeImporters | undefined {
   return entry('importersOf')(root, index, [...files], name) ?? undefined;
+}
+
+/**
+ * Every specifier, as written and in code-unit order, that names a package or
+ * a runtime module the index at `index` resolved to no file, and out of which
+ * an import takes `name`; `undefined` when no index was published. Throws
+ * when the index does not read.
+ */
+export function outsideSourcesOf(root: string, name: string, index: string = sourceIndexPath(root)): readonly string[] | undefined {
+  return entry('outsideSourcesOf')(root, index, name) ?? undefined;
 }
 
 /**

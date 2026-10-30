@@ -9,8 +9,8 @@
  * say — absent is the same fact as empty.
  */
 
+import { codeUnitOrder } from '@variance-authority/core/segment';
 import type { CoverageBlock, CoverageModule } from './index.js';
-import { codeUnitOrder } from './instrumented-modules.js';
 
 /**
  * A row with both crossing lists replaced, each distinct and in code-unit

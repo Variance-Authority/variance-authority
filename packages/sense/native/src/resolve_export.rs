@@ -69,12 +69,16 @@ pub(crate) struct Passes<F> {
 /// Where a walk ends. Undecided is kept apart from nothing because it carries
 /// upward: a star that cannot say what it exports under the name makes the
 /// file passing it on undecided too, where a star that does not export the
-/// name is passed over.
+/// name is passed over. Ambiguous is kept apart from undecided because the
+/// reading did decide: the module exports no such name, where undecided says
+/// the reading cannot tell what it exports.
 #[derive(Debug, PartialEq, Eq)]
 pub(crate) enum Reached<D> {
     Declaration(D),
-    /// Two stars reach different declarations, or the walk reaches what the
-    /// reading cannot say or a binding that is no declaration.
+    /// Two stars reach different declarations, here or further down the walk.
+    Ambiguous,
+    /// The walk reaches what the reading cannot say or a binding that is no
+    /// declaration.
     Undecided,
     /// The file does not export the name, or the walk already passed through it.
     Nothing,
@@ -84,7 +88,7 @@ impl<D> Reached<D> {
     pub(crate) fn declaration(self) -> Option<D> {
         match self {
             Reached::Declaration(found) => Some(found),
-            Reached::Undecided | Reached::Nothing => None,
+            Reached::Ambiguous | Reached::Undecided | Reached::Nothing => None,
         }
     }
 }
@@ -129,19 +133,31 @@ fn walk<M: Modules>(modules: &M, passes: Passes<M::File>, name: &str, passed: &m
     if name == "default" {
         return Reached::Nothing;
     }
+    // A star the reading cannot follow leaves the name undecided only once every
+    // star is read: two that reach different declarations are ambiguous
+    // wherever it stands among them.
     let mut reached: Option<M::Declaration> = None;
+    let mut undecided = false;
     for star in passes.stars {
-        let Some(to) = star else { return Reached::Undecided };
+        let Some(to) = star else {
+            undecided = true;
+            continue;
+        };
         match step(modules, to, name.to_owned(), passed) {
             Reached::Nothing => {}
-            Reached::Undecided => return Reached::Undecided,
+            Reached::Undecided => undecided = true,
+            Reached::Ambiguous => return Reached::Ambiguous,
             Reached::Declaration(found) => {
                 if reached.as_ref().is_some_and(|first| *first != found) {
-                    return Reached::Undecided;
+                    return Reached::Ambiguous;
                 }
                 reached = Some(found);
             }
         }
     }
-    reached.map_or(Reached::Nothing, Reached::Declaration)
+    match reached {
+        _ if undecided => Reached::Undecided,
+        Some(found) => Reached::Declaration(found),
+        None => Reached::Nothing,
+    }
 }

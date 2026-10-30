@@ -38,6 +38,7 @@
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { dirname, isAbsolute, join, relative } from 'node:path';
 import { digestOfSha256 } from '@variance-authority/core/format';
+import { codeUnitOrder } from '@variance-authority/core/segment';
 import type { BlockKind } from '../instrument/index.js';
 import { askCoverageFile } from '../test-selection/coverage-file.js';
 import { BLOCK_KINDS } from '../test-selection/format-layout.js';
@@ -113,6 +114,17 @@ export interface Route {
   /** How many times another case's work ran in the middle of this one. */
   readonly interleaved: number;
   readonly stopped?: boolean;
+  /** The project the case ran under, where its runner names one. */
+  readonly project?: string;
+  /** Whether a page the case ran in was gone before what it ran there was read. */
+  readonly lost?: boolean;
+  /**
+   * How many page documents the case ran in, where it ran in more than one:
+   * each says where the route moves into it, the refs it names are its own, and
+   * what two of them did under one test line is in the order it reached the
+   * runner, not the order it ran.
+   */
+  readonly documents?: number;
 }
 
 /** One reading on disk, as a listing names it. */
@@ -120,6 +132,8 @@ export interface StoryEntry {
   readonly path: string;
   readonly file: string;
   readonly name: string;
+  /** The project the case ran under, where its runner names one. */
+  readonly project?: string;
   readonly visits: number;
   /** When the reading was written, in milliseconds since the epoch; absent on one written before readings were kept. */
   readonly written?: number;
@@ -127,9 +141,11 @@ export interface StoryEntry {
   readonly label?: string;
   /** Whether the case threw or rejected in this reading; absent where the collector could not see it settle. */
   readonly stopped?: boolean;
+  /** Whether a page the case ran in was gone before it was read, so the reading is missing what ran there. */
+  readonly lost?: boolean;
 }
 
-/** Every reading in this checkout, by test file, then case name, then newest first. */
+/** Every reading in this checkout, by test file, then case name, then project, then newest first. */
 export function listStories(root: string): StoryEntry[] {
   const entries: StoryEntry[] = [];
   for (const directory of storyDirectories(root)) {
@@ -143,18 +159,21 @@ export function listStories(root: string): StoryEntry[] {
         path,
         file: inCheckout(root, story.file),
         name: story.name,
+        ...(story.project === undefined ? {} : { project: story.project }),
         visits: story.visits,
         ...(reading.written === undefined ? {} : { written: reading.written }),
         ...(reading.label === undefined ? {} : { label: reading.label }),
         ...(story.stopped === undefined ? {} : { stopped: story.stopped }),
+        ...(story.lost === undefined ? {} : { lost: story.lost }),
       });
     }
   }
   return entries.sort((left, right) =>
-    compare(left.file, right.file)
-    || compare(left.name, right.name)
+    codeUnitOrder(left.file, right.file)
+    || codeUnitOrder(left.name, right.name)
+    || codeUnitOrder(left.project ?? '', right.project ?? '')
     || (right.written ?? 0) - (left.written ?? 0)
-    || compare(left.path, right.path));
+    || codeUnitOrder(left.path, right.path));
 }
 
 /** Every region a module holds by ordinal, for each row of `story`, where the snapshot beside it holds them. */
@@ -282,8 +301,10 @@ export function drawRoute(
   };
   const keyOf = (stop: Stop): string => ('loaded' in stop ? `\0${stop.loaded.join('\0')}` : stop.place.at);
   const opening = { before: [] as string[], route: [] as string[] };
-  const before = foldSteps(stopsOf(story.before, story.beforeNotes, opening.before), keyOf, added);
-  const route = foldSteps(stopsOf(story.visits, story.notes, opening.route), keyOf, added);
+  const pages = new Set((story.parts ?? []).flatMap(([, , , document]) => (document === 0 ? [] : [document]))).size;
+  const documents = pages > 1 ? pages : undefined;
+  const before = foldSteps(stopsOf(story.before, heard(story.beforeNotes, story.beforeLines), opening.before), keyOf, added);
+  const route = foldSteps(stopsOf(story.visits, heard(story.notes, story.lines, documents === undefined ? [] : story.parts), opening.route), keyOf, added);
 
   const untaken: Untaken[] = [];
   for (const { place, row } of placed.values()) {
@@ -308,8 +329,8 @@ export function drawRoute(
     name: story.name,
     before,
     route,
-    files: [...seen].sort(compare),
-    unresolved: [...unresolved].sort(compare),
+    files: [...seen].sort(codeUnitOrder),
+    unresolved: [...unresolved].sort(codeUnitOrder),
     untaken,
     ...(opening.before.length + opening.route.length === 0 ? {} : {
       opening: {
@@ -321,7 +342,35 @@ export function drawRoute(
     untaped: story.untaped,
     interleaved: story.interleaved,
     ...(story.stopped === undefined ? {} : { stopped: story.stopped }),
+    ...(story.project === undefined ? {} : { project: story.project }),
+    ...(story.lost === undefined ? {} : { lost: story.lost }),
+    ...(documents === undefined ? {} : { documents }),
   };
+}
+
+/**
+ * What a route says at each place: the notes, each test line spelled as where
+ * the case was, and each part as the realm the case moved into, in the order
+ * they came in. A part placed where a line is comes after it: the runner cuts
+ * the line, then drains what the statement did.
+ */
+function heard(
+  notes: readonly (readonly [number, string])[],
+  lines: readonly (readonly [number, number, number, 1?])[],
+  parts: readonly (readonly [number, number, number, number])[] = [],
+): (readonly [number, string])[] {
+  const cuts = [
+    ...lines.map(([at, line, said, hook]) => ({ at, said, text: `${hook === 1 ? 'hook' : 'test'} line ${line}` })),
+    ...parts.map(([at, said, , document]) => ({ at, said, text: document === 0 ? 'in the runner' : `in document ${document}` })),
+  ].sort((left, right) => left.said - right.said || left.at - right.at);
+  const all: (readonly [number, string])[] = [];
+  let cut = 0;
+  for (const [index, note] of notes.entries()) {
+    for (; cut < cuts.length && cuts[cut]!.said <= index; cut += 1) all.push([cuts[cut]!.at, cuts[cut]!.text]);
+    all.push(note);
+  }
+  for (; cut < cuts.length; cut += 1) all.push([cuts[cut]!.at, cuts[cut]!.text]);
+  return all;
 }
 
 /** Two passes of one stop, as the one stop that stands for both. */
@@ -404,8 +453,4 @@ export function placesOf(file: string, regions: readonly Region[]): Placed {
 
 export function inCheckout(root: string, file: string): string {
   return isAbsolute(file) ? relative(root, file) : file;
-}
-
-function compare(left: string, right: string): number {
-  return left < right ? -1 : left > right ? 1 : 0;
 }

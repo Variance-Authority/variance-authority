@@ -1,6 +1,6 @@
 import { execFile } from 'node:child_process';
 import { existsSync } from 'node:fs';
-import { mkdir, mkdtemp, readFile, rm, utimes, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, readdir, rm, utimes, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -19,6 +19,8 @@ import { selectTestFiles } from './index.js';
 const { cutTestFile, instrumentModule, observeTestFile, registerRecording, RECORDING_VARIABLE } =
   (await import('@variance-authority/sense/runner')) as typeof import('./runner.js');
 
+const stories = (await import('../../dist/story/format.cjs')).default as typeof import('../story/format.cjs');
+
 const execute = promisify(execFile);
 const here = dirname(fileURLToPath(import.meta.url));
 const repository = resolve(here, '../../../..');
@@ -35,18 +37,26 @@ afterEach(async () => {
 
 /** Runs the fixture's own runner: `startRecording`, one forked process per test file, then `finish`. */
 async function record(...flags: string[]): Promise<{ coverageFile: string; stderr: string }> {
+  return await recordInto(await cacheDirectory(), flags);
+}
+
+async function cacheDirectory(): Promise<string> {
   const directory = await mkdtemp(resolve(tmpdir(), 'variance-authority-runner-'));
   temporary.push(directory);
-  return await recordInto(directory, ...flags);
+  return directory;
 }
 
 /** The same run, with `directory` as its cache, so a test can put something there first. */
-async function recordInto(directory: string, ...flags: string[]): Promise<{ coverageFile: string; stderr: string }> {
+async function recordInto(
+  directory: string,
+  flags: readonly string[] = [],
+  asked: Readonly<Record<string, string>> = {},
+): Promise<{ coverageFile: string; stderr: string }> {
   const coverageFile = resolve(directory, 'coverage.bin');
   const { [RECORDING_VARIABLE]: _open, ...environment } = process.env;
   const { stderr } = await execute(process.execPath, [resolve(fixture, 'run.mjs'), ...flags], {
     cwd: fixture,
-    env: { ...environment, VARIANCE_AUTHORITY_COVERAGE: coverageFile, VARIANCE_AUTHORITY_CACHE: directory },
+    env: { ...environment, ...asked, VARIANCE_AUTHORITY_COVERAGE: coverageFile, VARIANCE_AUTHORITY_CACHE: directory },
   });
   return { coverageFile, stderr };
 }
@@ -172,6 +182,22 @@ describe('a runner with no seam, through @variance-authority/sense/runner', () =
 
     const uncut = await record('--no-cadence');
     expect(await reaching(uncut.coverageFile, 'decide > takes the alpha path')).toBeUndefined();
+  }, 60_000);
+
+  it('writes a story for each case it runs under `VARIANCE_AUTHORITY_STORY=1`, and none without it', async () => {
+    const written = async (asked: Record<string, string>): Promise<string[]> => {
+      const directory = await cacheDirectory();
+      await recordInto(directory, [], asked);
+      const paths = (await readdir(directory, { recursive: true })).filter((path) => path.endsWith('.story'));
+      return (await Promise.all(paths.map(async (path) => stories.decodeStory(await readFile(resolve(directory, path))).name))).sort();
+    };
+
+    expect(await written({})).toEqual([]);
+    expect(await written({ VARIANCE_AUTHORITY_STORY: '1' })).toEqual([
+      'decide > takes the alpha path',
+      'decide > takes the beta path',
+      'decide > waits, then takes the alpha path',
+    ]);
   }, 60_000);
 
   it('keeps the duration the runner passed to `finish` for each file and for each case it named', async () => {

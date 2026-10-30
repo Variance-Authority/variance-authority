@@ -271,9 +271,6 @@
   "docs/understand-execution.md lead": [
     16
   ],
-  "editors/vscode/record.js block": [
-    7
-  ],
   "examples/kitchen-sink/scripts/agent-bundle.mjs block": [
     6
   ],
@@ -521,7 +518,7 @@
     6
   ],
   "packages/cli/src/commands/covering.ts docblock": [
-    13
+    11
   ],
   "packages/cli/src/commands/covering.ts overview": [
     25
@@ -715,9 +712,6 @@
   "packages/cli/src/commands/review-suites.ts docblock": [
     11
   ],
-  "packages/cli/src/commands/review.ts block": [
-    11
-  ],
   "packages/cli/src/commands/run-context.ts docblock": [
     12,
     11
@@ -783,9 +777,6 @@
     15,
     12,
     11
-  ],
-  "packages/cli/src/commands/source-graph.ts block": [
-    6
   ],
   "packages/cli/src/commands/source-graph.ts docblock": [
     16
@@ -1513,7 +1504,7 @@
     36
   ],
   "packages/help/src/tools/described.ts overview": [
-    49
+    48
   ],
   "packages/help/src/tools/discover.ts overview": [
     31
@@ -1546,7 +1537,7 @@
     6
   ],
   "packages/help/src/tools/search-answer.ts docblock": [
-    14
+    12
   ],
   "packages/help/src/tools/search.ts block": [
     6
@@ -1851,12 +1842,6 @@
   "packages/playwright-test/src/docket.ts docblock": [
     15
   ],
-  "packages/playwright-test/src/documents.ts docblock": [
-    14
-  ],
-  "packages/playwright-test/src/documents.ts overview": [
-    18
-  ],
   "packages/playwright-test/src/execution.ts block": [
     10,
     6,
@@ -1907,9 +1892,6 @@
   ],
   "packages/playwright-test/src/whole-file-shard.ts overview": [
     19
-  ],
-  "packages/playwright-test/src/with-test-selection.ts docblock": [
-    16
   ],
   "packages/playwright-test/src/with-test-selection.ts overview": [
     18
@@ -2547,9 +2529,6 @@
   "packages/sense/src/index.ts overview": [
     16
   ],
-  "packages/sense/src/instrument/cadence.ts docblock": [
-    14
-  ],
   "packages/sense/src/instrument/index.ts docblock": [
     28,
     12
@@ -2736,11 +2715,7 @@
     6
   ],
   "packages/sense/src/test-selection/case-landing.ts docblock": [
-    35,
     26
-  ],
-  "packages/sense/src/test-selection/case-layer.ts block": [
-    6
   ],
   "packages/sense/src/test-selection/case-layer.ts docblock": [
     30,
@@ -2783,11 +2758,8 @@
     24
   ],
   "packages/sense/src/test-selection/commit-runs.ts docblock": [
-    21,
-    13,
     12,
-    11,
-    11
+    12
   ],
   "packages/sense/src/test-selection/commit-runs.ts overview": [
     35
@@ -2873,7 +2845,6 @@
     26,
     20,
     19,
-    17,
     12
   ],
   "packages/sense/src/test-selection/format-layout.ts docblock": [
@@ -3114,9 +3085,6 @@
   "packages/sense/src/test-selection/ran-over.ts docblock": [
     11
   ],
-  "packages/sense/src/test-selection/range-state.ts docblock": [
-    13
-  ],
   "packages/sense/src/test-selection/react-compiler.integration.test.ts block": [
     7,
     6,
@@ -3148,9 +3116,6 @@
   "packages/sense/src/test-selection/recorded-text.ts overview": [
     56
   ],
-  "packages/sense/src/test-selection/region-edit.ts block": [
-    19
-  ],
   "packages/sense/src/test-selection/region-landing.ts block": [
     13,
     6
@@ -3159,7 +3124,6 @@
     14
   ],
   "packages/sense/src/test-selection/reporter-hooks.integration.test.ts block": [
-    10,
     6
   ],
   "packages/sense/src/test-selection/reverse.test.ts block": [

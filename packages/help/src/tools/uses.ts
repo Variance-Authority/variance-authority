@@ -2,14 +2,15 @@ import type { FileSet, Spelling, Tool } from '@variance-authority/mcp/tools';
 import { limitOf, notShown, spellingOf } from '@variance-authority/mcp/tools';
 import type { Help, Use } from '@variance-authority/package/help';
 import type { DeclaredName } from '@variance-authority/sense';
-import { unreadLine } from './declared.js';
+import { unreadLine, unresolvedLine } from './declared.js';
 import { type Members, places, routes } from './members.js';
 import { passesOn } from './passed-on.js';
-import { sharedSegments } from './shared-segments.js';
+import { nearestTo } from './shared-segments.js';
 import { symbol } from './symbol.js';
 import { UNCOUNTED, exportedAt } from './unpublished.js';
-import { bracketed, keptLine, namesakeLine, narrowing } from './uses-declarations.js';
-import { type Answer, type Namesake, type Site, sureness, usesOf } from './uses-of.js';
+import { bracketed, keptLine, namesakeLine, narrowing, publishedAt, renamed } from './uses-declarations.js';
+import { type Counted, apart, counted, spokenSplit } from './uses-count.js';
+import { type Answer, type Namesake, type Site, packageOf, usesOf } from './uses-of.js';
 
 /**
  * `docs_uses` — how this repository actually writes a name.
@@ -115,12 +116,7 @@ function nearestLine(from: string | undefined, spell: Spelling): string {
 }
 
 function order(sites: readonly Site[], from: string | undefined): readonly Site[] {
-  return [...sites].sort(
-    (a, b) =>
-      (from === undefined ? 0 : sharedSegments(from, b.at) - sharedSegments(from, a.at)) ||
-      (a.at < b.at ? -1 : a.at > b.at ? 1 : 0) ||
-      a.line - b.line,
-  );
+  return [...sites].sort(nearestTo(from));
 }
 
 /**
@@ -141,9 +137,20 @@ function listed(sites: readonly Site[], heading: string, name: string, shown: Sh
     '',
     heading,
     '',
-    ...cut.map((use) => `${use.at}:${use.line} — ${use.by}${use.how ?? ''}${renamed(use)}${use.type ? ' (type only)' : ''}${held(use)}`),
+    ...cut.map((use) => `${use.at}:${use.line} — ${use.by}${use.how ?? ''}${renamed(use)}${use.type ? ' (type only)' : ''}${held(use)}${usedOn(use.lines, shown)}`),
     ...(rest > 0 ? [`… ${notShown(rest, shown.spell)}`] : []),
   ];
+}
+
+/**
+ * The lines of an importing file that use what its import binds, the first
+ * `limit` of them and the rest counted; nothing when none were read.
+ */
+function usedOn(lines: readonly number[] | undefined, shown: Shown): string {
+  if (lines === undefined || lines.length === 0) return '';
+  const cut = lines.slice(0, shown.limit);
+  const rest = lines.length - cut.length;
+  return `; used on ${lines.length === 1 ? 'line' : 'lines'} ${cut.join(', ')}${rest > 0 ? ` and ${rest} more` : ''}`;
 }
 
 /**
@@ -171,9 +178,11 @@ export const uses: Tool<Help> = {
     'name the file by path, marked as such. Imports within the exporting package are read from the ' +
     'source index, through each `export … from` that passes the name on, so a ' +
     'name exported and not published is answered too. A site is marked `(as x)` where its import or a re-export ' +
-    'renames the name. The lines of the declaring file that use the name are listed after the imports. A member of an interface, a type literal or a class by that ' +
+    'renames the name, and with the lines its file uses what the import binds on. The imports inside the declaring package and the ones from ' +
+    'other packages are counted and listed apart. The lines of the declaring file that use the name are listed after the imports. A member of an interface, a type literal or a class by that ' +
     'name is listed with its declarations, after the imports, each with the lines that read, write or destructure ' +
-    "it through a value whose type is written as its container, and the declaration to ask its language's find-references about for the uses no line types. A top-level " +
+    'it through a value whose type is written as its container and the members of the classes that write `implements` of it, ' +
+    "and the declaration to ask its language's find-references and go-to-implementation about for the uses and implementations no line types. A top-level " +
     'name a file declares and does not export is answered with its kind, where it is declared and who can reach it there. Stories ' +
     'and tests are listed apart. `from`, the file you are in, sorts sites by shared path; `limit` says how many sites of ' +
     'each kind are shown. A name only passed on with `export … from` is followed to the declaration it reaches. ' +
@@ -245,6 +254,7 @@ function answered(answer: Answer, input: Readonly<Record<string, unknown>>, show
   // A file that keeps a name of its own is another thing than the export of that name.
   const imports = [
     imported(answer, from, ownLines(answer.inFile, name, shown), shown),
+    ...unresolvedLine(name, answer.unresolved).map((line) => `\n${line}`),
     ...namesakeLines(name, answer.namesakes, from, shown),
     ...(kept.length === 0 ? [] : ['', ...keeping]),
   ].join('\n');
@@ -259,15 +269,36 @@ function answered(answer: Answer, input: Readonly<Record<string, unknown>>, show
 }
 
 /**
- * Each exported declaration beside the one answered first, with its own
- * imports and its own file's uses of it, kept apart as a kept one is.
+ * Each declaration beside the one answered first, published or exported, with
+ * its own imports and its own file's uses of it, kept apart as a kept one is.
  */
 function namesakeLines(name: string, namesakes: readonly Namesake[], from: string | undefined, shown: Shown): readonly string[] {
   return namesakes.flatMap((one) => {
-    const count = one.sites.length;
-    const taken = count === 0 ? 'Nothing in this workspace imports it.' : `Imported in ${count} ${count === 1 ? 'place' : 'places'}.`;
-    return ['', namesakeLine(name, one.exported), taken, ...kinds(one.sites, from, name, shown), ...ownLines(one.inFile, name, shown)];
+    const taken = one.sites.length === 0 ? 'Nothing in this workspace imports it.' : importedIn(one.sites, one.home, name);
+    return ['', namesakeLine(name, one), taken, ...kinds(one.sites, from, name, shown, one.home), ...ownLines(one.inFile, name, shown)];
   });
+}
+
+/**
+ * `Imported in 2 places, all inside @acme/lib.`: the sites of one declaration,
+ * counted and split as the headline counts and splits its places, and the ones
+ * that may read it said after them.
+ */
+function importedIn(sites: readonly Site[], home: string | undefined, name: string): string {
+  const split = counted(sites, home);
+  const count = split.certain.length;
+  return `Imported in ${count} ${count === 1 ? 'place' : 'places'}${home === undefined ? '' : spokenSplit(split, home)}.${mayRead(split, name)}`;
+}
+
+/** The sites that may read a name and are no use of it, each kind said after the places counted. */
+function mayRead({ certain, off, whole }: Counted, name: string): string {
+  const reads = certain.length === 0 ? `${off.length} ${off.length === 1 ? 'place reads' : 'places read'}` : `${off.length} more ${off.length === 1 ? 'reads' : 'read'}`;
+  const before = certain.length + off.length;
+  const passes = before === 0 ? `${whole.length} ${whole.length === 1 ? 'place passes' : 'places pass'}` : `${whole.length} more ${whole.length === 1 ? 'passes' : 'pass'}`;
+  return [
+    ...(off.length === 0 ? [] : [` ${reads} it off the module's \`default\`, which holds \`${name}\` only when the module is CommonJS.`]),
+    ...(whole.length === 0 ? [] : [` ${passes} the module on whole, where this reading does not follow it, and may read \`${name}\`.`]),
+  ].join('');
 }
 
 /**
@@ -300,7 +331,7 @@ function declaredAs(answer: Answer): string {
  */
 function keptLines(name: string, kept: readonly DeclaredName[], sites: readonly Site[], inFile: readonly Use[], from: string | undefined, shown: Shown): readonly string[] {
   if (kept.length === 0) return [];
-  const taken = sites.length === 0 ? [] : ['', `Imported in ${sites.length} ${sites.length === 1 ? 'place' : 'places'}.`, ...kinds(sites, from, name, shown)];
+  const taken = sites.length === 0 ? [] : ['', importedIn(sites, packageOf(kept[0]?.by), name), ...kinds(sites, from, name, shown, packageOf(kept[0]?.by))];
   return [keptLine(name, kept, shown.spell), ...taken, ...ownLines(inFile, name, shown)];
 }
 
@@ -324,50 +355,49 @@ function memberLines(members: Members, from: string | undefined, name: string, s
 
 /** The imports of an exported name, as `uses` has always answered them. */
 function imported(answer: Answer, from: string | undefined, own: readonly string[], shown: Shown): string {
-  const { name, found, exported, sites, unread, within, origin, inside } = answer;
+  const { name, found, exported, sites, unread, within, origin, originNamed, inside } = answer;
   // An export that only passes the name on is followed to the declaration.
-  const passed = origin === undefined ? '' : `, which ${passesOn(origin)}`;
+  const passed = origin === undefined ? '' : `, which ${passesOn(origin, originNamed ?? origin.name)}`;
   const named = `\`${name}\`${declaredAs(answer)}`;
   // An entry may publish the name only as a member of a namespace it exports.
   const member = inside.length === 0 ? undefined : `published as ${inside.join(' and as ')}`;
+  // An answer that covers more than one declaration says which one it counts first.
+  // So does one whose door or file spells it by another name than the one asked.
+  const { lead } = answer;
+  const many = answer.file === undefined && new Set(answer.files).size > 1;
+  const declaration = lead !== undefined && (many || renamed(lead, name)) ? publishedAt(lead, name) : undefined;
+  const which = declaration === undefined ? '' : `, ${declaration}`;
+  const publishedAs = declaration === undefined ? 'published' : `${declaration},`;
   if (sites.length === 0 && exported.length > 0) {
     const how = member === undefined ? `exported, without being published, at ${exportedAt(exported)}` : `${member}, and exported at ${exportedAt(exported)}`;
     return [`${named} is ${how}${passed}, and nothing in this workspace imports it; ${UNCOUNTED}.`, ...own].join('\n');
   }
   if (sites.length === 0 && unread !== undefined) {
-    return `${named} is published and no other package imports it; the imports within its own package are read from the source index, and ${unread}.`;
+    return `${named} is ${publishedAs} and no other package imports it; the imports within its own package are read from the source index, and ${unread}.`;
   }
   if (sites.length === 0) {
-    return [`${named} is published and nothing in this workspace imports it; ${UNCOUNTED}. \`${shown.spell.tool(symbol)}\` has its signature and what is written above it.`, ...own].join('\n');
+    return [`${named} is ${publishedAs} and nothing in this workspace imports it; ${UNCOUNTED}. \`${shown.spell.tool(symbol)}\` has its signature and what is written above it.`, ...own].join('\n');
   }
 
   const nearest = nearestLine(from, shown.spell);
 
   // A read off `default` and a module passed on whole are no use of the name: each is listed, as a site that may read it, and counted apart.
-  const split = sureness(sites);
+  const split = counted(sites, answer.home);
   const certain = split.certain;
-  const off = split.off.length;
-  const whole = split.whole.length;
   // An `import()` type is a dynamic use that loads nothing.
   const dynamic = certain.filter((use) => use.through?.kind === 'dynamic' && use.type !== true).length;
   const loaded = dynamic === 0 ? '.' : `, ${dynamic} through import(), which loads the module when the call runs.`;
-  const reads = certain.length === 0 ? `${off} ${off === 1 ? 'place reads' : 'places read'}` : `${off} more ${off === 1 ? 'reads' : 'read'}`;
-  const before = certain.length + off;
-  const passes = before === 0 ? `${whole} ${whole === 1 ? 'place passes' : 'places pass'}` : `${whole} more ${whole === 1 ? 'passes' : 'pass'}`;
-  const may = [
-    ...(off === 0 ? [] : [` ${reads} it off the module's \`default\`, which holds \`${name}\` only when the module is CommonJS.`]),
-    ...(whole === 0 ? [] : [` ${passes} the module on whole, where this reading does not follow it, and may read \`${name}\`.`]),
-  ].join('');
+  const may = mayRead(split, name);
   const exportedHere = exported.length > 0 ? `; it is exported at ${exportedAt(exported)}${passed}` : '';
-  const published = found.length > 0 ? '' : `, ${member ?? 'and no entry publishes it'}${exportedHere}`;
+  const published = found.length > 0 ? which : `, ${member ?? 'and no entry publishes it'}${exportedHere}`;
   const taken =
     certain.length === 0
       ? `${named} is imported by name nowhere${published}.`
-      : `${named} is imported in ${certain.length} ${certain.length === 1 ? 'place' : 'places'}${published}${loaded}`;
+      : `${named} is imported in ${certain.length} ${certain.length === 1 ? 'place' : 'places'}${answer.home === undefined ? '' : spokenSplit(split, answer.home)}${published}${loaded}`;
   return [
     `${taken}${may}`,
     nearest,
-    ...kinds(sites, from, name, shown),
+    ...kinds(sites, from, name, shown, answer.home),
     ...own,
     // The imports by package path are in the Help value; the rest are not.
     ...(unread === undefined ? [] : [`\nImports that do not name a package path are not listed: ${unread}.`]),
@@ -375,12 +405,23 @@ function imported(answer: Answer, from: string | undefined, own: readonly string
   ].join('\n');
 }
 
-/** The sites of a name, nearest first when `from` is said, stories and tests apart. */
-function kinds(sites: readonly Site[], from: string | undefined, name: string, shown: Shown): readonly string[] {
+/**
+ * The sites of a name, nearest first when `from` is said, stories and tests
+ * apart, and each kind's sites from other packages apart from those inside
+ * `home`, the package that declares the name, when one is known.
+ */
+function kinds(sites: readonly Site[], from: string | undefined, name: string, shown: Shown, home: string | undefined): readonly string[] {
   const sorted = order(sites, from);
-  return [
-    ...listed(sorted.filter((use) => use.kind === 'story'), 'Stories:', name, shown),
-    ...listed(sorted.filter((use) => use.kind === 'test'), 'Tests:', name, shown),
-    ...listed(sorted.filter((use) => use.kind === 'source'), 'Source:', name, shown),
-  ];
+  return (
+    [
+      ['story', 'Stories'],
+      ['test', 'Tests'],
+      ['source', 'Source'],
+    ] as const
+  ).flatMap(([kind, heading]) => {
+    const of = sorted.filter((use) => use.kind === kind);
+    if (home === undefined) return listed(of, `${heading}:`, name, shown);
+    const { outside, inside } = apart(of, home);
+    return [...listed(outside, `${heading}, from other packages:`, name, shown), ...listed(inside, `${heading}, inside ${home}:`, name, shown)];
+  });
 }

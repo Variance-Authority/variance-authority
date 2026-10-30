@@ -13,6 +13,7 @@ import {
   testCoverageFile,
   withCaseSections,
   writeTestCoverage,
+  type CoverageBlock,
   type ExecutionBlock,
   type ExecutionIndex,
   type TestCoverage,
@@ -58,6 +59,21 @@ export function probedModule(files: readonly string[]): TestCoverage['modules'][
     sourceDigest: 'probed',
     instrumented: true,
     blocks: [{ ordinal: 0, kind: 'module', digest: 'probed', name: '', path: '', startLine: 1, endLine: 1, source: true, testFiles: [...files].sort() }],
+  };
+}
+
+/**
+ * The case a cased seam keeps of a run at `commit` that finished
+ * `test/total.test.ts`: `DISCOUNTS`, entering the module `probedModule` holds.
+ * A run that finished a test file and kept no cases leaves no case index.
+ */
+export function keptDiscounts(commit: string) {
+  return {
+    fresh: encodeAsSetExecutionIndex({
+      tests: [DISCOUNTS],
+      modules: [{ file: 'src/probed.ts', blocks: [{ kind: 'module', name: '', path: '', startLine: 1, endLine: 1, source: true, crossings: [{ test: 0, distance: 0 }] }] }],
+    }),
+    run: { tests: [{ file: 'test/total.test.ts', complete: true }], commit },
   };
 }
 
@@ -253,28 +269,30 @@ export async function recordIn(
 ): Promise<void> {
   const record = testCoverageFile(dir, { suite: 'unit' });
   await mkdir(dirname(record), { recursive: true });
-  await writeTestCoverage(record, {
+  await writeTestCoverage(record, totalCoverage(commit, ['test/total.test.ts', 'test/other.test.ts'], [totalModule(covering), {
+    ordinal: 1, owner: 0, kind: 'function', digest: digestString('applyDiscount'), name: 'applyDiscount', path: 'applyDiscount',
+    startLine: 1, endLine: 3, source: true, testFiles: [...covering],
+  }]));
+  await keepCases(record, casesOf(cases));
+}
+
+/** What a run of `tests`, each whole, records at `commit` over `src/total.ts` as `BEFORE` holds it: `blocks`, the module first. */
+export function totalCoverage(commit: string, tests: readonly string[], blocks: readonly CoverageBlock[]): TestCoverage {
+  return {
     version: 3,
     instrumentation: 'fixture',
     commit,
-    tests: [
-      { file: 'test/total.test.ts', complete: true, preconditions: [] },
-      { file: 'test/other.test.ts', complete: true, preconditions: [] },
-    ],
-    modules: [{
-      file: 'src/total.ts',
-      sourceDigest: digestString(BEFORE),
-      instrumented: true,
-      blocks: [{
-        ordinal: 0, kind: 'module', digest: digestString('module'), name: '', path: 'module',
-        startLine: 1, endLine: 3, source: true, testFiles: [...covering],
-      }, {
-        ordinal: 1, owner: 0, kind: 'function', digest: digestString('applyDiscount'), name: 'applyDiscount', path: 'applyDiscount',
-        startLine: 1, endLine: 3, source: true, testFiles: [...covering],
-      }],
-    }],
-  });
-  await keepCases(record, casesOf(cases));
+    tests: tests.map((file) => ({ file, complete: true, preconditions: [] })),
+    modules: [{ file: 'src/total.ts', sourceDigest: digestString(BEFORE), instrumented: true, blocks: [...blocks] }],
+  };
+}
+
+/** The module block of `src/total.ts`, which the tests in `covering` entered. */
+export function totalModule(covering: readonly string[]): CoverageBlock {
+  return {
+    ordinal: 0, kind: 'module', digest: digestString('module'), name: '', path: 'module',
+    startLine: 1, endLine: 3, source: true, testFiles: [...covering],
+  };
 }
 
 /**
@@ -285,7 +303,7 @@ export async function recordIn(
  */
 export async function ranWhole(record: string, commit: string): Promise<void> {
   const at = '2026-01-01T00:00:00.000Z';
-  const runs = { commit, first: at, latest: at, runs: 1, files: ['test/other.test.ts', 'test/total.test.ts'], standing: [] };
+  const runs = { commit, latest: at, runs: 1, landings: [{ files: ['test/other.test.ts', 'test/total.test.ts'], first: at, latest: at, runs: 1 }], standing: [] };
   await writeFile(commitRunsFile(record), `${JSON.stringify(runs, null, 2)}\n`);
 }
 
@@ -349,8 +367,9 @@ export async function ranHere(dir: string, at: string): Promise<void> {
     }],
   });
   await keepCases(record, casesOf([DISCOUNTS, ROUNDS]));
+  const landed = '2026-09-26T00:00:00.000Z';
   await writeFile(commitRunsFile(record), JSON.stringify({
-    commit: at, first: '2026-09-26T00:00:00.000Z', latest: '2026-09-26T00:00:00.000Z', runs: 1, files: ['test/total.test.ts'],
+    commit: at, latest: landed, runs: 1, landings: [{ files: ['test/total.test.ts'], first: landed, latest: landed, runs: 1 }],
   }));
   // What the pipeline's `variance index` step publishes after the run; under CI, review refuses to build it itself.
   await updateSourceIndex(dir);

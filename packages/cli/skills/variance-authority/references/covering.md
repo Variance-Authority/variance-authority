@@ -34,8 +34,10 @@ under `No case ran a part of it`, as `unrun` in JSON (`kind`, the nested
 `name`, held-text lines, and `state`, `hole` or `unwalked`, when the record
 can tell) and `; no case ran 112 branch` in refs. They are read over every
 case, before `--where` or `--at-distance`, across the whole function, with the
-review's own reading, in each suite: a function the handover flags is answered
-here with the part to test.
+review's own reading, in each suite: a function the handover flags 🔴 is
+answered here with the part to test, and one it flags ❔, whose part a case ran
+in a text an edit wrote over, with the lines of that part no case called into
+in `overwritten`.
 
 The record holds a line no finer than its region does. A line whose edit
 charges the module's own region is held at file grain: a module-level
@@ -48,10 +50,14 @@ Which of the cases that loaded the file ran the line is then open, and the
 answer ends with a Deep gap: the story of its first three tests, in the order
 the answer lists them ([Fast, Smart, Deep](fsd.md)). A whole-file answer asks of
 no line, so it ends with no Deep gap: ask `--line` on the range you mean.
-Lines of a run your edit wrote are named in `written` and left out; when your
-edit wrote every line asked, the answer says that no case has run them. When
-no line asked is in a recorded region, the answer names no case and says, for
-each line, whether your edit wrote it or no region holds it.
+Lines of a run your edit wrote are named in `written`, lines a case ran in a
+text the record does not number in `overwritten`, lines the record cannot say a
+case ran in `unknown`, with `why`, and no case is named for any of them; when
+your edit wrote every line asked, the answer says that no case has run them.
+When no line asked is in a recorded region, or every one is in one of those
+three, the answer names no case and says, for each line, whether your edit
+wrote it, a case ran it in another text, whether a case ran it is not known, or
+no region holds it.
 
 - `--hops` puts each test file's import hops beside it and sorts nearest first.
   It needs `--line` or `--function`, and a run of lines or any `--function` is
@@ -74,8 +80,12 @@ variance covering --file src/checkout/total.ts --line 48 --cases last
 
 The index is read from where a recorded run writes it, so `--file` is usually
 the whole command. `--execution <path>` names an index recorded elsewhere, and
-`--root <path>` the project root it was recorded against. Producing the index is
-in [producers](producers.md).
+`--root <path>` the project root it was recorded against. A record that names
+the commit it was made at is read as the suite's own is: its `at` is that
+commit, its lines are framed in your text against it, and its test files are
+dated by the runs record beside it. A journey file names no commit, so its
+lines are given as recorded and no time is said. Producing the index is in
+[producers](producers.md).
 
 When the root config declares `suites`, the question is asked of each suite's
 record, and the answer is one block per suite, headed `<suite> (<kind>):`,
@@ -187,8 +197,8 @@ line 6 — alone
 
 ## Ask about the text you are editing
 
-When the file differs from the text the suite ran over, which it does the moment
-you edit it, pass the text you have:
+When the file differs from the text the record's lines are numbered in, which it
+does the moment you edit it, pass the text you have:
 
 ```bash
 variance covering --file src/checkout/total.ts --text - --format json < edited.ts
@@ -205,10 +215,112 @@ The answer's `frame` names the coordinates its numbers are in:
   ran your line cannot be said.
 
 A `--line` your edit wrote is answered with no case, because no case has run
-it, and in a run of lines it is named in `written` and left out. That is not
-*no test covers it*: the answer ends with a Record gap naming the test files
+it, and in a run of lines it is named in `written` and left out. A line the
+record's text has no place for, but a text that a case which entered the file
+ran over holds, is answered with no case too and named in `overwritten`: a
+later run over another text numbered the record's lines, so a case ran over
+your line, and which one ran it is not known. So is a line of a region a run in
+part landed an edit over: the cases that ran the region before it ran another
+text there, and the record lost which of them ran each line, even once a later
+run numbers its lines in your text again. Every line of
+that region is said so under `--line`, `--lines` and `--function`, unless a case
+called into a region that holds the line: that case ran it, so the line is not
+in `overwritten`. The whole file says it of the range and `--since` of the
+region, and one a named case entered says it also holds one. A line the
+record's text has no place for, where the record cannot say which text a case
+that crossed the file ran over, is answered with no case and named in
+`unknown`, with why: the runs record names no texts there, or no commit, or the
+text that case ran is not kept. Your edit wrote it only when the record shows
+every such case ran a text without it.
+Neither is *no test covers it*:
+the answer ends with a Record gap naming the test files
 `variance select` runs for the file, under the suite's own `relations`, `ignore` and `before`. A `stale` frame and a `moved` range end the
 same way.
+
+## Read how fresh and how actual the answer is
+
+The frame is numbering only. Which text each test file ran over, and when, is
+said apart, because a partial run moves the record to its commit and every test
+file it did not run keeps where it last ran: one answer can name a test file
+that ran a minute ago over your text beside one that ran days ago over a text
+that was never committed. Under the answer, after the frame line, the test
+files it names are said in groups, one line each, a group the record holds no
+time for first, then the oldest:
+
+```text
+The recorded lines of src/pay.ts are placed in its text as it is now.
+src/pay.test.ts ran over another text of src/pay.ts, in a run that landed 9 hours ago; `pay` is the same in both.
+src/pay.ts is the text the other test file named here ran over, in a run that landed 6 minutes ago.
+```
+
+- The frame line says nothing under `recorded`. A `stale` answer about the
+  file or a line opens with it instead, as the reason it gives no line; under
+  `--function` it adds that the parts no case ran are not said. Under `mapped`
+  a part of the function no case ran that an edit touched prints as `edited`.
+- A group is the test files one run last finished: it ran them whole, or the
+  record held no cases of them. A later run in part (`-t`, a filter, a skip)
+  names the cases it ran, so each named case is dated and compared by the run
+  that last ran it, and a test file whose named cases last ran apart is said
+  part by part on one line, newest first: ``src/pay.test.ts ran 'refunds' over
+  this text, in a run that landed 1 hour ago, and its 1 other case named here
+  over another text of src/pay.ts, in a run that landed 3 days ago, in which
+  `pay` is the same.`` A run in part that kept no cases, or executed none of
+  the file's, every one skipped, says it laid none, so each named case is
+  dated by the earlier run. A test file the answer names no case of, and a case
+  of one whose later run in part does not say which it laid (a record another
+  tool wrote), is placed by the earlier run, its line spanning both times, and
+  if only some of those runs ran over your text, which text its cases ran over
+  is not known.
+- Your text, `--text` or the file on disk, is compared by digest with the
+  texts the runs record names for each run, else the committed ones at its
+  commit. A group is compared only on the files its runs read: the asked file
+  its cases entered or hold as a precondition, and under `--since` each changed
+  file its cases are named for, entered or hold as a precondition. A file its
+  runs never loaded says nothing of the text they ran over. The groups that ran
+  over your text share one line; a group that ran over another text, or whose
+  text is not known, is named. A file the group's commit lacks is said not to
+  have existed where it ran; a commit or text this clone lacks leaves it not
+  known. Every file a group read and its verdict is said.
+- For `--line`, `--lines` and `--function`, a named group's line says whether
+  that region is the same in both texts, gone from yours, or why that is not
+  known. Under `--function` it says nothing of the region when the record does
+  not say which text its lines are numbered in.
+- The time is when that run landed, spanned when a line says several runs. A
+  commit's date is never used. A group the record holds no time or texts for
+  says what it does not hold; a record seeded before landings holds no time,
+  since the seed stamped it when it was copied. Runs outside a git checkout
+  stand at one place, each dated by its landing, and only the one that wrote
+  the snapshot is compared with its rows; an earlier one's text is not known.
+  A test file read from a newer mainline record is dated and compared by the
+  run that published it.
+- A test file the runs record does not place, and every one when no runs
+  record lies beside the snapshot or it is of another commit, is read where
+  the record assumes it, at no time and over a text not known, and a last line
+  says how many were. An answer naming no test file is dated by the test files
+  that entered the file, and compared over it, else by every case it read, and
+  compared over nothing, since none of them loaded it.
+- `--since` says the same under its regions, each group over the changed files
+  it read, with no region; a changed file not on disk is named first, and no
+  test file is said to have run over it.
+
+In JSON, `at` is the record's commit and `ran.stands` the groups: each a
+`commit` (absent for a run outside a git checkout), its `tests`, `cases` (the
+cases of its one test file when that file is said part by part), `landed`
+(`first`, `latest`, and `runs` when counted), `partly` (the `commit` and
+`landed` of each later run in part that may have run them: every one when no
+case is named, else each that does not say which cases it laid),
+`files` (the asked files they are compared on, when fewer than all), `text`
+(`held` when they ran over your text of every file they are compared on,
+`other` when they ran over another text of some, or over none), `other` naming
+the files they ran another text of, `absent` those that did not exist where
+they ran, `held` those whose text is yours when not every one is, `region` (`same`,
+`changed`, `gone` or `{ "unknown": <why> }`), `unknown` for why the rest's text
+is not known, and `assumed: true` with `ran.assumed` saying how. `ran.unheld`
+names the changed files not on disk, `ran.named` is `entered` or `read` when the
+answer names no test file, and `ran` holds `tests` and `unread` in place of
+`stands` when where they ran cannot be read; `ran` is absent under `--format
+refs`. `moved: true` marks a `--function` answer and each `unrun` part an edit
+touched, and `unheld: true` a file that is not on disk.
 
 ## Ask about the whole change at review time
 
@@ -224,8 +336,8 @@ nothing for is named as such, since *no row* and *no test* are opposite facts.
 The diff is measured from the commit the record was written at, so record before
 you read. `variance_changed_tests` answers the same question over MCP, on a host
 that serves it ([MCP](mcp.md#tools-no-binary-serves)), taking the unified diff
-as an argument, but answers without the file graph: a case whose file mocked the
-changed module can be listed under it.
+as an argument. It reads the file graph off the source tree the host supplies,
+so a case whose file mocked the changed module is not listed under it.
 
 A review agent reads the same answer with `--format refs`, and adds the base
 branch's case index to see what the change did in files the diff does not name:

@@ -168,9 +168,8 @@ first line:
 | `submitOrder` | line 3, `submitOrder(cart, total)` |
 
 The call on line 4 runs `priceCart` again. Its region stays attributed to line
-2: cadence records the first statement, not every visit. Under the Node
-runners, a hook's work is marked as a hook's, so you can separate setup from
-the case's own actions.
+2: cadence records the first statement, not every visit. A hook's work is
+marked as a hook's, so you can separate setup from the case's own actions.
 When the case itself also runs a region a hook ran, the case's statement takes
 precedence.
 
@@ -178,9 +177,7 @@ This recording is on by default under Vitest, Jest, Rstest and Playwright;
 a custom runner can record it too. The [runner
 reference](../packages/sense/README.md#record-which-test-line-reached-a-region)
 explains setup, which test bodies it can transform and `cadence: false`.
-Playwright records which spec statement ran each region of the page. It
-records `beforeEach` and `afterEach` statements as the case's own lines, so
-those lines do not separate hook work from the case's body. Its
+Playwright records which spec statement ran each region of the page. Its
 [runner reference](../packages/playwright-test/README.md#record-which-spec-line-reached-each-region)
 explains recording across navigation. A case recorded without statement lines
 has no attribution to read; it is not a case whose statements ran nothing.
@@ -264,11 +261,11 @@ Or over MCP, where `variance_source_tests` takes a location and
 
 **Re-record when the tree moves.** A region is a range of lines in the text the
 suite ran over, so the index's coordinates belong to the commit it was recorded
-at. An index behind the tree answers fluently about regions that have since
-moved, which is worse than answering nothing; the `--since` reading measures
-from the recorded commit for exactly this reason. At +2% to +8% there is no
-budget argument against recording on every run, which is the cadence this
-needs.
+at, and the `--since` reading measures from that commit for this reason. For the
+test files it names, `covering` prints whether they ran over your source file as
+it is now, and when that run landed. A test file that ran over another text is
+evidence about that text, not about yours. At +2% to +8% there is no budget
+argument against recording on every run, which is the cadence this needs.
 
 **Fold shards, don't fold axes.** A suite split across machines ends with one
 index per shard, and folding them produces the union the unsharded run would
@@ -292,8 +289,12 @@ numbers are coordinates *into* the recorded text, not the thing recorded.
 The rows keep a crossing through an edit by that address, and a digest per
 region catches a mispair. The case axis holds no digest, so it follows the edit
 itself: a region the `git diff -U0` hunks leave alone keeps its cases at the
-lines the hunks place it, and a region they touch carries none and counts as
-changed.
+lines the hunks place it, and a region they touch keeps its cases too. Where the
+edit changed what that region runs, those cases ran a text that is no longer
+there: `variance select` runs them for a change to the region, and `covering`
+prints that which case ran it is not known.
+[Identity under an edit](execution-record.md#identity-under-an-edit) walks
+through each kind of edit.
 
 **A crossing is a pair.** One row is *this case covered this region*, and the
 index is those pairs and nothing else: three parallel integer columns, sorted

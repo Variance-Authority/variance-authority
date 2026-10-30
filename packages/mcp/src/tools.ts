@@ -140,6 +140,7 @@ export { limitOf, notShown } from './tools/limit.js';
 export { heldWeight, rarity } from './tools/rarity.js';
 // How an answer names an input, a tool or a question, on the surface it was asked on.
 export { flagOf, spellingOf, verbOf, type Spelling } from './tools/spelling.js';
+export { conjoined } from './tools/locate-print.js';
 export { diffState };
 
 /** The source-to-named-test tool set for an MCP server over an execution index. */
@@ -304,15 +305,16 @@ function lift<Subject>(
     name: tool.name,
     description: tool.description,
     inputSchema: tool.inputSchema,
+    ...(tool.wants === undefined ? {} : { wants: tool.wants }),
     run(subject, input, invocation) {
       const evidence = read(subject);
       if (evidence === undefined) {
         throw new Error(`${domain} evidence is unavailable to this MCP connection`);
       }
-      const previous = invocation?.previous === undefined
-        ? undefined
-        : read(invocation.previous);
-      return tool.run(evidence, input, previous === undefined ? undefined : { previous });
+      // What the host read for the call travels with it; only the previous subject is projected.
+      const { previous: before, ...host } = invocation ?? {};
+      const previous = before === undefined ? undefined : read(before);
+      return tool.run(evidence, input, { ...host, ...(previous === undefined ? {} : { previous }) });
     },
   };
 }

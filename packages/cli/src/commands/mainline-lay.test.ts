@@ -1,5 +1,5 @@
 import { execFile } from 'node:child_process';
-import { mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
@@ -13,11 +13,12 @@ import {
   recordOfCases,
   seedTestCoverage,
   testCoverageFile,
+  whatLanded,
   withoutCoverage,
   type TestCoverage,
 } from '@variance-authority/sense/test-selection';
 import type { Env } from '../share-lines.js';
-import { DISCOUNTS, PUSH, gitPublished, parseReview, probedModule, recordIn, selectedIn } from './mainline-fixture.js';
+import { DISCOUNTS, PUSH, gitPublished, keptDiscounts, parseReview, probedModule, recordIn, selectedIn } from './mainline-fixture.js';
 import { review } from './review.js';
 import { suiteBase } from './suite-base.js';
 import { publishSuite } from './suite-share.js';
@@ -81,6 +82,15 @@ async function worktreeAtPublished(): Promise<{ first: string; head: string; wor
 }
 
 describe('a worktree at the commit its mainline published', () => {
+  it('lays its seed with the files its landings finished listed beside them, the files a build that keeps no landings reads as run at its commit', async () => {
+    const { worktree } = await worktreeAtPublished();
+    const own = testCoverageFile(worktree, { suite: 'unit' });
+    await seedTestCoverage(own, worktree, 'fixture');
+
+    const written = JSON.parse(await readFile(commitRunsFile(own), 'utf8')) as Record<string, unknown>;
+    expect(written['files']).toEqual(['test/other.test.ts', 'test/total.test.ts']);
+  });
+
   it('has no run listed before it runs, and its first run starts its change there rather than where CI\'s run did', async () => {
     const { head, worktree } = await worktreeAtPublished();
     const own = testCoverageFile(worktree, { suite: 'unit' });
@@ -89,7 +99,11 @@ describe('a worktree at the commit its mainline published', () => {
     await updateSourceIndex(worktree);
 
     // The mainline's runs are laid as a seed: where its tests last ran, and no run of this worktree's.
-    expect(await readCommitRuns(own)).toMatchObject({ commit: head, runs: 0, standing: [] });
+    // CI wrote its record before landings were kept, and the seed keeps when that run landed as its one landing.
+    expect(await readCommitRuns(own)).toMatchObject({
+      commit: head, runs: 0, standing: [],
+      landings: [{ files: ['test/other.test.ts', 'test/total.test.ts'], first: '2026-01-01T00:00:00.000Z', latest: '2026-01-01T00:00:00.000Z', runs: 1 }],
+    });
     await expect(review(parseReview(['--root', worktree]))).rejects.toThrow(
       `no run has listed itself beside \`${own}\`, so nothing records where this change starts.`,
     );
@@ -101,15 +115,16 @@ describe('a worktree at the commit its mainline published', () => {
       tests: [{ file: 'test/total.test.ts', complete: true, preconditions: [] }],
       modules: [probedModule(['test/total.test.ts'])],
     };
-    await landRun(own, ran, worktree);
+    await landRun(own, ran, worktree, undefined, keptDiscounts(head));
 
-    expect(await readCommitRuns(own)).toMatchObject({
+    const runs = await readCommitRuns(own);
+    expect(runs).toMatchObject({
       commit: head,
       over: head,
       runs: 1,
-      files: ['test/total.test.ts'],
       standing: [{ commit: head, files: ['test/other.test.ts'] }],
     });
+    expect(whatLanded(runs!.landings).files).toEqual(['test/total.test.ts']);
     expect(await review(parseReview(['--root', worktree]))).toMatchObject({ from: head });
   });
 });

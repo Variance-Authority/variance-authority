@@ -32,12 +32,20 @@ function reading(visits: number[], said: [number, string][] = [], stopped = fals
       interleaved: 0,
       notes: said,
       beforeNotes: [],
+      lines: [],
+      beforeLines: [],
       unnoted: 0,
       stopped,
     },
     files: ['src/cart.ts', 'src/format.ts'],
     regions: [CART, undefined],
   };
+}
+
+/** {@link reading} of a case that ran in pages: test lines and the realm parts the page story says. */
+function paged(visits: number[], lines: [number, number, number][], parts: [number, number, number, number][]): Loaded {
+  const read = reading(visits);
+  return { ...read, story: { ...read.story, lines, parts } };
 }
 
 const passed = (...readings: Loaded[]) => ({ name: 'passed', readings });
@@ -96,6 +104,13 @@ describe('two sides of a case', () => {
 
     expect(comparison.only.map((only) => [only.sides, only.said])).toEqual([[['passed'], ['console.log stock 1']], [['threw'], ['console.log stock 0']]]);
     expect(comparison.unsteady.said).toBe(3);
+  });
+
+  it('list the lines one side said every time in the order it said them, not by their text', () => {
+    const lines: [number, string][] = [[1, 'console.log zeta'], [1, 'console.log beta'], [2, 'console.log alpha']];
+    const comparison = compareLoaded(ROOT, [passed(reading([1, 4]), reading([1, 4])), threw(reading([1, 4], lines, true), reading([1, 4], lines, true))]);
+
+    expect(comparison.only.map((only) => only.said)).toEqual([['console.log zeta', 'console.log beta', 'console.log alpha']]);
   });
 
   it('are told apart by what a function was handed, and not by the number its run gave an object', () => {
@@ -256,5 +271,30 @@ describe('sides that are different cases', () => {
     const one = (name: string, before: number[]) => ({ name, readings: [reading([1, 2], [], false, before), reading([1, 2], [], false, before)] });
     const comparison = compareLoaded(ROOT, [one('alone', []), one('file', [4])]);
     expect(comparison.only).toEqual([{ sides: ['file'], places: [expect.objectContaining({ path: 'entry', place: expect.objectContaining({ name: 'price' }) })], said: [] }]);
+  });
+
+  it('order no two frames\' work under one test line, where only the order their drains arrived in is known', () => {
+    // removeItem ran in the main frame and price in a child frame, both under line 5.
+    const comparison = compareLoaded(ROOT, [
+      passed(paged([1, 4], [[0, 5, 0]], [[0, 0, 1, 1], [1, 0, 2, 2]]), paged([1, 4], [[0, 5, 0]], [[0, 0, 1, 1], [1, 0, 2, 2]])),
+      threw(paged([4, 1], [[0, 5, 0]], [[0, 0, 2, 2], [1, 0, 1, 1]]), paged([4, 1], [[0, 5, 0]], [[0, 0, 2, 2], [1, 0, 1, 1]])),
+    ]);
+
+    expect(comparison.orders).toEqual([]);
+    expect(comparison.unsteady.order).toBe(0);
+  });
+
+  it('order two frames\' work under two test lines, and one frame\'s work under one', () => {
+    const across = compareLoaded(ROOT, [
+      passed(paged([1, 4], [[0, 5, 0], [1, 6, 0]], [[0, 0, 1, 1], [1, 0, 2, 2]]), paged([1, 4], [[0, 5, 0], [1, 6, 0]], [[0, 0, 1, 1], [1, 0, 2, 2]])),
+      threw(paged([4, 1], [[0, 5, 0], [1, 6, 0]], [[0, 0, 2, 2], [1, 0, 1, 1]]), paged([4, 1], [[0, 5, 0], [1, 6, 0]], [[0, 0, 2, 2], [1, 0, 1, 1]])),
+    ]);
+    expect(across.orders).toHaveLength(1);
+
+    const within = compareLoaded(ROOT, [
+      passed(paged([1, 4], [[0, 5, 0]], [[0, 0, 1, 1], [2, 0, 2, 2]]), paged([1, 4], [[0, 5, 0]], [[0, 0, 1, 1], [2, 0, 2, 2]])),
+      threw(paged([4, 1], [[0, 5, 0]], [[0, 0, 1, 1], [2, 0, 2, 2]]), paged([4, 1], [[0, 5, 0]], [[0, 0, 1, 1], [2, 0, 2, 2]])),
+    ]);
+    expect(within.orders).toHaveLength(1);
   });
 });

@@ -12,13 +12,13 @@
  */
 
 import { rm } from 'node:fs/promises';
+import { codeUnitOrder } from '@variance-authority/core/segment';
 import { instrumentationId, type InstrumentMode, type ModuleId } from '../instrument/index.js';
 import { runTexts } from '../text-digests.js';
 import { deriveModules } from './captured-modules.js';
 import { commitOf } from './commit.js';
 import { landRun } from './commit-runs.js';
 import {
-  codeUnitOrder,
   crossingsOf,
   loadedOf,
   projectPath,

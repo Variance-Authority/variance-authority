@@ -27,6 +27,8 @@ export interface Placement {
   readonly frame: 'recorded' | 'mapped' | 'stale';
   /** The commit the record stands at, when it says. */
   readonly at?: string;
+  /** The text the record's lines are numbered in: the held one under `recorded`, the one found under `mapped`. */
+  readonly recorded?: string;
   /**
    * A recorded range in the held text. `moved` when an edit touched it, with
    * the lines it spans now; absent when the edit removed every line of it.
@@ -37,41 +39,64 @@ export interface Placement {
 }
 
 /**
- * Frame one file's text against the snapshot that recorded it.
- *
- * The recorder wrote a digest of every module's text beside its rows, so the
- * snapshot answers whether a text is the one it measured; `frameOf` asks it,
- * once for the held text and once for the text at the recorded commit — or,
- * for a run recorded over an edit, the text its landing kept. The
- * line map between the recorded text and the held one is git's: `diff
- * --no-index` over the two, which is the same hunk arithmetic every other
- * reading of a change here takes from git.
- *
- * Absent when the snapshot holds no instrumented row for the file, so there is
- * no digest to hold the text against — which is not a frame, and not `stale`.
+ * Frame each held text against the snapshot that recorded its file, by the
+ * digest the recorder wrote beside its rows (`frameOf`), and map its lines from
+ * the recorded text, the one at the recorded commit or the one its landing
+ * kept, by git's `diff --no-index`. A file with no instrumented row is absent.
  */
-export function placeInText(snapshot: string, root: string, file: string, text: string): Placement | undefined {
+export function placeInTexts(snapshot: string, root: string, texts: ReadonlyMap<string, string>): ReadonlyMap<string, Placement> {
+  // The snapshot is opened once, and the recorded texts are read together.
   const asked = askCoverageFile(snapshot, (coverage) => {
-    const rows = findModules(coverage, file).filter((module) => coverage.moduleInstrumented.at(module) === 1);
-    if (rows.length === 0) return undefined;
-    const rowsOf = new Map([[file, rows]]);
-    const held = frameOf(coverage, [file], rowsOf, () => text);
-    if (held !== 'stale') return { frame: 'recorded' as const, commit: coverage.commit };
-    const recorded = frameOf(coverage, [file], rowsOf, textAtRecording(root, [file]), keptTexts(root));
-    return typeof recorded === 'string'
-      ? { frame: 'stale' as const, commit: coverage.commit }
-      : { frame: 'mapped' as const, commit: coverage.commit, text: recorded.text };
+    const sourceAt = textAtRecording(root, texts.keys());
+    const kept = keptTexts(root);
+    const frames = new Map<string, { readonly frame: 'recorded' } | { readonly frame: 'stale' } | { readonly frame: 'mapped'; readonly text: string }>();
+    for (const [file, text] of texts) {
+      const rows = findModules(coverage, file).filter((module) => coverage.moduleInstrumented.at(module) === 1);
+      // No digest to hold the text against, which is not a frame, and not `stale`.
+      if (rows.length === 0) continue;
+      const rowsOf = new Map([[file, rows]]);
+      if (frameOf(coverage, [file], rowsOf, () => text) !== 'stale') {
+        frames.set(file, { frame: 'recorded' });
+        continue;
+      }
+      const recorded = frameOf(coverage, [file], rowsOf, sourceAt, kept);
+      frames.set(file, typeof recorded === 'string' ? { frame: 'stale' } : { frame: 'mapped', text: recorded.text });
+    }
+    return { commit: coverage.commit, frames };
   });
-  if (asked === undefined) return undefined;
   const at = asked.commit === undefined ? {} : { at: asked.commit };
-  if (asked.frame === 'recorded') {
-    return { frame: 'recorded', ...at, place: (lines) => ({ lines, moved: false }), recordedLine: (line) => line };
+  const placements = new Map<string, Placement>();
+  for (const [file, framed] of asked.frames) {
+    const text = texts.get(file)!;
+    if (framed.frame === 'stale') {
+      placements.set(file, { frame: 'stale', ...at, place: () => undefined, recordedLine: () => undefined });
+    } else if (framed.frame === 'recorded') {
+      placements.set(file, { frame: 'recorded', ...at, recorded: text, place: (lines) => ({ lines, moved: false }), recordedLine: (line) => line });
+    } else {
+      const hunks = hunksBetween(framed.text, text);
+      placements.set(file, {
+        frame: 'mapped', ...at, recorded: framed.text, place: (lines) => placeThrough(hunks, lines), recordedLine: (line) => backThrough(hunks, line),
+      });
+    }
   }
-  if (asked.frame === 'stale') {
-    return { frame: 'stale', ...at, place: () => undefined, recordedLine: () => undefined };
-  }
-  const hunks = hunksBetween(asked.text, text);
-  return { frame: 'mapped', ...at, place: (lines) => placeThrough(hunks, lines), recordedLine: (line) => backThrough(hunks, line) };
+  return placements;
+}
+
+/** {@link placeInTexts} for one file. */
+export function placeInText(snapshot: string, root: string, file: string, text: string): Placement | undefined {
+  return placeInTexts(snapshot, root, new Map([[file, text]])).get(file);
+}
+
+/**
+ * A range of the text `from` placed in the text `to`, through git's line map
+ * between the two: whole and unmoved when no hunk touched it, `moved` when one
+ * did, absent when the edit removed every line of it. `covering` reads it with
+ * the held text as `from` and the text a test file ran over as `to`, so a line
+ * or a function an edit elsewhere in the file left alone is the same in both.
+ */
+export function placeAcross(from: string, to: string): Placement['place'] {
+  const hunks = hunksBetween(from, to);
+  return (range) => placeThrough(hunks, range);
 }
 
 /** One `-U0` hunk: old lines `oldStart..+oldCount` became new `newStart..+newCount`. */

@@ -103,7 +103,7 @@ describe('`--where` narrows the cases listed, never the state of what they cover
 
     expect(ids(answer.tests)).toEqual(['a.test.ts > on']);
     expect(answer.state).toBe('walked');
-    expect(formatCovering(answer, 'text')).toContain('1 named test covered line 2 of src/cart.ts:\n');
+    expect(formatCovering(answer, 'text', Date.now())).toContain('1 named test covered line 2 of src/cart.ts:\n');
   });
 
   it('keeps a function walked, and names the case that stopped, when `--where` left out the stopped case', async () => {
@@ -122,7 +122,7 @@ describe('`--where` narrows the cases listed, never the state of what they cover
     const answer = await ask(record, ['--file', 'src/cart.ts', '--line', '10', '--where', 'flags:checkout=ff-on']);
 
     expect(answer.state).toBe('hole');
-    expect(formatCovering(answer, 'text')).toContain('a hole: a case that could have reached it stopped first');
+    expect(formatCovering(answer, 'text', Date.now())).toContain('a hole: a case that could have reached it stopped first');
   });
 
   it('states each range of the whole file over every case, and lists only the kept ones', async () => {
@@ -136,7 +136,7 @@ describe('`--where` narrows the cases listed, never the state of what they cover
       [9, 11, 'hole', []],
       [13, 15, 'walked', []],
     ]);
-    const text = formatCovering(answer, 'text');
+    const text = formatCovering(answer, 'text', Date.now());
     expect(text).toContain('lines 13-15 — walked\n  no case `--where` kept covered this range\n');
     expect(text).not.toContain('unwalked');
   });
@@ -157,7 +157,7 @@ describe('`--where` narrows the cases listed, never the state of what they cover
   it('words a changed region only an unlisted case ran as covered, not as a hole', async () => {
     const record = await checkout();
 
-    const text = formatCovering(await ask(record, ['--since', 'main', '--where', 'flags:checkout=ff-on']), 'text');
+    const text = formatCovering(await ask(record, ['--since', 'main', '--where', 'flags:checkout=ff-on']), 'text', Date.now());
 
     expect(text).toContain('4 changed regions: 1 nothing covered (1 of them a hole), 0 covered by one case.');
     expect(text).toContain('13-15 function fee — covered only by cases not listed here, and 1 case that could have reached it stopped first');
@@ -172,6 +172,6 @@ describe('`--where` narrows the cases listed, never the state of what they cover
 
     expect(answer.tests).toEqual([]);
     expect(answer.unrun).toEqual([{ kind: 'branch', startLine: 14, endLine: 14, state: 'hole' }]);
-    expect(formatCovering(answer, 'text')).toContain('\nNo case ran a part of it: the branch at line 14.');
+    expect(formatCovering(answer, 'text', Date.now())).toContain('\nNo case ran a part of it: the branch at line 14.');
   });
 });

@@ -121,8 +121,8 @@ skipped in `onCollected`, as `it.skip` would; under Jest, a `jest-circus`
 `run_start` handler does the same. Nothing reaches argv. A file runs whole
 whenever the record cannot say which cases the change reached, and a file run
 in part is recorded incomplete, so the next selection runs it whole, and while
-some test last ran at an earlier commit than the latest run, every file runs
-whole. File grain is the default; any value other than `file` or `case` fails the run.
+some test file was last finished at an earlier commit than the latest run,
+every file runs whole. File grain is the default; any value other than `file` or `case` fails the run.
 
 ### Ask for the skip list yourself
 
@@ -1057,6 +1057,8 @@ Each function has one place in your runner:
   on them. The call sets `VARIANCE_AUTHORITY_RECORDING`, which every child
   process and worker thread inherits. If your runner builds a child's
   environment from nothing, spread `recording.env` into it.
+  Under `VARIANCE_AUTHORITY_STORY=1` it also carries where
+  [each case's story](https://variance-authority.dev/docs/test-stories) goes.
 - **`recording.finish` goes where your runner has each file's result.** A
   file is `complete` when every case in it ran to the end and passed, or was
   skipped. A file that failed, errored or stopped early recorded only part of
@@ -1841,7 +1843,8 @@ A factory loading `./other` instead subtracts `./api` and adds `./other`.
 
 A `requireActual` or `importActual` outside a mock factory is an independent
 real load, including inside `beforeEach`, and adds its module without shadowing
-it. A factory taking `importOriginal`, an opaque factory, and a spy mock leave
+it. A factory that refers to the loader vitest passes as its first argument,
+whatever the parameter is named, an opaque factory, and a spy mock leave
 existing imports unchanged. `doMock` does not shadow static imports that ran
 before it. Nonliteral mock targets cannot be resolved and leave existing edges
 unchanged. Pass `callers` to name other mocking objects and `files` to widen
@@ -1902,6 +1905,19 @@ const source = await openSourceIndex(sourceIndexPath(process.cwd()));
 const records = await scanRelations({ root: '.', dirs: ['src'], cache: source.cache, reuse: source.reuse });
 const tainted = await taintRecords(records, [mockTaint()], { root: '.', cache: source.cache });
 await source.save();
+```
+
+`runGraphOf` is that whole fold in one call, the graph `variance covering
+--since` and an MCP host's source tree both walk: the mocks read unasked, your
+`taints` joined after them, and the result folded with its shadows. Pass
+`depends` from the lockfile to reach a transitive bump, and `uses` to say how
+each file uses what its parse imports; an edge a taint added was never parsed,
+so it is read as used whole:
+
+```ts
+import { runGraphOf } from '@variance-authority/sense';
+
+const relations = await runGraphOf(records, { root: '.', cache: source.cache, taints: [await taintFile('variance.taint.json')] });
 ```
 
 ### Check a taint against the record
@@ -2036,7 +2052,7 @@ In a worktree, `seedTestCoverage` first copies the primary checkout's snapshot
 and case index into the worktree's own record, so the fold lands over the
 suite's record rather than over nothing. Beside them it writes a copy of the
 primary checkout's runs record, with no run of the worktree's in it, so a test
-your worktree has not run is read from where it last ran there. A test that
+your worktree has not run is read from where a run last finished it there. A test that
 record does not place is read from where its runs started, and a reading in
 either checkout reports it as assumed. When the primary checkout has no runs
 record, or one naming another commit than its snapshot, nothing is written. The

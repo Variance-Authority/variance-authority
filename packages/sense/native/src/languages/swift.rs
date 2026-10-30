@@ -80,7 +80,7 @@ pub fn declarations(tree: &Tree, source: &str) -> Vec<SourceSymbol> {
                 "class_declaration" => nominal(node)?,
                 other => kind_of(other)?,
             };
-            let mut symbol = declaration(&children, at, name, kind, source, &[]);
+            let mut symbol = declaration(&children, at, name, kind, source, |_| false);
             if file_private(node, source, &FILE_PRIVATE) {
                 symbol.reach = Some("file");
             }

@@ -19,7 +19,7 @@ const region = (kind: string, name: string, startLine: number, endLine: number, 
 const review = (regions: readonly ReviewRegion[], record: Review['record'] = 'ran'): Review =>
   ({ from: 'abc', record, base: 'since', files: [{ file: 'src/caps.ts', regions }] }) as unknown as Review;
 
-const mark = (value: ReviewRegion): string => (value.reach === 'near' ? 'G' : 'R');
+const mark = (value: ReviewRegion): string => (value.reach === 'near' ? 'G' : value.reach === 'overwritten' ? '?' : 'R');
 
 const mixed = [
   region('module', '', 1, 40, 'near', ['a.test.ts']),
@@ -31,7 +31,7 @@ const mixed = [
 
 describe('where to look, for a comment', () => {
   it('names the changed functions holding code no case ran, a branch by the function around it', () => {
-    expect(uncoveredFunctions(review(mixed))).toEqual({ total: 2, names: ['cap', 'spill'] });
+    expect(uncoveredFunctions(review(mixed))).toEqual({ total: 2, names: ['cap', 'spill'], overwritten: [] });
   });
 
   it('names five functions and counts the rest', () => {
@@ -63,6 +63,38 @@ describe('where to look, for a comment', () => {
 
   it('calls a module\'s own region no case ran the top level', () => {
     expect(uncoveredMarkdown(review([region('module', '', 1, 40, 'unwalked')]), mark)).toContain('- `src/caps.ts:1-40` the top level (new)');
+  });
+
+  it('names and folds code no case is known to have run apart from code no case ran, a function once under the worse', () => {
+    // A case ran `trim` and the branch in `cap` in a text an edit wrote over: which case runs them now is not known.
+    const lost = [
+      region('function', 'cap', 3, 20, 'near', ['a.test.ts']),
+      region('branch', 'cap', 9, 9, 'overwritten'),
+      region('function', 'spill', 22, 25, 'unwalked'),
+      region('branch', 'spill', 23, 23, 'overwritten'),
+      region('function', 'trim', 30, 35, 'overwritten'),
+    ];
+    expect(uncoveredFunctions(review(lost))).toEqual({ total: 3, names: ['spill'], overwritten: ['cap', 'trim'] });
+    expect(uncoveredMarkdown(review(lost), mark).join('\n')).toBe([
+      '',
+      '<details><summary>R Where no case ran: 1 place in 1 function</summary>',
+      '',
+      '- `src/caps.ts:22-25` function `spill` (new)',
+      '',
+      '</details>',
+      '',
+      // A place is folded by its own answer; only the callout names a function once.
+      '<details><summary>? Where no case is known to have run: 3 places in 3 functions</summary>',
+      '',
+      '- `src/caps.ts:9` branch in `cap` (new)',
+      '- `src/caps.ts:23` branch in `spill` (new)',
+      '- `src/caps.ts:30-35` function `trim` (new)',
+      '',
+      '</details>',
+    ].join('\n'));
+    expect(uncoveredMarkdown(review(lost, 'before'), mark)[7]).toBe('<details><summary>? Where no case in the record is known to have run: 3 places in 3 functions</summary>');
+    expect(functionsMarkdown(review(lost), mark).join('\n')).toContain('1 changed function');
+    expect(functionsMarkdown(review(lost), mark).join('\n')).not.toContain('`trim`');
   });
 
   it('says the record holds no case, rather than that no case ran, before the change has run', () => {

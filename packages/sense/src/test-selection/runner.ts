@@ -35,6 +35,8 @@ import { fileURLToPath } from 'node:url';
 import { cadence } from '../instrument/cadence.js';
 import type { InstrumentMode, ModuleId } from '../instrument/index.js';
 import { probesRegions } from '../instrument/identity.js';
+import { askedForStories } from '../story/directory.js';
+import storyFormat from '../story/format.cjs';
 import caseOwner from './case-owner.cjs';
 import { captureModule, markModule } from './captured-modules.js';
 import { saidSite } from './case-said.js';
@@ -128,6 +130,8 @@ interface Carried {
   readonly mode: InstrumentMode;
   readonly continuations: boolean;
   readonly cadence: boolean;
+  /** Where each case's story goes, when the run asked for stories. */
+  readonly story?: string;
 }
 
 /**
@@ -142,6 +146,8 @@ export function startRecording(options: RecordingOptions = {}): Recording {
   const coverageFile = recordFileFor(root, process.cwd(), options);
   const mode = options.mode ?? 'presence';
   const run = newRun(coverageFile, root, mode);
+  // Under `loads` no case is told from another, so no case has a story.
+  const story = probesRegions(mode) ? askedForStories(coverageFile) : undefined;
   for (const file of options.preconditions ?? []) run.preconditions.add(resolve(file));
   const carried: Carried = {
     root,
@@ -151,6 +157,7 @@ export function startRecording(options: RecordingOptions = {}): Recording {
     continuations: options.continuations === true,
     // Under `loads` no region is probed for a line of a test to have reached first.
     cadence: options.cadence !== false && probesRegions(mode),
+    ...(story === undefined ? {} : { story }),
   };
   const value = JSON.stringify(carried);
   process.env[RECORDING_VARIABLE] = value;
@@ -269,7 +276,7 @@ export interface RegisterRecordingOptions {
 export function registerRecording(options: RegisterRecordingOptions = {}): ModuleHooks | undefined {
   const recording = carried();
   if (recording === undefined) return undefined;
-  collectors.attach(globalThis as { __VA__?: unknown }, recording.continuations);
+  collectors.attach(globalThis as { __VA__?: unknown }, recording.continuations, recording.story !== undefined);
   const include = options.include ?? ((file: string) => insideRoot(recording.root, file) && defaultInclude(file));
   return registerHooks({
     load(url, context, nextLoad) {
@@ -347,7 +354,7 @@ export function observeTestFile(file: string): TestFileObserver | undefined {
     ? collectors.scoped(
       globalThis as { __VA__?: unknown },
       recording.continuations,
-      undefined,
+      recording.story === undefined ? undefined : storyFormat.storyWriter(recording.story),
       recording.root,
       (site) => saidSite(recording.root, site),
     )

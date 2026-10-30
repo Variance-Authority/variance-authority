@@ -3,7 +3,8 @@ import { createRequire } from 'node:module';
 import { dirname, relative, resolve, sep } from 'node:path';
 // FIXME: Vitest's colour in `sense`; the integration belongs to a vitest-coloured
 // package that fills the selection's extension point.
-import type { UserConfig } from 'vitest/config';
+import type { ViteUserConfig as UserConfig } from 'vitest/config';
+import { probesRegions } from '../instrument/identity.js';
 import type { InstrumentMode } from '../instrument/index.js';
 import { captureAfter, placeModule, type Captured, type CapturedAfter, type ComposedMap } from './captured-modules.js';
 import type { UnmappedStep } from './unmapped-transforms.js';
@@ -20,8 +21,7 @@ import { selectionReporter } from './vitest-reporter.js';
 import { repositoryRoot } from './repository-root.js';
 import { askedForStories } from '../story/directory.js';
 import type { SuiteSelection } from './suite-selection.js';
-import { notingRead } from './record-base.js';
-import { landingTimes, selectionFrom } from './selection-environment.js';
+import { askedSelection, landingTimes } from './selection-environment.js';
 import { seedInBanner, selectingSequencer, type SequencerClass } from './vitest-sequencer.js';
 import { shardArgument } from './shard-placement.js';
 
@@ -171,11 +171,12 @@ export function withTestSelection(
   const declared = (options.preconditions ?? []).map((file) => resolve(configRoot, file));
 
   const suite = options.suite === undefined ? {} : { suite: options.suite };
-  // Each reading notes the record it read against the record this run lands in, which names it.
-  const asked = options.selection ?? selectionFrom(process.env, { root, from: configRoot, ...suite });
-  const selection = asked && notingRead(coverageFile, asked);
+  const selection = askedSelection(options.selection, () => coverageFile, { root, from: configRoot, ...suite });
   const settle = foldRun(run, { coverageFile, shims: [setupId, runnerId] });
-  const reporter = selectionReporter(run, settle);
+  // Asked of the mode, not of `run.cases`: a page clears that on the run, and
+  // Vitest loads the configuration again for its browser server, in this process.
+  const story = probesRegions(mode) ? askedForStories(coverageFile) : undefined;
+  const reporter = selectionReporter(run, settle, story);
   // Ahead of the project's reporters, so the banner the first of them prints
   // names the seed of a shuffled run, as Vitest's own does.
   const reporters = [{ onInit: seedInBanner }, ...(config.test?.reporters === undefined ? ['default'] : array(config.test.reporters))];
@@ -202,12 +203,11 @@ export function withTestSelection(
 
   // Under `loads` no region is probed, so no line of a test can be said to
   // have reached one first: the cut would cost a call per statement for nothing.
-  const cut = options.cadence === false || !run.cases ? undefined : testFiles(config, configRoot);
-  const plugins = selectionPlugin(root, setupId, runnerId, globalSetup, run, { include, unprobed }, { capture, after }, mode, declared, settle, cut, options.placement ?? 'after-transforms');
+  const cut = options.cadence === false || (!run.cases && story === undefined) ? undefined : testFiles(config, configRoot);
+  const plugins = selectionPlugin(root, setupId, runnerId, globalSetup, run, { include, unprobed }, { capture, after }, mode, declared, settle, cut, options.placement ?? 'after-transforms', story);
   // The realm's engine is decided once, by whichever of the two shims installs
   // it first, so both are handed the same answers.
   const continuations = run.cases && options.continuations === true;
-  const story = run.cases ? askedForStories(coverageFile) : undefined;
   return {
     ...config,
     plugins: [...array(config.plugins), ...plugins],

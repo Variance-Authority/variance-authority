@@ -1,4 +1,5 @@
 import { execFile } from 'node:child_process';
+import { createRequire } from 'node:module';
 import { existsSync } from 'node:fs';
 import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -18,8 +19,9 @@ const here = dirname(fileURLToPath(import.meta.url));
 const repository = resolve(here, '../../..');
 const fixture = resolve(here, '../fixture');
 const at = (path: string): string => `${relative(repository, fixture)}/${path}`;
-// The Vitest this case installs, not the repository's own: the run under test is Vitest 5's.
-const vitest = resolve(here, '../node_modules/vitest/vitest.mjs');
+// The Vitest this case installs, resolved from the case: the run under test is
+// Vitest 5's, wherever the install placed it.
+const vitest = resolve(dirname(createRequire(import.meta.url).resolve('vitest/package.json')), 'vitest.mjs');
 
 // A dependency the fixture inlines and probes, written here since `node_modules`
 // is not tracked: a module the transforms read from `node_modules` only because

@@ -25,10 +25,12 @@
 
 import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
+import { codeUnitOrder } from '@variance-authority/core/segment';
 import { digestString } from '../digest.js';
 import { LOCKFILES } from '../lock/read.js';
-import { keepText, type LandedTree } from './kept-texts.js';
-import { codeUnitOrder } from './instrumented-modules.js';
+import type { CommitRuns } from './commit-runs.js';
+import { keepText, type KeptTexts, type LandedTree } from './kept-texts.js';
+import { agreed, whatLanded } from './landings.js';
 
 /**
  * Each install file that differed from the run's commit when it ran, named from
@@ -73,26 +75,10 @@ export async function keepRecordedInstall(tree: LandedTree | undefined): Promise
   return Object.fromEntries(Object.entries(kept).sort(([a], [b]) => codeUnitOrder(a, b)));
 }
 
-/**
- * The install the runs at one commit ran on, once a run over `install` adds
- * `files` to the runs `held` already lists there.
- *
- * Runs over one install keep it. A run that observed every test the earlier
- * runs did speaks for all of them, and its install is the record's. Otherwise
- * the runs at this commit ran on two installs, and no one of them is the
- * install a later change is compared from: the record names none, and a reader
- * compares from the commit, as it does for a record written before installs
- * were kept.
- */
-export function installAfter(
-  held: { readonly files: readonly string[]; readonly installed?: KeptInstall },
-  files: readonly string[],
-  install: KeptInstall | undefined,
-): KeptInstall | undefined {
-  if (install === undefined) return undefined;
-  if (held.installed !== undefined && sameInstall(held.installed, install)) return install;
-  const ran = new Set(files);
-  return held.files.every((file) => ran.has(file)) ? install : undefined;
+/** A shard's tests and the runs record its own landing left, as a fold of shards reads them. */
+export interface ShardRuns {
+  readonly tests: { readonly commit?: string; readonly tests: readonly { readonly file: string }[] };
+  readonly runs: Pick<CommitRuns, 'commit' | 'runs' | 'landings'> | undefined;
 }
 
 /**
@@ -105,26 +91,34 @@ export function installAfter(
  * that observed every test the snapshot holds, and names an install. When
  * every shard's does and all of them name one install, that is the fold's.
  * Otherwise the fold ran on an install nobody can name, as runs at one commit
- * over two installs did ({@link installAfter}): `undefined`, which a reader
- * compares from the commit.
+ * over two installs did (`agreed` in `landings.ts`): `undefined`, which a
+ * reader compares from the commit.
  */
-export function shardsInstall(
-  shards: readonly {
-    readonly tests: { readonly commit?: string; readonly tests: readonly { readonly file: string }[] };
-    readonly runs: { readonly commit?: string; readonly runs: number; readonly files: readonly string[]; readonly installed?: KeptInstall } | undefined;
-  }[],
-): KeptInstall | undefined {
-  let install: KeptInstall | undefined;
+export function shardsInstall(shards: readonly ShardRuns[]): KeptInstall | undefined {
+  return shardsKept(shards, (runs) => whatLanded(runs.landings).installed);
+}
+
+/**
+ * The texts a fold of `shards` ran over where the shards' commit does not hold
+ * them, read as {@link shardsInstall} reads the install: the shards' own
+ * records, when every one observed its whole snapshot and its landings name
+ * one set (`agreed`), and all name the same.
+ */
+export function shardsTexts(shards: readonly ShardRuns[]): KeptTexts | undefined {
+  return shardsKept(shards, (runs) => agreed(runs.landings, (landing) => landing.texts));
+}
+
+function shardsKept<Kept extends KeptInstall>(shards: readonly ShardRuns[], of: (runs: NonNullable<ShardRuns['runs']>) => Kept | undefined): Kept | undefined {
+  let kept: Kept | undefined;
   for (const { tests, runs } of shards) {
-    if (runs?.installed === undefined || runs.runs === 0 || tests.commit === undefined || runs.commit !== tests.commit) return undefined;
-    // A record read off disk is a JSON object, its fields as written: files that are not a list name no test.
-    if (!Array.isArray(runs.files)) return undefined;
-    const ran = new Set(runs.files);
+    const its = runs === undefined ? undefined : of(runs);
+    if (runs === undefined || its === undefined || runs.runs === 0 || tests.commit === undefined || runs.commit !== tests.commit) return undefined;
+    const ran = new Set(whatLanded(runs.landings).files);
     if (!tests.tests.every((test) => ran.has(test.file))) return undefined;
-    if (install !== undefined && !sameInstall(install, runs.installed)) return undefined;
-    install = runs.installed;
+    if (kept !== undefined && !sameInstall(kept, its)) return undefined;
+    kept = its;
   }
-  return install;
+  return kept;
 }
 
 /**

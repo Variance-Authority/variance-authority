@@ -37,8 +37,7 @@ import { projectNamed } from './jest-projects.js';
 import { selectingFilter } from './jest-selection.js';
 import { recordFileFor } from './record-location.js';
 import { repositoryRoot } from './repository-root.js';
-import { notingRead } from './record-base.js';
-import { landingTimes, selectionFrom } from './selection-environment.js';
+import { askedSelection, landingTimes } from './selection-environment.js';
 import type { SuiteSelection } from './suite-selection.js';
 
 export interface JestTestSelectionOptions {
@@ -286,6 +285,8 @@ export const SELECTION_SETUP = here('./jest-setup.cjs');
 export const SELECTION_REPORTER = here('./jest-reporter.js');
 /** The host bridge a cached environment entry loads before the project environment. */
 export const TRACE_ENVIRONMENT = here('./jest-trace-environment.cjs');
+/** This package, which automock would stub under the collector its setup file installs. */
+const UNMOCKED = here('../').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 /**
  * Add source instrumentation, test-file attribution, and coverage persistence to
@@ -347,9 +348,7 @@ export function withTestSelection(
     ...(options.continuations === true ? { continuations: true } : {}),
   };
   const suite = options.suite === undefined ? {} : { suite: options.suite };
-  // Each reading notes the record it read against the record this run lands in, which names it.
-  const asked = options.selection ?? selectionFrom(process.env, { root, from: rootDir, ...suite });
-  const selection = asked && notingRead(coverageFile, asked);
+  const selection = askedSelection(options.selection, () => coverageFile, { root, from: rootDir, ...suite });
   const times = landingTimes(coverageFile, { root, from: rootDir, ...suite, byFile: options.coverageFile !== undefined });
 
   return {
@@ -492,6 +491,7 @@ function instrumented(
     ...(project === undefined ? {} : { globals: { ...(config['globals'] as object | undefined), [PROJECT_GLOBAL]: project } }),
     setupFiles: [SELECTION_GLOBALS, ...(config.setupFiles ?? [])],
     setupFilesAfterEnv: [...(config.setupFilesAfterEnv ?? []), SELECTION_SETUP],
+    unmockedModulePathPatterns: [...(config['unmockedModulePathPatterns'] as string[] | undefined ?? []), UNMOCKED],
   };
 }
 

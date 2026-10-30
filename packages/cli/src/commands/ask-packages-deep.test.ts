@@ -92,7 +92,7 @@ describe('variance ask over a private app that reaches into another package', ()
     expect(symbol.out).toContain("import { greet } from '@acme/lib';");
     expect(symbol.out).toContain('declared at packages/lib/src/greet.ts:1');
     expect(symbol.out).toContain(
-      '`variance ask uses` names the 1 place that imports this: 1 from another package, nearest to a file you name first.',
+      '`variance ask uses` names the 1 place that imports this, from another package, nearest to a file you name first.',
     );
 
     const uses = await run(['ask', 'uses', '--name', 'greet']);
@@ -106,8 +106,8 @@ describe('variance ask over a private app that reaches into another package', ()
 
     const { code, out } = await run(['ask', 'uses', '--name', 'roundTax']);
     expect(code).toBe(EXIT_CLEAN);
-    expect(out).toContain('`roundTax` [const] is imported in 1 place, and no entry publishes it; it is exported at packages/lib/src/internal/math.ts:5.');
-    expect(out).toMatch(/^packages\/lib\/src\/internal\/rounded\.ts:1 — @acme\/lib$/m);
+    expect(out).toContain('`roundTax` [const] is imported in 1 place, inside @acme/lib, and no entry publishes it; it is exported at packages/lib/src/internal/math.ts:5.');
+    expect(out).toMatch(/^packages\/lib\/src\/internal\/rounded\.ts:1 — @acme\/lib; used on line 2$/m);
   });
 
   it('answers `uses` for a name exported and not published that nothing imports, saying so', async () => {
@@ -152,8 +152,8 @@ describe('variance ask over a private app that reaches into another package', ()
     // Each declaration is answered with its own imports, never one count for both.
     expect(uses.out).toMatch(/^`roundTax` \[const\] is exported, without being published, at packages\/kit\/src\/money\/round\.ts:1, and nothing in this workspace imports it;/m);
     const [, lib] = uses.out.split('`roundTax` is exported, without being published, at packages/lib/src/internal/math.ts:5 as well, which is another declaration.');
-    expect(lib).toMatch(/^Imported in 1 place\.$/m);
-    expect(lib).toMatch(/^packages\/lib\/src\/internal\/rounded\.ts:1 — @acme\/lib$/m);
+    expect(lib).toMatch(/^Imported in 1 place, inside @acme\/lib\.$/m);
+    expect(lib).toMatch(/^packages\/lib\/src\/internal\/rounded\.ts:1 — @acme\/lib; used on line 2$/m);
   });
 
   const TAXES = 'export const roundTax = (amount: number): number => amount;\nexport const rate = 1;\n';
@@ -322,7 +322,7 @@ describe('variance ask over a private app that reaches into another package', ()
 
     const uses = await run(['ask', 'uses', '--name', 'taxOf']);
     expect(uses.code).toBe(EXIT_CLEAN);
-    expect(uses.out).toMatch(/^apps\/app\/src\/checkout\.ts:1 — @acme\/app, by path from @acme\/kit\/src\/money\/tax$/m);
+    expect(uses.out).toMatch(/^apps\/app\/src\/checkout\.ts:1 — @acme\/app, by path from @acme\/kit\/src\/money\/tax; used on line 3$/m);
     expect(uses.out).not.toContain('deep import');
 
     const symbol = await run(['ask', 'symbol', '--name', 'taxOf']);
@@ -340,7 +340,7 @@ describe('variance ask over a private app that reaches into another package', ()
 
     const uses = await run(['ask', 'uses', '--name', 'addTax']);
     expect(uses.code).toBe(EXIT_CLEAN);
-    expect(uses.out).toMatch(/^apps\/app\/src\/again\.ts:1 — @acme\/app, deep import of @acme\/lib\/src\/internal\/math$/m);
+    expect(uses.out).toMatch(/^apps\/app\/src\/again\.ts:1 — @acme\/app, deep import of @acme\/lib\/src\/internal\/math; used on line 4$/m);
     expect(uses.out).toMatch(/^apps\/app\/src\/total\.ts:1 — @acme\/app, deep import/m);
 
     const packages = await run(['ask', 'packages']);
@@ -379,8 +379,8 @@ describe('variance ask over a private app that reaches into another package', ()
     expect((await run(['index'])).code).toBe(EXIT_CLEAN);
     const uses = await run(['ask', 'uses', '--name', 'hush']);
     expect(uses.code).toBe(EXIT_CLEAN);
-    expect(uses.out).toMatch(/^apps\/app\/src\/again\.ts:1 — @acme\/app, deep import of @acme\/gone\/src\/hush$/m);
-    expect(uses.out).toMatch(/^apps\/app\/src\/hushed\.ts:1 — @acme\/app, deep import of @acme\/gone\/src\/hush$/m);
+    expect(uses.out).toMatch(/^apps\/app\/src\/again\.ts:1 — @acme\/app, deep import of @acme\/gone\/src\/hush; used on line 3$/m);
+    expect(uses.out).toMatch(/^apps\/app\/src\/hushed\.ts:1 — @acme\/app, deep import of @acme\/gone\/src\/hush; used on line 2$/m);
     expect(uses.out).toMatch(/^apps\/app\/src\/entered\.ts:1 — @acme\/app, through @acme\/gone, an entry this reading could not follow to a source file$/m);
   });
 

@@ -57,7 +57,7 @@ describe('variance ask uses over the file that declares the name', () => {
 
     const { code, out } = await run(['ask', 'uses', '--name', 'greet']);
     expect(code).toBe(EXIT_CLEAN);
-    expect(out).toMatch(/^apps\/app\/src\/hello\.ts:1 — @acme\/app$/m);
+    expect(out).toMatch(/^apps\/app\/src\/hello\.ts:1 — @acme\/app; used on line 2$/m);
     expect(section(out, own('packages/lib/src/greet.ts'))).toEqual([
       'packages/lib/src/greet.ts:4 — @acme/lib',
       'packages/lib/src/greet.ts:10 — @acme/lib',

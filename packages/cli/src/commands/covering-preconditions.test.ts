@@ -79,7 +79,7 @@ function parse(argv: readonly string[]) {
 
 async function text(argv: readonly string[]): Promise<string> {
   const { root, execution } = await checkout();
-  return formatCovering(await covering(parse([...argv, '--execution', execution, '--root', root])), 'text');
+  return formatCovering(await covering(parse([...argv, '--execution', execution, '--root', root])), 'text', Date.now());
 }
 
 describe('a listed case carries what it said', () => {
@@ -114,7 +114,7 @@ describe('`--where` counts the cases that covered what was asked', () => {
     const answer = (unmeasured: number) => formatCovering({
       file: 'src/cart.ts', from: 'coverage.bin', target: { line: 6 }, tests: [],
       where: { asked: ['flags:checkout=ff-half'], kept: 0, of: 4, unmeasured },
-    }, 'text');
+    }, 'text', Date.now());
 
     expect(answer(1)).toContain('Kept none of the 4 cases that covered line 6 of src/cart.ts: none of the 3 with recorded preconditions has flags:checkout=ff-half.\n');
     expect(answer(1)).toContain('1 case was recorded without preconditions');
@@ -125,7 +125,7 @@ describe('`--where` counts the cases that covered what was asked', () => {
     const answer = formatCovering({
       file: 'src/cart.ts', frame: 'stale', from: 'coverage.bin', target: { function: 'round' }, tests: [],
       where: { asked: ['flags:checkout=ff-on'], kept: 0, of: 0, unmeasured: 0 },
-    }, 'text');
+    }, 'text', Date.now());
 
     expect(answer).toContain('No case covered function round of src/cart.ts, so none recorded flags:checkout=ff-on.');
   });
@@ -167,7 +167,7 @@ describe('the review reading carries what each case said', () => {
   it('prints the preconditions, and no twin, on each case line of `--since`', async () => {
     const { root, execution } = await edited();
 
-    const answer = formatCovering(await covering(parse(['--since', 'main', '--root', root, '--execution', execution])), 'text');
+    const answer = formatCovering(await covering(parse(['--since', 'main', '--root', root, '--execution', execution])), 'text', Date.now());
 
     expect(answer).toContain('    a.test.ts > on — flags:checkout=ff-on (a.test.ts:3)\n');
     expect(answer).not.toContain('twin');
@@ -179,7 +179,7 @@ describe('the review reading carries what each case said', () => {
 
     const answer = formatCovering(
       await covering(parse(['--since', 'main', '--root', root, '--execution', execution, '--where', 'flags:checkout=ff-on'])),
-      'text',
+      'text', Date.now(),
     );
 
     expect(answer).toContain('Kept the 2 of 4 cases that covered the change since main and recorded flags:checkout=ff-on.\n');

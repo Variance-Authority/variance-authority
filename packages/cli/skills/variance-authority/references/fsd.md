@@ -36,7 +36,7 @@ Under `--format json` the same gap is the answer's `gap` field:
 | `question` | what stays open of the scope |
 | `scope` | what it is asked of: `line 20 of src/ledger.ts`, or the file |
 | `known` | what the answer does have |
-| `reason` | `absent`: no run is recorded; `stale`: the record was made over a different version of the file than the checkout's, or before the file existed; `coarse`: the record has the line only at file grain |
+| `reason` | `absent`: no run is recorded; `stale`: the record, or what it holds of the asked lines, was made over a different version of the file than the checkout's, or before the file existed; `coarse`: the record has the line only at file grain |
 | `remedy` | what closes the gap: `record`, a recorded run of the files it names, or `deep`, the Deep gear, a story of the cases it names |
 | `run` | what the suite's own runner runs first: `suite`, when the answer is one suite's; `suites`, when it is several suites' with no record; `files`, the test files; `whole`, why the whole suite runs, when selection runs it; `cases`, `{file, name, pattern}`, each filtered by `pattern`, its name escaped as the regular expression `-t` and `--grep` read; `story: true`, under `VARIANCE_AUTHORITY_STORY=1`. A `run` of only `suite` or `suites`: wire the producer of each suite and record one run of it; a suite given to the share has no `run`, and `next` fetches its record. Absent when no run closes the gap |
 | `next` | the commands that run as printed, in order, after `run` |
@@ -54,7 +54,7 @@ Each answer of `covering` gives one gap, one per suite over several suites, and 
 | The answer | Gap |
 |---|---|
 | a line at file grain (`At file grain`, `grain: "file"`, `fileGrain`) with named tests, asked by `--file`, `--line` or `--lines` | Deep: the story of the first three tests, in the order the answer lists them |
-| `frame: "stale"`, lines `written` since the recording, or ranges `moved` | Record: the test files `variance select` runs for the file, under the suite's own `relations`, `ignore` and `before` |
+| `frame: "stale"`, lines `written` since the recording, lines no case is known to have run (`overwritten`: a case ran over them, and a run over another text has landed there since), or ranges `moved` | Record: the test files `variance select` runs for the file, among them every test file the record holds only in part, under the suite's own `relations`, `ignore` and `before` |
 | `older`: the record is older than the file, so the file is new | Record: the recorded test files `variance select` runs for the file, by reach, under the suite's own configuration, or the whole suite when selection runs it. Then `variance reach --since <commit>`, from the commit the record was made at, never a ref such as `origin/main`, whose merge base can already hold the file: it takes every file the diff added at once, new test files no record names among them. When selection refuses, the gap says why in its words, as in every Record gap. No run when selection names no file, and never the share |
 | `unrecorded`: no run is recorded | `variance share --suite <name>` in a suite given to the share; otherwise Record: wire the producer and record one run of the suite, with no cost, since no record counts it |
 

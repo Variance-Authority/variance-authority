@@ -10,6 +10,7 @@ use rayon::prelude::*;
 
 use super::{kind_of, taken, Namespace, NameUse};
 use crate::compact::Layer;
+use crate::help_origin::star_passes;
 use crate::orient_map_read::beside;
 use crate::package_graph::{fold, join_parses, passed_on, At, Crossing};
 use crate::package_owners::{owners, NO_OWNER};
@@ -23,11 +24,13 @@ pub(crate) struct Taken {
 }
 
 /// What `importers_from` walked: every use, every file that passes a wanted
-/// name on, and every namespace a file passes one on inside.
+/// name on, every namespace a file passes one on inside, and every name a
+/// wanted name is exported by along the way.
 pub(crate) struct Walked {
     pub(crate) taken: Vec<Taken>,
     pub(crate) through: HashSet<String>,
     pub(crate) namespaces: Vec<Namespace>,
+    pub(crate) exports: HashSet<String>,
 }
 
 /// A name wanted out of a file: an export of it, and the names read off that
@@ -121,6 +124,7 @@ pub(super) fn importers_folded(
             seen.extend(origins.keys().map(|&origin| ((file.clone(), want.clone(), origin), false)));
         }
     }
+    let mut exports: HashSet<String> = wanted.values().flat_map(|names| names.keys().map(|want| want.export.clone())).collect();
     let mut found: HashMap<(usize, String, u32, String, String, String), Taken> = HashMap::new();
     let mut through = HashSet::new();
     let mut namespaces = HashSet::new();
@@ -153,6 +157,7 @@ pub(super) fn importers_folded(
                 Some(&held) => held && !typed,
             };
             if follow {
+                exports.insert(want.export.clone());
                 seen.insert(key, typed);
                 through.insert(file.clone());
                 let held = wanted.entry(file).or_default().entry(want).or_default().entry(origin).or_insert(typed);
@@ -160,7 +165,7 @@ pub(super) fn importers_folded(
             }
         }
     }
-    Walked { taken: found.into_values().collect(), through, namespaces: namespaces.into_iter().collect() }
+    Walked { taken: found.into_values().collect(), through, namespaces: namespaces.into_iter().collect(), exports }
 }
 
 /// One step of `importers_from`: the uses of each wanted name out of its
@@ -195,29 +200,33 @@ fn importers_of(root: &str, layers: &[Layer], folded: &HashMap<&str, At>, wanted
             let by = owners.package_of(crossing.file);
             let kind = kind_of(crossing.file);
             for request in parses.requests.range(row) {
-                let Some(names) = resolved[request - first].and_then(|path| wanted.get(path)) else { continue };
+                let Some((from, names)) = resolved[request - first].and_then(|path| Some((path, wanted.get(path)?))) else { continue };
                 if parses.request_republishes[request] != 1 {
                     let written = text.text(parses.request_value.at(request));
-                    for (taken, local) in taken(&layers[layer], row, request, written, by, crossing.file, kind) {
+                    for (mut taken, local) in taken(&layers[layer], row, request, written, by, crossing.file, kind) {
+                        if !local.is_empty() { taken.lines = Some(bound_lines(&layers[layer], row, local)); }
                         found.extend(answered(names, taken, local));
                     }
                     let at = Site { key: written, by, at: crossing.file, kind };
                     found.extend(read_off(&layers[layer], row, request, names, &at));
                     continue;
                 }
-                let every = |type_only: bool| {
-                    names.iter().filter(|(want, _)| want.export != "default").flat_map(move |(want, origins)| {
-                        origins.iter().map(move |(&origin, &typed)| (crossing.file.to_owned(), want.clone(), origin, typed || type_only))
-                    })
+                // Every wanted name `keep` lets through, as the file passes it on.
+                let pass = |keep: &dyn Fn(&str) -> bool, type_only: bool| -> Vec<Pass> {
+                    names
+                        .iter()
+                        .filter(|(want, _)| keep(&want.export))
+                        .flat_map(|(want, origins)| origins.iter().map(move |(&origin, &typed)| (crossing.file.to_owned(), want.clone(), origin, typed || type_only)))
+                        .collect()
                 };
                 match passed_on(&layers[layer], row, request) {
                     // An export list the parse never recorded reads as the whole
                     // module, and as types when the whole statement says `export type`.
-                    None => passed.extend(every(text.text(parses.request_kind.at(request)) == "type")),
+                    None => passed.extend(pass(&|name| name != "default", text.text(parses.request_kind.at(request)) == "type")),
                     Some(listed) => {
                         for one in listed {
                             if one.exported.is_none() && one.imported == "*" {
-                                passed.extend(every(one.type_only));
+                                passed.extend(pass(&|name| star_passes(layers, folded, crossing.file, from, name), one.type_only));
                                 continue;
                             }
                             for (want, origins) in names {
@@ -242,6 +251,13 @@ fn importers_of(root: &str, layers: &[Layer], folded: &HashMap<&str, At>, wanted
         passed.extend(passes);
     }
     (found, passed)
+}
+
+/// The lines the parse at `row` uses its top-level binding `local` on, as the
+/// scan recorded them with the file's parse, in line order.
+fn bound_lines(layer: &Layer, row: usize, local: &str) -> Vec<u32> {
+    let (text, parses) = (&layer.stored, &layer.parses);
+    parses.own_uses.range(row).filter(|&at| text.text(parses.own_use_name.at(at)) == local).map(|at| parses.own_use_line.at(at)).collect()
 }
 
 /// The wants one name a request takes answers: a module that escapes whole
@@ -325,6 +341,7 @@ fn read_off(layer: &Layer, row: usize, request: usize, names: &HashMap<Want, Has
                 through_line: parses.request_line.at(request),
                 through_default: false,
                 whole: false,
+                lines: None,
             };
             found.push(Taken { origin, taken, local: String::new() });
         }

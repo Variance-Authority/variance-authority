@@ -1,13 +1,13 @@
 # A recording under Vitest 5
 
-The repository runs its own suite on Vitest 2, and the test-selection seam in
-[`@variance-authority/sense/vitest`](../../packages/sense) is proven there.
-Vitest 5 ships no `@vitest/runner` package. Its runner is the `TestRunner` that
-`vitest` exports, and it serves a module it transformed in an earlier run from
-its file-system module cache, so the seam's transform never sees that module
-again. This case installs Vitest 5 for itself and runs its real CLI over a suite
-configured the way a fast one is: `isolate: false`, cases concurrent within a
-file, and `continuations: true`.
+The repository runs its own suite on Vitest 5, and the test-selection seam in
+[`@variance-authority/sense/vitest`](../../packages/sense) is proven there over
+isolated files that run their cases one at a time. Vitest 5 ships no
+`@vitest/runner` package. Its runner is the `TestRunner` that `vitest` exports,
+and it serves a module it transformed in an earlier run from its file-system
+module cache, so the seam's transform never sees that module again. This case
+runs Vitest 5's real CLI over a suite configured the way a fast one is:
+`isolate: false`, cases concurrent within a file, and `continuations: true`.
 
 ## The files
 
@@ -20,9 +20,9 @@ src/selection.integration.test.ts      the outer test: runs Vitest 5 on the fixt
 ```
 
 `@variance-authority/case-vitest-5` is `"private": true` and declares no
-scripts. Its `vitest` dependency is the one the outer test launches, from
-`cases/vitest-5-case/node_modules/vitest`, so the run under test is Vitest 5's
-while the outer file runs on the repository's Vitest.
+scripts. Its `vitest` dependency is the one the outer test launches, resolved
+from the case, so the run under test is Vitest 5's wherever the install placed
+it.
 
 ## Run it
 
@@ -43,7 +43,7 @@ yarn vitest run --config vitest.integration.config.mts cases/vitest-5-case/src/s
 
 ## What it does not test
 
-Vitest 3 and 4 are not run here; `cases/vitest-4-case` runs Vitest 4. A run
-over several projects is tested under Vitest 2 only, in
+Vitest 4 is not run here; `cases/vitest-4-case` runs it. A run over several
+projects is tested in
 `packages/sense/src/test-selection/vitest-selection.integration.test.ts`. The
 Jest seam is not run here.

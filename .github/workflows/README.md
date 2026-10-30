@@ -1,21 +1,17 @@
 # Workflows
 
-Five workflow files live here. Three of them are recipes, meant to be copied
-into your own repository and edited. Each is a complete answer to a different
-question. They all shell out to
-one tool: `@variance-authority/cli`, a devDependency, invoked as
-`npx variance <command>`.
+Six workflow files live here, and all of them are this repository's own. Three
+run variance over this repository's subjects, each answering a different
+question, through the action as it stands in this checkout,
+`./.github/actions/variance`. A release publishes that action as
+[`Variance-Authority/action`](https://github.com/Variance-Authority/action), and
+the [CLI reference](../../packages/cli/README.md#run-it-in-ci) shows an adopter's
+step. All three shell out to one tool: `@variance-authority/cli`, invoked as
+`variance <command>`.
 
 A **subject** is one named UI state observed under an id you choose — one
 Storybook story, one route at one viewport, one component mounted in a test. It
 is the unit these files count, shard and gate on.
-
-If you copy one file, change two things: the `--config` path, so it points at
-your own `variance.config.json`, and the step that builds the thing being
-observed (here, a Storybook). Copy [`../actions/variance`](../actions/variance)
-alongside `variance.yml` and `variance-shards.yml` — it is a composite action in
-this repository, not one published to the Marketplace, so `uses:
-./.github/actions/variance` only resolves if the directory came with the file.
 
 | File | Asks | Costs |
 |---|---|---|
@@ -26,11 +22,13 @@ this repository, not one published to the Marketplace, so `uses:
 *Collection* is reading the live page; *render* is repainting that reading into
 an image. [`docs/stabilization.md`](../../docs/stabilization.md) has both.
 
-The other two files here, [`check.yml`](check.yml) and
-[`release.yml`](release.yml), are this repository's own build and publish, and
-neither is a recipe. On a pull request, `check.yml` uses the recording `main`
-saved to select the tests the change reached. It compares the predicted time of
-that selection in one job with a sharded full suite and runs the cheaper option.
+The other three files here, [`check.yml`](check.yml),
+[`release.yml`](release.yml) and [`outer-loop.yml`](outer-loop.yml), are this
+repository's build, publish and end-to-end test.
+`outer-loop.yml` has [its own section](#the-outer-loop). On a pull request,
+`check.yml` uses the recording `main` saved to select the tests the change
+reached. It compares the predicted time of that selection in one job with a
+sharded full suite and runs the cheaper option.
 A push to `main` runs the whole suite. It then posts two comments on the pull request, each under its own
 marker so neither overwrites the gate's: `variance review` over the suite's
 recording, and `variance coverage` against the record `main` saved. A merge
@@ -72,19 +70,9 @@ replace the harness jobs, and `check` still runs, reading only their results.
 
 By `yarn install` — it is a dependency of the project being observed, not
 something the workflow fetches. The composite action's `command` input defaults
-to `npx --no-install variance`, which is what your copy should use:
-
-```yaml
-- uses: ./.github/actions/variance
-  with:
-    config: variance.config.json
-    profile: chromium
-    github-token: ${{ secrets.GITHUB_TOKEN }}
-```
-
-The three files here pass `command: node packages/cli/dist/bin.js` instead,
-because this repository builds the CLI from source and has no published copy to
-resolve.
+to `npx --no-install variance`, the CLI the project installed. The three files
+here pass `command: node packages/cli/dist/bin.js` instead, because this
+repository builds the CLI from source and has no published one to resolve.
 
 Every job runs inside `mcr.microsoft.com/playwright:v1.62.1-noble`. An approved
 image is keyed by the identity of the machine that painted it, so a moving runner
@@ -115,7 +103,7 @@ who accepts and how. `variance.yml` chooses with one value at the top of the
 file, `VARIANCE_REVIEW`. This repository runs `cache` for both subjects, and
 the other two each in a job of its own over the case.
 [`docs/placement.md`](../../docs/placement.md#who-accepts-a-change) compares the
-three arrangements. This is what each one needs in your copy:
+three arrangements. This is what each one needs:
 
 | `VARIANCE_REVIEW` | `baselines` in the config | the baseline root | secret |
 |---|---|---|---|
@@ -209,8 +197,9 @@ every project's ref for the branch.
 That ref and the report's share lines below are why `variance.yml` asks for
 `contents: write`. Anyone who can read the repository can read the images. A
 pull request from a fork runs with a read-only token, so the push is refused,
-the step warns, and the comment arrives without pictures. To turn this off in
-your copy, drop the `image-ref-prefix` input and the `images-cleanup` job.
+the step warns, and the comment arrives without pictures. Without the
+`image-ref-prefix` input the action pushes no ref, and the `images-cleanup` job
+has nothing to delete.
 
 ## Where the baselines live here
 
@@ -286,6 +275,70 @@ What differs is what reaching `1` *means*:
   another is recorded as `failed`. A shard's own exit code is about its slice and is
   never the check's colour.
 
+## The outer loop
+
+Every test in this repository stops at the GitHub API. `outer-loop.yml` is the
+one that goes through it: every Monday it drives each review flow the way a
+consumer meets it, in the example repository that carries it.
+
+| Flow | Example | The accept |
+|---|---|---|
+| `cache` | `Variance-Authority/example-storybook` | the `variance: accept` label |
+| `lfs` | `Variance-Authority/example-static-site` | the label, whose run commits the images to the branch |
+| `tribunal` | `Variance-Authority/example-tribunal` | none: the flow ends at the build on the deployment |
+
+For each flow it opens two pull requests there: one that changes what a subject
+renders, and a control that changes nothing any subject reaches. It proves:
+
+- the change's `variance` check is red because a change needs review, and the
+  docket names the changed subject;
+- the control is green and nothing is pushed to it;
+- on `example-storybook`, the "What this change might do" and test evidence
+  comments name the one test that covers the changed file, and the test run
+  selected only it;
+- on `example-tribunal`, the deployment holds exactly one build for the
+  change's branch, listing the four changed product-card subjects;
+- after the label on `example-storybook` and `example-static-site` the check is
+  green, and on `example-static-site` the commit the label made touches only
+  the changed page's baseline image and its report.
+
+Then it closes both pull requests unmerged and deletes their branches, whatever
+happened.
+
+It never approves and never merges. The two labels land only on a pull request
+it is about to close: the cache flow's accept saves into that pull request's own
+cache scope, which no other branch reads, and the LFS flow's accept commits to
+that pull request's branch. An approval on the tribunal is not scoped to a
+branch: it replaces the baseline `main` and every other branch compare against,
+which is a merge, so the tribunal flow leaves its check red and its build
+unreviewed. The build stays on the deployment until something calls its
+retention sweep, `POST /review/sweep`.
+
+These label accepts are made by a job, not a person, and they are the only ones
+in this repository that are. The expectations live in
+[`../scripts/outer-loop/flows.mjs`](../scripts/outer-loop/flows.mjs), and
+`tools/outer-loop.check.ts` runs the script against a local GitHub that answers
+the way the examples do.
+
+The examples pin a released action, so this reads a release, not `main`: it
+fails after a release reaches an example, or after an example changes, never on
+a pull request here.
+
+Every wait is bounded, and so is the flow as a whole: all its waits share twice
+one wait's minutes. The flow step's timeout is the longest flow's budget plus
+ten minutes for requests, and the job gives the settle step ten minutes after it. A failing flow, or one its
+timeout stopped, opens an issue labelled `outer-loop-e2e` here, or comments on
+the one already open, and the next run that passes closes it. A dispatched run
+somebody cancels files nothing. To run it on demand, for one flow or all three:
+
+```bash
+gh workflow run outer-loop.yml -f flow=tribunal
+```
+
+It reaches the examples with the `VARIANCE_PUSH_TOKEN` secret, and reads the
+tribunal deployment without a token. Without that secret a flow fails before it
+opens anything, naming the secret and what it has to be allowed.
+
 ## Two things none of these files does
 
 **Post anything you did not configure.** Beyond the checkout, they call the
@@ -295,7 +348,8 @@ passed in, and under `VARIANCE_REVIEW: tribunal` the service your config names. 
 bash around the same binary.
 
 **Accept without a person.** Every accept is a label, a dispatch, or a decision
-on the service. `commit-baselines` is on only in `variance.yml` under
-`VARIANCE_REVIEW: git`, and only for the run a label started. On every run it
-would accept what the run just found, and a check that does that has stopped
-being a gate.
+on the service. The outer loop's label accepts are the one exception: they land
+only on pull requests it opened to close. `commit-baselines` is on only in
+`variance.yml` under `VARIANCE_REVIEW: git`, and only for the run a label
+started. On every run it would accept what the run just found, and a check that
+does that has stopped being a gate.

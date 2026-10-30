@@ -59,7 +59,8 @@ beforeEach(() => {
 // calls no `afterAll` there and the pool ends the worker without an `exit`
 // event; the directory holds whatever the file's top level wrote under
 // `tmpdir()` — needs a `globalSetup` teardown that removes what this run made.
-afterAll((suite) => {
+// eslint-disable-next-line no-empty-pattern -- Vitest reads a suite hook's first parameter as a fixture pattern; the suite comes second
+afterAll(({}, suite) => {
   TEMPORARY.forEach((name, at) => {
     const value = machine[at];
     if (value === undefined) delete process.env[name];

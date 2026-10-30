@@ -215,6 +215,7 @@ export {
   importersOf,
   memberDeclarationsOf,
   membersOn,
+  outsideSourcesOf,
   readHelp,
   type Alias,
   type ContainerMember,
@@ -244,5 +245,6 @@ export {
 } from './taint/index.js';
 export { moduleCallsTaint, type ModuleCallsTaintOptions } from './taint/calls.js';
 export { mayMock, mockTaint, type MockTaintOptions } from './taint/mocks.js';
+export { runGraphOf, type RunGraphOptions } from './taint/graph.js';
 export { shadowReach, type ShadowReach } from './taint/reach.js';
 export { auditTaints, type TaintAuditOptions, type TaintDeviation, type TaintDeviationKind } from './taint/audit.js';

@@ -17,7 +17,7 @@ cascade resolved to winning values. Two collection paths feed it, one under
 
 ## Running it
 
-You need a checkout, Node 22 or newer, and, from the repository root:
+You need a checkout, Node 22.12 or newer, and, from the repository root:
 
 ```bash
 yarn install

@@ -116,11 +116,11 @@
  * ({@link ExecutionBlock.loaded}).
  */
 
+import { codeUnitOrder } from '@variance-authority/core/segment';
 import type { ModuleId } from '../instrument/index.js';
 import caseOwner from './case-owner.cjs';
 import journalFormat from './journal-format.cjs';
 import type { CapturedModule } from './instrumented-modules.js';
-import { codeUnitOrder } from './instrumented-modules.js';
 import { NO_OWNER } from './format-layout.js';
 import { heldAround } from './region-around.js';
 import { UNTIMED, type CaseDurations } from './case-durations.js';

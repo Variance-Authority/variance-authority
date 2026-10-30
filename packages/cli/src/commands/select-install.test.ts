@@ -9,6 +9,7 @@ import {
   landRun,
   readCommitRuns,
   testCoverageFile,
+  whatLanded,
   writeTestCoverage,
 } from '@variance-authority/sense/test-selection';
 import { selectOutput } from './select-command.js';
@@ -188,7 +189,7 @@ describe('the install a recording ran on', () => {
 
   it('runs the tests that entered a bumped package when the bump came after a clean recording', async () => {
     const { root, head } = await recordedOver('1.3.0');
-    expect(await readCommitRuns(testCoverageFile(root))).toMatchObject({ installed: {} });
+    expect(whatLanded((await readCommitRuns(testCoverageFile(root)))!.landings)).toMatchObject({ installed: {} });
 
     writeFileSync(join(root, 'package-lock.json'), npmLock('1.4.0'));
     const said = await selectOutput({ cwd: root, format: 'plain' });
@@ -319,7 +320,7 @@ describe('the install a recording ran on', () => {
     const { root, head } = checkout({ 'package-lock.json': npmLock('1.3.0') });
     rmSync(join(root, 'package-lock.json'));
     await landRun(testCoverageFile(root), snapshot(head), root);
-    expect(await readCommitRuns(testCoverageFile(root))).toMatchObject({ installed: { 'package-lock.json': null } });
+    expect(whatLanded((await readCommitRuns(testCoverageFile(root)))!.landings)).toMatchObject({ installed: { 'package-lock.json': null } });
     writeFileSync(join(root, 'package-lock.json'), npmLock('1.3.0'));
     process.chdir(root);
     await indexOutput({ cwd: root });

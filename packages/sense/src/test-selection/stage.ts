@@ -12,10 +12,11 @@ import { mkdirSync, rmSync } from 'node:fs';
 import { mkdir, readFile, readdir, rename, rm, writeFile } from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
 import { resolve } from 'node:path';
+import { codeUnitOrder } from '@variance-authority/core/segment';
 import { saidAcross } from './case-said.js';
 import { packCase, settledAcross, timedAcross, unpackCase } from './cases.js';
 import { linesAcross } from './reached-lines.js';
-import { codeUnitOrder, isMissing } from './instrumented-modules.js';
+import { isMissing } from './instrumented-modules.js';
 import type { ObservedEyes } from './eyes-record.js';
 import { joinObservations, type ObservedCase, type ObservedSubject } from './observed.js';
 

@@ -220,6 +220,7 @@ describe('withTestSelection for Jest', () => {
         globals: { 'variance-authority.project': 'node' },
         setupFiles: [SELECTION_GLOBALS, '<rootDir>/setup.js'],
         setupFilesAfterEnv: [SELECTION_SETUP],
+        unmockedModulePathPatterns: [expect.any(String)],
       },
       {
         displayName: 'dom',
@@ -229,6 +230,7 @@ describe('withTestSelection for Jest', () => {
         globals: { 'variance-authority.project': 'dom' },
         setupFiles: [SELECTION_GLOBALS],
         setupFilesAfterEnv: [SELECTION_SETUP],
+        unmockedModulePathPatterns: [expect.any(String)],
       },
     ]);
     expect(configured.reporters).toEqual([
@@ -316,6 +318,7 @@ describe('withTestSelection for Jest', () => {
     const plain = withTestSelection({ rootDir: '/repo', transform: {} }, { coverageFile: 'coverage.bin' });
     expect(plain.transform).toEqual({ '\\.[jt]sx?$': [SELECTION_TRANSFORM, { root: '/repo' }] });
   });
+
 });
 
 describe('the Jest transformer', () => {

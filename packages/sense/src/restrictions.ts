@@ -18,6 +18,7 @@
 // compass: variance-authority.reach.relations
 
 import type { FileRecord } from '@variance-authority/core/relate';
+import { codeUnitOrder } from '@variance-authority/core/segment';
 import { matchesGlob } from './source-scope.js';
 
 /** One rule as written in a `.relations.json` file. */
@@ -94,11 +95,6 @@ function depth(directory: string): number {
   return directory === '' ? 0 : directory.split('/').length;
 }
 
-/** Orders strings by code unit, so a committed listing does not depend on `LANG`. */
-function byCodeUnit(a: string, b: string): number {
-  return a < b ? -1 : a > b ? 1 : 0;
-}
-
 /** Whether `path` is `directory` or under it; the root holds everything. */
 export function inside(directory: string, path: string): boolean {
   return directory === '' || path === directory || path.startsWith(`${directory}/`);
@@ -121,7 +117,7 @@ export function holds(directory: string, pattern: string | undefined, path: stri
 function applying(files: readonly RuleFile[], from: string, to: string): RuleFile[] {
   return files
     .filter((file) => inside(file.directory, from) || inside(file.directory, to))
-    .sort((a, b) => depth(b.directory) - depth(a.directory) || byCodeUnit(a.directory, b.directory));
+    .sort((a, b) => depth(b.directory) - depth(a.directory) || codeUnitOrder(a.directory, b.directory));
 }
 
 /** The first rule that matches an import, or nothing when it is unrestricted. Transitive rules are not consulted. */
@@ -165,7 +161,7 @@ export function restrictedImports(records: readonly FileRecord[], files: readonl
       });
     }
   }
-  return found.sort((a, b) => byCodeUnit(a.from, b.from) || byCodeUnit(a.to, b.to));
+  return found.sort((a, b) => codeUnitOrder(a.from, b.from) || codeUnitOrder(a.to, b.to));
 }
 
 // TODO: a constraint on the layer of an imported target (`toLayerBelow`) is deliberately not implemented.
@@ -202,7 +198,7 @@ export function cappedLayers(
     }
     if (tightest !== undefined && entry.layer > tightest.maxLayer) found.push(tightest);
   }
-  return found.sort((a, b) => byCodeUnit(a.package, b.package));
+  return found.sort((a, b) => codeUnitOrder(a.package, b.package));
 }
 
 /** One package measured against the tightest tier budget that names it. */
@@ -267,6 +263,6 @@ export function cappedTiers(
     if (entry.lines > tightest.budget) violated.push(tightest);
     else if (entry.unsizedFiles > 0) undecided.push(tightest);
   }
-  const order = (a: TierCapFinding, b: TierCapFinding): number => byCodeUnit(a.package, b.package);
+  const order = (a: TierCapFinding, b: TierCapFinding): number => codeUnitOrder(a.package, b.package);
   return { violated: violated.sort(order), undecided: undecided.sort(order) };
 }

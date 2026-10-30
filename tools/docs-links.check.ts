@@ -3,7 +3,7 @@ import { existsSync, readFileSync, statSync } from 'node:fs';
 import { dirname, join, resolve, relative } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { SOURCE, commentsOf } from './comments.js';
-import { MARKDOWN, ROOT, lineOf, prose } from './markdown.js';
+import { INTO_GITHUB, MARKDOWN, PUBLIC_MARKDOWN, ROOT, lineOf, linksIn, prose } from './markdown.js';
 
 /**
  * Where the documentation points, checked against what is there.
@@ -77,6 +77,7 @@ const FOREIGN: Readonly<Record<string, string>> = {
   'packages/lib/src/other.ts': 'the workspace ask-uses-namesakes.test.ts builds, quoted from its answers',
   'packages/kit/src/money/rates.ts': 'the workspace ask-passed-on.test.ts builds, quoted from its answers',
   'packages/kit/src/money/tax.ts': 'the workspace ask-packages-fixture.ts builds, quoted from an answer of ask-passed-on.test.ts',
+  'apps/app/src/hello.ts': 'the workspace ask-packages-fixture.ts builds, quoted from an answer of ask-uses-in-package.test.ts',
   'save-bar.tsx': "a reader's own component, quoted from a sample test story",
   'packages/query-core/src/hydration.ts': "TanStack Query's own module, named by the case study",
   'packages/query-core/src/index.ts': "TanStack Query's own module, named by the case study",
@@ -120,33 +121,25 @@ describe('every link resolves', () => {
   };
 
   it.each(MARKDOWN)('%s', (file) => {
-    // A fenced block is shown, not followed: a sample of generated markdown
-    // carries the links of the artifact it depicts, not of this document.
-    const text = prose(file);
     const broken: string[] = [];
 
-    for (const match of text.matchAll(/\[([^\]]*)\]\(([^)\s]+)(?:\s+"[^"]*")?\)/g)) {
-      const target = match[2]!;
-      if (/^(https?:|mailto:)/.test(target)) continue;
+    for (const { target, line, inside, anchor } of linksIn(file)) {
+      if (inside === undefined) continue;
 
-      // A bare `#anchor` splits to an empty path, which resolves to this file —
-      // so an in-page link is checked against this file's own headings.
-      const [path, anchor] = target.split('#') as [string, string | undefined];
-      const resolved = path === '' ? join(ROOT, file) : resolve(dirname(join(ROOT, file)), path);
-
+      const resolved = join(ROOT, inside);
       if (!existsSync(resolved)) {
-        broken.push(`${file}:${lineOf(text, match.index)} → ${target}`);
+        broken.push(`${file}:${line} → ${target}`);
         continue;
       }
       if (anchor === undefined) continue;
 
       const document = statSync(resolved).isDirectory() ? join(resolved, 'README.md') : resolved;
       if (!existsSync(document) || !document.endsWith('.md')) {
-        broken.push(`${file}:${lineOf(text, match.index)} → ${target} (anchor on a non-document)`);
+        broken.push(`${file}:${line} → ${target} (anchor on a non-document)`);
         continue;
       }
       if (!headings(document).has(anchor)) {
-        broken.push(`${file}:${lineOf(text, match.index)} → ${target} (no such heading)`);
+        broken.push(`${file}:${line} → ${target} (no such heading)`);
       }
     }
 
@@ -154,34 +147,32 @@ describe('every link resolves', () => {
   });
 });
 
-/**
- * Pages published as product documentation, rather than repository context for
- * contributors and maintainers.
- */
-const PUBLIC_MARKDOWN = MARKDOWN.filter(
-  (file) =>
-    (file === 'README.md' ||
-      /^docs\/[^/]+\.md$/.test(file) ||
-      /^(?:packages|examples|cases)\/[^/]+\/README\.md$/.test(file)) &&
-    file !== 'docs/AGENTS.md' &&
-    file !== 'docs/visual-guidelines.md',
-);
+/** The action's own directory: the root of `Variance-Authority/action`, which a release publishes. */
+const ACTION = '.github/actions/variance';
 
-describe('public documentation stands without internal project history', () => {
+/**
+ * Where a public page does not lead: our history, and `.github/`, which holds
+ * this repository's own build. The action's README may name its own files,
+ * since it is the front page of the repository the action is installed from.
+ */
+function internalTo(file: string, inside: string): boolean {
+  if (inside.startsWith('docs/context/') || inside.startsWith('docs/specs/')) return true;
+  const withinAction = file.startsWith(`${ACTION}/`) && inside.startsWith(`${ACTION}/`);
+  return !withinAction && (inside === '.github' || inside.startsWith('.github/'));
+}
+
+
+describe('public documentation stands without this repository’s internals', () => {
   it.each(PUBLIC_MARKDOWN)('%s', (file) => {
     const text = prose(file);
     const internal: string[] = [];
 
-    for (const match of text.matchAll(/\[([^\]]*)\]\(([^)\s]+)(?:\s+"[^"]*")?\)/g)) {
-      const target = match[2]!;
-      if (/^(https?:|mailto:)/.test(target)) continue;
+    for (const { target, line, inside } of linksIn(file)) {
+      if (inside !== undefined && internalTo(file, inside)) internal.push(`${file}:${line} → ${target}`);
+    }
 
-      const [path] = target.split('#') as [string];
-      const resolved = path === '' ? join(ROOT, file) : resolve(dirname(join(ROOT, file)), path);
-      const inside = relative(ROOT, resolved);
-      if (inside.startsWith('docs/context/') || inside.startsWith('docs/specs/')) {
-        internal.push(`${file}:${lineOf(text, match.index)} → ${target}`);
-      }
+    for (const match of text.matchAll(INTO_GITHUB)) {
+      internal.push(`${file}:${lineOf(text, match.index)} → ${match[0]}`);
     }
 
     for (const match of text.matchAll(/\b(?:ADR-\d{4}|(?:journal|spec)\s+\d{4})\b/gi)) {

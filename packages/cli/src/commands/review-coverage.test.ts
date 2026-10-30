@@ -23,7 +23,7 @@ const INTEGRATION: Coverage = {
 };
 const REVIEW: Review = {
   from: 'cc25d6a6', base: 'since', record: 'ran', files: [], suite: 679, recordedSuite: 'unit',
-  runs: { first: '2026-10-01', latest: '2026-10-01', runs: 1, files: ['a.test.ts', 'b.test.ts', 'c.test.ts'] },
+  runs: { latest: '2026-10-01', runs: 1, files: ['a.test.ts', 'b.test.ts', 'c.test.ts'] },
   coverage: [UNIT, INTEGRATION],
 };
 

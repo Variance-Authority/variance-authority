@@ -37,10 +37,12 @@ on:
 # `pull-requests: write` is for the review comment and nothing else. A pull
 # request from a fork gets a read-only token whatever this says; the comment step
 # warns and continues there, and the review is still in the job summary and the
-# run's artifacts.
+# run's artifacts. `issues: read` is for the `idea` job, which reads the labels
+# of the issue a pull request closes.
 permissions:
   contents: read
   actions: read
+  issues: read
   pull-requests: write
 
 # A pull request's newer push supersedes its older one, so the group is the ref
@@ -1386,16 +1388,39 @@ jobs:
           yarn variance index
           VARIANCE_AUTHORITY_SINCE='' VARIANCE_AUTHORITY_AT_DISTANCE=0-2 yarn "test:$SUITE" ${SHARD:+--shard "$SHARD"}
 
+  # A `feat`, `fix` or `perf` pull request carries an idea that passed review
+  # before its code was written: its body's first line says `Closes #<n>` or `Part of #<n>`, and the
+  # issue carries `idea: build`, put on when the `occam` reviewer's idea review
+  # let it through, with no edit to its body after (refine, "The idea loop").
+  # It runs on the pull request and again in the merge queue, where it asks
+  # every pull request the group merges, so an issue edited after a pull
+  # request's last run still stops the merge. `tools/idea.mjs` holds the rule.
+  idea:
+    if: github.event_name == 'pull_request' || github.event_name == 'merge_group'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: tools/idea.mjs
+          sparse-checkout-cone-mode: false
+      - name: read each issue's verdict
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+          QUEUE_HEAD: ${{ github.event.merge_group.head_sha }}
+          QUEUE_BASE: ${{ github.event.merge_group.base_ref }}
+        run: node tools/idea.mjs
+
   # The one check a branch rule names, and the one line that combines the
-  # harnesses its event runs: `plan` and `queue` for a merge group, and `rules`, `measure`,
-  # `base`, `suite` and `record` for everything else. `needs` alone would skip this job when one of them failed,
+  # harnesses its event runs: `plan`, `queue` and `idea` for a merge group, and `rules`, `measure`,
+  # `base`, `suite` and `record` for everything else, with `idea` on a pull request. `needs` alone would skip this job when one of them failed,
   # and a skipped job counts as passing to a branch rule — so it runs
   # `always()` and turns every harness's result into its own colour. Anything
   # but `success` is red, `cancelled` and `skipped` included: a harness that did
   # not finish said nothing about the change. The jobs the event does not run
   # are skipped on purpose and are not read.
   check:
-    needs: [rules, measure, base, suite, record, plan, queue]
+    needs: [rules, measure, base, suite, record, plan, queue, idea]
     if: ${{ always() }}
     runs-on: ubuntu-24.04
     steps:
@@ -1406,11 +1431,11 @@ jobs:
           EVENT: ${{ github.event_name }}
         run: |
           set -euo pipefail
-          if [ "$EVENT" = merge_group ]; then
-            gate='["plan","queue"]'
-          else
-            gate='["rules","measure","base","suite","record"]'
-          fi
+          case "$EVENT" in
+            merge_group) gate='["plan","queue","idea"]' ;;
+            pull_request) gate='["rules","measure","base","suite","record","idea"]' ;;
+            *) gate='["rules","measure","base","suite","record"]' ;;
+          esac
           missing=$(echo "$RESULTS" | jq -r --argjson gate "$gate" '$gate - keys | join(", ")')
           if [ -n "$missing" ]; then
             echo "::error::check reads $missing, which it does not need"

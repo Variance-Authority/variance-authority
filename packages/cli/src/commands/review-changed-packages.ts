@@ -2,8 +2,8 @@
 /**
  * Where a change lands, a package at a time: the changed functions in each
  * package, how near the tests that ran them were, how many hold code no case
- * ran, the packages those tests live in, and how many packages import the
- * changed code.
+ * ran, and how many code no case is known to have run, the packages those
+ * tests live in, and how many packages import the changed code.
  *
  * A monorepo pull request is read package by package — by whoever owns each
  * one — and a list of functions does not say which owner to ask, nor whether a
@@ -20,8 +20,9 @@
 import { relative, resolve } from 'node:path';
 import { codeUnitOrder } from '@variance-authority/core/segment';
 import { packageName, packageOf } from '../package-home.js';
-import { functionOf, located, uncovered } from './review-scope.js';
+import { functionOf, located, overwritten, uncovered } from './review-scope.js';
 import { REACHES, type Reach, type ChangedPackage, type ReviewFile } from './review.js';
+import { notKnown } from './review-words.js';
 
 export type { ChangedPackage } from './review.js';
 
@@ -72,7 +73,12 @@ export function changedPackagesOf(
     // entered is counted apart. Code with no function region of its own, the top level, is marked by its worst region.
     const own = region.kind === 'function' && region.name === name;
     const reach = prior === undefined || own || (!prior.own && REACHES.indexOf(region.reach) > REACHES.indexOf(prior.reach)) ? region.reach : prior.reach;
-    functions.set(key, { reach, own: own || prior?.own === true, uncovered: uncovered(region) || prior?.uncovered === true });
+    functions.set(key, {
+      reach,
+      own: own || prior?.own === true,
+      uncovered: uncovered(region) || prior?.uncovered === true,
+      overwritten: overwritten(region) || prior?.overwritten === true,
+    });
     // By directory, not name: a fixture's manifest may borrow the name of the package it stands in for.
     for (const test of region.tests) tests.add(homeOf(test));
   }
@@ -95,6 +101,8 @@ export function changedPackagesOf(
         functions: functions.size,
         reaches: Object.fromEntries(REACHES.filter((reach) => reaches[reach] !== undefined).map((reach) => [reach, reaches[reach]])),
         uncovered: [...functions.values()].filter((fn) => fn.uncovered).length,
+        // A function holding both is counted once, under the worse.
+        overwritten: [...functions.values()].filter((fn) => fn.overwritten && !fn.uncovered).length,
         own: tests.has(home),
         tests: [...new Set([...tests].filter((at) => at !== home).map(nameOf))].sort(codeUnitOrder),
         ...(reached === undefined ? {} : { importers: importers.size }),
@@ -110,44 +118,64 @@ export function changedPackagesOf(
 export function changedPackagesMarkdown(pkgs: readonly ChangedPackage[] | undefined, mark: (reach: Reach) => string): readonly string[] {
   if (pkgs === undefined || pkgs.length < 2) return [];
   const total = pkgs.reduce((sum, pkg) => sum + pkg.functions, 0);
-  const ranked = [...pkgs].sort((left, right) =>
-    right.uncovered - left.uncovered || away(right) - away(left) || right.functions - left.functions || codeUnitOrder(left.package, right.package));
+  const ranked = [...pkgs].sort((left, right) => right.uncovered - left.uncovered || knownLost(right) - knownLost(left) || away(right) - away(left) ||
+    right.functions - left.functions || codeUnitOrder(left.package, right.package));
+  // The column is there only once a package holds such code: most changes have none to count.
+  const lost = pkgs.some((pkg) => knownLost(pkg) > 0);
   const lines = [
     '',
     `**Where this change lands:** ${total} changed function${total === 1 ? '' : 's'} in ${pkgs.length} packages.`,
     '',
-    '| Package | Changed functions | Ran | With code no case ran | Tests from | Packages importing it |',
-    '|---|--:|---|--:|---|--:|',
+    `| Package | Changed functions | Ran | With code no case ran |${lost ? ` With code ${notKnown(true)} |` : ''} Tests from | Packages importing it |`,
+    `|---|--:|---|--:|${lost ? '--:|' : ''}---|--:|`,
   ];
-  const row = (pkg: ChangedPackage): string =>
-    `| \`${pkg.package}\` | ${pkg.functions} | ${tally(pkg.reaches, mark)} | ${pkg.uncovered} | ${testedFrom(pkg)} | ${pkg.importers ?? ''} |`;
+  const row = (pkg: ChangedPackage): string => `| \`${pkg.package}\` | ${pkg.functions} | ${tally(pkg.reaches, mark)} | ${pkg.uncovered} |${
+    lost ? ` ${lostIn([pkg])} |` : ''
+  } ${testedFrom(pkg)} | ${pkg.importers ?? ''} |`;
   if (ranked.length <= ROWS) return [...lines, ...ranked.map(row)];
 
-  const gaps = ranked.filter((pkg) => away(pkg) > 0 || pkg.uncovered > 0);
-  const quiet = ranked.filter((pkg) => away(pkg) === 0 && pkg.uncovered === 0);
+  // One predicate splits them, so a package from a review.json written before one of its counts still lands on a side.
+  const gap = (pkg: ChangedPackage): boolean => away(pkg) > 0 || pkg.uncovered > 0 || knownLost(pkg) > 0;
+  const gaps = ranked.filter(gap);
+  const quiet = ranked.filter((pkg) => !gap(pkg));
   // The fold rows are rows too: the quiet one when there is any, the overflow one when the gaps do not fit beside it.
   const room = ROWS - (quiet.length > 0 ? 1 : 0);
   const shown = gaps.length <= room ? gaps.length : room - 1;
   lines.push(...gaps.slice(0, shown).map(row));
-  if (shown < gaps.length) lines.push(folded(gaps.slice(shown), packages(gaps.length - shown, true), mark));
-  if (quiet.length > 0) lines.push(folded(quiet, `${packages(quiet.length, shown > 0)}, every function ${mark('near')}`, mark));
+  if (shown < gaps.length) lines.push(folded(gaps.slice(shown), packages(gaps.length - shown, true), mark, lost));
+  if (quiet.length > 0) lines.push(folded(quiet, `${packages(quiet.length, shown > 0)}, every function ${mark('near')}`, mark, lost));
   return [...lines, '', 'Each package is in the review\'s JSON, under `changedPackages`.'];
 }
 
-/** One changed function: its mark, whether that is its own region's, and whether any changed code in it no case ran. */
+/** One changed function: its mark, whether that is its own region's, and whether any changed code in it no case ran, or no case is known to have run. */
 interface Held {
   readonly reach: Reach;
   readonly own: boolean;
   readonly uncovered: boolean;
+  readonly overwritten: boolean;
 }
 
 /** Several packages on one row: their functions and marks summed. Their tests and importers are left blank, since a sum would count a package entering or importing two of them twice. */
-function folded(pkgs: readonly ChangedPackage[], label: string, mark: (reach: Reach) => string): string {
+function folded(pkgs: readonly ChangedPackage[], label: string, mark: (reach: Reach) => string, lost: boolean): string {
   const reaches: Partial<Record<Reach, number>> = {};
   for (const pkg of pkgs) for (const reach of REACHES) reaches[reach] = (reaches[reach] ?? 0) + (pkg.reaches[reach] ?? 0);
-  const functions = pkgs.reduce((sum, pkg) => sum + pkg.functions, 0);
-  const unran = pkgs.reduce((sum, pkg) => sum + pkg.uncovered, 0);
-  return `| ${label} | ${functions} | ${tally(reaches, mark)} | ${unran} | | |`;
+  const sum = (count: (pkg: ChangedPackage) => number) => pkgs.reduce((total, pkg) => total + count(pkg), 0);
+  return `| ${label} | ${sum((pkg) => pkg.functions)} | ${tally(reaches, mark)} | ${sum((pkg) => pkg.uncovered)} |${lost ? ` ${lostIn(pkgs)} |` : ''} | |`;
+}
+
+/** The packages' functions with code no case is known to have run, summed; blank when one of them does not hold the count. */
+function lostIn(pkgs: readonly ChangedPackage[]): string {
+  let total = 0;
+  for (const { overwritten } of pkgs) {
+    if (overwritten === undefined) return '';
+    total += overwritten;
+  }
+  return String(total);
+}
+
+/** The package's functions with code no case is known to have run, to rank and split by: a count it does not hold ranks as none known, and is never printed so. */
+function knownLost(pkg: ChangedPackage): number {
+  return pkg.overwritten ?? 0;
 }
 
 /** The functions by mark, in the marks' order: the reaches one mark stands for are summed under it. */

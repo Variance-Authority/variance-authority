@@ -401,6 +401,12 @@ export interface NativeNameUse {
   throughDefault: boolean;
   /** The module goes, whole, somewhere the reader does not follow: the line may read the name. */
   whole: boolean;
+  /**
+   * The lines of the importing file that use what the import binds, in line
+   * order; absent where they were not read: a member read, which binds
+   * nothing, and the usage the Help value records.
+   */
+  lines?: number[] | null;
 }
 
 /** Who imports one name out of a set of files, and which files pass it on with `export … from`. */
@@ -417,6 +423,11 @@ export interface NativeImporters {
    * `shout` and `members` `['greet']`, the last member the name itself.
    */
   namespaces: NativeNamespace[];
+  /**
+   * Every file, in code-unit order, with an import the index resolved to no
+   * file that could take the name: a use there is not listed.
+   */
+  unresolved: string[];
 }
 
 /** A namespace one file passes a name on inside, under the name it exports it as. */

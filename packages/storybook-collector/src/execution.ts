@@ -36,6 +36,12 @@ export type StoryExecutionOptions = Omit<SubjectRecording, 'heads'>;
 /** One run's accumulation: a window per story, written once at the end. */
 export interface StoryRecorder {
   /**
+   * The script that makes the preview tape each story's story, where the run
+   * asked for stories under `VARIANCE_AUTHORITY_STORY`: put on the page ahead
+   * of the collector's bundle.
+   */
+  readonly storyPage?: () => Promise<string>;
+  /**
    * Close one story's window.
    *
    * `complete` is false for a story this run refused. A refused story still
@@ -84,6 +90,7 @@ export async function createStoryRecorder(
   const storyFiles = await storyFilesFrom(index, ran, root);
 
   return {
+    ...(recorder.storyPage === undefined ? {} : { storyPage: recorder.storyPage }),
     note: async (page, subjectId, complete, timing) => {
       // A story read at several widths is one declaration and several cases:
       // each width executed the story on its own, and a hook that reads the

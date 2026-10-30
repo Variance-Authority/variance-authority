@@ -87,7 +87,7 @@ const sorted = (paths) => [...paths].sort();
 const specs = (...names) => sorted(names.map((name) => at(`src/spec/${name}.spec.mjs`)));
 
 live('a Playwright suite over a Storybook it opens itself', () => {
-  it('records every spec by the documents it held, and never a replaced one as whole', async () => {
+  it('records every spec by the documents it held, a replaced one handed on to the next', async () => {
     await inFreshWork(async (work) => {
       // The records the probes write while Storybook builds, and the ones the
       // run reads back, are keyed by repository in the cache (docs/cache.md).
@@ -118,12 +118,10 @@ live('a Playwright suite over a Storybook it opens itself', () => {
       expect(driven.output).not.toContain('variance-authority:');
 
       // Every spec, including the five that destructure nothing but `page`. The
-      // two that replaced their document are recorded — what the last document
-      // entered is still evidence of what the spec needs — and are not whole.
+      // two that replaced their document are whole: each replaced document
+      // handed what it entered to the next one of its origin in the frame.
       const { tests } = await readTestCoverage(coverage);
-      expect(sorted(tests.filter((test) => !test.complete).map((test) => test.file))).toEqual(
-        specs('navigate', 'reload'),
-      );
+      expect(sorted(tests.filter((test) => !test.complete).map((test) => test.file))).toEqual([]);
       expect(sorted(tests.map((test) => test.file))).toEqual(
         specs('after-each', 'manager', 'navigate', 'plain', 'popup', 'reload', 'variance'),
       );
@@ -135,7 +133,7 @@ live('a Playwright suite over a Storybook it opens itself', () => {
       const doubled = await ask(await lineOf('return amount * 2'));
       expect(sorted(doubled.entered)).toEqual(specs('plain', 'popup', 'reload', 'variance'));
       expect(sorted(doubled.whole)).toEqual(
-        specs('after-each', 'manager', 'plain', 'popup', 'variance'),
+        specs('after-each', 'manager', 'navigate', 'plain', 'popup', 'reload', 'variance'),
       );
 
       // The discount is taken after a click: through the manager's preview
@@ -144,12 +142,10 @@ live('a Playwright suite over a Storybook it opens itself', () => {
       expect(sorted(discounted.entered)).toEqual(specs('after-each', 'manager', 'navigate'));
 
       // A plain price. `navigate` rendered one too, in the document its second
-      // `goto` replaced: the drain before that statement read it while it was
-      // still there. Its record is not whole either way, because what the
-      // document did during the `goto` itself went with it.
+      // `goto` replaced, and that document handed it on as it went.
       const plain = await ask(await lineOf('return amount;'));
       expect(sorted(plain.entered)).toEqual(specs('navigate', 'popup'));
-      expect(plain.whole).not.toContain(at('src/spec/navigate.spec.mjs'));
+      expect(plain.whole).toContain(at('src/spec/navigate.spec.mjs'));
     });
   }, 180_000);
 });

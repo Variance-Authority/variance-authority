@@ -130,6 +130,38 @@ describe('variance_source_tests', () => {
     });
   });
 
+  describe('a region a case ran in another text, where a run over this one has landed since', () => {
+    // `pay` ran for `charges once` in a text a later run wrote over, so the record holds that case flagged there.
+    const LOST: ExecutionIndex = {
+      tests: [
+        { id: 'charges', file: 'src/pay.test.ts', name: 'charges once' },
+        { id: 'refunds', file: 'src/pay.test.ts', name: 'refunds' },
+      ],
+      modules: [{
+        file: 'src/pay.ts',
+        blocks: [
+          { kind: 'module', name: 'src/pay.ts', path: 'module', startLine: 1, endLine: 10, source: true, crossings: [{ test: 1, distance: 0 }] },
+          { kind: 'function', name: 'pay', path: 'pay', startLine: 6, endLine: 10, source: true, crossings: [{ test: 0, distance: 0, overwritten: true }] },
+        ],
+      }],
+    };
+    const lost = 'in a text a case ran over, but a run over another text has landed there since, so which case ran it is not known';
+
+    it('says which case ran a line or a function is not known, never that no named test called into it', () => {
+      expect(sourceTests.run(LOST, { file: 'src/pay.ts', line: 8 })).toBe(`Line 8 in src/pay.ts is ${lost}.`);
+      expect(sourceTests.run(LOST, { file: 'src/pay.ts', function: 'pay' })).toBe(`Function pay in src/pay.ts is ${lost}.`);
+    });
+
+    it('says it of a range the flagged case alone holds, and beside the cases a range names', () => {
+      const text = sourceTests.run(LOST, { file: 'src/pay.ts' });
+
+      expect(text).toContain(`lines 7-9\n  this range is ${lost}\n`);
+      expect(text).toContain('line 6\n  refunds — src/pay.test.ts [refunds]\n  it is also in a text a case ran over, but a run over another text has landed there since, so which other case ran it is not known\n');
+      expect(text).not.toContain('no named test reached this range');
+      expect(text).not.toContain('charges once');
+    });
+  });
+
   it('names indexed files when the requested path is unknown', () => {
     expect(sourceTests.run(INDEX, { file: 'src/missing.ts' })).toContain(
       'Indexed files:\n  src/cart/total.ts',
