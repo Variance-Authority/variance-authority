@@ -88,6 +88,11 @@ file is orchestration.
 - Missing prerequisites skip loudly, with the command that makes the case run.
   A silently skipped case reads in a summary exactly like one that ran and
   agreed. [`tools/skips.check.ts`](../tools/skips.check.ts) enforces this.
+- On CI a missing prerequisite fails the case instead, through
+  [`unbuilt.mjs`](unbuilt.mjs). A file whose cases all skipped never ran, so the
+  record of that run is not whole and `main` cannot publish it.
+  [`case-subjects`](../.github/actions/case-subjects/action.yml) builds the
+  subjects in every job that runs the chromium slice.
 - Generated or prebuilt inputs refuse stale source bytes instead of reporting an
   agreement against an old build. The case-specific tests own those checks.
 

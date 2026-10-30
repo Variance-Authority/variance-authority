@@ -4,6 +4,7 @@ import { chromium } from 'playwright';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { createPlaywrightRenderer } from '@variance-authority/playwright/renderer';
 import { storybookCollector } from '@variance-authority/storybook-collector';
+import { unbuilt } from '../../unbuilt.mjs';
 
 /**
  * A run with workers spends one browser, one boot per worker, and one fetch per asset.
@@ -42,7 +43,7 @@ const BROWSER_AVAILABLE = (() => {
 const READY = existsSync(INDEX) && BROWSER_AVAILABLE;
 
 if (!READY) {
-  console.warn(
+  unbuilt(
     '\ncases/storybook-case (one browser): skipped.' +
       (BROWSER_AVAILABLE ? '' : '\n  no browser — npx playwright install chromium') +
       (existsSync(INDEX)

@@ -96,7 +96,8 @@ const GATED: readonly string[] = [
 
 /**
  * Every `console.warn` a reader reaches during collection: top level, or one
- * `if` deep.
+ * `if` deep. A case says it through `unbuilt(` from `cases/unbuilt.mjs`, which
+ * warns where a developer runs it and throws on CI, so that call announces too.
  *
  * Read as text with a column rule rather than parsed. A `console.warn` that runs
  * during collection is written at column 0 or indented inside one top-level
@@ -114,7 +115,7 @@ function announcements(file: string): readonly string[] {
   const text = readFileSync(join(ROOT, file), 'utf8');
   const found: string[] = [];
 
-  for (const match of text.matchAll(/^(\s*)console\.warn\(([\s\S]*?)^\1\);/gm)) {
+  for (const match of text.matchAll(/^(\s*)(?:console\.warn|unbuilt)\(([\s\S]*?)^\1\);/gm)) {
     if ((match[1] ?? '').length <= 4) found.push(match[0]);
   }
   return found;

@@ -11,6 +11,8 @@ import { createHarness, type Harness } from '@variance-authority/playwright';
 import { readIncumbent, type IncumbentResult } from './incumbent-report.js';
 import { runOurArm, type Finding } from './replacement-arm.js';
 import { CONFIGURATIONS, SCENARIOS, mark } from './scenarios.js';
+// @ts-expect-error — a plain .mjs module, deliberately not part of the TS build.
+import { unbuilt } from '../../unbuilt.mjs';
 
 /**
  * The head-to-head: eight edits, two arms, one page.
@@ -124,7 +126,7 @@ const live = READY ? describe : describe.skip;
 if (!READY) {
   // Loud, and with the command attached: a silently skipped head-to-head reads
   // in a summary exactly like one that ran and agreed.
-  console.warn(
+  unbuilt(
     '\ncases/incumbent-case: skipped.' +
       (BROWSER_AVAILABLE ? '' : '\n  no browser — npx playwright install chromium') +
       (existsSync(BUNDLE) ? '' : '\n  no page bundle') +

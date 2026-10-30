@@ -9,6 +9,8 @@ import { normalize } from '@variance-authority/core/rules';
 import { createHarness, type Harness } from '@variance-authority/playwright';
 // @ts-expect-error — a plain .mjs script, deliberately not part of the TS build.
 import { stale } from '../scripts/bundle.mjs';
+// @ts-expect-error — a plain .mjs module, deliberately not part of the TS build.
+import { unbuilt } from '../../unbuilt.mjs';
 
 /**
  * One panel, two languages, one browser.
@@ -79,7 +81,7 @@ afterAll(async () => {
 const live = READY ? describe : describe.skip;
 
 if (!READY) {
-  console.warn(
+  unbuilt(
     '\ncases/incumbent-case (locale): skipped.' +
       (BROWSER_AVAILABLE ? '' : '\n  no browser — npx playwright install chromium') +
       (existsSync(BUNDLE) ? '' : '\n  no page bundle') +

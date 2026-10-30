@@ -571,6 +571,13 @@ jobs:
       - uses: ./.github/actions/ripgrep
         if: matrix.suite == 'unit'
 
+      # The subjects the cases' chromium files observe. Without them every case
+      # in those files fails on CI, and before it did they skipped: every
+      # shard went green, and `publish` refused the record, since a file whose
+      # cases all skipped never ran at this commit.
+      - uses: ./.github/actions/case-subjects
+        if: matrix.suite == 'chromium'
+
       # The mainline's records as `base` read them, downloaded only when it
       # uploaded some. A download that fails then fails the job: going on
       # would ask the line on its own, the read `base` is there to replace.
@@ -1158,19 +1165,8 @@ jobs:
 
       - uses: ./.github/actions/build
 
-      # The subjects the cases observe, built the way each case's README says.
-      # `storybook-static/` and the others are ignored, so nothing here can be
-      # stale against a committed copy.
-      - name: build the Storybooks
-        shell: bash
-        run: |
-          yarn workspace @variance-authority/case-storybook build-storybook
-          yarn workspace @variance-authority/case-storybook build-storybook:changed
-          yarn workspace @variance-authority/case-storybook build-storybook:a11y
-
-      - name: record the incumbent
-        shell: bash
-        run: yarn workspace @variance-authority/case-incumbent incumbent
+      # The subjects the cases observe, for the reason written in the action.
+      - uses: ./.github/actions/case-subjects
 
       # The cases' own unit tests, then the ones that launch a browser, each
       # under its slice's config (`vitest.config.mts` says why they are apart).
@@ -1339,6 +1335,10 @@ jobs:
       # The unit part only, for the reason written at the same step in `suite`.
       - uses: ./.github/actions/ripgrep
         if: matrix.part == 'unit'
+
+      # The chromium part only, for the reason written at the same step in `suite`.
+      - uses: ./.github/actions/case-subjects
+        if: matrix.part == 'chromium'
 
       - name: lint
         if: matrix.part == 'rules'
