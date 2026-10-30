@@ -1,8 +1,13 @@
 /**
  * How Rstest learns which case is running, as source: its registrars wrapped
- * to enter a case scope, and the bracket that attends each attempt. Rstest has
- * no runner to replace, so this is its counterpart of the case runner the
- * other seams generate.
+ * to enter a case scope, and the bracket that attends each attempt.
+ *
+ * Vitest's runner wraps the test function in `runTask` (`caseRunnerSource` in
+ * `worker-source.ts`). Rstest has no runner to replace, so the enclosure comes
+ * from the only other thing that holds the function before the runner calls
+ * it: the API that registered it. Every registrar is wrapped, its own
+ * properties with it, because `it.only`, `it.concurrent` and `it.each(rows)`
+ * are each a separate callable that never routes through the bare one.
  */
 
 import { CASE_SCOPE } from './cases.js';
@@ -12,33 +17,14 @@ import { scopeGlobalsSource } from './precondition-source.js';
 const CASE_SCOPE_KEY = Symbol.keyFor(CASE_SCOPE) ?? '';
 
 /**
- * The case scope for a runner that has no runner to replace, as source.
+ * The case scope for a runner that has no runner to replace, as source. The
+ * coordinate is read at call time, not at registration: `each` interpolates
+ * its row into the title and a describe path is assembled only once the suite
+ * has collected, and `currentTestName` resolves both.
  *
- * Vitest loads a runner by module id, and `runTask` there *wraps* the test
- * function — see `caseRunnerSource` in `worker-source.ts`. Rstest has no such option, so the
- * enclosure has to come from the only other thing that holds the function
- * before the runner calls it: the API that registered it. Every registrar is
- * wrapped, its own properties with it, because `it.only`, `it.concurrent` and
- * `it.each(rows)` are each a separate callable that takes a test function and
- * none of them route through the bare one.
- *
- * The coordinate is read at call time rather than at registration: `each`
- * interpolates its row into the title, and a describe path is only assembled
- * once the suite has collected. `currentTestName` is the resolved answer to
- * both, spelled exactly as a reader recognises the case by.
- *
- * The wrap is applied to every object that *holds* a registrar, which is what
- * `holders` names. `globals: true` puts them on the realm; an import does not,
- * but under Rspack `@rstest/core` is an external of type `global`, so
- * `import { it } from '@rstest/core'` compiles to a property read of
- * `globalThis['@rstest/core']` — the object the runner assigns the API to
- * before any setup file runs. Wrapping that object's `it` and `test` in place
- * reaches the imported registrars for the same reason wrapping the realm
- * reaches the injected ones, and neither spelling has to be configured.
- *
- * @param holders Source for the objects to wrap the registrars on, in the
- * order they are wrapped. Defaults to the realm alone, which is every runner
- * whose API is a module rather than an injected object.
+ * @param holders Source for the objects that hold the registrars, in the order
+ * they are wrapped. Defaults to the realm alone, which is every runner whose
+ * API is a module rather than an injected object.
  */
 export function caseGlobalsSource(holders = 'globalThis'): string {
   return `
@@ -84,6 +70,9 @@ const wrapCase = (api, depth) => {
   for (const key of Object.keys(api)) out[key] = wrapCase(api[key], depth + 1);
   return out;
 };
+// \`globals: true\` puts the registrars on the realm. Under Rspack an import of
+// \`@rstest/core\` is a read of \`globalThis['@rstest/core']\`, assigned before
+// any setup file runs, so wrapping that object in place reaches imported ones.
 for (const holder of [${holders}]) {
   if (holder === undefined || holder === null) continue;
   for (const name of ['it', 'test']) {
