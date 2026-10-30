@@ -283,11 +283,7 @@ export function withTestSelection(
         complete: statusesComplete(file.status, (file.results ?? []).map((test) => test.status), named),
         ...reportedDuration(file.duration),
         ...(file.results === undefined ? {} : {
-          cases: file.results.map((test) => finishedCase(
-            [...(test.parentNames ?? []), test.name].filter(Boolean).join(' > '),
-            undefined,
-            test.duration,
-          )),
+          cases: file.results.map((test) => finishedCase(caseNameOf(test), undefined, test.duration)),
         }),
         ...carriedJournal(file.testPath, file.meta),
         ...(file.project === undefined ? {} : { configs: [projectKey(file.project)] }),
@@ -442,10 +438,15 @@ function carriedStories(file: RstestFileResult) {
   return (file.results ?? []).flatMap((test) => {
     const held = carriedStory(test.meta);
     if (held === undefined) return [];
-    const name = [...(test.parentNames ?? []), test.name].filter(Boolean).join(' > ');
+    const name = caseNameOf(test);
     const subject = { file: file.testPath, name, id: test.testId ?? name, project: file.project };
     return [{ subject, story: held.story, stopped: test.status === 'fail' }];
   });
+}
+
+/** A case's name: its describe path joined as `currentTestName` joins it for a case in Node. */
+function caseNameOf(test: { readonly parentNames?: readonly string[]; readonly name?: string }): string {
+  return [...(test.parentNames ?? []), test.name].filter(Boolean).join(' > ');
 }
 
 function array<T>(value: T | readonly T[] | undefined): T[] {

@@ -257,7 +257,7 @@ describe('a case that runs in a page, when stories are asked', () => {
         moduleId: filepath,
         ok: () => false,
         meta: () => file.meta!,
-        children: { allTests: () => [{ id: 'a1_0', result: () => ({ state: 'failed' }), meta: () => test.meta! }] },
+        children: { allTests: () => [{ id: 'a1_0', fullName: 'checkout > charges a premium', result: () => ({ state: 'failed' }), meta: () => test.meta! }] },
       } as ReportedModule]);
 
       const directory = storyDirectory(resolve(root, 'coverage.bin'));

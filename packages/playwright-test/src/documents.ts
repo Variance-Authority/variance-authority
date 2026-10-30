@@ -36,13 +36,26 @@ export interface VarianceDocumentFixtures {
   readonly varianceDocuments: void;
 }
 
+let warned = false;
+function unheard(): void {
+  if (warned) return;
+  warned = true;
+  console.warn(
+    'variance-authority: this Playwright client has no context instrumentation; ' +
+      'a context a spec makes itself is not recorded, only the runner\'s `context`.',
+  );
+}
+
 /** One test's documents, by the test, for the `context` fixture to hand its context to. */
 const byTest = new WeakMap<TestInfo, TestDocuments>();
 
 /**
  * Playwright's client instrumentation: what its own trace recorder hears every
- * context created and closed through. Absent from a client that has none, where
- * only the runner's `context` is adopted.
+ * context created and closed through. The public `browser.on('context')` is
+ * not enough: `newContext` resolves without waiting for it, so the tape script
+ * races the context's first page, and nothing is heard before a context
+ * closes. A client without it says so, and only the runner's `context` is
+ * adopted.
  */
 interface Instrumented {
   readonly _instrumentation?: {
@@ -82,6 +95,7 @@ export const varianceDocumentFixtures: Fixtures<
         runBeforeCloseBrowserContext: (context) => documents.settle(context),
       };
       const instrumentation = (playwright as unknown as Instrumented)._instrumentation;
+      if (instrumentation === undefined) unheard();
       instrumentation?.addListener(listener);
       byTest.set(testInfo, documents);
       try {

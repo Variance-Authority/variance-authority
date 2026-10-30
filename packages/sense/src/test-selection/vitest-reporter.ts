@@ -14,10 +14,11 @@ import {
   type RunnerTask,
 } from './finished-files.js';
 import { reportedDuration, reportedPhases } from './reported-time.js';
-import { reportedCases, taskCases } from './case-durations.js';
+import { namedTasks, reportedCases, taskCases } from './case-durations.js';
 import { noteRunner, projectConfig, type RunnerContext } from './governing-config.js';
 import { reopenRun, type SelectionRun } from './selection-run.js';
 import { carriedStory, writeCarriedStories } from './carried-stories.js';
+import type { StoryCase } from '../story/page.js';
 
 export function selectionReporter(
   run: SelectionRun,
@@ -55,9 +56,10 @@ export function selectionReporter(
     onTestRunStart: () => reopenRun(run, run.settled ? Date.now() : run.startedAt),
     onFinished: async (files: readonly RunnerTask[]) => {
       // The end is announced through both hooks; the first to arrive writes.
-      if (!run.settled) await writeCarried(story, files.flatMap((file) => testsOf(file).map((test) => ({
-        meta: test.meta,
-        stopped: test.result?.state === 'fail',
+      if (!run.settled) await writeCarried(story, files.flatMap((file) => namedTasks(file).map(({ task, name }) => ({
+        subject: storyCase(file.filepath, name, task.id, file.projectName),
+        meta: task.meta,
+        stopped: task.result?.state === 'fail',
       }))));
       await settle(
       files.flatMap((file) => file.filepath === undefined
@@ -81,6 +83,7 @@ export function selectionReporter(
     },
     onTestRunEnd: async (reported: readonly ReportedModule[], _errors?: unknown, reason?: string) => {
       if (!run.settled) await writeCarried(story, reported.flatMap((module) => [...module.children.allTests()].map((test) => ({
+        subject: storyCase(module.moduleId, test.fullName, test.id, module.project?.name),
         meta: test.meta?.(),
         stopped: test.result().state === 'failed',
       }))));
@@ -99,25 +102,23 @@ export function selectionReporter(
   } as Reporter;
 }
 
-/** Every test under a Vitest 2 file task, at any depth. */
-function testsOf(task: RunnerTask): RunnerTask[] {
-  return (task.tasks ?? []).flatMap((child) => (child.type === 'test' ? [child] : testsOf(child)));
-}
-
 /**
  * Write the story each case that ran in a page carried on its `meta`, under
- * the names its page gave it beside the tape.
+ * the names its result gives it, the names the record knows it by.
  */
 function writeCarried(
   directory: string | undefined,
-  tests: readonly { readonly meta?: object | undefined; readonly stopped: boolean }[],
+  tests: readonly { readonly subject: StoryCase | undefined; readonly meta?: object | undefined; readonly stopped: boolean }[],
 ): Promise<void> {
-  return writeCarriedStories(directory, tests.flatMap(({ meta, stopped }) => {
+  return writeCarriedStories(directory, tests.flatMap(({ subject, meta, stopped }) => {
     const held = carriedStory(meta);
-    if (held === undefined) return [];
-    const { story, file = '', name = '', id = '', project } = held;
-    return [{ subject: { file, name, id, project }, story, stopped }];
+    return held === undefined || subject === undefined ? [] : [{ subject, story: held.story, stopped }];
   }));
+}
+
+/** A case as the record names it, or none where the runner left a name out. */
+function storyCase(file: string | undefined, name: string | undefined, id: string | undefined, project: string | undefined): StoryCase | undefined {
+  return file === undefined || name === undefined || id === undefined ? undefined : { file, name, id, project };
 }
 
 /** Vitest 3 and 4's phases for a module, under the record's names. */

@@ -4,16 +4,17 @@
  *
  * A page tapes, and the runner's setup module leaves each case's tape on the
  * case's `meta`, under {@link BROWSER_JOURNAL}; the runner sends `meta` with
- * the case's result. Which names the case goes by is the runner's to say: a
- * runner whose page knows them carries them beside the tape, and one whose
- * result names the case hands them here.
+ * the case's result. The names the case goes by are the result's, as the
+ * record's are: the page carries the tape alone.
  */
 
 import { BROWSER_JOURNAL } from './worker-source.js';
 import type { PageStory, StoryCase } from '../story/page.js';
 
-/** What a case in a page left on its `meta`: its tape, and the names the record knows it by when the page knew them. */
-export type CarriedStory = Partial<StoryCase> & { readonly story: PageStory };
+/** What a case in a page left on its `meta`: its tape. */
+export interface CarriedStory {
+  readonly story: PageStory;
+}
 
 /** The tape a case's `meta` carries, if it carries one. */
 export function carriedStory(meta: object | undefined): CarriedStory | undefined {
@@ -27,18 +28,16 @@ export function carriedStory(meta: object | undefined): CarriedStory | undefined
  * case's story opens at its first hook.
  *
  * The hooks name no parameter, for the reason the setup's `afterAll` does; the
- * context's `task` is the case. `names` is an expression over `task` for the
- * names the page knows the case by, spread beside the tape; a runner whose
- * result names the case passes none.
+ * context's `task` is the case.
  */
-export function carryingHooks(names?: string): string {
+export function carryingHooks(): string {
   return `
 beforeEach(() => { execution.story?.(); });
 afterEach(function () {
   const task = arguments[0]?.task;
   const story = execution.story?.();
   if (task === undefined || story === undefined) return;
-  (task.meta ??= {})[${JSON.stringify(BROWSER_JOURNAL)}] = { story${names === undefined ? '' : `, ...${names}`} };
+  (task.meta ??= {})[${JSON.stringify(BROWSER_JOURNAL)}] = { story };
 });`;
 }
 

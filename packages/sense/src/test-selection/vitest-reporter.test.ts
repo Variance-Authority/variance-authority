@@ -17,9 +17,6 @@ afterEach(() => {
 // A case in a page, as its task's `meta` carries it to the reporter.
 const meta = {
   [BROWSER_JOURNAL]: {
-    file: 'tests/shop.test.ts',
-    name: 'pays',
-    id: 'a1',
     story: { tape: [0], taped: 1, visits: 1, notes: [], lines: [], unnoted: 0, held: [], rows: { ids: ['a'], counts: [1], bases: [0] } },
   },
 };
@@ -39,12 +36,12 @@ describe('the reporter of a run whose cases write stories', () => {
       onTestRunEnd(modules: unknown[]): Promise<void>;
     };
 
-    await reporter.onFinished([{ type: 'suite', tasks: [{ type: 'test', meta, result: { state: 'pass' } }] }]);
+    await reporter.onFinished([{ type: 'suite', filepath: '/tests/shop.test.ts', tasks: [{ type: 'test', name: 'pays', id: 'a1', meta, result: { state: 'pass' } }] }]);
     expect(readdirSync(directory)).toHaveLength(1);
     await reporter.onTestRunEnd([{
       moduleId: '/tests/shop.test.ts',
       state: () => 'passed',
-      children: { allTests: () => [{ meta: () => meta, result: () => ({ state: 'passed' }) }] },
+      children: { allTests: () => [{ fullName: 'pays', id: 'a1', meta: () => meta, result: () => ({ state: 'passed' }) }] },
     }]);
 
     expect(readdirSync(directory)).toHaveLength(1);
