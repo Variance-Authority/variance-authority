@@ -1,6 +1,7 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 import { treeOf } from '@variance-authority/mcp/tools';
 import { readHelp } from '@variance-authority/package/help';
+import { nearOfNative } from '@variance-authority/sense';
 import { inventedWorkspace } from '../__fixtures__/invented-workspace.js';
 import type { SearchIndex } from '../search-index.js';
 import { searchNames } from './search-answer.js';
@@ -10,7 +11,8 @@ import { searchIndexOf } from './search.js';
  * A doc writes a question of several words when it holds them in order, each
  * next to the last, read by stem the way search reads every word: punctuation
  * and a possessive between them do not break the phrase, a word between them
- * does.
+ * does, and a function word the question drops still holds its place. The
+ * described section counts a doc's adjacent pairs by the same rule.
  */
 
 const manifest = (name: string): string =>
@@ -27,6 +29,8 @@ const SINKS = [
   '/** A region placed by the transform. */',
   'export const written: readonly number[] = [];',
   "export const EVENT_SINK = 'vae';",
+  '/** The text of the file at the commit. */',
+  'export const textOf = 0;',
 ].join('\n');
 
 let index: SearchIndex;
@@ -58,5 +62,15 @@ describe('a doc that writes the question as a phrase', () => {
 
   it('is not written by a doc holding the words the other way round', () => {
     expect(publishedFirst('placement region')).toEqual([]);
+  });
+
+  it('holds a word the question drops at its place, any word filling it', () => {
+    expect(publishedFirst('text of a file at a commit')).toEqual(['textOf']);
+    expect(publishedFirst('text file commit')).toEqual([]);
+  });
+
+  it('is the rule the described section counts adjacent pairs by', () => {
+    const docs = ["Source that installs the page's sink.", 'The sink one page writes to.', 'Each page and its sink.'];
+    expect(nearOfNative('page sink', docs)).toEqual([1, 0, 0]);
   });
 });

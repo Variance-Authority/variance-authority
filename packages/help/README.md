@@ -567,10 +567,13 @@ than as it was when the reading was taken.
 It does not rank on prose. `search` matches the query case-insensitively as a
 substring of a name or its doc, and a name also matches when it is written in
 every word of the query, each word by its start or its stem, so `instrumenting`
-reaches `instrumentModule`. A doc also matches when it writes the query's words
-in order, each next to the last by stem, so "installs the page's sink" matches
-`page sink` and "a page and its sink" does not. A match is a fact about the text rather than an
-opinion about the query. When it matches nothing, the names holding any of
+reaches `instrumentModule`. A doc also matches when one of its paragraphs
+writes the query as a phrase: its words in order by stem, each as many words
+after the last as in the query. A word the query is put in, such as `of` or
+`a`, holds its place and any word fills it; a possessive or punctuation holds
+none. So "installs the page's sink" matches `page sink`, "a page and its sink"
+does not, and "the text of the file" matches `text of a file`. A match is a
+fact about the text rather than an opinion about the query. When it matches nothing, the names holding any of
 the query's words, stemmed as installed packages are, in any order
 across the name and its doc, follow under their own heading, each with the
 words it holds. A name its file declares and does not export is among them, and
@@ -580,7 +583,7 @@ hold it, three times over when the name holds it and twice when a doc of the
 mean length or a shorter one does, less for a longer one, and that sum times
 how much of the query the row holds wherever it holds it, the same rarities
 summed alone — then by how many of them its name holds, then by how many of the query's
-adjacent word pairs its doc writes adjacent: counts, never a score. A name
+adjacent word pairs its doc writes as a phrase, by the same rule: counts, never a score. A name
 published by two packages or exported from two files is weighed and shown
 through one of them, never through both docs added up: the one its words weigh
 most through, then the one writing more of those pairs. The published and

@@ -2936,6 +2936,7 @@
         "parseTiers": "function",
         "parseTypescript": "function",
         "pathsThrough": "function",
+        "phraseOfNative": "function",
         "placesOf": "function",
         "prepareCodeMap": "function",
         "prepareJourneys": "function",

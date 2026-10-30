@@ -50,7 +50,7 @@ export interface SearchQuestion {
   /**
    * A substring of a name or its documentation, matched case-insensitively; or
    * several words, which also match a name whose own words — split where the
-   * case or a digit changes — start with every one of them, and a doc writing them in order by stem.
+   * case or a digit changes — start with every one of them, and a doc writing them as a phrase ({@link docsSaying}).
    */
   readonly query: string;
   /** Paths whose imports the answer is confined to. */

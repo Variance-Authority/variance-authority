@@ -1,7 +1,5 @@
-import { PARAGRAPH_BREAK } from '@variance-authority/package/help';
-import { wordStemsNative } from '@variance-authority/sense';
+import { describedWordsNative, phraseOfNative } from '@variance-authority/sense';
 import type { SearchIndex } from '../search-index.js';
-import { tokensOf } from '../search-index.js';
 import { termsOfStems } from './loose.js';
 
 // compass: variance-authority.report.agent-surface
@@ -14,20 +12,17 @@ export interface DocsSaying {
 
 /**
  * The published and exported rows whose doc says `query`: holds it as typed,
- * case aside, or, for a question of two words or more, writes its words in
- * order, each next to the last within one paragraph. Both are read as the index
- * read every doc — {@link tokensOf}, so punctuation is no word and a letter
- * alone, the `s` of a possessive, is dropped — and each word by its stem, the
- * rule the dictionary's terms are matched by. So "the page's sink" writes
- * `page sink`, and "the sink of a page" and "a page and its sink" do not.
+ * case aside, or writes its words as a phrase, by the rule the sense addon
+ * reads a doc's nearness by ({@link phraseOfNative}). So "the page's sink"
+ * writes `page sink`, and "the sink of a page" and "a page and its sink" do not.
  *
- * Only a doc holding a term of every word's stem is decoded, read off the
- * dictionary's postings.
+ * A question of fewer than two distinct stems is no phrase. Otherwise only a doc
+ * holding a term of every stem is decoded, read off the dictionary's postings
+ * by the stems the described section asks by.
  */
 export function docsSaying(index: SearchIndex, query: string): { readonly published: DocsSaying; readonly exported: DocsSaying } {
-  const asked = tokensOf(query);
-  const stems = asked.length < 2 ? [] : wordStemsNative(asked);
-  const terms = stems.length === 0 ? [] : termsOfStems(index, stems);
+  const stems = describedWordsNative(query).map(([stem]) => stem);
+  const terms = stems.length < 2 ? [] : termsOfStems(index, stems);
   const writing = (
     postings: (term: number) => Uint32Array,
     doc: (row: number) => string | undefined,
@@ -36,7 +31,7 @@ export function docsSaying(index: SearchIndex, query: string): { readonly publis
   ): DocsSaying => {
     const rows = new Set(containing);
     const opening = new Set(openings);
-    const written = phraseRows(stems, terms, postings, doc);
+    const written = phraseRows(query, terms, postings, doc);
     for (const [row, first] of written) {
       rows.add(row);
       if (first) opening.add(row);
@@ -49,15 +44,15 @@ export function docsSaying(index: SearchIndex, query: string): { readonly publis
   };
 }
 
-/** Per row whose doc writes `stems` in order, whether its opening paragraph does. */
+/** Per row whose doc writes `query` as a phrase, whether its opening paragraph does. */
 function phraseRows(
-  stems: readonly string[],
+  query: string,
   terms: readonly (readonly number[])[],
   postings: (term: number) => Uint32Array,
   doc: (row: number) => string | undefined,
 ): ReadonlyMap<number, boolean> {
   const written = new Map<number, boolean>();
-  if (stems.length === 0) return written;
+  if (terms.length === 0) return written;
   let held: Set<number> | undefined;
   for (const position of terms) {
     const rows = new Set<number>();
@@ -66,20 +61,10 @@ function phraseRows(
     held = rows;
   }
   const candidates = [...(held ?? [])];
-  const paragraphs = candidates.map((row) => (doc(row) ?? '').split(PARAGRAPH_BREAK).map(tokensOf));
-  const reduced = wordStemsNative(paragraphs.flat(2));
-  let at = 0;
-  candidates.forEach((row, candidate) => {
-    const writes = (paragraphs[candidate] ?? []).map((words) => holdsRun(reduced.slice(at, (at += words.length)), stems));
-    if (writes.some(Boolean)) written.set(row, writes[0] === true);
+  const paragraphs = phraseOfNative(query, candidates.map((row) => doc(row) ?? ''));
+  candidates.forEach((row, at) => {
+    const paragraph = paragraphs[at];
+    if (paragraph !== undefined) written.set(row, paragraph === 0);
   });
   return written;
-}
-
-/** Whether `words` hold `run` at consecutive places. */
-function holdsRun(words: readonly string[], run: readonly string[]): boolean {
-  for (let start = 0; start + run.length <= words.length; start += 1) {
-    if (run.every((word, offset) => words[start + offset] === word)) return true;
-  }
-  return false;
 }

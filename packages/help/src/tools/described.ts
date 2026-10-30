@@ -72,7 +72,7 @@ export interface DescribedKey {
   readonly words: readonly string[];
   /** Those of them its name holds. */
   readonly named: readonly string[];
-  /** How many of the question's adjacent word pairs its doc writes adjacent. */
+  /** How many of the question's adjacent word pairs its doc writes, by {@link nearOfNative}. */
   readonly near: number;
   /** Rows that publish or export it, in an area only those {@link rowWithin} it. */
   readonly rows: number;
