@@ -235,6 +235,7 @@ not show, it names in the header:
   tracks tests through async context, that work is left out.
 - *the test threw or rejected* — the route ends where it stopped.
 
-A story covers the test's own process under Vitest, Jest and Rstest, and the
+A story covers the test's own process under Vitest, Jest, Rstest and a runner
+recorded through `@variance-authority/sense/runner`, and the
 page under Playwright and Vitest and Rstest browser mode. Code the test calls in another
 process, such as a server, is not on it.

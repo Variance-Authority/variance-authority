@@ -419,6 +419,8 @@ function listen(tap: Tap, scope: object): void {
   const printer = global.console as (Console & { [NOTE]?: true }) | undefined;
   if (printer === undefined || printer[NOTE] === true) return;
   Object.defineProperty(printer, NOTE, { value: true });
+  // FIXME: Jest names where a console line was printed by counting frames up
+  // from its console method, so under Jest every line names this wrapper.
   for (const method of PRINTS) {
     const original = printer[method] as ((...values: unknown[]) => void) | undefined;
     if (typeof original !== 'function') continue;

@@ -55,7 +55,7 @@ and as its story.
 
 The format and the name come from [Wallaby.js](https://wallabyjs.com/docs/features/test-stories/),
 which shows a test story inside your editor. Here your own test runner records
-it — Vitest in Node or in browser mode, Jest, Rstest or Playwright — and you read it with one command, in a
+it — Vitest in Node or in browser mode, Jest, Rstest, Playwright or a runner recorded through `/runner` — and you read it with one command, in a
 terminal or in any editor.
 
 ## What does this test do with the code you are changing?
@@ -442,6 +442,10 @@ that recording set up first:
   [Playwright Test](../packages/playwright-test/README.md#record-what-each-spec-executed)
   sets it up, over an application whose build runs
   [`testSelectionProbes()`](../packages/sense/README.md#record-what-a-driven-page-executed).
+- **Any other runner in Node**, such as `node:test` or Mocha, recorded through
+  [`@variance-authority/sense/runner`](../packages/sense/README.md#record-a-runner-this-package-has-no-seam-for).
+  A story holds what ran inside the case body handed to `case`, so run each hook
+  inside it to have the hook on the story.
 
 Then set
 `VARIANCE_AUTHORITY_STORY=1` and name the tests with your runner's own

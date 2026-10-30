@@ -1057,6 +1057,8 @@ Each function has one place in your runner:
   on them. The call sets `VARIANCE_AUTHORITY_RECORDING`, which every child
   process and worker thread inherits. If your runner builds a child's
   environment from nothing, spread `recording.env` into it.
+  Under `VARIANCE_AUTHORITY_STORY=1` it also carries where
+  [each case's story](https://variance-authority.dev/docs/test-stories) goes.
 - **`recording.finish` goes where your runner has each file's result.** A
   file is `complete` when every case in it ran to the end and passed, or was
   skipped. A file that failed, errored or stopped early recorded only part of
