@@ -84,12 +84,11 @@ separates the sides*:
 4. Remove the `console.log` before you fix anything.
 
 The log is a probe on one run, not a change to what the test checks. A story
-covers the test's own process under Vitest, Jest and Rstest. A Playwright test
-writes none: its probe is a line in the spec that asserts nothing,
-`variance.snapshot()` to send what the page holds and go on, or
-`await variance.observe()` to stop there, read from a watcher. Remove it the
-same way.
-[live run](../variance-authority/references/live-run.md)
+covers the test's own process under Vitest, Jest and Rstest, and the page under
+Playwright and Vitest and Rstest browser mode: record a Playwright test with
+`VARIANCE_AUTHORITY_STORY=1 npx playwright test <spec> -g <name>`. To read
+what a page holds while it runs, see
+[live run](../variance-authority/references/live-run.md).
 
 ## Write tests for a change
 

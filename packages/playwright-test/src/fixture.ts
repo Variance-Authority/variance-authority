@@ -28,7 +28,7 @@ import { acquireFrom, refocusAfter } from './acquire.js';
 import { baselineKeyOf, runOf, subjectFromRun, viewportOf, type VarianceRun } from './run.js';
 import { regionOf, settledCapture } from './in-place.js';
 import { varianceCompletedFixtures, type VarianceCompletedFixtures } from './completed.js';
-import { varianceDocumentFixtures } from './documents.js';
+import { varianceDocumentFixtures, type VarianceDocumentFixtures } from './documents.js';
 import { arrangedText, snapshotCaseOf, type SnapshotCase } from './arranged.js';
 import { withEvidence, type Observed } from './evidence.js';
 import { engineOf, promote } from './promote.js';
@@ -87,6 +87,7 @@ export interface VarianceFixtures
   extends VarianceEventFixtures,
     VarianceVantageFixtures,
     VarianceCompletedFixtures,
+    VarianceDocumentFixtures,
     VarianceDriveFixtures,
     VarianceRendererFixtures {
   /**

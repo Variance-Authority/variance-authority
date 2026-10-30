@@ -439,3 +439,30 @@ describe('what a case said it arranged', () => {
     await expect(late).rejects.toThrow(/ran outside a running case/);
   });
 });
+
+describe('what a case\'s story holds', () => {
+  it.each([false, true])(
+    'is the attempt: its own afterEach is its own, and the next case opens with its beforeEach alone, continuations %s',
+    (continuations) => {
+      const holder: Record<PropertyKey, unknown> = {};
+      const written = new Map<string, Uint8Array>();
+      const collector = collectors.scoped(holder, continuations, (key, bytes) => written.set(key, bytes));
+      const scope = holder[CASE_SCOPE] as Scope & { begin(): void; leave(): void };
+      const probe = new Function('globalThis', `${probeRuntime('m', 8)}__vaE();return __va;`)(holder) as Probe;
+      collector.seal(FILE);
+      const key = (name: string) => caseOwner.packCase(FILE, name, name);
+
+      for (const [name, before, body, after] of [['first', 1, 2, 3], ['second', 4, 5, 6]] as const) {
+        scope.begin();
+        probe(before);
+        scope.enter(key(name), () => probe(body));
+        probe(after);
+        scope.leave();
+      }
+      collector.finish(FILE);
+
+      expect(spoken(written.get(key('first'))!)).toEqual([['m:1'], ['m:2', 'm:3']]);
+      expect(spoken(written.get(key('second'))!)).toEqual([['m:4'], ['m:5', 'm:6']]);
+    },
+  );
+});

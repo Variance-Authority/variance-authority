@@ -77,12 +77,13 @@
  *
  * ## Written to be sent as text
  *
- * {@link createTap} closes over everything it uses, like `createEngine`, so a
- * page collector can send its source across a bundler when a page carries
- * stories too.
+ * {@link createTap} closes over everything it uses but {@link NOTE_LIMIT} and
+ * {@link NOTE_LENGTH}, so a page that carries stories is sent its source with
+ * the two constants before it: see `story/page.ts`.
  */
 
 import util = require('node:util');
+import jestConsole = require('./jest-console.cjs');
 import probeLog = require('./probe-log.cjs');
 import type { ModuleId } from './index.js';
 
@@ -97,6 +98,13 @@ interface Tape {
   readonly keys: readonly string[];
   /** Each note: how many visits were taped before it, the bucket it was said in, and the text. */
   readonly notes: readonly (readonly [at: number, key: string, text: string])[];
+  /**
+   * Each test line a statement of the case ran at: how many visits were taped
+   * before it, the bucket, the line, and `1` where the line is a hook's. A
+   * line is not a note; one is kept per stretch of the tape, so the tape
+   * bounds them.
+   */
+  readonly lines: readonly (readonly [at: number, key: string, line: number, said: number, hook?: 1])[];
   /** Notes past either {@link NOTE_LIMIT}, counted and not kept. */
   readonly unnoted: number;
   /**
@@ -169,6 +177,10 @@ function createTap(engine: Engine, limit: number): Tap {
   // crowds out what the code said, however hot the function.
   let spoken = 0;
   let handedOver = 0;
+  // Every test line, and how many notes there were at the last one: a line
+  // nothing followed, visit or note, gives way to the next.
+  type Line = [at: number, key: string, line: number, said: number, hook?: 1];
+  let lines: Line[] = [];
   const held = new Map<ModuleId, string>();
   // Whether the next write is the module's own probe, which follows `e`.
   let rooting = false;
@@ -335,9 +347,18 @@ function createTap(engine: Engine, limit: number): Tap {
         root.g(base | -2147483648);
       }
     },
-    // A test line's cut is not a visit: the tape is what the code entered.
-    c(line: number): void {
+    // A cut is not a visit: it opens what the code entered next, and one that
+    // nothing followed, visit or note, gives way to the next.
+    // A hook's cut says so, as the cut test file marks it.
+    // FIXME: under `sequence.hooks: 'parallel'` hooks' lines interleave as they ran.
+    c(line: number, _file?: string, hook?: boolean): void {
       inner.c(line);
+      inner.s?.();
+      const key = engine.current().key;
+      const cut: Line = hook === true ? [taped, key, line, notes.length, 1] : [taped, key, line, notes.length];
+      const last = lines[lines.length - 1];
+      if (last !== undefined && last[0] === taped && last[1] === key && last[3] === notes.length) lines[lines.length - 1] = cut;
+      else lines.push(cut);
     },
   };
 
@@ -345,7 +366,7 @@ function createTap(engine: Engine, limit: number): Tap {
     root,
     engine,
     read() {
-      return { tape, taped, visits, at, keys, notes, unnoted, held, rows: { ids: rowIds, counts: rowCounts, bases: rowBases } };
+      return { tape, taped, visits, at, keys, notes, lines, unnoted, held, rows: { ids: rowIds, counts: rowCounts, bases: rowBases } };
     },
     note(text: string): void {
       if (spoken >= NOTE_LIMIT) {
@@ -360,6 +381,7 @@ function createTap(engine: Engine, limit: number): Tap {
     },
     reset(): void {
       notes = [];
+      lines = [];
       unnoted = 0;
       spoken = 0;
       handedOver = 0;
@@ -398,6 +420,11 @@ function listen(tap: Tap, scope: object): void {
   const printer = global.console as (Console & { [NOTE]?: true }) | undefined;
   if (printer === undefined || printer[NOTE] === true) return;
   Object.defineProperty(printer, NOTE, { value: true });
+  const written = (method: string, text: string): void => {
+    const channel = global[NOTE];
+    if (typeof channel === 'function' && (PRINTS as readonly string[]).includes(method)) channel(`console.${method} ${text}`);
+  };
+  if (jestConsole.noteWrites(printer, written)) return;
   for (const method of PRINTS) {
     const original = printer[method] as ((...values: unknown[]) => void) | undefined;
     if (typeof original !== 'function') continue;
@@ -421,4 +448,4 @@ function tapOf(root: unknown): Tap | undefined {
   return (root as { [key: symbol]: Tap | undefined })[Symbol.for('variance-authority.story.tap')];
 }
 
-export = { createTap, tapOf, listen, TAPE_LIMIT, NOTE_LIMIT };
+export = { createTap, tapOf, listen, TAPE_LIMIT, NOTE_LIMIT, NOTE_LENGTH };

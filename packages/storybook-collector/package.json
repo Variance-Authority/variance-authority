@@ -54,6 +54,7 @@
   "devDependencies": {
     "@rsbuild/core": "~2.2.7",
     "@rspack/core": "^2.2.6",
+    "playwright": "^1.49.0",
     "storybook": "^9.1.13",
     "vite": "^6.4.3"
   }

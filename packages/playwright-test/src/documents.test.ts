@@ -4,18 +4,31 @@ import type { ExecutionRecorder } from './execution.js';
 import { varianceDocumentFixtures } from './documents.js';
 
 type ContextFixture = (
-  args: { readonly context: BrowserContext; readonly varianceRecorder: ExecutionRecorder | undefined },
+  args: { readonly context: BrowserContext; readonly varianceDocuments: void },
   use: (context: BrowserContext) => Promise<void>,
+  testInfo: TestInfo,
+) => Promise<void>;
+type DocumentsFixture = (
+  args: { readonly playwright: object; readonly varianceRecorder: ExecutionRecorder | undefined },
+  use: () => Promise<void>,
   testInfo: TestInfo,
 ) => Promise<void>;
 
 const SPEC = '/repo/tests/shop.spec.ts';
 
 /** A context of one page with one frame, whose events nothing fires. */
-function contextOfOneFrame(): BrowserContext {
+function contextOfOneFrame(navigations = 0): BrowserContext {
   const frame = {} as Frame;
   const page = { frames: () => [frame], mainFrame: () => frame, on: () => page, off: () => page } as unknown as Page;
-  const context = { pages: () => [page], on: () => context, off: () => context } as unknown as BrowserContext;
+  const request = { isNavigationRequest: () => true, redirectedFrom: () => null, frame: () => frame };
+  const context = {
+    pages: () => [page],
+    on: (event: string, listener: (request: unknown) => void) => {
+      if (event === 'request') for (let count = 0; count < navigations; count += 1) queueMicrotask(() => listener(request));
+      return context;
+    },
+    off: () => context,
+  } as unknown as BrowserContext;
   return context;
 }
 
@@ -25,12 +38,40 @@ function recorderHeld(): ExecutionRecorder & { readonly marked: boolean[] } {
   return {
     marked,
     owner: () => 'tests/shop.spec.ts',
-    note: () => new Promise<void>(() => {}),
+    note: () => new Promise<number>(() => {}),
     mark: (_owner: string, complete: boolean) => marked.push(complete),
   } as unknown as ExecutionRecorder & { readonly marked: boolean[] };
 }
 
+/** A recorder whose drains each say they carried `carried` replaced documents, telling stories. */
+function recorderCarrying(carried: number): ExecutionRecorder & { readonly marked: boolean[]; readonly lost: string[] } {
+  const marked: boolean[] = [];
+  const lost: string[] = [];
+  return {
+    marked,
+    lost,
+    owner: () => 'tests/shop.spec.ts',
+    note: async () => carried,
+    mark: (_owner: string, complete: boolean) => marked.push(complete),
+    lose: (_owner: string, subject: { id: string }) => lost.push(subject.id),
+  } as unknown as ExecutionRecorder & { readonly marked: boolean[]; readonly lost: string[] };
+}
+
 const testInfo = { file: SPEC, titlePath: ['shop.spec.ts', 'buys'], project: { name: '' }, testId: 't1' } as unknown as TestInfo;
+
+/**
+ * The `context` fixture with `use`, inside the automatic `varianceDocuments` it
+ * asks for, over a client that tells nothing of the contexts it makes.
+ */
+function contextFixture(recorder: ExecutionRecorder, use: (context: BrowserContext) => Promise<void>, navigations = 0): Promise<void> {
+  const [documents] = varianceDocumentFixtures.varianceDocuments as unknown as [DocumentsFixture];
+  const context = varianceDocumentFixtures.context as unknown as ContextFixture;
+  return documents(
+    { playwright: {}, varianceRecorder: recorder },
+    () => context({ context: contextOfOneFrame(navigations), varianceDocuments: undefined }, use, testInfo),
+    testInfo,
+  );
+}
 
 afterEach(() => {
   vi.useRealTimers();
@@ -40,15 +81,10 @@ describe('the `context` fixture', () => {
   it('ends a teardown whose statement drain the page holds, and marks the case incomplete', async () => {
     vi.useFakeTimers();
     const recorder = recorderHeld();
-    const fixture = varianceDocumentFixtures.context as unknown as ContextFixture;
-    const torn = fixture(
-      { context: contextOfOneFrame(), varianceRecorder: recorder },
-      async () => {
-        const realm = globalThis as { __VA__?: { c?: (line: number, file: string) => unknown } };
-        void realm.__VA__?.c?.(3, SPEC);
-      },
-      testInfo,
-    );
+    const torn = contextFixture(recorder, async () => {
+      const realm = globalThis as { __VA__?: { c?: (line: number, file: string) => unknown } };
+      void realm.__VA__?.c?.(3, SPEC);
+    });
     let done = false;
     void torn.then(() => {
       done = true;
@@ -63,14 +99,9 @@ describe('the `context` fixture', () => {
   it('waits once for a drain the page holds, and lets every later statement through at once', async () => {
     vi.useFakeTimers();
     const recorder = recorderHeld();
-    const fixture = varianceDocumentFixtures.context as unknown as ContextFixture;
     const realm = globalThis as { __VA__?: { c?: (line: number, file: string) => unknown } };
     let release = (): void => {};
-    const torn = fixture(
-      { context: contextOfOneFrame(), varianceRecorder: recorder },
-      () => new Promise<void>((resolve) => (release = resolve)),
-      testInfo,
-    );
+    const torn = contextFixture(recorder, () => new Promise<void>((resolve) => (release = resolve)));
     await vi.advanceTimersByTimeAsync(0);
     const settled: number[] = [];
     const statement = (line: number): void => {
@@ -87,5 +118,17 @@ describe('the `context` fixture', () => {
     release();
     await vi.advanceTimersByTimeAsync(2000);
     await torn;
+  });
+
+  it('believes a case whole whose replaced document the next one carried, and not one whose document was lost', async () => {
+    const carried = recorderCarrying(1);
+    const lost = recorderCarrying(0);
+    // The page the test opened, and the one a navigation replaced it with.
+    await contextFixture(carried, async () => {}, 2);
+    await contextFixture(lost, async () => {}, 2);
+
+    expect({ carried: carried.marked, lost: lost.marked }).toEqual({ carried: [], lost: [false] });
+    // The case's story is told the same, so a reader knows what it is missing.
+    expect({ carried: carried.lost, lost: lost.lost }).toEqual({ carried: [], lost: ['t1'] });
   });
 });
