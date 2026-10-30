@@ -11,7 +11,7 @@ import { linesOf, valueAt } from './case-lines.js';
 import { openSetExecutionIndex, type OpenedSetExecutionIndex } from './execution-set-format.js';
 import { EMPTY } from './set-translation.js';
 
-/** Distinct readings kept per case, newest first: the bound a story keeps. */
+/** Distinct readings kept per case, newest first. */
 export const READINGS = 16;
 
 /** One region a reading crossed: its module, its declaration's name and the path in it, its lines, and the value cadence charged it; null where no line was recorded. */
