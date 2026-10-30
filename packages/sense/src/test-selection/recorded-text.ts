@@ -319,18 +319,10 @@ function read(
 }
 
 /**
- * A blob's text, which for a file git-lfs tracks is the content its pointer
- * names rather than the pointer.
- *
- * `cat-file --batch` answers the blob git holds, and for such a file that is a
- * pointer of three lines. Hashed as the source, it is a text nobody recorded, and
- * every region in the file reads as changed for a reason that is not one. So the
- * pointer goes to `git lfs smudge`, which answers from the local LFS store or
- * fetches the object, and a smudge that fails — no git-lfs, an object the remote
- * never had — stops the read with git-lfs's own words rather than answering the
- * pointer. `cat-file --filters` would do this in the same process, but its header
- * reports the pointer's size over the content's bytes, which breaks the framing
- * every other answer is read by.
+ * A blob's text; for a git-LFS pointer, the content `git lfs smudge` gives, or
+ * git-lfs's reason it could not. Hashed as source, the pointer is a text nobody
+ * recorded. `cat-file --filters` would smudge in-process, but its header gives
+ * the pointer's size over the content's bytes, breaking the `--batch` framing.
  */
 function contentOf(root: string, commit: string, file: string, blob: Buffer): string {
   if (!isLfsPointer(blob.subarray(0, LFS_POINTER_HEAD_BYTES))) return blob.toString('utf8');

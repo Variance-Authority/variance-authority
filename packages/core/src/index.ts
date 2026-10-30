@@ -21,8 +21,7 @@
  *
  * Every name lives in exactly one of them; nothing is reachable from two paths.
  * This entrypoint holds only what belongs to no group: the artifact a capture is
- * written to, the name a refusal offers when one was mistyped, and the signature
- * of a file git-lfs left as a pointer.
+ * written to, the name offered for a mistyped one, and a git-LFS pointer's head.
  */
 
 export * from './artifact.js';

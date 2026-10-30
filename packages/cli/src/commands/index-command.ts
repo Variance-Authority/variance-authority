@@ -27,13 +27,9 @@
  * on. In CI, under
  * `--wait`, or when `main` is called as a library, they are made in this process.
  *
- * One line per artifact on stdout, because the step's output is read by the
- * person looking at a pipeline log: where the index is, how many files it holds
- * and how many this run had to read again; then what the code map holds, or why
- * there is none; then per suite what the walk found, or why it was not made; then
- * the lexicon and the published value, or why each is not. A walk that failed —
- * git unable to read the commit a recording ran at — is told to `failed` once
- * every line is made, so the step exits as the operator's rather than clean.
+ * One line per artifact on stdout, for the person reading a pipeline log: the
+ * index, the code map, each suite's walk, the lexicon and the value, each with
+ * what it holds or why it is not. A walk git could not make is told to `failed`.
  */
 
 import {

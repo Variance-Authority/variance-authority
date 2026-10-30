@@ -219,7 +219,9 @@
       ".": {
         "CaptureArtifact": "interface",
         "CaptureMaterial": "type",
+        "LFS_POINTER_HEAD_BYTES": "const",
         "didYouMean": "function",
+        "isLfsPointer": "function",
         "nearest": "function"
       },
       "./format": {
@@ -3797,12 +3799,10 @@
       "./lfs": {
         "CommandResult": "interface",
         "CommandRunner": "type",
-        "LFS_POINTER_HEAD_BYTES": "const",
         "LfsStore": "interface",
         "LfsStoreOptions": "interface",
         "LfsTracking": "interface",
         "createLfsStore": "function",
-        "isLfsPointer": "function",
         "lfsSetup": "function",
         "runCommand": "const"
       },
