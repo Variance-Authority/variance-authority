@@ -283,7 +283,8 @@ src/pay.ts is the text the other test file named here ran over, in a run that la
   known. Every file a group read and its verdict is said.
 - For `--line`, `--lines` and `--function`, a named group's line says whether
   that region is the same in both texts, gone from yours, or why that is not
-  known. Under `--function` it says nothing of the region when the record does
+  known. It is the same when the edit between the texts changed nothing that
+  runs there, as when it only wrote a comment. Under `--function` it says nothing of the region when the record does
   not say which text its lines are numbered in.
 - The time is when that run landed, spanned when a line says several runs. A
   commit's date is never used. A group the record holds no time or texts for

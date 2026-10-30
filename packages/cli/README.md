@@ -805,8 +805,9 @@ read is said: a group that ran over your text of one file and another text of
 the next says both, so no file's verdict hides another's.
 
 When you asked about a line, a run of lines or a function, a named group's line
-goes on to say whether that region is the same in both texts, read by placing
-your region in the text they ran over, or why that is not known: that text is
+goes on to say whether that region is the same in both texts, by whether the
+edit between them changed what runs there, so a comment written inside a
+function leaves it the same, or why that is not known: that text is
 neither kept nor committed, or the record's lines have no place in yours. A
 function with no block in your text is said to be gone from it. Under
 `--function`, the line says nothing of the region when the record does not say
