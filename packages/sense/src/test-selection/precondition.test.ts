@@ -4,6 +4,7 @@ import { resolve } from 'node:path';
 import { performance } from 'node:perf_hooks';
 import { parseSync } from 'oxc-parser';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import caseOwner from './case-owner.cjs';
 import preconditions from './case-preconditions.cjs';
 import { preconditionText, readsOf, rowOf, saidJoined, saidRow, saidSite } from './case-said.js';
 import { decodeExecutionIndex } from './execution-format.js';
@@ -78,7 +79,7 @@ describe('the recorder a case scope installs', () => {
     recorder.phase({ kind: 'outside', because: 'ran in a beforeAll, which runs for no one case' });
     expect(() => variancePrecondition('fixture', { flag: 'ff-off' })).toThrow(/ran in a beforeAll/);
     recorder.phase(undefined);
-    expect(recorder.take(keyOf('pays'))).toEqual({ said: [] });
+    expect(recorder.take(keyOf('pays'))).toEqual({ said: [], read: [], misused: [] });
   });
 
   it('forgets what a beforeEach said for a case that never entered when the next case begins', () => {
@@ -109,7 +110,7 @@ describe('the recorder a case scope installs', () => {
     recorder.entered(keyOf('checkout > pays'));
     recorder.entered(keyOf('checkout > refunds'));
     expect(recorder.take(keyOf('checkout > pays')).said.map(([name, , , level]) => [name, level])).toEqual([['fixture:network', 1]]);
-    expect(recorder.take(keyOf('checkout > refunds'))).toEqual({ said: [] });
+    expect(recorder.take(keyOf('checkout > refunds'))).toEqual({ said: [], read: [], misused: [] });
   });
 
   it('records no case for a call after the case, and says where it was', () => {
@@ -122,7 +123,7 @@ describe('the recorder a case scope installs', () => {
     } finally {
       console.warn = warn;
     }
-    expect(recorder.take(keyOf('pays'))).toEqual({ said: [] });
+    expect(recorder.take(keyOf('pays'))).toEqual({ said: [], read: [], misused: [] });
     expect(String(warned[0])).toMatch(/precondition\.test\.ts:\d+ ran after its case/);
   });
 
@@ -211,8 +212,8 @@ describe('where a hook stands, and what the recorder takes for a call', () => {
     recorder.within({ kind: 'each', depth: 0 }, () => variancePrecondition('fixture', { seeded: true }));
     recorder.finish();
     recorder.entered(keyOf('refunds'));
-    expect(recorder.take(keyOf('pays'))).toEqual({ said: [] });
-    expect(recorder.take(keyOf('refunds'))).toEqual({ said: [] });
+    expect(recorder.take(keyOf('pays'))).toEqual({ said: [], read: [], misused: [] });
+    expect(recorder.take(keyOf('refunds'))).toEqual({ said: [], read: [], misused: [] });
   });
 
   it('records nothing for a record alone, a dimension and a string, or a record holding an empty key', () => {
@@ -231,7 +232,7 @@ describe('where a hook stands, and what the recorder takes for a call', () => {
     }
     expect(warned).toHaveLength(4);
     expect(warned[1]).toContain('takes a dimension and a record of keys to values; nothing was recorded');
-    expect(recorder.take(keyOf('pays'))).toEqual({ said: [] });
+    expect(recorder.take(keyOf('pays'))).toEqual({ said: [], read: [], misused: [] });
   });
 
   it('names a call it cannot place on a stack as no site, and a dev server\'s `/@fs/` URL as the file it serves', () => {
@@ -266,7 +267,7 @@ describe('where a hook stands, and what the recorder takes for a call', () => {
   });
 
   it('refuses a frame owner whose sixth field is not what a case heard', () => {
-    const field = preconditions.heardField('a.test.ts\u0000pays\u00001\u0000\u0000\u0000[]');
+    const field = caseOwner.heardField('a.test.ts\u0000pays\u00001\u0000\u0000\u0000[]');
     expect(field).toBe('[]');
     expect(() => saidJoined(undefined, [field])).toThrow(/not what a case heard/);
   });
@@ -318,13 +319,13 @@ describe('resolving what a case said', () => {
 
   it('carries what a frame heard in its owner, and tells a silent frame from one that never listened', () => {
     const owner = 'a.test.ts\u0000pays\u00001';
-    const packed = preconditions.packHeard(owner, { said: [said('network:upsell', 'mocked', 0)] });
-    expect(preconditions.heardField(packed)).toBe(spelled(said('network:upsell', 'mocked', 0)));
-    expect(preconditions.heardField(preconditions.packHeard(owner, { said: [] }))).toBe('{"said":[]}');
-    expect(preconditions.heardField(preconditions.packHeard(owner, { said: [], read: [] }))).toBe('{"said":[],"read":[]}');
-    expect(preconditions.heardField(preconditions.packHeard(owner, { said: [], read: [], misused: [] })))
+    const packed = caseOwner.packHeard(owner, { said: [said('network:upsell', 'mocked', 0)] });
+    expect(caseOwner.heardField(packed)).toBe(spelled(said('network:upsell', 'mocked', 0)));
+    expect(caseOwner.heardField(caseOwner.packHeard(owner, { said: [] }))).toBe('{"said":[]}');
+    expect(caseOwner.heardField(caseOwner.packHeard(owner, { said: [], read: [] }))).toBe('{"said":[],"read":[]}');
+    expect(caseOwner.heardField(caseOwner.packHeard(owner, { said: [], read: [], misused: [] })))
       .toBe('{"said":[],"read":[],"misused":[]}');
-    expect(preconditions.heardField(owner)).toBeUndefined();
+    expect(caseOwner.heardField(owner)).toBeUndefined();
     expect(packed.split('\u0000').slice(0, 3)).toEqual(['a.test.ts', 'pays', '1']);
   });
 

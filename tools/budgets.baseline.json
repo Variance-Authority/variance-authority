@@ -2722,9 +2722,6 @@
     11,
     11
   ],
-  "packages/sense/src/test-selection/case-preconditions.cts docblock": [
-    11
-  ],
   "packages/sense/src/test-selection/case-preconditions.cts overview": [
     26
   ],
@@ -3266,7 +3263,6 @@
   ],
   "packages/sense/src/test-selection/worker-source.ts docblock": [
     31,
-    23,
     12
   ],
   "packages/sense/src/text-digests.ts block": [

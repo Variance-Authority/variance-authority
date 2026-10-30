@@ -39,7 +39,36 @@ function packCase(file: string, name: string, id: string, project?: string): str
  */
 const SETTLED = 3;
 const JOURNEY = 4;
-// Field 5 is what the case said and read, set by `case-preconditions.cts`.
+
+/**
+ * A packed case coordinate carrying what the case heard, as its sixth field.
+ *
+ * The field is always JSON, `{"said": […], "read": […], "misused": […]}`, each
+ * facet a list of what `case-preconditions.cts` records: an empty facet is a
+ * case that said, or read, nothing under a recorder that was listening; a facet
+ * absent, or the field empty or missing, is one nobody listened to, which a
+ * reader may not take for a case that said or read nothing.
+ */
+const HEARD = 5;
+
+function packHeard(
+  packed: string,
+  heard: { readonly said: readonly unknown[]; readonly read?: readonly unknown[]; readonly misused?: readonly unknown[] },
+): string {
+  const { said, read, misused } = heard;
+  return withField(packed, HEARD, JSON.stringify({
+    said,
+    ...(read === undefined ? {} : { read }),
+    ...(misused === undefined ? {} : { misused }),
+  }));
+}
+
+/** A frame owner's sixth field, as the realm wrote it; absent where its writer never listened. */
+function heardField(packed: string): string | undefined {
+  const field = packed.split('\u0000')[HEARD];
+  return field === undefined || field === '' ? undefined : field;
+}
+
 /**
  * The project that ran the case — Vitest's, Jest's or Playwright's name for one
  * configured run of a test file. Absent when the run names none, so a case of a
@@ -99,4 +128,4 @@ function journeyOf(packed: string): string {
   return packed.split('\u0000')[JOURNEY] ?? '';
 }
 
-export = { packCase, settledCase, unpackCase, packJourney, journeyOf };
+export = { packCase, settledCase, unpackCase, packJourney, journeyOf, packHeard, heardField };

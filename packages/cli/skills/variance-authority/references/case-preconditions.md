@@ -59,8 +59,10 @@ variance covering --file src/checkout/total.ts --function total --read flags:dis
 `--read` takes the forms `--where` takes and filters by reads only;
 `--where flags:discount=true --read flags:discount=false` keeps exactly the
 mismatches. A read is laid on the case running it, and a read made while the
-test file loads on every case of the file. Vitest, Jest and Rstest in Node record reads;
-elsewhere the answer prints nothing about them.
+test file loads on every case of the file. Vitest, Jest and Rstest in Node record reads,
+and Playwright in the worker and in a page that carries the execution collector,
+where a read made while a file loads is laid on no case; elsewhere the answer
+prints nothing about them.
 
 `variance review` splits each changed region's cases by what they read:
 `flags:express read false by 1, true by 1, not by 6` — `not` counts the cases

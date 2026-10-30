@@ -196,8 +196,8 @@ export function isOn(key: string): boolean {
 }
 ```
 
-A Vitest, Jest or Rstest run in Node recorded with `@variance-authority/sense`
-lays each read on the case that made it, and `variance covering` prints it beside what the test
+A Vitest, Jest or Rstest run in Node, or a Playwright run in its worker and in
+the page a case drives, recorded with `@variance-authority/sense`, lays each read on the case that made it, and `variance covering` prints it beside what the test
 said: `read flags:discount=false said true` is a claim that never reached the
 code. The [case preconditions](https://variance-authority.dev/docs/case-preconditions#check-what-the-code-read)
 page has the questions it answers. Where nothing records, the call costs one

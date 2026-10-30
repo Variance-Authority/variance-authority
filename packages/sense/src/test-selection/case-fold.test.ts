@@ -16,6 +16,7 @@ import { openSetExecutionIndex } from './execution-set-format.js';
 import eyesFrames from './eyes-frame.cjs';
 import type { CapturedModule } from './instrumented-modules.js';
 import type { ExecutionIndex } from './reverse.js';
+import caseOwner from './case-owner.cjs';
 import preconditions from './case-preconditions.cjs';
 import journalFormat from './journal-format.cjs';
 import { nativeModule } from './jest-journey-artifact.js';
@@ -231,8 +232,8 @@ describe('the bounded case fold', () => {
     const cases = await directory();
     const file = '/repo/test/pay.test.ts';
     const level = preconditions.CASE_LEVEL;
-    const owner = (name: string, said?: Parameters<typeof preconditions.packHeard>[1]['said']) =>
-      said === undefined ? packCase(file, name, name) : preconditions.packHeard(packCase(file, name, name), { said: said });
+    const owner = (name: string, said?: Parameters<typeof caseOwner.packHeard>[1]['said']) =>
+      said === undefined ? packCase(file, name, name) : caseOwner.packHeard(packCase(file, name, name), { said: said });
     const entered = new Map([['src/pay.ts', counters(2, [1])]]);
     await writeFile(resolve(cases, 'a.vac'), packFrames([
       journalFormat.encodeJournal(owner('mocked', [

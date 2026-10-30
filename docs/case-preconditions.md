@@ -184,8 +184,10 @@ Kept none of the 4 cases that covered function total of src/checkout/total.ts: n
 A test says what it arranged, and that is a claim. When a mock does not reach
 the provider the code reads from, the test says one thing and the code runs
 another. `varianceBreadcrumb` records what the code read, in the source, where
-it reads. Vitest, Jest and Rstest record reads in Node; under Playwright the
-call does nothing yet, and the answer prints nothing about reads.
+it reads. Vitest, Jest and Rstest record reads in Node, and Playwright records
+them in the worker and in the page the case drives, when the page carries the
+execution collector. A case that drove a page without it has no read facet,
+rather than an empty one, unless the worker read something.
 
 ```ts
 // src/flags.ts

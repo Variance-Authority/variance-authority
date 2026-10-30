@@ -14,7 +14,7 @@
  * the case body, or in a `beforeEach` running for the case — and throws for a
  * call no case is running, which a `describe` callback, a `beforeAll`, a file's
  * top level and work that outlives its case all are. The case frame carries
- * every call as a sixth field of its owner, beside the journey, and the
+ * every call as a sixth field of its owner, beside the journey (`case-owner.cts`), and the
  * addon's `case_said.rs` does the rest: it joins, stores and resolves them.
  *
  * A read belongs to the case running it too, but it never throws: the code
@@ -60,16 +60,15 @@ type Said = readonly [name: string, value: string | null, site: string, level: n
 
 /**
  * What a case said, what the code read in it, and each `varianceBreadcrumb`
- * call that made no `dimension:key`: `read` and `misused` absent where nobody
- * listened to reads.
+ * call that made no `dimension:key`.
  *
  * A misuse is `[argument, value, site, level]`: the argument that was wrong,
  * `dimension` or `key`, and the JSON text of what it was given, never a name.
  */
 interface Heard {
   readonly said: readonly Said[];
-  readonly read?: readonly Said[];
-  readonly misused?: readonly Said[];
+  readonly read: readonly Said[];
+  readonly misused: readonly Said[];
 }
 
 /** Which facet of {@link Heard} a breadcrumb call lands on. */
@@ -96,25 +95,17 @@ type Where =
   | { readonly kind: 'outside'; readonly because: string };
 
 /**
- * The recorder for one realm's case scope.
- *
- * @param running The case running now, as its packed key, or nothing where no
- * case body is running.
- * @param context An async store for {@link within}, where the realm has one:
- * hooks of concurrent cases interleave at every await, and a variable set
- * around one of them is read by the other.
- * @param siteNamed How a warning names a call site, where the realm can name it as
- * the row does, from the checkout; as the realm spelled it otherwise.
- * @param reads Whether the realm listens to `varianceBreadcrumb` too: a test
- * runner's realm, which tells the recorder when its file has loaded, does; the
- * Playwright listener's, which runs no code under test, does not.
+ * The recorder for one realm's case scope: `running` names the case running
+ * now; `context` is the realm's async store, where concurrent cases' hooks
+ * interleave at every await; `siteNamed` spells a warning's site as the row
+ * does. It listens to `varianceBreadcrumb` too, as every realm running code
+ * under test does.
  */
 function recorder(
   holder: object,
   running: () => string | undefined,
   context?: { run<Result>(store: Where, body: () => Result): Result; getStore(): Where | undefined },
   siteNamed: (site: string) => string = (site) => site,
-  reads = false,
 ): {
   phase(where: Where | undefined): void;
   within<Result>(where: Where, body: () => Result): Result;
@@ -126,6 +117,11 @@ function recorder(
   /** The file has loaded: a read from now on is a case's, or nobody's. */
   loaded(): void;
   take(key: string): Heard;
+  /**
+   * What another realm read for the case `key` names, at the sites it named:
+   * no key is a read no case drove, warned about as one here would be.
+   */
+  laid(key: string | undefined, read: readonly Laid[]): void;
   /** What the case `key` names has said so far, left in place for {@link take}. */
   held(key: string): readonly Said[];
   /** Forget the file: a collector, and its recorder, end with their file. */
@@ -203,20 +199,20 @@ function recorder(
   // value)` misused, so a key read on every render costs a set lookup after its
   // first read, and no site.
   const seenReads = new Map<unknown, Set<string>>();
+  const stray = (site: string, what: string): void => {
+    if (warned.has(site)) return;
+    warned.add(site);
+    console.warn(`variance-authority: varianceBreadcrumb at ${siteNamed(site)} ${what} where no case runs and is recorded on no case`);
+  };
 
   const read = (facet: Facet, name: string, value: string | null, called: unknown, misuse?: string): boolean => {
     const to = readTo();
     if (to === undefined) {
       if (called === undefined) return true;
       const site = siteOf(called);
-      if (warned.has(site)) return false;
-      warned.add(site);
       // FIXME: spec 0102 counts a read no case runs on its file, with its site,
       // and lays a `beforeAll`'s read on every case of its describe.
-      const what = misuse === undefined ? `read ${name}` : `was misused (${misuse})`;
-      console.warn(
-        `variance-authority: varianceBreadcrumb at ${siteNamed(site)} ${what} where no case runs and is recorded on no case`,
-      );
+      stray(site, misuse === undefined ? `read ${name}` : `was misused (${misuse})`);
       return false;
     }
     const item = laidKey([facet, [name, value, '', CASE_LEVEL]]);
@@ -254,19 +250,17 @@ function recorder(
     }
     say(entries, site);
   };
-  if (reads) {
-    (holder as { [BREADCRUMB]?: unknown })[BREADCRUMB] = (
-      dimension: unknown,
-      key: unknown,
-      value: unknown,
-      called?: unknown,
-    ): boolean => {
-      const wrong = misuseOf(dimension, key);
-      return wrong === undefined
-        ? read('read', `${dimension as string}:${key as string}`, jsonText(value), called)
-        : read('misused', wrong.argument, jsonText(wrong.given), called, wrong.why);
-    };
-  }
+  (holder as { [BREADCRUMB]?: unknown })[BREADCRUMB] = (
+    dimension: unknown,
+    key: unknown,
+    value: unknown,
+    called?: unknown,
+  ): boolean => {
+    const wrong = misuseOf(dimension, key);
+    return wrong === undefined
+      ? read('read', `${dimension as string}:${key as string}`, jsonText(value), called)
+      : read('misused', wrong.argument, jsonText(wrong.given), called, wrong.why);
+  };
 
   return {
     phase(next) {
@@ -316,7 +310,6 @@ function recorder(
       const said = byCase.get(key) ?? [];
       byCase.delete(key);
       seenReads.delete(key);
-      if (!reads) return { said };
       const own = readByCase.get(key) ?? [];
       readByCase.delete(key);
       // A case's own read of a value the file read as it loaded wins, as the
@@ -326,6 +319,10 @@ function recorder(
       const heard = firstOfEach([...loaded, ...own]);
       const of = (facet: Facet): Said[] => heard.filter(([on]) => on === facet).map(([, item]) => item);
       return { said, read: of('read'), misused: of('misused') };
+    },
+    laid(key, read) {
+      if (key === undefined) for (const [facet, [name, value, site]] of read) stray(site, facet === 'read' ? `read ${name}` : `was misused (${misuseWhy(name as Argument, value === null ? undefined : JSON.parse(value))})`);
+      else if (read.length > 0) onto(readByCase, key, read);
     },
     held: (key) => [...(byCase.get(key) ?? [])],
     finish() {
@@ -464,33 +461,10 @@ function siteOf(called: unknown): string {
 }
 
 /**
- * A packed case coordinate carrying what the case heard, as its sixth field.
- *
- * Set at its index, as `case-owner.cts` sets every field after the
- * coordinate, so the project after it stays where its reader looks. The field
- * is always JSON, `{"said": […], "read": […], "misused": […]}`: an empty facet is a case that
- * said, or read, nothing under a recorder that was listening; a facet absent,
- * or the field empty or missing, is one nobody listened to, which a reader may
- * not take for a case that said or read nothing.
+ * The recorder and every function it calls, for a realm that has none and is
+ * sent it as source: `probes.ts` sends it to a page, which is why
+ * `tools/page-side.mjs` keeps this file off the probes.
  */
-const HEARD_FIELD = 5;
+const RECORDER_PARTS = [recorder, entriesOf, isDimension, misuseWhy, misuseOf, keptGiven, shown, jsonText, laidKey, firstOfEach, siteOf];
 
-function packHeard(packed: string, heard: Heard): string {
-  const fields = packed.split('\u0000');
-  while (fields.length <= HEARD_FIELD) fields.push('');
-  const { said, read, misused } = heard;
-  fields[HEARD_FIELD] = JSON.stringify({
-    said,
-    ...(read === undefined ? {} : { read }),
-    ...(misused === undefined ? {} : { misused }),
-  });
-  return fields.join('\u0000');
-}
-
-/** A frame owner's sixth field, as the realm wrote it; absent where its writer never listened. */
-function heardField(packed: string): string | undefined {
-  const field = packed.split('\u0000')[HEARD_FIELD];
-  return field === undefined || field === '' ? undefined : field;
-}
-
-export = { PRECONDITION, BREADCRUMB, MISPLACED, CASE_LEVEL, recorder, entriesOf, jsonText, siteOf, packHeard, heardField, misuseWhy };
+export = { PRECONDITION, BREADCRUMB, MISPLACED, CASE_LEVEL, recorder, RECORDER_PARTS, entriesOf, jsonText, siteOf, misuseWhy };
