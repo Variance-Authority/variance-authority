@@ -579,8 +579,7 @@ Take the `console.log` out before you change the code.
   process, such as a server, is not on it.
 - **Some pages.** Under Playwright, a page in a context the test makes with
   `browser.newContext()` writes no story, and a page replaced before its
-  statement ended loses what it ran since the statement before. Under the
-  browser modes of Vitest and Rstest a hook's line reads as a test line.
+  statement ended loses what it ran since the statement before.
 - **The order inside one step, or how each pass of a loop differed.** A step
   lists its branches in the order the code has them, and a loop is shown once,
   with the counts of all its passes added together. Use a debugger for that.

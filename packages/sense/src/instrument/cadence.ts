@@ -35,7 +35,9 @@ export interface CutTestFile {
  * Playwright page is: each statement of an async body awaits what
  * `__VA__.c(line, file, hook)` returns, so the collector can drain what the
  * statement before it reached first; `file` tells a body declared elsewhere
- * apart, and `hook` marks a hook's statement. A body not async is cut without.
+ * apart. A body not async is cut without. In every realm a hook's cut says it
+ * is a hook's, `__VA__.c(line, file, true)`: a page runs hooks and tests in one
+ * realm, so nothing else there tells them apart.
  */
 export function cadence(source: string, file: string, options: { readonly awaited?: boolean } = {}): CutTestFile | undefined {
   const cut = instrumenter().cadence(source, file, options.awaited === true);

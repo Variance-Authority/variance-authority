@@ -45,7 +45,7 @@ realm[Symbol.for(${JSON.stringify(PAGE_STORY)})] = (engine) => {
     take() {
       const read = tap.read();
       const notes = read.notes.map(([at, , text]) => [at, text]);
-      const lines = read.lines.map(([at, , line, said]) => [at, line, said]);
+      const lines = read.lines.map(([at, , line, said, hook]) => (hook === 1 ? [at, line, said, 1] : [at, line, said]));
       const story = {
         tape: Array.from(read.tape.subarray(0, read.taped)),
         taped: read.taped,
@@ -175,7 +175,7 @@ export function pageStories(directory: string): PageStories {
         tape.entries.push((index + rebased[format.rowAt(bases, index)]!) | (entry & format.EVALUATING));
       }
       const said = tape.notes.length;
-      for (const [at, line, before] of story.lines) tape.lines.push([offset + at, line, said + before]);
+      for (const [at, line, before, hook] of story.lines) tape.lines.push(hook === 1 ? [offset + at, line, said + before, 1] : [offset + at, line, said + before]);
       for (const [at, text] of story.notes) tape.notes.push([offset + at, text]);
       for (const [id, text] of story.held) tape.held.set(id, text);
       tape.visits += story.visits - story.taped;

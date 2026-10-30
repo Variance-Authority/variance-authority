@@ -41,8 +41,8 @@ describe('page stories', () => {
     stories.line(subject, 9);
     stories.line(subject, 4, true);
     // The second registered `b` first, at 0, and nothing else.
-    // The page cut its own statement, a line in the file it runs.
-    stories.add(subject, drained({ tape: [1], rows: { ids: ['b'], counts: [2], bases: [0] }, visits: 3, lines: [[1, 7, 0]], notes: [[1, 'console.log second']] }));
+    // The page cut its own statement, a hook's line in the file it runs.
+    stories.add(subject, drained({ tape: [1], rows: { ids: ['b'], counts: [2], bases: [0] }, visits: 3, lines: [[1, 7, 0, 1]], notes: [[1, 'console.log second']] }));
     stories.write(subject, true);
 
     const story = written(directory);
@@ -50,7 +50,7 @@ describe('page stories', () => {
     expect([...story.visits]).toEqual([0 | EVALUATING, 5, 5]);
     // A line nothing followed gives way to the next; a hook's is marked; each
     // counts the notes of every page before it.
-    expect(story.lines).toEqual([[0, 3, 0], [2, 4, 1, 1], [3, 7, 1]]);
+    expect(story.lines).toEqual([[0, 3, 0], [2, 4, 1, 1], [3, 7, 1, 1]]);
     expect(story.notes).toEqual([[1, 'console.log first'], [3, 'console.log second']]);
     expect(story.untaped).toBe(2);
     expect(story.stopped).toBe(true);

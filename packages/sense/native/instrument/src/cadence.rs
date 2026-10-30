@@ -46,7 +46,7 @@ const HOOKS: [&str; 4] = ["beforeEach", "afterEach", "beforeAll", "afterAll"];
 
 /// What the file declares to receive its cuts: one line, no newline.
 const DECLARATION: &str =
-    ";function __vaC(l){var r=globalThis.__VA__;if(r!=null&&typeof r.c===\"function\")r.c(l)}";
+    ";function __vaC(l,h){var r=globalThis.__VA__;if(r!=null&&typeof r.c===\"function\")r.c(l,void 0,h===1)}";
 
 /// The test file with a cut before each statement of its test and hook bodies,
 /// or nothing when it does not parse or holds no such body.
@@ -56,8 +56,8 @@ const DECLARATION: &str =
 /// the collector can drain what the statement before it reached before this
 /// one runs, and the cut names `file`, so a body declared in another file is
 /// told apart. A body that cannot wait is cut as it is without it. A hook's
-/// cut says it is a hook's, since nothing in that realm tells the hook running
-/// apart from the test; Node's collector tells them by the bucket each runs in.
+/// cut says it is a hook's in every realm, since a page runs hooks and tests in
+/// one realm and nothing in it tells the hook running apart from the test.
 pub fn cadence(source: &str, file: &str, awaited: bool) -> Option<Cadence> {
     let allocator = Allocator::new();
     let source_type = dialect(file).unwrap_or_default();
@@ -105,7 +105,7 @@ struct Cuts {
     awaited: bool,
     /// Whether the body being cut can wait on its cuts.
     waits: bool,
-    /// Whether the body being cut is a hook's, said by an awaited cut.
+    /// Whether the body being cut is a hook's, which its cuts say.
     hook: bool,
     /// The names a test or hook body is registered under in this file.
     registrars: Vec<String>,
@@ -122,7 +122,7 @@ impl Cuts {
     /// The call a cut at `at` makes, waited on where the body can wait.
     fn call(&self, at: u32) -> String {
         let line = self.lines.at(at);
-        let hook = if self.awaited && self.hook { ",1" } else { "" };
+        let hook = if self.hook { ",1" } else { "" };
         let wait = if self.waits { "&&await __vaC.w" } else { "" };
         format!("__vaC({line}{hook}){wait}")
     }

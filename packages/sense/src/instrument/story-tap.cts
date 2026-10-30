@@ -178,7 +178,8 @@ function createTap(engine: Engine, limit: number): Tap {
   let handedOver = 0;
   // Every test line, and how many notes there were at the last one: a line
   // nothing followed, visit or note, gives way to the next.
-  let lines: [number, string, number, number][] = [];
+  type Line = [at: number, key: string, line: number, said: number, hook?: 1];
+  let lines: Line[] = [];
   const held = new Map<ModuleId, string>();
   // Whether the next write is the module's own probe, which follows `e`.
   let rooting = false;
@@ -347,15 +348,16 @@ function createTap(engine: Engine, limit: number): Tap {
     },
     // A cut is not a visit: it opens what the code entered next, and one that
     // nothing followed, visit or note, gives way to the next.
-    // FIXME: a hook's line in a page is cut as a test line, unmarked; under
-    // `sequence.hooks: 'parallel'` hooks' lines interleave as they ran.
-    c(line: number): void {
+    // A hook's cut says so, as the cut test file marks it.
+    // FIXME: under `sequence.hooks: 'parallel'` hooks' lines interleave as they ran.
+    c(line: number, _file?: string, hook?: boolean): void {
       inner.c(line);
       inner.s?.();
       const key = engine.current().key;
+      const cut: Line = hook === true ? [taped, key, line, notes.length, 1] : [taped, key, line, notes.length];
       const last = lines[lines.length - 1];
-      if (last !== undefined && last[0] === taped && last[1] === key && last[3] === notes.length) last[2] = line;
-      else lines.push([taped, key, line, notes.length]);
+      if (last !== undefined && last[0] === taped && last[1] === key && last[3] === notes.length) lines[lines.length - 1] = cut;
+      else lines.push(cut);
     },
   };
 

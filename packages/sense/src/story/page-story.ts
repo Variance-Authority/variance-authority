@@ -16,8 +16,8 @@ export interface PageStory {
   readonly visits: number;
   /** Each note: how many visits were taped before it, and the text. */
   readonly notes: readonly (readonly [at: number, text: string])[];
-  /** Each test line a statement the page ran was cut at: how many visits were taped before it, and the line. */
-  readonly lines: readonly (readonly [at: number, line: number, said: number])[];
+  /** Each test line a statement the page ran was cut at: how many visits were taped before it, the line, the notes before it, and 1 for a hook's. */
+  readonly lines: readonly (readonly [at: number, line: number, said: number, hook?: 1])[];
   readonly unnoted: number;
   /** What each module held when it ran, kept from the first drain on. */
   readonly held: readonly (readonly [ModuleId, string])[];

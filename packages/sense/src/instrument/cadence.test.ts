@@ -219,7 +219,7 @@ describe('an awaited cut, for a collector outside the test realm', () => {
 describe('a test body registered under another name', () => {
   /** The lines a cut file hands the collector, in the order they are written. */
   const cutLines = (source: string): number[] =>
-    [...(cadence(source, 'e2e/a.spec.ts')?.code ?? '').matchAll(/__vaC\((\d+)\)/g)].map(([, line]) => Number(line));
+    [...(cadence(source, 'e2e/a.spec.ts')?.code ?? '').matchAll(/__vaC\((\d+)(?:,1)?\)/g)].map(([, line]) => Number(line));
 
   it('is cut when `test.extend` made the registrar, however many times over', () => {
     expect(cutLines([

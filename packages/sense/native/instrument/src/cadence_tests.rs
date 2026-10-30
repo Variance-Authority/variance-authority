@@ -35,7 +35,7 @@ fn a_call_the_test_makes_is_a_statement_whatever_it_is_named() {
 #[test]
 fn hooks_and_tests_inside_describe_are_cut() {
     let out = cut("describe('d', () => {\n  beforeEach(() => {\n    reset();\n  });\n  test('t', async function () {\n    await run();\n  });\n});\n");
-    assert!(out.contains("__vaC(3);reset();"), "{out}");
+    assert!(out.contains("__vaC(3,1);reset();"), "{out}");
     assert!(out.contains("__vaC(6);await run();"), "{out}");
     assert!(!out.contains("__vaC(2)"), "describe's own statements are not a test's: {out}");
 }
@@ -76,7 +76,7 @@ fn an_unbraced_body_is_left_whole() {
 fn the_cut_function_is_declared_after_the_last_statement() {
     let out = cut("it('t', () => {\n  a();\n})\n// end");
     assert!(out.contains("})\n") || out.contains("});"), "{out}");
-    assert!(out.contains(";function __vaC(l){"), "{out}");
+    assert!(out.contains(";function __vaC(l,h){"), "{out}");
     assert_eq!(out.lines().count(), 4);
     assert!(out.ends_with("// end"), "{out}");
 }
@@ -105,7 +105,7 @@ fn jsx_in_a_test_parses_by_extension() {
 fn a_describe_off_a_test_is_walked_not_cut() {
     let out = cut("test.describe('d', () => {\n  test.beforeEach(async () => {\n    await reset();\n  });\n  test('t', async () => {\n    await run();\n  });\n  test.describe.serial('s', () => {\n    test('u', () => {\n      go();\n    });\n  });\n});\n");
     assert!(!out.contains("__vaC(2)") && !out.contains("__vaC(5)") && !out.contains("__vaC(8)"), "a describe's own statements are not a test's: {out}");
-    assert!(out.contains("__vaC(3);await reset();"), "{out}");
+    assert!(out.contains("__vaC(3,1);await reset();"), "{out}");
     assert!(out.contains("__vaC(6);await run();"), "{out}");
     assert!(out.contains("__vaC(10);go();"), "{out}");
 }
@@ -134,10 +134,12 @@ fn an_awaited_cut_in_a_hook_says_it_is_a_hook() {
 }
 
 #[test]
-fn a_cut_in_a_node_hook_names_only_its_line() {
-    // Node's collector tells a hook by the bucket it runs in.
-    let out = cut("beforeEach(() => {\n  a();\n});\n");
-    assert!(out.contains("__vaC(2);a();"), "{out}");
+fn a_cut_in_a_hook_says_it_is_a_hook_in_every_realm() {
+    // A page runs a hook in the test's realm, so the cut says it, as an awaited one does.
+    let out = cut("beforeEach(() => {\n  a();\n});\ntest('t', () => {\n  b();\n});\n");
+    assert!(out.contains("__vaC(2,1);a();"), "{out}");
+    assert!(out.contains("__vaC(5);b();"), "a test's cut is not a hook's: {out}");
+    assert!(out.contains("r.c(l,void 0,h===1)"), "the declaration hands the mark on: {out}");
 }
 
 #[test]

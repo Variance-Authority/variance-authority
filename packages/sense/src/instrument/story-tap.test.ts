@@ -250,6 +250,11 @@ describe('what a case says on the way', () => {
 
     tap.reset();
     expect(tap.read().lines).toEqual([]);
+
+    // A hook's cut is marked, whichever realm it ran in.
+    tap.root.c(8, undefined, true);
+    run(0);
+    expect(tap.read().lines).toEqual([[0, 'case', 8, 0, 1]]);
   });
 
   it('is counted, not kept, past the limit, and starts again with the tape', () => {
