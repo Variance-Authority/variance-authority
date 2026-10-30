@@ -7,6 +7,7 @@ import { promisify } from 'node:util';
 import { afterEach, expect, it } from 'vitest';
 import { caseSectionsOf } from './case-record.js';
 import { readingsOf } from './case-readings.js';
+import { compareOutcomes } from '../story/outcomes.js';
 
 const execute = promisify(execFile);
 const here = dirname(fileURLToPath(import.meta.url));
@@ -42,7 +43,17 @@ it('keeps both readings of a case that threw once and passed once over unchanged
   const read = readingsOf(readings, index, `${test} > clicks`);
   expect(read?.map((reading) => [reading.count, reading.stopped])).toEqual([[1, false], [1, true]]);
   // `wire` opens on line 3 of the page, and only the passing reading entered it.
-  const opened = (at: number) => read![at]!.regions.filter(([module]) => module.endsWith('src/page.ts')).map(([, , start]) => start);
+  const opened = (at: number) => read![at]!.regions.filter(([module]) => module.endsWith('src/page.ts')).map(([, , , start]) => start);
   expect(opened(0)).toContain(3);
   expect(opened(1)).not.toContain(3);
-}, 120_000);
+
+  // Twice each, the comparison by outcome names `wire` as what only the passing runs reached,
+  await expect(record(true)).rejects.toThrow();
+  await record(false);
+  const twice = caseSectionsOf(await readFile(coverageFile));
+  const compared = compareOutcomes({ file: test, name: 'clicks', readings: readingsOf(twice.readings, twice.index, `${test} > clicks`)! });
+  expect(compared).toMatchObject({ passed: 2, threw: 2, single: false });
+  expect(compared!.onlyPassed.map(({ name }) => name)).toContain('wire');
+  // and the branch that throws as what only the failing runs reached.
+  expect(compared!.onlyThrew.map(({ name, path }) => `${name} ${path}`)).toEqual(['handle if#0/then']);
+}, 240_000);

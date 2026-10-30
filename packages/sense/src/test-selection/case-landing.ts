@@ -202,7 +202,7 @@ export function layCases(
     cases: last,
   };
   const journals = layEyes(previous.eyes, eyes, cases, announced);
-  const readings = layReadings(previous.readings, previous.index, fresh, new Set(cases()), (file) => {
+  const readings = layReadings(previous.readings, previous.index, fresh, merged, new Set(cases()), (file) => {
     const text = recorded.get(file);
     return text !== undefined && text === held?.get(file);
   });

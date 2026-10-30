@@ -38,13 +38,17 @@ export function recordOfStories(directory: string): string {
   return `${directory.slice(0, -SUFFIX.length)}.bin`;
 }
 
-/** This checkout's story directories: beside its one record, or beside each declared suite's. */
-export function storyDirectories(root: string): string[] {
+/** This checkout's records: its one record, or each declared suite's. */
+export function checkoutRecords(root: string): string[] {
   const suites = declaredSuites(root);
-  const records = suites === undefined
+  return suites === undefined
     ? [testCoverageFile(root)]
     : suites.map(({ name }) => testCoverageFile(root, { suite: name }));
-  return records.map((record) => resolve(storyDirectory(record)));
+}
+
+/** This checkout's story directories: beside its one record, or beside each declared suite's. */
+export function storyDirectories(root: string): string[] {
+  return checkoutRecords(root).map((record) => resolve(storyDirectory(record)));
 }
 
 /** The story directory beside `recordFile` when the environment asks for stories. */

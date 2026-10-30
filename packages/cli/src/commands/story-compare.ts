@@ -15,8 +15,11 @@
 
 import {
   compareReadings,
+  type Charge,
   type Comparison,
   type Moment,
+  type OutcomeComparison,
+  type OutcomeRegion,
   type PlaceDifference,
   type StoryEntry,
 } from '@variance-authority/sense/story';
@@ -174,6 +177,65 @@ export function formatComparison(comparison: Comparison, format: 'text' | 'json'
     text.push('', `  left out, because they differ between readings of one side as well: ${counted.join(', ')}`);
   }
   return `${text.join('\n')}\n`;
+}
+
+/**
+ * A comparison of the record's readings as text: each region every run of one
+ * outcome treated one way and every run of the other another, then the count
+ * of what moved within an outcome as well.
+ */
+export function formatOutcomes(comparison: OutcomeComparison, format: 'text' | 'json'): string {
+  if (format === 'json') return `${JSON.stringify({ outcomes: comparison }, null, 2)}\n`;
+  const runs = (count: number): string => `${count} ${count === 1 ? 'run' : 'runs'}`;
+  const text = [
+    `compare  ${comparison.file} > ${comparison.name}, from the readings the record keeps`,
+    `  passed (${runs(comparison.passed)}) against threw (${runs(comparison.threw)})`,
+  ];
+  if (comparison.single) {
+    text.push('  one run on a side: what differs below may be a run that went another way, not the outcome');
+  }
+  const rows: [string, string[]][] = [
+    ['charged to an earlier line when it threw', []],
+    ['charged to a later line when it threw', []],
+    ['charged to no line, its drain too late, only when it threw', []],
+    ['charged to no line, its drain too late, only when it passed', []],
+    ['charged to a hook only when it threw', []],
+    ['charged to a hook only when it passed', []],
+    ['reached only when it passed', comparison.onlyPassed.map(regionText)],
+    ['reached only when it threw', comparison.onlyThrew.map(regionText)],
+  ];
+  for (const { region, passed, threw } of comparison.moved) {
+    const row = threw.line === undefined ? 2
+      : passed.line === undefined ? 3
+      : threw.line < passed.line ? 0
+      : threw.line > passed.line ? 1
+      : threw.hook ? 4 : 5;
+    rows[row]![1].push(`${regionText(region)}  ${chargeText(passed)} when it passed, ${chargeText(threw)} when it threw`);
+  }
+  for (const [heading, listed] of rows) {
+    if (listed.length === 0) continue;
+    text.push('', `  ${heading}, on every run:`);
+    for (const line of listed.slice(0, LISTED)) text.push(`    ${line}`);
+    if (listed.length > LISTED) text.push(`    and ${listed.length - LISTED} more regions`);
+  }
+  if (rows.every(([, listed]) => listed.length === 0)) {
+    text.push('', '  nothing separates the outcomes: whatever differs between them differs between runs of one outcome too');
+  }
+  if (comparison.unsteady > 0) {
+    text.push('', `  left out, because they differ between runs of one outcome as well: ${comparison.unsteady} ${comparison.unsteady === 1 ? 'region' : 'regions'}`);
+  }
+  return `${text.join('\n')}\n`;
+}
+
+function regionText({ file, name, path, startLine, endLine }: OutcomeRegion): string {
+  const where = `${name === '' ? '(top level)' : name}  ${file}:${lines(startLine, endLine)}`;
+  return path === 'entry' || path === 'module' ? where : `${where}, ${armWords(path)}`;
+}
+
+function chargeText({ line, hook }: Charge): string {
+  if (line === undefined) return 'no line';
+  const at = line === 0 ? 'before the first line' : `line ${line}`;
+  return hook ? `${at}, in a hook` : at;
 }
 
 function sideText(side: Comparison['sides'][number], quoted: boolean): string {

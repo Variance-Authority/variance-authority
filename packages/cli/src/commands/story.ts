@@ -17,7 +17,9 @@
  *
  * A case keeps its last readings, and `--compare` sets them against each
  * other; several `--name` set cases against each other the same way:
- * `story-compare.ts` says what that answers and what it leaves out.
+ * `story-compare.ts` says what that answers and what it leaves out. With no
+ * story of the case taped, `--compare outcome` reads the readings the record
+ * every run writes keeps of it instead, by the line each region was charged to.
  *
  * Who runs the case is not this command's business. Any runner with the seam
  * installed writes a story for every case it runs under the variable, and
@@ -25,10 +27,13 @@
  */
 
 import {
+  compareOutcomes,
   listStories,
+  recordedReadings,
   readRoute,
   STORY_VARIABLE,
   type Comparison,
+  type OutcomeComparison,
   type Place,
   type Route,
   type StoryEntry,
@@ -39,7 +44,7 @@ import { OperatorError } from '../exit.js';
 import { packageName, packageOf } from '../package-home.js';
 import type { ParsedStory, StoryZoom } from '../story-args.js';
 import { BUDGET, drawings, pick, type Drawing, type FileSteps, type PackageVisits, type Through } from './story-levels.js';
-import { compareCases, compareStory, formatComparison, labelled, listed, type ComparedCase } from './story-compare.js';
+import { compareCases, compareStory, formatComparison, formatOutcomes, labelled, listed, type ComparedCase } from './story-compare.js';
 import { armTree } from './story-tree.js';
 import { numbered, through, window, type FileVisits, type Gap, type Line } from './story-view.js';
 
@@ -60,6 +65,7 @@ export type StoryAnswer =
     };
   }
   | { readonly comparison: Comparison; readonly cases?: readonly ComparedCase[] }
+  | { readonly outcomes: OutcomeComparison }
   | { readonly stories: readonly StoryEntry[] };
 
 /** The story the flags name, read as a route; every candidate when they name several. */
@@ -67,12 +73,16 @@ export function story(parsed: ParsedStory): StoryAnswer {
   const file = parsed.file === undefined ? undefined : checkoutFile(parsed.root, parsed.file);
   const zoom = parsed.zoom !== undefined && 'in' in parsed.zoom ? { in: checkoutFile(parsed.root, parsed.zoom.in) } : parsed.zoom;
   const all = listStories(parsed.root);
+  const { compare } = parsed;
+  if (compare === 'outcome' && parsed.name !== undefined && !all.some((entry) => (file === undefined || entry.file === file) && entry.name === parsed.name)) {
+    const recorded = recordedOutcomes(parsed.root, parsed.name, file);
+    if (recorded !== undefined) return recorded;
+  }
   if (all.length === 0) {
     throw new OperatorError(
       `no story in this checkout: run the test you are looking into with ${STORY_VARIABLE}=1, named by its file and the runner's own test-name filter, since every test the run runs writes one`,
     );
   }
-  const { compare } = parsed;
   if (typeof compare === 'object' && 'cases' in compare) {
     return compareCases(parsed.root, all, compare.cases, { file, label: parsed.label });
   }
@@ -105,6 +115,28 @@ export function story(parsed: ParsedStory): StoryAnswer {
     ...(compared === undefined ? {} : { unmatched: compared.unmatched }),
   };
   return { route, packages, reading, ...(zoom === undefined ? {} : { zoom }) };
+}
+
+/**
+ * The case `name` names, compared by outcome from the readings the record
+ * keeps of it; nothing when no record keeps an earlier reading of it, so the
+ * story's own answer is given.
+ */
+function recordedOutcomes(root: string, name: string, file: string | undefined): StoryAnswer | undefined {
+  const found = recordedReadings(root, name, file);
+  if (found.length === 0) return undefined;
+  const files = [...new Set(found.map((one) => one.file))];
+  if (files.length > 1) {
+    throw new OperatorError(`--name ${name} is a case in ${listed(files)}; name the file with --file`);
+  }
+  const [recorded] = found;
+  const outcomes = compareOutcomes(recorded!);
+  if (outcomes !== undefined) return { outcomes };
+  const runs = recorded!.readings.reduce((sum, reading) => sum + reading.count, 0);
+  const had = recorded!.readings[0]!.stopped === true ? 'threw' : 'passed';
+  throw new OperatorError(
+    `every one of the ${runs} runs the record keeps of ${recorded!.file} > ${recorded!.name} ${had}, so there is no other outcome to compare it with; run it until it has passed and thrown, twice each`,
+  );
 }
 
 /** The part of the route a zoom asks for, and the packages it opens. */
@@ -144,6 +176,7 @@ const AROUND = 3;
 
 export function formatStory(answer: StoryAnswer, format: 'text' | 'json'): string {
   if ('comparison' in answer) return formatComparison(answer.comparison, format, answer.cases);
+  if ('outcomes' in answer) return formatOutcomes(answer.outcomes, format);
   if ('stories' in answer) return storiesText(answer.stories, format);
   const { route } = answer;
   const packages = answer.packages ?? {};

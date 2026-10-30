@@ -37,6 +37,7 @@
 import { readFileSync } from 'node:fs';
 import { inCheckout, placesOf, regionsOfStory, type Place, type Region, type StoryEntry } from './read.js';
 import stories from './format.cjs';
+import { steady } from './steady.js';
 
 /** The readings one side of a comparison is made of, and what to call it. */
 export interface Side {
@@ -180,7 +181,7 @@ export function compareLoaded(root: string, sides: readonly LoadedSide[]): Compa
       before: named(before),
       after: named(sides.map((_, at) => at).filter((at) => !before.includes(at))),
     })),
-    unsteady: { places: places.unsteady, said: said.unsteady, order: order.unsteady },
+    unsteady: { places: places.unsteady.length, said: said.unsteady.length, order: order.unsteady },
     single: reads.some((side) => side.length < 2),
   };
 }
@@ -283,31 +284,6 @@ function ifLine(arm: string, regions: readonly Region[], at: readonly string[]):
   const then = `${arm.slice(0, -match[1]!.length)}then`;
   const index = at.indexOf(then);
   return index === -1 ? undefined : regions[index]?.startLine;
-}
-
-/**
- * What every reading of some sides has and no reading of the rest, by the
- * positions of the sides that hold it joined by commas; and how many things
- * some side has on some of its readings only. What every side holds is no difference.
- * A group's keys come in the order the newest reading of its first side
- * reached them: no side before that one holds them, and that reading holds
- * every one, so it is where each is first met.
- */
-function steady(sides: readonly (readonly Read[])[], of: (read: Read) => ReadonlySet<string>): { held: Map<string, string[]>; unsteady: number } {
-  const held = new Map<string, string[]>();
-  let unsteady = 0;
-  for (const key of new Set(sides.flatMap((reads) => reads.flatMap((read) => [...of(read)])))) {
-    const counts = sides.map((reads) => reads.filter((read) => of(read).has(key)).length);
-    if (counts.some((count, at) => count > 0 && count < sides[at]!.length)) {
-      unsteady += 1;
-      continue;
-    }
-    const holders = counts.flatMap((count, at) => (count > 0 ? [at] : []));
-    if (holders.length === sides.length) continue;
-    const group = holders.join(',');
-    held.set(group, [...held.get(group) ?? [], key]);
-  }
-  return { held, unsteady };
 }
 
 /**
