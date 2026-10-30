@@ -31,7 +31,9 @@
  * person looking at a pipeline log: where the index is, how many files it holds
  * and how many this run had to read again; then what the code map holds, or why
  * there is none; then per suite what the walk found, or why it was not made; then
- * the lexicon and the published value, or why each is not.
+ * the lexicon and the published value, or why each is not. A walk that failed —
+ * git unable to read the commit a recording ran at — is told to `failed` once
+ * every line is made, so the step exits as the operator's rather than clean.
  */
 
 import {
@@ -67,6 +69,11 @@ export interface IndexRequest {
   readonly waiting?: (text: string) => void;
   /** Told each step as it starts and ends: the update's own, then each follow-up's, which run at once. */
   readonly progress?: Progress;
+  /**
+   * Told why, once per suite, when a walk could not be made: a fault, never the
+   * absence of a recording. Detached follow-ups tell their own process's caller.
+   */
+  readonly failed?: (why: string) => void;
 }
 
 export async function indexOutput(request: IndexRequest): Promise<string> {
@@ -146,7 +153,7 @@ async function followUps(request: IndexRequest, update: SourceUpdate, readied?: 
     // the update wrote and nothing another writes, so they are made at once.
     const [map, walks, names, questions] = await Promise.all([
       stepped(progress, 'writing the code map', () => codeMap(cwd, update)),
-      stepped(progress, 'writing the journeys', () => journeys(cwd, update)),
+      stepped(progress, 'writing the journeys', () => journeys(cwd, update, request.failed)),
       stepped(progress, 'writing the dependency lexicon', () => lexicon(cwd)),
       stepped(progress, 'writing the questions', () => answerable(cwd, update.path, noGit, progress)),
     ]);
@@ -200,12 +207,17 @@ async function lexicon(root: string): Promise<string> {
  * were made from. They carry the update's listing of the
  * checkout rather than asking git again.
  */
-async function journeys(cwd: string, update: SourceUpdate): Promise<readonly string[]> {
+async function journeys(cwd: string, update: SourceUpdate, failed?: (why: string) => void): Promise<readonly string[]> {
+  let prepared: readonly PreparedJourneys[];
   try {
-    return (await prepareJourneys(cwd, update.path, update)).map(journeysLine);
+    prepared = await prepareJourneys(cwd, update.path, update);
   } catch (error) {
-    return [`journeys: not prepared: ${error instanceof Error ? error.message : String(error)}`];
+    const why = error instanceof Error ? error.message : String(error);
+    failed?.(why);
+    return [`journeys: not prepared: ${why}`];
   }
+  for (const one of prepared) if ('failed' in one) failed?.(one.failed);
+  return prepared.map(journeysLine);
 }
 
 /** A share as a whole percent; a share that rounds to nothing but is not nothing is `<1%`. */
@@ -223,6 +235,7 @@ function count(n: number, unit: string): string {
 export function journeysLine(one: PreparedJourneys): string {
   const named = one.suite === undefined ? 'journeys' : `journeys, suite ${one.suite}`;
   if ('unprepared' in one) return `${named}: not prepared: ${one.unprepared}`;
+  if ('failed' in one) return `${named}: not prepared: ${one.failed}`;
   const { prepared } = one;
   const share = prepared.functionsEntered === 0 ? '' : ` (${percent(prepared.placed, prepared.functionsEntered)})`;
   const notes = [

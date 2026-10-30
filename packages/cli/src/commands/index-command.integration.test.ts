@@ -5,7 +5,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { encodeSegment } from '@variance-authority/core/segment';
 import { prepareCodeMap, sourceIndexPath, updateSourceIndex } from '@variance-authority/sense';
-import { testCoverageFile } from '@variance-authority/sense/test-selection';
+import { encodeAsSetExecutionIndex, encodeTestCoverage, testCoverageFile, withCaseSections } from '@variance-authority/sense/test-selection';
 import { afterEach, beforeEach, describe, expect, it, onTestFailed, onTestFinished } from 'vitest';
 import { main } from '../bin.js';
 import { EXIT_CLEAN, EXIT_OPERATOR } from '../exit.js';
@@ -183,6 +183,30 @@ describe('variance index', () => {
     expect(indexed.code).toBe(EXIT_CLEAN);
     expect(indexed.out.split('\n')[0]).toBe(`source index built: 2 files, at ${at}`);
     expect(indexed.out.split('\n')[1]).toMatch(new RegExp(`^code map: not prepared: the code map at ${at}\\.map did not read: `, 'u'));
+  });
+
+  // Nothing recorded is an absence and exits clean; a recording git cannot walk
+  // is a fault, and a pipeline that reads only the exit code must see it.
+  it('exits as the operator\'s when git cannot read the commit the recording ran at, after every line', async () => {
+    const root = checkout();
+    const at = testCoverageFile(root);
+    mkdirSync(dirname(at), { recursive: true });
+    const coverage = encodeTestCoverage({
+      version: 3, instrumentation: 'fixture', tests: [], modules: [], commit: '0123456789abcdef0123456789abcdef01234567',
+    });
+    const block = { kind: 'function', name: 'unit', path: 'unit', startLine: 1, endLine: 1, source: true };
+    writeFileSync(at, withCaseSections(coverage, {
+      index: encodeAsSetExecutionIndex({
+        tests: [{ id: 'test/unit.test.ts > one', file: 'test/unit.test.ts', name: 'one', stopped: false }],
+        modules: [{ file: 'src/unit.ts', blocks: [{ ...block, crossings: [{ test: 0, distance: 0 }] }] }],
+      }),
+    }));
+
+    const { code, out } = await run(['index']);
+
+    expect(out.split('\n')).toContain("journeys: not prepared: commit 0123456789ab is not in this checkout's object store");
+    expect(out).toContain('questions: published at');
+    expect(code).toBe(EXIT_OPERATOR);
   });
 
   it("names the primary checkout's index a worktree's first update built on", async () => {

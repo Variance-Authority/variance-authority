@@ -14,7 +14,7 @@
 
 // compass: variance-authority.reach.relations
 
-import { isAbsolute, relative, resolve } from 'node:path';
+import { relative, resolve } from 'node:path';
 import { checkoutListing, checkoutPath, existedAt, type CheckoutListing } from './checkout-path.js';
 import { native, nativeRefusal } from './native.js';
 import type { NativeForksBetween, NativeJourneyEnd, NativeJourneyMap, NativeJourneyMapFile, NativePathsThrough, NativeJourneysAmong, NativeJourneysAnswer, NativeJourneysAsk, NativeJourneysCommit, NativeJourneysPrepared, NativeTestComposition } from './native-journeys.js';
@@ -24,7 +24,7 @@ import { declaredTsconfig } from './typescript.js';
 import { nearestTestCoverage } from './test-selection/record-location.js';
 import { keepsCases } from './test-selection/case-record.js';
 import { askCoverageFile } from './test-selection/coverage-file.js';
-import { defaultInclude } from './test-selection/instrumented-modules.js';
+import { defaultInclude, insideRoot } from './test-selection/instrumented-modules.js';
 import { declaredSuites } from './test-selection/suites.js';
 
 export type {
@@ -122,14 +122,19 @@ function knownOf(root: string, file: string, recording: string, listing: Checkou
  * chain of `..` would name it from wherever the reader happens to stand.
  */
 function spelled(root: string, path: string): string {
-  const inside = relative(root, path);
-  return inside === '' || inside.startsWith('..') || isAbsolute(inside) ? path : inside;
+  return insideRoot(root, path) ? relative(root, path) : path;
 }
 
-/** One suite's prepared journeys, or why none were prepared. */
+/**
+ * One suite's prepared journeys, or why none were prepared. `unprepared` is an
+ * absence — nothing recorded, no commit named, no index — and `failed` a walk
+ * that could not be made, git's refusal among them, which its caller reports as
+ * a fault rather than as nothing to walk.
+ */
 export type PreparedJourneys =
   | { readonly suite?: string; readonly out: string; readonly prepared: NativeJourneysPrepared }
-  | { readonly suite?: string; readonly out: string; readonly unprepared: string };
+  | { readonly suite?: string; readonly out: string; readonly unprepared: string }
+  | { readonly suite?: string; readonly out: string; readonly failed: string };
 
 /**
  * Walk each suite's latest recording over the source index at `index` and keep
@@ -172,7 +177,7 @@ export async function prepareJourneys(
     try {
       made = walk(root, index, recording, at, out, tsconfig);
     } catch (error) {
-      prepared.push({ ...named, out, unprepared: error instanceof Error ? error.message : String(error) });
+      prepared.push({ ...named, out, failed: error instanceof Error ? error.message : String(error) });
       continue;
     }
     prepared.push(made === null ? { ...named, out, unprepared: 'there is no source index' } : { ...named, out, prepared: made });

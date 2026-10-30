@@ -59,7 +59,10 @@ questions: published at <cache>/test-selection/<digest>/source-index.bin.help.js
   `variance ask orient --files` reads it for a file's callers, its callees and
   the [package flows](orientation.md#choose-the-entrance-from-what-you-have)
   its tests take. Unchanged inputs keep the journeys that are there. A suite
-  with no recording prints `not prepared: nothing is recorded at <path>`. The
+  with no recording prints `not prepared: nothing is recorded at <path>`. A
+  recording made at a commit git cannot read here prints `not prepared:` with
+  git's reason, and the step that makes the journeys exits `2` once every line
+  is printed. The
   line ends with what the walk resolved that the index did not, and anything it
   could not read as the recording ran it, such as a runner config that did not
   load.

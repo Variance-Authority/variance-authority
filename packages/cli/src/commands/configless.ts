@@ -20,7 +20,7 @@
 
 import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { EXIT_CLEAN, OperatorError, type ExitCode } from '../exit.js';
+import { EXIT_CLEAN, EXIT_OPERATOR, OperatorError, type ExitCode } from '../exit.js';
 import type { Parsed } from '../parse.js';
 import type { Detach } from './index-follow-ups.js';
 import { writePieces } from '../json-pieces.js';
@@ -245,7 +245,9 @@ export async function answerConfigless(
       ]);
       // On stderr, beside the waiting lines: stdout is the answer a pipeline reads.
       const ticker = stepTicker((text) => streams.err(text), process.stderr.isTTY === true);
-      const request = { cwd: process.cwd(), ...(parsed.noGit ? { noGit: true } : {}), progress: ticker.progress };
+      // A walk that failed is the operator's, told once every line is printed.
+      let failed = false;
+      const request = { cwd: process.cwd(), ...(parsed.noGit ? { noGit: true } : {}), progress: ticker.progress, failed: () => { failed = true; } };
       const waiting = (text: string): void => streams.err(text);
       try {
         if (parsed.followUps) streams.out(await followUpsOutput({ ...request, waiting }));
@@ -253,7 +255,7 @@ export async function answerConfigless(
       } finally {
         ticker.done();
       }
-      return EXIT_CLEAN;
+      return failed ? EXIT_OPERATOR : EXIT_CLEAN;
     }
 
     // `watch`'s reason, one step further out. This one is asked *by somebody

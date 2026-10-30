@@ -2082,7 +2082,10 @@ recording and writes beside the index, and which `variance ask orient --files`
 reads for the calls into and out of a file and the
 [package flows](https://variance-authority.dev/docs/orientation#choose-the-entrance-from-what-you-have)
 its tests take. A checkout with no declared suites prints one `journeys:` line.
-A suite with no recording prints `not prepared: nothing is recorded at …`. The
+A suite with no recording prints `not prepared: nothing is recorded at …`. A
+recording made at a commit git cannot read here prints `not prepared:` with
+git's reason, and the step that makes the journeys exits `2` once every line is
+printed. The
 last two lines are what `variance ask` answers from, and each prints why when it
 could not be written. An index the file system refuses
 to write prints `source index not written: <reason>, at <path>` and exits `2`.

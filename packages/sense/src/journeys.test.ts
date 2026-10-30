@@ -134,14 +134,16 @@ describe('the journeys prepared beside the index', () => {
 
   // A recording's lines are coordinates in the tree it ran over: the working
   // tree is a different answer, so the walk does not run over it.
-  it('are not prepared from a recording that names no commit, nor one at a commit this checkout does not hold, and say why', async () => {
+  // A recording that names no commit has no tree to walk, which is an absence;
+  // a commit git cannot read is a fault, and the caller is told it failed.
+  it('are not prepared from a recording that names no commit, and fail on one at a commit this checkout does not hold, and say why', async () => {
     await updateSourceIndex(root);
     record(recording(), null);
     expect(await prepareJourneys(root)).toEqual([{ out: journeysPath(sourceIndexPath(root)), unprepared: 'the recording names no commit' }]);
 
     record(recording(), '0123456789abcdef0123456789abcdef01234567');
     expect(await prepareJourneys(root)).toEqual([
-      { out: journeysPath(sourceIndexPath(root)), unprepared: "commit 0123456789ab is not in this checkout's object store" },
+      { out: journeysPath(sourceIndexPath(root)), failed: "commit 0123456789ab is not in this checkout's object store" },
     ]);
   });
 });
