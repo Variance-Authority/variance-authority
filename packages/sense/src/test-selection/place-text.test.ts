@@ -65,6 +65,21 @@ describe('which text of a file a run ran over', () => {
     expect(ranOver(wrote, TEST, FILE, { blob: 'git:held', digest: undefined }, named, false)).toEqual({ text: undefined, rows: true });
   });
 
+  it('hands back the commit\'s text for a digest a run names that no landing kept, when the commit\'s text is the one it names', () => {
+    // The text is read from the commit's history, never from disk: the record keeps nothing of it.
+    const unkept: RanOverEvidence = { ...evidence, kept: new Map() };
+    expect(ranOver({ commit: 'D', texts: { [FILE]: digestString(OTHER) } }, TEST, FILE, HELD, unkept, false)).toEqual({ text: OTHER, name: digestString(OTHER) });
+    const named: RanOverEvidence = {
+      ...unkept,
+      committed: new Map([['D', new Map([[FILE, OTHER]])]]),
+      blobs: new Map([['D', new Map([[FILE, 'git:other']])]]),
+    };
+    expect(ranOver({ commit: 'D', texts: { [FILE]: digestString(OTHER) } }, TEST, FILE, { blob: 'git:held', digest: digestString(HELD) }, named, false))
+      .toEqual({ text: OTHER, name: digestString(OTHER) });
+    // A digest the commit's text is not stays not found.
+    expect(ranOver({ commit: 'C', texts: { [FILE]: digestString(OTHER) } }, TEST, FILE, HELD, unkept, false)).toEqual({ text: undefined });
+  });
+
   it('says why it is not known for a run the record could not place, one naming no texts, and one at a commit this clone lacks', () => {
     const unknown = (run: TestPlace, of = evidence) => ranOver(run, TEST, FILE, HELD, of, false);
     expect(unknown({ commit: 'C', assumed: true })).toEqual({ unknown: `the record does not say where that run stood, so not which text of ${FILE} it ran over` });

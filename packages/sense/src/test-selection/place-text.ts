@@ -81,9 +81,9 @@ export function readsTheSnapshot(run: TestPlace, last: string | undefined): bool
  * cannot say; the one that wrote a snapshot naming no commit, over its rows'.
  *
  * The held text is told by name when it is held by name: the digest the run
- * names, the git blob name its commit holds. A run names only a text its
- * commit does not hold (`ranOverTexts`), so a text it names is kept or not
- * known, never the committed one.
+ * names, the git blob name its commit holds. A text a run names is the one
+ * a landing kept, else its commit's when that is the text it names, read from
+ * history and never from disk, else not known.
  */
 export function ranOver(run: TestPlace, test: string, file: string, held: Held, evidence: RanOverEvidence, precondition: boolean): RanOver {
   if (run.assumed === true) return { unknown: `the record does not say where that run stood, so not which text of ${file} it ran over` };
@@ -95,8 +95,10 @@ export function ranOver(run: TestPlace, test: string, file: string, held: Held, 
   const named = run.texts[file];
   if (named !== undefined) {
     if (named === (typeof held === 'string' ? digestString(held) : held.digest)) return 'held';
-    const kept = evidence.kept.get(named);
-    return kept === undefined ? { text: undefined } : { text: kept, name: named };
+    // Kept by a landing, or, where none kept it, the commit's own text when that is the one it names.
+    const committed = run.commit === undefined ? undefined : evidence.committed.get(run.commit)?.get(file);
+    const text = evidence.kept.get(named) ?? (committed !== undefined && digestString(committed) === named ? committed : undefined);
+    return text === undefined ? { text: undefined } : { text, name: named };
   }
   if (run.commit !== undefined && typeof held !== 'string' && evidence.blobs.get(run.commit)?.get(file) === held.blob) return 'held';
   const committed = run.commit === undefined ? undefined : evidence.committed.get(run.commit)?.get(file);
