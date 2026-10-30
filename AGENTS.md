@@ -15,8 +15,8 @@ exits only on its own gate:
 The idea loop runs before any code and is the hardest gate: a change that
 should not exist costs more than any defect in it. A red anywhere after it
 sends you back into the build loop. A `pre-push` hook refuses an agent's push of a commit
-the waves did not record green, and CI refuses a pull request whose issue lacks
-`idea: build` or was edited after it, and again in the merge queue. No loop waits on the owner; the merge is hers.
+the waves did not record green, and CI refuses a `feat`, `fix` or `perf` pull
+request whose issue lacks `idea: build` or was edited after it, and again in the merge queue. No loop waits on the owner; the merge is hers.
 
 Every phase opens with **look around**: questions answered by reading and
 running, before acting. They are not a formality. Each one is there because
@@ -109,7 +109,8 @@ Look around:
   only when the PR can show nothing existing could carry it. A second
   implementation is a defect.
 
-Leave with an issue that carries `idea: build`, the sentence of done, the kind
+Leave with an issue that carries `idea: build` when the change is a `feat`,
+`fix` or `perf`, the sentence of done, the kind
 of its PR, what existing code it is reached from, and the gate it is measured
 against — or with the issue closed and its reason named. Nothing is left for
 the owner to answer: a choice the evidence leaves open takes the smaller

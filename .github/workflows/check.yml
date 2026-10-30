@@ -1388,8 +1388,8 @@ jobs:
           yarn variance index
           VARIANCE_AUTHORITY_SINCE='' VARIANCE_AUTHORITY_AT_DISTANCE=0-2 yarn "test:$SUITE" ${SHARD:+--shard "$SHARD"}
 
-  # A pull request carries an idea that passed review before its code was
-  # written: its body's first line says `Closes #<n>` or `Part of #<n>`, and the
+  # A `feat`, `fix` or `perf` pull request carries an idea that passed review
+  # before its code was written: its body's first line says `Closes #<n>` or `Part of #<n>`, and the
   # issue carries `idea: build`, put on when the `occam` reviewer's idea review
   # let it through, with no edit to its body after (refine, "The idea loop").
   # It runs on the pull request and again in the merge queue, where it asks

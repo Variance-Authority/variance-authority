@@ -60,9 +60,26 @@ describe('the issue each queued pull request names', () => {
     expect(issueOf('Fixes the thing\nCloses #12')).toBeUndefined();
   });
 
+  const pr = (title: string, author = 'User', headRefName = 'x', isCrossRepository = false) => ({
+    title,
+    author: { __typename: author },
+    headRefName,
+    isCrossRepository,
+  });
+
   it('does not ask a bot or the version pull request', () => {
-    expect(asked({ author: { __typename: 'Bot' }, isCrossRepository: false, headRefName: 'x' })).toBe(false);
-    expect(asked({ author: { __typename: 'User' }, isCrossRepository: false, headRefName: 'changeset-release/main' })).toBe(false);
-    expect(asked({ author: { __typename: 'User' }, isCrossRepository: true, headRefName: 'changeset-release/main' })).toBe(true);
+    expect(asked(pr('feat: x', 'Bot'))).toBe(false);
+    expect(asked(pr('Version packages', 'User', 'changeset-release/main'))).toBe(false);
+    expect(asked(pr('Version packages', 'User', 'changeset-release/main', true))).toBe(true);
+  });
+
+  it('asks a change to what the product does, by its title\'s kind', () => {
+    for (const title of ['feat(sense): x', 'fix: x', 'perf(core)!: x', 'a title with no kind'])
+      expect(asked(pr(title))).toBe(true);
+  });
+
+  it('does not ask a change that leaves what the product does alone', () => {
+    for (const title of ['docs: x', 'chore(agents): x', 'ci(colours): x', 'test: x', 'refactor(sense): x', 'revert: x'])
+      expect(asked(pr(title))).toBe(false);
   });
 });
