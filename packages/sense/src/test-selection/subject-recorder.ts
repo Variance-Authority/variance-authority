@@ -171,6 +171,8 @@ export function createSubjectRecorder(
       const journal = await drainExecution(page);
       if (journal === undefined) return;
       seen = true;
+      // FIXME: what the page read (`journal.read`) is laid on no subject, where
+      // spec 0102 lays a page read on the case driving the page.
       observed.push({
         owner: subjectId,
         journal,

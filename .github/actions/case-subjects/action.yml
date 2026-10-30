@@ -1,0 +1,27 @@
+name: case-subjects
+description: >-
+  The subjects the cases observe, built the way each case's README says: the
+  Storybook case's three builds and the incumbent's page bundle and run.
+
+# The chromium slice collects the cases' `*.chromium.test.*` files, so every job
+# that runs it takes this step: `cases`, and every chromium leg of `suite` and
+# `queue`. A
+# case without its subject skips on a developer's machine and fails on CI, as
+# `cases/unbuilt.mjs` decides, because a file whose cases all skipped never ran
+# and the record `main` publishes is then not a whole run. Every output is
+# ignored by git, so the build leaves the tree as clean as it found it and
+# nothing here can be stale against a committed copy.
+
+runs:
+  using: composite
+  steps:
+    - name: build the Storybooks
+      shell: bash
+      run: |
+        yarn workspace @variance-authority/case-storybook build-storybook
+        yarn workspace @variance-authority/case-storybook build-storybook:changed
+        yarn workspace @variance-authority/case-storybook build-storybook:a11y
+
+    - name: record the incumbent
+      shell: bash
+      run: yarn workspace @variance-authority/case-incumbent incumbent

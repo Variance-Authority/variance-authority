@@ -44,6 +44,7 @@ Neither exists until the workspace is built.
 
 Every suite here skips loudly, naming the missing precondition, when the
 Storybook is not built, the CLI is not compiled, or Chromium is not installed.
+On CI the same suite fails instead, with the same message.
 
 The CLI uses three exit codes, and the tables below read them:
 

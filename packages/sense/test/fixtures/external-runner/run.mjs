@@ -10,7 +10,10 @@ import { startRecording } from '@variance-authority/sense/runner';
 
 const execute = promisify(execFile);
 const here = fileURLToPath(new URL('.', import.meta.url));
-const files = ['test/alpha.case.mjs', 'test/beta.case.mjs'].map((file) => resolve(here, file));
+// `--retry` runs only the case that fails its first attempt, and gives it a second.
+const files = (process.argv.includes('--retry') ? ['test/retried.retry.mjs'] : ['test/alpha.case.mjs', 'test/beta.case.mjs']).map((file) =>
+  resolve(here, file),
+);
 
 const recording = startRecording({
   coverageFile: process.env['VARIANCE_AUTHORITY_COVERAGE'],

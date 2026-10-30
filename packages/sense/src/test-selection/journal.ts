@@ -121,7 +121,7 @@ export {
 } from './observed.js';
 export type { ObservedEyes } from './eyes-record.js';
 export { listenForPreconditions, type PreconditionListener, type PreconditionStanding } from './precondition-listener.js';
-export { preconditionText, SAID_NOTHING, saidAcross, type CasePrecondition, type Said } from './case-said.js';
+export { preconditionText, saidAcross, type CasePrecondition, type Said } from './case-said.js';
 export {
   STAGE_VARIABLE,
   closeStage,

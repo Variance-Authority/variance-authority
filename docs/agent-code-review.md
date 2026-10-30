@@ -95,10 +95,6 @@ writes beside the file-grain [record](execution-record.md). The file-grain
 record alone answers which test *files* covered a module and cannot name a
 case.
 
-Over MCP the same evidence is `variance_changed_tests`, which takes the unified
-diff the agent is already holding rather than a ref — nothing in that package
-runs git.
-
 ## Ask the run which of the changes are one change
 
 When the change updated pixels, the second reading is

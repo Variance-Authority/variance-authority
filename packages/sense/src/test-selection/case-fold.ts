@@ -27,7 +27,7 @@ import { UNTIMED, type CaseDurations } from './case-durations.js';
 import eyesFrames from './eyes-frame.cjs';
 import type { EyesSection, RecordedEyes } from './eyes-record.js';
 import { saidJoined, type Said } from './case-said.js';
-import preconditions from './case-preconditions.cjs';
+import caseOwner from './case-owner.cjs';
 import type { ExecutionTest } from './reverse.js';
 import { isWritten } from './written-lines.js';
 import type { Reading } from './readings.js';
@@ -121,7 +121,7 @@ export async function inspectCaseRun(
             const located = { ...coordinate, file: projectPath(root, coordinate.file) };
             const key = caseKey(located);
             const held = coordinates.get(key);
-            const said = preconditions.heardField(packed);
+            const said = caseOwner.heardField(packed);
             if (held === undefined) {
               scanning = {
                 ...caseOf(located),

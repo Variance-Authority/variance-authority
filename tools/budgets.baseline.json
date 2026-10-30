@@ -1632,16 +1632,13 @@
     11
   ],
   "packages/mcp/src/tools.ts docblock": [
-    14
+    13
   ],
   "packages/mcp/src/tools.ts overview": [
     61
   ],
   "packages/mcp/src/tools/adjudicate.ts docblock": [
     17
-  ],
-  "packages/mcp/src/tools/changed-tests.ts docblock": [
-    15
   ],
   "packages/mcp/src/tools/changelog.ts overview": [
     26
@@ -2725,9 +2722,6 @@
     11,
     11
   ],
-  "packages/sense/src/test-selection/case-preconditions.cts docblock": [
-    11
-  ],
   "packages/sense/src/test-selection/case-preconditions.cts overview": [
     26
   ],
@@ -2776,7 +2770,7 @@
     11
   ],
   "packages/sense/src/test-selection/covering-change-text.ts block": [
-    14
+    8
   ],
   "packages/sense/src/test-selection/crossing-fold.ts overview": [
     19
@@ -3266,7 +3260,6 @@
   ],
   "packages/sense/src/test-selection/worker-source.ts docblock": [
     31,
-    23,
     12
   ],
   "packages/sense/src/text-digests.ts block": [
@@ -4065,9 +4058,6 @@
   "tools/skips.check.ts block": [
     7,
     6
-  ],
-  "tools/skips.check.ts docblock": [
-    12
   ],
   "tools/skips.check.ts overview": [
     22

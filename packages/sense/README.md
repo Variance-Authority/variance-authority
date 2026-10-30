@@ -386,7 +386,9 @@ A changed file selects by how the snapshot records it.
   loaded it, every test that imports it mocked it, or it sits outside what the
   run instrumented. Pass `relations` and `sourceAt` and it is read, with every
   export counted as changed; the nearest files that import it and have a row
-  answer for what that reading cannot (below). It is listed in `unread` when no test
+  answer for what that reading cannot (below). An importer with no row is read
+  from the text the change leaves it, so a file the diff adds charges only the
+  functions that read a changed export. It is listed in `unread` when no test
   declares it and the graph has no node for it either.
 - **A stylesheet, image, or JSON file** can take no probe, so it never has a
   row. Pass `relations` to answer it through the graph instead (below).
@@ -2293,8 +2295,8 @@ const decorations = coveringTestsInFile(index, 'src/cart/total.ts');
 
 The index above is written out by hand so the sample runs on its own. In
 practice it comes from a recording — see below, or from an editor's test runner,
-a debugger, or a language server. `@variance-authority/mcp` puts the same query
-in front of an agent over MCP and answers exactly this for its caller.
+a debugger, or a language server. `variance covering` asks the same query of
+the recording on the command line.
 
 A line resolves to the regions a change to it would select. A line inside a
 branch is the branch's alone, so tests that only covered the enclosing function
@@ -2312,8 +2314,8 @@ throws.
 what is left, so a boundary still marks where the claim on the code changes. A
 range that names cases lists under `unentered` the regions on it no case
 entered, such as a one-line branch whose line the function around it also
-charges. `unenteredSentence(region)` says that in the sentence the CLI and the
-MCP server print, closed by `whyUnentered(stopped)`: unwalked, a hole, or
+charges. `unenteredSentence(region)` says that in the sentence `variance covering`
+prints, closed by `whyUnentered(stopped)`: unwalked, a hole, or
 neither when the record cannot tell.
 
 Every seam here writes an `ExecutionIndex` into its snapshot. In the snapshot
@@ -2542,7 +2544,8 @@ preconditions: its preconditions are unmeasured, never none.
 What the test says is a claim. A **breadcrumb**, `varianceBreadcrumb` from
 `@variance-authority/event`, records what the code under test read, on the case
 that ran it, and the readers print each read beside what the case said under
-the same name. The Vitest integration records reads in Node; `tests.read` is
+the same name. Vitest, Jest and Rstest record reads in Node, and Playwright in
+the worker and in the page; `tests.read` is
 absent from a row whose runner did not listen, and empty for a case that read
 nothing.
 
@@ -2585,10 +2588,8 @@ the diff was taken against, the file the index was read from, the commit it
 stands at — and prints nothing for a field it is not given. A region may also
 carry the `state` its caller read over more cases than it lists, as the CLI does
 under `--where`; the words then follow the state, so a region only an unlisted
-case ran reads as covered, not as a hole. It lives here rather
-than in either caller because the CLI's `variance covering --since` and the MCP
-tool `variance_changed_tests` both print it, and a reading with two renderers
-has two answers.
+case ran reads as covered, not as a hole.
+The CLI prints it under `variance covering --since`.
 
 ## What each host gives the recording
 

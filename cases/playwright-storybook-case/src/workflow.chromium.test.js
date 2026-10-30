@@ -16,6 +16,7 @@ import { fileURLToPath } from 'node:url';
 import { chromium } from '@playwright/test';
 import { narrowByExecution, readTestCoverage } from '@variance-authority/sense/test-selection';
 import { describe, expect, it } from 'vitest';
+import { unbuilt } from '../../unbuilt.mjs';
 
 const root = dirname(dirname(fileURLToPath(import.meta.url)));
 // Recorded names are relative to the checkout, and this case sits inside it.
@@ -33,7 +34,7 @@ const BROWSER_AVAILABLE = (() => {
 const live = BROWSER_AVAILABLE ? describe : describe.skip;
 
 if (!BROWSER_AVAILABLE) {
-  console.warn(
+  unbuilt(
     '\ncases/playwright-storybook-case: skipped.' +
       '\n  no browser — npx playwright install chromium\n',
   );

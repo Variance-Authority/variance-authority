@@ -16,6 +16,7 @@ import { builtMap, handedTexts, namesItsMap } from './source-lines.js';
 import { type UnmappedNotes, refuseTransformsAfter, unmappedSteps, watchUnmapped } from './unmapped-transforms.js';
 import probeLists from '../instrument/probe-lists.cjs';
 import probeLog from '../instrument/probe-log.cjs';
+import preconditions from './case-preconditions.cjs';
 import { PAGE_STORY, type PageStory } from '../story/page-story.js';
 import { CARRIED_SOURCE } from './carried.js';
 
@@ -49,10 +50,24 @@ export interface ExecutedModule {
   readonly again?: readonly number[];
 }
 
+/**
+ * One `varianceBreadcrumb` call a page made: `read` with the `dimension:key`,
+ * or `misused` with the argument that was wrong, the JSON text of the value —
+ * `null` where JSON cannot hold it — the call site as the page spelled it, and
+ * the case body's level.
+ */
+export type PageRead = readonly [facet: 'read' | 'misused', item: readonly [name: string, value: string | null, site: string, level: number]];
+
 /** Everything a page entered between two drains. */
 export interface ExecutionJournal {
   readonly instrumentation: string;
   readonly modules: readonly ExecutedModule[];
+  /**
+   * What the page's code read between two drains, each key and value once per
+   * document, at its first site, after what the documents it replaced read;
+   * absent where no collector listened, because each realm had its own recorder.
+   */
+  readonly read?: readonly PageRead[];
   /** The tape since the drain before, on a page `storyPageSource` made tape. */
   readonly story?: PageStory;
   /**
@@ -331,6 +346,38 @@ export function testSelectionProbes(
 }
 
 /**
+ * A reader of the page's `varianceBreadcrumb` calls, as an expression, or
+ * `undefined` where the page already has a recorder, which places its reads
+ * itself. A page runs for the case that drives it, so every read is at the
+ * case body's level, and each `take()` closes a window: what the page read
+ * since the last, each key and value once, at its first site.
+ */
+function pageReaderSource(): string {
+  const symbol = (name: symbol): string => `Symbol.for(${JSON.stringify(Symbol.keyFor(name))})`;
+  return `(() => {
+  const PRECONDITION = ${symbol(preconditions.PRECONDITION)};
+  const BREADCRUMB = ${symbol(preconditions.BREADCRUMB)};
+  const MISPLACED = ${symbol(preconditions.MISPLACED)};
+  const LOADING = Symbol('loading');
+  const CASE_LEVEL = ${preconditions.CASE_LEVEL};
+  ${preconditions.RECORDER_PARTS.map(String).join('\n')}
+  if (globalThis[BREADCRUMB] !== undefined) return undefined;
+  const said = globalThis[PRECONDITION];
+  const heard = recorder(globalThis, () => 'page');
+  heard.loaded();
+  // A page says no precondition: its case does, in the driver.
+  if (said === undefined) delete globalThis[PRECONDITION];
+  else globalThis[PRECONDITION] = said;
+  return {
+    take() {
+      const { read, misused } = heard.take('page');
+      return [...read.map((item) => ['read', item]), ...misused.map((item) => ['misused', item])];
+    },
+  };
+})()`;
+}
+
+/**
  * The page half, as source, because it has to cross `page.evaluate` or a bundler.
  *
  * The engine is `instrument/probe-log.cts`, sent as its own source with
@@ -366,6 +413,9 @@ if (globalThis.__VA__ === undefined) {
   const story = typeof maker === 'function' ? maker(engine) : undefined;
   globalThis.__VA__ = story === undefined ? engine.root : story.root;
   const realm = globalThis;
+  // What the page's code reads goes out with what it entered, for the driver
+  // to lay on the case it drained.
+  const reader = ${pageReaderSource()};
   const drain = () => {
     // In the order the page first registered each module, drain after drain.
     const own = lists(engine.take(bucket), true);
@@ -373,6 +423,7 @@ if (globalThis.__VA__ === undefined) {
     const before = carry.take();
     const drained = { instrumentation: ${JSON.stringify(instrumentation)}, modules: before === undefined ? own : joined(before.modules, own) };
     if (before !== undefined) drained.replaced = 1 + (before.replaced ?? 0);
+    if (reader !== undefined || before?.read !== undefined) drained.read = [...(before?.read ?? []), ...(reader?.take() ?? [])];
     if (story !== undefined) {
       drained.story = story.take();
       if (before?.story !== undefined) drained.story.before = [before.story];
@@ -386,6 +437,7 @@ ${CARRIED_SOURCE}
     drain,
     reset() {
       engine.take(bucket);
+      reader?.take();
       if (carries) engine.carry();
       carry.forget();
       story?.take();

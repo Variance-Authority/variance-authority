@@ -4,7 +4,8 @@ import { listenForPreconditions, type PreconditionStanding } from './preconditio
 import { variancePrecondition } from './precondition.js';
 
 const PRECONDITION = Symbol.for('variance-authority.test-selection.precondition');
-const realm = globalThis as { [PRECONDITION]?: unknown };
+const BREADCRUMB = Symbol.for('variance-authority.test-selection.breadcrumb');
+const realm = globalThis as { [PRECONDITION]?: unknown; [BREADCRUMB]?: unknown };
 const ROOT = resolve(import.meta.dirname, '../../../..');
 const SITE = /^packages\/sense\/src\/test-selection\/precondition-listener\.test\.ts:\d+$/;
 
@@ -12,15 +13,35 @@ const SITE = /^packages\/sense\/src\/test-selection\/precondition-listener\.test
 const taken = (listener: { take(key: string): string | undefined }, key: string): unknown[] =>
   (JSON.parse(listener.take(key) ?? '{"said":[]}') as { said: unknown[] }).said;
 
-// The suite may itself run under a recording, which installed its own recorder.
+// The two calls `@variance-authority/event`'s `varianceBreadcrumb` makes, which
+// this package does not depend on: the value alone, then the `Error` that names
+// the site when the recorder says the read is new to its case.
+function varianceBreadcrumb<Value>(dimension: unknown, key: unknown, value: Value): Value {
+  const recorder = realm[BREADCRUMB] as (dimension: unknown, key: unknown, value: unknown, called?: Error) => boolean;
+  if (recorder(dimension, key, value)) recorder(dimension, key, value, new Error());
+  return value;
+}
+
+// Everything a listener hands over for a case, facet by facet.
+const heard = (listener: { take(key: string): string | undefined }, key: string): Record<string, unknown[]> | undefined => {
+  const taken = listener.take(key);
+  return taken === undefined ? undefined : (JSON.parse(taken) as Record<string, unknown[]>);
+};
+
+// The suite may itself run under a recording, which installed its own recorders.
 let recording: unknown;
+let reading: unknown;
 beforeEach(() => {
   recording = realm[PRECONDITION];
+  reading = realm[BREADCRUMB];
   delete realm[PRECONDITION];
+  delete realm[BREADCRUMB];
 });
 afterEach(() => {
   if (recording === undefined) delete realm[PRECONDITION];
   else realm[PRECONDITION] = recording;
+  if (reading === undefined) delete realm[BREADCRUMB];
+  else realm[BREADCRUMB] = reading;
   vi.restoreAllMocks();
 });
 
@@ -92,5 +113,75 @@ describe('a realm whose runner places each call itself', () => {
     delete realm[PRECONDITION];
     listenForPreconditions(ROOT, () => ({ at: 'case', key: 'pays' })).close();
     expect(PRECONDITION in realm).toBe(false);
+  });
+
+  it('gives the realm back the reader that listened before it, or none', () => {
+    const before = (): boolean => false;
+    realm[BREADCRUMB] = before;
+
+    const listener = listenForPreconditions(ROOT, () => ({ at: 'case', key: 'pays' }));
+    expect(realm[BREADCRUMB]).not.toBe(before);
+    listener.close();
+    expect(realm[BREADCRUMB]).toBe(before);
+
+    delete realm[BREADCRUMB];
+    listenForPreconditions(ROOT, () => ({ at: 'case', key: 'pays' })).close();
+    expect(BREADCRUMB in realm).toBe(false);
+  });
+});
+
+describe('what the code under test read in a realm whose runner places each call itself', () => {
+  it('lays a read made in the case body or a beforeEach on that case, each key and value once', () => {
+    let standing: PreconditionStanding = { at: 'beforeEach', key: 'pays', depth: 0 };
+    const listener = listenForPreconditions(ROOT, () => standing);
+
+    varianceBreadcrumb('flags', 'checkout', false);
+    standing = { at: 'case', key: 'pays' };
+    varianceBreadcrumb('flags', 'checkout', true);
+    varianceBreadcrumb('flags', 'checkout', true);
+    varianceBreadcrumb('flags', 7, true);
+    listener.close();
+
+    expect(heard(listener, 'pays')).toEqual({
+      said: [],
+      read: [
+        ['flags:checkout', 'false', expect.stringMatching(SITE), 0xffff],
+        ['flags:checkout', 'true', expect.stringMatching(SITE), 0xffff],
+      ],
+      misused: [['key', '7', expect.stringMatching(SITE), 0xffff]],
+    });
+  });
+
+  it('hands over nothing for a case that neither said nor read anything, and names what it heard', () => {
+    const listener = listenForPreconditions(ROOT, () => ({ at: 'case', key: 'pays' }));
+    listener.close();
+
+    expect(listener.take('pays')).toBeUndefined();
+    expect(JSON.parse(listener.nothing)).toEqual({ said: [], read: [], misused: [] });
+  });
+
+  it('lays what a page read on the case the drain names, each site named from the checkout', () => {
+    const listener = listenForPreconditions(ROOT, () => ({ at: 'after' }));
+    const page = `http://app.test/@fs${ROOT}/src/flags.ts:4`;
+
+    listener.laid('pays', [['read', ['flags:checkout', 'true', page, 0xffff]]]);
+    listener.laid('pays', [['read', ['flags:checkout', 'true', `http://app.test/@fs${ROOT}/src/flags.ts:9`, 0xffff]]]);
+    listener.close();
+
+    expect(heard(listener, 'pays')).toEqual({ said: [], read: [['flags:checkout', 'true', 'src/flags.ts:4', 0xffff]], misused: [] });
+    expect(listener.take('pays')).toBeUndefined();
+  });
+
+  it('warns about what a page read where no case drove it, once a site, and lays it on no case', () => {
+    const listener = listenForPreconditions(ROOT, () => ({ at: 'case', key: 'pays' }));
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const page = `http://app.test/@fs${ROOT}/src/flags.ts:4`;
+
+    listener.laid(undefined, [['read', ['flags:checkout', 'true', page, 0xffff]], ['read', ['flags:checkout', 'false', page, 0xffff]]]);
+    listener.close();
+
+    expect(warn).toHaveBeenCalledOnce();
+    expect(String(warn.mock.calls[0]![0])).toMatch(/varianceBreadcrumb at src\/flags\.ts:4 read flags:checkout where no case runs and is recorded on no case/);
+    expect(listener.take('pays')).toBeUndefined();
   });
 });

@@ -260,9 +260,6 @@ npx variance covering --file src/cart/total.ts --function applyDiscount
 npx variance covering --since main
 ```
 
-Or over MCP, where `variance_source_tests` takes a location and
-`variance_changed_tests` takes the diff the agent is already holding.
-
 **Re-record when the tree moves.** A region is a range of lines in the text the
 suite ran over, so the index's coordinates belong to the commit it was recorded
 at, and the `--since` reading measures from that commit for this reason. For the

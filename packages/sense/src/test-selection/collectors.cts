@@ -304,7 +304,6 @@ function scoped(
     },
     continuations ? new async_hooks.AsyncLocalStorage() : undefined,
     siteNamed,
-    true,
   );
   const close = (bucket: Bucket, name: string): View | undefined => {
     if (buckets.get(bucket.key) === bucket) buckets.delete(bucket.key);
@@ -321,7 +320,7 @@ function scoped(
     if (view.rows.length === 0 && settled === undefined && journey === undefined && !spoke) return undefined;
     const settledOwner = settled === undefined ? name : caseOwner.settledCase(name, settled);
     const owner = journey === undefined ? settledOwner : caseOwner.packJourney(settledOwner, journey);
-    frames.push(journals.encodeLog(heard === undefined ? owner : preconditions.packHeard(owner, heard), view));
+    frames.push(journals.encodeLog(heard === undefined ? owner : caseOwner.packHeard(owner, heard), view));
     foldInto(union, view);
     return view;
   };

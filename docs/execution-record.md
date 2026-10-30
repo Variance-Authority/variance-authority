@@ -790,8 +790,10 @@ below is one stage of that call.
    declared file, or an importer that starts or stops loading one, is `load`,
    and its reading lists the declared files in `effects`. A test that crossed the
    changed module through no importer the graph holds is listed in `unseen` and
-   charged nothing. An importer whose text cannot be read charges its module,
-   or, with no row, every test step 6's walk finds behind it. A `load` the
+   charged nothing. An importer with no row is read from the text the change
+   leaves it, which for a file the diff adds is its hunks alone. An importer
+   whose text cannot be read charges its module, or, with no row, every test
+   step 6's walk finds behind it. A `load` the
    parser gave charges the lines as step 4 does, and a line outside every
    function is in the module's own region, which every test that loaded the
    file ran; a `load` that `sideEffects` declared charges the module. Under

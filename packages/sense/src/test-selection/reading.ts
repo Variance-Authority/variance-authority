@@ -56,13 +56,13 @@ import { MODULE_EXTENSIONS } from '../read.js';
 import { blocksAround, gapInside, moduleRegion, outsideRegions, regionOf } from './blocks-around.js';
 import type { LineRange } from './diff-lines.js';
 import { declaredEffects } from './effects.js';
-import { commitFrame, frameOf, type Frame } from './frame.js';
+import { arrivedFrame, commitFrame, frameOf, type Frame } from './frame.js';
 import type { TestCoverageView } from './format-view.js';
 import { walkImporters } from './importer-walk.js';
 import { importedAsAsset } from './importers.js';
 import type { ExecutionNarrowingOptions } from './narrowing.js';
 import { findModules, findTest } from './lookup.js';
-import { applied, hunksOf } from './patch.js';
+import { applied, hunksFor, hunksOf } from './patch.js';
 import type { SelectionReason } from './narrowing.js';
 
 /** What the reading made of one changed file, or why it made nothing. */
@@ -361,11 +361,11 @@ function readImporter(
   const { rowsOf, test } = measured(context, importer, covered);
   const origin = (name: string): string => moved.get(name) ?? name;
   const [first] = moved.keys();
-  // A test file carries no row, so its text needs no frame: nothing is charged
-  // by its line numbers, only the test itself.
-  const frame = rowsOf.size === 0 ? undefined : frameOf(coverage, knownAs(importer), rowsOf, options.sourceAt, options.keptText);
-  const text =
-    frame === undefined ? options.sourceAt?.(importer, coverage.commit) : typeof frame === 'string' ? undefined : frame.text;
+  // A file with no row charges nothing by its line numbers: it is read as the
+  // change leaves it.
+  const rowed = rowsOf.size === 0 ? undefined : frameOf(coverage, knownAs(importer), rowsOf, options.sourceAt, options.keptText);
+  const frame = rowed ?? arrivedFrame(coverage, [importer], hunksFor(context.hunks, importer), options.sourceAt);
+  const text = typeof frame === 'object' ? frame.text : undefined;
   const found = text === undefined ? null : native()!.moduleReaders!(importer, text, [...moved.keys()], true);
 
   if (found === null) {

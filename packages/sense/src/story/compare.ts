@@ -210,7 +210,7 @@ function summary(side: LoadedSide): SideSummary {
 const REF = /(?<=^(?:handed|holds) (?:.*, )?[\p{ID_Continue}$]+=)ref\d+(?!\d)/gu;
 
 /** What a line said means in another run: a handed object's ref without its number. */
-function acrossRuns(said: string): string {
+export function acrossRuns(said: string): string {
   return said.startsWith('handed ') || said.startsWith('holds ') ? said.replace(REF, 'ref') : said;
 }
 

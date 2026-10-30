@@ -10,8 +10,8 @@ a claim, and the claim and the read part ways whenever the mock does not reach
 the provider the code reads from.
 **Built on:** `variancePrecondition` and the case rows of spec 0093, whose call
 this spec changes (below); the case scope every producer already enters; the
-page sink and wire carrier of `@variance-authority/event`, which already carry a
-call from application source to the driver of the page; `covering --since` and
+execution collector's journal, which a Playwright driver already drains from
+every page it drives; `covering --since` and
 `review`, which list the cases that entered each changed region; and
 `caseMotion`, which compares two case indexes region by region
 ([`case-motion.ts`](../../packages/sense/src/test-selection/case-motion.ts)).
@@ -133,8 +133,9 @@ precondition does not share:
   and the read will not happen again for any of them.
 - **In a Vitest browser realm**, the read lands as a precondition said there
   does.
-- **In a page a Playwright case drives**, the page sink carries the read to the
-  driver, and it lands on the case driving the page. One case drives one page at
+- **In a page a Playwright case drives**, the execution collector's journal
+  carries the read to the driver with its drain, and it lands on the case
+  driving the page. One case drives one page at
   a time; interleaving cases are not supported.
 - **A read in a `beforeAll`** lands as one at load does, on every case of the
   `describe` that declared it: a value built once there is the value each of
@@ -220,7 +221,7 @@ None of them joins what was read to the cases that entered a changed region.
    throws, the no-recording call measured as one property read, misuse recorded
    on the case.
 3. The recording side under Vitest, Jest and Rstest through the case scope, in
-   the Vitest browser realm, and under Playwright through the page sink.
+   the Vitest browser realm, and under Playwright through the execution collector's drain.
    Fixtures for a read in the case body, a read at load, a read after its case
    settled, one key read with two values, a read with no recording, and a
    recorder that throws.
@@ -235,8 +236,10 @@ None of them joins what was read to the cases that entered a changed region.
    into the flag-off arm by an `else`, a ternary and an early return, each with
    the output it is expected to print.
 
-Items 1 and 2, item 3 under Vitest, Jest and Rstest in Node and item 5 for `review` land first,
-end to end; the other runners and readings follow.
+Items 1 and 2, item 3 under Vitest, Jest and Rstest in Node and under
+Playwright, and item 5 for `review` land first, end to end, except a
+Playwright read made while a test file loads, which lands on no case; the other
+runners and readings follow.
 
 ## Open
 

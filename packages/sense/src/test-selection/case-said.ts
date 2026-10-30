@@ -19,9 +19,6 @@ import { codeUnitOrder } from '@variance-authority/core/segment';
  */
 export type Said = string;
 
-/** What a case that was listened to for preconditions alone, and said nothing, said. */
-export const SAID_NOTHING: Said = '{"said":[]}';
-
 /**
  * One item a case named: what it said, or what the code read in it, and the
  * call that did. Two said under one name on a row are a contradiction the case

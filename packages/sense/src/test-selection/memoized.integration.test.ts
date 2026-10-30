@@ -33,7 +33,7 @@ afterEach(async () => {
   await Promise.all(temporary.splice(0).map((path) => rm(path, { recursive: true, force: true })));
 });
 
-async function record(args: readonly string[], only?: string) {
+async function record(args: readonly string[], only?: string, order?: readonly string[]) {
   const directory = await mkdtemp(resolve(tmpdir(), 'variance-authority-memoized-'));
   temporary.push(directory);
   const coverageFile = resolve(directory, 'coverage.bin');
@@ -47,6 +47,7 @@ async function record(args: readonly string[], only?: string) {
         VARIANCE_AUTHORITY_COVERAGE: coverageFile,
         VARIANCE_AUTHORITY_CACHE: directory,
         ...(only === undefined ? {} : { VARIANCE_AUTHORITY_FILES: only }),
+        ...(order === undefined ? {} : { VARIANCE_AUTHORITY_ORDER: order.join(',') }),
       },
     },
   ).then(
@@ -82,13 +83,16 @@ describe('a function behind a cache the recording does not instrument', () => {
     expect(readers(price, body)).toEqual(['reads the price again']);
   }, 20_000);
 
-  it('is not read at all by a file that runs after another in a shared module graph', async () => {
+  it.each([
+    ['test/cart.case.ts', 'test/receipt.case.ts'],
+    ['test/receipt.case.ts', 'test/cart.case.ts'],
+  ])('is not read at all by a file that runs after another in a shared module graph: %s, then %s', async (first, second) => {
     // `--no-isolate`: `price.ts` evaluates once, the cache outlives the first
     // file, and the second file calls only the wrapper, which is not source
     // the recording instruments. Nothing in the module is credited to it.
-    const { files } = await record(['--no-isolate', '--no-file-parallelism']);
+    const { files } = await record(['--no-isolate', '--no-file-parallelism'], undefined, [first, second]);
 
-    expect(files()).toEqual([memoized('test/cart.case.ts')]);
+    expect(files()).toEqual([memoized(first)]);
   }, 20_000);
 
   it('is read again by each file that evaluates its own module graph', async () => {
