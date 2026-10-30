@@ -21,6 +21,27 @@ export function carriedStory(meta: object | undefined): CarriedStory | undefined
   return typeof held?.story === 'object' && held.story !== null ? held : undefined;
 }
 
+/**
+ * The hooks a page's setup module adds to leave each case's tape on its own
+ * context's `meta`. What runs between two cases is taken and dropped, so a
+ * case's story opens at its first hook.
+ *
+ * The hooks name no parameter, for the reason the setup's `afterAll` does; the
+ * context's `task` is the case. `names` is an expression over `task` for the
+ * names the page knows the case by, spread beside the tape; a runner whose
+ * result names the case passes none.
+ */
+export function carryingHooks(names?: string): string {
+  return `
+beforeEach(() => { execution.story?.(); });
+afterEach(function () {
+  const task = arguments[0]?.task;
+  const story = execution.story?.();
+  if (task === undefined || story === undefined) return;
+  (task.meta ??= {})[${JSON.stringify(BROWSER_JOURNAL)}] = { story${names === undefined ? '' : `, ...${names}`} };
+});`;
+}
+
 /** Write the story of each case that carried one; a case in Node writes its own, and carries none. */
 export async function writeCarriedStories(
   directory: string | undefined,

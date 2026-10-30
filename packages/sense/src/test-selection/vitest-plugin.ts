@@ -11,7 +11,7 @@ import { heldOriginal, pathOf, type Captured, type CapturedAfter, type ComposedM
 import { cleanId, fileOrNone, mayTake, projectPath, type ProbePlacement } from './instrumented-modules.js';
 import { readFinished, type FinishedFile } from './finished-files.js';
 import { caseStorySource } from './vitest-case-story.js';
-import { BROWSER_JOURNAL, browserSetupSource } from './worker-source.js';
+import { browserSetupSource } from './worker-source.js';
 import { declareConfig, type ResolvedViteConfig } from './governing-config.js';
 import { removeSeamModules, writeSeamModule, type SelectionRun } from './selection-run.js';
 import { handedTexts, namesItsMap } from './source-lines.js';
@@ -156,7 +156,7 @@ export function selectionPlugin(
         // would carry what they load to the file the way the case runner does.
         const taping = story === undefined
           ? undefined
-          : { tape: (await import('../story/page.js')).storyPageSource(), hooks: caseStorySource(BROWSER_JOURNAL) };
+          : { tape: (await import('../story/page.js')).storyPageSource(), hooks: caseStorySource() };
         writeSeamModule(run, setupId, browserSetupSource(mode, 'vitest', taping));
         if (config.test.runner === runnerId) delete config.test.runner;
         // An index with no case in it answers *which cases walk this line* with
