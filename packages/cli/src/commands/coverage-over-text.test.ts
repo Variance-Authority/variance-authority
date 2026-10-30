@@ -89,6 +89,8 @@ interface Setup {
    * rows as a run does, so the landing names their text.
    */
   readonly crlf?: true;
+  /** Where the checkout holds `src/pay.ts`'s text, and the record's rows name it, when not at `PAY_FILE`. */
+  readonly payAt?: string;
 }
 
 let cache: string;
@@ -121,6 +123,10 @@ async function checkout(setup: Setup): Promise<{ readonly at: string; readonly g
     await mkdir(dirname(join(at, file)), { recursive: true });
     await writeFile(join(at, file), text);
   }
+  if (setup.payAt !== undefined) {
+    await rm(join(at, PAY_FILE));
+    await writeFile(join(at, setup.payAt), PAY);
+  }
   git('init', '--quiet', '--initial-branch', 'main');
   if (setup.crlf === true) {
     git('config', 'core.autocrlf', 'true');
@@ -139,8 +145,8 @@ async function checkout(setup: Setup): Promise<{ readonly at: string; readonly g
   const disk = (text: string) => (setup.crlf === true ? text.replaceAll('\n', '\r\n') : text);
 
   const modules: readonly (readonly [string, string, readonly Region[]])[] = [
-    [PAY_FILE, setup.recorded, [
-      { kind: 'module', name: PAY_FILE, path: 'module', startLine: 1, endLine: 7, tests: [0, 1] },
+    [setup.payAt ?? PAY_FILE, setup.recorded, [
+      { kind: 'module', name: setup.payAt ?? PAY_FILE, path: 'module', startLine: 1, endLine: 7, tests: [0, 1] },
       { kind: 'function', name: 'charge', path: 'entry', startLine: 1, endLine: 3, tests: setup.charge },
       { kind: 'function', name: 'refund', path: 'entry', startLine: 5, endLine: 7, tests: setup.refund },
     ]],
@@ -423,14 +429,16 @@ describe('coverage names why a text is not known', () => {
       expect(said.count).toMatchObject({ run: 3, over: { older: 1, notKnown: 0, why: [] } });
     });
 
-    it('counts a file the published index does not hold as gone, run over an older text, though the disk holds the text every run ran', async () => {
+    it('counts a file the published index does not hold as not known when the disk holds it, since the index does not name its text', async () => {
       const { at } = await checkout(atRecord);
       await rm(join(at, PAY_FILE));
       await updateSourceIndex(at);
       await writeFile(join(at, PAY_FILE), PAY);
       ci.isCI = true;
 
-      expect((await json('--root', at)).count).toMatchObject({ over: { older: 2, notKnown: 0, why: [] } });
+      expect((await json('--root', at)).count).toMatchObject({
+        over: { older: 0, notKnown: 2, why: [`the source index does not hold ${PAY_FILE}, though the checkout does, so which text it holds now is not known`] },
+      });
     });
   });
 
@@ -473,6 +481,31 @@ describe('coverage names why a text is not known', () => {
       ci.isCI = false;
       await chmod(join(at, PAY_FILE), 0o644);
     }
+  });
+
+  it('counts the regions run in a file git ignores as not known, and says the index does not hold it because git ignores it', async () => {
+    // An import of an ignored file reads it into the index, so the test files no longer import it.
+    const { at, git } = await checkout(atRecord);
+    git('rm', '--quiet', '--cached', PAY_FILE);
+    await writeFile(join(at, '.gitignore'), `${PAY_FILE}\n`);
+    for (const test of [PAY_TEST, FEE_TEST]) await writeFile(join(at, test), 'export {};\n');
+    git('add', '.');
+    git('commit', '--quiet', '-m', 'ignore pay');
+
+    expect((await json('--root', at)).count).toMatchObject({
+      run: 3,
+      over: { older: 0, notKnown: 2, why: [`git ignores ${PAY_FILE}, and the source index does not hold it, so which text it holds now is not known`] },
+    });
+  });
+
+  it('counts the regions run in a file the source index does not read as not known, and says so', async () => {
+    const coffee = 'libs/pay/src/pay.coffee';
+    const { at } = await checkout({ ...atRecord, payAt: coffee });
+
+    expect((await json('--root', at)).count).toMatchObject({
+      run: 3,
+      over: { older: 0, notKnown: 2, why: [`the source index does not read ${coffee}, so which text it holds now is not known`] },
+    });
   });
 
   it('keeps a function whose body gained only a comment as run over this text', async () => {

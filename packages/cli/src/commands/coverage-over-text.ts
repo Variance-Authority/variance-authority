@@ -14,10 +14,14 @@
  * digest the rows took of it or by its commit's blob. A text is read only to
  * diff two that the names say differ, so a file whose rows hold the tree's
  * text, run over that text by every place that ran it, reads no text at all.
- * An index brought up to the checkout lists every file in it, so a file it
- * does not hold is gone, and every region run in it ran over an older text.
+ * An index brought up to the checkout holds every file it reads, so a file it
+ * would read and does not hold is gone, and every region run in it ran over an
+ * older text; one it would not read is not known.
  */
 
+import { existsSync } from 'node:fs';
+import { join, resolve } from 'node:path';
+import { checkoutListing, seedPaths } from '@variance-authority/sense';
 import {
   editsBetween,
   ranOver,
@@ -125,6 +129,10 @@ async function overTexts(
   latest: string | undefined,
 ): Promise<Over> {
   const over = new Map<string, ReadonlyMap<string, readonly Edit[] | RegionText>>();
+  const absent = absentFrom(root, [...placedOf.keys()].filter((file) => {
+    const cut = cuts.get(file);
+    return cut !== undefined && !('unknown' in cut) && cut.blob !== undefined && names.get(file) === undefined;
+  }));
   const held = new Map<string, HeldNames>();
   for (const file of placedOf.keys()) {
     const cut = cuts.get(file);
@@ -155,7 +163,7 @@ async function overTexts(
     const answer: (test: string, place: TestPlace) => readonly Edit[] | RegionText = cut === undefined || 'unknown' in cut
       ? () => cut ?? { unknown: `the record holds no digest of the text of ${file} its regions were cut from` }
       : now === undefined
-        ? () => 'older' as const
+        ? () => absent.get(file)!
         : chains(file, { name: cut.blob!, digest: cut.digest }, now, held.get(file)!);
     over.set(file, new Map(placed.map(([test, place]) => [test, answer(test, place)] as const)));
   }
@@ -182,6 +190,29 @@ async function overTexts(
     }
     return (_test: string, place: TestPlace) => result.get(place)!;
   }
+}
+
+/**
+ * What was run in each of `files`, which the source index at `root` does not
+ * hold. The index reads every file git lists under `root` that a reader claims,
+ * outside the directories it skips, so a file of those that git does not ignore
+ * and the disk does not hold is gone, and everything run in it ran over an older
+ * text. Any other is not known, with the reason the index does not name it.
+ */
+function absentFrom(root: string, files: readonly string[]): ReadonlyMap<string, 'older' | RegionText> {
+  const read = new Set(seedPaths(resolve(root), ['.'], files));
+  const notKnown = (why: string): RegionText => ({ unknown: `${why}, so which text it holds now is not known` });
+  return new Map(files.map((file) => {
+    if (!read.has(file)) return [file, notKnown(`the source index does not read ${file}`)];
+    const listing = checkoutListing(root, file);
+    return [file, 'unread' in listing
+      ? notKnown(`what git lists at ${file} does not read: ${listing.unread}`)
+      : listing.ignored
+        ? notKnown(`git ignores ${file}, and the source index does not hold it`)
+        : existsSync(join(root, file))
+          ? notKnown(`the source index does not hold ${file}, though the checkout does`)
+          : 'older'];
+  }));
 }
 
 /** The text the record's rows were cut from of each asked file ({@link rowsCut}), every one not known when the record does not read. */
