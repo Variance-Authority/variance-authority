@@ -683,7 +683,7 @@ statement runs is charged to that later statement: a request `click` started
 and the page answered during the next `expect` lands on the `expect`. A body
 declared in another file, such as a page object's method, is not waited on, and
 what it reached is charged to the spec statement that called it. A statement
-in `beforeEach` or `afterEach` is recorded as the case's own line. Lines keep
+in a hook is recorded as a hook's line, as the Node runners record it. Lines keep
 their numbers and Babel's map names the file as you wrote it, so an inline
 aria snapshot lands where you wrote it.
 
@@ -716,6 +716,11 @@ drain reads the page, and a document a `goto` replaced is gone by then.
 
 Pass `cadence: false` to compile your specs as Playwright would and write no
 lines.
+
+With `VARIANCE_AUTHORITY_STORY=1`, each case also writes a [test
+story](https://variance-authority.dev/docs/test-stories): the code its pages
+ran, in order, each stretch opened by the spec line whose statement ran it.
+Name one spec and `-g` the test, as you would record any story.
 
 ### Keep what each test looked at
 

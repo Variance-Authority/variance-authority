@@ -226,7 +226,16 @@ compare  src/checkout.test.ts > saves the total it charges
       before » console.log saving when it passed, after it when it threw
 ```
 
-This output shows three things, and each one names a place to open:
+A fourth group names a region every run reached, first under a different line
+of the test on each side:
+
+```text
+  first reached under another test line, on every reading:
+    applyTier  src/price.ts:6-9
+      under line 4 when it passed, under line 5 when it threw
+```
+
+This output shows four things, and each one names a place to open:
 
 - **Which branch the test took.** Every run that failed took the `then` of the `if`
   on line 13, which throws, and no run that passed did.
@@ -235,13 +244,17 @@ This output shows three things, and each one names a place to open:
 - **In what order.** On every run that passed, `applyTier` ran before `save`
   printed `saving`, and on every run that failed, after it. That is the cause:
   `save` stores the total before `reprice` changes it.
+- **Under which test line.** Every run reached `applyTier`, but the runs that
+  passed did so under line 4 of the test, and the runs that threw under line
+  5. The work line 4 started had not finished when line 5 ran: the test does
+  not wait for it.
 
 The comparison can also answer in three other ways:
 
 - **A last line counts what it left out**, such as `left out, because they
   differ between readings of one side as well: 1 place, 4 lines said, 37 pairs
-  in changing order`. Those differ between runs that passed too, so none of
-  them is the cause. They are what you would read through if you compared two
+  in changing order, 2 places under a changing test line`. Those differ between
+  runs that passed too, so none of them is the cause. They are what you would read through if you compared two
   stories by hand.
 - **`nothing separates the sides`** means the runs ran the same code,
   printed the same lines, and ran in the same order wherever every run had
@@ -350,9 +363,8 @@ differently:
 | In what order the code ran, including repeats | Its story, recorded when you ask for one |
 
 The recorder adds calls between test and hook statements to record cadence.
-It keeps one first statement per region, not every visit. Node runners mark
-hook work separately; Playwright records `beforeEach` and `afterEach`
-statements as case lines.
+It keeps one first statement per region, not every visit, and marks hook work
+as a hook's.
 A story step is a visit to source code, so one
 test statement can produce many steps. [Coverage
 composition](own-fewer-tests.md#connect-the-regions-to-test-statements) compares
@@ -435,7 +447,11 @@ arguments, one test or one file:
 ```bash
 VARIANCE_AUTHORITY_STORY=1 yarn vitest run src/cart.test.ts -t "removes the last item"
 VARIANCE_AUTHORITY_STORY=1 yarn jest src/cart.test.ts -t "removes the last item"
+VARIANCE_AUTHORITY_STORY=1 yarn playwright test tests/cart.spec.ts -g "removes the last item"
 ```
+
+Under Playwright and Vitest browser mode, the story is of the code the page ran,
+and each statement of the test opens what the page did next with its line.
 
 - **Where stories are kept.** In [the cache](cache.md), under
   `coverage.stories/`. A story is removed 14 days after it was written, with
@@ -557,9 +573,9 @@ Take the `console.log` out before you change the code.
 - **What an object holds, and values never handed to a function.** A ref says
   which object, not what is in it. Print what you need from it and record
   again, or set a breakpoint at the line the story names.
-- **Other processes.** A story covers the test's own process. A test run by
-  Playwright or in Vitest browser mode writes no story, and neither does code
-  the test calls in another process, such as a server.
+- **Other processes.** A story covers the test's own process, or under
+  Playwright and Vitest browser mode, the page. Code the test calls in another
+  process, such as a server, is not on it.
 - **The order inside one step, or how each pass of a loop differed.** A step
   lists its branches in the order the code has them, and a loop is shown once,
   with the counts of all its passes added together. Use a debugger for that.

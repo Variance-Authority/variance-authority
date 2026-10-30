@@ -168,9 +168,8 @@ first line:
 | `submitOrder` | line 3, `submitOrder(cart, total)` |
 
 The call on line 4 runs `priceCart` again. Its region stays attributed to line
-2: cadence records the first statement, not every visit. Under the Node
-runners, a hook's work is marked as a hook's, so you can separate setup from
-the case's own actions.
+2: cadence records the first statement, not every visit. A hook's work is
+marked as a hook's, so you can separate setup from the case's own actions.
 When the case itself also runs a region a hook ran, the case's statement takes
 precedence.
 
@@ -178,9 +177,7 @@ This recording is on by default under Vitest, Jest, Rstest and Playwright;
 a custom runner can record it too. The [runner
 reference](../packages/sense/README.md#record-which-test-line-reached-a-region)
 explains setup, which test bodies it can transform and `cadence: false`.
-Playwright records which spec statement ran each region of the page. It
-records `beforeEach` and `afterEach` statements as the case's own lines, so
-those lines do not separate hook work from the case's body. Its
+Playwright records which spec statement ran each region of the page. Its
 [runner reference](../packages/playwright-test/README.md#record-which-spec-line-reached-each-region)
 explains recording across navigation. A case recorded without statement lines
 has no attribution to read; it is not a case whose statements ran nothing.

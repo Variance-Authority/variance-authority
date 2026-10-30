@@ -108,6 +108,14 @@ async work of the same case shows where it ran.
   the story was taped from. The reader matches a module row by region count and
   draws a module it cannot match as its file, listed as unresolved. Carrying the
   source digest on the story's rows is a `// TODO:` in `story/read.ts`.
-- A page case (browser Vitest) and a service head write no story; both are
-  `it.todo` markers.
+- A page case writes a story: the page tapes, and the runner lays each drain
+  end to end under the case (`story/page.ts`). Playwright drains at every spec
+  statement and opens each drain with its line. Vitest browser mode runs the
+  cut test file in the page, so the tape notes each test line itself, and the
+  runner takes it at the end of each case. The page's cut skips the probes
+  already in the file, since there they go in first. A service head writes
+  none; that is an `it.todo` marker.
+- A comparison reads the `test line N` notes every seam writes: a region every
+  reading reached, first under a different line on each side, is listed as
+  charged to another line.
 - The accessor cost ADR-0056's runtime rejects is paid only under the variable.

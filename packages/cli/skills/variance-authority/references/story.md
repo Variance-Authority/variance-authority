@@ -234,6 +234,6 @@ not show, it names in the header:
   tracks tests through async context, that work is left out.
 - *the test threw or rejected* — the route ends where it stopped.
 
-A story covers the test's own process, under Vitest, Jest and Rstest. A test
-run in a browser page (Vitest browser mode) or by Playwright writes none, and
-code the test calls in another process, such as a server, is not on it.
+A story covers the test's own process under Vitest, Jest and Rstest, and the
+page under Playwright and Vitest browser mode. Code the test calls in another
+process, such as a server, is not on it.

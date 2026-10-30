@@ -69,10 +69,8 @@ test looked, and claims only that.
   was running when it arrived, not to the one that started it. A request a
   `click` sends and the page answers during the next `expect` is the
   `expect`'s.
-- A `test.beforeEach` or `test.afterEach` statement is drained under the
-  case's own line, where every other seam flags a hook's line as a hook's. The
-  cut does not say which body it is in; a `FIXME` and an `it.todo` hold the
-  gap.
+- An awaited cut in a hook body passes `__VA__.c(line, file, true)`, so a
+  hook's statement is flagged as a hook's, as every other seam flags it.
 - Each statement of a spec costs a round trip to every frame. Over the probed
   Storybook build in `cases/playwright-storybook-case` the lines added 2.4% to
   the record and the duration stayed inside its run-to-run spread; on a

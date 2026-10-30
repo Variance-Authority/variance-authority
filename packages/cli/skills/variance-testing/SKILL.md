@@ -63,7 +63,9 @@ a pattern or no argument, and never record in CI.
 | behaves differently under a flag or a mock | each side under its own label, such as `=flag-on` | `story --name <name> --compare 1,flag-on` |
 
 A listed difference holds on every reading of one side and on none of the
-other: open the place it names. What differs between readings of one side is
+other: open the place it names. A region *first reached under another test
+line* ran under a later statement on the failing side: the test does not wait
+for the work the earlier line started. What differs between readings of one side is
 counted on the last line and is not the cause.
 [story](../variance-authority/references/story.md)
 
@@ -84,11 +86,9 @@ separates the sides*:
 4. Remove the `console.log` before you fix anything.
 
 The log is a probe on one run, not a change to what the test checks. A story
-covers the test's own process under Vitest, Jest and Rstest. A Playwright test
-writes none: its probe is a line in the spec that asserts nothing,
-`variance.snapshot()` to send what the page holds and go on, or
-`await variance.observe()` to stop there, read from a watcher. Remove it the
-same way.
+covers the test's own process under Vitest, Jest and Rstest, and the page under
+Playwright and Vitest browser mode: record a Playwright test with
+`VARIANCE_AUTHORITY_STORY=1 npx playwright test <spec> -g <name>`.
 [live run](../variance-authority/references/live-run.md)
 
 ## Write tests for a change
