@@ -26,6 +26,15 @@ fn a_probe_already_in_the_body_is_not_a_statement_of_the_test() {
 }
 
 #[test]
+fn a_probe_on_a_transformed_text_is_not_a_statement_of_the_test() {
+    // A region that fires several authored ones probes each in a sequence, and
+    // one that fires none, which only the project wrote, probes `void 0`.
+    let out = cut("it('adds', () => {__va(1),__va(2);\n  add(1, 2);void 0;\n  done();\n});\n");
+    assert!(out.contains("() => {__va(1),__va(2);\n  __vaC(2);add(1, 2);void 0;\n  __vaC(3);done();\n"), "{out}");
+    assert!(!out.contains("__vaC(1)"), "{out}");
+}
+
+#[test]
 fn a_call_the_test_makes_is_a_statement_whatever_it_is_named() {
     let out = cut("it('checks', () => {\n  __validate(x);\n  __vaLue && __vaLue(x);\n});\n");
     assert!(out.contains("__vaC(2);__validate(x);"), "{out}");

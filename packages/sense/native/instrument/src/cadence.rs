@@ -290,11 +290,18 @@ fn is_probe(statement: &Statement) -> bool {
     is_probe_call(&it.expression)
 }
 
-// A probe is a call to one of ours, or a dormant one: `__vaL&&__vaL(...)`.
+// A probe is a call to one of ours, or a dormant one: `__vaL&&__vaL(...)`. On a
+// transformed text it is a sequence of them, or `void 0` for a region that fires
+// none, as `Walker::probe` writes them.
 fn is_probe_call(expression: &Expression) -> bool {
     match expression {
         Expression::CallExpression(call) => is_probe_name(&call.callee),
         Expression::LogicalExpression(it) => is_probe_name(&it.left) && is_probe_call(&it.right),
+        Expression::SequenceExpression(it) => it.expressions.iter().all(is_probe_call),
+        Expression::UnaryExpression(it) => {
+            it.operator == oxc_syntax::operator::UnaryOperator::Void
+                && matches!(&it.argument, Expression::NumericLiteral(zero) if zero.value == 0.0)
+        }
         _ => false,
     }
 }
