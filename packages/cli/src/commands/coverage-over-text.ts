@@ -18,10 +18,7 @@ import { resolve } from 'node:path';
 import { promisify } from 'node:util';
 import { digestString } from '@variance-authority/core/format';
 import {
-  askCoverageFile,
-  casesCutApart,
   editsBetween,
-  findModules,
   ranOver,
   regionTouched,
   testPlaces,
@@ -32,6 +29,7 @@ import {
   type TestPlace,
 } from '@variance-authority/sense/test-selection';
 import { evidenceOf, type Evidence } from './covering-ran-evidence.js';
+import { rowsText, type RowsText } from './record-rows-text.js';
 import { runsOf } from './record-runs.js';
 
 /** What a suite's count asks of each region a test file called into. */
@@ -149,24 +147,10 @@ async function readTexts(
   };
 }
 
-/**
- * The digest the record's rows took of each asked file: the text its index's
- * lines are in. A file the index was cut apart from, or held in rows of two
- * texts, is not known.
- */
-function rowDigests(record: string, index: ExecutionIndex, asked: ReadonlySet<string>): ReadonlyMap<string, string | { readonly unknown: string }> {
+/** The digest the record's rows took of each asked file ({@link rowsText}), every one not known when the record does not read. */
+function rowDigests(record: string, index: ExecutionIndex, asked: ReadonlySet<string>): ReadonlyMap<string, RowsText> {
   try {
-    const apart = casesCutApart(record, index.modules.filter((module) => asked.has(module.file)));
-    return askCoverageFile(record, (coverage) => {
-      const digests = new Map<string, string | { readonly unknown: string }>();
-      for (const file of asked) {
-        const held = new Set(findModules(coverage, file).map((row) => coverage.string(coverage.moduleSource.at(row))));
-        if (apart.has(file)) digests.set(file, { unknown: `the record's case index of ${file} was cut from another text than its rows` });
-        else if (held.size > 1) digests.set(file, { unknown: `the record holds rows of ${file} from more than one text` });
-        else if (held.size === 1) digests.set(file, [...held][0]!);
-      }
-      return digests;
-    });
+    return rowsText(record, asked, index);
   } catch (error) {
     const unknown = { unknown: `the record's rows do not read: ${error instanceof Error ? error.message : String(error)}` };
     return new Map([...asked].map((file) => [file, unknown]));
