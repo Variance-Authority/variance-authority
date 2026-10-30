@@ -131,8 +131,7 @@ export function layReadings(
 
 /** The newest reading as stored: without its regions where the landed index holds them as they ran. */
 function lain(reading: Reading, there: Read | undefined): StoredCase['readings'][number] {
-  const { regions, ...rest } = reading;
-  return alike(reading, there) ? rest : reading;
+  return alike(reading, there) ? { count: reading.count, ...stop(reading) } : reading;
 }
 
 /**
