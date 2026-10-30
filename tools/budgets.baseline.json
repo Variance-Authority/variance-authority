@@ -2854,7 +2854,6 @@
     26,
     20,
     19,
-    17,
     12
   ],
   "packages/sense/src/test-selection/format-layout.ts docblock": [
@@ -3134,7 +3133,6 @@
     14
   ],
   "packages/sense/src/test-selection/reporter-hooks.integration.test.ts block": [
-    10,
     6
   ],
   "packages/sense/src/test-selection/reverse.test.ts block": [
