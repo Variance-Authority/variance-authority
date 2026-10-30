@@ -25,4 +25,8 @@ describe('arrivedFrame', () => {
 
     expect(arrivedFrame(coverage, ['src/old.js'], hunks, unheld)).toBeUndefined();
   });
+
+  it('gives no text when the caller hands no way to read the commit', () => {
+    expect(arrivedFrame(coverage, ['src/old.js'], undefined, undefined)).toBeUndefined();
+  });
 });
