@@ -8,8 +8,11 @@ import { createRequire } from 'node:module';
 import { promisify } from 'node:util';
 import { chromium } from '@playwright/test';
 import { moduleId } from '@variance-authority/sense/journal';
-import { caseIndexOf, decodeExecutionIndex } from '@variance-authority/sense/test-selection';
+import { caseIndexOf, decodeExecutionIndex, openSetColumns } from '@variance-authority/sense/test-selection';
 import { afterAll, describe, expect, it } from 'vitest';
+// A case's lines are read by sense's selection, which publishes no reader of
+// them, so this reads them the way it does.
+import { lineAt, linesOf } from '../../sense/src/test-selection/case-lines.js';
 
 // A real Playwright run over a page an instrumented build serves, recorded
 // through `withTestSelection` with `VARIANCE_AUTHORITY_STORY=1`.
@@ -179,6 +182,27 @@ describe.runIf(BROWSER_AVAILABLE)('a Playwright case run in a page', () => {
       'test line pays',
       'handed amount=20',
     ]);
+  }, 120_000);
+
+  it('records what a replaced document entered at the statement that replaced it', async () => {
+    const { directory } = await storiesWritten();
+    const cases = (await caseIndexOf(resolve(directory, 'coverage.bin')))!;
+    const index = decodeExecutionIndex(cases);
+    const test = index.tests.findIndex((entry) => entry.id === `${at('tests/navigates.spec.ts')} > pays after the page it chose on was replaced`);
+    const lines = linesOf(openSetColumns(cases)!.testLines, test);
+    const module = index.modules.findIndex((entry) => entry.file === at('src/shop.js'));
+    const source = (await readFile(resolve(fixture, 'src/shop.js'), 'utf8')).split('\n');
+    const spec = (await readFile(resolve(fixture, 'tests/navigates.spec.ts'), 'utf8')).split('\n');
+    const named = (statement: string) => spec.findIndex((text) => text.endsWith(`// ${statement}`)) + 1;
+    const reached = (name: string) => {
+      const line = source.findIndex((text) => text.startsWith(`function ${name}(`)) + 1;
+      const blocks = index.modules[module]!.blocks;
+      const block = blocks.findLastIndex((entry) => entry.startLine <= line && line <= entry.endLine);
+      if (!blocks[block]!.crossings.some((crossing) => crossing.test === test)) return 'not crossed';
+      return lines === undefined ? undefined : lineAt(lines, module, block);
+    };
+
+    expect({ choose: reached('choose'), pay: reached('pay') }).toEqual({ choose: { line: named('leaves'), ambient: false }, pay: { line: named('pays'), ambient: false } });
   }, 120_000);
 
   it('writes none when the run did not ask', async () => {

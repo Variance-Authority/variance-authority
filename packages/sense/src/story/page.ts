@@ -36,7 +36,6 @@ const createTap = (${storyTap.createTap.toString()});
 const NOTE = Symbol.for('variance-authority.story.note');
 const realm = globalThis;
 if (realm[Symbol.for(${JSON.stringify(PAGE_STORY)})] !== undefined) return;
-${CARRYING}
 realm[Symbol.for(${JSON.stringify(PAGE_STORY)})] = (engine) => {
   const tap = createTap(engine, ${storyTap.TAPE_LIMIT});
   tap.nameIn(realm);
@@ -56,67 +55,14 @@ realm[Symbol.for(${JSON.stringify(PAGE_STORY)})] = (engine) => {
         rows: { ids: read.rows.ids.slice(), counts: read.rows.counts.slice(), bases: read.rows.bases.slice() },
       };
       tap.reset();
-      if (carried.length > 0) story.before = carried.splice(0);
       return story;
   };
-  live = take;
   return { root: tap.root, take };
 };
 ${PRINTING}
 })();
 `;
 }
-
-/**
- * A document a navigation replaces keeps what it ran since the drain before in
- * its frame's session storage, since the runner reads nothing of it once the
- * navigation started; the document that replaced it, and no later one, hands it
- * on at the next drain. A frame is named by its place under the top one.
- */
-const CARRYING = `
-const CARRIED = (() => {
-  let place = '';
-  try {
-    for (let frame = realm; frame !== frame.parent; frame = frame.parent) {
-      place = Array.prototype.indexOf.call(frame.parent.frames, frame) + '.' + place;
-    }
-  } catch {
-    // A frame whose parent hides its place carries nothing.
-    return undefined;
-  }
-  return 'variance-authority.story.carried:' + place;
-})();
-let carried = [];
-let live;
-try {
-  const kept = CARRIED === undefined ? null : realm.sessionStorage.getItem(CARRIED);
-  if (kept !== null) {
-    realm.sessionStorage.removeItem(CARRIED);
-    const { at, stories } = JSON.parse(kept);
-    if (at >= realm.performance.timeOrigin) carried = stories;
-  }
-} catch {
-  // A document without storage, an opaque origin's, carries nothing.
-}
-if (CARRIED !== undefined) {
-  realm.addEventListener('pagehide', () => {
-    let left = carried.splice(0);
-    if (live !== undefined) {
-      const story = live();
-      const before = story.before ?? [];
-      delete story.before;
-      left = before;
-      if (story.visits > 0 || story.notes.length > 0 || story.unnoted > 0) left.push(story);
-    }
-    if (left.length === 0) return;
-    try {
-      const at = realm.performance.timeOrigin + realm.performance.now();
-      realm.sessionStorage.setItem(CARRIED, JSON.stringify({ at, stories: left }));
-    } catch {
-      // Storage full or refused: the runner marks the replaced document.
-    }
-  });
-}`;
 
 // What a case prints is a note, as \`listen\` makes it in Node, and still
 // printed. A page has no \`util.format\`: each value is joined as \`String\`

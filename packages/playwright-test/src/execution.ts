@@ -58,9 +58,10 @@ export interface ExecutionRecorder {
    * cases; without it the crossings join the file only. `line` is the test line
    * whose statement ran since the drain before: each region the case has not
    * reached under an earlier line is charged to it. A region drained before
-   * the first line, or under a `hook` line, is ambient.
+   * the first line, or under a `hook` line, is ambient. Resolves to how many
+   * documents the frame replaced whose journals the drain carried.
    */
-  readonly note: (page: EvaluatingPage, owner: string, subject?: ObservedTest, line?: number, hook?: boolean) => Promise<void>;
+  readonly note: (page: EvaluatingPage, owner: string, subject?: ObservedTest, line?: number, hook?: boolean) => Promise<number>;
   /**
    * The script that makes a page tape the case's story, where the run asked
    * for stories under `VARIANCE_AUTHORITY_STORY`: put on a context before its
@@ -196,17 +197,19 @@ export function createExecutionRecorder(
     },
     note: async (page, owner, subject, line, hook) => {
       const journal = await quietly(page, () => drainExecution(page));
-      if (journal === undefined) return;
+      if (journal === undefined) return 0;
       seen = true;
       instrumentation = journal.instrumentation;
       const accumulated = owners.get(owner) ?? accumulation();
       absorb(accumulated, journal);
       owners.set(owner, accumulated);
-      if (subject === undefined) return;
-      const held = caseOf(owner, subject);
-      if (line !== undefined) reached.charge(caseKey(owner, subject.id), held, journal.modules, line, hook === true);
-      absorb(held, journal);
-      if (journal.story !== undefined) stories?.add(storyCase(owner, subject), journal.story);
+      if (subject !== undefined) {
+        const held = caseOf(owner, subject);
+        if (line !== undefined) reached.charge(caseKey(owner, subject.id), held, journal.modules, line, hook === true);
+        absorb(held, journal);
+        if (journal.story !== undefined) stories?.add(storyCase(owner, subject), journal.story);
+      }
+      return journal.replaced ?? 0;
     },
 
     join: async (page, owner, origin, subject) => {

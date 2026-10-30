@@ -10,10 +10,11 @@
  * and every frame of every page, because the application is not always in the
  * top one: Storybook runs it in `#storybook-preview-iframe`.
  *
- * A document the test replaced, or one that went away before the end, took its
- * undrained crossings with it. The owner is marked incomplete instead, so the
- * next selection runs the spec rather than skipping it on crossings lost. A
- * replaced document's story is not lost: the page carries it to the next one.
+ * A document the test replaced hands what it entered to the next document of
+ * its origin in the same frame, which the next drain reads. One that went away
+ * before the end, or that no later document took over, took its undrained
+ * crossings with it. The owner is marked incomplete instead, so the next
+ * selection runs the spec rather than skipping it on crossings lost.
  */
 
 import type {
@@ -191,6 +192,8 @@ function testDocuments(recorder: NonNullable<RecorderFixture['varianceRecorder']
   const owner = recorder.owner(testInfo);
   const subject = testOf(testInfo);
   const adopted = new Map<BrowserContext, Promise<Adopted>>();
+  // The documents each frame's drains carried from the ones it replaced.
+  const carried = new Map<Frame, number>();
   let last: Statement | undefined;
   // The statement whose line the story opened last: each context's teardown
   // drain lays what it reads under the same line, not a second.
@@ -212,7 +215,7 @@ function testDocuments(recorder: NonNullable<RecorderFixture['varianceRecorder']
     let read = true;
     for (const frame of frames) {
       try {
-        await recorder.note(frame, owner, subject, lineOf(statement), statement?.hook);
+        carried.set(frame, (carried.get(frame) ?? 0) + (await recorder.note(frame, owner, subject, lineOf(statement), statement?.hook)));
       } catch {
         // A frame detached between listing and draining, or a document torn
         // down mid-evaluation: its window is gone, which is the same fact as
@@ -265,11 +268,11 @@ function testDocuments(recorder: NonNullable<RecorderFixture['varianceRecorder']
     // timeout is all that would end it: the case is not believed whole instead.
     const inTime = await settlesInTime(draining);
     if (!inTime) late = true;
-    if (entry.watch.lost() || !inTime) lost = true;
     if (inTime) {
       open(last);
       if (!(await drain(framesOf(context), last))) lost = true;
     }
+    if (entry.watch.lost() || !inTime) lost = true;
   };
 
   return {
@@ -286,7 +289,7 @@ function testDocuments(recorder: NonNullable<RecorderFixture['varianceRecorder']
           taped.add(context);
           await context.addInitScript(recorder.storyPage);
         }
-        return { watch: watchDocuments(context), settled: false };
+        return { watch: watchDocuments(context, carried), settled: false };
       })();
       adopted.set(context, adoption);
       await adoption;
@@ -346,7 +349,7 @@ interface Watch {
  * replaced it. A redirect is one document reached by two requests, and is
  * counted once.
  */
-function watchDocuments(context: BrowserContext): Watch {
+function watchDocuments(context: BrowserContext, carried: ReadonlyMap<Frame, number>): Watch {
   const documents = new Map<Frame, number>();
   let lost = false;
   const loaded = (frame: Frame) => (documents.get(frame) ?? 0) > 0;
@@ -356,12 +359,6 @@ function watchDocuments(context: BrowserContext): Watch {
     const frame = request.frame();
     const count = (documents.get(frame) ?? 0) + 1;
     documents.set(frame, count);
-    // FIXME: what the replaced document entered since the drain before is
-    // missing from the record, which is why the owner is marked incomplete; its
-    // story keeps it, carried by the page. Chromium tells nothing of a document
-    // whose navigation has started: an evaluation sent on this event finds its
-    // context destroyed, and a raw CDP one reads the next document.
-    if (count > 1) lost = true;
   };
   const onDetached = (frame: Frame) => {
     if (loaded(frame)) lost = true;
@@ -383,7 +380,8 @@ function watchDocuments(context: BrowserContext): Watch {
   for (const page of context.pages()) onPage(page);
 
   return {
-    lost: () => lost,
+    // A frame lost a document its drains did not carry to the next one.
+    lost: () => lost || [...documents].some(([frame, count]) => count - 1 > (carried.get(frame) ?? 0)),
     stop: () => {
       context.off('request', onRequest);
       context.off('page', onPage);

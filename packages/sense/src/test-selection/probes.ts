@@ -17,6 +17,7 @@ import { type UnmappedNotes, refuseTransformsAfter, unmappedSteps, watchUnmapped
 import probeLists from '../instrument/probe-lists.cjs';
 import probeLog from '../instrument/probe-log.cjs';
 import { PAGE_STORY, type PageStory } from '../story/page-story.js';
+import { CARRIED_SOURCE } from './carried.js';
 
 /**
  * Where a page hands its journal over.
@@ -54,6 +55,11 @@ export interface ExecutionJournal {
   readonly modules: readonly ExecutedModule[];
   /** The tape since the drain before, on a page `storyPageSource` made tape. */
   readonly story?: PageStory;
+  /**
+   * How many documents this frame held before this one whose journals this
+   * drain carries, the first drain after a navigation; absent where none.
+   */
+  readonly replaced?: number;
 }
 
 /** What the collector exposes on {@link EXECUTION_GLOBAL}. */
@@ -359,23 +365,41 @@ if (globalThis.__VA__ === undefined) {
   const maker = globalThis[Symbol.for(${JSON.stringify(PAGE_STORY)})];
   const story = typeof maker === 'function' ? maker(engine) : undefined;
   globalThis.__VA__ = story === undefined ? engine.root : story.root;
+  const realm = globalThis;
+  const drain = () => {
+    // In the order the page first registered each module, drain after drain.
+    const own = lists(engine.take(bucket), true);
+    if (carries) engine.carry();
+    const before = carry.take();
+    const drained = { instrumentation: ${JSON.stringify(instrumentation)}, modules: before === undefined ? own : joined(before.modules, own) };
+    if (before !== undefined) drained.replaced = 1 + (before.replaced ?? 0);
+    if (story !== undefined) {
+      drained.story = story.take();
+      if (before?.story !== undefined) drained.story.before = [before.story];
+    }
+    return drained;
+  };
+${CARRIED_SOURCE}
   globalThis[${JSON.stringify(EXECUTION_GLOBAL)}] = {
     version: 1,
     instrumentation: ${JSON.stringify(instrumentation)},
-    drain() {
-      // In the order the page first registered each module, drain after drain.
-      const modules = lists(engine.take(bucket), true);
-      if (carries) engine.carry();
-      const drained = { instrumentation: ${JSON.stringify(instrumentation)}, modules };
-      if (story !== undefined) drained.story = story.take();
-      return drained;
-    },
+    drain,
     reset() {
       engine.take(bucket);
       if (carries) engine.carry();
+      carry.forget();
       story?.take();
     },
-    ...(story === undefined ? {} : { story: () => story.take() }),
+    ...(story === undefined
+      ? {}
+      : {
+          story: () => {
+            const taken = story.take();
+            const before = carry.story();
+            if (before !== undefined) taken.before = [before];
+            return taken;
+          },
+        }),
   };
 }
 `;
