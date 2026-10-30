@@ -2529,9 +2529,6 @@
   "packages/sense/src/index.ts overview": [
     16
   ],
-  "packages/sense/src/instrument/cadence.ts docblock": [
-    14
-  ],
   "packages/sense/src/instrument/index.ts docblock": [
     28,
     12
