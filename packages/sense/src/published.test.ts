@@ -1,6 +1,6 @@
 import { execFileSync } from 'node:child_process';
 import { realpathSync } from 'node:fs';
-import { chmod, mkdtemp, mkdir, rm, symlink, writeFile } from 'node:fs/promises';
+import { mkdtemp, mkdir, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -232,41 +232,6 @@ describe('the published source index', () => {
     expect(said).toEqual([
       `no source index is published at ${at}; updating it from the checkout, which is what \`variance index\` does.`,
     ]);
-  });
-
-  it('brings a whole index up to the checkout on a workstation, and says nothing', async () => {
-    const at = index('workstation');
-    await updateSourceIndex(root, { index: at });
-    await write('lib/unit.ts', 'export const unit = 4;\n');
-    try {
-      const said: string[] = [];
-      const read = await publishedSources(root, { ci: false, step: 'variance index', announce: (line) => said.push(line), index: at });
-
-      expect(read.notUpdated).toBeUndefined();
-      expect(read.records).toEqual(await scanRelations({ root, dirs: ['.'] }));
-      expect(said).toEqual([]);
-    } finally {
-      git('checkout', '--', 'lib/unit.ts');
-    }
-  });
-
-  it('reads a whole index as it stands when it cannot be brought up to the checkout, and says why in one line', async () => {
-    const at = index('stands');
-    await updateSourceIndex(root, { index: at });
-    const before = await readPublishedSources(at);
-    await write('lib/unit.ts', 'export const unit = 5;\n');
-    await chmod(dirname(at), 0o555);
-    try {
-      const said: string[] = [];
-      const read = await publishedSources(root, { ci: false, step: 'variance index', announce: (line) => said.push(line), index: at });
-
-      expect(read.records).toEqual(before.records);
-      expect(read.notUpdated).toMatch(new RegExp(`^the source index at ${at} could not be updated to the checkout: .*Permission denied`, 'u'));
-      expect(said).toEqual([`${read.notUpdated!}; reading it as it stands.`]);
-    } finally {
-      await chmod(dirname(at), 0o755);
-      git('checkout', '--', 'lib/unit.ts');
-    }
   });
 
   it('repairs a damaged index from its valid prefix on a workstation, and refuses it in CI', async () => {

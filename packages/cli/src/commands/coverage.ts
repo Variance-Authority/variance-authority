@@ -50,7 +50,7 @@ import { readExecutionIndex, recordedExecutionFile } from './execution-input.js'
 import { mainlineBase, mainlineMissed } from './mainline-base.js';
 import type { textOver } from './coverage-over-text.js';
 import { runsOf } from './record-runs.js';
-import { indexNames, relationsFor } from './source-graph.js';
+import { indexNames, indexUpToCheckout, relationsFor } from './source-graph.js';
 import { asOperator, nothingRecorded } from './suite-record.js';
 
 /** One suite's record and its base, or why it has neither. */
@@ -152,12 +152,14 @@ export async function coverage(request: ParsedCoverage, over: typeof textOver | 
     );
   }
 
-  // Read first: `--from` narrows every record counted below to the files it reaches. The split names the
-  // checkout's texts by the index, which names them only when it could be brought up to the checkout.
+  // The split names the checkout's texts by the index, so it brings the index up to the checkout first;
+  // one it could not is read as it stands, and names no text the checkout holds.
+  const notUpdated = over === undefined ? undefined : await indexUpToCheckout(request.root);
+  // Read first: `--from` narrows every record counted below to the files it reaches.
   const reading = await readSource(request.root, request.from, request.packages === true);
   const names = 'missed' in reading
     ? { missed: reading.missed }
-    : reading.notUpdated === undefined ? indexNames(reading.records) : { missed: reading.notUpdated };
+    : notUpdated === undefined ? indexNames(reading.records) : { missed: notUpdated };
   if ('missed' in reading && request.from !== undefined) {
     throw new OperatorError(`\`--from ${request.from}\` is answered by the source index, and ${reading.missed}`);
   }

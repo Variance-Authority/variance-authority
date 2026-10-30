@@ -56,12 +56,6 @@ export interface PublishedSources {
   /** The segment digests that were read, in order: the generation's identity. */
   readonly generation: readonly Digest[];
   /**
-   * Why the index could not be brought up to the checkout, when a reader
-   * outside CI tried and it could not: what it holds is read as it stands, and
-   * describes the checkout as the last update found it.
-   */
-  readonly notUpdated?: string;
-  /**
    * How each file uses each file it imports, joined from the records and parses
    * above when a walk asks for an edge. Nothing is stored for it.
    */
@@ -264,7 +258,7 @@ export async function updateSourceIndex(
   };
 }
 
-/** The refusal a reader gives when the index it reads was never published in CI, or could not be updated outside it. */
+/** The refusal a reader gives in CI when the index it reads was never published. */
 export class SourceIndexUnpublished extends Error {
   override readonly name = 'SourceIndexUnpublished';
 }
@@ -285,13 +279,10 @@ export interface PublishedSourcesOptions {
 /**
  * The published generation, or the reason there is none.
  *
- * In CI: a whole index is returned as read; one missing, damaged, or written in
- * another format version is refused, naming the step the pipeline lacks.
- * Anywhere else the index is brought up to the checkout first, silently when it
- * was whole and with a line saying why when it was not. An update that fails
- * leaves a whole index to be read as it stands, with the reason in
- * `notUpdated` and one line saying so; with no whole index to fall back on, it
- * is refused with that reason.
+ * Whole: returned as read. Missing, damaged, or written in another format
+ * version in CI: refused, naming the step the pipeline lacks. Any of them
+ * anywhere else: updated once — from the valid prefix, when there is one — with
+ * a line saying which of them it was, then read.
  */
 export async function publishedSources(
   root: string,
@@ -299,13 +290,7 @@ export async function publishedSources(
 ): Promise<PublishedSources> {
   const path = options.index ?? sourceIndexPath(resolve(root));
   const read = await readPublishedSources(path);
-  if (read.state === 'published' && options.ci) return read;
-  if (read.state === 'published') {
-    const refused = await updated(root, path, options);
-    if (refused === undefined) return readPublishedSources(path);
-    options.announce(`${refused}; reading it as it stands.`);
-    return { ...read, notUpdated: refused };
-  }
+  if (read.state === 'published') return read;
 
   const what = read.state === 'missing'
     ? `no source index is published at ${path}`
@@ -321,21 +306,9 @@ export async function publishedSources(
   }
   const doing = read.state === 'other-version' ? 'rebuilding' : 'updating';
   options.announce(`${what}; ${doing} it from the checkout, which is what \`${options.step}\` does.`);
-  const refused = await updated(root, path, options);
-  if (refused !== undefined) throw new SourceIndexUnpublished(refused);
+  await updateSourceIndex(root, {
+    index: path,
+    ...(options.packs === undefined ? {} : { packs: options.packs }),
+  });
   return readPublishedSources(path);
-}
-
-/** Update the index at `path` to the checkout at `root`; the reason it could not be, or nothing when it was. */
-async function updated(root: string, path: string, options: PublishedSourcesOptions): Promise<string | undefined> {
-  let refused: string | undefined;
-  try {
-    refused = (await updateSourceIndex(root, {
-      index: path,
-      ...(options.packs === undefined ? {} : { packs: options.packs }),
-    })).refused;
-  } catch (error) {
-    refused = error instanceof Error ? error.message : String(error);
-  }
-  return refused === undefined ? undefined : `the source index at ${path} could not be updated to the checkout: ${refused}`;
 }

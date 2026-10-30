@@ -121,8 +121,6 @@ export type SourceReading =
       readonly entries?: readonly (EntryReading | MissedEntry)[];
       /** With `--packages`: the package that holds a file, among every listed package, one of nothing but tests too. */
       readonly ownerOf?: (file: string) => string;
-      /** Why the index could not be brought up to the checkout: it was read as it stands. */
-      readonly notUpdated?: string;
     })
   | { readonly missed: string };
 
@@ -168,10 +166,7 @@ export async function readSource(root: string, from: string | undefined, package
       return { from: dir, missed: messageOf(error) };
     }
   }).filter((entry) => 'missed' in entry || entry.own.sizes.length > 0);
-  const listed = {
-    ...(dirs.length === 0 ? {} : { entries, ...(packages ? { ownerOf } : {}) }),
-    ...(published.notUpdated === undefined ? {} : { notUpdated: published.notUpdated }),
-  };
+  const listed = dirs.length === 0 ? {} : { entries, ...(packages ? { ownerOf } : {}) };
   if (declared.length === 0) {
     try {
       return { ...scoped(from), records: published.records, ...listed };

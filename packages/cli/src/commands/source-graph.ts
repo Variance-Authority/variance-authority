@@ -12,7 +12,7 @@
 
 import { readdirSync, type Dirent } from 'node:fs';
 import { readFile } from 'node:fs/promises';
-import { isAbsolute, join, relative } from 'node:path';
+import { isAbsolute, join, relative, resolve } from 'node:path';
 import type { SourceIndex } from '@variance-authority/core/attribute';
 import type { FileRecord, Relations } from '@variance-authority/core/relate';
 import {
@@ -20,10 +20,13 @@ import {
   publishedSources,
   runGraphOf,
   SourceIndexUnpublished,
+  sourceIndexPath,
   sourcesWithin,
   taintFile,
+  updateSourceIndex,
 } from '@variance-authority/sense';
 import { isCI } from 'ci-info';
+import { messageOf } from '../config-values.js';
 import { OperatorError } from '../exit.js';
 import { indexOf } from './affected.js';
 import { installedDepends } from './installed.js';
@@ -90,8 +93,6 @@ export interface SourceGraph {
   readonly sources: ReadonlySet<string>;
   /** The name the index gives the text each file it holds holds now ({@link indexNames}). */
   readonly names: IndexNames;
-  /** Why the index could not be brought up to the checkout: it was read as it stands, and `names` name the tree as the last update found it. */
-  readonly notUpdated?: string;
 }
 
 /** The source index's name for the text each file it holds holds now: its git blob name. A file it does not hold has none. */
@@ -109,7 +110,7 @@ export function indexNames(records: readonly FileRecord[]): IndexNames {
  * instead, at the path `named` gives it in `repository`.
  */
 export async function treeNames(
-  graph: Pick<SourceGraph, 'names' | 'notUpdated'>,
+  graph: { readonly names: IndexNames; readonly notUpdated?: string },
   files: readonly string[],
   repository: string,
   named: (file: string) => string,
@@ -120,6 +121,30 @@ export async function treeNames(
     const name = onDisk.get(named(file));
     return name === undefined ? [] : [[file, name] as const];
   }));
+}
+
+/**
+ * Bring the source index at `root` up to the checkout, for a reader that names
+ * the checkout's texts by it and so needs it to name the texts on disk now.
+ * Outside CI only: CI reads what its own `variance index` step published, and
+ * the readers that only walk the graph read the index as it stands. An update
+ * that cannot be made is said on stderr and never refused: the index is read as
+ * it stands, and what it names is not the checkout's. The reason, or nothing
+ * when the index is up to the checkout.
+ */
+export async function indexUpToCheckout(root: string, ci = isCI): Promise<string | undefined> {
+  if (ci) return undefined;
+  const path = sourceIndexPath(resolve(root));
+  let refused: string | undefined;
+  try {
+    refused = (await updateSourceIndex(root)).refused;
+  } catch (error) {
+    refused = messageOf(error);
+  }
+  if (refused === undefined) return undefined;
+  const reason = `the source index at ${path} could not be updated to the checkout: ${refused}`;
+  process.stderr.write(`variance: ${reason}; reading it as it stands.\n`);
+  return reason;
 }
 
 /** {@link relationsFor}, with the files the source index read, from the one read of it. */
@@ -148,7 +173,6 @@ export async function sourceGraphFor(
     relations: await runGraphOf(read.records, { root, cache: read.cache, taints: tables, depends, uses: read.uses }),
     sources: new Set(read.records.map((record) => record.file)),
     names: indexNames(read.all),
-    ...(read.notUpdated === undefined ? {} : { notUpdated: read.notUpdated }),
   };
 }
 
@@ -186,7 +210,6 @@ async function publishedWithin(
     all: published.records,
     cache: published.cache,
     uses: published.uses,
-    notUpdated: published.notUpdated,
   };
 }
 
