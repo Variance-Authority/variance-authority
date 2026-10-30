@@ -111,7 +111,7 @@ async work of the same case shows where it ran.
 - A page case writes a story: the page tapes, and the runner lays each drain
   end to end under the case (`story/page.ts`). Playwright drains at every spec
   statement and opens each drain with its line. Vitest browser mode runs the
-  cut test file in the page, so the tape notes each test line itself, and the
+  cut test file in the page, so the tape cuts at each test line itself, and the
   runner takes it at the end of each case. The page's cut skips the probes
   already in the file, since there they go in first. A service head writes
   none; that is an `it.todo` marker.
