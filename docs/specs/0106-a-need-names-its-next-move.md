@@ -227,7 +227,7 @@ how an answer is shown or where it is written, not what it answers, such as
 | know who breaks if it changes | `ask uses --name <name> [--package <name>] [--file <path>]` | know who breaks if it changes; run something that already exercises this code; find the files that take a name from outside the workspace |
 | find the files that take a name from outside the workspace | `ask discover --imports <module#name>` | run something that already exercises this code |
 | know what rests on a file at any depth | `ask discover --to <path>` | run something that already exercises this code |
-| know how many test files an edit here runs, before making it | `covering --file <path> [--line <n>\|--function <f>]` | pin what a region does before changing it; make a file cheaper to change |
+| know how many test files an edit here runs, before making it | `covering --file <path> [--line <n>\|--function <f>]`, `coverage --fan-in` | pin what a region does before changing it; make a file cheaper to change |
 | know how much of a part of the repository tests reach | `coverage --from <dir>`, `coverage --packages` | run something that already exercises this code |
 | run something that already exercises this code | `covering --file <path> [--function <f>]`, its MCP twin `variance_source_tests`, `ask journey-map --file <path>` | see what a test actually did here |
 | see what a test actually did here | `story --file <test> --name <case>`, `distill --test <id>`; over MCP `variance_distill`, `variance_test_attention`, `variance_scenarios`, `variance_presentations` | know what a test is made of; know what a name is before touching it |
@@ -236,10 +236,10 @@ how an answer is shown or where it is written, not what it answers, such as
 The edit's count is the record's: test files that called into the region,
 which is the least an edit to it runs, since the test files that only loaded
 the file run too. `covering --file` answers one file range by range, and
-each edge is a condition on it. A region whose `state` is `alone` opens pinning
-it before the edit. A file whose regions many test files called into opens
-making it cheaper to change, where `coverage --fan-in` ranks it against the
-whole suite.
+`coverage --fan-in` the whole suite, naming the files at each end. A region one
+test file ran opens pinning it before the edit. A file most test files called
+into, or one selected whole beyond what its median region needs, opens making
+it cheaper to change.
 
 A story is read from a recording of the cases it names. Recording it is a
 focused run of them with `VARIANCE_AUTHORITY_STORY` set, an *operation*
@@ -284,7 +284,7 @@ drop exactly the tests nothing has recorded yet.
 |---|---|---|
 | know what my change did to the cases, against the mainline's record | `covering --since <ref> --against <record> --format refs` | know which statement of a case first ran a region; know what a case did differently from its last run, or from another case |
 | know what my last change did to the cases, with no mainline record | `covering --file <path> --cases last --format refs` | know which statement of a case first ran a region; know what a case did differently from its last run, or from another case |
-| know which changed regions the red cases share | `covering --since <ref> --format refs` | know what my change did to the cases, against the mainline's record; know how many test files an edit here runs, before making it |
+| know which changed regions the red cases share | `covering --since <ref> --format refs`, `coverage --fan-in` | know what my change did to the cases, against the mainline's record; know how many test files an edit here runs, before making it |
 | know which statement of a case first ran a region | **gap** | — |
 | know why a case passes on one run and throws on another | `story --file <test> --name <case> --compare outcome` | know what a name is before touching it |
 | know what a case did differently from its last run, or from another case | `story --file <test> --name <case> --compare last`, `story … --compare <a>,<b>` | know what a name is before touching it |
@@ -307,7 +307,8 @@ comparison answers by region from a record that already exists.
 
 When one edit turns many cases red, `covering --since` names each changed
 region with the cases that ran it, so the regions the red cases share are read
-off one answer. A shared region is where to look, not a proven cause.
+off one answer, and `coverage --fan-in` names the files an edit sends the
+most test files from. A shared region is where to look, not a proven cause.
 
 ### Refactor
 
@@ -458,7 +459,10 @@ and maps each verb of `COMMANDS` to its declaration in a
 `Record<(typeof COMMANDS)[number], …>` in `usage.ts`, as `PER_COMMAND` is held,
 so the compiler holds that every verb is declared.
 
-One command can answer several needs: `ask discover` by `--text`, `--imports`,
+A command appears in every phase whose need it answers: `covering --since`
+under Verify and Fix, `coverage --fan-in` under Understand, Fix and Refactor.
+Each place is its own row, with its own edges. One command can answer several
+needs: `ask discover` by `--text`, `--imports`,
 `--to` or several filters; `covering` by `--file` or `--since`; `story` by
 `--name` or `--compare`. So an entry is keyed by its need, and names the
 command and the flags that ask it; one command with the same flags answers two
