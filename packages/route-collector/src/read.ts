@@ -12,6 +12,7 @@ import {
 import { suspenseRefusal, type HydrationSettlement } from '@variance-authority/react';
 import type { Collected, CollectorConfig, PlannedSubject } from './contract.js';
 import type { RouteRecorder } from './execution.js';
+import { operatorError } from './operator.js';
 import type { RouteCollectorOptions } from './options.js';
 import type { AcquireRequest, Acquired } from './page-agent.js';
 import type { RouteWorld } from './world.js';
@@ -31,6 +32,15 @@ import type { RouteWorld } from './world.js';
  */
 
 const DEFAULT_READY_TIMEOUT_MS = 10_000;
+
+/**
+ * Chromium's name for a connection nothing accepted: the server is gone, and
+ * every route left would be refused the same way. It ends the read with an
+ * operator error, not a failure about one route, which would bury the one line
+ * that matters under a copy per route and exit as if changes were found. The
+ * world is always Chromium, and Playwright carries the net error in its message.
+ */
+const CONNECTION_REFUSED = 'net::ERR_CONNECTION_REFUSED';
 
 /**
  * The attribute a page carries to leave the run, its value the reason. A page
@@ -158,13 +168,27 @@ export async function readRoute(
       );
     }
   } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+
+    // Only a refused connection ends the read; an empty response or a reset
+    // stays this page's failure, since the server answered, once, badly.
+    if (message.includes(CONNECTION_REFUSED)) {
+      throw operatorError(
+        `nothing is listening at ${new URL(url).origin}: the browser's connection was ` +
+          `refused while reading \`${id}\` (${url}), and every route left would be ` +
+          'refused the same way, so the read stops here. Start the server again, or ' +
+          'read its log for why it stopped.',
+        { cause: error },
+      );
+    }
+
     await noted(false);
     return {
       ok: false,
       because:
         `the route did not become ready at ${url}` +
         (readyFor(id) === undefined ? '' : ` (waiting for ${readyFor(id)})`) +
-        `: ${error instanceof Error ? error.message : String(error)}`,
+        `: ${message}`,
     };
   }
 
