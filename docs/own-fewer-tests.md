@@ -350,8 +350,9 @@ coverage at 277e4c8f, recorded at 0bb4c2ad — 5 regions in 2 files the suites l
 The heading names the commit the record was made at whenever it is not the one
 you have checked out. The same part is counted on each suite row, on the
 directory `--from` names, and on each `--packages` row, under own tests and
-under others'. An edit touches a region when it changes the region's lines;
-an edit outside them, which only moves the region, leaves it run.
+under others'. An edit touches a region when it changes what runs there. An
+edit outside the region's lines only moves it, and an edit that does not reach
+the region's code, such as a comment you add inside a function, leaves it run.
 When the version a test ran cannot be found, because the record does not say
 which commit each test file last ran at, or that version was neither kept nor
 committed, the region counts as **not known**, and the reason is named once
