@@ -149,6 +149,90 @@ describe('the needs reader', () => {
     ).toEqual([]);
   });
 
+  // A call into a Node module, the calls chained on what it returns and the literals handed to them are the
+  // platform's words: two functions that share only those answer different questions. The fifty functions
+  // around them stand for the rest of a checkout, where such a call is as rare as it is there.
+  const digests = [
+    ...Array.from({ length: 50 }, (_, index) =>
+      unitsIn(`packages/report/src/rows-${index}.ts`, `export const rows${index} = (rows) => rows.map((row) => row.id${index}).filter(Boolean);`),
+    ).flat(),
+    ...unitsIn(
+      'packages/cli/src/commands/push.ts',
+      [
+        "import { createHash } from 'node:crypto';",
+        'function digestOf(bytes: Buffer): string {',
+        "  return createHash('sha256').update(bytes).digest('hex');",
+        '}',
+      ].join('\n'),
+    ),
+    ...unitsIn(
+      'packages/server/src/http.ts',
+      [
+        "import { createHash } from 'node:crypto';",
+        'function fingerprint(token: string): Buffer {',
+        "  return createHash('sha256').update(token, 'utf8').digest();",
+        '}',
+      ].join('\n'),
+    ),
+    ...unitsIn(
+      'packages/cli/src/commands/select-install-fixture.ts',
+      [
+        "import { execFileSync } from 'node:child_process';",
+        'export function checkout(root: string) {',
+        '  const git = (args: readonly string[]): string =>',
+        "    execFileSync('git', args, { cwd: root, encoding: 'utf8' }).trim();",
+        "  git(['init', '--quiet']);",
+        '}',
+      ].join('\n'),
+    ),
+  ];
+  const near = (path: string, text: string) =>
+    (twinsOf(unitsIn(path, text), digests) as readonly { unit: Unit; twins: readonly Twin[] }[]).map(
+      ({ unit, twins }) => `${unit.name}: ${twins.map((twin) => `${twin.path}#${twin.name}`).join(', ')}`,
+    );
+
+  it('names nothing for a function that shares only the calls of a Node module and their literals', () => {
+    expect(
+      near(
+        'packages/sense/src/digest.ts',
+        [
+          "import { createHash } from 'node:crypto';",
+          'export function blobName(bytes: Buffer, digits: number): string {',
+          "  return createHash(digits === 64 ? 'sha256' : 'sha1')",
+          '    .update(`blob ${bytes.length}\\0`)',
+          '    .update(bytes)',
+          "    .digest('hex');",
+          '}',
+        ].join('\n'),
+      ),
+    ).toEqual([]);
+    expect(
+      near(
+        'packages/cli/src/commands/review-fixture.ts',
+        [
+          "import { execFileSync } from 'node:child_process';",
+          'export const hashObject = (text: string): string =>',
+          "  `git:${execFileSync('git', ['hash-object', '--stdin'], { input: text, encoding: 'utf8' }).trim()}`;",
+        ].join('\n'),
+      ),
+    ).toEqual([]);
+  });
+
+  it('names a function that shares what it is for besides the calls of a Node module, and the one holding its twin', () => {
+    expect(
+      near(
+        'packages/cli/src/commands/push-fixture.ts',
+        [
+          "import { execFileSync } from 'node:child_process';",
+          'export const git = (root: string, args: readonly string[]): string =>',
+          "  execFileSync('git', args, { cwd: root, encoding: 'utf8' }).trim();",
+        ].join('\n'),
+      ),
+    ).toEqual([
+      'git: packages/cli/src/commands/select-install-fixture.ts#git, packages/cli/src/commands/select-install-fixture.ts#checkout',
+    ]);
+  });
+
   it('never names the function as its own twin', () => {
     const added = existing.filter((unit: Unit) => unit.name === 'readManifest');
     expect(twinsOf(added, existing)).toEqual([]);

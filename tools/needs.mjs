@@ -1,6 +1,6 @@
 import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
-import { createRequire } from 'node:module';
+import { createRequire, isBuiltin } from 'node:module';
 import { dirname, extname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { parseSync } from 'oxc-parser';
@@ -32,6 +32,13 @@ import { isFunction, isSource, lines, visit } from './owners.mjs';
 /** The share of needs, in thousandths of the weight either holds, at which an existing function is named. */
 const SHARED = 450;
 
+/**
+ * The share a pair must also reach on {@link ownOf own} needs alone: half of
+ * {@link SHARED}, so calls into a Node module and their literals never carry a
+ * pair by themselves (issue 856).
+ */
+const OWNED = SHARED / 2;
+
 /** The fewest distinct needs a function holds before it is asked about: fewer say too little to compare. */
 const SMALLEST = 5;
 
@@ -49,7 +56,7 @@ export function unitsIn(path, text) {
   const lineOf = lines(text);
   const units = [];
   const unit = (name, node, kind) => {
-    if (typeof name === 'string' && name !== '') units.push({ path, name, kind, line: lineOf(node.start), bag: bagOf(node, name, imported) });
+    if (typeof name === 'string' && name !== '') units.push({ path, name, kind, line: lineOf(node.start), ...bagOf(node, name, imported) });
   };
   // A constant is the module's when a statement of the module declares it, not a block or a loop inside one.
   const declared = new Set(parsed.program.body.flatMap((statement) => (statement.declaration ?? statement).declarations ?? []));
@@ -78,23 +85,27 @@ export const asks = (unit) => unit.kind === 'function' && unit.name !== 'constru
  * that need what it needs, nearest first.
  *
  * Rarity is counted over `existing`, the code a new function is measured
- * against. The share is the weighted Jaccard index in thousandths, rounded
- * down from integers, so a tie is a tie on every machine, and it breaks by
- * path, then name, then line.
+ * against. The share is the weighted Jaccard index in thousandths, rounded down
+ * from integers, so a tie is a tie on every machine, and it breaks by path, then
+ * name, then line. A pair is named at {@link SHARED} only when its {@link ownOf
+ * own} needs alone share {@link OWNED}.
  */
 export function twinsOf(added, existing) {
   const weight = rarityIn(existing);
   const weighed = (bag) => heldWeight(bag, weight, () => 1);
-  const held = existing.map((unit) => ({ needs: new Set(unit.bag), weight: weighed(unit.bag) }));
+  const read = (bag) => ({ needs: new Set(bag), weight: weighed(bag) });
+  const held = existing.map((unit) => ({ all: read(unit.bag), own: read(ownOf(unit)) }));
   const found = [];
   for (const unit of added) {
     if (!asks(unit)) continue;
-    const own = weighed(unit.bag);
-    const shareWith = ({ needs, weight: theirs }) => {
-      const both = weighed(unit.bag.filter((need) => needs.has(need)));
-      const either = own + theirs - both;
+    const mine = { all: unit.bag, own: ownOf(unit) };
+    const mineWeight = { all: weighed(mine.all), own: weighed(mine.own) };
+    const shareOf = (key, { needs, weight: theirs }) => {
+      const both = weighed(mine[key].filter((need) => needs.has(need)));
+      const either = mineWeight[key] + theirs - both;
       return either === 0 ? 0 : Math.floor((1000 * both) / either);
     };
+    const shareWith = (other) => (shareOf('own', other.own) >= OWNED ? shareOf('all', other.all) : 0);
     const twins = existing
       .map((other, index) => ({ other, share: shareWith(held[index]) }))
       .filter(({ other, share }) => share >= SHARED && !(other.path === unit.path && other.name === unit.name))
@@ -278,7 +289,7 @@ function throughCache(cache, blob, path, text, unread) {
   const key = `${blob}${extname(path)}`;
   let held = cache.blobs.get(key);
   if (held === undefined) {
-    held = parsedOr(unread, path, () => unitsIn(path, text()).map(({ name, kind, line, bag }) => ({ name, kind, line, bag })));
+    held = parsedOr(unread, path, () => unitsIn(path, text()).map(({ name, kind, line, bag, platform }) => ({ name, kind, line, bag, platform })));
     if (unread.has(path)) return [];
     cache.changed = true;
   }
@@ -342,11 +353,17 @@ function chainOf(node) {
  * name, and by its module or receiver; `prop:` each field it reads; `str:` and
  * `re:` each short string and pattern it writes; `type:` each type it names;
  * `imp:` each import it uses; `word:` the words of every name it binds or reads;
- * `name:` the words of its own name.
+ * `name:` the words of its own name. `platform` holds the needs only the
+ * {@link platformOf platform's words} wrote.
  */
 function bagOf(root, name, imported) {
   const bag = new Set();
-  const add = (token) => bag.add(token);
+  const own = new Set();
+  const platform = platformOf(root, imported);
+  const add = (token, node) => {
+    bag.add(token);
+    if (!platform.has(node)) own.add(token);
+  };
   for (const word of tokensOf(name)) add(`name:${word}`);
   visit(root, (node) => {
     if (node.type === 'CallExpression' || node.type === 'NewExpression') {
@@ -355,30 +372,85 @@ function bagOf(root, name, imported) {
         const links = chain.split('.');
         const last = links.at(-1);
         const from = imported.get(links[0]);
-        add(`call:${last}`);
-        if (links.length > 1) add(`call:${(from === undefined ? '' : from.split('#')[0]) || links[0]}.${last}`);
-        else if (from !== undefined) add(`call:${from}`);
+        add(`call:${last}`, node);
+        if (links.length > 1) add(`call:${(from === undefined ? '' : from.split('#')[0]) || links[0]}.${last}`, node);
+        else if (from !== undefined) add(`call:${from}`, node);
       }
     }
     if (node.type === 'Literal') {
-      if (typeof node.value === 'string' && node.value.length <= 60) add(`str:${node.value}`);
-      if (node.regex) add(`re:${node.regex.pattern}`);
+      if (typeof node.value === 'string' && node.value.length <= 60) add(`str:${node.value}`, node);
+      if (node.regex) add(`re:${node.regex.pattern}`, node);
     }
     if (node.type === 'TemplateElement') {
       const text = node.value?.cooked ?? node.value?.raw;
-      if (text && text.trim() && text.length <= 60) add(`str:${text}`);
+      if (text && text.trim() && text.length <= 60) add(`str:${text}`, node);
     }
-    if (node.type === 'MemberExpression' && !node.computed && node.property?.name) add(`prop:${node.property.name}`);
+    if (node.type === 'MemberExpression' && !node.computed && node.property?.name) add(`prop:${node.property.name}`, node);
     if (node.type === 'TSTypeReference') {
       const type = chainOf(node.typeName) ?? node.typeName?.right?.name;
-      if (type !== undefined) add(`type:${type.split('.').at(-1)}`);
+      if (type !== undefined) add(`type:${type.split('.').at(-1)}`, node);
     }
     if (node.type === 'Identifier' && node.name) {
-      for (const word of tokensOf(node.name)) add(`word:${word}`);
-      if (imported.has(node.name)) add(`imp:${imported.get(node.name)}`);
+      for (const word of tokensOf(node.name)) add(`word:${word}`, node);
+      if (imported.has(node.name)) add(`imp:${imported.get(node.name)}`, node);
     }
   });
-  return [...bag].sort(codeUnitOrder);
+  return { bag: [...bag].sort(codeUnitOrder), platform: [...bag].filter((token) => !own.has(token)).sort(codeUnitOrder) };
+}
+
+/** The needs a unit is compared by: its own, without those only the platform's words wrote. */
+export const ownOf = (unit) => {
+  const platform = new Set(unit.platform ?? []);
+  return unit.bag.filter((need) => !platform.has(need));
+};
+
+/**
+ * The nodes under `root` that are the platform's words, not the unit's: a call
+ * of a binding a Node built-in module exports, each call chained on what it
+ * returns, and the names and literals of those calls, the options' keys and
+ * values included. They say how a unit reaches the platform, not what it is
+ * for, so two units sharing only them share no question (issue 856). An
+ * identifier or template handed to such a call, and an array of arguments for
+ * a command, stay the unit's own.
+ */
+function platformOf(root, imported) {
+  const nodes = new Set();
+  const isPlatform = (call) => nodes.has(call);
+  const valuesOf = (node, inOptions) => {
+    if (node?.type === 'Literal') nodes.add(node);
+    else if (node?.type === 'ConditionalExpression') [node.consequent, node.alternate].forEach((branch) => valuesOf(branch, inOptions));
+    else if (node?.type === 'LogicalExpression') [node.left, node.right].forEach((side) => valuesOf(side, inOptions));
+    else if (node?.type === 'ArrayExpression' && inOptions) node.elements.forEach((element) => valuesOf(element, true));
+    else if (node?.type === 'ObjectExpression') {
+      for (const property of node.properties) {
+        if (property.type !== 'Property') continue;
+        if (!property.computed) nodes.add(property.key);
+        if (!property.shorthand) valuesOf(property.value, true);
+      }
+    }
+  };
+  // Children before parents: `a().b()` is a call of `a()`'s member, read once `a()` is.
+  const calls = [];
+  visit(root, (node) => {
+    if (node.type === 'CallExpression' || node.type === 'NewExpression') calls.push(node);
+  });
+  for (const call of calls.sort((left, right) => right.start - left.start || left.end - right.end)) {
+    let callee = call.callee;
+    while (['ChainExpression', 'TSNonNullExpression', 'ParenthesizedExpression'].includes(callee?.type)) callee = callee.expression;
+    const builtin = (identifier) => identifier?.type === 'Identifier' && isBuiltin(imported.get(identifier.name)?.split('#')[0] ?? '');
+    let base = callee;
+    while (base?.type === 'MemberExpression' && !base.computed) base = base.object;
+    while (['ChainExpression', 'TSNonNullExpression', 'ParenthesizedExpression'].includes(base?.type)) base = base.expression;
+    if (!builtin(base) && !(callee?.type === 'MemberExpression' && isPlatform(base))) continue;
+    nodes.add(call);
+    if (base.type === 'Identifier') nodes.add(base);
+    for (let link = callee; link?.type === 'MemberExpression'; link = link.object) {
+      nodes.add(link);
+      nodes.add(link.property);
+    }
+    for (const argument of call.arguments) valuesOf(argument, false);
+  }
+  return nodes;
 }
 
 // The rarity of each need over `units`: a need every unit holds weighs least,
