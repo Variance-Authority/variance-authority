@@ -1,10 +1,13 @@
 import { rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { testCoverageFile } from '@variance-authority/sense/test-selection';
 import { main } from '../bin.js';
 import { digestString } from '@variance-authority/core/format';
 import { MINUTE, PAY, indexOf, iso, oneRun, recordFixture, type Fixture } from './covering-record.fixture.js';
+
+// `ci-info` decides CI once, when it loads, so the module is cut: these questions are asked outside CI.
+vi.mock('ci-info', () => ({ isCI: false }));
 
 /**
  * Every `covering` answer about a file says where the record's line numbers

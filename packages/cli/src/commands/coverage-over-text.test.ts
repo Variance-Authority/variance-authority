@@ -1,6 +1,6 @@
-import { chmod, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { dirname, join } from 'node:path';
+import { join } from 'node:path';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { sourceIndexPath, updateSourceIndex } from '@variance-authority/sense';
 import { commitRunsFile, repositoryLayers, testCoverageFile } from '@variance-authority/sense/test-selection';
@@ -12,6 +12,14 @@ import { ask, atRecord, CART, CART_TEST, checkout, FEE_TEST, json, landed, made,
 // `ci-info` decides CI once, when it loads, so the module is cut: a test that runs as CI sets `ci.isCI`.
 const ci = vi.hoisted(() => ({ isCI: false }));
 vi.mock('ci-info', () => ({ get isCI() { return ci.isCI; } }));
+// Cut so a test can refuse the update as a full disk would, whoever runs the suite: a directory's mode does not stop root.
+const update = vi.hoisted(() => ({ fails: undefined as string | undefined }));
+vi.mock('@variance-authority/sense', async (importOriginal) => {
+  const original = await importOriginal<typeof import('@variance-authority/sense')>();
+  const updateSourceIndex: typeof original.updateSourceIndex = (...args) =>
+    update.fails === undefined ? original.updateSourceIndex(...args) : Promise.reject(new Error(update.fails));
+  return { ...original, updateSourceIndex };
+});
 // Counted, not changed: which texts a split hashes and diffs, and whether a review asks for the split at all.
 vi.mock('@variance-authority/core/format', async (importOriginal) => {
   const original = await importOriginal<typeof import('@variance-authority/core/format')>();
@@ -279,8 +287,7 @@ describe('coverage names why a text is not known', () => {
   it('counts every region run as not known when the source index cannot be brought up to the checkout, gives the reason, and reads the index as it stands for the rest', async () => {
     const { at } = await checkout(atRecord);
     await writeFile(join(at, PAY_FILE), REFUNDED);
-    const index = dirname(sourceIndexPath(at));
-    await chmod(index, 0o555);
+    update.fails = 'ENOSPC: no space left on device, write';
     try {
       const said = await json('--root', at);
       const from = await json('--root', at, '--from', 'libs/pay');
@@ -289,13 +296,13 @@ describe('coverage names why a text is not known', () => {
       const told = stderr.mock.calls.map(([line]) => String(line)).join('');
       stderr.mockRestore();
 
-      const why = [expect.stringMatching(/^which text ran is not known: the source index at .+ could not be updated to the checkout: .*Permission denied/u)];
+      const why = [expect.stringMatching(/^which text ran is not known: the source index at .+ could not be updated to the checkout: .*no space left on device/u)];
       expect(said.count).toMatchObject({ run: 3, over: { older: 0, notKnown: 3, why } });
       expect(said.source).toMatchObject({ over: { older: 0, notKnown: 3 } });
       expect(from.source).toMatchObject({ over: { older: 0, notKnown: 2 } });
       expect(told.match(/could not be updated to the checkout: .*; reading it as it stands\./gu)).toHaveLength(1);
     } finally {
-      await chmod(index, 0o755);
+      update.fails = undefined;
     }
   });
 
@@ -304,7 +311,9 @@ describe('coverage names why a text is not known', () => {
     const { at } = await checkout(atRecord);
     await writeFile(join(at, PAY_FILE), REFUNDED);
     await updateSourceIndex(at);
-    await chmod(join(at, PAY_FILE), 0o000);
+    // A directory where the file was: no reader opens it as a text, root included.
+    await rm(join(at, PAY_FILE));
+    await mkdir(join(at, PAY_FILE));
     ci.isCI = true;
     try {
       expect((await json('--root', at)).count).toMatchObject({
@@ -313,7 +322,6 @@ describe('coverage names why a text is not known', () => {
       });
     } finally {
       ci.isCI = false;
-      await chmod(join(at, PAY_FILE), 0o644);
     }
   });
 

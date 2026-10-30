@@ -3,6 +3,9 @@ import { join } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 import { HOUR, MINUTE, PAY, iso, recordFixture } from './covering-record.fixture.js';
 
+// `ci-info` decides CI once, when it loads, so the module is cut: these questions are asked outside CI.
+vi.mock('ci-info', () => ({ isCI: false }));
+
 /**
  * What reading the edit between two texts costs a `covering` answer about a
  * region: one reading per distinct pair of texts the question compares,
