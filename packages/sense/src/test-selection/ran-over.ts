@@ -2,9 +2,9 @@
 
 import { digestString } from '../digest.js';
 import type { TestCoverageView } from './format-view.js';
-import { commitFrame } from './frame.js';
+import { arrivedFrame } from './frame.js';
 import { findString } from './lookup.js';
-import { applied, hunksFor, type Hunk } from './patch.js';
+import { hunksFor, type Hunk } from './patch.js';
 import type { FileReading } from './reading.js';
 
 /**
@@ -35,9 +35,9 @@ export function arrivedDigests(
     // Lines with no hunks arrive at no text a test could have run.
     const own = hunksFor(hunks, file);
     if (own === undefined || !declarable(coverage, knownAs(file))) continue;
-    const patched = applied(commitFrame(coverage, knownAs(file), file, sourceAt).text, own);
+    const patched = arrivedFrame(coverage, knownAs(file), own, sourceAt);
     if (patched === undefined) continue;
-    const digest = digestString(patched.after);
+    const digest = digestString(patched.text);
     for (const name of knownAs(file)) arrived.set(name, digest);
   }
   return arrived;

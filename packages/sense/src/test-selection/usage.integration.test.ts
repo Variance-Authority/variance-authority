@@ -193,6 +193,22 @@ describe('a change travels by use', () => {
     expect(narrowing.entered).toEqual(tests('label', 'slide'));
   });
 
+  it('reads a new module that reads a new export by its own text, and charges the one function that calls it', async () => {
+    // The commit holds no text of `wrap.ts`, so the walk from `limits.ts` reads
+    // the text the diff makes. Answered whole, it would charge `label` too.
+    // `count` holds the namespace `registry.ts` keeps whole, which a new export moves.
+    const wrapping = "import { SPAN } from './limits';\n\nexport function wrap(value: number): number {\n  return value % SPAN;\n}\n";
+    const bounds = `${recorded.get(limits)!}export const SPAN = 7;\n`;
+    const now = using(recorded.get(slider)!);
+    const tree = await treeAfter({ [limits]: bounds, [wrap]: wrapping, [slider]: now });
+    const diff =
+      (await diffOf(limits, recorded.get(limits), bounds)) +
+      (await diffOf(wrap, undefined, wrapping)) +
+      (await diffOf(slider, recorded.get(slider), now));
+    const narrowing = await narrowByExecution(coverageFile, diff, { ...tree, sourceAt });
+    expect(narrowing.entered).toEqual(tests('count', 'slide'));
+  });
+
   it('reads a pattern that names other files as no declaration of this one', async () => {
     const now = using(recorded.get(slider)!);
     const manifest = JSON.stringify({ sideEffects: ['*.css', './src/limits.ts'] });
