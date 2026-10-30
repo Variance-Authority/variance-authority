@@ -234,6 +234,35 @@ describe('the published source index', () => {
     ]);
   });
 
+  it('updates on a workstation when it lacks a file the caller asks about and the checkout holds, and says so in one line', async () => {
+    const at = index('lacking');
+    await updateSourceIndex(root, { index: at });
+    await write('lib/added.ts', "import { unit } from './unit.js';\nexport const added = unit;\n");
+    await write('lib/added.test.ts', "import { added } from './added.js';\nvoid added;\n");
+    await write('NOTES.md', 'not a module\n');
+    try {
+      const said: string[] = [];
+      const options = { step: 'variance index', announce: (line: string) => said.push(line), index: at };
+
+      const ci = await publishedSources(root, { ...options, ci: true, holding: ['lib/added.ts'] });
+      expect(ci.records.map((record) => record.file)).not.toContain('lib/added.ts');
+      const unreadable = await publishedSources(root, { ...options, ci: false, holding: ['NOTES.md', 'lib/gone.ts'] });
+      expect(unreadable.records.map((record) => record.file)).not.toContain('NOTES.md');
+      expect(said).toEqual([]);
+
+      const read = await publishedSources(root, { ...options, ci: false, holding: ['lib/added.ts'] });
+      expect(read.records.map((record) => record.file)).toEqual(expect.arrayContaining(['lib/added.ts', 'lib/added.test.ts']));
+      expect(said).toEqual([
+        `the source index at ${at} does not hold lib/added.ts, which the checkout does; ` +
+          'updating it from the checkout, which is what `variance index` does.',
+      ]);
+    } finally {
+      await rm(join(root, 'lib/added.ts'));
+      await rm(join(root, 'lib/added.test.ts'));
+      await rm(join(root, 'NOTES.md'));
+    }
+  });
+
   it('repairs a damaged index from its valid prefix on a workstation, and refuses it in CI', async () => {
     const at = index('damaged');
     await updateSourceIndex(root, { index: at });

@@ -267,7 +267,7 @@ export async function selectSuite(request: SuiteRequest): Promise<SuiteReading> 
     }
   }
 
-  const relations = request.relations ?? await relationsFor(here, ['.'], [], [], request.noGit);
+  const relations = request.relations ?? await relationsFor(here, ['.'], [], [], request.noGit, changed);
   // A bump or a moved manifest is the files it changed, changed whole.
   const beyond = new Map([...installs].map(([stand, installed]) => [stand, beyondOf(relations, installed)] as const));
   // What the suite rests on before reach, moved by any group's diff or install, runs the whole suite.

@@ -158,6 +158,31 @@ describe('a leg read from a real record and a real graph', () => {
     expect(end.left).toContain(LOADED);
   });
 
+  // The index predates the file and its test; the run that recorded them came after.
+  it('places a test by its hops to a file added since the last index, with no index in between', async () => {
+    const FRESH = 'test/fresh.test.ts';
+    const { root } = checkout();
+    process.chdir(root);
+    await indexOutput({ cwd: root });
+    writeFileSync(join(root, 'src/fresh.ts'), WIDGET.replace('widget', 'fresh'));
+    writeFileSync(join(root, FRESH), "import { fresh } from '../src/fresh';\nfresh();\n");
+    execFileSync('git', ['add', '-A'], { cwd: root });
+    execFileSync('git', ['commit', '--quiet', '-m', 'a file and its test'], { cwd: root });
+    const head = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).trim();
+    const recorded = snapshot(head);
+    await writeTestCoverage(testCoverageFile(root), {
+      ...recorded,
+      tests: [...recorded.tests, { file: FRESH, complete: true, preconditions: [] }],
+      modules: [...recorded.modules, moduleOf('src/fresh.ts', WIDGET.replace('widget', 'fresh'), 3, [FRESH], 'fresh')],
+    });
+    writeFileSync(join(root, 'src/fresh.ts'), WIDGET.replace('widget', 'fresh').replace("return 'a';", "return 'z';"));
+
+    const near = JSON.parse((await selectOutput({ cwd: root, format: 'json', atDistance: { from: 0, to: 1 } })).out);
+
+    expect(near.distances).toContainEqual(expect.objectContaining({ test: FRESH, hops: 1 }));
+    expect(near.skip).not.toContain(FRESH);
+  });
+
   // 8633dd2a took these out of `0-2` for their browser start-up; placed by hops, they are back.
   it.todo(
     'pays no browser start-up in `0-2` for a file whose every case skipped, while a test a partial run demoted keeps its hops — needs the record to tell a file whose every case skipped from a test a partial run demoted, and `verify:near` timings to say whether the start-up is paid again',

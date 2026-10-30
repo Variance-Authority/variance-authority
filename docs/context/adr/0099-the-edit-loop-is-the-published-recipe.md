@@ -60,21 +60,23 @@ lost by it: a new file is reached only through an import an edit added, and
 that edited importer charges every test that loaded it. Checked by adding a new
 module and its import, then reading the loop and `variance select` after it.
 
-## Amended 2026-10-31 — the line refreshes the source index again
+## Amended 2026-10-31 — a reader updates an index older than its question
 
 The consequence above does not hold: no run writes the source index, so the
 graph a selection reads is the last `variance index`, whatever ran since. A
-file added after it has no hops, and the test that imports it is placed only in
-the open leg. An edit to the new file alone then selects nothing at `0-1`
+file added after it had no hops, and the test that imports it was placed only
+in the open leg. An edit to the new file alone then selected nothing at `0-1`
 ([#777](https://github.com/Variance-Authority/variance-authority/issues/777)).
 
-The line runs `variance index` between the compiler and the runner again, as
-the script did and `verify:near` does, and the page publishes it with that step.
-It costs about 0.34 s in this repository when little changed.
+The line stays as published. The selection asks the published index for the
+files the diff changed, and on a workstation an index that lacks one the
+checkout holds is updated once, with a line on stderr, as a missing one is. CI
+reads its index as published: the pipeline's step ran over that checkout.
 
 `yarn test:loop` hands its arguments to the runner and reads its leg from
-`VARIANCE_AUTHORITY_AT_DISTANCE`, `0-1` when unset. A flag Vitest does not take
-fails before any test runs, where it used to reach `tools/needs.mjs` unread
+`VARIANCE_AUTHORITY_AT_DISTANCE`, `0-1` when unset, as `verify:near` and
+`verify:far` read theirs. A flag Vitest does not take fails before any test
+runs, where it used to reach `tools/needs.mjs` unread
 ([#855](https://github.com/Variance-Authority/variance-authority/issues/855));
 the leg's notes under a seam name the variable, which is how the same run asks
 for another leg.

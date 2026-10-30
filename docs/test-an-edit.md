@@ -192,14 +192,8 @@ It is one line on the configuration you wrapped and recorded above, and nothing
 in it is a script of ours:
 
 ```bash
-tsc --build && npx variance index && VARIANCE_AUTHORITY_SINCE= VARIANCE_AUTHORITY_AT_DISTANCE=0-1 npx vitest run
+tsc --build && VARIANCE_AUTHORITY_SINCE= VARIANCE_AUTHORITY_AT_DISTANCE=0-1 npx vitest run
 ```
-
-The run counts import hops over the [source index](source-index.md), and nothing in the run
-writes it. `variance index` brings it up to the text you have now, in a few
-hundred milliseconds when little changed. Without it, a file you added since
-the last index has no hops, and its tests wait for the leg that runs
-everything else.
 
 Under Jest 30 the same two variables go in front of `npx jest`; under Rstest,
 `variance select` with the same range prints the files your script leaves out. Give your agent that line as the command it runs after each edit, and tell it

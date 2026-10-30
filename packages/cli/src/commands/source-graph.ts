@@ -64,8 +64,11 @@ export function sourceFiles(root: string, dirs: readonly string[]): readonly str
  * source index — `variance index` — and every reader reads that generation, so a
  * run that selects pays for the diff once, not once per reader. Where the index
  * is missing, CI refuses and names the step the pipeline lacks, and a
- * workstation builds it once and says so on stderr. CI is the runner's own
- * answer, read through `ci-info`, the package Jest asks.
+ * workstation builds it once and says so on stderr. A workstation does the same
+ * when the index lacks one of the `holding` files — a diff's changed files —
+ * that the checkout holds: a file added since the last index is otherwise a test
+ * with no hops. CI is the runner's own answer, read through `ci-info`, the
+ * package Jest asks.
  * `--no-git` changes where that local build reads each file's bytes — the
  * working tree rather than Git's object store — and nothing about what is read:
  * Git still names every file and its blob, so the index is the same one.
@@ -83,8 +86,9 @@ export async function relationsFor(
   taints: readonly string[] = [],
   before: readonly string[] = [],
   noGit = false,
+  holding: readonly string[] = [],
 ): Promise<Relations> {
-  return (await sourceGraphFor(root, dirs, taints, before, noGit)).relations;
+  return (await sourceGraphFor(root, dirs, taints, before, noGit, holding)).relations;
 }
 
 /** The graph {@link relationsFor} reads, and the files the index read source in to build it: a node the graph holds is not one, since an import of a file nothing reads is a node too. */
@@ -165,8 +169,9 @@ export async function sourceGraphFor(
   taints: readonly string[] = [],
   before: readonly string[] = [],
   noGit = false,
+  holding: readonly string[] = [],
 ): Promise<SourceGraph> {
-  const read = await publishedWithin(root, dirs, before, noGit);
+  const read = await publishedWithin(root, dirs, before, noGit, holding);
 
   // The mocks are read unasked, as every reader of the checkout's graph reads
   // them; a table named in the config is answered here too, and what it adds
@@ -200,6 +205,7 @@ async function publishedWithin(
   dirs: readonly string[],
   before: readonly string[],
   noGit: boolean,
+  holding: readonly string[],
 ) {
   let published;
   try {
@@ -208,6 +214,7 @@ async function publishedWithin(
       step: noGit ? 'variance index --no-git' : 'variance index',
       announce: (line) => process.stderr.write(`variance: ${line}\n`),
       ...(noGit ? { packs: false } : {}),
+      holding,
     });
   } catch (error) {
     // A pipeline without the step is the operator's to fix, and the refusal
