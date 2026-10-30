@@ -153,6 +153,9 @@ impl Cuts {
 
     fn statements(&mut self, statements: &[Statement]) {
         for statement in statements {
+            if is_probe(statement) {
+                continue;
+            }
             self.cut(statement.span().start);
             self.inside(statement);
         }
@@ -281,6 +284,14 @@ fn registrars(program: &Program) -> (Vec<String>, Vec<String>) {
 }
 
 /// The name a callee chain starts from: `it` for `it.each([…])` and `it.only`.
+/// A statement the probes put in: a call to one of our `__va` names. Where the
+/// probes go in first, as in a page, it is not a statement of the test's.
+fn is_probe(statement: &Statement) -> bool {
+    let Statement::ExpressionStatement(it) = statement else { return false };
+    let Expression::CallExpression(call) = &it.expression else { return false };
+    matches!(&call.callee, Expression::Identifier(name) if name.name.starts_with("__va"))
+}
+
 fn root_name<'b>(callee: &'b Expression) -> Option<&'b str> {
     match callee {
         Expression::Identifier(it) => Some(it.name.as_str()),
@@ -345,6 +356,13 @@ mod tests {
         let out = cut(source);
         assert_eq!(out.lines().count(), source.lines().count());
         assert!(out.contains("  __vaC(3);const x = add(1, 2);\n  __vaC(4);expect(x).toBe(3);\n"), "{out}");
+    }
+
+    #[test]
+    fn a_probe_already_in_the_body_is_not_a_statement_of_the_test() {
+        // In a page the probes go in first, so the cut reads them.
+        let out = cut("it('adds', () => {__va(1);\n  add(1, 2);\n});\n");
+        assert!(out.contains("() => {__va(1);\n  __vaC(2);add(1, 2);\n"), "{out}");
     }
 
     #[test]

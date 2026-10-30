@@ -105,8 +105,13 @@ export function selectionPlugin(
    * shared by every project in it.
    */
   const takes = (file: string): boolean => mayTake(file, (at) => taken.include(at) || taken.unprobed?.(at) === true);
-  /** A test file the run cuts: the file itself only, since a query asks for a module built from it. */
-  const cutting = (id: string, file: string): boolean => cut !== undefined && id === file && run.cases && cut(file);
+  /**
+   * A test file the run cuts: the file itself only, since a query asks for a
+   * module built from it. A page records no case, but its story still says
+   * which test line ran.
+   */
+  const cutting = (id: string, file: string): boolean =>
+    cut !== undefined && id === file && (run.cases || story !== undefined) && cut(file);
   /** The modules probed first because their files name their own maps, until the probes plugin passes them by. */
   const first = new Set<string>();
   /**

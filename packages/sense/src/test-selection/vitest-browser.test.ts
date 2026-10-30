@@ -218,7 +218,7 @@ describe('a test file that runs in a page', () => {
 });
 
 describe('a case that runs in a page, when stories are asked', () => {
-  it('writes its story, read as a case in Node writes one: the regions it entered, what it printed, how it ended', async () => {
+  it('writes its story, read as a case in Node writes one: the regions it entered under each test line, what it printed, how it ended', async () => {
     const root = await mkdtemp(resolve(tmpdir(), 'variance-browser-story-'));
     vi.stubEnv(STORY_VARIABLE, '1');
     try {
@@ -231,20 +231,26 @@ describe('a case that runs in a page, when stories are asked', () => {
       const instrumented = plugin.transform.handler(PRICE, await held(root, 'src/price.ts', PRICE))!.code;
       const hooks: Partial<Record<'beforeAll' | 'afterAll' | 'beforeEach' | 'afterEach', Hook>> = {};
       const printed: unknown[] = [];
-      const realm = createContext({
+      const realm: Record<string, unknown> = createContext({
         hooks: Object.fromEntries((['beforeAll', 'afterAll', 'beforeEach', 'afterEach'] as const).map((name) => [name, (hook: Hook) => (hooks[name] = hook)])),
         console: { log: (...values: unknown[]) => printed.push(values) },
       });
       runInContext((await readFile(setup, 'utf8')).replace(/^import \{ ([^}]+) \} from "vitest";$/m, 'const { $1 } = hooks;'), realm);
       runInContext(instrumented.replace(/\bexport /g, ''), realm);
-      const filepath = await held(root, 'src/premium.test.ts', 'it("charges a premium", () => price(20));\n');
+      const CASE = 'it("charges a premium", () => {\n  price(20);\n  console.log("charged", 1);\n});\n';
+      const filepath = await held(root, 'src/premium.test.ts', CASE);
+      // The page runs the test file as the plugin cut it, so each statement says its line.
+      let body: (() => void) | undefined;
+      realm['it'] = (_name: string, fn: () => void) => (body = fn);
+      const cutCase = (plugin.transform.handler(CASE, filepath) ?? { code: CASE }).code;
+      runInContext(cutCase, realm);
       const file = { type: 'suite', filepath, name: 'src/premium.test.ts' } as { meta?: object };
       const suite = { type: 'suite', name: 'checkout', file, suite: file };
       const test = { type: 'test', id: 'a1_0', name: 'charges a premium', file, suite } as { meta?: Record<string, unknown> };
 
       hooks.beforeAll!();
       hooks.beforeEach!({ task: test });
-      runInContext('price(20); console.log("charged", 1);', realm);
+      body!();
       hooks.afterEach!({ task: test });
       hooks.afterAll!(file);
       await reporter.onTestRunEnd([{
@@ -259,7 +265,7 @@ describe('a case that runs in a page, when stories are asked', () => {
       expect(more).toEqual([]);
       const story = decodeStory(await readFile(resolve(directory, only!)));
       expect(story).toMatchObject({ file: filepath, name: 'checkout > charges a premium', stopped: true });
-      expect(story.notes.map(([, text]) => text)).toEqual(['handed amount=20', 'console.log charged 1']);
+      expect(story.notes.map(([, text]) => text)).toEqual(['test line 2', 'handed amount=20', 'test line 3', 'console.log charged 1']);
       expect(story.visits.length).toBeGreaterThan(0);
       // The page still printed it.
       expect(printed).toEqual([['charged', 1]]);
