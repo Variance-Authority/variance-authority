@@ -29,6 +29,13 @@ const BROWSER_AVAILABLE = ((): boolean => {
   }
 })();
 
+if (!BROWSER_AVAILABLE) {
+  console.warn(
+    '\npackages/playwright-test flake: skipped.' +
+      '\n  no browser — npx playwright install chromium\n',
+  );
+}
+
 afterAll(async () => {
   await Promise.all(directories.map((directory) => rm(directory, { recursive: true, force: true })));
 });
