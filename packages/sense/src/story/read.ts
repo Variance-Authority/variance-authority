@@ -283,8 +283,8 @@ export function drawRoute(
   };
   const keyOf = (stop: Stop): string => ('loaded' in stop ? `\0${stop.loaded.join('\0')}` : stop.place.at);
   const opening = { before: [] as string[], route: [] as string[] };
-  const before = foldSteps(stopsOf(story.before, story.beforeNotes, opening.before), keyOf, added);
-  const route = foldSteps(stopsOf(story.visits, story.notes, opening.route), keyOf, added);
+  const before = foldSteps(stopsOf(story.before, heard(story.beforeNotes, story.beforeLines), opening.before), keyOf, added);
+  const route = foldSteps(stopsOf(story.visits, heard(story.notes, story.lines), opening.route), keyOf, added);
 
   const untaken: Untaken[] = [];
   for (const { place, row } of placed.values()) {
@@ -323,6 +323,28 @@ export function drawRoute(
     interleaved: story.interleaved,
     ...(story.stopped === undefined ? {} : { stopped: story.stopped }),
   };
+}
+
+/**
+ * What a route says at each place: the notes, and each test line spelled as
+ * where the case was, in the order they came in.
+ */
+function heard(
+  notes: readonly (readonly [number, string])[],
+  lines: readonly (readonly [number, number, number, 1?])[],
+): (readonly [number, string])[] {
+  const all: (readonly [number, string])[] = [];
+  let line = 0;
+  for (const [index, note] of notes.entries()) {
+    for (; line < lines.length && lines[line]![2] <= index; line += 1) all.push(spelled(lines[line]!));
+    all.push(note);
+  }
+  for (; line < lines.length; line += 1) all.push(spelled(lines[line]!));
+  return all;
+}
+
+function spelled([at, line, , hook]: readonly [number, number, number, 1?]): readonly [number, string] {
+  return [at, `${hook === 1 ? 'hook' : 'test'} line ${line}`];
 }
 
 /** Two passes of one stop, as the one stop that stands for both. */

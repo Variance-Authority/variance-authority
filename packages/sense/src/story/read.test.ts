@@ -32,6 +32,8 @@ function story(visits: number[], before: number[] = []) {
     interleaved: 0,
     notes: [] as [number, string][],
     beforeNotes: [] as [number, string][],
+    lines: [] as [number, number, number, 1?][],
+    beforeLines: [] as [number, number, number, 1?][],
     unnoted: 0,
   };
 }
@@ -114,6 +116,21 @@ describe('a route', () => {
     expect(route.opening).toEqual({ before: ['eyes arrange'], route: ['eyes act'] });
     // Two passes of removeItem, price fold into one, and the pass's lines are added in order.
     expect(route.route).toMatchObject([{ times: 2, repeat: [{ token: { place: { name: 'removeItem' }, said: ['price 1', 'price 2'] } }, { token: { place: { name: 'price' }, said: ['done'] } }] }]);
+  });
+
+  it('says each test line where the case was, in the order it came in with what was said there, a hook\'s as a hook\'s', () => {
+    const lined = {
+      ...story([1, 4], [4]),
+      beforeLines: [[0, 2, 0, 1]] as [number, number, number, 1?][],
+      notes: [[1, 'price 1'], [1, 'price 2']] as [number, string][],
+      lines: [[0, 5, 0], [1, 6, 0], [1, 7, 1]] as [number, number, number, 1?][],
+    };
+    const route = drawRoute(ROOT, lined, ['src/cart.ts', 'src/format.ts'], [CART, undefined]);
+    expect(route.opening).toEqual({ before: ['hook line 2'], route: ['test line 5'] });
+    expect(route.route).toMatchObject([
+      { token: { place: { name: 'removeItem' }, said: ['test line 6', 'price 1', 'test line 7', 'price 2'] } },
+      { token: { place: { name: 'price' } } },
+    ]);
   });
 
   it('counts an arm taken before the case as taken, and names nothing in a file the recording holds no regions for', () => {

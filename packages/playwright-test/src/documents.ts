@@ -66,7 +66,7 @@ export const varianceDocumentFixtures: Fixtures<
     // A page that held the statements' drain holds this one too, and the test's
     // timeout is all that would end it: the case is not believed whole instead.
     let lost = documents.lost() || stalled;
-    if (line !== undefined) varianceRecorder.cut?.(owner, testOf(testInfo), line);
+    if (line !== undefined) varianceRecorder.cut?.(owner, testOf(testInfo), line, hook);
     for (const page of stalled ? [] : context.pages()) {
       for (const frame of page.frames()) {
         try {
@@ -146,7 +146,7 @@ function drainEachStatement(
   let draining: Promise<void> = Promise.resolve();
 
   const drain = (reached: { line: number; hook: boolean } | undefined) => async () => {
-    if (reached !== undefined && !late) recorder.cut?.(owner, subject, reached.line);
+    if (reached !== undefined && !late) recorder.cut?.(owner, subject, reached.line, reached.hook);
     for (const page of context.pages()) {
       for (const frame of page.frames()) {
         try {

@@ -45,11 +45,13 @@ realm[Symbol.for(${JSON.stringify(PAGE_STORY)})] = (engine) => {
     take() {
       const read = tap.read();
       const notes = read.notes.map(([at, , text]) => [at, text]);
+      const lines = read.lines.map(([at, , line, said]) => [at, line, said]);
       const story = {
         tape: Array.from(read.tape.subarray(0, read.taped)),
         taped: read.taped,
         visits: read.visits,
         notes,
+        lines,
         unnoted: read.unnoted,
         held: Array.from(read.held),
         rows: { ids: read.rows.ids.slice(), counts: read.rows.counts.slice(), bases: read.rows.bases.slice() },
@@ -92,6 +94,7 @@ if (printer !== undefined && printer[NOTE] !== true) {
 interface CaseTape {
   readonly entries: number[];
   readonly notes: [number, string][];
+  readonly lines: [number, number, number, 1?][];
   readonly held: Map<ModuleId, string>;
   // The rows of every drain, one per module and count, at the base the story gives it.
   readonly rows: Map<string, number>;
@@ -113,8 +116,8 @@ export interface StoryCase {
 
 /** What a runner hands every page drain to, and asks for a case's story. */
 export interface PageStories {
-  /** Open what the case does next with the test line whose statement does it. */
-  readonly line: (subject: StoryCase, line: number) => void;
+  /** Open what the case does next with the test line whose statement does it, a hook's where `hook` says so. */
+  readonly line: (subject: StoryCase, line: number, hook?: boolean) => void;
   /** Lay a drain of one page at the end of the case's story. */
   readonly add: (subject: StoryCase, story: PageStory) => void;
   /** Write the case's story and forget it; a case that never drained writes none. */
@@ -130,15 +133,21 @@ export function pageStories(directory: string): PageStories {
     const key = keyOf(subject);
     let tape = tapes.get(key);
     if (tape === undefined) {
-      tape = { entries: [], notes: [], held: new Map(), rows: new Map(), ids: [], counts: [], bases: [], visits: 0, unnoted: 0, total: 0 };
+      tape = { entries: [], notes: [], lines: [], held: new Map(), rows: new Map(), ids: [], counts: [], bases: [], visits: 0, unnoted: 0, total: 0 };
       tapes.set(key, tape);
     }
     return tape;
   };
   return {
-    line(subject, line) {
+    line(subject, line, hook) {
       const tape = tapeOf(subject);
-      tape.notes.push([tape.entries.length, `test line ${line}`]);
+      const at = tape.entries.length;
+      const said = tape.notes.length;
+      const cut: [number, number, number, 1?] = hook === true ? [at, line, said, 1] : [at, line, said];
+      // A line nothing followed, visit or note, gives way to the next, as the tap's does.
+      const last = tape.lines[tape.lines.length - 1];
+      if (last !== undefined && last[0] === at && last[2] === said) tape.lines[tape.lines.length - 1] = cut;
+      else tape.lines.push(cut);
     },
     add(subject, story) {
       const tape = tapeOf(subject);
@@ -163,6 +172,8 @@ export function pageStories(directory: string): PageStories {
         const index = entry & 0x7fffffff;
         tape.entries.push((index + rebased[format.rowAt(bases, index)]!) | (entry & format.EVALUATING));
       }
+      const said = tape.notes.length;
+      for (const [at, line, before] of story.lines) tape.lines.push([offset + at, line, said + before]);
       for (const [at, text] of story.notes) tape.notes.push([offset + at, text]);
       for (const [id, text] of story.held) tape.held.set(id, text);
       tape.visits += story.visits - story.taped;
@@ -181,6 +192,7 @@ export function pageStories(directory: string): PageStories {
           at: [0],
           keys: [key],
           notes: tape.notes.map(([at, text]) => [at, key, text] as const),
+          lines: tape.lines.map(([at, line, said, hook]) => (hook === 1 ? ([at, key, line, said, 1] as const) : ([at, key, line, said] as const))),
           unnoted: tape.unnoted,
           held: tape.held,
           rows: { ids: tape.ids, counts: tape.counts, bases: tape.bases },

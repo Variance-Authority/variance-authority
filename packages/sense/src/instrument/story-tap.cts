@@ -97,6 +97,13 @@ interface Tape {
   readonly keys: readonly string[];
   /** Each note: how many visits were taped before it, the bucket it was said in, and the text. */
   readonly notes: readonly (readonly [at: number, key: string, text: string])[];
+  /**
+   * Each test line a statement of the case ran at: how many visits were taped
+   * before it, the bucket, the line, and `1` where the line is a hook's. A
+   * line is not a note; one is kept per stretch of the tape, so the tape
+   * bounds them.
+   */
+  readonly lines: readonly (readonly [at: number, key: string, line: number, said: number, hook?: 1])[];
   /** Notes past either {@link NOTE_LIMIT}, counted and not kept. */
   readonly unnoted: number;
   /**
@@ -169,8 +176,9 @@ function createTap(engine: Engine, limit: number): Tap {
   // crowds out what the code said, however hot the function.
   let spoken = 0;
   let handedOver = 0;
-  // The test line's note, while it is the last thing on the tape.
-  let cut: [number, string, string] | undefined;
+  // Every test line, and how many notes there were at the last one: a line
+  // nothing followed, visit or note, gives way to the next.
+  let lines: [number, string, number, number][] = [];
   const held = new Map<ModuleId, string>();
   // Whether the next write is the module's own probe, which follows `e`.
   let rooting = false;
@@ -338,22 +346,15 @@ function createTap(engine: Engine, limit: number): Tap {
       }
     },
     // A test line's cut is not a visit: the tape is what the code entered, and
-    // the line opens what the code entered next. A cut that nothing followed
-    // gives way to the next, as the record's cuts merge.
+    // the line opens what the code entered next. A cut that nothing followed,
+    // visit or note, gives way to the next, as the record's cuts merge.
     c(line: number): void {
       inner.c(line);
-      const last = notes[notes.length - 1];
-      if (last !== undefined && last === cut && last[0] === taped) {
-        last[2] = `test line ${line}`;
-        return;
-      }
-      if (spoken >= NOTE_LIMIT) {
-        unnoted += 1;
-        return;
-      }
-      spoken += 1;
-      put(`test line ${line}`);
-      cut = notes[notes.length - 1];
+      inner.s?.();
+      const key = engine.current().key;
+      const last = lines[lines.length - 1];
+      if (last !== undefined && last[0] === taped && last[1] === key && last[3] === notes.length) last[2] = line;
+      else lines.push([taped, key, line, notes.length]);
     },
   };
 
@@ -361,7 +362,7 @@ function createTap(engine: Engine, limit: number): Tap {
     root,
     engine,
     read() {
-      return { tape, taped, visits, at, keys, notes, unnoted, held, rows: { ids: rowIds, counts: rowCounts, bases: rowBases } };
+      return { tape, taped, visits, at, keys, notes, lines, unnoted, held, rows: { ids: rowIds, counts: rowCounts, bases: rowBases } };
     },
     note(text: string): void {
       if (spoken >= NOTE_LIMIT) {
@@ -376,7 +377,7 @@ function createTap(engine: Engine, limit: number): Tap {
     },
     reset(): void {
       notes = [];
-      cut = undefined;
+      lines = [];
       unnoted = 0;
       spoken = 0;
       handedOver = 0;

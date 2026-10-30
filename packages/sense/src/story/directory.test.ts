@@ -25,7 +25,7 @@ function story(root: string): { key: string; bytes: Buffer } {
   const key = `${root}/src/cart.test.ts\u0000removes the last item\u00001`;
   const bytes = encodeStory(
     {
-      tape: Int32Array.from([0, 1]), taped: 2, visits: 2, at: [0], keys: [key], notes: [], unnoted: 0, held: new Map(),
+      tape: Int32Array.from([0, 1]), taped: 2, visits: 2, at: [0], keys: [key], notes: [], lines: [], unnoted: 0, held: new Map(),
       rows: { ids: ['src/cart.ts'], counts: [2], bases: [0] },
     },
     key,

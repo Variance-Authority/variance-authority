@@ -69,9 +69,9 @@ export interface ExecutionRecorder {
   readonly storyPage?: string;
   /**
    * Say that what the case's pages do next is the statement at test line
-   * `line`; present beside {@link storyPage}.
+   * `line`, a hook's where `hook` says so; present beside {@link storyPage}.
    */
-  readonly cut?: (owner: string, subject: ObservedTest, line: number) => void;
+  readonly cut?: (owner: string, subject: ObservedTest, line: number, hook: boolean) => void;
   /**
    * Mint this execution's journey and put it on the page's context.
    *
@@ -182,7 +182,7 @@ export function createExecutionRecorder(
       ? {}
       : {
           storyPage: storyPageSource(),
-          cut: (owner: string, subject: ObservedTest, line: number) => stories.line(storyCase(owner, subject), line),
+          cut: (owner: string, subject: ObservedTest, line: number, hook: boolean) => stories.line(storyCase(owner, subject), line, hook),
         }),
     owner: (testInfo) => ownerOf(root, testInfo),
     arranged: (owner, subject) => listener?.held(caseKey(owner, subject.id)),

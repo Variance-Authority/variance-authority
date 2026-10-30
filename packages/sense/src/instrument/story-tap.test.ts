@@ -238,15 +238,18 @@ describe('what a case says on the way', () => {
     tap.root.c(5);
     tap.note('said');
     tap.root.c(6);
+    tap.note('test line 7');
 
-    // What `cart` and `price` were handed sits between, and is not a cut.
-    const notes = tap.read().notes.filter(([, , text]) => !text.startsWith('handed'));
-    expect(notes.map(([at, key, text]) => [at, key, text])).toEqual([
-      [0, 'case', 'test line 3'],
-      [3, 'case', 'test line 5'],
-      [3, 'case', 'said'],
-      [3, 'case', 'test line 6'],
-    ]);
+    // A line is not a note: what the code printed stays what it printed. Each
+    // line counts the notes said before it, so one said at the same visit
+    // keeps its side of the line.
+    const { lines, notes } = tap.read();
+    const said = notes.findIndex(([, , text]) => text === 'said');
+    expect(lines).toEqual([[0, 'case', 3, 0], [3, 'case', 5, said], [3, 'case', 6, said + 1]]);
+    expect(notes.filter(([, , text]) => !text.startsWith('handed')).map(([, , text]) => text)).toEqual(['said', 'test line 7']);
+
+    tap.reset();
+    expect(tap.read().lines).toEqual([]);
   });
 
   it('is counted, not kept, past the limit, and starts again with the tape', () => {

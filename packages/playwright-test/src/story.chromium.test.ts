@@ -22,7 +22,7 @@ const directories: string[] = [];
 // decoder; sense publishes none, so this requires the one it builds.
 const stories = createRequire(import.meta.url)(resolve(repository, 'packages/sense/dist/story/format.cjs')) as {
   decodeStory(bytes: Uint8Array): {
-    file: string; name: string; stopped?: boolean; rows: [string, number][]; visits: Int32Array; notes: [number, string][];
+    file: string; name: string; stopped?: boolean; rows: [string, number][]; visits: Int32Array; notes: [number, string][]; lines: [number, number, number, 1?][];
   };
 };
 
@@ -88,11 +88,17 @@ describe.runIf(BROWSER_AVAILABLE)('a Playwright case run in a page', () => {
     const route = [...story.visits].map((visit) => placeOf(blocks[visit & 0x7fffffff]!));
     expect(route.filter((place, step) => place !== route[step - 1])).toEqual(['top level', 'open', 'choose', 'pay']);
 
-    // Each statement is said where it began; what the page printed, and what
+    // Each statement's line is where it began; what the page printed, and what
     // its regions were handed, where it happened, as a Node case says them.
+    // A line counts the notes said before it, as a route reads it.
     const spec = (await readFile(resolve(fixture, 'tests/shop.spec.ts'), 'utf8')).split('\n');
     const line = (statement: string) => spec.findIndex((text) => text.endsWith(`// ${statement}`)) + 1;
-    expect(story.notes.map(([, text]) => text)).toEqual([
+    const told = [
+      ...story.lines.map(([, number, said]) => [said, 0, `test line ${number}`] as const),
+      ...story.notes.map(([, text], index) => [index, 1, text] as const),
+    ].sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+    expect(story.lines.every(([, , , hook]) => hook === undefined)).toBe(true);
+    expect(told.map(([, , text]) => text)).toEqual([
       `test line ${line('opens')}`,
       'holds open=ref1 function open, choose=ref2 function choose, pay=ref3 function pay',
       `test line ${line('looks')}`,

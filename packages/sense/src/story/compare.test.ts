@@ -32,6 +32,8 @@ function reading(visits: number[], said: [number, string][] = [], stopped = fals
       interleaved: 0,
       notes: said,
       beforeNotes: [],
+      lines: [],
+      beforeLines: [],
       unnoted: 0,
       stopped,
     },

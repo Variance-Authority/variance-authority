@@ -16,7 +16,7 @@ afterEach(() => {
 const subject = { file: 'tests/shop.spec.ts', name: 'pays', id: 'a1' };
 
 function drained(story: Partial<PageStory> & Pick<PageStory, 'tape' | 'rows'>): PageStory {
-  return { taped: story.tape.length, visits: story.tape.length, notes: [], unnoted: 0, held: [], ...story };
+  return { taped: story.tape.length, visits: story.tape.length, notes: [], lines: [], unnoted: 0, held: [], ...story };
 }
 
 function written(directory: string) {
@@ -26,7 +26,7 @@ function written(directory: string) {
 }
 
 describe('page stories', () => {
-  it('lays two pages end to end, a module both loaded as one row', () => {
+  it('lays two pages end to end, each opened by its test line, a module both loaded as one row', () => {
     const directory = mkdtempSync(join(tmpdir(), 'page-stories-'));
     directories.push(directory);
     const stories = pageStories(directory);
@@ -38,15 +38,20 @@ describe('page stories', () => {
       rows: { ids: ['a', 'b'], counts: [4, 2], bases: [0, 4] },
       notes: [[1, 'console.log first']],
     }));
-    stories.line(subject, 4);
+    stories.line(subject, 9);
+    stories.line(subject, 4, true);
     // The second registered `b` first, at 0, and nothing else.
-    stories.add(subject, drained({ tape: [1], rows: { ids: ['b'], counts: [2], bases: [0] }, visits: 3 }));
+    // The page cut its own statement, a line in the file it runs.
+    stories.add(subject, drained({ tape: [1], rows: { ids: ['b'], counts: [2], bases: [0] }, visits: 3, lines: [[1, 7, 0]], notes: [[1, 'console.log second']] }));
     stories.write(subject, true);
 
     const story = written(directory);
     expect(story.rows).toEqual([['a', 4], ['b', 2]]);
     expect([...story.visits]).toEqual([0 | EVALUATING, 5, 5]);
-    expect(story.notes).toEqual([[0, 'test line 3'], [1, 'console.log first'], [2, 'test line 4']]);
+    // A line nothing followed gives way to the next; a hook's is marked; each
+    // counts the notes of every page before it.
+    expect(story.lines).toEqual([[0, 3, 0], [2, 4, 1, 1], [3, 7, 1]]);
+    expect(story.notes).toEqual([[1, 'console.log first'], [3, 'console.log second']]);
     expect(story.untaped).toBe(2);
     expect(story.stopped).toBe(true);
   });

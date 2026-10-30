@@ -265,7 +265,10 @@ describe('a case that runs in a page, when stories are asked', () => {
       expect(more).toEqual([]);
       const story = decodeStory(await readFile(resolve(directory, only!)));
       expect(story).toMatchObject({ file: filepath, name: 'checkout > charges a premium', stopped: true });
-      expect(story.notes.map(([, text]) => text)).toEqual(['test line 2', 'handed amount=20', 'test line 3', 'console.log charged 1']);
+      expect(story.lines.map(([, line]) => line)).toEqual([2, 3]);
+      expect(story.notes.map(([, text]) => text)).toEqual(['handed amount=20', 'console.log charged 1']);
+      // What was handed came under line 2, and what it printed under line 3.
+      expect(story.lines.map(([, , said]) => said)).toEqual([0, 1]);
       expect(story.visits.length).toBeGreaterThan(0);
       // The page still printed it.
       expect(printed).toEqual([['charged', 1]]);

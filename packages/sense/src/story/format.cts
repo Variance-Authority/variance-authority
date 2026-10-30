@@ -39,6 +39,9 @@
  * What the code said while the case ran — a console line, an announcement, an
  * Arrange/Act/Assert marker — rides in the header as `[position, text]`, the
  * position counted over the visits before the case and then the case's own.
+ * Each test line whose statement ran rides beside them as `[position, line]`,
+ * or `[position, line, 1]` for a hook's line: a line is where the case was,
+ * not something it said.
  *
  * ## What comes before a case
  *
@@ -95,7 +98,18 @@ interface Story {
   readonly beforeNotes: readonly (readonly [at: number, text: string])[];
   /** Lines the tape did not keep. */
   readonly unnoted: number;
+  /** Each test line a statement of the case ran at, placed as {@link notes} are; `1` marks a hook's. */
+  readonly lines: readonly TestLine[];
+  /** Each test line run before the case began, placed as {@link beforeNotes} are. */
+  readonly beforeLines: readonly TestLine[];
 }
+
+/**
+ * Where a test line's statement ran, the line, how many of its notes were said
+ * before it — a line and a note at one visit keep the order they came in — and
+ * `1` where it is a hook's.
+ */
+type TestLine = readonly [at: number, line: number, said: number, hook?: 1];
 
 /** How many readings of one case a directory keeps; writing another removes the oldest. */
 const READINGS = 16;
@@ -208,17 +222,36 @@ function encodeStory(tape: Tape, key: string, stopped?: boolean): Buffer {
   const beforeNotes: [number, string][] = [];
   const opens = own.length === 0 ? Infinity : at[own[0]!]!;
   const from = own.length === 0 ? Infinity : at[first]!;
-  for (const [position, noteKey, text] of tape.notes) {
+  // Where something at a tape position in bucket `noteKey` lands: in the
+  // case, before it, or neither.
+  const placeOf = (position: number, noteKey: string): { said: boolean; at: number } | undefined => {
     const said = noteKey === key;
     // What was said outside any case just before this one is its hooks'.
-    if (!said && !(noteKey === '' && position >= from && position <= opens)) continue;
+    if (!said && !(noteKey === '' && position >= from && position <= opens)) return undefined;
     let entry: number | undefined;
     for (const [start, end, offset, early] of placed) {
       if (position < start || early === said) continue;
       entry = offset + Math.min(position, end) - start;
     }
-    if (said) notes.push([(entry ?? before) - before, text]);
-    else beforeNotes.push([entry ?? 0, text]);
+    return { said, at: said ? (entry ?? before) - before : (entry ?? 0) };
+  };
+  // How many notes each section held when the tape had said `n`, so a line
+  // counts the notes said before it in the section it lands in.
+  const saidBy: number[] = [0];
+  const beforeBy: number[] = [0];
+  for (const [position, noteKey, text] of tape.notes) {
+    const place = placeOf(position, noteKey);
+    if (place !== undefined) (place.said ? notes : beforeNotes).push([place.at, text]);
+    saidBy.push(notes.length);
+    beforeBy.push(beforeNotes.length);
+  }
+  const lines: TestLine[] = [];
+  const beforeLines: TestLine[] = [];
+  for (const [position, lineKey, line, said, hook] of tape.lines) {
+    const place = placeOf(position, lineKey);
+    if (place === undefined) continue;
+    const counted = (place.said ? saidBy : beforeBy)[said]!;
+    (place.said ? lines : beforeLines).push(hook === 1 ? [place.at, line, counted, 1] : [place.at, line, counted]);
   }
   // What a module held was said once, when it loaded, and the tape started
   // again before the first case: every case that went through it opens with it.
@@ -228,6 +261,9 @@ function encodeStory(tape: Tape, key: string, stopped?: boolean): Buffer {
     return line === undefined || told.has(line) ? [] : [[0, line]];
   });
   beforeNotes.unshift(...holding);
+  for (const [index, cut] of beforeLines.entries()) {
+    beforeLines[index] = cut[3] === 1 ? [cut[0], cut[1], cut[2] + holding.length, 1] : [cut[0], cut[1], cut[2] + holding.length];
+  }
 
   const { file, name } = caseOwner.unpackCase(key);
   const header = Buffer.from(
@@ -236,6 +272,8 @@ function encodeStory(tape: Tape, key: string, stopped?: boolean): Buffer {
       ...(notes.length === 0 ? {} : { notes }),
       ...(beforeNotes.length === 0 ? {} : { beforeNotes }),
       ...(tape.unnoted === 0 ? {} : { unnoted: tape.unnoted }),
+      ...(lines.length === 0 ? {} : { lines }),
+      ...(beforeLines.length === 0 ? {} : { beforeLines }),
     }),
     'utf8',
   );
@@ -260,8 +298,8 @@ function decodeStory(bytes: Uint8Array): Story {
   if (body > buffer.length || (buffer.length - body) % 4 !== 0) throw damaged();
   const header = JSON.parse(buffer.toString('utf8', MAGIC.length + 4, MAGIC.length + 4 + length)) as Omit<
     Story,
-    'before' | 'visits' | 'notes' | 'beforeNotes' | 'unnoted'
-  > & { before: number } & Partial<Pick<Story, 'notes' | 'beforeNotes' | 'unnoted'>>;
+    'before' | 'visits' | 'notes' | 'beforeNotes' | 'unnoted' | 'lines' | 'beforeLines'
+  > & { before: number } & Partial<Pick<Story, 'notes' | 'beforeNotes' | 'unnoted' | 'lines' | 'beforeLines'>>;
   const all = new Int32Array((buffer.length - body) / 4);
   for (let at = 0; at < all.length; at += 1) all[at] = buffer.readInt32LE(body + at * 4);
   return {
@@ -269,6 +307,8 @@ function decodeStory(bytes: Uint8Array): Story {
     notes: header.notes ?? [],
     beforeNotes: header.beforeNotes ?? [],
     unnoted: header.unnoted ?? 0,
+    lines: header.lines ?? [],
+    beforeLines: header.beforeLines ?? [],
     before: all.subarray(0, header.before),
     visits: all.subarray(header.before),
   };
