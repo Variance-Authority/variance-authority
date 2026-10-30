@@ -182,6 +182,12 @@ function encodeStory(tape: Tape, key: string, stopped?: boolean): Buffer {
   }
   let first = own[0] ?? keys.length;
   while (own.length > 0 && first > 0 && keys[first - 1] === '') first -= 1;
+  // What ran outside any case right after this one, up to the next case, is
+  // its hooks', as what ran right before it is: a story written once its
+  // attempt ended holds its `afterEach`.
+  let last = own[own.length - 1] ?? -1;
+  const after = own.length;
+  while (last >= 0 && last + 1 < keys.length && keys[last + 1] === '') own.push((last += 1));
 
   const bases = tape.rows.bases;
   const dense = new Map<number, number>();
@@ -220,10 +226,12 @@ function encodeStory(tape: Tape, key: string, stopped?: boolean): Buffer {
   const beforeNotes: [number, string][] = [];
   const opens = own.length === 0 ? Infinity : at[own[0]!]!;
   const from = own.length === 0 ? Infinity : at[first]!;
+  const trails = own.length === after ? Infinity : at[own[after]!]!;
+  const closes = own.length === after ? -Infinity : ends(last);
   // Where something at a tape position in bucket `noteKey` lands: in the
   // case, before it, or neither.
   const placeOf = (position: number, noteKey: string): { said: boolean; at: number } | undefined => {
-    const said = noteKey === key;
+    const said = noteKey === key || (noteKey === '' && position >= trails && position <= closes);
     // What was said outside any case just before this one is its hooks'.
     if (!said && !(noteKey === '' && position >= from && position <= opens)) return undefined;
     let entry: number | undefined;

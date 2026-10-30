@@ -160,7 +160,8 @@ The answer prints a key for its marks. What the key leaves out:
   runs one line is `covering`'s question.
 - A `switch` names its cases by line, a `try` its `catch` and `finally`.
 - `before the test` is the code the runner ran outside the test just before
-  it, such as code a `beforeEach` or the previous test's `afterEach` called.
+  it, such as code a `beforeEach` called. What the test's own `afterEach`
+  called closes its story, under the hook's line.
   Test files are not recorded by default, so the hook itself is not a step.
 - `» text` under a step is a line the code emitted at that step: a `console`
   line as `console.log …`, an Eyes entry as `eyes …` with a query's arguments

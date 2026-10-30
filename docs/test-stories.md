@@ -279,9 +279,10 @@ VARIANCE_AUTHORITY_STORY=file yarn vitest run src/cart.test.ts
 variance story --name "cart > removes the last item" --compare alone,file
 ```
 
-In the stories labelled `file`, `before the test`, at the top of each story,
-shows the code the runner ran right before the test, such as code another
-test's `afterEach` called.
+A story holds its test's hooks under either label. `before the test`, at the
+top, is the code its `beforeEach` called, and what its own `afterEach` called
+closes the story under the hook's line. Another test's hooks are in that
+test's story, not this one.
 
 `--compare last` is always one reading against one, so use it to see what an
 edit changed, not to explain a test that fails on some runs.
@@ -317,8 +318,9 @@ compare  src/checkout.test.ts
 
 The tests differ in their setup, and you know how. The comparison lists where
 the code they ran went differently, on every reading. The code the runner ran
-before each test, such as the `afterEach` of the test above it, depends on
-where the test sits in its file, so a comparison of tests leaves it out. A
+before each test, such as a `beforeAll` the first test in a file runs after,
+depends on where the test sits in its file, so a comparison of tests leaves it
+out. A
 test's own code can still follow its place: a module an earlier test loaded
 first, or a cache an earlier test filled, shows up as a difference that
 holds on every reading.
