@@ -17,10 +17,18 @@ import { reportedDuration, reportedPhases } from './reported-time.js';
 import { reportedCases, taskCases } from './case-durations.js';
 import { noteRunner, projectConfig, type RunnerContext } from './governing-config.js';
 import { reopenRun, type SelectionRun } from './selection-run.js';
+import { BROWSER_JOURNAL } from './worker-source.js';
+import type { PageStory, StoryCase } from '../story/page.js';
+
+/** What a case in a page left on its `meta`: its tape, and the names the record knows it by. */
+interface CarriedStory extends StoryCase {
+  readonly story: PageStory;
+}
 
 export function selectionReporter(
   run: SelectionRun,
   settle: (files: readonly FinishedFile[]) => Promise<void>,
+  story?: string,
 ): Reporter {
   // Vitest 2 announces the end of a run as `onFinished(files)`, where a file is
   // a runner task. Vitest 3 replaced that with `onTestRunEnd(testModules)` over
@@ -51,7 +59,12 @@ export function selectionReporter(
     // keeps the start the run was made at, before the configuration loaded.
     onWatcherRerun: () => reopenRun(run, Date.now()),
     onTestRunStart: () => reopenRun(run, run.settled ? Date.now() : run.startedAt),
-    onFinished: (files: readonly RunnerTask[]) => settle(
+    onFinished: async (files: readonly RunnerTask[]) => {
+      await writeCarried(story, files.flatMap((file) => testsOf(file).map((test) => ({
+        meta: test.meta,
+        stopped: test.result?.state === 'fail',
+      }))));
+      await settle(
       files.flatMap((file) => file.filepath === undefined
         ? []
         : [{
@@ -69,8 +82,14 @@ export function selectionReporter(
           ...carriedJournal(file.filepath, file.meta),
           ...configsOf(byName.get(file.projectName ?? '')),
         }]),
-    ),
-    onTestRunEnd: (reported: readonly ReportedModule[], _errors?: unknown, reason?: string) => settle(
+      );
+    },
+    onTestRunEnd: async (reported: readonly ReportedModule[], _errors?: unknown, reason?: string) => {
+      await writeCarried(story, reported.flatMap((module) => [...module.children.allTests()].map((test) => ({
+        meta: test.meta?.(),
+        stopped: test.result().state === 'failed',
+      }))));
+      await settle(
       reported.map((module) => ({
         filepath: module.moduleId,
         complete: reportedComplete(module, runnerSkipped(runner, reason)),
@@ -80,8 +99,37 @@ export function selectionReporter(
         ...carriedJournal(module.moduleId, module.meta?.()),
         ...configsOf(projectConfig(module.project)),
       })),
-    ),
+      );
+    },
   } as Reporter;
+}
+
+/** Every test under a Vitest 2 file task, at any depth. */
+function testsOf(task: RunnerTask): RunnerTask[] {
+  return (task.tasks ?? []).flatMap((child) => (child.type === 'test' ? [child] : testsOf(child)));
+}
+
+/**
+ * Write the story each case that ran in a page carried on its `meta`. A case in
+ * Node writes its own, and carries none.
+ */
+async function writeCarried(
+  directory: string | undefined,
+  tests: readonly { readonly meta?: object | undefined; readonly stopped: boolean }[],
+): Promise<void> {
+  if (directory === undefined) return;
+  const carried = tests.flatMap(({ meta, stopped }) => {
+    const held = (meta as Record<string, unknown> | undefined)?.[BROWSER_JOURNAL] as CarriedStory | undefined;
+    return typeof held?.story === 'object' && held.story !== null ? [{ ...held, stopped }] : [];
+  });
+  if (carried.length === 0) return;
+  // Loaded here, where a page carried a story, and not at the top: it reads
+  // the format from the build.
+  const stories = (await import('../story/page.js')).pageStories(directory);
+  for (const { story, stopped, ...subject } of carried) {
+    stories.add(subject, story);
+    stories.write(subject, stopped);
+  }
 }
 
 /** Vitest 3 and 4's phases for a module, under the record's names. */

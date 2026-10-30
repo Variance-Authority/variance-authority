@@ -64,6 +64,12 @@ export interface ExecutionCollector {
   readonly drain: () => ExecutionJournal;
   /** Forget everything entered so far without reporting it. */
   readonly reset: () => void;
+  /**
+   * The tape since the drain before, leaving what the page entered for the next
+   * drain: a runner that tapes each case takes this between cases and drains
+   * the file once. Absent on a page that does not tape.
+   */
+  readonly story?: () => PageStory;
 }
 
 export interface TestSelectionProbeOptions {
@@ -369,6 +375,7 @@ if (globalThis.__VA__ === undefined) {
       if (carries) engine.carry();
       story?.take();
     },
+    ...(story === undefined ? {} : { story: () => story.take() }),
   };
 }
 `;

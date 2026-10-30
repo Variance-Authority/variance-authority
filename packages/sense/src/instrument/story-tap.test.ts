@@ -363,5 +363,3 @@ describe('what a function was handed, and what a module holds', () => {
     expect(run('__vaL')).toBeUndefined();
   });
 });
-
-it.todo('a case run in a page writes its story as a case run in Node does — needs a drain per case in a page, which the `config` hook of the Vitest seam does not install');

@@ -152,15 +152,22 @@ export const BROWSER_JOURNAL = 'varianceAuthority';
  * counted by the code every other page counts with. It is evaluated in a block,
  * where a bundle's module scope would put it, and a realm that already has a
  * collector keeps it: the drain is always the realm's own.
+ *
+ * With `story`, the source `storyPageSource` makes, the page tapes, and each
+ * case leaves the tape it made on its own task's `meta`, beside the names the
+ * record knows it by: the page knows the case, and the reporter knows how it
+ * ended. What runs between two cases is taken and dropped, so a case's story
+ * opens at its first hook.
  */
-export function browserSetupSource(mode?: InstrumentMode, runner = 'vitest'): string {
+export function browserSetupSource(mode?: InstrumentMode, runner = 'vitest', story?: string): string {
   // FIXME: Vitest is the default runner of a runner-neutral file; the caller names it (No runner is the default).
   return `
-import { afterAll, beforeAll } from ${JSON.stringify(runner)};
+import { afterAll, beforeAll${story === undefined ? '' : ', afterEach, beforeEach'} } from ${JSON.stringify(runner)};
+${story ?? ''}
 {${executionCollectorSource(mode)}}
 const execution = globalThis[${JSON.stringify(EXECUTION_GLOBAL)}];
 let loaded = [];
-beforeAll(() => { loaded = execution.drain().modules; });
+beforeAll(() => { loaded = execution.drain().modules; });${story === undefined ? '' : CASE_STORY}
 // Vitest hands the hook the file task, first through Vitest 4 and second from
 // 5, where the first is a fixture context and a parameter the hook names has
 // to destructure it. So the hook names none. Rstest hands it the file's
@@ -173,6 +180,26 @@ afterAll(function () {
 });
 `;
 }
+
+// Each case's tape, on its task. The hooks name no parameter for the reason
+// \`afterAll\` does below; the context's \`task\` is the case. Its name is the
+// declaration path under the file, as the case runner keys a case in Node.
+const CASE_STORY = `
+beforeEach(() => { execution.story?.(); });
+afterEach(function () {
+  const task = arguments[0]?.task;
+  const story = execution.story?.();
+  if (task === undefined || story === undefined) return;
+  const names = [];
+  for (let at = task; at !== undefined && at !== task.file; at = at.suite) names.unshift(at.name);
+  (task.meta ??= {})[${JSON.stringify(BROWSER_JOURNAL)}] = {
+    story,
+    file: task.file?.filepath ?? '',
+    name: task.fullTestName ?? names.join(' > '),
+    id: task.id,
+    project: task.file?.projectName,
+  };
+});`;
 
 /**
  * The tail of the setup module's `afterAll`: every bucket out as its own frame.

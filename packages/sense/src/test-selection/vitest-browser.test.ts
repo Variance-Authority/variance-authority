@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { createContext, runInContext } from 'node:vm';
@@ -9,6 +9,10 @@ import { decodeTestCoverage } from './format.js';
 import { carriedJournal, type ReportedModule } from './finished-files.js';
 import { withTestSelection } from './vitest.js';
 import { BROWSER_JOURNAL } from './worker-source.js';
+import { STORY_VARIABLE, storyDirectory } from '../story/directory.js';
+
+/** Built, as `format.test.ts` reads it: the format `require`s its neighbours by the names the build gives them. */
+const { decodeStory } = (await import('../../dist/story/format.cjs')).default as typeof import('../story/format.cjs');
 
 type Hook = (...args: unknown[]) => void;
 
@@ -22,8 +26,8 @@ interface Seam {
   readonly runner: string | undefined;
 }
 
-function seam(root: string, cases = false): Seam {
-  const configured = withTestSelection(
+function seam(root: string, cases = false, seamOf: typeof withTestSelection = withTestSelection): Seam {
+  const configured = seamOf(
     {},
     { root, coverageFile: resolve(root, 'coverage.bin'), include: (file) => file.includes('/src/'), cases },
   );
@@ -208,6 +212,59 @@ describe('a test file that runs in a page', () => {
 
       expect(await readFile(setup, 'utf8')).toBe(before);
     } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+});
+
+describe('a case that runs in a page, when stories are asked', () => {
+  it('writes its story, read as a case in Node writes one: the regions it entered, what it printed, how it ended', async () => {
+    const root = await mkdtemp(resolve(tmpdir(), 'variance-browser-story-'));
+    vi.stubEnv(STORY_VARIABLE, '1');
+    try {
+      // Built: what the page is sent, and what writes the story, read their tap and format from the build.
+      const built = (await import('../../dist/test-selection/vitest.js')) as typeof import('./vitest.js');
+      const { plugin, reporter, setup } = seam(root, true, built.withTestSelection);
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      await plugin.config({ test: { browser: { enabled: true } } });
+      warn.mockRestore();
+      const instrumented = plugin.transform.handler(PRICE, await held(root, 'src/price.ts', PRICE))!.code;
+      const hooks: Partial<Record<'beforeAll' | 'afterAll' | 'beforeEach' | 'afterEach', Hook>> = {};
+      const printed: unknown[] = [];
+      const realm = createContext({
+        hooks: Object.fromEntries((['beforeAll', 'afterAll', 'beforeEach', 'afterEach'] as const).map((name) => [name, (hook: Hook) => (hooks[name] = hook)])),
+        console: { log: (...values: unknown[]) => printed.push(values) },
+      });
+      runInContext((await readFile(setup, 'utf8')).replace(/^import \{ ([^}]+) \} from "vitest";$/m, 'const { $1 } = hooks;'), realm);
+      runInContext(instrumented.replace(/\bexport /g, ''), realm);
+      const filepath = await held(root, 'src/premium.test.ts', 'it("charges a premium", () => price(20));\n');
+      const file = { type: 'suite', filepath, name: 'src/premium.test.ts' } as { meta?: object };
+      const suite = { type: 'suite', name: 'checkout', file, suite: file };
+      const test = { type: 'test', id: 'a1_0', name: 'charges a premium', file, suite } as { meta?: Record<string, unknown> };
+
+      hooks.beforeAll!();
+      hooks.beforeEach!({ task: test });
+      runInContext('price(20); console.log("charged", 1);', realm);
+      hooks.afterEach!({ task: test });
+      hooks.afterAll!(file);
+      await reporter.onTestRunEnd([{
+        moduleId: filepath,
+        ok: () => false,
+        meta: () => file.meta!,
+        children: { allTests: () => [{ id: 'a1_0', result: () => ({ state: 'failed' }), meta: () => test.meta! }] },
+      } as ReportedModule]);
+
+      const directory = storyDirectory(resolve(root, 'coverage.bin'));
+      const [only, ...more] = await readdir(directory);
+      expect(more).toEqual([]);
+      const story = decodeStory(await readFile(resolve(directory, only!)));
+      expect(story).toMatchObject({ file: filepath, name: 'checkout > charges a premium', stopped: true });
+      expect(story.notes.map(([, text]) => text)).toEqual(['handed amount=20', 'console.log charged 1']);
+      expect(story.visits.length).toBeGreaterThan(0);
+      // The page still printed it.
+      expect(printed).toEqual([['charged', 1]]);
+    } finally {
+      vi.unstubAllEnvs();
       await rm(root, { recursive: true, force: true });
     }
   });

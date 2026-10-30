@@ -90,6 +90,7 @@ export function selectionPlugin(
   settle: (files: readonly FinishedFile[]) => Promise<void>,
   cut: ((file: string) => boolean) | undefined,
   placement: ProbePlacement,
+  story?: string,
 ): [VitePlugin, ProbesPlugin] {
   const { modules } = run;
   let closing: Promise<void> | undefined;
@@ -138,7 +139,8 @@ export function selectionPlugin(
     // has already been merged in. A file in a page has no disk, no builtins and
     // no runner of this seam's: its setup module hands the runner what it ran.
     // TODO: record cases in a page — a drain per test in `beforeEach` and
-    // `afterEach`, carried on each test's `meta` as the file's is.
+    // `afterEach`, carried on each test's `meta` as the file's is. A story
+    // already rides there; the record's case index does not.
     async config(config) {
       // Vite awaits this hook before the banner prints or a sequencer is
       // made, and both ask whether files are shuffled.
@@ -151,7 +153,10 @@ export function selectionPlugin(
         // file's setup files, and the setup module written here is what installs
         // the page's root. A module that installs it, imported ahead of them,
         // would carry what they load to the file the way the case runner does.
-        writeSeamModule(run, setupId, browserSetupSource(mode));
+        // Loaded here, where a page asks for it, and not at the top: the tap
+        // it sends to the page is read from the build.
+        const tape = story === undefined ? undefined : (await import('../story/page.js')).storyPageSource();
+        writeSeamModule(run, setupId, browserSetupSource(mode, 'vitest', tape));
         if (config.test.runner === runnerId) delete config.test.runner;
         // An index with no case in it answers *which cases walk this line* with
         // none, so a run that recorded no case writes no index.
