@@ -139,6 +139,8 @@ export function pageStories(directory: string): PageStories {
     return tape;
   };
   return {
+    // FIXME: a drain that reaches the runner after the next line is cut lays
+    // what the page did before it under that later line.
     line(subject, line, hook) {
       const tape = tapeOf(subject);
       const at = tape.entries.length;

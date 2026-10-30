@@ -345,11 +345,10 @@ function createTap(engine: Engine, limit: number): Tap {
         root.g(base | -2147483648);
       }
     },
-    // A test line's cut is not a visit: the tape is what the code entered, and
-    // the line opens what the code entered next. A cut that nothing followed,
-    // visit or note, gives way to the next, as the record's cuts merge.
-    // FIXME: a hook's line in a page is cut as a test line; the cut does not
-    // say which it is, as `__VA__.c(line, file, hook)` does for Playwright.
+    // A cut is not a visit: it opens what the code entered next, and one that
+    // nothing followed, visit or note, gives way to the next.
+    // FIXME: a hook's line in a page is cut as a test line, unmarked; under
+    // `sequence.hooks: 'parallel'` hooks' lines interleave as they ran.
     c(line: number): void {
       inner.c(line);
       inner.s?.();
