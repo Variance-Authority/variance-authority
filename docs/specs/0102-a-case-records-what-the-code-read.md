@@ -235,7 +235,7 @@ None of them joins what was read to the cases that entered a changed region.
    into the flag-off arm by an `else`, a ternary and an early return, each with
    the output it is expected to print.
 
-Items 1 and 2, item 3 under Vitest, Jest and Rstest in Node and item 5 for `review` land first,
+Items 1 and 2, item 3 under Vitest, Jest and Rstest in Node and under Playwright, and item 5 for `review` land first,
 end to end; the other runners and readings follow.
 
 ## Open

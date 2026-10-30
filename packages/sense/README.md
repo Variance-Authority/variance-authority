@@ -2531,7 +2531,8 @@ preconditions: its preconditions are unmeasured, never none.
 What the test says is a claim. A **breadcrumb**, `varianceBreadcrumb` from
 `@variance-authority/event`, records what the code under test read, on the case
 that ran it, and the readers print each read beside what the case said under
-the same name. The Vitest integration records reads in Node; `tests.read` is
+the same name. Vitest, Jest and Rstest record reads in Node, and Playwright in
+the worker and in the page; `tests.read` is
 absent from a row whose runner did not listen, and empty for a case that read
 nothing.
 
