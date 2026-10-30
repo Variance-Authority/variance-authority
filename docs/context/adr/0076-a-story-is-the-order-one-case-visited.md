@@ -115,7 +115,4 @@ async work of the same case shows where it ran.
   runner takes it at the end of each case. The page's cut skips the probes
   already in the file, since there they go in first. A service head writes
   none; that is an `it.todo` marker.
-- A comparison reads the `test line N` notes every seam writes: a region every
-  reading reached, first under a different line on each side, is listed as
-  charged to another line.
 - The accessor cost ADR-0056's runtime rejects is paid only under the variable.

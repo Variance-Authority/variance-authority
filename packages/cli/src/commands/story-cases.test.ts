@@ -33,7 +33,7 @@ vi.mock('@variance-authority/sense/story', async (original) => ({
     return {
       file: sides[0]!.readings[0]!.file, name: sides[0]!.readings[0]!.name,
       sides: sides.map((side) => ({ name: side.name, readings: side.readings.length, stopped: 0 })),
-      only: [], orders: [], charged: [], unsteady: { places: 0, said: 0, order: 0, charged: 0 }, single: true,
+      only: [], orders: [], unsteady: { places: 0, said: 0, order: 0 }, single: true,
     };
   },
 }));
@@ -156,8 +156,7 @@ describe('three sides printed', () => {
         { sides: ['charges off', 'as mike'], places: [], said: ['console.log declined'] },
       ],
       orders: [{ pair: [{ said: 'console.log paid' }, { place: PLACE }], before: ['charges', 'charges off'], after: ['as mike'] }],
-      charged: [],
-      unsteady: { places: 0, said: 0, order: 0, charged: 0 },
+      unsteady: { places: 0, said: 0, order: 0 },
       single: false,
     };
 

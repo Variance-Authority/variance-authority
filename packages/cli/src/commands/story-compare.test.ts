@@ -15,8 +15,7 @@ const COMPARISON: Comparison = {
     { sides: ['threw'], places: [], said: ['console.log stock 0'] },
   ],
   orders: [{ pair: [{ said: 'eyes click on button "Save" in SaveBar' }, { place: PRICE }], before: ['passed'], after: ['threw'] }],
-  charged: [{ place: { place: PRICE, path: 'entry', startLine: 32, endLine: 36 }, lines: [{ sides: ['passed'], line: 4 }, { sides: ['threw'], line: 5 }] }],
-  unsteady: { places: 1, said: 4, order: 37, charged: 2 },
+  unsteady: { places: 1, said: 4, order: 37 },
   single: false,
 };
 
@@ -45,11 +44,7 @@ describe('readings of one case compared', () => {
       '    » eyes click on button "Save" in SaveBar',
       '      before price  src/cart.ts:32-36 when it passed, after it when it threw',
       '',
-      '  first reached under another test line, on every reading:',
-      '    price  src/cart.ts:32-36',
-      '      under line 4 when it passed, under line 5 when it threw',
-      '',
-      '  left out, because they differ between readings of one side as well: 1 place, 4 lines said, 37 pairs in changing order, 2 places under a changing test line',
+      '  left out, because they differ between readings of one side as well: 1 place, 4 lines said, 37 pairs in changing order',
     ].join('\n')}\n`);
     expect(JSON.parse(formatComparison(COMPARISON, 'json'))).toEqual({ comparison: COMPARISON });
   });
@@ -68,31 +63,13 @@ describe('readings of one case compared', () => {
     expect(text).toContain('    went into  checkout  src/checkout.ts:10-16, the then of the if on 13');
   });
 
-  it('names a region reached before any test line on one side, and the sides that share a line together', () => {
-    const lines: Comparison = {
-      ...COMPARISON,
-      sides: [{ name: 'slow', readings: 2, stopped: 0 }, { name: 'fast', readings: 2, stopped: 2 }, { name: 'cold', readings: 2, stopped: 2 }],
-      only: [],
-      orders: [],
-      charged: [{ place: { place: PRICE, path: 'entry', startLine: 32, endLine: 36 }, lines: [{ sides: ['slow'] }, { sides: ['fast', 'cold'], line: 7 }] }],
-      unsteady: { places: 0, said: 0, order: 0, charged: 0 },
-    };
-    expect(formatComparison(lines, 'text').split('\n').slice(2, 6)).toEqual([
-      '',
-      '  first reached under another test line, on every reading:',
-      '    price  src/cart.ts:32-36',
-      '      before any test line under slow, under line 7 under fast and cold',
-    ]);
-  });
-
   it('says when nothing separates the sides, and when one reading on a side cannot tell a side from a run', () => {
     const none: Comparison = {
       ...COMPARISON,
       sides: [{ name: 'slow', readings: 1, stopped: 0 }, { name: 'fast', readings: 2, stopped: 1 }],
       only: [],
       orders: [],
-      charged: [],
-      unsteady: { places: 0, said: 0, order: 0, charged: 0 },
+      unsteady: { places: 0, said: 0, order: 0 },
       single: true,
     };
     expect(formatComparison(none, 'text').split('\n')).toEqual([

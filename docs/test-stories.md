@@ -226,16 +226,7 @@ compare  src/checkout.test.ts > saves the total it charges
       before » console.log saving when it passed, after it when it threw
 ```
 
-A fourth group names a region every run reached, first under a different line
-of the test on each side:
-
-```text
-  first reached under another test line, on every reading:
-    applyTier  src/price.ts:6-9
-      under line 4 when it passed, under line 5 when it threw
-```
-
-This output shows four things, and each one names a place to open:
+This output shows three things, and each one names a place to open:
 
 - **Which branch the test took.** Every run that failed took the `then` of the `if`
   on line 13, which throws, and no run that passed did.
@@ -244,17 +235,13 @@ This output shows four things, and each one names a place to open:
 - **In what order.** On every run that passed, `applyTier` ran before `save`
   printed `saving`, and on every run that failed, after it. That is the cause:
   `save` stores the total before `reprice` changes it.
-- **Under which test line.** Every run reached `applyTier`, but the runs that
-  passed did so under line 4 of the test, and the runs that threw under line
-  5. The work line 4 started had not finished when line 5 ran: the test does
-  not wait for it.
 
 The comparison can also answer in three other ways:
 
 - **A last line counts what it left out**, such as `left out, because they
   differ between readings of one side as well: 1 place, 4 lines said, 37 pairs
-  in changing order, 2 places under a changing test line`. Those differ between
-  runs that passed too, so none of them is the cause. They are what you would read through if you compared two
+  in changing order`. Those differ between runs that passed too, so none of
+  them is the cause. They are what you would read through if you compared two
   stories by hand.
 - **`nothing separates the sides`** means the runs ran the same code,
   printed the same lines, and ran in the same order wherever every run had

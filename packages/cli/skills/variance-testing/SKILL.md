@@ -63,9 +63,7 @@ a pattern or no argument, and never record in CI.
 | behaves differently under a flag or a mock | each side under its own label, such as `=flag-on` | `story --name <name> --compare 1,flag-on` |
 
 A listed difference holds on every reading of one side and on none of the
-other: open the place it names. A region *first reached under another test
-line* ran under a later statement on the failing side: the test does not wait
-for the work the earlier line started. What differs between readings of one side is
+other: open the place it names. What differs between readings of one side is
 counted on the last line and is not the cause.
 [story](../variance-authority/references/story.md)
 
