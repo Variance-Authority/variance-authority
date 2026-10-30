@@ -93,8 +93,9 @@ export const PHASES = LAYOUT.coverage.phases;
 
 /**
  * The section the layouts after `UNKEYED_FORMAT` added: one word a module, the
- * dictionary id of the git blob name of the text `modules.source` digests
- * (`gitBlob`), or {@link NO_BLOB} where the module was recorded without one.
+ * dictionary id of git's name for the text `modules.source` digests, as the
+ * landing read it from the commit or the working tree, or {@link NO_BLOB} where
+ * the landing could not name it.
  */
 export const BLOB = LAYOUT.coverage.blob;
 

@@ -85,6 +85,17 @@ export async function gitDigests(
   return digests;
 }
 
+/**
+ * The name git gives the bytes on disk at each of `paths`, spelled from the top
+ * of the checkout at `repository`, as {@link gitDigests} names a file the
+ * working tree changed: one `hash-object --stdin-paths`, which cleans each file
+ * on the way in (`core.autocrlf`, a filter) and names it in the repository's
+ * own hash. A path that is not a file on disk has none. Never throws.
+ */
+export async function namesOnDisk(repository: string, paths: readonly string[]): Promise<ReadonlyMap<string, Digest>> {
+  return hashOnDisk(repository, '', await filesAmong(repository, paths.filter((path) => !path.includes('\n'))));
+}
+
 /** Whether `HEAD` names a branch nobody has committed to yet; asked only after `ls-tree` failed. */
 async function unborn(root: string): Promise<boolean> {
   try {

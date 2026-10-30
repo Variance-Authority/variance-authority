@@ -1,6 +1,11 @@
 import { execFileSync } from 'node:child_process';
-import { describe, expect, it } from 'vitest';
-import { gitBlob } from '../digest.js';
+import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { afterEach, describe, expect, it } from 'vitest';
+import { captureModule } from './captured-modules.js';
+import { landRun } from './commit-runs.js';
+import { coverageModule } from './coverage-rows.js';
 import { decodeTestCoverage, encodeTestCoverage } from './format.js';
 import { layCoverage } from './format-layer.js';
 import { BLOB, FORMAT, NO_BLOB, PHASES, UNKEYED_FORMAT, sections, type Header, type Stored } from './format-layout.js';
@@ -38,13 +43,88 @@ function relaid(bytes: Buffer, version: number, without: readonly string[]): Buf
   return sections(kept, version);
 }
 
-describe('the git name of the text a module row was cut from', () => {
-  it('is the name git gives the same bytes', () => {
-    const text = 'export const a = 1;\n// é\n';
+const made: string[] = [];
 
-    expect(gitBlob(text)).toBe(`git:${execFileSync('git', ['hash-object', '--stdin'], { input: text }).toString().trim()}`);
+afterEach(async () => {
+  await Promise.all(made.splice(0).map((dir) => rm(dir, { recursive: true, force: true })));
+});
+
+const CART = 'export function total(items) {\n  return items.length;\n}\n';
+
+/** A checkout at its first commit holding `src/cart.js` as `text` on disk, with `config` set before it was added. */
+async function checkout(text: string, config: readonly [string, string][] = []) {
+  const root = await realpath(await mkdtemp(join(tmpdir(), 'variance-format-blob-')));
+  made.push(root);
+  const git = (...args: string[]) => execFileSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', ...args], { cwd: root, encoding: 'utf8' }).trim();
+  git('init', '--quiet', '--initial-branch', 'main');
+  for (const [key, value] of config) git('config', key, value);
+  await mkdir(join(root, 'src'), { recursive: true });
+  await writeFile(join(root, 'src/cart.js'), text);
+  git('add', '.');
+  git('commit', '--quiet', '-m', 'cart');
+  return { root, git, file: join(root, 'src/cart.js'), record: join(root, 'coverage.bin') };
+}
+
+/** Record `text` as the recorder cuts the module it was handed, and land the run at `root`'s commit. */
+async function landed(root: string, file: string, record: string, text: string, commit: string): Promise<string | undefined> {
+  const captured = captureModule(root, file, text, () => true, undefined)!;
+  await landRun(record, {
+    version: 3, instrumentation: 'fixture', commit,
+    tests: [{ file: TEST, complete: true, preconditions: [] }],
+    modules: [coverageModule(captured.module, () => [TEST])],
+  }, root);
+  return decodeTestCoverage(await readFile(record)).modules.find((each) => each.file === 'src/cart.js')?.sourceBlob;
+}
+
+describe('the git name a landing gives the text a module row was cut from', () => {
+  it('is the name the commit gives a clean file, where git cleans the file on the way in', async () => {
+    // `core.autocrlf` stores the text with LF and leaves CRLF on disk: the bytes the run read are not the blob's.
+    const crlf = CART.replaceAll('\n', '\r\n');
+    const { root, git, file, record } = await checkout(crlf, [['core.autocrlf', 'true']]);
+
+    expect(await landed(root, file, record, crlf, git('rev-parse', 'HEAD'))).toBe(`git:${git('rev-parse', 'HEAD:src/cart.js')}`);
   });
 
+  it('is the name git hashes a dirty file to', async () => {
+    const { root, git, file, record } = await checkout(CART);
+    const edited = CART.replace('items.length;', 'items.length + 1;');
+    await writeFile(file, edited);
+
+    expect(await landed(root, file, record, edited, git('rev-parse', 'HEAD'))).toBe(`git:${git('hash-object', 'src/cart.js')}`);
+  });
+
+  it('is none for a dirty file edited again after the run read it', async () => {
+    const { root, git, file, record } = await checkout(CART);
+    const edited = CART.replace('items.length;', 'items.length + 1;');
+    await writeFile(file, edited);
+    const captured = captureModule(root, file, edited, () => true, undefined)!;
+    await writeFile(file, CART.replace('items.length;', 'items.length + 2;'));
+    await landRun(record, {
+      version: 3, instrumentation: 'fixture', commit: git('rev-parse', 'HEAD'),
+      tests: [{ file: TEST, complete: true, preconditions: [] }],
+      modules: [coverageModule(captured.module, () => [TEST])],
+    }, root);
+
+    expect(decodeTestCoverage(await readFile(record)).modules[0]!.sourceBlob).toBeUndefined();
+  });
+
+  it('is none outside a checkout', async () => {
+    const root = await realpath(await mkdtemp(join(tmpdir(), 'variance-format-blob-')));
+    made.push(root);
+    await writeFile(join(root, 'cart.js'), CART);
+
+    const captured = captureModule(root, join(root, 'cart.js'), CART, () => true, undefined)!;
+    await landRun(join(root, 'coverage.bin'), {
+      version: 3, instrumentation: 'fixture', commit: 'C',
+      tests: [{ file: TEST, complete: true, preconditions: [] }],
+      modules: [coverageModule(captured.module, () => [TEST])],
+    }, root);
+
+    expect(decodeTestCoverage(await readFile(join(root, 'coverage.bin'))).modules[0]!.sourceBlob).toBeUndefined();
+  });
+});
+
+describe('the git name of the text a module row was cut from', () => {
   it('is stored a module, and a module recorded without one reads back without one', () => {
     const written = encodeTestCoverage(coverage([module('src/a.ts', 'git:aa'), module('src/b.ts')]));
 

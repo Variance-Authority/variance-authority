@@ -33,22 +33,6 @@ export function digestBytes(bytes: Uint8Array): Digest {
   return digestOfSha256(createHash('sha256').update(bytes).digest('hex'));
 }
 
-/**
- * The name git gives `text` as a blob, as the source index names a file
- * (`git:` and the object name, `tree.ts`): the digest a record carries beside a
- * text's own `v1:` one, so a reader asks the index whether the tree still holds
- * that text instead of reading the tree. The text is written as UTF-8, which is
- * the bytes on disk for every text read as UTF-8 that held valid UTF-8; a file
- * git cleans on the way in (`core.autocrlf`, a filter) is named otherwise, and
- * reads as a different text, which costs a read and never an answer.
- */
-export function gitBlob(text: string): Digest {
-  // FIXME: a SHA-256 repository names its blobs in 64 digits, so no text its index names ever matches this SHA-1
-  // name and every row of it reads as another text. The callers hold the checkout's `root`, not its repository,
-  // so none of them can say the repository's width.
-  return `git:${blobName(Buffer.from(text, 'utf8'), 40)}`;
-}
-
 /** Git's name for `bytes` as a blob, in the repository's hash: a SHA-256 name is 64 digits. */
 export function blobName(bytes: Buffer, digits: number): string {
   return createHash(digits === 64 ? 'sha256' : 'sha1')

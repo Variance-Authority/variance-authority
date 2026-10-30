@@ -1320,8 +1320,10 @@ when no suite ran it over the text you hold. Texts are compared by the name git
 gives them as blobs, the name the [source index](https://variance-authority.dev/docs/cache)
 holds for each file, so `coverage` reads a file only to diff two texts whose
 names differ. A file gone from the checkout ran over a text you no longer hold,
-so its regions count over an older text. A record made before its rows named
-their text counts as not known, and a line under the table says why. The total
+so its regions count over an older text. A row that names no text counts as
+not known, and a line under the table says why: a record made before rows
+named their text, a JVM record, or a run whose file changed again before it
+landed. The total
 over the source carries the same split.
 
 With a base, each count is printed at the base and now, beside the parts that

@@ -44,8 +44,12 @@ export type TextOf = NonNullable<CountedSuite['textOf']>;
 /** Why a text is not known. */
 type Unknown = { readonly unknown: string };
 
-/** Why a file whose rows name no git blob is not known, whatever its runs ran. */
-const UNKEYED: RegionText = { unknown: 'the record was made before its rows named their text by its git blob, so which text ran is not known' };
+/**
+ * Why a file whose rows name no text is not known, whatever its runs ran: a
+ * record made before its landing named texts, one the JVM agent writes, which
+ * no landing names, and a row whose text the landing could not name all read so.
+ */
+const UNKEYED: RegionText = { unknown: 'the record names no text its rows were cut from, so which text ran is not known' };
 
 /**
  * Over which text each test file of `index` ran each region, for the record at

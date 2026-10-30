@@ -1,15 +1,15 @@
 import { execFileSync } from 'node:child_process';
-import { createHash } from 'node:crypto';
-import { chmod, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { chmod, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { sourceIndexPath, updateSourceIndex } from '@variance-authority/sense';
 import { INSTRUMENTATION_ID } from '@variance-authority/sense/instrument';
-import { commitRunsFile, editOf, encodeExecutionIndex, repositoryLayers, testCoverageFile, writeTestCoverage } from '@variance-authority/sense/test-selection';
+import { commitRunsFile, editOf, encodeExecutionIndex, landRun, NO_BLOB, openTestCoverage, repositoryLayers, testCoverageFile, writeTestCoverage, type TestCoverage } from '@variance-authority/sense/test-selection';
 import { digestString } from '@variance-authority/core/format';
 import { main } from '../bin.js';
 import { textOver } from './coverage-over-text.js';
+import { hashObject } from './review-fixture.js';
 
 // `ci-info` decides CI once, when it loads, so the module is cut: a test that runs as CI sets `ci.isCI`.
 const ci = vi.hoisted(() => ({ isCI: false }));
@@ -72,13 +72,12 @@ interface Setup {
   readonly second?: true;
   /** Write the rows as a record made before rows named their text by its git blob. */
   readonly unkeyed?: true;
+  /**
+   * Check the checkout out under `core.autocrlf`, every text on disk with CRLF and every blob with LF, and land the
+   * rows as a run does, so the landing names their text.
+   */
+  readonly crlf?: true;
 }
-
-/** Git's name for `text` as a blob, as the source index names a file. */
-const blobOf = (text: string): string => {
-  const bytes = Buffer.from(text, 'utf8');
-  return `git:${createHash('sha1').update(`blob ${bytes.length}\0`).update(bytes).digest('hex')}`;
-};
 
 let cache: string;
 let previous: string | undefined;
@@ -111,6 +110,10 @@ async function checkout(setup: Setup): Promise<{ readonly at: string; readonly g
     await writeFile(join(at, file), text);
   }
   git('init', '--quiet', '--initial-branch', 'main');
+  if (setup.crlf === true) {
+    git('config', 'core.autocrlf', 'true');
+    for (const file of [PAY_FILE, CART_FILE]) await writeFile(join(at, file), files[file]!.replaceAll('\n', '\r\n'));
+  }
   git('add', '.');
   git('commit', '--quiet', '-m', 'pay');
   const first = git('rev-parse', 'HEAD');
@@ -120,6 +123,8 @@ async function checkout(setup: Setup): Promise<{ readonly at: string; readonly g
   }
   const recorded = git('rev-parse', 'HEAD');
   await updateSourceIndex(at);
+  /** The text a run read off the disk for `text`. */
+  const disk = (text: string) => (setup.crlf === true ? text.replaceAll('\n', '\r\n') : text);
 
   const modules: readonly (readonly [string, string, readonly Region[]])[] = [
     [PAY_FILE, setup.recorded, [
@@ -134,22 +139,37 @@ async function checkout(setup: Setup): Promise<{ readonly at: string; readonly g
   ];
   const file = testCoverageFile(at, { suite: 'unit' });
   await mkdir(dirname(file), { recursive: true });
-  await writeTestCoverage(file, {
+  const coverage = (named: (path: string, text: string) => string | undefined): TestCoverage => ({
     version: 3,
     instrumentation: INSTRUMENTATION_ID,
     commit: recorded,
     tests: TESTS.map((test) => ({ file: test, complete: true, preconditions: [] })),
     modules: modules.map(([path, text, regions]) => ({
       file: path,
-      sourceDigest: digestString(text),
-      ...(setup.unkeyed === true ? {} : { sourceBlob: blobOf(text) }),
+      sourceDigest: digestString(disk(text)),
+      ...(named(path, text) === undefined ? {} : { sourceBlob: named(path, text) }),
       instrumented: true,
       blocks: regions.map((region, ordinal) => ({
         ordinal, kind: region.kind, digest: digestString(`${region.kind} ${region.name}`), name: region.name, path: region.path,
         startLine: region.startLine, endLine: region.endLine, source: true, testFiles: region.tests.map((test) => TESTS[test]!),
       })),
     })),
-  }, {
+  });
+  // Landed as a run is, beside the record, the rows are named by the landing.
+  let landed: ReadonlyMap<string, string | undefined> | undefined;
+  if (setup.crlf === true) {
+    const run = join(at, 'landed.bin');
+    await landRun(run, coverage(() => undefined), at);
+    const view = openTestCoverage(await readFile(run));
+    landed = new Map(Array.from({ length: view.modulePath.length }, (_, module) => [
+      view.string(view.modulePath.at(module)),
+      view.moduleBlob === undefined || view.moduleBlob.at(module) === NO_BLOB ? undefined : view.string(view.moduleBlob.at(module)),
+    ]));
+    await rm(run);
+  }
+  await writeTestCoverage(file, coverage((path, text) => (
+    setup.unkeyed === true ? undefined : landed === undefined ? hashObject(text) : landed.get(path)
+  )), {
     index: encodeExecutionIndex({
       tests: TESTS.map((test, id) => ({ id: String(id), file: test, name: 'runs', stopped: false })),
       modules: modules.map(([path, , regions]) => ({
@@ -275,6 +295,12 @@ describe('coverage parts what ran by the text it ran over', () => {
     expect(said.count).toMatchObject({ run: 3, over: { older: 1, notKnown: 0, why: [] } });
   });
 
+  it('counts an unchanged file git cleans on the way in (core.autocrlf) as run over this text', async () => {
+    const { at } = await checkout({ ...atRecord, crlf: true });
+
+    expect((await json('--root', at)).count).toMatchObject({ run: 3, over: { older: 0, notKnown: 0, why: [] } });
+  });
+
   it('changes no number when nothing changed since the runs, and counts nothing as older', async () => {
     const { at, recorded } = await checkout(atRecord);
 
@@ -343,14 +369,14 @@ describe('coverage names why a text is not known', () => {
     expect(answer.out).toContain('\n- Not known: the runs record does not say where some test files ran\n');
   });
 
-  it('counts every region of a file whose rows name no git blob as not known, and says the record was made before that key', async () => {
+  it('counts every region of a file whose rows name no text as not known, and says so', async () => {
     const { at } = await checkout({ ...atRecord, unkeyed: true });
 
     const answer = await ask('--root', at);
     const said = await json('--root', at);
 
-    expect(said.count).toMatchObject({ run: 3, over: { older: 0, notKnown: 3, why: ['the record was made before its rows named their text by its git blob, so which text ran is not known'] } });
-    expect(answer.out.split('before its rows named their text by its git blob').length).toBe(2);
+    expect(said.count).toMatchObject({ run: 3, over: { older: 0, notKnown: 3, why: ['the record names no text its rows were cut from, so which text ran is not known'] } });
+    expect(answer.out.split('the record names no text its rows were cut from').length).toBe(2);
   });
 
   describe('in CI, where coverage takes the source index as published and builds none', () => {

@@ -25,7 +25,6 @@ export function coverageModule(
   return {
     file: module.file,
     sourceDigest: module.sourceDigest,
-    ...(module.sourceBlob === undefined ? {} : { sourceBlob: module.sourceBlob }),
     instrumented: module.instrumented,
     blocks: module.blocks.map((block) => {
       const loadedBy = [...loadedByFor(block)].sort(codeUnitOrder);

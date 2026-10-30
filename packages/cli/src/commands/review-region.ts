@@ -236,8 +236,9 @@ export async function recordedRegions(
  * for, is not one, and neither is one whose rows' text is not known: `index`,
  * the case index read from the record, names no text of its own, and one a
  * landing wrote before the index followed its rows can stand at lines the
- * snapshot moved on from. A record made before its rows named their text by
- * its git blob names none, so no file of it is.
+ * snapshot moved on from. A row that names no text — one landed before
+ * landings named them, one the JVM agent wrote, one whose text the landing
+ * could not name — is not one either.
  */
 export function ranAsTree(coverageFile: string, files: readonly string[], index: ExecutionIndex, names: IndexNames): ReadonlySet<string> {
   if (files.length === 0) return new Set();

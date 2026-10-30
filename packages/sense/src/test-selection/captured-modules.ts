@@ -15,7 +15,7 @@
 import { readFileSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
-import { digestString, gitBlob } from '../digest.js';
+import { digestString } from '../digest.js';
 import { instrument, type InstrumentMode, type ModuleId } from '../instrument/index.js';
 import { instrumentTransformed } from '../instrument/transformed.js';
 import { recordedBlocks } from './coverage-rows.js';
@@ -144,16 +144,16 @@ export function placeModule(
   const plan = planModule(root, path, code, include, original, unprobed);
   if (plan === undefined) return undefined;
   const { frame, file, id } = plan;
-  const { sourceDigest, sourceBlob } = frame;
+  const { sourceDigest } = frame;
   const changed = frame.changed === undefined ? {} : { changed: frame.changed };
   if (plan.marked) {
-    return { module: { file, id, sourceDigest, sourceBlob, instrumented: false, blocks: [] }, code: markLoaded(code, id), ...changed };
+    return { module: { file, id, sourceDigest, instrumented: false, blocks: [] }, code: markLoaded(code, id), ...changed };
   }
   const done = instrument(code, file, id, mode === undefined ? {} : { mode });
   return {
     module: done === undefined
-      ? { file, id, sourceDigest, sourceBlob, instrumented: false, blocks: [] }
-      : { file, id, sourceDigest, sourceBlob, instrumented: true, blocks: recordedBlocks(done.blocks, frame, code, mode ?? 'presence') },
+      ? { file, id, sourceDigest, instrumented: false, blocks: [] }
+      : { file, id, sourceDigest, instrumented: true, blocks: recordedBlocks(done.blocks, frame, code, mode ?? 'presence') },
     code: done?.code ?? markLoaded(code, id),
     ...changed,
     ...(done?.module === false ? { script: { at: done.headerAt } } : {}),
@@ -254,7 +254,7 @@ export function captureAfter(
   if (plan === undefined) return undefined;
   const { frame, file, id } = plan;
   const named = projectPath(root, path);
-  const unread = { file, id, sourceDigest: frame.sourceDigest, sourceBlob: frame.sourceBlob, instrumented: false, blocks: [] };
+  const unread = { file, id, sourceDigest: frame.sourceDigest, instrumented: false, blocks: [] };
   // The mark follows the last line, so no column moves: a map is composed only to carry.
   if (plan.marked) {
     const carried = carry ? map?.() : undefined;
@@ -488,7 +488,7 @@ async function deriveModule(
   }
   const code = handedTexts(disk).find((text) => digestOf(text) === digest);
   if (code === undefined) {
-    return { file, id, sourceDigest: digestString(disk), sourceBlob: gitBlob(disk), instrumented: false, blocks: [] };
+    return { file, id, sourceDigest: digestString(disk), instrumented: false, blocks: [] };
   }
   // Every name the transform could have accepted, because it did accept one:
   // the module reported, so it was instrumented or marked under one of them.
