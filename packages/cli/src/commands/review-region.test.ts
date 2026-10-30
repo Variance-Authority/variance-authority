@@ -1,13 +1,19 @@
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { INSTRUMENTATION_ID } from '@variance-authority/sense/instrument';
 import {
   coveringChange,
   coveringTests,
   coveringTestsInFile,
+  writeTestCoverage,
   type CoveringTest,
   type ExecutionBlock,
   type ExecutionIndex,
 } from '@variance-authority/sense/test-selection';
-import { editOf, regionsOf, removedText } from './review-region.js';
+import { digestString } from '@variance-authority/core/format';
+import { editOf, ranAsTree, regionsOf, removedText } from './review-region.js';
 
 /** `spill` leaves `src/old.ts` and is written into `src/caps.ts` under `cap`. */
 const MOVED = [
@@ -134,5 +140,32 @@ describe('the cases that ran a changed line', () => {
     const [cap] = regionsOf([{ kind: 'function', name: 'cap', startLine: 1, endLine: 10, tests: [twin('a#2'), twin('a#1')] }], undefined, [{ start: 4, end: 4 }], undefined, 'src/caps.ts', removedText(''), []);
 
     expect(cap?.called.map((called) => called.id)).toEqual(['a#1', 'a#2']);
+  });
+});
+
+describe('the files a record ran as the tree holds them', () => {
+  it('leaves out a file the record holds rows of from two texts, though the tree holds the text of the last', async () => {
+    const at = await mkdtemp(join(tmpdir(), 'variance-ran-as-tree-'));
+    const before = 'export const cap = 1;\n';
+    const after = 'export const cap = 2;\n';
+    await mkdir(join(at, 'src'));
+    await writeFile(join(at, 'src/caps.ts'), after);
+    const coverageFile = join(at, 'coverage.bin');
+    // Two builds read `src/caps.ts`, one before the edit and one after: two rows of one file.
+    await writeTestCoverage(coverageFile, {
+      version: 3,
+      instrumentation: INSTRUMENTATION_ID,
+      tests: [{ file: 'caps.test.ts', complete: true, preconditions: [] }],
+      modules: [before, after].map((text) => ({
+        file: 'src/caps.ts', sourceDigest: digestString(text), instrumented: true,
+        blocks: [{ ordinal: 0, kind: 'module', digest: 'module', name: 'src/caps.ts', path: 'module', startLine: 1, endLine: 1, source: true, testFiles: ['caps.test.ts'] }],
+      })),
+    });
+
+    try {
+      expect(await ranAsTree(coverageFile, at, ['src/caps.ts'], { tests: [], modules: [] })).toEqual(new Set());
+    } finally {
+      await rm(at, { recursive: true, force: true });
+    }
   });
 });
