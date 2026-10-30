@@ -1323,7 +1323,9 @@ names differ. A file gone from the checkout ran over a text you no longer hold,
 so its regions count over an older text. A row that names no text counts as
 not known, and a line under the table says why: a record made before rows
 named their text, a JVM record, or a run whose file changed again before it
-landed. The total
+landed. So does a file the source index does not hold that is not gone: one it
+does not read, one git ignores, or one on disk that an index taken as published
+does not list. The total
 over the source carries the same split.
 
 With a base, each count is printed at the base and now, beside the parts that
