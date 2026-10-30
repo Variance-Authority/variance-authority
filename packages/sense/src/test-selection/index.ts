@@ -207,6 +207,7 @@ export {
   countCoverage,
   coverageChange,
   regionRun,
+  textAsks,
   type CountedSuite,
   type CoverageCount,
   type KindOverlap,

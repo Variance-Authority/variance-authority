@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { countCoverage, coverageChange, type RegionText, type SuiteChange } from './coverage-count.js';
+import { countCoverage, coverageChange, textAsks, type RegionText, type SuiteChange } from './coverage-count.js';
 import type { ExecutionBlock, ExecutionIndex, ExecutionModule } from './reverse.js';
 
 const A = { id: 'a.test.ts > one', file: 'a.test.ts', name: 'one', stopped: false };
@@ -132,10 +132,10 @@ describe('how much of what the suites loaded each suite ran', () => {
     expect(count.suites.map((suite) => suite.over)).toEqual([{ older: 1, notKnown: 0 }, { older: 2, notKnown: 0 }]);
   });
 
-  it('asks no text of a region only loaded, or ran in another text', () => {
+  it('asks no text of a region only loaded, or ran in another text, and says beforehand which it asks', () => {
     const record = index(module(
       'src/total.ts',
-      block('<module>', [], { loaded: true }),
+      block('<module>', [], { loaded: true, crossings: [{ test: 0, distance: 0, loaded: true }] }),
       block('apply', [], { crossings: [{ test: 0, distance: 0, overwritten: true }, { test: 1, distance: 0 }] }),
     ));
     const asked: string[] = [];
@@ -144,6 +144,7 @@ describe('how much of what the suites loaded each suite ran', () => {
 
     expect(asked).toEqual(['apply b.test.ts']);
     expect(count.over).toEqual({ older: 1, notKnown: 0, why: [] });
+    expect(textAsks(record)).toEqual(new Map([['src/total.ts', new Set(['b.test.ts'])]]));
   });
 
   it('has no split when no suite says which text it ran', () => {

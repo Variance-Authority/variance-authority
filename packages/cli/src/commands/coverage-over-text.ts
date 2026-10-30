@@ -22,6 +22,7 @@ import {
   ranOver,
   regionTouched,
   testPlaces,
+  textAsks,
   type CountedSuite,
   type Edit,
   type ExecutionIndex,
@@ -62,89 +63,97 @@ export async function textOver(root: string, record: string, recorded: string | 
     place.commit !== undefined && place.texts !== undefined && place.texts[file] === undefined &&
     changed.get(place.commit)?.has(file) === false && recorded !== undefined && changed.get(recorded)?.has(file) === false;
 
-  const asked = new Set<string>();
-  for (const module of index.modules) {
-    // Only a call the count asks about is read for: a load or a case run over another text is not run.
-    const entered = new Set(module.blocks.flatMap((block) => block.crossings.flatMap((crossing) =>
-      crossing.loaded === true || crossing.overwritten === true ? [] : [crossing.test])));
-    for (const test of entered) {
-      const place = places.get(index.tests[test]?.file ?? '');
-      if (place !== undefined && place.assumed !== true && !unchanged(place, module.file)) asked.add(module.file);
-    }
+  // Only a call the count asks about is read for: a load or a case run over another text is not run.
+  const asks = new Map<string, readonly (readonly [string, TestPlace])[]>();
+  for (const [file, tests] of textAsks(index)) {
+    const placed = [...tests].flatMap((test) => {
+      const place = places.get(test);
+      return place === undefined || place.assumed === true ? [] : [[test, place] as const];
+    });
+    if (placed.some(([, place]) => !unchanged(place, file))) asks.set(file, placed);
   }
-  const texts = await readTexts(root, record, index, asked, [...places.values()], read.repository, recorded, read.runs?.latest);
+  const texts = await readTexts(root, record, index, asks, [...places.values()], read.repository, recorded, read.runs?.latest);
   return (file, region, test) => {
     const place = places.get(test);
     if (place === undefined || place.assumed === true) return nowhere;
-    if (!asked.has(file)) return 'this';
-    return texts(file, place, test, region);
+    const over = texts.get(`${file}\0${test}`);
+    if (over === undefined) return 'this';
+    return Array.isArray(over) ? (regionTouched(region, over) ? 'older' : 'this') : over as RegionText;
   };
 }
 
-/** The verdict of a region of a file whose text is read, by the place its test stood at. */
-type Read = (file: string, place: TestPlace, test: string, region: Parameters<TextOf>[1]) => RegionText;
+/**
+ * Per file and test file, `file\0test`, what the test file's run ran the file
+ * over: the edits from the text its regions are numbered in to the checkout's,
+ * or the answer for every region of it.
+ */
+type Over = ReadonlyMap<string, readonly Edit[] | RegionText>;
 
 /**
- * Read what the files in `asked` need: their text on disk, the digest the
- * record's rows took of each, and the evidence of which text each run ran over.
- * The edits are read when first asked for, once per pair of texts.
+ * Read, for each file of `asks` and each test file placed that called into
+ * it, the edits between the text the run ran and the checkout's: the text on
+ * disk, the digest the record's rows took of the file, and the evidence of which
+ * text each run ran over. Everything is read here, so the count reads nothing.
  */
 async function readTexts(
   root: string,
   record: string,
   index: ExecutionIndex,
-  asked: ReadonlySet<string>,
+  asks: ReadonlyMap<string, readonly (readonly [string, TestPlace])[]>,
   places: readonly TestPlace[],
   repository: string | undefined,
   recorded: string | undefined,
   latest: string | undefined,
-): Promise<Read> {
-  if (asked.size === 0) return () => 'this';
+): Promise<Over> {
+  const over = new Map<string, readonly Edit[] | RegionText>();
+  if (asks.size === 0) return over;
   const held = new Map<string, string>();
-  for (const file of asked) {
-    const text = await readFile(resolve(root, file), 'utf8').catch(() => undefined);
-    if (text !== undefined) held.set(file, text);
+  const unread = new Map<string, RegionText>();
+  for (const file of asks.keys()) {
+    const text = await readFile(resolve(root, file), 'utf8').catch((error: unknown) => error as NodeJS.ErrnoException);
+    if (typeof text === 'string') held.set(file, text);
+    // A file gone from the checkout holds no region of this text; any other failure says nothing of the text.
+    else if (text.code !== 'ENOENT') unread.set(file, { unknown: `${file} does not read: ${text.message}` });
   }
-  const rows = rowDigests(record, index, asked);
+  const rows = rowDigests(record, index, new Set(asks.keys()));
   const evidence: Evidence = await evidenceOf(places, held, {
     root, snapshot: record, repository, last: recorded === undefined ? latest : undefined, region: true, placement: undefined, ranOther: undefined,
   });
   const edits = editsBetween(root, undefined, [recorded, ...places.flatMap((place) => place.commit ?? [])]);
+  // A chain is read once per text the runs ran, however many test files ran it.
   const chains = new Map<string, readonly Edit[] | RegionText>();
-  const ran = new Map<string, ReturnType<typeof ranOver>>();
-  // A text is digested once, however many regions and runs ask over it.
-  const digests = new Map<string, string>();
-  const digestOf = (text: string): string => {
-    let digest = digests.get(text);
-    if (digest === undefined) digests.set(text, (digest = digestString(text)));
-    return digest;
-  };
-  return (file, place, test, region) => {
+  for (const [file, placed] of asks) {
     const now = held.get(file);
-    // The file is gone from the checkout, so no region of it is this text's.
-    if (now === undefined) return 'older';
     const row = rows.get(file);
-    if (typeof row !== 'string') return row ?? { unknown: `the record holds no digest of the text of ${file} its regions were cut from` };
-    // Which text a test file's run ran over is the file's, not the region's: asked once per pair.
-    const pair = `${file}\0${test}`;
-    let over = ran.get(pair);
-    if (over === undefined) ran.set(pair, (over = ranOver(place, test, file, now, evidence, false)));
-    if (over === 'absent') return 'older';
-    if (typeof over === 'object' && 'unknown' in over) return over;
-    if (typeof over === 'object' && over.text === undefined) return { unknown: `the text of ${file} that run ran over is neither kept nor committed` };
-    const from = digestOf(over === 'held' ? now : over.text!);
+    let nowDigest: string | undefined;
+    const answer = (test: string, place: TestPlace): readonly Edit[] | RegionText => {
+      const failed = unread.get(file);
+      if (failed !== undefined) return failed;
+      // The file is gone from the checkout, so no region of it is this text's.
+      if (now === undefined) return 'older';
+      if (typeof row !== 'string') return row ?? { unknown: `the record holds no digest of the text of ${file} its regions were cut from` };
+      return chainOf(file, row, (nowDigest ??= digestString(now)), ranOver(place, test, file, now, evidence, false));
+    };
+    for (const [test, place] of placed) over.set(`${file}\0${test}`, answer(test, place));
+  }
+  return over;
+
+  function chainOf(file: string, row: string, nowDigest: string, ran: ReturnType<typeof ranOver>): readonly Edit[] | RegionText {
+    if (ran === 'absent') return 'older';
+    if (typeof ran === 'object' && 'unknown' in ran) return ran;
+    if (typeof ran === 'object' && ran.text === undefined) return { unknown: `the text of ${file} that run ran over is neither kept nor committed` };
+    const from = ran === 'held' ? nowDigest : digestString(ran.text!);
     const key = `${file}\0${from}`;
     let chain = chains.get(key);
     if (chain === undefined) {
-      const along = [edits(file, row, from), edits(file, from, digestOf(now))];
+      const along = [edits(file, row, from), edits(file, from, nowDigest)];
       chain = along.every((edit) => edit !== undefined)
         ? along as readonly Edit[]
         : { unknown: `a text of ${file} the record or a run names cannot be found` };
       chains.set(key, chain);
     }
-    if (!Array.isArray(chain)) return chain as RegionText;
-    return regionTouched(region, chain) ? 'older' : 'this';
-  };
+    return chain;
+  }
 }
 
 /** The digest the record's rows took of each asked file ({@link rowsText}), every one not known when the record does not read. */

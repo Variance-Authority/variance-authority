@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { NO_OWNER } from './format-layout.js';
 import { editsBetween, landedThrough, NO_EDIT, regionTouched } from './region-edit.js';
+import { NO_LINE } from './written-lines.js';
 
 /** A module of regions the callers' names are no part of: kind and lines only. */
 const module = (...lines: readonly [kind: string, start: number, end: number][]) => ({
@@ -225,5 +226,11 @@ describe('regionTouched', () => {
     expect(regionTouched(region('module', 1, 9), [{ hunks: [body], reading: 'bodies' }])).toBe(false);
     expect(regionTouched(region('module', 1, 9), [{ hunks: [body], reading: 'load' }])).toBe(true);
     expect(regionTouched(region('module', 1, 9), [{ hunks: [body] }])).toBe(true);
+  });
+
+  it('leaves a region with no lines of its own where it was, whatever the edit wrote', () => {
+    const rewritten = { hunks: [{ oldStart: 1, oldCount: 9, newStart: 1, newCount: 9 }] };
+
+    expect(regionTouched(region('function', NO_LINE, NO_LINE), [rewritten, rewritten])).toBe(false);
   });
 });

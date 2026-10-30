@@ -14,7 +14,7 @@
  */
 
 import { caseMotion, matchedThrough, regionAddresses, type CaseMotionOptions, type TestFileMotion } from './case-motion.js';
-import type { ExecutionBlock, ExecutionIndex } from './reverse.js';
+import type { ExecutionBlock, ExecutionCrossing, ExecutionIndex } from './reverse.js';
 import { SUITE_KINDS, type SuiteKind } from './suites.js';
 
 /** One record to count: a declared suite's, or the repository's one record with no name and no kind. */
@@ -105,11 +105,35 @@ export interface CoverageCount {
 export function regionRun(block: ExecutionBlock): RegionRun {
   let load = block.loaded === true;
   for (const crossing of block.crossings) {
-    if (crossing.overwritten === true) continue;
-    if (crossing.loaded !== true) return 'run';
-    load = true;
+    if (calls(crossing)) return 'run';
+    if (crossing.overwritten !== true) load = true;
   }
   return load ? 'load' : 'none';
+}
+
+/** Whether a crossing is a case calling into its region over the text the record holds: neither a load nor a run over another text. */
+function calls(crossing: ExecutionCrossing): boolean {
+  return crossing.overwritten !== true && crossing.loaded !== true;
+}
+
+/**
+ * Per module of `index`, the test files whose cases called into one of its
+ * regions: every pair a count asks `textOf` about, so a reader can read them
+ * before the count runs.
+ */
+export function textAsks(index: ExecutionIndex): ReadonlyMap<string, ReadonlySet<string>> {
+  const asks = new Map<string, Set<string>>();
+  for (const module of index.modules) {
+    for (const block of module.blocks) {
+      for (const crossing of block.crossings) {
+        if (!calls(crossing)) continue;
+        let tests = asks.get(module.file);
+        if (tests === undefined) asks.set(module.file, (tests = new Set()));
+        tests.add(index.tests[crossing.test]!.file);
+      }
+    }
+  }
+  return asks;
 }
 
 /**
@@ -130,7 +154,7 @@ function textRun(index: ExecutionIndex, file: string, block: ExecutionBlock, tex
   // Made at the first test file that does not vouch, so a region run over this text allocates nothing.
   let asked: Set<string> | undefined;
   for (const crossing of block.crossings) {
-    if (crossing.overwritten === true || crossing.loaded === true) continue;
+    if (!calls(crossing)) continue;
     const test = index.tests[crossing.test]!.file;
     if (asked?.has(test) === true) continue;
     (asked ??= new Set()).add(test);

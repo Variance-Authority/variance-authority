@@ -3421,6 +3421,7 @@
         "testsLoadingFromView": "function",
         "testsReaching": "function",
         "testsReachingFromView": "function",
+        "textAsks": "function",
         "textAtRecording": "function",
         "textsAt": "function",
         "textsOf": "function",

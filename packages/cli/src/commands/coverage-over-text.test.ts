@@ -235,6 +235,56 @@ describe('coverage parts what ran by the text it ran over', () => {
   });
 });
 
+describe('coverage names why a text is not known', () => {
+  /** The record's runs record, written as `runs` gives it. */
+  const runsBeside = (at: string, runs: string) => writeFile(commitRunsFile(testCoverageFile(at, { suite: 'unit' })), runs);
+
+  it('counts every region run as not known when no runs record lies beside the record, and says so once', async () => {
+    const { at } = await checkout(atRecord);
+    await rm(commitRunsFile(testCoverageFile(at, { suite: 'unit' })));
+
+    const answer = await ask('--root', at);
+    const said = await json('--root', at);
+
+    expect(said.count).toMatchObject({ run: 3, over: { older: 0, notKnown: 3, why: ['no runs record lies beside the record, so where its tests ran is not known'] } });
+    expect(answer.out.split('no runs record lies beside the record').length).toBe(2);
+  });
+
+  it('names a runs record of another commit, one that does not read, and one that leaves a test file out', async () => {
+    const other = await checkout({ ...atRecord, recorded: REFUNDED, second: true, runs: (first) => ({ commit: first, ...landed(TESTS) }) });
+    const unread = await checkout(atRecord);
+    await runsBeside(unread.at, 'not a runs record');
+    const partial = await checkout({ ...atRecord, refund: [1], runs: (_, recorded) => ({ commit: recorded, ...landed([PAY_TEST, CART_TEST]) }) });
+
+    expect((await json('--root', other.at)).count).toMatchObject({
+      over: { notKnown: 3, why: ['the runs record beside the record lists the runs of another commit, so where its tests ran is not known'] },
+    });
+    expect((await json('--root', unread.at)).count).toMatchObject({ over: { notKnown: 3, why: [expect.stringMatching(/^the runs record beside the record does not read: /u)] } });
+    expect((await json('--root', partial.at)).count).toMatchObject({ over: { older: 0, notKnown: 1, why: ['the runs record does not say where some test files ran'] } });
+  });
+
+  it('keeps a function whose body gained only a comment as run over this text', async () => {
+    const { at } = await checkout(atRecord);
+    await writeFile(join(at, PAY_FILE), PAY.replace('  return -amount;', '  // refunds are negative\n  return -amount;'));
+
+    const said = await json('--root', at);
+
+    expect(said.count).toMatchObject({ run: 3, over: { older: 0, notKnown: 0, why: [] } });
+  });
+
+  it('counts a file gone from the checkout as older, and one that does not read for another reason as not known, with the reason', async () => {
+    const gone = await checkout(atRecord);
+    await rm(join(gone.at, PAY_FILE));
+    const unreadable = await checkout(atRecord);
+    await rm(join(unreadable.at, PAY_FILE));
+    await mkdir(join(unreadable.at, PAY_FILE));
+
+    expect((await json('--root', gone.at)).count).toMatchObject({ over: { older: 2, notKnown: 0 } });
+    const said = await json('--root', unreadable.at);
+    expect(said.count).toMatchObject({ over: { older: 0, notKnown: 2, why: [expect.stringContaining(`${PAY_FILE} does not read: EISDIR`)] } });
+  });
+});
+
 describe('a review that counts coverage', () => {
   it('neither asks which text each region ran over nor says it', async () => {
     const { at } = await checkout(atRecord);
