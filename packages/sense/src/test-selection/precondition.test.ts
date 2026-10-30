@@ -4,6 +4,7 @@ import { resolve } from 'node:path';
 import { performance } from 'node:perf_hooks';
 import { parseSync } from 'oxc-parser';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import caseOwner from './case-owner.cjs';
 import preconditions from './case-preconditions.cjs';
 import { preconditionText, readsOf, rowOf, saidJoined, saidRow, saidSite } from './case-said.js';
 import { decodeExecutionIndex } from './execution-format.js';
@@ -266,7 +267,7 @@ describe('where a hook stands, and what the recorder takes for a call', () => {
   });
 
   it('refuses a frame owner whose sixth field is not what a case heard', () => {
-    const field = preconditions.heardField('a.test.ts\u0000pays\u00001\u0000\u0000\u0000[]');
+    const field = caseOwner.heardField('a.test.ts\u0000pays\u00001\u0000\u0000\u0000[]');
     expect(field).toBe('[]');
     expect(() => saidJoined(undefined, [field])).toThrow(/not what a case heard/);
   });
@@ -318,13 +319,13 @@ describe('resolving what a case said', () => {
 
   it('carries what a frame heard in its owner, and tells a silent frame from one that never listened', () => {
     const owner = 'a.test.ts\u0000pays\u00001';
-    const packed = preconditions.packHeard(owner, { said: [said('network:upsell', 'mocked', 0)] });
-    expect(preconditions.heardField(packed)).toBe(spelled(said('network:upsell', 'mocked', 0)));
-    expect(preconditions.heardField(preconditions.packHeard(owner, { said: [] }))).toBe('{"said":[]}');
-    expect(preconditions.heardField(preconditions.packHeard(owner, { said: [], read: [] }))).toBe('{"said":[],"read":[]}');
-    expect(preconditions.heardField(preconditions.packHeard(owner, { said: [], read: [], misused: [] })))
+    const packed = caseOwner.packHeard(owner, { said: [said('network:upsell', 'mocked', 0)] });
+    expect(caseOwner.heardField(packed)).toBe(spelled(said('network:upsell', 'mocked', 0)));
+    expect(caseOwner.heardField(caseOwner.packHeard(owner, { said: [] }))).toBe('{"said":[]}');
+    expect(caseOwner.heardField(caseOwner.packHeard(owner, { said: [], read: [] }))).toBe('{"said":[],"read":[]}');
+    expect(caseOwner.heardField(caseOwner.packHeard(owner, { said: [], read: [], misused: [] })))
       .toBe('{"said":[],"read":[],"misused":[]}');
-    expect(preconditions.heardField(owner)).toBeUndefined();
+    expect(caseOwner.heardField(owner)).toBeUndefined();
     expect(packed.split('\u0000').slice(0, 3)).toEqual(['a.test.ts', 'pays', '1']);
   });
 

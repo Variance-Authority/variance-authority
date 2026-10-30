@@ -14,7 +14,7 @@
  * the case body, or in a `beforeEach` running for the case — and throws for a
  * call no case is running, which a `describe` callback, a `beforeAll`, a file's
  * top level and work that outlives its case all are. The case frame carries
- * every call as a sixth field of its owner, beside the journey, and the
+ * every call as a sixth field of its owner, beside the journey (`case-owner.cts`), and the
  * addon's `case_said.rs` does the rest: it joins, stores and resolves them.
  *
  * A read belongs to the case running it too, but it never throws: the code
@@ -463,34 +463,4 @@ function siteOf(called: unknown): string {
   return '';
 }
 
-/**
- * A packed case coordinate carrying what the case heard, as its sixth field.
- *
- * Set at its index, as `case-owner.cts` sets every field after the
- * coordinate, so the project after it stays where its reader looks. The field
- * is always JSON, `{"said": […], "read": […], "misused": […]}`: an empty facet is a case that
- * said, or read, nothing under a recorder that was listening; a facet absent,
- * or the field empty or missing, is one nobody listened to, which a reader may
- * not take for a case that said or read nothing.
- */
-const HEARD_FIELD = 5;
-
-function packHeard(packed: string, heard: Heard): string {
-  const fields = packed.split('\u0000');
-  while (fields.length <= HEARD_FIELD) fields.push('');
-  const { said, read, misused } = heard;
-  fields[HEARD_FIELD] = JSON.stringify({
-    said,
-    ...(read === undefined ? {} : { read }),
-    ...(misused === undefined ? {} : { misused }),
-  });
-  return fields.join('\u0000');
-}
-
-/** A frame owner's sixth field, as the realm wrote it; absent where its writer never listened. */
-function heardField(packed: string): string | undefined {
-  const field = packed.split('\u0000')[HEARD_FIELD];
-  return field === undefined || field === '' ? undefined : field;
-}
-
-export = { PRECONDITION, BREADCRUMB, MISPLACED, CASE_LEVEL, recorder, entriesOf, jsonText, siteOf, packHeard, heardField, misuseWhy };
+export = { PRECONDITION, BREADCRUMB, MISPLACED, CASE_LEVEL, recorder, entriesOf, jsonText, siteOf, misuseWhy };
