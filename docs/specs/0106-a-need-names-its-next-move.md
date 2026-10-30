@@ -33,29 +33,48 @@ answer spells what to ask next for the surface it was asked on; the `followUps`
 that `orient`, `packages` and `entrypoint` build from their reading; the
 evidence gap of `evidence-gap.ts`; and the skill
 in `packages/cli/skills/variance-authority/`.
-**Held by:** the compiler, for a command or MCP tool with no entry, for an
-edge into an entry that does not exist, and for a binding or a condition that
-reads a field its entry's answer type does not hold; a check that no answer
-spells a question outside `spellingOf`; a check that the generated skill matches
-its source; and, per command, a decision test of its builder and an acceptance
-test that asks each printed move and reads its answer.
+**Held by:** the compiler, for a command or MCP tool with no entry, for an edge
+into a need that is not declared, for an entry of a need with an edge into it
+that binds no arguments for that entry, and for a binding or a condition that
+reads a field its answer type does not hold; a check that no answer spells a
+question outside `spellingOf`; a check that the generated skill matches its
+source; and, per command, a decision test of its builder and an acceptance test
+that asks each printed move and reads its answer.
 
 ## Purpose
 
 An agent does not ask questions for their own sake. It holds an intent — fix
 this, add that, review this branch — and each intent breaks into needs: find
-the code, know what a name is, know who breaks, run what already exercises it,
-know what the change reached. A need is answered by a command, and the answer is
-what makes the next need askable: `symbol` finds the name and the package
-that declares it, and `uses` takes both.
+the code, know what a name is, know who imports it, know which recorded tests
+ran it, know what the change touched. A need is answered by a command, and the
+answer is what makes the next need askable: `symbol` finds the name and the
+package that declares it, and `uses` takes both.
 
-So the CLI is a table automaton with two layers. The catalogue is static: a row
-is keyed by the need; its behaviour is a command; its edges are the needs the
-answer can open, each with the answer fields that fill the next command's
-arguments. The answer is dynamic: it holds the declarations, files, cases,
-subjects and missing evidence it found. A **move** is one edge instantiated by
-one answer: the edge's command with every argument filled from a field of that
-answer. The catalogue says what can follow. Only the answer says what does.
+A need is worded as the question the evidence answers, never the decision the
+agent draws from it. `uses` names who imports and calls a name; whether they
+break is the agent's inference. `covering --line` names the recorded cases that
+ran a region; whether those cases pin what it does is the agent's judgement.
+What to pin, what to fix and what to refactor stay with the agent, and the
+catalogue promises only what its answers establish.
+
+So the catalogue is static and holds three relations, kept apart:
+
+- A **need** is a question an agent asks of the evidence, or, for an entry
+  marked *operation*, an act on it: make a record, settle a change, let a
+  stopped test go on. It exists whether or not anything answers it.
+- A need is **answered by** zero or more commands, each an **entry**. A need
+  with none is a gap: it stays in the catalogue, an answer can still open it,
+  and [The gaps](#the-gaps) names it.
+- An answer **opens** a need: an **edge** from one outcome of an entry's answer
+  to a need, with the answer fields that fill the arguments of each entry of
+  that need.
+
+The answer is dynamic: it holds the declarations, files, cases, subjects and
+missing evidence it found, and its outcome. A **move** is one edge
+instantiated by one answer: the need it opens, and each of that need's
+commands with every argument filled from a field of that answer. A move into a
+need nothing answers names the need and its gap. The catalogue says what can
+follow. Only the answer says what does.
 
 - **Every answer** carries its moves as data: a move is a declared tool and its
   input, spelled by `spellingOf` for the surface the answer was asked on, a
@@ -79,7 +98,8 @@ next, not what must be.
 
 ## The phases of a change
 
-A change passes through nine phases, and the catalogue is grouped by them:
+A change passes through nine phases, and the catalogue is grouped by them, with
+the needs of a running suite, of cost and the rest after them:
 
 1. **Explore**: find the code a task is in.
 2. **Understand**: know what it is, what rests on it, and what an edit to it
@@ -107,19 +127,20 @@ need asked again once its evidence exists.
 
 ## A move
 
-An edge names the entry it opens — the declared entry itself, never its need
-written out, so deleting the entry or its command fails the build as it does for
-a hint today — and, for each argument the entry's command takes, the answer
-field that supplies it. The entry already holds its need and its command, so an
-edge states neither again. A move is that command, its input, and the context
-the answer was asked in: the report paths, or the watcher address `--at` named.
-The context is carried unchanged, since the tool's input does not hold it, in
-one optional field of `ToolInvocation` that the host fills and `spellingOf`
-alone reads, so a builder never sees it. In a
-shell `spellingOf` spells it with the input: a `describe --subject` move from
-`ask changes /tmp/run-a.json` asks of `/tmp/run-a.json`, not of the configured
-report. Over MCP a server answers of the subject it was started on, so the
-context is the server's and the move names none.
+An edge names the outcome it is declared on and the need it opens — the declared
+need itself, never its sentence written out, so deleting the need fails the
+build as it does for a hint today — and, for each entry of that need, the answer
+field that supplies each argument its command takes. Adding a command to a need
+fails the build until every edge into the need binds it. A move is the opened
+need, each entry's command with its input, and the context the answer was asked
+in: the report paths, or the watcher address `--at` named. The context is
+carried unchanged, since the tool's input does not hold it, in one optional
+field of `ToolInvocation` that the host fills and `spellingOf` alone reads, so a
+builder never sees it. In a shell `spellingOf` spells it with the input: a
+`describe --subject` move from `ask changes /tmp/run-a.json` asks of
+`/tmp/run-a.json`, not of the configured report. Over MCP a server answers of
+the subject it was started on, so the context is the server's and the move names
+none.
 
 The context is the evidence the move asks of, carried as data on every surface;
 each surface decides how to address it. A shell spells it, so a move asks of
@@ -150,9 +171,7 @@ the kind of thing the move asks about.
 | the field the edge needs, once | one move |
 | it for several things | one move per thing the answer shows, in its order and within its `limitOf` bound |
 | things counted past that bound | no move of their own; the answer's paging asks the same question again with its filters and a wider bound, and that answer prints their moves |
-| several things the command's arguments cannot tell apart | one move that asks about all of them, saying so |
-| no value for the field | no move |
-| a value the edge's condition rejects | no move |
+| a value the edge's condition rejects | no move on this edge |
 
 So `symbol` that finds `Coverage` declared in two files prints two `uses`
 moves, each with its `--package` and `--file`, whether the files share a
@@ -165,12 +184,58 @@ group, and the moves for the rest come with the answer that shows them.
 
 The last row is the edge's condition, a predicate over the answer type declared
 with the edge, so two builders cannot read one edge two ways. An edge with none
-is printed when its fields are present. `symbol` that finds no declaration opens
-no `uses`, since the field is absent; `changes` with nothing changed opens no
-`describe`, since its condition is that something changed. An edge into other
-evidence, from the source index to a recording, is printed when its field is
-present, since whether a record exists is not the source answer's to know; the
-destination answers an absent record with its own gap.
+is printed on every answer of its outcome. A field an edge binds is one its
+outcome's answer always holds, and the compiler holds it, so an absent field
+never stands in for an outcome: `uses` with no importer is `none`, not `found`
+with nothing in it.
+
+### An outcome opens its own needs
+
+An empty answer is an answer. Every answer type holds an **outcome**, and every
+edge is declared on one:
+
+| Outcome | What the answer establishes | What it can open |
+|---|---|---|
+| `found` | the things asked for, each with its fields | the needs those things make askable |
+| `ambiguous` | the question as asked names several things, and answering them as one would merge them | the same need, once per thing, narrowed by the field the answer names for each |
+| `none` | nothing the evidence holds matches, and the evidence is there | the needs a miss makes askable: a wider or a textual question |
+| `insufficient` | the evidence the question needs is absent, stale or too coarse | nothing: the evidence gap owns it, as [What a move is not](#what-a-move-is-not) says |
+
+So `symbol` that finds a declaration opens `uses`, and `symbol` that finds none
+opens finding the code a task talks about, `ask search --query`, `ask grep` and
+`ask discover --text`; a miss in the source index is conclusive about
+declarations and says nothing about prose, configuration or a string. `uses`
+asked of a name two packages declare is `ambiguous` and opens itself with
+`--package`, one move per package. `symbol` that finds two packages declaring it
+is not ambiguous: its question was the declarations, and it found them.
+`changes` with nothing changed is `none` and opens nothing, since nothing
+changed is the whole answer. In the catalogue's tables, **Opens** lists the
+edges on `found`; an edge on another outcome is marked with it, *none:* or
+*ambiguous:*, and an outcome that opens nothing is not written. A builder
+decides the outcome once, so `none` and `insufficient` are never told apart by a
+field's absence.
+
+### One answer, one move
+
+A move is instantiated from one answer, and that limit is the definition, not
+an omission. A question whose arguments need two answers — the cases a runner
+reported failing, and the cases `covering --since` names for each changed
+region — is not a move: the agent holds both answers and combines them, with
+`ask intersection` where both are `ask` questions. The catalogue keeps such a
+need, answered by nothing until one command reads both kinds of evidence.
+
+### Why a move is printed
+
+An answer can make many needs askable, and askable is not useful. Every move
+carries its **reason**: the fact of the answer its edge's condition read,
+*`Coverage` has importers in two other packages*, *one case alone ran line 48*.
+The catalogue ranks nothing and plans nothing; the reason is what lets an agent
+pass a move by. The count stays bounded by the answer: one move per edge per
+thing shown, within the answer's `limitOf` bound, as the table above holds. An
+edge into other evidence, from the source index to a recording, is printed on
+its outcome whether or not that record exists, since a record is not the source
+answer's to know; the destination answers an absent record as `insufficient`,
+with its own gap.
 
 An entry may open itself, narrowed: `entrypoint` over every package names
 itself with one `--package`, and `uses` over several declarations names itself
@@ -215,31 +280,31 @@ how an answer is shown or where it is written, not what it answers, such as
 | Need | Command | Opens |
 |---|---|---|
 | find the code a task talks about | `ask search --query <words>`, `ask grep --query <words>`, `ask discover --text <pattern>`, each with `[--from <path>]` | know what a name is before touching it; find the part of the repository a task is in, with no word for it yet |
-| find the part of the repository a task is in, with no word for it yet | `ask orient`, `ask orient --area <id>`, `ask orient --files <path>` | find the code a task talks about; know what a package publishes and who takes it; know what a name is before touching it; know who breaks if it changes; run something that already exercises this code |
-| know what a package publishes and who takes it | `ask packages`, `ask entrypoint --package <name>` | know what a package publishes and who takes it; know what a name is before touching it; know who breaks if it changes |
+| find the part of the repository a task is in, with no word for it yet | `ask orient`, `ask orient --area <id>`, `ask orient --files <path>` | find the code a task talks about; know what a package publishes and who takes it; know what a name is before touching it; know who imports and calls a name; know which recorded tests ran this code |
+| know what a package publishes and who takes it | `ask packages`, `ask entrypoint --package <name>` | know what a package publishes and who takes it; know what a name is before touching it; know who imports and calls a name |
 | find the files several questions agree on | `ask intersection '<question>' '<question>'`, `ask discover` with several filters | know what a name is before touching it |
 
 ### Understand
 
 | Need | Command | Opens |
 |---|---|---|
-| know what a name is before touching it | `ask symbol --name <name> [--package <name>]` | know who breaks if it changes |
-| know who breaks if it changes | `ask uses --name <name> [--package <name>] [--file <path>]` | know who breaks if it changes; run something that already exercises this code; find the files that take a name from outside the workspace |
-| find the files that take a name from outside the workspace | `ask discover --imports <module#name>` | run something that already exercises this code |
-| know what rests on a file at any depth | `ask discover --to <path>` | run something that already exercises this code |
-| know how many test files an edit here runs, before making it | `covering --file <path> [--line <n>\|--function <f>]`, `coverage --fan-in` | pin what a region does before changing it; make a file cheaper to change |
-| know how much of a part of the repository tests reach | `coverage --from <dir>`, `coverage --packages` | run something that already exercises this code |
-| run something that already exercises this code | `covering --file <path> [--function <f>]`, its MCP twin `variance_source_tests`, `ask journey-map --file <path>` | see what a test actually did here |
-| see what a test actually did here | `story --file <test> --name <case>`, `distill --test <id>`; over MCP `variance_distill`, `variance_test_attention`, `variance_scenarios`, `variance_presentations` | know what a test is made of; know what a name is before touching it |
-| know what a test is made of | `ask test-composition --file <test>` | run something that already exercises this code |
+| know what a name is before touching it | `ask symbol --name <name> [--package <name>]` | know who imports and calls a name; *none:* find the code a task talks about |
+| know who imports and calls a name | `ask uses --name <name> [--package <name>] [--file <path>]` | know who imports and calls a name; *ambiguous:* know who imports and calls a name, once per package; know which recorded tests ran this code; find the files that take a name from outside the workspace |
+| find the files that take a name from outside the workspace | `ask discover --imports <module#name>` | know which recorded tests ran this code |
+| know what rests on a file at any depth | `ask discover --to <path>` | know which recorded tests ran this code |
+| know how many test files called into a region, the least an edit to it runs | `covering --file <path> [--line <n>\|--function <f>]`, `coverage --fan-in` | know which recorded cases ran a region, and whether one alone did; know which files most test files call into, or are selected whole beyond their median region |
+| know how much of a part of the repository tests reach | `coverage --from <dir>`, `coverage --packages` | know which recorded tests ran this code |
+| know which recorded tests ran this code | `covering --file <path> [--function <f>]`, its MCP twin `variance_source_tests`, `ask journey-map --file <path>` | know what one recorded case did, step by step |
+| know what one recorded case did, step by step | `story --file <test> --name <case>`, `distill --test <id>`; over MCP `variance_distill`, `variance_test_attention`, `variance_scenarios`, `variance_presentations` | know what a test is made of; know what a name is before touching it |
+| know what a test is made of | `ask test-composition --file <test>` | know which recorded tests ran this code |
 
 The edit's count is the record's: test files that called into the region,
 which is the least an edit to it runs, since the test files that only loaded
 the file run too. `covering --file` answers one file range by range, and
 `coverage --fan-in` the whole suite, naming the files at each end. A region one
-test file ran opens pinning it before the edit. A file most test files called
-into, or one selected whole beyond what its median region needs, opens making
-it cheaper to change.
+test file ran opens which recorded cases ran it, and whether one alone did. A
+file most test files called into, or one selected whole beyond what its median
+region needs, opens the files most test files call into.
 
 A story is read from a recording of the cases it names. Recording it is a
 focused run of them with `VARIANCE_AUTHORITY_STORY` set, an *operation*
@@ -249,7 +314,7 @@ that costs per visit, so a story is never how a test is found.
 
 | Need | Command | Opens |
 |---|---|---|
-| pin what a region does before changing it | `covering --file <path> --line <n>`, whose `state` says, among others, whether the region is `alone`, a `hole` or `unwalked` | know what a test is made of; run something that already exercises this code |
+| know which recorded cases ran a region, and whether one alone did | `covering --file <path> --line <n>`, whose `state` says, among others, whether the region is `alone`, a `hole` or `unwalked` | know what a test is made of; know which recorded tests ran this code |
 
 ### Write code
 
@@ -257,7 +322,7 @@ that costs per visit, so a story is never how a test is found.
 |---|---|---|
 | know what a file may already use, and how | `ask stack --from <path>` | — |
 | know whether an import I am about to write is allowed | `restrictions`, `layers` | — |
-| know which tests ran the line I am editing, in the text I have | `covering --file <path> --text <path>\|- [--line <n>]` | run something that already exercises this code |
+| know which tests ran the line I am editing, in the text I have | `covering --file <path> --text <path>\|- [--line <n>]` | know which recorded tests ran this code |
 
 `ask stack` names the package's skill to read. A skill is a document, so it
 is a field of the answer, not a move.
@@ -269,9 +334,9 @@ and none stands in for another:
 
 | Need | Command | Opens |
 |---|---|---|
-| know which recorded tests my change lets me skip | `select --since <ref>` | know what my change reached that no test checks |
+| know which recorded tests ran nothing my change touched | `select --since <ref>` | know which regions my change touched that no recorded case ran |
 | know what my change could reach through the source graph | `reach --since <ref>` | know which recorded tests entered what my change touched |
-| know which recorded tests entered what my change touched | `covering --since <ref>`, its MCP twin `variance_changed_tests` over a diff | see what a test actually did here |
+| know which recorded tests entered what my change touched | `covering --since <ref>`, its MCP twin `variance_changed_tests` over a diff | know what one recorded case did, step by step |
 | know whether a subject reads the same way twice | `run --flakes`, an *operation* | know the distinct changes behind what moved |
 
 `select` answers with a skip list, never a run list. A test the recording has
@@ -284,18 +349,18 @@ drop exactly the tests nothing has recorded yet.
 |---|---|---|
 | know what my change did to the cases, against the mainline's record | `covering --since <ref> --against <record> --format refs` | know which statement of a case first ran a region; know what a case did differently from its last run, or from another case |
 | know what my last change did to the cases, with no mainline record | `covering --file <path> --cases last --format refs` | know which statement of a case first ran a region; know what a case did differently from its last run, or from another case |
-| know which changed regions the red cases share | `covering --since <ref> --format refs`, `coverage --fan-in` | know what my change did to the cases, against the mainline's record; know how many test files an edit here runs, before making it |
+| know which changed regions the cases a runner reported failing all ran | **gap**: two answers, [one answer, one move](#one-answer-one-move) | — |
 | know which statement of a case first ran a region | **gap**, [#824](https://github.com/Variance-Authority/variance-authority/issues/824) | — |
-| know which region a case reaches under another test line when it fails | **gap**, [#823](https://github.com/Variance-Authority/variance-authority/issues/823) | know why a case passes on one run and throws on another |
-| know why a case passes on one run and throws on another | `story --file <test> --name <case> --compare outcome`; a Playwright case writes no story, [#822](https://github.com/Variance-Authority/variance-authority/issues/822) | know what a name is before touching it |
+| know which region a case reaches under another test line when it fails | **gap**, [#823](https://github.com/Variance-Authority/variance-authority/issues/823) | — |
+| know what differs between a case's passing and throwing readings | `story --file <test> --name <case> --compare outcome`; a Playwright case writes no story, [#822](https://github.com/Variance-Authority/variance-authority/issues/822) | know what a name is before touching it |
 | know what a case did differently from its last run, or from another case | `story --file <test> --name <case> --compare last`, `story … --compare <a>,<b>` | know what a name is before touching it |
 | know why a test fails | **gap** | — |
 
 The cost of each gear is
 [FSD](../../packages/cli/skills/variance-authority/references/fsd.md)'s; here
 each edge's condition is a field of the comparison, which reads the record
-every run already keeps. A `lost` region opens the code the change took it
-from, and which statement of a case first ran it. A `hidden` region names the
+every run already keeps. A `lost` region opens which statement of a case
+first ran it. A `hidden` region names the
 case that stopped before it, or says the record cannot say which; a named case
 opens what it did differently from its last run. A comparison refused as
 `undiffed` lacks the record's commit, and is the same need asked again once the
@@ -311,29 +376,30 @@ focused run, an *operation*. An agent may start Fix at a story, since the
 catalogue orders nothing. The story records every visit of the case, where the
 comparison answers by region from a record that already exists.
 
-When one edit turns many cases red, `covering --since` names each changed
-region with the cases that ran it, so the regions the red cases share are read
-off one answer, and `coverage --fan-in` names the files an edit sends the
-most test files from. A shared region is where to look, not a proven cause.
+When one edit turns many cases red, the regions they all ran need two
+answers: the runner's list of failing cases, which no record holds, and
+`covering --since`'s cases per changed region. No move joins them; the agent
+holds both and intersects them. A shared region is where to look, not a proven
+cause.
 
 ### Refactor
 
 | Need | Command | Opens |
 |---|---|---|
-| make a file cheaper to change | `coverage --fan-in`, `coverage --fan-in --at-distance <hops>` | know who breaks if it changes; know how many test files an edit here runs, before making it |
+| know which files most test files call into, or are selected whole beyond their median region | `coverage --fan-in`, `coverage --fan-in --at-distance <hops>` | know who imports and calls a name; know how many test files called into a region, the least an edit to it runs |
 
 Each of `--fan-in`'s lists is a condition on its own edge. A file most test
-files called into is a hub: its callers are narrowed, or the tests it sends are
-made stable. A file selected whole beyond what its median region needs is
-split, and that gap is the most a split saves. The refactor is done when the
-same question answers with the gap closed.
+files called into is a hub, and a file selected whole beyond what its median
+region needs pays that gap on every change; the gap is the most a split could
+save. Whether to narrow, stabilise or split is the agent's decision, and the
+same question asked after it shows what moved.
 
 ### Ship
 
 | Need | Command | Opens |
 |---|---|---|
-| know whether my change needs a review, and of what | `review --since <ref>` | run something that already exercises this code |
-| know what my change reached that no test checks | `review --since <ref> --coverage` | run something that already exercises this code |
+| know each region my change touched, with its cases and what they read | `review --since <ref>` | know which recorded tests ran this code |
+| know which regions my change touched that no recorded case ran | `review --since <ref> --coverage` | know which recorded tests ran this code |
 
 ### Report and settle
 
@@ -341,13 +407,13 @@ same question answers with the gap closed.
 |---|---|---|
 | know what my change did to what users see | `ask summary` over the report of a `run` | know the distinct changes behind what moved; know which subject a description names |
 | know the distinct changes behind what moved | `ask changes` | know everything about one subject; settle a change |
-| know everything about one subject | `ask describe --subject <id>` | know why a verdict may not be a code problem |
-| know why a verdict may not be a code problem | `ask explain-verdict --subject <id>` | — |
+| know everything about one subject | `ask describe --subject <id>` | know whether a subject went uncompared for want of a baseline or was never observed |
+| know whether a subject went uncompared for want of a baseline or was never observed | `ask explain-verdict --subject <id>` | — |
 | know where a component appears and what it moved | `ask trace-component`, `ask composition` | know everything about one subject; know whether a subject reads the same way twice |
 | know what a flag or theme arm changes | `ask variations` | — |
 | know which subject a description names | `ask locate --query <words>` | know everything about one subject |
-| know whether the edit did what I meant, by claims declared before reading the diff | `adjudicate`, `ask adjudicate --claims <path>` | know everything about one subject |
-| know what renders get wrong with no baseline | `ask findings` | — |
+| know which claims declared before reading the diff it holds and which it breaks | `adjudicate`, `ask adjudicate --claims <path>` | know everything about one subject |
+| know which rule findings a run's renders raised, with no baseline | `ask findings` | — |
 | know what reviewers decided or suspect | `ask decisions`, `ask concerns` | settle a change |
 | know how the report reads since I last asked | `ask diff` over the report | know the distinct changes behind what moved |
 | settle a change | `changelog`, `ask changelog`; `accept` on the shapes they name, an *operation* | — |
@@ -368,7 +434,7 @@ same question answers with the gap closed.
 |---|---|---|
 | know which subjects the suite spends its time on | `ask costs` | know everything about one subject |
 | know which tests the suite spends its time on | `ask slowest-tests` | know what a test is made of |
-| split the run | `shards` | — |
+| split the run | `shards`, an *operation* | — |
 
 ### Other needs
 
@@ -378,11 +444,11 @@ need it does serve:
 | Need | Command | Opens |
 |---|---|---|
 | know which published names have no documentation | `ask gaps` | — |
-| answer over MCP | `serve` | — |
-| know which observability evidence this connection was given | `variance_observability` over MCP | see what a test actually did here |
+| answer over MCP | `serve`, an *operation* | — |
+| know which observability evidence this connection was given | `variance_observability` over MCP | know what one recorded case did, step by step |
 | check the setup, or clear the cache | `doctor`, `prune`, an *operation* | — |
 | deliver a run: a report, a comment, the mainline's record | `report`, `comment`, `push`, `share`, each an *operation* | — |
-| know which journeys a recording holds | `journeys`, `journeys inspect` | see what a test actually did here |
+| know which journeys a recording holds | `journeys`, `journeys inspect` | know what one recorded case did, step by step |
 | make the record a question reads | `index`; `run`, which also writes the report `ask summary` reads; `review --from-run`; `journeys` with `finalize`, `stitch` and `combine`; `collect`; `carry save`, `carry restore` — each an *operation* | — |
 
 An evidence gap names its own remedy, a recorded run of named test files or a
@@ -470,7 +536,7 @@ and maps each verb of `COMMANDS` to its declaration in a
 so the compiler holds that every verb is declared.
 
 A command appears in every phase whose need it answers: `covering --since`
-under Verify and Fix, `coverage --fan-in` under Understand, Fix and Refactor.
+under Verify and Fix, `coverage --fan-in` under Understand and Refactor.
 Each place is its own row, with its own edges. One command can answer several
 needs: `ask discover` by `--text`, `--imports`,
 `--to` or several filters; `covering` by `--file` or `--since`; `story` by
@@ -478,8 +544,11 @@ needs: `ask discover` by `--text`, `--imports`,
 command and the flags that ask it; one command with the same flags answers two
 needs as two entries, since their edges differ. It holds whether it is an
 operation; the skill reference the need routes to, where it has one; and its
-edges, each with the entry it opens and its argument bindings. The tables above are what those entries will hold;
-once an entry exists, it is the source and its row follows it.
+edges, each with the outcome it is declared on, the need it opens and the
+argument bindings of each entry of that need. A need is declared alone, with
+its sentence, and a need no entry answers is printed as a gap. The tables above
+are what those declarations will hold; once one exists, it is the source and
+its row follows it.
 
 A builder sits beside the formatter of the command it builds for and carries
 that file's `// compass:` coordinate. The speller and the layout stay at
@@ -494,11 +563,14 @@ Each step lands a move an agent sees before the next one starts:
      so `packages/cli` reaches it, and lays the moves out.
    - `symbol`'s sentence naming `uses`, and `uses`' narrowing to one file and
      its `discover --imports` line, give way to the moves.
-   - Each builder gets a decision test, written to fail first, with cases
-     written apart from the edges: one declaration, two files declaring one
-     name in one package, two packages declaring it, an answer with no
-     importer, an answer with no field, and an answer past its bound, whose
-     paging answer prints the moves of the rest.
+   - Each builder gets a decision test, written to fail first, with cases written
+     apart from the edges: one declaration, two files declaring one name in one
+     package, two packages declaring it, `uses` asked of that name with no
+     `--package` (`ambiguous`), a name nothing declares (`none`, opening
+     `ask search`, `ask grep` and `ask discover --text`), `uses` with no importer
+     (`none`), a record the question needs and does not have (`insufficient`, no
+     move), and an answer past its bound, whose paging answer prints the moves of
+     the rest. Each move prints its reason.
    - Each command gets an acceptance test on `ask-acceptance.fixture.ts` that
      asks every move it prints and reads the answer. The move is parsed by
      `asking.ts`'s own parser and asked in process; one case per surface spawns
