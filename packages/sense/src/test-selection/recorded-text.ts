@@ -73,6 +73,7 @@ import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { isLfsPointer, LFS_POINTER_HEAD_BYTES } from '@variance-authority/core';
 import { native } from '../addon.js';
 
 /**
@@ -309,12 +310,44 @@ function read(
     }
     // Advance past the body whatever its type, so one path that is somehow not a
     // blob costs its own answer and not every answer after it.
-    if (header.endsWith(` blob ${size}`)) texts.get(commit)!.set(file, output.toString('utf8', at, at + size));
+    if (header.endsWith(` blob ${size}`)) texts.get(commit)!.set(file, contentOf(root, commit, file, output.subarray(at, at + size)));
     // The object, then the newline `--batch` writes after it.
     at += size + 1;
   }
 
   return { texts, missing };
+}
+
+/**
+ * A blob's text, which for a file git-lfs tracks is the content its pointer
+ * names rather than the pointer.
+ *
+ * `cat-file --batch` answers the blob git holds, and for such a file that is a
+ * pointer of three lines. Hashed as the source, it is a text nobody recorded, and
+ * every region in the file reads as changed for a reason that is not one. So the
+ * pointer goes to `git lfs smudge`, which answers from the local LFS store or
+ * fetches the object, and a smudge that fails — no git-lfs, an object the remote
+ * never had — stops the read with git-lfs's own words rather than answering the
+ * pointer. `cat-file --filters` would do this in the same process, but its header
+ * reports the pointer's size over the content's bytes, which breaks the framing
+ * every other answer is read by.
+ */
+function contentOf(root: string, commit: string, file: string, blob: Buffer): string {
+  if (!isLfsPointer(blob.subarray(0, LFS_POINTER_HEAD_BYTES))) return blob.toString('utf8');
+  try {
+    return execFileSync('git', ['lfs', 'smudge', '--', file], {
+      cwd: root,
+      input: blob,
+      maxBuffer: 1 << 30,
+      stdio: ['pipe', 'pipe', 'pipe'],
+    }).toString('utf8');
+  } catch (error) {
+    const said = (error as { stderr?: Buffer }).stderr?.toString('utf8').trim();
+    throw new Error(
+      `${file} at ${commit} is a git-LFS pointer, and git-lfs could not give its content: ${said || (error as Error).message}`,
+      { cause: error },
+    );
+  }
 }
 
 /**

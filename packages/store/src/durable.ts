@@ -26,6 +26,7 @@ import { orAbsent } from './absent.js';
 import { claim, placedForIn, placedForOf, refuseOccupied, type Claims, type PlacedFor } from './claims.js';
 import { anyWidthOf, held } from './held.js';
 import { legacyHolders, partitionsOf } from './legacy.js';
+import { refuseAPointerRecord } from './lfs-pointer.js';
 import { familyOf, identities, nearness } from './line.js';
 import { readRaster, readSidecar, retire, type ImageReader, type Places, type Read } from './pair.js';
 import { DEFAULT_BASELINE_PATH, parseBaselinePath, sanitized } from './path-template.js';
@@ -232,8 +233,11 @@ export function createDurableStore(root: string, options: DurableStoreOptions = 
       // record may be half written, which says nobody's name yet.
       let theirs: unknown;
       try {
-        theirs = JSON.parse(await readFile(file, 'utf8')) as unknown;
+        const text = await readFile(file, 'utf8');
+        refuseAPointerRecord(text, file);
+        theirs = JSON.parse(text) as unknown;
       } catch (cause) {
+        if (cause instanceof RasterStoreError) throw cause;
         throw new RasterStoreError(
           `another writer created the baseline at ${path} while this one was accepting it for ` +
             `subject ${JSON.stringify(key.subject)}. ${REFUSAL}.`,
@@ -416,10 +420,21 @@ function cachedAt(cacheRoot: string, identity: Digest, documentDigest: Digest): 
 }
 
 
-/** A record as JSON, or `undefined` when it is gone or does not parse — damage says nobody's name. */
+/**
+ * A record as JSON, or `undefined` when it is gone or does not parse — damage
+ * says nobody's name. A pointer is not damage: it is a record this checkout
+ * cannot read, so it is refused rather than written over.
+ */
 async function rawRecord(places: Places): Promise<unknown> {
+  let text: string;
   try {
-    return JSON.parse(await readFile(`${places.record}.json`, 'utf8')) as unknown;
+    text = await readFile(`${places.record}.json`, 'utf8');
+  } catch {
+    return undefined;
+  }
+  refuseAPointerRecord(text, `${places.record}.json`);
+  try {
+    return JSON.parse(text) as unknown;
   } catch {
     return undefined;
   }

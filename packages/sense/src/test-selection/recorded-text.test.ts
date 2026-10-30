@@ -1,4 +1,4 @@
-import { execFile } from 'node:child_process';
+import { execFile, execFileSync } from 'node:child_process';
 import { existsSync, readFileSync, rmSync } from 'node:fs';
 import { mkdir, mkdtemp, readFile, rm, unlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -342,6 +342,69 @@ describe('the text at a recording in a partial clone', () => {
         process.env['PATH'] = searched;
       }
       expect(await requests()).toBe(1);
+    });
+  });
+});
+
+/** Whether git runs git-lfs here: a fixture that commits through LFS needs it. */
+const lfsInstalled = ((): boolean => {
+  try {
+    execFileSync('git', ['lfs', 'version'], { stdio: 'ignore' });
+    return true;
+  } catch {
+    return false;
+  }
+})();
+
+const POINTER =
+  'version https://git-lfs.github.com/spec/v1\noid sha256:4d7a214614ab2935c943f9e0ff69d22eadbb8f32b1258daaa5e2ca24d17e2393\nsize 22\n';
+
+type Git = (...args: string[]) => Promise<string>;
+
+/** A checkout holding `src/small.ts` and whatever `commit` adds through LFS. */
+async function lfsCheckout(commit: (root: string, git: Git) => Promise<void>, run: (root: string, commit: string) => void): Promise<void> {
+  const root = await mkdtemp(resolve(tmpdir(), 'variance-recorded-lfs-'));
+  try {
+    await mkdir(resolve(root, 'src'));
+    const git: Git = async (...args) => (await promisify(execFile)('git', args, { cwd: root })).stdout.trim();
+    await git('init', '--quiet');
+    await git('config', 'user.email', 'fixture@example.invalid');
+    await git('config', 'user.name', 'Fixture');
+    await writeFile(resolve(root, 'src/small.ts'), 'export const small = 1;\n', 'utf8');
+    await commit(root, git);
+    run(root, await git('rev-parse', 'HEAD'));
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+}
+
+describe('the text at a recording of a file git-lfs tracks', () => {
+  it('is refused with the reason when git-lfs cannot give its content, rather than read as the source', async () => {
+    // A pointer committed with no object behind it: what a clone holds where the
+    // LFS objects were never pushed, or where git-lfs is not installed to fetch them.
+    await lfsCheckout(async (root, git) => {
+      await writeFile(resolve(root, '.gitattributes'), 'src/big.ts filter=lfs diff=lfs merge=lfs -text\n', 'utf8');
+      await writeFile(resolve(root, 'src/big.ts'), POINTER, 'utf8');
+      await git('-c', 'filter.lfs.clean=cat', '-c', 'filter.lfs.process=', '-c', 'filter.lfs.required=false', 'add', '--all');
+      await git('commit', '--quiet', '--message', 'a pointer with no object');
+    }, (root, commit) => {
+      expect(() => textsAt(root, new Map([[commit, ['src/big.ts', 'src/small.ts']]]))).toThrow(
+        new RegExp(`src/big\\.ts at ${commit} is a git-LFS pointer, and git-lfs could not give its content: .`),
+      );
+    });
+  });
+
+  it.runIf(lfsInstalled)('is the content git-lfs keeps for it, not the pointer git holds', async () => {
+    await lfsCheckout(async (root, git) => {
+      await git('lfs', 'install', '--local');
+      await git('lfs', 'track', 'src/big.ts');
+      await writeFile(resolve(root, 'src/big.ts'), 'export const big = 1;\n', 'utf8');
+      await git('add', '--all');
+      await git('commit', '--quiet', '--message', 'through LFS');
+    }, (root, commit) => {
+      expect(textsAt(root, new Map([[commit, ['src/big.ts', 'src/small.ts']]]))).toEqual(
+        new Map([[commit, new Map([['src/big.ts', 'export const big = 1;\n'], ['src/small.ts', 'export const small = 1;\n']])]]),
+      );
     });
   });
 });
