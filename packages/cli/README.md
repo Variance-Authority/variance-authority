@@ -1319,9 +1319,10 @@ counts as run over yours. `any suite` counts a region over an older text only
 when no suite ran it over the text you hold. Texts are compared by the name git
 gives them as blobs, the name the [source index](https://variance-authority.dev/docs/cache)
 holds for each file, so `coverage` reads a file only to diff two texts whose
-names differ. A file the source index does not hold, or a record made before
-its rows named their text, counts as not known, and a line under the table says
-why. The total over the source carries the same split.
+names differ. A file gone from the checkout ran over a text you no longer hold,
+so its regions count over an older text. A record made before its rows named
+their text counts as not known, and a line under the table says why. The total
+over the source carries the same split.
 
 With a base, each count is printed at the base and now, beside the parts that
 add up to the change:

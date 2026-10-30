@@ -14,8 +14,8 @@
  * digest the rows took of it or by its commit's blob. A text is read only to
  * diff two that the names say differ, so a file whose rows hold the tree's
  * text, run over that text by every place that ran it, reads no text at all.
- * A file the index does not hold is not known, and nothing reads the disk to
- * find out.
+ * An index brought up to the checkout lists every file in it, so a file it
+ * does not hold is gone, and every region run in it ran over an older text.
  */
 
 import { readFile } from 'node:fs/promises';
@@ -145,7 +145,7 @@ async function overTexts(
     const answer: (test: string, place: TestPlace) => readonly Edit[] | RegionText = cut === undefined || 'unknown' in cut
       ? () => cut ?? { unknown: `the record holds no digest of the text of ${file} its regions were cut from` }
       : now === undefined
-        ? () => ({ unknown: `${file} is not in the source index, so which text of it the checkout holds is not known` })
+        ? () => 'older' as const
         : await chains(file, { name: cut.blob!, digest: cut.digest }, now, held.get(file)!);
     over.set(file, new Map(placed.map(([test, place]) => [test, answer(test, place)] as const)));
   }

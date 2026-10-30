@@ -385,16 +385,14 @@ describe('coverage names why a text is not known', () => {
       expect(said.count).toMatchObject({ run: 3, over: { older: 1, notKnown: 0, why: [] } });
     });
 
-    it('counts a file the published index does not hold as not known, though the disk holds the text every run ran', async () => {
+    it('counts a file the published index does not hold as gone, run over an older text, though the disk holds the text every run ran', async () => {
       const { at } = await checkout(atRecord);
       await rm(join(at, PAY_FILE));
       await updateSourceIndex(at);
       await writeFile(join(at, PAY_FILE), PAY);
       ci.isCI = true;
 
-      expect((await json('--root', at)).count).toMatchObject({
-        over: { older: 0, notKnown: 2, why: [`${PAY_FILE} is not in the source index, so which text of it the checkout holds is not known`] },
-      });
+      expect((await json('--root', at)).count).toMatchObject({ over: { older: 2, notKnown: 0, why: [] } });
     });
   });
 
@@ -424,13 +422,11 @@ describe('coverage names why a text is not known', () => {
     expect(said.count).toMatchObject({ run: 3, over: { older: 0, notKnown: 0, why: [] } });
   });
 
-  it('counts every region of a file gone from the checkout as not known, since the source index does not hold it', async () => {
+  it('counts every region of a file gone from the checkout as run over an older text, since the text it ran is no longer there', async () => {
     const { at } = await checkout(atRecord);
     await rm(join(at, PAY_FILE));
 
-    expect((await json('--root', at)).count).toMatchObject({
-      over: { older: 0, notKnown: 2, why: [`${PAY_FILE} is not in the source index, so which text of it the checkout holds is not known`] },
-    });
+    expect((await json('--root', at)).count).toMatchObject({ over: { older: 2, notKnown: 0, why: [] } });
   });
 });
 
