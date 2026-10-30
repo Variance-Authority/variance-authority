@@ -22,7 +22,7 @@ import type { SetExecutionModule } from './execution-set-format.js';
 import { NO_OWNER } from './format-layout.js';
 import { addressedAlike } from './region-landing.js';
 import { keptTexts } from './kept-texts.js';
-import { hunksOf, placeThrough, type Hunk } from './placed.js';
+import { hunksOf, placeThrough, type HeldLines, type Hunk } from './placed.js';
 import { textAtRecording } from './recorded-text.js';
 import { diffTexts } from './text-diff.js';
 import { NO_LINE } from './written-lines.js';
@@ -89,27 +89,54 @@ function hashingTo(text: string | undefined, digest: string): string | undefined
   return text !== undefined && digestString(text) === digest ? text : undefined;
 }
 
+/** A region of a text: its kind and the lines it stands at, or {@link NO_LINE}. */
+type Region = { readonly kind: string } & HeldLines;
+
 /**
- * Whether an edit along `edits` changed `region`, the rule
- * {@link landedThrough} carries a region's cases by. Each edit starts at the
- * text the one before it ends at, and the region is numbered in the first. A
- * region the hunks leave whole at its lines is untouched, and placed at the
- * lines they shift it to for the next edit; so is one whose kind the reading
- * says the edit does not reach. A region with no lines of its own is where it
- * was.
+ * Where one edit leaves a region of the text it starts at, the step every
+ * carry of a region's cases takes. A region the hunks leave whole at its lines
+ * `stays`, at the lines they shift it to, and runs as it did; so does one
+ * with no lines of its own, where it was. Any other region is `reached` where
+ * the edit's reading reaches its kind ({@link editReaches}), and spared where
+ * it does not, standing at the `lines` the hunks move it to when they place
+ * it at all.
  */
-export function regionTouched(region: { readonly kind: string; readonly startLine: number; readonly endLine: number }, edits: readonly Edit[]): boolean {
-  if (region.startLine === NO_LINE) return false;
-  let lines: { readonly startLine: number; readonly endLine: number } = region;
+export type Landing =
+  | { readonly stays: HeldLines }
+  | { readonly reached: boolean; readonly lines?: HeldLines };
+
+/**
+ * Whether `edit` reaches what runs in a region of `kind` that it did not leave
+ * whole. A text the edit left whole runs as it did, as the recut keeps a row
+ * whose text did not move.
+ */
+export function editReaches(edit: Edit, kind: string): boolean {
+  return reaches(edit.hunks.length === 0 ? 'none' : edit.reading, kind);
+}
+
+/** Where `edit` leaves `region`, by the rule {@link Landing} names. */
+export function landing(edit: Edit, region: Region): Landing {
+  if (region.startLine === NO_LINE) return { stays: region };
+  const through = placeThrough(edit.hunks, region);
+  if (through !== undefined && !through.moved) return { stays: through.lines };
+  const reached = editReaches(edit, region.kind);
+  return through === undefined ? { reached } : { reached, lines: through.lines };
+}
+
+/**
+ * Whether an edit along `edits` changed `region`: {@link landing} folded along
+ * the chain, the step {@link landedThrough} carries a region's cases by. Each
+ * edit starts at the text the one before it ends at, and the region is
+ * numbered in the first; a region stays or is spared at the lines one edit
+ * leaves it at for the next.
+ */
+export function regionTouched(region: Region, edits: readonly Edit[]): boolean {
+  let lines: HeldLines = region;
   for (const edit of edits) {
-    const through = placeThrough(edit.hunks, lines);
-    if (through !== undefined && !through.moved) {
-      lines = through.lines;
-      continue;
-    }
-    if (reaches(edit.hunks.length === 0 ? 'none' : edit.reading, region.kind)) return true;
-    // Spared, the region stands where the edit moved its lines.
-    if (through !== undefined) lines = through.lines;
+    const step = landing(edit, { kind: region.kind, startLine: lines.startLine, endLine: lines.endLine });
+    if ('stays' in step) lines = step.stays;
+    else if (step.reached) return true;
+    else if (step.lines !== undefined) lines = step.lines;
   }
   return false;
 }
@@ -147,18 +174,12 @@ export function landedThrough(held: Cut, recorded: Cut, change: Edit | undefined
   const lands = new Int32Array(recorded.blocks.length).fill(-1);
   const overwrote = new Int32Array(recorded.blocks.length).fill(-1);
   if (change === undefined) return { lands, overwrote, unread: true };
-  // A text the edit left whole runs as it did, as the recut keeps a row whose text did not move.
-  const reading = change.hunks.length === 0 ? 'none' : change.reading;
   // The held regions the edit left alone, at the lines it places them, in order.
   const seats = new Map<string, number[]>();
   for (const [at, block] of held.blocks.entries()) {
-    let placed: { readonly startLine: number; readonly endLine: number } | undefined = block;
-    if (block.startLine !== NO_LINE) {
-      const through = placeThrough(change.hunks, block);
-      placed = through === undefined || through.moved ? undefined : through.lines;
-    }
-    if (placed === undefined) continue;
-    const key = seatOf(block.kind, placed.startLine, placed.endLine);
+    const step = landing(change, block);
+    if (!('stays' in step)) continue;
+    const key = seatOf(block.kind, step.stays.startLine, step.stays.endLine);
     seats.set(key, [...(seats.get(key) ?? []), at]);
   }
   // A recorded region takes the held region of its kind seated at its lines,
@@ -200,7 +221,7 @@ export function landedThrough(held: Cut, recorded: Cut, change: Edit | undefined
       ? was
       : owner === undefined || owner === NO_OWNER ? -1 : decided[owner]!;
     // Where the edit reached its kind, those cases ran another text there.
-    if (!reaches(reading, block.kind)) lands[at] = decided[at]!;
+    if (!editReaches(change, block.kind)) lands[at] = decided[at]!;
     else overwrote[at] = decided[at]!;
   }
   return { lands, overwrote, unread: false };
