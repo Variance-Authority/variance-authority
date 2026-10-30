@@ -32,6 +32,7 @@ import {
 import { evidenceOf, type Evidence } from './covering-ran-evidence.js';
 import { rowsText, type RowsText } from './record-rows-text.js';
 import { runsOf } from './record-runs.js';
+import { changedFiles } from './since.js';
 
 /** What a suite's count asks of each region a test file called into. */
 export type TextOf = NonNullable<CountedSuite['textOf']>;
@@ -172,9 +173,7 @@ function rowDigests(record: string, index: ExecutionIndex, asked: ReadonlySet<st
  */
 async function changedSince(root: string, commit: string): Promise<{ has(file: string): boolean | undefined }> {
   try {
-    // `-z`: without it git quotes a path with unusual characters, and a quoted path never matches a recorded name.
-    const { stdout } = await promisify(execFile)('git', ['diff', '--name-only', '--no-renames', '--relative', '-z', commit, '--'], { cwd: root, maxBuffer: 1 << 28 });
-    const files = new Set(stdout.split('\0').filter((file) => file !== ''));
+    const files = new Set(await changedFiles(promisify(execFile), root, commit, ['--no-renames', '--relative']));
     return { has: (file) => files.has(file) };
   } catch {
     return { has: () => undefined };

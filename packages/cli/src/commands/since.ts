@@ -176,10 +176,15 @@ const NEW_AT_ONCE = 8;
  */
 const tops = new Map<string, Promise<string | undefined>>();
 
-/** Files a diff from `base` to the working tree names, one per record. */
-async function changedFiles(run: Run, repository: string, base: string): Promise<readonly string[]> {
-  const { stdout } = await run('git', [...PLAIN, 'diff', '--name-only', '-z', base], {
-    cwd: repository,
+/**
+ * Files a diff from `base` to the working tree names, one per record, asked in
+ * `cwd` under the plain configuration; `flags` shape the listing, such as
+ * `--relative` to name them from `cwd` or `--no-renames` to name both sides of
+ * a rename. Throws when git cannot say.
+ */
+export async function changedFiles(run: Run, cwd: string, base: string, flags: readonly string[] = []): Promise<readonly string[]> {
+  const { stdout } = await run('git', [...PLAIN, 'diff', '--name-only', '-z', ...flags, base], {
+    cwd,
     maxBuffer: 32 * 1024 * 1024,
   });
   return stdout.split('\0').filter((file) => file !== '');
