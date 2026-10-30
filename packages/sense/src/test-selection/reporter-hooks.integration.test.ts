@@ -86,18 +86,9 @@ describe('which of the two complete writers this checkout drives', () => {
   });
 
   it('settles the run from the reported modules, and leaves the task tree undriven', async () => {
-    // What the fakes in `vitest.test.ts` cannot say. Vitest 5 — the version
-    // this repository installs — announces reported modules to `onTestRunEnd`
-    // and never calls `onFinished`, so every run here exercises
-    // `reportedComplete` and nothing exercises `taskComplete`, the reading
-    // Vitest 2 drives; Vitest 3 calls both, and the reported reading is the one
-    // that lands, because the snapshot is written once by whichever hook
-    // arrives first.
-    //
-    // So this is a marker rather than a preference. When a bump makes the other
-    // writer live, this goes red at the line naming the hook, and the reader
-    // learns that the reading covered by hand-made modules alone is now the
-    // reading their skip lists are made of.
+    // A marker: Vitest 5 calls `onTestRunEnd` alone, so no run here reads the
+    // task tree through `taskComplete`, and only hand-made tasks cover it. A
+    // runner that calls `onFinished` turns this red at the hook's line.
     const directory = await mkdtemp(resolve(tmpdir(), 'variance-authority-hooks-'));
     temporary.push(directory);
     const coverageFile = resolve(directory, 'coverage.bin');
