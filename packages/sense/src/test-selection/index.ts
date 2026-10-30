@@ -276,10 +276,9 @@ export interface CoverageModule {
    */
   readonly sourceDigest: string;
   /**
-   * The git blob name of that same text (`gitBlob`), which is how the source
-   * index names a file: a reader asks the index whether the tree still holds the
-   * text the blocks were cut from, rather than reading the tree. Absent where the
-   * row was recorded without one, which says nothing about the text.
+   * The git blob name of that same text, as the source index names a file: a
+   * reader asks the index whether the tree still holds the text the blocks were
+   * cut from. Absent where the row was recorded without one.
    */
   readonly sourceBlob?: string;
   /** False records module-level unknown evidence; consumers widen without consulting its blocks. */

@@ -3133,6 +3133,7 @@
         "ModuleTexts": "type",
         "MovedRegion": "interface",
         "NAME_BOUNDARY": "const",
+        "NO_BLOB": "const",
         "NO_DURATION": "const",
         "NameGrammar": "interface",
         "NameGrammarError": "class",
