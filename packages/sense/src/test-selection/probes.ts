@@ -17,6 +17,8 @@ import { type UnmappedNotes, refuseTransformsAfter, unmappedSteps, watchUnmapped
 import probeLists from '../instrument/probe-lists.cjs';
 import probeLog from '../instrument/probe-log.cjs';
 import preconditions from './case-preconditions.cjs';
+import { PAGE_STORY, type PageStory } from '../story/page-story.js';
+import { CARRIED_SOURCE } from './carried.js';
 
 /**
  * Where a page hands its journal over.
@@ -66,6 +68,13 @@ export interface ExecutionJournal {
    * realm had a recorder of its own.
    */
   readonly read?: readonly PageRead[];
+  /** The tape since the drain before, on a page `storyPageSource` made tape. */
+  readonly story?: PageStory;
+  /**
+   * How many documents this frame held before this one whose journals this
+   * drain carries, the first drain after a navigation; absent where none.
+   */
+  readonly replaced?: number;
 }
 
 /** What the collector exposes on {@link EXECUTION_GLOBAL}. */
@@ -76,6 +85,12 @@ export interface ExecutionCollector {
   readonly drain: () => ExecutionJournal;
   /** Forget everything entered so far without reporting it. */
   readonly reset: () => void;
+  /**
+   * The tape since the drain before, leaving what the page entered for the next
+   * drain: a runner that tapes each case takes this between cases and drains
+   * the file once. Absent on a page that does not tape.
+   */
+  readonly story?: () => PageStory;
 }
 
 export interface TestSelectionProbeOptions {
@@ -392,25 +407,51 @@ const carries = ${JSON.stringify(!probesRegions(mode))};
 // bucket nothing writes to, so a second bundle on one page offering its own
 // would have the page report that it ran nothing.
 if (globalThis.__VA__ === undefined) {
-  globalThis.__VA__ = engine.root;
+  // A runner that asked for stories left a maker on the page before it
+  // loaded: the tape goes in front of the root, and every drain carries it.
+  const maker = globalThis[Symbol.for(${JSON.stringify(PAGE_STORY)})];
+  const story = typeof maker === 'function' ? maker(engine) : undefined;
+  globalThis.__VA__ = story === undefined ? engine.root : story.root;
+  const realm = globalThis;
   // What the page's code reads goes out with what it entered, for the driver
   // to lay on the case it drained.
   const reader = ${pageReaderSource()};
+  const drain = () => {
+    // In the order the page first registered each module, drain after drain.
+    const own = lists(engine.take(bucket), true);
+    if (carries) engine.carry();
+    const before = carry.take();
+    const drained = { instrumentation: ${JSON.stringify(instrumentation)}, modules: before === undefined ? own : joined(before.modules, own) };
+    if (before !== undefined) drained.replaced = 1 + (before.replaced ?? 0);
+    if (reader !== undefined) drained.read = [...(before?.read ?? []), ...reader.take()];
+    if (story !== undefined) {
+      drained.story = story.take();
+      if (before?.story !== undefined) drained.story.before = [before.story];
+    }
+    return drained;
+  };
+${CARRIED_SOURCE}
   globalThis[${JSON.stringify(EXECUTION_GLOBAL)}] = {
     version: 1,
     instrumentation: ${JSON.stringify(instrumentation)},
-    drain() {
-      // In the order the page first registered each module, drain after drain.
-      const modules = lists(engine.take(bucket), true);
-      if (carries) engine.carry();
-      const journal = { instrumentation: ${JSON.stringify(instrumentation)}, modules };
-      return reader === undefined ? journal : { ...journal, read: reader.take() };
-    },
+    drain,
     reset() {
       engine.take(bucket);
       reader?.take();
       if (carries) engine.carry();
+      carry.forget();
+      story?.take();
     },
+    ...(story === undefined
+      ? {}
+      : {
+          story: () => {
+            const taken = story.take();
+            const before = carry.story();
+            if (before !== undefined) taken.before = [before];
+            return taken;
+          },
+        }),
   };
 }
 `;

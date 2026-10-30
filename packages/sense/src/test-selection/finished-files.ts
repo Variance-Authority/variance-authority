@@ -50,10 +50,7 @@ export interface RunnerTask {
   readonly collectDuration?: number;
 }
 
-/**
- * Vitest 3 and 4's reported test module, structurally: a type from the runner's
- * own package would pin the build to a version the project need not have.
- */
+/** Vitest 3 and 4's reported test module, structurally, so the build pins no runner version. */
 export interface ReportedModule {
   readonly moduleId: string;
   readonly children: {
@@ -62,6 +59,7 @@ export interface ReportedModule {
       readonly id?: string;
       readonly fullName?: string;
       diagnostic?: () => { readonly duration?: number } | undefined;
+      meta?: () => object;
     }>;
     /** Vitest 3 and 4 only; a suite holds the errors its own hooks threw. */
     allSuites?: () => Iterable<{ errors?: () => { readonly length: number } }>;

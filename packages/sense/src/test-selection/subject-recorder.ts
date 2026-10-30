@@ -11,9 +11,11 @@
 
 import { resolve } from 'node:path';
 import type { InstrumentMode } from '../instrument/index.js';
+import { askedForStories } from '../story/directory.js';
 import { drainExecution, type EvaluatingPage } from './drain.js';
 import type { CoveragePrecondition } from './index.js';
 import { recordExecution } from './journal.js';
+import { recordFileFor } from './record-location.js';
 import { driveJourneys, type JourneyCookie } from './journey-driver.js';
 import { joinObservations, type ObservedCase, type ObservedSubject } from './observed.js';
 import type { FilePhases } from './reported-time.js';
@@ -71,6 +73,13 @@ export interface SubjectNote {
 export interface SubjectRecorder {
   /** The checkout every path this recorder writes is named against. */
   readonly root: string;
+  /**
+   * Reads the script that makes a page tape each case's story, where the run asked
+   * for stories under `VARIANCE_AUTHORITY_STORY`: put on the page before its
+   * documents load. A reading noted with a `case` then writes that case's
+   * story at `close`.
+   */
+  readonly storyPage?: () => Promise<string>;
   /**
    * Mint the journey a subject's next reading runs under, as the cookies its
    * browser context carries to `origin`. None when the run names no heads.
@@ -133,9 +142,18 @@ export function createSubjectRecorder(
   // Each case with the subject it was noted for, so the run's time finds it.
   const cases: { readonly subject: string; readonly observed: ObservedCase }[] = [];
   let seen = false;
+  const storied = askedForStories(() => recordFileFor(root, ran, options));
+  // Loaded only where asked: the tape it writes with is CommonJS, and a run
+  // that asked for no story has no reason to load it.
+  const page = storied === undefined ? undefined : import('../story/page.js');
+  const stories = page?.then(({ pageStories }) => pageStories(storied!));
+  // A case read twice — in the shared world, then alone — is one story, its
+  // readings end to end, and stopped where any reading was refused.
+  const told = new Map<string, { readonly subject: Omit<ObservedCase, 'journal' | 'stopped'>; stopped: boolean }>();
 
   return {
     root,
+    ...(page === undefined ? {} : { storyPage: async () => (await page).storyPageSource() }),
     join: async (subjectId, origin) => {
       if (journeys === undefined) return [];
       const { journey, cookies } = await journeys.mint(origin);
@@ -164,10 +182,19 @@ export function createSubjectRecorder(
       });
       if (noted.case !== undefined) {
         cases.push({ subject: subjectId, observed: { ...noted.case, stopped: !complete, journal } });
+        if (stories !== undefined && journal.story !== undefined) {
+          (await stories).add(noted.case, journal.story);
+          const key = `${noted.case.file}\u0000${noted.case.id}`;
+          const before = told.get(key);
+          if (before === undefined) told.set(key, { subject: noted.case, stopped: !complete });
+          else before.stopped ||= !complete;
+        }
       }
     },
 
     close: async (costs) => {
+      if (stories !== undefined) for (const { subject, stopped } of told.values()) (await stories).write(subject, stopped);
+      told.clear();
       try {
         await journeys?.settled();
         await contribute(costs);

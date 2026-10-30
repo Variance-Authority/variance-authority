@@ -36,7 +36,8 @@ import {
   type PreconditionStanding,
 } from '@variance-authority/sense/journal';
 import { stitchJourneys } from '@variance-authority/sense/journey';
-import { repositoryRoot, type CoveragePrecondition } from '@variance-authority/sense/test-selection';
+import { askedForStories, pageStories, storyPageSource, type StoryCase } from '@variance-authority/sense/story';
+import { recordFileFor, repositoryRoot, type CoveragePrecondition } from '@variance-authority/sense/test-selection';
 import type { Wire } from '@variance-authority/wire/listen';
 import { resolve } from 'node:path';
 import { absorb, accumulation, type Accumulated } from './accumulated.js';
@@ -52,19 +53,32 @@ export type { ExecutionRecording } from './execution-recording.js';
 export interface ExecutionRecorder {
   /**
    * Take everything one document has entered since the last drain — a page's,
-   * or any frame's, since the application is not always the top document.
-   *
-   * `subject` names the individual test the window belongs to, for a run
-   * recording cases. Without it the crossings join the file and nothing finer,
-   * which is what selection reads either way.
-   *
-   * `line` is the test line whose statement ran since the drain before, for a
-   * case whose file was cut: each region the window holds that the case has
-   * not reached under an earlier line is charged to it. A case drained without
-   * one carries no lines, and a region drained without one before its first is
-   * ambient.
+   * or any frame's. `subject` names the test it belongs to, for a run recording
+   * cases; without it the crossings join the file only. `line` is the test line
+   * whose statement ran since the drain before: each region the case has not
+   * reached under an earlier line is charged to it. A region drained before
+   * the first line, or under a `hook` line, is ambient. Resolves to how many
+   * documents the frame replaced whose journals the drain carried.
    */
-  readonly note: (page: EvaluatingPage, owner: string, subject?: ObservedTest, line?: number) => Promise<void>;
+  readonly note: (page: EvaluatingPage, owner: string, subject?: ObservedTest, line?: number, hook?: boolean) => Promise<number>;
+  /**
+   * The script that makes a page tape the case's story, where the run asked
+   * for stories under `VARIANCE_AUTHORITY_STORY`: put on a context before its
+   * pages load. Absent where it did not.
+   */
+  readonly storyPage?: string;
+  /**
+   * Say that what the case's pages do next is the statement at test line
+   * `line`, a hook's where `hook` says so; present beside {@link storyPage}.
+   */
+  readonly cut?: (owner: string, subject: ObservedTest, line: number, hook: boolean) => void;
+  /** Say what the case printed in the runner's own process, where the case is now; present beside {@link storyPage}. */
+  readonly say?: (owner: string, subject: ObservedTest, text: string) => void;
+  /**
+   * Say that a document the case ran in was gone before what it ran there was
+   * drained, so the case's story is missing it; present beside {@link storyPage}.
+   */
+  readonly lose?: (owner: string, subject: ObservedTest) => void;
   /**
    * Mint this execution's journey and put it on the page's context.
    *
@@ -135,6 +149,8 @@ export function createExecutionRecorder(
   // What each case said it arranged, where a runner says where a call stands:
   // taken when the case is marked, which is after its `afterEach` ran.
   const listener = standing === undefined ? undefined : listenForPreconditions(root, standing);
+  const stories = storiesFor(start, root, recording);
+  const storyCase = (owner: string, subject: ObservedTest): StoryCase => ({ file: owner, ...subject });
   const heard = new Map<string, NonNullable<ObservedCase['said']>>();
   // Cases that drove a page carrying no execution collector: what that page
   // read went unheard, so an empty facet would claim it read nothing.
@@ -166,12 +182,22 @@ export function createExecutionRecorder(
   // another process, and a listener nobody can find is a port for nothing.
   const journeys = driveJourneys(wire);
   const reports = journeys.reports;
+  // The cases whose story is missing a document, until it is written.
+  const lostCases = new Set<string>();
   let seen = false;
   let announced = false;
   let instrumentation: string | undefined;
 
   return {
     root,
+    ...(stories === undefined
+      ? {}
+      : {
+          storyPage: storyPageSource(),
+          cut: (owner: string, subject: ObservedTest, line: number, hook: boolean) => stories.line(storyCase(owner, subject), line, hook),
+          say: (owner: string, subject: ObservedTest, text: string) => stories.note(storyCase(owner, subject), text),
+          lose: (owner: string, subject: ObservedTest) => void lostCases.add(caseKey(owner, subject.id)),
+        }),
     owner: (testInfo) => ownerOf(root, testInfo),
     arranged: (owner, subject) => listener?.held(caseKey(owner, subject.id)),
     eyes: (owner, subject, attempt, journal) => {
@@ -179,11 +205,11 @@ export function createExecutionRecorder(
       const key = caseKey(owner, subject.id);
       looked.set(key, [...(looked.get(key) ?? []), ...(journal === undefined ? [] : [{ attempt, journal }])]);
     },
-    note: async (page, owner, subject, line) => {
+    note: async (page, owner, subject, line, hook) => {
       const journal = await quietly(page, () => drainExecution(page));
       if (journal === undefined) {
         if (subject !== undefined) unheard.add(caseKey(owner, subject.id));
-        return;
+        return 0;
       }
       seen = true;
       instrumentation = journal.instrumentation;
@@ -191,10 +217,14 @@ export function createExecutionRecorder(
       absorb(accumulated, journal);
       owners.set(owner, accumulated);
       if (journal.read !== undefined) listener?.laid(subject && caseKey(owner, subject.id), journal.read);
-      if (subject === undefined) return;
-      const held = caseOf(owner, subject);
-      if (line !== undefined) reached.charge(caseKey(owner, subject.id), held, journal.modules, line);
-      absorb(held, journal);
+      if (subject !== undefined) {
+        const held = caseOf(owner, subject);
+        if (line !== undefined) reached.charge(caseKey(owner, subject.id), held, journal.modules, line, hook === true);
+        absorb(held, journal);
+        // The frame stays one object across its documents, so the story can say which frame each part ran in.
+        if (journal.story !== undefined) stories?.add(storyCase(owner, subject), journal.story, page);
+      }
+      return journal.replaced ?? 0;
     },
 
     join: async (page, owner, origin, subject) => {
@@ -230,6 +260,8 @@ export function createExecutionRecorder(
           caseOf(owner, subject);
         }
         stopped.set(key, stopped.get(key) === false ? false : !complete);
+        // One reading per attempt: a retry is a second run of the case.
+        stories?.write(storyCase(owner, subject), !complete, lostCases.delete(key));
         // A case that stopped before the page had anything to drain is still a
         // case, and the one a reader most needs to hear about.
         if (!complete) caseOf(owner, subject);
@@ -423,4 +455,13 @@ function withoutEmptyReads(said: NonNullable<ObservedCase['said']>): NonNullable
   const facets = JSON.parse(said) as Record<string, readonly unknown[]>;
   for (const facet of ['read', 'misused']) if (facets[facet]?.length === 0) delete facets[facet];
   return JSON.stringify(facets);
+}
+
+/**
+ * Where this worker writes its cases' stories: beside the record it writes,
+ * when the run asked for them.
+ */
+function storiesFor(start: string, root: string, recording: ExecutionRecording) {
+  const directory = askedForStories(() => recordFileFor(root, start, recording));
+  return directory === undefined ? undefined : pageStories(directory);
 }

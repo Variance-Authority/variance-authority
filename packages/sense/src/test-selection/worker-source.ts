@@ -137,6 +137,12 @@ ${caseWriterSource(caseDirectory)}});`;
  */
 export const BROWSER_JOURNAL = 'varianceAuthority';
 
+/** What a page that tapes adds to the setup module: the tape's script, and the runner's hooks that hand each case's tape over. */
+export interface PageStorySource {
+  readonly tape: string;
+  readonly hooks: string;
+}
+
 /**
  * The setup module for a test file that runs in a page: the page collector, and
  * the handoff through the runner at the end.
@@ -148,21 +154,22 @@ export const BROWSER_JOURNAL = 'varianceAuthority';
  * The two drains are what {@link setupSource} reads as `loaded` and `modules`:
  * everything before the first test, then everything after it.
  *
- * The collector is the one a built preview carries, so a module a page ran is
- * counted by the code every other page counts with. It is evaluated in a block,
- * where a bundle's module scope would put it, and a realm that already has a
- * collector keeps it: the drain is always the realm's own.
+ * The collector is the one a built preview carries, evaluated in a block where
+ * a bundle's module scope would put it; a realm that already has one keeps it.
+ * With `story`, the page tapes too: its `tape` goes in before the collector
+ * and its `hooks`, the runner's, hand each case's tape over.
  */
-export function browserSetupSource(mode?: InstrumentMode, runner = 'vitest'): string {
+export function browserSetupSource(mode?: InstrumentMode, runner = 'vitest', story?: PageStorySource): string {
   // FIXME: Vitest is the default runner of a runner-neutral file; the caller names it (No runner is the default).
   return `
-import { afterAll, beforeAll } from ${JSON.stringify(runner)};
+import { afterAll, beforeAll${story === undefined ? '' : ', afterEach, beforeEach'} } from ${JSON.stringify(runner)};
+${story?.tape ?? ''}
 {${executionCollectorSource(mode)}}
 const execution = globalThis[${JSON.stringify(EXECUTION_GLOBAL)}];
 let loaded = [];
 // FIXME: what the page read (each drain's \`read\`) is laid on no case, where
 // spec 0102 lays a Vitest or Rstest browser read on the case running it.
-beforeAll(() => { loaded = execution.drain().modules; });
+beforeAll(() => { loaded = execution.drain().modules; });${story?.hooks ?? ''}
 // Vitest hands the hook the file task, first through Vitest 4 and second from
 // 5, where the first is a fixture context and a parameter the hook names has
 // to destructure it. So the hook names none. Rstest hands it the file's

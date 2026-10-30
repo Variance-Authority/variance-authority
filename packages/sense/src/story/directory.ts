@@ -47,8 +47,14 @@ export function storyDirectories(root: string): string[] {
   return records.map((record) => resolve(storyDirectory(record)));
 }
 
-/** The story directory beside `recordFile` when the environment asks for stories. */
-export function askedForStories(recordFile: string, environment: NodeJS.ProcessEnv = process.env): string | undefined {
+/**
+ * The story directory beside `recordFile` when the environment asks for
+ * stories. A seam that places its record only when it closes hands the
+ * placing over, so a run that asks for none is not refused for a record it
+ * has not placed yet.
+ */
+export function askedForStories(recordFile: string | (() => string), environment: NodeJS.ProcessEnv = process.env): string | undefined {
   const asked = environment[STORY_VARIABLE];
-  return asked === undefined || asked === '' || asked === '0' ? undefined : storyDirectory(recordFile);
+  if (asked === undefined || asked === '' || asked === '0') return undefined;
+  return storyDirectory(typeof recordFile === 'string' ? recordFile : recordFile());
 }

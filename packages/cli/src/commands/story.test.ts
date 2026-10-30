@@ -340,6 +340,18 @@ describe('a story read as a route', () => {
     expect(JSON.parse(formatStory({ route: ROUTE, reading: { of: 2, unmatched } }, 'json'))).toMatchObject({ readings: 2, unmatched });
   });
 
+  it('names the project the case ran under, a page gone before it was read, and the page documents it ran in', () => {
+    const route: Route = { ...ROUTE, project: 'webkit', lost: true, documents: 2 };
+    expect(formatStory({ route }, 'text').split('\n').slice(0, 6)).toEqual([
+      HEAD[0], '  under the project webkit', HEAD[1],
+      '  a page the test ran in was gone before what it ran there was read, so the route is missing that',
+      HEAD[2],
+      '  ran in 2 page documents, each said where the route moves into it; a ref is its own document\'s,'
+        + ' and what two of them did within one test line is in the order it reached the runner, not the order it ran',
+    ]);
+    expect(JSON.parse(formatStory({ route }, 'json'))).toMatchObject({ project: 'webkit', lost: true, documents: 2 });
+  });
+
   it('gives the reading, its level and the numbered steps as json', () => {
     const { before: _before, route: _route, untaken: _untaken, ...head } = ROUTE;
     expect(JSON.parse(formatStory({ route: ROUTE, zoom: { around: 5 } }, 'json'))).toEqual({
