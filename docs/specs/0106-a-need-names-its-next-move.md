@@ -286,7 +286,8 @@ drop exactly the tests nothing has recorded yet.
 | know what my last change did to the cases, with no mainline record | `covering --file <path> --cases last --format refs` | know which statement of a case first ran a region; know what a case did differently from its last run, or from another case |
 | know which changed regions the red cases share | `covering --since <ref> --format refs`, `coverage --fan-in` | know what my change did to the cases, against the mainline's record; know how many test files an edit here runs, before making it |
 | know which statement of a case first ran a region | **gap** | — |
-| know why a case passes on one run and throws on another | `story --file <test> --name <case> --compare outcome` | know what a name is before touching it |
+| know which region a case reaches under another test line when it fails | **gap**, [#823](https://github.com/Variance-Authority/variance-authority/issues/823) | know why a case passes on one run and throws on another |
+| know why a case passes on one run and throws on another | `story --file <test> --name <case> --compare outcome`; a Playwright case writes no story, [#822](https://github.com/Variance-Authority/variance-authority/issues/822) | know what a name is before touching it |
 | know what a case did differently from its last run, or from another case | `story --file <test> --name <case> --compare last`, `story … --compare <a>,<b>` | know what a name is before touching it |
 | know why a test fails | **gap** | — |
 
@@ -299,6 +300,11 @@ case that stopped before it, or says the record cannot say which; a named case
 opens what it did differently from its last run. A comparison refused as
 `undiffed` lacks the record's commit, and is the same need asked again once the
 commit is fetched; it is never *nothing moved*.
+
+A case that passes on one run and throws on another is first read from the
+cadence every run records: a region charged to one test line on every passing
+reading and to another on every failing one names the timing, and only a
+comparison that names nothing opens a story ([#823](https://github.com/Variance-Authority/variance-authority/issues/823)).
 
 A story is read from a recording of the cases it names, and recording it is a
 focused run, an *operation*. An agent may start Fix at a story, since the
@@ -428,13 +434,16 @@ input, not an order.
   it is in the base record but printed nowhere, so Fix reads the test's source
   to find it. A recorded fact with no reader is a defect, not a position. The
   statement a case threw at is not recorded: an assertion that fails reaches no
-  new region.
+  new region. Read across runs and split by outcome, the same lines name a
+  region a case reaches under another line when it fails, the shape of a
+  timing flake ([#823](https://github.com/Variance-Authority/variance-authority/issues/823)).
 - **Why a test fails.** Answered as why its passing twins pass: the passing
   cases that entered the same region, and where the failing one left them.
   The comparison against the mainline's record names the regions a change took
   from the cases and the cases that stopped. `story --compare outcome` sets one
   case's passing readings against its throwing ones, so it answers a case that
-  fails on some runs, not one that fails on every run. The cross-case half is
+  fails on some runs, not one that fails on every run, and a Playwright case
+  writes no story for it to read ([#822](https://github.com/Variance-Authority/variance-authority/issues/822)). The cross-case half is
   [0103](0103-a-behaviour-names-the-cases-that-witnessed-it.md)'s
   passed-or-failed operand.
 
