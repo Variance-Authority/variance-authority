@@ -182,6 +182,7 @@
     "@opentelemetry/instrumentation-undici": "^0.32.0",
     "@opentelemetry/sdk-trace-node": "^2.11.0",
     "@rspack/core": "^2.2.6",
+    "@rstest/browser": "0.12.0",
     "@rstest/core": "^0.12.0",
     "@sentry/node": "^11.0.0",
     "@swc/core": "^1.16.2",
