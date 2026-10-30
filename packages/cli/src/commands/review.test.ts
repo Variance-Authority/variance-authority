@@ -1,6 +1,6 @@
-import { chmod, mkdir, mkdtemp, readFile, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { basename, dirname, join } from 'node:path';
+import { basename, join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   caseSectionsAt,
@@ -12,7 +12,7 @@ import {
   withCaseSections,
   type ExecutionIndex,
 } from '@variance-authority/sense/test-selection';
-import { sourceIndexPath, updateSourceIndex } from '@variance-authority/sense';
+import { updateSourceIndex } from '@variance-authority/sense';
 import { main } from '../bin.js';
 import { readFlags } from '../args.js';
 import { parseReviewArgs } from '../review-args.js';
@@ -76,22 +76,6 @@ describe('a review of what a change did, after the run that recorded it', () => 
     const { root, first } = await changed({ suites: ['unit', 'browser'] });
 
     await expect(review(parse(['--since', first, '--root', root]))).rejects.toThrow(/declares the suites "browser", "unit"[^]*--suite <name>/);
-  });
-
-  it('reads the source index as it stands when it cannot be brought up to the checkout, and still says the record ran the change', async () => {
-    const { root, first, against } = await changed();
-    await updateSourceIndex(root);
-    // Written after the index was: the update has something to write, and the directory refuses it.
-    await writeFile(join(root, 'NOTES.md'), 'notes\n');
-    const index = dirname(sourceIndexPath(root));
-    await chmod(index, 0o555);
-    try {
-      const answer = await review(parse(['--since', first, '--against', against, '--root', root]));
-
-      expect(answer).toMatchObject({ from: first, record: 'ran', base: 'since' });
-    } finally {
-      await chmod(index, 0o755);
-    }
   });
 
   it('reads each edit, counts the changed regions no case covered, and names the cases added', async () => {

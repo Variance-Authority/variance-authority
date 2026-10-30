@@ -141,31 +141,6 @@ describe('coverage of a repository that declares suites', () => {
     expect(answer.out).toContain(`unit compared with ${base}`);
   });
 
-  it('names the commit the records were made at apart from the base they are compared with', async () => {
-    const git = (...args: string[]) => execFileSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', ...args], { cwd: root, encoding: 'utf8' }).trim();
-    git('commit', '--quiet', '--allow-empty', '-m', 'recorded');
-    const recorded = git('rev-parse', 'HEAD');
-    const base = join(root, 'base', 'recorded.bin');
-    await record(base, { tests: [UNIT], modules: [{ file: 'src/pay.ts', blocks: [region('charge', true)] }] }, { commit: recorded, files: [] });
-    // The unit record made at that commit, then a commit since: the records are not at the checkout's commit.
-    const current = testCoverageFile(root, { suite: 'unit' });
-    const held = await readFile(current);
-    await rm(current);
-    await writeTestCoverage(current, { version: 3, instrumentation: 'fixture-instrumentation', commit: recorded, tests: [], modules: [] }, {
-      index: encodeExecutionIndex({ tests: [UNIT], modules: [{ file: 'src/pay.ts', blocks: [region('charge', true)] }] }),
-    });
-    git('commit', '--quiet', '--allow-empty', '-m', 'since');
-    try {
-      const answer = await ask(['coverage', '--root', root, '--suite', 'unit', '--against', base]);
-
-      expect(answer.out.split('\n')[0]).toBe(
-        `coverage at ${git('rev-parse', 'HEAD').slice(0, 8)}, recorded at ${recorded.slice(0, 8)}, against each suite's base — 1 region (1 at the base) in 1 file the suites loaded`,
-      );
-    } finally {
-      await writeFile(current, held);
-    }
-  });
-
   it('gives every count and every part to a program', async () => {
     const answer = await ask(['coverage', '--root', root, '--format', 'json']);
 

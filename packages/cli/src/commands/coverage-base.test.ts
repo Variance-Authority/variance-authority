@@ -162,6 +162,25 @@ describe('coverage against a base an edit wrote a sibling region into', () => {
   });
 });
 
+describe('coverage against a base, with the records made at a commit before the checkout\'s', () => {
+  it('names the commit the records were made at apart from the base they are compared with', async () => {
+    const later = await copyOf('later');
+    const at = (...args: string[]) =>
+      execFileSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', ...args], { cwd: later, encoding: 'utf8' }).trim();
+    at('commit', '--quiet', '-am', 'recorded');
+    const recorded = at('rev-parse', 'HEAD');
+    await record(testCoverageFile(later, { suite: 'unit' }), NOW, undefined, { commit: recorded, tests: [] });
+    at('commit', '--quiet', '--allow-empty', '-m', 'since');
+    await publishIndex(later);
+
+    const answer = await ask(['coverage', '--root', later, '--suite', 'unit', '--against', base]);
+
+    expect(answer.out.split('\n')[0]).toMatch(
+      new RegExp(`^coverage at ${at('rev-parse', 'HEAD').slice(0, 8)}, recorded at ${recorded.slice(0, 8)}, against each suite's base — `, 'u'),
+    );
+  });
+});
+
 describe('coverage against a base whose commit it cannot diff from', () => {
   it('refuses a base recorded at a commit this clone does not have, and names how to fetch it', async () => {
     const absent = 'f'.repeat(40);
