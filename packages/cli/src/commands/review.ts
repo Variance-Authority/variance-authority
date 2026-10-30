@@ -51,7 +51,7 @@ import { changedPackagesOf } from './review-changed-packages.js';
 import { diffPoint, diffSince } from './since.js';
 import { probesGap, probesNote } from './probes-gap.js';
 import { runsBase } from './runs-base.js';
-import { indexUpToCheckout, sourceGraphFor, treeNames } from './source-graph.js';
+import { indexUpToCheckout, sourceGraphFor } from './source-graph.js';
 import type { ReviewCoverage } from './review-coverage.js';
 /**
  * The edges a changed package's importers are walked through. Who imports the changed code is a question about
@@ -194,7 +194,8 @@ export interface Review {
   /**
    * Whether the record holds this change. `ran` when every changed module it
    * recorded ran as the tree holds it now, so it says what the change did;
-   * `before` when one ran as other text, so it names the cases that stood on
+   * `before` when one ran as other text, or as a text not known
+   * ({@link Review.notUpdated}), so it names the cases that stood on
    * the changed lines — the ones the change might move — and code written
    * since has no row yet.
    */
@@ -235,6 +236,8 @@ export interface Review {
   readonly probes?: string;
   /** Why no case is said to have moved, when the runs record could not be read and `--since` named the base. */
   readonly runsUnread?: string;
+  /** Why which text the record ran over is not known, when the source index could not be brought up to the checkout to name the tree's. */
+  readonly notUpdated?: string;
 }
 
 /** The runs at this commit as a review reports them: where and when they ran, how many, and what their landings say together. */
@@ -299,9 +302,11 @@ export async function review(request: ParsedReview, { motion: moves = true } = {
   const named = (file: string): string => relative(point.repository, resolve(process.cwd(), file));
   // Which text each changed file holds now is the index's name for it, so the index is brought up to the checkout first.
   const notUpdated = await indexUpToCheckout(root);
-  const { relations, sources, names: indexed } = await sourceGraphFor(root, ['.']);
+  // One it could not names the tree as the last update found it, so it names no text the record could have run as the tree.
+  const graph = await sourceGraphFor(root, ['.']);
+  const { relations, sources } = graph;
+  const names = notUpdated === undefined ? graph.names : new Map<string, string>();
   const changed = changedLines(forward);
-  const names = await treeNames({ names: indexed, ...(notUpdated === undefined ? {} : { notUpdated }) }, [...changed.keys()], point.repository, named);
   const reading = readJourneyChange(forward, textsAt(await prefetch(point, [...changed.keys()], named)), {
     root,
     relations,
@@ -379,12 +384,18 @@ export async function review(request: ParsedReview, { motion: moves = true } = {
     ...(motion === undefined ? {} : { motion }),
     ...(gap === undefined ? {} : { probes: probesNote(gap) }),
     ...(unread === undefined ? {} : { runsUnread: runsUnreadNote(unread, against !== undefined) }),
+    ...(notUpdated === undefined ? {} : { notUpdated: notUpdatedNote(notUpdated) }),
   };
 }
 
 /** `runs` as a review reports it: no `standing`, and its landings as what they say together. */
 function reviewRuns({ standing: _standing, landings, ...runs }: CommitRuns): ReviewRuns {
   return { ...runs, ...whatLanded(landings) };
+}
+
+/** What a source index that could not be brought up to the checkout leaves open beside the answer. */
+function notUpdatedNote(reason: string): string {
+  return `${reason.charAt(0).toUpperCase()}${reason.slice(1).replace(/\.$/u, '')}, so which text the record ran over is not known, and its rows are read as the cases that stood on the changed lines.`;
 }
 
 /** What an unreadable runs record leaves open beside an answer from a named base. */

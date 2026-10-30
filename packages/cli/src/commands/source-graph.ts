@@ -16,7 +16,6 @@ import { isAbsolute, join, relative, resolve } from 'node:path';
 import type { SourceIndex } from '@variance-authority/core/attribute';
 import type { FileRecord, Relations } from '@variance-authority/core/relate';
 import {
-  namesOnDisk,
   publishedSources,
   runGraphOf,
   SourceIndexUnpublished,
@@ -101,26 +100,6 @@ export type IndexNames = ReadonlyMap<string, string>;
 /** The name `records`, the source index, gives the text each file it holds holds now; a file it holds no name for is in none. */
 export function indexNames(records: readonly FileRecord[]): IndexNames {
   return new Map(records.flatMap((record) => record.digest === undefined ? [] : [[record.file, record.digest] as const]));
-}
-
-/**
- * The name of the text each of `files` holds now, by the index that `graph`
- * was read from; when it could not be brought up to the checkout it names the
- * tree as the last update found it, so git names each of them from disk
- * instead, at the path `named` gives it in `repository`.
- */
-export async function treeNames(
-  graph: { readonly names: IndexNames; readonly notUpdated?: string },
-  files: readonly string[],
-  repository: string,
-  named: (file: string) => string,
-): Promise<IndexNames> {
-  if (graph.notUpdated === undefined) return graph.names;
-  const onDisk = await namesOnDisk(repository, files.map(named));
-  return new Map(files.flatMap((file) => {
-    const name = onDisk.get(named(file));
-    return name === undefined ? [] : [[file, name] as const];
-  }));
 }
 
 /**

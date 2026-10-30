@@ -57,7 +57,7 @@ describe('a review that cannot be made', () => {
       expect(answer.files.every((file) => file.cases === undefined)).toBe(true);
     });
 
-    it('reads the source index as it stands when it cannot be brought up to the checkout, and still says the record ran the change', async () => {
+    it('says which text the record ran over is not known when the source index cannot be brought up to the checkout, and why, beside the answer', async () => {
       const { root, first, against } = await changed();
       await updateSourceIndex(root);
       // Written after the index was: the update has something to write, and the directory refuses it.
@@ -67,7 +67,12 @@ describe('a review that cannot be made', () => {
       try {
         const answer = await review(parse(['--since', first, '--against', against, '--root', root]));
 
-        expect(answer).toMatchObject({ from: first, record: 'ran', base: 'since' });
+        expect(answer).toMatchObject({ from: first, record: 'before', base: 'since' });
+        expect(answer.notUpdated).toMatch(
+          /^The source index at .+ could not be updated to the checkout: .*Permission denied.*, so which text the record ran over is not known, and its rows are read as the cases that stood on the changed lines\.$/su,
+        );
+        expect(formatReview(answer, 'text')).toContain(`\n\n${answer.notUpdated}\n`);
+        expect(formatReview(answer, 'markdown')).toContain(`<sub>${answer.notUpdated}</sub>`);
       } finally {
         await chmod(index, 0o755);
       }

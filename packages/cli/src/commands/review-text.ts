@@ -58,7 +58,7 @@ export function* reviewPieces(review: Review, format: ReviewFormat): Generator<s
 
 /** What the record leaves open beside the answer, said before it. */
 function notes(review: Review): readonly string[] {
-  return [review.probes, review.runsUnread].filter((note) => note !== undefined);
+  return [review.probes, review.notUpdated, review.runsUnread].filter((note) => note !== undefined);
 }
 
 function text(review: Review): string {
