@@ -51,12 +51,12 @@ afterEach(async () => {
 
 const CART = 'export function total(items) {\n  return items.length;\n}\n';
 
-/** A checkout at its first commit holding `src/cart.js` as `text` on disk, with `config` set before it was added. */
-async function checkout(text: string, config: readonly [string, string][] = []) {
+/** A checkout at its first commit holding `src/cart.js` as `text` on disk, with `config` set before it was added, hashing its objects with `hash`. */
+async function checkout(text: string, config: readonly [string, string][] = [], hash: 'sha1' | 'sha256' = 'sha1') {
   const root = await realpath(await mkdtemp(join(tmpdir(), 'variance-format-blob-')));
   made.push(root);
   const git = (...args: string[]) => execFileSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', ...args], { cwd: root, encoding: 'utf8' }).trim();
-  git('init', '--quiet', '--initial-branch', 'main');
+  git('init', '--quiet', '--initial-branch', 'main', `--object-format=${hash}`);
   for (const [key, value] of config) git('config', key, value);
   await mkdir(join(root, 'src'), { recursive: true });
   await writeFile(join(root, 'src/cart.js'), text);
@@ -91,6 +91,18 @@ describe('the git name a landing gives the text a module row was cut from', () =
     await writeFile(file, edited);
 
     expect(await landed(root, file, record, edited, git('rev-parse', 'HEAD'))).toBe(`git:${git('hash-object', 'src/cart.js')}`);
+  });
+
+  it('is the repository\'s own SHA-256 name, for a clean file and a dirty one, where the repository hashes its objects with SHA-256', async () => {
+    const { root, git, file, record } = await checkout(CART, [], 'sha256');
+    const commit = git('rev-parse', 'HEAD');
+    const clean = await landed(root, file, record, CART, commit);
+    const edited = CART.replace('items.length;', 'items.length + 1;');
+    await writeFile(file, edited);
+    const dirty = await landed(root, file, record, edited, commit);
+
+    expect([clean, dirty]).toEqual([`git:${git('rev-parse', 'HEAD:src/cart.js')}`, `git:${git('hash-object', 'src/cart.js')}`]);
+    expect(clean).toMatch(/^git:[0-9a-f]{64}$/u);
   });
 
   it('is none for a dirty file edited again after the run read it', async () => {

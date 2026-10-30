@@ -335,7 +335,11 @@ index. To fix an index, delete it.
 An index another release wrote is named as such rather than as damaged, and
 `variance index` rebuilds it. `select`, `review` and the other commands that
 read the graph through `publishedSources` rebuild it on your workstation and say
-so, and refuse it in CI, naming `variance index` as the step to run first.
+so, and refuse it in CI, naming `variance index` as the step to run first. A
+whole index they read as it stands. `coverage`, `covering` and `review` name
+the checkout's texts by the index, so on your workstation they bring it up to
+the checkout first; when that update fails, they say why on stderr and count
+what ran as over a text not known.
 `readPublishedSources` rebuilds nothing: it returns the index with
 `state: 'other-version'` and the version that wrote it in `written`.
 `ask orient --files` refuses it, naming both versions and `variance index`.
