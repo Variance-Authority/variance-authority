@@ -135,7 +135,12 @@ export interface CoverageEntry {
   readonly uses: CoverageSource;
 }
 
-/** What a caller asks of the count beyond the request: `variance coverage` asks every part. */
+/**
+ * What a caller asks of the count beyond the request: `variance coverage` asks
+ * every part. `review` asks no split: parting what ran by text reads the text
+ * of every changed file a run called into, on disk, kept or committed, and the
+ * edits between them, which costs a review far more than the count it prints.
+ */
 export interface CoverageParts {
   /** Part what ran by the text it ran over: read the runs record and the edits since. */
   readonly over: boolean;
