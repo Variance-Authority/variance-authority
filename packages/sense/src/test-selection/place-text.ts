@@ -20,8 +20,8 @@ export type RanOver = 'held' | NotHeld | { readonly unknown: string };
 /**
  * What a run ran over of a file instead of its held text: another text, given
  * when it is found, with the name the evidence knows it by, or none. `rows`
- * marks the text a record's rows were cut from, which the reader holds and
- * this does not.
+ * marks the text a record's rows were cut from, by its git blob name, given
+ * when the held text's placement read it.
  */
 export type NotHeld = 'absent' | { readonly text: string | undefined; readonly name?: string; readonly rows?: true };
 
@@ -35,10 +35,6 @@ export interface HeldNames {
   readonly digest: string | undefined;
 }
 
-// FIXME: `covering` still passes the held text in hand and names it by hashing it; it names it by the source index's blob, as `coverage` does, once it reads the index.
-/** The held text, in hand or by {@link HeldNames}: names when a reader has them, the text when it must. */
-export type Held = string | HeldNames;
-
 /** What telling which text a run ran over reads, read once for every run. */
 export interface RanOverEvidence {
   /** Whether the checkout is in a git repository, so a committed text can be read. */
@@ -49,7 +45,7 @@ export interface RanOverEvidence {
    * commit holds the held text, which nothing reads.
    */
   readonly committed: ReadonlyMap<string, ReadonlyMap<string, string>>;
-  /** The git blob name of each asked file held by name at each run's commit; empty when every file is held as text. */
+  /** The git blob name of each asked file at each run's commit. */
   readonly blobs: ReadonlyMap<string, ReadonlyMap<string, string>>;
   /** The asked files each run's commit does not hold, told from a text this clone lacks. */
   readonly absent: ReadonlyMap<string, ReadonlySet<string>>;
@@ -61,6 +57,12 @@ export interface RanOverEvidence {
   readonly placements: ReadonlyMap<string, Placement>;
   /** Under a precondition answer: the test files whose own digest of the file is of another text. */
   readonly ranOther: ReadonlyMap<string, readonly string[]> | undefined;
+  /**
+   * The git blob name of the text each asked file's rows were cut from, where
+   * the record names one: the text the run that wrote a snapshot naming no
+   * commit ran over.
+   */
+  readonly rows: ReadonlyMap<string, string>;
 }
 
 /**
@@ -81,32 +83,27 @@ export function readsTheSnapshot(run: TestPlace, last: string | undefined): bool
  * the record does not know; one the record could not place, over a text it
  * cannot say; the one that wrote a snapshot naming no commit, over its rows'.
  *
- * The held text is told by name when it is held by name: the digest the run
- * names, the git blob name its commit holds. A text a run names is the one
+ * The held text is told by its names: the digest the run names, the git blob
+ * name its commit holds, the rows' digest. A text a run names is the one
  * a landing kept, else its commit's when that is the text it names, read from
  * history and never from disk, else not known.
  */
-export function ranOver(run: TestPlace, test: string, file: string, held: Held, evidence: RanOverEvidence, precondition: boolean): RanOver {
+export function ranOver(run: TestPlace, test: string, file: string, held: HeldNames, evidence: RanOverEvidence, precondition: boolean): RanOver {
   if (run.assumed === true) return { unknown: `the record does not say where that run stood, so not which text of ${file} it ran over` };
-  if (readsTheSnapshot(run, evidence.last)) {
-    if (typeof held === 'string') return fromSnapshot(test, file, evidence, precondition);
-    return held.digest !== undefined ? 'held' : { text: undefined, rows: true };
-  }
+  if (readsTheSnapshot(run, evidence.last)) return fromSnapshot(test, file, held, evidence, precondition);
   if (run.texts === undefined) return { unknown: `the runs record does not say which text of ${file} its runs there ran over` };
   const named = run.texts[file];
   if (named !== undefined) {
-    if (named === (typeof held === 'string' ? digestString(held) : held.digest)) return 'held';
+    if (named === held.digest) return 'held';
     // Kept by a landing, or, where none kept it, the commit's own text when that is the one it names.
     const committed = run.commit === undefined ? undefined : evidence.committed.get(run.commit)?.get(file);
     const text = evidence.kept.get(named) ?? (committed !== undefined && digestString(committed) === named ? committed : undefined);
     return text === undefined ? { text: undefined } : { text, name: named };
   }
-  if (run.commit !== undefined && typeof held !== 'string' && evidence.blobs.get(run.commit)?.get(file) === held.blob) return 'held';
+  const blob = run.commit === undefined ? undefined : evidence.blobs.get(run.commit)?.get(file);
+  if (blob === held.blob) return 'held';
   const committed = run.commit === undefined ? undefined : evidence.committed.get(run.commit)?.get(file);
-  if (committed !== undefined) {
-    if (typeof held === 'string') return committed === held ? 'held' : { text: committed };
-    return { text: committed, name: evidence.blobs.get(run.commit!)!.get(file)! };
-  }
+  if (committed !== undefined && blob !== undefined) return { text: committed, name: blob };
   if (run.commit !== undefined && evidence.absent.get(run.commit)?.has(file) === true) return 'absent';
   // A run outside a checkout names no texts (`ranOverTexts`), so one that names them stood at a commit.
   return {
@@ -117,13 +114,14 @@ export function ranOver(run: TestPlace, test: string, file: string, held: Held, 
 }
 
 /**
- * The text the snapshot's rows say `test` ran over: an instrumented file's
- * row digest, through the placement of its lines in the held text, and a
- * precondition's digest, which the record keeps per test file.
+ * The text the snapshot's rows say `test` ran over: the held text when the
+ * rows name it, else the rows' own, in hand where the held text's placement
+ * read it; and a precondition's digest, which the record keeps per test file.
  */
-function fromSnapshot(test: string, file: string, evidence: RanOverEvidence, precondition: boolean): RanOver {
+function fromSnapshot(test: string, file: string, held: HeldNames, evidence: RanOverEvidence, precondition: boolean): RanOver {
   if (precondition) return evidence.ranOther?.get(file)?.includes(test) === true ? { text: undefined } : 'held';
-  const placement = evidence.placements.get(file);
-  if (placement === undefined) return { unknown: `the record holds no digest of the text of ${file} it ran over` };
-  return placement.frame === 'recorded' ? 'held' : { text: placement.recorded };
+  if (held.digest !== undefined) return 'held';
+  const rows = evidence.rows.get(file);
+  if (rows === undefined) return { unknown: `the record names no text of ${file} its rows were cut from` };
+  return { text: evidence.placements.get(file)?.recorded, name: rows, rows: true };
 }

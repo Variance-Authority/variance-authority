@@ -339,6 +339,8 @@ export async function covering(request: ParsedCovering, graph: Graph = graphOnce
       at,
       runs,
       ...(text === undefined ? {} : { held: text }),
+      // A text handed in is not the one on disk the source index names.
+      ...(text !== undefined && request.since === undefined && ((request as CoveringAt).text !== undefined || (request as CoveringAt).held !== undefined) ? { handed: true as const } : {}),
       ...(framed === undefined || 'unheld' in framed ? {} : { placement: framed }),
       ...(asked === undefined ? {} : { index: asked }),
       ...(ranOther === undefined ? {} : { ranOther }),

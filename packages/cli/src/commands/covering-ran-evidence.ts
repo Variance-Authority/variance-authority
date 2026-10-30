@@ -24,14 +24,13 @@ import {
   textsAt,
   type Edit,
   type ExecutionIndex,
-  type Held,
+  type HeldNames,
   type HeldLines,
   type NotHeld,
   type Placement,
   type RanOverEvidence,
   type TestPlace,
 } from '@variance-authority/sense/test-selection';
-import { digestString } from '@variance-authority/core/format';
 
 /**
  * The asked region of the held text, in its lines, each range with the kind of
@@ -69,9 +68,9 @@ const CHARGED_TO_NONE = '';
 export interface Evidence extends RanOverEvidence {
   /**
    * Where lines of a held text stand in a text a run ran over, placed once per
-   * pair of texts: whether that text holds a line written since the record.
+   * pair of names: whether that text holds a line written since the record.
    */
-  readonly across: (held: string, ran: string) => Placement['place'];
+  readonly across: (held: NamedText, ran: NamedText) => Placement['place'];
   /** The edit `file` went through from one text to another, read once per pair of names. */
   readonly edit: (file: string, from: NamedText, to: NamedText) => Edit;
 }
@@ -96,6 +95,10 @@ export interface EvidenceQuestion {
   readonly ranOther: ReadonlyMap<string, readonly string[]> | undefined;
   /** Commits besides the runs' to read the files at, by name and then by text where it is not the held one. */
   readonly at?: readonly string[];
+  /** The git blob name of the text each asked file's rows were cut from, where the record names one. */
+  readonly rows: ReadonlyMap<string, string>;
+  /** The held texts in hand, which the snapshot's rows are placed in when a run wrote it and the question holds no placement. */
+  readonly texts?: ReadonlyMap<string, string>;
 }
 
 /**
@@ -104,11 +107,11 @@ export interface EvidenceQuestion {
  * snapshot's placements when a run wrote it — the question's own for one
  * file, else read for each held text.
  *
- * A file held by name is read at a commit by name first, and its text only
- * where the commit holds another, so a commit that holds the held text reads
- * no text of it.
+ * A file is read at a commit by name first, and its text only where the
+ * commit holds another, so a commit that holds the held text reads no text of
+ * it.
  */
-export async function evidenceOf(runs: readonly TestPlace[], held: ReadonlyMap<string, Held>, question: EvidenceQuestion): Promise<Evidence> {
+export async function evidenceOf(runs: readonly TestPlace[], held: ReadonlyMap<string, HeldNames>, question: EvidenceQuestion): Promise<Evidence> {
   const { root, repository, last } = question;
   const files = [...held.keys()];
   // A run the record could not place stood nowhere it says, so nothing is read where it is assumed to.
@@ -120,13 +123,10 @@ export async function evidenceOf(runs: readonly TestPlace[], held: ReadonlyMap<s
     const under = relative(await realpath(repository), await realpath(root));
     const repoPath = (file: string): string => (under === '' ? file : join(under, file).split(sep).join('/'));
     const commits = [...new Set([...placed.flatMap((run) => run.commit ?? []), ...(question.at ?? [])])];
-    const byName = files.filter((file) => typeof held.get(file) !== 'string');
-    const named = byName.length === 0 ? new Map<string, Map<string, string>>() : blobsAt(repository, new Map(commits.map((commit) => [commit, byName.map(repoPath)])));
+    const named = files.length === 0 ? new Map<string, Map<string, string>>() : blobsAt(repository, new Map(commits.map((commit) => [commit, files.map(repoPath)])));
     const toRead = (commit: string): string[] => files.filter((file) => {
-      const one = held.get(file)!;
-      if (typeof one === 'string') return true;
       const name = named.get(commit)?.get(repoPath(file));
-      return name !== undefined && name !== one.blob;
+      return name !== undefined && name !== held.get(file)!.blob;
     });
     const blobs = textsAt(repository, new Map(commits.map((commit) => [commit, toRead(commit).map(repoPath)])));
     for (const commit of commits) {
@@ -135,7 +135,7 @@ export async function evidenceOf(runs: readonly TestPlace[], held: ReadonlyMap<s
         const text = texts?.get(repoPath(file));
         return text === undefined ? [] : [[file, text] as const];
       })));
-      names.set(commit, new Map(byName.flatMap((file) => {
+      names.set(commit, new Map(files.flatMap((file) => {
         const name = named.get(commit)?.get(repoPath(file));
         return name === undefined ? [] : [[file, name] as const];
       })));
@@ -157,12 +157,12 @@ export async function evidenceOf(runs: readonly TestPlace[], held: ReadonlyMap<s
     ? new Map<string, Placement>()
     : question.placement !== undefined && files.length === 1
       ? new Map([[files[0]!, question.placement]])
-      : placeInTexts(question.snapshot, root, new Map([...held].flatMap(([file, one]) => typeof one === 'string' ? [[file, one] as const] : [])));
+      : placeInTexts(question.snapshot, root, question.texts ?? new Map());
   // Runs that ran over the same text compare the same pair, so each pair is read once.
   const pairs = new Map<string, Placement['place']>();
-  const across = (from: string, to: string): Placement['place'] => {
-    const key = `${digestString(from)} ${digestString(to)}`;
-    const place = pairs.get(key) ?? placeAcross(from, to);
+  const across = (from: NamedText, to: NamedText): Placement['place'] => {
+    const key = `${from.name} ${to.name}`;
+    const place = pairs.get(key) ?? placeAcross(from.text, to.text);
     pairs.set(key, place);
     return place;
   };
@@ -174,7 +174,7 @@ export async function evidenceOf(runs: readonly TestPlace[], held: ReadonlyMap<s
     inHand.set(`${file}\0${to.name}`, to.text);
     return edits(file, from.name, to.name)!;
   };
-  return { repository: repository !== undefined, committed, blobs: names, absent, kept, last, placements, ranOther: question.ranOther, across, edit };
+  return { repository: repository !== undefined, committed, blobs: names, absent, kept, last, placements, ranOther: question.ranOther, rows: question.rows, across, edit };
 }
 
 /**
@@ -187,7 +187,7 @@ export async function evidenceOf(runs: readonly TestPlace[], held: ReadonlyMap<s
  */
 export function regionVerdict(
   region: Region,
-  held: string,
+  held: NamedText,
   over: NotHeld,
   file: string,
   evidence: Evidence,
@@ -196,9 +196,8 @@ export function regionVerdict(
   if (region.held.length === 0) return 'gone';
   // A file that did not exist held no text the region is in.
   if (over === 'absent') return 'changed';
-  const ran = over.text;
-  if (ran === undefined) return { unknown: `the text of ${file} that run ran over is neither kept nor committed` };
-  // Covering holds no source index, so it names the held text by its digest.
-  const edit = evidence.edit(file, { name: digestString(held), text: held }, { name: over.name ?? digestString(ran), text: ran });
+  const { text, name } = over;
+  if (text === undefined || name === undefined) return { unknown: `the text of ${file} that run ran over is neither kept nor committed` };
+  const edit = evidence.edit(file, held, { name, text });
   return region.held.some((range) => regionTouched(range, [edit])) ? 'changed' : 'same';
 }

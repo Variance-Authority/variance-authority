@@ -123,14 +123,17 @@ async function overTexts(
     return cut !== undefined && !('unknown' in cut) && cut.blob !== undefined && names.get(file) === undefined;
   }));
   const held = new Map<string, HeldNames>();
+  const rows = new Map<string, string>();
   for (const file of placedOf.keys()) {
     const cut = cuts.get(file);
     const now = names.get(file);
     if (cut === undefined || 'unknown' in cut || cut.blob === undefined || now === undefined) continue;
     held.set(file, { blob: now, digest: cut.blob === now ? cut.digest : undefined });
+    rows.set(file, cut.blob);
   }
   const evidence: Evidence = await evidenceOf(places, held, {
     root, snapshot: record, repository, last: recorded === undefined ? latest : undefined, region: true, placement: undefined, ranOther: undefined,
+    rows,
     ...(recorded === undefined ? {} : { at: [recorded] }),
   });
   // Every text by its name: one the evidence read at a commit or kept, the

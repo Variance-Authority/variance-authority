@@ -105,7 +105,7 @@ describe('a covering answer says where the record\'s line numbers stand in the a
     );
   });
 
-  it('frames no file by a row the build did not instrument, as no other reader of a record does, and compares no text by it', async () => {
+  it('frames no file by a row the build did not instrument, as no other reader of a record does, and still compares the text the row names', async () => {
     // A run outside a checkout stood at no commit, so the snapshot it wrote is all that says which text it ran over.
     const landed = iso(Date.now() - 6 * MINUTE);
     const { at } = await checkout({
@@ -117,9 +117,8 @@ describe('a covering answer says where the record\'s line numbers stand in the a
 
     expect(json).not.toHaveProperty('frame');
     expect(text).toContain('The record does not say which text of src/pay.ts its lines are numbered in, so they are given as recorded.\n');
-    expect(text).toContain(
-      'Whether src/pay.test.ts ran over src/pay.ts as it is now, in a run that landed 6 minutes ago, is not known: the record holds no digest of the text of src/pay.ts it ran over.\n',
-    );
+    // The row names the text the run loaded, by its git blob as the source index names the file on disk: a frame needs regions, a comparison does not.
+    expect(text).toContain('src/pay.ts is the text the test file named here ran over, in a run that landed 6 minutes ago.\n');
   });
 
   it('gives the lines as recorded when the record holds no row of the file', async () => {

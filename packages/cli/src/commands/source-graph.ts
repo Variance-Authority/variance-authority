@@ -126,6 +126,24 @@ export async function indexUpToCheckout(root: string, ci = isCI): Promise<string
   return reason;
 }
 
+/**
+ * The source index's names for the checkout's texts as they are now
+ * ({@link indexNames}), brought up to the checkout first ({@link
+ * indexUpToCheckout}); or why the checkout's texts have no names: the update
+ * failed, or CI published no index.
+ */
+export async function checkoutNames(root: string, ci = isCI): Promise<IndexNames | { readonly missed: string }> {
+  const notUpdated = await indexUpToCheckout(root, ci);
+  if (notUpdated !== undefined) return { missed: notUpdated };
+  try {
+    const published = await publishedSources(root, { ci, step: 'variance index', announce: (line) => process.stderr.write(`variance: ${line}\n`) });
+    return indexNames(published.records);
+  } catch (error) {
+    if (error instanceof SourceIndexUnpublished) return { missed: error.message };
+    throw error;
+  }
+}
+
 /** {@link relationsFor}, with the files the source index read, from the one read of it. */
 export async function sourceGraphFor(
   root: string,

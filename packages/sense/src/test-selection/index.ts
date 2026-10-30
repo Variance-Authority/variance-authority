@@ -201,7 +201,7 @@ export { commitRunsIn } from './commit-runs-text.js';
 export { askPerStand, readingFrom, standDiff, standsAt, wholeEntry, withoutFiles, type Git, type Stand, type StandAnswer, type StandQuestion, type StandReading } from './stands.js';
 export { assumedOf, lastRunsOf, testPlaces, type CasesLastRan, type TestPlace } from './test-places.js';
 export { whatLanded, type WhatLanded } from './landings.js';
-export { ranOver, readsTheSnapshot, type Held, type HeldNames, type NotHeld, type RanOver, type RanOverEvidence } from './place-text.js';
+export { ranOver, readsTheSnapshot, type HeldNames, type NotHeld, type RanOver, type RanOverEvidence } from './place-text.js';
 export { caseMotion, type CaseMotion, type CaseMotionOptions, type MismatchedRow, type MovedRegion, type RegionMotion, type RegionMotionKind, type TestFileMotion } from './case-motion.js';
 export {
   countCoverage,
