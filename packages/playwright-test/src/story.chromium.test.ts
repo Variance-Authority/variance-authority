@@ -205,6 +205,18 @@ describe.runIf(BROWSER_AVAILABLE)('a Playwright case run in a page', () => {
     expect({ choose: reached('choose'), pay: reached('pay') }).toEqual({ choose: { line: named('leaves'), ambient: false }, pay: { line: named('pays'), ambient: false } });
   }, 120_000);
 
+  it('writes a reading for each attempt of a retried case, and the failed one stops short of paying', async () => {
+    const directory = await runWith({ VARIANCE_AUTHORITY_STORY: '1', FIXTURE_RETRIED: '1' });
+    const files = await readdir(resolve(directory, 'coverage.stories'));
+    const readings = await Promise.all(files.map(async (name) => stories.decodeStory(await readFile(resolve(directory, 'coverage.stories', name)))));
+    expect(readings.map(({ name, stopped }) => [name, stopped]).sort()).toEqual([
+      ['pays on its second attempt', false],
+      ['pays on its second attempt', true],
+    ]);
+    const [failed, passed] = [readings.find(({ stopped }) => stopped)!, readings.find(({ stopped }) => !stopped)!];
+    expect(failed.visits.length).toBeLessThan(passed.visits.length);
+  }, 120_000);
+
   it('writes none when the run did not ask', async () => {
     const directory = await runWith({});
     expect(existsSync(resolve(directory, 'coverage.stories'))).toBe(false);

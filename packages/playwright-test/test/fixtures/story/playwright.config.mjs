@@ -9,6 +9,12 @@ if (coverageFile === undefined || cacheRoot === undefined) {
   throw new Error('VARIANCE_AUTHORITY_COVERAGE and VARIANCE_AUTHORITY_CACHE are required');
 }
 
+// The spec that fails its first attempt runs only when the test that runs this fixture asks for it.
+const retried =
+  process.env['FIXTURE_RETRIED'] === undefined
+    ? { testIgnore: ['**/retried.spec.ts'] }
+    : { testMatch: ['**/retried.spec.ts'] };
+
 export default defineConfig(
-  withTestSelection({ testDir: 'tests', workers: 1, reporter: [['line']] }, { root, cacheRoot, coverageFile }),
+  withTestSelection({ testDir: 'tests', workers: 1, reporter: [['line']], ...retried }, { root, cacheRoot, coverageFile }),
 );
