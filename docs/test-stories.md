@@ -277,10 +277,10 @@ A region charged to a later test line on every failing run was reached later
 in the test when it threw than when it passed. That is timing that goes with
 the outcome, not proof the test went ahead before the code was ready.
 *No line recorded* means the run kept no line for the region: it ran without
-cadence, or a drain ran past its bound and left the case's later regions
-without a line. The record reads
-regions, not lines said or the order of steps, so when it names nothing,
-record the story and compare again.
+[cadence](test-level-coverage.md#which-test-statement-first-ran-a-region), or a
+drain ran past its bound and left the case's later regions without a line. The
+record reads regions, not lines said or the order of steps, so when it names
+nothing, record the story and compare again.
 
 ### Choose the sides
 
