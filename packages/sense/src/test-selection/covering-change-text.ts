@@ -15,17 +15,10 @@ export type StatedCoveringRegion = CoveringChange['regions'][number] & { readonl
 export type StatedCoveringChange = Omit<CoveringChange, 'regions'> & { readonly regions: readonly StatedCoveringRegion[] };
 
 /**
- * The review reading, in words, for whichever surface is asking.
+ * The review reading, in words, which the CLI prints under
+ * `variance covering --since`.
  *
- * Its own module because two of them ask. The CLI prints it under
- * `variance covering --since`, and the MCP tool `variance_changed_tests` hands
- * it to an agent holding a patch. Both had their own copy of these sentences,
- * and the copies drifted the way two copies do: one of them was still printing
- * a call-stack depth that this project records as zero everywhere, so every
- * witness an agent read arrived as `depth 0 —`. A reading with two renderers
- * has two answers, and nobody finds out which one a reader saw.
- *
- * It lives beside {@link coveringChange} rather than in either caller, because
+ * It lives beside {@link coveringChange} rather than in its caller, because
  * the words are about the shape rather than about the transport — the same
  * reason `@variance-authority/distill` ships `formatDistillation` next to
  * `distill`. Text is the output format here and there is no other: an agent
@@ -36,10 +29,10 @@ export type StatedCoveringChange = Omit<CoveringChange, 'regions'> & { readonly 
 /**
  * Where the reading came from, said once at the top when the caller knows.
  *
- * The MCP tool is handed an index by its host and cannot honestly name a path
- * or a ref; the CLI read a file and can. So every field is optional, and an
- * absent `since` or `from` prints nothing, rather than the caller passing a
- * placeholder that reads like an answer. A record read from a path names the
+ * A caller handed an index rather than a file cannot honestly name a path or a
+ * ref. So every field is optional, and an absent `since` or `from` prints
+ * nothing, rather than the caller passing a placeholder that reads like an
+ * answer. A record read from a path names the
  * commit it stands at or none, and the heading says which.
  */
 export interface CoveringChangeHeading {

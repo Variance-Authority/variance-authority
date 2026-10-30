@@ -12,6 +12,7 @@ import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { codeUnitOrder } from '@variance-authority/core/segment';
 import { layerBefore, layerCaseIndex } from './case-layer.js';
+import { inputsIn, layReadings } from './case-readings.js';
 import { caseSectionsAt, type CaseSections } from './case-record.js';
 import { decodeExecutionIndex, decodeExecutionTests } from './execution-format.js';
 import { encodeAsSetExecutionIndex, openSetExecutionIndex } from './execution-set-format.js';
@@ -29,6 +30,8 @@ export interface LaidRun {
   readonly commit?: string;
   /** The text each module the run recorded was cut from, as its coverage names it; absent when the run measured nothing. */
   readonly modules?: readonly Pick<CoverageModule, 'file' | 'sourceDigest'>[];
+  /** What each test file the run recorded ran over, as `inputsOf` digests it; absent when the run measured nothing. */
+  readonly inputs?: ReadonlyMap<string, string>;
 }
 
 /** The text each module of a case index was cut from, by file, as the coverage beside the index names it. */
@@ -146,6 +149,7 @@ export function layCases(
   const ran = new Set(run.tests.map((test) => test.file));
   const recorded = textsOf(run);
   const edits = editsBetween(root, cacheRoot, [stands, run.commit]);
+  const sameText = (file: string): boolean => recorded.has(file) && recorded.get(file) === held?.get(file);
   const { merged, cases, last, announced, before: retired, unlined } = layerCaseIndex(previous.index, fresh, {
     ran,
     finished: new Set(run.tests.filter((test) => test.complete).map((test) => test.file)),
@@ -154,7 +158,7 @@ export function layCases(
       const [from, to] = [held?.get(file), recorded.get(file)];
       return from === undefined || to === undefined ? undefined : edits(file, from, to);
     },
-    sameText: (file) => recorded.has(file) && recorded.get(file) === held?.get(file),
+    sameText,
     ...(base === undefined ? {} : {
       base: base.index,
       sameBeforeText: new Set([...recorded.keys(), ...(base.recorded?.keys() ?? [])].filter((file) => {
@@ -201,12 +205,19 @@ export function layCases(
     cases: last,
   };
   const journals = layEyes(previous.eyes, eyes, cases, announced);
+  const readings = layReadings(previous.readings, previous.index, merged, new Set(cases()), {
+    fresh,
+    announced: new Set(announced),
+    same: sameText,
+    ...(run.inputs === undefined ? {} : { inputs: run.inputs }),
+  });
   return {
     index: merged,
     last: spelledLast(named, merged),
     // Absent is not empty: with no index to take them from, there is no before.
     ...(before === undefined ? {} : { before }),
     ...(journals === undefined ? {} : { eyes: journals }),
+    ...(readings === undefined ? {} : { readings }),
   };
 }
 
@@ -381,8 +392,11 @@ export function landCases(
     // its index's files; one with neither holds nothing to lay.
     const kept = caseSectionsAt(shard.path);
     const fresh = layableIndex(kept.index);
-    const run = shard.coverage ?? lastRunOf(kept) ?? (fresh === undefined ? undefined : indexRunOf(fresh.tests));
-    if (run === undefined) continue;
+    const named = shard.coverage ?? lastRunOf(kept) ?? (fresh === undefined ? undefined : indexRunOf(fresh.tests));
+    if (named === undefined) continue;
+    // The shard's own landing named what each of its files ran over, off the coverage it measured.
+    const inputs = named.modules === undefined ? undefined : inputsIn(kept.readings);
+    const run = inputs === undefined || named.inputs !== undefined ? named : { ...named, inputs };
     if (fresh !== undefined) {
       // A section this build cannot read is laid as a shard that opened none.
       // `stands`, the commit the snapshot stands at, names the before layer when

@@ -184,7 +184,7 @@ A range's cases are the ones an edit to its lines selects, so the line that
 opens a branch carries the cases of the function around it. A region no case
 entered on such a line, a one-line branch or the opening line of a longer one,
 gets a range of its own in the whole-file answer and a line under it that says
-no case entered it, with its state, here and over MCP alike:
+no case entered it, with its state:
 
 ```text
 line 6 — alone
@@ -334,10 +334,7 @@ regions **one case alone** ran. A changed test file is answered with the named
 cases it declares, since it has no module row. A changed path the index has
 nothing for is named as such, since *no row* and *no test* are opposite facts.
 The diff is measured from the commit the record was written at, so record before
-you read. `variance_changed_tests` answers the same question over MCP, on a host
-that serves it ([MCP](mcp.md#tools-no-binary-serves)), taking the unified diff
-as an argument. It reads the file graph off the source tree the host supplies,
-so a case whose file mocked the changed module is not listed under it.
+you read.
 
 A review agent reads the same answer with `--format refs`, and adds the base
 branch's case index to see what the change did in files the diff does not name:

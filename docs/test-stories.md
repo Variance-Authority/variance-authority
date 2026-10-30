@@ -253,6 +253,36 @@ The comparison can also answer in three other ways:
   group does from what that one run happened to do, and it prints that under its
   first line. Record the test again. The runs you made earlier still count.
 
+### Compare the runs the record kept
+
+You do not have to record a story to start. The coverage record keeps up to 16
+distinct runs of each test over the same code, and the test line each region
+was charged to on each. With no story recorded for the test, `--compare
+outcome` reads those:
+
+```text
+compare  src/checkout.test.ts > saves the total it charges, from the readings the record keeps
+  passed (4 runs) against threw (6 runs)
+
+  charged to a later line when it threw, on every run:
+    reprice  src/checkout.ts:24-27  line 7 when it passed, line 9 when it threw
+
+  reached only when it passed, on every run:
+    checkout  src/checkout.ts:13, the else of the if
+
+  reached only when it threw, on every run:
+    checkout  src/checkout.ts:13, the then of the if
+```
+
+A region charged to a later test line on every failing run was reached later
+in the test when it threw than when it passed. That is timing that goes with
+the outcome, not proof the test went ahead before the code was ready.
+*No line recorded* means the run kept no line for the region: it ran without
+[cadence](test-level-coverage.md#which-test-statement-first-ran-a-region), or a
+drain ran past its bound and left the case's later regions without a line. The
+record reads regions, not lines said or the order of steps, so when it names
+nothing, record the story and compare again.
+
 ### Choose the sides
 
 The output calls each group a side. A side is the same test read again, where

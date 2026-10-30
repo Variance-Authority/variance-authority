@@ -23,9 +23,12 @@ question open:
   failed on a value made elsewhere, or a test passes when it should not. Find
   the step where the route left the path you expected, or the `✗` on the
   branch the test is named for.
-- **A test fails on some runs and passes on others.** Record it until it has
-  both passed and thrown, twice each if you can, then ask
-  `story --name <name> --compare outcome`. Do not diff two routes yourself:
+- **A test fails on some runs and passes on others.** Ask
+  `story --name <name> --compare outcome` first: with no story recorded, it
+  compares the runs the coverage record kept of the test over the same code,
+  by the regions each reached and the test line each was charged to. When that
+  names nothing, record the test until it has both passed and thrown, twice
+  each if you can, and ask again. Do not diff two routes yourself:
   async code runs in a different order on every run, so most of what differs is
   not the cause. The comparison lists only what every run on one side did and
   no run on the other did.

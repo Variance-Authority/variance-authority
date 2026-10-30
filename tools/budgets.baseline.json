@@ -790,9 +790,6 @@
   "packages/cli/src/commands/story-tree.ts overview": [
     19
   ],
-  "packages/cli/src/commands/story.ts overview": [
-    19
-  ],
   "packages/cli/src/commands/suite-base.ts docblock": [
     14
   ],
@@ -1635,16 +1632,13 @@
     11
   ],
   "packages/mcp/src/tools.ts docblock": [
-    14
+    13
   ],
   "packages/mcp/src/tools.ts overview": [
     61
   ],
   "packages/mcp/src/tools/adjudicate.ts docblock": [
     17
-  ],
-  "packages/mcp/src/tools/changed-tests.ts docblock": [
-    15
   ],
   "packages/mcp/src/tools/changelog.ts overview": [
     26
@@ -2734,9 +2728,6 @@
   "packages/sense/src/test-selection/case-preconditions.cts overview": [
     26
   ],
-  "packages/sense/src/test-selection/case-record.ts docblock": [
-    19
-  ],
   "packages/sense/src/test-selection/cases.ts docblock": [
     17
   ],
@@ -2782,7 +2773,7 @@
     11
   ],
   "packages/sense/src/test-selection/covering-change-text.ts block": [
-    14
+    8
   ],
   "packages/sense/src/test-selection/crossing-fold.ts overview": [
     19

@@ -187,7 +187,11 @@ composition](own-fewer-tests.md#connect-the-regions-to-test-statements) to the
 actions of a flow test. To read every visit in order, including repeats, record
 a [test story](test-stories.md#why-the-journey-has-no-order).
 Statement attribution is what this run observed: asynchronous work can be
-attributed to a different statement on another run. It does not prove which
+attributed to a different statement on another run. A statement that moves
+with the outcome is read, not set aside: on a test that fails on some runs,
+`variance story --compare outcome` lists each region charged to another
+statement on every failing run than on every passing one, from the runs the
+record keeps. It does not prove which
 assertion checks the region, and [test
 selection](coverage-test-selection.md) reads the covered regions, not their
 statement lines.
@@ -255,9 +259,6 @@ npx variance covering --file src/cart/total.ts --line 14
 npx variance covering --file src/cart/total.ts --function applyDiscount
 npx variance covering --since main
 ```
-
-Or over MCP, where `variance_source_tests` takes a location and
-`variance_changed_tests` takes the diff the agent is already holding.
 
 **Re-record when the tree moves.** A region is a range of lines in the text the
 suite ran over, so the index's coordinates belong to the commit it was recorded

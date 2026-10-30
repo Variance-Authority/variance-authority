@@ -12,21 +12,26 @@ const { readRoute } = (await import('../../dist/story/read.js')) as typeof impor
 const execute = promisify(execFile);
 const here = dirname(fileURLToPath(import.meta.url));
 const repository = resolve(here, '../../../..');
-const fixture = resolve(repository, 'packages/sense/test/fixtures/external-rstest');
-const at = (path: string): string => `${relative(repository, fixture)}/${path}`;
-const rstest = resolve(repository, 'node_modules/@rstest/core/bin/rstest.js');
+const fixtures = resolve(repository, 'packages/sense/test/fixtures');
 const temporary: string[] = [];
 
 afterEach(async () => {
   await Promise.all(temporary.splice(0).map((path) => rm(path, { recursive: true, force: true })));
 });
 
-describe('an Rstest file that runs in a page, under `VARIANCE_AUTHORITY_STORY=1`', () => {
+// Each runner's browser mode, over the same file in its own fixture: Rstest
+// bundles, serves and runs it in Chromium; Vitest serves it through Vite.
+describe.each([
+  ['Rstest', 'external-rstest', 'test/delta.browser.ts', ['node_modules/@rstest/core/bin/rstest.js', 'run', '-c', 'rstest.browser.config.mjs']],
+  ['Vitest', 'external-vitest', 'test/delta.page.ts', ['node_modules/vitest/vitest.mjs', 'run', '--config', 'vitest.browser.config.ts']],
+] as const)('a file %s runs in a page, under `VARIANCE_AUTHORITY_STORY=1`', (_, name, spec, [bin, ...args]) => {
+  const fixture = resolve(fixtures, name);
+  const at = (path: string): string => `${relative(repository, fixture)}/${path}`;
+
   it('writes each case a story read as a Node case\'s is: the code the page ran in order, what it printed, its test lines', async () => {
-    const directory = await mkdtemp(resolve(tmpdir(), 'variance-authority-rstest-page-story-'));
+    const directory = await mkdtemp(resolve(tmpdir(), 'variance-authority-page-story-'));
     temporary.push(directory);
-    // Rstest's browser mode: the file is bundled, served, and run in Chromium.
-    await execute(process.execPath, [rstest, 'run', '-c', resolve(fixture, 'rstest.browser.config.mjs')], {
+    await execute(process.execPath, [resolve(repository, bin), ...args], {
       cwd: fixture,
       env: {
         ...process.env,
@@ -44,7 +49,7 @@ describe('an Rstest file that runs in a page, under `VARIANCE_AUTHORITY_STORY=1`
     expect(decoded.map(({ story }) => story.name).sort()).toEqual(['in a page > takes the alpha path', 'in a page > takes the gamma path']);
 
     const alpha = named('in a page > takes the alpha path')!;
-    expect(alpha.story).toMatchObject({ file: resolve(fixture, 'test/delta.browser.ts'), stopped: false });
+    expect(alpha.story).toMatchObject({ file: resolve(fixture, spec), stopped: false });
     // The two statements of the test, in the order the page ran them, what the
     // first printed, and the value the second handed the product.
     expect(alpha.story.lines.map(([, line]) => line)).toEqual([6, 7]);

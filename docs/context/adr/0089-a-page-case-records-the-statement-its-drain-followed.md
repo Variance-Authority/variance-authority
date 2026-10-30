@@ -72,7 +72,10 @@ test looked, and claims only that.
 - A region the page reaches asynchronously is charged to the statement that
   was running when it arrived, not to the one that started it. A request a
   `click` sends and the page answers during the next `expect` is the
-  `expect`'s.
+  `expect`'s. A charge that moves with the outcome is read, not set aside:
+  across the runs the record keeps, a region charged to a later statement on
+  every failing run is timing that goes with the outcome. It is a lead to
+  open, not proof the page was not ready when the test acted.
 - An awaited cut in a hook body passes `__VA__.c(line, file, true)`, so a
   hook's statement is flagged as a hook's, as every other seam flags it.
 - Each statement of a spec costs a round trip to every frame. Over the probed

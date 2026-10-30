@@ -188,6 +188,7 @@
     "@swc/core": "^1.16.2",
     "@swc/jest": "^0.2.39",
     "@types/picomatch": "^4.0.3",
+    "@vitest/browser-playwright": "5.0.5",
     "babel-plugin-react-compiler": "^1.0.0",
     "jest": "^30.5.1",
     "magic-string": "^0.30.21",
