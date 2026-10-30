@@ -30,6 +30,7 @@ mod case_owner;
 mod case_said;
 mod case_said_napi;
 mod case_shard;
+mod commit_text;
 mod compact;
 #[cfg(any(target_os = "macos", target_os = "linux"))]
 mod large_alloc;

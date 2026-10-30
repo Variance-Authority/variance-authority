@@ -20,6 +20,15 @@ pub(crate) fn pointer(bytes: &[u8]) -> bool {
     bytes.starts_with(POINTER_PREFIX)
 }
 
+/// Why `file`, a pointer on disk, is not read: the checkout was made without
+/// git-lfs, and the commands that give it the content.
+pub(crate) fn checked_out(file: &str) -> String {
+    format!(
+        "{file} is a git-LFS pointer, not its content: the checkout was made without git-lfs. \
+         Run `git lfs install --local` and `git lfs pull` to read it."
+    )
+}
+
 /// The content `blob`, a pointer for `path` at `commit`, stands for: `git lfs
 /// smudge` answers from the local LFS store or fetches the object. When it
 /// cannot — no git-lfs, an object the remote never had — the error says so in
@@ -28,7 +37,7 @@ pub(crate) fn pointer(bytes: &[u8]) -> bool {
 pub(crate) fn smudge(root: &str, path: &str, commit: &str, blob: &[u8]) -> Result<Vec<u8>, String> {
     let refused = |why: &str| {
         format!(
-            "{path} is a git-LFS pointer, and git-lfs could not give its content: {why}. \
+            "{path} at {commit} is a git-LFS pointer, and git-lfs could not give its content: {why}. \
              Run `git lfs install --local`, and `git lfs fetch origin {commit}` to fetch it."
         )
     };

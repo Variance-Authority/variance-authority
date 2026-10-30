@@ -174,6 +174,8 @@ describe('landCases', () => {
     // Both shards ran over a `src/shared.ts` that gained `delta` above the
     // rest. The first shard re-cut the module to that text; the second's
     // cases of it before the change are the base's, at the base's lines.
+    // The root is a repository that holds neither text, so neither is found.
+    execFileSync('git', ['init', '--quiet'], { cwd: root });
     const head = ['delta', ...regions];
     const changed = [{ file: 'src/shared.ts', sourceDigest: 'v1:head' }];
     const first = await shard('shard-1.bin', index({ 'a.test.ts > one': ['alpha'] }, head));

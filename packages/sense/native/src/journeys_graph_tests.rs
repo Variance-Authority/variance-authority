@@ -161,7 +161,7 @@ fn a_file_git_holds_as_an_lfs_pointer_is_read_as_its_content_or_not_at_all() {
     std::fs::write(root.join("a.ts"), "export function a() {}\n").unwrap();
 
     let refused = text_at(root.to_str().unwrap(), &recorded).unwrap_err();
-    assert!(refused.contains("a.ts is a git-LFS pointer"), "the pointer is named, never read as source: {refused}");
+    assert!(refused.contains(&format!("a.ts at {recorded} is a git-LFS pointer")), "the pointer is named, never read as source: {refused}");
     assert!(
         refused.contains(&format!("Run `git lfs install --local`, and `git lfs fetch origin {recorded}`")),
         "the refusal says how to give git-lfs the content: {refused}"
@@ -181,6 +181,26 @@ fn a_file_git_holds_as_an_lfs_pointer_is_read_as_its_content_or_not_at_all() {
         assert_eq!(then.get("b.ts"), Some(&Some("export function b() {}\n".to_owned())));
     }
     std::fs::remove_dir_all(&root).unwrap();
+}
+
+#[test]
+fn a_file_checked_out_as_an_lfs_pointer_fails_the_read_rather_than_parsing_as_empty() {
+    let root = std::env::temp_dir().join(format!("sense-journeys-lfs-disk-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&root);
+    std::fs::create_dir_all(&root).unwrap();
+    let root = std::fs::canonicalize(root).unwrap();
+    // What a checkout made without git-lfs holds on disk: the pointer itself.
+    let pointer = "version https://git-lfs.github.com/spec/v1\noid sha256:4d7a214614ab2935c943f9e0ff69d22eadbb8f32b1258daaa5e2ca24d17e2393\nsize 22\n";
+    std::fs::write(root.join("a.ts"), pointer).unwrap();
+    std::fs::write(root.join("b.ts"), "export function b() {}\n").unwrap();
+    let root = root.to_str().unwrap();
+
+    let refused = on_disk(root, "a.ts").unwrap_err();
+    assert!(refused.starts_with("a.ts is a git-LFS pointer, not its content"), "the pointer is named, never parsed: {refused}");
+    assert!(refused.contains("`git lfs install --local` and `git lfs pull`"), "the refusal says how to give git-lfs the content: {refused}");
+    assert_eq!(on_disk(root, "b.ts"), Ok(Some("export function b() {}\n".to_owned())));
+    assert_eq!(on_disk(root, "gone.ts"), Ok(None), "a file the checkout does not hold is no text");
+    std::fs::remove_dir_all(root).unwrap();
 }
 
 /// A clone of a five-file history made with `--filter=<filter>`, holding only

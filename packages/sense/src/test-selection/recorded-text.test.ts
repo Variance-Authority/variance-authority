@@ -197,9 +197,10 @@ describe('the text at a recording of a path the caller never named', () => {
     await checkout(async (root, commit) => {
       const asked = (count: number): string[][] => {
         const sourceAt = textAtRecording(root, [path(FILES - 1)]);
+        // Whether the checkout is a partial clone is asked once per checkout, by the first sample alone.
         return gitStarted(root, () => {
           for (const at of every(0, count)) expect(sourceAt(path(at), commit), path(at)).toBe(body(at));
-        });
+        }).filter((argv) => argv[1] !== 'config');
       };
 
       const few = asked(10);
@@ -342,6 +343,16 @@ describe('the text at a recording in a partial clone', () => {
         process.env['PATH'] = searched;
       }
       expect(await requests()).toBe(1);
+    });
+  });
+
+  it.runIf(process.platform !== 'win32')('fails with git\'s own reason when no remote will serve a text, rather than answering it missing', async () => {
+    await partialClone(async (clone, commit) => {
+      // The remote that promised the blobs is gone.
+      await promisify(execFile)('git', ['config', 'remote.origin.uploadpack', '/nonexistent/upload-pack'], { cwd: clone });
+      const sourceAt = textAtRecording(clone, every(0, 5).map(path));
+
+      expect(() => sourceAt(path(0), commit)).toThrow(/^git could not read the files asked about at commit [0-9a-f]{12}: .*\S/s);
     });
   });
 });

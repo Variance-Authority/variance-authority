@@ -209,6 +209,20 @@ struct Read {
     fell_back: u32,
 }
 
+/// `file` as the checkout holds it, for a file unchanged since the commit. A
+/// file the checkout does not hold is no text, and neither is one that is not
+/// UTF-8, which the scan declines too. A git-LFS pointer fails the read, as the
+/// scan fails it ([`crate::lfs::checked_out`]), never parsed as source; so does
+/// a file the system will not read, with its reason.
+pub(crate) fn on_disk(root: &str, file: &str) -> Result<Option<String>, String> {
+    match std::fs::read_to_string(Path::new(root).join(file)) {
+        Ok(text) if crate::lfs::pointer(text.as_bytes()) => Err(crate::lfs::checked_out(file)),
+        Ok(text) => Ok(Some(text)),
+        Err(error) if matches!(error.kind(), std::io::ErrorKind::NotFound | std::io::ErrorKind::InvalidData) => Ok(None),
+        Err(error) => Err(format!("{file} does not read: {error}")),
+    }
+}
+
 impl Graph {
     /// The graph over everything `seeds` reach, read from the index's layers.
     /// `seeds` are interned first and in order, so their ids are their places.
@@ -251,11 +265,11 @@ impl Graph {
                     let file = graph.files[id as usize].as_str();
                     let text = match then.get(file) {
                         Some(then) => then.clone(),
-                        None if code(file) => std::fs::read_to_string(absolute.join(file)).ok(),
+                        None if code(file) => on_disk(root, file)?,
                         None => None,
                     };
                     let Some(parsed) = text.filter(|_| code(file)).and_then(|text| parse(file, &text)) else {
-                        return Read { parsed: None, specs: Vec::new(), fell_back: 0 };
+                        return Ok(Read { parsed: None, specs: Vec::new(), fell_back: 0 });
                     };
                     let answered = by_file.get(file).and_then(|&at| answers(layers, &index[at]));
                     let mut written: Vec<&str> = parsed.imports.values().map(|import| import.spec.as_str()).collect();
@@ -280,9 +294,9 @@ impl Graph {
                             (spec.to_owned(), to)
                         })
                         .collect();
-                    Read { parsed: Some(parsed), specs, fell_back }
+                    Ok(Read { parsed: Some(parsed), specs, fell_back })
                 })
-                .collect();
+                .collect::<Result<_, String>>()?;
             let mut next = Vec::new();
             for (&id, read) in frontier.iter().zip(read) {
                 graph.fell_back += read.fell_back;

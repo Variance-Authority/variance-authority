@@ -234,10 +234,10 @@ export interface NativeScanner extends NativeOrientMaps, NativeDependencyLexicon
    */
   resolveSources?(root: string, file: string, sources: string[], listed?: string[], tsconfig?: string | false): string[];
   /**
-   * Fetch in one request the blobs at `commit` of `paths` a partial clone has not fetched yet.
-   * `false` when no remote promised any, so a path a read found missing is absent.
+   * `paths[at]` at `commits[at]`, from one `git cat-file --batch`, as columns, leaving out a path the commit does not hold.
+   * Throws with git's reason when git cannot finish the read, and with git-lfs's when a pointer has no content here.
    */
-  fetchMissingAt?(root: string, commit: string, paths: string[]): boolean;
+  textsAt?(root: string, commits: string[], paths: string[][]): { commit: number[]; file: string[]; text: string[] };
   /** Of these files, those whose nearest `package.json` declares that loading them does something. */
   declaredEffects?(root: string, files: string[]): string[];
   /** Every module id a run's cases and parts name, for the caller to cut again with `deriveModules`. */

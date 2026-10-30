@@ -380,13 +380,7 @@ fn open<'a>(root: &Path, file: &'a str, largest: u64, digests: bool) -> (&'a str
     // Failed rather than declined: `git lfs pull` changes these bytes and not
     // the object name a decline is kept by, which is the pointer's either way.
     if crate::lfs::pointer(source.as_bytes()) {
-        return settled(
-            format!(
-                "{file} is a git-LFS pointer, not its content: the checkout was made without git-lfs. \
-                 Run `git lfs install --local` and `git lfs pull` to read it."
-            ),
-            Outcome::Failed,
-        );
+        return settled(crate::lfs::checked_out(file), Outcome::Failed);
     }
     let digest = if digests {
         digest::of_string(&source)

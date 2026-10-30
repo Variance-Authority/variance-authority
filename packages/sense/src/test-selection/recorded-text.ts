@@ -73,8 +73,7 @@ import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { isLfsPointer, LFS_POINTER_HEAD_BYTES } from '@variance-authority/core';
-import { native } from '../addon.js';
+import { native, nativeRefusal } from '../addon.js';
 
 /**
  * How much text one window may hold, and how many paths the first one guesses at.
@@ -221,126 +220,24 @@ export function textsAt(root: string, asked: ReadonlyMap<string, Iterable<string
 }
 
 /**
- * Checkouts the addon found no promisor remote in. Whether a clone is partial
- * is settled when it is cloned, so it is asked once per checkout rather than
- * once for every window that answers a path missing.
- */
-const whole = new Set<string>();
-
-/**
- * Paths at each commit, from one process — and in a partial clone, a second
- * for the paths it had not fetched yet, after fetching each commit's together.
- *
- * `cat-file --batch` fetches each object a partial clone lacks in a request of
- * its own, a network round trip per path. So with the addon at hand the first
- * read does not fetch, and the addon fetches what it answered missing
- * together, as `promisor.rs` describes. A path still missing after that is one
- * the commit does not hold. Without the addon the read fetches as git does by
- * default: slower in a partial clone, and the same answers.
+ * Paths at each commit, from one `git cat-file --batch`, by commit and then
+ * path, leaving out a path the commit does not hold. The addon reads them, as
+ * `commit_text.rs` describes: in a partial clone it fetches the blobs a read
+ * names together first, it gives a git-LFS pointer as its content, and a read
+ * git cannot finish throws with git's reason rather than answering a path the
+ * commit holds missing.
  */
 function batch(root: string, asked: ReadonlyMap<string, readonly string[]>): Map<string, Map<string, string>> {
-  const fetchMissingAt = whole.has(root) ? undefined : native()?.fetchMissingAt;
-  const { texts, missing } = read(root, asked, fetchMissingAt === undefined);
-  const fetched = new Map<string, string[]>();
-  for (const [commit, files] of missing) {
-    const answer = fetchMissingAt?.(root, commit, files);
-    if (answer === false) {
-      whole.add(root);
-      break;
-    }
-    if (answer === true) fetched.set(commit, files);
-  }
-  for (const [commit, found] of read(root, fetched, true).texts) {
-    for (const [file, text] of found) texts.get(commit)?.set(file, text);
+  const read = native()?.textsAt;
+  if (read === undefined) throw new Error(`the text at a recording is read by the native addon, which ${nativeRefusal() || 'is older than this package'}`);
+  const commits = [...asked.keys()];
+  const texts = new Map(commits.map((commit) => [commit, new Map<string, string>()]));
+  if (commits.length === 0) return texts;
+  const found = read(root, commits, [...asked.values()].map((files) => [...files]));
+  for (let at = 0; at < found.file.length; at += 1) {
+    texts.get(commits[found.commit[at]!]!)!.set(found.file[at]!, found.text[at]!);
   }
   return texts;
-}
-
-/**
- * `asked` from one `cat-file --batch`, with the paths it answered missing.
- * Without `fetch`, an object a partial clone has not fetched is answered
- * missing too.
- *
- * `--batch` writes `<sha> <type> <size>\n<size bytes>\n` per found object and
- * `<spec> missing\n` per absent one, so the sizes are read rather than the
- * newlines guessed at — a source file holding the word `missing` on a line of
- * its own would otherwise end the object early.
- */
-function read(
-  root: string,
-  asked: ReadonlyMap<string, readonly string[]>,
-  fetch: boolean,
-): { texts: Map<string, Map<string, string>>; missing: Map<string, string[]> } {
-  const texts = new Map([...asked.keys()].map((commit) => [commit, new Map<string, string>()]));
-  const missing = new Map<string, string[]>();
-  const specs = [...asked].flatMap(([commit, files]) => files.map((file) => ({ commit, file })));
-  if (specs.length === 0) return { texts, missing };
-
-  let output: Buffer;
-  try {
-    output = execFileSync('git', ['cat-file', '--batch'], {
-      cwd: root,
-      input: specs.map(({ commit, file }) => `${commit}:${file}\n`).join(''),
-      maxBuffer: 1 << 30,
-      stdio: ['pipe', 'pipe', 'ignore'],
-      ...(fetch ? {} : { env: { ...process.env, GIT_NO_LAZY_FETCH: '1' } }),
-    });
-  } catch {
-    // Git before 2.44 does not answer `missing` for an object lazy fetching
-    // would have fetched: it stops at the first one, fatally. So a read that
-    // did not fetch answers every path missing, and the caller fetches them
-    // together. Otherwise this is not a checkout, no such commit, or no git;
-    // every module then reads as unverified, which widens rather than narrows,
-    // and is the direction this whole subsystem is allowed to fail in.
-    return { texts, missing: fetch ? missing : new Map([...asked].map(([commit, files]) => [commit, [...files]])) };
-  }
-
-  let at = 0;
-  for (const { commit, file } of specs) {
-    const newline = output.indexOf(0x0a, at);
-    if (newline === -1) break;
-    const header = output.toString('utf8', at, newline);
-    at = newline + 1;
-    // `<spec> missing` carries no size and no body, so the next header starts
-    // where this line ended.
-    const size = Number(header.slice(header.lastIndexOf(' ') + 1));
-    if (!Number.isFinite(size)) {
-      if (header.endsWith(' missing')) missing.set(commit, [...(missing.get(commit) ?? []), file]);
-      continue;
-    }
-    // Advance past the body whatever its type, so one path that is somehow not a
-    // blob costs its own answer and not every answer after it.
-    if (header.endsWith(` blob ${size}`)) texts.get(commit)!.set(file, contentOf(root, commit, file, output.subarray(at, at + size)));
-    // The object, then the newline `--batch` writes after it.
-    at += size + 1;
-  }
-
-  return { texts, missing };
-}
-
-/**
- * A blob's text; for a git-LFS pointer, the content `git lfs smudge` gives, or
- * git-lfs's reason it could not and the commands that give it the content. Hashed as source, the pointer is a text nobody
- * recorded. `cat-file --filters` would smudge in-process, but its header gives
- * the pointer's size over the content's bytes, breaking the `--batch` framing.
- */
-function contentOf(root: string, commit: string, file: string, blob: Buffer): string {
-  if (!isLfsPointer(blob.subarray(0, LFS_POINTER_HEAD_BYTES))) return blob.toString('utf8');
-  try {
-    return execFileSync('git', ['lfs', 'smudge', '--', file], {
-      cwd: root,
-      input: blob,
-      maxBuffer: 1 << 30,
-      stdio: ['pipe', 'pipe', 'pipe'],
-    }).toString('utf8');
-  } catch (error) {
-    const said = (error as { stderr?: Buffer }).stderr?.toString('utf8').trim();
-    throw new Error(
-      `${file} at ${commit} is a git-LFS pointer, and git-lfs could not give its content: ${said || (error as Error).message}. ` +
-        `Run \`git lfs install --local\`, and \`git lfs fetch origin ${commit}\` to fetch it.`,
-      { cause: error },
-    );
-  }
 }
 
 /**

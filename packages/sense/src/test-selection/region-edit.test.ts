@@ -1,3 +1,7 @@
+import { execFileSync } from 'node:child_process';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { NO_OWNER } from './format-layout.js';
 import { editsBetween, landedThrough, NO_EDIT } from './region-edit.js';
@@ -196,6 +200,13 @@ describe('editsBetween', () => {
   });
 
   it('has no edit when a text cannot be found', () => {
-    expect(editsBetween('/nowhere', undefined, ['0'.repeat(40)])('src/a.ts', 'v1:one', 'v1:two')).toBeUndefined();
+    // A repository that holds no commit the texts could be read at.
+    const root = mkdtempSync(join(tmpdir(), 'variance-region-edit-'));
+    try {
+      execFileSync('git', ['init', '--quiet'], { cwd: root });
+      expect(editsBetween(root, undefined, ['0'.repeat(40)])('src/a.ts', 'v1:one', 'v1:two')).toBeUndefined();
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
   });
 });
