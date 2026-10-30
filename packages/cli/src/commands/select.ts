@@ -80,7 +80,7 @@ import { resolve } from 'node:path';
 import { readingLines, type ExecutionNarrowing, type FileReading, type SelectionCause, type TestDistance } from '@variance-authority/sense/test-selection';
 import { jsonOf } from './select-json.js';
 import { many } from './prose-counts.js';
-import { declinedNotes, ignoredNotes, recordingNotes, unreadNotes } from './select-notes.js';
+import { changedNotes, declinedNotes, ignoredNotes, recordingNotes, unreadNotes } from './select-notes.js';
 import type { SelectInstall } from './select-beyond.js';
 
 /** How the answer is written for whoever is about to run the tests. */
@@ -157,6 +157,12 @@ export interface SelectInput {
   readonly resting?: readonly string[];
   /** What the install changed whole, when it changed a file. Said after `resting`. */
   readonly install?: SelectInstall;
+  /**
+   * Every file the change names, in code-unit order. Absent when no diff was
+   * read. Said first among the notes about the change, so a file that selected
+   * nothing and that no reading named is still in the answer.
+   */
+  readonly changed?: readonly string[];
   readonly ground: SelectGround;
 }
 
@@ -199,6 +205,9 @@ export interface TestSelection {
 
   /** Facts about the recording itself that survive the answer. */
   readonly notes: readonly string[];
+
+  /** Every file the change names. Absent when no diff was read. */
+  readonly changed?: readonly string[];
 
   /** Carried so the machine-readable form can name the journal it read. */
   readonly at: string;
@@ -249,12 +258,14 @@ export function skippableTests(input: SelectInput): TestSelection {
     unread: [] as readonly string[],
     stale: [] as readonly string[],
     ...(input.install === undefined ? {} : { install: input.install }),
+    ...(input.changed === undefined ? {} : { changed: input.changed }),
     // Which record answered is the first note, before any other note about it.
     notes: [
       ...(input.source === undefined ? [] : [input.source.says]),
       ...(input.standing ?? []),
       ...(input.resting ?? []),
       ...(input.install?.says ?? []),
+      ...changedNotes(input.changed ?? []),
     ],
   };
 

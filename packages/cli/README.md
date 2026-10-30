@@ -2240,7 +2240,9 @@ VARIANCE_AUTHORITY_SINCE= VARIANCE_AUTHORITY_AT_DISTANCE=3- vitest run
 
 A leg is still a skip list. A selection that declines to narrow skips nothing
 in any leg, and a test new since the recording is on no skip list, so it runs in
-both. A test the change entered by no import it executed has no hop count, and
+both. A test file the change edits is entered by its own source at zero hops,
+whether or not its record declared it or saw it whole, so it runs in the first
+leg and never waits for the open one. A test the change entered by no import it executed has no hop count, and
 runs in the *end leg*: the one leg that holds the furthest hop measured, so
 `0-2` is the end leg when something is placed and nothing past two hops, and
 `3-` then is not. With nothing placed, the end leg is the *open leg*, the one

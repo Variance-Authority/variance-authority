@@ -74,6 +74,14 @@ describe('the composition is its stages', () => {
     expect(narrowByChangeFromView(view(), change, { sourceAt }).entered).not.toContain(DECLARING);
   });
 
+  it('keeps a test whose own file the change edits when it declared no precondition and was never seen whole', () => {
+    const unseen = { ...record, tests: [record.tests[0]!, { file: DECLARING, complete: false, preconditions: [] }] };
+    const opened = openTestCoverage(encodeTestCoverage(unseen));
+
+    expect(testsDeclaringFromView(opened, change, { sourceAt })).toMatchObject({ entered: [DECLARING], unanswered: [SOURCE] });
+    expect(narrowByChangeFromView(opened, change, { sourceAt }).because).toContainEqual({ test: DECLARING, via: [{ kind: 'precondition', name: DECLARING }] });
+  });
+
   it('walks a rowless file a declaring test already ran the arrived text of, as the composition does', () => {
     const HELPER = 'src/helper.ts';
     const COMMITTED_HELPER = 'export const one = 1;\n';

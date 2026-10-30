@@ -101,6 +101,17 @@ export function findTest(coverage: TestCoverageView, file: string): number | und
   return search(coverage, coverage.testPath, decoded(coverage).tests, file);
 }
 
+/** Whether `test` declared `name` as a precondition: its own rows only, compared by interned id. */
+export function declares(coverage: TestCoverageView, test: number, name: string): boolean {
+  const id = findString(coverage, name);
+  if (id === undefined) return false;
+  const end = coverage.testPreconditions.at(test + 1);
+  for (let input = coverage.testPreconditions.at(test); input < end; input += 1) {
+    if (coverage.preconditionName.at(input) === id) return true;
+  }
+  return false;
+}
+
 /** The path a test row was recorded under, decoded once per view whoever asks for it. */
 export function testPathOf(coverage: TestCoverageView, test: number): string {
   return pathAt(coverage, coverage.testPath, decoded(coverage).tests, test);

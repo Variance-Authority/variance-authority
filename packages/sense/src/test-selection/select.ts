@@ -9,7 +9,7 @@ import { recordedOverKept } from './kept-texts.js';
 import { rowlessNames } from './reading.js';
 import { ignoreMatcher } from './route.js';
 import { byRelations, withGraph } from './precision.js';
-import { arrivedAt, chargeMeasured, namedAs, readUnmeasured, routed, runOf, seenThrough, selectAnswered, walked } from './stages.js';
+import { arrivedAt, chargeMeasured, namedAs, readUnmeasured, routed, runOf, seenThrough, selectAnswered, selectOwn, walked } from './stages.js';
 import type { ExecutionNarrowing, ExecutionNarrowingOptions } from './narrowing.js';
 
 /** Both halves of the question, from one pass over the same columns. */
@@ -90,6 +90,10 @@ function readDiff(
   if (byRelations(options.precision)) return withGraph(coverage, readDiff(coverage, change, { ...asked, precision: 'file-use' }), [...changed.keys()], kept.hunks, options);
   const run = runOf(coverage, options, kept.hunks);
   const { knownAs } = run;
+  // A changed test file is entered by definition, before anything is read of
+  // the record: whether it was seen whole, declared its own source, or ran
+  // this text does not decide whether an edit to it runs.
+  selectOwn(run, named.keys());
   // An ignored file is cut from what selection infers, not from what a test declared: its names still govern.
   const governing = new Set<string>(ignoring.flatMap((file) => [...knownAs(file)]));
 
