@@ -3,7 +3,7 @@ import { everyEntry } from '@variance-authority/package/help';
 import { importsByPath } from './by-path.js';
 import { says } from './declaration-key.js';
 import { declarations, unreadLine } from './declared.js';
-import { type Members, membersStop } from './members.js';
+import { MEMBERS_CAP, type Members, containerOf, membersStop, moreMembers } from './members.js';
 import type { Spelling } from '@variance-authority/mcp/tools';
 import { search } from './search.js';
 
@@ -174,11 +174,20 @@ export function nowhere(
   const read = declarations(root, name);
   const why = 'refused' in read ? read.refused : members?.unread;
   const unread = 'refused' in read ? [] : unreadLine(read.unread);
-  const stop = why === undefined && members !== undefined ? membersStop(name, members) : undefined;
+  const stop = why === undefined && members !== undefined ? membersStop(members) : undefined;
+  // A container asked for that declares the member in no body of its own may inherit or merge it, which TypeScript resolves.
+  const others = why === undefined ? (members?.others ?? []) : [];
   // What was read and found nothing comes first, as only what was read; what was not read, last.
   const none = `No file in ${where}${unread.length === 0 ? '' : ' that the source index read'} declares \`${name}\``;
   const files = why !== undefined
     ? `Which files declare \`${name}\` is not known: ${why}.`
+    : others.length > 0 && members?.on !== undefined
+      ? [
+          `${none} at its top level, and no container named \`${members.on}\` declares \`${members.member}\` in its own body.`,
+          ...others.slice(0, MEMBERS_CAP).map((one) => `\`${members.member}\` is a member of ${containerOf(one.by)}, declared at ${one.at}:${one.line}.`),
+          ...moreMembers(members.member, others.length),
+          `Which members \`${members.on}\` inherits or merges is TypeScript's answer, and none runs here: its language service's go-to-definition on \`${name}\` where a line writes it names the declaration.`,
+        ].join(' ')
     : stop === undefined
       ? `${none}, at its top level or as a member.`
       : `${none} at its top level, and no JavaScript or TypeScript file declares it as a member.`;

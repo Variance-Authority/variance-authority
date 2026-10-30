@@ -235,10 +235,23 @@ describe('variance ask symbol says what is true of a name', () => {
   it('refuses a dotted name only when its container declares no such member', async () => {
     checkout(TREE);
     expect((await run(['index'])).code).toBe(EXIT_CLEAN);
-    const { code, out } = await run(['ask', 'symbol', '--name', 'Forest.chainsTo']);
+    const { code, out } = await run(['ask', 'symbol', '--name', 'Forest.grows']);
     expect(code).toBe(EXIT_CLEAN);
-    expect(out).not.toContain('a member of `Tree`');
-    expect(out).toContain('No file in this workspace declares `Forest.chainsTo`, at its top level or as a member.');
+    expect(out).toContain('No file in this workspace declares `Forest.grows`, at its top level or as a member.');
+  });
+
+  it('names where a member is declared when the container asked for declares none in its own body', async () => {
+    checkout({ ...TREE, 'packages/lib/src/forest.ts': "import type { Tree } from './tree.js';\n\nexport interface Forest extends Tree {\n  readonly size: number;\n}\n" });
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+    for (const tool of ['symbol', 'uses']) {
+      const { code, out } = await run(['ask', tool, '--name', 'Forest.chainsTo']);
+      expect(code).toBe(EXIT_CLEAN);
+      expect(out).not.toContain('declares it as a member');
+      expect(out).not.toContain('at its top level or as a member');
+      expect(out).toContain('no container named `Forest` declares `chainsTo` in its own body');
+      expect(out).toContain('`chainsTo` is a member of `Tree`, declared at packages/lib/src/tree.ts:2.');
+      expect(out).toContain("Which members `Forest` inherits or merges is TypeScript's answer");
+    }
   });
 
   it('answers the uses of a dotted name as the uses of its member', async () => {

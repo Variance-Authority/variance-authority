@@ -3,7 +3,7 @@ import { limitOf, notShown, spellingOf } from '@variance-authority/mcp/tools';
 import type { Help, Use } from '@variance-authority/package/help';
 import type { DeclaredName } from '@variance-authority/sense';
 import { unreadLine, unresolvedLine } from './declared.js';
-import { type Members, memberName, places, routes } from './members.js';
+import { type Members, places, routes } from './members.js';
 import { passesOn } from './passed-on.js';
 import { nearestTo } from './shared-segments.js';
 import { symbol } from './symbol.js';
@@ -248,8 +248,8 @@ function answered(answer: Answer, input: Readonly<Record<string, unknown>>, show
   const keeping = keptLines(name, kept, answer.keptSites, answer.keptInFile, from, shown);
   if (found.length === 0 && byPath.length === 0 && exported.length === 0) {
     if (kept.length > 0 && declared === 0) return [...keeping, ...unread].join('\n');
-    if (kept.length > 0) return [...keeping, '', `\`${name}\` is a member too, declared in ${places(declared)}:`, ...memberLines(members, from, name, shown), ...unread].join('\n');
-    return [`\`${name}\` is no exported name; it is a member, declared in ${places(declared)}:`, ...memberLines(members, from, name, shown), ...unread].join('\n');
+    if (kept.length > 0) return [...keeping, '', `\`${name}\` is a member too, declared in ${places(declared)}:`, ...memberLines(members, from, shown), ...unread].join('\n');
+    return [`\`${name}\` is no exported name; it is a member, declared in ${places(declared)}:`, ...memberLines(members, from, shown), ...unread].join('\n');
   }
   // A file that keeps a name of its own is another thing than the export of that name.
   const imports = [
@@ -264,7 +264,7 @@ function answered(answer: Answer, input: Readonly<Record<string, unknown>>, show
   }
   if (declared === 0) return imports;
   // The imports already said the order, so the members do not say it again.
-  const lines = memberLines(members, from, name, shown).slice(1);
+  const lines = memberLines(members, from, shown).slice(1);
   return [imports, '', `\`${name}\` is a member too, declared in ${places(declared)}:`, ...lines].join('\n');
 }
 
@@ -340,8 +340,8 @@ function keptLines(name: string, kept: readonly DeclaredName[], sites: readonly 
  * container, nearest first when `from` is said, and the declaration its
  * language's type checker is asked about for the uses no line types.
  */
-function memberLines(members: Members, from: string | undefined, asked: string, shown: Shown): readonly string[] {
-  const name = memberName(asked).member;
+function memberLines(members: Members, from: string | undefined, shown: Shown): readonly string[] {
+  const name = members.member;
   const nearest = nearestLine(from, shown.spell);
   const used = members.used.flatMap(({ declared, uses }) => {
     if (uses.length === 0) return [];
@@ -351,7 +351,7 @@ function memberLines(members: Members, from: string | undefined, asked: string, 
   // A declaration no line reaches through its type is named once, with the others like it.
   const unused = members.used.filter(({ uses }) => uses.length === 0).map(({ declared }) => `\`${declared.by}\` at ${declared.at}:${declared.line}`);
   const none = unused.length === 0 ? [] : ['', `No line uses \`${name}\` through a value whose type is written as ${unused.join(', ')}.`];
-  return [nearest, ...listed(order(members.declared, from), 'Member declarations:', name, shown), ...used, ...none, ...routes(asked, members, shown.spell)];
+  return [nearest, ...listed(order(members.declared, from), 'Member declarations:', name, shown), ...used, ...none, ...routes(members, shown.spell)];
 }
 
 /** The imports of an exported name, as `uses` has always answered them. */

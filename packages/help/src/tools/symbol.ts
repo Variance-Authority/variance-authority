@@ -10,7 +10,7 @@ import { silentBlocks } from './silent.js';
 import { thirdBlock } from './third-party.js';
 import { declarations, declaredAt, declaredBlocks, isNested, textRows, unreadLine } from './declared.js';
 import { uses } from './uses.js';
-import { type Members, membersOf, membersStop } from './members.js';
+import { MEMBERS_CAP, type Members, containerOf, membersOf, membersStop, moreMembers } from './members.js';
 import { exportedRows } from './passed-on.js';
 import { answers, boundOf, keyOf, originOf, SLOT } from './declaration-key.js';
 import { UNCOUNTED, exportsNamed, importsOf } from './unpublished.js';
@@ -93,26 +93,30 @@ export const symbol: Tool<Help> = {
     // A published namesake is another declaration, so it never hides this one.
     const exported = unpublishedExports(help, invocation?.root, name, wanted, found.map((one) => [one.at, one.declared] as const));
     const others = exported.length > 0 ? [exportedOnly(help, name, exported, invocation?.root, spell)] : [];
+    // A member of an interface, a type literal or a class is the workspace's
+    // own declaration too, which no import names and the scan records. It
+    // stands beside what a file's top level declares, never under it.
+    const members = membersOf(invocation?.root, name, wanted);
+    const beside = memberBlocks(name, members, spell);
     if (byPath.length > 0) {
       const imported = new Set(byPath.flatMap((site) => [site.held.to ?? site.held.specifier, declaration(help, name, site)?.at ?? '']));
       const rest = exported.filter((held) => !imported.has(held.at));
-      return [importedByPath(help, invocation?.root, name, byPath), ...(rest.length > 0 ? [exportedOnly(help, name, rest, invocation?.root, spell)] : []), ...declared, ...aliased].join('\n\n');
+      return [importedByPath(help, invocation?.root, name, byPath), ...(rest.length > 0 ? [exportedOnly(help, name, rest, invocation?.root, spell)] : []), ...declared, ...aliased, ...beside].join('\n\n');
     }
     const kept = [
       ...(found.length === 0 ? others : []),
       ...(found.length === 0 ? [...declared, ...aliased] : []),
     ];
-    // A member of an interface, a type literal or a class is the workspace's
-    // own declaration too, which no import names and the scan records. It
-    // stands beside what a file's top level declares, never under it.
-    const members = membersOf(invocation?.root, name, wanted);
-    const beside = members.declared.length === 0 ? [] : memberBlocks(invocation?.root, name, members, spell, kept.length === 0);
+    // A name declared only as a member names the files whose declarations were
+    // not read, since one may declare it at its top level; the declarations beside a member already did.
+    const read = kept.length === 0 && beside.length > 0 ? declarations(invocation?.root, name) : undefined;
+    const alone = read === undefined || 'refused' in read ? [] : unreadLine(read.unread);
     // A published declaration is answered below, and the members after it.
-    const own = found.length === 0 ? [...kept, ...beside] : [];
+    const own = found.length === 0 ? [...kept, ...beside, ...alone] : [];
     // Nothing in the workspace answered, so the name may be declared in a file
     // whose declarations were not read: the installed answers below say so.
-    const read = found.length === 0 && own.length === 0 ? declarations(invocation?.root, name) : undefined;
-    const unread = read === undefined || 'refused' in read ? [] : unreadLine(read.unread);
+    const asked = found.length === 0 && own.length === 0 ? declarations(invocation?.root, name) : undefined;
+    const unread = asked === undefined || 'refused' in asked ? [] : unreadLine(asked.unread);
 
     if (found.length === 0 && invocation?.root !== undefined) {
       const everywhere = queryDependencyLexicon(invocation.root, name, undefined, true, wanted, 100);
@@ -207,25 +211,23 @@ export const symbol: Tool<Help> = {
 };
 
 /**
- * The member declarations of a name: one block per declaration, on the
- * container that holds it, then the languages whose members were not read,
- * then, when the name is declared `alone` as a member, the files whose
- * declarations were not read, since one of them may declare it at its top level.
+ * The member declarations of a name: one block for each of the first
+ * `MEMBERS_CAP`, on the container that holds it, a count of the rest, then
+ * the languages whose members were not read; none when no container declares it.
  */
-function memberBlocks(root: string | undefined, name: string, members: Members, spell: Spelling, alone: boolean): readonly string[] {
-  const read = declarations(root, name);
-  const stop = membersStop(name, members);
+function memberBlocks(name: string, members: Members, spell: Spelling): readonly string[] {
+  if (members.declared.length === 0) return [];
+  const stop = membersStop(members);
   return [
-    ...members.declared.map((site) =>
+    ...members.declared.slice(0, MEMBERS_CAP).map((site) =>
       [
         name,
-        `a member of ${/^a (?:type literal|class)$/u.test(site.by) ? site.by : `\`${site.by}\``}, declared at ${site.at}:${site.line}`,
+        `a member of ${containerOf(site.by)}, declared at ${site.at}:${site.line}`,
         `\`${spell.tool(uses)}\` names the lines that use it through a value written as its container, and the declaration to ask its language's find-references about for the rest.`,
       ].join('\n'),
     ),
+    ...moreMembers(members.member, members.declared.length),
     ...(stop === undefined ? [] : [stop]),
-    // The declarations beside a member already named the files they did not read.
-    ...(!alone || 'refused' in read ? [] : unreadLine(read.unread)),
   ];
 }
 

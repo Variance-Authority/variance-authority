@@ -32,6 +32,10 @@ import type { Spelling } from '@variance-authority/mcp/tools';
 
 /** The declarations of a member by one name. */
 export interface Members {
+  /** The member asked for, without the container a dotted name puts it on. */
+  readonly member: string;
+  /** The container a dotted name puts the member on, as written. */
+  readonly on?: string;
   /** Each declaration, `by` the container it is on. */
   readonly declared: readonly Use[];
   /**
@@ -47,6 +51,25 @@ export interface Members {
    * does not record, by name; absent when the declarations were not read.
    */
   readonly elsewhere?: readonly string[];
+  /**
+   * When the container asked for declares the member in no body of its own,
+   * the declarations of the member on every other container, `by` it.
+   */
+  readonly others?: readonly Use[];
+}
+
+/** How many member declarations an answer lists before it counts the rest. */
+export const MEMBERS_CAP = 5;
+
+/** The container a member is declared on, as a sentence names it. */
+export function containerOf(by: string): string {
+  return /^a (?:type literal|class)$/u.test(by) ? by : `\`${by}\``;
+}
+
+/** The line counting the member declarations of `member` past the first `MEMBERS_CAP`; none when there are no more. */
+export function moreMembers(member: string, count: number): readonly string[] {
+  const more = count - MEMBERS_CAP;
+  return more > 0 ? [`${more} more member ${more === 1 ? 'declaration' : 'declarations'} of \`${member}\` not shown.`] : [];
 }
 
 /**
@@ -65,24 +88,29 @@ export function memberName(name: string): { readonly member: string; readonly on
  * `Container.member` keeps the declarations on the container by that name.
  */
 export function membersOf(root: string | undefined, name: string, wanted: string | undefined): Members {
-  const { member, on } = memberName(name);
-  if (root === undefined) return { declared: [], used: [], unread: 'this host named no checkout to read the source index of' };
+  const asked = memberName(name);
+  const { member, on } = asked;
+  if (root === undefined) return { ...asked, declared: [], used: [], unread: 'this host named no checkout to read the source index of' };
   let found: ReturnType<typeof memberDeclarationsOf>;
   try {
     found = memberDeclarationsOf(root, member);
   } catch (error) {
-    return { declared: [], used: [], unread: `${error instanceof Error ? error.message : String(error)}; run \`variance index\`` };
+    return { ...asked, declared: [], used: [], unread: `${error instanceof Error ? error.message : String(error)}; run \`variance index\`` };
   }
-  if (found === undefined) return { declared: [], used: [], unread: 'no source index is published; run `variance index`' };
+  if (found === undefined) return { ...asked, declared: [], used: [], unread: 'no source index is published; run `variance index`' };
   const owner = wanted === undefined ? undefined : ownerOf(wanted);
-  const sites = found.sites.filter((site) => (owner === undefined || site.by === owner) && (on === undefined || site.on === on));
-  const declared = sites.map((site): Use => ({ at: site.at, line: site.line, by: site.on, kind: site.kind, type: false }));
+  const owned = found.sites.filter((site) => owner === undefined || site.by === owner);
+  const sites = owned.filter((site) => on === undefined || site.on === on);
+  const use = (site: (typeof sites)[number]): Use => ({ at: site.at, line: site.line, by: site.on, kind: site.kind, type: false });
+  const declared = sites.map(use);
   const used = sites.flatMap((site, at) =>
     site.uses === undefined
       ? []
       : [{ declared: declared[at]!, uses: site.uses.map((use) => ({ at: use.at, line: use.line, by: use.by, kind: use.kind, type: false, how: use.how })) }],
   );
-  return { declared, used, elsewhere: unreadMemberLanguages(found.extensions) };
+  // A container that declares the member in no body of its own may inherit or merge it: where it is declared is said, never which one it gets.
+  const others = on !== undefined && declared.length === 0 ? owned.map(use) : [];
+  return { ...asked, declared, used, elsewhere: unreadMemberLanguages(found.extensions), ...(others.length > 0 ? { others } : {}) };
 }
 
 /** Which uses the answer lists, and which it leaves to a type checker, said once under the uses. */
@@ -101,8 +129,8 @@ export const TYPED =
  * go-to-implementation on the same declaration names the implementations
  * that take their type from where they go, which write none on their line.
  */
-export function routes(asked: string, members: Members, spell: Spelling): readonly string[] {
-  const name = memberName(asked).member;
+export function routes(members: Members, spell: Spelling): readonly string[] {
+  const name = members.member;
   const only = members.declared.length === 1 ? members.declared[0]! : undefined;
   // A container with a name is one `used` lists; one without is named by the member alone.
   const named = members.used.some(({ declared }) => declared === only);
@@ -123,7 +151,7 @@ export function routes(asked: string, members: Members, spell: Spelling): readon
   const gap =
     `An implementation of \`${named && only !== undefined ? `${only.by}.${name}` : name}\` that takes its type from where it goes — an argument, a property, a returned value — ` +
     `writes no type on its line and is not listed: ${checker} go-to-implementation on ${which} names it.`;
-  const stop = membersStop(name, members);
+  const stop = membersStop(members);
   return ['', gap, TYPED, `${ask} on ${at}.`, ...(stop === undefined ? [] : [stop])];
 }
 
@@ -151,13 +179,14 @@ function unreadMemberLanguages(extensions: readonly string[]): readonly string[]
 }
 
 /**
- * Where a reading of member `name` stops, given the languages `elsewhere`
+ * Where a reading of the member asked for stops, given the languages `elsewhere`
  * names: members are read from JavaScript and TypeScript only, so a member of
  * those languages' files is their language server's to find, beside any
  * declaration the answer lists. Nothing when there are none, or the
  * declarations were not read.
  */
-export function membersStop(name: string, members: Members): string | undefined {
+export function membersStop(members: Members): string | undefined {
+  const name = members.member;
   const languages = members.elsewhere ?? [];
   if (languages.length === 0) return undefined;
   const there = members.declared.length === 0 ? 'there' : 'there too';
