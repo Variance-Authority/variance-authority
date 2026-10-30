@@ -96,19 +96,11 @@ type Where =
   | { readonly kind: 'outside'; readonly because: string };
 
 /**
- * The recorder for one realm's case scope.
- *
- * @param running The case running now, as its packed key, or nothing where no
- * case body is running.
- * @param context An async store for {@link within}, where the realm has one:
- * hooks of concurrent cases interleave at every await, and a variable set
- * around one of them is read by the other.
- * @param siteNamed How a warning names a call site, where the realm can name it as
- * the row does, from the checkout; as the realm spelled it otherwise.
- * @param reads Whether the realm listens to `varianceBreadcrumb` too, which
- * every realm that runs code under test does: a test runner's tells the
- * recorder when its file has loaded, and a page that is sent
- * {@link RECORDER_PARTS} has loaded before its first read.
+ * The recorder for one realm's case scope: `running` names the case running
+ * now; `context` is the realm's async store, where concurrent cases' hooks
+ * interleave at every await; `siteNamed` spells a warning's site as the row
+ * does; `reads` listens to `varianceBreadcrumb`, as every realm running code
+ * under test does.
  */
 function recorder(
   holder: object,

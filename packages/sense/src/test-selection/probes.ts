@@ -370,10 +370,6 @@ function pageReaderSource(): string {
  * records with. A page has one bucket and never
  * switches it: a drain reads it out and empties it in place.
  *
- * What the page's code reads through `varianceBreadcrumb` goes out with the
- * same drain, recorded by `case-preconditions.cts`'s recorder sent the same
- * way, so a page judges a read by the rules a runner's realm does.
- *
  * `globalThis.__VA__` keeps its identity for the life of the page, because
  * every module reads it once and keeps it, and the drain on
  * {@link EXECUTION_GLOBAL} is the one installed with it.
