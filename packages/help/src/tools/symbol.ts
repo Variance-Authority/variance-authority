@@ -105,8 +105,10 @@ export const symbol: Tool<Help> = {
     // A member of an interface, a type literal or a class is the workspace's
     // own declaration too, which no import names and the scan records. It
     // stands beside what a file's top level declares, never under it.
-    const members = found.length === 0 ? membersOf(invocation?.root, name, wanted) : undefined;
-    const own = members === undefined || members.declared.length === 0 ? kept : [...kept, ...memberBlocks(invocation?.root, name, members, spell)];
+    const members = membersOf(invocation?.root, name, wanted);
+    const beside = members.declared.length === 0 ? [] : memberBlocks(invocation?.root, name, members, spell, kept.length === 0);
+    // A published declaration is answered below, and the members after it.
+    const own = found.length === 0 ? [...kept, ...beside] : [];
     // Nothing in the workspace answered, so the name may be declared in a file
     // whose declarations were not read: the installed answers below say so.
     const read = found.length === 0 && own.length === 0 ? declarations(invocation?.root, name) : undefined;
@@ -159,6 +161,7 @@ export const symbol: Tool<Help> = {
       ...others,
       ...declared,
       ...aliased,
+      ...beside,
     ].join('\n\n');
   },
 
@@ -204,12 +207,12 @@ export const symbol: Tool<Help> = {
 };
 
 /**
- * A name the workspace declares only as a member: one block per declaration,
- * on the container that holds it, then the languages whose members were not
- * read, then the files whose declarations were not read, since one of them
- * may declare it at its top level.
+ * The member declarations of a name: one block per declaration, on the
+ * container that holds it, then the languages whose members were not read,
+ * then, when the name is declared `alone` as a member, the files whose
+ * declarations were not read, since one of them may declare it at its top level.
  */
-function memberBlocks(root: string | undefined, name: string, members: Members, spell: Spelling): readonly string[] {
+function memberBlocks(root: string | undefined, name: string, members: Members, spell: Spelling, alone: boolean): readonly string[] {
   const read = declarations(root, name);
   const stop = membersStop(name, members);
   return [
@@ -221,7 +224,8 @@ function memberBlocks(root: string | undefined, name: string, members: Members, 
       ].join('\n'),
     ),
     ...(stop === undefined ? [] : [stop]),
-    ...('refused' in read ? [] : unreadLine(read.unread)),
+    // The declarations beside a member already named the files they did not read.
+    ...(!alone || 'refused' in read ? [] : unreadLine(read.unread)),
   ];
 }
 

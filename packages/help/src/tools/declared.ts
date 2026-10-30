@@ -205,8 +205,6 @@ function textAt(root: string, held: Pick<DeclaredName, 'at' | 'name' | 'line'>):
  * `DECLARED_CAP` of them, a count of the rest, and the files whose
  * declarations were not read; nothing when the
  * source index is not at hand, since a name nothing exports is then unknown.
- * `topLevel` says whether one of them is a file's top-level declaration: one
- * inside a function is the workspace's too, and stands for no member.
  */
 export function declaredBlocks(
   root: string | undefined,
@@ -214,21 +212,21 @@ export function declaredBlocks(
   wanted: string | undefined,
   spell: Spelling,
   from: readonly string[] = [],
-): { readonly blocks: readonly string[]; readonly topLevel: boolean } {
+): { readonly blocks: readonly string[] } {
   const read = declarations(root, name);
-  if (root === undefined || 'refused' in read) return { blocks: [], topLevel: false };
+  if (root === undefined || 'refused' in read) return { blocks: [] };
   const held = nearestFirst(
     read.names.filter((one) => wanted === undefined || one.by === wanted),
     from,
   );
-  if (held.length === 0) return { blocks: [], topLevel: false };
+  if (held.length === 0) return { blocks: [] };
   const more = held.length - DECLARED_CAP;
   const blocks = [
     ...held.slice(0, DECLARED_CAP).map((one) => declaredBlock(root, one, spell)),
     ...(more > 0 ? [`${more} more ${more === 1 ? 'declaration' : 'declarations'} of \`${name}\` not shown.`] : []),
     ...unreadLine(read.unread),
   ];
-  return { blocks, topLevel: held.some((one) => !isNested(one)) };
+  return { blocks };
 }
 
 /** Whether a function's body declares it, rather than its file's top level. */

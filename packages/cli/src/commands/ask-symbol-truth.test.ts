@@ -219,12 +219,26 @@ describe('variance ask symbol says what is true of a name', () => {
     expect(out).toContain('a member of `Tree`, declared at packages/lib/src/tree.ts:2');
   });
 
+  it('answers the members of a published name beside its published declaration', async () => {
+    checkout({
+      'packages/lib/src/index.ts': "export { chainsTo } from './chains.js';\n",
+      'packages/lib/src/chains.ts': "export function chainsTo(path: string): boolean {\n  return path !== '';\n}\n",
+      'packages/lib/src/tree.ts': 'export interface Tree {\n  chainsTo(path: string): boolean;\n}\n',
+    });
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+    const { code, out } = await run(['ask', 'symbol', '--name', 'chainsTo']);
+    expect(code).toBe(EXIT_CLEAN);
+    expect(out).toContain('packages/lib/src/chains.ts:1');
+    expect(out).toContain('a member of `Tree`, declared at packages/lib/src/tree.ts:2');
+  });
+
   it('refuses a dotted name only when its container declares no such member', async () => {
     checkout(TREE);
     expect((await run(['index'])).code).toBe(EXIT_CLEAN);
     const { code, out } = await run(['ask', 'symbol', '--name', 'Forest.chainsTo']);
     expect(code).toBe(EXIT_CLEAN);
     expect(out).not.toContain('a member of `Tree`');
+    expect(out).toContain('No file in this workspace declares `Forest.chainsTo`, at its top level or as a member.');
   });
 
   it('answers the uses of a dotted name as the uses of its member', async () => {
