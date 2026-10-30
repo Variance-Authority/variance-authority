@@ -27,7 +27,7 @@
 
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { digestString } from '../digest.js';
+import { digestString, gitBlob } from '../digest.js';
 import { NODE_MODULES } from './instrumented-modules.js';
 import { decode, type Segment } from './map-segments.js';
 
@@ -159,6 +159,8 @@ export interface RecordedFrame {
   readonly extentOf: ExtentOf;
   /** Of the text {@link extentOf} answers in, which is what a record must carry. */
   readonly sourceDigest: string;
+  /** The git blob name of that text (`gitBlob`), which a record carries beside its digest. */
+  readonly sourceBlob: string;
   /** The file that text is, which is what a record must be named after. */
   readonly file: string;
   /** The text {@link sourceDigest} is of, which a region's digest is cut from. */
@@ -179,9 +181,9 @@ export function recordedFrame(
   const candidate = originalFile(map, file) ?? file;
   const text = translated && sourcesOf(map, file, candidate).size > 0 ? readable(original, candidate) : undefined;
   if (text === undefined) {
-    return { file, extentOf: sourceLines(code, undefined, file), sourceDigest: digestString(code), text: code };
+    return { file, extentOf: sourceLines(code, undefined, file), sourceDigest: digestString(code), sourceBlob: gitBlob(code), text: code };
   }
-  return { file: candidate, extentOf: sourceLines(code, map, candidate, file), sourceDigest: digestString(text), text };
+  return { file: candidate, extentOf: sourceLines(code, map, candidate, file), sourceDigest: digestString(text), sourceBlob: gitBlob(text), text };
 }
 
 function readable(original: (path: string) => string, path: string): string | undefined {
@@ -248,7 +250,7 @@ export function rawFrame(
   const frame = recordedFrame(code, undefined, file, original);
   if (disk === undefined) return read === undefined ? frame : { ...frame, changed: true };
   // Handed the file as it is, the frame already holds its digest: the text is digested once.
-  return frame.text !== code || disk === code ? frame : { ...frame, sourceDigest: digestString(disk), text: disk };
+  return frame.text !== code || disk === code ? frame : { ...frame, sourceDigest: digestString(disk), sourceBlob: gitBlob(disk), text: disk };
 }
 
 /** A {@link RecordedFrame} as {@link rawFrame} cuts it. */
@@ -318,7 +320,7 @@ function wholeFile(file: string, original: (path: string) => string): RecordedFr
   const starts = lineStarts(text);
   // A newline ends the line it is on; it does not open one nothing is written on.
   const lines = Math.max(1, text.endsWith('\n') ? starts.length - 1 : starts.length);
-  return { file, extentOf: () => [1, lines], sourceDigest: digestString(text), text };
+  return { file, extentOf: () => [1, lines], sourceDigest: digestString(text), sourceBlob: gitBlob(text), text };
 }
 
 /**

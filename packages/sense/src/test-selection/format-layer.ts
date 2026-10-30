@@ -1,6 +1,6 @@
 import { readFile } from 'node:fs/promises';
 import { native, nativeRefusal } from '../addon.js';
-import { digestString } from '../digest.js';
+import { digestString, gitBlob } from '../digest.js';
 import { instrumentModeOf } from '../instrument/index.js';
 import { probesRegions } from '../instrument/identity.js';
 import { encodeTestCoverage } from './format.js';
@@ -93,8 +93,8 @@ export function cutRecord(instrumentation: string, onDisk: ReadonlyMap<string, s
   const modules = [...onDisk].map(([file, text]): CoverageModule => {
     const fresh = mode === undefined || !probesRegions(mode) ? undefined : sourceCut(text, file, mode);
     return fresh === undefined
-      ? { file, sourceDigest: digestString(text), instrumented: false, blocks: [] }
-      : { file, sourceDigest: fresh.sourceDigest, instrumented: true, blocks: fresh.rows };
+      ? { file, sourceDigest: digestString(text), sourceBlob: gitBlob(text), instrumented: false, blocks: [] }
+      : { file, sourceDigest: fresh.sourceDigest, sourceBlob: gitBlob(text), instrumented: true, blocks: fresh.rows };
   });
   return encodeTestCoverage({ version: 3, instrumentation, tests: [], modules });
 }

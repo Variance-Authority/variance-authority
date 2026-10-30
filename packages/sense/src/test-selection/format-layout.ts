@@ -59,6 +59,9 @@ export const MODEL = LAYOUT.coverage.model;
  */
 export const FORMAT = LAYOUT.coverage.format;
 
+/** The layout before `modules.blob`, read as one that named no text by its git blob. */
+export const UNKEYED_FORMAT = LAYOUT.coverage.unkeyed;
+
 /** The layout before `tests.phases`, read as one whose runner reported no phases. */
 export const UNPHASED_FORMAT = LAYOUT.coverage.unphased;
 
@@ -70,7 +73,7 @@ export const UNTIMED_FORMAT = LAYOUT.coverage.untimed;
 
 /** The layouts a reader opens. */
 export function readableFormat(version: unknown): version is number {
-  return version === FORMAT || version === UNPHASED_FORMAT || version === UNCASED_FORMAT || version === UNTIMED_FORMAT;
+  return version === FORMAT || version === UNKEYED_FORMAT || version === UNPHASED_FORMAT || version === UNCASED_FORMAT || version === UNTIMED_FORMAT;
 }
 
 const ALIGNMENT = LAYOUT.alignment;
@@ -104,7 +107,7 @@ const PACK_ABOVE = LAYOUT.packAbove;
 
 /** Every section the file holds, in the order it holds them. */
 export const NAMES: readonly string[] = LAYOUT.coverage.sections.filter((name) =>
-  name !== LAYOUT.coverage.duration && name !== LAYOUT.coverage.phases);
+  name !== LAYOUT.coverage.duration && name !== LAYOUT.coverage.phases && name !== LAYOUT.coverage.blob);
 
 /** The section the layouts after `UNTIMED_FORMAT` added: one word a test, see {@link NO_DURATION}. */
 export const DURATION = LAYOUT.coverage.duration;
@@ -114,6 +117,16 @@ export const DURATION = LAYOUT.coverage.duration;
  * words a test, each a duration as `tests.duration` holds one.
  */
 export const PHASES = LAYOUT.coverage.phases;
+
+/**
+ * The section the layouts after `UNKEYED_FORMAT` added: one word a module, the
+ * dictionary id of the git blob name of the text `modules.source` digests
+ * (`gitBlob`), or {@link NO_BLOB} where the module was recorded without one.
+ */
+export const BLOB = LAYOUT.coverage.blob;
+
+/** A module recorded without the git name of its text: absent, never an empty name. */
+export const NO_BLOB = LAYOUT.coverage.noBlob;
 
 /** The phases of a test file, its cases last, in the order a test's words in {@link PHASES} hold them. */
 export const PHASE_NAMES = LAYOUT.coverage.phaseNames;

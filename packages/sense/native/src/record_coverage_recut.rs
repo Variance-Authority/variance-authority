@@ -156,7 +156,7 @@ pub(crate) fn write_cut(
     from: Vec<Option<usize>>,
     mut sets: impl FnMut(Option<usize>, bool) -> Result<u32, String>,
 ) -> Result<(), String> {
-    out.module(path, ranks[fresh.module_source[module] as usize], true);
+    out.module(path, ranks[fresh.module_source[module] as usize], fresh.blob_in(module, |id| ranks[id as usize]), true);
     for (block, held) in fresh.blocks(module).zip(from) {
         let start = fresh.block_start[block];
         out.region(Region {

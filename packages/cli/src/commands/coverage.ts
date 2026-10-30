@@ -48,7 +48,7 @@ import { baseCommit } from './covering-motion.js';
 import { coverageSource, harnessReach, readSource, within, type CoverageSource, type MissedEntry, type Scoped } from './coverage-source.js';
 import { readExecutionIndex, recordedExecutionFile } from './execution-input.js';
 import { mainlineBase, mainlineMissed } from './mainline-base.js';
-import { textOver } from './coverage-over-text.js';
+import { textOver, type TreeBlobs } from './coverage-over-text.js';
 import { runsOf } from './record-runs.js';
 import { relationsFor } from './source-graph.js';
 import { asOperator, nothingRecorded } from './suite-record.js';
@@ -162,6 +162,8 @@ export async function coverage(request: ParsedCoverage, parts: CoverageParts = {
     );
   }
 
+  // The split names the tree's texts by the source index, brought up to the tree first, so the read below reads it too.
+  const tree = parts.over ? await treeBlobs(request.root) : undefined;
   // Read first: `--from` narrows every record counted below to the files it reaches.
   const reading = await readSource(request.root, request.from, request.packages === true);
   if ('missed' in reading && request.from !== undefined) {
@@ -201,7 +203,7 @@ export async function coverage(request: ParsedCoverage, parts: CoverageParts = {
     // Over which text each region ran: asked of the whole index, so `--from` and each package count the same answers.
     now.push({
       ...(one === undefined ? {} : { name: one.name, kind: one.kind }), index,
-      ...(parts.over ? { textOf: await textOver(request.root, record, recorded, whole) } : {}),
+      ...(parts.over ? { textOf: await textOver(request.root, record, recorded, whole, tree) } : {}),
     });
     const found = request.atDistance === undefined
       ? await baseOf(request, one)
@@ -365,6 +367,16 @@ function unchanged(change: SuiteChange): boolean {
     change.written.regions === 0 && change.deleted.regions === 0 &&
     change.arrived.files.length === 0 && change.departed.files.length === 0 &&
     change.testFiles.every((file) => file.entered.length === 0 && file.left.length === 0);
+}
+
+/**
+ * The source index's listing of the checkout at `root`, updated to the tree:
+ * none when the update is refused, and every text is then read.
+ */
+async function treeBlobs(root: string): Promise<TreeBlobs | undefined> {
+  const { updateSourceIndex } = await import('@variance-authority/sense');
+  const update = await updateSourceIndex(root).catch(() => undefined);
+  return update?.refused === undefined ? update?.listing : undefined;
 }
 
 async function head(root: string): Promise<string | undefined> {

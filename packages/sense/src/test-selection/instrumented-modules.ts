@@ -34,6 +34,8 @@ export interface CapturedModule {
   /** What the probes report: the path of the file they were placed in and the digest of its text, `path@digest`. */
   readonly id: ModuleId;
   readonly sourceDigest: string;
+  /** The git blob name of the same text; absent where the text was not read. */
+  readonly sourceBlob?: string;
   /** False records module-level unknown evidence; consumers widen without consulting blocks. */
   readonly instrumented: boolean;
   readonly blocks: readonly CoverageBlock[];

@@ -89,7 +89,6 @@ export { hunksOf } from './patch.js';
 // `sourceAt` gets `stale` empty, which reads exactly like frames that agree.
 export { textAtRecording, textsAt } from './recorded-text.js';
 export { keptDigests, keptTexts, type KeptTexts } from './kept-texts.js';
-export { digestString } from '../digest.js';
 // A landing of shards reads the install each shard's own landing kept.
 export { shardsInstall, shardsTexts, type KeptInstall, type ShardRuns } from './kept-install.js';
 // A text cut as a seam records it, so rows written by hand stand where a
@@ -182,7 +181,7 @@ export { askCoverageFile, isTestCoverageFile, openCoverageFile, type CoverageFil
 export { openTestCoverage, type TestCoverageView } from './format-view.js';
 // What a landing of shards reads of the record they combined into, and the coverage it lands.
 export { landedCoverage, recordedRun, type RecordedRun } from './fold-landing.js';
-export { BLOCK_KINDS, NO_DURATION, PHASE_NAMES } from './format-layout.js';
+export { BLOCK_KINDS, NO_BLOB, NO_DURATION, PHASE_NAMES } from './format-layout.js';
 export type { FilePhases } from './reported-time.js';
 export { timeBeforeCases } from './file-cost.js';
 export { findModules, sharedPreconditions, testsGovernedBy } from './lookup.js';
@@ -276,6 +275,13 @@ export interface CoverageModule {
    * whether those coordinates still hold.
    */
   readonly sourceDigest: string;
+  /**
+   * The git blob name of that same text (`gitBlob`), which is how the source
+   * index names a file: a reader asks the index whether the tree still holds the
+   * text the blocks were cut from, rather than reading the tree. Absent where the
+   * row was recorded without one, which says nothing about the text.
+   */
+  readonly sourceBlob?: string;
   /** False records module-level unknown evidence; consumers widen without consulting its blocks. */
   readonly instrumented: boolean;
   readonly blocks: readonly CoverageBlock[];

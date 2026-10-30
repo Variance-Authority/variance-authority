@@ -74,7 +74,8 @@ export function joinReadings(modules: ReadonlyMap<ModuleId, CapturedModule>, cut
     const fits = (module: CapturedModule) => module.instrumented && module.sourceDigest === own?.sourceDigest;
     if (own === undefined || !own.instrumented || !read.every(fits)) {
       const id = own?.id ?? ids[0]!;
-      joined.set(id, { file, id, sourceDigest: own?.sourceDigest ?? read[0]!.sourceDigest, instrumented: false, blocks: [] });
+      const text = own ?? read[0]!;
+      joined.set(id, { file, id, sourceDigest: text.sourceDigest, ...(text.sourceBlob === undefined ? {} : { sourceBlob: text.sourceBlob }), instrumented: false, blocks: [] });
       for (const each of ids) readings.set(each, { id, lands: [] });
       continue;
     }

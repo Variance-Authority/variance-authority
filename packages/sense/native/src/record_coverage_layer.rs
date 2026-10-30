@@ -278,7 +278,7 @@ fn written(previous: &Coverage, current: &Coverage, fresh: Option<&Coverage>, re
                         }
                     }
                 }
-                out.module(path, before[previous.module_source[row] as usize], previous.module_instrumented[row] == 1);
+                out.module(path, before[previous.module_source[row] as usize], previous.blob_in(row, |id| before[id as usize]), previous.module_instrumented[row] == 1);
                 for block in previous.blocks(row) {
                     out.region(Region {
                         ordinal: previous.block_ordinal[block],
@@ -346,7 +346,7 @@ fn written(previous: &Coverage, current: &Coverage, fresh: Option<&Coverage>, re
         if let Some(row) = claimed.filter(|_| !unplaced.is_empty()) {
             owe_unplaced(row, &surviving.iter().flatten().copied().collect(), &unplaced, &mut stale)?;
         }
-        out.module(path, source, current.module_instrumented[module] == 1);
+        out.module(path, source, current.blob_in(module, |id| now[id as usize]), current.module_instrumented[module] == 1);
         for (at, block) in blocks.enumerate() {
             let held = around[at];
             let start = current.block_start[block];

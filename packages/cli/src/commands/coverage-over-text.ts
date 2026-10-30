@@ -8,17 +8,17 @@
  * `testPlaces`', which text of a file its run ran over is `ranOver`'s, read from
  * the evidence `covering` reads (`evidenceOf`), and whether an edit touched a
  * region is the rule a record carries its cases by (`regionTouched` over
- * `editsBetween`). Git says which files changed since each place, so a file
- * unchanged since every place that ran it, under rows cut from the tree's text,
- * reads no edit at all.
+ * `editsBetween`). The source index names each file on disk by its git blob,
+ * and the record's rows name the text they were cut from the same way, so a
+ * file whose rows hold the tree's text, run over that text by every place that
+ * ran it, reads no text and no edit at all.
  */
 
-import { execFile } from 'node:child_process';
 import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
-import { promisify } from 'node:util';
+import { digestString } from '@variance-authority/core/format';
+import type { SourceUpdate } from '@variance-authority/sense';
 import {
-  digestString,
   editsBetween,
   ranOver,
   regionTouched,
@@ -31,19 +31,26 @@ import {
   type TestPlace,
 } from '@variance-authority/sense/test-selection';
 import { evidenceOf, type Evidence } from './covering-ran-evidence.js';
-import { rowsText, type RowsText } from './record-rows-text.js';
+import { blobNames } from './patch-blobs.js';
+import { rowsCut, type RowsCut, type RowsText } from './record-rows-text.js';
 import { runsOf } from './record-runs.js';
-import { changedFiles } from './since.js';
 
 /** What a suite's count asks of each region a test file called into. */
 export type TextOf = NonNullable<CountedSuite['textOf']>;
 
+/** The source index's listing of the checkout: each tracked file's git blob name, as the bytes on disk give it. */
+export type TreeBlobs = Pick<NonNullable<SourceUpdate['listing']>, 'digestsFor'>;
+
+/** Why a file whose rows name no git blob is not known, whatever its runs ran. */
+const UNKEYED: RegionText = { unknown: 'the record was made before its rows named their text by its git blob, so which text ran is not known' };
+
 /**
  * Over which text each test file of `index` ran each region, for the record at
- * `record` made at `recorded`, against the checkout at `root`. Never throws: what
- * cannot be read is not known, with the reason.
+ * `record` made at `recorded`, against the checkout at `root` as `tree`, the
+ * source index's listing of it, names its files. Never throws: what cannot be
+ * read is not known, with the reason.
  */
-export async function textOver(root: string, record: string, recorded: string | undefined, index: ExecutionIndex): Promise<TextOf> {
+export async function textOver(root: string, record: string, recorded: string | undefined, index: ExecutionIndex, tree: TreeBlobs | undefined): Promise<TextOf> {
   const read = await runsOf(record, root);
   if (read.unread !== undefined) {
     const unknown = { unknown: `the runs record beside the record does not read: ${read.unread.message}` };
@@ -56,39 +63,68 @@ export async function textOver(root: string, record: string, recorded: string | 
     : read.runs.commit !== recorded
       ? 'the runs record beside the record lists the runs of another commit, so where its tests ran is not known'
       : 'the runs record does not say where some test files ran' };
-  const commits = [...new Set([...places.values()].flatMap((place) => (place.assumed === true ? [] : place.commit ?? [])))];
-  const changed = new Map(await Promise.all([...new Set([...commits, ...(recorded === undefined ? [] : [recorded])])]
-    .map(async (commit) => [commit, await changedSince(root, commit)] as const)));
-  // A run over the commit's text of a file git says has not changed since ran over this text.
-  const unchanged = (place: TestPlace, file: string): boolean =>
-    place.commit !== undefined && place.texts !== undefined && place.texts[file] === undefined && changed.get(place.commit)?.has(file) === false;
 
   // Only a call the count asks about is read for: a load or a case run over another text is not run.
-  const asks = new Map<string, readonly (readonly [string, TestPlace])[]>();
-  const steady = new Map<string, readonly (readonly [string, TestPlace])[]>();
+  const placedOf = new Map<string, readonly (readonly [string, TestPlace])[]>();
   for (const [file, tests] of textAsks(index)) {
-    const placed = [...tests].flatMap((test) => {
+    placedOf.set(file, [...tests].flatMap((test) => {
       const place = places.get(test);
       return place === undefined || place.assumed === true ? [] : [[test, place] as const];
-    });
-    (placed.every(([, place]) => unchanged(place, file)) ? steady : asks).set(file, placed);
+    }));
   }
-  // Rows another run cut from a text the tree no longer holds are numbered in it, so the edit since is read.
-  const rows = rowDigests(record, index, new Set([...asks.keys(), ...steady.keys()]));
-  const held = await Promise.all([...steady].map(async ([file, placed]) => {
-    const row = rows.get(file);
-    const text = typeof row !== 'string' ? undefined : await readFile(resolve(root, file), 'utf8').catch(() => undefined);
-    return [file, placed, text !== undefined && digestString(text) === row] as const;
-  }));
-  for (const [file, placed, holds] of held) if (!holds) asks.set(file, placed);
+  const cuts = rowCuts(record, index, new Set(placedOf.keys()));
+  const files = [...placedOf.keys()];
+  const onDisk = new Map(tree === undefined ? [] : (() => {
+    const names = tree.digestsFor(files);
+    return files.map((file, at) => [file, names[at]] as const);
+  })());
+
+  // A file is steady when the rows hold the tree's text and every place that ran it ran that text: one
+  // that names the file ran the text it names, and one that does not ran its commit's, which git names.
+  const keyed = new Map<string, readonly (readonly [string, TestPlace])[]>();
+  const committed = new Set<string>();
+  const unkeyed = new Set<string>();
+  const asks = new Map<string, readonly (readonly [string, TestPlace])[]>();
+  for (const [file, placed] of placedOf) {
+    const cut = cuts.get(file);
+    if (cut !== undefined && !('unknown' in cut) && cut.blob === undefined) unkeyed.add(file);
+    else if (cut !== undefined && !('unknown' in cut) && cut.blob === onDisk.get(file) && placed.every(([, place]) => ranIt(place, file, cut.digest, committed))) keyed.set(file, placed);
+    else asks.set(file, placed);
+  }
+  const blobs = await blobNames([...committed], root);
+  for (const [file, placed] of keyed) {
+    const cut = cuts.get(file) as { readonly blob: string };
+    const steady = placed.every(([, place]) => [place, ...(place.partly ?? [])].every((one) =>
+      one.texts?.[file] !== undefined || `git:${blobs.get(`${one.commit}:${file}`) ?? ''}` === cut.blob));
+    if (!steady) asks.set(file, placed);
+  }
+  const rows = new Map([...cuts].map(([file, cut]) => [file, 'unknown' in cut ? cut : cut.digest] as const));
   const texts = await readTexts(root, rows, record, asks, [...places.values()], read.repository, recorded, read.runs?.latest);
   return (file, region, test) => {
     const place = places.get(test);
     if (place === undefined || place.assumed === true) return nowhere;
+    if (unkeyed.has(file)) return UNKEYED;
     const over = texts.get(file)?.get(test);
     if (over === undefined) return 'this';
     return Array.isArray(over) ? (regionTouched(region, over) ? 'older' : 'this') : over as RegionText;
   };
+}
+
+/**
+ * Whether `place`, and every later run that ran it in part, ran the text of
+ * `file` its rows were cut from, `digest`, as far as the runs record says: a
+ * run that names the file ran the text it names; one that does not ran its
+ * commit's, whose blob name is asked of git, so `<commit>:<file>` joins
+ * `committed`. A run whose texts or commit are not known did not.
+ */
+function ranIt(place: TestPlace, file: string, digest: string, committed: Set<string>): boolean {
+  return [place, ...(place.partly ?? [])].every((one) => {
+    if (one.commit === undefined || one.texts === undefined) return false;
+    const named = one.texts[file];
+    if (named !== undefined) return named === digest;
+    committed.add(`${one.commit}:${file}`);
+    return true;
+  });
 }
 
 /**
@@ -165,26 +201,12 @@ async function readTexts(
   }
 }
 
-/** The digest the record's rows took of each asked file ({@link rowsText}), every one not known when the record does not read. */
-function rowDigests(record: string, index: ExecutionIndex, asked: ReadonlySet<string>): ReadonlyMap<string, RowsText> {
+/** The text the record's rows were cut from of each asked file ({@link rowsCut}), every one not known when the record does not read. */
+function rowCuts(record: string, index: ExecutionIndex, asked: ReadonlySet<string>): ReadonlyMap<string, RowsCut> {
   try {
-    return rowsText(record, asked, index);
+    return rowsCut(record, asked, index);
   } catch (error) {
     const unknown = { unknown: `the record's rows do not read: ${error instanceof Error ? error.message : String(error)}` };
     return new Map([...asked].map((file) => [file, unknown]));
   }
 }
-
-/**
- * The files git says changed between `commit` and the working tree, by their
- * names under `root`; every file, as `undefined` from `has`, when git cannot say.
- */
-async function changedSince(root: string, commit: string): Promise<{ has(file: string): boolean | undefined }> {
-  try {
-    const files = new Set(await changedFiles(promisify(execFile), root, commit, ['--no-renames', '--relative']));
-    return { has: (file) => files.has(file) };
-  } catch {
-    return { has: () => undefined };
-  }
-}
-

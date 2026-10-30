@@ -234,6 +234,7 @@ describe('coverage generations', () => {
       expect(decodeTestCoverage(await readFile(coverageFile)).modules).toEqual([{
         file: 'broken.ts',
         sourceDigest: expect.stringMatching(/^v1:/),
+        sourceBlob: expect.stringMatching(/^git:[0-9a-f]{40}$/),
         instrumented: false,
         blocks: [],
       }]);

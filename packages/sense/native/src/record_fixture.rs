@@ -139,7 +139,7 @@ pub fn write(spec: &Spec) -> Vec<u8> {
     if spec.version != LAYOUT.coverage.untimed {
         columns.push(words(&LAYOUT.coverage.duration, spec.tests.iter().map(|test| test.duration.unwrap_or(LAYOUT.coverage.no_duration)).collect()));
     }
-    if spec.version == LAYOUT.coverage.format {
+    if spec.version == LAYOUT.coverage.format || spec.version == LAYOUT.coverage.unkeyed {
         let none = [LAYOUT.coverage.no_duration; record_coverage::PHASES];
         columns.push(words(&LAYOUT.coverage.phases, spec.tests.iter().flat_map(|test| test.phases.unwrap_or(none)).collect()));
     }
@@ -148,6 +148,11 @@ pub fn write(spec: &Spec) -> Vec<u8> {
         words("preconditions.digest", digests),
         words("modules.path", module_path),
         words("modules.source", module_source),
+    ]);
+    if spec.version == LAYOUT.coverage.format {
+        columns.push(words(&LAYOUT.coverage.blob, vec![LAYOUT.coverage.no_blob; spec.modules.len()]));
+    }
+    columns.extend([
         bytes("modules.instrumented", spec.modules.iter().map(|module| u8::from(module.instrumented)).collect()),
         words("modules.blocks", module_blocks),
         words("blocks.ordinal", ordinal),

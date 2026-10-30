@@ -70,10 +70,10 @@
  */
 
 import { execFileSync } from 'node:child_process';
-import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { native } from '../addon.js';
+import { blobName } from '../digest.js';
 
 /**
  * How much text one window may hold, and how many paths the first one guesses at.
@@ -383,10 +383,3 @@ function unchangedOnDisk(root: string, listing: Listing, file: string): string |
   return undefined;
 }
 
-/** Git's name for `bytes` as a blob, in the repository's hash: a SHA-256 name is 64 digits. */
-function blobName(bytes: Buffer, digits: number): string {
-  return createHash(digits === 64 ? 'sha256' : 'sha1')
-    .update(`blob ${bytes.length}\0`)
-    .update(bytes)
-    .digest('hex');
-}

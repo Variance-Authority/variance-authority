@@ -104,6 +104,31 @@ export async function blobs(ids: readonly string[], root: string): Promise<Reado
 }
 
 /**
+ * The name of the blob each of `specs` names, as `<commit>:<path>` or any name
+ * `git cat-file` takes, read through one `git cat-file --batch-check` from the
+ * object store alone. A name git does not hold, one that is not a blob, or a
+ * read that fails, has no entry.
+ */
+export async function blobNames(specs: readonly string[], root: string): Promise<ReadonlyMap<string, string>> {
+  const asked = [...new Set(specs)];
+  const names = new Map<string, string>();
+  if (asked.length === 0) return names;
+  let stdout: Buffer;
+  try {
+    stdout = await run('git', ['cat-file', '--batch-check'], root, `${asked.join('\n')}\n`);
+  } catch {
+    return names;
+  }
+  // One line each, `<sha> <type> <size>` or `<spec> missing`, in the order asked.
+  const lines = stdout.toString('utf8').split('\n');
+  asked.forEach((spec, at) => {
+    const [object, type] = (lines[at] ?? '').split(' ');
+    if (type === 'blob' && object !== undefined) names.set(spec, object);
+  });
+  return names;
+}
+
+/**
  * The working-tree text of each entry whose file, under `root`, hashes to its
  * after-blob name. A file that does not read is left out before git is asked,
  * since `hash-object --stdin-paths` stops at the first path it cannot open; the

@@ -1,4 +1,5 @@
 import { execFileSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
@@ -51,7 +52,15 @@ interface Setup {
   readonly runs: (first: string, recorded: string) => unknown;
   /** Commit `REFUNDED` before recording. */
   readonly second?: true;
+  /** Write the rows as a record made before rows named their text by its git blob. */
+  readonly unkeyed?: true;
 }
+
+/** Git's name for `text` as a blob, as the source index names a file. */
+const blobOf = (text: string): string => {
+  const bytes = Buffer.from(text, 'utf8');
+  return `git:${createHash('sha1').update(`blob ${bytes.length}\0`).update(bytes).digest('hex')}`;
+};
 
 let cache: string;
 let previous: string | undefined;
@@ -115,6 +124,7 @@ async function checkout(setup: Setup): Promise<{ readonly at: string; readonly g
     modules: modules.map(([path, text, regions]) => ({
       file: path,
       sourceDigest: digestString(text),
+      ...(setup.unkeyed === true ? {} : { sourceBlob: blobOf(text) }),
       instrumented: true,
       blocks: regions.map((region, ordinal) => ({
         ordinal, kind: region.kind, digest: digestString(`${region.kind} ${region.name}`), name: region.name, path: region.path,
@@ -236,6 +246,17 @@ describe('coverage parts what ran by the text it ran over', () => {
     expect(said.count).toMatchObject({ run: 3, over: { older: 1, notKnown: 0, why: [] } });
   });
 
+  it('counts a region as older when the tree holds another text than the rows, by the name the source index gives the tree\'s text', async () => {
+    // Every run ran the commit's text, which the rows were cut from; the tree's text is not that one.
+    const { at } = await checkout(atRecord);
+    await writeFile(join(at, PAY_FILE), REFUNDED);
+    await updateSourceIndex(at);
+
+    const said = await json('--root', at);
+
+    expect(said.count).toMatchObject({ run: 3, over: { older: 1, notKnown: 0, why: [] } });
+  });
+
   it('changes no number when nothing changed since the runs, and counts nothing as older', async () => {
     const { at, recorded } = await checkout(atRecord);
 
@@ -286,6 +307,16 @@ describe('coverage names why a text is not known', () => {
     expect(answer.out).toContain('| Executed over an older text | 1 | 20.0% |\n');
     expect(answer.out).toContain('| Executed over a text not known | 1 | 20.0% |\n');
     expect(answer.out).toContain('\n- Not known: the runs record does not say where some test files ran\n');
+  });
+
+  it('counts every region of a file whose rows name no git blob as not known, and says the record was made before that key', async () => {
+    const { at } = await checkout({ ...atRecord, unkeyed: true });
+
+    const answer = await ask('--root', at);
+    const said = await json('--root', at);
+
+    expect(said.count).toMatchObject({ run: 3, over: { older: 0, notKnown: 3, why: ['the record was made before its rows named their text by its git blob, so which text ran is not known'] } });
+    expect(answer.out.split('before its rows named their text by its git blob').length).toBe(2);
   });
 
   it('keeps a function whose body gained only a comment as run over this text', async () => {
