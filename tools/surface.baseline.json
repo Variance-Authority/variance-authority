@@ -3274,6 +3274,7 @@
         "defaultInclude": "function",
         "dependsReachFromView": "function",
         "deviationOfTests": "function",
+        "digestString": "function",
         "distanceByExecution": "function",
         "distanceFromView": "function",
         "distanceRange": "function",

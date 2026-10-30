@@ -89,6 +89,7 @@ export { hunksOf } from './patch.js';
 // `sourceAt` gets `stale` empty, which reads exactly like frames that agree.
 export { textAtRecording, textsAt } from './recorded-text.js';
 export { keptDigests, keptTexts, type KeptTexts } from './kept-texts.js';
+export { digestString } from '../digest.js';
 // A landing of shards reads the install each shard's own landing kept.
 export { shardsInstall, shardsTexts, type KeptInstall, type ShardRuns } from './kept-install.js';
 // A text cut as a seam records it, so rows written by hand stand where a

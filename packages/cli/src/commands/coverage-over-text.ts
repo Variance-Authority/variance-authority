@@ -17,8 +17,8 @@ import { execFile } from 'node:child_process';
 import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { promisify } from 'node:util';
-import { digestString } from '@variance-authority/core/format';
 import {
+  digestString,
   editsBetween,
   ranOver,
   regionTouched,
@@ -75,27 +75,28 @@ export async function textOver(root: string, record: string, recorded: string | 
   }
   // Rows another run cut from a text the tree no longer holds are numbered in it, so the edit since is read.
   const rows = rowDigests(record, index, new Set([...asks.keys(), ...steady.keys()]));
-  for (const [file, placed] of steady) {
+  const held = await Promise.all([...steady].map(async ([file, placed]) => {
     const row = rows.get(file);
     const text = typeof row !== 'string' ? undefined : await readFile(resolve(root, file), 'utf8').catch(() => undefined);
-    if (text === undefined || digestString(text) !== row) asks.set(file, placed);
-  }
+    return [file, placed, text !== undefined && digestString(text) === row] as const;
+  }));
+  for (const [file, placed, holds] of held) if (!holds) asks.set(file, placed);
   const texts = await readTexts(root, rows, record, asks, [...places.values()], read.repository, recorded, read.runs?.latest);
   return (file, region, test) => {
     const place = places.get(test);
     if (place === undefined || place.assumed === true) return nowhere;
-    const over = texts.get(`${file}\0${test}`);
+    const over = texts.get(file)?.get(test);
     if (over === undefined) return 'this';
     return Array.isArray(over) ? (regionTouched(region, over) ? 'older' : 'this') : over as RegionText;
   };
 }
 
 /**
- * Per file and test file, `file\0test`, what the test file's run ran the file
- * over: the edits from the text its regions are numbered in to the checkout's,
- * or the answer for every region of it.
+ * Per file, then per test file, what the test file's run ran the file over: the
+ * edits from the text its regions are numbered in to the checkout's, or the
+ * answer for every region of it.
  */
-type Over = ReadonlyMap<string, readonly Edit[] | RegionText>;
+type Over = ReadonlyMap<string, ReadonlyMap<string, readonly Edit[] | RegionText>>;
 
 /**
  * Read, for each file of `asks` and each test file placed that called into
@@ -113,7 +114,7 @@ async function readTexts(
   recorded: string | undefined,
   latest: string | undefined,
 ): Promise<Over> {
-  const over = new Map<string, readonly Edit[] | RegionText>();
+  const over = new Map<string, ReadonlyMap<string, readonly Edit[] | RegionText>>();
   if (asks.size === 0) return over;
   const held = new Map<string, string>();
   const unread = new Map<string, RegionText>();
@@ -141,7 +142,7 @@ async function readTexts(
       if (typeof row !== 'string') return row ?? { unknown: `the record holds no digest of the text of ${file} its regions were cut from` };
       return chainOf(file, row, (nowDigest ??= digestString(now)), ranOver(place, test, file, now, evidence, false));
     };
-    for (const [test, place] of placed) over.set(`${file}\0${test}`, answer(test, place));
+    over.set(file, new Map(placed.map(([test, place]) => [test, answer(test, place)] as const)));
   }
   return over;
 
@@ -185,3 +186,4 @@ async function changedSince(root: string, commit: string): Promise<{ has(file: s
     return { has: () => undefined };
   }
 }
+
