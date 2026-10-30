@@ -1,0 +1,5 @@
+---
+'@variance-authority/sense': minor
+---
+
+A case recorded again over the code it read before keeps its earlier readings in the record, in a `cases.readings` section: each distinct reading once, with how many runs read it so, up to 16. A reading is what the case crossed, the test line each region was charged to, and whether it stopped. A case read alike on every run keeps its count. The section also keeps what each test file ran over: the text of every module it entered or loaded, and its preconditions. A run of the file over other inputs, or over a module either reading entered at another text, drops its readings, and a case a shard carried from its seed without running keeps them as they were. `combineRecords` folds each shard's readings and inputs into the combined record, taking a case or a test file from the shard that ran it over a copy another shard carried from its seed, even where the shard that ran it kept nothing of it, and refuses one that two shards ran, or two only carried, differently. Selection reads nothing new.
