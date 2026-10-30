@@ -3540,7 +3540,10 @@
         "Order": "interface",
         "OutcomeComparison": "interface",
         "OutcomeRegion": "interface",
+        "PAGE_STORY": "const",
         "PERIOD": "const",
+        "PageStories": "interface",
+        "PageStory": "interface",
         "Place": "interface",
         "PlaceDifference": "interface",
         "RecordedCase": "interface",
@@ -3551,6 +3554,7 @@
         "SideSummary": "interface",
         "Step": "type",
         "Stop": "type",
+        "StoryCase": "interface",
         "StoryEntry": "interface",
         "Untaken": "interface",
         "askedForStories": "function",
@@ -3559,10 +3563,12 @@
         "drawRoute": "function",
         "foldSteps": "function",
         "listStories": "function",
+        "pageStories": "function",
         "readRoute": "function",
         "recordedReadings": "function",
         "storyDirectories": "function",
-        "storyDirectory": "function"
+        "storyDirectory": "function",
+        "storyPageSource": "function"
       },
       "./vitest": {
         "TestSelectionOptions": "interface",

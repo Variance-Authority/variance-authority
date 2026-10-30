@@ -19,6 +19,8 @@ const WRITTEN: StoryEntry[] = [
   entry('as mike', 0),
   entry('elsewhere', 0, 'src/other.test.ts'),
   entry('as mike', 0, 'src/other.test.ts'),
+  ...[['checks out', 'chromium', 0], ['checks out', 'webkit', 0], ['checks out', 'webkit', 1], ['pays', 'webkit', 0]].map(([name, project, at]) =>
+    ({ ...entry(`${name}.${project}`, at as number), name: name as string, project: project as string })),
 ];
 
 let compared: readonly Side[] | undefined;
@@ -134,6 +136,38 @@ describe('cases compared with each other', () => {
   it('still refuses a flag repeated where nothing collects it', () => {
     expect(() => parseArgs(['story', '--file', 'a', '--file', 'b'])).toThrow('`--file` was given more than once');
     expect(() => parseArgs(['ask', 'symbol', '--name', 'a', '--name', 'b'])).toThrow('`--name` was given more than once');
+  });
+});
+
+describe('a case run under several projects', () => {
+  it('is a case for each project, listed with the project, and --project reads one', () => {
+    const listed = ask('--file', PAY, '--name', 'checks out');
+
+    expect(formatStory(listed, 'text').split('\n')).toEqual([
+      '2 stories; name one with --file and --name, and --project',
+      '',
+      `  ${PAY} > checks out  (project chromium, 2 visits)`,
+      `  ${PAY} > checks out  (project webkit, 2 visits, 2 readings)`,
+      '',
+    ]);
+    expect(JSON.parse(formatStory(listed, 'json')).stories.map(({ project }: { project: string }) => project)).toEqual(['chromium', 'webkit']);
+    ask('--file', PAY, '--name', 'checks out', '--project', 'webkit', '--compare', 'last');
+    expect(sidesOf()).toEqual([
+      ['newest', ['/stories/checks out.webkit.0.story']],
+      ['the one before', ['/stories/checks out.webkit.1.story']],
+    ]);
+    expect(() => ask('--name', 'checks out', '--project', 'firefox')).toThrow('no story is written for --name checks out and --project firefox');
+  });
+
+  it('refuses a case named for a comparison that ran under two projects, until --project names one', () => {
+    expect(() => ask('--name', 'checks out', '--name', 'pays')).toThrow(
+      '--name checks out ran under the projects chromium and webkit; name one with --project',
+    );
+    ask('--name', 'checks out', '--name', 'pays', '--project', 'webkit');
+    expect(sidesOf()).toEqual([
+      ['checks out', ['/stories/checks out.webkit.0.story', '/stories/checks out.webkit.1.story']],
+      ['pays', ['/stories/pays.webkit.0.story']],
+    ]);
   });
 });
 

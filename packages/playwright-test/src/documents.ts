@@ -1,25 +1,20 @@
 /**
- * Every document a test's browser context held, drained when the test is done
- * with it.
+ * Every document a test's browser contexts held, drained when the test is done
+ * with them.
  *
- * A Playwright spec over a probed application destructures `page`, navigates,
- * clicks, asserts — and names nothing from this package. The crossings are in
- * the page all the same, and a recorder that drains only through `variance`
- * writes that spec as having entered nothing: the next `--since` skips it over
- * the very line it walked. So the drain belongs to the context, which every
- * browser test already has, and not to a fixture a spec may never ask for.
+ * A Playwright spec over a probed application names nothing from this package,
+ * yet its crossings are in the page; a recorder that drains only through
+ * `variance` writes it as having entered nothing, and the next `--since` skips
+ * it over the very line it walked. So every context the test makes is drained —
+ * the runner's `context`, and one the spec opens with `browser.newContext()` —
+ * and every frame of every page, because the application is not always in the
+ * top one: Storybook runs it in `#storybook-preview-iframe`.
  *
- * Every frame of every page, because the document holding the application is
- * not always the top one. Storybook's manager runs the story in
- * `#storybook-preview-iframe` and has no collector of its own; a spec that
- * opens a second tab has two pages; neither is `page.mainFrame()`.
- *
- * A document the test **replaced** — a reload, a second `goto`, a frame the
- * application removed, a page closed or crashed before the end — took its
- * undrained crossings with it, and nothing here can drain it afterwards. The
- * owner is marked incomplete instead: a record that has not seen its own start
- * is never believed whole, so the next selection runs the spec rather than
- * skipping it on crossings that were lost.
+ * A document the test replaced hands what it entered to the next document of
+ * its origin in the same frame, which the next drain reads. One that went away
+ * before the end, or that no later document took over, took its undrained
+ * crossings with it. The owner is marked incomplete instead, so the next
+ * selection runs the spec rather than skipping it on crossings lost.
  */
 
 import type {
@@ -32,51 +27,102 @@ import type {
   Request,
   TestInfo,
 } from '@playwright/test';
+import { format } from 'node:util';
 import type { RecorderFixture } from './completed.js';
 import { testOf } from './execution.js';
 
+export interface VarianceDocumentFixtures {
+  /**
+   * Nothing a test reads. It is here to adopt every context the test makes,
+   * and to drain them when the test is done.
+   */
+  readonly varianceDocuments: void;
+}
+
+let warned = false;
+function unheard(): void {
+  if (warned) return;
+  warned = true;
+  console.warn(
+    'variance-authority: this Playwright client has no context instrumentation; ' +
+      'a context a spec makes itself is not recorded, only the runner\'s `context`.',
+  );
+}
+
+/** One test's documents, by the test, for the `context` fixture to hand its context to. */
+const byTest = new WeakMap<TestInfo, TestDocuments>();
+
 /**
- * The `context` fixture, wrapped when recording is on.
- *
- * An override rather than an automatic fixture of its own: it is set up only
- * when a test asks for a browser, and it is torn down after every `afterEach`
- * and every fixture that asked for a page, while the context is still open —
- * which is the last moment the crossings are readable and the first moment
- * they are all there.
+ * Playwright's client instrumentation: what its own trace recorder hears every
+ * context created and closed through. The public `browser.on('context')` is
+ * not enough: `newContext` resolves without waiting for it, so the tape script
+ * races the context's first page, and nothing is heard before a context
+ * closes. A client without it says so, and only the runner's `context` is
+ * adopted.
+ */
+interface Instrumented {
+  readonly _instrumentation?: {
+    readonly addListener: (listener: ContextListener) => void;
+    readonly removeListener: (listener: ContextListener) => void;
+  };
+}
+
+interface ContextListener {
+  readonly runAfterCreateBrowserContext: (context: BrowserContext) => Promise<void>;
+  readonly runBeforeCloseBrowserContext: (context: BrowserContext) => Promise<void>;
+}
+
+/**
+ * `varianceDocuments`, automatic because a spec that opens its own context may
+ * ask for no fixture: it hears every context made after it, and drains the
+ * ones still open before `varianceCompleted` writes the story. The `context`
+ * wrap adopts the runner's context, reused or not, and drains it after every
+ * `afterEach` while it is still open — the last moment its crossings are
+ * readable and the first they are all there.
  */
 export const varianceDocumentFixtures: Fixtures<
-  object,
+  VarianceDocumentFixtures,
   RecorderFixture,
   PlaywrightTestArgs,
   PlaywrightWorkerArgs
 > = {
-  context: async ({ context, varianceRecorder }, use, testInfo) => {
-    if (varianceRecorder === undefined) {
+  varianceDocuments: [
+    async ({ playwright, varianceRecorder }, use, testInfo) => {
+      if (varianceRecorder === undefined) {
+        await use();
+        return;
+      }
+      const documents = testDocuments(varianceRecorder, testInfo);
+      const listener: ContextListener = {
+        runAfterCreateBrowserContext: (context) => documents.adopt(context),
+        runBeforeCloseBrowserContext: (context) => documents.settle(context),
+      };
+      const instrumentation = (playwright as unknown as Instrumented)._instrumentation;
+      if (instrumentation === undefined) unheard();
+      instrumentation?.addListener(listener);
+      byTest.set(testInfo, documents);
+      try {
+        await use();
+      } finally {
+        instrumentation?.removeListener(listener);
+        byTest.delete(testInfo);
+        await documents.close();
+      }
+    },
+    { auto: true },
+  ],
+
+  // Asking for `varianceDocuments` sets it up first and tears it down after.
+  context: async ({ context, varianceDocuments }, use, testInfo) => {
+    void varianceDocuments;
+    const documents = byTest.get(testInfo);
+    if (documents === undefined) {
       await use(context);
       return;
     }
-    const owner = varianceRecorder.owner(testInfo);
-    const documents = watchDocuments(context);
-    const statements = drainEachStatement(context, varianceRecorder, owner, testInfo);
+    await documents.adopt(context);
     await use(context);
-    documents.stop();
-    const { line, stalled } = await statements.stop();
-    // A page that held the statements' drain holds this one too, and the test's
-    // timeout is all that would end it: the case is not believed whole instead.
-    let lost = documents.lost() || stalled;
-    for (const page of stalled ? [] : context.pages()) {
-      for (const frame of page.frames()) {
-        try {
-          await varianceRecorder.note(frame, owner, testOf(testInfo), line);
-        } catch {
-          // A frame detached between listing and draining, or a document torn
-          // down mid-evaluation: its window is gone, which is the same fact as
-          // a reload and is recorded the same way.
-          lost = true;
-        }
-      }
-    }
-    if (lost) varianceRecorder.mark(owner, false);
+    await documents.settle(context);
   },
 };
 
@@ -88,14 +134,6 @@ export const varianceDocumentFixtures: Fixtures<
  * is the one waiting.
  */
 const STATEMENT_WAIT_MS = 1000;
-
-interface Statements {
-  /**
-   * Stop draining per statement; resolves to the line the rest is charged to,
-   * and whether the page held the last drain past {@link STATEMENT_WAIT_MS}.
-   */
-  readonly stop: () => Promise<{ readonly line: number | undefined; readonly stalled: boolean }>;
-}
 
 /** Whether `work` settles within {@link STATEMENT_WAIT_MS}. */
 function settlesInTime(work: Promise<void>): Promise<boolean> {
@@ -109,79 +147,192 @@ function settlesInTime(work: Promise<void>): Promise<boolean> {
   });
 }
 
+/** One test's documents. */
+interface TestDocuments {
+  /** Tape and watch `context`'s documents for this test, once, before they load. */
+  readonly adopt: (context: BrowserContext) => Promise<void>;
+  /** Drain `context`'s documents and stop watching it, once, while it is open. */
+  readonly settle: (context: BrowserContext) => Promise<void>;
+  /** Stop draining per statement, settle every context still open, and say whether any document was lost. */
+  readonly close: () => Promise<void>;
+}
+
+/** A spec statement: the test line it is on, a hook's where `hook` says so. */
+interface Statement {
+  readonly line: number;
+  readonly hook: boolean;
+}
+
+/** A context this test adopted. */
+interface Adopted {
+  readonly watch: Watch;
+  settled: boolean;
+}
+
 /**
- * Drain every document before each statement of the running spec, so each
- * region its case entered is charged to the test line whose statement first
- * reached it.
- *
- * The spec was compiled with the cadence plugin ([`cadence-babel.cts`](./cadence-babel.cts)),
- * which awaits what `__VA__.c(line, file)` returns before each statement of an
- * async test or hook body. A spec compiled without it never calls this, and
- * every region it reached is ambient. A body declared in another file names
- * that file and is not waited on: its work is charged to the spec's statement
- * that called it.
- *
- * A drain that does not finish in {@link STATEMENT_WAIT_MS} leaves the case's
- * lines from there on unknown: every region drained after it is ambient,
- * because which statement reached it is no longer known. A drain that fails is
- * passed over — a document that went away is the document watch's to report,
- * and the teardown drain is the one that decides.
+ * The contexts whose documents are taped. A context the runner reuses outlives
+ * the test that taped it, and an init script added twice runs twice.
  */
-function drainEachStatement(
-  context: BrowserContext,
-  recorder: NonNullable<RecorderFixture['varianceRecorder']>,
-  owner: string,
-  testInfo: TestInfo,
-): Statements {
-  type Cut = (line: number, file: string) => unknown;
+const taped = new WeakSet<BrowserContext>();
+
+/**
+ * The documents of one test, drained before each statement the cadence plugin
+ * ([`cadence-babel.cts`](./cadence-babel.cts)) marks with `__VA__.c`, so each
+ * region is charged to the test line whose statement first reached it; what a
+ * hook's statement reached, or a spec compiled without the plugin, is ambient.
+ * Once a drain misses {@link STATEMENT_WAIT_MS} every later region is ambient,
+ * since which statement reached it is no longer known. A drain that fails is
+ * passed over: the document watch and the teardown drain decide.
+ */
+function testDocuments(recorder: NonNullable<RecorderFixture['varianceRecorder']>, testInfo: TestInfo): TestDocuments {
+  type Cut = (line: number, file: string, hook: boolean) => unknown;
   const realm = globalThis as { __VA__?: { c?: Cut } };
-  const held = realm.__VA__;
-  const outer = held?.c;
+  const outerRealm = realm.__VA__;
+  const outer = outerRealm?.c;
+  const owner = recorder.owner(testInfo);
   const subject = testOf(testInfo);
-  let last: number | undefined;
+  const adopted = new Map<BrowserContext, Promise<Adopted>>();
+  // The documents each frame's drains carried from the ones it replaced.
+  const carried = new Map<Frame, number>();
+  let last: Statement | undefined;
+  // The statement whose line the story opened last: each context's teardown
+  // drain lays what it reads under the same line, not a second.
+  let opened: Statement | undefined;
   let late = false;
+  let lost = false;
+  let closed = false;
   let draining: Promise<void> = Promise.resolve();
 
-  const drain = (line: number | undefined) => async () => {
-    for (const page of context.pages()) {
-      for (const frame of page.frames()) {
-        try {
-          await recorder.note(frame, owner, subject, late ? undefined : line);
-        } catch {
-          // Answered by the document watch and the teardown drain.
-        }
+  const lineOf = (statement: Statement | undefined) => (late ? undefined : statement?.line);
+  const open = (statement: Statement | undefined): void => {
+    if (statement === undefined || late || opened === statement || adopted.size === 0) return;
+    opened = statement;
+    recorder.cut?.(owner, subject, statement.line, statement.hook);
+  };
+  const framesOf = (context: BrowserContext): Frame[] => context.pages().flatMap((page) => page.frames());
+  /** Drain `frames` under `statement`; resolves to whether every one was read. */
+  const drain = async (frames: readonly Frame[], statement: Statement | undefined): Promise<boolean> => {
+    let read = true;
+    for (const frame of frames) {
+      try {
+        carried.set(frame, (carried.get(frame) ?? 0) + (await recorder.note(frame, owner, subject, lineOf(statement), statement?.hook)));
+      } catch {
+        // A frame detached between listing and draining, or a document torn
+        // down mid-evaluation: its window is gone, which is the same fact as
+        // a reload and is recorded the same way.
+        read = false;
       }
     }
+    return read;
   };
-  // FIXME: a `test.beforeEach` or `test.afterEach` statement is drained under the case’s own line;
-  // every other seam flags a hook's line as a hook's, and the cut does not say
-  // which body it is in.
-  const c: Cut = (line, file) => {
-    const theirs = outer?.(line, file);
+  const unsettled = async (): Promise<readonly BrowserContext[]> => {
+    const contexts: BrowserContext[] = [];
+    for (const [context, adoption] of adopted) if (!(await adoption).settled) contexts.push(context);
+    return contexts;
+  };
+  const c: Cut = (line, file, hook) => {
+    const theirs = outer?.(line, file, hook);
     // Once a drain was late no statement records its line, so none waits on
     // the held drain again: the teardown drain reads what they reached.
     if (file !== testInfo.file || late) return theirs;
     const reached = last;
-    last = line;
-    draining = draining.then(drain(reached));
+    last = { line, hook };
+    draining = draining.then(async () => {
+      open(reached);
+      for (const context of await unsettled()) await drain(framesOf(context), reached);
+    });
     const waited = settlesInTime(draining).then((inTime) => {
       if (!inTime) late = true;
     });
     return theirs === undefined || theirs === null ? waited : Promise.all([theirs, waited]);
   };
+  if (outerRealm === undefined) realm.__VA__ = { c };
+  else outerRealm.c = c;
+  const unheard = hearPrints(recorder, (text) => {
+    // Said under the statement printing it, after what the pages did before it.
+    const at = last;
+    draining = draining.then(() => {
+      open(at);
+      recorder.say?.(owner, subject, text);
+    });
+  });
 
-  if (held === undefined) realm.__VA__ = { c };
-  else held.c = c;
+  const settle = async (context: BrowserContext): Promise<void> => {
+    const adoption = adopted.get(context);
+    if (adoption === undefined) return;
+    const entry = await adoption;
+    if (entry.settled) return;
+    entry.settled = true;
+    entry.watch.stop();
+    // A page that held the statements' drain holds this one too, and the test's
+    // timeout is all that would end it: the case is not believed whole instead.
+    const inTime = await settlesInTime(draining);
+    if (!inTime) late = true;
+    if (inTime) {
+      open(last);
+      if (!(await drain(framesOf(context), last))) lost = true;
+    }
+    if (entry.watch.lost() || !inTime) lost = true;
+  };
 
   return {
-    stop: async () => {
-      if (held === undefined) delete realm.__VA__;
-      else if (outer === undefined) delete held.c;
-      else held.c = outer;
-      const stalled = !(await settlesInTime(draining));
-      if (stalled) late = true;
-      return { line: late ? undefined : last, stalled };
+    adopt: async (context) => {
+      if (closed) return;
+      const known = adopted.get(context);
+      if (known !== undefined) {
+        await known;
+        return;
+      }
+      const adoption = (async (): Promise<Adopted> => {
+        // Before any page loads, so the collector a page evaluates finds the tape.
+        if (recorder.storyPage !== undefined && !taped.has(context)) {
+          taped.add(context);
+          await context.addInitScript(recorder.storyPage);
+        }
+        return { watch: watchDocuments(context, carried), settled: false };
+      })();
+      adopted.set(context, adoption);
+      await adoption;
     },
+    settle,
+    close: async () => {
+      unheard();
+      if (outerRealm === undefined) delete realm.__VA__;
+      else if (outer === undefined) delete outerRealm.c;
+      else outerRealm.c = outer;
+      for (const context of adopted.keys()) await settle(context);
+      closed = true;
+      if (lost) {
+        recorder.mark(owner, false);
+        recorder.lose?.(owner, subject);
+      }
+    },
+  };
+}
+
+const PRINTS = ['log', 'info', 'warn', 'error', 'debug'] as const;
+
+/**
+ * Hear what the spec prints in the runner's process, as a Node case's tap hears
+ * its console, while the run asks for stories; still printed. Returns what puts
+ * the console back.
+ */
+function hearPrints(recorder: NonNullable<RecorderFixture['varianceRecorder']>, heard: (text: string) => void): () => void {
+  if (recorder.say === undefined) return () => {};
+  const printer = console;
+  const originals = PRINTS.map((method) => [method, printer[method]] as const);
+  for (const [method, original] of originals) {
+    printer[method] = function (this: unknown, ...values: unknown[]): void {
+      try {
+        heard(`console.${method} ${format(...values)}`);
+      } catch {
+        // A value whose inspection throws is still printed below.
+      }
+      original.apply(this, values);
+    };
+  }
+  return () => {
+    for (const [method, original] of originals) printer[method] = original;
   };
 }
 
@@ -201,7 +352,7 @@ interface Watch {
  * replaced it. A redirect is one document reached by two requests, and is
  * counted once.
  */
-function watchDocuments(context: BrowserContext): Watch {
+function watchDocuments(context: BrowserContext, carried: ReadonlyMap<Frame, number>): Watch {
   const documents = new Map<Frame, number>();
   let lost = false;
   const loaded = (frame: Frame) => (documents.get(frame) ?? 0) > 0;
@@ -211,7 +362,6 @@ function watchDocuments(context: BrowserContext): Watch {
     const frame = request.frame();
     const count = (documents.get(frame) ?? 0) + 1;
     documents.set(frame, count);
-    if (count > 1) lost = true;
   };
   const onDetached = (frame: Frame) => {
     if (loaded(frame)) lost = true;
@@ -233,7 +383,8 @@ function watchDocuments(context: BrowserContext): Watch {
   for (const page of context.pages()) onPage(page);
 
   return {
-    lost: () => lost,
+    // A frame lost a document its drains did not carry to the next one.
+    lost: () => lost || [...documents].some(([frame, count]) => count - 1 > (carried.get(frame) ?? 0)),
     stop: () => {
       context.off('request', onRequest);
       context.off('page', onPage);

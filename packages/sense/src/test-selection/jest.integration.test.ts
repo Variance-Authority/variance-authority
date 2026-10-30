@@ -319,6 +319,9 @@ describe('the Jest integration', () => {
       .find((path) => readRoute(repository, path).name === 'takes the alpha path');
     const route = readRoute(repository, alpha!);
     expect(route.unresolved).toEqual([]);
+    // The hook's statement opens the case as a hook's line, and the test's as a test's.
+    expect(route.opening.before).toContain('hook line 4');
+    expect(route.opening.route[0]).toBe('test line 8');
     expect(route.route.map((step) => ('token' in step ? step.token : undefined))
       .find((token) => token !== undefined && 'place' in token && token.place.name === 'decide')).toMatchObject({
       place: { file: at('src/decide.ts'), at: `${at('src/decide.ts')}#decide/entry` },
@@ -341,6 +344,39 @@ describe('the Jest integration', () => {
     };
     expect(await recorded(taped)).toEqual(await recorded(plain));
   }, 120_000);
+  it('names the test\'s own line where a case printed under `VARIANCE_AUTHORITY_STORY=1`, and notes the line on its story', async () => {
+    const directory = await mkdtemp(resolve(tmpdir(), 'variance-authority-jest-prints-'));
+    temporary.push(directory);
+    // Jest buffers what a case prints when it reports quietly and prints it at once when verbose.
+    for (const verbose of ['--verbose=false', '--verbose']) {
+      const into = resolve(directory, verbose);
+      const { stdout, stderr } = await execute(
+        process.execPath,
+        [jest, '--config', resolve(fixture, 'jest.config.mjs'), '--watchman=false', verbose, '--testMatch', '<rootDir>/test/prints.console.ts'],
+        {
+          cwd: fixture,
+          env: {
+            ...process.env,
+            VARIANCE_AUTHORITY_COVERAGE: resolve(into, 'coverage.bin'),
+            VARIANCE_AUTHORITY_JEST_CACHE: resolve(into, 'cache'),
+            VARIANCE_AUTHORITY_CACHE: into,
+            VARIANCE_AUTHORITY_STORY: '1',
+          },
+        },
+      );
+      // Each printed line is followed by where it was printed, a warning's by the frames above it too.
+      const lines = `${stdout}\n${stderr}`.split('\n');
+      const origins = lines.flatMap((line, at) => (/^\s+console\.(log|warn)$/.test(line) ? [lines.slice(at).find((next) => /^\s+at /.test(next))!.trim()] : []));
+      expect(origins, verbose).toEqual([
+        expect.stringMatching(/\(test\/prints\.console\.ts:4:\d+\)$/),
+        expect.stringMatching(/\(test\/prints\.console\.ts:5:\d+\)$/),
+      ]);
+      const [story] = (await readdir(into, { recursive: true })).filter((path) => path.endsWith('.story'));
+      expect(stories.decodeStory(await readFile(resolve(into, story!))).notes.map(([, text]) => text).filter((text) => text.startsWith('console.')), verbose)
+        .toEqual(['console.log decided A', 'console.warn warned']);
+    }
+  }, 120_000);
+
   it('records what a test file loaded before its first case apart from what each case called, and that every case finished', async () => {
     const loads = resolve(repository, 'packages/sense/test/fixtures/jest-loads');
     const inLoads = (path: string): string => `${relative(repository, loads)}/${path}`;

@@ -25,7 +25,7 @@ function story(root: string): { key: string; bytes: Buffer } {
   const key = `${root}/src/cart.test.ts\u0000removes the last item\u00001`;
   const bytes = encodeStory(
     {
-      tape: Int32Array.from([0, 1]), taped: 2, visits: 2, at: [0], keys: [key], notes: [], unnoted: 0, held: new Map(),
+      tape: Int32Array.from([0, 1]), taped: 2, visits: 2, at: [0], keys: [key], notes: [], lines: [], unnoted: 0, held: new Map(),
       rows: { ids: ['src/cart.ts'], counts: [2], bases: [0] },
     },
     key,
@@ -43,6 +43,14 @@ describe('where stories go', () => {
     expect(askedForStories('/cache/coverage.bin', {})).toBeUndefined();
     expect(askedForStories('/cache/coverage.bin', { VARIANCE_AUTHORITY_STORY: '0' })).toBeUndefined();
     expect(askedForStories('/cache/coverage.bin', { VARIANCE_AUTHORITY_STORY: '1' })).toBe('/cache/coverage.stories');
+  });
+
+  it('places the record only when the run asks for them', () => {
+    const unplaceable = () => {
+      throw new Error('the record has no place yet');
+    };
+    expect(askedForStories(unplaceable, {})).toBeUndefined();
+    expect(() => askedForStories(unplaceable, { VARIANCE_AUTHORITY_STORY: '1' })).toThrow('no place yet');
   });
 
   it('are one directory beside the one record in a repository that declares no suites', async () => {
