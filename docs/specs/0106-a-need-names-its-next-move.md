@@ -285,7 +285,7 @@ drop exactly the tests nothing has recorded yet.
 | know what my change did to the cases, against the mainline's record | `covering --since <ref> --against <record> --format refs` | know which statement of a case first ran a region; know what a case did differently from its last run, or from another case |
 | know what my last change did to the cases, with no mainline record | `covering --file <path> --cases last --format refs` | know which statement of a case first ran a region; know what a case did differently from its last run, or from another case |
 | know which changed regions the red cases share | `covering --since <ref> --format refs`, `coverage --fan-in` | know what my change did to the cases, against the mainline's record; know how many test files an edit here runs, before making it |
-| know which statement of a case first ran a region | **gap** | — |
+| know which statement of a case first ran a region | **gap**, [#824](https://github.com/Variance-Authority/variance-authority/issues/824) | — |
 | know which region a case reaches under another test line when it fails | **gap**, [#823](https://github.com/Variance-Authority/variance-authority/issues/823) | know why a case passes on one run and throws on another |
 | know why a case passes on one run and throws on another | `story --file <test> --name <case> --compare outcome`; a Playwright case writes no story, [#822](https://github.com/Variance-Authority/variance-authority/issues/822) | know what a name is before touching it |
 | know what a case did differently from its last run, or from another case | `story --file <test> --name <case> --compare last`, `story … --compare <a>,<b>` | know what a name is before touching it |
@@ -432,7 +432,8 @@ input, not an order.
   Jest, Rstest and Playwright, and no answer reads it. A `lost` region in the
   comparison is a region a case ran at the base, and the statement that reached
   it is in the base record but printed nowhere, so Fix reads the test's source
-  to find it. A recorded fact with no reader is a defect, not a position. The
+  to find it. A recorded fact with no reader is a defect, not a position
+  ([#824](https://github.com/Variance-Authority/variance-authority/issues/824)). The
   statement a case threw at is not recorded: an assertion that fails reaches no
   new region. Read across runs and split by outcome, the same lines name a
   region a case reaches under another line when it fails, the shape of a
