@@ -5570,6 +5570,7 @@ __metadata:
     "@variance-authority/react": "workspace:^"
     "@variance-authority/sense": "workspace:^"
     "@variance-authority/storybook": "workspace:^"
+    playwright: "npm:^1.49.0"
     storybook: "npm:^9.1.13"
     vite: "npm:^6.4.3"
   languageName: unknown
