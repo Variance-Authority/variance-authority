@@ -56,6 +56,23 @@ describe('page stories', () => {
     expect(story.stopped).toBe(true);
   });
 
+  it('lays what the documents a page replaced ran before what the page ran itself', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'page-stories-'));
+    directories.push(directory);
+    const stories = pageStories(directory);
+
+    stories.line(subject, 5);
+    const replaced = drained({ tape: [0 | EVALUATING, 1], rows: { ids: ['a'], counts: [2], bases: [0] }, notes: [[2, 'console.log left']] });
+    stories.add(subject, drained({ tape: [0 | EVALUATING], rows: { ids: ['a'], counts: [2], bases: [0] }, before: [replaced] }));
+    stories.write(subject, false);
+
+    const story = written(directory);
+    expect(story.rows).toEqual([['a', 2]]);
+    expect([...story.visits]).toEqual([0 | EVALUATING, 1, 0 | EVALUATING]);
+    expect(story.notes).toEqual([[2, 'console.log left']]);
+    expect(story.lines).toEqual([[0, 5, 0]]);
+  });
+
   it('writes nothing for a case no page drained, and forgets a case once written', () => {
     const directory = mkdtempSync(join(tmpdir(), 'page-stories-'));
     directories.push(directory);

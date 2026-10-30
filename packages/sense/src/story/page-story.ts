@@ -22,4 +22,6 @@ export interface PageStory {
   /** What each module held when it ran, kept from the first drain on. */
   readonly held: readonly (readonly [ModuleId, string])[];
   readonly rows: { readonly ids: readonly ModuleId[]; readonly counts: readonly number[]; readonly bases: readonly number[] };
+  /** What the documents this page's frame replaced ran since the drain before, oldest first. */
+  readonly before?: readonly PageStory[];
 }

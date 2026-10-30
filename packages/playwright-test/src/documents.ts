@@ -12,7 +12,8 @@
  *
  * A document the test replaced, or one that went away before the end, took its
  * undrained crossings with it. The owner is marked incomplete instead, so the
- * next selection runs the spec rather than skipping it on crossings lost.
+ * next selection runs the spec rather than skipping it on crossings lost. A
+ * replaced document's story is not lost: the page carries it to the next one.
  */
 
 import type {
@@ -355,11 +356,11 @@ function watchDocuments(context: BrowserContext): Watch {
     const frame = request.frame();
     const count = (documents.get(frame) ?? 0) + 1;
     documents.set(frame, count);
-    // FIXME: what the replaced document ran since the drain before is missing
-    // from its story. Chromium tells nothing of a document whose navigation has
-    // started: an evaluation sent on this event finds its context destroyed, a
-    // raw CDP one reads the next document, and a binding or beacon sent from its
-    // `pagehide` reaches neither Playwright nor CDP. WebKit answers all three.
+    // FIXME: what the replaced document entered since the drain before is
+    // missing from the record, which is why the owner is marked incomplete; its
+    // story keeps it, carried by the page. Chromium tells nothing of a document
+    // whose navigation has started: an evaluation sent on this event finds its
+    // context destroyed, and a raw CDP one reads the next document.
     if (count > 1) lost = true;
   };
   const onDetached = (frame: Frame) => {

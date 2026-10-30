@@ -162,9 +162,24 @@ describe.runIf(BROWSER_AVAILABLE)('a Playwright case run in a page', () => {
     ]);
   }, 120_000);
 
-  it.todo(
-    'keeps what a document ran under the statement that replaced it — needs the document to push what it ran while it lives, since Chromium tells nothing of it once its navigation has started',
-  );
+  it('keeps what a document ran under the statement that replaced it', async () => {
+    const { directory, byName } = await storiesWritten();
+    const story = byName.get('pays after the page it chose on was replaced')!;
+
+    expect({ file: story.file, stopped: story.stopped }).toEqual({ file: at('tests/navigates.spec.ts'), stopped: false });
+    // The second document runs the module from its top level again.
+    expect(await routeOf(directory, story)).toEqual(['top level', 'choose', 'top level', 'pay']);
+    expect(await toldIn('navigates.spec.ts', story)).toEqual([
+      'test line opens',
+      'holds open=ref1 function open, choose=ref2 function choose, pay=ref3 function pay',
+      'test line leaves',
+      "handed item='jam'",
+      'console.log chose jam',
+      'holds open=ref1 function open, choose=ref2 function choose, pay=ref3 function pay',
+      'test line pays',
+      'handed amount=20',
+    ]);
+  }, 120_000);
 
   it('writes none when the run did not ask', async () => {
     const directory = await runWith({});
