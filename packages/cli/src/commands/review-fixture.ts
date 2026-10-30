@@ -16,8 +16,8 @@ import {
 } from '@variance-authority/sense/test-selection';
 import { INSTRUMENTATION_ID } from '@variance-authority/sense/instrument';
 
-/** Git's name for `text` as a blob, as a recording names the text its rows were cut from. */
-const blobOf = (text: string): string => {
+/** Git's name for `text` as a blob, as a recording names the text its rows were cut from and the source index names a file. */
+export const blobOf = (text: string): string => {
   const bytes = Buffer.from(text, 'utf8');
   return `git:${createHash('sha1').update(`blob ${bytes.length}\0`).update(bytes).digest('hex')}`;
 };
