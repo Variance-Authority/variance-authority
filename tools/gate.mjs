@@ -54,12 +54,10 @@ export const unverified = (input, treeOf, wavesOn) =>
     .map(([ref, sha]) => ({ ref, sha, missing: WAVES.filter((wave) => !wavesOn(treeOf(sha)).includes(wave)) }))
     .filter(({ missing }) => missing.length > 0);
 
-// Registers the gate as a configured hook, which git runs beside the script in
-// `.git/hooks`, so Git LFS keeps its own hooks and `git lfs install` its say.
-// Git appends the remote to the command, which the gate does not read. A git
-// older than 2.54 keeps the setting and never runs it, so the install asks git
-// for its pre-push hooks: an agent's install fails without the gate, and anyone
-// else's is told.
+// Registers the gate as a configured hook, which git runs beside `.git/hooks`,
+// so Git LFS keeps its own. Git appends the remote, which the gate ignores.
+// A git before 2.54 keeps the setting and never runs it: then an agent's
+// install fails, and anyone else's is told.
 const install = () => {
   if (git('config', '--default', '', 'hook.variance-gate.command') !== COMMAND) {
     execFileSync('git', ['config', 'hook.variance-gate.event', 'pre-push']);
