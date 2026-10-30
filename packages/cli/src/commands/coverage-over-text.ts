@@ -2,21 +2,10 @@
 /**
  * Over which text each test file of a record ran each region it called into:
  * the text in the checkout, or an older one an edit since has touched. The
- * count folds the answers per region (`countCoverage`); this file reads them.
- *
- * Every reader is one that already exists. Where a test file stood is
- * `testPlaces`', which text of a file its run ran over is `ranOver`'s, read from
- * the evidence `covering` reads (`evidenceOf`), and whether an edit touched a
- * region is the rule a record carries its cases by (`regionTouched` over the
- * edits between the texts). Every text is named, never hashed: the source
- * index names the text each file holds now by its git blob, the record's rows
- * name the text they were cut from the same way, a run names its text by the
- * digest the rows took of it or by its commit's blob. A text is read only to
- * diff two that the names say differ, so a file whose rows hold the tree's
- * text, run over that text by every place that ran it, reads no text at all.
- * An index brought up to the checkout holds every file it reads, so a file it
- * would read and does not hold is gone, and every region run in it ran over an
- * older text; one it would not read is not known.
+ * count folds the answers per region (`countCoverage`); this file reads them,
+ * through readers that already exist: `testPlaces`, `ranOver` over the evidence
+ * `covering` reads, and `regionTouched` over the edits between the texts. Every
+ * text is named, never hashed, and read only to diff two whose names differ.
  */
 
 import { existsSync } from 'node:fs';

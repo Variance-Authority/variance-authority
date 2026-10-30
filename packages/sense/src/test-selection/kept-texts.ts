@@ -114,20 +114,9 @@ export async function keepRecordedTexts(tree: LandedTree | undefined, record: Te
 
 /**
  * The name git gives the text each row a landing writes was cut from: each
- * module `current` recorded, and each of `onDisk`, the carried modules cut
- * again in the text they have now. Named as the source index names a file
- * ({@link namesNow}), so a reader asks the index whether the tree still holds
- * the text instead of reading the tree.
- *
- * A dirty module is named only when its text on disk is the one its row was
- * cut from, as {@link keepRecordedTexts} keeps one: an edit made while the
- * suite ran hashes to another name, which would say the run ran a text it
- * never read. A clean one is named by the commit, whose text the run read
- * unless the file was edited and put back while it ran.
- *
- * Nothing with no tree to ask, which is outside a checkout or git not
- * answering: the rows name no text, and a reader says which text ran is not
- * known rather than guess one.
+ * module `current` recorded, and each of `onDisk`, carried modules cut again.
+ * Named as the source index names a file, so a reader asks the index, not the
+ * tree. Nothing with no `tree` to ask: the rows name no text.
  */
 export async function landedNames(
   tree: LandedTree | undefined,
@@ -138,11 +127,14 @@ export async function landedNames(
   const dirty = new Set(tree.changes.changed);
   const gone = new Set(tree.changes.gone);
   const asked = [...new Set([...current.map((module) => module.file), ...onDisk.keys()])].filter((file) => !gone.has(file));
+  // A clean module by the commit, whose text the run read unless it was edited and put back while it ran.
   const clean = asked.filter((file) => !dirty.has(file));
   const names = new Map([
     ...clean.length === 0 ? [] : blobsAt(tree.repository, new Map([['HEAD', clean]])).get('HEAD') ?? [],
     ...await namesOnDisk(tree.repository, asked.filter((file) => dirty.has(file))),
   ]);
+  // A dirty one only when the disk holds the text its row was cut from, as `keepRecordedTexts` keeps one:
+  // an edit made while the suite ran names a text the run never read.
   await Promise.all(current.filter((module) => dirty.has(module.file) && !onDisk.has(module.file)).map(async (module) => {
     let text: string;
     try {

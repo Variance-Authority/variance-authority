@@ -60,17 +60,9 @@ export interface TextNames {
 
 /**
  * A reader of the edit one module went from the text `from` names to the text
- * `to` names, each a digest (`v1:`) or the name git gives a blob (`git:`).
- *
- * Two names that agree are no edit and need no text. Otherwise each text is
- * found: one the reader holds by its name; for a digest, the way a reading of
- * an edit finds it — kept by a landing, at one of the commits the record
- * names, or on disk — and taken only when it hashes to the digest; for a git
- * name, on disk when the source index gives the file that name now, or at one
- * of the commits that holds the file by it. `undefined` when either cannot be
- * had, a file that does not read among them: the caller then reads the whole
- * module as changed, or says which text ran is not known. Each text and each
- * edit is read once.
+ * `to` names, each a digest (`v1:`) or a git blob name (`git:`). Two names that
+ * agree are no edit and read no text. `undefined` when either text cannot be
+ * had, a file that does not read among them. Each text and edit is read once.
  */
 export function editsBetween(
   root: string,
@@ -88,6 +80,7 @@ export function editsBetween(
       return undefined;
     }
   };
+  // A digest's text is kept by a landing, at a commit the record names, or on disk, and taken only when it hashes so.
   const byDigest = (file: string, digest: string): string | undefined => {
     const text = kept(digest);
     if (text !== undefined) return text;
@@ -97,6 +90,7 @@ export function editsBetween(
     }
     return hashingTo(onDisk(file), digest);
   };
+  // A git name's is on disk when the source index names the file so now, else at a commit holding it by that name.
   const byGitName = (file: string, name: string): string | undefined => {
     if (names.now?.(file) === name) return onDisk(file);
     if (at.length === 0) return undefined;
