@@ -276,6 +276,18 @@ describe('coverage names why a text is not known', () => {
     expect((await json('--root', partial.at)).count).toMatchObject({ over: { older: 0, notKnown: 1, why: ['the runs record does not say where some test files ran'] } });
   });
 
+  it('writes the older text and each reason a text is not known into the markdown breakdown', async () => {
+    // `fee.test.ts` alone called `refund`, and the runs record leaves it out; `charge` was rewritten since its run.
+    const { at } = await checkout({ ...atRecord, refund: [1], runs: (_, recorded) => ({ commit: recorded, ...landed([PAY_TEST, CART_TEST]) }) });
+    await writeFile(join(at, PAY_FILE), PAY.replace('  return amount;', '  return amount + 1;'));
+
+    const answer = await ask('--root', at, '--format', 'markdown');
+
+    expect(answer.out).toContain('| Executed over an older text | 1 | 20.0% |\n');
+    expect(answer.out).toContain('| Executed over a text not known | 1 | 20.0% |\n');
+    expect(answer.out).toContain('\n- Not known: the runs record does not say where some test files ran\n');
+  });
+
   it('keeps a function whose body gained only a comment as run over this text', async () => {
     const { at } = await checkout(atRecord);
     await writeFile(join(at, PAY_FILE), PAY.replace('  return -amount;', '  // refunds are negative\n  return -amount;'));
