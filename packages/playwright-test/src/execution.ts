@@ -38,7 +38,7 @@ import {
 } from '@variance-authority/sense/journal';
 import { stitchJourneys } from '@variance-authority/sense/journey';
 import { askedForStories, pageStories, storyPageSource, type StoryCase } from '@variance-authority/sense/story';
-import { repositoryRoot, testCoverageFile, type CoveragePrecondition } from '@variance-authority/sense/test-selection';
+import { recordFileFor, repositoryRoot, type CoveragePrecondition } from '@variance-authority/sense/test-selection';
 import type { Wire } from '@variance-authority/wire/listen';
 import { resolve } from 'node:path';
 import { absorb, accumulation, type Accumulated } from './accumulated.js';
@@ -429,20 +429,10 @@ export function createExecutionRecorder(
 }
 
 /**
- * Where this worker writes its cases' stories, beside the record it writes,
- * when the run asked for them. A record the configuration cannot place writes
- * no story: the recording says why when it closes.
+ * Where this worker writes its cases' stories: beside the record it writes,
+ * when the run asked for them.
  */
 function storiesFor(start: string, root: string, recording: ExecutionRecording) {
-  let recordFile: string;
-  try {
-    recordFile =
-      recording.coverageFile === undefined
-        ? testCoverageFile(root, { suite: recording.suite, cacheRoot: recording.cacheRoot })
-        : resolve(start, recording.coverageFile);
-  } catch {
-    return undefined;
-  }
-  const directory = askedForStories(recordFile);
+  const directory = askedForStories(() => recordFileFor(root, start, recording));
   return directory === undefined ? undefined : pageStories(directory);
 }

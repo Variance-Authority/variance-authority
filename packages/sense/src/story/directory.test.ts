@@ -45,6 +45,14 @@ describe('where stories go', () => {
     expect(askedForStories('/cache/coverage.bin', { VARIANCE_AUTHORITY_STORY: '1' })).toBe('/cache/coverage.stories');
   });
 
+  it('places the record only when the run asks for them', () => {
+    const unplaceable = () => {
+      throw new Error('the record has no place yet');
+    };
+    expect(askedForStories(unplaceable, {})).toBeUndefined();
+    expect(() => askedForStories(unplaceable, { VARIANCE_AUTHORITY_STORY: '1' })).toThrow('no place yet');
+  });
+
   it('are one directory beside the one record in a repository that declares no suites', async () => {
     const root = await repository({});
     expect(storyDirectories(root)).toEqual([storyDirectory(testCoverageFile(root))]);
