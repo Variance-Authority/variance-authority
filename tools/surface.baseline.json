@@ -3467,7 +3467,6 @@
         "ProbePlacement": "type",
         "ProbesLoaderOptions": "interface",
         "RecordExecutionOptions": "interface",
-        "SAID_NOTHING": "const",
         "SETTLING_MS": "const",
         "STAGE_VARIABLE": "const",
         "Said": "type",

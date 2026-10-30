@@ -1,5 +1,6 @@
 import { saidJoined, saidRow, saidSite, type CasePrecondition, type Said } from './case-said.js';
 import preconditions from './case-preconditions.cjs';
+import type { PageRead } from './probes.js';
 
 /**
  * Where a runner stands when a case says what it arranged, as only the runner
@@ -18,13 +19,25 @@ export type PreconditionStanding =
   | { readonly at: 'after' }
   | { readonly at: 'outside'; readonly because: string };
 
-/** What a realm's cases said, for a runner that drives its cases from outside the realm's case scope. */
+/**
+ * What a realm's cases said and what the code read in them, for a runner that
+ * drives its cases from outside the realm's case scope.
+ */
 export interface PreconditionListener {
   /**
-   * What the case `key` names said since it was last taken, each site named
-   * from the checkout: absent when it said nothing.
+   * What the case `key` names said and what the code read for it since it was
+   * last taken, each site named from the checkout: absent when it heard
+   * nothing.
    */
   take(key: string): Said | undefined;
+  /** What a case this listener heard nothing from heard: every facet empty. */
+  readonly nothing: Said;
+  /**
+   * What a page's code read for the case `key` names, as the page's drain
+   * handed it over: the runner knows which case it drained, where the
+   * standing at the time of the drain may be its `afterEach`.
+   */
+  laid(key: string, read: readonly PageRead[]): void;
   /**
    * What the case `key` names has said so far, resolved as its row would be
    * if it ended now, and left for {@link take}: what a snapshot taken inside
@@ -36,20 +49,26 @@ export interface PreconditionListener {
 }
 
 /**
- * Listen for `variancePrecondition` in this realm, for a runner that names
- * its cases and hooks itself, as Playwright's worker does.
+ * Listen for `variancePrecondition` and `varianceBreadcrumb` in this realm, for
+ * a runner that names its cases and hooks itself, as Playwright's worker does.
  *
  * The call is placed by `standing`, asked at the moment of the call: the case
- * body is the case's level, a `beforeEach` its describe's. A call the runner
- * places on no case throws.
+ * body is the case's level, a `beforeEach` its describe's. A precondition the
+ * runner places on no case throws; a read it places on none is warned about.
+ * The realm's files have loaded by the time a runner listens: a read is a
+ * case's, or nobody's.
  *
  * @param root The checkout the sites are named from.
  */
 export function listenForPreconditions(root: string, standing: () => PreconditionStanding): PreconditionListener {
   const holder = globalThis as { [key: symbol]: unknown };
   const before = holder[preconditions.PRECONDITION];
+  const reading = holder[preconditions.BREADCRUMB];
   // Every call is placed by one reading of `standing`, so `running` names no case.
-  const heard = preconditions.recorder(holder, () => undefined, undefined, (site) => saidSite(root, site));
+  const heard = preconditions.recorder(holder, () => undefined, undefined, (site) => saidSite(root, site), true);
+  // FIXME: a read made while a later file of the worker loads stands outside and is
+  // recorded on no case, where a Node runner lays it on every case of the file.
+  heard.loaded();
   heard.where.ask = () => {
     const at = standing();
     switch (at.at) {
@@ -63,20 +82,30 @@ export function listenForPreconditions(root: string, standing: () => Preconditio
         return { kind: 'outside', because: at.because };
     }
   };
+  const give = (symbol: symbol, held: unknown): void => {
+    if (held === undefined) delete holder[symbol];
+    else holder[symbol] = held;
+  };
   return {
-    take: (key) => heardFrom(root, heard.take(key).said),
+    take: (key) => heardFrom(root, heard.take(key)),
+    nothing: JSON.stringify({ said: [], read: [], misused: [] }),
+    laid: (key, read) => heard.laid(key, read),
     held: (key) => {
-      const said = heardFrom(root, heard.held(key));
+      const said = heardFrom(root, { said: heard.held(key) });
       return said === undefined ? [] : (saidRow(said).said ?? []);
     },
     close: () => {
-      if (before === undefined) delete holder[preconditions.PRECONDITION];
-      else holder[preconditions.PRECONDITION] = before;
+      give(preconditions.PRECONDITION, before);
+      give(preconditions.BREADCRUMB, reading);
     },
   };
 }
 
-/** What a recorder held for a case, its sites named from the checkout; absent when it said nothing. */
-function heardFrom(root: string, said: readonly unknown[]): Said | undefined {
-  return said.length === 0 ? undefined : saidJoined(root, [JSON.stringify({ said })]);
+/** What a recorder held for a case, its sites named from the checkout; absent when it heard nothing. */
+function heardFrom(
+  root: string,
+  heard: { readonly said: readonly unknown[]; readonly read?: readonly unknown[]; readonly misused?: readonly unknown[] },
+): Said | undefined {
+  const unheard = [heard.said, heard.read, heard.misused].every((items) => items === undefined || items.length === 0);
+  return unheard ? undefined : saidJoined(root, [JSON.stringify(heard)]);
 }

@@ -25,7 +25,6 @@ import {
   modulesEntered,
   preconditionOf,
   recordExecution,
-  SAID_NOTHING,
   saidAcross,
   stageExecution,
   stagingDirectory,
@@ -187,6 +186,7 @@ export function createExecutionRecorder(
       owners.set(owner, accumulated);
       if (subject === undefined) return;
       const held = caseOf(owner, subject);
+      if (journal.read !== undefined) listener?.laid(caseKey(owner, subject.id), journal.read);
       if (line !== undefined) reached.charge(caseKey(owner, subject.id), held, journal.modules, line);
       absorb(held, journal);
     },
@@ -280,7 +280,7 @@ export function createExecutionRecorder(
       const settled = stopped.get(key);
       const duration = spent.get(key);
       const eyes = looked.get(key);
-      const said = listener === undefined ? undefined : (heard.get(key) ?? SAID_NOTHING);
+      const said = listener === undefined ? undefined : (heard.get(key) ?? listener.nothing);
       const lines = reached.of(key);
       return {
         ...held.of,

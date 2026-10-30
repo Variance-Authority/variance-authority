@@ -105,9 +105,10 @@ type Where =
  * around one of them is read by the other.
  * @param siteNamed How a warning names a call site, where the realm can name it as
  * the row does, from the checkout; as the realm spelled it otherwise.
- * @param reads Whether the realm listens to `varianceBreadcrumb` too: a test
- * runner's realm, which tells the recorder when its file has loaded, does; the
- * Playwright listener's, which runs no code under test, does not.
+ * @param reads Whether the realm listens to `varianceBreadcrumb` too, which
+ * every realm that runs code under test does: a test runner's tells the
+ * recorder when its file has loaded, and a page that is sent
+ * {@link RECORDER_PARTS} has loaded before its first read.
  */
 function recorder(
   holder: object,
@@ -126,6 +127,8 @@ function recorder(
   /** The file has loaded: a read from now on is a case's, or nobody's. */
   loaded(): void;
   take(key: string): Heard;
+  /** What another realm read for the case `key` names, at the sites it named. */
+  laid(key: string, read: readonly Laid[]): void;
   /** What the case `key` names has said so far, left in place for {@link take}. */
   held(key: string): readonly Said[];
   /** Forget the file: a collector, and its recorder, end with their file. */
@@ -327,6 +330,9 @@ function recorder(
       const of = (facet: Facet): Said[] => heard.filter(([on]) => on === facet).map(([, item]) => item);
       return { said, read: of('read'), misused: of('misused') };
     },
+    laid(key, read) {
+      if (reads && read.length > 0) onto(readByCase, key, read);
+    },
     held: (key) => [...(byCase.get(key) ?? [])],
     finish() {
       byCase.clear();
@@ -463,4 +469,11 @@ function siteOf(called: unknown): string {
   return '';
 }
 
-export = { PRECONDITION, BREADCRUMB, MISPLACED, CASE_LEVEL, recorder, entriesOf, jsonText, siteOf, misuseWhy };
+/**
+ * The recorder and every function it calls, for a realm that has none and is
+ * sent it as source: `probes.ts` sends it to a page, which is why
+ * `tools/page-side.mjs` keeps this file off the probes.
+ */
+const RECORDER_PARTS = [recorder, entriesOf, isDimension, misuseWhy, misuseOf, keptGiven, shown, jsonText, laidKey, firstOfEach, siteOf];
+
+export = { PRECONDITION, BREADCRUMB, MISPLACED, CASE_LEVEL, recorder, RECORDER_PARTS, entriesOf, jsonText, siteOf, misuseWhy };

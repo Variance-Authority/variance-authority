@@ -60,7 +60,8 @@ describe('the list governs the run', () => {
 
   it('names a real file for each stem in both shapes', () => {
     const missing = PAGE_SIDE.filter(
-      (entry: string) => !entry.endsWith('/') && !existsSync(join(ROOT, `${entry}.ts`)) && !existsSync(join(ROOT, `${entry}.tsx`)),
+      (entry: string) =>
+        !entry.endsWith('/') && !['.ts', '.tsx', '.cts', '.mts'].some((extension) => existsSync(join(ROOT, `${entry}${extension}`))),
     );
     expect(missing, 'renamed or deleted since somebody wrote them down').toEqual([]);
   });

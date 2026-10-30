@@ -16,6 +16,7 @@ import { builtMap, handedTexts, namesItsMap } from './source-lines.js';
 import { type UnmappedNotes, refuseTransformsAfter, unmappedSteps, watchUnmapped } from './unmapped-transforms.js';
 import probeLists from '../instrument/probe-lists.cjs';
 import probeLog from '../instrument/probe-log.cjs';
+import preconditions from './case-preconditions.cjs';
 
 /**
  * Where a page hands its journal over.
@@ -47,10 +48,24 @@ export interface ExecutedModule {
   readonly again?: readonly number[];
 }
 
+/**
+ * One `varianceBreadcrumb` call a page made: `read` with the `dimension:key`,
+ * or `misused` with the argument that was wrong, the JSON text of the value —
+ * `null` where JSON cannot hold it — the call site as the page spelled it, and
+ * the case body's level.
+ */
+export type PageRead = readonly [facet: 'read' | 'misused', item: readonly [name: string, value: string | null, site: string, level: number]];
+
 /** Everything a page entered between two drains. */
 export interface ExecutionJournal {
   readonly instrumentation: string;
   readonly modules: readonly ExecutedModule[];
+  /**
+   * What the page's code read between two drains, each key and value once, at
+   * its first site; absent where the collector did not listen, because the
+   * realm had a recorder of its own.
+   */
+  readonly read?: readonly PageRead[];
 }
 
 /** What the collector exposes on {@link EXECUTION_GLOBAL}. */
@@ -316,12 +331,48 @@ export function testSelectionProbes(
 }
 
 /**
+ * A reader of the page's `varianceBreadcrumb` calls, as an expression, or
+ * `undefined` where the page already has a recorder, which places its reads
+ * itself. A page runs for the case that drives it, so every read is at the
+ * case body's level, and each `take()` closes a window: what the page read
+ * since the last, each key and value once, at its first site.
+ */
+function pageReaderSource(): string {
+  const symbol = (name: symbol): string => `Symbol.for(${JSON.stringify(Symbol.keyFor(name))})`;
+  return `(() => {
+  const PRECONDITION = ${symbol(preconditions.PRECONDITION)};
+  const BREADCRUMB = ${symbol(preconditions.BREADCRUMB)};
+  const MISPLACED = ${symbol(preconditions.MISPLACED)};
+  const LOADING = Symbol('loading');
+  const CASE_LEVEL = ${preconditions.CASE_LEVEL};
+  ${preconditions.RECORDER_PARTS.map(String).join('\n')}
+  if (globalThis[BREADCRUMB] !== undefined) return undefined;
+  const said = globalThis[PRECONDITION];
+  const heard = recorder(globalThis, () => 'page', undefined, undefined, true);
+  heard.loaded();
+  // A page says no precondition: its case does, in the driver.
+  if (said === undefined) delete globalThis[PRECONDITION];
+  else globalThis[PRECONDITION] = said;
+  return {
+    take() {
+      const { read, misused } = heard.take('page');
+      return [...read.map((item) => ['read', item]), ...misused.map((item) => ['misused', item])];
+    },
+  };
+})()`;
+}
+
+/**
  * The page half, as source, because it has to cross `page.evaluate` or a bundler.
  *
  * The engine is `instrument/probe-log.cts`, sent as its own source with
  * `instrument/probe-lists.cts`, so a page records with the code a test runner
  * records with. A page has one bucket and never
  * switches it: a drain reads it out and empties it in place.
+ *
+ * What the page's code reads through `varianceBreadcrumb` goes out with the
+ * same drain, recorded by `case-preconditions.cts`'s recorder sent the same
+ * way, so a page judges a read by the rules a runner's realm does.
  *
  * `globalThis.__VA__` keeps its identity for the life of the page, because
  * every module reads it once and keeps it, and the drain on
@@ -346,6 +397,9 @@ const carries = ${JSON.stringify(!probesRegions(mode))};
 // would have the page report that it ran nothing.
 if (globalThis.__VA__ === undefined) {
   globalThis.__VA__ = engine.root;
+  // What the page's code reads goes out with what it entered, for the driver
+  // to lay on the case it drained.
+  const reader = ${pageReaderSource()};
   globalThis[${JSON.stringify(EXECUTION_GLOBAL)}] = {
     version: 1,
     instrumentation: ${JSON.stringify(instrumentation)},
@@ -353,10 +407,12 @@ if (globalThis.__VA__ === undefined) {
       // In the order the page first registered each module, drain after drain.
       const modules = lists(engine.take(bucket), true);
       if (carries) engine.carry();
-      return { instrumentation: ${JSON.stringify(instrumentation)}, modules };
+      const journal = { instrumentation: ${JSON.stringify(instrumentation)}, modules };
+      return reader === undefined ? journal : { ...journal, read: reader.take() };
     },
     reset() {
       engine.take(bucket);
+      reader?.take();
       if (carries) engine.carry();
     },
   };
