@@ -1,6 +1,6 @@
 /**
- * The hooks that leave each case's tape on its own task's `meta`, for a test
- * file that runs in a page and tapes.
+ * The Vitest hooks that leave each case's tape on its own task's `meta`, for a
+ * test file that runs in a page and tapes.
  *
  * The page knows the case, and the reporter knows how it ended, so the tape
  * travels beside the names the record knows the case by. What runs between two

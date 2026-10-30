@@ -60,7 +60,8 @@ export function selectionReporter(
     onWatcherRerun: () => reopenRun(run, Date.now()),
     onTestRunStart: () => reopenRun(run, run.settled ? Date.now() : run.startedAt),
     onFinished: async (files: readonly RunnerTask[]) => {
-      await writeCarried(story, files.flatMap((file) => testsOf(file).map((test) => ({
+      // The end is announced through both hooks; the first to arrive writes.
+      if (!run.settled) await writeCarried(story, files.flatMap((file) => testsOf(file).map((test) => ({
         meta: test.meta,
         stopped: test.result?.state === 'fail',
       }))));
@@ -85,7 +86,7 @@ export function selectionReporter(
       );
     },
     onTestRunEnd: async (reported: readonly ReportedModule[], _errors?: unknown, reason?: string) => {
-      await writeCarried(story, reported.flatMap((module) => [...module.children.allTests()].map((test) => ({
+      if (!run.settled) await writeCarried(story, reported.flatMap((module) => [...module.children.allTests()].map((test) => ({
         meta: test.meta?.(),
         stopped: test.result().state === 'failed',
       }))));

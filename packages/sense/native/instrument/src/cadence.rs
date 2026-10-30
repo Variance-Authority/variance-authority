@@ -283,8 +283,7 @@ fn registrars(program: &Program) -> (Vec<String>, Vec<String>) {
     }
 }
 
-/// The name a callee chain starts from: `it` for `it.each([…])` and `it.only`.
-/// A statement the probes put in: a call to one of our `__va` names. Where the
+/// A statement the probes put in: a call to one of the names they emit. Where the
 /// probes go in first, as in a page, it is not a statement of the test's.
 fn is_probe(statement: &Statement) -> bool {
     let Statement::ExpressionStatement(it) = statement else { return false };
@@ -294,14 +293,18 @@ fn is_probe(statement: &Statement) -> bool {
 // A probe is a call to one of ours, or a dormant one: `__vaL&&__vaL(...)`.
 fn is_probe_call(expression: &Expression) -> bool {
     match expression {
-        Expression::CallExpression(call) => matches!(&call.callee, Expression::Identifier(name) if name.name.starts_with("__va")),
-        Expression::LogicalExpression(it) => {
-            matches!(&it.left, Expression::Identifier(name) if name.name.starts_with("__va")) && is_probe_call(&it.right)
-        }
+        Expression::CallExpression(call) => is_probe_name(&call.callee),
+        Expression::LogicalExpression(it) => is_probe_name(&it.left) && is_probe_call(&it.right),
         _ => false,
     }
 }
 
+// The names `place.rs` and `walk_capture.rs` emit, and the cut's own.
+fn is_probe_name(callee: &Expression) -> bool {
+    matches!(callee, Expression::Identifier(name) if matches!(name.name.as_str(), "__va" | "__vaR" | "__vaL" | "__vaC"))
+}
+
+/// The name a callee chain starts from: `it` for `it.each([…])` and `it.only`.
 fn root_name<'b>(callee: &'b Expression) -> Option<&'b str> {
     match callee {
         Expression::Identifier(it) => Some(it.name.as_str()),

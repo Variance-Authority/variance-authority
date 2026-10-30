@@ -26,6 +26,13 @@ fn a_probe_already_in_the_body_is_not_a_statement_of_the_test() {
 }
 
 #[test]
+fn a_call_the_test_makes_is_a_statement_whatever_it_is_named() {
+    let out = cut("it('checks', () => {\n  __validate(x);\n  __vaLue && __vaLue(x);\n});\n");
+    assert!(out.contains("__vaC(2);__validate(x);"), "{out}");
+    assert!(out.contains("__vaC(3);__vaLue && __vaLue(x);"), "{out}");
+}
+
+#[test]
 fn hooks_and_tests_inside_describe_are_cut() {
     let out = cut("describe('d', () => {\n  beforeEach(() => {\n    reset();\n  });\n  test('t', async function () {\n    await run();\n  });\n});\n");
     assert!(out.contains("__vaC(3);reset();"), "{out}");
