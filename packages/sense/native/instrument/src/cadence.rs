@@ -288,8 +288,18 @@ fn registrars(program: &Program) -> (Vec<String>, Vec<String>) {
 /// probes go in first, as in a page, it is not a statement of the test's.
 fn is_probe(statement: &Statement) -> bool {
     let Statement::ExpressionStatement(it) = statement else { return false };
-    let Expression::CallExpression(call) = &it.expression else { return false };
-    matches!(&call.callee, Expression::Identifier(name) if name.name.starts_with("__va"))
+    is_probe_call(&it.expression)
+}
+
+// A probe is a call to one of ours, or a dormant one: `__vaL&&__vaL(...)`.
+fn is_probe_call(expression: &Expression) -> bool {
+    match expression {
+        Expression::CallExpression(call) => matches!(&call.callee, Expression::Identifier(name) if name.name.starts_with("__va")),
+        Expression::LogicalExpression(it) => {
+            matches!(&it.left, Expression::Identifier(name) if name.name.starts_with("__va")) && is_probe_call(&it.right)
+        }
+        _ => false,
+    }
 }
 
 fn root_name<'b>(callee: &'b Expression) -> Option<&'b str> {
@@ -363,6 +373,10 @@ mod tests {
         // In a page the probes go in first, so the cut reads them.
         let out = cut("it('adds', () => {__va(1);\n  add(1, 2);\n});\n");
         assert!(out.contains("() => {__va(1);\n  __vaC(2);add(1, 2);\n"), "{out}");
+        // Nor is the dormant capture a body with parameters opens with.
+        let out = cut("it('adds', ({ a }) => {__va(1);__vaL&&__vaL(1,\"a\",a);\n  add(a);\n});\n");
+        assert!(out.contains("__vaL&&__vaL(1,\"a\",a);\n  __vaC(2);add(a);\n"), "{out}");
+        assert!(!out.contains("__vaC(1)"), "{out}");
     }
 
     #[test]

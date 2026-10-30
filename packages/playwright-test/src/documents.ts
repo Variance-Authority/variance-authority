@@ -57,6 +57,9 @@ export const varianceDocumentFixtures: Fixtures<
     }
     const owner = varianceRecorder.owner(testInfo);
     // Before any page loads, so the collector a page evaluates finds the tape.
+    // FIXME: a context the spec makes itself, with `browser.newContext()`, gets
+    // no tape, and a document the test replaced took its undrained tape with
+    // it: the story says nothing of either.
     if (varianceRecorder.storyPage !== undefined) await context.addInitScript(varianceRecorder.storyPage);
     const documents = watchDocuments(context);
     const statements = drainEachStatement(context, varianceRecorder, owner, testInfo);
