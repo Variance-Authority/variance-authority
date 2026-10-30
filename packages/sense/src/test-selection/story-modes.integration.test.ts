@@ -83,8 +83,9 @@ describe('a story under each way its runner runs it', () => {
     );
   }, 240_000);
 
-  // A custom runner retries by calling `observer.case()` again for the same name.
-  it.todo('is a reading for each attempt of a case the generic runner seam retried');
+  it.todo(
+    'is a reading for each attempt of a case the generic runner seam retried — needs the external-runner fixture to call `observer.case()` again for a case whose first body threw',
+  );
 
   it.each([
     [
