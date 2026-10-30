@@ -37,11 +37,8 @@
  * ## Notes
  *
  * What the code said while the case ran — a console line, an announcement, an
- * Arrange/Act/Assert marker — rides in the header as `[position, text]`, the
- * position counted over the visits before the case and then the case's own.
- * Each test line whose statement ran rides beside them as `[position, line]`,
- * or `[position, line, 1]` for a hook's line: a line is where the case was,
- * not something it said.
+ * Arrange/Act/Assert marker — rides in the header as `[position, text]` over
+ * the visits before the case and then its own; a test line, as a {@link TestLine}.
  *
  * ## What comes before a case
  *
@@ -105,9 +102,10 @@ interface Story {
 }
 
 /**
- * Where a test line's statement ran, the line, how many of its notes were said
- * before it — a line and a note at one visit keep the order they came in — and
- * `1` where it is a hook's.
+ * Where a test line's statement ran, the line, how many of its part's notes
+ * were said before it — a line and a note at one visit keep the order they came
+ * in — and `1` where it is a hook's. A line is where the case was, not
+ * something it said, so it is never a note.
  */
 type TestLine = readonly [at: number, line: number, said: number, hook?: 1];
 
