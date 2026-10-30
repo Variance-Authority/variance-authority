@@ -22,7 +22,7 @@ npx playwright install chromium
 `yarn build` is not optional. The cases load the compiled packages from
 `packages/*/dist`, including bundles built after `tsc` by the same script; on an
 unbuilt checkout a case fails with `the variance page agent bundle is missing`.
-Node 22 or newer, as the root `package.json` requires.
+Node 22.12 or newer, as the root `package.json` requires.
 
 ## Choose a case
 
