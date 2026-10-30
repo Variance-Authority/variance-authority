@@ -336,7 +336,7 @@ describe('a stylesheet whose rules cannot be read', () => {
 
 describe('the cost of rebuilding the index per subject', () => {
   it('falls materially when one index is shared across the subjects of a document', () => {
-    // Warm once so neither printed figure pays for lazy module initialisation.
+    // Warm once so neither regime pays for lazy module initialisation.
     perSubjectIndex(1);
 
     const rebuilt = perSubjectIndex(SUBJECTS);
@@ -373,7 +373,7 @@ describe('the cost of rebuilding the index per subject', () => {
   // The end-to-end speedup, which is the sentence a reader wants and which
   // nothing here asserts. It divides one separately-timed run by another, and
   // the shared run is the small denominator: a stall of a few hundred
-  // milliseconds lands whole in its ~20ms and barely dents the rebuild. Alone
+  // milliseconds lands whole in its few tens and barely dents the rebuild. Alone
   // the ratio reads about 3×; beside a parallel `yarn test` it read 1.6× to 9×
   // across ten runs, and 0.9× inside one.
   it.todo(
