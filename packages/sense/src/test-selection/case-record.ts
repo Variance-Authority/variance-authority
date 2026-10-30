@@ -23,6 +23,8 @@ import { LAYOUT } from './record-layout.js';
  *   attempt (`eyes-record.ts`);
  * - `run.base` names the record the run started from (`record-base.ts`), so
  *   shards of one build that restored two records refuse to combine.
+ * - `cases.readings` holds the earlier readings of the cases a run recorded
+ *   again over the code they read before, as JSON (`case-readings.ts`).
  *
  * FIXME: `cases` and `cases.before` each carry a module and block table of
  * their own, re-encoding the files and blocks the record's coverage sections
@@ -38,6 +40,7 @@ export interface CaseSections {
   readonly last?: Uint8Array;
   readonly eyes?: Uint8Array;
   readonly base?: Uint8Array;
+  readonly readings?: Uint8Array;
 }
 
 /** The bytes each section occupies, read from its directory without decoding its contents. */
@@ -259,8 +262,8 @@ export function withCaseSections(record: Uint8Array, cases: CaseSections): Buffe
 }
 
 /**
- * `record` as another checkout takes it: the case index and its Eyes journals
- * kept, and the parts that name this checkout's last run and the record it
+ * `record` as another checkout takes it: the case index, its earlier readings
+ * and its Eyes journals kept, and the parts that name this checkout's last run and the record it
  * started from dropped, because that run is not the taker's. Every crossing — a seed, a fetch, a share — goes
  * through here.
  *
@@ -271,12 +274,13 @@ export function withCaseSections(record: Uint8Array, cases: CaseSections): Buffe
  * so no run over the taken record meets it.
  */
 export function sharedRecord(record: Uint8Array): Uint8Array {
-  const { index, before, last, eyes, base } = caseSectionsOf(record);
+  const { index, before, last, eyes, base, readings } = caseSectionsOf(record);
   const readable = eyes !== undefined && readableEyes(eyes) !== undefined;
   if (before === undefined && last === undefined && base === undefined && (eyes === undefined || readable)) return record;
   return withCaseSections(record, {
     ...(index === undefined ? {} : { index }),
     ...(readable ? { eyes } : {}),
+    ...(readings === undefined ? {} : { readings }),
   });
 }
 

@@ -12,6 +12,7 @@ import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { codeUnitOrder } from '@variance-authority/core/segment';
 import { layerBefore, layerCaseIndex } from './case-layer.js';
+import { layReadings } from './case-readings.js';
 import { caseSectionsAt, type CaseSections } from './case-record.js';
 import { decodeExecutionIndex, decodeExecutionTests } from './execution-format.js';
 import { encodeAsSetExecutionIndex, openSetExecutionIndex } from './execution-set-format.js';
@@ -201,12 +202,17 @@ export function layCases(
     cases: last,
   };
   const journals = layEyes(previous.eyes, eyes, cases, announced);
+  const readings = layReadings(previous.readings, previous.index, fresh, new Set(cases()), (file) => {
+    const text = recorded.get(file);
+    return text !== undefined && text === held?.get(file);
+  });
   return {
     index: merged,
     last: spelledLast(named, merged),
     // Absent is not empty: with no index to take them from, there is no before.
     ...(before === undefined ? {} : { before }),
     ...(journals === undefined ? {} : { eyes: journals }),
+    ...(readings === undefined ? {} : { readings }),
   };
 }
 

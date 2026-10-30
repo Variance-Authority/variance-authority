@@ -13,6 +13,7 @@
 import { codeUnitOrder } from '@variance-authority/core/segment';
 import { layerCaseIndex, openPrevious } from './case-layer.js';
 import { caseSectionsOf, withCaseSections, type CaseSections } from './case-record.js';
+import { layReadings } from './case-readings.js';
 import { encodeAsSetExecutionIndex } from './execution-set-format.js';
 import { layEyes } from './eyes-record.js';
 import { decodeTestCoverage, encodeTestCoverage } from './format.js';
@@ -83,11 +84,13 @@ function withoutCases(sections: CaseSections, collected: ReadonlySet<string>): C
   const before = cut(sections.before);
   const cases = openPrevious(index)?.tests;
   const eyes = cases === undefined ? sections.eyes : layEyes(sections.eyes, undefined, () => cases.map((test) => test.id), []);
+  const readings = cases === undefined ? sections.readings : layReadings(sections.readings, index, nothing, new Set(cases.map((test) => test.id)), () => true);
   return {
     ...(index === undefined ? {} : { index }),
     ...(before === undefined ? {} : { before }),
     ...(sections.last === undefined ? {} : { last: sections.last }),
     ...(sections.base === undefined ? {} : { base: sections.base }),
     ...(eyes === undefined ? {} : { eyes }),
+    ...(readings === undefined ? {} : { readings }),
   };
 }
