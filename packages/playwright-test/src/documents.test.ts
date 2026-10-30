@@ -43,15 +43,18 @@ function recorderHeld(): ExecutionRecorder & { readonly marked: boolean[] } {
   } as unknown as ExecutionRecorder & { readonly marked: boolean[] };
 }
 
-/** A recorder whose drains each say they carried `carried` replaced documents. */
-function recorderCarrying(carried: number): ExecutionRecorder & { readonly marked: boolean[] } {
+/** A recorder whose drains each say they carried `carried` replaced documents, telling stories. */
+function recorderCarrying(carried: number): ExecutionRecorder & { readonly marked: boolean[]; readonly lost: string[] } {
   const marked: boolean[] = [];
+  const lost: string[] = [];
   return {
     marked,
+    lost,
     owner: () => 'tests/shop.spec.ts',
     note: async () => carried,
     mark: (_owner: string, complete: boolean) => marked.push(complete),
-  } as unknown as ExecutionRecorder & { readonly marked: boolean[] };
+    lose: (_owner: string, subject: { id: string }) => lost.push(subject.id),
+  } as unknown as ExecutionRecorder & { readonly marked: boolean[]; readonly lost: string[] };
 }
 
 const testInfo = { file: SPEC, titlePath: ['shop.spec.ts', 'buys'], project: { name: '' }, testId: 't1' } as unknown as TestInfo;
@@ -125,5 +128,7 @@ describe('the `context` fixture', () => {
     await contextFixture(lost, async () => {}, 2);
 
     expect({ carried: carried.marked, lost: lost.marked }).toEqual({ carried: [], lost: [false] });
+    // The case's story is told the same, so a reader knows what it is missing.
+    expect({ carried: carried.lost, lost: lost.lost }).toEqual({ carried: [], lost: ['t1'] });
   });
 });

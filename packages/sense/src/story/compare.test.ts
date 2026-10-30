@@ -42,6 +42,12 @@ function reading(visits: number[], said: [number, string][] = [], stopped = fals
   };
 }
 
+/** {@link reading} of a case that ran in pages: test lines and the realm parts the page story says. */
+function paged(visits: number[], lines: [number, number, number][], parts: [number, number, number, number][]): Loaded {
+  const read = reading(visits);
+  return { ...read, story: { ...read.story, lines, parts } };
+}
+
 const passed = (...readings: Loaded[]) => ({ name: 'passed', readings });
 const threw = (...readings: Loaded[]) => ({ name: 'threw', readings });
 
@@ -265,5 +271,30 @@ describe('sides that are different cases', () => {
     const one = (name: string, before: number[]) => ({ name, readings: [reading([1, 2], [], false, before), reading([1, 2], [], false, before)] });
     const comparison = compareLoaded(ROOT, [one('alone', []), one('file', [4])]);
     expect(comparison.only).toEqual([{ sides: ['file'], places: [expect.objectContaining({ path: 'entry', place: expect.objectContaining({ name: 'price' }) })], said: [] }]);
+  });
+
+  it('order no two frames\' work under one test line, where only the order their drains arrived in is known', () => {
+    // removeItem ran in the main frame and price in a child frame, both under line 5.
+    const comparison = compareLoaded(ROOT, [
+      passed(paged([1, 4], [[0, 5, 0]], [[0, 0, 1, 1], [1, 0, 2, 2]]), paged([1, 4], [[0, 5, 0]], [[0, 0, 1, 1], [1, 0, 2, 2]])),
+      threw(paged([4, 1], [[0, 5, 0]], [[0, 0, 2, 2], [1, 0, 1, 1]]), paged([4, 1], [[0, 5, 0]], [[0, 0, 2, 2], [1, 0, 1, 1]])),
+    ]);
+
+    expect(comparison.orders).toEqual([]);
+    expect(comparison.unsteady.order).toBe(0);
+  });
+
+  it('order two frames\' work under two test lines, and one frame\'s work under one', () => {
+    const across = compareLoaded(ROOT, [
+      passed(paged([1, 4], [[0, 5, 0], [1, 6, 0]], [[0, 0, 1, 1], [1, 0, 2, 2]]), paged([1, 4], [[0, 5, 0], [1, 6, 0]], [[0, 0, 1, 1], [1, 0, 2, 2]])),
+      threw(paged([4, 1], [[0, 5, 0], [1, 6, 0]], [[0, 0, 2, 2], [1, 0, 1, 1]]), paged([4, 1], [[0, 5, 0], [1, 6, 0]], [[0, 0, 2, 2], [1, 0, 1, 1]])),
+    ]);
+    expect(across.orders).toHaveLength(1);
+
+    const within = compareLoaded(ROOT, [
+      passed(paged([1, 4], [[0, 5, 0]], [[0, 0, 1, 1], [2, 0, 2, 2]]), paged([1, 4], [[0, 5, 0]], [[0, 0, 1, 1], [2, 0, 2, 2]])),
+      threw(paged([4, 1], [[0, 5, 0]], [[0, 0, 1, 1], [2, 0, 2, 2]]), paged([4, 1], [[0, 5, 0]], [[0, 0, 1, 1], [2, 0, 2, 2]])),
+    ]);
+    expect(within.orders).toHaveLength(1);
   });
 });

@@ -73,6 +73,73 @@ describe('page stories', () => {
     expect(story.lines).toEqual([[0, 5, 0]]);
   });
 
+  it('says which frame and document each part ran in, and where the runner spoke between them', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'page-stories-'));
+    directories.push(directory);
+    const stories = pageStories(directory);
+    const [main, child] = [{}, {}];
+    const rows = { ids: ['a'], counts: [2], bases: [0] };
+
+    stories.line(subject, 3);
+    stories.add(subject, drained({ tape: [0], rows }), main);
+    stories.add(subject, drained({ tape: [1], rows }), child);
+    // A second drain of the same document is the same part.
+    stories.add(subject, drained({ tape: [1], rows }), child);
+    stories.note(subject, 'clicked');
+    // The main frame went to another document, and the one it left ran once more.
+    const left = drained({ tape: [1], rows });
+    stories.add(subject, drained({ tape: [0, 1], rows, before: [left] }), main);
+    stories.write(subject, false);
+
+    expect(written(directory).parts).toEqual([
+      [0, 0, 1, 1],
+      [1, 0, 2, 2],
+      [3, 0, 0, 0],
+      [3, 1, 1, 1],
+      [4, 1, 1, 3],
+    ]);
+  });
+
+  it('says no parts for a case that ran in one document', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'page-stories-'));
+    directories.push(directory);
+    const stories = pageStories(directory);
+    const page = {};
+    stories.add(subject, drained({ tape: [0], rows: { ids: ['a'], counts: [1], bases: [0] } }), page);
+    stories.add(subject, drained({ tape: [0], rows: { ids: ['a'], counts: [1], bases: [0] } }), page);
+    stories.write(subject, false);
+
+    expect(written(directory).parts).toBeUndefined();
+  });
+
+  it('keeps one case run under two projects as two cases, each naming its project', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'page-stories-'));
+    directories.push(directory);
+    const stories = pageStories(directory);
+    for (const project of ['chromium', 'firefox']) {
+      stories.add({ ...subject, project }, drained({ tape: [0], rows: { ids: ['a'], counts: [1], bases: [0] } }));
+      stories.write({ ...subject, project }, false);
+    }
+
+    const names = readdirSync(directory);
+    expect(new Set(names.map((name) => name.split('.')[0])).size).toBe(2);
+    expect(names.map((name) => decodeStory(readFileSync(join(directory, name))).project).sort()).toEqual(['chromium', 'firefox']);
+  });
+
+  it('says a page was lost before it was read where the runner says so, and nothing where it cannot tell', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'page-stories-'));
+    directories.push(directory);
+    const stories = pageStories(directory);
+    stories.add(subject, drained({ tape: [0], rows: { ids: ['a'], counts: [1], bases: [0] } }));
+    stories.write(subject, true, true);
+    expect(written(directory).lost).toBe(true);
+    rmSync(join(directory, readdirSync(directory)[0]!));
+
+    stories.add(subject, drained({ tape: [0], rows: { ids: ['a'], counts: [1], bases: [0] } }));
+    stories.write(subject, true);
+    expect(written(directory).lost).toBeUndefined();
+  });
+
   it('writes nothing for a case no page drained, and forgets a case once written', () => {
     const directory = mkdtempSync(join(tmpdir(), 'page-stories-'));
     directories.push(directory);

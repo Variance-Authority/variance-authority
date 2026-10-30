@@ -156,4 +156,27 @@ describe('a route', () => {
       { place: expect.objectContaining({ at: 'src/cart.ts#handle~2/entry' }), arms: [{ path: 'if#0/then', at: 'src/cart.ts#handle~2/if#0/then', startLine: 11, endLine: 11 }] },
     ]);
   });
+
+  it('says where the case moved into another document or the runner, and counts the documents', () => {
+    const paged = {
+      ...story([1, 4, 1]),
+      notes: [[2, 'clicked']] as [number, string][],
+      lines: [[0, 5, 0]] as [number, number, number, 1?][],
+      parts: [[0, 0, 1, 1], [1, 0, 1, 2], [2, 0, 0, 0], [2, 1, 1, 2]] as [number, number, number, number][],
+    };
+    const route = drawRoute(ROOT, paged, ['src/cart.ts', 'src/format.ts'], [CART, undefined]);
+    expect(route.opening).toEqual({ route: ['test line 5', 'in document 1'] });
+    expect(route.route).toMatchObject([
+      { token: { place: { name: 'removeItem' }, said: ['in document 2'] } },
+      { token: { place: { name: 'price' }, said: ['in the runner', 'clicked', 'in document 2'] } },
+      { token: { place: { name: 'removeItem' } } },
+    ]);
+    expect(route.documents).toBe(2);
+  });
+
+  it('names the project the case ran under, and says a page was lost where the story says so', () => {
+    const route = drawRoute(ROOT, { ...story([1]), project: 'firefox', lost: true }, ['src/cart.ts', 'src/format.ts'], [CART, undefined]);
+    expect(route).toMatchObject({ project: 'firefox', lost: true });
+    expect(route.documents).toBeUndefined();
+  });
 });

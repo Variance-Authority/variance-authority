@@ -302,7 +302,10 @@ function testDocuments(recorder: NonNullable<RecorderFixture['varianceRecorder']
       else outerRealm.c = outer;
       for (const context of adopted.keys()) await settle(context);
       closed = true;
-      if (lost) recorder.mark(owner, false);
+      if (lost) {
+        recorder.mark(owner, false);
+        recorder.lose?.(owner, subject);
+      }
     },
   };
 }

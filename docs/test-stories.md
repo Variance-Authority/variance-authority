@@ -333,6 +333,10 @@ holds on every reading.
   then name each test; each side is named with its file. A name two test files
   have is refused until you write it as `<file> > <name>`, or narrow every name
   to one file with `--file`.
+- **A test run under several Playwright projects is a test per project.**
+  `variance story` lists each with its project. Name one with `--project
+  <name>`, which narrows every side alike; a test that ran under two projects is
+  refused as a side until you do.
 - **`--label <name>` narrows every side alike**, to the readings recorded
   under that label. `--compare` compares readings of one test, so it is
   refused beside several `--name`.
@@ -464,7 +468,12 @@ VARIANCE_AUTHORITY_STORY=1 npx variance run --subjects "story:cart--*"
 
 Under Playwright, Storybook and the browser modes of Vitest and Rstest, the
 story is of the code the page ran. Under Playwright and the browser modes, each
-statement of the test opens what the page did next with its line.
+statement of the test opens what the page did next with its line. When the test
+ran in more than one page document, such as a page and a popup or a page it
+navigated, the story marks where it moves into each. A ref is its own
+document's, and what two documents did under one statement is in the order it
+reached the test, not the order it ran, so a comparison does not count that
+order as a difference.
 
 - **Where stories are kept.** In [the cache](cache.md), under
   `coverage.stories/`. A story is removed 14 days after it was written, with
@@ -589,8 +598,9 @@ Take the `console.log` out before you change the code.
 - **Other processes.** A story covers the test's own process, or under
   Playwright, Storybook and the browser modes of Vitest and Rstest, the page. Code the test calls in another
   process, such as a server, is not on it.
-- **Some pages.** Under Playwright, a page replaced before its statement
-  ended loses what it ran since the statement before.
+- **Some pages.** Under Playwright, a page closed or replaced before its
+  statement ended loses what it ran since the statement before. The header says
+  so.
 - **The order inside one step, or how each pass of a loop differed.** A step
   lists its branches in the order the code has them, and a loop is shown once,
   with the counts of all its passes added together. Use a debugger for that.

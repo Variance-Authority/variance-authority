@@ -94,6 +94,10 @@ interface CaseTape {
   readonly notes: [number, string][];
   readonly lines: [number, number, number, 1?][];
   readonly held: Map<ModuleId, string>;
+  // Where the story moves into another realm, and the frames and documents it met.
+  readonly parts: [number, number, number, number][];
+  readonly frames: Map<object, { readonly frame: number; document: number }>;
+  documents: number;
   // The rows of every drain, one per module and count, at the base the story gives it.
   readonly rows: Map<string, number>;
   readonly ids: ModuleId[];
@@ -116,12 +120,21 @@ export interface StoryCase {
 export interface PageStories {
   /** Open what the case does next with the test line whose statement does it, a hook's where `hook` says so. */
   readonly line: (subject: StoryCase, line: number, hook?: boolean) => void;
-  /** Lay a drain of one page at the end of the case's story. */
-  readonly add: (subject: StoryCase, story: PageStory) => void;
+  /**
+   * Lay a drain of one page at the end of the case's story. `frame` is the
+   * frame it was drained from, any object that stays the same across its
+   * documents; where it is given, the story says which frame and document
+   * each part ran in, so a reader never orders two frames' work under one
+   * statement by the order their drains arrived in.
+   */
+  readonly add: (subject: StoryCase, story: PageStory, frame?: object) => void;
   /** Put what the case said in the runner's own process at the end of its story so far, bounded as a tap bounds a note. */
   readonly note: (subject: StoryCase, text: string) => void;
-  /** Write the case's story and forget it; a case that never drained writes none. */
-  readonly write: (subject: StoryCase, stopped: boolean) => void;
+  /**
+   * Write the case's story and forget it; a case that never drained writes
+   * none. `lost` says a page the case ran in was gone before it was drained.
+   */
+  readonly write: (subject: StoryCase, stopped: boolean, lost?: boolean) => void;
 }
 
 /** Assemble page stories per case and write each one into `directory`. */
@@ -133,10 +146,30 @@ export function pageStories(directory: string): PageStories {
     const key = keyOf(subject);
     let tape = tapes.get(key);
     if (tape === undefined) {
-      tape = { entries: [], notes: [], lines: [], held: new Map(), rows: new Map(), ids: [], counts: [], bases: [], visits: 0, unnoted: 0, total: 0 };
+      tape = { entries: [], notes: [], lines: [], held: new Map(), parts: [], frames: new Map(), documents: 0, rows: new Map(), ids: [], counts: [], bases: [], visits: 0, unnoted: 0, total: 0 };
       tapes.set(key, tape);
     }
     return tape;
+  };
+  // A part opens where the story moves into a realm other than the one it was in.
+  const enter = (tape: CaseTape, frame: number, document: number): void => {
+    const at = tape.entries.length;
+    const said = tape.notes.length;
+    const same = (part: readonly number[] | undefined): boolean => part !== undefined && part[2] === frame && part[3] === document;
+    if (same(tape.parts.at(-1))) return;
+    // A part nothing ran in gives way to the next, as a line does.
+    const last = tape.parts.at(-1);
+    if (last !== undefined && last[0] === at && last[1] === said) tape.parts.pop();
+    if (!same(tape.parts.at(-1))) tape.parts.push([at, said, frame, document]);
+  };
+  // What a frame drains is the document it holds, until it replaces it.
+  const documentOf = (tape: CaseTape, frame: object, replaced: boolean): [number, number] => {
+    let known = tape.frames.get(frame);
+    if (known === undefined) {
+      known = { frame: tape.frames.size + 1, document: (tape.documents += 1) };
+      tape.frames.set(frame, known);
+    } else if (replaced) known.document = tape.documents += 1;
+    return [known.frame, known.document];
   };
   const stories: PageStories = {
     // FIXME: a drain that reaches the runner after the next line is cut lays
@@ -151,10 +184,16 @@ export function pageStories(directory: string): PageStories {
       if (last !== undefined && last[0] === at && last[2] === said) tape.lines[tape.lines.length - 1] = cut;
       else tape.lines.push(cut);
     },
-    add(subject, story) {
-      // What the documents this page replaced ran comes first, as they ran it.
-      for (const before of story.before ?? []) stories.add(subject, before);
+    add(subject, story, frame) {
+      // What the documents this page replaced ran comes first, as they ran it,
+      // each a document of its own in the same frame.
+      const replaced = story.before ?? [];
+      for (const [index, before] of replaced.entries()) {
+        if (frame !== undefined) enter(tapeOf(subject), ...documentOf(tapeOf(subject), frame, index > 0));
+        stories.add(subject, before);
+      }
       const tape = tapeOf(subject);
+      if (frame !== undefined) enter(tape, ...documentOf(tape, frame, replaced.length > 0));
       const offset = tape.entries.length;
       const { bases } = story.rows;
       // A page's row is the story's row for the same module and count: two
@@ -185,6 +224,7 @@ export function pageStories(directory: string): PageStories {
     },
     note(subject, text) {
       const tape = tapeOf(subject);
+      if (tape.parts.length > 0) enter(tape, 0, 0);
       if (tape.notes.length >= storyTap.NOTE_LIMIT) {
         tape.unnoted += 1;
         return;
@@ -192,7 +232,7 @@ export function pageStories(directory: string): PageStories {
       const line = text.length > storyTap.NOTE_LENGTH ? `${text.slice(0, storyTap.NOTE_LENGTH - 1)}…` : text;
       tape.notes.push([tape.entries.length, line]);
     },
-    write(subject, stopped) {
+    write(subject, stopped, lost) {
       const key = keyOf(subject);
       const tape = tapes.get(key);
       tapes.delete(key);
@@ -212,6 +252,11 @@ export function pageStories(directory: string): PageStories {
         },
         key,
         stopped,
+        {
+          ...(lost === undefined ? {} : { lost }),
+          // A case that ran in one realm moved nowhere.
+          ...(new Set(tape.parts.map(([, , frame, document]) => `${frame}\u0000${document}`)).size < 2 ? {} : { parts: tape.parts }),
+        },
       );
       writer(key, bytes);
     },

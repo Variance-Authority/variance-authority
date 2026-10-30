@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 /** The format as it ships: built, because it `require`s its neighbours by the names the build gives them. */
-const { decodeStory, encodeStory } = (await import('../../dist/story/format.cjs')).default as typeof import('./format.cjs');
+const { caseStem, decodeStory, encodeStory } = (await import('../../dist/story/format.cjs')).default as typeof import('./format.cjs');
 
 const KEY = 'src/theme.test.ts\u0000shows the theme\u00001';
 
@@ -61,5 +61,13 @@ describe('where a story says the case was', () => {
 
     expect(story.lines).toEqual([]);
     expect(story.beforeLines).toEqual([]);
+  });
+});
+
+describe('the case a reading is of', () => {
+  it('is its file and name alone where no project ran it, and its project as well where one did', () => {
+    expect(caseStem('a.test.ts', 'adds')).toBe(caseStem('a.test.ts', 'adds', undefined));
+    expect(caseStem('a.test.ts', 'adds', 'chromium')).not.toBe(caseStem('a.test.ts', 'adds'));
+    expect(caseStem('a.test.ts', 'adds', 'chromium')).not.toBe(caseStem('a.test.ts', 'adds', 'firefox'));
   });
 });

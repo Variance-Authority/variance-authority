@@ -74,20 +74,24 @@ export function story(parsed: ParsedStory): StoryAnswer {
   }
   const { compare } = parsed;
   if (typeof compare === 'object' && 'cases' in compare) {
-    return compareCases(parsed.root, all, compare.cases, { file, label: parsed.label });
+    return compareCases(parsed.root, all, compare.cases, { file, project: parsed.project, label: parsed.label });
   }
   const matching = all.filter(
     (entry) =>
       (file === undefined || entry.file === file)
       && (parsed.name === undefined || entry.name === parsed.name)
+      && (parsed.project === undefined || entry.project === parsed.project)
       && (parsed.label === undefined || labelled(entry) === parsed.label),
   );
   if (matching.length === 0) {
-    const asked = [parsed.file && `--file ${parsed.file}`, parsed.name && `--name ${parsed.name}`, parsed.label && `--label ${parsed.label}`].filter(Boolean);
+    const asked = [
+      parsed.file && `--file ${parsed.file}`, parsed.name && `--name ${parsed.name}`,
+      parsed.project && `--project ${parsed.project}`, parsed.label && `--label ${parsed.label}`,
+    ].filter(Boolean);
     throw new OperatorError(`no story is written for ${asked.join(' and ')}; ${all.length} ${all.length === 1 ? 'is' : 'are'} written here, and \`variance story\` alone lists them`);
   }
   // Readings are listed newest first within a case, so a case's first is its newest.
-  const cases = new Set(matching.map((entry) => `${entry.file}\0${entry.name}`));
+  const cases = new Set(matching.map(caseOf));
   if (cases.size > 1) return { stories: matching };
   const compared = compare === undefined ? undefined : compareStory(parsed.root, matching, compare);
   if (compared !== undefined && !('alone' in compared)) return { comparison: compared };
@@ -223,24 +227,32 @@ function size(text: readonly string[]): number {
 function storiesText(entries: readonly StoryEntry[], format: 'text' | 'json'): string {
   const cases = new Map<string, StoryEntry[]>();
   for (const entry of entries) {
-    const key = `${entry.file}\0${entry.name}`;
+    const key = caseOf(entry);
     (cases.get(key) ?? cases.set(key, []).get(key)!).push(entry);
   }
   if (format === 'json') {
     const stories = [...cases.values()].map((readings) => ({
       file: readings[0]!.file,
       name: readings[0]!.name,
+      ...(readings[0]!.project === undefined ? {} : { project: readings[0]!.project }),
       readings: readings.map(({ visits, label, written, stopped }) => ({ visits, label, written, stopped })),
     }));
     return `${JSON.stringify({ stories }, null, 2)}\n`;
   }
-  const lines = [`${cases.size} stories; name one with --file and --name`, ''];
+  const projects = entries.some((entry) => entry.project !== undefined) ? ', and --project' : '';
+  const lines = [`${cases.size} stories; name one with --file and --name${projects}`, ''];
   for (const readings of cases.values()) {
     const [newest] = readings;
+    const project = newest!.project === undefined ? '' : `project ${newest!.project}, `;
     const kept = readings.length === 1 ? '' : `, ${readings.length} readings${labels(readings)}`;
-    lines.push(`  ${newest!.file} > ${newest!.name}  (${newest!.visits} visits${kept})`);
+    lines.push(`  ${newest!.file} > ${newest!.name}  (${project}${newest!.visits} visits${kept})`);
   }
   return `${lines.join('\n')}\n`;
+}
+
+/** A case, as its readings are told apart from another's: by its file, its name and the project it ran under. */
+function caseOf(entry: StoryEntry): string {
+  return `${entry.file}\0${entry.name}\0${entry.project ?? ''}`;
 }
 
 /** The labels a case's readings were written under, when any has one. */
@@ -256,6 +268,7 @@ function header(route: Route, steps: number, reading: Extract<StoryAnswer, { rou
   const files = route.files.length;
   const lines = [
     `story  ${route.file} > ${route.name}`,
+    ...(route.project === undefined ? [] : [`  under the project ${route.project}`]),
     `  goes through ${files} ${files === 1 ? 'file' : 'files'} in ${steps} ${steps === 1 ? 'step' : 'steps'}`,
   ];
   if (reading !== undefined && reading.of > 1) {
@@ -265,9 +278,16 @@ function header(route: Route, steps: number, reading: Extract<StoryAnswer, { rou
   }
   if (reading?.unmatched !== undefined) lines.push(`  ${reading.unmatched}`);
   if (route.stopped === true) lines.push('  the test threw or rejected, so the route ends where it stopped');
+  if (route.lost === true) lines.push('  a page the test ran in was gone before what it ran there was read, so the route is missing that');
   if (route.untaped > 0) lines.push(`  the recording filled up, and ${route.untaped} later visits are not on this route`);
   if (route.interleaved > 0) {
     lines.push(`  another test's work ran in the middle of this one ${times(route.interleaved)}, and is left out`);
+  }
+  if (route.documents !== undefined) {
+    lines.push(
+      `  ran in ${route.documents} page documents, each said where the route moves into it; a ref is its own document's,`
+        + ' and what two of them did within one test line is in the order it reached the runner, not the order it ran',
+    );
   }
   if (route.unnoted !== undefined) lines.push(`  the recording kept its first lines said, and ${route.unnoted} later ones are not on this route`);
   for (const [part, said] of [['before the test', route.opening?.before], ['the test', route.opening?.route]] as const) {

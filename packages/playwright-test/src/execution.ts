@@ -76,6 +76,11 @@ export interface ExecutionRecorder {
   /** Say what the case printed in the runner's own process, where the case is now; present beside {@link storyPage}. */
   readonly say?: (owner: string, subject: ObservedTest, text: string) => void;
   /**
+   * Say that a document the case ran in was gone before what it ran there was
+   * drained, so the case's story is missing it; present beside {@link storyPage}.
+   */
+  readonly lose?: (owner: string, subject: ObservedTest) => void;
+  /**
    * Mint this execution's journey and put it on the page's context.
    *
    * One opaque id per attempt, not per subject: a flake and its retry are two
@@ -175,6 +180,8 @@ export function createExecutionRecorder(
   // another process, and a listener nobody can find is a port for nothing.
   const journeys = driveJourneys(wire);
   const reports = journeys.reports;
+  // The cases whose story is missing a document, until it is written.
+  const lostCases = new Set<string>();
   let seen = false;
   let announced = false;
   let instrumentation: string | undefined;
@@ -187,6 +194,7 @@ export function createExecutionRecorder(
           storyPage: storyPageSource(),
           cut: (owner: string, subject: ObservedTest, line: number, hook: boolean) => stories.line(storyCase(owner, subject), line, hook),
           say: (owner: string, subject: ObservedTest, text: string) => stories.note(storyCase(owner, subject), text),
+          lose: (owner: string, subject: ObservedTest) => void lostCases.add(caseKey(owner, subject.id)),
         }),
     owner: (testInfo) => ownerOf(root, testInfo),
     arranged: (owner, subject) => listener?.held(caseKey(owner, subject.id)),
@@ -207,7 +215,8 @@ export function createExecutionRecorder(
         const held = caseOf(owner, subject);
         if (line !== undefined) reached.charge(caseKey(owner, subject.id), held, journal.modules, line, hook === true);
         absorb(held, journal);
-        if (journal.story !== undefined) stories?.add(storyCase(owner, subject), journal.story);
+        // The frame stays one object across its documents, so the story can say which frame each part ran in.
+        if (journal.story !== undefined) stories?.add(storyCase(owner, subject), journal.story, page);
       }
       return journal.replaced ?? 0;
     },
@@ -246,7 +255,7 @@ export function createExecutionRecorder(
         }
         stopped.set(key, stopped.get(key) === false ? false : !complete);
         // One reading per attempt: a retry is a second run of the case.
-        stories?.write(storyCase(owner, subject), !complete);
+        stories?.write(storyCase(owner, subject), !complete, lostCases.delete(key));
         // A case that stopped before the page had anything to drain is still a
         // case, and the one a reader most needs to hear about.
         if (!complete) caseOf(owner, subject);

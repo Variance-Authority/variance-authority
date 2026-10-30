@@ -27,7 +27,8 @@
  * ## Readings
  *
  * Every run of a case writes a reading of its own, named
- * `<case>.<written>-<pid>-<n>[.<label>].story`: the case's digest, when it was
+ * `<case>.<written>-<pid>-<n>[.<label>].story`: the digest of the case's file,
+ * name and project, when it was
  * written, and the label the run gave `VARIANCE_AUTHORITY_STORY` when it gave one
  * other than `1`. A case keeps its last {@link READINGS}. One reading says
  * where the case went; two sets of them say which differences come back every
@@ -99,7 +100,25 @@ interface Story {
   readonly lines: readonly TestLine[];
   /** Each test line run before the case began, placed as {@link beforeNotes} are. */
   readonly beforeLines: readonly TestLine[];
+  /** The project the case ran under, where its runner runs one file in several: `chromium`, `firefox`. */
+  readonly project?: string;
+  /**
+   * Whether a page the case ran in was gone before what it ran there was read,
+   * so the story is missing it; absent where the writer could not tell.
+   */
+  readonly lost?: boolean;
+  /**
+   * Where the case's story moves from one realm to another, for a case that
+   * ran in pages: each part placed as {@link lines} are, with the frame it ran
+   * in, numbered from 1 in the order the case met them, and the document in
+   * it, numbered across the case. Frame and document 0 is the runner's own
+   * process. Absent where the case ran in one realm.
+   */
+  readonly parts?: readonly Part[];
 }
+
+/** Where a case's story moves into another realm: after `at` visits and `said` notes, frame `frame`'s document `document`. */
+type Part = readonly [at: number, said: number, frame: number, document: number];
 
 /**
  * Where a test line's statement ran, the line, how many of its part's notes
@@ -113,8 +132,9 @@ type TestLine = readonly [at: number, line: number, said: number, hook?: 1];
 const READINGS = 16;
 
 /** The one case a story is of, as the start of every reading's file name. */
-function caseStem(file: string, name: string): string {
-  return crypto.createHash('sha256').update(`${file}\u0000${name}`).digest('hex').slice(0, 32);
+function caseStem(file: string, name: string, project?: string): string {
+  const named = project === undefined ? `${file}\u0000${name}` : `${file}\u0000${name}\u0000${project}`;
+  return crypto.createHash('sha256').update(named).digest('hex').slice(0, 32);
 }
 
 /** What a reading's file name says: its case, when it was written, and the label it was given. */
@@ -167,7 +187,7 @@ function rowAt(bases: readonly number[], index: number): number {
  * before such a case is not told, because a case with no visit has no place on
  * the tape to begin.
  */
-function encodeStory(tape: Tape, key: string, stopped?: boolean): Buffer {
+function encodeStory(tape: Tape, key: string, stopped?: boolean, page: { readonly lost?: boolean; readonly parts?: readonly Part[] } = {}): Buffer {
   const { at, keys } = tape;
   const ends = (segment: number): number => (segment + 1 < at.length ? at[segment + 1]! : tape.taped);
   const own: number[] = [];
@@ -271,15 +291,17 @@ function encodeStory(tape: Tape, key: string, stopped?: boolean): Buffer {
     beforeLines[index] = cut[3] === 1 ? [cut[0], cut[1], cut[2] + holding.length, 1] : [cut[0], cut[1], cut[2] + holding.length];
   }
 
-  const { file, name } = caseOwner.unpackCase(key);
+  const { file, name, project } = caseOwner.unpackCase(key);
   const header = Buffer.from(
     JSON.stringify({
-      file, name, rows, before, untaped: tape.visits - tape.taped, interleaved, stopped,
+      file, name, ...(project === undefined ? {} : { project }), rows, before, untaped: tape.visits - tape.taped, interleaved, stopped,
       ...(notes.length === 0 ? {} : { notes }),
       ...(beforeNotes.length === 0 ? {} : { beforeNotes }),
       ...(tape.unnoted === 0 ? {} : { unnoted: tape.unnoted }),
       ...(lines.length === 0 ? {} : { lines }),
       ...(beforeLines.length === 0 ? {} : { beforeLines }),
+      ...(page.lost === undefined ? {} : { lost: page.lost }),
+      ...(page.parts === undefined || page.parts.length === 0 ? {} : { parts: page.parts }),
     }),
     'utf8',
   );
@@ -328,8 +350,10 @@ function decodeStory(bytes: Uint8Array): Story {
 function storyHeader(file: string): {
   readonly file: string;
   readonly name: string;
+  readonly project?: string;
   readonly visits: number;
   readonly stopped?: boolean;
+  readonly lost?: boolean;
 } {
   const damaged = (): Error => new Error(`variance-authority: ${file} is not a story this build writes`);
   const descriptor = fs.openSync(file, 'r');
@@ -343,12 +367,14 @@ function storyHeader(file: string): {
     if (body > size || (size - body) % 4 !== 0) throw damaged();
     const text = Buffer.alloc(length);
     if (fs.readSync(descriptor, text, 0, length, lead.length) !== length) throw damaged();
-    const header = JSON.parse(text.toString('utf8')) as { file: string; name: string; before: number; stopped?: boolean };
+    const header = JSON.parse(text.toString('utf8')) as { file: string; name: string; project?: string; before: number; stopped?: boolean; lost?: boolean };
     return {
       file: header.file,
       name: header.name,
+      ...(header.project === undefined ? {} : { project: header.project }),
       visits: (size - body) / 4 - header.before,
       ...(header.stopped === undefined ? {} : { stopped: header.stopped }),
+      ...(header.lost === undefined ? {} : { lost: header.lost }),
     };
   } finally {
     fs.closeSync(descriptor);
@@ -368,8 +394,8 @@ function storyWriter(
 ): (key: string, bytes: Uint8Array) => void {
   let written = 0;
   return (key, bytes) => {
-    const { file, name } = caseOwner.unpackCase(key);
-    const stem = caseStem(file, name);
+    const { file, name, project } = caseOwner.unpackCase(key);
+    const stem = caseStem(file, name, project);
     fs.mkdirSync(directory, { recursive: true });
     written += 1;
     const reading = `${stem}.${Date.now()}-${process.pid}-${written}${label === undefined ? '' : `.${label}`}.story`;

@@ -21,7 +21,10 @@
  * - **In what order.** Two places, or two notes, every side reaches every time,
  *   that each side reaches in one order every time, and not every side in the
  *   same one. Order is compared at first arrival, at the grain of a
- *   declaration or a note, which is the grain a person reads a route at.
+ *   declaration or a note, which is the grain a person reads a route at. Two
+ *   moments of a case that ran in pages, reached in two frames — or in a frame
+ *   and the runner — under one test line, have no order to compare: what the
+ *   story holds is the order their drains reached the runner in.
  *
  * Each difference is told under the sides that hold it, so with three sides an
  * arm both failing cases took and the passing one did not is one finding, not
@@ -126,6 +129,11 @@ interface Read {
   readonly said: Set<string>;
   /** Each moment's first arrival, by key, in order. */
   readonly first: Map<string, number>;
+  /**
+   * For a reading of a case that ran in pages, the frame each moment first
+   * arrived in and the test line it arrived under, by key.
+   */
+  readonly realms?: Map<string, readonly [frame: number, line: number]>;
 }
 
 /** A reading decoded, with each of its modules' regions where the record beside it holds them. */
@@ -272,7 +280,29 @@ function readReading(root: string, { story, files, regions }: Loaded, names: Map
     }
   };
   if (before) walk(story.before, story.beforeNotes);
+  const start = clock;
   walk(story.visits, story.notes);
+  if (story.parts !== undefined) {
+    // A part or a line placed after `at` visits and `said` notes opens at tick `at + said`.
+    const opens = (cuts: readonly (readonly [number, ...(number | undefined)[]])[], said: number): number[] => cuts.map((cut) => cut[0] + cut[said]!);
+    const parts = opens(story.parts, 1);
+    const lines = opens(story.lines, 2);
+    const last = (ticks: readonly number[], tick: number): number => {
+      let at = -1;
+      while (at + 1 < ticks.length && ticks[at + 1]! <= tick) at += 1;
+      return at;
+    };
+    const realms = new Map<string, readonly [number, number]>();
+    for (const [key, tick] of read.first) {
+      if (!key.startsWith('m\0')) continue;
+      const own = tick - start;
+      // What ran before the case is one realm and one line of its own; what the
+      // runner said before any page drained is the runner's.
+      const part = last(parts, own);
+      realms.set(key, own < 0 ? [-1, -2] : [part === -1 ? 0 : story.parts[part]![2], last(lines, own)]);
+    }
+    return { ...read, realms };
+  }
   return read;
 }
 
@@ -324,15 +354,19 @@ function orderedPairs(sides: readonly (readonly Read[])[]): { differing: { pair:
   moments.sort((one, two) => all[0]!.first.get(one)! - all[0]!.first.get(two)!);
   const differing: { pair: [string, string]; before: number[] }[] = [];
   let unsteady = 0;
-  // Each moment's first arrival is a tick of its own, so two moments are never level.
-  const ahead = (read: Read, [one, two]: readonly [string, string]): boolean => read.first.get(one)! < read.first.get(two)!;
+  // Each moment's first arrival is a tick of its own, so two moments are never
+  // level; two arrivals in two realms under one test line have no order.
+  const ahead = (read: Read, [one, two]: readonly [string, string]): boolean | undefined => {
+    const [left, right] = [read.realms?.get(one), read.realms?.get(two)];
+    if (left !== undefined && right !== undefined && left[0] !== right[0] && left[1] === right[1]) return undefined;
+    return read.first.get(one)! < read.first.get(two)!;
+  };
   for (let at = 0; at < moments.length; at += 1) {
     for (let next = at + 1; next < moments.length; next += 1) {
       const pair: [string, string] = [moments[at]!, moments[next]!];
-      const held = sides.map((reads) => {
-        const leads = reads.map((read) => ahead(read, pair));
-        return leads.every((lead) => lead === leads[0]) ? leads[0] : undefined;
-      });
+      const leads = sides.map((reads) => reads.map((read) => ahead(read, pair)));
+      if (leads.some((side) => side.includes(undefined))) continue;
+      const held = leads.map((side) => (side.every((lead) => lead === side[0]) ? side[0] : undefined));
       if (held.some((lead) => lead === undefined)) unsteady += 1;
       else if (held.some((lead) => !lead)) differing.push({ pair, before: held.flatMap((lead, side) => (lead ? [side] : [])) });
     }
