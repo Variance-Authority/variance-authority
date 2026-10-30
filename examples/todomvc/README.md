@@ -25,7 +25,7 @@ on a codebase small enough to read, not a survey of real-world repositories.
 
 ## Running it
 
-You need Node 22 or newer and Yarn 4 through Corepack. **Every command below
+You need Node 22.12 or newer and Yarn 4 through Corepack. **Every command below
 runs from the repository root**, not from this directory — the suites resolve
 `examples/todomvc/` relative to the process working directory, and the packages
 they import resolve through `dist/`, so the build is not optional.

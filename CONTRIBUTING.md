@@ -7,7 +7,7 @@ claims, and what a change owes a release.
 
 ## Set up
 
-You need Node 22 or newer and Yarn 4 through Corepack (`corepack enable`); the
+You need Node 22.12 or newer and Yarn 4 through Corepack (`corepack enable`); the
 exact Yarn version is pinned as `packageManager` in the root
 [`package.json`](package.json). **Every command on this page runs from the
 repository root.**

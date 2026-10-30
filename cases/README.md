@@ -103,8 +103,8 @@ application's own decision, and carrying one execution id from a browser into a
 service that answers many callers at once. The Playwright-over-Storybook case
 covers recording which spec executed which source lines, for a suite whose specs
 never name this project. The Vitest 4 case covers the test-selection seam under the
-newest Vitest major, which ends a run differently from the Vitest the rest of the
-repository runs.
+oldest Vitest it supports, 4.1, which ends a run differently from the Vitest 5 the
+rest of the repository runs.
 
 These cases are run on one Mac and one Chromium. They say nothing about a hosted
 review product, a browser fleet, a service-level deployment, or repository-scale
