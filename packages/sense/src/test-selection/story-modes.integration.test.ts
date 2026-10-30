@@ -1,8 +1,8 @@
 /**
  * The story a case writes does not depend on how its runner ran it: the same
- * stories under every Vitest pool and with isolation off, and a reading for
- * each attempt of a retried case under Vitest, Jest and Rstest, the failed one
- * stopped.
+ * stories under every Vitest pool, Jest in band and Rstest with isolation off,
+ * and a reading for each attempt of a retried case under Vitest, Jest and
+ * Rstest, the failed one stopped.
  */
 
 import { execFile } from 'node:child_process';
@@ -72,14 +72,53 @@ const vitest = (...flags: string[]): string[] => [
   ...flags,
 ];
 
+const jest = (...flags: string[]): string[] => [
+  resolve(repository, 'node_modules/jest/bin/jest.js'),
+  '--config',
+  'jest.config.mjs',
+  '--watchman=false',
+  ...flags,
+];
+
+const rstest = (...flags: string[]): string[] => [
+  resolve(repository, 'node_modules/@rstest/core/bin/rstest.js'),
+  'run',
+  '-c',
+  resolve(fixtures, 'external-rstest/rstest.config.mjs'),
+  ...flags,
+];
+
 describe('a story under each way its runner runs it', () => {
-  it('is the same under every Vitest pool and with isolation off', async () => {
-    const forks = await told('external-vitest', vitest('--pool=forks'));
-    expect(forks).toHaveLength(4);
-    const modes = ['--pool=threads', '--pool=vmThreads', '--pool=vmForks', '--no-isolate'];
-    const others = await Promise.all(modes.map((flag) => told('external-vitest', vitest(flag))));
-    expect(Object.fromEntries(modes.map((flag, index) => [flag, others[index]]))).toEqual(
-      Object.fromEntries(modes.map((flag) => [flag, forks])),
+  // Each runner's modes beside one run in its default; a Vitest run takes two
+  // workers, so the four started at once stay inside the slice's budget.
+  it.each([
+    [
+      'Vitest',
+      'external-vitest',
+      vitest('--maxWorkers=2', '--pool=forks'),
+      ['--pool=threads', '--pool=vmThreads', '--pool=vmForks', '--no-isolate'].map((flag) =>
+        vitest('--maxWorkers=2', flag),
+      ),
+    ],
+    [
+      'Jest',
+      'external-jest',
+      jest('--maxWorkers=2'),
+      [jest('--runInBand')],
+    ],
+    [
+      'Rstest',
+      'external-rstest',
+      rstest(),
+      [rstest('--isolate=false')],
+    ],
+  ] as const)('is the same under every way %s runs a file', async (_, fixture, baseline, modes) => {
+    const expected = await told(fixture, baseline);
+    expect(expected.length).toBeGreaterThan(0);
+    const others = await Promise.all(modes.map((args) => told(fixture, args)));
+    const flag = (args: readonly string[]): string => args.at(-1)!;
+    expect(Object.fromEntries(modes.map((args, index) => [flag(args), others[index]]))).toEqual(
+      Object.fromEntries(modes.map((args) => [flag(args), expected])),
     );
   }, 240_000);
 
