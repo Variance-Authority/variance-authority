@@ -235,5 +235,5 @@ not show, it names in the header:
 - *the test threw or rejected* — the route ends where it stopped.
 
 A story covers the test's own process under Vitest, Jest and Rstest, and the
-page under Playwright and Vitest browser mode. Code the test calls in another
+page under Playwright and Vitest and Rstest browser mode. Code the test calls in another
 process, such as a server, is not on it.

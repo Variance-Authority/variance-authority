@@ -85,7 +85,7 @@ separates the sides*:
 
 The log is a probe on one run, not a change to what the test checks. A story
 covers the test's own process under Vitest, Jest and Rstest, and the page under
-Playwright and Vitest browser mode: record a Playwright test with
+Playwright and Vitest and Rstest browser mode: record a Playwright test with
 `VARIANCE_AUTHORITY_STORY=1 npx playwright test <spec> -g <name>`. To read
 what a page holds while it runs, see
 [live run](../variance-authority/references/live-run.md).

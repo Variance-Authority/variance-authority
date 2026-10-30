@@ -75,8 +75,9 @@ by guess.
 - `packages/sense/src/test-selection/carried-stories.ts` — the hooks that leave
   a page case's tape on its result's `meta`, and the writer both page runners
   call with the names the result gives the case
-- `packages/playwright-test/src/documents.ts` — every context of a Playwright
-  case taped and drained under the spec line each statement is on
+- `packages/playwright-test/src/documents.ts` — the recorder's document drain
+  a Playwright case's story rides: every context it opens taped, and drained
+  under the spec line each statement is on
 - `packages/sense/src/story/format.cts` — one case's story on disk
 - `packages/sense/src/story/directory.ts` — the variable that asks for stories,
   and where they sit beside each record
