@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { dirname, relative, resolve, sep } from 'node:path';
-import type { UserConfig } from 'vitest/config';
+import type { ViteUserConfig as UserConfig } from 'vitest/config';
 import type { InstrumentMode } from '../instrument/index.js';
 import { captureAfter, placeModule, type Captured, type CapturedAfter, type ComposedMap } from './captured-modules.js';
 import type { UnmappedStep } from './unmapped-transforms.js';

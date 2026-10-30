@@ -45,7 +45,7 @@ narrower match — because each read the one before as a decision.
 
 ## Setup
 
-Node 22 or newer, and Yarn 4 through Corepack — `packageManager` in the root
+Node 22.12 or newer, and Yarn 4 through Corepack — `packageManager` in the root
 `package.json` pins the version. Every command runs from the repository root, in
 a git checkout that has its history.
 
