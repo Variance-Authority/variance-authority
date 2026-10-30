@@ -133,6 +133,21 @@ a blocking finding. A finding still marked blocking after the second round is yo
 decide: fix it, or set it aside. Every finding not fixed is named in the body
 with the reason it was set aside.
 
+A diff-mode rejection that the idea review could have seen is an escape: it
+goes into [`escapes`](escapes.md), whatever becomes of the change.
+
+Pushing is gated: `tools/gate.mjs`, which `yarn install` registers as a
+configured `pre-push` hook beside Git LFS's, refuses an agent's push of a
+branch whose tip's tree `yarn verify:near` and `yarn verify:rules` have not
+recorded green in that worktree; a commit before the tip is never merged alone.
+`yarn install` fails for an agent whose git does not run configured hooks. A pull request only names a branch a push put there,
+so the push is the one gate. CI's `idea` job reads the body's first line and
+fails a pull request whose issue does not carry `idea: build`, or was edited
+after the label went on; it runs again in the merge queue for every pull
+request the group merges, so an edit made after the last run still stops the
+merge. Both guard the workflow; they are
+records, not proof that a review or a wave ran.
+
 ## Opening it
 
 Never push to `main`. The branch was cut from `origin/main` at setup, not from

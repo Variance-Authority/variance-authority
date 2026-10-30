@@ -1,7 +1,7 @@
 # Validate and correct
 
 Phases 6 and 7 of [`AGENTS.md`](../../AGENTS.md). Once the PR is open, other
-parties answer: CI, CodeRabbit, the person who asked. A PR is handed over only
+parties answer: CI and CodeRabbit. A PR is handed over only
 when every check except a running `site` is green and every finding is
 classified.
 
@@ -34,7 +34,7 @@ gh pr edit <n> --remove-label agent:debugging --add-label agent:done
 
 `agent:done` means what handing over means: every check except a running
 `site` green, and every finding classified. A cycle that stops short of that,
-because you are blocked or waiting on the person who asked, takes
+because you are blocked on something outside the repository, takes
 `agent:debugging` off and does not put `agent:done` on. A PR with neither label is one nobody is working on and nobody
 has finished, and the report says why.
 
@@ -143,5 +143,6 @@ A `site` still running is named as running.
 
 The report starts from the task as it was set in [refine](refine.md): which
 parts are done, where they live, and what is not done. Then the CodeRabbit
-findings you acted on and the ones you set aside, and why. It ends with what you
-need from the person who asked, even when that is one line.
+findings you acted on and the ones you set aside, and why. It ends with the
+merge, which is the owner's, and nothing else asked of her: every other decision
+was the loop's, and is named where it was made.

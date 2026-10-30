@@ -1,3 +1,5 @@
+Closes #<!-- the issue carrying `idea: build`; `Part of #n` for a part of it -->
+
 ## Problem
 
 <!-- What was wrong or missing, in one or two sentences, apart from the fix.
