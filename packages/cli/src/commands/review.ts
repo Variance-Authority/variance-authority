@@ -28,7 +28,6 @@ import {
   whatLanded,
   type CasePrecondition,
   type CommitRuns,
-  type ExecutionIndex,
   type FileReading,
   type LineRange,
   type Misuse,
@@ -39,11 +38,12 @@ import { OperatorError } from '../exit.js';
 import { landingRecord, recordedSuite } from './suite-record.js';
 import type { ParsedReview } from '../review-args.js';
 import { motionAgainst, motionOfRuns, runsWrote, type CoveringMotion } from './covering-motion.js';
-import { readExecutionFor, readExecutionIndex, recordedExecutionFile, replacedCases } from './execution-input.js';
+import { readExecutionFor, readExecutionIndex, recordedExecutionFile } from './execution-input.js';
 import { heldAsPrecondition, type HeldAsPrecondition } from './held-as-precondition.js';
 import { installDiff, type DiffPoint, type InstallDiff } from './installed.js';
 import { mainlineBase, mainlineMissed, type MainlineRecord } from './mainline-base.js';
 import { reviewedCommit } from './review-head.js';
+import { baseIndex, casesMoved } from './review-base-cases.js';
 import { everySuiteRegions } from './review-suites.js';
 import { ranAsTree, recordedRegions, removedText } from './review-region.js';
 import { packagesReached, type PackageReach } from './review-install.js';
@@ -447,49 +447,6 @@ function inTreeLines(
 function readingOf(read: FileReading): Pick<ReviewFile, 'verdict' | 'names' | 'unread'> {
   if (read.verdict === undefined) return { unread: read.unread };
   return read.names.length === 0 ? { verdict: read.verdict } : { verdict: read.verdict, names: read.names };
-}
-
-/**
- * The case index the change is compared with: the one `--against` names or
- * the mainline published, or the cases the latest run replaced. Absent when
- * none was named and the run replaced none.
- */
-async function baseIndex(
-  against: string | undefined,
-  from: string,
-  mainline: MainlineRecord | undefined,
-): Promise<ExecutionIndex | undefined> {
-  if (against === undefined) return replacedCases(from);
-  try {
-    return await readExecutionIndex(against);
-  } catch (error) {
-    const named = mainline === undefined
-      ? `\`--against ${against}\``
-      : `the cases mainline ${mainline.mainline} published with its record of "${mainline.suite}", kept at ${against},`;
-    throw new OperatorError(`${named} could not be read (${error instanceof Error ? error.message : String(error)}).`);
-  }
-}
-
-/**
- * Case names a test file declares now and did not before, and the reverse.
- *
- * Only for a file the base holds cases for, or a file the change created. A
- * file the base never ran is not a file whose every case is new.
- */
-function casesMoved(
-  file: string,
-  held: ExecutionIndex | undefined,
-  now: ExecutionIndex,
-  created: boolean,
-): ReviewFile['cases'] | undefined {
-  const after = new Set(now.tests.filter((test) => test.file === file).map((test) => test.name));
-  const before = new Set(held?.tests.filter((test) => test.file === file).map((test) => test.name) ?? []);
-  if (before.size === 0 && !created) return undefined;
-  if (before.size === 0 && after.size === 0) return undefined;
-  return {
-    added: [...after].filter((name) => !before.has(name)).sort(),
-    removed: [...before].filter((name) => !after.has(name)).sort(),
-  };
 }
 
 /** The changed files test files hold as a precondition, each with how many hold it, the most held first. */
