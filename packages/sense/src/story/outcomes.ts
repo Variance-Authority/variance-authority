@@ -24,7 +24,7 @@ export interface OutcomeRegion {
   readonly endLine: number;
 }
 
-/** Where a region was charged on every reading of one outcome: the test line, and whether a hook's statement reached it; no line where none was recorded, with no cadence or after the last statement. */
+/** Where a region was charged on every reading of one outcome: the test line, and whether a hook's statement reached it; no line where none was recorded: the run had no cadence, or a drain ran past its bound and left the case's later regions without one. */
 export interface Charge {
   readonly line?: number;
   readonly hook?: true;

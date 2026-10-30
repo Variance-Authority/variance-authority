@@ -28,10 +28,21 @@ export function recordedOutcomes(root: string, stories: readonly StoryEntry[], n
   const [recorded] = found;
   const outcomes = compareOutcomes(recorded!);
   if (outcomes !== undefined) return { outcomes };
-  const runs = recorded!.readings.reduce((sum, reading) => sum + reading.count, 0);
-  const had = recorded!.readings[0]!.stopped === true ? 'threw' : 'passed';
+  const runsOf = (readings: readonly { readonly count: number }[]) => readings.reduce((sum, reading) => sum + reading.count, 0);
+  const told = recorded!.readings.filter((reading) => reading.stopped !== undefined);
+  const untold = runsOf(recorded!.readings) - runsOf(told);
+  const which = `${recorded!.file} > ${recorded!.name}`;
+  const again = 'run it until it has passed and thrown, twice each';
+  if (told.length === 0) {
+    throw new OperatorError(`none of the ${untold} runs the record keeps of ${which} says how it ended, so there is no outcome to compare; ${again}`);
+  }
+  const runs = runsOf(told);
+  const had = told[0]!.stopped === true ? 'threw' : 'passed';
+  const more = untold === 0 ? '' : `, and ${untold} more says nothing`;
   throw new OperatorError(
-    `every one of the ${runs} runs the record keeps of ${recorded!.file} > ${recorded!.name} ${had}, so there is no other outcome to compare it with; run it until it has passed and thrown, twice each`,
+    untold === 0
+      ? `every one of the ${runs} runs the record keeps of ${which} ${had}, so there is no other outcome to compare it with; ${again}`
+      : `every one of the ${runs} ${runs === 1 ? 'run' : 'runs'} the record keeps of ${which} that says how it ended ${had}${more}, so there is no other outcome to compare it with; ${again}`,
   );
 }
 
@@ -50,11 +61,11 @@ export function formatOutcomes(comparison: OutcomeComparison, format: 'text' | '
   if (comparison.single) {
     text.push('  one run on a side: what differs below may be a run that went another way, not the outcome');
   }
+  // A region crossed with no line is one a run recorded without cadence, or drained after a drain ran past its bound; the record does not say which.
   const rows: [string, string[]][] = [
     ['charged to an earlier line when it threw', []],
     ['charged to a later line when it threw', []],
-    [// A region crossed with no line is one the run read without cadence or drained after the last statement; the record does not say which.
-    'no line recorded only when it threw', []],
+    ['no line recorded only when it threw', []],
     ['no line recorded only when it passed', []],
     ['charged to a hook only when it threw', []],
     ['charged to a hook only when it passed', []],

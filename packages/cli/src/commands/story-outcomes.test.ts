@@ -11,8 +11,8 @@ afterEach(async () => {
   await Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true })));
 });
 
-/** A checkout whose one record keeps, of the case `clicks` in each of `files`, a reading for each outcome in `stopped`. */
-async function checkout(files: readonly string[], stopped: readonly boolean[]): Promise<string> {
+/** A checkout whose one record keeps, of the case `clicks` in each of `files`, a reading for each outcome in `stopped`, undefined where the run could not say how it ended. */
+async function checkout(files: readonly string[], stopped: readonly (boolean | undefined)[]): Promise<string> {
   const root = await mkdtemp(join(tmpdir(), 'variance-authority-outcomes-'));
   roots.push(root);
   const tests = files.map((file) => ({ id: `${file} > clicks`, file, name: 'clicks', stopped: stopped[0]! }));
@@ -36,6 +36,14 @@ describe('recordedOutcomes', () => {
     const root = await checkout(['a.test.ts'], [false, false]);
 
     expect(() => recordedOutcomes(root, [], 'clicks', undefined)).toThrow('every one of the 2 runs the record keeps of a.test.ts > clicks passed');
+  });
+
+  it('counts no run the record cannot say the end of as passed', async () => {
+    const unknown = await checkout(['a.test.ts'], [undefined, undefined]);
+    expect(() => recordedOutcomes(unknown, [], 'clicks', undefined)).toThrow('none of the 2 runs the record keeps of a.test.ts > clicks says how it ended');
+
+    const beside = await checkout(['a.test.ts'], [undefined, true]);
+    expect(() => recordedOutcomes(beside, [], 'clicks', undefined)).toThrow('every one of the 1 run the record keeps of a.test.ts > clicks that says how it ended threw, and 1 more says nothing');
   });
 
   it('leaves a case a story is taped of to the story', async () => {

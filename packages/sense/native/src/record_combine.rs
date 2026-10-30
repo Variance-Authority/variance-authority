@@ -240,6 +240,7 @@ fn combined<'a>(paths: &[String], cut: Option<&[u8]>, load: impl Fn(usize, Optio
     let mut ids: HashSet<String> = HashSet::new();
     let mut rows = HashMap::new();
     let mut combined_rows = Vec::new();
+    let mut files_of: HashMap<String, HashMap<String, String>> = HashMap::new();
     if let Some(cased) = observed.iter().map(shard).find(|shard| shard.index.is_some()) {
         if let Some(uncased) = observed.iter().map(shard).find(|shard| shard.index.is_none()) {
             return Err(format!(
@@ -264,6 +265,7 @@ fn combined<'a>(paths: &[String], cut: Option<&[u8]>, load: impl Fn(usize, Optio
         }
         let indexes: Vec<case_shard::Shard> = held.iter_mut().filter_map(|(_, shard)| shard.index.take()).collect();
         let names: Vec<String> = indexes.iter().map(|index| index.name.clone()).collect();
+        files_of = indexes.iter().map(|index| (index.name.clone(), index.tests.iter().map(|test| (test.id.clone(), test.file.clone())).collect())).collect();
         rows = indexes.iter().map(|index| (index.name.clone(), index.tests.iter().map(|test| test.id.clone()).collect())).collect();
         let index = fold_index(indexes, inventories, true)?;
         columns.push(Column::Plain(LAYOUT.coverage.part("index"), index.bytes));
@@ -297,7 +299,19 @@ fn combined<'a>(paths: &[String], cut: Option<&[u8]>, load: impl Fn(usize, Optio
         if cases.is_none() {
             return Err("a shard holds readings of its cases, and no shard kept cases, so the combined record has no case index to name them.".to_owned());
         }
-        columns.push(Column::Plain(LAYOUT.coverage.part("readings"), record_parts::fold_readings(&readings, &ids)?));
+        // What each shard ran, by its last-run layer, so a value it carried from its seed yields to the shard that ran it.
+        let unfiled = HashMap::new();
+        let ran = last
+            .iter()
+            .map(|(name, bytes, renames)| {
+                let files = files_of.get(*name).unwrap_or(&unfiled);
+                let own = record_parts::last_cases(bytes, rows.get(*name)).map_err(|error| format!("{name}: {error}"))?;
+                let files_ran = own.iter().filter_map(|id| files.get(id).cloned()).collect();
+                let cases_ran = own.iter().map(|id| renames.get(id).cloned().unwrap_or_else(|| id.clone())).collect();
+                Ok(((*name).to_owned(), record_parts::Ran { cases: cases_ran, files: files_ran }))
+            })
+            .collect::<Result<HashMap<_, _>, String>>()?;
+        columns.push(Column::Plain(LAYOUT.coverage.part("readings"), record_parts::fold_readings(&readings, &ids, &ran)?));
     }
     if let Some(base) = starts.base() {
         columns.push(Column::Plain(LAYOUT.coverage.part("base"), base.as_bytes().to_vec()));

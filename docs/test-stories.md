@@ -264,7 +264,7 @@ compare  src/checkout.test.ts > saves the total it charges, from the readings th
   passed (4 runs) against threw (6 runs)
 
   charged to a later line when it threw, on every run:
-    reprice  src/checkout.ts:18-22  line 7 when it passed, line 9 when it threw
+    reprice  src/checkout.ts:24-27  line 7 when it passed, line 9 when it threw
 
   reached only when it passed, on every run:
     checkout  src/checkout.ts:13, the else of the if
@@ -275,10 +275,10 @@ compare  src/checkout.test.ts > saves the total it charges, from the readings th
 
 A region charged to a later test line on every failing run was reached later
 in the test when it threw than when it passed. That is timing that goes with
-the outcome, not proof the test went ahead before the code was ready: open the
-region and the lines between the two to find what moved it. *No line recorded*
-means the run kept no line for the region: it ran without cadence, or reached
-the region after the test's last statement. The record reads
+the outcome, not proof the test went ahead before the code was ready.
+*No line recorded* means the run kept no line for the region: it ran without
+cadence, or a drain ran past its bound and left the case's later regions
+without a line. The record reads
 regions, not lines said or the order of steps, so when it names nothing,
 record the story and compare again.
 

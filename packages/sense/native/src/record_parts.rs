@@ -240,44 +240,80 @@ struct ReadingsIn<'a> {
     inputs: HashMap<String, String>,
 }
 
-/// The shards' readings sections as one: each case's readings as its shard
-/// kept them, under the id the fold calls it by. A case two shards read
-/// otherwise is refused, as two journals of one attempt are, and so is a
-/// test file two shards name different inputs of.
-pub(crate) fn fold_readings(shards: &[(&str, &[u8], &HashMap<String, String>)], cases: &HashSet<String>) -> Result<Vec<u8>, String> {
-    let mut held: HashMap<String, (&str, &RawValue)> = HashMap::new();
-    let mut inputs: HashMap<String, (&str, String)> = HashMap::new();
-    for (name, bytes, renames) in shards {
-        let section: ReadingsIn<'_> = serde_json::from_slice(bytes).map_err(|_| format!("{name}: its readings section is not one this build reads"))?;
-        for (file, digest) in section.inputs {
-            match inputs.get(&file) {
-                Some((other, kept)) if *kept != digest => {
-                    let (first, second) = if order::code_unit(other, name).is_le() { (*other, *name) } else { (*name, *other) };
-                    return Err(format!("{first} and {second} name different inputs of `{file}`, so they are not shards of one run and cannot be folded into one."));
-                }
-                Some(_) => {}
-                None => {
-                    inputs.insert(file, (name, digest));
-                }
+/// What one shard ran, rather than carried from the record it was laid over:
+/// the cases its last-run layer recorded, by the id the fold calls them, and
+/// their test files.
+#[derive(Clone, Default)]
+pub(crate) struct Ran {
+    pub cases: HashSet<String>,
+    pub files: HashSet<String>,
+}
+
+/// The cases a shard's last-run layer recorded, by the id its own index calls them.
+pub(crate) fn last_cases(bytes: &[u8], rows: Option<&Vec<String>>) -> Result<Vec<String>, String> {
+    read_last(bytes)?.cases.resolved(rows)
+}
+
+/// One value per key across the shards: what a shard that ran it holds, over
+/// what another carried from its seed; two that ran it, or two that only
+/// carried it, must hold the same, or `refusal` names the pair.
+struct Settled<V> {
+    held: HashMap<String, (String, V, bool)>,
+}
+
+impl<V: PartialEq> Settled<V> {
+    fn new() -> Self {
+        Self { held: HashMap::new() }
+    }
+
+    fn offer(&mut self, key: String, name: &str, value: V, ran: bool, refusal: impl Fn(&str, &str, &str) -> String) -> Result<(), String> {
+        match self.held.get(&key) {
+            Some((_, _, kept)) if *kept && !ran => Ok(()),
+            Some((other, held, kept)) if *kept == ran && *held != value => {
+                let (first, second) = if order::code_unit(other, name).is_le() { (other.as_str(), name) } else { (name, other.as_str()) };
+                Err(refusal(first, second, &key))
+            }
+            Some((_, _, kept)) if *kept == ran => Ok(()),
+            _ => {
+                self.held.insert(key, (name.to_owned(), value, ran));
+                Ok(())
             }
         }
-        for (id, readings) in section.cases {
+    }
+}
+
+/// The shards' readings sections as one: each case's readings as the shard
+/// that ran it kept them, under the id the fold calls it by, and each test
+/// file's inputs as the shard that ran it named them. A shard that only
+/// carried a case or a file from its seed yields to one that ran it. Two
+/// shards that ran one case otherwise are refused, as two journals of one
+/// attempt are, and so are two that ran one file over different inputs.
+pub(crate) fn fold_readings(shards: &[(&str, &[u8], &HashMap<String, String>)], cases: &HashSet<String>, ran: &HashMap<String, Ran>) -> Result<Vec<u8>, String> {
+    let nothing = Ran::default();
+    let mut readings: Settled<&str> = Settled::new();
+    let mut inputs: Settled<String> = Settled::new();
+    for (name, bytes, renames) in shards {
+        let section: ReadingsIn<'_> = serde_json::from_slice(bytes).map_err(|_| format!("{name}: its readings section is not one this build reads"))?;
+        let own = ran.get(*name).unwrap_or(&nothing);
+        for (file, digest) in section.inputs {
+            let by = own.files.contains(&file);
+            inputs.offer(file, name, digest, by, |first, second, file| {
+                format!("{first} and {second} name different inputs of `{file}`, so they are not shards of one run and cannot be folded into one.")
+            })?;
+        }
+        for (id, value) in section.cases {
             let case = renamed(renames, &id).to_owned();
             if !cases.contains(&case) {
                 return Err(format!("{name}: its readings section holds readings of `{case}`, a case the combined index does not record"));
             }
-            match held.get(&case) {
-                Some((other, kept)) if kept.get() != readings.get() => {
-                    let (first, second) = if order::code_unit(other, name).is_le() { (*other, *name) } else { (*name, *other) };
-                    return Err(format!("{first} and {second} hold different readings of `{case}`, so they are not shards of one run and cannot be folded into one."));
-                }
-                Some(_) => {}
-                None => {
-                    held.insert(case, (name, readings));
-                }
-            }
+            let by = own.cases.contains(&case);
+            readings.offer(case, name, value.get(), by, |first, second, case| {
+                format!("{first} and {second} hold different readings of `{case}`, so they are not shards of one run and cannot be folded into one.")
+            })?;
         }
     }
+    let held: HashMap<String, &str> = readings.held.into_iter().map(|(case, (_, value, _))| (case, value)).collect();
+    let inputs: HashMap<String, String> = inputs.held.into_iter().map(|(file, (_, digest, _))| (file, digest)).collect();
     let mut ids: Vec<&String> = held.keys().collect();
     ids.sort_by(|left, right| order::code_unit(left, right));
     let mut files: Vec<&String> = inputs.keys().collect();
@@ -291,7 +327,7 @@ pub(crate) fn fold_readings(shards: &[(&str, &[u8], &HashMap<String, String>)], 
             }
             bytes.extend(serde_json::to_vec(id).map_err(|error| error.to_string())?);
             bytes.push(b':');
-            bytes.extend(held[id].1.get().as_bytes());
+            bytes.extend(held[id].as_bytes());
         }
         bytes.push(b'}');
     }
@@ -306,7 +342,7 @@ pub(crate) fn fold_readings(shards: &[(&str, &[u8], &HashMap<String, String>)], 
             }
             bytes.extend(serde_json::to_vec(file).map_err(|error| error.to_string())?);
             bytes.push(b':');
-            bytes.extend(serde_json::to_vec(&inputs[file].1).map_err(|error| error.to_string())?);
+            bytes.extend(serde_json::to_vec(&inputs[file]).map_err(|error| error.to_string())?);
         }
         bytes.push(b'}');
     }

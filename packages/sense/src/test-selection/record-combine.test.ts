@@ -167,6 +167,20 @@ describe('combineRecords against the TypeScript writers', () => {
     expect(JSON.parse(Buffer.from(caseSectionsOf(await readFile(into)).readings!).toString())).toEqual({ cases: { ...kept('a.test.ts').cases, ...kept('b.test.ts').cases } });
   });
 
+  it('takes a case its readings and its file its inputs from the shard that ran it, over what another carried from its seed', async () => {
+    const shards = [await recordOf('a.bin', ['a.test.ts']), await recordOf('b.bin', ['b.test.ts'])];
+    const ran = { cases: { 'a.test.ts > greets': [{ count: 1, stopped: true }, { count: 1, stopped: false }] }, inputs: { 'a.test.ts': 'two' } };
+    const carried = { cases: { 'a.test.ts > greets': [{ count: 1, stopped: false }] }, inputs: { 'a.test.ts': 'one', 'b.test.ts': 'one' } };
+    for (const [shard, section] of [[shards[0]!, ran], [shards[1]!, carried]] as const) {
+      const bytes = await readFile(shard);
+      await writeFile(shard, withCaseSections(bytes, { ...caseSectionsOf(bytes), readings: Buffer.from(JSON.stringify(section)) }));
+    }
+    const into = join(root, 'combined.bin');
+    combineRecords(shards, into, root);
+
+    expect(JSON.parse(Buffer.from(caseSectionsOf(await readFile(into)).readings!).toString())).toEqual({ cases: ran.cases, inputs: { 'a.test.ts': 'two', 'b.test.ts': 'one' } });
+  });
+
   // Each shard restores the cached record and runs over it; a shard's record
   // names the record its run was laid over, which it split the suite by.
   it('fails the build when the shards split the suite by different records, in either order', async () => {
