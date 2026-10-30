@@ -34,6 +34,17 @@ describe('a page that reads through varianceBreadcrumb', () => {
     expect(drained()).toEqual([['read', ['flags:checkout', 'true', 'http://app.test/@fs/repo/src/flags.js:1', 0xffff]]]);
   });
 
+  it('hands over nothing the page read before a reset', () => {
+    const page = createContext({});
+    runInContext(`{${executionCollectorSource()}}`, page);
+    const collector = `globalThis[${JSON.stringify(EXECUTION_GLOBAL)}]`;
+
+    runInContext(`globalThis[Symbol.for('variance-authority.test-selection.breadcrumb')]('flags', 'checkout', true, new Error());`, page, { filename: 'http://app.test/@fs/repo/src/flags.js' });
+    runInContext(`${collector}.reset()`, page);
+
+    expect((JSON.parse(runInContext(`JSON.stringify(${collector}.drain())`, page)) as ExecutionJournal).read).toEqual([]);
+  });
+
   it('leaves a realm that already listens to reads its own recorder', () => {
     const recorder = (): boolean => false;
     const page = createContext({ [Symbol.for('variance-authority.test-selection.breadcrumb')]: recorder });

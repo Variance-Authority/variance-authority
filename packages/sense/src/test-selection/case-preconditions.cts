@@ -119,8 +119,11 @@ function recorder(
   /** The file has loaded: a read from now on is a case's, or nobody's. */
   loaded(): void;
   take(key: string): Heard;
-  /** What another realm read for the case `key` names, at the sites it named. */
-  laid(key: string, read: readonly Laid[]): void;
+  /**
+   * What another realm read for the case `key` names, at the sites it named:
+   * no key is a read no case drove, warned about as one here would be.
+   */
+  laid(key: string | undefined, read: readonly Laid[]): void;
   /** What the case `key` names has said so far, left in place for {@link take}. */
   held(key: string): readonly Said[];
   /** Forget the file: a collector, and its recorder, end with their file. */
@@ -198,20 +201,20 @@ function recorder(
   // value)` misused, so a key read on every render costs a set lookup after its
   // first read, and no site.
   const seenReads = new Map<unknown, Set<string>>();
+  const stray = (site: string, what: string): void => {
+    if (warned.has(site)) return;
+    warned.add(site);
+    console.warn(`variance-authority: varianceBreadcrumb at ${siteNamed(site)} ${what} where no case runs and is recorded on no case`);
+  };
 
   const read = (facet: Facet, name: string, value: string | null, called: unknown, misuse?: string): boolean => {
     const to = readTo();
     if (to === undefined) {
       if (called === undefined) return true;
       const site = siteOf(called);
-      if (warned.has(site)) return false;
-      warned.add(site);
       // FIXME: spec 0102 counts a read no case runs on its file, with its site,
       // and lays a `beforeAll`'s read on every case of its describe.
-      const what = misuse === undefined ? `read ${name}` : `was misused (${misuse})`;
-      console.warn(
-        `variance-authority: varianceBreadcrumb at ${siteNamed(site)} ${what} where no case runs and is recorded on no case`,
-      );
+      stray(site, misuse === undefined ? `read ${name}` : `was misused (${misuse})`);
       return false;
     }
     const item = laidKey([facet, [name, value, '', CASE_LEVEL]]);
@@ -323,7 +326,9 @@ function recorder(
       return { said, read: of('read'), misused: of('misused') };
     },
     laid(key, read) {
-      if (reads && read.length > 0) onto(readByCase, key, read);
+      if (!reads) return;
+      if (key === undefined) for (const [facet, [name, value, site]] of read) stray(site, facet === 'read' ? `read ${name}` : `was misused (${name} = ${value})`);
+      else if (read.length > 0) onto(readByCase, key, read);
     },
     held: (key) => [...(byCase.get(key) ?? [])],
     finish() {

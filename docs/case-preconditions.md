@@ -185,7 +185,8 @@ A test says what it arranged, and that is a claim. When a mock does not reach
 the provider the code reads from, the test says one thing and the code runs
 another. `varianceBreadcrumb` records what the code read, in the source, where
 it reads. Vitest, Jest and Rstest record reads in Node, and Playwright records
-them in the worker and in the page the case drives.
+them in the worker and in the page the case drives, when the page carries the
+execution collector.
 
 ```ts
 // src/flags.ts

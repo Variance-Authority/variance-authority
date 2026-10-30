@@ -35,9 +35,10 @@ export interface PreconditionListener {
   /**
    * What a page's code read for the case `key` names, as the page's drain
    * handed it over: the runner knows which case it drained, where the
-   * standing at the time of the drain may be its `afterEach`.
+   * standing at the time of the drain may be its `afterEach`. No key is a
+   * drain no case drove, and what it read is warned about.
    */
-  laid(key: string, read: readonly PageRead[]): void;
+  laid(key: string | undefined, read: readonly PageRead[]): void;
   /**
    * What the case `key` names has said so far, resolved as its row would be
    * if it ended now, and left for {@link take}: what a snapshot taken inside

@@ -160,6 +160,8 @@ import { afterAll, beforeAll } from ${JSON.stringify(runner)};
 {${executionCollectorSource(mode)}}
 const execution = globalThis[${JSON.stringify(EXECUTION_GLOBAL)}];
 let loaded = [];
+// FIXME: what the page read (each drain's \`read\`) is laid on no case, where
+// spec 0102 lays a Vitest or Rstest browser read on the case running it.
 beforeAll(() => { loaded = execution.drain().modules; });
 // Vitest hands the hook the file task, first through Vitest 4 and second from
 // 5, where the first is a fixture context and a parameter the hook names has

@@ -171,4 +171,17 @@ describe('what the code under test read in a realm whose runner places each call
     expect(heard(listener, 'pays')).toEqual({ said: [], read: [['flags:checkout', 'true', 'src/flags.ts:4', 0xffff]], misused: [] });
     expect(listener.take('pays')).toBeUndefined();
   });
+
+  it('warns about what a page read where no case drove it, once a site, and lays it on no case', () => {
+    const listener = listenForPreconditions(ROOT, () => ({ at: 'case', key: 'pays' }));
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const page = `http://app.test/@fs${ROOT}/src/flags.ts:4`;
+
+    listener.laid(undefined, [['read', ['flags:checkout', 'true', page, 0xffff]], ['read', ['flags:checkout', 'false', page, 0xffff]]]);
+    listener.close();
+
+    expect(warn).toHaveBeenCalledOnce();
+    expect(String(warn.mock.calls[0]![0])).toMatch(/varianceBreadcrumb at src\/flags\.ts:4 read flags:checkout where no case runs and is recorded on no case/);
+    expect(listener.take('pays')).toBeUndefined();
+  });
 });

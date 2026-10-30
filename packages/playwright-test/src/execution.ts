@@ -184,9 +184,9 @@ export function createExecutionRecorder(
       const accumulated = owners.get(owner) ?? accumulation();
       absorb(accumulated, journal);
       owners.set(owner, accumulated);
+      if (journal.read !== undefined) listener?.laid(subject && caseKey(owner, subject.id), journal.read);
       if (subject === undefined) return;
       const held = caseOf(owner, subject);
-      if (journal.read !== undefined) listener?.laid(caseKey(owner, subject.id), journal.read);
       if (line !== undefined) reached.charge(caseKey(owner, subject.id), held, journal.modules, line);
       absorb(held, journal);
     },
