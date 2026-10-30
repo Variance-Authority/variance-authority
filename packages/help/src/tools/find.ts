@@ -2,10 +2,11 @@ import type { Documented, Entry, Help, Opening } from '@variance-authority/packa
 import { everyEntry } from '@variance-authority/package/help';
 import { importsByPath } from './by-path.js';
 import { says } from './declaration-key.js';
-import { declarations, unreadLine } from './declared.js';
-import { MEMBERS_CAP, type Members, containerOf, membersStop, moreMembers } from './members.js';
+import { DECLARED_CAP, declarations, declaredAt, isNested, notShown, unreadLine } from './declared.js';
+import { type Members, membersStop } from './members.js';
 import type { Spelling } from '@variance-authority/mcp/tools';
 import { search } from './search.js';
+import { exportsNamed } from './unpublished.js';
 
 /**
  * Locating the thing a question is about, and answering well when it is not there.
@@ -175,20 +176,30 @@ export function nowhere(
   const why = 'refused' in read ? read.refused : members?.unread;
   const unread = 'refused' in read ? [] : unreadLine(read.unread);
   const stop = why === undefined && members !== undefined ? membersStop(members) : undefined;
-  // A container asked for that declares the member in no body of its own may inherit or merge it, which TypeScript resolves.
-  const others = why === undefined ? (members?.others ?? []) : [];
+  // A dotted name asks for a member of its container: whether that container is declared decides the answer, never a namesake on another one.
+  const on = why === undefined ? members?.on : undefined;
+  // Exported or kept to its file, a container is declared where a file binds it; an `export … from` binds nothing of its own.
+  const containers = on === undefined
+    ? []
+    : [
+        ...exportsNamed(help, root, on, wanted).filter((held) => held.bound !== undefined),
+        ...declaredAt(root, on, wanted).filter((one) => !isNested(one)),
+      ];
   // What was read and found nothing comes first, as only what was read; what was not read, last.
   const none = `No file in ${where}${unread.length === 0 ? '' : ' that the source index read'} declares \`${name}\``;
   const files = why !== undefined
     ? `Which files declare \`${name}\` is not known: ${why}.`
-    : others.length > 0 && members?.on !== undefined
-      ? [
-          `${none} at its top level, and no container named \`${members.on}\` declares \`${members.member}\` in its own body.`,
-          ...others.slice(0, MEMBERS_CAP).map((one) => `\`${members.member}\` is a member of ${containerOf(one.by)}, declared at ${one.at}:${one.line}.`),
-          ...moreMembers(members.member, others.length),
-          `Which members \`${members.on}\` inherits or merges is TypeScript's answer, and none runs here: its language service's go-to-definition on \`${name}\` where a line writes it names the declaration.`,
-        ].join(' ')
-    : stop === undefined
+    : on !== undefined && members !== undefined && containers.length === 0
+      ? `${none}: none declares \`${on}\`.`
+      : on !== undefined && members !== undefined
+        ? [
+            `${none}.`,
+            `\`${on}\` is declared at ${containers.slice(0, DECLARED_CAP).map((one) => `${one.at}:${one.line}`).join(', ')}, and no interface, type alias or class body read here declares \`${members.member}\` on it.`,
+            ...notShown(containers.length, 'declaration', on),
+            `A member \`${on}\` inherits or merges, an enum member, a namespace export and an object literal's property are TypeScript's answer, and none runs here: ` +
+              `its language service's go-to-definition on \`${name}\` where a line writes it names the declaration.`,
+          ].join(' ')
+        : stop === undefined
       ? `${none}, at its top level or as a member.`
       : `${none} at its top level, and no JavaScript or TypeScript file declares it as a member.`;
   return [unfound(help, name, wanted, spell), files, ...(dependencies === undefined ? [] : [dependencies]), ...(stop === undefined ? [] : [stop]), AS_TEXT, ...unread].join(' ');

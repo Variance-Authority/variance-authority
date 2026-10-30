@@ -29,7 +29,13 @@ import type { Spelling } from '@variance-authority/mcp/tools';
 import { grep } from './grep.js';
 
 /** How many declarations of one name `symbol` writes out before it counts the rest. */
-const DECLARED_CAP = 5;
+export const DECLARED_CAP = 5;
+
+/** The line counting the `count` declarations of `name`, each a `noun`, past the first `DECLARED_CAP`; none when there are no more. */
+export function notShown(count: number, noun: string, name: string): readonly string[] {
+  const more = count - DECLARED_CAP;
+  return more > 0 ? [`${more} more ${noun}${more === 1 ? '' : 's'} of \`${name}\` not shown.`] : [];
+}
 
 /** What the source index says about declarations, or why it says nothing. */
 export type Declarations =
@@ -220,10 +226,9 @@ export function declaredBlocks(
     from,
   );
   if (held.length === 0) return { blocks: [] };
-  const more = held.length - DECLARED_CAP;
   const blocks = [
     ...held.slice(0, DECLARED_CAP).map((one) => declaredBlock(root, one, spell)),
-    ...(more > 0 ? [`${more} more ${more === 1 ? 'declaration' : 'declarations'} of \`${name}\` not shown.`] : []),
+    ...notShown(held.length, 'declaration', name),
     ...unreadLine(read.unread),
   ];
   return { blocks };

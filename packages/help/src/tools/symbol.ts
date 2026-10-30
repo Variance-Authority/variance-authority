@@ -8,9 +8,9 @@ import { block, plural } from './format.js';
 import { queryDependencyLexicon, type LexiconMatches, type SilentPackage } from '../dependency-lexicon.js';
 import { silentBlocks } from './silent.js';
 import { thirdBlock } from './third-party.js';
-import { declarations, declaredAt, declaredBlocks, isNested, textRows, unreadLine } from './declared.js';
+import { DECLARED_CAP, declarations, declaredAt, declaredBlocks, isNested, notShown, textRows, unreadLine } from './declared.js';
 import { uses } from './uses.js';
-import { MEMBERS_CAP, type Members, containerOf, membersOf, membersStop, moreMembers } from './members.js';
+import { type Members, containerOf, membersOf, membersStop } from './members.js';
 import { exportedRows } from './passed-on.js';
 import { answers, boundOf, keyOf, originOf, SLOT } from './declaration-key.js';
 import { UNCOUNTED, exportsNamed, importsOf } from './unpublished.js';
@@ -46,7 +46,7 @@ export const symbol: Tool<Help> = {
   inputSchema: {
     type: 'object',
     properties: {
-      name: { type: 'string', description: 'The name, matched exactly.' },
+      name: { type: 'string', description: 'The name, matched exactly; `Container.member` asks for that container\'s member.' },
       package: { type: 'string', description: 'Only answer from this package, by name or by specifier. Optional.' },
       from: {
         ...START_POINT_SCHEMA.from,
@@ -212,21 +212,21 @@ export const symbol: Tool<Help> = {
 
 /**
  * The member declarations of a name: one block for each of the first
- * `MEMBERS_CAP`, on the container that holds it, a count of the rest, then
+ * `DECLARED_CAP`, on the container that holds it, a count of the rest, then
  * the languages whose members were not read; none when no container declares it.
  */
 function memberBlocks(name: string, members: Members, spell: Spelling): readonly string[] {
   if (members.declared.length === 0) return [];
   const stop = membersStop(members);
   return [
-    ...members.declared.slice(0, MEMBERS_CAP).map((site) =>
+    ...members.declared.slice(0, DECLARED_CAP).map((site) =>
       [
         name,
         `a member of ${containerOf(site.by)}, declared at ${site.at}:${site.line}`,
         `\`${spell.tool(uses)}\` names the lines that use it through a value written as its container, and the declaration to ask its language's find-references about for the rest.`,
       ].join('\n'),
     ),
-    ...moreMembers(members.member, members.declared.length),
+    ...notShown(members.declared.length, 'member declaration', name),
     ...(stop === undefined ? [] : [stop]),
   ];
 }

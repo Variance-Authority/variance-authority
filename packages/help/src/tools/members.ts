@@ -51,26 +51,13 @@ export interface Members {
    * does not record, by name; absent when the declarations were not read.
    */
   readonly elsewhere?: readonly string[];
-  /**
-   * When the container asked for declares the member in no body of its own,
-   * the declarations of the member on every other container, `by` it.
-   */
-  readonly others?: readonly Use[];
 }
-
-/** How many member declarations an answer lists before it counts the rest. */
-export const MEMBERS_CAP = 5;
 
 /** The container a member is declared on, as a sentence names it. */
 export function containerOf(by: string): string {
   return /^a (?:type literal|class)$/u.test(by) ? by : `\`${by}\``;
 }
 
-/** The line counting the member declarations of `member` past the first `MEMBERS_CAP`; none when there are no more. */
-export function moreMembers(member: string, count: number): readonly string[] {
-  const more = count - MEMBERS_CAP;
-  return more > 0 ? [`${more} more member ${more === 1 ? 'declaration' : 'declarations'} of \`${member}\` not shown.`] : [];
-}
 
 /**
  * The member a name asks for and the container it is on: `Tree.chainsTo` is
@@ -99,18 +86,14 @@ export function membersOf(root: string | undefined, name: string, wanted: string
   }
   if (found === undefined) return { ...asked, declared: [], used: [], unread: 'no source index is published; run `variance index`' };
   const owner = wanted === undefined ? undefined : ownerOf(wanted);
-  const owned = found.sites.filter((site) => owner === undefined || site.by === owner);
-  const sites = owned.filter((site) => on === undefined || site.on === on);
-  const use = (site: (typeof sites)[number]): Use => ({ at: site.at, line: site.line, by: site.on, kind: site.kind, type: false });
-  const declared = sites.map(use);
+  const sites = found.sites.filter((site) => (owner === undefined || site.by === owner) && (on === undefined || site.on === on));
+  const declared = sites.map((site): Use => ({ at: site.at, line: site.line, by: site.on, kind: site.kind, type: false }));
   const used = sites.flatMap((site, at) =>
     site.uses === undefined
       ? []
       : [{ declared: declared[at]!, uses: site.uses.map((use) => ({ at: use.at, line: use.line, by: use.by, kind: use.kind, type: false, how: use.how })) }],
   );
-  // A container that declares the member in no body of its own may inherit or merge it: where it is declared is said, never which one it gets.
-  const others = on !== undefined && declared.length === 0 ? owned.map(use) : [];
-  return { ...asked, declared, used, elsewhere: unreadMemberLanguages(found.extensions), ...(others.length > 0 ? { others } : {}) };
+  return { ...asked, declared, used, elsewhere: unreadMemberLanguages(found.extensions) };
 }
 
 /** Which uses the answer lists, and which it leaves to a type checker, said once under the uses. */
