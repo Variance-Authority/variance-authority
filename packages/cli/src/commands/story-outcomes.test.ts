@@ -74,6 +74,12 @@ describe('outcomes of one case compared from the record', () => {
     ].join('\n')}\n`);
   });
 
+  it('says a region charged to no line has no line recorded, not why', () => {
+    const text = formatOutcomes({ ...OUTCOMES, onlyPassed: [], moved: [{ region: { ...page, name: 'wire', path: 'entry' }, passed: { line: 4 }, threw: {} }] }, 'text');
+
+    expect(text).toContain('  no line recorded only when it threw, on every run:\n    wire  src/page.ts:3-5  line 4 when it passed, no line recorded when it threw');
+  });
+
   it('says nothing separates the outcomes, and warns of a side read once', () => {
     const text = formatOutcomes({ ...OUTCOMES, threw: 1, onlyPassed: [], moved: [], unsteady: 0, single: true }, 'text');
 

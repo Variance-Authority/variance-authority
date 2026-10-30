@@ -24,7 +24,7 @@ export interface OutcomeRegion {
   readonly endLine: number;
 }
 
-/** Where a region was charged on every reading of one outcome: the test line, and whether a hook's statement reached it; no line where it was drained without one. */
+/** Where a region was charged on every reading of one outcome: the test line, and whether a hook's statement reached it; no line where none was recorded, with no cadence or after the last statement. */
 export interface Charge {
   readonly line?: number;
   readonly hook?: true;
@@ -153,7 +153,7 @@ function split(key: string): [string, number] {
   return [key.slice(0, at), Number(key.slice(at + 1))];
 }
 
-/** What a charge is keyed by when the region was drained without a line: no line value is negative. */
+/** What a charge is keyed by when the region was crossed with no line recorded: no line value is negative. */
 const NO_LINE = -1;
 
 function chargeOf(value: number): Charge {

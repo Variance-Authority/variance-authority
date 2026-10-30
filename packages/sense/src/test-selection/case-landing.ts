@@ -12,7 +12,7 @@ import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { codeUnitOrder } from '@variance-authority/core/segment';
 import { layerBefore, layerCaseIndex } from './case-layer.js';
-import { layReadings } from './case-readings.js';
+import { inputsIn, layReadings } from './case-readings.js';
 import { caseSectionsAt, type CaseSections } from './case-record.js';
 import { decodeExecutionIndex, decodeExecutionTests } from './execution-format.js';
 import { encodeAsSetExecutionIndex, openSetExecutionIndex } from './execution-set-format.js';
@@ -30,6 +30,8 @@ export interface LaidRun {
   readonly commit?: string;
   /** The text each module the run recorded was cut from, as its coverage names it; absent when the run measured nothing. */
   readonly modules?: readonly Pick<CoverageModule, 'file' | 'sourceDigest'>[];
+  /** What each test file the run recorded ran over, as `inputsOf` digests it; absent when the run measured nothing. */
+  readonly inputs?: ReadonlyMap<string, string>;
 }
 
 /** The text each module of a case index was cut from, by file, as the coverage beside the index names it. */
@@ -203,7 +205,12 @@ export function layCases(
     cases: last,
   };
   const journals = layEyes(previous.eyes, eyes, cases, announced);
-  const readings = layReadings(previous.readings, previous.index, fresh, merged, new Set(cases()), sameText);
+  const readings = layReadings(previous.readings, previous.index, merged, new Set(cases()), {
+    fresh,
+    announced: new Set(announced),
+    same: sameText,
+    ...(run.inputs === undefined ? {} : { inputs: run.inputs }),
+  });
   return {
     index: merged,
     last: spelledLast(named, merged),
@@ -385,8 +392,11 @@ export function landCases(
     // its index's files; one with neither holds nothing to lay.
     const kept = caseSectionsAt(shard.path);
     const fresh = layableIndex(kept.index);
-    const run = shard.coverage ?? lastRunOf(kept) ?? (fresh === undefined ? undefined : indexRunOf(fresh.tests));
-    if (run === undefined) continue;
+    const named = shard.coverage ?? lastRunOf(kept) ?? (fresh === undefined ? undefined : indexRunOf(fresh.tests));
+    if (named === undefined) continue;
+    // The shard's own landing named what each of its files ran over, off the coverage it measured.
+    const inputs = named.modules === undefined ? undefined : inputsIn(kept.readings);
+    const run = inputs === undefined || named.inputs !== undefined ? named : { ...named, inputs };
     if (fresh !== undefined) {
       // A section this build cannot read is laid as a shard that opened none.
       // `stands`, the commit the snapshot stands at, names the before layer when

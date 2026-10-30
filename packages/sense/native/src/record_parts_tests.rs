@@ -192,3 +192,21 @@ fn refuses_readings_of_a_case_the_index_does_not_record() {
 
     assert_eq!(message, "one: its readings section holds readings of `a`, a case the combined index does not record");
 }
+
+#[test]
+fn folds_what_each_test_file_ran_over_beside_the_readings() {
+    let one = br#"{"cases":{"a":[{"count":2}]},"inputs":{"b.test.ts":"2","a.test.ts":"1"}}"#.to_vec();
+    let two = br#"{"inputs":{"c.test.ts":"3","a.test.ts":"1"}}"#.to_vec();
+    let folded = fold_readings(&[("one", &one, &none()), ("two", &two, &none())], &cases(&["a"])).unwrap();
+
+    assert_eq!(String::from_utf8(folded).unwrap(), r#"{"cases":{"a":[{"count":2}]},"inputs":{"a.test.ts":"1","b.test.ts":"2","c.test.ts":"3"}}"#);
+}
+
+#[test]
+fn refuses_two_shards_naming_one_test_file_otherwise() {
+    let one = br#"{"inputs":{"a.test.ts":"1"}}"#.to_vec();
+    let two = br#"{"inputs":{"a.test.ts":"2"}}"#.to_vec();
+    let message = fold_readings(&[("two", &two, &none()), ("one", &one, &none())], &cases(&[])).err().unwrap();
+
+    assert_eq!(message, "one and two name different inputs of `a.test.ts`, so they are not shards of one run and cannot be folded into one.");
+}

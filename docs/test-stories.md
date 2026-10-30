@@ -273,10 +273,12 @@ compare  src/checkout.test.ts > saves the total it charges, from the readings th
     checkout  src/checkout.ts:13, the then of the if
 ```
 
-A region charged to a later test line on every failing run was reached after
-the step it was reached before when the test passed: the test went ahead before
-the code was ready. A region charged to no line was reached after the test's
-last statement, too late for the run to tell which one. The record reads
+A region charged to a later test line on every failing run was reached later
+in the test when it threw than when it passed. That is timing that goes with
+the outcome, not proof the test went ahead before the code was ready: open the
+region and the lines between the two to find what moved it. *No line recorded*
+means the run kept no line for the region: it ran without cadence, or reached
+the region after the test's last statement. The record reads
 regions, not lines said or the order of steps, so when it names nothing,
 record the story and compare again.
 

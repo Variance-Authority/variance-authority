@@ -53,8 +53,9 @@ export function formatOutcomes(comparison: OutcomeComparison, format: 'text' | '
   const rows: [string, string[]][] = [
     ['charged to an earlier line when it threw', []],
     ['charged to a later line when it threw', []],
-    ['charged to no line, its drain too late, only when it threw', []],
-    ['charged to no line, its drain too late, only when it passed', []],
+    [// A region crossed with no line is one the run read without cadence or drained after the last statement; the record does not say which.
+    'no line recorded only when it threw', []],
+    ['no line recorded only when it passed', []],
     ['charged to a hook only when it threw', []],
     ['charged to a hook only when it passed', []],
     ['reached only when it passed', comparison.onlyPassed.map(regionText)],
@@ -89,7 +90,7 @@ function regionText({ file, name, path, startLine, endLine }: OutcomeRegion): st
 }
 
 function chargeText({ line, hook }: Charge): string {
-  if (line === undefined) return 'no line';
+  if (line === undefined) return 'no line recorded';
   const at = line === 0 ? 'before the first line' : `line ${line}`;
   return hook ? `${at}, in a hook` : at;
 }
