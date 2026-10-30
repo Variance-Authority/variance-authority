@@ -3,7 +3,7 @@ import { limitOf, notShown, spellingOf } from '@variance-authority/mcp/tools';
 import type { Help, Use } from '@variance-authority/package/help';
 import type { DeclaredName } from '@variance-authority/sense';
 import { unreadLine, unresolvedLine } from './declared.js';
-import { type Members, places, routes } from './members.js';
+import { type Members, memberName, places, routes } from './members.js';
 import { passesOn } from './passed-on.js';
 import { nearestTo } from './shared-segments.js';
 import { symbol } from './symbol.js';
@@ -340,7 +340,8 @@ function keptLines(name: string, kept: readonly DeclaredName[], sites: readonly 
  * container, nearest first when `from` is said, and the declaration its
  * language's type checker is asked about for the uses no line types.
  */
-function memberLines(members: Members, from: string | undefined, name: string, shown: Shown): readonly string[] {
+function memberLines(members: Members, from: string | undefined, asked: string, shown: Shown): readonly string[] {
+  const name = memberName(asked).member;
   const nearest = nearestLine(from, shown.spell);
   const used = members.used.flatMap(({ declared, uses }) => {
     if (uses.length === 0) return [];
@@ -350,7 +351,7 @@ function memberLines(members: Members, from: string | undefined, name: string, s
   // A declaration no line reaches through its type is named once, with the others like it.
   const unused = members.used.filter(({ uses }) => uses.length === 0).map(({ declared }) => `\`${declared.by}\` at ${declared.at}:${declared.line}`);
   const none = unused.length === 0 ? [] : ['', `No line uses \`${name}\` through a value whose type is written as ${unused.join(', ')}.`];
-  return [nearest, ...listed(order(members.declared, from), 'Member declarations:', name, shown), ...used, ...none, ...routes(name, members, shown.spell)];
+  return [nearest, ...listed(order(members.declared, from), 'Member declarations:', name, shown), ...used, ...none, ...routes(asked, members, shown.spell)];
 }
 
 /** The imports of an exported name, as `uses` has always answered them. */

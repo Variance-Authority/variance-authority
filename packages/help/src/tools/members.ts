@@ -50,21 +50,32 @@ export interface Members {
 }
 
 /**
+ * The member a name asks for and the container it is on: `Tree.chainsTo` is
+ * `chainsTo` on `Tree`, read off the last dot as written, never resolved.
+ */
+export function memberName(name: string): { readonly member: string; readonly on?: string } {
+  const dot = name.lastIndexOf('.');
+  return dot <= 0 || dot === name.length - 1 ? { member: name } : { member: name.slice(dot + 1), on: name.slice(0, dot) };
+}
+
+/**
  * The declarations of member `name` the source index of the checkout at
  * `root` records, in the package `wanted` names when it names one; none, and
- * why, when no checkout is named or the index does not read.
+ * why, when no checkout is named or the index does not read. A name written
+ * `Container.member` keeps the declarations on the container by that name.
  */
 export function membersOf(root: string | undefined, name: string, wanted: string | undefined): Members {
+  const { member, on } = memberName(name);
   if (root === undefined) return { declared: [], used: [], unread: 'this host named no checkout to read the source index of' };
   let found: ReturnType<typeof memberDeclarationsOf>;
   try {
-    found = memberDeclarationsOf(root, name);
+    found = memberDeclarationsOf(root, member);
   } catch (error) {
     return { declared: [], used: [], unread: `${error instanceof Error ? error.message : String(error)}; run \`variance index\`` };
   }
   if (found === undefined) return { declared: [], used: [], unread: 'no source index is published; run `variance index`' };
   const owner = wanted === undefined ? undefined : ownerOf(wanted);
-  const sites = found.sites.filter((site) => owner === undefined || site.by === owner);
+  const sites = found.sites.filter((site) => (owner === undefined || site.by === owner) && (on === undefined || site.on === on));
   const declared = sites.map((site): Use => ({ at: site.at, line: site.line, by: site.on, kind: site.kind, type: false }));
   const used = sites.flatMap((site, at) =>
     site.uses === undefined
@@ -90,7 +101,8 @@ export const TYPED =
  * go-to-implementation on the same declaration names the implementations
  * that take their type from where they go, which write none on their line.
  */
-export function routes(name: string, members: Members, spell: Spelling): readonly string[] {
+export function routes(asked: string, members: Members, spell: Spelling): readonly string[] {
+  const name = memberName(asked).member;
   const only = members.declared.length === 1 ? members.declared[0]! : undefined;
   // A container with a name is one `used` lists; one without is named by the member alone.
   const named = members.used.some(({ declared }) => declared === only);
