@@ -133,7 +133,7 @@ pub(crate) fn text_at(root: &str, commit: &str) -> Result<HashMap<String, Option
     let mut read = read.into_iter();
     for (file, oid) in changed {
         let text = match oid.and_then(|_| read.next()) {
-            Some(blob) if crate::lfs::pointer(&blob) => Some(crate::lfs::smudge(root, &file, &blob).map_err(|why| unread(&why))?),
+            Some(blob) if crate::lfs::pointer(&blob) => Some(crate::lfs::smudge(root, &file, commit, &blob).map_err(|why| unread(&why))?),
             blob => blob,
         };
         texts.insert(file, text.map(|bytes| String::from_utf8_lossy(&bytes).into_owned()));

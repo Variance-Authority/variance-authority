@@ -162,6 +162,10 @@ fn a_file_git_holds_as_an_lfs_pointer_is_read_as_its_content_or_not_at_all() {
 
     let refused = text_at(root.to_str().unwrap(), &recorded).unwrap_err();
     assert!(refused.contains("a.ts is a git-LFS pointer"), "the pointer is named, never read as source: {refused}");
+    assert!(
+        refused.contains(&format!("Run `git lfs install --local`, and `git lfs fetch origin {recorded}`")),
+        "the refusal says how to give git-lfs the content: {refused}"
+    );
 
     // Where git-lfs is installed and holds the object, the text is its content.
     if Command::new("git").args(["lfs", "version"]).output().is_ok_and(|out| out.status.success()) {

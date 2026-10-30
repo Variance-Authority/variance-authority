@@ -320,7 +320,7 @@ function read(
 
 /**
  * A blob's text; for a git-LFS pointer, the content `git lfs smudge` gives, or
- * git-lfs's reason it could not. Hashed as source, the pointer is a text nobody
+ * git-lfs's reason it could not and the commands that give it the content. Hashed as source, the pointer is a text nobody
  * recorded. `cat-file --filters` would smudge in-process, but its header gives
  * the pointer's size over the content's bytes, breaking the `--batch` framing.
  */
@@ -336,7 +336,8 @@ function contentOf(root: string, commit: string, file: string, blob: Buffer): st
   } catch (error) {
     const said = (error as { stderr?: Buffer }).stderr?.toString('utf8').trim();
     throw new Error(
-      `${file} at ${commit} is a git-LFS pointer, and git-lfs could not give its content: ${said || (error as Error).message}`,
+      `${file} at ${commit} is a git-LFS pointer, and git-lfs could not give its content: ${said || (error as Error).message}. ` +
+        `Run \`git lfs install --local\`, and \`git lfs fetch origin ${commit}\` to fetch it.`,
       { cause: error },
     );
   }

@@ -389,7 +389,7 @@ describe('the text at a recording of a file git-lfs tracks', () => {
       await git('commit', '--quiet', '--message', 'a pointer with no object');
     }, (root, commit) => {
       expect(() => textsAt(root, new Map([[commit, ['src/big.ts', 'src/small.ts']]]))).toThrow(
-        new RegExp(`src/big\\.ts at ${commit} is a git-LFS pointer, and git-lfs could not give its content: .`),
+        new RegExp(`src/big\\.ts at ${commit} is a git-LFS pointer, and git-lfs could not give its content: .+Run \`git lfs install --local\`, and \`git lfs fetch origin ${commit}\``, 's'),
       );
     });
   });

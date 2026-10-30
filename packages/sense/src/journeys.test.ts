@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, realpathSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, realpathSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, relative } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -145,6 +145,19 @@ describe('the journeys prepared beside the index', () => {
     expect(await prepareJourneys(root)).toEqual([
       { out: journeysPath(sourceIndexPath(root)), failed: "commit 0123456789ab is not in this checkout's object store" },
     ]);
+  });
+
+  // A recording that is there and does not read is a fault too, not an absence.
+  it('fail on a recording whose commit does not read, and say why', async () => {
+    await updateSourceIndex(root);
+    record(recording());
+    // The coverage's own header no longer reads; the case sections around it still do.
+    const at = testCoverageFile(root);
+    const bytes = readFileSync(at);
+    bytes.fill(0, 0, 8);
+    writeFileSync(at, bytes);
+    const [prepared] = await prepareJourneys(root);
+    expect(prepared).toEqual({ out: journeysPath(sourceIndexPath(root)), failed: expect.stringMatching(/^the recording at \S+coverage\.bin does not read \(.+\)$/) });
   });
 });
 
