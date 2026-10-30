@@ -67,10 +67,12 @@ reviewed harder than the code will be: a defect in code costs a fix, and a
 change that should not exist costs its whole build, its review, and the
 reviews after it that measure everything else against it. Of the pull
 requests closed unmerged before this loop, seven were ideas that should not
-have been built; none was closed for broken code.
+have been built; none was closed for broken code. A `docs`, `chore`, `ci`,
+`test`, `refactor` or `revert` change has no idea to get wrong: it skips the
+loop, and the kind's own row in the pull request reference is its gate.
 
-**The brief is the issue.** Every change starts as a GitHub issue, found or
-filed as "Tasks are GitHub issues" in `AGENTS.md` says. Its body holds, in
+**The brief is the issue.** Every change to what the product does — a
+`feat`, `fix` or `perf` — starts as a GitHub issue, found or filed as "Tasks are GitHub issues" in `AGENTS.md` says. Its body holds, in
 this order:
 
 - **Problem**: what is wrong or missing, apart from any fix.

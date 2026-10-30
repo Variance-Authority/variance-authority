@@ -141,8 +141,9 @@ configured `pre-push` hook beside Git LFS's, refuses an agent's push of a
 branch whose tip's tree `yarn verify:near` and `yarn verify:rules` have not
 recorded green in that worktree; a commit before the tip is never merged alone.
 `yarn install` fails for an agent whose git does not run configured hooks. A pull request only names a branch a push put there,
-so the push is the one gate. CI's `idea` job reads the body's first line and
-fails a pull request whose issue does not carry `idea: build`, or was edited
+so the push is the one gate. CI's `idea` job reads the body's first line of a
+`feat`, `fix` or `perf` pull request, or one whose title names no kind, and
+fails it when its issue does not carry `idea: build`, or was edited
 after the label went on; it runs again in the merge queue for every pull
 request the group merges, so an edit made after the last run still stops the
 merge. Both guard the workflow; they are
