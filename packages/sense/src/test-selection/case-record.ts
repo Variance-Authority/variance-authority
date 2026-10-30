@@ -8,38 +8,26 @@ import type { Bytes } from './columns.js';
 import { LAYOUT } from './record-layout.js';
 
 /**
- * What a run recorded about its cases, carried inside the record its coverage
- * is: one file, so every rule that moves a record — landing, layering, seeding,
- * repinning, a share, a carried cache — moves the cases with it (spec 0094).
+ * What a run recorded about its cases, one section a part inside the record its
+ * coverage is, so every rule that moves a record — landing, layering, seeding, a
+ * share — moves the cases with it (spec 0094). An absent part was not
+ * collected, and a reader answers *unmeasured* for it, never *none*.
  *
- * Each part is one section holding its own self-describing bytes:
- *
- * - `cases` is the case index, in the set spelling `execution-set-format.ts`
- *   writes;
- * - `cases.before` is what the index held for the last run's files before it
- *   landed, the base an edit to a test is compared against;
- * - `cases.last` names that run, as JSON;
- * - `eyes` holds the Eyes journals of the cases that kept one, by case and
- *   attempt (`eyes-record.ts`);
- * - `run.base` names the record the run started from (`record-base.ts`), so
- *   shards of one build that restored two records refuse to combine.
- * - `cases.readings` holds the earlier readings of the cases a run recorded
- *   again over the code they read before, as JSON (`case-readings.ts`).
- *
- * FIXME: `cases` and `cases.before` each carry a module and block table of
- * their own, re-encoding the files and blocks the record's coverage sections
- * already hold; spec 0094 lays the crossings onto the record's blocks instead.
- *
- * An absent part was not collected. A record with no case sections kept no
- * cases, or was written before a record carried them, and a reader answers
- * *unmeasured* for it, never *none*.
+ * FIXME: `cases` and `cases.before` each re-encode the module and block table
+ * the coverage sections hold; spec 0094 lays the crossings onto those blocks.
  */
 export interface CaseSections {
+  /** `cases`: the case index, in the set spelling `execution-set-format.ts` writes. */
   readonly index?: Uint8Array;
+  /** `cases.before`: what the index held for the last run's files before it landed, the base an edit to a test is compared against. */
   readonly before?: Uint8Array;
+  /** `cases.last`: that run, named as JSON. */
   readonly last?: Uint8Array;
+  /** `eyes`: the Eyes journals of the cases that kept one, by case and attempt (`eyes-record.ts`). */
   readonly eyes?: Uint8Array;
+  /** `run.base`: the record the run started from (`record-base.ts`), so shards of one build that restored two records refuse to combine. */
   readonly base?: Uint8Array;
+  /** `cases.readings`: the earlier readings of cases run again over the code they read before, as JSON (`case-readings.ts`). */
   readonly readings?: Uint8Array;
 }
 

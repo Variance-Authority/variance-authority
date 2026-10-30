@@ -1,25 +1,9 @@
 /**
  * The earlier readings of a case over the code its newest reading read, kept
- * so a reader can set one reading against another (spec 0072 item 2).
- *
- * A **reading** is one recorded run of one case: whether it stopped, and each
- * region it crossed with the value its cadence charged there (`case-lines.ts`),
- * or none for a case recorded without cuts. A rerun replaces the case in the
- * index; before it does, the reading it replaces is kept here when every module
- * either reading entered was recorded from the same text in both. A module that
- * differs, or that only one side recorded, drops every earlier reading of the
- * case: they read other code.
- *
- * A reading equal to one already kept is not stored again: its count goes up.
- * So a case that reads the same every time costs its count, and only a case
- * whose readings differ costs regions. The newest reading is the one the index
- * holds, and is stored here as its count and stop alone, unless the index
- * holds the case otherwise. At most
- * {@link READINGS} distinct readings are kept, the oldest dropped first: the
- * bound a story keeps (ADR-0079).
- *
- * The section is JSON: a reader that does not ask for readings never decodes it,
- * and selection never does.
+ * so a reader can set one reading against another (spec 0072 item 2). A rerun
+ * keeps the reading it replaces while every module either entered stands at
+ * the same text; a module that moved drops them, since they read other code.
+ * The section is JSON, which selection never decodes.
  */
 
 import { codeUnitOrder } from '@variance-authority/core/segment';
@@ -33,7 +17,11 @@ export const READINGS = 16;
 /** One region a reading crossed: its module, its declaration's name and the path in it, its lines, and the value cadence charged it; null where no line was recorded. */
 export type ReadRegion = readonly [module: string, name: string, path: string, startLine: number, endLine: number, value: number | null];
 
-/** One reading of a case, and how many runs read it so. */
+/**
+ * One recorded run of one case, and how many runs read it so: an equal reading
+ * raises the count rather than being stored again, so a case that reads the
+ * same every time costs its count.
+ */
 export interface Reading {
   readonly count: number;
   /** As the case's own `stopped` says it: absent when the producer could not see how it settled. */
@@ -42,7 +30,12 @@ export interface Reading {
   readonly regions: readonly ReadRegion[];
 }
 
-/** How the section stores a case: the newest reading's regions are the index's, so it holds none. */
+/**
+ * How the section stores a case: the newest reading holds no regions where the
+ * landed index holds the case as it ran. A file the run did not finish is laid
+ * over its earlier crossings (`case-layer.ts`), and a cut index holds less, so
+ * the newest reading of either keeps its regions.
+ */
 interface StoredCase {
   readonly modules: readonly string[];
   readonly readings: readonly (Omit<Reading, 'regions'> & { readonly regions?: readonly ReadRegion[] })[];
@@ -58,19 +51,10 @@ interface Read {
 }
 
 /**
- * The readings section once a run is laid: `kept` is the section the record
- * held, `previous` the index the run is laid over, `fresh` the run's own index,
- * `landed` the index the record will hold, and `cases` every case it holds.
- * `same` says whether the run recorded `file` from the text `previous` holds it
- * at.
- *
- * The newest reading of a case is stored without its regions only where the
- * landed index holds the case as that reading ran. A file the run did not
- * finish is laid over, its earlier crossings kept beside the new ones
- * (`case-layer.ts`), and an index cut to what a share collected holds less; a
- * case of either keeps its newest reading's regions here.
- *
- * Absent when no case holds a reading the index does not: absent is not empty.
+ * The readings section once `fresh` is laid over `previous` into `landed`:
+ * `kept` the section the record held, `cases` every case it holds, and `same`
+ * whether the run recorded `file` from the text `previous` holds it at. Absent
+ * when no case holds a reading the index does not.
  */
 export function layReadings(
   kept: Uint8Array | undefined,

@@ -1,28 +1,10 @@
 /**
- * The readings of one case the record keeps, split by outcome and compared:
- * what moves with the outcome, from the record every run writes, with no story
- * taped.
- *
- * Cadence charges each region a case crossed to the test line whose statement
- * first reached it (`case-lines.ts`), and the record keeps a case's earlier
- * readings over unchanged code (`case-readings.ts`). A timing flake is a region
- * charged to another line: the click lands before the handler's region, the
- * scan before the render's. One reading of a passing run against one of a
- * failing run says nothing, since async work is charged to another line from
- * one run to the next; what holds on every reading of one outcome and on none
- * of the other is told, as `compare.ts` tells it for stories, and what moves
- * within one outcome is counted and left out.
- *
- * Four things are told of a region:
- *
- * - **Reached on one side.** Every reading of one outcome crossed it and none of
- *   the other did: the failing run stopped before it, or only it took the arm.
- * - **Charged earlier or later.** Every reading of both crossed it, every
- *   passing one under one line and every failing one under another.
- * - **A hook's, or no line, on one side.** Charged under the same line on both
- *   but on one side to a hook's statement rather than the case's own; or on one
- *   side under no line at all, which a page case is charged when its drain
- *   came too late (ADR-0089 decision 3).
+ * A case's readings the record keeps, split by outcome and compared, with no
+ * story taped. Cadence charges each region to the test line that first reached
+ * it (`case-lines.ts`), so a timing flake is a region charged to another line on
+ * every failing run. Async work moves charges from run to run as well, so only
+ * what holds on every reading of one outcome and none of the other is told, as
+ * `compare.ts` tells it for stories, and the rest is counted.
  */
 
 import { codeUnitOrder } from '@variance-authority/core/segment';
@@ -101,7 +83,13 @@ export function recordedReadings(root: string, name: string, file?: string): Rec
   return found;
 }
 
-/** A case's readings split by `stopped` and compared; absent when one outcome holds none. */
+/**
+ * A case's readings split by `stopped` and compared; absent when one outcome
+ * holds none. A region is told when every reading of one outcome and none of
+ * the other reached it; when both reached it under another line; or when both
+ * charged one line but one side a hook's statement, or one side no line, as a
+ * page case's drain that came too late is charged (ADR-0089 decision 3).
+ */
 export function compareOutcomes({ file, name, readings }: RecordedCase): OutcomeComparison | undefined {
   const sides = [readings.filter((reading) => reading.stopped === false), readings.filter((reading) => reading.stopped === true)];
   if (sides.some((side) => side.length === 0)) return undefined;

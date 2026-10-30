@@ -260,14 +260,17 @@ was charged to on each. With no story recorded for the test, `--compare
 outcome` reads those:
 
 ```text
-compare  test/page.test.ts > clicks, from the readings the record keeps
-  passed (2 runs) against threw (2 runs)
+compare  src/checkout.test.ts > saves the total it charges, from the readings the record keeps
+  passed (4 runs) against threw (6 runs)
 
   charged to a later line when it threw, on every run:
-    wire  src/page.ts:3-5  line 4 when it passed, line 6 when it threw
+    reprice  src/checkout.ts:18-22  line 7 when it passed, line 9 when it threw
 
   reached only when it passed, on every run:
-    handle  src/page.ts:8, the else of the if
+    checkout  src/checkout.ts:13, the else of the if
+
+  reached only when it threw, on every run:
+    checkout  src/checkout.ts:13, the then of the if
 ```
 
 A region charged to a later test line on every failing run was reached after
