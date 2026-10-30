@@ -18,49 +18,17 @@ import { LAYOUT } from './record-layout.js';
 export const MODEL = LAYOUT.coverage.model;
 
 /**
- * The byte layout's version, which moves when the model does not. A reader
- * refuses a file it cannot decode, and a file whose columns are stored as runs
- * is not one a reader of the previous layout can map. It moved again when those
- * runs became zstd rather than brotli: the run tag would have said so, but a
- * header that answers first turns an unreadable byte into a stated version.
+ * The byte layout's version, which moves when the model does not. Every added
+ * section moves it: a reader that finds a section missing fails where it
+ * addresses it, so an older file would read as corrupt rather than as old. Runs
+ * stored as zstd, the sections of what loaded a region, and the pooled sets of
+ * tests each moved it and left the layout before unreadable.
  *
- * And again for the two sections that hold what loaded a region before its
- * test began. A reader that finds them missing fails where it addresses them,
- * with the sentence it keeps for bytes that are not ours — so a snapshot one
- * release older reads as corrupt rather than as old. Adding a section is
- * therefore a move of this number, even though every section that was there
- * still means what it did.
- *
- * And again when the block-to-test relation stopped being stored as the pairs
- * themselves. A region names one interned set out of a pool the whole file
- * shares, so `blocks.tests` and `crossings.test` are gone rather than changed,
- * and the sections that replace them hold a different thing entirely.
- *
- * And once more for what loaded a region, which was the last relation still
- * stored as its pairs. It is a set of the same tests the crossings are, so it
- * names one out of the same pool: `blocks.loaded` and `loaded.test` are gone
- * and `blocks.loadedSet` holds one id a region in their place.
- *
- * And again for `tests.duration`, what the runner said each test file cost.
- * Unlike the moves before it, the previous layout stays readable: every section
- * it has still means what it did, and the one it lacks is a fact nobody
- * reported, which a reader answers with absence rather than a refusal. The JVM
- * agent still writes that layout.
- *
- * And again when the record took in its cases (spec 0094): `cases`,
- * `cases.before` and `cases.last` sit beside the coverage sections, each
- * holding bytes of its own. The layout before it stays readable as a record
- * that kept no cases, which is what it is to every reader: the case index it
- * may have had beside it is not read.
- *
- * And again for `tests.phases`, what the runner said each test file spent
- * before its first case. The layout before it stays readable, as a record whose
- * runner reported no phases.
- *
- * And again for `modules.blob`, the name git gives each module's text as a
- * blob, so a reader asks the source index whether the checkout holds that text
- * instead of reading it. The layout before it stays readable, as a record
- * whose rows name no text by its blob: which text they ran is not known.
+ * A section whose absence is a fact nobody reported keeps the layout before it
+ * readable, opened with that fact absent: `tests.duration` (the JVM agent still
+ * writes that layout), the cases of spec 0094 (a record that kept none),
+ * `tests.phases` (a runner that reported none), and `modules.blob` (rows that
+ * name no text by its git blob, so which text they ran is not known).
  */
 export const FORMAT = LAYOUT.coverage.format;
 

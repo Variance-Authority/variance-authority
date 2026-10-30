@@ -1664,7 +1664,11 @@ version (`state: 'other-version'`, with the version in `written`): with
 `ci: true` it throws `SourceIndexUnpublished`, whose message names `step`;
 otherwise it updates once, calls `announce` with a line that says which of the
 three it found, and reads. Pass your
-runner's own answer for `ci` — the `ci-info` package is what Jest reads.
+runner's own answer for `ci` — the `ci-info` package is what Jest reads. Set
+`update` when you name the checkout's texts by the index: outside CI, a whole
+index is then brought up to the checkout too, silently. An update that
+fails throws `SourceIndexUnpublished` with the reason the update gave, because
+the index it leaves does not describe the checkout.
 `sourcesWithin` returns the records a scan seeded from `dirs` and `before` would
 have produced, so a reader with a narrower question gets the narrower graph
 without scanning.

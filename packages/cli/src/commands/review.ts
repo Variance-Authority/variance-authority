@@ -297,7 +297,6 @@ export async function review(request: ParsedReview, { motion: moves = true } = {
   const against = request.against ?? (mainline !== undefined && point.base === mainline.commit ? mainline.cases : undefined);
 
   const named = (file: string): string => relative(point.repository, resolve(process.cwd(), file));
-  // Updated to the checkout outside CI: which files a record ran as the tree is told by the names the index gives them.
   const { relations, sources, names } = await sourceGraphFor(root, ['.'], [], [], false, true);
 
   const changed = changedLines(forward);
