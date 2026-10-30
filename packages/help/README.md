@@ -567,7 +567,9 @@ than as it was when the reading was taken.
 It does not rank on prose. `search` matches the query case-insensitively as a
 substring of a name or its doc, and a name also matches when it is written in
 every word of the query, each word by its start or its stem, so `instrumenting`
-reaches `instrumentModule`. A match is a fact about the text rather than an
+reaches `instrumentModule`. A doc also matches when it writes the query's words
+in order, each next to the last by stem, so "installs the page's sink" matches
+`page sink` and "a page and its sink" does not. A match is a fact about the text rather than an
 opinion about the query. When it matches nothing, the names holding any of
 the query's words, stemmed as installed packages are, in any order
 across the name and its doc, follow under their own heading, each with the

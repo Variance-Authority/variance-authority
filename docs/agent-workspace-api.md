@@ -472,7 +472,8 @@ serve the text, so what you read is the file as it is now.
 Use `docs_search` only when the name is unknown: it performs a
 case-insensitive substring match over names and documentation, not semantic
 ranking. Several words also match a name written in those words, in any order,
-so `kept reading` finds `keptReading` in that answer. Where your words land on a
+so `kept reading` finds `keptReading` in that answer, and a doc that writes them
+in order by stem, so `page sink` finds the doc "installs the page's sink". Where your words land on a
 name only loosely — a word typed wrong, or two words its documentation writes
 but not beside each other — those names follow under a heading of their own,
 after that answer and never inside it. So do the names holding any of your
