@@ -95,26 +95,17 @@ const GATED: readonly string[] = [
   .filter((file) => /\.skip\b|\b(?:run|skip)If\b/.test(readFileSync(join(ROOT, file), 'utf8')));
 
 /**
- * Every `console.warn` a reader reaches during collection: top level, or one
- * `if` deep. A case says it through `unbuilt(` from `cases/unbuilt.mjs`, which
- * warns where a developer runs it and throws on CI, so that call announces too.
- *
- * Read as text with a column rule rather than parsed. A `console.warn` that runs
- * during collection is written at column 0 or indented inside one top-level
- * block, so it is reachable exactly when its `console` sits at an indent of four
- * spaces or fewer. Anything deeper is inside a `describe` or an `it`, where it
- * never runs on a skipped suite — which is the failure this rule exists to
- * prevent.
- *
- * That is the whole reason the AST went: driving a compiler to answer "is this
- * call nested" is what put the TypeScript API in the test suite, and the column
- * answers it. A false negative here is a file that announces and is told it does
- * not, which fails loudly; there is no way for it to produce a false pass.
+ * Every announcement a reader reaches during collection: top level, or one `if`
+ * deep, which is an indent of four spaces or fewer. Deeper sits inside a
+ * `describe` or an `it` and never runs on a skipped suite. A column rule, not an
+ * AST: a false negative fails loudly, and none can pass falsely.
  */
 function announcements(file: string): readonly string[] {
   const text = readFileSync(join(ROOT, file), 'utf8');
   const found: string[] = [];
 
+  // A case announces through `unbuilt(` from `cases/unbuilt.mjs`, which warns
+  // on a developer's machine and throws on CI.
   for (const match of text.matchAll(/^(\s*)(?:console\.warn|unbuilt)\(([\s\S]*?)^\1\);/gm)) {
     if ((match[1] ?? '').length <= 4) found.push(match[0]);
   }
