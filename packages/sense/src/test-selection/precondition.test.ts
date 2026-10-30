@@ -79,7 +79,7 @@ describe('the recorder a case scope installs', () => {
     recorder.phase({ kind: 'outside', because: 'ran in a beforeAll, which runs for no one case' });
     expect(() => variancePrecondition('fixture', { flag: 'ff-off' })).toThrow(/ran in a beforeAll/);
     recorder.phase(undefined);
-    expect(recorder.take(keyOf('pays'))).toEqual({ said: [] });
+    expect(recorder.take(keyOf('pays'))).toEqual({ said: [], read: [], misused: [] });
   });
 
   it('forgets what a beforeEach said for a case that never entered when the next case begins', () => {
@@ -110,7 +110,7 @@ describe('the recorder a case scope installs', () => {
     recorder.entered(keyOf('checkout > pays'));
     recorder.entered(keyOf('checkout > refunds'));
     expect(recorder.take(keyOf('checkout > pays')).said.map(([name, , , level]) => [name, level])).toEqual([['fixture:network', 1]]);
-    expect(recorder.take(keyOf('checkout > refunds'))).toEqual({ said: [] });
+    expect(recorder.take(keyOf('checkout > refunds'))).toEqual({ said: [], read: [], misused: [] });
   });
 
   it('records no case for a call after the case, and says where it was', () => {
@@ -123,7 +123,7 @@ describe('the recorder a case scope installs', () => {
     } finally {
       console.warn = warn;
     }
-    expect(recorder.take(keyOf('pays'))).toEqual({ said: [] });
+    expect(recorder.take(keyOf('pays'))).toEqual({ said: [], read: [], misused: [] });
     expect(String(warned[0])).toMatch(/precondition\.test\.ts:\d+ ran after its case/);
   });
 
@@ -212,8 +212,8 @@ describe('where a hook stands, and what the recorder takes for a call', () => {
     recorder.within({ kind: 'each', depth: 0 }, () => variancePrecondition('fixture', { seeded: true }));
     recorder.finish();
     recorder.entered(keyOf('refunds'));
-    expect(recorder.take(keyOf('pays'))).toEqual({ said: [] });
-    expect(recorder.take(keyOf('refunds'))).toEqual({ said: [] });
+    expect(recorder.take(keyOf('pays'))).toEqual({ said: [], read: [], misused: [] });
+    expect(recorder.take(keyOf('refunds'))).toEqual({ said: [], read: [], misused: [] });
   });
 
   it('records nothing for a record alone, a dimension and a string, or a record holding an empty key', () => {
@@ -232,7 +232,7 @@ describe('where a hook stands, and what the recorder takes for a call', () => {
     }
     expect(warned).toHaveLength(4);
     expect(warned[1]).toContain('takes a dimension and a record of keys to values; nothing was recorded');
-    expect(recorder.take(keyOf('pays'))).toEqual({ said: [] });
+    expect(recorder.take(keyOf('pays'))).toEqual({ said: [], read: [], misused: [] });
   });
 
   it('names a call it cannot place on a stack as no site, and a dev server\'s `/@fs/` URL as the file it serves', () => {

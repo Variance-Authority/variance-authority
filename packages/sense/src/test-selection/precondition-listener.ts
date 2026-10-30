@@ -66,7 +66,7 @@ export function listenForPreconditions(root: string, standing: () => Preconditio
   const before = holder[preconditions.PRECONDITION];
   const reading = holder[preconditions.BREADCRUMB];
   // Every call is placed by one reading of `standing`, so `running` names no case.
-  const heard = preconditions.recorder(holder, () => undefined, undefined, (site) => saidSite(root, site), true);
+  const heard = preconditions.recorder(holder, () => undefined, undefined, (site) => saidSite(root, site));
   // FIXME: a read made while a later file of the worker loads stands outside and is
   // recorded on no case, where a Node runner lays it on every case of the file.
   heard.loaded();

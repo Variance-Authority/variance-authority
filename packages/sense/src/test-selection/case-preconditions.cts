@@ -60,16 +60,15 @@ type Said = readonly [name: string, value: string | null, site: string, level: n
 
 /**
  * What a case said, what the code read in it, and each `varianceBreadcrumb`
- * call that made no `dimension:key`: `read` and `misused` absent where nobody
- * listened to reads.
+ * call that made no `dimension:key`.
  *
  * A misuse is `[argument, value, site, level]`: the argument that was wrong,
  * `dimension` or `key`, and the JSON text of what it was given, never a name.
  */
 interface Heard {
   readonly said: readonly Said[];
-  readonly read?: readonly Said[];
-  readonly misused?: readonly Said[];
+  readonly read: readonly Said[];
+  readonly misused: readonly Said[];
 }
 
 /** Which facet of {@link Heard} a breadcrumb call lands on. */
@@ -99,7 +98,7 @@ type Where =
  * The recorder for one realm's case scope: `running` names the case running
  * now; `context` is the realm's async store, where concurrent cases' hooks
  * interleave at every await; `siteNamed` spells a warning's site as the row
- * does; `reads` listens to `varianceBreadcrumb`, as every realm running code
+ * does. It listens to `varianceBreadcrumb` too, as every realm running code
  * under test does.
  */
 function recorder(
@@ -107,7 +106,6 @@ function recorder(
   running: () => string | undefined,
   context?: { run<Result>(store: Where, body: () => Result): Result; getStore(): Where | undefined },
   siteNamed: (site: string) => string = (site) => site,
-  reads = false,
 ): {
   phase(where: Where | undefined): void;
   within<Result>(where: Where, body: () => Result): Result;
@@ -252,19 +250,17 @@ function recorder(
     }
     say(entries, site);
   };
-  if (reads) {
-    (holder as { [BREADCRUMB]?: unknown })[BREADCRUMB] = (
-      dimension: unknown,
-      key: unknown,
-      value: unknown,
-      called?: unknown,
-    ): boolean => {
-      const wrong = misuseOf(dimension, key);
-      return wrong === undefined
-        ? read('read', `${dimension as string}:${key as string}`, jsonText(value), called)
-        : read('misused', wrong.argument, jsonText(wrong.given), called, wrong.why);
-    };
-  }
+  (holder as { [BREADCRUMB]?: unknown })[BREADCRUMB] = (
+    dimension: unknown,
+    key: unknown,
+    value: unknown,
+    called?: unknown,
+  ): boolean => {
+    const wrong = misuseOf(dimension, key);
+    return wrong === undefined
+      ? read('read', `${dimension as string}:${key as string}`, jsonText(value), called)
+      : read('misused', wrong.argument, jsonText(wrong.given), called, wrong.why);
+  };
 
   return {
     phase(next) {
@@ -314,7 +310,6 @@ function recorder(
       const said = byCase.get(key) ?? [];
       byCase.delete(key);
       seenReads.delete(key);
-      if (!reads) return { said };
       const own = readByCase.get(key) ?? [];
       readByCase.delete(key);
       // A case's own read of a value the file read as it loaded wins, as the
@@ -326,8 +321,7 @@ function recorder(
       return { said, read: of('read'), misused: of('misused') };
     },
     laid(key, read) {
-      if (!reads) return;
-      if (key === undefined) for (const [facet, [name, value, site]] of read) stray(site, facet === 'read' ? `read ${name}` : `was misused (${name} = ${value})`);
+      if (key === undefined) for (const [facet, [name, value, site]] of read) stray(site, facet === 'read' ? `read ${name}` : `was misused (${misuseWhy(name as Argument, value === null ? undefined : JSON.parse(value))})`);
       else if (read.length > 0) onto(readByCase, key, read);
     },
     held: (key) => [...(byCase.get(key) ?? [])],

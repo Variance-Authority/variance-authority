@@ -136,6 +136,9 @@ export function createExecutionRecorder(
   // taken when the case is marked, which is after its `afterEach` ran.
   const listener = standing === undefined ? undefined : listenForPreconditions(root, standing);
   const heard = new Map<string, NonNullable<ObservedCase['said']>>();
+  // Cases that drove a page carrying no execution collector: what that page
+  // read went unheard, so an empty facet would claim it read nothing.
+  const unheard = new Set<string>();
   const owners = new Map<string, Accumulated>();
   // Kept beside the owners rather than derived from them: a case is a window
   // inside a file's window, and both are wanted whole. The key carries all
@@ -178,7 +181,10 @@ export function createExecutionRecorder(
     },
     note: async (page, owner, subject, line) => {
       const journal = await quietly(page, () => drainExecution(page));
-      if (journal === undefined) return;
+      if (journal === undefined) {
+        if (subject !== undefined) unheard.add(caseKey(owner, subject.id));
+        return;
+      }
       seen = true;
       instrumentation = journal.instrumentation;
       const accumulated = owners.get(owner) ?? accumulation();
@@ -280,7 +286,8 @@ export function createExecutionRecorder(
       const settled = stopped.get(key);
       const duration = spent.get(key);
       const eyes = looked.get(key);
-      const said = listener === undefined ? undefined : (heard.get(key) ?? listener.nothing);
+      const listened = listener === undefined ? undefined : (heard.get(key) ?? listener.nothing);
+      const said = listened !== undefined && unheard.has(key) ? withoutEmptyReads(listened) : listened;
       const lines = reached.of(key);
       return {
         ...held.of,
@@ -409,4 +416,11 @@ export function createExecutionRecorder(
       process.stderr.write(`variance-authority: recorded no test execution — ${record.because}\n`);
     }
   }
+}
+
+/** A case's said with its empty `read` and `misused` dropped: a page it drove was not listened to. */
+function withoutEmptyReads(said: NonNullable<ObservedCase['said']>): NonNullable<ObservedCase['said']> {
+  const facets = JSON.parse(said) as Record<string, readonly unknown[]>;
+  for (const facet of ['read', 'misused']) if (facets[facet]?.length === 0) delete facets[facet];
+  return JSON.stringify(facets);
 }

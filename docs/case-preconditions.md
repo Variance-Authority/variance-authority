@@ -186,7 +186,8 @@ the provider the code reads from, the test says one thing and the code runs
 another. `varianceBreadcrumb` records what the code read, in the source, where
 it reads. Vitest, Jest and Rstest record reads in Node, and Playwright records
 them in the worker and in the page the case drives, when the page carries the
-execution collector.
+execution collector. A case that drove a page without it has no read facet,
+rather than an empty one, unless the worker read something.
 
 ```ts
 // src/flags.ts

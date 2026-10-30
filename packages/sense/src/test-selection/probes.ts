@@ -348,7 +348,7 @@ function pageReaderSource(): string {
   ${preconditions.RECORDER_PARTS.map(String).join('\n')}
   if (globalThis[BREADCRUMB] !== undefined) return undefined;
   const said = globalThis[PRECONDITION];
-  const heard = recorder(globalThis, () => 'page', undefined, undefined, true);
+  const heard = recorder(globalThis, () => 'page');
   heard.loaded();
   // A page says no precondition: its case does, in the driver.
   if (said === undefined) delete globalThis[PRECONDITION];

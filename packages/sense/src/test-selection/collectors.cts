@@ -304,7 +304,6 @@ function scoped(
     },
     continuations ? new async_hooks.AsyncLocalStorage() : undefined,
     siteNamed,
-    true,
   );
   const close = (bucket: Bucket, name: string): View | undefined => {
     if (buckets.get(bucket.key) === bucket) buckets.delete(bucket.key);
