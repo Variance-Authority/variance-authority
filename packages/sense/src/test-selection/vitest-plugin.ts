@@ -10,7 +10,7 @@ import type { InstrumentMode } from '../instrument/index.js';
 import { heldOriginal, pathOf, type Captured, type CapturedAfter, type ComposedMap } from './captured-modules.js';
 import { cleanId, fileOrNone, mayTake, projectPath, type ProbePlacement } from './instrumented-modules.js';
 import { readFinished, type FinishedFile } from './finished-files.js';
-import { carryingHooks } from './carried-stories.js';
+import { pageTaping } from './carried-stories.js';
 import { browserSetupSource } from './worker-source.js';
 import { declareConfig, type ResolvedViteConfig } from './governing-config.js';
 import { removeSeamModules, writeSeamModule, type SelectionRun } from './selection-run.js';
@@ -154,10 +154,7 @@ export function selectionPlugin(
         // file's setup files, and the setup module written here is what installs
         // the page's root. A module that installs it, imported ahead of them,
         // would carry what they load to the file the way the case runner does.
-        const taping = story === undefined
-          ? undefined
-          : { tape: (await import('../story/page.js')).storyPageSource(), hooks: carryingHooks() };
-        writeSeamModule(run, setupId, browserSetupSource(mode, 'vitest', taping));
+        writeSeamModule(run, setupId, browserSetupSource(mode, 'vitest', story === undefined ? undefined : await pageTaping()));
         if (config.test.runner === runnerId) delete config.test.runner;
         // An index with no case in it answers *which cases walk this line* with
         // none, so a run that recorded no case writes no index.

@@ -17,8 +17,7 @@ import { reportedDuration, reportedPhases } from './reported-time.js';
 import { namedTasks, reportedCases, taskCases } from './case-durations.js';
 import { noteRunner, projectConfig, type RunnerContext } from './governing-config.js';
 import { reopenRun, type SelectionRun } from './selection-run.js';
-import { carriedStory, writeCarriedStories } from './carried-stories.js';
-import type { StoryCase } from '../story/page.js';
+import { writeCarriedStories } from './carried-stories.js';
 
 export function selectionReporter(
   run: SelectionRun,
@@ -56,8 +55,8 @@ export function selectionReporter(
     onTestRunStart: () => reopenRun(run, run.settled ? Date.now() : run.startedAt),
     onFinished: async (files: readonly RunnerTask[]) => {
       // The end is announced through both hooks; the first to arrive writes.
-      if (!run.settled) await writeCarried(story, files.flatMap((file) => namedTasks(file).map(({ task, name }) => ({
-        subject: storyCase(file.filepath, name, task.id, file.projectName),
+      if (!run.settled) await writeCarriedStories(story, files.flatMap((file) => namedTasks(file).map(({ task, name }) => ({
+        file: file.filepath, name, id: task.id, project: file.projectName,
         meta: task.meta,
         stopped: task.result?.state === 'fail',
       }))));
@@ -82,8 +81,8 @@ export function selectionReporter(
       );
     },
     onTestRunEnd: async (reported: readonly ReportedModule[], _errors?: unknown, reason?: string) => {
-      if (!run.settled) await writeCarried(story, reported.flatMap((module) => [...module.children.allTests()].map((test) => ({
-        subject: storyCase(module.moduleId, test.fullName, test.id, module.project?.name),
+      if (!run.settled) await writeCarriedStories(story, reported.flatMap((module) => [...module.children.allTests()].map((test) => ({
+        file: module.moduleId, name: test.fullName, id: test.id, project: module.project?.name,
         meta: test.meta?.(),
         stopped: test.result().state === 'failed',
       }))));
@@ -100,25 +99,6 @@ export function selectionReporter(
       );
     },
   } as Reporter;
-}
-
-/**
- * Write the story each case that ran in a page carried on its `meta`, under
- * the names its result gives it, the names the record knows it by.
- */
-function writeCarried(
-  directory: string | undefined,
-  tests: readonly { readonly subject: StoryCase | undefined; readonly meta?: object | undefined; readonly stopped: boolean }[],
-): Promise<void> {
-  return writeCarriedStories(directory, tests.flatMap(({ subject, meta, stopped }) => {
-    const held = carriedStory(meta);
-    return held === undefined || subject === undefined ? [] : [{ subject, story: held.story, stopped }];
-  }));
-}
-
-/** A case as the record names it, or none where the runner left a name out. */
-function storyCase(file: string | undefined, name: string | undefined, id: string | undefined, project: string | undefined): StoryCase | undefined {
-  return file === undefined || name === undefined || id === undefined ? undefined : { file, name, id, project };
 }
 
 /** Vitest 3 and 4's phases for a module, under the record's names. */

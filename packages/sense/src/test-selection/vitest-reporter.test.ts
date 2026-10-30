@@ -1,11 +1,14 @@
-import { mkdtempSync, readdirSync, rmSync } from 'node:fs';
+import { mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { SelectionRun } from './selection-run.js';
 import { BROWSER_JOURNAL } from './worker-source.js';
+import { reportedCases, taskCases } from './case-durations.js';
+import type { ReportedModule, RunnerTask } from './finished-files.js';
 
 /** Built, as `page.test.ts` reads the story: the format `require`s its neighbours by the names the build gives them. */
+const { decodeStory } = (await import('../../dist/story/format.cjs')).default as typeof import('../story/format.cjs');
 const { selectionReporter } = (await import('../../dist/test-selection/vitest-reporter.js')) as typeof import('./vitest-reporter.js');
 
 const directories: string[] = [];
@@ -36,7 +39,7 @@ describe('the reporter of a run whose cases write stories', () => {
       onTestRunEnd(modules: unknown[]): Promise<void>;
     };
 
-    await reporter.onFinished([{ type: 'suite', filepath: '/tests/shop.test.ts', tasks: [{ type: 'test', name: 'pays', id: 'a1', meta, result: { state: 'pass' } }] }]);
+    await reporter.onFinished([{ filepath: '/tests/shop.test.ts', tasks: [{ name: 'pays', id: 'a1', meta, result: { state: 'pass' } }] }]);
     expect(readdirSync(directory)).toHaveLength(1);
     await reporter.onTestRunEnd([{
       moduleId: '/tests/shop.test.ts',
@@ -46,4 +49,43 @@ describe('the reporter of a run whose cases write stories', () => {
 
     expect(readdirSync(directory)).toHaveLength(1);
   });
+
+  it('names a page case as the record names it, through either hook', async () => {
+    const vitest2 = { filepath: '/tests/shop.test.ts', tasks: [{ name: 'checkout', tasks: [{ name: 'pays', id: 'a1', meta, result: { state: 'fail' } }] }] } as RunnerTask;
+    const vitest4 = {
+      moduleId: '/tests/shop.test.ts',
+      children: { allTests: () => [{ fullName: 'checkout > pays', id: 'a1', meta: () => meta, result: () => ({ state: 'failed' }) }] },
+    } as ReportedModule;
+    for (const [hook, end, record] of [
+      ['onFinished', vitest2, taskCases(vitest2).cases!] as const,
+      ['onTestRunEnd', vitest4, reportedCases(vitest4).cases!] as const,
+    ]) {
+      expect(written(await announced(hook, end))).toMatchObject({ file: '/tests/shop.test.ts', name: record[0]!.name, stopped: true });
+    }
+  });
+
+  it('writes no story for a page case whose result leaves its name out, and one for a case it gives no id', async () => {
+    const nameless = { moduleId: '/tests/shop.test.ts', children: { allTests: () => [{ id: 'a1', meta: () => meta, result: () => ({ state: 'passed' }) }] } };
+    expect(readdirSync(await announced('onTestRunEnd', nameless))).toEqual([]);
+    const unnumbered = { moduleId: '/tests/shop.test.ts', children: { allTests: () => [{ fullName: 'pays', meta: () => meta, result: () => ({ state: 'passed' }) }] } };
+    expect(written(await announced('onTestRunEnd', unnumbered))).toMatchObject({ file: '/tests/shop.test.ts', name: 'pays' });
+  });
 });
+
+/** The story directory after the reporter heard one end through `hook`. */
+async function announced(hook: 'onFinished' | 'onTestRunEnd', end: unknown): Promise<string> {
+  const directory = mkdtempSync(join(tmpdir(), 'reporter-stories-'));
+  directories.push(directory);
+  const run = { settled: false } as SelectionRun;
+  const reporter = selectionReporter(run, async () => {
+    run.settled = true;
+  }, directory) as unknown as Record<typeof hook, (ends: unknown[]) => Promise<void>>;
+  await reporter[hook]([end]);
+  return directory;
+}
+
+function written(directory: string) {
+  const [only, ...more] = readdirSync(directory);
+  expect(more).toEqual([]);
+  return decodeStory(readFileSync(join(directory, only!)));
+}

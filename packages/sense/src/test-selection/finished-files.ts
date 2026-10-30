@@ -40,7 +40,6 @@ export interface RunnerTask {
   /** `duration` is the milliseconds the runner measured for the task, when it did. */
   readonly result?: { readonly state: string; readonly duration?: number };
   readonly tasks?: readonly RunnerTask[];
-  readonly type?: string;
   readonly meta?: object;
   /** Vitest 2's name for the project that ran the file. */
   readonly projectName?: string;

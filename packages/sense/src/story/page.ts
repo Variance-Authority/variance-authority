@@ -106,7 +106,7 @@ interface CaseTape {
   total: number;
 }
 
-/** A case as the record names it: its file, repository-relative, and its test. */
+/** A case as the record names it: its file, as its runner reports the path, and its test. */
 export interface StoryCase {
   readonly file: string;
   readonly name: string;

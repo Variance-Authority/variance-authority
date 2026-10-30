@@ -28,7 +28,7 @@ import { probesRegions } from '../instrument/identity.js';
 import { defaultInclude, type ProbePlacement } from './instrumented-modules.js';
 import { AFTER_LOADER, SELECTION_LOADER, unprobedFiles } from './rstest-loaders.js';
 import { carriedJournal, statusesComplete } from './finished-files.js';
-import { carriedStory, carryingHooks, writeCarriedStories } from './carried-stories.js';
+import { pageTaping, writeCarriedStories } from './carried-stories.js';
 import { reportedDuration } from './reported-time.js';
 import { foldRun } from './selection-fold.js';
 import { removeSeamModules, reopenRun, runFor, seamModuleId, writeSeamModule, type SelectionRun } from './selection-run.js';
@@ -277,7 +277,7 @@ export function withTestSelection(
       ended = Date.now();
       const named = [...nameFiltersOf(run)].some((filter) => ![undefined, ''].includes(filter() as string | undefined));
       const files = cycleResults(run, payload);
-      await writeCarriedStories(story, files.flatMap(carriedStories));
+      await writeCarriedStories(story, files.flatMap(caseEnds));
       return unprobedAtEnd(run) ?? settle(files.map((file) => ({
         filepath: file.testPath,
         complete: statusesComplete(file.status, (file.results ?? []).map((test) => test.status), named),
@@ -409,11 +409,7 @@ function pagePlugin(setupId: string, run: SelectionRun, mode: InstrumentMode, ta
       // `-t` is merged in here too, and watch mode's `t` sets it between cycles.
       if (exposed !== undefined) nameFiltersOf(run).add(() => exposed.getRstestConfig().testNamePattern);
       if (exposed?.getRstestConfig().browser?.enabled !== true) return;
-      // Loaded only where a page tapes, as the Vitest plugin loads it.
-      const story = taping
-        ? { tape: (await import('../story/page.js')).storyPageSource(), hooks: carryingHooks() }
-        : undefined;
-      writeSeamModule(run, setupId, browserSetupSource(mode, RSTEST_API, story));
+      writeSeamModule(run, setupId, browserSetupSource(mode, RSTEST_API, taping ? await pageTaping() : undefined));
       // A test line reaches the record through a case's story alone in a page:
       // a page that does not tape cuts nothing.
       if (!taping) run.cadence = undefined;
@@ -430,21 +426,16 @@ function pagePlugin(setupId: string, run: SelectionRun, mode: InstrumentMode, ta
 }
 
 /**
- * The stories one file's cases carried from a page, under the names its result
- * gives them: the file's path, and the describe path joined as
- * `currentTestName` joins it for a case in Node.
+ * How one file's cases ended, under the names its result gives them: the
+ * file's path, and the describe path joined as `currentTestName` joins it for a
+ * case in Node.
  */
-function carriedStories(file: RstestFileResult) {
-  return (file.results ?? []).flatMap((test) => {
-    const held = carriedStory(test.meta);
-    if (held === undefined) return [];
-    const name = caseNameOf(test);
-    const subject = { file: file.testPath, name, id: test.testId ?? name, project: file.project };
-    return [{ subject, story: held.story, stopped: test.status === 'fail' }];
-  });
+function caseEnds(file: RstestFileResult) {
+  return (file.results ?? []).map((test) => ({
+    file: file.testPath, name: caseNameOf(test), id: test.testId, project: file.project, meta: test.meta, stopped: test.status === 'fail',
+  }));
 }
 
-/** A case's name: its describe path joined as `currentTestName` joins it for a case in Node. */
 function caseNameOf(test: { readonly parentNames?: readonly string[]; readonly name?: string }): string {
   return [...(test.parentNames ?? []), test.name].filter(Boolean).join(' > ');
 }
