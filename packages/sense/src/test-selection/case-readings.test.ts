@@ -93,6 +93,13 @@ describe('layReadings', () => {
     ]);
   });
 
+  it('refuses a section that is not the readings it writes', () => {
+    const index = run(false, { wire: 2 });
+
+    expect(() => readingsOf(Buffer.from('{"cases":'), index, ID)).toThrow(/readings section/);
+    expect(() => readingsOf(Buffer.from('[]'), index, ID)).toThrow(/readings section/);
+  });
+
   it('drops the oldest distinct reading past the bound', () => {
     const runs = Array.from({ length: READINGS + 1 }, (_, at) => run(at % 2 === 0, { wire: at + 1 }));
     const { section, index } = laid(runs);

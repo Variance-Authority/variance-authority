@@ -224,17 +224,17 @@ function readsOf(index: OpenedSetExecutionIndex, wanted: ReadonlySet<string>): M
   return byId;
 }
 
-/** The section's readings by case. */
+/** The section's readings by case; a section `layReadings` did not write is refused. */
 function parsed(section: Uint8Array | undefined): Map<string, readonly StoredReading[]> {
   const held = new Map<string, readonly StoredReading[]>();
   if (section === undefined) return held;
-  let value: Section;
+  let value: unknown;
   try {
-    value = JSON.parse(Buffer.from(section).toString('utf8')) as Section;
-  } catch {
-    return held;
+    value = JSON.parse(Buffer.from(section).toString('utf8'));
+  } catch (error) {
+    throw new Error('the record\'s readings section is not JSON', { cause: error });
   }
-  if (value === null || typeof value !== 'object' || Array.isArray(value)) return held;
-  for (const [id, readings] of Object.entries(value.cases ?? {})) held.set(id, readings);
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) throw new Error('the record\'s readings section is not an object');
+  for (const [id, readings] of Object.entries((value as Section).cases ?? {})) held.set(id, readings);
   return held;
 }
