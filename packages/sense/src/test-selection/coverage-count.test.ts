@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { countCoverage, coverageChange, type SuiteChange } from './coverage-count.js';
+import { countCoverage, coverageChange, type RegionText, type SuiteChange } from './coverage-count.js';
 import type { ExecutionBlock, ExecutionIndex, ExecutionModule } from './reverse.js';
 
 const A = { id: 'a.test.ts > one', file: 'a.test.ts', name: 'one', stopped: false };
@@ -102,6 +102,55 @@ describe('how much of what the suites loaded each suite ran', () => {
 
     expect(count).toMatchObject({ regions: 2, run: 2, unjoined: 1 });
     expect(count.overlap).toEqual({ several: 1, alone: { unit: 1, e2e: 0 } });
+  });
+
+  it('parts what ran by the text each test file ran it over: one test file over this text vouches for the region', () => {
+    const record = index(module('src/total.ts', block('apply', [0, 1]), block('round', [0]), block('clamp', [1]), block('idle', [])));
+    const verdicts: Record<string, RegionText> = {
+      'apply a.test.ts': 'older', 'apply b.test.ts': 'this',
+      'round a.test.ts': 'older',
+      'clamp b.test.ts': { unknown: 'the text b.test.ts ran over is not kept' },
+    };
+
+    const count = countCoverage([{ name: 'unit', kind: 'unit', index: record, textOf: (_file, region, test) => verdicts[`${region.name} ${test}`]! }]);
+
+    expect(count).toMatchObject({ run: 3, over: { older: 1, notKnown: 1, why: ['the text b.test.ts ran over is not kept'] } });
+    expect(count.suites).toEqual([{ name: 'unit', kind: 'unit', run: 3, load: 0, regions: 4, over: { older: 1, notKnown: 1 } }]);
+  });
+
+  it('counts a region as older across suites only when no suite ran it over this text', () => {
+    const one = index(module('src/total.ts', block('apply', [0]), block('round', [0])));
+    const two = index(module('src/total.ts', block('apply', [1]), block('round', [1])));
+    const older = (_file: string, region: ExecutionBlock): RegionText => (region.name === 'round' ? 'older' : 'this');
+
+    const count = countCoverage([
+      { name: 'unit', kind: 'unit', index: one, textOf: older },
+      { name: 'checkout', kind: 'e2e', index: two, textOf: () => 'older' },
+    ]);
+
+    expect(count.over).toEqual({ older: 1, notKnown: 0, why: [] });
+    expect(count.suites.map((suite) => suite.over)).toEqual([{ older: 1, notKnown: 0 }, { older: 2, notKnown: 0 }]);
+  });
+
+  it('asks no text of a region only loaded, or ran in another text', () => {
+    const record = index(module(
+      'src/total.ts',
+      block('<module>', [], { loaded: true }),
+      block('apply', [], { crossings: [{ test: 0, distance: 0, overwritten: true }, { test: 1, distance: 0 }] }),
+    ));
+    const asked: string[] = [];
+
+    const count = countCoverage([{ index: record, textOf: (_file, region, test) => (asked.push(`${region.name} ${test}`), 'older') }]);
+
+    expect(asked).toEqual(['apply b.test.ts']);
+    expect(count.over).toEqual({ older: 1, notKnown: 0, why: [] });
+  });
+
+  it('has no split when no suite says which text it ran', () => {
+    const count = countCoverage([{ index: index(module('src/total.ts', block('apply', [0]))) }]);
+
+    expect(count.over).toBeUndefined();
+    expect(count.suites[0]!.over).toBeUndefined();
   });
 
   it.todo('tells a source file a seam loaded and chose not to instrument from one no suite loaded — needs each seam to publish which files it would instrument, so the count is not a guess at its include and exclude patterns');

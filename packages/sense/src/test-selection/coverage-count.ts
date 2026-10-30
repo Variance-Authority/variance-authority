@@ -22,6 +22,25 @@ export interface CountedSuite {
   readonly name?: string;
   readonly kind?: SuiteKind;
   readonly index: ExecutionIndex;
+  /**
+   * Which text a test file ran a region over, asked of every test file whose
+   * case called into it. Absent, the count does not part what ran.
+   */
+  readonly textOf?: (file: string, region: ExecutionBlock, testFile: string) => RegionText;
+}
+
+/**
+ * The text a test file ran a region over: the one in the checkout, an older
+ * one an edit since touched the region in, or not known, for the named reason.
+ */
+export type RegionText = 'this' | 'older' | { readonly unknown: string };
+
+/** The regions counted as run that no case is known to have run over the text in the checkout. */
+export interface RunOver {
+  /** Every case that called into the region ran it before an edit touched it. */
+  readonly older: number;
+  /** No case is known to have run this text, and for one of them the text it ran is not known. */
+  readonly notKnown: number;
 }
 
 /** What a region's cases did, read off one record. */
@@ -37,6 +56,8 @@ export interface SuiteCount {
   readonly load: number;
   /** The source regions this suite's own record holds, in the modules it loaded. */
   readonly regions: number;
+  /** Of `run`, the regions not run over this text. Absent when the suite does not say which text it ran. */
+  readonly over?: RunOver;
 }
 
 /** Regions counted by the kinds whose suites ran them. */
@@ -68,6 +89,12 @@ export interface CoverageCount {
    * suites' cuts holds. Each is counted under the suites that hold it.
    */
   readonly unjoined: number;
+  /**
+   * Of `run`, the regions no suite ran over this text, and why a text was not
+   * known, each reason once, in code-unit order. Absent when no suite says
+   * which text it ran.
+   */
+  readonly over?: RunOver & { readonly why: readonly string[] };
 }
 
 /**
@@ -93,12 +120,45 @@ export function* joinedRegions(blocks: readonly ExecutionBlock[]): Generator<rea
   for (const [address, block] of regionAddresses(blocks)) if (block.source) yield [`${address}\0${block.kind}`, block];
 }
 
+/**
+ * The text a suite ran a region over, folded across the test files whose
+ * cases called into it: one over this text vouches for the region; otherwise
+ * one not known keeps it from counting as older.
+ */
+function textRun(index: ExecutionIndex, file: string, block: ExecutionBlock, textOf: NonNullable<CountedSuite['textOf']>): RegionText {
+  let unknown: RegionText | undefined;
+  const asked = new Set<string>();
+  for (const crossing of block.crossings) {
+    if (crossing.overwritten === true || crossing.loaded === true) continue;
+    const test = index.tests[crossing.test]!.file;
+    if (asked.has(test)) continue;
+    asked.add(test);
+    const text = textOf(file, block, test);
+    if (text === 'this') return text;
+    if (text !== 'older') unknown ??= text;
+  }
+  return unknown ?? 'older';
+}
+
+/** The fold of {@link textRun} across suites: the same precedence. */
+function joinText(texts: readonly (RegionText | undefined)[]): RegionText {
+  let unknown: RegionText | undefined;
+  for (const text of texts) {
+    if (text === 'this') return text;
+    if (text !== undefined && text !== 'older') unknown ??= text;
+  }
+  return unknown ?? 'older';
+}
+
 /** Count every suite's record over the regions any of them loaded. */
 export function countCoverage(suites: readonly CountedSuite[]): CoverageCount {
   // file → address and kind → what each suite that holds the region did there.
   const joined = new Map<string, Map<string, (RegionRun | undefined)[]>>();
+  // The same key → the text each suite that ran the region ran it over.
+  const texts = new Map<string, (RegionText | undefined)[]>();
   const loadedBy = new Map<string, Set<number>>();
-  const own = suites.map(() => ({ run: 0, load: 0, regions: 0 }));
+  const own = suites.map(() => ({ run: 0, load: 0, regions: 0, older: 0, notKnown: 0 }));
+  const parted = suites.some((suite) => suite.textOf !== undefined);
 
   suites.forEach((suite, at) => {
     for (const module of suite.index.modules) {
@@ -113,8 +173,19 @@ export function countCoverage(suites: readonly CountedSuite[]): CoverageCount {
         const run = regionRun(block);
         runs[at] = run;
         own[at]!.regions += 1;
-        if (run === 'run') own[at]!.run += 1;
-        else if (run === 'load') own[at]!.load += 1;
+        if (run === 'run') {
+          own[at]!.run += 1;
+          // A suite that does not say which text it ran vouches for this one.
+          const text = suite.textOf === undefined ? 'this' : textRun(suite.index, module.file, block, suite.textOf);
+          if (text === 'older') own[at]!.older += 1;
+          else if (text !== 'this') own[at]!.notKnown += 1;
+          if (parted) {
+            const id = `${module.file}\0${key}`;
+            let ran = texts.get(id);
+            if (ran === undefined) texts.set(id, (ran = Array.from<RegionText | undefined>({ length: suites.length })));
+            ran[at] = text;
+          }
+        } else if (run === 'load') own[at]!.load += 1;
       }
     }
   });
@@ -127,9 +198,12 @@ export function countCoverage(suites: readonly CountedSuite[]): CoverageCount {
   let load = 0;
   let several = 0;
   let unjoined = 0;
+  let older = 0;
+  let notKnown = 0;
+  const why = new Set<string>();
   for (const [file, held] of joined) {
     const holders = loadedBy.get(file)!;
-    for (const runs of held.values()) {
+    for (const [key, runs] of held) {
       regions += 1;
       if (holders.size > 1 && [...holders].some((at) => runs[at] === undefined)) unjoined += 1;
       const kinds = new Set<SuiteKind>();
@@ -141,8 +215,15 @@ export function countCoverage(suites: readonly CountedSuite[]): CoverageCount {
           if (kinded) kinds.add(suites[at]!.kind!);
         } else if (one === 'load') loaded = true;
       });
-      if (ran) run += 1;
-      else if (loaded) load += 1;
+      if (ran) {
+        run += 1;
+        const text = parted ? joinText(texts.get(`${file}\0${key}`)!) : 'this';
+        if (text === 'older') older += 1;
+        else if (text !== 'this') {
+          notKnown += 1;
+          why.add(text.unknown);
+        }
+      } else if (loaded) load += 1;
       if (kinds.size > 1) several += 1;
       else if (kinds.size === 1) alone[[...kinds][0]!]! += 1;
     }
@@ -154,13 +235,18 @@ export function countCoverage(suites: readonly CountedSuite[]): CoverageCount {
     run,
     load,
     none: regions - run - load,
-    suites: suites.map((suite, at) => ({
-      ...(suite.name === undefined ? {} : { name: suite.name }),
-      ...(suite.kind === undefined ? {} : { kind: suite.kind }),
-      ...own[at]!,
-    })),
+    suites: suites.map((suite, at) => {
+      const { older: past, notKnown: unknown, ...counted } = own[at]!;
+      return {
+        ...(suite.name === undefined ? {} : { name: suite.name }),
+        ...(suite.kind === undefined ? {} : { kind: suite.kind }),
+        ...counted,
+        ...(suite.textOf === undefined ? {} : { over: { older: past, notKnown: unknown } }),
+      };
+    }),
     ...(kinded ? { overlap: { several, alone } } : {}),
     unjoined,
+    ...(parted ? { over: { older, notKnown, why: [...why].sort() } } : {}),
   };
 }
 

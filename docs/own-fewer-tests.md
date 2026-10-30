@@ -328,6 +328,31 @@ never in, and what only such tests ran is counted on the last line. The
 comment `variance review --coverage` posts on a pull request carries the same
 table under **Coverage by suite**.
 
+### Code that ran over an older text
+
+A region counts as run when a test called into it, but the test may have run
+before the code changed. Edit `refund` after the suite ran and the record still
+says a test ran it. `variance coverage` reads where each test file last ran,
+and counts a region as **over an older text** when every test that ran it ran
+before an edit that touched it. A region one of those tests ran over the text in
+your checkout stays run over this text, and so does every region of a file
+nothing changed since the tests ran:
+
+```text
+coverage at 277e4c8f, recorded at 0bb4c2ad — 5 regions in 2 files the suites loaded
+  any suite        3  60.0%                        1 over an older text
+    unit     unit  3  60.0%  recorded at 0bb4c2ad  1 over an older text
+```
+
+The part is counted on the suite rows, on the scope `--from` names, and on
+each `--packages` row, under own tests and under others'. The heading names
+the commit the record was made at whenever it is not the one you have checked
+out. Whether an edit touched a region is the rule the record itself carries its
+cases by: an edit that moves no line of a function leaves it run over this
+text. When the text a test ran cannot be found, because no runs record lies
+beside the record or the run's text was neither kept nor committed, the region
+counts as **not known**, and the reason is named once under the table.
+
 ## Ask how many test files an edit would run
 
 Coverage counts a region once whether one test file ran it or four hundred, and

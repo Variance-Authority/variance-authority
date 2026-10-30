@@ -191,7 +191,7 @@ export { withIndexLock } from './index-lock.js';
 export { casesRan, landCases, lastCaseRunOf, textsOf, type CaseLanding, type LaidRun, type LandedShard, type LastCaseRun, type ModuleTexts } from './case-landing.js';
 export { casesCutApart, type IndexedCut } from './case-index-cut.js';
 export { followRows, followRowsIn } from './case-cuts.js';
-export { editsBetween } from './region-edit.js';
+export { editsBetween, regionTouched, type Edit, type Edits } from './region-edit.js';
 export { caseIndexOf, caseSectionsAt, caseSectionsOf, keepsCases, keepsEyes, recordOfCases, recordStorageAt, recordedCases, recordedEyesAt, recordedEyesOf, sharedRecord, withCaseSections, withoutCoverage, type CaseSections, type RecordStorage } from './case-record.js';
 export { collectedRecord } from './collected-record.js';
 export { type EyesSection, type ObservedEyes, type RecordedEyes } from './eyes-record.js';
@@ -212,6 +212,8 @@ export {
   type KindOverlap,
   type RegionRun,
   type RegionTally,
+  type RegionText,
+  type RunOver,
   type SuiteChange,
   type SuiteCount,
 } from './coverage-count.js';

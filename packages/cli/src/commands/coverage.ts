@@ -48,6 +48,7 @@ import { baseCommit } from './covering-motion.js';
 import { coverageSource, harnessReach, readSource, within, type CoverageSource, type MissedEntry, type Scoped } from './coverage-source.js';
 import { readExecutionIndex, recordedExecutionFile } from './execution-input.js';
 import { mainlineBase, mainlineMissed } from './mainline-base.js';
+import { textOver } from './coverage-over-text.js';
 import { runsOf } from './record-runs.js';
 import { relationsFor } from './source-graph.js';
 import { asOperator, nothingRecorded } from './suite-record.js';
@@ -183,7 +184,8 @@ export async function coverage(request: ParsedCoverage): Promise<Coverage> {
     const index = within(whole, scope);
     const recorded = await recordedCommit(record);
     for (const entry of restsOn(record)) harness.add(entry);
-    now.push({ ...(one === undefined ? {} : { name: one.name, kind: one.kind }), index });
+    // Over which text each region ran: asked of the whole index, so `--from` and each package count the same answers.
+    now.push({ ...(one === undefined ? {} : { name: one.name, kind: one.kind }), index, textOf: await textOver(request.root, record, recorded, whole) });
     const found = request.atDistance === undefined
       ? await baseOf(request, one)
       : { missed: 'no base: `--at-distance` measures import hops on the graph of the tree as it is now, and the base ran on another' };

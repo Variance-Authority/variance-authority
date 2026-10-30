@@ -89,6 +89,31 @@ function hashingTo(text: string | undefined, digest: string): string | undefined
   return text !== undefined && digestString(text) === digest ? text : undefined;
 }
 
+/**
+ * Whether an edit along `edits` changed `region`, the rule
+ * {@link landedThrough} carries a region's cases by. Each edit starts at the
+ * text the one before it ends at, and the region is numbered in the first. A
+ * region the hunks leave whole at its lines is untouched, and placed at the
+ * lines they shift it to for the next edit; so is one whose kind the reading
+ * says the edit does not reach. A region with no lines of its own is where it
+ * was.
+ */
+export function regionTouched(region: { readonly kind: string; readonly startLine: number; readonly endLine: number }, edits: readonly Edit[]): boolean {
+  if (region.startLine === NO_LINE) return false;
+  let lines: { readonly startLine: number; readonly endLine: number } = region;
+  for (const edit of edits) {
+    const through = placeThrough(edit.hunks, lines);
+    if (through !== undefined && !through.moved) {
+      lines = through.lines;
+      continue;
+    }
+    if (reaches(edit.hunks.length === 0 ? 'none' : edit.reading, region.kind)) return true;
+    // Spared, the region stands where the edit moved its lines.
+    if (through !== undefined) lines = through.lines;
+  }
+  return false;
+}
+
 type Cut = Pick<SetExecutionModule, 'blocks' | 'owner'>;
 
 /** Where the cases a cut of a module held land in a recorded cut of it, region by region. */

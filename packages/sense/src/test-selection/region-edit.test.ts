@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { NO_OWNER } from './format-layout.js';
-import { editsBetween, landedThrough, NO_EDIT } from './region-edit.js';
+import { editsBetween, landedThrough, NO_EDIT, regionTouched } from './region-edit.js';
 
 /** A module of regions the callers' names are no part of: kind and lines only. */
 const module = (...lines: readonly [kind: string, start: number, end: number][]) => ({
@@ -197,5 +197,33 @@ describe('editsBetween', () => {
 
   it('has no edit when a text cannot be found', () => {
     expect(editsBetween('/nowhere', undefined, ['0'.repeat(40)])('src/a.ts', 'v1:one', 'v1:two')).toBeUndefined();
+  });
+});
+
+describe('regionTouched', () => {
+  const region = (kind: string, startLine: number, endLine: number) => ({ kind, startLine, endLine });
+  // Line 6 of a nine-line text rewritten in place.
+  const body = { oldStart: 6, oldCount: 1, newStart: 6, newCount: 1 };
+
+  it('touches the regions a hunk rewrote, and no region the edit only shifted or left alone', () => {
+    const edit = { hunks: [{ oldStart: 1, oldCount: 0, newStart: 2, newCount: 1 }, body] };
+
+    expect(regionTouched(region('function', 5, 7), [edit])).toBe(true);
+    expect(regionTouched(region('function', 2, 4), [edit])).toBe(false);
+    expect(regionTouched(region('function', 5, 7), [NO_EDIT])).toBe(false);
+  });
+
+  it('follows the region through each edit of a chain, at the lines the one before shifted it to', () => {
+    const shift = { hunks: [{ oldStart: 1, oldCount: 0, newStart: 2, newCount: 3 }] };
+
+    // 2-4 shifts to 5-7, which the rewrite of line 6 then touches.
+    expect(regionTouched(region('function', 2, 4), [shift, { hunks: [body] }])).toBe(true);
+    expect(regionTouched(region('function', 2, 4), [{ hunks: [body] }, shift])).toBe(false);
+  });
+
+  it('spares a region whose kind the reading says the edit does not reach, as a landing spares it', () => {
+    expect(regionTouched(region('module', 1, 9), [{ hunks: [body], reading: 'bodies' }])).toBe(false);
+    expect(regionTouched(region('module', 1, 9), [{ hunks: [body], reading: 'load' }])).toBe(true);
+    expect(regionTouched(region('module', 1, 9), [{ hunks: [body] }])).toBe(true);
   });
 });
