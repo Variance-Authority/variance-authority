@@ -33,11 +33,16 @@ let failed = false;
 const timed = [];
 for (const { name, body } of cases) {
   const started = performance.now();
-  try {
-    await (observer ? observer.case(name, body) : body());
-  } catch (error) {
-    failed = true;
-    console.error(name, error);
+  // A retry is the same case run again: `--retry` gives a failed case one more attempt.
+  for (let attempt = flag === '--retry' ? 2 : 1; attempt > 0; attempt -= 1) {
+    try {
+      await (observer ? observer.case(name, body) : body());
+      break;
+    } catch (error) {
+      if (attempt > 1) continue;
+      failed = true;
+      console.error(name, error);
+    }
   }
   timed.push({ name, duration: performance.now() - started });
 }

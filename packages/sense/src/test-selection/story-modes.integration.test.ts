@@ -1,8 +1,8 @@
 /**
  * The story a case writes does not depend on how its runner ran it: the same
  * stories under every Vitest pool, Jest in band and Rstest with isolation off,
- * and a reading for each attempt of a retried case under Vitest, Jest and
- * Rstest, the failed one stopped.
+ * and a reading for each attempt of a retried case under Vitest, Jest, Rstest
+ * and the generic runner seam, the failed one stopped.
  */
 
 import { execFile } from 'node:child_process';
@@ -122,10 +122,6 @@ describe('a story under each way its runner runs it', () => {
     );
   }, 240_000);
 
-  it.todo(
-    'is a reading for each attempt of a case the generic runner seam retried — needs the external-runner fixture to call `observer.case()` again for a case whose first body threw',
-  );
-
   it.each([
     [
       'Vitest',
@@ -158,6 +154,12 @@ describe('a story under each way its runner runs it', () => {
         '--include',
         'test/retried.retry.ts',
       ],
+      {},
+    ],
+    [
+      'the generic runner seam',
+      'external-runner',
+      [resolve(fixtures, 'external-runner/run.mjs'), '--retry'],
       {},
     ],
   ] as const)(
