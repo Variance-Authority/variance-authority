@@ -160,16 +160,12 @@ describe('the journeys around some files, said', () => {
     expect(text).toContain('1 of 400 cases (<1%) entered @t/cart');
   });
 
-  it('says why the files were parsed as the working tree has them, and why a line is read as numbered today', () => {
+  it('says why a line is read as numbered today', () => {
     const text = formatJourneys([{ answer: {
       cases: 20,
-      tree: 'commit ce8164c7df8c is not in this checkout\'s object store',
       files: [{ ...LINE, changed: null, atCommit: null, unplaced: 'the recording names no commit' }],
     } }]).join('\n');
 
-    expect(text).toContain(
-      '\nThe files were parsed as the working tree has them, not as the recording ran them, because commit ce8164c7df8c is not in this checkout\'s object store.\n',
-    );
     expect(text).toContain('that 3 cases ran. The line is read as it is numbered today, because the recording names no commit.');
   });
 

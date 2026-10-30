@@ -6,19 +6,15 @@
 //! - static: the site is in the test, in an unrecorded file, or no recorded
 //!   region decides it — resolved, not seen;
 //! - inferred: no static target, so a member call matched by name to the one
-//!   entered function of that name, an import the relations cannot resolve
-//!   placed on the one entered function exported under its name
-//!   (`journeys_recorded.rs`),
-//!   `new X` to X's constructor, a function written inside a value handed to a
+//!   entered function of that name, `new X` to X's constructor, a function written inside a value handed to a
 //!   call, a function a factory wrote, what a caller handed a parameter, or a
 //!   function no route reaches hung under the placed function it is written in;
 //! - unrecorded: a function in a file the recording does not instrument, on the
 //!   route to an entered one;
 //! - test: a helper declared in the test file.
 //!
-//! A callee with several routes is placed on the one with the fewest steps
-//! placed from the recording, then the fewest guards, then the fewest hops,
-//! then the call found first. Nothing here says which route ran when the
+//! A callee with several routes is placed on the one with the fewest guards,
+//! then the fewest hops, then the call found first. Nothing here says which route ran when the
 //! recording does not.
 
 // compass: variance-authority.reach.relations
@@ -33,9 +29,6 @@ pub(crate) use crate::journeys_steps::{Known, Tag, Walked};
 
 #[path = "journeys_emit.rs"]
 mod emit;
-#[path = "journeys_recorded.rs"]
-mod recorded;
-pub(crate) use recorded::Exported;
 
 const BUILTIN: &[&str] = &[
     "add", "get", "set", "has", "delete", "clear", "map", "filter", "reduce", "forEach", "find", "some", "every", "sort", "join", "slice",
@@ -93,8 +86,6 @@ struct Walk<'w, 'j> {
     entered: Vec<bool>,
     by_last: HashMap<&'j str, (u32, u32)>,
     constructors: HashMap<&'j str, u32>,
-    exported: &'w Exported,
-    named: recorded::Named,
     nodes: Vec<Node>,
     keys: HashMap<u64, u32>,
     edges: Vec<Edge>,
@@ -285,21 +276,7 @@ impl<'w, 'j> Walk<'w, 'j> {
                         self.explore(to, false);
                     }
                 }
-                unresolved => {
-                    let answer = match unresolved {
-                        Target::External | Target::Member => self.recorded(node, file, at, guard),
-                        _ => recorded::Answer::Unanswered,
-                    };
-                    if answer == recorded::Answer::Placed {
-                        continue;
-                    }
-                    let before = self.edges.len();
-                    self.inferred(node, file, at, guard, unresolved);
-                    // Ambiguous only when no other inference placed the call.
-                    if answer == recorded::Answer::Ambiguous && self.edges.len() == before {
-                        self.named.ambiguous.push(fn_key(file, at));
-                    }
-                }
+                unresolved => self.inferred(node, file, at, guard, unresolved),
             }
         }
     }
@@ -361,12 +338,11 @@ impl<'w, 'j> Walk<'w, 'j> {
         }
     }
 
-    /// The best route to every node: fewest steps placed from the recording,
-    /// so a route the relations hold always beats one the recording guessed,
-    /// then fewest guards, then fewest hops, then the edge found first.
+    /// The best route to every node: fewest guards, then fewest hops, then the
+    /// edge found first.
     /// Returns each reached node's key and the edge it came by.
-    fn route(&self, roots: &[u32]) -> (Vec<Option<(u32, u32, u32, i64)>>, Vec<u32>) {
-        let mut key: Vec<Option<(u32, u32, u32, i64)>> = vec![None; self.nodes.len()];
+    fn route(&self, roots: &[u32]) -> (Vec<Option<(u32, u32, i64)>>, Vec<u32>) {
+        let mut key: Vec<Option<(u32, u32, i64)>> = vec![None; self.nodes.len()];
         let mut parent = vec![NONE; self.nodes.len()];
         let mut out: Vec<Vec<u32>> = vec![Vec::new(); self.nodes.len()];
         for (rank, edge) in self.edges.iter().enumerate() {
@@ -376,7 +352,7 @@ impl<'w, 'j> Walk<'w, 'j> {
         let count = roots.len() as i64;
         for (at, &root) in roots.iter().enumerate() {
             if key[root as usize].is_none() {
-                let k = (0, 0, 0, -1 - count + at as i64);
+                let k = (0, 0, -1 - count + at as i64);
                 key[root as usize] = Some(k);
                 heap.push(Reverse((k, root)));
             }
@@ -389,7 +365,7 @@ impl<'w, 'j> Walk<'w, 'j> {
             done[node as usize] = true;
             for &rank in &out[node as usize] {
                 let edge = &self.edges[rank as usize];
-                let next = (k.0 + u32::from(edge.known == Known::Recorded), k.1 + edge.guard, k.2 + 1, rank as i64);
+                let next = (k.0 + edge.guard, k.1 + 1, rank as i64);
                 if key[edge.to as usize].is_none_or(|held| next < held) {
                     key[edge.to as usize] = Some(next);
                     parent[edge.to as usize] = rank;
@@ -401,7 +377,7 @@ impl<'w, 'j> Walk<'w, 'j> {
     }
 }
 
-pub(crate) fn walk(graph: &Graph, record: &Record, exported: &Exported, helpers: &Helpers, case: usize) -> Walked {
+pub(crate) fn walk(graph: &Graph, record: &Record, helpers: &Helpers, case: usize) -> Walked {
     let (test_file, name) = record.tests[case];
     let mut entered = vec![false; record.regions.len()];
     let mut by_last: HashMap<&str, (u32, u32)> = HashMap::new();
@@ -428,8 +404,6 @@ pub(crate) fn walk(graph: &Graph, record: &Record, exported: &Exported, helpers:
         entered,
         by_last,
         constructors,
-        exported,
-        named: recorded::Named::default(),
         nodes: Vec::new(),
         keys: HashMap::new(),
         edges: Vec::new(),
@@ -486,6 +460,5 @@ pub(crate) fn walk(graph: &Graph, record: &Record, exported: &Exported, helpers:
     let mut placed: Vec<u32> = steps.iter().filter_map(|step| step.region).collect();
     placed.sort_unstable();
     placed.dedup();
-    let (recorded, ambiguous) = (std::mem::take(&mut walk.named.placed), std::mem::take(&mut walk.named.ambiguous));
-    Walked { start: roots.map(|roots| roots.start), steps, entered: functions, placed: placed.len() as u32, recorded, ambiguous }
+    Walked { start: roots.map(|roots| roots.start), steps, entered: functions, placed: placed.len() as u32 }
 }

@@ -10,7 +10,7 @@
 
 // compass: variance-authority.reach.relations
 
-use std::collections::{BTreeMap, HashMap, HashSet};
+use std::collections::{BTreeMap, HashMap};
 
 use napi_derive::napi;
 use rayon::prelude::*;
@@ -24,7 +24,7 @@ use crate::journeys_fold::{columns, fold, Packages};
 use crate::journeys_graph::Graph;
 use crate::journeys_record::{record, seeds};
 use crate::journeys_roots::Helpers;
-use crate::journeys_walk::{walk, Exported, Walked};
+use crate::journeys_walk::{walk, Walked};
 use crate::package_owners::{owner_of, owners, shown};
 use crate::resolve::Tsconfig;
 use crate::GitTree;
@@ -33,7 +33,7 @@ pub(crate) const FORMAT: u8 = 2;
 /// The walk that prepared a file: the addon's version, and a revision moved
 /// whenever the walk or the fold changes what it writes within one version.
 /// A file another walk prepared is prepared again, never answered from.
-pub(crate) const WALK: &str = concat!(env!("CARGO_PKG_VERSION"), "/walk.5");
+pub(crate) const WALK: &str = concat!(env!("CARGO_PKG_VERSION"), "/walk.6");
 /// The caller of a case's first placed function: the test itself.
 pub(crate) const TEST: u32 = u32::MAX;
 /// The package of a file no named manifest sits above.
@@ -54,10 +54,6 @@ pub(crate) struct Meta {
     pub index: String,
     /// The commit the recording ran at, when it names one.
     pub commit: Option<String>,
-    /// Why the graph was parsed from the working tree rather than from the
-    /// recorded commit; absent when the commit's tree was read.
-    #[serde(default)]
-    pub tree: Option<String>,
     pub cases: u32,
     /// Functions outside the test files the cases entered, summed per case.
     pub functions_entered: u64,
@@ -74,14 +70,6 @@ pub(crate) struct Meta {
     pub flows: u32,
     /// Specifiers the index did not answer, which the graph resolved itself.
     pub fell_back: u32,
-    /// Call sites the static resolution missed that the recording placed, on
-    /// the one entered function exported under the imported name.
-    pub recorded: u32,
-    /// Call sites the static resolution missed where several entered functions
-    /// are exported under the imported name and nothing else placed the call,
-    /// and the cases they were ambiguous in.
-    pub ambiguous: u32,
-    pub ambiguous_cases: u32,
     /// The recording's and the index's size and modification time when they
     /// were digested, so a question finds them unmoved without hashing them.
     pub recording_stat: Option<Stat>,
@@ -137,18 +125,8 @@ pub struct JourneysPrepared {
     pub calls: u32,
     pub flows: u32,
     pub fell_back: u32,
-    /// Call sites the static resolution missed that the recording placed.
-    pub recorded: u32,
-    /// Call sites the static resolution missed where several entered functions
-    /// are exported under the imported name and nothing else placed the call,
-    /// and the cases they were ambiguous in.
-    pub ambiguous: u32,
-    pub ambiguous_cases: u32,
     /// The commit the recording ran at, when it names one.
     pub commit: Option<String>,
-    /// Why the graph was parsed from the working tree rather than from the
-    /// recorded commit.
-    pub tree: Option<String>,
 }
 
 impl From<(&Meta, bool)> for JourneysPrepared {
@@ -161,11 +139,7 @@ impl From<(&Meta, bool)> for JourneysPrepared {
             calls: meta.calls,
             flows: meta.flows,
             fell_back: meta.fell_back,
-            recorded: meta.recorded,
-            ambiguous: meta.ambiguous,
-            ambiguous_cases: meta.ambiguous_cases,
             commit: meta.commit.clone(),
-            tree: meta.tree.clone(),
         }
     }
 }
@@ -195,9 +169,8 @@ pub struct JourneysCommit {
 
 /// Walks the recording at `recording` over the index at `index` and writes the
 /// journeys to `out`, with git listing the checkout. `None` when there is no
-/// source index. `builtins` are the runtime's own modules, which no function
-/// of the checkout answers. `tsconfig` is the config the scan that built the
-/// index resolved under.
+/// source index. `tsconfig` is the config the scan that built the index
+/// resolved under.
 #[napi(catch_unwind)]
 pub fn prepare_journeys(
     root: String,
@@ -205,11 +178,10 @@ pub fn prepare_journeys(
     recording: String,
     at: JourneysCommit,
     out: String,
-    builtins: Vec<String>,
     tsconfig: Option<napi::Either<String, bool>>,
 ) -> napi::Result<Option<JourneysPrepared>> {
     let listing = listed(&root);
-    prepare(&root, &index, &recording, at, &out, listing.as_deref(), builtins, Tsconfig::from_js(tsconfig))
+    prepare(&root, &index, &recording, at, &out, listing.as_deref(), Tsconfig::from_js(tsconfig))
 }
 
 #[napi]
@@ -225,10 +197,9 @@ impl GitTree {
         recording: String,
         at: JourneysCommit,
         out: String,
-        builtins: Vec<String>,
         tsconfig: Option<napi::Either<String, bool>>,
     ) -> napi::Result<Option<JourneysPrepared>> {
-        prepare(&root, &index, &recording, at, &out, Some(self.listed()), builtins, Tsconfig::from_js(tsconfig))
+        prepare(&root, &index, &recording, at, &out, Some(self.listed()), Tsconfig::from_js(tsconfig))
     }
 }
 
@@ -240,7 +211,6 @@ fn prepare(
     at: JourneysCommit,
     out: &str,
     listing: Option<&[String]>,
-    builtins: Vec<String>,
     tsconfig: Tsconfig,
 ) -> napi::Result<Option<JourneysPrepared>> {
     let fail = napi::Error::from_reason;
@@ -249,7 +219,7 @@ fn prepare(
     let (recording_stat, index_stat) = (Stat::of(recording), Stat::of(index));
     let Some(chain) = read_chain(index).map_err(fail)? else { return Ok(None) };
     let index_digest = hex(&Sha256::digest(chain.published()));
-    let bytes = std::fs::read(recording).map_err(|error| fail(format!("the recording at {recording} did not read: {error}")))?;
+    let bytes = std::fs::read(recording).map_err(|error| fail(format!("the recording at {} did not read: {error}", std::path::Path::new(recording).strip_prefix(root).unwrap_or(std::path::Path::new(recording)).display())))?;
     let recording_digest = hex(&Sha256::digest(&bytes));
     let layers: Vec<Layer> = chain
         .segments
@@ -263,31 +233,33 @@ fn prepare(
     // Git's listing owns which package each file is in. Without it, the files
     // the graph read are the listing.
     let known = listing.map(|listing| owners(root, listing));
-    let unnamed = at.unread.unwrap_or_else(|| "the recording names no commit".to_owned());
-    let graph = Graph::build(root, &layers, at.commit.as_deref().ok_or(unnamed.as_str()), &seeds, tsconfig);
+    // A recording's lines are coordinates in the tree it ran over: without
+    // that tree the walk has nothing to run over, and the working tree is a
+    // different answer.
+    let Some(commit) = at.commit.as_deref() else {
+        return Err(fail(at.unread.unwrap_or_else(|| "the recording names no commit".to_owned())));
+    };
+    let graph = Graph::build(root, &layers, commit, &seeds, tsconfig).map_err(fail)?;
     let record = record(&journey, &graph).map_err(fail)?;
     let owners = known.unwrap_or_else(|| owners(root, &graph.files));
     let directories: HashMap<&str, u32> =
         owners.packages.iter().enumerate().map(|(at, package)| (package.directory.as_str(), at as u32)).collect();
     let package: Vec<u32> = graph.files.iter().map(|file| owner_of(&owners, &directories, file).unwrap_or(NO_PACKAGE)).collect();
-    let exported = Exported::of(&graph, &record, &owners, &package, builtins.into_iter().collect());
     let pool = rayon::ThreadPoolBuilder::new().stack_size(STACK).build().map_err(|error| fail(error.to_string()))?;
     let helpers = Helpers::default();
     let walked: Vec<Walked> =
-        pool.install(|| (0..record.tests.len()).into_par_iter().map(|case| walk(&graph, &record, &exported, &helpers, case)).collect());
+        pool.install(|| (0..record.tests.len()).into_par_iter().map(|case| walk(&graph, &record, &helpers, case)).collect());
 
     let (_, names) = shown(&owners);
     let directories: Vec<String> = owners.packages.iter().map(|package| package.directory.clone()).collect();
 
     let mut folded = fold(&record, &walked, &package);
-    let sites = |of: fn(&Walked) -> &Vec<u64>| walked.iter().flat_map(|walked| of(walked).iter().copied()).collect::<HashSet<u64>>().len() as u32;
     let meta = Meta {
         format: FORMAT,
         walk: WALK.to_owned(),
         recording: recording_digest,
         index: index_digest,
         commit: at.commit,
-        tree: graph.tree.clone(),
         cases: record.tests.len() as u32,
         functions_entered: walked.iter().map(|walked| walked.entered as u64).sum(),
         placed: walked.iter().map(|walked| walked.placed as u64).sum(),
@@ -297,9 +269,6 @@ fn prepare(
         calls: folded.calls.len() as u32,
         flows: folded.flows.len() as u32,
         fell_back: graph.fell_back,
-        recorded: sites(|walked| &walked.recorded),
-        ambiguous: sites(|walked| &walked.ambiguous),
-        ambiguous_cases: walked.iter().filter(|walked| !walked.ambiguous.is_empty()).count() as u32,
         recording_stat,
         index_stat,
     };

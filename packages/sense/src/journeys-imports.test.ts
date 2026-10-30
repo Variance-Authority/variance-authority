@@ -14,18 +14,16 @@ import { testCoverageFile } from './test-selection/record-location.js';
 
 /**
  * How a recorded case's call reaches the function it ran, for each shape of
- * import a test suite writes: through the test runner's own module mapping,
- * through `tsconfig` paths, from a package's build to its source, by a
- * workspace package's name, and by a relative path; and what the walk answers
- * when the source does not bring the call to that function at all. The index
- * reads no runner config, so a name only the runner maps is one the source does
- * not resolve: the walk places that call from the recording, on the one function
- * the case ran under the imported name, and counts it as ambiguous when the case
- * ran several. One case per checkout, one call, and the functions it ran. The
- * answer is how many of those functions the walk found a caller for, how many
- * calls it placed from the recording or left ambiguous, and the caller it found
- * for the one asked about. The checkouts are small copies of the shapes Material
- * UI and Docusaurus use.
+ * import a test suite writes: through `tsconfig` paths, from a package's build
+ * to its source, by a workspace package's name, and by a relative path; and what
+ * the walk answers when the source does not bring the call to that function at
+ * all. The index reads no runner config, so a name only the runner maps is one
+ * the source does not resolve, and the call has no place: a function the case
+ * ran that is exported under the imported name is a namesake, not the import's
+ * target. One case per checkout, one call, and the functions it ran. The answer
+ * is how many of those functions the walk found a caller for, and the caller it
+ * found for the one asked about. The checkouts are small copies of the shapes
+ * Material UI and Docusaurus use.
  */
 
 /** A file of functions, each three lines long, so the `n`th spans lines `3n + 1` to `3n + 3`. */
@@ -113,46 +111,19 @@ async function walk(testFile: string, ran: readonly Ran[], asked: string) {
   const at = testCoverageFile(root);
   mkdirSync(dirname(at), { recursive: true });
   const index = recording(testFile, ran);
-  writeFileSync(at, withCaseSections(encodeTestCoverage({ version: 3, instrumentation: 'fixture', tests: [], modules: [] }), { index }));
+  const commit = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).trim();
+  writeFileSync(at, withCaseSections(encodeTestCoverage({ version: 3, instrumentation: 'fixture', tests: [], modules: [], commit }), { index }));
   const [only] = await prepareJourneys(root);
   if (only === undefined || !('prepared' in only)) return only;
-  const { functionsEntered: entered, placed, recorded, ambiguous, ambiguousCases } = only.prepared;
+  const { functionsEntered: entered, placed } = only.prepared;
   const [around] = journeysAround(root, [{ file: asked, line: 2 }]) as [{ answer: JourneysAnswer }?];
-  return { entered, placed, recorded, ambiguous, ambiguousCases, callers: around?.answer.files[0]?.focus?.callers };
+  return { entered, placed, callers: around?.answer.files[0]?.focus?.callers };
 }
 
 /** The case ran `get`, the only function of `src/api.ts`. */
 const ranGet: readonly Ran[] = [{ file: 'src/api.ts', functions: ['get'], entered: ['get'] }];
 
 describe('a call reaches the function its case ran', () => {
-  it('by a name the test runner maps, as Material UI sends a package name to its source directory, from the recording', async () => {
-    installVite();
-    checkout({
-      'package.json': JSON.stringify({ name: 'material-ui', private: true, workspaces: ['packages/*'] }),
-      'vitest.config.ts': `export default { resolve: { alias: { '@mui/utils': ${JSON.stringify(join(root, 'packages/mui-utils/src'))} } } };\n`,
-      'packages/mui-utils/package.json': JSON.stringify({ name: '@mui/utils', main: './build/index.js' }),
-      'packages/mui-utils/src/index.js': functions('capitalize'),
-      'packages/mui-material/test/capitalize.test.js': test("import { capitalize } from '@mui/utils';", 'capitalize'),
-    });
-    installWorkspaces({ '@mui/utils': 'packages/mui-utils' });
-
-    expect(await walk('packages/mui-material/test/capitalize.test.js', [
-      { file: 'packages/mui-utils/src/index.js', functions: ['capitalize'], entered: ['capitalize'] },
-    ], 'packages/mui-utils/src/index.js')).toEqual({ entered: 1, placed: 1, recorded: 1, ambiguous: 0, ambiguousCases: 0, callers: [{ cases: 1, known: 'recorded' }] });
-  });
-
-  it('by a name the test runner maps to a file path relative to its config, from the recording', async () => {
-    installVite();
-    checkout({
-      'package.json': JSON.stringify({ name: 'app', private: true }),
-      'vitest.config.ts': "export default { resolve: { alias: { '@api': './src/api.ts' } } };\n",
-      'src/api.ts': functions('get'),
-      'test/api.test.ts': test("import { get } from '@api';", 'get'),
-    });
-
-    expect(await walk('test/api.test.ts', ranGet, 'src/api.ts')).toEqual({ entered: 1, placed: 1, recorded: 1, ambiguous: 0, ambiguousCases: 0, callers: [{ cases: 1, known: 'recorded' }] });
-  });
-
   it('through `tsconfig` paths', async () => {
     checkout({
       'package.json': JSON.stringify({ name: 'app', private: true }),
@@ -161,7 +132,7 @@ describe('a call reaches the function its case ran', () => {
       'test/api.test.ts': test("import { get } from '@app/api';", 'get'),
     });
 
-    expect(await walk('test/api.test.ts', ranGet, 'src/api.ts')).toEqual({ entered: 1, placed: 1, recorded: 0, ambiguous: 0, ambiguousCases: 0, callers: [{ cases: 1, known: 'static' }] });
+    expect(await walk('test/api.test.ts', ranGet, 'src/api.ts')).toEqual({ entered: 1, placed: 1, callers: [{ cases: 1, known: 'static' }] });
   });
 
   it('from a package\'s build to its source, as a Docusaurus package names `lib/` and runs `src/`', async () => {
@@ -177,7 +148,7 @@ describe('a call reaches the function its case ran', () => {
 
     expect(await walk('packages/docusaurus/src/__tests__/paths.test.ts', [
       { file: 'packages/docusaurus-utils/src/index.ts', functions: ['posixPath'], entered: ['posixPath'] },
-    ], 'packages/docusaurus-utils/src/index.ts')).toEqual({ entered: 1, placed: 1, recorded: 0, ambiguous: 0, ambiguousCases: 0, callers: [{ cases: 1, known: 'static' }] });
+    ], 'packages/docusaurus-utils/src/index.ts')).toEqual({ entered: 1, placed: 1, callers: [{ cases: 1, known: 'static' }] });
   });
 
   it('by a workspace package\'s name', async () => {
@@ -192,7 +163,7 @@ describe('a call reaches the function its case ran', () => {
 
     expect(await walk('packages/app/test/get.test.ts', [
       { file: 'packages/lib/src/index.ts', functions: ['get'], entered: ['get'] },
-    ], 'packages/lib/src/index.ts')).toEqual({ entered: 1, placed: 1, recorded: 0, ambiguous: 0, ambiguousCases: 0, callers: [{ cases: 1, known: 'static' }] });
+    ], 'packages/lib/src/index.ts')).toEqual({ entered: 1, placed: 1, callers: [{ cases: 1, known: 'static' }] });
   });
 
   it('by a relative path', async () => {
@@ -202,11 +173,39 @@ describe('a call reaches the function its case ran', () => {
       'test/api.test.ts': test("import { get } from '../src/api.js';", 'get'),
     });
 
-    expect(await walk('test/api.test.ts', ranGet, 'src/api.ts')).toEqual({ entered: 1, placed: 1, recorded: 0, ambiguous: 0, ambiguousCases: 0, callers: [{ cases: 1, known: 'static' }] });
+    expect(await walk('test/api.test.ts', ranGet, 'src/api.ts')).toEqual({ entered: 1, placed: 1, callers: [{ cases: 1, known: 'static' }] });
   });
 });
 
-describe('a call the source does not bring to the function its case ran', () => {
+describe('a call the source does not bring to the function its case ran has no place', () => {
+  it('when only the test runner maps the name, as Material UI sends a package name to its source directory', async () => {
+    installVite();
+    checkout({
+      'package.json': JSON.stringify({ name: 'material-ui', private: true, workspaces: ['packages/*'] }),
+      'vitest.config.ts': `export default { resolve: { alias: { '@mui/utils': ${JSON.stringify(join(root, 'packages/mui-utils/src'))} } } };\n`,
+      'packages/mui-utils/package.json': JSON.stringify({ name: '@mui/utils', main: './build/index.js' }),
+      'packages/mui-utils/src/index.js': functions('capitalize'),
+      'packages/mui-material/test/capitalize.test.js': test("import { capitalize } from '@mui/utils';", 'capitalize'),
+    });
+    installWorkspaces({ '@mui/utils': 'packages/mui-utils' });
+
+    expect(await walk('packages/mui-material/test/capitalize.test.js', [
+      { file: 'packages/mui-utils/src/index.js', functions: ['capitalize'], entered: ['capitalize'] },
+    ], 'packages/mui-utils/src/index.js')).toEqual({ entered: 1, placed: 0, callers: [] });
+  });
+
+  it('when only the test runner maps the name, to a file path relative to its config', async () => {
+    installVite();
+    checkout({
+      'package.json': JSON.stringify({ name: 'app', private: true }),
+      'vitest.config.ts': "export default { resolve: { alias: { '@api': './src/api.ts' } } };\n",
+      'src/api.ts': functions('get'),
+      'test/api.test.ts': test("import { get } from '@api';", 'get'),
+    });
+
+    expect(await walk('test/api.test.ts', ranGet, 'src/api.ts')).toEqual({ entered: 1, placed: 0, callers: [] });
+  });
+
   it('when nothing in the checkout resolves the import', async () => {
     checkout({
       'package.json': JSON.stringify({ name: 'app', private: true }),
@@ -214,7 +213,7 @@ describe('a call the source does not bring to the function its case ran', () => 
       'test/api.test.ts': test("import { get } from 'api';", 'get'),
     });
 
-    expect(await walk('test/api.test.ts', ranGet, 'src/api.ts')).toEqual({ entered: 1, placed: 1, recorded: 1, ambiguous: 0, ambiguousCases: 0, callers: [{ cases: 1, known: 'recorded' }] });
+    expect(await walk('test/api.test.ts', ranGet, 'src/api.ts')).toEqual({ entered: 1, placed: 0, callers: [] });
   });
 
   it('when the case ran more than one function under the imported name', async () => {
@@ -226,7 +225,7 @@ describe('a call the source does not bring to the function its case ran', () => 
     });
 
     expect(await walk('test/api.test.ts', [...ranGet, { file: 'src/other.ts', functions: ['get'], entered: ['get'] }], 'src/api.ts'))
-      .toEqual({ entered: 2, placed: 0, recorded: 0, ambiguous: 1, ambiguousCases: 1, callers: [] });
+      .toEqual({ entered: 2, placed: 0, callers: [] });
   });
 
   it('when a runner config would throw as it is evaluated, as Material UI\'s does on `__dirname`, which the index never evaluates', async () => {
@@ -239,7 +238,7 @@ describe('a call the source does not bring to the function its case ran', () => 
       'test/api.test.ts': test("import { get } from '../src/api.js';", 'get'),
     });
 
-    expect(await walk('test/api.test.ts', ranGet, 'src/api.ts')).toEqual({ entered: 1, placed: 1, recorded: 0, ambiguous: 0, ambiguousCases: 0, callers: [{ cases: 1, known: 'static' }] });
+    expect(await walk('test/api.test.ts', ranGet, 'src/api.ts')).toEqual({ entered: 1, placed: 1, callers: [{ cases: 1, known: 'static' }] });
     expect(existsSync(evaluated)).toBe(false);
   });
 });
@@ -254,7 +253,7 @@ describe('a call the recording does not place', () => {
     });
 
     expect(await walk('test/api.test.ts', [...ranGet, { file: 'lib/api.js', functions: ['get'], entered: [] }], 'src/api.ts'))
-      .toEqual({ entered: 1, placed: 0, recorded: 0, ambiguous: 0, ambiguousCases: 0, callers: [] });
+      .toEqual({ entered: 1, placed: 0, callers: [] });
   });
 
   it('when it imports a Node builtin whose name a function the case ran is exported under', async () => {
@@ -265,7 +264,7 @@ describe('a call the recording does not place', () => {
     });
 
     expect(await walk('test/names.test.ts', [{ file: 'src/names.ts', functions: ['basename'], entered: ['basename'] }], 'src/names.ts'))
-      .toEqual({ entered: 1, placed: 0, recorded: 0, ambiguous: 0, ambiguousCases: 0, callers: [] });
+      .toEqual({ entered: 1, placed: 0, callers: [] });
   });
 
   it('when it imports an installed package no workspace holds, whose name a function the case ran is exported under', async () => {
@@ -276,7 +275,7 @@ describe('a call the recording does not place', () => {
     });
 
     expect(await walk('test/text.test.ts', [{ file: 'src/text.ts', functions: ['capitalize'], entered: ['capitalize'] }], 'src/text.ts'))
-      .toEqual({ entered: 1, placed: 0, recorded: 0, ambiguous: 0, ambiguousCases: 0, callers: [] });
+      .toEqual({ entered: 1, placed: 0, callers: [] });
   });
 
   it('when the function the case ran under the imported name is not exported', async () => {
@@ -286,7 +285,7 @@ describe('a call the recording does not place', () => {
       'test/api.test.ts': test("import { get } from 'api';", 'get'),
     });
 
-    expect(await walk('test/api.test.ts', ranGet, 'src/api.ts')).toEqual({ entered: 1, placed: 0, recorded: 0, ambiguous: 0, ambiguousCases: 0, callers: [] });
+    expect(await walk('test/api.test.ts', ranGet, 'src/api.ts')).toEqual({ entered: 1, placed: 0, callers: [] });
   });
 
   it('when it names a workspace package, on a function another package exports', async () => {
@@ -303,12 +302,12 @@ describe('a call the recording does not place', () => {
     expect(await walk('packages/app/test/get.test.ts', [
       { file: 'packages/lib/src/index.ts', functions: ['get'], entered: [] },
       { file: 'packages/other/src/index.ts', functions: ['get'], entered: ['get'] },
-    ], 'packages/other/src/index.ts')).toEqual({ entered: 1, placed: 0, recorded: 0, ambiguous: 0, ambiguousCases: 0, callers: [] });
+    ], 'packages/other/src/index.ts')).toEqual({ entered: 1, placed: 0, callers: [] });
   });
 });
 
-describe('a call the recording places, and what it does not override', () => {
-  it('a default import, on the function its module exports as default under another name', async () => {
+describe('a call placed by what the source says', () => {
+  it('not a default import the source does not resolve, on a function exported as default under another name', async () => {
     checkout({
       'package.json': JSON.stringify({ name: 'app', private: true }),
       'src/class-names.ts': 'export default function classNames(value) {\n  return value;\n}\n',
@@ -316,7 +315,7 @@ describe('a call the recording places, and what it does not override', () => {
     });
 
     expect(await walk('test/class-names.test.ts', [{ file: 'src/class-names.ts', functions: ['classNames'], entered: ['classNames'] }], 'src/class-names.ts'))
-      .toEqual({ entered: 1, placed: 1, recorded: 1, ambiguous: 0, ambiguousCases: 0, callers: [{ cases: 1, known: 'recorded' }] });
+      .toEqual({ entered: 1, placed: 0, callers: [] });
   });
 
   it('`new Foo()`, on the constructor the case ran, when two functions it ran are exported as `Foo`', async () => {
@@ -332,10 +331,10 @@ describe('a call the recording places, and what it does not override', () => {
       { file: 'src/a.ts', functions: ['Foo'], entered: ['Foo'] },
       { file: 'src/b.ts', functions: ['Foo'], entered: ['Foo'] },
       { file: 'src/c.ts', functions: [{ name: 'Foo/constructor', start: 2, end: 2 }], entered: ['Foo/constructor'] },
-    ], 'src/c.ts')).toEqual({ entered: 3, placed: 1, recorded: 0, ambiguous: 0, ambiguousCases: 0, callers: [{ cases: 1, known: 'new' }] });
+    ], 'src/c.ts')).toEqual({ entered: 3, placed: 1, callers: [{ cases: 1, known: 'new' }] });
   });
 
-  it('a call the relations also bring to the function, which keeps the caller they name', async () => {
+  it('a call the relations bring to the function, through the caller they name', async () => {
     checkout({
       'package.json': JSON.stringify({ name: 'app', private: true }),
       'src/api.ts': functions('get'),
@@ -346,6 +345,6 @@ describe('a call the recording places, and what it does not override', () => {
     expect(await walk('test/api.test.ts', [
       ...ranGet,
       { file: 'src/run.ts', functions: [{ name: 'run', start: 2, end: 4 }], entered: ['run'] },
-    ], 'src/api.ts')).toEqual({ entered: 2, placed: 2, recorded: 1, ambiguous: 0, ambiguousCases: 0, callers: [{ cases: 1, file: 'src/run.ts', known: 'observed', line: 2, name: 'run' }] });
+    ], 'src/api.ts')).toEqual({ entered: 2, placed: 2, callers: [{ cases: 1, file: 'src/run.ts', known: 'observed', line: 2, name: 'run' }] });
   });
 });

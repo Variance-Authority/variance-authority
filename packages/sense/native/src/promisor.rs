@@ -9,15 +9,19 @@
 //! such reads took 9.0 s; one request for the same fifteen took 0.7 s, and the
 //! reads after it 0.03 s.
 //!
-//! So a reader asks first with `GIT_NO_LAZY_FETCH=1`, which answers what is
-//! here and says `missing` for the rest without fetching, and hands the missing
-//! ones here. The fetch is the one git makes for its own batched prefetch. The
-//! reader then asks again for what was missing, with lazy fetching left as the
-//! repository has it: a fetch that failed costs the old one request per object,
-//! never a text read as absent.
+//! So a reader hands here every object it is about to read, and then reads
+//! them with lazy fetching left as the repository has it. The fetch is the one
+//! git makes for its own batched prefetch, and an object the clone holds is not
+//! asked for, so a batch of held ones makes no request. A fetch that failed
+//! costs the old one request per object, never a text read as absent.
 //!
-//! A clone with no promisor remote pays nothing: its first read answers
-//! everything it holds, and an object it does not hold is absent.
+//! The reader does not ask first with `GIT_NO_LAZY_FETCH=1`: git 2.43, the one
+//! Ubuntu 24.04 ships, stops at the first object that variable forbids, warning
+//! "lazy fetching disabled" and exiting 128 with "could not fetch ... from
+//! promisor remote", rather than answering it `missing`.
+//!
+//! A clone with no promisor remote pays nothing: there is no remote to ask, and
+//! an object it does not hold is not in the repository.
 
 use napi_derive::napi;
 
@@ -37,23 +41,38 @@ pub(crate) fn fetch_missing(root: &str, oids: &[String]) -> bool {
     let Some(remote) = remote(root) else {
         return false;
     };
+    let _ = fetch_from(root, &remote, oids);
+    true
+}
+
+/// Fetch `oids` the clone does not hold yet, in one request, or git's reason
+/// for not fetching them. Nothing to do outside a partial clone. An object the
+/// clone already holds is not asked for, so a batch of held ones makes no
+/// request, and a reader may hand every object it is about to read.
+pub(crate) fn fetch(root: &str, oids: &[String]) -> Result<(), String> {
+    match remote(root) {
+        Some(remote) => fetch_from(root, &remote, oids),
+        None => Ok(()),
+    }
+}
+
+fn fetch_from(root: &str, remote: &str, oids: &[String]) -> Result<(), String> {
     if oids.is_empty() {
-        return true;
+        return Ok(());
     }
     let stdin: String = oids.iter().map(|oid| format!("{oid}\n")).collect();
     let args = [
         "-c",
         "fetch.negotiationAlgorithm=noop",
         "fetch",
-        &remote,
+        remote,
         "--no-tags",
         "--no-write-fetch-head",
         "--recurse-submodules=no",
         "--filter=blob:none",
         "--stdin",
     ];
-    let _ = git(root, &args, Some(stdin.into_bytes()));
-    true
+    crate::git::answer(root, &args, Some(stdin.into_bytes())).map(drop)
 }
 
 /// [`fetch_missing`] for paths at a commit, spelled from the top of the

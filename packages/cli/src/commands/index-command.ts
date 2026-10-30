@@ -214,6 +214,11 @@ function percent(part: number, whole: number): string {
   return part > 0 && share < 0.5 ? '<1%' : `${Math.round(share)}%`;
 }
 
+/** `n` and its unit, the unit in the singular for one. */
+function count(n: number, unit: string): string {
+  return `${n} ${n === 1 ? unit : `${unit}s`}`;
+}
+
 /** The line `variance index` prints for one suite's journeys, and why they were not prepared when they were not. */
 export function journeysLine(one: PreparedJourneys): string {
   const named = one.suite === undefined ? 'journeys' : `journeys, suite ${one.suite}`;
@@ -222,21 +227,13 @@ export function journeysLine(one: PreparedJourneys): string {
   const share = prepared.functionsEntered === 0 ? '' : ` (${percent(prepared.placed, prepared.functionsEntered)})`;
   const notes = [
     prepared.kept ? 'kept, because the recording, the index and the walk are the ones they were made from' : '',
-    prepared.tree === undefined || prepared.tree === null
-      ? ''
-      : `the files were parsed as the working tree has them, not as the recording ran them, because ${prepared.tree}`,
-    prepared.fellBack > 0 ? `${prepared.fellBack} imports the index did not resolve were resolved by the walk` : '',
-    prepared.recorded > 0
-      ? `${prepared.recorded} calls were placed from the recording, because their import resolved to no function and exactly one the case ran is exported under the imported name`
-      : '',
-    prepared.ambiguous > 0
-      ? `${prepared.ambiguous} calls have no place, because their import resolved to no function and several the case ran are exported under the imported name, ` +
-        `in ${prepared.ambiguousCases} ${prepared.ambiguousCases === 1 ? 'case' : 'cases'}`
-      : '',
+    prepared.fellBack > 0 ? `${count(prepared.fellBack, 'import specifier')} the index did not resolve were resolved by the walk` : '',
   ].filter((note) => note !== '');
+  // A function two cases entered is two entries: the share is over entries,
+  // and the calls and flows are distinct over every case.
   return [
-    `${named}: ${prepared.cases} cases walked; a caller is found for ${prepared.placed} of the ${prepared.functionsEntered} functions they ran${share}; ` +
-      `${prepared.calls} calls, ${prepared.flows} package flows`,
+    `${named}: ${count(prepared.cases, 'case')} walked; a caller is placed for ${prepared.placed} of the ${prepared.functionsEntered} functions the cases entered, ` +
+      `counted once per case that entered each${share}; ${count(prepared.calls, 'distinct call')}, ${count(prepared.flows, 'distinct package flow')}`,
     ...notes,
   ].join('; ');
 }

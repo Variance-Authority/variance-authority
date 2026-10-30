@@ -62,9 +62,6 @@ pub(crate) struct Graph {
     pub calls_from: Vec<Vec<Vec<u32>>>,
     /// Specifiers the index did not answer, which the graph resolved itself.
     pub fell_back: u32,
-    /// Why the files were parsed as the working tree holds them rather than as
-    /// the recorded commit did; absent when the commit's tree was read.
-    pub tree: Option<String>,
 }
 
 pub(crate) fn code(path: &str) -> bool {
@@ -78,21 +75,31 @@ fn bare(value: &str) -> bool {
 
 /// The text of every source file that differs between `commit` and the
 /// working tree, as it was at `commit`: `None` for a file that did not exist
-/// there. One diff and one `cat-file --batch`, and in a partial clone one fetch
-/// and a second read for what it had not fetched ([`crate::promisor`]); a file
-/// not in the map is the same on disk. Renames are not detected: a file moved
-/// since the commit is a path the commit did not have, and the path it had is
-/// read from there under its own name. When git cannot answer, the reason,
-/// which the prepared file carries, since the graph is then the working tree's.
+/// there, as the diff names it by an object of all zeros. One diff, in a
+/// partial clone one fetch of the objects the diff names ([`crate::promisor`]),
+/// and one `cat-file --batch` by object name; a file not in the map is the same
+/// on disk. Renames are not detected: a file moved since the commit is a path
+/// the commit did not have, and the path it had is read from there under its
+/// own name.
+///
+/// Every object the diff names exists, so one git cannot read is a fault and
+/// never an absent file: the read then fails with git's own reason. That holds
+/// on every git, including those before 2.44, which stop at the first object
+/// `GIT_NO_LAZY_FETCH` forbids rather than answering it `missing`; so the read
+/// leaves lazy fetching as the repository has it, and a fetch that failed costs
+/// one request per object rather than a different answer.
 pub(crate) fn text_at(root: &str, commit: &str) -> Result<HashMap<String, Option<String>>, String> {
     let args = ["-c", "core.quotePath=false", "diff", "--raw", "--no-abbrev", "--no-renames", "-z", "--relative", commit];
-    let Some(listed) = crate::git::git(root, &args, None) else {
-        let known = crate::git::git(root, &["cat-file", "-e", &format!("{commit}^{{commit}}")], None).is_some();
-        return Err(if known {
-            format!("git could not list what changed since commit {}", short(commit))
-        } else {
-            format!("commit {} is not in this checkout's object store", short(commit))
-        });
+    let listed = match crate::git::answer(root, &args, None) {
+        Ok(listed) => listed,
+        Err(why) => {
+            let known = crate::git::git(root, &["cat-file", "-e", &format!("{commit}^{{commit}}")], None).is_some();
+            return Err(if known {
+                format!("git could not list what changed since commit {}: {why}", short(commit))
+            } else {
+                format!("commit {} is not in this checkout's object store", short(commit))
+            });
+        }
     };
     // `:<mode> <mode> <object> <object> <status>` and then the path, each ended
     // by a NUL. The first object is the commit's, all zeros where it had none.
@@ -102,7 +109,9 @@ pub(crate) fn text_at(root: &str, commit: &str) -> Result<HashMap<String, Option
         .filter_map(|pair| {
             let object = pair[0].split(|&byte| byte == b' ').nth(2)?;
             let object = String::from_utf8_lossy(object).into_owned();
-            Some((String::from_utf8_lossy(pair[1]).into_owned(), Some(object).filter(|object| object.bytes().any(|byte| byte != b'0'))))
+            // A submodule's entry names its commit, which is no file's text.
+            let file = !pair[0].starts_with(b":160000") && object.bytes().any(|byte| byte != b'0');
+            Some((String::from_utf8_lossy(pair[1]).into_owned(), Some(object).filter(|_| file)))
         })
         .filter(|(path, _)| code(path))
         .collect();
@@ -110,45 +119,41 @@ pub(crate) fn text_at(root: &str, commit: &str) -> Result<HashMap<String, Option
     if changed.is_empty() {
         return Ok(texts);
     }
-    let unread = || format!("git could not read the files changed since commit {}", short(commit));
-    let files: Vec<&str> = changed.iter().map(|(file, _)| file.as_str()).collect();
-    let mut read = read_at(root, commit, &files, false).ok_or_else(unread)?;
-    let missing: Vec<usize> = (0..changed.len()).filter(|&at| read[at].is_none() && changed[at].1.is_some()).collect();
-    let oids: Vec<String> = missing.iter().filter_map(|&at| changed[at].1.clone()).collect();
-    if !missing.is_empty() && crate::promisor::fetch_missing(root, &oids) {
-        let files: Vec<&str> = missing.iter().map(|&at| changed[at].0.as_str()).collect();
-        for (at, text) in missing.iter().zip(read_at(root, commit, &files, true).ok_or_else(unread)?) {
-            read[*at] = text;
-        }
-    }
-    for ((file, _), text) in changed.into_iter().zip(read) {
-        texts.insert(file, text);
+    let unread = |why: &str| format!("git could not read the files changed since commit {}: {why}", short(commit));
+    let oids: Vec<String> = changed.iter().filter_map(|(_, oid)| oid.clone()).collect();
+    let fetched = crate::promisor::fetch(root, &oids);
+    let read = read_objects(root, &oids).map_err(|why| match &fetched {
+        Err(fetch) if fetch != &why => unread(&format!("{why} (the fetch before it: {fetch})")),
+        _ => unread(&why),
+    })?;
+    let mut read = read.into_iter();
+    for (file, oid) in changed {
+        texts.insert(file, oid.and_then(|_| read.next()));
     }
     Ok(texts)
 }
 
-/// Each of `files` at `commit` from one `cat-file --batch`, `None` where it
-/// answers `missing`. Without `fetch`, an object a partial clone has not
-/// fetched is answered missing too, rather than fetched on its own.
-fn read_at(root: &str, commit: &str, files: &[&str], fetch: bool) -> Option<Vec<Option<String>>> {
-    let asked: String = files.iter().map(|file| format!("{commit}:./{file}\n")).collect();
-    let env: &[(&str, &str)] = if fetch { &[] } else { &[("GIT_NO_LAZY_FETCH", "1")] };
-    let out = crate::git::git_with(root, &["cat-file", "--batch"], Some(asked.into_bytes()), env)?;
-    let mut read = Vec::with_capacity(files.len());
+/// Each of `oids` from one `cat-file --batch`, in order. An object git answers
+/// `missing` is an error, as is any output that does not parse: every object
+/// asked for was named by the commit's tree.
+fn read_objects(root: &str, oids: &[String]) -> Result<Vec<String>, String> {
+    let asked: String = oids.iter().map(|oid| format!("{oid}\n")).collect();
+    let out = crate::git::answer(root, &["cat-file", "--batch"], Some(asked.into_bytes()))?;
+    let cut = || "git cat-file --batch ended its answer early".to_owned();
+    let mut read = Vec::with_capacity(oids.len());
     let mut at = 0;
-    for _ in files {
-        let end = at + out.get(at..)?.iter().position(|&byte| byte == b'\n')?;
+    for _ in oids {
+        let end = at + out.get(at..).ok_or_else(cut)?.iter().position(|&byte| byte == b'\n').ok_or_else(cut)?;
         let head = String::from_utf8_lossy(&out[at..end]).into_owned();
         at = end + 1;
-        if head.ends_with(" missing") {
-            read.push(None);
-            continue;
-        }
-        let size: usize = head.rsplit(' ').next()?.parse().ok()?;
-        read.push(Some(String::from_utf8_lossy(out.get(at..at + size)?).into_owned()));
+        let size = match head.rsplit(' ').next().map(str::parse::<usize>) {
+            Some(Ok(size)) if !head.ends_with(" missing") => size,
+            _ => return Err(format!("git answered `{head}`")),
+        };
+        read.push(String::from_utf8_lossy(out.get(at..at + size).ok_or_else(cut)?).into_owned());
         at += size + 1;
     }
-    Some(read)
+    Ok(read)
 }
 
 /// A commit as the output names one.
@@ -199,11 +204,12 @@ struct Read {
 impl Graph {
     /// The graph over everything `seeds` reach, read from the index's layers.
     /// `seeds` are interned first and in order, so their ids are their places.
-    /// `commit` is the commit the recording ran at, or why there is none.
+    /// `commit` is the commit the recording ran at; a file changed since it is
+    /// read from it, and one git cannot read fails the build with git's reason.
     /// `tsconfig` is the config the scan that built the index resolved under.
-    pub(crate) fn build(root: &str, layers: &[Layer], commit: Result<&str, &str>, seeds: &[String], tsconfig: Tsconfig) -> Graph {
+    pub(crate) fn build(root: &str, layers: &[Layer], commit: &str, seeds: &[String], tsconfig: Tsconfig) -> Result<Graph, String> {
         let (then, index) = rayon::join(
-            || commit.map_err(str::to_owned).and_then(|commit| text_at(root, commit)),
+            || text_at(root, commit),
             || {
                 let folded = fold(layers);
                 let mut crossings: Vec<Crossing> = folded
@@ -226,9 +232,8 @@ impl Graph {
             targets: Vec::new(),
             calls_from: Vec::new(),
             fell_back: 0,
-            tree: None,
         };
-        let then = then.map_err(|why| graph.tree = Some(why)).ok();
+        let then = then?;
         let mut frontier: Vec<u32> = seeds.iter().map(|seed| graph.intern(seed)).collect();
         frontier.dedup();
         while !frontier.is_empty() {
@@ -236,7 +241,7 @@ impl Graph {
                 .par_iter()
                 .map(|&id| {
                     let file = graph.files[id as usize].as_str();
-                    let text = match then.as_ref().and_then(|then| then.get(file)) {
+                    let text = match then.get(file) {
                         Some(then) => then.clone(),
                         None if code(file) => std::fs::read_to_string(absolute.join(file)).ok(),
                         None => None,
@@ -316,7 +321,7 @@ impl Graph {
             .collect();
         graph.targets = targets;
         graph.calls_from = calls_from;
-        graph
+        Ok(graph)
     }
 
     fn intern(&mut self, file: &str) -> u32 {

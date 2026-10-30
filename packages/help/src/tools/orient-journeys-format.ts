@@ -18,7 +18,6 @@ const plural = (count: number, one: string, many = `${one}s`): string => `${coun
 /** The way an inferred call was matched, as each is printed; the legend is made from the same rows. */
 const INFERRED: readonly (readonly [string, string])[] = [
   ['name-match', 'by name'],
-  ['recorded', 'by the name it was imported under, from what the case ran'],
   ['new', 'by `new`'],
   ['handed', 'handed to a call'],
   ['parameter', 'as a parameter'],
@@ -156,9 +155,6 @@ export function formatJourneys(journeys: readonly JourneysAround[]): readonly st
     }
     const commit = answer.commit == null ? '' : ` at commit ${answer.commit.slice(0, 12)}`;
     out.push('', `${named}, from the recording${commit}, ${plural(answer.cases, 'case')} walked over the static call graph:`);
-    if (answer.tree != null) {
-      out.push(`The files were parsed as the working tree has them, not as the recording ran them, because ${answer.tree}.`);
-    }
     if (!explained) {
       out.push(KNOWN);
       explained = true;

@@ -14,10 +14,9 @@
 
 // compass: variance-authority.reach.relations
 
-import { resolve } from 'node:path';
+import { isAbsolute, relative, resolve } from 'node:path';
 import { checkoutListing, checkoutPath, existedAt, type CheckoutListing } from './checkout-path.js';
 import { native, nativeRefusal } from './native.js';
-import { BUILTINS } from './native-index-graph.js';
 import type { NativeForksBetween, NativeJourneyEnd, NativeJourneyMap, NativeJourneyMapFile, NativePathsThrough, NativeJourneysAmong, NativeJourneysAnswer, NativeJourneysAsk, NativeJourneysCommit, NativeJourneysPrepared, NativeTestComposition } from './native-journeys.js';
 import type { SourceUpdate } from './published.js';
 import { sourceIndexPath } from './source-index.js';
@@ -83,7 +82,7 @@ function recordings(root: string): readonly { readonly suite?: string; readonly 
   });
 }
 
-/** The commit a recording ran at, or why there is none: the walk then reads the tree as it is, and says so. */
+/** The commit a recording ran at, or why there is none. */
 function commitOf(coverage: string): NativeJourneysCommit {
   try {
     const commit = askCoverageFile(coverage, (read) => read.commit);
@@ -117,6 +116,16 @@ function knownOf(root: string, file: string, recording: string, listing: Checkou
     : { module, ...now, commit: at.commit, unread: then.unread };
 }
 
+/**
+ * `path` as the checkout names it, or as it is when it lies outside the
+ * checkout: a recording kept in a shared cache is at no checkout path, and a
+ * chain of `..` would name it from wherever the reader happens to stand.
+ */
+function spelled(root: string, path: string): string {
+  const inside = relative(root, path);
+  return inside === '' || inside.startsWith('..') || isAbsolute(inside) ? path : inside;
+}
+
 /** One suite's prepared journeys, or why none were prepared. */
 export type PreparedJourneys =
   | { readonly suite?: string; readonly out: string; readonly prepared: NativeJourneysPrepared }
@@ -143,7 +152,7 @@ export async function prepareJourneys(
     const named = suite === undefined ? {} : { suite };
     const out = journeysPath(index, suite);
     if (recording === undefined) {
-      prepared.push({ ...named, out, unprepared: `nothing is recorded at ${looked}` });
+      prepared.push({ ...named, out, unprepared: `nothing is recorded at ${spelled(root, looked)}` });
       continue;
     }
     const kept = entry('journeysKept')(index, recording, out);
@@ -151,8 +160,21 @@ export async function prepareJourneys(
       prepared.push({ ...named, out, prepared: kept });
       continue;
     }
+    // A recording's lines are coordinates in the tree it ran over, and git owns
+    // that tree: without its commit, or with git unable to read it, there is no
+    // walk, since the working tree is a different answer.
     const at = commitOf(recording);
-    const made = walk(root, index, recording, at, out, BUILTINS, tsconfig);
+    if (at.unread != null) {
+      prepared.push({ ...named, out, unprepared: at.unread });
+      continue;
+    }
+    let made: NativeJourneysPrepared | null;
+    try {
+      made = walk(root, index, recording, at, out, tsconfig);
+    } catch (error) {
+      prepared.push({ ...named, out, unprepared: error instanceof Error ? error.message : String(error) });
+      continue;
+    }
     prepared.push(made === null ? { ...named, out, unprepared: 'there is no source index' } : { ...named, out, prepared: made });
   }
   return prepared;

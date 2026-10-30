@@ -1,7 +1,7 @@
 import { execFileSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, realpathSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { dirname, join } from 'node:path';
+import { dirname, join, relative } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { forksBetween, journeysAmong, journeysAround, journeyMap, journeysPath, pathsThrough, prepareJourneys, testCompositions } from './journeys.js';
 import { updateSourceIndex } from './published.js';
@@ -42,11 +42,16 @@ function recording(idle = 0): Buffer {
 
 let root: string;
 
-/** The record a run leaves, carrying `index` as its cases and naming no commit. */
-function record(index: Uint8Array): void {
+/** The record a run leaves at `commit`, the checkout's own unless named, carrying `index` as its cases; `null` names none. */
+function record(index: Uint8Array, commit: string | null = head()): void {
   const at = testCoverageFile(root);
   mkdirSync(dirname(at), { recursive: true });
-  writeFileSync(at, withCaseSections(encodeTestCoverage({ version: 3, instrumentation: 'fixture', tests: [], modules: [] }), { index }));
+  const coverage = encodeTestCoverage({ version: 3, instrumentation: 'fixture', tests: [], modules: [], ...(commit === null ? {} : { commit }) });
+  writeFileSync(at, withCaseSections(coverage, { index }));
+}
+
+function head(): string {
+  return execFileSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).trim();
 }
 
 function write(path: string, text: string): void {
@@ -79,6 +84,20 @@ describe('the journeys prepared beside the index', () => {
     expect(journeysAround(root, [{ file: 'src/api.ts' }])).toEqual([]);
   });
 
+  it('name where the recording was looked for from the checkout when the cache is inside it', async () => {
+    const shared = process.env['VARIANCE_AUTHORITY_CACHE'];
+    process.env['VARIANCE_AUTHORITY_CACHE'] = join(root, '.cache');
+    try {
+      await updateSourceIndex(root);
+      const [only] = await prepareJourneys(root);
+
+      expect(only).toMatchObject({ unprepared: `nothing is recorded at ${relative(root, testCoverageFile(root))}` });
+      expect(only && 'unprepared' in only ? only.unprepared : '').toMatch(/^nothing is recorded at \.cache\//u);
+    } finally {
+      process.env['VARIANCE_AUTHORITY_CACHE'] = shared;
+    }
+  });
+
   it('walk the recorded case once, keep the file while nothing it was made from changes, and answer a file and a line', async () => {
     await updateSourceIndex(root);
     record(recording());
@@ -90,21 +109,18 @@ describe('the journeys prepared beside the index', () => {
       functionsEntered: 2,
       placed: 2,
     });
-    // The recording names no commit, so the walk parsed the tree as it is, and says so.
-    const tree = first && 'prepared' in first ? first.prepared.tree : undefined;
-    expect(tree).toMatch(/commit/u);
+    expect(first && 'prepared' in first ? first.prepared : first).not.toHaveProperty('tree');
     const [again] = await prepareJourneys(root);
     expect(again && 'prepared' in again && again.prepared.kept).toBe(true);
-    expect(again && 'prepared' in again && again.prepared.tree).toBe(tree);
 
     const [{ answer }] = journeysAround(root, [{ file: 'src/api.ts' }, { file: 'src/api.ts', line: 5 }]) as [{ answer: import('./journeys.js').JourneysAnswer }];
     expect(answer.notPrepared ?? undefined).toBeUndefined();
     expect(answer.cases).toBe(1);
-    expect(answer.tree).toBe(tree);
+    expect(answer).not.toHaveProperty('tree');
     const [file, line] = answer.files;
     expect(file?.cases).toBe(1);
     expect(file?.flows).toMatchObject({ package: '@t/api', through: 1 });
-    expect(line?.unplaced).toMatch(/commit/u);
+    expect(line?.unplaced ?? undefined).toBeUndefined();
     expect(file?.blocks.map((block) => block.name)).toEqual(['get', 'put']);
     expect(file?.callers).toEqual([expect.objectContaining({ at: 'get', cases: 1 })]);
     expect(line?.focus?.name).toBe('put');
@@ -114,6 +130,19 @@ describe('the journeys prepared beside the index', () => {
     record(recording(1));
     const [{ answer: stale }] = journeysAround(root, [{ file: 'src/api.ts' }]) as [{ answer: import('./journeys.js').JourneysAnswer }];
     expect(stale.notPrepared).toBe('the recording changed after they were prepared');
+  });
+
+  // A recording's lines are coordinates in the tree it ran over: the working
+  // tree is a different answer, so the walk does not run over it.
+  it('are not prepared from a recording that names no commit, nor one at a commit this checkout does not hold, and say why', async () => {
+    await updateSourceIndex(root);
+    record(recording(), null);
+    expect(await prepareJourneys(root)).toEqual([{ out: journeysPath(sourceIndexPath(root)), unprepared: 'the recording names no commit' }]);
+
+    record(recording(), '0123456789abcdef0123456789abcdef01234567');
+    expect(await prepareJourneys(root)).toEqual([
+      { out: journeysPath(sourceIndexPath(root)), unprepared: "commit 0123456789ab is not in this checkout's object store" },
+    ]);
   });
 });
 
@@ -141,6 +170,7 @@ describe('the calls some of the cases placed', () => {
 
   it('are counted among the asked cases alone, and a case the recording does not hold is named', async () => {
     write('test/api.test.ts', "import { get } from '../src/api.js';\nit('gets', () => get('x'));\nit('peeks', () => get('y'));\n");
+    execFileSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '--quiet', '-am', 'peeks'], { cwd: root, stdio: 'pipe' });
     await updateSourceIndex(root);
     record(two());
     await prepareJourneys(root);

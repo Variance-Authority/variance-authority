@@ -23,7 +23,6 @@ fn graph(files: &[(&str, &str)]) -> Graph {
         targets: Vec::new(),
         calls_from: Vec::new(),
         fell_back: 0,
-        tree: None,
     };
     for (file, text) in files {
         let id = graph.intern(file);
@@ -219,5 +218,19 @@ fn a_treeless_clone_fetches_the_trees_and_then_the_texts_in_two_requests() {
     let texts = text_at(clone.to_str().unwrap(), &then).unwrap();
     assert_eq!(read_in_order(&texts), expected);
     assert_eq!(std::fs::read_to_string(&requests).unwrap().lines().count(), 2, "one request for the trees, one for the blobs");
+    std::fs::remove_dir_all(clone.parent().unwrap()).unwrap();
+}
+
+/// A promisor remote that answers nothing: every request after the clone is
+/// refused, so a text the clone lacks cannot be read at all.
+#[cfg(unix)]
+#[test]
+fn a_text_no_remote_will_serve_fails_the_read_with_gits_own_reason() {
+    let (clone, then, _, _) = partial_clone("unserved", "blob:none", false);
+    let serve = clone.parent().unwrap().join("serve");
+    std::fs::write(&serve, "#!/bin/sh\necho 'the server is gone' >&2\nexit 1\n").unwrap();
+    let why = text_at(clone.to_str().unwrap(), &then).expect_err("a text git could not fetch is neither absent nor the working tree's");
+    assert!(why.starts_with("git could not read the files changed since commit "), "{why}");
+    assert!(why.contains("the server is gone"), "git's own reason is carried: {why}");
     std::fs::remove_dir_all(clone.parent().unwrap()).unwrap();
 }
