@@ -195,8 +195,9 @@ yarn verify:far     # 3. the rest of the selection, once, before the PR
 ```
 
 `near` and `rules` stamp the tree they ran on, and only a clean tree is
-stamped, so commit before the wave. An agent's push is refused until every
-pushed commit's tree carries both. Stamps live in the worktree's own git
+stamped, so commit before the wave. An agent's push is refused until the
+tree each pushed branch points to carries both: that tree is what CI tests and
+the squash merge lands. Stamps live in the worktree's own git
 directory: push from the worktree that ran the waves. A green wave is not run again on unchanged code. The full `yarn verify` and
 `yarn measure` are CI's: run one locally only to reproduce a check that failed
 there.

@@ -29,19 +29,22 @@ const wavesOn = (tree) => {
 };
 
 // Records that a wave passed on the tree `HEAD` holds, in the checkout's own git
-// directory, so nothing tracked moves. A dirty tree is not stamped.
+// directory, so nothing tracked moves. A dirty tree is not stamped, and the wave
+// fails, since the push it was run for would be refused.
 const stamp = (wave) => {
   if (git('status', '--porcelain') !== '') {
-    console.log(`gate: ${wave} is not stamped; the tree has uncommitted changes. Commit, then run the wave again.`);
-    return;
+    console.error(`gate: ${wave} passed but is not stamped; the tree has uncommitted changes. Commit, then run the wave again.`);
+    process.exit(1);
   }
   appendFileSync(join(stamps(), git('rev-parse', 'HEAD^{tree}')), `${wave}\n`);
   console.log(`gate: ${wave} stamped on ${git('rev-parse', '--short', 'HEAD')}`);
 };
 
 /**
- * The pushed commits that lack a wave, from git's `pre-push` input: one line
- * per ref, `<local ref> <local sha> <remote ref> <remote sha>`.
+ * The pushed refs whose tree lacks a wave, from git's `pre-push` input: one
+ * line per ref, `<local ref> <local sha> <remote ref> <remote sha>`. The tree a
+ * ref points to is what CI tests and the squash merge lands; a commit before it
+ * on the branch is never merged alone, and is not asked.
  */
 export const unverified = (input, treeOf, wavesOn) =>
   input
@@ -53,15 +56,30 @@ export const unverified = (input, treeOf, wavesOn) =>
 
 // Registers the gate as a configured hook, which git runs beside the script in
 // `.git/hooks`, so Git LFS keeps its own hooks and `git lfs install` its say.
-// Git appends the remote to the command, which the gate does not read.
+// Git appends the remote to the command, which the gate does not read. A git
+// older than 2.54 keeps the setting and never runs it, so the install asks git
+// for its pre-push hooks: an agent's install fails without the gate, and anyone
+// else's is told.
 const install = () => {
-  if (git('config', '--default', '', 'hook.variance-gate.command') === COMMAND) return;
-  execFileSync('git', ['config', 'hook.variance-gate.event', 'pre-push']);
-  execFileSync('git', ['config', 'hook.variance-gate.command', COMMAND]);
-  console.log('gate: git runs the gate before an agent\'s push');
+  if (git('config', '--default', '', 'hook.variance-gate.command') !== COMMAND) {
+    execFileSync('git', ['config', 'hook.variance-gate.event', 'pre-push']);
+    execFileSync('git', ['config', 'hook.variance-gate.command', COMMAND]);
+  }
+  let hooks = '';
+  try {
+    hooks = git('hook', 'list', 'pre-push');
+  } catch {}
+  if (hooks.split('\n').includes('variance-gate')) return;
+  const version = git('--version');
+  if (!process.env.CLAUDECODE) {
+    console.log(`gate: ${version} does not run configured hooks, so an agent's push here is not gated. Git 2.54 does.`);
+    return;
+  }
+  console.error(`gate: ${version} does not run configured hooks, and an agent's push is gated. Install git 2.54 or newer.`);
+  process.exit(1);
 };
 
-// Refuses, with exit 1, every commit an agent pushes whose tree lacks a wave.
+// Refuses, with exit 1, every ref an agent pushes whose tree lacks a wave.
 // A person's push is not asked.
 const prePush = () => {
   if (!process.env.CLAUDECODE) return;
