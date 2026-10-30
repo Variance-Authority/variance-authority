@@ -11,11 +11,16 @@
 import type { ModuleId } from '../instrument/index.js';
 import { CaseLinesBuilder, lineValue, type CaseLines } from './case-lines.js';
 
-/** Of one module, the test line that first reached each region: `lines[at]` reached `hits[at]`. */
+/**
+ * Of one module, the test line that first reached each region: `lines[at]`
+ * reached `hits[at]`, and `ambient[at]` says the line is a hook's statement.
+ * Absent `ambient` says no line is a hook's.
+ */
 export interface ReachedLines {
   readonly id: ModuleId;
   readonly hits: readonly number[];
   readonly lines: readonly number[];
+  readonly ambient?: readonly boolean[];
 }
 
 /** The lines of one case across two frames: the first frame to reach a region keeps it. */
@@ -53,7 +58,7 @@ export function linesOverIndex(
     for (const [block, { crossings }] of blocks.entries()) {
       for (const { test } of crossings) {
         const line = reached[test]?.get(id)?.get(ordinals[block]!);
-        builders[test]?.add(place, block, lineValue(line ?? 0, line === undefined));
+        builders[test]?.add(place, block, lineValue(line?.line ?? 0, line === undefined || line.ambient));
       }
     }
   }
@@ -61,11 +66,13 @@ export function linesOverIndex(
 }
 
 /** Each module's region ordinals, to the line that first reached each. */
-function reachedAt(lines: readonly ReachedLines[]): Map<ModuleId, Map<number, number>> {
-  const reached = new Map<ModuleId, Map<number, number>>();
-  for (const { id, hits, lines: at } of lines) {
-    const byOrdinal = reached.get(id) ?? new Map<number, number>();
-    for (const [index, ordinal] of hits.entries()) if (!byOrdinal.has(ordinal)) byOrdinal.set(ordinal, at[index]!);
+function reachedAt(lines: readonly ReachedLines[]): Map<ModuleId, Map<number, { line: number; ambient: boolean }>> {
+  const reached = new Map<ModuleId, Map<number, { line: number; ambient: boolean }>>();
+  for (const { id, hits, lines: at, ambient } of lines) {
+    const byOrdinal = reached.get(id) ?? new Map<number, { line: number; ambient: boolean }>();
+    for (const [index, ordinal] of hits.entries()) {
+      if (!byOrdinal.has(ordinal)) byOrdinal.set(ordinal, { line: at[index]!, ambient: ambient?.[index] === true });
+    }
     reached.set(id, byOrdinal);
   }
   return reached;

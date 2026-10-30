@@ -19,6 +19,7 @@ describe('runGraphOf', () => {
       writeFile(join(root, 'real.test.ts'), "import { api } from './api';"),
       writeFile(join(root, 'mocked.test.ts'), "import { api } from './api'; vi.mock('./api');"),
       writeFile(join(root, 'loads.test.ts'), "export const loads = 1;"),
+      writeFile(join(root, 'original.test.ts'), "import { api } from './api'; vi.mock('./api', async (original) => ({ ...(await original()) }));"),
     ]);
     records = await scanRelations({ root, dirs: ['.'], digests: false });
   });
@@ -30,6 +31,12 @@ describe('runGraphOf', () => {
 
     expect(moved).toContain('real.test.ts');
     expect(moved).not.toContain('mocked.test.ts');
+  });
+
+  it('keeps the edge of a factory that loads the original through its first parameter, whatever its name', async () => {
+    const moved = affectedBy(await runGraphOf(records, { root }), ['api.ts']).files;
+
+    expect(moved).toContain('original.test.ts');
   });
 
   it('joins a configured taint after the mocks', async () => {

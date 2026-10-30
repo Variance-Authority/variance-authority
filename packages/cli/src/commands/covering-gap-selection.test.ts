@@ -68,7 +68,11 @@ const RECORDED: Readonly<Record<string, string>> = {
  * module its one test loaded, and its case index credits no case with it.
  * `added` are more files the second commit adds, such as new test files.
  */
-async function checkout(suites: unknown, added: Readonly<Record<string, string>> = {}): Promise<{ readonly root: string; readonly recordedAt: string }> {
+async function checkout(
+  suites: unknown,
+  added: Readonly<Record<string, string>> = {},
+  partly: readonly string[] = [],
+): Promise<{ readonly root: string; readonly recordedAt: string }> {
   const root = mkdtempSync(join(tmpdir(), 'va-gap-selection-'));
   const git = (...args: string[]): string => execFileSync('git', args, { cwd: root, encoding: 'utf8' }).trim();
   git('init', '--quiet', '--initial-branch', 'main');
@@ -79,7 +83,7 @@ async function checkout(suites: unknown, added: Readonly<Record<string, string>>
   git('add', '-A');
   git('commit', '--quiet', '-m', 'recorded');
   const recordedAt = git('rev-parse', 'HEAD');
-  await writeTestCoverage(testCoverageFile(root, { suite: 'unit' }), coverage(recordedAt), { index: encodeExecutionIndex(INDEX) });
+  await writeTestCoverage(testCoverageFile(root, { suite: 'unit' }), coverage(recordedAt, partly), { index: encodeExecutionIndex(INDEX) });
   write(root, 'src/extra.ts', 'export const extra = 1;\n');
   write(root, 'src/pad.ts', "import { extra } from './extra';\nexport const pad = extra;\n");
   write(root, 'src/setup.ts', "import './extra';\n");
@@ -102,8 +106,8 @@ const INDEX = {
   ],
 } as Parameters<typeof encodeExecutionIndex>[0];
 
-/** Each source file's module row, entered by the test that imports it, as selection reads the record. */
-function coverage(commit: string): TestCoverage {
+/** Each source file's module row, entered by the test that imports it, as selection reads the record; `partly` ran in part. */
+function coverage(commit: string, partly: readonly string[]): TestCoverage {
   const row = (file: string, test: string) => ({
     file,
     sourceDigest: digestString(RECORDED[file]!),
@@ -118,8 +122,8 @@ function coverage(commit: string): TestCoverage {
     instrumentation: 'fixture',
     commit,
     tests: [
-      { file: 'test/beta.test.ts', complete: true, preconditions: [] },
-      { file: 'test/gamma.test.ts', complete: true, preconditions: [] },
+      { file: 'test/beta.test.ts', complete: !partly.includes('test/beta.test.ts'), preconditions: [] },
+      { file: 'test/gamma.test.ts', complete: !partly.includes('test/gamma.test.ts'), preconditions: [] },
     ],
     modules: [row('src/pad.ts', 'test/beta.test.ts'), row('src/other.ts', 'test/gamma.test.ts')],
   };
@@ -297,5 +301,21 @@ describe('the record a gap asks selection about', () => {
 
     expect(await selectedFor(source, 'src/pad.ts')).toEqual({ files: ['test/beta.test.ts'] });
     expect(await selectedFor(source, 'src/other.ts')).toEqual({ none: true });
+  });
+});
+
+describe('a test file the record holds only in part', () => {
+  it('runs it beside the test files that loaded the file, as selection runs every file it holds no whole observation of', async () => {
+    const { root } = await checkout({ unit: { kind: 'unit' } }, {}, ['test/gamma.test.ts']);
+    const source = { root, suite: 'unit', graph: graphOnce(root) };
+
+    expect(await selectedFor(source, 'src/pad.ts')).toEqual({ files: ['test/beta.test.ts', 'test/gamma.test.ts'] });
+  });
+
+  it('runs it for a file no whole test file loaded, which selection skips every whole one for', async () => {
+    const { root } = await checkout({ unit: { kind: 'unit' } }, {}, ['test/beta.test.ts']);
+    const source = { root, suite: 'unit', graph: graphOnce(root) };
+
+    expect(await selectedFor(source, 'src/pad.ts')).toEqual({ files: ['test/beta.test.ts'] });
   });
 });

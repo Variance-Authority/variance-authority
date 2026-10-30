@@ -3,6 +3,7 @@ import { RUNTIME_EDGES, affectedBy, type Relations } from '@variance-authority/c
 import { blocksChargedAt } from './blocks-around.js';
 import { blocksOfTarget, type SourceTestTarget } from './source-target.js';
 import { ownedBlocks } from './shadowed.js';
+import { overwrittenIn } from './overwritten.js';
 import { outside, sameCases, stoppedIn } from './stopped.js';
 import { sameUnentered, unenteredOn, type Unentered } from './unentered.js';
 import { codeUnitOrder } from '@variance-authority/core/segment';
@@ -52,6 +53,14 @@ export interface ExecutionCrossing {
    * does not distinguish them, which is read as an ordinary crossing.
    */
   readonly loaded?: boolean;
+  /**
+   * True when whether the case crossed the region is not known: the record was
+   * cut to a text an edit wrote over the region the case was measured at, so it
+   * ran another text there. A selection reads it as a crossing, which runs the
+   * case: over-include, never a skip. A reader that names the cases that ran a
+   * region names none of these, and reads none of them as absence either.
+   */
+  readonly overwritten?: true;
 }
 
 /** One region of a module, and the cases that entered it. */
@@ -139,6 +148,8 @@ export interface SourceTestRange {
   readonly stopped?: readonly ExecutionTest[];
   /** On a range that names cases: its regions no case entered, which no line of their own shows; see `unentered.ts`. */
   readonly unentered?: readonly Unentered[];
+  /** Cases whose run of the range is not known, none of them named; see `overwritten.ts`. */
+  readonly overwritten?: readonly ExecutionTest[];
 }
 
 /** Find named tests that reached a source line, lines or scope, nearest first. */
@@ -216,6 +227,7 @@ export function coveringTestsInFile(
     const tests = options.keep === undefined ? named : named.filter(options.keep);
     const loaded = blocks.some((block) => block.loaded === true);
     const short = outside(index, stopped, blocks);
+    const unknown = overwrittenIn(index, blocks);
     const unentered = unenteredOn(blocks, tests.length, (block) => blockRecord(index, stopped, block));
     const previous = ranges.at(-1);
     if (
@@ -224,6 +236,7 @@ export function coveringTestsInFile(
       (previous.loaded === true) === loaded &&
       sameTests(previous.tests, tests) &&
       sameCases(previous.stopped, short) &&
+      sameCases(previous.overwritten, unknown) &&
       sameUnentered(previous.unentered, unentered)
     ) {
       ranges[ranges.length - 1] = { ...previous, endLine };
@@ -235,6 +248,7 @@ export function coveringTestsInFile(
         ...(loaded ? { loaded: true as const } : {}),
         ...(short === undefined ? {} : { stopped: short }),
         ...(unentered === undefined ? {} : { unentered }),
+        ...(unknown === undefined ? {} : { overwritten: unknown }),
       });
     }
   }
@@ -253,6 +267,7 @@ function testsForBlocks(
     for (const crossing of block.crossings) {
       if (!Number.isInteger(crossing.distance) || crossing.distance < 0) throw invalidDistance();
       if (index.tests[crossing.test] === undefined) throw invalidTest(crossing.test);
+      if (crossing.overwritten === true) continue;
       const distance = crossing.loaded === true ? loaded : called;
       const before = distance.get(crossing.test);
       if (before === undefined || crossing.distance < before) distance.set(crossing.test, crossing.distance);
@@ -316,27 +331,6 @@ function sortTests(tests: CoveringTest[]): readonly CoveringTest[] {
   );
 }
 
-/** The smallest recorded regions over a 1-based line, each with source of its own; none for a line no region holds. */
-export function innermostAt<Block extends Lined>(blocks: readonly Block[], line: number): readonly Block[] {
-  if (!Number.isInteger(line) || line < 1) return [];
-  const matching = blocks.filter((block) =>
-    block.source && block.startLine <= line && line <= block.endLine,
-  );
-  return matching.filter((block) =>
-    !matching.some((other) =>
-      other !== block &&
-      contains(block, other) &&
-      (block.startLine !== other.startLine || block.endLine !== other.endLine),
-    ),
-  );
-}
-
-type Lined = Pick<ExecutionBlock, 'source' | 'startLine' | 'endLine'>;
-
-function contains(outer: Lined, inner: Lined): boolean {
-  return outer.startLine <= inner.startLine && outer.endLine >= inner.endLine;
-}
-
 function invalidDistance(): Error {
   return new Error('invalid execution index: distance must be a non-negative integer');
 }
@@ -382,6 +376,8 @@ export interface CoveringRegion {
    * makes it unwalked. Absent when that cannot be told; see {@link stoppedBefore}.
    */
   readonly stopped?: readonly ExecutionTest[];
+  /** Cases whose run of the region is not known, none of them named; see `overwritten.ts`. */
+  readonly overwritten?: readonly ExecutionTest[];
 }
 
 /**
@@ -482,9 +478,11 @@ export function coveringChange(
 /** What the record holds on one block, the record its reach is read from by `reachOf`. */
 function blockRecord(index: ExecutionIndex, stopped: ReadonlySet<number> | undefined, block: ExecutionBlock): ReachRecord {
   const short = outside(index, stopped, [block]);
+  const unknown = overwrittenIn(index, [block]);
   return {
     tests: testsForBlocks(index, [block]),
     ...(block.loaded === true ? { loaded: true as const } : {}),
     ...(short === undefined ? {} : { stopped: short }),
+    ...(unknown === undefined ? {} : { overwritten: unknown }),
   };
 }

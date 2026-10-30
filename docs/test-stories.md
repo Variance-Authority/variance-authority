@@ -6,21 +6,21 @@ how many times each loop ran, the values each function was handed, and the
 lines the code printed. Every run already records which code each test ran. A
 story adds the order, the counts, the values and the printed lines, and you
 read it from top to bottom. When a test fails only on
-some runs, you compare the stories of runs that passed with runs that failed.
+some runs, you [compare the stories](#why-does-this-test-fail-on-some-runs) of
+runs that passed with runs that failed.
 When one test passes and another fails, such as the same checkout with a
 feature flag off and on, you compare the stories of the two tests. Either way
 what each function was handed is compared with the rest, and any other value
 you suspect you print from the code under test, never from the test.
 
-If you need the test statement that first ran a region,
-[cadence](test-level-coverage.md#which-test-statement-first-ran-a-region)
-records that on ordinary runs. Record a story when you need what happened next
-or how often it repeated.
+If you only need which line of the test first ran a piece of code, every
+ordinary run [already records that](test-level-coverage.md#which-test-statement-first-ran-a-region).
+Record a story when you need what happened next or how often it repeated.
 
 ## What you already know, and what you do not
 
-With [Sense](../packages/sense/README.md) set up for your runner, every run
-records which code each test ran: each function, branch and loop body, as ran
+With [Sense](../packages/sense/README.md) set up for your runner, as
+[Record one](#record-one) shows for each, every run records which code each test ran: each function, branch and loop body, as ran
 or not ran. That record is the test's [journey](journeys.md), and every run
 records one for every test. [`variance
 covering`](test-level-coverage.md#the-process) reads the journeys and names the
@@ -55,7 +55,7 @@ and as its story.
 
 The format and the name come from [Wallaby.js](https://wallabyjs.com/docs/features/test-stories/),
 which shows a test story inside your editor. Here your own test runner records
-it, under Vitest, Jest or Rstest, and you read it with one command, in a
+it — Vitest in Node or in browser mode, Jest, Rstest, Playwright or a runner recorded through `/runner` — and you read it with one command, in a
 terminal or in any editor.
 
 ## What does this test do with the code you are changing?
@@ -280,9 +280,10 @@ VARIANCE_AUTHORITY_STORY=file yarn vitest run src/cart.test.ts
 variance story --name "cart > removes the last item" --compare alone,file
 ```
 
-In the stories labelled `file`, `before the test`, at the top of each story,
-shows the code the runner ran right before the test, such as code another
-test's `afterEach` called.
+A story holds its test's hooks under either label. `before the test`, at the
+top, is the code its `beforeEach` called, and what its own `afterEach` called
+closes the story under the hook's line. Another test's hooks are in that
+test's story, not this one.
 
 `--compare last` is always one reading against one, so use it to see what an
 edit changed, not to explain a test that fails on some runs.
@@ -318,8 +319,9 @@ compare  src/checkout.test.ts
 
 The tests differ in their setup, and you know how. The comparison lists where
 the code they ran went differently, on every reading. The code the runner ran
-before each test, such as the `afterEach` of the test above it, depends on
-where the test sits in its file, so a comparison of tests leaves it out. A
+before each test, such as a `beforeAll` the first test in a file runs after,
+depends on where the test sits in its file, so a comparison of tests leaves it
+out. A
 test's own code can still follow its place: a module an earlier test loaded
 first, or a cache an earlier test filled, shows up as a difference that
 holds on every reading.
@@ -332,6 +334,10 @@ holds on every reading.
   then name each test; each side is named with its file. A name two test files
   have is refused until you write it as `<file> > <name>`, or narrow every name
   to one file with `--file`.
+- **A test run under several Playwright projects is a test per project.**
+  `variance story` lists each with its project. Name one with `--project
+  <name>`, which narrows every side alike; a test that ran under two projects is
+  refused as a side until you do.
 - **`--label <name>` narrows every side alike**, to the readings recorded
   under that label. `--compare` compares readings of one test, so it is
   refused beside several `--name`.
@@ -347,13 +353,12 @@ differently:
 | You need to know | What to read |
 | --- | --- |
 | Which code a case ran | Its journey, the set of regions it covered |
-| Which test statement first ran each region | Its cadence, the statement lines recorded with those regions |
+| Which test statement first ran each region | Its [cadence](test-level-coverage.md#which-test-statement-first-ran-a-region), the statement lines recorded with those regions |
 | In what order the code ran, including repeats | Its story, recorded when you ask for one |
 
 The recorder adds calls between test and hook statements to record cadence.
-It keeps one first statement per region, not every visit. Node runners mark
-hook work separately; Playwright records `beforeEach` and `afterEach`
-statements as case lines.
+It keeps one first statement per region, not every visit, and marks hook work
+as a hook's.
 A story step is a visit to source code, so one
 test statement can produce many steps. [Coverage
 composition](own-fewer-tests.md#connect-the-regions-to-test-statements) compares
@@ -429,14 +434,47 @@ large.
 ## Record one
 
 A story comes from the same recording as the journeys, so your suite needs
-Sense set up for its runner first. Then set
+that recording set up first:
+
+- **Vitest, in Node or in browser mode.** `withTestSelection` around your
+  [Vitest configuration](../packages/sense/README.md#cut-a-vitest-run-down-to-a-diff).
+  Browser mode needs nothing more.
+- **Jest.** The [Jest seam](../packages/sense/README.md#record-jest-journeys-without-selecting-tests).
+- **Rstest, in Node or in browser mode.** The
+  [Rstest seam](../packages/sense/README.md#cut-an-rstest-run-down-to-a-diff).
+  Browser mode needs nothing more.
+- **Playwright.** `withTestSelection` in your Playwright configuration, as
+  [Playwright Test](../packages/playwright-test/README.md#record-what-each-spec-executed)
+  sets it up, over an application whose build runs
+  [`testSelectionProbes()`](../packages/sense/README.md#record-what-a-driven-page-executed).
+- **Storybook.** The collector's
+  [`tests` option](../packages/storybook-collector/README.md#skipping-stories-nothing-touched),
+  over a preview built with its addon. Each story is a case, named by its title
+  and name.
+- **Any other runner in Node**, such as `node:test` or Mocha, recorded through
+  [`@variance-authority/sense/runner`](../packages/sense/README.md#record-a-runner-this-package-has-no-seam-for).
+  A story holds what ran inside the case body handed to `case`, so run each hook
+  inside it to have the hook on the story.
+
+Then set
 `VARIANCE_AUTHORITY_STORY=1` and name the tests with your runner's own
 arguments, one test or one file:
 
 ```bash
 VARIANCE_AUTHORITY_STORY=1 yarn vitest run src/cart.test.ts -t "removes the last item"
 VARIANCE_AUTHORITY_STORY=1 yarn jest src/cart.test.ts -t "removes the last item"
+VARIANCE_AUTHORITY_STORY=1 yarn playwright test tests/cart.spec.ts -g "removes the last item"
+VARIANCE_AUTHORITY_STORY=1 npx variance run --subjects "story:cart--*"
 ```
+
+Under Playwright, Storybook and the browser modes of Vitest and Rstest, the
+story is of the code the page ran. Under Playwright and the browser modes, each
+statement of the test opens what the page did next with its line. When the test
+ran in more than one page document, such as a page and a popup or a page it
+navigated, the story marks where it moves into each. A ref is its own
+document's, and what two documents did under one statement is in the order it
+reached the test, not the order it ran, so a comparison does not count that
+order as a difference.
 
 - **Where stories are kept.** In [the cache](cache.md), under
   `coverage.stories/`. A story is removed 14 days after it was written, with
@@ -593,9 +631,12 @@ Take the `console.log` out before you change the code.
 - **What an object holds, and values never handed to a function.** A ref says
   which object, not what is in it. Print what you need from it and record
   again, or set a breakpoint at the line the story names.
-- **Other processes.** A story covers the test's own process. A test run by
-  Playwright or in Vitest browser mode writes no story, and neither does code
-  the test calls in another process, such as a server.
+- **Other processes.** A story covers the test's own process, or under
+  Playwright, Storybook and the browser modes of Vitest and Rstest, the page. Code the test calls in another
+  process, such as a server, is not on it.
+- **Some pages.** Under Playwright, a page closed or replaced before its
+  statement ended loses what it ran since the statement before. The header says
+  so.
 - **The order inside one step, or how each pass of a loop differed.** A step
   lists its branches in the order the code has them, and a loop is shown once,
   with the counts of all its passes added together. Use a debugger for that.

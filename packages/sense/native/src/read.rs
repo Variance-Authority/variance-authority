@@ -399,7 +399,7 @@ pub(crate) fn read_module_and_tree<'a>(file: &str, source: &'a str, allocator: &
         nested: harvest.nested,
         harvested: symbols,
         declares: declarations(file, &parsed.program),
-        mocks: mocks_in(source, &parsed.program),
+        mocks: mocks_in(source, &parsed.program, scoping),
         members,
         binding_members,
         member_declarations: member_declarations_in(&parsed.program, &lines),

@@ -136,6 +136,10 @@ export function encodeExecutionIndex(index: ExecutionIndex): Buffer {
       blockLoaded[block] = held.loaded === true ? 1 : 0;
       blockCrossings[block] = crossing;
       for (const entered of held.crossings) {
+        // A case whose crossing is not known would read back as one that called in.
+        if (entered.overwritten === true) {
+          throw new Error(`${module.file} holds a case whose crossing is not known, and the row spelling cannot hold one; write the set spelling`);
+        }
         crossingTest[crossing] = entered.test;
         crossingDistance[crossing] = entered.distance;
         crossingLoaded[crossing] =

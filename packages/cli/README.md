@@ -157,7 +157,7 @@ variance review  [--since <ref>] [--against <record>] [--suite <name>] [--covera
 variance report  [--config <path>] [--format text|json|html [--embed-images]] [--subject <id>] [--exit-zero-on-changes] [<report>...]
 variance ask     [--config <path>] [<question>] [--subject <id>] [--subjects <id>[,...]] [--component <name>] [--rule <id>] [--shape <digest>] [--claims <path>] [--test <id>] [--state <state>] [--build <id>] [--file <path>] [--files <path>[,...]] [--area <id>] [--name <name>] [--package <name>] [--subpath <subpath>] [--query <words>] [--under|--above|--inside|--beside|--left-of|--right-of <words>] [--on <words>] [--from <path>] [--to <path>] [--imports <import>] [--declares <regex>] [--path <regex>] [--text <pattern>] [--except-from|--except-to|--except-imports|--except-declares|--except-path <value>] [--changed-file <path>] [--taint-file <path>] [--just-answer] [--limit <n>] [--offset <n>] [--at <address>] [--format text|json] [<report>...]
 variance distill [--test <name>] [--file <path> | --from <dir>] [--execution <path> | --suite <name>] [--root <path>] [--format text|json|jsonl]
-variance story   [--file <path>] [--name <name>]... [--label <label>] [--in <file> | --package <name> | --around <step> | --whole | --compare last|outcome|<a>,<b>,…] [--root <path>] [--format text|json]
+variance story   [--file <path>] [--name <name>]... [--project <name>] [--label <label>] [--in <file> | --package <name> | --around <step> | --whole | --compare last|outcome|<a>,<b>,…] [--root <path>] [--format text|json]
 variance watch
 variance adjudicate [--config <path>] --claims <path> [--exit-zero-on-changes] [<report>...]
 variance accept  [--config <path>] <subject>... | --all | --shape <fingerprint>[,...] [--message-file <path> [--message <text>]]
@@ -611,8 +611,9 @@ paints it with:
 - `unwalked`: nobody entered it, and every case that could have reached it
   finished.
 
-A range with no word is one the record cannot rank, because a case's stop was
-never recorded.
+A range with no word is one the record cannot rank: a case's stop was never
+recorded, or a case ran it in another text than the one its lines are numbered
+in.
 
 #### Reading the test you are writing
 
@@ -701,18 +702,18 @@ case that stopped.
 
 #### Asking about the text you hold
 
-The recorded line numbers are the ones the suite ran over. Edit the file and
-they point at whatever code sits there now. So the answer about a file checks
-the text against the recording first, and names the `frame` its numbers
-stand in:
+The recorded line numbers are numbered in one text of the file. Edit the file
+and they point at whatever code sits there now. So the answer about a file, a
+line or a function checks your text against the record first, and names the
+`frame` its numbers stand in:
 
-- `recorded`: the file is the text the suite ran over.
+- `recorded`: your text is the one the record's lines are numbered in.
 - `mapped`: the text changed, and every range was carried to where its lines
   stand now. A range an edit touched is marked `moved`.
-- `stale`: the text changed, and the text the suite ran over could not be found.
-  No ranges are printed, because ranges at the wrong numbers would be read as
-  real. The answer names the cases that ran code in the file, and says that
-  which of them ran the line you asked about cannot be said.
+- `stale`: the text changed, and the text the lines are numbered in could not
+  be found. No ranges are printed, because ranges at the wrong numbers would be
+  read as real. The answer names the cases that ran code in the file, and says
+  that which of them ran the line you asked about cannot be said.
 
 ```bash
 variance covering --file src/checkout/total.ts --text - --format json < buffer.ts
@@ -721,13 +722,153 @@ variance covering --file src/checkout/total.ts --text - --format json < buffer.t
 `--text <path>` reads the held text from a file, and `--text -` reads it from
 standard input, which is how an editor queries a buffer you have not saved.
 `--line` then names a line in that text. A line the edit wrote is answered
-with no case, and the answer says the edit wrote it.
+with no case, and the answer says the edit wrote it. When the record cannot say
+which text a case that crossed the file ran over, a line your text holds and
+the record's does not is answered with no case and named in `unknown`, with
+why, rather than said to be one no case has run. A line a case ran over,
+where a run over another text has landed since, is answered with no case for it
+either, and named in `overwritten`: a line your text holds and the record's
+does not, every line of a region a run in part under `-t` landed an edit
+over, where the cases that ran the region before ran another text, and every
+line of the module when that text is not kept, not committed and not on disk,
+so the run cannot place a region of it in its own. A line that a
+region a case called into also holds is answered with that case instead. The
+record lost which case ran the line, and a later run that numbers the record in
+your text again does not bring that back. Over the whole file, `--format json` names
+those cases under the range's own `overwritten`.
+
+#### How fresh and how actual the answer is
+
+The frame says where the record's numbers stand in your text. It does not say
+which text each test file ran over, or when. Those differ from one test file to
+the next, because a run of some test files lands on the record and moves it to
+the commit it ran at, and every test file it did not run keeps where it last
+ran. Run `a.test.ts` and `b.test.ts` over an edit you have not committed,
+commit another edit, and run `a.test.ts` alone: the record now stands at the
+second commit, `b.test.ts` last ran over a text that was never committed, and
+an answer naming both is two answers of two ages over two texts.
+
+So under the answer, after the frame line, the test files it names are said in
+groups, one line each, in the order their runs landed: a group the record holds
+no time for first, then the oldest.
+
+```text
+The recorded lines of src/pay.ts are placed in its text as it is now.
+src/pay.test.ts ran over another text of src/pay.ts, in a run that landed 9 hours ago; `pay` is the same in both.
+src/pay.ts is the text the other test file named here ran over, in a run that landed 6 minutes ago.
+```
+
+The frame line says nothing under `recorded`. A `stale` answer about the file
+or a line says it first instead, since it is why no line is given, and under
+`--function` it adds that the parts of the function no case ran are not said.
+Under `mapped`, a part of an asked function no case ran that an edit touched
+prints as `edited`. A file whose record does not say which text its lines are
+numbered in gives them as recorded. A file not on disk is answered in the
+record's lines, and its test files are dated with no text to compare.
+
+A group is the test files one run last finished. A run finishes a test file it
+runs whole, and one the record held no cases of. A later run that runs one in
+part, under `-t`, a filter or a skip, names the cases it ran, so each case the
+answer names is dated by the run that last ran it and compared with that run's
+texts. A test file whose named cases last ran in
+different runs is said part by part on one line, newest first:
+
+```text
+src/pay.test.ts ran 'refunds' over this text, in a run that landed 1 hour ago, and its 1 other case named here over another text of src/pay.ts, in a run that landed 3 days ago, in which `pay` is the same.
+```
+
+A run in part that laid none of a test file's cases, because its seam recorded
+none or it executed none of them, every one skipped or filtered out, says so,
+so each case the answer names is dated by the run that last finished the file,
+whose cases the index still holds. A test file the answer names no case of
+spans the times of every run that wrote its lines: the one that last finished
+it, and each later run in part, one that only loaded it among them. So does a case of a test
+file whose later run in part does not say which cases it laid, as a runs record
+another tool wrote may not. When those runs ran over different texts and only
+some of them over yours, which text its cases ran over is not known, because
+the record does not say which case ran in which run.
+
+Each run is read where it stood: its commit, when it landed, and the texts it
+ran over that were not committed there, as the runs record keeps them. Your
+text, the `--text` buffer or else the file on disk, is compared by digest with
+the text the runs record names for that run, else with the committed one at its
+commit. A group is compared only on the files its runs read: the asked file
+its cases entered or hold as a precondition, and under `--since` each changed
+file its cases are named for, entered or hold as a precondition. A file its
+runs never loaded says nothing of the text they ran over, so it is neither
+another text nor one that did not exist. The test files that ran over your text
+share one line. A group that ran over another text, or whose text is not known,
+is named. A file a group read that did not exist at the commit it ran at is
+said so, as in `src/extra.ts did not exist where src/fee.test.ts ran`, while a
+commit or a text this clone lacks leaves the text not known. Every file a group
+read is said: a group that ran over your text of one file and another text of
+the next says both, so no file's verdict hides another's.
+
+When you asked about a line, a run of lines or a function, a named group's line
+goes on to say whether that region is the same in both texts, read by placing
+your region in the text they ran over, or why that is not known: that text is
+neither kept nor committed, or the record's lines have no place in yours. A
+function with no block in your text is said to be gone from it. Under
+`--function`, the line says nothing of the region when the record does not say
+which text its lines are numbered in, since the function is found by those
+lines, which then have no known place in yours.
+
+The time is when that run landed in the record: `in a run that landed 3 hours
+ago`. A line that says several groups, or a test file a later run ran in part,
+spans their landings, `in runs that landed from 3 days ago to 3 hours ago`, and
+so does a group whose runs record keeps one span for every run at its commit.
+It is never when a commit was made, which says nothing of when a test ran. A
+group the record holds no time for says it ran `at a time the record does not
+hold`, as does a record seeded before runs kept their landings, since the seed
+stamped it when it was copied. One whose texts the record does not hold says
+that whether the text is yours is not known, and why. A record of runs outside
+a git checkout names no commit: a later run there leaves the test files an
+earlier one finished where they ran, as at one commit, and each is dated by
+when its run landed. Only the run that wrote the snapshot is compared with the
+text the snapshot's rows were recorded over; an earlier run's rows a later one
+may have written over, so its text is not known. A test file your checkout
+reads from a newer mainline record is dated and compared by the run that
+published it.
+
+A test file the runs record does not place, and every test file when no runs
+record lies beside the snapshot or the one there is of another commit, is read
+where the record assumes it ran, at a time it does not hold, and which text it
+ran over is not known; a last line says how many were read so. An answer that
+names no test file is dated by the test files that entered the file, and
+compared over it, else by every test file of the cases it was read from, and
+compared over nothing, since none of them loaded it. Under `--since`, a changed file
+that is not on disk is named first, and no line says a test file ran over it.
+
+In JSON, `at` is the commit the record stands at, on every answer whose record
+names one. `ran.stands` holds one entry per group: its `commit`, absent for a
+run outside a git checkout, its `tests`, `cases` naming the cases of its one
+test file when that file is said part by part, `landed` with ISO `first` and
+`latest` and, when the record counts them, `runs`, and `partly` with the
+`commit` and `landed` of each later run in part that may have run them: every
+one when no case is named, else each that does not say which cases it laid. `files` names the asked files they are compared on when fewer than
+all. Then `text` is `held` when they ran over your text of every file they are
+compared on, else `other`, with `other` naming the files they ran another text
+of, `absent` the ones that did not exist where they ran, `held` the ones whose
+text is yours when not every one is, and `region` as `same`, `changed`, `gone`
+or `{ "unknown": <why> }`. `unknown` says why the text of the files none of
+those name is not known, and `assumed: true` marks a group the record did not
+place, with `ran.assumed` saying how. `ran.unheld` names the changed files under
+`--since` that are not on disk, and `ran.named` is `entered` or `read` when the
+answer names no test file and the groups are the ones it is dated by instead.
+`ran` holds `tests` and `unread`, saying why, in place of `stands` when where
+they ran cannot be read.
+`moved: true` marks a `--function` answer and each `unrun` part an edit touched,
+and `unheld: true` a file that is not on disk. `ran` is left out under
+`--format refs`.
 
 The index comes from any run wrapped in `withTestSelection(config)` and is read
 from where that run writes it, so an agent with a line number
 needs no flag but `--file`. `--execution <path>` names an index recorded
 somewhere else, and `--root <path>` names the project root the run recorded
-against. A missing index is refused rather than answered empty, because an empty
+against. A record named so that names its commit is read as the suite's own:
+its `at` is that commit, its lines are framed in your text against it, and it is
+dated by the runs record beside it. One that names no commit, as a journey file
+does, gives its lines as recorded and is said to name none. A missing index is refused rather than answered empty, because an empty
 list here reads as *no test covers this line* — the sentence that gets a test
 deleted.
 
@@ -759,6 +900,7 @@ src/checkout/total.test.ts
   a test file — 4 named cases declared here, which is what changed rather than what was reached:
     applies a percentage discount [total.test.ts::applies a percentage discount]
     ...
+src/checkout/total.test.ts ran over another text of src/checkout/total.ts, in a run that landed 2 hours ago.
 ```
 
 Two of those lines are findings and neither is a percentage. A changed region
@@ -776,8 +918,17 @@ opposite facts.
 
 The diff is measured from the commit the record was written at rather than from
 the merge base with `<ref>`, since the index's line ranges are in that commit's
-coordinates and nothing else's. Record before you read: an index behind the tree
-answers fluently about regions that have moved.
+coordinates and nothing else's.
+
+Under the regions, the answer says which changed files the test files it names
+ran over and when, as an answer about one file does, with no region. Record
+before you read: a case that ran another text of a changed file is evidence
+about that text, not about your change. A changed region a case ran over, where
+a run over another text has landed since, says which case ran it is not known.
+When no listed case covers it, the first line counts it as covered only in
+another text, apart from the regions nothing covered. When the record names no
+commit, the `Read from` line ends `; the record names no commit.` in place of
+`recorded at`.
 
 #### What a change moved
 
@@ -844,17 +995,18 @@ names the moved regions' cases by the numbers of its case table.
 variance review --since origin/main --format handover
 ```
 
-points to the coverage of the changed area as one folded
-`<details>` block for the pull request body. A review bot reads the body when
-the pull request opens, before any check has finished. A changed function gets
-a line when there is something to look at: 🔴 when part of it ran under no
-case, or has none in a record from before the change, 🔵 when the change wrote
-it and no case has run it yet; otherwise the review comment's mark for its
-furthest reached part: 🟡 far, 🟠 a distance not measured, ⚪ only while its
-module loaded. A reached line names how many cases and the first test file to
-open. A function every case reached from a test file that imports it is only
-counted. Absences come first; past twelve lines the rest are counted, and the
-block ends with the `variance covering` command that reads one file in full.
+points to the coverage of the changed area as one folded `<details>` block for
+the pull request body. A review bot reads the body when the pull request opens,
+before any check has finished. A changed function gets a line when there is
+something to look at: 🔴 when part of it ran under no case, or has none in a
+record from before the change, ❔ when a case ran part of it in a text an edit
+wrote over, so no case is known to have run it, 🔵 when the change wrote it and
+no case has run it yet; otherwise the review comment's mark for its furthest
+reached part: 🟡 far, 🟠 a distance not measured, ⚪ only while its module loaded.
+A reached line names how many cases and the first test file to open. A function
+every case reached from a test file that imports it is only counted. Absences
+come first; past twelve lines the rest are counted, and the block ends with the
+`variance covering` command that reads one file in full.
 Every declared suite is read, and when more than one is, each line names its
 suite; a suite whose record cannot be read is named with the reason, and one
 named with `--suite` fails instead. When a suite ran on the change, the runs
@@ -917,11 +1069,13 @@ Each part comes from the party that owns the answer:
   file that is not source, such as `config.json`, is counted as not a module.
 - **Changed regions** counts each changed function or branch by the tests that
   covered it. When the only tests that ran a region are further than one import
-  from its file, a failure there points at code the test never names. A branch
-  inside an uncovered function is counted once, with the function;
-  `--format json` keeps every region. Each region is new, modified or moved:
-  new when the change wrote every line of it, moved when those lines are text
-  the diff removed, from that file or another, and modified otherwise.
+  from its file, a failure there points at code the test never names. A region a
+  case ran only in a text an edit wrote over is counted on its own line: no case
+  is known to have covered it. A branch inside an uncovered function is counted
+  once, with the function; `--format json` keeps every region. Each region is
+  new, modified or moved: new when the change wrote every line of it, moved when
+  those lines are text the diff removed, from that file or another, and modified
+  otherwise.
 - **Cases** added and removed are read from the case index, per test file.
 - **Before any import** names changed files the test runner loads before any
   test, such as its config, or declares in `preconditions`, and how many test
@@ -1027,21 +1181,22 @@ GitHub's merge of it, so the comment names the pull request's head, the merge
 it was tested as, and says it describes an earlier commit once the head moves
 on. Each changed place links to its lines at that commit.
 
-When the changed functions sit in more than one package, the verdict is
-followed by **Where this change lands**: one row a package, as its nearest
-`package.json` names it, with its changed functions counted by mark, how many
-of them hold code no case ran, the packages whose tests ran them (`own` for its
-own), and how many other packages import its changed files through any number
-of imports, type-only ones included. A function is counted under the mark the
-table of what ran gives it, for the nearest test that entered it, so a function
-a case entered is never counted under 🔴; a branch in it no case ran is counted
-in the next column, beside the functions no case entered. Packages with code no
-case ran come first, then those with the most functions no test importing their
-file ran. The table stays within 10 rows in a repository of any size: past
-that, the packages whose every changed function a test importing its file ran,
-in full, are folded into one row, and the packages that do not fit above it
-into another. `review.json` lists every package under
-`changedPackages`.
+When the changed functions sit in more than one package, the verdict is followed
+by **Where this change lands**: one row a package, as its nearest `package.json`
+names it, with its changed functions counted by mark, how many of them hold code
+no case ran, how many of the rest hold code no case is known to have run, a
+column shown only when one does, the packages whose tests ran them (`own` for
+its own), and how many other packages import its changed files through any
+number of imports, type-only ones included. A function is counted under the mark
+the table of what ran gives it, for the nearest test that entered it, so a
+function a case entered is never counted under 🔴; a branch in it no case ran is
+counted in the next column, beside the functions no case entered. Packages with
+code no case ran come first, then those with code no case is known to have run,
+then those with the most functions no test importing their file ran. The table
+stays within 10 rows in a repository of any size: past that, the packages whose
+every changed function a test importing its file ran, in full, are folded into
+one row, and the packages that do not fit above it into another. `review.json`
+lists every package under `changedPackages`.
 
 Changed functions are listed in one table: how the edit wrote each (new,
 modified, or moved and from where), the cases that entered it, and the cases
@@ -1060,10 +1215,12 @@ compared, and counts the rest.
 Under the table, folded, the changed functions are drawn as a Mermaid diagram,
 those no case ran included: each under its file, coloured by how near the
 nearest case that ran it is, with its edit and both counts, and an edge from
-each test file whose cases called into it. A red function with no edge is one
-no case ran. The diagram draws 24 functions, those no case ran first, then
-those a file only loaded, then those furthest from their nearest case, and the
-8 test files that reach the most of them, and counts the rest.
+each test file whose cases called into it. A red function with no edge is one no
+case ran; a ❔ function is one a case ran in a text an edit wrote over, so no
+case is known to have run it. The diagram draws 24 functions, those no case ran
+first, then those no case is known to have run, then those a file only loaded,
+then those furthest from their nearest case, and the 8 test files that reach the
+most of them, and counts the rest.
 
 GitHub rejects a comment longer than 65,536 characters, so a longer markdown
 review is cut at a line break before that length, and its last line gives the
@@ -1866,7 +2023,12 @@ cases of every test file that shard ran to the end, in the same write as the
 coverage, and `covering`, `coverage` and `review` answer from the result. If you
 land a shard that ran a test file to the end and kept no cases, the landing
 drops the index, because no index can hold which of that file's cases run a
-line. Those commands then print that nothing is recorded until a run writes one.
+line, and a run of your own that does the same drops it too. Those commands then
+print that nothing is recorded until a run writes one. A run that keeps cases
+writes an index into a record that holds none only once it has run to the end
+every test file the record holds that your checkout still has, since an index
+of some of them would say no case of the rest runs a line; until then the record
+keeps none, and `journeys` names a test file the shards did not run to the end.
 A shard keeps no cases when its seam recorded none, and one that kept cases
 beside one that kept none is refused, because their combined record could
 answer for the cases of only some of its files. If another run is writing
@@ -2840,6 +3002,31 @@ must look at, and `2` when the run did not happen as configured. Do not grep the
 output: the three integers are the contract, and a check whose colour depends on
 a sentence changes meaning the day the wording improves.
 
+On GitHub, [`Variance-Authority/action`](https://github.com/Variance-Authority/action)
+does the rest of the job around that step: it posts the result to the pull
+request as one comment updated in place, restores and saves what
+[`carry`](#what-the-next-job-reads) names, and accepts on a label. `v1` is the
+major of its inputs and outputs:
+
+```yaml
+permissions:
+  contents: read # the checkout: a declared block sets the rest to none
+  pull-requests: write # the comment
+
+steps:
+  - uses: actions/checkout@v4
+  - run: npm ci
+  - uses: Variance-Authority/action@v1
+    with:
+      config: variance.config.json
+      github-token: ${{ secrets.GITHUB_TOKEN }}
+```
+
+It runs the CLI from your `node_modules`, whatever version your lockfile holds,
+and downloads nothing during the run.
+Its inputs are in its
+[`action.yml`](https://github.com/Variance-Authority/action/blob/main/action.yml).
+
 ### What the next job reads
 
 A job ends and its machine goes away, and three things it wrote are what the
@@ -2937,8 +3124,8 @@ and the directory to pass `variance review --out`. They have no key, because
 an upload is not looked up again.
 
 Posting the report back to the pull request is the one thing a command line
-cannot do for itself. Read the report path out of your config and post it with
-whichever commenting action you already use.
+cannot do for itself. On GitHub the action posts it. Elsewhere, render
+the body with `variance comment` and post it with your platform's API:
 
 ```yaml
 # bitbucket-pipelines.yml
@@ -2982,7 +3169,7 @@ none does. A docket rendered before the marker named its project carries
 it takes a comment carrying it over, when none carries its own marker, and keeps
 an open pull request at one comment through the upgrade. A gate that never
 commented before leaves it alone, because it is another gate's docket. The
-composite action above does the same steps against GitHub's API, and adopts the
+composite action does the same steps against GitHub's API, and adopts the
 old marker the same way unless `adopt-unkeyed-comment` is `'false'`.
 
 The YAML is a platform example. Its `script` invokes the same `variance` binary

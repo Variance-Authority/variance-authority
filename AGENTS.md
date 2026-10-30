@@ -1,10 +1,22 @@
 # Working on this repository
 
-A change moves through seven phases, in order. **Refine** settles what the task
-is. The **inner loop** — orient, change, pre-verify, PR — is yours alone and runs
-as often as it takes. The **outer loop** — validate, correct — starts when the PR
-is open and other parties answer: CI, CodeRabbit, the person who asked. Anything
-red sends you back into the inner loop.
+A change moves through seven phases, in order, and every phase is a loop that
+exits only on its own gate:
+
+| Loop | Runs | Exits when |
+|---|---|---|
+| Idea | brief → `occam` idea review → cut | the issue carries `idea: build`, or is closed |
+| Build | edit → `yarn test:loop` | the loop is green |
+| Verify | `verify:near` → `verify:rules` | both stamped green on the pushed tree |
+| Review | four reviewers → fix | nothing blocks, or each finding left is set aside and named |
+| Outer | CI and CodeRabbit → correct | every check but `site` is green |
+| Learning | an escape → [`escapes`](.agents/references/escapes.md) | the question that would have caught it is written |
+
+The idea loop runs before any code and is the hardest gate: a change that
+should not exist costs more than any defect in it. A red anywhere after it
+sends you back into the build loop. A `pre-push` hook refuses an agent's push of a commit
+the waves did not record green, and CI refuses a `feat`, `fix` or `perf` pull
+request whose issue lacks `idea: build` or was edited after it, and again in the merge queue. No loop waits on the owner; the merge is hers.
 
 Every phase opens with **look around**: questions answered by reading and
 running, before acting. They are not a formality. Each one is there because
@@ -33,7 +45,7 @@ narrower match — because each read the one before as a decision.
 
 ## Setup
 
-Node 22 or newer, and Yarn 4 through Corepack — `packageManager` in the root
+Node 22.12 or newer, and Yarn 4 through Corepack — `packageManager` in the root
 `package.json` pins the version. Every command runs from the repository root, in
 a git checkout that has its history.
 
@@ -82,7 +94,8 @@ Look around:
 - What was asked, by whom, and what done means, as a sentence somebody could
   check.
 - Whether a GitHub issue already holds it, and what its parent is
-  ([tasks](#tasks-are-github-issues), below).
+  ([tasks](#tasks-are-github-issues), below). If none does, file one as the
+  [idea loop](.agents/references/refine.md#the-idea-loop)'s brief.
 - For non-local work — crossing a boundary, changing a rule or an invariant,
   adding a party, building a capability: what the architecture chart in
   `.compass/` says owns it.
@@ -96,9 +109,12 @@ Look around:
   only when the PR can show nothing existing could carry it. A second
   implementation is a defect.
 
-Leave with the sentence of done, the kind of its PR, what existing code it is
-reached from, the gate it is measured against, and only the questions that are
-the asker's to answer.
+Leave with an issue that carries `idea: build` when the change is a `feat`,
+`fix` or `perf`, the sentence of done, the kind
+of its PR, what existing code it is reached from, and the gate it is measured
+against — or with the issue closed and its reason named. Nothing is left for
+the owner to answer: a choice the evidence leaves open takes the smaller
+change, named in the PR's Assumptions.
 
 ## Inner loop
 
@@ -179,7 +195,11 @@ yarn verify:rules   # 2. the repository checks, once near is green
 yarn verify:far     # 3. the rest of the selection, once, before the PR
 ```
 
-A green wave is not run again on unchanged code. The full `yarn verify` and
+`near` and `rules` stamp the tree they ran on, and only a clean tree is
+stamped, so commit before the wave. An agent's push is refused until the
+tree each pushed branch points to carries both: that tree is what CI tests and
+the squash merge lands. Stamps live in the worktree's own git
+directory: push from the worktree that ran the waves. A green wave is not run again on unchanged code. The full `yarn verify` and
 `yarn measure` are CI's: run one locally only to reproduce a check that failed
 there.
 
@@ -249,8 +269,8 @@ what is real, set aside what is not, and never reply to or resolve a thread.
 
 A PR is handed over only when every check but a running `site` is green and
 every finding is classified. The report starts from the task as it was set —
-where it stands, what is not done — and ends with what you need from the person
-who asked.
+where it stands, what is not done — and ends with the merge, the one step
+that is the owner's.
 
 ## Tasks are GitHub issues
 
@@ -271,8 +291,9 @@ gh issue close <n> --reason "not planned"      # work that is dropped
 A title says what is true when the work is done, as the repository's titles
 do. The body opens with the problem, then a "Done when" checklist somebody can
 check. A defect found by reading code carries `candidate` until a test that
-fails on today's code reproduces it; a task that waits on the owner carries
-`needs-decision`. Work that belongs to a larger task is its sub-issue, and a
+fails on today's code reproduces it. An issue code may start on carries
+`idea: build`, put there by the idea loop and by nothing else; an agent never
+files `needs-decision`. Work that belongs to a larger task is its sub-issue, and a
 roadmap is an issue labelled `epic` whose sub-issues are its items.
 
 The pull request that finishes a task says `Closes #<n>` in its body; one that

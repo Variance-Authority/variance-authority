@@ -47,7 +47,7 @@ async function coveringAfter(args: readonly string[]) {
 
 it('tells the copies of a case apart by the project that ran each', async () => {
   const answer = await coveringAfter([]);
-  const text = formatCovering(answer, 'text');
+  const text = formatCovering(answer, 'text', Date.now());
 
   expect(answer.tests?.map((covered) => covered.id).sort()).toEqual([
     `|compiled| ${test} > greets by name`,

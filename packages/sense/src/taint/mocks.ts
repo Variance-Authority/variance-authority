@@ -196,18 +196,178 @@ function opaque(node: Node): boolean {
 }
 
 /**
- * A factory that reaches the module it mocks: vitest's `importOriginal`, or an
- * original loaded by a specifier this cannot read. An original loaded by a
- * literal is normalized against the target of its own factory.
+ * A factory that reaches the module it mocks: one that refers to the loader
+ * vitest passes as its first argument, whatever the parameter is named, or
+ * that loads an original by a specifier this cannot read. An original loaded
+ * by a literal is normalized against the target of its own factory.
+ *
+ * A reference counts, called or not: an alias or a helper handed the loader
+ * reaches the original as surely as a call. A destructured first parameter
+ * takes the loader apart and keeps no way to call it; a factory with no
+ * parameter reaches the original only through `importActual` or
+ * `requireActual`, or through `arguments` in a `function` factory.
  */
 function original(node: Node, callers: ReadonlySet<string>): boolean {
+  if (loads(node)) return true;
   let found = false;
   each(node, (inner) => {
-    if (inner.type === 'Identifier' && String(inner.name) === 'importOriginal') found = true;
     const method = methodOf(inner, callers);
     if (method !== undefined && ACTUAL.has(method) && specifierOf((inner.arguments as readonly Node[])[0]) === undefined) found = true;
   });
   return found;
+}
+
+/** Whether a factory literal refers to the loader it is called with. */
+function loads(node: Node): boolean {
+  if (node.type !== 'ArrowFunctionExpression' && node.type !== 'FunctionExpression') return false;
+  // A `this` parameter is a type, and the loader is the parameter after it.
+  const parameters = (node.params as readonly Node[]).filter((parameter) => parameter.type !== 'Identifier' || parameter.name !== 'this');
+  const names = new Set(loadersOf(parameters[0]));
+  if (node.type === 'FunctionExpression') names.add('arguments');
+  return names.size > 0 && (parameters.some((parameter) => pattern(parameter, names)) || refers(node.body as Node, names));
+}
+
+/**
+ * The names a first parameter holds the loader by: `load`, `load = fallback`,
+ * and every name a rest parameter binds, `...given` or `...[load]`. A
+ * destructured plain parameter takes the loader apart and holds none.
+ */
+function loadersOf(parameter: Node | undefined): readonly string[] {
+  if (parameter?.type === 'Identifier') return [String(parameter.name)];
+  if (parameter?.type === 'AssignmentPattern') return loadersOf(parameter.left as Node);
+  return parameter?.type === 'RestElement' ? bound(parameter.argument as Node) : [];
+}
+
+/** Every name a binding pattern binds. */
+function bound(node: Node | null): readonly string[] {
+  switch (node?.type) {
+    case 'Identifier':
+      return [String(node.name)];
+    case 'AssignmentPattern':
+      return bound(node.left as Node);
+    case 'RestElement':
+      return bound(node.argument as Node);
+    case 'ArrayPattern':
+      return (node.elements as readonly (Node | null)[]).flatMap(bound);
+    case 'ObjectPattern':
+      return (node.properties as readonly Node[]).flatMap((property) => bound((property.type === 'Property' ? property.value : property) as Node));
+    default:
+      return [];
+  }
+}
+
+/** Keys and labels spell a name; only these node kinds read one. */
+const KEYED = new Set(['MethodDefinition', 'PropertyDefinition', 'AccessorProperty', 'TSPropertySignature', 'TSMethodSignature', 'TSAbstractMethodDefinition', 'TSAbstractPropertyDefinition', 'TSAbstractAccessorProperty']);
+
+/**
+ * Whether `node` reads one of `names` where oxc reads an `IdentifierReference`:
+ * not as a key, a member name, a label or a meta property, and not where a
+ * pattern binds it.
+ */
+function refers(node: Node, names: ReadonlySet<string>): boolean {
+  let found = false;
+  const read = (inner: Node | undefined): void => {
+    if (inner !== undefined && inner !== null && !found) found = refers(inner, names);
+  };
+  each(node, (inner) => {
+    if (found) return false;
+    switch (inner.type) {
+      case 'Identifier':
+        found = names.has(String(inner.name));
+        return false;
+      case 'JSXIdentifier':
+        return false;
+      case 'JSXOpeningElement':
+        found = jsxReads(inner.name as Node, names);
+        for (const attribute of inner.attributes as readonly Node[]) read(attribute);
+        return false;
+      case 'JSXAttribute':
+        read(inner.value as Node);
+        return false;
+      case 'MetaProperty':
+      case 'BreakStatement':
+      case 'ContinueStatement':
+        return false;
+      case 'LabeledStatement':
+        read(inner.body as Node);
+        return false;
+      case 'MemberExpression':
+        read(inner.object as Node);
+        if (inner.computed === true) read(inner.property as Node);
+        return false;
+      case 'Property':
+        if (inner.computed === true) read(inner.key as Node);
+        read(inner.value as Node);
+        return false;
+      case 'VariableDeclarator':
+        found = pattern(inner.id as Node, names);
+        read(inner.init as Node);
+        return false;
+      case 'CatchClause':
+        if (inner.param) found = pattern(inner.param as Node, names);
+        read(inner.body as Node);
+        return false;
+      case 'FunctionDeclaration':
+      case 'FunctionExpression':
+      case 'ArrowFunctionExpression':
+        found = (inner.params as readonly Node[]).some((parameter) => pattern(parameter, names));
+        read(inner.returnType as Node);
+        read(inner.body as Node);
+        return false;
+      case 'ClassDeclaration':
+      case 'ClassExpression':
+        for (const decorator of (inner.decorators ?? []) as readonly Node[]) read(decorator);
+        read(inner.superClass as Node);
+        read(inner.body as Node);
+        return false;
+      case 'TSTypeParameter':
+        read(inner.constraint as Node);
+        read(inner.default as Node);
+        return false;
+    }
+    if (KEYED.has(inner.type)) {
+      if (inner.computed === true) read(inner.key as Node);
+      for (const key of ['decorators', 'value', 'typeAnnotation', 'params', 'returnType'] as const) {
+        for (const child of [inner[key]].flat() as Node[]) read(child);
+      }
+      return false;
+    }
+    return undefined;
+  });
+  return found;
+}
+
+/** Whether a binding pattern reads one of `names`: in a default, a computed key or a type. */
+function pattern(node: Node, names: ReadonlySet<string>): boolean {
+  switch (node.type) {
+    case 'Identifier':
+      return node.typeAnnotation ? refers(node.typeAnnotation as Node, names) : false;
+    case 'AssignmentPattern':
+      return pattern(node.left as Node, names) || refers(node.right as Node, names);
+    case 'RestElement':
+      return pattern(node.argument as Node, names) || (node.typeAnnotation ? refers(node.typeAnnotation as Node, names) : false);
+    case 'ArrayPattern':
+      return (node.elements as readonly (Node | null)[]).some((element) => element !== null && pattern(element, names)) || (node.typeAnnotation ? refers(node.typeAnnotation as Node, names) : false);
+    case 'ObjectPattern':
+      return (
+        (node.properties as readonly Node[]).some((property) =>
+          property.type === 'RestElement'
+            ? pattern(property, names)
+            : (property.computed === true && refers(property.key as Node, names)) || pattern(property.value as Node, names),
+        ) || (node.typeAnnotation ? refers(node.typeAnnotation as Node, names) : false)
+      );
+    case 'TSParameterProperty':
+      return pattern(node.parameter as Node, names);
+    default:
+      return refers(node, names);
+  }
+}
+
+/** A JSX element name reads a binding when oxc reads it as one: a tag that does not start in lower case, or the root of a member tag. */
+function jsxReads(name: Node, names: ReadonlySet<string>): boolean {
+  let root = name;
+  while (root.type === 'JSXMemberExpression') root = root.object as Node;
+  return root.type === 'JSXIdentifier' && (root !== name || !/^[a-z]/u.test(String(root.name))) && names.has(String(root.name));
 }
 
 /** `{ spy: true }` — the original runs, wrapped. */

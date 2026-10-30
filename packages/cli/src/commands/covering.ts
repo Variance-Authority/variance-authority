@@ -30,40 +30,33 @@
  * on demand, off the file graph, in [`covering-reach.ts`](./covering-reach.ts).
  */
 
-import { realpath } from 'node:fs/promises';
-import { relative, resolve } from 'node:path';
 import {
-  changedLines,
-  coveringChange,
-  coveringTestsInFile,
-  keepsCases,
   recordedCommit,
   type CoveringChange,
   type CoveringRegion,
   type CoveringTest,
   type ExecutionTest,
   type HeldLines,
-  type LineRange,
   type ExecutionIndex,
   type RangeState,
 } from '@variance-authority/sense/test-selection';
-import { existedAt } from '@variance-authority/sense';
 import { OperatorError } from '../exit.js';
 import { answerGap, GapRefusal, type EvidenceGap } from './evidence-gap.js';
 import { refusalGap } from './refusal-gap.js';
-import { readExecutionFor, recordedExecutionFile } from './execution-input.js';
+import { recordedExecutionFile } from './execution-input.js';
 import { cutGap, probesGap, probesNote, type CutGap, type ProbesGap } from './probes-gap.js';
-import { hopsToTests, identities, nearbyWitnesses } from './covering-reach.js';
+import { hopsToTests } from './covering-reach.js';
 import { coveringFiles, type CoveringFile } from './covering-files.js';
-import { addedSince, RecordOlder, unloadedFile, unreadCommit, unreadPreconditions } from './covering-unloaded.js';
-import { heldAsPrecondition } from './held-as-precondition.js';
+import { RecordOlder } from './covering-unloaded.js';
 import { motionFor, type CoveringMotion } from './covering-motion.js';
 import { scopeCases, type CoveringScope } from './covering-scope.js';
 import { listedIn, whereCases, whereOver, type CoveringWhere } from './covering-where.js';
-import { staleAnswer } from './covering-stale.js';
-import { placeRanges, placementFor, regionState, snapshotFor, type CoveringRange } from './covering-frame.js';
-import { diffSince } from './since.js';
-import { coveringAt, countOf, loadersOf, type UnrunPart } from './covering-at.js';
+import { heldText, placementFor, recordOf, type CoveringRange } from './covering-frame.js';
+import { ranOf, type CoveringRan } from './covering-ran.js';
+import { runsOnce } from './record-runs.js';
+import type { UnrunPart } from './covering-at.js';
+import { lineStatus, type AskedLines } from './covering-lines.js';
+import { ask, readIndex, type IndexReader } from './covering-ask.js';
 import { graphOnce, type Graph } from './gap-selection.js';
 import type { CoveringAt, ParsedCovering } from '../covering-args.js';
 
@@ -116,8 +109,29 @@ export interface Covering {
   readonly fileGrain?: readonly HeldLines[];
   /** Under a run of lines: the lines no recorded region holds, which no case can be said to have run. In the text as it is now. */
   readonly outside?: readonly HeldLines[];
-  /** Under a run of lines: the lines written since the recording, which no case has run. In the text as it is now. */
+  /**
+   * Under a line or a run of lines: the lines written since the recording,
+   * which no case has run: neither the text the record's lines are numbered in
+   * holds them, nor any text a case that crossed the file ran over. In the text
+   * as it is now; never a line of `overwritten` or `unknown`.
+   */
   readonly written?: readonly HeldLines[];
+  /**
+   * Under a line or a run of lines: the lines the record has no place for
+   * where whether a case ran them is not known, since the record cannot say
+   * which text a case that crossed the file ran over, with why. In the text as
+   * it is now; never a line of `written` or `overwritten`.
+   */
+  readonly unknown?: { readonly lines: readonly HeldLines[]; readonly why: string };
+  /**
+   * Under a line, a run of lines or a function: the lines of a text a case ran
+   * over where a run over another text has landed since, so which case ran them
+   * is not known. A line the record has no place for that a text a case ran over
+   * holds is one; so is a line of a region a case is flagged on as having run it
+   * over a text written over since, and that no named case called into. In the
+   * text as it is now.
+   */
+  readonly overwritten?: readonly HeldLines[];
   /** Present when the question named a line or a function. */
   readonly tests?: readonly CoveringTest[];
   /** With `tests`: the same cases gathered by test file, nearest first under `--hops`. */
@@ -134,8 +148,22 @@ export interface Covering {
   readonly stopped?: readonly ExecutionTest[];
   /** With `tests`: the one state the line or function is painted as, when it can be told, over the cases before `--where`. */
   readonly state?: RangeState;
-  /** With `--function` and a case that entered it: the outermost parts of it no case ran, as the review reads them, over the cases before `--where`. */
+  /**
+   * With `--function` and a case that entered it: the outermost parts of it no
+   * case ran, as the review reads them, over the cases before `--where`. Read
+   * only under a `recorded` or `mapped` frame, since under `stale` no recorded
+   * line is a place in the held text.
+   */
   readonly unrun?: readonly UnrunPart[];
+  /**
+   * With `--function` under a `mapped` frame: an edit between the text the
+   * line numbers are recorded in and the held one touched the function, or
+   * removed it, so its recorded lines are carried, not kept. Absent under
+   * `mapped` when no edit touched it; under `recorded` nothing was edited, and
+   * under `stale` no recorded line is a place to tell. Which text each test
+   * file ran over is `ran`'s to say.
+   */
+  readonly moved?: true;
   /** Present when the question named a file and nothing narrower. */
   readonly ranges?: readonly CoveringRange[];
   /**
@@ -149,15 +177,21 @@ export interface Covering {
   /** With `preconditionOf`: how many test files the reading holds, so that every one of them is said as that. */
   readonly among?: number;
   /**
-   * Where the line numbers stand, when the file could be framed against the
-   * snapshot: `recorded` when the held text is the one the suite ran over,
-   * `mapped` when it differs and the recorded text was found, so every range is
-   * carried to where it stands now, and `stale` when it differs and the
-   * recorded text was not found — then no range is given, because none of them
-   * is a place in anything held, and `tests` names the cases that ran code in
-   * the file. Absent when nothing held a digest to check.
+   * Where the recorded line numbers stand in the held text, when the file
+   * could be framed against the snapshot: `recorded` when the held text is the
+   * one the lines are numbered in, `mapped` when it differs and that text was
+   * found, so every range is carried to where it stands now, and `stale` when
+   * it differs and that text was not found — then no range is given, because
+   * none of them is a place in anything held, and `tests` names the cases that
+   * ran code in the file. On an answer about the whole file, a line, a run of
+   * lines or a function alike. Absent when nothing held a digest to check, no
+   * text was held to check it against (`unheld`), or no line is recorded
+   * (`preconditionOf`). The frame is numbering only: which text each test file
+   * ran over is `ran`'s to say.
    */
   readonly frame?: 'recorded' | 'mapped' | 'stale';
+  /** The asked file is not on disk and no `--text` was given, so nothing is framed, and any lines given are the record's. */
+  readonly unheld?: true;
   /** Where the index was read, so an empty answer can be checked against a path. */
   readonly from: string;
   /** Present under `--cases`: the cases the answer was read from, which are not the suite. */
@@ -166,8 +200,19 @@ export interface Covering {
   readonly where?: CoveringWhere;
   /** Under `--against`, or `--cases last`: the regions whose cases moved since the base. */
   readonly motion?: CoveringMotion;
-  /** The commit the record stands at, when it says. The diff is measured from it. */
+  /**
+   * The commit the record stands at, present on every answer whose record
+   * names a commit. A diff under `--since` is measured from it.
+   */
   readonly at?: string;
+  /**
+   * Where and when the test files the answer names last ran, and whether they
+   * ran over the asked text, which is how fresh and how actual it is
+   * (`covering-ran.ts`). When it names none, the test files that entered the
+   * asked file, else those of every case it was read from. Absent under
+   * `--format refs`, and when there are none.
+   */
+  readonly ran?: CoveringRan;
   /**
    * What a narrowing did, when one was asked for.
    *
@@ -205,6 +250,8 @@ export async function covering(request: ParsedCovering, graph: Graph = graphOnce
   let scope: CoveringScope | undefined;
   let full: ExecutionIndex | undefined;
   let whole: ExecutionIndex | undefined;
+  // The index the answer is read from, once `--cases`, `--where` and `--read` narrowed it.
+  let asked: ExecutionIndex | undefined;
   let where: CoveringWhere | undefined;
   let reached: readonly ExecutionTest[] | undefined;
   const reader: IndexReader = async (from, changed) => {
@@ -214,14 +261,39 @@ export async function covering(request: ParsedCovering, graph: Graph = graphOnce
     if (request.cases !== undefined) {
       ({ index, scope } = await scopeCases((full = read.index), from, request.cases, request.root));
     }
+    asked = index;
     if (request.where === undefined && request.read === undefined) return { index, files: read.files };
     const kept = whereCases(index, request.where ?? [], request.read ?? []);
     where = kept.where;
+    asked = kept.index;
     return { index: kept.index, files: read.files, before: index };
   };
   let answer: Covering;
+  let record: Awaited<ReturnType<typeof recordOf>>;
+  // The asked text is read once, and framed at most once, for the answer and its freshness alike.
+  let text: string | undefined;
+  let placed: ReturnType<typeof placementFor> | undefined;
+  let ranOther: ReadonlyMap<string, readonly string[]> | undefined;
+  let lines: AskedLines | undefined;
+  let entered: readonly ExecutionTest[] | undefined;
   try {
-    answer = await ask(request, reader, graph, (tests) => {
+    const from = request.execution ?? (await recordedExecutionFile(request.root, request.suite));
+    record = await recordOf(request, from);
+    text = request.since === undefined ? await heldText(request as CoveringAt) : undefined;
+    const held = {
+      text,
+      placing: () => (placed ??= placementFor(request as CoveringAt, record?.snapshot, text)),
+      ranOther: (other: ReadonlyMap<string, readonly string[]>) => {
+        ranOther = other;
+      },
+      lines: (asked: AskedLines) => {
+        lines = asked;
+      },
+      entered: (tests: readonly ExecutionTest[]) => {
+        entered = tests;
+      },
+    };
+    answer = await ask(request, reader, graph, { from, at: record?.at }, held, (tests) => {
       reached = tests;
     });
   } catch (error) {
@@ -250,14 +322,37 @@ export async function covering(request: ParsedCovering, graph: Graph = graphOnce
     const listed = listedIn(answer);
     where = whereOver(where, listed, reached ?? listed);
   }
-  const motion = await motionFor(request, answer.from, scope, full);
+  // The comparison and the freshness stand on one read of where each test last ran.
+  const runs = runsOnce(answer.from, request.root);
+  const motion = await motionFor(request, answer.from, scope, full, runs);
   const hops = answer.tests !== undefined && request.since === undefined && request.hops === true ? await hopsToTests(request) : undefined;
   const files = answer.tests === undefined || whole === undefined ? undefined : coveringFiles(answer.tests, whole, hops?.byFile);
   const probes = await gapOf(request, answer.from, whole);
+  const at = record?.at;
+  const framed = placed === undefined ? undefined : await placed;
+  // Refs say no freshness, but whether a case ran over the text of a line the record has no place for is read off the same runs.
+  const read = request.format === 'refs' && (lines?.unplaced ?? []).length === 0
+    ? {}
+    : await ranOf(answer, {
+      root: request.root,
+      snapshot: record?.snapshot,
+      at,
+      runs,
+      ...(text === undefined ? {} : { held: text }),
+      ...(framed === undefined || 'unheld' in framed ? {} : { placement: framed }),
+      ...(asked === undefined ? {} : { index: asked }),
+      ...(ranOther === undefined ? {} : { ranOther }),
+      ...(lines === undefined ? {} : { unplaced: lines.unplaced }),
+      ...(entered === undefined ? {} : { entered }),
+    });
+  const ran = request.format === 'refs' ? undefined : read.ran;
+  const said: Covering = lines === undefined ? answer : { ...answer, ...lineStatus(lines, read.ranOver ?? (() => false)) };
   const source = { root: request.root, suite: request.suite, execution: request.execution, record: answer.from, graph };
-  const gap = whole === undefined ? undefined : await answerGap({ ...answer, ...(files === undefined ? {} : { files }) }, whole, source);
+  const gap = whole === undefined ? undefined : await answerGap({ ...said, ...(files === undefined ? {} : { files }) }, whole, source);
   return {
-    ...answer,
+    ...said,
+    ...(at === undefined ? {} : { at }),
+    ...(ran === undefined ? {} : { ran }),
     ...(probes === undefined ? {} : { probes }),
     ...(files === undefined ? {} : { files }),
     ...(hops?.unread === undefined ? {} : { hopsGap: hops.unread }),
@@ -286,187 +381,4 @@ async function gapOf(request: ParsedCovering, from: string, index: ExecutionInde
       ? { file: request.file, unread: 'the record holds no region of it' }
       : await cutGap(request.root, await recordedCommit(from), module.file, module.blocks);
   return { ...gap, ...(cut === undefined ? {} : { cut }), note: probesNote(gap, cut, '--execution') };
-}
-
-/**
- * @param reach Handed the cases the question reached before `--where`
- * narrowed them, read off the same graph, when it narrowed them.
- */
-async function ask(
-  request: ParsedCovering,
-  readIndex: IndexReader,
-  graph: Graph,
-  reach?: (tests: readonly ExecutionTest[]) => void,
-): Promise<Covering> {
-  const from = request.execution ?? (await recordedExecutionFile(request.root, request.suite));
-  const record = await snapshotFor(request);
-
-  if (request.since !== undefined) {
-    // The snapshot's commit is the coordinate of what was recorded beside it,
-    // and of nothing else: a journey file handed in by path names no commit, and
-    // diffing it from the snapshot's would land its hunks on another text.
-    const at = record !== undefined && from.startsWith(record)
-      ? await recordedCommit(record)
-      : undefined;
-    const changed = await changeSince(request.since, request.root, at);
-    const { index, before } = await readIndex(from, changed);
-    // The graph carries the mocks: a case whose file mocked the changed module
-    // is not listed under it, whatever it crossed there.
-    const relations = await graph();
-    const answer = coveringChange(index, changed, { relations });
-    // Both readings land on the same blocks in the same order: `--where` narrows the cases, never the regions.
-    const reached = before === undefined ? answer : coveringChange(before, changed, { relations });
-    if (before !== undefined) reach?.(listedIn({ changed: reached }));
-    return {
-      since: request.since,
-      changed: answer.map((file, at) => ({
-        ...file,
-        regions: file.regions.map((region, of) => stated(region, reached[at]!.regions[of]!)),
-      })),
-      ...(at === undefined ? {} : { at }),
-      from,
-    };
-  }
-
-  const file = request.file;
-  const { index, files, before } = await readIndex(from, new Map([[file, []]]));
-  const module = index.modules.find((candidate) => candidate.file === file);
-  if (module === undefined) {
-    const held = heldAsPrecondition(from, [file]);
-    const loaded = held?.of.get(file);
-    // The record holds every test file's preconditions; `--cases`, `--where` and `--read` ask about the cases left in the index.
-    const asked = request.cases === undefined && request.where === undefined && request.read === undefined
-      ? undefined
-      : new Set(index.tests.map((test) => test.file));
-    if (loaded !== undefined) {
-      const preconditionOf = asked === undefined ? loaded : loaded.filter((test) => asked.has(test));
-      return { file, preconditionOf, held: held?.loaded.has(file) === true ? 'loaded' : 'declared', among: asked?.size ?? held?.tests ?? 0, from };
-    }
-    // An index with no coverage beside it, as a foreign tool writes, holds no preconditions to read.
-    if (held === undefined && keepsCases(from)) throw unreadPreconditions(file, from);
-    // Git says whether the commit the record was made at held the file: a
-    // record older than the file is not a run that never loaded it.
-    const at = record !== undefined && from.startsWith(record) ? await recordedCommit(record) : undefined;
-    if (at !== undefined) {
-      const then = existedAt(request.root, at, file);
-      if (then === false) throw addedSince(file, from, at);
-      if (then !== true) throw unreadCommit(file, from, at, then.unread);
-    }
-    throw unloadedFile(file, from, files.length);
-  }
-
-  const near = await nearbyWitnesses(request as CoveringAt);
-  const placement = await placementFor(request, from);
-  const frame = placement === undefined ? {} : { frame: placement.frame };
-  if (placement?.frame === 'stale' && request.function === undefined) {
-    return staleAnswer(request as CoveringAt, { index, ...(before === undefined ? {} : { before }), from, near, graph, ...(placement.at === undefined ? {} : { at: placement.at }) }, reach);
-  }
-
-  const at = await coveringAt(request as CoveringAt, { index, ...(before === undefined ? {} : { before }), module, from, ...(placement === undefined ? {} : { placement }), near, graph }, reach);
-  if (at !== undefined) return at;
-
-  const loaders = await loadersOf(before ?? index, file, graph);
-  // Each range is read and stated over the cases before `--where`, then lists only the cases it kept.
-  const found = coveringTestsInFile(before ?? index, file, loaders);
-  const listed = before === undefined ? undefined : new Set(index.tests.map((test) => test.id));
-  const listing = (ranges: readonly CoveringRange[]): readonly CoveringRange[] => listed === undefined
-    ? ranges
-    : ranges.map((range) => ({ ...range, tests: range.tests.filter((test) => listed.has(test.id)) }));
-  if (before !== undefined) reach?.(listedIn({ tests: found.flatMap((range) => range.tests).filter(near.keep) }));
-  if (near.whole) return { file: file, ranges: listing(placeRanges(found, placement)), ...frame, from };
-  // The narrowing is read inside the fold, so a range boundary still marks where the claim changes.
-  const narrowed = coveringTestsInFile(before ?? index, file, { ...loaders, keep: near.keep });
-  return {
-    file: file,
-    ranges: listing(placeRanges(narrowed, placement)),
-    ...frame,
-    from,
-    ...countOf(near, identities(listing(narrowed)), identities(listing(found))),
-  };
-}
-
-/** A changed region as `--where` lists it, stated, with the cases that stopped, over every case that reached it. */
-function stated(listed: CoveringRegion, reached: CoveringRegion): StatedRegion {
-  const { stopped: _, ...region } = listed;
-  const state = regionState(reached);
-  return {
-    ...region,
-    ...(reached.stopped === undefined ? {} : { stopped: reached.stopped }),
-    ...(state === undefined ? {} : { state }),
-  };
-}
-
-/**
- * Every line a diff changed, in the index's coordinates.
- *
- * The diff is measured from the commit the record was written at, when it has
- * one, rather than from the merge base with `ref`, because the index's line ranges are in that
- * commit's coordinates and nothing else's. The two part company as soon as the
- * branch moves under the recording, and a hunk read at the wrong end lands on
- * lines the index numbered for a different region — which is the one failure
- * here nobody can see, since a wrong list of test names reads exactly like a
- * right one.
- *
- * `git` names files from the repository root and the index names them from the
- * run's, so the paths are brought into the index's coordinates before anything
- * is looked up. Unmatched paths are reported rather than dropped: an answer that
- * silently left out half a diff is worse than one that says it cannot speak to
- * it.
- */
-async function changeSince(
-  since: string,
-  root: string,
-  at: string | undefined,
-): Promise<ReadonlyMap<string, readonly LineRange[]>> {
-  const diff = await diffSince(since, [], at);
-  if (diff === undefined) {
-    throw new OperatorError(
-      `\`--since ${since}\` could not be read as a diff. Check the ref exists and that this is a ` +
-        'git checkout; an empty answer here would read as `your change touches nothing`.',
-    );
-  }
-
-  // The working directory is always a real path and `--root` is spelled however
-  // the caller spelled it; through a symlink (`/var` on macOS) the two never meet.
-  const here = process.cwd();
-  const base = await realpath(root);
-  const changed = new Map<string, readonly LineRange[]>();
-  for (const [file, ranges] of changedLines(diff)) {
-    changed.set(here === base ? file : relative(base, resolve(here, file)), ranges);
-  }
-  if (changed.size === 0) {
-    throw new OperatorError(
-      `nothing has changed since \`${since}\`, so there is no region to ask about.`,
-    );
-  }
-  return changed;
-}
-
-/** {@link readIndex}, and under `--where` the index before it narrowed the cases. */
-type IndexReader = (
-  from: string,
-  changed: ReadonlyMap<string, readonly LineRange[]>,
-) => Promise<{ readonly index: ExecutionIndex; readonly files: readonly string[]; readonly before?: ExecutionIndex }>;
-
-/**
- * The index, read for the files a question is about.
- *
- * A missing file is refused rather than answered empty: an empty list here
- * reads as *no test covers this line*, which is the sentence that gets a test
- * deleted.
- */
-async function readIndex(
-  from: string,
-  changed: ReadonlyMap<string, readonly LineRange[]>,
-): Promise<{ readonly index: ExecutionIndex; readonly files: readonly string[] }> {
-  try {
-    return await readExecutionFor(from, changed);
-  } catch (error) {
-    throw new OperatorError(
-      `no readable per-case execution index at \`${from}\` (${
-        error instanceof Error ? error.message : String(error)
-      }). Every run wrapped in \`withTestSelection\` writes one beside its coverage file; ` +
-        'a run whose test files ran in a page writes none, and knows which files a test covered but not which case.',
-    );
-  }
 }

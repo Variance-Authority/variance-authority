@@ -5,7 +5,7 @@
   "private": true,
   "packageManager": "yarn@4.18.0",
   "engines": {
-    "node": ">=22"
+    "node": ">=22.12"
   },
   "workspaces": [
     "packages/*",
@@ -40,8 +40,9 @@
     "typecheck": "tsc --build --force",
     "verify": "yarn lint && yarn check && yarn measure && yarn test",
     "verify:far": "variance index && VARIANCE_AUTHORITY_SINCE=${VARIANCE_AUTHORITY_SINCE:-} VARIANCE_AUTHORITY_GRAIN=file VARIANCE_AUTHORITY_AT_DISTANCE=3- yarn test",
-    "verify:near": "oxlint && tsc --build && variance index && VARIANCE_AUTHORITY_SINCE=${VARIANCE_AUTHORITY_SINCE:-} VARIANCE_AUTHORITY_GRAIN=file VARIANCE_AUTHORITY_AT_DISTANCE=0-2 yarn test",
-    "verify:rules": "yarn check && yarn restrictions"
+    "verify:near": "oxlint && tsc --build && variance index && VARIANCE_AUTHORITY_SINCE=${VARIANCE_AUTHORITY_SINCE:-} VARIANCE_AUTHORITY_GRAIN=file VARIANCE_AUTHORITY_AT_DISTANCE=0-2 yarn test && node tools/gate.mjs stamp near",
+    "verify:rules": "yarn check && yarn restrictions && node tools/gate.mjs stamp rules",
+    "postinstall": "node tools/gate.mjs install"
   },
   "devDependencies": {
     "@changesets/cli": "^3.0.1",
@@ -60,7 +61,7 @@
     "@variance-authority/mcp": "workspace:^",
     "@variance-authority/playwright-test": "workspace:^",
     "@variance-authority/sense": "workspace:^",
-    "@vitest/coverage-v8": "^2.1.8",
+    "@vitest/coverage-v8": "^5.0.5",
     "ajv": "^8.17.1",
     "ci-info": "^4.4.0",
     "esbuild": "^0.25.0",
@@ -80,6 +81,7 @@
     "remark-parse": "^11.0.0",
     "typescript": "^7.0.2",
     "unified": "^11.0.0",
-    "vitest": "^2.1.8"
+    "vite": "^6.4.3",
+    "vitest": "^5.0.5"
   }
 }

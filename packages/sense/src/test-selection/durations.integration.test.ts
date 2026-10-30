@@ -52,21 +52,22 @@ const configured = withTestSelection(
 const reporters = configured.test.reporters;
 const seam = reporters[reporters.length - 1];
 
-const cases = (task, names) => (task.tasks ?? []).flatMap((child) => child.tasks === undefined
-  ? [{ name: [...names, child.name].join(' > '), duration: child.result?.duration }]
-  : cases(child, [...names, child.name]));
-
 reporters[reporters.length - 1] = {
-  onFinished: (files, ...rest) => {
-    for (const file of files) {
+  onTestRunEnd: (modules, ...rest) => {
+    for (const module of modules) {
+      const run = module.diagnostic();
       appendFileSync(
         ${JSON.stringify(log)},
-        JSON.stringify({ file: file.filepath, duration: file.result?.duration, phases: { prepare: file.prepareDuration, environment: file.environmentLoad, setup: file.setupDuration, collect: file.collectDuration, cases: file.result?.duration }, cases: cases(file, []) }) + '\\n',
+        JSON.stringify({
+          file: module.moduleId,
+          duration: run.duration,
+          phases: { prepare: run.prepareDuration, environment: run.environmentSetupDuration, setup: run.setupDuration, collect: run.collectDuration, cases: run.duration },
+          cases: [...module.children.allTests()].map((test) => ({ name: test.fullName, duration: test.diagnostic()?.duration })),
+        }) + '\\n',
       );
     }
-    return seam.onFinished(files, ...rest);
+    return seam.onTestRunEnd(modules, ...rest);
   },
-  onTestRunEnd: (...args) => seam.onTestRunEnd(...args),
 };
 
 export default configured;

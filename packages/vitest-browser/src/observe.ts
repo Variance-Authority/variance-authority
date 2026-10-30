@@ -9,8 +9,7 @@ import {
   wiringOf,
 } from '@variance-authority/react';
 import { capture } from '@variance-authority/unit-test/capture';
-import { expect } from 'vitest';
-import { getCurrentTest } from 'vitest/suite';
+import { expect, TestRunner } from 'vitest';
 import { OBSERVE_COMMAND, type Observed, type ObserveRequest, type Sensitivity } from './protocol.js';
 
 /**
@@ -226,7 +225,7 @@ function elementOf(target: VarianceSubject): Element {
  * Node half then files the baseline by the id.
  */
 function titlePathOfRunner(): { titlePath?: readonly string[] } {
-  const task = getCurrentTest();
+  const task = TestRunner.getCurrentTest();
   if (task === undefined) return {};
   const titles = [task.name];
   for (let suite = task.suite; suite !== undefined && suite !== task.file; suite = suite.suite) {

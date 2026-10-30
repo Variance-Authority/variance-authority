@@ -80,14 +80,13 @@ describe('the selecting sequencer under `sequence.shuffle`', () => {
   }, 60_000);
 
   // A reporter named on the command line replaces the configured ones, the
-  // seam's among them, and Vitest 2 and 3.0 hand a plugin no other way to its
-  // banner. The run is still seeded, and the seed is named on stderr, where the
-  // seam names what it selected.
+  // seam's among them. From Vitest 3.1 a plugin reaches the banner as well, so
+  // the seed is named there, where Vitest names its own, and not again on stderr.
   it('names the seed it shuffled with under a reporter named on the command line, and that seed runs the files in the same order', async () => {
     const { stdout, stderr } = await output(await scratch(), {}, 'vitest.default.config.ts', '--sequence.shuffle', '--reporter=default');
-    const seed = /^variance-authority: running tests with seed "(\d+)"/m.exec(stderr)?.[1];
+    const seed = /^ {6}Running tests with seed "(\d+)"$/m.exec(stdout)?.[1];
     expect(seed).toBeDefined();
-    expect(stdout).not.toContain(`seed "${seed}"`);
+    expect(stderr).not.toContain('running tests with seed');
     const order = stdout.split('\n').flatMap((line) => /✓ test\/(\S+)/.exec(line)?.[1] ?? []);
 
     expect(await started('vitest.default.config.ts', '--sequence.shuffle', `--sequence.seed=${seed}`)).toEqual(order);
@@ -103,12 +102,14 @@ describe('the selecting sequencer under `sequence.shuffle`', () => {
     expect(await startedWith({ FIXTURE_SKIP: JSON.stringify(['packages/sense/test/fixtures/external-vitest/test/gamma.case.ts']) }, 'vitest.default.config.ts', ...flags)).toEqual(own);
   }, 60_000);
 
-  // A reporter that prints no banner prints no seed, as Vitest's own do: the
-  // JSON reporter with no `outputFile` writes its report to stdout.
+  // A reporter that prints no banner prints no seed, as Vitest's own do.
   it('leaves stdout to a reporter that prints no banner', async () => {
-    const stdout = await run(await scratch(), 'vitest.default.config.ts', '--sequence.shuffle', '--reporter=json');
+    const directory = await scratch();
+    const report = resolve(directory, 'report.json');
+    const stdout = await run(directory, 'vitest.default.config.ts', '--sequence.shuffle', '--reporter=json', `--outputFile=${report}`);
 
-    expect((JSON.parse(stdout) as Report).testResults).toHaveLength(4);
+    expect(stdout).not.toContain('seed');
+    expect((JSON.parse(await readFile(report, 'utf8')) as Report).testResults).toHaveLength(4);
   }, 60_000);
 
   // Vitest folds `{ files, tests }` into `shuffle: tests` once it has picked

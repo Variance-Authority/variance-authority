@@ -20,6 +20,11 @@ pub struct EncodedModule<'a> {
     pub called: &'a [u32],
     /// Whether the region ran while its module evaluated, in any test file.
     pub loaded: &'a [bool],
+    /// Each region's overwritten cases as a set, none of them in `called`: a
+    /// layering cut the index to a text an edit wrote over the region they ran
+    /// (`landedThrough` in `region-edit.ts`). Empty where the module holds none,
+    /// as in a run, which measures the text it ran.
+    pub overwritten: &'a [u32],
 }
 
 /// What a finalize could not charge to a case, carried in the artifact it
@@ -42,6 +47,10 @@ pub struct Gaps {
 
 /// Each region's owner among its module's regions, as `encodeSetExecutionIndex` writes it.
 pub const OWNER: &str = "blocks.owner";
+
+/// Each region's overwritten cases, the section `OVERWRITTEN_SECTION` in
+/// `execution-set-columns.ts` names; written where some region holds one.
+pub const OVERWRITTEN: &str = "blocks.overwrittenSet";
 
 const UNRECORDED: &str = "gaps.unrecorded";
 const UNCLAIMED: &str = "gaps.unclaimed";
@@ -147,6 +156,10 @@ pub fn encode(
     let mut block_loaded = Vec::new();
     // Written when any module knows its owners; a module that does not names none.
     let mut block_owner = modules.iter().any(|held| held.module.owners.is_some()).then(Vec::new);
+    // Written when any module holds an overwritten case; a module that does
+    // not holds the empty set on every region.
+    let mut block_overwritten = modules.iter().any(|held| !held.overwritten.is_empty()).then(Vec::new);
+    let none_overwritten = block_overwritten.is_some().then(|| sets.intern(&[]));
     for held in modules {
         module_file.push(id(&held.module.file));
         module_blocks.push(block_kind.len() as u32);
@@ -163,6 +176,14 @@ pub fn encode(
                     column.extend_from_slice(owners);
                 }
                 None => column.extend(std::iter::repeat_n(NO_OWNER, count)),
+            }
+        }
+        if let (Some(column), Some(none)) = (block_overwritten.as_mut(), none_overwritten) {
+            let count = held.module.blocks.len();
+            match held.overwritten.len() {
+                0 => column.extend(std::iter::repeat_n(none, count)),
+                written if written == count => column.extend_from_slice(held.overwritten),
+                written => return Err(format!("{} names {written} overwritten sets for {count} regions", held.module.file)),
             }
         }
         for (at, block) in held.module.blocks.iter().enumerate() {
@@ -224,6 +245,9 @@ pub fn encode(
     ]);
     if let Some(owners) = block_owner {
         columns.push(Column::Words(OWNER, owners));
+    }
+    if let Some(overwritten) = block_overwritten {
+        columns.push(Column::Words(OVERWRITTEN, overwritten));
     }
     columns.push(Column::Blob("sets.blob", sets.bytes().to_vec(), sets.offsets().to_vec()));
     columns.push(Column::Words("sets.off", sets.offsets().to_vec()));

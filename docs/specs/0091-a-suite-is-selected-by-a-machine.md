@@ -91,8 +91,7 @@ to the relation stage, which hands coverage the first measured file it reaches.
 `suites.<name>.relations`, on by default. An e2e suite turns it off and names
 what it rests on in its own `before`: the app's directory and the services it
 drives. A directory entry claims every path under it, so any change to the app
-runs the suite. A Playwright component suite keeps relations, because a mounted
-component is imported by its test.
+runs the suite.
 
 **4. `before` holds files.** The package arm of `beforeReach` and
 `changedBefore` is deleted once Beyond hands bumps over as files.

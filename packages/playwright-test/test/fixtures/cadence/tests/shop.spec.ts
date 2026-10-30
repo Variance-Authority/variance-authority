@@ -28,8 +28,11 @@ globalThis.__variance_authority_execution__ = {
 <button id="choose" onclick="entered.add(2)">Choose</button>
 <button id="pay" onclick="entered.add(3)">Pay</button>`;
 
-test('pays for what it chose', async ({ page }) => {
+test.beforeEach(async ({ page }) => {
   await page.setContent(PAGE); // opens
+});
+
+test('pays for what it chose', async ({ page }) => {
   await page.click('#choose'); // chooses
   expect(await page.title()).toBe(''); // looks
   await page.click('#pay'); // pays

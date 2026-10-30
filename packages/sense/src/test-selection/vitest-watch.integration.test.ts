@@ -32,7 +32,7 @@ const shims = () => {
 const root = ${JSON.stringify(fixture)};
 const runner = await startVitest('test', ['test/alpha.case.ts'], { watch: true, root, config: root + '/vitest.config.ts' });
 const between = shims();
-await runner.rerunFiles([root + '/test/beta.case.ts']);
+await runner.rerunTestSpecifications(runner.getModuleSpecifications(root + '/test/beta.case.ts'));
 const rerun = shims();
 await runner.close();
 writeFileSync(${JSON.stringify(report)}, JSON.stringify({ between, rerun, closed: shims() }));

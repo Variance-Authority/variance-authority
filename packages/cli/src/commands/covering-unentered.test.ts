@@ -49,15 +49,19 @@ async function ask(line: string) {
 }
 
 describe('a run of lines no recorded region holds', () => {
-  it('answers with no case, says which lines hold no region and which the edit wrote, and names the run of the file\'s tests that would read the new one', async () => {
+  it('answers with no case, says which lines hold no region and that whether the one the edit wrote ran is not known, and names the run of the file\'s tests that would read the new one', async () => {
     const answer = await ask('2-3');
 
-    expect(answer).toMatchObject({ tests: [], frame: 'mapped', outside: [{ startLine: 2, endLine: 2 }], written: [{ startLine: 3, endLine: 3 }] });
-    expect(formatCovering(answer, 'text')).toBe(
+    // A record that names no commit says nothing of which text `adds` ran over, so whether it ran line 3 is not known.
+    expect(answer).toMatchObject({ tests: [], frame: 'mapped', outside: [{ startLine: 2, endLine: 2 }], unknown: { lines: [{ startLine: 3, endLine: 3 }], why: 'the record names no commit' } });
+    expect(answer).not.toHaveProperty('written');
+    expect(formatCovering(answer, 'text', Date.now())).toBe(
       'No named test covered lines 2-3 of src/cart.ts.\n'
         + 'Line 2 is outside every recorded region, so no case can be said to have run it.\n'
-        + 'Line 3 was written since the recording, so no case has run it.\n'
-        + 'Gap (stale) on lines 2-3 of src/cart.ts: which tests run it now. Known: line 3 was written since the recording.\n'
+        + 'Whether a case has run line 3 is not known: the record names no commit.\n'
+        + 'The recorded lines of src/cart.ts are placed in its text as it is now.\n'
+        + 'Where and when the test file that entered it last ran is not known: the record names no commit.\n'
+        + 'Gap (stale) on lines 2-3 of src/cart.ts: which tests run it now. Known: line 3 is of a text the record cannot say a case ran over.\n'
         + 'Next, Record, 1 test in 1 test file:\n'
         + "  Run with the suite's own runner: a.test.ts\n",
     );
@@ -68,6 +72,6 @@ describe('a run of lines no recorded region holds', () => {
 
     expect(answer.tests?.map((test) => test.name)).toEqual(['adds']);
     // Held line 4 is recorded line 3, a blank.
-    expect(answer).toMatchObject({ outside: [{ startLine: 2, endLine: 2 }, { startLine: 4, endLine: 4 }], written: [{ startLine: 3, endLine: 3 }] });
+    expect(answer).toMatchObject({ outside: [{ startLine: 2, endLine: 2 }, { startLine: 4, endLine: 4 }], unknown: { lines: [{ startLine: 3, endLine: 3 }], why: 'the record names no commit' } });
   });
 });

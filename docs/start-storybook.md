@@ -10,9 +10,9 @@ and readiness. Those stay with Storybook; nothing here re-implements them.
 
 ## What you get that you do not have now
 
-`@storybook/test-runner` runs your play functions and assertions in a browser.
-It keeps no approved screenshots, so a visual change nobody wrote an assertion
-for goes through green. Chromatic stores them and renders and reviews in its
+Storybook's Vitest addon, `@storybook/addon-vitest`, runs each story and its
+play function as a test in a browser. It keeps no approved screenshots, so a
+visual change nobody wrote an assertion for goes through green. Chromatic stores them and renders and reviews in its
 own cloud.
 
 Here:

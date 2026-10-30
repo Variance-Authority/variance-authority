@@ -169,7 +169,7 @@ export interface VarianceVitePlugin {
  * // vitest.config.ts
  * export default defineConfig({
  *   plugins: [react(), variancePlugin()],
- *   test: { browser: { enabled: true, provider: 'playwright', instances: [{ browser: 'chromium' }] } },
+ *   test: { browser: { enabled: true, provider: playwright(), instances: [{ browser: 'chromium' }] } },
  * });
  * ```
  */

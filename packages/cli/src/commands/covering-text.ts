@@ -14,23 +14,38 @@ import {
   type ExecutionTest,
   type HeldLines,
 } from '@variance-authority/sense/test-selection';
-import { runsText, targetText, type UnrunPart } from './covering-at.js';
+import { runsOfLines, runsText, targetText, type UnrunPart } from './covering-at.js';
 import { casesByFile, type CoveringFile } from './covering-files.js';
 import type { CoveringRange } from './covering-frame.js';
 import { motionText } from './covering-motion.js';
 import { preconditionText } from './covering-unloaded.js';
 import { formatCoveringRefs } from './covering-refs.js';
-import { heldText } from '@variance-authority/sense/test-selection';
+import { heldText, lostText } from '@variance-authority/sense/test-selection';
 import { whereText } from './covering-where.js';
 import { evidenceGapText } from './evidence-gap.js';
-import { staleLines } from './covering-stale.js';
-import type { Covering, CoveringFormat, StatedChange } from './covering.js';
+import { staleFile, staleLines } from './covering-stale.js';
+import { frameText, ranText } from './covering-fresh-text.js';
+import type { Covering, CoveringFormat, CoveringTarget, StatedChange } from './covering.js';
 
-/** Say the answer in the shape the caller asked for. */
-export function formatCovering(answer: Covering, format: CoveringFormat): string {
+/**
+ * Say the answer in the shape the caller asked for.
+ *
+ * @param now The clock the answer is dated against, in ms.
+ */
+export function formatCovering(answer: Covering, format: CoveringFormat, now: number): string {
   if (format === 'refs') return formatCoveringRefs(answer);
   if (format === 'json') return `${JSON.stringify(answer, undefined, 2)}\n`;
-  return `${[...probesText(answer), ...scopeText(answer), ...whereText(answer), ...said(text(answer)), ...hopsText(answer), ...motionText(answer.motion), ...(answer.gap === undefined ? [] : [evidenceGapText(answer.gap)])].join('\n')}\n`;
+  return `${[
+    ...probesText(answer),
+    ...scopeText(answer),
+    ...whereText(answer),
+    ...said(text(answer)),
+    ...hopsText(answer),
+    ...motionText(answer.motion),
+    ...frameText(answer),
+    ...ranText(answer, now),
+    ...(answer.gap === undefined ? [] : [evidenceGapText(answer.gap)]),
+  ].join('\n')}\n`;
 }
 
 /** Why `--hops` printed no distance, said under the files it would have measured. */
@@ -47,23 +62,28 @@ function said(block: string): readonly string[] {
 function text(answer: Covering): string {
   if (answer.changed !== undefined) return sinceText(answer, answer.changed);
   if (answer.preconditionOf !== undefined) return preconditionText(answer.file ?? '', answer.preconditionOf, answer.held, answer.among);
-  if (answer.frame === 'stale') return staleText(answer);
+  if (staleFile(answer)) return staleText(answer);
   if (answer.ranges !== undefined) return wholeFile(answer, answer.ranges);
 
   const tests = answer.tests ?? [];
-  const where = targetText(answer.target ?? { function: '' });
+  // Past the file's ranges the answer is `coveringAt`'s, which always names what was asked.
+  const target = answer.target!;
+  const where = targetText(target);
   if (tests.length === 0 && (answer.where?.of ?? 0) > 0) {
     // `whereText` said the filter left none of the cases that covered it; *no named test covered* would read as nothing running the code.
     return [...narrowedText(answer), ...unrunText(answer.unrun)].join('\n');
   }
-  if (tests.length === 0 && newlyWritten(answer)) {
-    // Every asked line is new since the recording: *no named test covered* is true, and the reason is the whole answer.
-    const [one, verb, it] = single(answer.written!) ? ['Line', 'was', 'it'] : ['Lines', 'were', 'them'];
-    return [`${one} ${runsText(answer.written!)} of ${answer.file} ${verb} written since the recording, so no case has run ${it}.`, ...narrowedText(answer)].join('\n');
+  if (tests.length === 0 && unplaced(answer, target)) {
+    // Every asked line was written since the recording or ran in another text: the reason is the whole answer.
+    return [...unplacedText(answer, ` of ${answer.file}`), ...unrunText(answer.unrun), ...narrowedText(answer)].join('\n');
   }
   if (tests.length === 0) {
+    // A case ran some asked line in another text, so the record measured neither its run nor its absence there.
+    const rest = 'function' in target || answer.overwritten === undefined ? undefined : unsaid(answer, target);
     return [
-      `No named test covered ${where} of ${answer.file}${whyUnentered(answer.stopped)}`,
+      rest === undefined
+        ? `No named test covered ${where} of ${answer.file}${whyUnentered(answer.stopped)}`
+        : `No named test covered ${single(rest) ? 'line' : 'lines'} ${runsText(rest)} of ${answer.file}.`,
       ...(answer.stopped ?? []).map((test) => `  stopped: ${test.file} > ${caseName(test)}`),
       ...grainText(answer, where),
       ...narrowedText(answer),
@@ -88,9 +108,10 @@ function unrunText(parts: readonly UnrunPart[] | undefined): readonly string[] {
   return [`No case ran ${parts.length === 1 ? 'a part' : `${parts.length} parts`} of it: ${named.join(', ')}.`];
 }
 
-/** A part as a sentence names it: a part of the function's own body by its kind, a nested function by its name too. */
+/** A part as a sentence names it: a part of the function's own body by its kind, a nested function by its name too, each `edited` when an edit touched it. */
 function unrunPart(part: UnrunPart): string {
-  return part.name === undefined ? `the ${part.kind}` : `${part.kind} ${part.name}`;
+  const kind = part.moved === true ? `edited ${part.kind}` : part.kind;
+  return part.name === undefined ? `the ${kind}` : `${kind} ${part.name}`;
 }
 
 /** Which asked lines the record holds at file grain, and which it has no place for. */
@@ -107,19 +128,42 @@ function grainText(answer: Covering, where: string): readonly string[] {
     const [one, verb] = single(answer.outside) ? ['Line', 'is'] : ['Lines', 'are'];
     lines.push(`${one} ${runsText(answer.outside)} ${verb} outside every recorded region, so no case can be said to have run ${single(answer.outside) ? 'it' : 'them'}.`);
   }
-  if (answer.written !== undefined) {
-    const [one, verb] = single(answer.written) ? ['Line', 'was'] : ['Lines', 'were'];
-    lines.push(`${one} ${runsText(answer.written)} ${verb} written since the recording, so no case has run ${single(answer.written) ? 'it' : 'them'}.`);
-  }
-  return lines;
+  return [...lines, ...unplacedText(answer, '')];
 }
 
-/** Whether every line the question asked was written since the recording. */
-function newlyWritten(answer: Covering): boolean {
-  const target = answer.target;
-  if (answer.written === undefined || target === undefined || 'function' in target) return false;
-  const asked = 'line' in target ? 1 : target.lines.endLine - target.lines.startLine + 1;
-  return answer.written.reduce((sum, run) => sum + run.endLine - run.startLine + 1, 0) === asked;
+/** The asked lines the record measured no run of: written since, in a text a case ran over where a run over another text has landed since, or not known to be either. */
+function unplacedText(answer: Covering, of: string): readonly string[] {
+  const said: string[] = [];
+  if (answer.written !== undefined) {
+    const [one, verb, it] = single(answer.written) ? ['Line', 'was', 'it'] : ['Lines', 'were', 'them'];
+    said.push(`${one} ${runsText(answer.written)}${of} ${verb} written since the recording, so no case has run ${it}.`);
+  }
+  if (answer.overwritten !== undefined) {
+    const [one, verb, it] = single(answer.overwritten) ? (['Line', 'is', 'it'] as const) : (['Lines', 'are', 'them'] as const);
+    said.push(`${one} ${runsText(answer.overwritten)}${of} ${verb} ${lostText({ other: false, it })}.`);
+  }
+  if (answer.unknown !== undefined) {
+    said.push(`Whether a case has run ${single(answer.unknown.lines) ? 'line' : 'lines'} ${runsText(answer.unknown.lines)}${of} is not known: ${answer.unknown.why}.`);
+  }
+  return said;
+}
+
+/**
+ * Whether every line the question asked was written since the recording or
+ * ran in another text, or, asked by function, whether a case ran a part of it
+ * in another text: then no named case is no measured absence.
+ */
+function unplaced(answer: Covering, target: CoveringTarget): boolean {
+  if ('function' in target) return answer.overwritten !== undefined;
+  return unsaid(answer, target).length === 0;
+}
+
+/** The asked lines neither written since, nor run in another text, nor not known to be either: the ones a case is known to have run, or known not to. */
+function unsaid(answer: Covering, target: Exclude<CoveringTarget, { readonly function: string }>): readonly HeldLines[] {
+  const { startLine, endLine } = 'line' in target ? { startLine: target.line, endLine: target.line } : target.lines;
+  const out = new Set([...answer.written ?? [], ...answer.overwritten ?? [], ...answer.unknown?.lines ?? []].flatMap((run) =>
+    Array.from({ length: run.endLine - run.startLine + 1 }, (_, at) => run.startLine + at)));
+  return runsOfLines(Array.from({ length: endLine - startLine + 1 }, (_, at) => startLine + at).filter((line) => !out.has(line)));
 }
 
 function single(runs: readonly HeldLines[]): boolean {
@@ -187,7 +231,7 @@ function wholeFile(answer: Covering, ranges: readonly CoveringRange[]): string {
       named.size
     } named test${named.size === 1 ? '' : 's'}${
       loading.size === 0 ? '' : `, and ${loading.size} more that ran it only while their file imported it`
-    }${framed(answer)}`,
+    }`,
   ];
   // Where each list of cases was first printed, so a later range walked by the same cases points at it.
   const printed = new Map<string, string>();
@@ -206,7 +250,9 @@ function wholeFile(answer: Covering, ranges: readonly CoveringRange[]): string {
       // Under `--where` or `--read` the state is read over cases the list leaves out, so an empty list says nothing about them.
       if (!said) {
         lines.push(answer.where === undefined
-          ? `  no named test covered this range${whyUnentered(range.stopped)}`
+          ? range.overwritten === undefined
+            ? `  no named test covered this range${whyUnentered(range.stopped)}`
+            : `  this range is ${lostText({ other: false, it: 'it' })}`
           : `  no case ${answer.where.read === undefined ? '`--where`' : answer.where.asked.length === 0 ? '`--read`' : '`--where` and `--read`'} kept covered this range`);
       }
       lines.push(...(range.state === 'loaded' ? [] : range.stopped ?? []).map((test) =>
@@ -219,6 +265,7 @@ function wholeFile(answer: Covering, ranges: readonly CoveringRange[]): string {
       lines.push(...caseLines(tests, '  '), ...loadedOnly(carried, tests.length > 0));
       printed.set(key, place);
     }
+    if (range.tests.length > 0 && range.overwritten !== undefined) lines.push(`  it is also ${lostText({ other: true, it: 'it' })}`);
     lines.push(...unenteredLines(range));
   }
   lines.push(...narrowedText(answer));
@@ -244,12 +291,6 @@ function loadedOnly(carried: readonly CoveringTest[], more: boolean): readonly s
   return [`  ${more ? 'and ' : ''}${carried.length} case${carried.length === 1 ? '' : 's'} in ${files} test file${
     files === 1 ? '' : 's'
   } ran it only while their file imported the module`];
-}
-
-/** Which text the line numbers are in, when that was checked. */
-function framed(answer: Covering): string {
-  if (answer.frame === 'mapped') return ', placed in the text as it is now';
-  return '';
 }
 
 /**

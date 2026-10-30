@@ -1,5 +1,9 @@
 import { decide } from '../src/decide';
 
+beforeEach(() => {
+  (globalThis as { __FIXTURE_HOOKED__?: boolean }).__FIXTURE_HOOKED__ = true;
+});
+
 it('takes the alpha path', () => {
   expect(decide('alpha')).toBe('A');
 });

@@ -1,7 +1,7 @@
 # Refine the task
 
 Phase 1 of [`AGENTS.md`](../../AGENTS.md). Before any code, settle what the task
-is and what would make it done.
+is, whether it should be done at all, and what would make it done.
 
 ## Look around
 
@@ -60,14 +60,66 @@ already selects by relations — the graph `affectedBy` in `core/relate` walks. 
 feature needed was a route from the record that could not answer to the
 selection that already could, and the new walk was a second copy of it.
 
-## Decide, or ask
+## The idea loop
+
+No code is written for an idea that has not passed review. The idea is
+reviewed harder than the code will be: a defect in code costs a fix, and a
+change that should not exist costs its whole build, its review, and the
+reviews after it that measure everything else against it. Of the pull
+requests closed unmerged before this loop, seven were ideas that should not
+have been built; none was closed for broken code. A `docs`, `chore`, `ci`,
+`test`, `refactor` or `revert` change has no idea to get wrong: it skips the
+loop, and the kind's own row in the pull request reference is its gate.
+
+**The brief is the issue.** Every change to what the product does — a
+`feat`, `fix` or `perf` — starts as a GitHub issue, found or filed as "Tasks are GitHub issues" in `AGENTS.md` says. Its body holds, in
+this order:
+
+- **Problem**: what is wrong or missing, apart from any fix.
+- **Evidence**: who has the problem, each item something a reader can open —
+  the owner's ask quoted, an issue, a failing run, a measurement, a spec in
+  `docs/specs/`. "Users may want", "for completeness" and "it was easy" are not
+  evidence.
+- **Today**: what they do without the change, and what already answers part
+  of it.
+- **Change**: the smallest change that answers it, in the project's concepts.
+- **Done when**: a checklist, each item a gate that fails on today's code.
+
+**Review.** The `occam` agent reviews the issue alone, in its idea mode: the
+issue number, and nothing of your reasons. It opens every piece of evidence,
+weighs the case for nothing against the change, checks the change against
+[`escapes`](escapes.md), and gives one verdict:
+
+- **build** — put `idea: build` on the issue. Code may start. An edit to the
+  issue's body after that needs the review again, and CI enforces it.
+- **yes, but** — a part should not happen. Cut it from the issue. A cut taken
+  whole is **build**: it only shrinks the change, and shrinking is what the
+  review is for. Answering the rejection with evidence instead, or changing
+  the Change, is reviewed again.
+- **no, because** — close the issue as not planned, with the reason by its
+  name in the closing comment. Closed issues are where a declined idea is
+  found next time.
+
+Three reviews that end without **build** close the issue. Nobody else is asked:
+the loop decides, and a tie goes to the smaller change. A closed issue is
+reopened when new evidence arrives, and the review starts over; the owner may
+reopen one at any time.
+
+**The loop learns.** A change that passed this loop and was later shown not to
+belong — closed unmerged, reverted, or rejected by any reviewer, a person or a
+model, on a reason the idea review could have seen — is an escape. Add it to
+[`escapes`](escapes.md) as the question that would have caught it, in the same
+change that closes it.
+
+## Decide, don't ask
 
 A rule that reads like accidental cruft against the goal — widening on absence,
 refusing on a guess, duplicating an owner's answer — is fixed and reported, not
 asked about. A finding the task neither needs nor wrote is fixed in its own
-change, on its own branch, as [change](change.md) draws the line. Ask only when
-two readings are both defensible and the choice changes what the product
-promises.
+change, on its own branch, as [change](change.md) draws the line. When two
+readings are both defensible, take the one the evidence supports; when it
+supports neither, take the smaller change and name the choice in the pull
+request's Assumptions. No task waits on the owner.
 
 A limitation is a bug or a position, never an apology. Classify it before
 writing "we cannot".

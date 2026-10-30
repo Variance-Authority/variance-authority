@@ -15,10 +15,12 @@ drawn at the finest level that fits a page and read a part at a time.
 ## Inputs and outputs
 
 In: every probe hit in one realm, in the order it happened, while a run asks for
-stories; which case was open at each hit; and, to name what was visited, the
-region inventory the record beside it holds; and the lines a setup file says
-through the story's note channel, such as the React story setup's one line per
-component a commit rendered and why. Out: one **story** per case,
+stories; which case was open at each hit, and which test line, a hook's marked;
+from a page, each drain's tape, which the runner names with the case and the
+line it was drained under; and, to name what was visited, the region inventory
+the record beside it holds; and the lines a setup file says through the story's
+note channel, such as the React story setup's one line per component a commit
+rendered and why. Out: one **story** per case,
 written beside the record the run writes; read back, a route of numbered steps —
 declarations with, when steps are drawn, the branches and loops each went
 through drawn as the code nests them, every arm counted and an arm the case took
@@ -72,6 +74,16 @@ by guess.
   moved since `fiber.alternate`, a mount, or a Suspense boundary's retry
 - `packages/sense/src/test-selection/collectors.cts` — where a realm installs
   the tap instead of the engine, and writes each case's story as it settles
+- `packages/sense/src/story/page.ts` — the script that makes a page tape, and
+  the assembler that lays one case's page drains end to end as one story
+- `packages/sense/src/story/page-story.ts` — one page drain's tape, as the page
+  hands it over
+- `packages/sense/src/test-selection/carried-stories.ts` — the hooks that leave
+  a page case's tape on its result's `meta`, and the writer both page runners
+  call with the names the result gives the case
+- `packages/playwright-test/src/documents.ts` — the recorder's document drain
+  a Playwright case's story rides: every context it opens taped, and drained
+  under the spec line each statement is on
 - `packages/sense/src/story/format.cts` — one case's story on disk
 - `packages/sense/src/story/directory.ts` — the variable that asks for stories,
   and where they sit beside each record

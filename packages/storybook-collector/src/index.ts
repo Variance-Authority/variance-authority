@@ -156,7 +156,9 @@ export function storybookCollector(
       options.tests === undefined || options.tests === false
         ? undefined
         : await createStoryRecorder(index, options.tests === true ? {} : options.tests);
-    const bundle = await pageAgentBundle();
+    // Ahead of the agent, so the collector it evaluates hands its engine to the tape.
+    const agent = await pageAgentBundle();
+    const bundle = recorder?.storyPage === undefined ? agent : `${await recorder.storyPage()}\n${agent}`;
 
     let served: StaticServer | undefined;
     if (options.baseUrl === undefined) served = await serveStatic(staticDir);

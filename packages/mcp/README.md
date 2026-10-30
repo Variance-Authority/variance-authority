@@ -558,8 +558,10 @@ leaves it out of what stood on that module. A host that supplies no tree gets
 the answer without that cut, and the answer says so.
 
 The tool takes `file` and optionally one of `line` or `function`. With neither,
-it answers the whole file. It distinguishes an indexed range covered by no test
-from a line absent from the execution index. The index is supplied by the test
+it answers the whole file. It tells three answers apart: an indexed range no
+test covered, a line absent from the execution index, and a region a case ran in
+a text that a run over another text has landed on since, where which case ran
+it is not known. The index is supplied by the test
 collector or editor integration; MCP does not manufacture coverage or control
 the test runner.
 

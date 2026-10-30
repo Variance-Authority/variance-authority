@@ -33,8 +33,11 @@ const TESTS = ['a.test.ts', 'b.test.ts', 'c.test.ts'];
 
 const TOTAL = 'export function total() {\n  return 1;\n}\n';
 
-/** No sentence of a note may send the reader to run or record a suite: a whole run is often impossible where the question is asked. */
-const NO_RUN = /\b(run|re-run|rerun|record) (the|it|this|that|again)\b|withTestSelection/i;
+/**
+ * No sentence of a note may send the reader to run or record a suite: a whole run is often impossible where the question is asked.
+ * A perfect "have run it" says what ran, not what to do, so it is not one.
+ */
+const NO_RUN = /(?<!\bhave )\b(run|re-run|rerun|record) (the|it|this|that|again)\b|withTestSelection/i;
 
 type Block = {
   readonly kind: string;
@@ -110,7 +113,7 @@ describe('a record cut under probes this build does not place', () => {
     expect(answer.probes?.note).toContain(`was cut under the probes \`${RETIRED}\`, and this build places \`${INSTRUMENTATION_ID}\``);
     expect(answer.probes?.note).toContain('names no commit, so the text it was made over is not known');
     expect(answer.probes?.note).not.toMatch(NO_RUN);
-    expect(formatCovering(answer, 'text').split('\n')[0]).toBe(answer.probes?.note);
+    expect(formatCovering(answer, 'text', Date.now()).split('\n')[0]).toBe(answer.probes?.note);
   });
 
   it('says nothing of probes for a record this build cut', async () => {

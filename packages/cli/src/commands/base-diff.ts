@@ -1,4 +1,4 @@
-// compass: variance-authority/runtime/attention
+// compass: variance-authority.reach.crossings
 /**
  * The diff a base is compared through.
  *
@@ -13,8 +13,9 @@ import { execFile } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { promisify } from 'node:util';
-import { hunksByFile, readCommitRuns, standsAt, type Hunk, type Stand } from '@variance-authority/sense/test-selection';
+import { hunksByFile, standsAt, type Hunk, type Stand } from '@variance-authority/sense/test-selection';
 import { OperatorError } from '../exit.js';
+import type { RecordRuns } from './record-runs.js';
 import { diffSince, gitIn, topLevel } from './since.js';
 
 const OBJECT_NAME = /^[0-9a-f]{40}(?:[0-9a-f]{24})?$/u;
@@ -32,15 +33,15 @@ export function unnamedCommit(base: { readonly name: string; readonly unnamed?: 
 
 /**
  * The diff by file from `at`, the commit the base `base` names was recorded at,
- * to the tree at `root`, with that commit. `base` opens each refusal, as a
- * sentence's subject; `unnamed`, when given, says why a base of that kind can
- * name no commit.
+ * to the tree at `root`, with that commit and the checkout it was diffed in.
+ * `base` opens each refusal, as a sentence's subject; `unnamed`, when given,
+ * says why a base of that kind can name no commit.
  */
 export async function diffFromBase(
   at: string | undefined,
   root: string,
   base: { readonly name: string; readonly unnamed?: string },
-): Promise<{ readonly commit: string; readonly diff: ReadonlyMap<string, readonly Hunk[]> }> {
+): Promise<{ readonly commit: string; readonly diff: ReadonlyMap<string, readonly Hunk[]>; readonly repository: string }> {
   const refuse = (why: string): never => {
     throw new OperatorError(`${base.name} ${why}`, { kind: 'undiffed' });
   };
@@ -59,7 +60,7 @@ export async function diffFromBase(
   }
   const diff = await diffSince(at, [], at, { cwd: root, unified: 0 });
   if (diff === undefined) return refuse(`was recorded at ${at}, and git could not read the diff from it to the working tree, so it is not compared.`);
-  return { commit: at, diff: hunksByFile(diff) };
+  return { commit: at, diff: hunksByFile(diff), repository };
 }
 
 /**
@@ -96,30 +97,22 @@ export async function movedOnBase(
 }
 
 /**
- * The stands of the record at `record`: the test files that did not run at its
- * commit, and the files changed since each last ran, so a case the record
+ * The stands of the record `read` read, in `repository`, the checkout
+ * {@link diffFromBase} diffed the base in: the test files that did not run at
+ * its commit, and the files changed since each last ran, so a case the record
  * carried over an edit is not read as gone. A runs record that is there and
  * cannot be read is refused, naming it: read as absent, it would place every
  * test at the record's commit, and a case no test ran would be called no
  * longer run.
  */
-export async function carriedOver(record: string, root: string): Promise<{ readonly stands?: readonly Stand[] }> {
-  const repository = await topLevel(root);
-  if (repository === undefined) {
-    throw new OperatorError(`\`${root}\` is not in a git checkout, so where each test in ${record} last ran is not read and nothing is compared.`, {
-      kind: 'undiffed',
-    });
-  }
-  let runs: Awaited<ReturnType<typeof readCommitRuns>>;
-  try {
-    runs = await readCommitRuns(record);
-  } catch (error) {
+export function carriedOver(read: RecordRuns, repository: string): { readonly stands?: readonly Stand[] } {
+  if (read.unread !== undefined) {
     throw new OperatorError(
-      `${error instanceof Error ? error.message : String(error)}. It says where each test in the record last ran, and ` +
+      `${read.unread.message}. It says where each test in the record last ran, and ` +
         'a comparison that read it as absent would call a case no test ran no longer run.',
-      { cause: error },
+      { cause: read.unread },
     );
   }
-  const reading = standsAt(record, runs, gitIn(repository), (test) => existsSync(join(repository, test)));
+  const reading = standsAt(read.record, read.runs, gitIn(repository), (test) => existsSync(join(repository, test)));
   return reading === undefined ? {} : { stands: reading.stands };
 }
