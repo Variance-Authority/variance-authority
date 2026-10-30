@@ -4004,7 +4004,8 @@
         "wrangler.jsonc"
       ],
       "bin": {
-        "variance-authority-tribunal": "./dist/node/bin.js"
+        "variance-authority-tribunal": "./dist/node/bin.js",
+        "variance-authority-tribunal-provision": "./dist/provision/bin.js"
       },
       "engines": {
         "node": ">=22"

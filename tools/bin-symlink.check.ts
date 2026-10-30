@@ -45,6 +45,8 @@ const TERMINATES: Readonly<Record<string, readonly string[]>> = {
   'variance-authority-server': [],
   // Refuses without a project, below — a bare run with one set would listen.
   'variance-authority-tribunal': [],
+  // Bare it would provision the config in the working directory.
+  'variance-authority-tribunal-provision': ['--help'],
 };
 
 /**

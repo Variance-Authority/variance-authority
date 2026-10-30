@@ -69,7 +69,8 @@
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "bin": {
-    "variance-authority-tribunal": "./dist/node/bin.js"
+    "variance-authority-tribunal": "./dist/node/bin.js",
+    "variance-authority-tribunal-provision": "./dist/provision/bin.js"
   },
   "files": [
     "dist",

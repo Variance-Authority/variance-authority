@@ -97,19 +97,15 @@ a caret range on the current version of `@variance-authority/tribunal` in yours.
 ### The resources, in order
 
 ```bash
-yarn wrangler d1 create variance-tribunal      # put the printed id in wrangler.jsonc
-yarn wrangler r2 bucket create variance-tribunal
-
-yarn build
-yarn wrangler d1 migrations apply variance-tribunal --remote \
-  --config dist/server/wrangler.json
-
-yarn wrangler secret put INGEST_TOKEN          # ≥16 characters
-yarn wrangler secret put REVIEW_TOKEN          # ≥16 characters, and not the other one
-yarn wrangler secret put SHARE_TOKEN           # optional: ≥16 characters, and neither of the others
-
-yarn deploy
+yarn variance-authority-tribunal-provision --config wrangler.jsonc --mount /api
+yarn build && yarn deploy
 ```
+
+Provisioning writes the database id and the two Access values into
+`wrangler.jsonc`; commit them. It makes the database, the bucket, the Access application and both
+tokens, and hands the ingest token to the repository's `VARIANCE_INGEST_TOKEN`
+secret: [Deploy it on Cloudflare](../packages/tribunal/README.md#deploy-it-on-cloudflare)
+has the whole list.
 
 The tokens are secrets, not `vars`: they are the deployment's capabilities,
 and `wrangler.jsonc` is in git. `ACCESS_TEAM_DOMAIN` and `ACCESS_AUD` are `vars`
@@ -164,7 +160,8 @@ everybody's devtools, and this one promotes baselines.
 
 ## Access
 
-Put an Access application in front of the deployment, then set both of:
+Provisioning puts an Access application in front of the deployment and sets
+both of:
 
 - `ACCESS_TEAM_DOMAIN` — e.g. `your-team.cloudflareaccess.com`, where the signing
   keys are published.

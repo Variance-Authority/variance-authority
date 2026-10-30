@@ -77,6 +77,11 @@ advisory lock to serialize one running under concurrent load.
 - `packages/tribunal/src/node/database.ts`, `bucket.ts` — a file and a directory
   behind the two interfaces, each object written through a staging name so a
   reader never sees half of one
+- `packages/tribunal/src/provision/` — the Cloudflare account a deployment needs,
+  made by one idempotent command: the database, the bucket, the migrations, the
+  Access applications and the two values the Worker verifies them with, and the
+  ingest token in both the Worker and the repository secret. It runs only when
+  the operator runs it, never on a request
 - `tribunal-cloudflare/app/tribunal.ts`, `tribunal-cloudflare/app/env.ts`,
   `tribunal-cloudflare/app/api/[[...path]]/route.ts`,
   `tribunal-cloudflare/wrangler.jsonc` — the deployed console
