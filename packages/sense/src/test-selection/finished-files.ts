@@ -264,12 +264,16 @@ const stopped = (task: RunnerTask): boolean =>
  * run rewrites every test it had not reached, in the worker's copy of the tree.
  * Neither is the skip {@link usableOutcome} argues for, and the mode does not
  * say which wrote it, so in a run where either may have happened — see
- * {@link runnerSkipped} — a `skip` with no result is not an outcome. A `todo`
- * still is: neither rewrite writes one.
+ * {@link runnerSkipped} — a `skip` is not an outcome. Vitest 5's cancel also
+ * writes `skip` into the result of each test it had not reached, so a skipped
+ * result is read the same way as a skipped mode. A `todo` still is an outcome:
+ * neither rewrite writes one.
  */
-const outcome = (task: RunnerTask, runnerSkipped: boolean): string =>
-  task.result?.state
-    ?? (task.mode === 'todo' || (task.mode === 'skip' && !runnerSkipped) ? task.mode : 'missing');
+const outcome = (task: RunnerTask, runnerSkipped: boolean): string => {
+  const state = task.result?.state
+    ?? (task.mode === 'todo' || task.mode === 'skip' ? task.mode : 'missing');
+  return state === 'skip' && runnerSkipped ? 'missing' : state;
+};
 
 /**
  * @param runnerSkipped Whether the runner may have skipped a test the file did

@@ -85,13 +85,14 @@ describe('which of the two complete writers this checkout drives', () => {
     expect(typeof seam['onTestRunEnd']).toBe('function');
   });
 
-  it('settles the run from the task tree, and leaves the reported modules undriven', async () => {
-    // What the fakes in `vitest.test.ts` cannot say. Vitest 2.1.9 — the version
-    // this repository installs — announces a task tree to `onFinished`, so every
-    // run here exercises `taskComplete` and nothing exercises `reportedComplete`;
-    // Vitest 3 calls both and Vitest 4 only the second, and under 3 the reported
-    // reading is the one that lands, because the snapshot is written once by
-    // whichever hook arrives first.
+  it('settles the run from the reported modules, and leaves the task tree undriven', async () => {
+    // What the fakes in `vitest.test.ts` cannot say. Vitest 5 — the version
+    // this repository installs — announces reported modules to `onTestRunEnd`
+    // and never calls `onFinished`, so every run here exercises
+    // `reportedComplete` and nothing exercises `taskComplete`, the reading
+    // Vitest 2 drives; Vitest 3 calls both, and the reported reading is the one
+    // that lands, because the snapshot is written once by whichever hook
+    // arrives first.
     //
     // So this is a marker rather than a preference. When a bump makes the other
     // writer live, this goes red at the line naming the hook, and the reader
@@ -116,7 +117,7 @@ describe('which of the two complete writers this checkout drives', () => {
       .filter((line) => line !== '')
       .map((line) => JSON.parse(line) as { hook: string; files: readonly string[] });
 
-    expect(called.map((entry) => entry.hook)).toEqual(['onFinished']);
+    expect(called.map((entry) => entry.hook)).toEqual(['onTestRunEnd']);
     expect(called[0]?.files).toEqual([resolve(fixture, 'test/hook.throws.ts')]);
 
     // And the verdict that hook wrote is the refusal, so the reading this run
