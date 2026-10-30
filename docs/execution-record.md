@@ -397,15 +397,22 @@ by the region's address because the digests catch a mispair. The case index
 holds no digest, so the only evidence it has of what an edit touched is the edit
 itself: the `git diff -U0` hunks between the text it was cut from and the text
 you recorded. A region the hunks leave alone keeps its cases, at the lines the
-hunks place it. A region they touch carries none, so its tests count as changed
-and selection runs them; the module and every region around an edited one are
-touched with it. A region the edit wrote has no recorded cases of its own and
-takes those of the untouched region around it. Two regions that share a name,
+hunks place it. A region they touch takes the cases of the region with its
+address, and the module and every region around an edited one are touched with
+it. Those cases keep their crossing where the edit runs nothing differently in
+the region: at every region under an edit the selector reads as changing nothing
+that runs, and at the module's top level under an edit that changed only
+function bodies. Everywhere else they ran another text there, so the index keeps
+them as the region's `overwritten` cases: selection runs them for a change to
+the region, and `covering` says which case ran it is not known, never that no
+case did. A region the edit wrote has no recorded cases of its own and takes
+those of the region around it, by the same rule. Two regions that share a name,
 such as two `useEffect(() => …)` callbacks, are told apart by where the text
 puts them, and never by their order or their name: delete the first, write a new
 one behind the second, and the cases of the old second stay with the body that
-survives. When either text cannot be found, the whole file counts as changed and
-selection widens to every case that touched it.
+survives. When either text cannot be found, every case the index held for the
+file is kept as `overwritten` on every region of it, so a change anywhere in the
+file runs every case that touched it.
 
 ### From a crossing back to a line
 

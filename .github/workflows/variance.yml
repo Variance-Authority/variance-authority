@@ -2,9 +2,8 @@ name: variance
 
 # Two things at once, and it is worth knowing which half you are reading.
 #
-# It is **an example workflow**, meant to be copied and edited rather than read as
-# the only way to wire this up. Everything in it that is a decision is commented
-# as one.
+# It is **this repository's own gate**, run through the action as it stands in
+# this checkout. Everything in it that is a decision is commented as one.
 #
 # It is also **the only thing in this repository that observes a subject**. Until
 # it did, every step here was skipped behind a check for a `variance.config.json`
@@ -18,8 +17,8 @@ name: variance
 # its catalog and component pages, since every markdown page excludes itself.
 #
 # The case is observed once more: `lfs` commits its baselines to the pull
-# request's branch through git-LFS. It runs the answer an adopter would copy, on
-# this repository's own pull requests, rather than on a fixture of one.
+# request's branch through git-LFS. It runs the arrangement an adopter would
+# choose, on this repository's own pull requests, rather than on a fixture of one.
 #
 # ## Where the baselines come from, since nothing here is committed
 #

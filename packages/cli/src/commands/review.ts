@@ -25,12 +25,14 @@ import {
   changedLines,
   readCommitRuns,
   readJourneyChange,
+  whatLanded,
   type CasePrecondition,
   type CommitRuns,
   type ExecutionIndex,
   type FileReading,
   type LineRange,
   type Misuse,
+  type WhatLanded,
 } from '@variance-authority/sense/test-selection';
 import { affectedBy, type EdgeKind } from '@variance-authority/core/relate';
 import { OperatorError } from '../exit.js';
@@ -52,29 +54,23 @@ import { runsBase } from './runs-base.js';
 import { sourceGraphFor } from './source-graph.js';
 import type { ReviewCoverage } from './review-coverage.js';
 /**
- * How a changed region was reached, first match wins.
- *
- * - `near`: a case from a test file that imports this file, or whose own
- *   source this file is, called into it.
- * - `far`: cases called into it, and every one of them came through another
- *   module.
- * - `unplaced`: cases called into it, none from a near test, and at least one
- *   from a test the import graph does not hold, so its distance was not measured.
- * - `loaded`: it ran only while its module was evaluated.
- * - `hole`: nothing entered it, and a case that could have stopped first.
- * - `unwalked`: nothing entered it, and every case that could have finished.
- * - `unknown`: the record cannot tell `hole` from `unwalked`.
- */
-/**
  * The edges a changed package's importers are walked through. Who imports the changed code is a question about
  * source, so a package importing only a type reads the change too; one that only reads the file, as a stylesheet or a
  * `/// <depends>` does, imports nothing.
  */
 const IMPORT_EDGES: readonly EdgeKind[] = ['imports', 'reexports', 'dynamic', 'type'];
 
-export type Reach = 'near' | 'far' | 'unplaced' | 'loaded' | 'hole' | 'unwalked' | 'unknown';
+/**
+ * How a changed region was reached, first match wins: `near` when a case from a
+ * test file importing the file, or whose source it is, called into it, `far`
+ * when every one came through another module, and `unplaced` when one came
+ * from a test the import graph does not hold. The rest are the record's own
+ * `Reach` (`@variance-authority/sense/test-selection`) of a region no case
+ * called into.
+ */
+export type Reach = 'near' | 'far' | 'unplaced' | 'loaded' | 'overwritten' | 'hole' | 'unwalked' | 'unknown';
 
-export const REACHES: readonly Reach[] = ['near', 'far', 'unplaced', 'loaded', 'hole', 'unwalked', 'unknown'];
+export const REACHES: readonly Reach[] = ['near', 'far', 'unplaced', 'loaded', 'overwritten', 'hole', 'unwalked', 'unknown'];
 
 export interface ReviewRegion {
   readonly kind: string;
@@ -153,6 +149,8 @@ export interface ChangedPackage {
   readonly reaches: Partial<Record<Reach, number>>;
   /** How many of those functions hold changed code no case ran: the ones no case entered, and the ones a case entered that left a branch in them unrun. */
   readonly uncovered: number;
+  /** How many of the rest hold changed code no case is known to have run, a case having run it in a text an edit wrote over; absent, not none, from a review.json written by a build that did not count them. */
+  readonly overwritten?: number;
   /** Whether a test file in its own directory entered them. */
   readonly own: boolean;
   /** The other packages whose test files entered them, by name, in code-unit order. */
@@ -220,8 +218,8 @@ export interface Review {
     /** Why the cases it published were not compared with, when it published cases that do not read. */
     readonly casesUnread?: string;
   };
-  /** The runs recorded at this commit, when they listed themselves, less `test:since`'s `standing`. */
-  readonly runs?: Omit<CommitRuns, 'standing'>;
+  /** The runs recorded at this commit, when they listed themselves. */
+  readonly runs?: ReviewRuns;
   readonly files: readonly ReviewFile[];
   /** The packages holding changed functions, by directory. Absent when no changed function was located. */
   readonly changedPackages?: readonly ChangedPackage[];
@@ -238,6 +236,9 @@ export interface Review {
   /** Why no case is said to have moved, when the runs record could not be read and `--since` named the base. */
   readonly runsUnread?: string;
 }
+
+/** The runs at this commit as a review reports them: where and when they ran, how many, and what their landings say together. */
+export interface ReviewRuns extends Pick<CommitRuns, 'commit' | 'over' | 'latest' | 'runs'>, WhatLanded {}
 
 /** `motion: false` leaves out the cases moved against the base, for a reading made before CI that reports none. */
 export async function review(request: ParsedReview, { motion: moves = true } = {}): Promise<Review> {
@@ -364,7 +365,7 @@ export async function review(request: ParsedReview, { motion: moves = true } = {
     record,
     base: request.since !== undefined ? 'since' : mainline === undefined ? 'recording' : 'mainline',
     ...(mainline === undefined ? {} : { mainline: mainlineOf(mainline) }),
-    ...(runs === undefined ? {} : { runs: Object.fromEntries(Object.entries(runs).filter(([key]) => key !== 'standing')) as Omit<CommitRuns, 'standing'> }),
+    ...(runs === undefined ? {} : { runs: reviewRuns(runs) }),
     files,
     ...(changedPackages.length === 0 ? {} : { changedPackages }),
     ...(suite === undefined ? {} : {
@@ -377,6 +378,11 @@ export async function review(request: ParsedReview, { motion: moves = true } = {
     ...(gap === undefined ? {} : { probes: probesNote(gap) }),
     ...(unread === undefined ? {} : { runsUnread: runsUnreadNote(unread, against !== undefined) }),
   };
+}
+
+/** `runs` as a review reports it: no `standing`, and its landings as what they say together. */
+function reviewRuns({ standing: _standing, landings, ...runs }: CommitRuns): ReviewRuns {
+  return { ...runs, ...whatLanded(landings) };
 }
 
 /** What an unreadable runs record leaves open beside an answer from a named base. */

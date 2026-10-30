@@ -34,6 +34,9 @@ pub(crate) struct ShardModule {
     pub inventory: usize,
     pub called: Vec<u32>,
     pub loaded: Vec<bool>,
+    /// Each region's overwritten set, empty where the shard has no
+    /// `journey_format::OVERWRITTEN` column.
+    pub overwritten: Vec<u32>,
 }
 
 /// One way a file was cut, with the owners that cut named where known.
@@ -120,12 +123,15 @@ pub(crate) fn read_shard(bytes: &[u8], inventories: &mut HashMap<String, Vec<Inv
     let sources = decoded.held("blocks.source")?;
     // A shard written before regions named their owners has no owner column.
     let owners = optional_words(journey_format::OWNER)?;
+    // A shard no layering cut to another text holds no overwritten column.
+    let overwritten = optional_words(journey_format::OVERWRITTEN)?;
     if module_blocks.len() != module_files.len() + 1 || called.len() != loaded.len() {
         return Err("module columns disagree".to_owned());
     }
     if [block_names.len(), paths.len(), starts.len(), ends.len(), sources.len(), called.len()]
         .into_iter()
         .chain(owners.as_ref().map(Vec::len))
+        .chain(overwritten.as_ref().map(Vec::len))
         .any(|length| length != kinds.len())
     {
         return Err("block columns disagree".to_owned());
@@ -155,6 +161,7 @@ pub(crate) fn read_shard(bytes: &[u8], inventories: &mut HashMap<String, Vec<Inv
             inventory,
             called: called[first..last].to_vec(),
             loaded: loaded[first..last].to_vec(),
+            overwritten: overwritten.as_ref().map_or_else(Vec::new, |column| column[first..last].to_vec()),
         });
     }
     Ok(Shard {

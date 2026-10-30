@@ -87,6 +87,27 @@ its interesting move is not selection. It **schedules** by a cost/benefit model,
 and it carries a per-target flakiness rate as a property of the test rather than
 of the run — which is what [`history.md`](../history.md) does per subject.
 
+### Safety, and the world it assumes
+
+**Rothermel and Harrold** (*Analyzing Regression Test Selection Techniques*,
+TSE 1996) set the terms selectors are still judged by: inclusiveness,
+precision, efficiency and generality. A selector is **safe** when it keeps
+every test whose outcome a change could alter, and safe only under assumptions
+it states. **Legunsen et al.** (FSE 2016) ran static selection against Ekstazi
+and found it unsafe on real projects, with reflection as the main cause; **Shi
+et al.** (OOPSLA 2019) followed with reflection-aware static selection. A breach of the stated assumption is a **safety violation**.
+
+**Livshits et al.** (*In Defense of Soundiness*, CACM 2015) gave the honest
+alternative for analyses that cannot be sound: name the language features they
+treat unsoundly instead of claiming soundness. **Reiter** (1978) named the
+assumption underneath both: under the **closed world** what is not recorded is
+false, under the open world it is unknown.
+
+**What it means here.**
+[Spec 0105](../specs/0105-a-suite-declares-whether-its-world-is-closed.md) makes
+the assumption a per-suite declaration. A closed suite fails on a safety
+violation; an open one reports where the record stops, the soundiness way.
+
 ### Dominators, and where a region begins
 
 The node every path to another node has to pass through is its **dominator**.
@@ -398,6 +419,27 @@ generated per task, and wired to code by coordinates. Codemaps' risk was cost
 per question; Compass's is staleness, which its own `growth-and-drift.md` says
 no structural comparison sees. The rule for both: **derive what an owner knows;
 declare only what no owner knows.**
+
+**TDAD** (Alonso, Yovine & Braberman, arXiv 2603.17973, 2026) measures what
+an agent should be told before it edits. Built from an AST code-to-test graph
+with weighted impact analysis, it hands the agent the tests a change is most
+likely to break, and the agent reads them with `grep` and runs them with
+`pytest`. In a 100-instance SWE-bench Verified experiment using a quantized
+Qwen3-Coder 30B, the test-first prompt produced a 9.94% test-level regression
+rate against 6.08% for the plain prompt. The increase was concentrated in
+catastrophic failures, a few patches that broke every test they were checked
+against, and the arms differed in more than the prompt: they ran one after
+another, and which skill file and test map the third arm used is not clear.
+The result does not establish that genuine test-first development increases
+regressions. The more defensible finding is that generic workflow instructions
+were not enough to prevent destructive patches, while targeted test-impact
+information was associated with much lower aggregate breakage, 1.82%, in this
+experiment. The samples are small, no significance test is run, a second model
+on 25 instances regressed nothing in either arm, and it is a preprint. Its map
+is static and file-level, and says nothing of when it was built; ours is
+recorded per case. For us, it means an answer names the facts and the
+questions they open, and a workflow instruction is no substitute for them
+([spec 0106](../specs/0106-a-need-names-its-next-move.md)).
 
 **Crossing facts about files** is a query language's job, and the field has
 two ends of it. Code search — Sourcegraph's `file:`, `content:` and

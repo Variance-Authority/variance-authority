@@ -151,10 +151,10 @@ async function askSuite(request: ParsedCovering, suite: DeclaredSuite, graph: Gr
  * every refusal is printed in full, since a wrong path is then the likely
  * cause. JSON carries every refusal whole either way. Under `refs` no gap is
  * said: the list is for a runner, and {@link answerGaps} hands the gaps to the
- * caller for the person.
+ * caller for the person. Each record is dated against `now`, in ms.
  */
-export function formatCoveringAnswer(answer: Covering | CoveringSuites, format: CoveringFormat): string {
-  if (!('suites' in answer)) return formatCovering(answer, format);
+export function formatCoveringAnswer(answer: Covering | CoveringSuites, format: CoveringFormat, now: number): string {
+  if (!('suites' in answer)) return formatCovering(answer, format, now);
   if (format === 'json') return `${JSON.stringify(answer, undefined, 2)}\n`;
 
   const named = (one: SuiteAnswer): string => `${one.suite} (${one.kind})`;
@@ -162,7 +162,7 @@ export function formatCoveringAnswer(answer: Covering | CoveringSuites, format: 
     const head = `${named(one)}:`;
     const gap = one.gap === undefined || format === 'refs' ? '' : `${evidenceGapText(one.gap).replace(/^/gmu, '  ')}\n`;
     if ('reason' in one) return `${head} ${one.reason}\n${gap}`;
-    const body = formatCovering(one, format);
+    const body = formatCovering(one, format, now);
     return `${head}\n${format === 'refs' ? body : body.replace(/^(?=.)/gmu, '  ')}`;
   };
   if (answer.suites.every((one) => 'reason' in one)) return answer.suites.map(say).join('\n');

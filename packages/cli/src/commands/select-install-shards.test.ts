@@ -7,6 +7,7 @@ import {
   landRun,
   readCommitRuns,
   testCoverageFile,
+  whatLanded,
   writeTestCoverage,
   type TestCoverage,
 } from '@variance-authority/sense/test-selection';
@@ -111,7 +112,7 @@ describe('the install a landing of shards ran on', () => {
       shards.push(empty);
     });
 
-    expect(await readCommitRuns(testCoverageFile(root))).toHaveProperty('installed');
+    expect(whatLanded((await readCommitRuns(testCoverageFile(root)))!.landings)).toHaveProperty('installed');
   });
 
   it('keeps no install, and compares from the commit, when the shards ran on two', async () => {

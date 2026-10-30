@@ -58,12 +58,12 @@ async function carry(dir: string, suite: string, runs: object): Promise<void> {
   await writeFile(join(dir, suite, 'coverage.runs.json'), JSON.stringify(runs));
 }
 
+const LANDED = '2026-10-06T00:00:00.000Z';
 const runsAt = (commit: string, standing: readonly string[] = []) => ({
   commit,
-  first: '2026-10-06T00:00:00.000Z',
-  latest: '2026-10-06T00:00:00.000Z',
+  latest: LANDED,
   runs: 1,
-  files: ['a.test.ts'],
+  landings: [{ files: ['a.test.ts'], first: LANDED, latest: LANDED, runs: 1 }],
   standing: standing.map((at) => ({ commit: at, files: ['b.test.ts'] })),
 });
 

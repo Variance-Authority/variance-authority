@@ -503,9 +503,10 @@ A record describes the commit it was recorded at. A change is measured from
 that commit rather than from your branch point, so a record several commits old
 selects for every change made since. Record a run of the whole suite at every
 commit and the record is never more than one commit old. A run of some of the
-tests also stamps the record with its commit, and the tests it left out keep
-the rows they recorded on an older text. Each of those is measured from the
-commit it last ran at: what changed after that commit is read from both texts,
+tests also stamps the record with its commit, and the test files it left out
+keep the rows they recorded on an older text, as do the cases it did not run of
+a test file it ran only in part. Each of those test files is measured from the
+commit a run last finished it at: what changed after that commit is read from both texts,
 the way a change in your tree is, so a test runs for an edit to a region it
 entered and not for one elsewhere in the same file. The install is compared from
 that commit too. A patch you hand in with `--diff` is read as the whole change

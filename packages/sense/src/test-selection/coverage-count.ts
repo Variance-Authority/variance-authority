@@ -70,10 +70,15 @@ export interface CoverageCount {
   readonly unjoined: number;
 }
 
-/** How a record's case calls stand for one region. */
+/**
+ * How a record's case calls stand for one region. A case that ran the region
+ * in another text (`overwritten`) is not known to run this one, so it counts
+ * as neither a run nor a load.
+ */
 export function regionRun(block: ExecutionBlock): RegionRun {
   let load = block.loaded === true;
   for (const crossing of block.crossings) {
+    if (crossing.overwritten === true) continue;
     if (crossing.loaded !== true) return 'run';
     load = true;
   }

@@ -1,9 +1,8 @@
 name: variance shards
 
-# The sharded recipe: split a suite across CI jobs, and answer about the suite.
+# The sharded gate: split a suite across CI jobs, and answer about the suite.
 #
-# An example workflow, meant to be copied and edited rather than read as the only
-# way to wire this up. Everything in it that is a decision is commented as one.
+# This repository's own. Everything in it that is a decision is commented as one.
 #
 # ## How the suite is split
 #

@@ -7,6 +7,7 @@ import { below, mergedDictionary } from './format-dictionary.js';
 import { NO_DURATION, NO_OWNER } from './format-layout.js';
 import { stringBound } from './lookup.js';
 import type { ExecutionTest } from './reverse.js';
+import { EMPTY } from './set-translation.js';
 
 /**
  * A case index a run is laid over, held as the columns it is stored in.
@@ -112,6 +113,8 @@ export interface CarriedModule {
   readonly row: number;
   readonly called: Uint32Array;
   readonly loaded: Uint8Array;
+  /** Its overwritten sets translated, where the index holds the column. */
+  readonly overwritten?: Uint32Array;
 }
 
 /** A module of a layer's output: a held one carried as integers, or one built as an object. */
@@ -213,11 +216,16 @@ export function writeLaid(
   // An owner is carried where either side recorded one; a region neither did names none.
   const owned = columns.blockOwner !== undefined || modules.some((module) => !('row' in module) && module.owner !== undefined);
   const blockOwner = owned ? new Uint32Array(blockCount).fill(NO_OWNER) : undefined;
+  // The output pool is a translation's, whose first set is the empty one.
+  const blockOverwritten = modules.some((module) => module.overwritten?.some((set) => set !== EMPTY) === true)
+    ? new Uint32Array(blockCount).fill(EMPTY)
+    : undefined;
   let block = 0;
   for (const [at, module] of modules.entries()) {
     moduleBlocks[at] = block;
     blockCalled.set(module.called, block);
     blockLoaded.set(module.loaded, block);
+    if (module.overwritten !== undefined) blockOverwritten?.set(module.overwritten, block);
     if ('row' in module) {
       const first = columns.moduleBlocks[module.row]!;
       if (columns.blockOwner !== undefined) blockOwner?.set(columns.blockOwner.subarray(first, columns.moduleBlocks[module.row + 1]!), block);
@@ -252,7 +260,7 @@ export function writeLaid(
     testId, testFile, testName, testStopped, testDuration,
     testSaid: tests.map((test) => (typeof test === 'number' ? columns.testSaid?.[test] : test.said)),
     moduleFile, moduleBlocks,
-    blockKind, blockName, blockPath, blockStart, blockEnd, blockSource, blockCalled, blockLoaded, blockOwner,
+    blockKind, blockName, blockPath, blockStart, blockEnd, blockSource, blockCalled, blockLoaded, blockOwner, blockOverwritten,
     testLines: lines,
   }, sets);
 }

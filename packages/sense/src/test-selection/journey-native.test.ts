@@ -398,4 +398,40 @@ describe('projecting a journey file onto a change', () => {
 
     expect(projected?.index.tests.map(rowOf)).toEqual([[network], [], undefined]);
   });
+
+  describe('a region whose case ran another text', () => {
+    // `b` ran `sum` at the text it was measured in; the record was cut to a
+    // text an edit wrote over it, so its case there is overwritten, not called.
+    const sets = new CrossingSets(2);
+    const file = join(mkdtempSync(join(tmpdir(), 'journey-native-')), 'journeys.bin');
+    writeFileSync(file, encodeSetExecutionIndex({
+      tests: [{ id: 'a > a', file: 'test/a.test.ts', name: 'a' }, { id: 'b > b', file: 'test/b.test.ts', name: 'b' }],
+      modules: [{
+        file: 'src/math.ts',
+        blocks: [region('module', '', 1, 10), region('function', 'double', 1, 3), region('function', 'sum', 6, 10)],
+        called: Uint32Array.of(sets.intern([0, 1]), sets.intern([0]), sets.intern([])),
+        loaded: Uint8Array.of(0, 0, 0),
+        overwritten: Uint32Array.of(sets.intern([]), sets.intern([]), sets.intern([1])),
+      }],
+      sets: sets.pool(),
+    }));
+    const index = decodeExecutionIndex(readFileSync(file));
+
+    it('carries the overwritten case as the decoder does, on every region the change overlaps', async () => {
+      for (const changed of [lines(8), lines(2), []]) {
+        const projected = await projectJourneyFile(file, new Map([['src/math.ts', changed]]));
+        const overlaps = (block: { readonly startLine: number; readonly endLine: number }) =>
+          changed.length === 0 || changed.some((range) => block.startLine <= range.end && range.start <= block.endLine);
+        expect(projected?.index.modules[0]?.blocks.map((block) => block.crossings))
+          .toEqual(index.modules[0]!.blocks.map((block) => (overlaps(block) ? block.crossings : [])));
+      }
+    });
+
+    it('selects the overwritten case as narrowByJourneys does', async () => {
+      const changed = new Map([['src/math.ts', lines(8)]]);
+      const selected = await selectJourneyFile(file, changed);
+      expect(selected).toEqual(narrowByJourneys(index, changed));
+      expect(selected?.entered).toEqual(['test/b.test.ts']);
+    });
+  });
 });
