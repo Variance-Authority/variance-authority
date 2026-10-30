@@ -35,6 +35,7 @@ export interface HeldNames {
   readonly digest: string | undefined;
 }
 
+// FIXME: `covering` still passes the held text in hand and names it by hashing it; it names it by the source index's blob, as `coverage` does, once it reads the index.
 /** The held text, in hand or by {@link HeldNames}: names when a reader has them, the text when it must. */
 export type Held = string | HeldNames;
 
