@@ -1841,7 +1841,8 @@ A factory loading `./other` instead subtracts `./api` and adds `./other`.
 
 A `requireActual` or `importActual` outside a mock factory is an independent
 real load, including inside `beforeEach`, and adds its module without shadowing
-it. A factory taking `importOriginal`, an opaque factory, and a spy mock leave
+it. A factory that refers to the loader vitest passes as its first argument,
+whatever the parameter is named, an opaque factory, and a spy mock leave
 existing imports unchanged. `doMock` does not shadow static imports that ran
 before it. Nonliteral mock targets cannot be resolved and leave existing edges
 unchanged. Pass `callers` to name other mocking objects and `files` to widen
