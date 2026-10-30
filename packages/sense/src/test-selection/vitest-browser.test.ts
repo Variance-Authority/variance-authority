@@ -224,8 +224,12 @@ describe('a case that runs in a page, when stories are asked', () => {
     try {
       // Built: what the page is sent, and what writes the story, read their tap and format from the build.
       const built = (await import('../../dist/test-selection/vitest.js')) as typeof import('./vitest.js');
-      const { plugin, reporter, setup } = seam(root, true, built.withTestSelection);
+      // Vitest loads the configuration twice in one process, the second time for
+      // the browser server, and the run the first load made is the second's.
+      const first = seam(root, true, built.withTestSelection);
       const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      await first.plugin.config({ test: { browser: { enabled: true } } });
+      const { plugin, reporter, setup } = seam(root, true, built.withTestSelection);
       await plugin.config({ test: { browser: { enabled: true } } });
       warn.mockRestore();
       const instrumented = plugin.transform.handler(PRICE, await held(root, 'src/price.ts', PRICE))!.code;
