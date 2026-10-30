@@ -127,12 +127,13 @@ export function* joinedRegions(blocks: readonly ExecutionBlock[]): Generator<rea
  */
 function textRun(index: ExecutionIndex, file: string, block: ExecutionBlock, textOf: NonNullable<CountedSuite['textOf']>): RegionText {
   let unknown: RegionText | undefined;
-  const asked = new Set<string>();
+  // Made at the first test file that does not vouch, so a region run over this text allocates nothing.
+  let asked: Set<string> | undefined;
   for (const crossing of block.crossings) {
     if (crossing.overwritten === true || crossing.loaded === true) continue;
     const test = index.tests[crossing.test]!.file;
-    if (asked.has(test)) continue;
-    asked.add(test);
+    if (asked?.has(test) === true) continue;
+    (asked ??= new Set()).add(test);
     const text = textOf(file, block, test);
     if (text === 'this') return text;
     if (text !== 'older') unknown ??= text;
@@ -140,12 +141,19 @@ function textRun(index: ExecutionIndex, file: string, block: ExecutionBlock, tex
   return unknown ?? 'older';
 }
 
-/** The fold of {@link textRun} across suites: the same precedence. */
-function joinText(texts: readonly (RegionText | undefined)[]): RegionText {
+/**
+ * The fold of {@link textRun} across the suites that ran a region, by the same
+ * precedence. `texts` holds only the answers that are not this text, so a suite
+ * that ran the region and holds none vouches for it.
+ */
+function joinText(runs: readonly (RegionRun | undefined)[], texts: readonly (RegionText | undefined)[] | undefined): RegionText {
+  if (texts === undefined) return 'this';
   let unknown: RegionText | undefined;
-  for (const text of texts) {
-    if (text === 'this') return text;
-    if (text !== undefined && text !== 'older') unknown ??= text;
+  for (let at = 0; at < runs.length; at += 1) {
+    if (runs[at] !== 'run') continue;
+    const text = texts[at];
+    if (text === undefined) return 'this';
+    if (text !== 'older') unknown ??= text;
   }
   return unknown ?? 'older';
 }
@@ -154,8 +162,8 @@ function joinText(texts: readonly (RegionText | undefined)[]): RegionText {
 export function countCoverage(suites: readonly CountedSuite[]): CoverageCount {
   // file → address and kind → what each suite that holds the region did there.
   const joined = new Map<string, Map<string, (RegionRun | undefined)[]>>();
-  // The same key → the text each suite that ran the region ran it over.
-  const texts = new Map<string, (RegionText | undefined)[]>();
+  // A region's runs → the text each suite that ran it ran it over, held only where that is not this text.
+  const texts = new Map<readonly (RegionRun | undefined)[], (RegionText | undefined)[]>();
   const loadedBy = new Map<string, Set<number>>();
   const own = suites.map(() => ({ run: 0, load: 0, regions: 0, older: 0, notKnown: 0 }));
   const parted = suites.some((suite) => suite.textOf !== undefined);
@@ -179,10 +187,9 @@ export function countCoverage(suites: readonly CountedSuite[]): CoverageCount {
           const text = suite.textOf === undefined ? 'this' : textRun(suite.index, module.file, block, suite.textOf);
           if (text === 'older') own[at]!.older += 1;
           else if (text !== 'this') own[at]!.notKnown += 1;
-          if (parted) {
-            const id = `${module.file}\0${key}`;
-            let ran = texts.get(id);
-            if (ran === undefined) texts.set(id, (ran = Array.from<RegionText | undefined>({ length: suites.length })));
+          if (text !== 'this') {
+            let ran = texts.get(runs);
+            if (ran === undefined) texts.set(runs, (ran = Array.from<RegionText | undefined>({ length: suites.length })));
             ran[at] = text;
           }
         } else if (run === 'load') own[at]!.load += 1;
@@ -203,7 +210,7 @@ export function countCoverage(suites: readonly CountedSuite[]): CoverageCount {
   const why = new Set<string>();
   for (const [file, held] of joined) {
     const holders = loadedBy.get(file)!;
-    for (const [key, runs] of held) {
+    for (const runs of held.values()) {
       regions += 1;
       if (holders.size > 1 && [...holders].some((at) => runs[at] === undefined)) unjoined += 1;
       const kinds = new Set<SuiteKind>();
@@ -217,7 +224,7 @@ export function countCoverage(suites: readonly CountedSuite[]): CoverageCount {
       });
       if (ran) {
         run += 1;
-        const text = parted ? joinText(texts.get(`${file}\0${key}`)!) : 'this';
+        const text = joinText(runs, texts.get(runs));
         if (text === 'older') older += 1;
         else if (text !== 'this') {
           notKnown += 1;

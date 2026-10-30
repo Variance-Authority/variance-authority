@@ -113,21 +113,32 @@ async function readTexts(
   });
   const edits = editsBetween(root, undefined, [recorded, ...places.flatMap((place) => place.commit ?? [])]);
   const chains = new Map<string, readonly Edit[] | RegionText>();
+  const ran = new Map<string, ReturnType<typeof ranOver>>();
+  // A text is digested once, however many regions and runs ask over it.
+  const digests = new Map<string, string>();
+  const digestOf = (text: string): string => {
+    let digest = digests.get(text);
+    if (digest === undefined) digests.set(text, (digest = digestString(text)));
+    return digest;
+  };
   return (file, place, test, region) => {
     const now = held.get(file);
     // The file is gone from the checkout, so no region of it is this text's.
     if (now === undefined) return 'older';
     const row = rows.get(file);
     if (typeof row !== 'string') return row ?? { unknown: `the record holds no digest of the text of ${file} its regions were cut from` };
-    const over = ranOver(place, test, file, now, evidence, false);
+    // Which text a test file's run ran over is the file's, not the region's: asked once per pair.
+    const pair = `${file}\0${test}`;
+    let over = ran.get(pair);
+    if (over === undefined) ran.set(pair, (over = ranOver(place, test, file, now, evidence, false)));
     if (over === 'absent') return 'older';
     if (typeof over === 'object' && 'unknown' in over) return over;
     if (typeof over === 'object' && over.text === undefined) return { unknown: `the text of ${file} that run ran over is neither kept nor committed` };
-    const ran = over === 'held' ? digestString(now) : digestString(over.text!);
-    const key = `${file}\0${ran}`;
+    const from = digestOf(over === 'held' ? now : over.text!);
+    const key = `${file}\0${from}`;
     let chain = chains.get(key);
     if (chain === undefined) {
-      const along = [edits(file, row, ran), edits(file, ran, digestString(now))];
+      const along = [edits(file, row, from), edits(file, from, digestOf(now))];
       chain = along.every((edit) => edit !== undefined)
         ? along as readonly Edit[]
         : { unknown: `a text of ${file} the record or a run names cannot be found` };
