@@ -1,27 +1,12 @@
 /**
- * The route one case took through the code.
- *
- * `covering` answers *which tests went here*; this answers the question from
- * the other end, for one test: *where does this case go, and in what order*.
- * It reads a story, which a run writes under `VARIANCE_AUTHORITY_STORY=1`, and
- * prints it as a route through declarations — the functions, handlers and top
- * levels the case passed through, a loop drawn once with how many times it went
- * round, modules loaded along the way named as one stop, and at each stop the
- * arms and loop bodies it went into.
- *
- * How much of it is shown is picked from how much there is: `story-levels.ts`
- * draws the part asked for from its packages down to every step and reads the
- * finest that fits. A long route is narrowed a part at a time — the steps
- * through one package or file, or around one step — and `story-view.ts` says
- * why a step number, and not a caller, is what joins the parts.
- *
- * A case keeps its last readings, and `--compare` sets them against each
- * other; several `--name` set cases against each other the same way:
- * `story-compare.ts` says what that answers and what it leaves out.
- *
- * Who runs the case is not this command's business. Any runner with the seam
- * installed writes a story for every case it runs under the variable, and
- * narrowing the run is the runner's own flag.
+ * The route one case took through the code, for one test: *where does this case
+ * go, and in what order* — `covering` asks the other way round. It reads the
+ * story a run writes under `VARIANCE_AUTHORITY_STORY=1` and prints a route
+ * through declarations, drawn at the finest level that fits (`story-levels.ts`)
+ * and narrowed a part at a time (`story-view.ts`). `--compare` sets readings
+ * against each other (`story-compare.ts`), or, with no story taped, the
+ * record's (`story-outcomes.ts`). Which runner writes the story is not its
+ * business: any runner with the seam installed does.
  */
 
 import {
@@ -40,6 +25,7 @@ import { packageName, packageOf } from '../package-home.js';
 import type { ParsedStory, StoryZoom } from '../story-args.js';
 import { BUDGET, drawings, pick, type Drawing, type FileSteps, type PackageVisits, type Through } from './story-levels.js';
 import { compareCases, compareStory, formatComparison, labelled, listed, type ComparedCase } from './story-compare.js';
+import { formatOutcomes, recordedOutcomes, type RecordedOutcomes } from './story-outcomes.js';
 import { caseOf, storiesText } from './story-list.js';
 import { armTree } from './story-tree.js';
 import { numbered, through, window, type FileVisits, type Gap, type Line } from './story-view.js';
@@ -61,6 +47,7 @@ export type StoryAnswer =
     };
   }
   | { readonly comparison: Comparison; readonly cases?: readonly ComparedCase[] }
+  | RecordedOutcomes
   | { readonly stories: readonly StoryEntry[] };
 
 /** The story the flags name, read as a route; every candidate when they name several. */
@@ -68,12 +55,14 @@ export function story(parsed: ParsedStory): StoryAnswer {
   const file = parsed.file === undefined ? undefined : checkoutFile(parsed.root, parsed.file);
   const zoom = parsed.zoom !== undefined && 'in' in parsed.zoom ? { in: checkoutFile(parsed.root, parsed.zoom.in) } : parsed.zoom;
   const all = listStories(parsed.root);
+  const { compare } = parsed;
+  const recorded = compare === 'outcome' ? recordedOutcomes(parsed.root, all, parsed.name, file) : undefined;
+  if (recorded !== undefined) return recorded;
   if (all.length === 0) {
     throw new OperatorError(
       `no story in this checkout: run the test you are looking into with ${STORY_VARIABLE}=1, named by its file and the runner's own test-name filter, since every test the run runs writes one`,
     );
   }
-  const { compare } = parsed;
   if (typeof compare === 'object' && 'cases' in compare) {
     return compareCases(parsed.root, all, compare.cases, { file, project: parsed.project, label: parsed.label });
   }
@@ -149,6 +138,7 @@ const AROUND = 3;
 
 export function formatStory(answer: StoryAnswer, format: 'text' | 'json'): string {
   if ('comparison' in answer) return formatComparison(answer.comparison, format, answer.cases);
+  if ('outcomes' in answer) return formatOutcomes(answer.outcomes, format);
   if ('stories' in answer) return storiesText(answer.stories, format);
   const { route } = answer;
   const packages = answer.packages ?? {};

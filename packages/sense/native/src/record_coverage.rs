@@ -58,6 +58,7 @@ pub(crate) struct Parts {
     pub before: Option<Vec<u8>>,
     pub last: Option<Vec<u8>>,
     pub eyes: Option<Vec<u8>>,
+    pub readings: Option<Vec<u8>>,
     /// The record the run started from (`record_start::base`).
     pub base: Option<Vec<u8>>,
 }
@@ -85,7 +86,7 @@ pub(crate) fn read(bytes: &[u8]) -> Result<Record, String> {
         }
         decoded.take_bytes(name).map(Some)
     };
-    let parts = Parts { index: part("index")?, before: part("before")?, last: part("last")?, eyes: part("eyes")?, base: part("base")? };
+    let parts = Parts { index: part("index")?, before: part("before")?, last: part("last")?, eyes: part("eyes")?, readings: part("readings")?, base: part("base")? };
     let coverage = if layout.sections.iter().any(|name| decoded.has(name)) { Some(coverage(decoded, version)?) } else { None };
     Ok(Record { coverage, parts })
 }
