@@ -66,7 +66,8 @@ describe('layReadings', () => {
     expect(readingsOf(section, index, ID)).toEqual([
       { count: 3, stopped: false, regions: [['src/page.ts', 'wire', 'wire', 1, 1, lineValue(2, false)]] },
     ]);
-    expect(JSON.parse(section!.toString('utf8'))).toEqual({ [ID]: { modules: ['src/page.ts'], readings: [{ count: 3, stopped: false }] } });
+    // A case whose one reading the index holds costs its count, in its row's place.
+    expect(JSON.parse(section!.toString('utf8'))).toEqual({ counts: [3] });
   });
 
   it('drops the oldest distinct reading past the bound', () => {
@@ -89,7 +90,7 @@ describe('layReadings', () => {
     const landed = run(false, { handle: 4 }, ['b.test.ts > other']);
 
     expect(layReadings(section, index, other, landed, new Set([ID, 'b.test.ts > other']), (file) => file !== 'src/page.ts')).toBeUndefined();
-    expect(layReadings(section, index, other, landed, new Set([ID, 'b.test.ts > other']), unchanged)).toEqual(section);
+    expect(layReadings(section, index, other, landed, new Set([ID, 'b.test.ts > other']), unchanged)?.toString()).toEqual(section?.toString());
   });
 
   it('keeps the newest reading as it ran where the landed index holds the case laid over the one before', () => {
