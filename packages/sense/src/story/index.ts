@@ -9,3 +9,4 @@ export { askedForStories, storyDirectories, storyDirectory, STORY_VARIABLE } fro
 export { foldSteps, PERIOD, type Step } from './fold.js';
 export { compareReadings, type Comparison, type Moment, type Only, type Order, type PlaceDifference, type Side, type SideSummary } from './compare.js';
 export { drawRoute, listStories, readRoute, type Arm, type Place, type Region, type Route, type Stop, type StoryEntry, type Untaken } from './read.js';
+export { pageStories, storyPageSource, PAGE_STORY, type PageStories, type PageStory, type StoryCase } from './page.js';

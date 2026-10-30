@@ -77,9 +77,9 @@
  *
  * ## Written to be sent as text
  *
- * {@link createTap} closes over everything it uses, like `createEngine`, so a
- * page collector can send its source across a bundler when a page carries
- * stories too.
+ * {@link createTap} closes over everything it uses but {@link NOTE_LIMIT} and
+ * {@link NOTE_LENGTH}, so a page that carries stories is sent its source with
+ * the two constants before it: see `story/page.ts`.
  */
 
 import util = require('node:util');
@@ -421,4 +421,4 @@ function tapOf(root: unknown): Tap | undefined {
   return (root as { [key: symbol]: Tap | undefined })[Symbol.for('variance-authority.story.tap')];
 }
 
-export = { createTap, tapOf, listen, TAPE_LIMIT, NOTE_LIMIT };
+export = { createTap, tapOf, listen, TAPE_LIMIT, NOTE_LIMIT, NOTE_LENGTH };

@@ -37,7 +37,8 @@ import {
   type PreconditionStanding,
 } from '@variance-authority/sense/journal';
 import { stitchJourneys } from '@variance-authority/sense/journey';
-import { repositoryRoot, type CoveragePrecondition } from '@variance-authority/sense/test-selection';
+import { askedForStories, pageStories, storyPageSource, type StoryCase } from '@variance-authority/sense/story';
+import { repositoryRoot, testCoverageFile, type CoveragePrecondition } from '@variance-authority/sense/test-selection';
 import type { Wire } from '@variance-authority/wire/listen';
 import { resolve } from 'node:path';
 import { absorb, accumulation, type Accumulated } from './accumulated.js';
@@ -66,6 +67,17 @@ export interface ExecutionRecorder {
    * ambient.
    */
   readonly note: (page: EvaluatingPage, owner: string, subject?: ObservedTest, line?: number) => Promise<void>;
+  /**
+   * The script that makes a page tape the case's story, where the run asked
+   * for stories under `VARIANCE_AUTHORITY_STORY`: put on a context before its
+   * pages load. Absent where it did not.
+   */
+  readonly storyPage?: string;
+  /**
+   * Say that what the case's pages do next is the statement at test line
+   * `line`; present beside {@link storyPage}.
+   */
+  readonly cut?: (owner: string, subject: ObservedTest, line: number) => void;
   /**
    * Mint this execution's journey and put it on the page's context.
    *
@@ -136,6 +148,8 @@ export function createExecutionRecorder(
   // What each case said it arranged, where a runner says where a call stands:
   // taken when the case is marked, which is after its `afterEach` ran.
   const listener = standing === undefined ? undefined : listenForPreconditions(root, standing);
+  const stories = storiesFor(start, root, recording);
+  const storyCase = (owner: string, subject: ObservedTest): StoryCase => ({ file: owner, ...subject });
   const heard = new Map<string, NonNullable<ObservedCase['said']>>();
   const owners = new Map<string, Accumulated>();
   // Kept beside the owners rather than derived from them: a case is a window
@@ -170,6 +184,12 @@ export function createExecutionRecorder(
 
   return {
     root,
+    ...(stories === undefined
+      ? {}
+      : {
+          storyPage: storyPageSource(),
+          cut: (owner: string, subject: ObservedTest, line: number) => stories.line(storyCase(owner, subject), line),
+        }),
     owner: (testInfo) => ownerOf(root, testInfo),
     arranged: (owner, subject) => listener?.held(caseKey(owner, subject.id)),
     eyes: (owner, subject, attempt, journal) => {
@@ -189,6 +209,7 @@ export function createExecutionRecorder(
       const held = caseOf(owner, subject);
       if (line !== undefined) reached.charge(caseKey(owner, subject.id), held, journal.modules, line);
       absorb(held, journal);
+      if (journal.story !== undefined) stories?.add(storyCase(owner, subject), journal.story);
     },
 
     join: async (page, owner, origin, subject) => {
@@ -224,6 +245,8 @@ export function createExecutionRecorder(
           caseOf(owner, subject);
         }
         stopped.set(key, stopped.get(key) === false ? false : !complete);
+        // One reading per attempt: a retry is a second run of the case.
+        stories?.write(storyCase(owner, subject), !complete);
         // A case that stopped before the page had anything to drain is still a
         // case, and the one a reader most needs to hear about.
         if (!complete) caseOf(owner, subject);
@@ -409,4 +432,23 @@ export function createExecutionRecorder(
       process.stderr.write(`variance-authority: recorded no test execution — ${record.because}\n`);
     }
   }
+}
+
+/**
+ * Where this worker writes its cases' stories, beside the record it writes,
+ * when the run asked for them. A record the configuration cannot place writes
+ * no story: the recording says why when it closes.
+ */
+function storiesFor(start: string, root: string, recording: ExecutionRecording) {
+  let recordFile: string;
+  try {
+    recordFile =
+      recording.coverageFile === undefined
+        ? testCoverageFile(root, { suite: recording.suite, cacheRoot: recording.cacheRoot })
+        : resolve(start, recording.coverageFile);
+  } catch {
+    return undefined;
+  }
+  const directory = askedForStories(recordFile);
+  return directory === undefined ? undefined : pageStories(directory);
 }

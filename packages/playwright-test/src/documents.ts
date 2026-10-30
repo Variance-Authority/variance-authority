@@ -56,6 +56,8 @@ export const varianceDocumentFixtures: Fixtures<
       return;
     }
     const owner = varianceRecorder.owner(testInfo);
+    // Before any page loads, so the collector a page evaluates finds the tape.
+    if (varianceRecorder.storyPage !== undefined) await context.addInitScript(varianceRecorder.storyPage);
     const documents = watchDocuments(context);
     const statements = drainEachStatement(context, varianceRecorder, owner, testInfo);
     await use(context);
@@ -64,6 +66,7 @@ export const varianceDocumentFixtures: Fixtures<
     // A page that held the statements' drain holds this one too, and the test's
     // timeout is all that would end it: the case is not believed whole instead.
     let lost = documents.lost() || stalled;
+    if (line !== undefined) varianceRecorder.cut?.(owner, testOf(testInfo), line);
     for (const page of stalled ? [] : context.pages()) {
       for (const frame of page.frames()) {
         try {
@@ -143,6 +146,7 @@ function drainEachStatement(
   let draining: Promise<void> = Promise.resolve();
 
   const drain = (line: number | undefined) => async () => {
+    if (line !== undefined && !late) recorder.cut?.(owner, subject, line);
     for (const page of context.pages()) {
       for (const frame of page.frames()) {
         try {
