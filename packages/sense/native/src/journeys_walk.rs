@@ -5,17 +5,17 @@
 //!   the callee ran;
 //! - static: the site is in the test, in an unrecorded file, or no recorded
 //!   region decides it — resolved, not seen;
-//! - inferred: no static target, so a member call matched by name to the one
-//!   entered function of that name, `new X` to X's constructor, a function written inside a value handed to a
-//!   call, a function a factory wrote, what a caller handed a parameter, or a
-//!   function no route reaches hung under the placed function it is written in;
+//! - inferred: no static target, so a function written inside a value handed
+//!   to a call, a function a factory wrote, what a caller handed a parameter,
+//!   or a function no route reaches hung under the placed function it is
+//!   written in. A call is never matched to a function by its name alone;
 //! - unrecorded: a function in a file the recording does not instrument, on the
 //!   route to an entered one;
 //! - test: a helper declared in the test file.
 //!
 //! A callee with several routes is placed on the one with the fewest guards,
-//! then the fewest hops, then the call found first. Nothing here says which route ran when the
-//! recording does not.
+//! then the fewest hops, then the call found first. Nothing here says which
+//! route ran when the recording does not.
 
 // compass: variance-authority.reach.relations
 

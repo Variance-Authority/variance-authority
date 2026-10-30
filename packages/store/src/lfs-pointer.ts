@@ -39,11 +39,7 @@ export function refuseAPointer(raster: Raster, what: string): void {
   if (raster.bytes === undefined) return;
   if (!isLfsPointer(Buffer.from(raster.bytes.slice(0, 60), 'base64'))) return;
 
-  throw new RasterStoreError(
-    `${what} is a git-LFS pointer, not an image. The file was checked out without ` +
-      'git-lfs installed, so the working tree holds the pointer text where the PNG ' +
-      `should be. ${FETCH}. ${REFUSAL}.`,
-  );
+  throw refused(what, 'an image', 'the PNG');
 }
 
 /**
@@ -58,9 +54,14 @@ export function refuseAPointer(raster: Raster, what: string): void {
 export function refuseAPointerRecord(text: string, path: string): void {
   if (!isLfsPointer(new TextEncoder().encode(text.slice(0, 64)))) return;
 
-  throw new RasterStoreError(
-    `${path} is a git-LFS pointer, not a baseline record. The file was checked out without ` +
-      'git-lfs installed, so the working tree holds the pointer text where the record ' +
+  throw refused(path, 'a baseline record', 'the record');
+}
+
+/** Why `what`, a pointer where `kind` should be, is refused, and how to fetch it. */
+function refused(what: string, kind: string, where: string): RasterStoreError {
+  return new RasterStoreError(
+    `${what} is a git-LFS pointer, not ${kind}. The file was checked out without ` +
+      `git-lfs installed, so the working tree holds the pointer text where ${where} ` +
       `should be. ${FETCH}. ${REFUSAL}.`,
   );
 }

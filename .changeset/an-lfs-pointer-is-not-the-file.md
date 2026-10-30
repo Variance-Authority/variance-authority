@@ -1,6 +1,6 @@
 ---
-'@variance-authority/core': patch
-'@variance-authority/store': patch
+'@variance-authority/core': minor
+'@variance-authority/store': minor
 '@variance-authority/sense': patch
 '@variance-authority/cli': patch
 ---
