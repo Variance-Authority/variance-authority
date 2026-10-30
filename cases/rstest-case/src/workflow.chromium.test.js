@@ -6,6 +6,7 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { chromium } from '@playwright/test';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
+import { unbuilt } from '../../unbuilt.mjs';
 
 /**
  * One runner, two adoptions, both driven by the real `rstest` CLI.
@@ -35,7 +36,7 @@ const READY = BROWSER_AVAILABLE && existsSync(CLI);
 const live = READY ? describe : describe.skip;
 
 if (!READY) {
-  console.warn(
+  unbuilt(
     '\ncases/rstest-case: skipped.' +
       (BROWSER_AVAILABLE ? '' : '\n  no browser — npx playwright install chromium') +
       (existsSync(CLI) ? '' : '\n  the CLI is not built — yarn build') +

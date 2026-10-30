@@ -4,6 +4,7 @@ import { extname, join, normalize } from 'node:path';
 import { chromium } from 'playwright';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { storybookCollector } from '@variance-authority/storybook-collector';
+import { unbuilt } from '../../unbuilt.mjs';
 
 /**
  * A story's `parameters.variance` is read when the story is reached, not before.
@@ -40,7 +41,7 @@ const BROWSER_AVAILABLE = (() => {
 const READY = existsSync(INDEX) && BROWSER_AVAILABLE;
 
 if (!READY) {
-  console.warn(
+  unbuilt(
     '\ncases/storybook-case (parameters): skipped.' +
       (BROWSER_AVAILABLE ? '' : '\n  no browser — npx playwright install chromium') +
       (existsSync(INDEX)
