@@ -237,5 +237,5 @@ not show, it names in the header:
 
 A story covers the test's own process under Vitest, Jest, Rstest and a runner
 recorded through `@variance-authority/sense/runner`, and the
-page under Playwright and Vitest and Rstest browser mode. Code the test calls in another
+page under Playwright, Storybook's collector and Vitest and Rstest browser mode. Code the test calls in another
 process, such as a server, is not on it.

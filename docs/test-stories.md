@@ -442,6 +442,10 @@ that recording set up first:
   [Playwright Test](../packages/playwright-test/README.md#record-what-each-spec-executed)
   sets it up, over an application whose build runs
   [`testSelectionProbes()`](../packages/sense/README.md#record-what-a-driven-page-executed).
+- **Storybook.** The collector's
+  [`tests` option](../packages/storybook-collector/README.md#skipping-stories-nothing-touched),
+  over a preview built with its addon. Each story is a case, named by its title
+  and name.
 - **Any other runner in Node**, such as `node:test` or Mocha, recorded through
   [`@variance-authority/sense/runner`](../packages/sense/README.md#record-a-runner-this-package-has-no-seam-for).
   A story holds what ran inside the case body handed to `case`, so run each hook
@@ -455,10 +459,12 @@ arguments, one test or one file:
 VARIANCE_AUTHORITY_STORY=1 yarn vitest run src/cart.test.ts -t "removes the last item"
 VARIANCE_AUTHORITY_STORY=1 yarn jest src/cart.test.ts -t "removes the last item"
 VARIANCE_AUTHORITY_STORY=1 yarn playwright test tests/cart.spec.ts -g "removes the last item"
+VARIANCE_AUTHORITY_STORY=1 npx variance run --subjects "story:cart--*"
 ```
 
-Under Playwright and the browser modes of Vitest and Rstest, the story is of the code the page ran,
-and each statement of the test opens what the page did next with its line.
+Under Playwright, Storybook and the browser modes of Vitest and Rstest, the
+story is of the code the page ran. Under Playwright and the browser modes, each
+statement of the test opens what the page did next with its line.
 
 - **Where stories are kept.** In [the cache](cache.md), under
   `coverage.stories/`. A story is removed 14 days after it was written, with
@@ -581,7 +587,7 @@ Take the `console.log` out before you change the code.
   which object, not what is in it. Print what you need from it and record
   again, or set a breakpoint at the line the story names.
 - **Other processes.** A story covers the test's own process, or under
-  Playwright and the browser modes of Vitest and Rstest, the page. Code the test calls in another
+  Playwright, Storybook and the browser modes of Vitest and Rstest, the page. Code the test calls in another
   process, such as a server, is not on it.
 - **Some pages.** Under Playwright, a page replaced before its statement
   ended loses what it ran since the statement before.
