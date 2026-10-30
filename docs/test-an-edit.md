@@ -195,7 +195,7 @@ in it is a script of ours:
 tsc --build && npx variance index && VARIANCE_AUTHORITY_SINCE= VARIANCE_AUTHORITY_AT_DISTANCE=0-1 npx vitest run
 ```
 
-The run counts import hops over the source index, and nothing in the run
+The run counts import hops over the [source index](source-index.md), and nothing in the run
 writes it. `variance index` brings it up to the text you have now, in a few
 hundred milliseconds when little changed. Without it, a file you added since
 the last index has no hops, and its tests wait for the leg that runs
