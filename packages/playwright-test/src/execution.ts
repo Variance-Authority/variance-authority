@@ -72,6 +72,8 @@ export interface ExecutionRecorder {
    * `line`, a hook's where `hook` says so; present beside {@link storyPage}.
    */
   readonly cut?: (owner: string, subject: ObservedTest, line: number, hook: boolean) => void;
+  /** Say what the case printed in the runner's own process, where the case is now; present beside {@link storyPage}. */
+  readonly say?: (owner: string, subject: ObservedTest, text: string) => void;
   /**
    * Mint this execution's journey and put it on the page's context.
    *
@@ -183,6 +185,7 @@ export function createExecutionRecorder(
       : {
           storyPage: storyPageSource(),
           cut: (owner: string, subject: ObservedTest, line: number, hook: boolean) => stories.line(storyCase(owner, subject), line, hook),
+          say: (owner: string, subject: ObservedTest, text: string) => stories.note(storyCase(owner, subject), text),
         }),
     owner: (testInfo) => ownerOf(root, testInfo),
     arranged: (owner, subject) => listener?.held(caseKey(owner, subject.id)),

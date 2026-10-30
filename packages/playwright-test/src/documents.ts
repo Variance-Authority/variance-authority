@@ -25,6 +25,7 @@ import type {
   Request,
   TestInfo,
 } from '@playwright/test';
+import { format } from 'node:util';
 import type { RecorderFixture } from './completed.js';
 import { testOf } from './execution.js';
 
@@ -243,6 +244,14 @@ function testDocuments(recorder: NonNullable<RecorderFixture['varianceRecorder']
   };
   if (outerRealm === undefined) realm.__VA__ = { c };
   else outerRealm.c = c;
+  const unheard = hearPrints(recorder, (text) => {
+    // Said under the statement printing it, after what the pages did before it.
+    const at = last;
+    draining = draining.then(() => {
+      open(at);
+      recorder.say?.(owner, subject, text);
+    });
+  });
 
   const settle = async (context: BrowserContext): Promise<void> => {
     const adoption = adopted.get(context);
@@ -283,6 +292,7 @@ function testDocuments(recorder: NonNullable<RecorderFixture['varianceRecorder']
     },
     settle,
     close: async () => {
+      unheard();
       if (outerRealm === undefined) delete realm.__VA__;
       else if (outer === undefined) delete outerRealm.c;
       else outerRealm.c = outer;
@@ -290,6 +300,32 @@ function testDocuments(recorder: NonNullable<RecorderFixture['varianceRecorder']
       closed = true;
       if (lost) recorder.mark(owner, false);
     },
+  };
+}
+
+const PRINTS = ['log', 'info', 'warn', 'error', 'debug'] as const;
+
+/**
+ * Hear what the spec prints in the runner's process, as a Node case's tap hears
+ * its console, while the run asks for stories; still printed. Returns what puts
+ * the console back.
+ */
+function hearPrints(recorder: NonNullable<RecorderFixture['varianceRecorder']>, heard: (text: string) => void): () => void {
+  if (recorder.say === undefined) return () => {};
+  const printer = console;
+  const originals = PRINTS.map((method) => [method, printer[method]] as const);
+  for (const [method, original] of originals) {
+    printer[method] = function (this: unknown, ...values: unknown[]): void {
+      try {
+        heard(`console.${method} ${format(...values)}`);
+      } catch {
+        // A value whose inspection throws is still printed below.
+      }
+      original.apply(this, values);
+    };
+  }
+  return () => {
+    for (const [method, original] of originals) printer[method] = original;
   };
 }
 

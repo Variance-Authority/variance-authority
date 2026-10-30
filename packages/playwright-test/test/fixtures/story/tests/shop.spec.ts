@@ -8,6 +8,7 @@ test('pays for what it chose', async ({ page }) => {
   await page.setContent(PAGE); // opens
   await page.evaluate(() => (globalThis as unknown as { shop: { open(): string } }).shop.open()); // looks
   await page.click('#choose'); // chooses
+  console.log('chose in the spec'); // says
   await page.click('#pay'); // pays
   expect(await page.title()).toBe(''); // checks
 });

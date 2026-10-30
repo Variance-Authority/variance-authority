@@ -135,6 +135,9 @@ describe.runIf(BROWSER_AVAILABLE)('a Playwright case run in a page', () => {
       'test line chooses',
       "handed item='tea'",
       'console.log chose tea',
+      // What the spec prints in Node is said where the spec was.
+      'test line says',
+      'console.log chose in the spec',
       'test line pays',
       'handed amount=20',
       'test line checks',

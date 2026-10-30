@@ -120,6 +120,8 @@ export interface PageStories {
   readonly line: (subject: StoryCase, line: number, hook?: boolean) => void;
   /** Lay a drain of one page at the end of the case's story. */
   readonly add: (subject: StoryCase, story: PageStory) => void;
+  /** Put what the case said in the runner's own process at the end of its story so far, bounded as a tap bounds a note. */
+  readonly note: (subject: StoryCase, text: string) => void;
   /** Write the case's story and forget it; a case that never drained writes none. */
   readonly write: (subject: StoryCase, stopped: boolean) => void;
 }
@@ -180,6 +182,15 @@ export function pageStories(directory: string): PageStories {
       for (const [id, text] of story.held) tape.held.set(id, text);
       tape.visits += story.visits - story.taped;
       tape.unnoted += story.unnoted;
+    },
+    note(subject, text) {
+      const tape = tapeOf(subject);
+      if (tape.notes.length >= storyTap.NOTE_LIMIT) {
+        tape.unnoted += 1;
+        return;
+      }
+      const line = text.length > storyTap.NOTE_LENGTH ? `${text.slice(0, storyTap.NOTE_LENGTH - 1)}…` : text;
+      tape.notes.push([tape.entries.length, line]);
     },
     write(subject, stopped) {
       const key = keyOf(subject);
