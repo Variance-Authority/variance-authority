@@ -1097,9 +1097,9 @@ jobs:
   cases:
     # The cases, run. `cases/*` drives real Storybooks, a real Playwright and a
     # real Rstest, and every file in it that needs a Chromium or a built subject
-    # announces a skip when it has neither. The `suite` job has the browser but
-    # builds no subject, so the cases that observe a built one skip there and
-    # run here.
+    # announces a skip when it has neither, and fails instead on CI. This job and
+    # every chromium leg of `suite` and `queue` build the subjects through
+    # `./.github/actions/case-subjects`.
     #
     # The pinned Playwright image is the one `variance.yml` observes in, for the
     # same reason: the browser and its fonts are part of what these cases assert.

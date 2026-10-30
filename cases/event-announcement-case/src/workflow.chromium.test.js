@@ -6,6 +6,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { chromium } from '@playwright/test';
 import { describe, expect, it } from 'vitest';
+import { unbuilt } from '../../unbuilt.mjs';
 
 const root = dirname(dirname(fileURLToPath(import.meta.url)));
 const cli = fileURLToPath(new URL('../../../node_modules/@playwright/test/cli.js', import.meta.url));
@@ -21,7 +22,7 @@ const BROWSER_AVAILABLE = (() => {
 const live = BROWSER_AVAILABLE ? describe : describe.skip;
 
 if (!BROWSER_AVAILABLE) {
-  console.warn(
+  unbuilt(
     '\ncases/event-announcement-case: skipped.' +
       '\n  no browser — npx playwright install chromium\n',
   );

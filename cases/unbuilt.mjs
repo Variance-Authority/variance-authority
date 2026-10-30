@@ -1,6 +1,8 @@
+import ciInfo from 'ci-info';
+
 /**
- * A case whose subject is missing: no browser, no Storybook build, no page
- * bundle, no incumbent run.
+ * A case whose subject is missing: no browser, no built CLI, no Storybook
+ * build, no page bundle, no incumbent run.
  *
  * On a developer's machine building the subject is theirs to do, so the case
  * skips and `message` says how to build it. On CI a missing subject is a
@@ -10,13 +12,13 @@
  * naming what to build.
  *
  * @param {string} message What is missing and the command that builds it.
- * @param {NodeJS.ProcessEnv} [env]
+ * @param {boolean} [ci] Whether this is a CI run, as `ci-info` decides.
  */
-export function unbuilt(message, env = process.env) {
-  if (!env.CI || env.CI === 'false') {
+export function unbuilt(message, ci = ciInfo.isCI) {
+  if (!ci) {
     console.warn(message);
     return;
   }
   const named = message.trim().replace(/: skipped\.$/m, ': not run.');
-  throw new Error(`${named}\n  CI runs this case rather than skip it: build what it names in this job, as \`./.github/actions/case-subjects\` builds the subjects.`);
+  throw new Error(`${named}\n  CI runs this case rather than skip it: provide what it names in this job, as \`./.github/actions/case-subjects\` builds the subjects.`);
 }

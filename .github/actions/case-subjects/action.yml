@@ -4,7 +4,8 @@ description: >-
   Storybook case's three builds and the incumbent's page bundle and run.
 
 # The chromium slice collects the cases' `*.chromium.test.*` files, so every job
-# that runs it takes this step: `cases`, and every chromium leg of `suite`. A
+# that runs it takes this step: `cases`, and every chromium leg of `suite` and
+# `queue`. A
 # case without its subject skips on a developer's machine and fails on CI, as
 # `cases/unbuilt.mjs` decides, because a file whose cases all skipped never ran
 # and the record `main` publishes is then not a whole run. Every output is

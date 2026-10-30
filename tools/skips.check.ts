@@ -2,7 +2,9 @@ import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+// @ts-expect-error — a plain .mjs module, deliberately not part of the TS build.
+import { unbuilt } from '../cases/unbuilt.mjs';
 
 /**
  * A suite that does not run says so, and says what would make it run.
@@ -135,5 +137,16 @@ describe('a suite that does not run says why', () => {
     // The shape that was here before: a skipped test whose *title* is the remedy.
     // It reads like an announcement in review and is invisible in the log.
     expect(placebo).toBe(false);
+  });
+
+  it('warns off CI and fails on CI, naming what is missing', () => {
+    const message = 'cases/x: no Storybook build: skipped.\n  yarn build-storybook';
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+
+    unbuilt(message, false);
+    expect(warn).toHaveBeenCalledWith(message);
+    warn.mockRestore();
+
+    expect(() => unbuilt(message, true)).toThrow(/^cases\/x: no Storybook build: not run\.\n {2}yarn build-storybook\n/);
   });
 });
