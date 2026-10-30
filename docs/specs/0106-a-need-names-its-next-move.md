@@ -77,6 +77,34 @@ controls and git's `hint:` lines do the same thing for other readers: the
 response names what can follow from it. The catalogue names what can be asked
 next, not what must be.
 
+## The phases of a change
+
+A change passes through nine phases, and the catalogue is grouped by them:
+
+1. **Explore**: find the code a task is in.
+2. **Understand**: know what it is, what rests on it, and what an edit to it
+   will run.
+3. **Write a test**: pin what should happen, failing first.
+4. **Write code**.
+5. **Verify**: run what the change reached.
+6. **Fix**: explain a red case.
+7. **Refactor**: make the code cheaper to change.
+8. **Ship**: put the change up for review.
+9. **Report and settle**: read what moved for users, and settle it.
+
+A phase is where a need arises, not a state the catalogue moves between, and
+the list is not an order: Fix follows Refactor as readily as Verify, a review
+enters at Ship and a red CI run at Fix. An agent enters at any phase. The
+catalogue orders nothing, as [Options, not a route](#options-not-a-route)
+holds.
+
+Verify's runner gives a verdict, red or green, and the agent reads it; it is
+not a move. Every move is an edge of the catalogue, opened by a field of an
+answer. An answer to a question asked of missing evidence is not a move
+either: a missing source index is answered with `variance index`, and a missing
+recording with a run under the collector. Each is an evidence gap, the same
+need asked again once its evidence exists.
+
 ## A move
 
 An edge names the entry it opens — the declared entry itself, never its need
@@ -182,33 +210,59 @@ writes a record or a file. Every other command only reads. A flag that changes
 how an answer is shown or where it is written, not what it answers, such as
 `story --around` or `review --out`, falls under its command's row.
 
-### Before the edit
+### Explore
 
 | Need | Command | Opens |
 |---|---|---|
 | find the code a task talks about | `ask search --query <words>`, `ask grep --query <words>`, `ask discover --text <pattern>`, each with `[--from <path>]` | know what a name is before touching it; find the part of the repository a task is in, with no word for it yet |
 | find the part of the repository a task is in, with no word for it yet | `ask orient`, `ask orient --area <id>`, `ask orient --files <path>` | find the code a task talks about; know what a package publishes and who takes it; know what a name is before touching it; know who breaks if it changes; run something that already exercises this code |
 | know what a package publishes and who takes it | `ask packages`, `ask entrypoint --package <name>` | know what a package publishes and who takes it; know what a name is before touching it; know who breaks if it changes |
+| find the files several questions agree on | `ask intersection '<question>' '<question>'`, `ask discover` with several filters | know what a name is before touching it |
+
+### Understand
+
+| Need | Command | Opens |
+|---|---|---|
 | know what a name is before touching it | `ask symbol --name <name> [--package <name>]` | know who breaks if it changes |
 | know who breaks if it changes | `ask uses --name <name> [--package <name>] [--file <path>]` | know who breaks if it changes; run something that already exercises this code; find the files that take a name from outside the workspace |
 | find the files that take a name from outside the workspace | `ask discover --imports <module#name>` | run something that already exercises this code |
 | know what rests on a file at any depth | `ask discover --to <path>` | run something that already exercises this code |
-| find the files several questions agree on | `ask intersection '<question>' '<question>'`, `ask discover` with several filters | know what a name is before touching it |
-| know what a file may already use, and how | `ask stack --from <path>` | — |
-| know whether an import I am about to write is allowed | `restrictions`, `layers` | — |
+| know how many test files an edit here runs, before making it | `covering --file <path> [--line <n>\|--function <f>]` | pin what a region does before changing it; make a file cheaper to change |
 | know how much of a part of the repository tests reach | `coverage --from <dir>`, `coverage --packages` | run something that already exercises this code |
 | run something that already exercises this code | `covering --file <path> [--function <f>]`, its MCP twin `variance_source_tests`, `ask journey-map --file <path>` | see what a test actually did here |
 | see what a test actually did here | `story --file <test> --name <case>`, `distill --test <id>`; over MCP `variance_distill`, `variance_test_attention`, `variance_scenarios`, `variance_presentations` | know what a test is made of; know what a name is before touching it |
 | know what a test is made of | `ask test-composition --file <test>` | run something that already exercises this code |
-| know why a case passes on one run and throws on another | `story --file <test> --name <case> --compare outcome` | know what a name is before touching it |
-| know what a case did differently from its last run, or from another case | `story --file <test> --name <case> --compare last`, `story … --compare <a>,<b>` | know what a name is before touching it |
-| know why a test fails | **gap** | — |
-| know how many tests an edit to a name would reach, before making it | **gap** | — |
+
+The edit's count is the record's: test files that called into the region,
+which is the least an edit to it runs, since the test files that only loaded
+the file run too. `covering --file` answers one file range by range, and
+each edge is a condition on it. A region whose `state` is `alone` opens pinning
+it before the edit. A file whose regions many test files called into opens
+making it cheaper to change, where `coverage --fan-in` ranks it against the
+whole suite.
+
+A story is read from a recording of the cases it names. Recording it is a
+focused run of them with `VARIANCE_AUTHORITY_STORY` set, an *operation*
+that costs per visit, so a story is never how a test is found.
+
+### Write a test
+
+| Need | Command | Opens |
+|---|---|---|
+| pin what a region does before changing it | `covering --file <path> --line <n>`, whose `state` says, among others, whether the region is `alone`, a `hole` or `unwalked` | know what a test is made of; run something that already exercises this code |
+
+### Write code
+
+| Need | Command | Opens |
+|---|---|---|
+| know what a file may already use, and how | `ask stack --from <path>` | — |
+| know whether an import I am about to write is allowed | `restrictions`, `layers` | — |
+| know which tests ran the line I am editing, in the text I have | `covering --file <path> --text <path>\|- [--line <n>]` | run something that already exercises this code |
 
 `ask stack` names the package's skill to read. A skill is a document, so it
 is a field of the answer, not a move.
 
-### After the edit
+### Verify
 
 The three questions about a change ask different things of different evidence,
 and none stands in for another:
@@ -216,16 +270,73 @@ and none stands in for another:
 | Need | Command | Opens |
 |---|---|---|
 | know which recorded tests my change lets me skip | `select --since <ref>` | know what my change reached that no test checks |
-| know whether my change needs a review, and of what | `review --since <ref>` | run something that already exercises this code |
 | know what my change could reach through the source graph | `reach --since <ref>` | know which recorded tests entered what my change touched |
 | know which recorded tests entered what my change touched | `covering --since <ref>`, its MCP twin `variance_changed_tests` over a diff | see what a test actually did here |
+| know whether a subject reads the same way twice | `run --flakes`, an *operation* | know the distinct changes behind what moved |
+
+`select` answers with a skip list, never a run list. A test the recording has
+never seen is absent from it and still runs, so a list of tests to re-run would
+drop exactly the tests nothing has recorded yet.
+
+### Fix
+
+| Need | Command | Opens |
+|---|---|---|
+| know what my change did to the cases, against the mainline's record | `covering --since <ref> --against <record> --format refs` | know which statement of a case first ran a region; know what a case did differently from its last run, or from another case |
+| know what my last change did to the cases, with no mainline record | `covering --file <path> --cases last --format refs` | know which statement of a case first ran a region; know what a case did differently from its last run, or from another case |
+| know which changed regions the red cases share | `covering --since <ref> --format refs` | know what my change did to the cases, against the mainline's record; know how many test files an edit here runs, before making it |
+| know which statement of a case first ran a region | **gap** | — |
+| know why a case passes on one run and throws on another | `story --file <test> --name <case> --compare outcome` | know what a name is before touching it |
+| know what a case did differently from its last run, or from another case | `story --file <test> --name <case> --compare last`, `story … --compare <a>,<b>` | know what a name is before touching it |
+| know why a test fails | **gap** | — |
+
+The cost of each gear is
+[FSD](../../packages/cli/skills/variance-authority/references/fsd.md)'s; here
+each edge's condition is a field of the comparison, which reads the record
+every run already keeps. A `lost` region opens the code the change took it
+from, and which statement of a case first ran it. A `hidden` region names the
+case that stopped before it, or says the record cannot say which; a named case
+opens what it did differently from its last run. A comparison refused as
+`undiffed` lacks the record's commit, and is the same need asked again once the
+commit is fetched; it is never *nothing moved*.
+
+A story is read from a recording of the cases it names, and recording it is a
+focused run, an *operation*. An agent may start Fix at a story, since the
+catalogue orders nothing. The story records every visit of the case, where the
+comparison answers by region from a record that already exists.
+
+When one edit turns many cases red, `covering --since` names each changed
+region with the cases that ran it, so the regions the red cases share are read
+off one answer. A shared region is where to look, not a proven cause.
+
+### Refactor
+
+| Need | Command | Opens |
+|---|---|---|
+| make a file cheaper to change | `coverage --fan-in`, `coverage --fan-in --at-distance <hops>` | know who breaks if it changes; know how many test files an edit here runs, before making it |
+
+Each of `--fan-in`'s lists is a condition on its own edge. A file most test
+files called into is a hub: its callers are narrowed, or the tests it sends are
+made stable. A file selected whole beyond what its median region needs is
+split, and that gap is the most a split saves. The refactor is done when the
+same question answers with the gap closed.
+
+### Ship
+
+| Need | Command | Opens |
+|---|---|---|
+| know whether my change needs a review, and of what | `review --since <ref>` | run something that already exercises this code |
 | know what my change reached that no test checks | `review --since <ref> --coverage` | run something that already exercises this code |
+
+### Report and settle
+
+| Need | Command | Opens |
+|---|---|---|
 | know what my change did to what users see | `ask summary` over the report of a `run` | know the distinct changes behind what moved; know which subject a description names |
 | know the distinct changes behind what moved | `ask changes` | know everything about one subject; settle a change |
 | know everything about one subject | `ask describe --subject <id>` | know why a verdict may not be a code problem |
 | know why a verdict may not be a code problem | `ask explain-verdict --subject <id>` | — |
 | know where a component appears and what it moved | `ask trace-component`, `ask composition` | know everything about one subject; know whether a subject reads the same way twice |
-| know whether a subject reads the same way twice | `run --flakes`, an *operation* | know the distinct changes behind what moved |
 | know what a flag or theme arm changes | `ask variations` | — |
 | know which subject a description names | `ask locate --query <words>` | know everything about one subject |
 | know whether the edit did what I meant, by claims declared before reading the diff | `adjudicate`, `ask adjudicate --claims <path>` | know everything about one subject |
@@ -233,10 +344,6 @@ and none stands in for another:
 | know what reviewers decided or suspect | `ask decisions`, `ask concerns` | settle a change |
 | know how the report reads since I last asked | `ask diff` over the report | know the distinct changes behind what moved |
 | settle a change | `changelog`, `ask changelog`; `accept` on the shapes they name, an *operation* | — |
-
-`select` answers with a skip list, never a run list. A test the recording has
-never seen is absent from it and still runs, so a list of tests to re-run would
-drop exactly the tests nothing has recorded yet.
 
 ### While a suite runs
 
@@ -301,20 +408,32 @@ input, not an order.
 
 ## The gaps
 
-- **The reach of an edit before it is made.** Every reach question takes
-  `--since`, so nothing estimates what an edit to a name would reach before the
-  edit exists. `select` reads a diff and answers with a skip list. An answer
+- **The reach of an edit before it is made, through the source graph.** For a
+  recorded region, `covering --file` and `coverage --fan-in` already count the
+  test files an edit runs. Nothing estimates it for a name no recorded region
+  holds, or for an edit that reaches past the regions: a signature, the
+  module's imports, the package's exports. Every reach question takes
+  `--since`, and `select` reads a diff and answers with a skip list. An answer
   before the edit has neither. It needs its own contract.
   - The input is a name and the kind of edit. A body, a signature, the module's
     imports and the package's exports reach different tests through the same
     name.
   - The answer is a source-graph estimate. It names the evidence it stands on
     and the uncertainty it carries.
+- **Which statement of a case first ran a region.** Cadence records the test
+  line that first reached each region a case entered, by default under Vitest,
+  Jest, Rstest and Playwright, and no answer reads it. A `lost` region in the
+  comparison is a region a case ran at the base, and the statement that reached
+  it is in the base record but printed nowhere, so Fix reads the test's source
+  to find it. A recorded fact with no reader is a defect, not a position. The
+  statement a case threw at is not recorded: an assertion that fails reaches no
+  new region.
 - **Why a test fails.** Answered as why its passing twins pass: the passing
   cases that entered the same region, and where the failing one left them.
-  `story --compare outcome` sets one case's passing readings against its
-  throwing ones. So it answers a case that fails on some runs, not one that
-  fails on every run. The cross-case half is
+  The comparison against the mainline's record names the regions a change took
+  from the cases and the cases that stopped. `story --compare outcome` sets one
+  case's passing readings against its throwing ones, so it answers a case that
+  fails on some runs, not one that fails on every run. The cross-case half is
   [0103](0103-a-behaviour-names-the-cases-that-witnessed-it.md)'s
   passed-or-failed operand.
 
@@ -341,10 +460,11 @@ so the compiler holds that every verb is declared.
 
 One command can answer several needs: `ask discover` by `--text`, `--imports`,
 `--to` or several filters; `covering` by `--file` or `--since`; `story` by
-`--name` or `--compare`. So each entry is keyed by the flags that ask it. It
-holds its `need`; whether it is an operation; the skill reference the need
-routes to, where it has one; and its edges, each with the entry it opens and
-its argument bindings. The tables above are what those entries will hold;
+`--name` or `--compare`. So an entry is keyed by its need, and names the
+command and the flags that ask it; one command with the same flags answers two
+needs as two entries, since their edges differ. It holds whether it is an
+operation; the skill reference the need routes to, where it has one; and its
+edges, each with the entry it opens and its argument bindings. The tables above are what those entries will hold;
 once an entry exists, it is the source and its row follows it.
 
 A builder sits beside the formatter of the command it builds for and carries
