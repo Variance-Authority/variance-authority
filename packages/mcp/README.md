@@ -300,9 +300,9 @@ a working tree that has not changed since.
 
 The word **subject** has two grains here, and both are in the source. Inside
 a report it is one UI state, as above. In the server API it is the whole value
-being served — a `RunReport` for the visual tools, an `ExecutionIndex` for the
-source-test tool, a `VantageState` for a suite that is still running, or an
-`ObservabilitySubject` combining several of those at once.
+being served — a `RunReport` for the visual tools, a `VantageState` for a suite that is still
+running, or an `ObservabilitySubject` combining several readings at once, an
+`ExecutionIndex` among them for `variance_distill`.
 
 `variance_diff` compares the currently served value with the value from the
 previous successful tool call. The first call records the current state and
@@ -515,66 +515,6 @@ without a client: `variance watch` hosts the run and `variance ask <question>
 --at <address>` reads it. Same functions, same text, no client configuration to
 edit — see [ask a run from the command line](https://variance-authority.dev/agents/cli).
 
-## Give an agent the tests for source
-
-`variance_source_tests` answers the question a coding agent needs before and
-after an edit: which named tests covered this source? A line or function query
-returns the tests that covered it, named and by file. A file query returns every
-indexed line as compact ranges, including ranges no test covered. To ask how far
-away those tests sit, `variance covering --at-distance <hops>` and
-`--in-package` narrow the same list by import distance on the command line.
-
-An `ExecutionIndex` is what [`@variance-authority/sense`](https://variance-authority.dev/reference/packages/sense)
-writes: a record, per test, of which regions of which source files that test
-covered while it ran. An integration that owns the current one serves it directly; the
-supplier is called for every request so a rerun is visible without restarting
-the agent's MCP connection:
-
-```ts
-import { serve } from '@variance-authority/mcp';
-import { readTree } from '@variance-authority/mcp/tools';
-import { SOURCE_TESTS } from '@variance-authority/mcp/protocol';
-import type { ExecutionIndex } from '@variance-authority/sense/test-selection';
-
-export function serveSourceTests(root: string, current: () => ExecutionIndex | Promise<ExecutionIndex>) {
-  let tree: ReturnType<typeof readTree> | undefined;
-  return serve({
-    input: process.stdin,
-    output: process.stdout,
-    served: SOURCE_TESTS,
-    subject: current,
-    tree: () => (tree ??= readTree({ root })),
-    root,
-  });
-}
-```
-
-That is an excerpt: it exports the server but never calls it. Call
-`serveSourceTests(root, () => yourIndex)` from a module the client launches, and keep
-the process alive — the returned function detaches the server from its streams.
-The tree carries the file graph, with what each test file mocks: a case whose
-file mocked a changed module ran against the mock, and `variance_changed_tests`
-leaves it out of what stood on that module. A host that supplies no tree gets
-the answer without that cut, and the answer says so.
-
-The tool takes `file` and optionally one of `line` or `function`. With neither,
-it answers the whole file. It tells three answers apart: an indexed range no
-test covered, a line absent from the execution index, and a region a case ran in
-a text that a run over another text has landed on since, where which case ran
-it is not known. The index is supplied by the test
-collector or editor integration; MCP does not manufacture coverage or control
-the test runner.
-
-`variance_changed_tests` is the same evidence read at review time. It takes a
-unified `diff` — the patch the agent is already holding — and reports every
-changed source region with the named cases that covered it, counting the two
-findings a percentage cannot state: regions **no case covered**, and regions
-one case alone covered. A case that was inside a region only while its module
-was evaluating is counted apart from one that called into it. A changed test
-file has no module row, so it is answered with the named cases it declares
-rather than reported as unmeasured, and a changed path the index holds nothing
-for is reported as exactly that — *no row* and *no test* are opposite facts.
-
 ## Serve several kinds of evidence at once
 
 A run report is one of six things this package can answer from. The others are
@@ -609,13 +549,17 @@ members. Native tools remain available on the same connection:
 |---|---|---|
 | `variance_test_attention` | the **Eyes journals a record keeps** — what [`@variance-authority/eyes`](https://variance-authority.dev/reference/packages/eyes) recorded about which DOM elements each case addressed, and which React component rendered each, read from the run's `coverage.bin` by `readEyesRecord` | one test's selectors, Locator consumption, DOM events, synchronous Fiber attribution, and authored AAA markers |
 | `variance_presentations` | presentation reports | full presentation graphs, telemetry, semantic evidence, measured structures, and findings |
-| `variance_source_tests` | a Sense execution index, as above | which named tests covered source and their minimum observed distance |
-| `variance_changed_tests` | a Sense execution index and a unified diff | every changed region with the cases that covered it, and the ones nothing covered |
 | `variance_run_signals`, `variance_test_signals` | **Vantage state** — what [`@variance-authority/vantage`](https://variance-authority.dev/reference/packages/vantage) has heard from a suite that has not finished | what an in-flight suite and one test have announced |
 | `variance_waiting`, `variance_continue` | Vantage state | which tests have stopped for you to look at them, and letting one go on |
 | visual report tools | run report | visual decisions, presentation signals, composition, variation, history, and review evidence |
 | `variance_scenarios` | scenario manifests | the witnessed Arrange state and observed or unobserved Act outcomes |
 | `variance_distill` | a Sense execution index, and the Eyes journals the same record keeps | one test's addressed AAA surface, React update initiators, and source reduction opportunities |
+
+Which named tests covered a line, a function or a file, and which a change
+reached, is `variance covering`'s question on the command line, with the commit
+the record was written at and whether each test file ran over the file as it is
+now; see [test-level coverage](https://variance-authority.dev/docs/test-level-coverage).
+No tool here answers it.
 
 `variance_distill` is the deliberate cross-domain answer. It maps the DOM owners
 and source locations a test addressed in each authored phase, then places React
@@ -633,7 +577,7 @@ The CLI exposes the same analyzer and formatter over portable files as
 [distill a test](https://variance-authority.dev/docs/distill).
 
 The individual served sets remain available as `REPORTS`, `PRESENTATIONS`,
-`SOURCE_TESTS`, `VANTAGE`, `EYES`, and `SCENARIOS`. Use one when the integration
+`VANTAGE`, `EYES`, and `SCENARIOS`. Use one when the integration
 owns only that domain. React Testing Library and Playwright remain optional peer dependencies
 of `@variance-authority/eyes`; installing MCP does not add either runner.
 
@@ -653,8 +597,8 @@ the producer and route for every unavailable domain:
 
 The full mechanics stay with each producer. The MCP answer states the minimum
 route and the constraint that would otherwise produce plausible but invalid
-evidence. The dedicated `REPORTS`, `PRESENTATIONS`, `SOURCE_TESTS`, `EYES`, and
-`SCENARIOS` served sets send the same route in their initialization handshake,
+evidence. The dedicated `REPORTS`, `PRESENTATIONS`, `EYES`, and `SCENARIOS`
+served sets send the same route in their initialization handshake,
 so an integration does not need the combined surface to receive it.
 
 ## Entrypoints

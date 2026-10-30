@@ -2281,8 +2281,8 @@ const decorations = coveringTestsInFile(index, 'src/cart/total.ts');
 
 The index above is written out by hand so the sample runs on its own. In
 practice it comes from a recording — see below, or from an editor's test runner,
-a debugger, or a language server. `@variance-authority/mcp` puts the same query
-in front of an agent over MCP and answers exactly this for its caller.
+a debugger, or a language server. `variance covering` asks the same query of
+the recording on the command line.
 
 A line resolves to the regions a change to it would select. A line inside a
 branch is the branch's alone, so tests that only covered the enclosing function
@@ -2300,8 +2300,8 @@ throws.
 what is left, so a boundary still marks where the claim on the code changes. A
 range that names cases lists under `unentered` the regions on it no case
 entered, such as a one-line branch whose line the function around it also
-charges. `unenteredSentence(region)` says that in the sentence the CLI and the
-MCP server print, closed by `whyUnentered(stopped)`: unwalked, a hole, or
+charges. `unenteredSentence(region)` says that in the sentence `variance covering`
+prints, closed by `whyUnentered(stopped)`: unwalked, a hole, or
 neither when the record cannot tell.
 
 Every seam here writes an `ExecutionIndex` into its snapshot. In the snapshot
@@ -2573,10 +2573,8 @@ the diff was taken against, the file the index was read from, the commit it
 stands at — and prints nothing for a field it is not given. A region may also
 carry the `state` its caller read over more cases than it lists, as the CLI does
 under `--where`; the words then follow the state, so a region only an unlisted
-case ran reads as covered, not as a hole. It lives here rather
-than in either caller because the CLI's `variance covering --since` and the MCP
-tool `variance_changed_tests` both print it, and a reading with two renderers
-has two answers.
+case ran reads as covered, not as a hole.
+The CLI prints it under `variance covering --since`.
 
 ## What each host gives the recording
 

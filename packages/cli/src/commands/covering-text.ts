@@ -318,13 +318,12 @@ export function narrowedText(answer: Covering): readonly string[] {
 }
 
 /**
- * The review reading, which `variance_changed_tests` also prints.
+ * The review reading.
  *
  * The words live in `@variance-authority/sense/test-selection` beside
- * `coveringChange`, because two surfaces ask for them and a reading with two
- * renderers has two answers. All this adds is what the CLI is the only one
- * able to state: the ref the diff was taken against, the file the index was
- * read from and the commit it stands at.
+ * `coveringChange`. All this adds is what only the CLI can state: the ref the
+ * diff was taken against, the file the index was read from and the commit it
+ * stands at.
  */
 function sinceText(answer: Covering, changed: readonly StatedChange[]): string {
   return formatCoveringChange(changed, {
