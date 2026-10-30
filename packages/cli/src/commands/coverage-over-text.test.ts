@@ -434,18 +434,24 @@ describe('coverage names why a text is not known', () => {
     });
   });
 
-  it('counts every region run as not known when the source index cannot be brought up to the checkout, and gives the reason', async () => {
+  it('counts every region run as not known when the source index cannot be brought up to the checkout, gives the reason, and reads the index as it stands for the rest', async () => {
     const { at } = await checkout(atRecord);
     await writeFile(join(at, PAY_FILE), REFUNDED);
     const index = dirname(sourceIndexPath(at));
     await chmod(index, 0o555);
     try {
       const said = await json('--root', at);
+      const from = await json('--root', at, '--from', 'libs/pay');
+      const stderr = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
+      await ask('--root', at);
+      const told = stderr.mock.calls.map(([line]) => String(line)).join('');
+      stderr.mockRestore();
 
-      expect(said.count).toMatchObject({
-        run: 3,
-        over: { older: 0, notKnown: 3, why: [expect.stringMatching(/^which text ran is not known: the source index at .+ could not be updated to the checkout: .*Permission denied/u)] },
-      });
+      const why = [expect.stringMatching(/^which text ran is not known: the source index at .+ could not be updated to the checkout: .*Permission denied/u)];
+      expect(said.count).toMatchObject({ run: 3, over: { older: 0, notKnown: 3, why } });
+      expect(said.source).toMatchObject({ over: { older: 0, notKnown: 3 } });
+      expect(from.source).toMatchObject({ over: { older: 0, notKnown: 2 } });
+      expect(told.match(/could not be updated to the checkout: .*; reading it as it stands\./gu)).toHaveLength(1);
     } finally {
       await chmod(index, 0o755);
     }

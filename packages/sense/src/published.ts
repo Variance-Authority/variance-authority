@@ -56,6 +56,12 @@ export interface PublishedSources {
   /** The segment digests that were read, in order: the generation's identity. */
   readonly generation: readonly Digest[];
   /**
+   * Why the index could not be brought up to the checkout, when a reader
+   * outside CI tried and it could not: what it holds is read as it stands, and
+   * describes the checkout as the last update found it.
+   */
+  readonly notUpdated?: string;
+  /**
    * How each file uses each file it imports, joined from the records and parses
    * above when a walk asks for an edge. Nothing is stored for it.
    */
@@ -274,19 +280,18 @@ export interface PublishedSourcesOptions {
   readonly index?: string;
   /** How a local update reads bytes, as {@link SourceUpdateOptions} takes it. */
   readonly packs?: boolean;
-  /** Outside CI, update a whole index to the checkout too, for a reader that names the checkout's texts by it. */
-  readonly update?: boolean;
 }
 
 /**
  * The published generation, or the reason there is none.
  *
- * Whole: returned as read. Missing, damaged, or written in another format
- * version in CI: refused, naming the step the pipeline lacks. Any of them
- * anywhere else: updated once — from the valid prefix, when there is one — with
- * a line saying which of them it was, then read. With `update`, a whole index
- * outside CI is updated too, silently. An update that fails is refused with
- * its own reason: the index it leaves does not describe the checkout.
+ * In CI: a whole index is returned as read; one missing, damaged, or written in
+ * another format version is refused, naming the step the pipeline lacks.
+ * Anywhere else the index is brought up to the checkout first, silently when it
+ * was whole and with a line saying why when it was not. An update that fails
+ * leaves a whole index to be read as it stands, with the reason in
+ * `notUpdated` and one line saying so; with no whole index to fall back on, it
+ * is refused with that reason.
  */
 export async function publishedSources(
   root: string,
@@ -294,10 +299,12 @@ export async function publishedSources(
 ): Promise<PublishedSources> {
   const path = options.index ?? sourceIndexPath(resolve(root));
   const read = await readPublishedSources(path);
-  if (read.state === 'published' && (options.ci || options.update !== true)) return read;
+  if (read.state === 'published' && options.ci) return read;
   if (read.state === 'published') {
-    await updated(root, path, options);
-    return readPublishedSources(path);
+    const refused = await updated(root, path, options);
+    if (refused === undefined) return readPublishedSources(path);
+    options.announce(`${refused}; reading it as it stands.`);
+    return { ...read, notUpdated: refused };
   }
 
   const what = read.state === 'missing'
@@ -314,12 +321,13 @@ export async function publishedSources(
   }
   const doing = read.state === 'other-version' ? 'rebuilding' : 'updating';
   options.announce(`${what}; ${doing} it from the checkout, which is what \`${options.step}\` does.`);
-  await updated(root, path, options);
+  const refused = await updated(root, path, options);
+  if (refused !== undefined) throw new SourceIndexUnpublished(refused);
   return readPublishedSources(path);
 }
 
-/** Update the index at `path` to the checkout at `root`, or refuse with the reason it could not be. */
-async function updated(root: string, path: string, options: PublishedSourcesOptions): Promise<void> {
+/** Update the index at `path` to the checkout at `root`; the reason it could not be, or nothing when it was. */
+async function updated(root: string, path: string, options: PublishedSourcesOptions): Promise<string | undefined> {
   let refused: string | undefined;
   try {
     refused = (await updateSourceIndex(root, {
@@ -329,5 +337,5 @@ async function updated(root: string, path: string, options: PublishedSourcesOpti
   } catch (error) {
     refused = error instanceof Error ? error.message : String(error);
   }
-  if (refused !== undefined) throw new SourceIndexUnpublished(`the source index at ${path} could not be updated to the checkout: ${refused}`);
+  return refused === undefined ? undefined : `the source index at ${path} could not be updated to the checkout: ${refused}`;
 }

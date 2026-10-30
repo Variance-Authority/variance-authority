@@ -51,7 +51,7 @@ import { changedPackagesOf } from './review-changed-packages.js';
 import { diffPoint, diffSince } from './since.js';
 import { probesGap, probesNote } from './probes-gap.js';
 import { runsBase } from './runs-base.js';
-import { sourceGraphFor } from './source-graph.js';
+import { sourceGraphFor, treeNames } from './source-graph.js';
 import type { ReviewCoverage } from './review-coverage.js';
 /**
  * The edges a changed package's importers are walked through. Who imports the changed code is a question about
@@ -297,9 +297,9 @@ export async function review(request: ParsedReview, { motion: moves = true } = {
   const against = request.against ?? (mainline !== undefined && point.base === mainline.commit ? mainline.cases : undefined);
 
   const named = (file: string): string => relative(point.repository, resolve(process.cwd(), file));
-  const { relations, sources, names } = await sourceGraphFor(root, ['.'], [], [], false, true);
-
+  const { relations, sources, ...indexed } = await sourceGraphFor(root, ['.']);
   const changed = changedLines(forward);
+  const names = await treeNames(indexed, [...changed.keys()], point.repository, named);
   const reading = readJourneyChange(forward, textsAt(await prefetch(point, [...changed.keys()], named)), {
     root,
     relations,

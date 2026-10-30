@@ -153,9 +153,11 @@ export async function coverage(request: ParsedCoverage, over: typeof textOver | 
   }
 
   // Read first: `--from` narrows every record counted below to the files it reaches. The split names the
-  // checkout's texts by the index, so outside CI it is brought up to the checkout first.
-  const reading = await readSource(request.root, request.from, request.packages === true, over !== undefined);
-  const names = 'missed' in reading ? { missed: reading.missed } : indexNames(reading.records);
+  // checkout's texts by the index, which names them only when it could be brought up to the checkout.
+  const reading = await readSource(request.root, request.from, request.packages === true);
+  const names = 'missed' in reading
+    ? { missed: reading.missed }
+    : reading.notUpdated === undefined ? indexNames(reading.records) : { missed: reading.notUpdated };
   if ('missed' in reading && request.from !== undefined) {
     throw new OperatorError(`\`--from ${request.from}\` is answered by the source index, and ${reading.missed}`);
   }

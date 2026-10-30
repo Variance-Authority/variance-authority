@@ -201,7 +201,7 @@ export {
   type TestComposition,
 } from './journeys.js';
 
-export { gitDigests } from './tree.js';
+export { gitDigests, namesOnDisk } from './tree.js';
 export { workingTreeChanges, type WorkingTreeChanges } from './working-tree-changes.js';
 export {
   aliasesOf,
