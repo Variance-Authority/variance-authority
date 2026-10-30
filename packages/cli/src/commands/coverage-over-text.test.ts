@@ -234,3 +234,24 @@ describe('coverage parts what ran by the text it ran over', () => {
     expect(answer.out).toMatch(/any suite\s+3\s+60\.0%/u);
   });
 });
+
+describe('a review that counts coverage', () => {
+  it('neither asks which text each region ran over nor says it', async () => {
+    const { at } = await checkout(atRecord);
+    await writeFile(join(at, PAY_FILE), REFUNDED);
+    let out = '';
+    let err = '';
+    const review = (format: string) => main(['review', '--root', at, '--since', 'HEAD', '--coverage', '--format', format], {
+      out: (text) => (out += text), err: (text) => (err += text),
+    });
+
+    expect(await review('json'), err).toBe(0);
+    const said = JSON.parse(out) as { readonly coverage: readonly unknown[] };
+    out = '';
+    expect(await review('text'), err).toBe(0);
+
+    expect(said.coverage.length).toBeGreaterThan(0);
+    expect(JSON.stringify(said.coverage)).not.toMatch(/"over"/u);
+    expect(out).not.toMatch(/older text/u);
+  });
+});

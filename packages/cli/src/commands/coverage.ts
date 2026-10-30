@@ -135,8 +135,17 @@ export interface CoverageEntry {
   readonly uses: CoverageSource;
 }
 
-/** Count the records the request names, and compare them with their bases. */
-export async function coverage(request: ParsedCoverage): Promise<Coverage> {
+/** What a caller asks of the count beyond the request: `variance coverage` asks every part. */
+export interface CoverageParts {
+  /** Part what ran by the text it ran over: read the runs record and the edits since. */
+  readonly over: boolean;
+}
+
+/**
+ * Count the records the request names, and compare them with their bases. A
+ * caller that does not ask `over` reads no text and gets no split.
+ */
+export async function coverage(request: ParsedCoverage, parts: CoverageParts = { over: true }): Promise<Coverage> {
   const declared = asOperator(() => declaredSuites(request.root));
   const asked = request.suite === undefined ? declared : declared?.filter((one) => one.name === request.suite);
   if (request.suite !== undefined) asOperator(() => testCoverageFile(request.root, { suite: request.suite }));
@@ -185,7 +194,10 @@ export async function coverage(request: ParsedCoverage): Promise<Coverage> {
     const recorded = await recordedCommit(record);
     for (const entry of restsOn(record)) harness.add(entry);
     // Over which text each region ran: asked of the whole index, so `--from` and each package count the same answers.
-    now.push({ ...(one === undefined ? {} : { name: one.name, kind: one.kind }), index, textOf: await textOver(request.root, record, recorded, whole) });
+    now.push({
+      ...(one === undefined ? {} : { name: one.name, kind: one.kind }), index,
+      ...(parts.over ? { textOf: await textOver(request.root, record, recorded, whole) } : {}),
+    });
     const found = request.atDistance === undefined
       ? await baseOf(request, one)
       : { missed: 'no base: `--at-distance` measures import hops on the graph of the tree as it is now, and the base ran on another' };
