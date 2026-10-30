@@ -18,9 +18,10 @@ function storage() {
 }
 
 /** A top-level document that began at `timeOrigin`, its collector and `code` evaluated. */
-function documentOf(code: string, sessionStorage: ReturnType<typeof storage>, timeOrigin: number) {
+function documentOf(code: string, sessionStorage: ReturnType<typeof storage>, timeOrigin: number, globals: object = {}) {
   const listeners: ((event: { persisted: boolean }) => void)[] = [];
   const page: Context = createContext({
+    ...globals,
     sessionStorage,
     performance: { timeOrigin, now: () => 5 },
     addEventListener: (event: string, listener: (event: { persisted: boolean }) => void) => {
@@ -32,6 +33,9 @@ function documentOf(code: string, sessionStorage: ReturnType<typeof storage>, ti
   runInContext(code, page);
   return {
     price: (amount: number) => runInContext(`globalThis.__browser_test_price(${amount})`, page),
+    read: (value: string) =>
+      // As `varianceBreadcrumb` calls it: the `Error` names its caller's site.
+      runInContext(`(function crumb() { globalThis[Symbol.for('variance-authority.test-selection.breadcrumb')]('flags', 'checkout', ${JSON.stringify(value)}, new Error()); })();`, page, { filename: 'http://app.test/flags.js' }),
     leave: (persisted = false) => listeners.forEach((listener) => listener({ persisted })),
     drain: () => JSON.parse(runInContext(`JSON.stringify(globalThis[${JSON.stringify(EXECUTION_GLOBAL)}].drain())`, page)) as ExecutionJournal,
   };
@@ -84,5 +88,35 @@ describe('a document a navigation replaced', () => {
       expect(documentOf(page, frame, 1003).drain().replaced).toBeUndefined();
       expect(held.drain().modules[0]!.hits.length).toBeGreaterThan(0);
     });
+  });
+
+  it('hands what a replaced document read to the next drain once, and keeps what a held document read for its own', () => {
+    const frame = storage();
+    const left = documentOf('', frame, 1000);
+    left.read('on');
+    left.leave();
+    const next = documentOf('', frame, 1003);
+    next.read('off');
+    const read = (value: string) => ['read', ['flags:checkout', JSON.stringify(value), 'http://app.test/flags.js:1', 0xffff]];
+
+    expect(next.drain().read).toEqual([read('on'), read('off')]);
+    expect(next.drain().read).toEqual([]);
+
+    const held = documentOf('', frame, 2000);
+    held.read('on');
+    held.leave(true);
+    expect(documentOf('', frame, 2003).drain().read).toEqual([]);
+    expect(held.drain().read).toEqual([read('on')]);
+  });
+
+  it('hands what a replaced document read to a next document whose realm records its own', () => {
+    const frame = storage();
+    const left = documentOf('', frame, 1000);
+    left.read('on');
+    left.leave();
+    const recorder = (): boolean => false;
+    const next = documentOf('', frame, 1003, { [Symbol.for('variance-authority.test-selection.breadcrumb')]: recorder });
+
+    expect(next.drain().read).toEqual([['read', ['flags:checkout', '"on"', 'http://app.test/flags.js:1', 0xffff]]]);
   });
 });

@@ -63,9 +63,9 @@ export interface ExecutionJournal {
   readonly instrumentation: string;
   readonly modules: readonly ExecutedModule[];
   /**
-   * What the page's code read between two drains, each key and value once, at
-   * its first site; absent where the collector did not listen, because the
-   * realm had a recorder of its own.
+   * What the page's code read between two drains, each key and value once per
+   * document, at its first site, after what the documents it replaced read;
+   * absent where no collector listened, because each realm had its own recorder.
    */
   readonly read?: readonly PageRead[];
   /** The tape since the drain before, on a page `storyPageSource` made tape. */
@@ -423,7 +423,7 @@ if (globalThis.__VA__ === undefined) {
     const before = carry.take();
     const drained = { instrumentation: ${JSON.stringify(instrumentation)}, modules: before === undefined ? own : joined(before.modules, own) };
     if (before !== undefined) drained.replaced = 1 + (before.replaced ?? 0);
-    if (reader !== undefined) drained.read = [...(before?.read ?? []), ...reader.take()];
+    if (reader !== undefined || before?.read !== undefined) drained.read = [...(before?.read ?? []), ...(reader?.take() ?? [])];
     if (story !== undefined) {
       drained.story = story.take();
       if (before?.story !== undefined) drained.story.before = [before.story];
