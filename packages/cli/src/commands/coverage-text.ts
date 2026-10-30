@@ -93,11 +93,13 @@ function text(answer: Coverage): string {
 }
 
 function heading(answer: Coverage): string {
-  const at = answer.at === undefined ? 'coverage' : `coverage at ${short(answer.at)}${recordedClause(answer, short)}`;
+  const recorded = recordedClause(answer, short);
+  const at = answer.at === undefined ? 'coverage' : `coverage at ${short(answer.at)}${recorded}`;
   const regions = regionCount(answer.count.regions);
   const files = `${grouped(answer.count.files)} file${answer.count.files === 1 ? '' : 's'} the suites loaded`;
   if (answer.base === undefined) return `${at} — ${regions} in ${files}${banded(answer)}`;
-  return `${at} against each suite's base — ${regions} (${grouped(answer.base.regions)} at the base) in ${files}${banded(answer)}`;
+  // The clause is closed, so the base is the coverage's and not the record's.
+  return `${at}${recorded === '' ? '' : ','} against each suite's base — ${regions} (${grouped(answer.base.regions)} at the base) in ${files}${banded(answer)}`;
 }
 
 /** What `--at-distance` narrowed the counts to, as a clause after the heading, and the test files it could not place. */
