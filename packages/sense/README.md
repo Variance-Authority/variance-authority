@@ -1669,7 +1669,8 @@ three it found, and reads. Pass your
 runner's own answer for `ci` — the `ci-info` package is what Jest reads. A
 whole index is returned as read, whatever the checkout did since it was
 written. When you name the checkout's texts by the index, call
-`updateSourceIndex` first outside CI; if that update fails, the index does not
+`updateSourceIndex` first, in CI too once the index is published, since one
+published at another commit names that commit's texts; if that update fails, the index does not
 describe the checkout, and a text it names is not known. To name a few files'
 texts, `publishedNames(root, files, options)` reads the same policy off the
 index's record rows of those files alone, and returns `names`, each file the

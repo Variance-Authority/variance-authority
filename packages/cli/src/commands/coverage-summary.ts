@@ -47,6 +47,11 @@ function executionChange(change: SuiteChange): string {
   return said.length === 0 ? 'No change in recorded case execution' : said.join(' · ');
 }
 
+/** The summary table's head: its figure is what ran over this text where the count parts what ran by text. */
+export function coverageHead(answer: Coverage): readonly string[] {
+  return [`| Suite | ${answer.count.over === undefined ? 'Regions executed by cases' : 'Regions run over this text'} | Compared with baseline |`, '|---|--:|---|'];
+}
+
 /** One row per suite; an absent record or baseline never becomes a zero. */
 export function coverageRows(answer: Coverage, percentages: boolean): readonly string[] {
   let counted = 0;
@@ -59,11 +64,13 @@ export function coverageRows(answer: Coverage, percentages: boolean): readonly s
     const change = suite.base === undefined
       ? 'No baseline available; change cannot be compared'
       : executionChange(suite.base.change);
+    // Parted, the figure is what ran over this text, and the comparison is of what ran over any.
+    const ran = now.over === undefined ? '' : `${ratio(now.run, answer.count.regions)} ran in any text${was === undefined ? '' : ', '}`;
     const comparison = percentages && was !== undefined
-      ? `${ratio(was.run, answer.base!.regions)} previously; ${change}`
-      : change;
+      ? `${ran}${ratio(was.run, answer.base!.regions)} previously; ${change}`
+      : percentages && ran !== '' ? `${ran}; ${change}` : change;
     return percentages
-      ? `| ${name} | ${ratio(now.run, answer.count.regions)} | ${comparison} |`
+      ? `| ${name} | ${ratio(now.over?.this ?? now.run, answer.count.regions)} | ${comparison} |`
       : `| ${name} | ${change} |`;
   });
 }

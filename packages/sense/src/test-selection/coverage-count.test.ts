@@ -114,8 +114,8 @@ describe('how much of what the suites loaded each suite ran', () => {
 
     const count = countCoverage([{ name: 'unit', kind: 'unit', index: record, textOf: (_file, region, test) => verdicts[`${region.name} ${test}`]! }]);
 
-    expect(count).toMatchObject({ run: 3, over: { older: 1, notKnown: 1, why: ['the text b.test.ts ran over is not kept'] } });
-    expect(count.suites).toEqual([{ name: 'unit', kind: 'unit', run: 3, load: 0, regions: 4, over: { older: 1, notKnown: 1 } }]);
+    expect(count).toMatchObject({ run: 3, over: { this: 1, older: 1, notKnown: 1, why: ['the text b.test.ts ran over is not kept'] } });
+    expect(count.suites).toEqual([{ name: 'unit', kind: 'unit', run: 3, load: 0, regions: 4, over: { this: 1, older: 1, notKnown: 1 } }]);
   });
 
   it('counts a region as older across suites only when no suite ran it over this text', () => {
@@ -128,8 +128,21 @@ describe('how much of what the suites loaded each suite ran', () => {
       { name: 'checkout', kind: 'e2e', index: two, textOf: () => 'older' },
     ]);
 
-    expect(count.over).toEqual({ older: 1, notKnown: 0, why: [] });
-    expect(count.suites.map((suite) => suite.over)).toEqual([{ older: 1, notKnown: 0 }, { older: 2, notKnown: 0 }]);
+    expect(count.over).toEqual({ this: 1, older: 1, notKnown: 0, why: [] });
+    expect(count.suites.map((suite) => suite.over)).toEqual([{ this: 1, older: 1, notKnown: 0 }, { this: 0, older: 2, notKnown: 0 }]);
+  });
+
+  it('counts a region as not known, never as this text, where a suite that ran it does not say which text it ran', () => {
+    const one = index(module('src/total.ts', block('apply', [0]), block('round', [0])));
+    const two = index(module('src/total.ts', block('apply', [1])));
+
+    const count = countCoverage([
+      { name: 'unit', kind: 'unit', index: one, textOf: () => 'older' },
+      { name: 'checkout', kind: 'e2e', index: two },
+    ]);
+
+    expect(count.over).toEqual({ this: 0, older: 1, notKnown: 1, why: ['the suite `checkout` does not say which text it ran'] });
+    expect(count.suites.map((suite) => suite.over)).toEqual([{ this: 0, older: 2, notKnown: 0 }, { this: 0, older: 0, notKnown: 1 }]);
   });
 
   it('asks no text of a region only loaded, or ran in another text, and says beforehand which it asks', () => {
@@ -143,7 +156,7 @@ describe('how much of what the suites loaded each suite ran', () => {
     const count = countCoverage([{ index: record, textOf: (_file, region, test) => (asked.push(`${region.name} ${test}`), 'older') }]);
 
     expect(asked).toEqual(['apply b.test.ts']);
-    expect(count.over).toEqual({ older: 1, notKnown: 0, why: [] });
+    expect(count.over).toEqual({ this: 0, older: 1, notKnown: 0, why: [] });
     expect(textAsks(record)).toEqual(new Map([['src/total.ts', new Set(['b.test.ts'])]]));
   });
 

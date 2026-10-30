@@ -8,7 +8,7 @@
  * text is named, never hashed, and read only to diff two whose names differ.
  */
 
-import { existsSync } from 'node:fs';
+import { statSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { checkoutListing, seedPaths } from '@variance-authority/sense';
 import {
@@ -188,8 +188,8 @@ async function overTexts(
  * What was run in each of `files`, which the source index at `root` does not
  * hold. The index reads every file git lists under `root` that a reader claims,
  * outside the directories it skips, so a file of those that git does not ignore
- * and the disk does not hold is gone, and everything run in it ran over an older
- * text. Any other is not known, with the reason the index does not name it.
+ * and the disk does not hold as a file is gone, and everything run in it ran
+ * over an older text. Any other is not known, with the reason the index does not name it.
  */
 function absentFrom(root: string, files: readonly string[]): ReadonlyMap<string, 'older' | RegionText> {
   const read = new Set(seedPaths(resolve(root), ['.'], files));
@@ -201,7 +201,7 @@ function absentFrom(root: string, files: readonly string[]): ReadonlyMap<string,
       ? notKnown(`what git lists at ${file} does not read: ${listing.unread}`)
       : listing.ignored
         ? notKnown(`git ignores ${file}, and the source index does not hold it`)
-        : existsSync(join(root, file))
+        : statSync(join(root, file), { throwIfNoEntry: false })?.isFile() === true
           ? notKnown(`the source index does not hold ${file}, though the checkout does`)
           : 'older'];
   }));

@@ -10,10 +10,10 @@ module**, so the answer to all three is in the report:
 
 ```text
 coverage at 7556a03a against each suite's base — 4,812 regions (4,790 at the base) in 311 files the suites loaded
-  any suite           4,310 → 4,356  90.0% → 90.5%                                                                  0 over an older text
-    checkout  e2e     3,832 → 3,900  80.0% → 81.0%  +51 newly run · −2 no longer run · +19 run in 22 added regions  0 over an older text
-    stories   visual  1,437 → 718    30.0% → 14.9%  −716 no longer run · −3 no longer run after a case stopped      0 over an older text
-    unit      unit    3,353 → 3,352  70.0% → 69.7%  +4 newly run · −9 no longer run · +4 run in 22 added regions    0 over an older text
+  any suite           4,356  90.5%                                                                  over this text; ran in any text 4,310 → 4,356 (90.0% → 90.5%): 0 over an older text
+    checkout  e2e     3,900  81.0%  +51 newly run · −2 no longer run · +19 run in 22 added regions  over this text; ran in any text 3,832 → 3,900 (80.0% → 81.0%): 0 over an older text
+    stories   visual  718    14.9%  −716 no longer run · −3 no longer run after a case stopped      over this text; ran in any text 1,437 → 718 (30.0% → 14.9%): 0 over an older text
+    unit      unit    3,352  69.7%  +4 newly run · −9 no longer run · +4 run in 22 added regions    over this text; ran in any text 3,353 → 3,352 (70.0% → 69.7%): 0 over an older text
   stories: src/checkout.stories.tsx no longer runs 212 functions in 9 files (716 regions) at the base
   unit: src/checkout/total.test.ts no longer runs total in src/checkout/total.ts (3 regions) at the base
 ```
@@ -91,7 +91,7 @@ instrument and no second run.
 | Code that only ran on the way to something else | no answer | counted per suite as [accidental](own-fewer-tests.md#earned-and-accidental-coverage): run by some test, never by its own package's tests within one import hop |
 | Code reached only from far away | no answer | counted by the import hops of the nearest test that ran it, with [`--at-distance`](own-fewer-tests.md#ask-which-code-only-distant-tests-run) |
 | Why a suite's number changed | the difference of two totals | regions newly run, no longer run, added and removed, which add up to the change; a region whose test has not run since its file changed is counted as unmeasured, not as no longer run |
-| Code whose tests ran an older text | counted as run | counted apart, per suite, scope and [package](own-fewer-tests.md#ask-what-still-holds-since-the-code-changed): run over an older text when every test that ran a region ran it before an edit that touched it, and not known, with the reason, when the text a test ran cannot be found |
+| Code whose tests ran an older text | counted as run | left out of the figure each row leads with and counted apart, per suite, scope and [package](own-fewer-tests.md#ask-what-still-holds-since-the-code-changed): run over an older text when every test that ran a region ran it before an edit that touched it, and not known, with the reason, when the text a test ran cannot be found |
 | Which test file accounts for it | no answer | named |
 | Files no test ran | at 0%, when the reporter is told to include every file under a glob | listed with their lines and regions, within the application `--from` names, following its imports into shared packages |
 | A suite that has not run | the last report, carried forward | `unrecorded`, never `0%` |

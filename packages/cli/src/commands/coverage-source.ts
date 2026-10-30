@@ -84,7 +84,7 @@ export interface CoverageSource {
   readonly ran: number;
   /** Regions in scope: the ones the suites loaded, before reach, and in files nothing recorded. */
   readonly regions: number;
-  /** Of the regions a suite ran, how many ran over an older text and how many over a text not known. Absent when no suite was asked. */
+  /** The regions a suite ran, parted by the text they ran over; before reach is in none of the parts. Absent when no suite was asked. */
   readonly over?: RunOver;
 }
 
@@ -265,7 +265,7 @@ export function coverageSource(
     unloaded,
     ran: count.run + beforeRegions,
     regions: count.regions + beforeRegions + unloaded.regions,
-    ...(count.over === undefined ? {} : { over: { older: count.over.older, notKnown: count.over.notKnown } }),
+    ...(count.over === undefined ? {} : { over: { this: count.over.this, older: count.over.older, notKnown: count.over.notKnown } }),
   };
 }
 

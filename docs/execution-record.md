@@ -506,7 +506,9 @@ cut from the way the source index names a file: `git:` and the object name git
 gives those bytes as a blob. The two names meet without reading the file, so
 `variance coverage` tells whether the checkout still holds the text a region
 was numbered in by comparing them, and reads a text only to diff two that the
-names say differ. Both names are git's own, in the hash the repository uses,
+names say differ. A region whose text the checkout still holds is run over
+this text, though a module it calls may have changed since: the name says the
+region's code is the code that ran, not that its behaviour was checked. Both names are git's own, in the hash the repository uses,
 SHA-1 or SHA-256. A record of layout 11, written before the
 column, opens with every module unkeyed, and `variance coverage` counts what
 it ran as over a text not known.

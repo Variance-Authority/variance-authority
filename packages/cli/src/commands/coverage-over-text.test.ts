@@ -69,9 +69,11 @@ describe('coverage parts what ran by the text it ran over', () => {
     const answer = await ask('--root', at);
     const said = await json('--root', at);
 
-    expect(said.count).toMatchObject({ run: 3, over: { older: 1, notKnown: 0, why: [] } });
-    expect(said.count.suites[0]!.over).toEqual({ older: 1, notKnown: 0 });
-    expect(answer.out).toMatch(/unit\s+unit\s+3\s+.*1 over an older text/u);
+    expect(said.count).toMatchObject({ run: 3, over: { this: 2, older: 1, notKnown: 0, why: [] } });
+    expect(said.count.suites[0]!.over).toEqual({ this: 2, older: 1, notKnown: 0 });
+    // The headline is what ran over this text; what ran over any text is labelled as such beside it.
+    expect(answer.out).toMatch(/any suite\s+2\s+40\.0%\s+over this text; ran in any text 3 \(60\.0%\): 1 over an older text\n/u);
+    expect(answer.out).toMatch(/unit\s+unit\s+2\s+40\.0%\s+.*over this text; ran in any text 3 \(60\.0%\): 1 over an older text/u);
   });
 
   it('parts an edit committed after the runs the same way, and names the commit the record was made at', async () => {
@@ -112,11 +114,11 @@ describe('coverage parts what ran by the text it ran over', () => {
     const from = await json('--root', at, '--from', 'libs/pay');
 
     expect(owned.entries?.map((entry) => [entry.from, entry.own.over])).toEqual([
-      ['libs/pay', { older: 1, notKnown: 0 }],
-      ['libs/shop', { older: 0, notKnown: 0 }],
+      ['libs/pay', { this: 1, older: 1, notKnown: 0 }],
+      ['libs/shop', { this: 1, older: 0, notKnown: 0 }],
     ]);
-    expect(packages.out).toMatch(/ {2}libs\/pay\s+.*1 over an older text/u);
-    expect(from.source?.over).toEqual({ older: 1, notKnown: 0 });
+    expect(packages.out).toMatch(/ {2}libs\/pay\s+.*1 over this text · 1 over an older text/u);
+    expect(from.source?.over).toEqual({ this: 1, older: 1, notKnown: 0 });
   });
 
   it('counts a region whose test ran a text that cannot be found as not known, and says why, never as run over this text', async () => {
@@ -224,8 +226,19 @@ describe('coverage names why a text is not known', () => {
 
     const answer = await ask('--root', at, '--format', 'markdown');
 
-    expect(answer.out).toContain('| Executed over an older text | 1 | 20.0% |\n');
-    expect(answer.out).toContain('| Executed over a text not known | 1 | 20.0% |\n');
+    // One row per part, none inside another: they add up to the regions loaded.
+    expect(answer.out).toContain('| Suite | Regions run over this text | Compared with baseline |');
+    expect(answer.out).toMatch(/\| `unit` \| 20\.0% \| 60\.0% ran in any text; /u);
+    expect(answer.out).toContain([
+      '| Execution | Regions | Share |',
+      '|---|--:|--:|',
+      '| Executed by cases over this text | 1 | 20.0% |',
+      '| Executed by cases over an older text | 1 | 20.0% |',
+      '| Executed by cases over a text not known | 1 | 20.0% |',
+      '| Module-load execution only | 2 | 40.0% |',
+      '| Not executed | 0 | 0.0% |',
+    ].join('\n'));
+    expect(answer.out).not.toContain('| Executed by cases | 3 |');
     expect(answer.out).toContain('\n- Not known: the runs record does not say where some test files ran\n');
   });
 
@@ -239,7 +252,7 @@ describe('coverage names why a text is not known', () => {
     expect(answer.out.split('the record names no text its rows were cut from').length).toBe(2);
   });
 
-  describe('in CI, where coverage takes the source index as published and builds none', () => {
+  describe('in CI, where coverage brings the published source index up to the checkout and builds none', () => {
     afterEach(() => {
       ci.isCI = false;
     });
@@ -271,16 +284,25 @@ describe('coverage names why a text is not known', () => {
       expect(said.count).toMatchObject({ run: 3, over: { older: 1, notKnown: 0, why: [] } });
     });
 
-    it('counts a file the published index does not hold as not known when the disk holds it, since the index does not name its text', async () => {
+    it('brings an index published at an older commit up to the checkout, so a region whose text changed since never counts as run over this text', async () => {
+      const { at, git } = await checkout(atRecord);
+      // Published at the record's commit, then the checkout moves on.
+      await updateSourceIndex(at);
+      await writeFile(join(at, PAY_FILE), REFUNDED);
+      git('commit', '--quiet', '--all', '--message', 'refund');
+      ci.isCI = true;
+
+      expect((await json('--root', at)).count).toMatchObject({ run: 3, over: { this: 2, older: 1, notKnown: 0, why: [] } });
+    });
+
+    it('brings an index published without a file the checkout holds up to it, and counts what ran there over this text', async () => {
       const { at } = await checkout(atRecord);
       await rm(join(at, PAY_FILE));
       await updateSourceIndex(at);
       await writeFile(join(at, PAY_FILE), PAY);
       ci.isCI = true;
 
-      expect((await json('--root', at)).count).toMatchObject({
-        over: { older: 0, notKnown: 2, why: [`the source index does not hold ${PAY_FILE}, though the checkout does, so which text it holds now is not known`] },
-      });
+      expect((await json('--root', at)).count).toMatchObject({ run: 3, over: { this: 3, older: 0, notKnown: 0, why: [] } });
     });
   });
 
@@ -306,23 +328,13 @@ describe('coverage names why a text is not known', () => {
     }
   });
 
-  it('counts the regions run in a file that does not read as not known, and says its text cannot be found', async () => {
-    // The index names the edit, so the text on disk must be read to diff it, and it does not read.
+  it('counts the regions run in a file the checkout holds a directory at as run over an older text, since no text is there', async () => {
     const { at } = await checkout(atRecord);
-    await writeFile(join(at, PAY_FILE), REFUNDED);
-    await updateSourceIndex(at);
     // A directory where the file was: no reader opens it as a text, root included.
     await rm(join(at, PAY_FILE));
     await mkdir(join(at, PAY_FILE));
-    ci.isCI = true;
-    try {
-      expect((await json('--root', at)).count).toMatchObject({
-        run: 3,
-        over: { older: 0, notKnown: 2, why: [`a text of ${PAY_FILE} the record or a run names cannot be found`] },
-      });
-    } finally {
-      ci.isCI = false;
-    }
+
+    expect((await json('--root', at)).count).toMatchObject({ run: 3, over: { this: 1, older: 2, notKnown: 0, why: [] } });
   });
 
   it('counts the regions run in a file git ignores as not known, and says the index does not hold it because git ignores it', async () => {
