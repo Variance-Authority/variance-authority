@@ -21,8 +21,6 @@ pub(crate) enum Known {
     Reference,
     Handed,
     Made,
-    NameMatch,
-    New,
     Parameter,
     Enclosed,
 }
@@ -37,8 +35,6 @@ impl Known {
             Known::Reference => "reference",
             Known::Handed => "handed",
             Known::Made => "made",
-            Known::NameMatch => "name-match",
-            Known::New => "new",
             Known::Parameter => "parameter",
             Known::Enclosed => "enclosed",
         }
@@ -54,7 +50,7 @@ impl Known {
     }
 }
 
-const KNOWN: [Known; 11] = [
+const KNOWN: [Known; 9] = [
     Known::Call(How::Callback),
     Known::Call(How::Local),
     Known::Call(How::Import),
@@ -62,8 +58,6 @@ const KNOWN: [Known; 11] = [
     Known::Reference,
     Known::Handed,
     Known::Made,
-    Known::NameMatch,
-    Known::New,
     Known::Parameter,
     Known::Enclosed,
 ];

@@ -318,7 +318,7 @@ describe('a call placed by what the source says', () => {
       .toEqual({ entered: 1, placed: 0, callers: [] });
   });
 
-  it('`new Foo()`, on the constructor the case ran, when two functions it ran are exported as `Foo`', async () => {
+  it('not `new Foo()` the source does not resolve, on the one constructor the case ran of a class named `Foo`', async () => {
     checkout({
       'package.json': JSON.stringify({ name: 'app', private: true }),
       'src/a.ts': functions('Foo'),
@@ -331,7 +331,18 @@ describe('a call placed by what the source says', () => {
       { file: 'src/a.ts', functions: ['Foo'], entered: ['Foo'] },
       { file: 'src/b.ts', functions: ['Foo'], entered: ['Foo'] },
       { file: 'src/c.ts', functions: [{ name: 'Foo/constructor', start: 2, end: 2 }], entered: ['Foo/constructor'] },
-    ], 'src/c.ts')).toEqual({ entered: 3, placed: 1, callers: [{ cases: 1, known: 'new' }] });
+    ], 'src/c.ts')).toEqual({ entered: 3, placed: 0, callers: [] });
+  });
+
+  it('not `client.priceOf()` on an object the source does not trace, on the one function the case ran named `priceOf`', async () => {
+    checkout({
+      'package.json': JSON.stringify({ name: 'app', private: true }),
+      'src/price.ts': functions('priceOf'),
+      'test/price.test.ts': test('const client = globalThis.client;', 'client.priceOf'),
+    });
+
+    expect(await walk('test/price.test.ts', [{ file: 'src/price.ts', functions: ['priceOf'], entered: ['priceOf'] }], 'src/price.ts'))
+      .toEqual({ entered: 1, placed: 0, callers: [] });
   });
 
   it('a call the relations bring to the function, through the caller they name', async () => {

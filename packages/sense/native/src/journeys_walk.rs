@@ -30,14 +30,6 @@ pub(crate) use crate::journeys_steps::{Known, Tag, Walked};
 #[path = "journeys_emit.rs"]
 mod emit;
 
-const BUILTIN: &[&str] = &[
-    "add", "get", "set", "has", "delete", "clear", "map", "filter", "reduce", "forEach", "find", "some", "every", "sort", "join", "slice",
-    "push", "pop", "shift", "includes", "indexOf", "keys", "values", "entries", "then", "catch", "finally", "call", "apply", "bind",
-    "toString", "replace", "split", "trim", "startsWith", "endsWith", "test", "exec", "match", "concat", "flat", "flatMap", "fill", "from",
-    "of", "assign", "resolve", "reject", "all", "write", "read", "end", "on", "once", "emit", "next", "at", "repeat", "padStart", "padEnd",
-    "toFixed", "toLowerCase", "toUpperCase", "localeCompare", "charCodeAt", "codePointAt",
-];
-
 /// How many functions of unrecorded files one case may cross.
 const PASSES: u32 = 600;
 
@@ -84,8 +76,6 @@ struct Walk<'w, 'j> {
     record: &'w Record<'j>,
     test_file: u32,
     entered: Vec<bool>,
-    by_last: HashMap<&'j str, (u32, u32)>,
-    constructors: HashMap<&'j str, u32>,
     nodes: Vec<Node>,
     keys: HashMap<u64, u32>,
     edges: Vec<Edge>,
@@ -314,23 +304,6 @@ impl<'w, 'j> Walk<'w, 'j> {
                 }
             }
         }
-        let member = matches!(unresolved, Target::Member) || (matches!(unresolved, Target::NotFunction { .. }) && callee.prop.is_some());
-        if let Some(prop) = callee.prop.as_deref().filter(|prop| member && !BUILTIN.contains(prop)) {
-            if let Some(&(j, 1)) = self.by_last.get(prop) {
-                let region = &self.record.regions[j as usize];
-                self.reach(node, region.file, self.record.fn_for[j as usize], j, guard, Known::NameMatch);
-                return;
-            }
-        }
-        let named = callee.id.as_deref().or(callee.prop.as_deref());
-        let constructor = named
-            .filter(|name| call.is_new || name.starts_with(|first: char| first.is_ascii_uppercase()))
-            .and_then(|name| self.constructors.get(name).copied());
-        if let Some(j) = constructor {
-            let region = &self.record.regions[j as usize];
-            self.reach(node, region.file, self.record.fn_for[j as usize], j, guard, Known::New);
-            return;
-        }
         if free {
             if let Some(id) = callee.id.as_deref() {
                 self.parameter(node, file, at, id, guard);
@@ -380,8 +353,6 @@ impl<'w, 'j> Walk<'w, 'j> {
 pub(crate) fn walk(graph: &Graph, record: &Record, helpers: &Helpers, case: usize) -> Walked {
     let (test_file, name) = record.tests[case];
     let mut entered = vec![false; record.regions.len()];
-    let mut by_last: HashMap<&str, (u32, u32)> = HashMap::new();
-    let mut constructors: HashMap<&str, u32> = HashMap::new();
     let mut functions = 0;
     for &j in &record.entered[case] {
         entered[j as usize] = true;
@@ -392,18 +363,12 @@ pub(crate) fn walk(graph: &Graph, record: &Record, helpers: &Helpers, case: usiz
         if region.file != test_file {
             functions += 1;
         }
-        by_last.entry(region.last).and_modify(|(_, count)| *count += 1).or_insert((j, 1));
-        if let Some(class) = region.name.strip_suffix("/constructor") {
-            constructors.entry(class).or_insert(j);
-        }
     }
     let mut walk = Walk {
         graph,
         record,
         test_file,
         entered,
-        by_last,
-        constructors,
         nodes: Vec::new(),
         keys: HashMap::new(),
         edges: Vec::new(),

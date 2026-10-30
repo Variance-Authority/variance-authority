@@ -37,7 +37,7 @@ const WHOLE: JourneysFile = {
     { cases: 2, at: 'round', known: 'static' },
   ],
   moreCallers: 3,
-  goes: [{ name: 'taxOf', file: 'packages/tax/src/rate.ts', line: 1, at: 'priceOf', cases: 12, known: 'name-match' }],
+  goes: [{ name: 'taxOf', file: 'packages/tax/src/rate.ts', line: 1, at: 'priceOf', cases: 12, known: 'made' }],
   flows: FLOWS,
 };
 
@@ -99,7 +99,7 @@ describe('the journeys around some files, said', () => {
         '       2  the test itself → round  static',
         '      3 more callers.',
         '    Calls into other files:',
-        '      12  priceOf → taxOf  packages/tax/src/rate.ts:1  inferred, by name',
+        '      12  priceOf → taxOf  packages/tax/src/rate.ts:1  inferred, made by a factory',
         '    Observed: 7 of 20 cases (35%) entered @t/cart; 6 entered it and other packages, a test file\'s own package counted, ' +
           'in 2 combinations, co-entry and not a crossing; the 2 most taken, with an example case:',
         '      5  @t/checkout → @t/cart  (test/total.test.ts > adds tax)',
@@ -172,7 +172,7 @@ describe('the journeys around some files, said', () => {
   it('explains every inferred way in the legend in the words its row prints', () => {
     const [, , legend] = formatJourneys([ANSWER]);
 
-    for (const how of ['by name', 'by `new`', 'handed to a call', 'as a parameter', 'made by a factory', 'written inside its caller']) {
+    for (const how of ['handed to a call', 'as a parameter', 'made by a factory', 'written inside its caller']) {
       expect(legend).toContain(how);
     }
   });
