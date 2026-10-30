@@ -118,8 +118,9 @@ async function readTexts(
   if (asks.size === 0) return over;
   const held = new Map<string, string>();
   const unread = new Map<string, RegionText>();
-  for (const file of asks.keys()) {
-    const text = await readFile(resolve(root, file), 'utf8').catch((error: unknown) => error as NodeJS.ErrnoException);
+  const read = await Promise.all([...asks.keys()].map(async (file) =>
+    [file, await readFile(resolve(root, file), 'utf8').catch((error: unknown) => error as NodeJS.ErrnoException)] as const));
+  for (const [file, text] of read) {
     if (typeof text === 'string') held.set(file, text);
     // A file gone from the checkout holds no region of this text; any other failure says nothing of the text.
     else if (text.code !== 'ENOENT') unread.set(file, { unknown: `${file} does not read: ${text.message}` });
@@ -127,7 +128,7 @@ async function readTexts(
   const evidence: Evidence = await evidenceOf(places, held, {
     root, snapshot: record, repository, last: recorded === undefined ? latest : undefined, region: true, placement: undefined, ranOther: undefined,
   });
-  const edits = editsBetween(root, undefined, [recorded, ...places.flatMap((place) => place.commit ?? [])]);
+  const edits = editsBetween(root, undefined, [recorded, ...places.flatMap((place) => place.commit ?? [])], asks.keys());
   // A chain is read once per text the runs ran, however many test files ran it.
   const chains = new Map<string, readonly Edit[] | RegionText>();
   for (const [file, placed] of asks) {
