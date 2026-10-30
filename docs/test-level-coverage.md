@@ -168,9 +168,8 @@ first line:
 | `submitOrder` | line 3, `submitOrder(cart, total)` |
 
 The call on line 4 runs `priceCart` again. Its region stays attributed to line
-2: cadence records the first statement, not every visit. Under the Node
-runners, a hook's work is marked as a hook's, so you can separate setup from
-the case's own actions.
+2: cadence records the first statement, not every visit. A hook's work is
+marked as a hook's, so you can separate setup from the case's own actions.
 When the case itself also runs a region a hook ran, the case's statement takes
 precedence.
 
@@ -178,9 +177,7 @@ This recording is on by default under Vitest, Jest, Rstest and Playwright;
 a custom runner can record it too. The [runner
 reference](../packages/sense/README.md#record-which-test-line-reached-a-region)
 explains setup, which test bodies it can transform and `cadence: false`.
-Playwright records which spec statement ran each region of the page. It
-records `beforeEach` and `afterEach` statements as the case's own lines, so
-those lines do not separate hook work from the case's body. Its
+Playwright records which spec statement ran each region of the page. Its
 [runner reference](../packages/playwright-test/README.md#record-which-spec-line-reached-each-region)
 explains recording across navigation. A case recorded without statement lines
 has no attribution to read; it is not a case whose statements ran nothing.
@@ -190,7 +187,11 @@ composition](own-fewer-tests.md#connect-the-regions-to-test-statements) to the
 actions of a flow test. To read every visit in order, including repeats, record
 a [test story](test-stories.md#why-the-journey-has-no-order).
 Statement attribution is what this run observed: asynchronous work can be
-attributed to a different statement on another run. It does not prove which
+attributed to a different statement on another run. A statement that moves
+with the outcome is read, not set aside: on a test that fails on some runs,
+`variance story --compare outcome` lists each region charged to another
+statement on every failing run than on every passing one, from the runs the
+record keeps. It does not prove which
 assertion checks the region, and [test
 selection](coverage-test-selection.md) reads the covered regions, not their
 statement lines.

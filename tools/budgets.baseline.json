@@ -790,9 +790,6 @@
   "packages/cli/src/commands/story-tree.ts overview": [
     19
   ],
-  "packages/cli/src/commands/story.ts overview": [
-    19
-  ],
   "packages/cli/src/commands/suite-base.ts docblock": [
     14
   ],
@@ -1842,12 +1839,6 @@
   "packages/playwright-test/src/docket.ts docblock": [
     15
   ],
-  "packages/playwright-test/src/documents.ts docblock": [
-    14
-  ],
-  "packages/playwright-test/src/documents.ts overview": [
-    18
-  ],
   "packages/playwright-test/src/execution.ts block": [
     10,
     6,
@@ -2535,9 +2526,6 @@
   "packages/sense/src/index.ts overview": [
     16
   ],
-  "packages/sense/src/instrument/cadence.ts docblock": [
-    14
-  ],
   "packages/sense/src/instrument/index.ts docblock": [
     28,
     12
@@ -2742,9 +2730,6 @@
   ],
   "packages/sense/src/test-selection/case-preconditions.cts overview": [
     26
-  ],
-  "packages/sense/src/test-selection/case-record.ts docblock": [
-    19
   ],
   "packages/sense/src/test-selection/cases.ts docblock": [
     17

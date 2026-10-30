@@ -88,15 +88,19 @@ export function compareCases(
   root: string,
   stories: readonly StoryEntry[],
   names: readonly string[],
-  { file, label }: { readonly file: string | undefined; readonly label: string | undefined },
+  { file, project, label }: { readonly file: string | undefined; readonly project?: string | undefined; readonly label: string | undefined },
 ): { readonly comparison: Comparison; readonly cases: readonly ComparedCase[] } {
-  const held = stories.filter((entry) => (file === undefined || entry.file === file) && (label === undefined || labelled(entry) === label));
+  const held = stories.filter((entry) =>
+    (file === undefined || entry.file === file)
+    && (project === undefined || entry.project === project)
+    && (label === undefined || labelled(entry) === label));
   const found = names.map((asked) => held.filter((entry) => entry.name === asked || `${entry.file} > ${entry.name}` === asked));
   const missing = names.filter((_, at) => found[at]!.length === 0);
   if (missing.length > 0) {
     const asked = [
       missing.map((name) => `--name ${name}`).join(' or '),
       ...(file === undefined ? [] : [`--file ${file}`]),
+      ...(project === undefined ? [] : [`--project ${project}`]),
       ...(label === undefined ? [] : [`--label ${label}`]),
     ];
     throw new OperatorError(`no story is written for ${asked.join(' and ')}; \`variance story\` alone lists the ones written here`);
@@ -106,6 +110,9 @@ export function compareCases(
     if (files.length > 1) {
       throw new OperatorError(`--name ${names[at]} is a case in ${listed(files)}; name the file with --file, or compare them as \`<file> > <name>\``);
     }
+    // A case's runs under two projects are two cases, and a side is one of them.
+    const projects = [...new Set(readings.flatMap((entry) => (entry.project === undefined ? [] : [entry.project])))].sort();
+    if (projects.length > 1) throw new OperatorError(`--name ${names[at]} ran under the projects ${listed(projects)}; name one with --project`);
     return { file: files[0]!, name: readings[0]!.name, readings };
   });
   const same = cases.findIndex((one, at) => cases.findIndex((other) => other.file === one.file && other.name === one.name) !== at);
@@ -122,7 +129,7 @@ export function compareCases(
 const PAIRS = 5;
 
 /** Differences of one kind listed for a group of sides before the rest are counted. */
-const LISTED = 12;
+export const LISTED = 12;
 
 /**
  * A comparison as text: what holds on every reading of some sides and none of
@@ -213,12 +220,12 @@ function declarationText(place: PlaceDifference['place']): string {
   return `${name}  ${place.file}${place.startLine === undefined ? '' : `:${lines(place.startLine, place.endLine)}`}`;
 }
 
-function lines(start: number, end: number | undefined): string {
+export function lines(start: number, end: number | undefined): string {
   return end === undefined || end === start ? `${start}` : `${start}-${end}`;
 }
 
 /** A region's path as the arm it names: `for#0/body/if#1/else` is the `else` of an `if`. */
-function armWords(path: string): string {
+export function armWords(path: string): string {
   const parts = path.split('/');
   const arm = parts.at(-1)!;
   const construct = parts.at(-2)?.replace(/#\d+$/u, '');

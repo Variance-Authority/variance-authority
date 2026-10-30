@@ -83,6 +83,10 @@
       [
         "base",
         "run.base"
+      ],
+      [
+        "readings",
+        "cases.readings"
       ]
     ],
     "blockKinds": [

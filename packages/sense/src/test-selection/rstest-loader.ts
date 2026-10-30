@@ -89,7 +89,7 @@ function instrumentModule(this: SelectionLoaderContext, code: string): void {
 
 /** Whether the run cuts `file`: a test file, while cuts are on. */
 function cutting(run: SelectionRun, file: string): boolean {
-  return run.cases && run.cadence?.(file) === true;
+  return run.cadence?.(file) === true;
 }
 
 // Named here and exported as the default, because a loader is named by path:

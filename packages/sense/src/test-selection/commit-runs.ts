@@ -47,6 +47,7 @@ import { readFile } from 'node:fs/promises';
 import { followRowsIn } from './case-cuts.js';
 import { editsBetween } from './region-edit.js';
 import { casesRan, dropsCasesWithoutAny, layCases, textsIn, unansweredOver, type FreshCases, type ModuleTexts } from './case-landing.js';
+import { inputsOf } from './case-readings.js';
 import { casesRecordedOver, recordOfCases, withCaseSections } from './case-record.js';
 import { commitRunsIn, commitRunsText } from './commit-runs-text.js';
 import { askCoverageFile } from './coverage-file.js';
@@ -217,7 +218,7 @@ export async function landRun(
     ? (dropsCasesWithoutAny(current) ? {} : previous)
     : unansweredOver(previous, before?.tests, cases.run.tests, root).length > 0
       ? previous
-      : layCases(previous, cases.fresh, root, { ...cases.run, modules: current.modules }, cases.eyes, texts, before?.commit, undefined, cacheRoot);
+      : layCases(previous, cases.fresh, root, { ...cases.run, modules: current.modules, inputs: inputsOf(current) }, cases.eyes, texts, before?.commit, undefined, cacheRoot);
   const over = await recordBytes(coverageFile);
   // What differs from `HEAD` is asked once, for the rows' names and the texts kept.
   const landed = current.commit === undefined ? undefined : await landedTree(root, cacheRoot);

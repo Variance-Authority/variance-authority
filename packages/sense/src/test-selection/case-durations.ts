@@ -87,16 +87,21 @@ function timed(duration: number | undefined): number | null {
  * the suites between, as the case runner's `getNames(test).slice(1)` names it.
  */
 export function taskCases(file: RunnerTask): Pick<{ cases?: readonly FinishedCase[] }, 'cases'> {
-  const cases: FinishedCase[] = [];
+  return { cases: namedTasks(file).map(({ task, name }) => finishedCase(name, task.id, task.result?.duration)) };
+}
+
+/** Every leaf under a Vitest 2 file task, with the name the record knows it by. */
+export function namedTasks(file: RunnerTask): { readonly task: RunnerTask; readonly name: string }[] {
+  const named: { task: RunnerTask; name: string }[] = [];
   const walk = (task: RunnerTask, names: readonly string[]): void => {
     for (const child of task.tasks ?? []) {
       const path = [...names, child.name ?? ''];
       if (child.tasks !== undefined) walk(child, path);
-      else cases.push(finishedCase(path.join(' > '), child.id, child.result?.duration));
+      else named.push({ task: child, name: path.join(' > ') });
     }
   };
   walk(file, []);
-  return { cases };
+  return named;
 }
 
 /** The cases of a module Vitest 3 or 4 reported, by the id its task carried. */

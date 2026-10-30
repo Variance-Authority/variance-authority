@@ -6,6 +6,7 @@ import { dirname, join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { landCases, lastCaseRunOf, layCases } from './case-landing.js';
 import type { CaseSections } from './case-record.js';
+import { readingsOf } from './case-readings.js';
 import { CrossingSets } from './crossing-sets.js';
 import { digestString } from '../digest.js';
 import { decodeExecutionIndex, encodeExecutionIndex } from './execution-format.js';
@@ -67,11 +68,12 @@ function commitOf(files: Readonly<Record<string, string>>): string {
 const whole = (file: string) => ({ file, complete: true });
 
 /** A shard's record, carrying the cases its seam kept. */
-async function shard(name: string, cases: Uint8Array, eyes?: EyesSection): Promise<string> {
+async function shard(name: string, cases: Uint8Array, eyes?: EyesSection, readings?: unknown): Promise<string> {
   const at = join(root, name);
   await writeTestCoverage(at, { version: 3, instrumentation: 'fixture', tests: [], modules: [] }, {
     index: cases,
     ...(eyes === undefined ? {} : { eyes: encodeRecordedEyes(eyes) }),
+    ...(readings === undefined ? {} : { readings: Buffer.from(JSON.stringify(readings)) }),
   });
   return at;
 }
@@ -123,6 +125,35 @@ describe('landCases', () => {
       commit: 'c0ffee', before: 'l0ca1', files: ['b.test.ts', 'c.test.ts'], cases: ['b.test.ts > two', 'c.test.ts > three'],
     });
     expect(read(sections.before)).toEqual({ 'b.test.ts > two': ['beta'] });
+  });
+
+  it('keeps the readings of a case a shard\'s seed carried without running it', async () => {
+    // `a` passed once and threw once over this text; the shard ran only `b`, and its seed carries `a` as the index holds it.
+    const held = { ...previous, readings: Buffer.from(JSON.stringify({ cases: { 'a.test.ts > one': [{ count: 1, stopped: false }, { count: 1, stopped: true }] } })) };
+    const seeded = await shard('shard-1.bin', index({ 'a.test.ts > one': ['alpha'], 'b.test.ts > two': ['gamma'] }));
+    const same = [{ file: 'src/shared.ts', sourceDigest: 'v1:base' }];
+
+    const { sections } = landCases(record, held, root, [
+      { path: seeded, coverage: { commit: 'c0ffee', tests: [whole('b.test.ts')], modules: same } },
+    ], new Map([['src/shared.ts', 'v1:base']]));
+
+    expect(readingsOf(sections.readings, sections.index, 'a.test.ts > one')!.map(({ count, stopped }) => [count, stopped])).toEqual([[1, false], [1, true]]);
+  });
+
+  it('keeps the readings of a case a shard ran again over the inputs its own landing named', async () => {
+    // The index here records no outcome, so the newest reading stopped nowhere.
+    const history = { 'a.test.ts > one': [{ count: 1 }, { count: 1, stopped: true }] };
+    const held = { ...previous, readings: Buffer.from(JSON.stringify({ cases: history, inputs: { 'a.test.ts': 'one' } })) };
+    const ran = (inputs: string) => shard(`shard-${inputs}.bin`, index({ 'a.test.ts > one': ['alpha'] }), undefined, { inputs: { 'a.test.ts': inputs } });
+    const same = [{ file: 'src/shared.ts', sourceDigest: 'v1:base' }];
+    const land = async (inputs: string) => landCases(record, held, root, [
+      { path: await ran(inputs), coverage: { commit: 'c0ffee', tests: [whole('a.test.ts')], modules: same } },
+    ], new Map([['src/shared.ts', 'v1:base']])).sections;
+
+    const kept = await land('one');
+    expect(readingsOf(kept.readings, kept.index, 'a.test.ts > one')!.map(({ count, stopped }) => [count, stopped])).toEqual([[2, undefined], [1, true]]);
+    const moved = await land('two');
+    expect(readingsOf(moved.readings, moved.index, 'a.test.ts > one')).toBeUndefined();
   });
 
   it('names no case of the last run that a later shard retired by finishing its file again', async () => {

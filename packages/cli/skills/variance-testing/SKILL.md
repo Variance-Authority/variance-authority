@@ -58,7 +58,7 @@ a pattern or no argument, and never record in CI.
 
 | The test | Record | Then ask |
 |---|---|---|
-| fails on some runs | the same test until it has passed and thrown, twice each | `story --name <name> --compare outcome` |
+| fails on some runs | nothing first: the record keeps the runs it read; when they name nothing, the same test until it has passed and thrown, twice each | `story --name <name> --compare outcome` |
 | passes alone, fails with its file, or the other way | under `VARIANCE_AUTHORITY_STORY=alone` with `-t`, then `=file` without, twice each | `story --name <name> --compare alone,file` |
 | behaves differently under a flag or a mock | each side under its own label, such as `=flag-on` | `story --name <name> --compare 1,flag-on` |
 
@@ -84,12 +84,11 @@ separates the sides*:
 4. Remove the `console.log` before you fix anything.
 
 The log is a probe on one run, not a change to what the test checks. A story
-covers the test's own process under Vitest, Jest and Rstest. A Playwright test
-writes none: its probe is a line in the spec that asserts nothing,
-`variance.snapshot()` to send what the page holds and go on, or
-`await variance.observe()` to stop there, read from a watcher. Remove it the
-same way.
-[live run](../variance-authority/references/live-run.md)
+covers the test's own process under Vitest, Jest and Rstest, and the page under
+Playwright and Vitest and Rstest browser mode: record a Playwright test with
+`VARIANCE_AUTHORITY_STORY=1 npx playwright test <spec> -g <name>`. To read
+what a page holds while it runs, see
+[live run](../variance-authority/references/live-run.md).
 
 ## Write tests for a change
 
