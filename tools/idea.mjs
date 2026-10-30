@@ -24,7 +24,10 @@ export const queued = (entries, head) => {
 export const asked = (pr) =>
   pr.author?.__typename !== 'Bot' &&
   !(!pr.isCrossRepository && pr.headRefName === 'changeset-release/main') &&
-  !IDEALESS.has(/^(\w+)(?:\([^)]*\))?!?:/.exec(pr.title ?? '')?.[1]);
+  !IDEALESS.has(kindOf(pr.title ?? ''));
+
+/** The title's conventional kind; GitHub's own revert title is a `revert`. */
+const kindOf = (title) => (title.startsWith('Revert "') ? 'revert' : /^(\w+)(?:\([^)]*\))?!?:/.exec(title)?.[1]);
 
 /** The issue the body's first line names, as `Closes #<n>` or `Part of #<n>`. */
 export const issueOf = (body) => {
@@ -74,7 +77,7 @@ const main = () => {
     const n = issueOf(pr.body);
     const reason =
       n === undefined
-        ? `#${number}'s first line names no issue as 'Closes #<n>' or 'Part of #<n>'. Every change starts as an issue that passed the idea loop (.agents/references/refine.md).`
+        ? `#${number}'s first line names no issue as 'Closes #<n>' or 'Part of #<n>'. Every change to what the product does starts as an issue that passed the idea loop (.agents/references/refine.md).`
         : refusal(n, graph(ISSUE, { n }).issue);
     if (reason) console.error(`::error::${reason}`);
     else console.log(`#${number}: #${n} carries '${LABEL}'.`);

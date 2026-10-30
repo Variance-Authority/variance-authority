@@ -79,7 +79,7 @@ describe('the issue each queued pull request names', () => {
   });
 
   it('does not ask a change that leaves what the product does alone', () => {
-    for (const title of ['docs: x', 'chore(agents): x', 'ci(colours): x', 'test: x', 'refactor(sense): x', 'revert: x'])
+    for (const title of ['docs: x', 'chore(agents): x', 'ci(colours): x', 'test: x', 'refactor(sense): x', 'revert: x', 'Revert "feat: x"'])
       expect(asked(pr(title))).toBe(false);
   });
 });
