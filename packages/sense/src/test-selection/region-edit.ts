@@ -23,7 +23,7 @@ import { NO_OWNER } from './format-layout.js';
 import { addressedAlike } from './region-landing.js';
 import { keptTexts } from './kept-texts.js';
 import { hunksOf, placeThrough, type HeldLines, type Hunk } from './placed.js';
-import { textAtRecording } from './recorded-text.js';
+import { blobsAt, textAtRecording } from './recorded-text.js';
 import { diffTexts } from './text-diff.js';
 import { NO_LINE } from './written-lines.js';
 
@@ -47,44 +47,85 @@ export type EditOf = (file: string) => Edit | undefined;
 export type Edits = (file: string, from: string, to: string) => Edit | undefined;
 
 /**
+ * Where a reader of edits finds a text besides the ones it finds by digest: the
+ * name the source index gives each file now, and the texts the reader already
+ * holds, by file and name.
+ */
+export interface TextNames {
+  /** The git name the source index gives `file`'s text in the checkout now, or none. */
+  readonly now?: (file: string) => string | undefined;
+  /** A text of `file` the reader already holds by `name`, or none. */
+  readonly inHand?: (file: string, name: string) => string | undefined;
+}
+
+/**
  * A reader of the edit one module went from the text `from` names to the text
- * `to` names, both digests.
+ * `to` names, each a digest (`v1:`) or the name git gives a blob (`git:`).
  *
- * Two digests that agree are no edit and need no text. Otherwise each text is
- * found the way a reading of an edit finds it: kept by a landing, at one of the
- * commits the record names, or on disk, and taken only when it hashes to its
- * digest. `undefined` when either cannot be had: the caller then reads the
- * whole module as changed.
+ * Two names that agree are no edit and need no text. Otherwise each text is
+ * found: one the reader holds by its name; for a digest, the way a reading of
+ * an edit finds it — kept by a landing, at one of the commits the record
+ * names, or on disk — and taken only when it hashes to the digest; for a git
+ * name, on disk when the source index gives the file that name now, or at one
+ * of the commits that holds the file by it. `undefined` when either cannot be
+ * had, a file that does not read among them: the caller then reads the whole
+ * module as changed, or says which text ran is not known. Each text and each
+ * edit is read once.
  */
 export function editsBetween(
   root: string,
   cacheRoot: string | undefined,
   commits: readonly (string | undefined)[],
+  names: TextNames = {},
 ): Edits {
   const kept = keptTexts(root, cacheRoot);
   const atRecording = textAtRecording(root, []);
-  const textOf = (file: string, digest: string): string | undefined => {
-    const text = kept(digest);
-    if (text !== undefined) return text;
-    for (const commit of new Set(commits)) {
-      const found = hashingTo(atRecording(file, commit), digest);
-      if (found !== undefined) return found;
-    }
+  const at = [...new Set(commits)].filter((commit) => commit !== undefined);
+  const onDisk = (file: string): string | undefined => {
     try {
-      return hashingTo(readFileSync(resolve(root, file), 'utf8'), digest);
+      return readFileSync(resolve(root, file), 'utf8');
     } catch {
       return undefined;
     }
   };
+  const byDigest = (file: string, digest: string): string | undefined => {
+    const text = kept(digest);
+    if (text !== undefined) return text;
+    for (const commit of at) {
+      const found = hashingTo(atRecording(file, commit), digest);
+      if (found !== undefined) return found;
+    }
+    return hashingTo(onDisk(file), digest);
+  };
+  const byGitName = (file: string, name: string): string | undefined => {
+    if (names.now?.(file) === name) return onDisk(file);
+    if (at.length === 0) return undefined;
+    const held = blobsAt(root, new Map(at.map((commit) => [commit, [file]])));
+    const commit = at.find((each) => held.get(each)?.get(file) === name);
+    return commit === undefined ? undefined : atRecording(file, commit);
+  };
+  const texts = new Map<string, string | undefined>();
+  const textOf = (file: string, name: string): string | undefined => {
+    const key = `${file}\0${name}`;
+    if (texts.has(key)) return texts.get(key);
+    const text = names.inHand?.(file, name) ?? (name.startsWith('git:') ? byGitName(file, name) : byDigest(file, name));
+    texts.set(key, text);
+    return text;
+  };
+  const edits = new Map<string, Edit | undefined>();
   return (file, from, to) => {
     if (from === to) return NO_EDIT;
+    const key = `${file}\0${from}\0${to}`;
+    if (edits.has(key)) return edits.get(key);
     const [before, after] = [textOf(file, from), textOf(file, to)];
-    return before === undefined || after === undefined ? undefined : editOf(root, file, before, after);
+    const edit = before === undefined || after === undefined ? undefined : editOf(root, file, before, after);
+    edits.set(key, edit);
+    return edit;
   };
 }
 
 /** The edit `file` went through from the text `before` to the text `after`, both in hand. */
-export function editOf(root: string, file: string, before: string, after: string): Edit {
+function editOf(root: string, file: string, before: string, after: string): Edit {
   const reading = readEdit(root, file, before, after);
   return { hunks: hunksOf(diffTexts(before, after)), ...(reading === undefined ? {} : { reading }) };
 }

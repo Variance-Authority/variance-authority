@@ -5,7 +5,7 @@ import { dirname, join } from 'node:path';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { sourceIndexPath, updateSourceIndex } from '@variance-authority/sense';
 import { INSTRUMENTATION_ID } from '@variance-authority/sense/instrument';
-import { commitRunsFile, editOf, encodeExecutionIndex, landRun, NO_BLOB, openTestCoverage, repositoryLayers, testCoverageFile, writeTestCoverage, type TestCoverage } from '@variance-authority/sense/test-selection';
+import { commitRunsFile, encodeExecutionIndex, landRun, NO_BLOB, openTestCoverage, repositoryLayers, testCoverageFile, writeTestCoverage, type TestCoverage } from '@variance-authority/sense/test-selection';
 import { digestString } from '@variance-authority/core/format';
 import { main } from '../bin.js';
 import { textOver } from './coverage-over-text.js';
@@ -21,8 +21,20 @@ vi.mock('@variance-authority/core/format', async (importOriginal) => {
 });
 vi.mock('@variance-authority/sense/test-selection', async (importOriginal) => {
   const original = await importOriginal<typeof import('@variance-authority/sense/test-selection')>();
-  return { ...original, editOf: vi.fn(original.editOf) };
+  // Every pair of texts a reader of edits is asked for, by file and the two names.
+  const editsBetween: typeof original.editsBetween = (...args) => {
+    const edits = original.editsBetween(...args);
+    return (file, from, to) => {
+      asked.push(`${file} ${from} ${to}`);
+      return edits(file, from, to);
+    };
+  };
+  return { ...original, editsBetween: vi.fn(editsBetween) };
 });
+/** The pairs of texts the readers of edits were asked for, the same pair read once. */
+const asked: string[] = [];
+/** The distinct pairs of two different texts asked: each is one reading of an edit. */
+const read = () => new Set(asked.filter((pair) => { const [, from, to] = pair.split(' '); return from !== to; })).size;
 vi.mock('./coverage-over-text.js', async (importOriginal) => {
   const original = await importOriginal<typeof import('./coverage-over-text.js')>();
   return { ...original, textOver: vi.fn(original.textOver) };
@@ -317,7 +329,7 @@ describe('coverage parts what ran by the text it ran over', () => {
     await writeFile(join(at, PAY_FILE), REFUNDED);
     await updateSourceIndex(at);
     vi.mocked(digestString).mockClear();
-    vi.mocked(editOf).mockClear();
+    asked.length = 0;
 
     const said = await json('--root', at);
 
@@ -325,7 +337,7 @@ describe('coverage parts what ran by the text it ran over', () => {
     // The tree's texts are the index's `git:` names: neither `REFUNDED` nor `CART` is hashed to name it.
     expect(vi.mocked(digestString).mock.calls.filter(([text]) => text === REFUNDED || text === CART)).toEqual([]);
     // The record ran `PAY`, the tree holds `REFUNDED`: one edit read, and none for `cart.ts`, which no edit touched.
-    expect(vi.mocked(editOf)).toHaveBeenCalledTimes(1);
+    expect(read()).toBe(1);
   });
 });
 

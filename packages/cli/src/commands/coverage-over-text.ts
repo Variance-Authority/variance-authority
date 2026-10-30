@@ -18,10 +18,8 @@
  * does not hold is gone, and every region run in it ran over an older text.
  */
 
-import { readFile } from 'node:fs/promises';
-import { resolve } from 'node:path';
 import {
-  keptTexts,
+  editsBetween,
   ranOver,
   regionTouched,
   testPlaces,
@@ -33,16 +31,13 @@ import {
   type RegionText,
   type TestPlace,
 } from '@variance-authority/sense/test-selection';
-import { evidenceOf, type Evidence, type NamedText } from './covering-ran-evidence.js';
+import { evidenceOf, type Evidence } from './covering-ran-evidence.js';
 import { rowsCut, type RowsCut } from './record-rows-text.js';
 import { runsOf } from './record-runs.js';
 import type { IndexNames } from './source-graph.js';
 
 /** What a suite's count asks of each region a test file called into. */
 export type TextOf = NonNullable<CountedSuite['textOf']>;
-
-/** Why a text is not known. */
-type Unknown = { readonly unknown: string };
 
 /**
  * Why a file whose rows name no text is not known, whatever its runs ran: a
@@ -141,7 +136,18 @@ async function overTexts(
     root, snapshot: record, repository, last: recorded === undefined ? latest : undefined, region: true, placement: undefined, ranOther: undefined,
     ...(recorded === undefined ? {} : { at: [recorded] }),
   });
-  const kept = keptTexts(root);
+  // Every text by its name: one the evidence read at a commit or kept, the
+  // checkout's by the index's name for it now, else at the record's commit.
+  const edits = editsBetween(root, undefined, [recorded], {
+    now: (file) => names.get(file),
+    inHand: (file, name) => {
+      for (const [commit, blobs] of evidence.blobs) {
+        const text = blobs.get(file) === name ? evidence.committed.get(commit)?.get(file) : undefined;
+        if (text !== undefined) return text;
+      }
+      return evidence.kept.get(name);
+    },
+  });
   for (const [file, placed] of placedOf) {
     const cut = cuts.get(file);
     const now = names.get(file);
@@ -150,35 +156,15 @@ async function overTexts(
       ? () => cut ?? { unknown: `the record holds no digest of the text of ${file} its regions were cut from` }
       : now === undefined
         ? () => 'older' as const
-        : await chains(file, { name: cut.blob!, digest: cut.digest }, now, held.get(file)!);
+        : chains(file, { name: cut.blob!, digest: cut.digest }, now, held.get(file)!);
     over.set(file, new Map(placed.map(([test, place]) => [test, answer(test, place)] as const)));
   }
   return over;
 
-  /** The chain each run of `file` ran along, from the rows' text through the run's to the checkout's `now`, read once per text. */
-  async function chains(file: string, rows: { readonly name: string; readonly digest: string }, now: string, names: HeldNames) {
-    let checkout: NamedText | Unknown | undefined;
-    const atNow = async (): Promise<NamedText | Unknown> => {
-      try {
-        return { name: now, text: await readFile(resolve(root, file), 'utf8') };
-      } catch (error) {
-        return { unknown: `${file} does not read: ${error instanceof Error ? error.message : String(error)}` };
-      }
-    };
-    // The rows' text by its name: the checkout's, a commit's that holds it, or one a landing kept.
-    const atRows = async (): Promise<NamedText | undefined> => {
-      if (rows.name === now) {
-        checkout ??= await atNow();
-        return 'text' in checkout ? checkout : undefined;
-      }
-      for (const [commit, blobs] of evidence.blobs) {
-        const text = blobs.get(file) === rows.name ? evidence.committed.get(commit)?.get(file) : undefined;
-        if (text !== undefined) return { name: rows.name, text };
-      }
-      const text = kept(rows.digest);
-      return text === undefined ? undefined : { name: rows.name, text };
-    };
-    const along = new Map<string, readonly Edit[] | RegionText>();
+  /** The chain each run of `file` ran along, from the rows' text through the run's to the checkout's `now`. */
+  function chains(file: string, rows: { readonly name: string; readonly digest: string }, now: string, names: HeldNames) {
+    // The rows' text by its git name, else by its digest: a landing keeps a text no commit holds by its digest.
+    const from = (to: string): Edit | undefined => edits(file, rows.name, to) ?? edits(file, rows.digest, to);
     const result = new Map<TestPlace, readonly Edit[] | RegionText>();
     for (const [test, place] of placedOf.get(file)!) {
       const ran = ranOver(place, test, file, names, evidence, false);
@@ -188,27 +174,13 @@ async function overTexts(
         result.set(place, { unknown: `the text of ${file} that run ran over is neither kept nor committed` });
       } else {
         const ranName = ran === 'held' ? now : ran.rows === true ? rows.name : ran.name!;
-        let chain = along.get(ranName);
-        if (chain === undefined) {
-          chain = await chainOf(ranName, ran === 'held' || ran.rows === true ? undefined : ran.text);
-          along.set(ranName, chain);
-        }
-        result.set(place, chain);
+        const along = [from(ranName), edits(file, ranName, now)];
+        result.set(place, along.every((edit) => edit !== undefined)
+          ? along as readonly Edit[]
+          : { unknown: `a text of ${file} the record or a run names cannot be found` });
       }
     }
     return (_test: string, place: TestPlace) => result.get(place)!;
-
-    async function chainOf(ranName: string, ranText: string | undefined): Promise<readonly Edit[] | RegionText> {
-      // One name all along is one text: nothing is read.
-      if (rows.name === now && ranName === now) return [];
-      checkout ??= await atNow();
-      if ('unknown' in checkout) return checkout;
-      const atNowText = checkout;
-      const from = await atRows();
-      const ranAt = ranName === now ? atNowText : ranName === rows.name ? from : ranText === undefined ? undefined : { name: ranName, text: ranText };
-      if (from === undefined || ranAt === undefined) return { unknown: `a text of ${file} the record or a run names cannot be found` };
-      return [evidence.edit(file, from, ranAt), evidence.edit(file, ranAt, atNowText)];
-    }
   }
 }
 

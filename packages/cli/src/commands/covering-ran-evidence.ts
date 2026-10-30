@@ -15,9 +15,8 @@ import { existedAt } from '@variance-authority/sense';
 import {
   blobsAt,
   blocksOfTarget,
-  editOf,
+  editsBetween,
   keptTexts,
-  NO_EDIT,
   placeAcross,
   placeInTexts,
   readsTheSnapshot,
@@ -167,13 +166,13 @@ export async function evidenceOf(runs: readonly TestPlace[], held: ReadonlyMap<s
     pairs.set(key, place);
     return place;
   };
-  const edits = new Map<string, Edit>();
+  // The texts are in hand: the reader of edits is handed each by its name, and reads each pair once.
+  const inHand = new Map<string, string>();
+  const edits = editsBetween(root, undefined, [], { inHand: (file, name) => inHand.get(`${file}\0${name}`) });
   const edit = (file: string, from: NamedText, to: NamedText): Edit => {
-    if (from.name === to.name) return NO_EDIT;
-    const key = `${file}\0${from.name}\0${to.name}`;
-    const found = edits.get(key) ?? editOf(root, file, from.text, to.text);
-    edits.set(key, found);
-    return found;
+    inHand.set(`${file}\0${from.name}`, from.text);
+    inHand.set(`${file}\0${to.name}`, to.text);
+    return edits(file, from.name, to.name)!;
   };
   return { repository: repository !== undefined, committed, blobs: names, absent, kept, last, placements, ranOther: question.ranOther, across, edit };
 }

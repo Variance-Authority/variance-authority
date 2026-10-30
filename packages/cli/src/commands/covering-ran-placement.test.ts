@@ -1,7 +1,6 @@
 import { writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
-import { editOf } from '@variance-authority/sense/test-selection';
 import { HOUR, MINUTE, PAY, iso, recordFixture } from './covering-record.fixture.js';
 
 /**
@@ -12,10 +11,23 @@ import { HOUR, MINUTE, PAY, iso, recordFixture } from './covering-record.fixture
 
 vi.mock('@variance-authority/sense/test-selection', async (importOriginal) => {
   const original = await importOriginal<typeof import('@variance-authority/sense/test-selection')>();
-  return { ...original, editOf: vi.fn(original.editOf) };
+  // Every pair of texts a reader of edits is asked for, by file and the two names.
+  const editsBetween: typeof original.editsBetween = (...args) => {
+    const edits = original.editsBetween(...args);
+    return (file, from, to) => {
+      asked.push(`${file} ${from} ${to}`);
+      return edits(file, from, to);
+    };
+  };
+  return { ...original, editsBetween: vi.fn(editsBetween) };
 });
 
 const { checkout, ask } = recordFixture();
+/** The pairs of texts the readers of edits were asked for, the same pair read once. */
+const asked: string[] = [];
+/** The distinct pairs of two different texts asked: each is one reading of an edit. */
+const read = () => new Set(asked.filter((pair) => { const [, from, to] = pair.split(' '); return from !== to; })).size;
+
 
 describe('a covering answer reads the edit between two texts once per pair', () => {
   it('reads the edit under the asked function once for test files whose runs landed apart over the same text', async () => {
@@ -29,7 +41,7 @@ describe('a covering answer reads the edit between two texts once per pair', () 
       }),
     });
     await writeFile(join(at, 'src/pay.ts'), PAY.replace('return amount;', 'return amount + 0;'));
-    vi.mocked(editOf).mockClear();
+    asked.length = 0;
     const { json } = await ask(at, '--file', 'src/pay.ts', '--function', 'pay');
 
     expect(json['ran']).toMatchObject({
@@ -38,7 +50,7 @@ describe('a covering answer reads the edit between two texts once per pair', () 
         { tests: ['src/fee.test.ts'], text: 'other', region: 'changed' },
       ],
     });
-    // `ask` reads the answer twice, as JSON and as text: one reading each.
-    expect(vi.mocked(editOf)).toHaveBeenCalledTimes(2);
+    // Both runs ran the same text: one pair of texts for the two of them.
+    expect(read()).toBe(1);
   });
 });
