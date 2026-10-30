@@ -62,12 +62,62 @@ async function runWith(env: Readonly<Record<string, string>>): Promise<string> {
   return directory;
 }
 
+type Story = ReturnType<typeof stories.decodeStory>;
+
+/** The stories one run with stories on wrote, by case name; one run serves every case below. */
+let written: Promise<{ readonly directory: string; readonly byName: ReadonlyMap<string, Story> }> | undefined;
+function storiesWritten() {
+  written ??= (async () => {
+    const directory = await runWith({ VARIANCE_AUTHORITY_STORY: '1' });
+    const files = await readdir(resolve(directory, 'coverage.stories'));
+    const decoded = await Promise.all(
+      files.map(async (name) => stories.decodeStory(await readFile(resolve(directory, 'coverage.stories', name)))),
+    );
+    return { directory, byName: new Map(decoded.map((story) => [story.name, story])) };
+  })();
+  return written;
+}
+
+/** Each visit of `story` as the function of `src/shop.js` its region is in, a repeat folded. */
+async function routeOf(directory: string, story: Story): Promise<string[]> {
+  const index = decodeExecutionIndex((await caseIndexOf(resolve(directory, 'coverage.bin')))!);
+  const blocks = index.modules.find((entry) => entry.file === at('src/shop.js'))!.blocks;
+  const source = (await readFile(resolve(fixture, 'src/shop.js'), 'utf8')).split('\n');
+  const placeOf = (block: (typeof blocks)[number]): string =>
+    block.kind === 'module'
+      ? 'top level'
+      : source.slice(0, block.startLine).findLast((text) => text.startsWith('function '))!.split(/[ (]/)[1]!;
+  const route = [...story.visits].map((visit) => placeOf(blocks[visit & 0x7fffffff]!));
+  return route.filter((place, step) => place !== route[step - 1]);
+}
+
+/**
+ * What `story` told, in order: each statement's line where it began, by the
+ * name the spec's comment gives it, and what the page printed and its regions were
+ * handed, where it happened. A line counts the notes said before it, as a
+ * route reads it.
+ */
+async function toldIn(spec: string, story: Story): Promise<string[]> {
+  const text = (await readFile(resolve(fixture, 'tests', spec), 'utf8')).split('\n');
+  // A statement is a line of code that ends in a comment, not a comment line.
+  const named = new Map(
+    text.flatMap((line, index) => {
+      const statement = /^\s*[^/\s].*\/\/ (.+)$/.exec(line)?.[1];
+      return statement === undefined ? [] : [[index + 1, statement] as const];
+    }),
+  );
+  return [
+    ...story.lines.map(([, number, said]) => [said, 0, `test line ${named.get(number) ?? number}`] as const),
+    ...story.notes.map(([, note], index) => [index, 1, note] as const),
+  ]
+    .sort((a, b) => a[0] - b[0] || a[1] - b[1])
+    .map(([, , told]) => told);
+}
+
 describe.runIf(BROWSER_AVAILABLE)('a Playwright case run in a page', () => {
   it('writes its story, in the order the page went, at the spec line each statement is on', async () => {
-    const directory = await runWith({ VARIANCE_AUTHORITY_STORY: '1' });
-    const written = await readdir(resolve(directory, 'coverage.stories'));
-    expect(written).toHaveLength(1);
-    const story = stories.decodeStory(await readFile(resolve(directory, 'coverage.stories', written[0]!)));
+    const { directory, byName } = await storiesWritten();
+    const story = byName.get('pays for what it chose')!;
 
     expect({ file: story.file, name: story.name, stopped: story.stopped }).toEqual({
       file: at('tests/shop.spec.ts'),
@@ -76,40 +126,42 @@ describe.runIf(BROWSER_AVAILABLE)('a Playwright case run in a page', () => {
     });
     const shop = moduleId(at('src/shop.js'), await readFile(resolve(fixture, 'src/shop.js'), 'utf8'));
     expect(story.rows.map(([id]) => id)).toEqual([shop]);
-
-    // Each visit as the function of `src/shop.js` its region is in.
-    const index = decodeExecutionIndex((await caseIndexOf(resolve(directory, 'coverage.bin')))!);
-    const blocks = index.modules.find((entry) => entry.file === at('src/shop.js'))!.blocks;
-    const source = (await readFile(resolve(fixture, 'src/shop.js'), 'utf8')).split('\n');
-    const placeOf = (block: (typeof blocks)[number]): string =>
-      block.kind === 'module'
-        ? 'top level'
-        : source.slice(0, block.startLine).findLast((text) => text.startsWith('function '))!.split(/[ (]/)[1]!;
-    const route = [...story.visits].map((visit) => placeOf(blocks[visit & 0x7fffffff]!));
-    expect(route.filter((place, step) => place !== route[step - 1])).toEqual(['top level', 'open', 'choose', 'pay']);
-
-    // Each statement's line is where it began; what the page printed, and what
-    // its regions were handed, where it happened, as a Node case says them.
-    // A line counts the notes said before it, as a route reads it.
-    const spec = (await readFile(resolve(fixture, 'tests/shop.spec.ts'), 'utf8')).split('\n');
-    const line = (statement: string) => spec.findIndex((text) => text.endsWith(`// ${statement}`)) + 1;
-    const told = [
-      ...story.lines.map(([, number, said]) => [said, 0, `test line ${number}`] as const),
-      ...story.notes.map(([, text], index) => [index, 1, text] as const),
-    ].sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+    expect(await routeOf(directory, story)).toEqual(['top level', 'open', 'choose', 'pay']);
     expect(story.lines.every(([, , , hook]) => hook === undefined)).toBe(true);
-    expect(told.map(([, , text]) => text)).toEqual([
-      `test line ${line('opens')}`,
+    expect(await toldIn('shop.spec.ts', story)).toEqual([
+      'test line opens',
       'holds open=ref1 function open, choose=ref2 function choose, pay=ref3 function pay',
-      `test line ${line('looks')}`,
-      `test line ${line('chooses')}`,
+      'test line looks',
+      'test line chooses',
       "handed item='tea'",
       'console.log chose tea',
-      `test line ${line('pays')}`,
+      'test line pays',
       'handed amount=20',
-      `test line ${line('checks')}`,
+      'test line checks',
     ]);
   }, 120_000);
+
+  it('writes the story of a page in a context the spec made itself', async () => {
+    const { directory, byName } = await storiesWritten();
+    const story = byName.get('pays in a context it made');
+
+    expect({ file: story?.file, stopped: story?.stopped }).toEqual({ file: at('tests/own-context.spec.ts'), stopped: false });
+    expect(await routeOf(directory, story!)).toEqual(['top level', 'choose', 'pay']);
+    expect(await toldIn('own-context.spec.ts', story!)).toEqual([
+      'test line opens',
+      'holds open=ref1 function open, choose=ref2 function choose, pay=ref3 function pay',
+      'test line chooses',
+      "handed item='tea'",
+      'console.log chose tea',
+      'test line pays',
+      'handed amount=20',
+      'test line closes',
+    ]);
+  }, 120_000);
+
+  it.todo(
+    'keeps what a document ran under the statement that replaced it — needs the document to push what it ran while it lives, since Chromium tells nothing of it once its navigation has started',
+  );
 
   it('writes none when the run did not ask', async () => {
     const directory = await runWith({});

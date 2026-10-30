@@ -4,8 +4,13 @@ import type { ExecutionRecorder } from './execution.js';
 import { varianceDocumentFixtures } from './documents.js';
 
 type ContextFixture = (
-  args: { readonly context: BrowserContext; readonly varianceRecorder: ExecutionRecorder | undefined },
+  args: { readonly context: BrowserContext; readonly varianceDocuments: void },
   use: (context: BrowserContext) => Promise<void>,
+  testInfo: TestInfo,
+) => Promise<void>;
+type DocumentsFixture = (
+  args: { readonly playwright: object; readonly varianceRecorder: ExecutionRecorder | undefined },
+  use: () => Promise<void>,
   testInfo: TestInfo,
 ) => Promise<void>;
 
@@ -32,6 +37,20 @@ function recorderHeld(): ExecutionRecorder & { readonly marked: boolean[] } {
 
 const testInfo = { file: SPEC, titlePath: ['shop.spec.ts', 'buys'], project: { name: '' }, testId: 't1' } as unknown as TestInfo;
 
+/**
+ * The `context` fixture with `use`, inside the automatic `varianceDocuments` it
+ * asks for, over a client that tells nothing of the contexts it makes.
+ */
+function contextFixture(recorder: ExecutionRecorder, use: (context: BrowserContext) => Promise<void>): Promise<void> {
+  const [documents] = varianceDocumentFixtures.varianceDocuments as unknown as [DocumentsFixture];
+  const context = varianceDocumentFixtures.context as unknown as ContextFixture;
+  return documents(
+    { playwright: {}, varianceRecorder: recorder },
+    () => context({ context: contextOfOneFrame(), varianceDocuments: undefined }, use, testInfo),
+    testInfo,
+  );
+}
+
 afterEach(() => {
   vi.useRealTimers();
 });
@@ -40,15 +59,10 @@ describe('the `context` fixture', () => {
   it('ends a teardown whose statement drain the page holds, and marks the case incomplete', async () => {
     vi.useFakeTimers();
     const recorder = recorderHeld();
-    const fixture = varianceDocumentFixtures.context as unknown as ContextFixture;
-    const torn = fixture(
-      { context: contextOfOneFrame(), varianceRecorder: recorder },
-      async () => {
-        const realm = globalThis as { __VA__?: { c?: (line: number, file: string) => unknown } };
-        void realm.__VA__?.c?.(3, SPEC);
-      },
-      testInfo,
-    );
+    const torn = contextFixture(recorder, async () => {
+      const realm = globalThis as { __VA__?: { c?: (line: number, file: string) => unknown } };
+      void realm.__VA__?.c?.(3, SPEC);
+    });
     let done = false;
     void torn.then(() => {
       done = true;
@@ -63,14 +77,9 @@ describe('the `context` fixture', () => {
   it('waits once for a drain the page holds, and lets every later statement through at once', async () => {
     vi.useFakeTimers();
     const recorder = recorderHeld();
-    const fixture = varianceDocumentFixtures.context as unknown as ContextFixture;
     const realm = globalThis as { __VA__?: { c?: (line: number, file: string) => unknown } };
     let release = (): void => {};
-    const torn = fixture(
-      { context: contextOfOneFrame(), varianceRecorder: recorder },
-      () => new Promise<void>((resolve) => (release = resolve)),
-      testInfo,
-    );
+    const torn = contextFixture(recorder, () => new Promise<void>((resolve) => (release = resolve)));
     await vi.advanceTimersByTimeAsync(0);
     const settled: number[] = [];
     const statement = (line: number): void => {
