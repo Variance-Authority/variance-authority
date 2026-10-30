@@ -230,6 +230,52 @@ pub(crate) fn fold_eyes(shards: &[(&str, &[u8], &HashMap<String, String>)], case
     Ok(bytes)
 }
 
+/// A `cases.readings` section as `case-readings.ts` writes it: each case's readings, kept as written.
+#[derive(Deserialize)]
+struct ReadingsIn<'a> {
+    #[serde(borrow, default)]
+    cases: HashMap<String, &'a RawValue>,
+}
+
+/// The shards' readings sections as one: each case's readings as its shard
+/// kept them, under the id the fold calls it by. A case two shards read
+/// otherwise is refused, as two journals of one attempt are.
+pub(crate) fn fold_readings(shards: &[(&str, &[u8], &HashMap<String, String>)], cases: &HashSet<String>) -> Result<Vec<u8>, String> {
+    let mut held: HashMap<String, (&str, &RawValue)> = HashMap::new();
+    for (name, bytes, renames) in shards {
+        let section: ReadingsIn<'_> = serde_json::from_slice(bytes).map_err(|_| format!("{name}: its readings section is not one this build reads"))?;
+        for (id, readings) in section.cases {
+            let case = renamed(renames, &id).to_owned();
+            if !cases.contains(&case) {
+                return Err(format!("{name}: its readings section holds readings of `{case}`, a case the combined index does not record"));
+            }
+            match held.get(&case) {
+                Some((other, kept)) if kept.get() != readings.get() => {
+                    let (first, second) = if order::code_unit(other, name).is_le() { (*other, *name) } else { (*name, *other) };
+                    return Err(format!("{first} and {second} hold different readings of `{case}`, so they are not shards of one run and cannot be folded into one."));
+                }
+                Some(_) => {}
+                None => {
+                    held.insert(case, (name, readings));
+                }
+            }
+        }
+    }
+    let mut ids: Vec<&String> = held.keys().collect();
+    ids.sort_by(|left, right| order::code_unit(left, right));
+    let mut bytes = b"{\"cases\":{".to_vec();
+    for (at, id) in ids.into_iter().enumerate() {
+        if at > 0 {
+            bytes.push(b',');
+        }
+        bytes.extend(serde_json::to_vec(id).map_err(|error| error.to_string())?);
+        bytes.push(b':');
+        bytes.extend(held[id].1.get().as_bytes());
+    }
+    bytes.extend(b"}}");
+    Ok(bytes)
+}
+
 #[cfg(test)]
 #[path = "record_parts_tests.rs"]
 mod tests;

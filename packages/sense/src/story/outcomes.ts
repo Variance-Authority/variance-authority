@@ -9,6 +9,7 @@
 
 import { codeUnitOrder } from '@variance-authority/core/segment';
 import { caseSectionsAt } from '../test-selection/case-record.js';
+import { lineOf } from '../test-selection/case-lines.js';
 import { readingsOf, type ReadRegion, type Reading } from '../test-selection/case-readings.js';
 import { openSetExecutionIndex } from '../test-selection/execution-set-format.js';
 import { steady } from './steady.js';
@@ -153,7 +154,8 @@ const NO_LINE = -1;
 
 function chargeOf(value: number): Charge {
   if (value === NO_LINE) return {};
-  return { line: Math.floor(value / 2), ...(value % 2 === 1 ? { hook: true as const } : {}) };
+  const { line, ambient } = lineOf(value);
+  return { line, ...(ambient ? { hook: true as const } : {}) };
 }
 
 function byPlace(left: OutcomeRegion, right: OutcomeRegion): number {

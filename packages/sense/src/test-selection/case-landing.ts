@@ -147,6 +147,7 @@ export function layCases(
   const ran = new Set(run.tests.map((test) => test.file));
   const recorded = textsOf(run);
   const edits = editsBetween(root, cacheRoot, [stands, run.commit]);
+  const sameText = (file: string): boolean => recorded.has(file) && recorded.get(file) === held?.get(file);
   const { merged, cases, last, announced, before: retired, unlined } = layerCaseIndex(previous.index, fresh, {
     ran,
     finished: new Set(run.tests.filter((test) => test.complete).map((test) => test.file)),
@@ -155,7 +156,7 @@ export function layCases(
       const [from, to] = [held?.get(file), recorded.get(file)];
       return from === undefined || to === undefined ? undefined : edits(file, from, to);
     },
-    sameText: (file) => recorded.has(file) && recorded.get(file) === held?.get(file),
+    sameText,
     ...(base === undefined ? {} : {
       base: base.index,
       sameBeforeText: new Set([...recorded.keys(), ...(base.recorded?.keys() ?? [])].filter((file) => {
@@ -202,10 +203,7 @@ export function layCases(
     cases: last,
   };
   const journals = layEyes(previous.eyes, eyes, cases, announced);
-  const readings = layReadings(previous.readings, previous.index, fresh, merged, new Set(cases()), (file) => {
-    const text = recorded.get(file);
-    return text !== undefined && text === held?.get(file);
-  });
+  const readings = layReadings(previous.readings, previous.index, fresh, merged, new Set(cases()), sameText);
   return {
     index: merged,
     last: spelledLast(named, merged),

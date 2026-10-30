@@ -154,6 +154,19 @@ describe('combineRecords against the TypeScript writers', () => {
     })).toString());
   });
 
+  it('carries the readings each shard kept of its cases into the combined record', async () => {
+    const shards = [await recordOf('a.bin', ['a.test.ts']), await recordOf('b.bin', ['b.test.ts'])];
+    const kept = (file: string) => ({ cases: { [`${file} > greets`]: [{ count: 1, stopped: false }, { count: 2, stopped: true, gone: [0] }] } });
+    for (const [shard, file] of [[shards[0]!, 'a.test.ts'], [shards[1]!, 'b.test.ts']] as const) {
+      const bytes = await readFile(shard);
+      await writeFile(shard, withCaseSections(bytes, { ...caseSectionsOf(bytes), readings: Buffer.from(JSON.stringify(kept(file))) }));
+    }
+    const into = join(root, 'combined.bin');
+    combineRecords(shards, into, root);
+
+    expect(JSON.parse(Buffer.from(caseSectionsOf(await readFile(into)).readings!).toString())).toEqual({ cases: { ...kept('a.test.ts').cases, ...kept('b.test.ts').cases } });
+  });
+
   // Each shard restores the cached record and runs over it; a shard's record
   // names the record its run was laid over, which it split the suite by.
   it('fails the build when the shards split the suite by different records, in either order', async () => {

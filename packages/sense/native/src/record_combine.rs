@@ -292,6 +292,13 @@ fn combined<'a>(paths: &[String], cut: Option<&[u8]>, load: impl Fn(usize, Optio
     if !eyes.is_empty() {
         columns.push(Column::Plain(LAYOUT.coverage.part("eyes"), record_parts::fold_eyes(&eyes, cases.is_some().then_some(&ids))?));
     }
+    let readings = parts(|parts| parts.readings.as_deref());
+    if !readings.is_empty() {
+        if cases.is_none() {
+            return Err("a shard holds readings of its cases, and no shard kept cases, so the combined record has no case index to name them.".to_owned());
+        }
+        columns.push(Column::Plain(LAYOUT.coverage.part("readings"), record_parts::fold_readings(&readings, &ids)?));
+    }
     if let Some(base) = starts.base() {
         columns.push(Column::Plain(LAYOUT.coverage.part("base"), base.as_bytes().to_vec()));
     }

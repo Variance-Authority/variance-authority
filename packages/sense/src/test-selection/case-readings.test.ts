@@ -61,13 +61,36 @@ describe('layReadings', () => {
   });
 
   it('counts a reading it already holds rather than storing it again', () => {
-    const { section, index } = laid([run(false, { wire: 2 }), run(false, { wire: 2 }), run(false, { wire: 2 })]);
+    const { section, index } = laid([run(true, { handle: 3 }), run(false, { wire: 2 }), run(false, { wire: 2 })]);
 
-    expect(readingsOf(section, index, ID)).toEqual([
-      { count: 3, stopped: false, regions: [['src/page.ts', 'wire', 'wire', 1, 1, lineValue(2, false)]] },
+    expect(readingsOf(section, index, ID)!.map(({ count, stopped }) => ({ count, stopped }))).toEqual([
+      { count: 2, stopped: false },
+      { count: 1, stopped: true },
     ]);
-    // A case whose one reading the index holds costs its count, in its row's place.
-    expect(JSON.parse(section!.toString('utf8'))).toEqual({ counts: [3] });
+  });
+
+  it('holds nothing of a case read alike every run', () => {
+    expect(laid([run(false, { wire: 2 }), run(false, { wire: 2 }), run(false, { wire: 2 })]).section).toBeUndefined();
+  });
+
+  it('keeps a case its readings where the index it is laid over holds fewer cases', () => {
+    const { section } = laid([run(true, { handle: 3 }, ['b.test.ts > other']), run(false, { wire: 2 }, ['b.test.ts > other'])]);
+    const cut = run(false, { wire: 2 });
+
+    expect(readingsOf(layReadings(section, cut, undefined, cut, cases, unchanged), cut, ID)!.map(({ stopped }) => stopped)).toEqual([false, true]);
+  });
+
+  it('stores an earlier reading as what it read otherwise than the newest', () => {
+    const { section, index } = laid([run(true, { handle: 3 }), run(true, { wire: 1, handle: 3 }), run(false, { wire: 2, handle: 4 })]);
+
+    expect(JSON.parse(section!.toString('utf8'))).toEqual({
+      cases: { [ID]: [{ count: 1, stopped: false }, { count: 1, stopped: true, values: [[0, lineValue(1, false)], [1, lineValue(3, false)]] }, { count: 1, stopped: true, gone: [0], values: [[1, lineValue(3, false)]] }] },
+    });
+    expect(readingsOf(section, index, ID)!.map(({ regions }) => regions.map(([, name, , , , value]) => [name, value]))).toEqual([
+      [['wire', lineValue(2, false)], ['handle', lineValue(4, false)]],
+      [['wire', lineValue(1, false)], ['handle', lineValue(3, false)]],
+      [['handle', lineValue(3, false)]],
+    ]);
   });
 
   it('drops the oldest distinct reading past the bound', () => {

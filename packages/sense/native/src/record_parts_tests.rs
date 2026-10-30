@@ -165,3 +165,30 @@ fn a_last_run_at_no_commit_takes_the_commit_the_others_name() {
         assert_eq!(folded["commit"], serde_json::json!("c"));
     }
 }
+
+#[test]
+fn folds_readings_under_each_case_combined_id() {
+    let one = br#"{"cases":{"b":[{"count":1,"stopped":false},{"count":2,"stopped":true}]}}"#.to_vec();
+    let two = br#"{"cases":{"a":[{"count":1}]}}"#.to_vec();
+    let renamed: HashMap<String, String> = [("b".to_owned(), "c".to_owned())].into();
+    let folded = fold_readings(&[("one", &one, &renamed), ("two", &two, &none())], &cases(&["a", "c"])).unwrap();
+
+    assert_eq!(String::from_utf8(folded).unwrap(), r#"{"cases":{"a":[{"count":1}],"c":[{"count":1,"stopped":false},{"count":2,"stopped":true}]}}"#);
+}
+
+#[test]
+fn refuses_two_shards_reading_one_case_otherwise() {
+    let one = br#"{"cases":{"a":[{"count":1}]}}"#.to_vec();
+    let two = br#"{"cases":{"a":[{"count":2}]}}"#.to_vec();
+    let message = fold_readings(&[("two", &two, &none()), ("one", &one, &none())], &cases(&["a"])).err().unwrap();
+
+    assert_eq!(message, "one and two hold different readings of `a`, so they are not shards of one run and cannot be folded into one.");
+}
+
+#[test]
+fn refuses_readings_of_a_case_the_index_does_not_record() {
+    let one = br#"{"cases":{"a":[{"count":1}]}}"#.to_vec();
+    let message = fold_readings(&[("one", &one, &none())], &cases(&["b"])).err().unwrap();
+
+    assert_eq!(message, "one: its readings section holds readings of `a`, a case the combined index does not record");
+}
