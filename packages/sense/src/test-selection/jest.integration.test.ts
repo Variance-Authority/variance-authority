@@ -319,6 +319,9 @@ describe('the Jest integration', () => {
       .find((path) => readRoute(repository, path).name === 'takes the alpha path');
     const route = readRoute(repository, alpha!);
     expect(route.unresolved).toEqual([]);
+    // The hook's statement opens the case as a hook's line, and the test's as a test's.
+    expect(route.opening.before).toContain('hook line 4');
+    expect(route.opening.route[0]).toBe('test line 8');
     expect(route.route.map((step) => ('token' in step ? step.token : undefined))
       .find((token) => token !== undefined && 'place' in token && token.place.name === 'decide')).toMatchObject({
       place: { file: at('src/decide.ts'), at: `${at('src/decide.ts')}#decide/entry` },
