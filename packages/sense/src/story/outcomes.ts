@@ -105,15 +105,19 @@ export function compareOutcomes({ file, name, readings }: RecordedCase): Outcome
     const passed = passedCharge.get(region);
     return passed === undefined ? [] : [{ region: regions.get(region)!, passed: chargeOf(passed), threw: chargeOf(threw) }];
   }).sort((left, right) => byPlace(left.region, right.region));
-  const unsteady = new Set([...reached.unsteady, ...charged.unsteady.map((key) => split(key)[0])]);
+  const onlyPassed = one('0');
+  const onlyThrew = one('1');
+  // A region told is not counted again for what else moved in it.
+  const told = new Set([...onlyPassed, ...onlyThrew, ...moved.map(({ region }) => region)]);
+  const unsteady = new Set([...reached.unsteady, ...charged.unsteady.map((key) => split(key)[0])].filter((key) => !told.has(regions.get(key)!)));
   const runs = sides.map((side) => side.reduce((sum, reading) => sum + reading.count, 0));
   return {
     file,
     name,
     passed: runs[0]!,
     threw: runs[1]!,
-    onlyPassed: one('0'),
-    onlyThrew: one('1'),
+    onlyPassed,
+    onlyThrew,
     moved,
     unsteady: unsteady.size,
     single: runs.some((count) => count < 2),

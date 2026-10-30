@@ -57,6 +57,16 @@ describe('compareOutcomes', () => {
     });
   });
 
+  it('tells a region reached on one side only once, though its line moves between the readings of that side', () => {
+    const comparison = compared([
+      reading(false, [crossed(WIRE, 3), crossed(HANDLE, 7)]),
+      reading(false, [crossed(WIRE, 4), crossed(HANDLE, 7)]),
+      reading(true, [crossed(HANDLE, 7)], 2),
+    ]);
+
+    expect(comparison).toMatchObject({ onlyPassed: [WIRE], unsteady: 0 });
+  });
+
   it('tells a region drained without a line on every failing reading', () => {
     const comparison = compared([
       reading(false, [crossed(HANDLE, 7)], 2),
