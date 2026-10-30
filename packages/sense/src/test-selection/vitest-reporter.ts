@@ -17,13 +17,7 @@ import { reportedDuration, reportedPhases } from './reported-time.js';
 import { reportedCases, taskCases } from './case-durations.js';
 import { noteRunner, projectConfig, type RunnerContext } from './governing-config.js';
 import { reopenRun, type SelectionRun } from './selection-run.js';
-import { BROWSER_JOURNAL } from './worker-source.js';
-import type { PageStory, StoryCase } from '../story/page.js';
-
-/** What a case in a page left on its `meta`: its tape, and the names the record knows it by. */
-interface CarriedStory extends StoryCase {
-  readonly story: PageStory;
-}
+import { carriedStory, writeCarriedStories } from './carried-stories.js';
 
 export function selectionReporter(
   run: SelectionRun,
@@ -111,26 +105,19 @@ function testsOf(task: RunnerTask): RunnerTask[] {
 }
 
 /**
- * Write the story each case that ran in a page carried on its `meta`. A case in
- * Node writes its own, and carries none.
+ * Write the story each case that ran in a page carried on its `meta`, under
+ * the names its page gave it beside the tape.
  */
-async function writeCarried(
+function writeCarried(
   directory: string | undefined,
   tests: readonly { readonly meta?: object | undefined; readonly stopped: boolean }[],
 ): Promise<void> {
-  if (directory === undefined) return;
-  const carried = tests.flatMap(({ meta, stopped }) => {
-    const held = (meta as Record<string, unknown> | undefined)?.[BROWSER_JOURNAL] as CarriedStory | undefined;
-    return typeof held?.story === 'object' && held.story !== null ? [{ ...held, stopped }] : [];
-  });
-  if (carried.length === 0) return;
-  // Loaded here, where a page carried a story, and not at the top: it reads
-  // the format from the build.
-  const stories = (await import('../story/page.js')).pageStories(directory);
-  for (const { story, stopped, ...subject } of carried) {
-    stories.add(subject, story);
-    stories.write(subject, stopped);
-  }
+  return writeCarriedStories(directory, tests.flatMap(({ meta, stopped }) => {
+    const held = carriedStory(meta);
+    if (held === undefined) return [];
+    const { story, file = '', name = '', id = '', project } = held;
+    return [{ subject: { file, name, id, project }, story, stopped }];
+  }));
 }
 
 /** Vitest 3 and 4's phases for a module, under the record's names. */
