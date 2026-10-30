@@ -60,7 +60,8 @@ pub fn cadence(source: &str, file: &str, awaited: bool) -> Option<Cadence> {
     if parsed.panicked || !parsed.diagnostics.is_empty() {
         return None;
     }
-    let mut cuts = Cuts { lines: Lines::new(source), edits: Vec::new(), awaited, waits: false };
+    let registrars = registrars(&parsed.program);
+    let mut cuts = Cuts { lines: Lines::new(source), edits: Vec::new(), awaited, waits: false, registrars };
     cuts.visit_program(&parsed.program);
     if cuts.edits.is_empty() {
         return None;
@@ -99,6 +100,8 @@ struct Cuts {
     awaited: bool,
     /// Whether the body being cut can wait on its cuts.
     waits: bool,
+    /// The names a test or hook body is registered under in this file.
+    registrars: Vec<String>,
 }
 
 impl Cuts {
@@ -188,7 +191,8 @@ impl Cuts {
 impl<'a> Visit<'a> for Cuts {
     fn visit_call_expression(&mut self, it: &CallExpression<'a>) {
         // Playwright's `test.describe(…)` starts from `test` and holds tests.
-        if !BODIES.contains(&root_name(&it.callee).unwrap_or("")) || has_member(&it.callee, "describe") {
+        let registers = root_name(&it.callee).is_some_and(|name| self.registrars.iter().any(|known| known == name));
+        if !registers || has_member(&it.callee, "describe") {
             return walk::walk_call_expression(self, it);
         }
         self.visit_expression(&it.callee);
@@ -197,6 +201,59 @@ impl<'a> Visit<'a> for Cuts {
                 Argument::ArrowFunctionExpression(_) | Argument::FunctionExpression(_) => self.body(argument),
                 other => self.visit_argument(other),
             }
+        }
+    }
+}
+
+/// The names a body is registered under: `BODIES`, a specifier that
+/// imports one of them under another name, and a top-level binding that
+/// `.extend` made from a registrar, as Playwright's and Vitest's `test.extend`
+/// make a test with fixtures, followed through any number of extensions.
+fn registrars(program: &Program) -> Vec<String> {
+    let mut names: Vec<String> = BODIES.iter().map(|name| name.to_string()).collect();
+    let mut extended: Vec<(&str, &str)> = Vec::new();
+    for statement in &program.body {
+        let declaration = match statement {
+            Statement::ImportDeclaration(import) => {
+                for specifier in import.specifiers.iter().flatten() {
+                    if let ImportDeclarationSpecifier::ImportSpecifier(it) = specifier {
+                        let imported = it.imported.name();
+                        if BODIES.contains(&imported.as_str()) && it.local.name != imported {
+                            names.push(it.local.name.to_string());
+                        }
+                    }
+                }
+                continue;
+            }
+            Statement::VariableDeclaration(declaration) => declaration,
+            Statement::ExportDeclaration(export) => match &export.declaration {
+                Declaration::VariableDeclaration(declaration) => declaration,
+                _ => continue,
+            },
+            _ => continue,
+        };
+        for declarator in &declaration.declarations {
+            let (BindingPattern::BindingIdentifier(id), Some(Expression::CallExpression(call))) = (&declarator.id, &declarator.init) else {
+                continue;
+            };
+            if has_member(&call.callee, "extend") {
+                if let Some(root) = root_name(&call.callee) {
+                    extended.push((id.name.as_str(), root));
+                }
+            }
+        }
+    }
+    // An extension of an extension is declared after it, so one pass in order
+    // takes the chain; a later pass takes one declared out of order.
+    loop {
+        let before = names.len();
+        for (name, root) in &extended {
+            if names.iter().any(|known| known == root) && !names.iter().any(|known| known == name) {
+                names.push(name.to_string());
+            }
+        }
+        if names.len() == before {
+            return names;
         }
     }
 }
