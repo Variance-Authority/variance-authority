@@ -56,6 +56,11 @@ export const MODEL = LAYOUT.coverage.model;
  * And again for `tests.phases`, what the runner said each test file spent
  * before its first case. The layout before it stays readable, as a record whose
  * runner reported no phases.
+ *
+ * And again for `modules.blob`, the name git gives each module's text as a
+ * blob, so a reader asks the source index whether the checkout holds that text
+ * instead of reading it. The layout before it stays readable, as a record
+ * whose rows name no text by its blob: which text they ran is not known.
  */
 export const FORMAT = LAYOUT.coverage.format;
 

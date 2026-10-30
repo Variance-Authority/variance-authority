@@ -81,9 +81,10 @@ impl Coverage {
         }
     }
 
-    /// The layouts a reader opens: the current one, the one before phases,
-    /// the one before the case parts, and the untimed one the JVM agent
-    /// writes. `readableFormat` in `format-layout.ts` opens the same four.
+    /// The layouts a reader opens: the current one, the one before the git
+    /// blob names, the one before phases, the one before the case parts, and
+    /// the untimed one the JVM agent writes. `readableFormat` in
+    /// `format-layout.ts` opens the same five.
     pub fn readable(&self, version: u8) -> bool {
         version == self.format || version == self.unkeyed || version == self.unphased || version == self.uncased || version == self.untimed
     }

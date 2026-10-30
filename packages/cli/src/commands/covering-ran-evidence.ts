@@ -13,9 +13,11 @@ import { realpath } from 'node:fs/promises';
 import { join, relative, sep } from 'node:path';
 import { existedAt } from '@variance-authority/sense';
 import {
+  blobsAt,
   blocksOfTarget,
   editOf,
   keptTexts,
+  NO_EDIT,
   placeAcross,
   placeInTexts,
   readsTheSnapshot,
@@ -23,6 +25,7 @@ import {
   textsAt,
   type Edit,
   type ExecutionIndex,
+  type Held,
   type HeldLines,
   type NotHeld,
   type Placement,
@@ -70,8 +73,14 @@ export interface Evidence extends RanOverEvidence {
    * pair of texts: whether that text holds a line written since the record.
    */
   readonly across: (held: string, ran: string) => Placement['place'];
-  /** The edit `file` went through from a held text to a text a run ran over, read once per pair of texts. */
-  readonly edit: (file: string, held: string, ran: string) => Edit;
+  /** The edit `file` went through from one text to another, read once per pair of names. */
+  readonly edit: (file: string, from: NamedText, to: NamedText) => Edit;
+}
+
+/** A text in hand and the name a reader already holds for it: a digest, or a git blob name. */
+export interface NamedText {
+  readonly name: string;
+  readonly text: string;
 }
 
 /** What reading the evidence is handed. */
@@ -86,6 +95,8 @@ export interface EvidenceQuestion {
   /** The question's own placement of its one file. */
   readonly placement: Placement | undefined;
   readonly ranOther: ReadonlyMap<string, readonly string[]> | undefined;
+  /** Commits besides the runs' to read the files at, by name and then by text where it is not the held one. */
+  readonly at?: readonly string[];
 }
 
 /**
@@ -93,27 +104,45 @@ export interface EvidenceQuestion {
  * stood at, which asked files those commits lack, the kept texts the runs name when a region is asked, and the
  * snapshot's placements when a run wrote it — the question's own for one
  * file, else read for each held text.
+ *
+ * A file held by name is read at a commit by name first, and its text only
+ * where the commit holds another, so a commit that holds the held text reads
+ * no text of it.
  */
-export async function evidenceOf(runs: readonly TestPlace[], held: ReadonlyMap<string, string>, question: EvidenceQuestion): Promise<Evidence> {
+export async function evidenceOf(runs: readonly TestPlace[], held: ReadonlyMap<string, Held>, question: EvidenceQuestion): Promise<Evidence> {
   const { root, repository, last } = question;
   const files = [...held.keys()];
   // A run the record could not place stood nowhere it says, so nothing is read where it is assumed to.
   const placed = runs.filter((run) => run.assumed !== true);
   const committed = new Map<string, Map<string, string>>();
+  const names = new Map<string, Map<string, string>>();
   const absent = new Map<string, Set<string>>();
   if (repository !== undefined) {
     const under = relative(await realpath(repository), await realpath(root));
     const repoPath = (file: string): string => (under === '' ? file : join(under, file).split(sep).join('/'));
-    const commits = [...new Set(placed.flatMap((run) => run.commit ?? []))];
-    const blobs = textsAt(repository, new Map(commits.map((commit) => [commit, files.map(repoPath)])));
+    const commits = [...new Set([...placed.flatMap((run) => run.commit ?? []), ...(question.at ?? [])])];
+    const byName = files.filter((file) => typeof held.get(file) !== 'string');
+    const named = byName.length === 0 ? new Map<string, Map<string, string>>() : blobsAt(repository, new Map(commits.map((commit) => [commit, byName.map(repoPath)])));
+    const toRead = (commit: string): string[] => files.filter((file) => {
+      const one = held.get(file)!;
+      if (typeof one === 'string') return true;
+      const name = named.get(commit)?.get(repoPath(file));
+      return name !== undefined && name !== one.blob;
+    });
+    const blobs = textsAt(repository, new Map(commits.map((commit) => [commit, toRead(commit).map(repoPath)])));
     for (const commit of commits) {
       const texts = blobs.get(commit);
       committed.set(commit, new Map(files.flatMap((file) => {
         const text = texts?.get(repoPath(file));
         return text === undefined ? [] : [[file, text] as const];
       })));
-      // No text read is a file the commit lacks, or a commit or a blob this clone lacks: git's tree tells them apart.
-      const lacks = files.filter((file) => texts?.get(repoPath(file)) === undefined && existedAt(repository, commit, repoPath(file)) === false);
+      names.set(commit, new Map(byName.flatMap((file) => {
+        const name = named.get(commit)?.get(repoPath(file));
+        return name === undefined ? [] : [[file, name] as const];
+      })));
+      // No text or name read is a file the commit lacks, or a commit or a blob this clone lacks: git's tree tells them apart.
+      const lacks = files.filter((file) => texts?.get(repoPath(file)) === undefined && names.get(commit)?.get(file) === undefined &&
+        existedAt(repository, commit, repoPath(file)) === false);
       if (lacks.length > 0) absent.set(commit, new Set(lacks));
     }
   }
@@ -129,7 +158,7 @@ export async function evidenceOf(runs: readonly TestPlace[], held: ReadonlyMap<s
     ? new Map<string, Placement>()
     : question.placement !== undefined && files.length === 1
       ? new Map([[files[0]!, question.placement]])
-      : placeInTexts(question.snapshot, root, held);
+      : placeInTexts(question.snapshot, root, new Map([...held].flatMap(([file, one]) => typeof one === 'string' ? [[file, one] as const] : [])));
   // Runs that ran over the same text compare the same pair, so each pair is read once.
   const pairs = new Map<string, Placement['place']>();
   const across = (from: string, to: string): Placement['place'] => {
@@ -139,13 +168,14 @@ export async function evidenceOf(runs: readonly TestPlace[], held: ReadonlyMap<s
     return place;
   };
   const edits = new Map<string, Edit>();
-  const edit = (file: string, from: string, to: string): Edit => {
-    const key = `${file}\0${digestString(from)}\0${digestString(to)}`;
-    const found = edits.get(key) ?? editOf(root, file, from, to);
+  const edit = (file: string, from: NamedText, to: NamedText): Edit => {
+    if (from.name === to.name) return NO_EDIT;
+    const key = `${file}\0${from.name}\0${to.name}`;
+    const found = edits.get(key) ?? editOf(root, file, from.text, to.text);
     edits.set(key, found);
     return found;
   };
-  return { repository: repository !== undefined, committed, absent, kept, last, placements, ranOther: question.ranOther, across, edit };
+  return { repository: repository !== undefined, committed, blobs: names, absent, kept, last, placements, ranOther: question.ranOther, across, edit };
 }
 
 /**
@@ -169,6 +199,7 @@ export function regionVerdict(
   if (over === 'absent') return 'changed';
   const ran = over.text;
   if (ran === undefined) return { unknown: `the text of ${file} that run ran over is neither kept nor committed` };
-  const edit = evidence.edit(file, held, ran);
+  // Covering holds no source index, so it names the held text by its digest.
+  const edit = evidence.edit(file, { name: digestString(held), text: held }, { name: over.name ?? digestString(ran), text: ran });
   return region.held.some((range) => regionTouched(range, [edit])) ? 'changed' : 'same';
 }

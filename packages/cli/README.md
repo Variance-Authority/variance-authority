@@ -1289,15 +1289,15 @@ variance coverage
 ```
 
 ```text
-coverage at 7556a03a — 4,812 regions in 311 files the suites loaded
-  any suite           4,356  90.5%
-    checkout  e2e     3,900  81.0%  recorded at 7556a03a
-    stories   visual    718  14.9%  recorded at 63e1d779
-    unit      unit    3,352  69.7%  recorded at 7556a03a
+coverage at 7556a03a, recorded at 63e1d779 — 4,812 regions in 311 files the suites loaded
+  any suite           4,356  90.5%                        12 over an older text
+    checkout  e2e     3,900  81.0%  recorded at 7556a03a  0 over an older text
+    stories   visual  718    14.9%  recorded at 63e1d779  41 over an older text
+    unit      unit    3,352  69.7%  recorded at 7556a03a  0 over an older text
   more than one kind  2,910
   one kind alone      1,446  unit 380 · e2e 986 · visual 80
-  nothing ran           339
-  ran only at load      117
+  nothing ran         339
+  ran only at load    117
 ```
 
 Each number is a count of regions, the functions and branches the recording
@@ -1312,15 +1312,26 @@ suite the root config declares and that has not recorded is printed as
 regions, the regions one cut has and the other does not are counted as not
 joined.
 
+The last column parts what each suite ran by the text it ran over. A suite
+recorded before your last edit to a file ran the file as it was then: a region
+the edit touched is counted over an older text, and a region it left alone
+counts as run over yours. `any suite` counts a region over an older text only
+when no suite ran it over the text you hold. Texts are compared by the name git
+gives them as blobs, the name the [source index](https://variance-authority.dev/docs/cache)
+holds for each file, so `coverage` reads a file only to diff two texts whose
+names differ. A file the source index does not hold, or a record made before
+its rows named their text, counts as not known, and a line under the table says
+why. The total over the source carries the same split.
+
 With a base, each count is printed at the base and now, beside the parts that
 add up to the change:
 
 ```text
 coverage at 7556a03a against each suite's base — 4,812 regions (4,790 at the base) in 311 files the suites loaded
-  any suite           4,310 → 4,356  90.0% → 90.5%
-    checkout  e2e     3,832 → 3,900  80.0% → 81.0%  +51 newly run · −2 no longer run · +19 run in 22 added regions
-    stories   visual  1,437 →   718  30.0% → 14.9%  −716 no longer run · −3 no longer run after a case stopped
-    unit      unit    3,353 → 3,352  70.0% → 69.7%  +4 newly run · −9 no longer run · +4 run in 22 added regions
+  any suite           4,310 → 4,356  90.0% → 90.5%                                                                  0 over an older text
+    checkout  e2e     3,832 → 3,900  80.0% → 81.0%  +51 newly run · −2 no longer run · +19 run in 22 added regions  0 over an older text
+    stories   visual  1,437 → 718    30.0% → 14.9%  −716 no longer run · −3 no longer run after a case stopped      0 over an older text
+    unit      unit    3,353 → 3,352  70.0% → 69.7%  +4 newly run · −9 no longer run · +4 run in 22 added regions    0 over an older text
   stories: src/checkout.stories.tsx no longer runs 212 functions in 9 files (716 regions) at the base
   unit: src/checkout/total.test.ts no longer runs total in src/checkout/total.ts (3 regions) at the base
 ```
@@ -1369,7 +1380,7 @@ source: 338 files reached from the entry points of packages/apps/main
     packages/apps/main/src/legacy  12 files  610 lines    201 regions
     packages/apps/main/src/admin   9 files   402 lines    131 regions
     libs/ui/charts                 6 files   191 lines    56 regions
-  total coverage for 4,417 of the 5,261 regions: 84.0%, 1.4% before reach
+  total coverage for 4,417 of the 5,261 regions: 84.0%, 1.4% before reach; 9 over an older text
 ```
 
 Tests, `*.config.*` files and declaration files are not source here, because no
@@ -1466,16 +1477,16 @@ variance coverage --at-distance 2-
 ```
 
 ```text
-coverage at 818a2cec — 40,331 regions in 1,159 files the suites loaded, counted where the nearest test that ran the code is 0-1 import hops away; 2,204 regions run from no measured distance, in no band
-  any suite                   24,163      59.9%
-coverage at 818a2cec — 40,331 regions in 1,159 files the suites loaded, counted where the nearest test that ran the code is 2 or more import hops away; 2,204 regions run from no measured distance, in no band
-  any suite                   10,100      25.0%
+coverage at d2f48eba, recorded at a7a1bd13 — 41,601 regions in 1,186 files the suites loaded, counted where the nearest test that ran the code is 0-1 import hops away; 2,235 regions run from no measured distance, in no band
+  any suite                   24,998      60.1%                        0 over an older text
+coverage at d2f48eba, recorded at a7a1bd13 — 41,601 regions in 1,186 files the suites loaded, counted where the nearest test that ran the code is 2 or more import hops away; 2,235 regions run from no measured distance, in no band
+  any suite                   10,443      25.1%                        5 over an older text
 ```
 
 A test's own file is `0` hops from it and a module it imports directly is `1`,
 walked over the modules the test entered. A region counts under `2-` only when
-no test ran it from closer, so the bands split what ran: here 24,163, 10,100
-and the 2,204 no walk placed add up to the 36,467 regions run with no band.
+no test ran it from closer, so the bands split what ran: here 24,998, 10,443
+and the 2,235 no walk placed add up to the 37,676 regions run with no band.
 Within a band, only the crossings of the tests in it are kept, so `--packages`
 under `--at-distance 0-1` names the regions only another package's near tests
 ran. The band also composes with `--from`. A test file the graph does not hold

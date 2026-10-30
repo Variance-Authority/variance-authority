@@ -6,6 +6,7 @@ import { OperatorError } from '../exit.js';
 import { readExecutionFor, recordedExecutionFile } from './execution-input.js';
 import { ranAsTree, recordedRegions, type RecordedRegions, type Removed } from './review-region.js';
 import type { Reach, ReviewRegion } from './review.js';
+import type { IndexNames } from './source-graph.js';
 
 /** A suite that cannot be read remains visible beside the suites that can. */
 export interface MissedSuite {
@@ -92,20 +93,21 @@ export async function everySuiteRegions(
   now: ReadonlyMap<string, readonly LineRange[]>,
   relations: Relations,
   removed: Removed,
+  names: IndexNames,
 ): Promise<ReadonlyMap<string, RecordedRegions>> {
   const files = [...now.keys()];
   const readings = await eachSuite(root, async (suite) => {
     if (suite === named.suite) return undefined;
     const record = await recordedExecutionFile(root, suite);
     const { index } = await readExecutionFor(record, now);
-    const ran = await ranAsTree(record, root, files, index);
+    const ran = ranAsTree(record, files, index, names);
     if (ran.size === 0) return undefined;
     const lines = new Map([...now].filter(([file]) => ran.has(file)));
     return { ran, regions: await recordedRegions(record, index, lines, relations, root, removed) };
   });
   const others = readings.flatMap((reading) => reading === undefined || 'missed' in reading ? [] : [reading]);
   if (others.length === 0) return own;
-  const ownRan = await ranAsTree(named.record, root, files, named.index);
+  const ownRan = ranAsTree(named.record, files, named.index, names);
   const joined = new Map<string, RecordedRegions>();
   for (const [file, answer] of own) {
     const answers = others.flatMap((other) => other.ran.has(file) ? [other.regions.get(file)!] : []);

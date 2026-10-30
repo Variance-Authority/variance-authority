@@ -17,8 +17,6 @@
 
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
-import { isCI } from 'ci-info';
-import type { FileRecord } from '@variance-authority/core/relate';
 import {
   askCoverageFile,
   coverageAtDistance,
@@ -50,9 +48,9 @@ import { baseCommit } from './covering-motion.js';
 import { coverageSource, harnessReach, readSource, within, type CoverageSource, type MissedEntry, type Scoped } from './coverage-source.js';
 import { readExecutionIndex, recordedExecutionFile } from './execution-input.js';
 import { mainlineBase, mainlineMissed } from './mainline-base.js';
-import { textOver, type TreeBlobs } from './coverage-over-text.js';
+import type { textOver } from './coverage-over-text.js';
 import { runsOf } from './record-runs.js';
-import { relationsFor } from './source-graph.js';
+import { indexNames, relationsFor } from './source-graph.js';
 import { asOperator, nothingRecorded } from './suite-record.js';
 
 /** One suite's record and its base, or why it has neither. */
@@ -138,21 +136,11 @@ export interface CoverageEntry {
 }
 
 /**
- * What a caller asks of the count beyond the request: `variance coverage` asks
- * every part. `review` asks no split: parting what ran by text reads the text
- * of every changed file a run called into, on disk, kept or committed, and the
- * edits between them, which costs a review far more than the count it prints.
+ * Count the records the request names, and compare them with their bases,
+ * parting what each region ran over by text with `over`. A review passes none:
+ * it counts what ran, never over which text, which is `variance coverage`'s.
  */
-export interface CoverageParts {
-  /** Part what ran by the text it ran over: read the runs record and the edits since. */
-  readonly over: boolean;
-}
-
-/**
- * Count the records the request names, and compare them with their bases. A
- * caller that does not ask `over` reads no text and gets no split.
- */
-export async function coverage(request: ParsedCoverage, parts: CoverageParts = { over: true }): Promise<Coverage> {
+export async function coverage(request: ParsedCoverage, over: typeof textOver | undefined): Promise<Coverage> {
   const declared = asOperator(() => declaredSuites(request.root));
   const asked = request.suite === undefined ? declared : declared?.filter((one) => one.name === request.suite);
   if (request.suite !== undefined) asOperator(() => testCoverageFile(request.root, { suite: request.suite }));
@@ -164,11 +152,10 @@ export async function coverage(request: ParsedCoverage, parts: CoverageParts = {
     );
   }
 
-  // The split names the tree's texts by the source index, outside CI brought up to the tree first, so the read below reads it too.
-  const updated = parts.over ? await updatedTree(request.root) : undefined;
-  // Read first: `--from` narrows every record counted below to the files it reaches.
-  const reading = await readSource(request.root, request.from, request.packages === true);
-  const tree = updated ?? (parts.over && isCI && !('missed' in reading) ? publishedTree(reading.records) : undefined);
+  // Read first: `--from` narrows every record counted below to the files it reaches. The split names the
+  // checkout's texts by the index, so outside CI it is brought up to the checkout first.
+  const reading = await readSource(request.root, request.from, request.packages === true, over !== undefined);
+  const names = 'missed' in reading ? { missed: reading.missed } : indexNames(reading.records);
   if ('missed' in reading && request.from !== undefined) {
     throw new OperatorError(`\`--from ${request.from}\` is answered by the source index, and ${reading.missed}`);
   }
@@ -206,7 +193,7 @@ export async function coverage(request: ParsedCoverage, parts: CoverageParts = {
     // Over which text each region ran: asked of the whole index, so `--from` and each package count the same answers.
     now.push({
       ...(one === undefined ? {} : { name: one.name, kind: one.kind }), index,
-      ...(parts.over ? { textOf: await textOver(request.root, record, recorded, whole, tree) } : {}),
+      ...(over === undefined ? {} : { textOf: await over(request.root, record, recorded, whole, names) }),
     });
     const found = request.atDistance === undefined
       ? await baseOf(request, one)
@@ -370,25 +357,6 @@ function unchanged(change: SuiteChange): boolean {
     change.written.regions === 0 && change.deleted.regions === 0 &&
     change.arrived.files.length === 0 && change.departed.files.length === 0 &&
     change.testFiles.every((file) => file.entered.length === 0 && file.left.length === 0);
-}
-
-/**
- * The source index's names for the checkout's texts at `root`, got the way
- * every reader gets the index: outside CI updated to the tree, in CI as the
- * pipeline published it, which `readSource` reads, never built. None when
- * there is no index to have, and the split then counts each text it would
- * have named as not known.
- */
-async function updatedTree(root: string): Promise<TreeBlobs | undefined> {
-  if (isCI) return undefined;
-  const { updateSourceIndex } = await import('@variance-authority/sense');
-  return (await updateSourceIndex(root).catch(() => undefined))?.listing;
-}
-
-/** The names `records`, the index as published, gives the texts it holds; a file it does not hold is named by nothing. */
-function publishedTree(records: readonly FileRecord[]): TreeBlobs {
-  const names = new Map(records.map((record) => [record.file, record.digest ?? ''] as const));
-  return { digestsFor: (files) => files.map((file) => names.get(file) ?? '') };
 }
 
 async function head(root: string): Promise<string | undefined> {

@@ -20,6 +20,7 @@ const evidence: RanOverEvidence = {
   repository: true,
   committed: new Map([['C', new Map([[FILE, HELD]])], ['D', new Map([[FILE, OTHER]])]]),
   absent: new Map([['E', new Set([FILE])]]),
+  blobs: new Map(),
   kept: new Map([[digestString(OTHER), OTHER]]),
   last: LAST,
   placements: new Map(),
@@ -36,11 +37,32 @@ const placed = (frame: Placement['frame'], recorded?: string): Placement => ({
 describe('which text of a file a run ran over', () => {
   it('reads the text a landing names, the kept one when it is another, and the commit\'s where it names none', () => {
     expect(ranOver({ commit: 'D', texts: { [FILE]: digestString(HELD) } }, TEST, FILE, HELD, evidence, false)).toBe('held');
-    expect(ranOver({ commit: 'C', texts: { [FILE]: digestString(OTHER) } }, TEST, FILE, HELD, evidence, false)).toEqual({ text: OTHER });
+    expect(ranOver({ commit: 'C', texts: { [FILE]: digestString(OTHER) } }, TEST, FILE, HELD, evidence, false)).toEqual({ text: OTHER, name: digestString(OTHER) });
     expect(ranOver({ commit: 'C', texts: { [FILE]: digestString('kept nowhere') } }, TEST, FILE, HELD, evidence, false)).toEqual({ text: undefined });
     expect(ranOver({ commit: 'C', texts: {} }, TEST, FILE, HELD, evidence, false)).toBe('held');
     expect(ranOver({ commit: 'D', texts: {} }, TEST, FILE, HELD, evidence, false)).toEqual({ text: OTHER });
     expect(ranOver({ commit: 'E', texts: {} }, TEST, FILE, HELD, evidence, false)).toBe('absent');
+  });
+
+  it('tells the held text by its names, reading no text of it, and hands back the text a run ran instead', () => {
+    // By name the commit that holds the held text is not read, so only D's text is in hand.
+    const named: RanOverEvidence = {
+      ...evidence,
+      committed: new Map([['D', new Map([[FILE, OTHER]])]]),
+      blobs: new Map([['C', new Map([[FILE, 'git:held']])], ['D', new Map([[FILE, 'git:other']])]]),
+    };
+    const held = { blob: 'git:held', digest: digestString(HELD) };
+    expect(ranOver({ commit: 'D', texts: { [FILE]: digestString(HELD) } }, TEST, FILE, held, named, false)).toBe('held');
+    expect(ranOver({ commit: 'C', texts: {} }, TEST, FILE, held, named, false)).toBe('held');
+    expect(ranOver({ commit: 'D', texts: {} }, TEST, FILE, held, named, false)).toEqual({ text: OTHER, name: 'git:other' });
+    expect(ranOver({ commit: 'C', texts: { [FILE]: digestString(OTHER) } }, TEST, FILE, held, named, false)).toEqual({ text: OTHER, name: digestString(OTHER) });
+    // Rows cut from another text name no digest of the held one, so a run naming one did not run it.
+    expect(ranOver({ commit: 'D', texts: { [FILE]: digestString(HELD) } }, TEST, FILE, { blob: 'git:held', digest: undefined }, named, false)).toEqual({ text: undefined });
+    expect(ranOver({ commit: 'E', texts: {} }, TEST, FILE, held, named, false)).toBe('absent');
+    // The run that wrote the snapshot ran its rows' text, which is the held one when the rows name it.
+    const wrote: TestPlace = { first: LAST, latest: LAST };
+    expect(ranOver(wrote, TEST, FILE, held, named, false)).toBe('held');
+    expect(ranOver(wrote, TEST, FILE, { blob: 'git:held', digest: undefined }, named, false)).toEqual({ text: undefined, rows: true });
   });
 
   it('says why it is not known for a run the record could not place, one naming no texts, and one at a commit this clone lacks', () => {

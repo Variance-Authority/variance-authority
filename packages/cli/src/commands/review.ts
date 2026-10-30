@@ -297,7 +297,8 @@ export async function review(request: ParsedReview, { motion: moves = true } = {
   const against = request.against ?? (mainline !== undefined && point.base === mainline.commit ? mainline.cases : undefined);
 
   const named = (file: string): string => relative(point.repository, resolve(process.cwd(), file));
-  const { relations, sources } = await sourceGraphFor(root, ['.'], [], []);
+  // Updated to the checkout outside CI: which files a record ran as the tree is told by the names the index gives them.
+  const { relations, sources, names } = await sourceGraphFor(root, ['.'], [], [], false, true);
 
   const changed = changedLines(forward);
   const reading = readJourneyChange(forward, textsAt(await prefetch(point, [...changed.keys()], named)), {
@@ -312,7 +313,7 @@ export async function review(request: ParsedReview, { motion: moves = true } = {
   const { index: changedCases } = await readExecutionFor(from, now);
   const suiteRegions = await recordedRegions(from, changedCases, now, relations, root, removed);
   const covered = request.coverage === true
-    ? await everySuiteRegions(root, { ...(recorded.declared === undefined ? {} : { suite: recorded.declared.name }), record: from, index: changedCases }, suiteRegions, now, relations, removed)
+    ? await everySuiteRegions(root, { ...(recorded.declared === undefined ? {} : { suite: recorded.declared.name }), record: from, index: changedCases }, suiteRegions, now, relations, removed, names)
     : suiteRegions;
   const full = await readExecutionIndex(from);
   const held = await baseIndex(against, from, request.against === undefined && against !== undefined ? mainline : undefined);
@@ -356,7 +357,7 @@ export async function review(request: ParsedReview, { motion: moves = true } = {
   // The named suite's freshness: a module another suite recorded says nothing about whether this one ran.
   const measured = [...suiteRegions].filter(([, answer]) => answer.recorded).map(([file]) => file);
   // A change with no recorded module ran nothing yet.
-  const record = measured.length > 0 && (await ranAsTree(recorded.file, root, measured, changedCases)).size === measured.length ? 'ran' : 'before';
+  const record = measured.length > 0 && ranAsTree(recorded.file, measured, changedCases, names).size === measured.length ? 'ran' : 'before';
   const head = await reviewedCommit(point.repository);
   const gap = await probesGap(from, root, request.suite);
   return {

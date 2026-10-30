@@ -12,6 +12,6 @@ export async function reviewWithCoverage(request: ParsedReview): Promise<Review>
     command: 'coverage', root: request.root, format: 'json', packages: true,
     ...(suite === undefined ? {} : { suite }),
     ...(request.against === undefined || suite !== request.suite ? {} : { against: request.against }),
-  }, { over: false }));
+  }, undefined));
   return { ...answer, coverage: readings, ...(request.suite === undefined ? {} : { recordedSuite: request.suite }) };
 }

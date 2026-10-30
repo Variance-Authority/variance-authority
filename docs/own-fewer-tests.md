@@ -265,17 +265,17 @@ npx variance coverage --at-distance 2-
 ```
 
 ```text
-coverage at 818a2cec — 40,331 regions in 1,159 files the suites loaded, counted where the nearest test that ran the code is 0-1 import hops away; 2,204 regions run from no measured distance, in no band
-  any suite                   24,163      59.9%
-coverage at 818a2cec — 40,331 regions in 1,159 files the suites loaded, counted where the nearest test that ran the code is 2 or more import hops away; 2,204 regions run from no measured distance, in no band
-  any suite                   10,100      25.0%
+coverage at d2f48eba, recorded at a7a1bd13 — 41,601 regions in 1,186 files the suites loaded, counted where the nearest test that ran the code is 0-1 import hops away; 2,235 regions run from no measured distance, in no band
+  any suite                   24,998      60.1%                        0 over an older text
+coverage at d2f48eba, recorded at a7a1bd13 — 41,601 regions in 1,186 files the suites loaded, counted where the nearest test that ran the code is 2 or more import hops away; 2,235 regions run from no measured distance, in no band
+  any suite                   10,443      25.1%                        5 over an older text
 ```
 
-That is Variance Authority's own suite, which runs 90.4% of what it loads
+That is Variance Authority's own suite, which runs 90.6% of what it loads
 without `--at-distance`. A quarter of it runs only from two or more imports
-away: no test within one hop reaches it. The ranges split what ran: 59.9%,
-25.0%, and the 2,204 regions (5.5%) that only a test the import walk could not
-reach ran add up to the 90.4%. A test file the import graph does not hold at
+away: no test within one hop reaches it. The ranges split what ran: 60.1%,
+25.1%, and the 2,235 regions (5.4%) that only a test the import walk could not
+reach ran add up to the 90.6%. A test file the import graph does not hold at
 all is left out of every range, never taken as near, and the heading counts it
 too. The hops are measured on the tree as it is now, so a count under a range
 is not compared with the count the suite recorded on the base branch.

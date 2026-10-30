@@ -10,10 +10,10 @@ module**, so the answer to all three is in the report:
 
 ```text
 coverage at 7556a03a against each suite's base — 4,812 regions (4,790 at the base) in 311 files the suites loaded
-  any suite           4,310 → 4,356  90.0% → 90.5%
-    checkout  e2e     3,832 → 3,900  80.0% → 81.0%  +51 newly run · −2 no longer run · +19 run in 22 added regions
-    stories   visual  1,437 →   718  30.0% → 14.9%  −716 no longer run · −3 no longer run after a case stopped
-    unit      unit    3,353 → 3,352  70.0% → 69.7%  +4 newly run · −9 no longer run · +4 run in 22 added regions
+  any suite           4,310 → 4,356  90.0% → 90.5%                                                                  0 over an older text
+    checkout  e2e     3,832 → 3,900  80.0% → 81.0%  +51 newly run · −2 no longer run · +19 run in 22 added regions  0 over an older text
+    stories   visual  1,437 → 718    30.0% → 14.9%  −716 no longer run · −3 no longer run after a case stopped      0 over an older text
+    unit      unit    3,353 → 3,352  70.0% → 69.7%  +4 newly run · −9 no longer run · +4 run in 22 added regions    0 over an older text
   stories: src/checkout.stories.tsx no longer runs 212 functions in 9 files (716 regions) at the base
   unit: src/checkout/total.test.ts no longer runs total in src/checkout/total.ts (3 regions) at the base
 ```

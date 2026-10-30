@@ -183,9 +183,11 @@ export async function answerConfigless(
     }
 
     case 'coverage': {
-      const [{ coverage }, { formatCoverage }] = await Promise.all([import('./coverage.js'), import('./coverage-text.js')]);
+      const [{ coverage }, { formatCoverage }, { textOver }] = await Promise.all([
+        import('./coverage.js'), import('./coverage-text.js'), import('./coverage-over-text.js'),
+      ]);
       try {
-        streams.out(formatCoverage(await coverage(parsed), parsed.format));
+        streams.out(formatCoverage(await coverage(parsed, textOver), parsed.format));
       } catch (error) {
         if (parsed.format === 'json' && error instanceof OperatorError && error.kind !== undefined) {
           streams.out(`${JSON.stringify({ refused: error.kind })}\n`);

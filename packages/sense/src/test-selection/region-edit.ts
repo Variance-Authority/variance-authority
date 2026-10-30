@@ -51,29 +51,30 @@ export type Edits = (file: string, from: string, to: string) => Edit | undefined
  * `to` names, both digests.
  *
  * Two digests that agree are no edit and need no text. Otherwise each text is
- * found the way a reading of an edit finds it: kept by a landing, on disk, or at
- * one of the commits the record names, and taken only when it hashes to its
- * digest. A digest names one text wherever it is found, so the places are asked
- * cheapest first: a commit costs a git process. `undefined` when either cannot
- * be had: the caller then reads the whole module as changed. A commit's texts
- * of `files`, the files the caller will ask about, are read together.
+ * found the way a reading of an edit finds it: kept by a landing, at one of the
+ * commits the record names, or on disk, and taken only when it hashes to its
+ * digest. `undefined` when either cannot be had: the caller then reads the
+ * whole module as changed.
  */
 export function editsBetween(
   root: string,
   cacheRoot: string | undefined,
   commits: readonly (string | undefined)[],
-  files: Iterable<string> = [],
 ): Edits {
   const kept = keptTexts(root, cacheRoot);
-  const atRecording = textAtRecording(root, files);
+  const atRecording = textAtRecording(root, []);
   const textOf = (file: string, digest: string): string | undefined => {
-    const text = kept(digest) ?? hashingTo(onDisk(resolve(root, file)), digest);
+    const text = kept(digest);
     if (text !== undefined) return text;
     for (const commit of new Set(commits)) {
       const found = hashingTo(atRecording(file, commit), digest);
       if (found !== undefined) return found;
     }
-    return undefined;
+    try {
+      return hashingTo(readFileSync(resolve(root, file), 'utf8'), digest);
+    } catch {
+      return undefined;
+    }
   };
   return (file, from, to) => {
     if (from === to) return NO_EDIT;
@@ -86,14 +87,6 @@ export function editsBetween(
 export function editOf(root: string, file: string, before: string, after: string): Edit {
   const reading = readEdit(root, file, before, after);
   return { hunks: hunksOf(diffTexts(before, after)), ...(reading === undefined ? {} : { reading }) };
-}
-
-function onDisk(file: string): string | undefined {
-  try {
-    return readFileSync(file, 'utf8');
-  } catch {
-    return undefined;
-  }
 }
 
 function hashingTo(text: string | undefined, digest: string): string | undefined {

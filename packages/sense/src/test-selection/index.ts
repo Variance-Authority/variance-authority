@@ -87,7 +87,7 @@ export { hunksOf } from './patch.js';
 // The other half of that wiring, for the ordinary case of a git checkout. It
 // ships because the check is opt-in: a caller that does not know to pass
 // `sourceAt` gets `stale` empty, which reads exactly like frames that agree.
-export { textAtRecording, textsAt } from './recorded-text.js';
+export { blobsAt, textAtRecording, textsAt } from './recorded-text.js';
 export { keptDigests, keptTexts, type KeptTexts } from './kept-texts.js';
 // A landing of shards reads the install each shard's own landing kept.
 export { shardsInstall, shardsTexts, type KeptInstall, type ShardRuns } from './kept-install.js';
@@ -191,7 +191,7 @@ export { withIndexLock } from './index-lock.js';
 export { casesRan, landCases, lastCaseRunOf, textsOf, type CaseLanding, type LaidRun, type LandedShard, type LastCaseRun, type ModuleTexts } from './case-landing.js';
 export { casesCutApart, type IndexedCut } from './case-index-cut.js';
 export { followRows, followRowsIn } from './case-cuts.js';
-export { editOf, editsBetween, regionTouched, type Edit } from './region-edit.js';
+export { editOf, editsBetween, NO_EDIT, regionTouched, type Edit } from './region-edit.js';
 export { caseIndexOf, caseSectionsAt, caseSectionsOf, keepsCases, keepsEyes, recordOfCases, recordStorageAt, recordedCases, recordedEyesAt, recordedEyesOf, sharedRecord, withCaseSections, withoutCoverage, type CaseSections, type RecordStorage } from './case-record.js';
 export { collectedRecord } from './collected-record.js';
 export { type EyesSection, type ObservedEyes, type RecordedEyes } from './eyes-record.js';
@@ -201,7 +201,7 @@ export { commitRunsIn } from './commit-runs-text.js';
 export { askPerStand, readingFrom, standDiff, standsAt, wholeEntry, withoutFiles, type Git, type Stand, type StandAnswer, type StandQuestion, type StandReading } from './stands.js';
 export { assumedOf, lastRunsOf, testPlaces, type CasesLastRan, type TestPlace } from './test-places.js';
 export { whatLanded, type WhatLanded } from './landings.js';
-export { ranOver, readsTheSnapshot, type NotHeld, type RanOver, type RanOverEvidence } from './place-text.js';
+export { ranOver, readsTheSnapshot, type Held, type HeldNames, type NotHeld, type RanOver, type RanOverEvidence } from './place-text.js';
 export { caseMotion, type CaseMotion, type CaseMotionOptions, type MismatchedRow, type MovedRegion, type RegionMotion, type RegionMotionKind, type TestFileMotion } from './case-motion.js';
 export {
   countCoverage,

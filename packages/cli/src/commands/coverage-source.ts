@@ -124,8 +124,12 @@ export type SourceReading =
     })
   | { readonly missed: string };
 
-/** Read the published source index and the scope `from` names in it. */
-export async function readSource(root: string, from: string | undefined, packages = false): Promise<SourceReading> {
+/**
+ * Read the published source index and the scope `from` names in it; with
+ * `update`, outside CI brought up to the checkout first, for a reader that
+ * names the checkout's texts by it.
+ */
+export async function readSource(root: string, from: string | undefined, packages = false, update = false): Promise<SourceReading> {
   const sense = await import('@variance-authority/sense');
   let published;
   try {
@@ -133,6 +137,7 @@ export async function readSource(root: string, from: string | undefined, package
       ci: isCI,
       step: 'variance index',
       announce: (line) => process.stderr.write(`variance: ${line}\n`),
+      update,
     });
   } catch (error) {
     // The ratio over what the suites loaded is still true without the index.

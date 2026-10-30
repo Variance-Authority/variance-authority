@@ -43,6 +43,9 @@ export function digestBytes(bytes: Uint8Array): Digest {
  * reads as a different text, which costs a read and never an answer.
  */
 export function gitBlob(text: string): Digest {
+  // FIXME: a SHA-256 repository names its blobs in 64 digits, so no text its index names ever matches this SHA-1
+  // name and every row of it reads as another text. The callers hold the checkout's `root`, not its repository,
+  // so none of them can say the repository's width.
   return `git:${blobName(Buffer.from(text, 'utf8'), 40)}`;
 }
 

@@ -1,4 +1,5 @@
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { createHash } from 'node:crypto';
+import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -143,29 +144,57 @@ describe('the cases that ran a changed line', () => {
   });
 });
 
+/** Git's name for `text` as a blob, as the source index names a file. */
+const gitBlob = (text: string): string => {
+  const bytes = Buffer.from(text, 'utf8');
+  return `git:${createHash('sha1').update(`blob ${bytes.length}\0`).update(bytes).digest('hex')}`;
+};
+
 describe('the files a record ran as the tree holds them', () => {
-  it('leaves out a file the record holds rows of from two texts, though the tree holds the text of the last', async () => {
+  const before = 'export const cap = 1;\n';
+  const after = 'export const cap = 2;\n';
+  const module = (text: string, blob = true) => ({
+    file: 'src/caps.ts', sourceDigest: digestString(text), instrumented: true,
+    ...(blob ? { sourceBlob: gitBlob(text) } : {}),
+    blocks: [{ ordinal: 0, kind: 'module', digest: 'module', name: 'src/caps.ts', path: 'module', startLine: 1, endLine: 1, source: true, testFiles: ['caps.test.ts'] }],
+  });
+  const recorded = async (texts: readonly ReturnType<typeof module>[], check: (coverageFile: string) => void): Promise<void> => {
     const at = await mkdtemp(join(tmpdir(), 'variance-ran-as-tree-'));
-    const before = 'export const cap = 1;\n';
-    const after = 'export const cap = 2;\n';
-    await mkdir(join(at, 'src'));
-    await writeFile(join(at, 'src/caps.ts'), after);
     const coverageFile = join(at, 'coverage.bin');
-    // Two builds read `src/caps.ts`, one before the edit and one after: two rows of one file.
     await writeTestCoverage(coverageFile, {
       version: 3,
       instrumentation: INSTRUMENTATION_ID,
       tests: [{ file: 'caps.test.ts', complete: true, preconditions: [] }],
-      modules: [before, after].map((text) => ({
-        file: 'src/caps.ts', sourceDigest: digestString(text), instrumented: true,
-        blocks: [{ ordinal: 0, kind: 'module', digest: 'module', name: 'src/caps.ts', path: 'module', startLine: 1, endLine: 1, source: true, testFiles: ['caps.test.ts'] }],
-      })),
+      modules: texts,
     });
-
     try {
-      expect(await ranAsTree(coverageFile, at, ['src/caps.ts'], { tests: [], modules: [] })).toEqual(new Set());
+      check(coverageFile);
     } finally {
       await rm(at, { recursive: true, force: true });
     }
+  };
+  const none: ExecutionIndex = { tests: [], modules: [] };
+
+  it('tells by the name the source index gives the text now, reading no text', async () => {
+    // No file is on disk: the index's name says which text the tree holds.
+    await recorded([module(after)], (coverageFile) => {
+      expect(ranAsTree(coverageFile, ['src/caps.ts'], none, new Map([['src/caps.ts', gitBlob(after)]]))).toEqual(new Set(['src/caps.ts']));
+      expect(ranAsTree(coverageFile, ['src/caps.ts'], none, new Map([['src/caps.ts', gitBlob(before)]]))).toEqual(new Set());
+      // A file the index does not hold is not one.
+      expect(ranAsTree(coverageFile, ['src/caps.ts'], none, new Map())).toEqual(new Set());
+    });
+  });
+
+  it('leaves out a file whose rows name no git blob, though they were cut from the text the tree holds', async () => {
+    await recorded([module(after, false)], (coverageFile) => {
+      expect(ranAsTree(coverageFile, ['src/caps.ts'], none, new Map([['src/caps.ts', gitBlob(after)]]))).toEqual(new Set());
+    });
+  });
+
+  it('leaves out a file the record holds rows of from two texts, though the tree holds the text of the last', async () => {
+    // Two builds read `src/caps.ts`, one before the edit and one after: two rows of one file.
+    await recorded([module(before), module(after)], (coverageFile) => {
+      expect(ranAsTree(coverageFile, ['src/caps.ts'], none, new Map([['src/caps.ts', gitBlob(after)]]))).toEqual(new Set());
+    });
   });
 });

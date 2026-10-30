@@ -1,18 +1,32 @@
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { chmod, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { sourceIndexPath, updateSourceIndex } from '@variance-authority/sense';
 import { INSTRUMENTATION_ID } from '@variance-authority/sense/instrument';
-import { commitRunsFile, encodeExecutionIndex, repositoryLayers, testCoverageFile, writeTestCoverage } from '@variance-authority/sense/test-selection';
+import { commitRunsFile, editOf, encodeExecutionIndex, repositoryLayers, testCoverageFile, writeTestCoverage } from '@variance-authority/sense/test-selection';
 import { digestString } from '@variance-authority/core/format';
 import { main } from '../bin.js';
+import { textOver } from './coverage-over-text.js';
 
 // `ci-info` decides CI once, when it loads, so the module is cut: a test that runs as CI sets `ci.isCI`.
 const ci = vi.hoisted(() => ({ isCI: false }));
 vi.mock('ci-info', () => ({ get isCI() { return ci.isCI; } }));
+// Counted, not changed: which texts a split hashes and diffs, and whether a review asks for the split at all.
+vi.mock('@variance-authority/core/format', async (importOriginal) => {
+  const original = await importOriginal<typeof import('@variance-authority/core/format')>();
+  return { ...original, digestString: vi.fn(original.digestString) };
+});
+vi.mock('@variance-authority/sense/test-selection', async (importOriginal) => {
+  const original = await importOriginal<typeof import('@variance-authority/sense/test-selection')>();
+  return { ...original, editOf: vi.fn(original.editOf) };
+});
+vi.mock('./coverage-over-text.js', async (importOriginal) => {
+  const original = await importOriginal<typeof import('./coverage-over-text.js')>();
+  return { ...original, textOver: vi.fn(original.textOver) };
+});
 
 /** `charge` on lines 1-3 and `refund` on 5-7. */
 const PAY = 'export function charge(amount: number): number {\n  return amount;\n}\n\nexport function refund(amount: number): number {\n  return -amount;\n}\n';
@@ -271,6 +285,22 @@ describe('coverage parts what ran by the text it ran over', () => {
     expect(answer.out.split('\n')[0]).toBe(`coverage at ${recorded.slice(0, 8)} — 5 regions in 2 files the suites loaded`);
     expect(answer.out).toMatch(/any suite\s+3\s+60\.0%/u);
   });
+
+  it('names the tree\'s texts by the source index and hashes none of them, diffing one pair once per answer', async () => {
+    const { at } = await checkout(atRecord);
+    await writeFile(join(at, PAY_FILE), REFUNDED);
+    await updateSourceIndex(at);
+    vi.mocked(digestString).mockClear();
+    vi.mocked(editOf).mockClear();
+
+    const said = await json('--root', at);
+
+    expect(said.count).toMatchObject({ run: 3, over: { older: 1, notKnown: 0, why: [] } });
+    // The tree's texts are the index's `git:` names: neither `REFUNDED` nor `CART` is hashed to name it.
+    expect(vi.mocked(digestString).mock.calls.filter(([text]) => text === REFUNDED || text === CART)).toEqual([]);
+    // The record ran `PAY`, the tree holds `REFUNDED`: one edit read, and none for `cart.ts`, which no edit touched.
+    expect(vi.mocked(editOf)).toHaveBeenCalledTimes(1);
+  });
 });
 
 describe('coverage names why a text is not known', () => {
@@ -339,9 +369,9 @@ describe('coverage names why a text is not known', () => {
       const said = await json('--root', at);
       const markdown = await ask('--root', at, '--format', 'markdown');
 
-      expect(said.count).toMatchObject({ run: 3, over: { older: 0, notKnown: 3, why: ['no source index names the checkout\'s texts, so which text ran is not known'] } });
-      expect(answer.out.split('no source index names the checkout\'s texts').length).toBe(2);
-      expect(markdown.out).toContain('\n- Not known: no source index names the checkout\'s texts, so which text ran is not known\n');
+      expect(said.count).toMatchObject({ run: 3, over: { older: 0, notKnown: 3, why: [expect.stringMatching(/^which text ran is not known: no source index is published at /u)] } });
+      expect(answer.out.split('not known: which text ran is not known: no source index is published at').length).toBe(2);
+      expect(markdown.out).toMatch(/\n- Not known: which text ran is not known: no source index is published at /u);
     });
 
     it('parts what ran by the index as published', async () => {
@@ -354,6 +384,35 @@ describe('coverage names why a text is not known', () => {
 
       expect(said.count).toMatchObject({ run: 3, over: { older: 1, notKnown: 0, why: [] } });
     });
+
+    it('counts a file the published index does not hold as not known, though the disk holds the text every run ran', async () => {
+      const { at } = await checkout(atRecord);
+      await rm(join(at, PAY_FILE));
+      await updateSourceIndex(at);
+      await writeFile(join(at, PAY_FILE), PAY);
+      ci.isCI = true;
+
+      expect((await json('--root', at)).count).toMatchObject({
+        over: { older: 0, notKnown: 2, why: [`${PAY_FILE} is not in the source index, so which text of it the checkout holds is not known`] },
+      });
+    });
+  });
+
+  it('counts every region run as not known when the source index cannot be brought up to the checkout, and gives the reason', async () => {
+    const { at } = await checkout(atRecord);
+    await writeFile(join(at, PAY_FILE), REFUNDED);
+    const index = dirname(sourceIndexPath(at));
+    await chmod(index, 0o555);
+    try {
+      const said = await json('--root', at);
+
+      expect(said.count).toMatchObject({
+        run: 3,
+        over: { older: 0, notKnown: 3, why: [expect.stringMatching(/^which text ran is not known: the source index at .+ could not be updated to the checkout: .*Permission denied/u)] },
+      });
+    } finally {
+      await chmod(index, 0o755);
+    }
   });
 
   it('keeps a function whose body gained only a comment as run over this text', async () => {
@@ -365,23 +424,21 @@ describe('coverage names why a text is not known', () => {
     expect(said.count).toMatchObject({ run: 3, over: { older: 0, notKnown: 0, why: [] } });
   });
 
-  it('counts a file gone from the checkout as older, and one that does not read for another reason as not known, with the reason', async () => {
-    const gone = await checkout(atRecord);
-    await rm(join(gone.at, PAY_FILE));
-    const unreadable = await checkout(atRecord);
-    await rm(join(unreadable.at, PAY_FILE));
-    await mkdir(join(unreadable.at, PAY_FILE));
+  it('counts every region of a file gone from the checkout as not known, since the source index does not hold it', async () => {
+    const { at } = await checkout(atRecord);
+    await rm(join(at, PAY_FILE));
 
-    expect((await json('--root', gone.at)).count).toMatchObject({ over: { older: 2, notKnown: 0 } });
-    const said = await json('--root', unreadable.at);
-    expect(said.count).toMatchObject({ over: { older: 0, notKnown: 2, why: [expect.stringContaining(`${PAY_FILE} does not read: EISDIR`)] } });
+    expect((await json('--root', at)).count).toMatchObject({
+      over: { older: 0, notKnown: 2, why: [`${PAY_FILE} is not in the source index, so which text of it the checkout holds is not known`] },
+    });
   });
 });
 
 describe('a review that counts coverage', () => {
-  it('neither asks which text each region ran over nor says it', async () => {
+  it('passes coverage no reader of the text each region ran over, and says none', async () => {
     const { at } = await checkout(atRecord);
     await writeFile(join(at, PAY_FILE), REFUNDED);
+    vi.mocked(textOver).mockClear();
     let out = '';
     let err = '';
     const review = (format: string) => main(['review', '--root', at, '--since', 'HEAD', '--coverage', '--format', format], {
@@ -394,6 +451,7 @@ describe('a review that counts coverage', () => {
     expect(await review('text'), err).toBe(0);
 
     expect(said.coverage.length).toBeGreaterThan(0);
+    expect(vi.mocked(textOver)).not.toHaveBeenCalled();
     expect(JSON.stringify(said.coverage)).not.toMatch(/"over"/u);
     expect(out).not.toMatch(/older text/u);
   });

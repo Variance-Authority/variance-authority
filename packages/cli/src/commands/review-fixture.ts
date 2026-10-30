@@ -1,5 +1,6 @@
 // compass: variance-authority/runtime/attention
 import { execFileSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { mkdir, mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
@@ -14,6 +15,12 @@ import {
   type ExecutionIndex,
 } from '@variance-authority/sense/test-selection';
 import { INSTRUMENTATION_ID } from '@variance-authority/sense/instrument';
+
+/** Git's name for `text` as a blob, as a recording names the text its rows were cut from. */
+const blobOf = (text: string): string => {
+  const bytes = Buffer.from(text, 'utf8');
+  return `git:${createHash('sha1').update(`blob ${bytes.length}\0`).update(bytes).digest('hex')}`;
+};
 
 /**
  * A change a review reads: `main` at the base, the change in the working tree,
@@ -166,6 +173,7 @@ export async function recordTotal(coverageFile: string, record: {
     modules: [{
       file: 'src/total.ts',
       sourceDigest: digestString(record.text ?? AFTER),
+      sourceBlob: blobOf(record.text ?? AFTER),
       instrumented: true,
       blocks: [
         { ordinal: 0, kind: 'function', digest: digestString('applyDiscount'), name: 'applyDiscount', path: 'applyDiscount', startLine: lines.applyDiscount[0], endLine: lines.applyDiscount[1], source: true, testFiles: record.entered.applyDiscount },

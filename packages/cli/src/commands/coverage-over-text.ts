@@ -7,20 +7,21 @@
  * Every reader is one that already exists. Where a test file stood is
  * `testPlaces`', which text of a file its run ran over is `ranOver`'s, read from
  * the evidence `covering` reads (`evidenceOf`), and whether an edit touched a
- * region is the rule a record carries its cases by (`regionTouched` over
- * `editsBetween`). The source index names each file on disk by its git blob,
- * and the record's rows name the text they were cut from the same way, so a
- * file whose rows hold the tree's text, run over that text by every place that
- * ran it, reads no text and no edit at all. With no index, which text is on
- * disk is not known, and nothing reads the disk to find out.
+ * region is the rule a record carries its cases by (`regionTouched` over the
+ * edits between the texts). Every text is named, never hashed: the source
+ * index names the text each file holds now by its git blob, the record's rows
+ * name the text they were cut from the same way, a run names its text by the
+ * digest the rows took of it or by its commit's blob. A text is read only to
+ * diff two that the names say differ, so a file whose rows hold the tree's
+ * text, run over that text by every place that ran it, reads no text at all.
+ * A file the index does not hold is not known, and nothing reads the disk to
+ * find out.
  */
 
 import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
-import { digestString } from '@variance-authority/core/format';
-import type { SourceUpdate } from '@variance-authority/sense';
 import {
-  editsBetween,
+  keptTexts,
   ranOver,
   regionTouched,
   testPlaces,
@@ -28,34 +29,38 @@ import {
   type CountedSuite,
   type Edit,
   type ExecutionIndex,
+  type HeldNames,
   type RegionText,
   type TestPlace,
 } from '@variance-authority/sense/test-selection';
-import { evidenceOf, type Evidence } from './covering-ran-evidence.js';
-import { blobNames } from './patch-blobs.js';
-import { rowsCut, type RowsCut, type RowsText } from './record-rows-text.js';
+import { evidenceOf, type Evidence, type NamedText } from './covering-ran-evidence.js';
+import { rowsCut, type RowsCut } from './record-rows-text.js';
 import { runsOf } from './record-runs.js';
+import type { IndexNames } from './source-graph.js';
 
 /** What a suite's count asks of each region a test file called into. */
 export type TextOf = NonNullable<CountedSuite['textOf']>;
 
-/** The source index's listing of the checkout: each tracked file's git blob name, as the bytes on disk give it. */
-export type TreeBlobs = Pick<NonNullable<SourceUpdate['listing']>, 'digestsFor'>;
+/** Why a text is not known. */
+type Unknown = { readonly unknown: string };
 
 /** Why a file whose rows name no git blob is not known, whatever its runs ran. */
 const UNKEYED: RegionText = { unknown: 'the record was made before its rows named their text by its git blob, so which text ran is not known' };
 
-/** Why a file is not known when no source index names the texts on disk. */
-const NO_INDEX: RegionText = { unknown: 'no source index names the checkout\'s texts, so which text ran is not known' };
-
 /**
  * Over which text each test file of `index` ran each region, for the record at
- * `record` made at `recorded`, against the checkout at `root` as `tree`, the
- * source index's listing of it, names its files. Never throws: what cannot be
- * read is not known, with the reason, and so is every region run when there is
- * no `tree`.
+ * `record` made at `recorded`, against the checkout at `root` as the source
+ * index's `names` name its files, or why there is no index to name them.
+ * Never throws: what cannot be read is not known, with the reason, and so is
+ * every region run when there is no index.
  */
-export async function textOver(root: string, record: string, recorded: string | undefined, index: ExecutionIndex, tree: TreeBlobs | undefined): Promise<TextOf> {
+export async function textOver(
+  root: string,
+  record: string,
+  recorded: string | undefined,
+  index: ExecutionIndex,
+  names: IndexNames | { readonly missed: string },
+): Promise<TextOf> {
   const read = await runsOf(record, root);
   if (read.unread !== undefined) {
     const unknown = { unknown: `the runs record beside the record does not read: ${read.unread.message}` };
@@ -78,58 +83,20 @@ export async function textOver(root: string, record: string, recorded: string | 
     }));
   }
   const cuts = rowCuts(record, index, new Set(placedOf.keys()));
-  const files = [...placedOf.keys()];
-  const names = tree?.digestsFor(files);
-  const onDisk = new Map(names === undefined ? [] : files.map((file, at) => [file, names[at]] as const));
-
-  // A file is steady when the rows hold the tree's text and every place that ran it ran that text: one
-  // that names the file ran the text it names, and one that does not ran its commit's, which git names.
-  const keyed = new Map<string, readonly (readonly [string, TestPlace])[]>();
-  const committed = new Set<string>();
-  const unkeyed = new Set<string>();
-  const asks = new Map<string, readonly (readonly [string, TestPlace])[]>();
-  for (const [file, placed] of placedOf) {
-    const cut = cuts.get(file);
-    if (cut !== undefined && !('unknown' in cut) && cut.blob === undefined) unkeyed.add(file);
-    else if (tree === undefined) continue;
-    else if (cut !== undefined && !('unknown' in cut) && cut.blob === onDisk.get(file) && placed.every(([, place]) => ranIt(place, file, cut.digest, committed))) keyed.set(file, placed);
-    else asks.set(file, placed);
-  }
-  const blobs = await blobNames([...committed], root);
-  for (const [file, placed] of keyed) {
-    const cut = cuts.get(file) as { readonly blob: string };
-    const steady = placed.every(([, place]) => [place, ...(place.partly ?? [])].every((one) =>
-      one.texts?.[file] !== undefined || `git:${blobs.get(`${one.commit}:${file}`) ?? ''}` === cut.blob));
-    if (!steady) asks.set(file, placed);
-  }
-  const rows = new Map([...cuts].map(([file, cut]) => [file, 'unknown' in cut ? cut : cut.digest] as const));
-  const texts = await readTexts(root, rows, record, asks, [...places.values()], read.repository, recorded, read.runs?.latest);
+  const noIndex = 'missed' in names ? { unknown: `which text ran is not known: ${names.missed}` } : undefined;
+  const over = 'missed' in names
+    ? new Map<string, ReadonlyMap<string, readonly Edit[] | RegionText>>()
+    : await overTexts(root, record, cuts, names, placedOf, [...places.values()], read.repository, recorded, read.runs?.latest);
   return (file, region, test) => {
     const place = places.get(test);
     if (place === undefined || place.assumed === true) return nowhere;
-    if (unkeyed.has(file)) return UNKEYED;
-    if (tree === undefined) return NO_INDEX;
-    const over = texts.get(file)?.get(test);
-    if (over === undefined) return 'this';
-    return Array.isArray(over) ? (regionTouched(region, over) ? 'older' : 'this') : over as RegionText;
+    const cut = cuts.get(file);
+    if (cut !== undefined && !('unknown' in cut) && cut.blob === undefined) return UNKEYED;
+    if (noIndex !== undefined) return noIndex;
+    const ran = over.get(file)?.get(test);
+    if (ran === undefined) return 'this';
+    return Array.isArray(ran) ? (regionTouched(region, ran) ? 'older' : 'this') : ran as RegionText;
   };
-}
-
-/**
- * Whether `place`, and every later run that ran it in part, ran the text of
- * `file` its rows were cut from, `digest`, as far as the runs record says: a
- * run that names the file ran the text it names; one that does not ran its
- * commit's, whose blob name is asked of git, so `<commit>:<file>` joins
- * `committed`. A run whose texts or commit are not known did not.
- */
-function ranIt(place: TestPlace, file: string, digest: string, committed: Set<string>): boolean {
-  return [place, ...(place.partly ?? [])].every((one) => {
-    if (one.commit === undefined || one.texts === undefined) return false;
-    const named = one.texts[file];
-    if (named !== undefined) return named === digest;
-    committed.add(`${one.commit}:${file}`);
-    return true;
-  });
 }
 
 /**
@@ -140,69 +107,104 @@ function ranIt(place: TestPlace, file: string, digest: string, committed: Set<st
 type Over = ReadonlyMap<string, ReadonlyMap<string, readonly Edit[] | RegionText>>;
 
 /**
- * Read, for each file of `asks` and each test file placed that called into
- * it, the edits between the text the run ran and the checkout's: the text on
- * disk, the digest the record's rows took of the file, and the evidence of which
- * text each run ran over. Everything is read here, so the count reads nothing.
+ * For each file of `placedOf` and each test file placed that called into it,
+ * the edits from the text the record's rows were cut from, through the text
+ * the run ran, to the one the checkout holds, each text named: the rows by
+ * their git blob, the checkout's by the source index's, a run's by `ranOver`'s
+ * evidence. Two texts of one name are no edit and are not read; the others are
+ * read, the checkout's from disk, to be diffed.
  */
-async function readTexts(
+async function overTexts(
   root: string,
-  rows: ReadonlyMap<string, RowsText>,
   record: string,
-  asks: ReadonlyMap<string, readonly (readonly [string, TestPlace])[]>,
+  cuts: ReadonlyMap<string, RowsCut>,
+  names: IndexNames,
+  placedOf: ReadonlyMap<string, readonly (readonly [string, TestPlace])[]>,
   places: readonly TestPlace[],
   repository: string | undefined,
   recorded: string | undefined,
   latest: string | undefined,
 ): Promise<Over> {
   const over = new Map<string, ReadonlyMap<string, readonly Edit[] | RegionText>>();
-  if (asks.size === 0) return over;
-  const held = new Map<string, string>();
-  const unread = new Map<string, RegionText>();
-  const read = await Promise.all([...asks.keys()].map(async (file) =>
-    [file, await readFile(resolve(root, file), 'utf8').catch((error: unknown) => error as NodeJS.ErrnoException)] as const));
-  for (const [file, text] of read) {
-    if (typeof text === 'string') held.set(file, text);
-    // A file gone from the checkout holds no region of this text; any other failure says nothing of the text.
-    else if (text.code !== 'ENOENT') unread.set(file, { unknown: `${file} does not read: ${text.message}` });
+  const held = new Map<string, HeldNames>();
+  for (const file of placedOf.keys()) {
+    const cut = cuts.get(file);
+    const now = names.get(file);
+    if (cut === undefined || 'unknown' in cut || cut.blob === undefined || now === undefined) continue;
+    held.set(file, { blob: now, digest: cut.blob === now ? cut.digest : undefined });
   }
   const evidence: Evidence = await evidenceOf(places, held, {
     root, snapshot: record, repository, last: recorded === undefined ? latest : undefined, region: true, placement: undefined, ranOther: undefined,
+    ...(recorded === undefined ? {} : { at: [recorded] }),
   });
-  const edits = editsBetween(root, undefined, [recorded, ...places.flatMap((place) => place.commit ?? [])], asks.keys());
-  // A chain is read once per text the runs ran, however many test files ran it.
-  const chains = new Map<string, readonly Edit[] | RegionText>();
-  for (const [file, placed] of asks) {
-    const now = held.get(file);
-    const row = rows.get(file);
-    let nowDigest: string | undefined;
-    const answer = (test: string, place: TestPlace): readonly Edit[] | RegionText => {
-      const failed = unread.get(file);
-      if (failed !== undefined) return failed;
-      // The file is gone from the checkout, so no region of it is this text's.
-      if (now === undefined) return 'older';
-      if (typeof row !== 'string') return row ?? { unknown: `the record holds no digest of the text of ${file} its regions were cut from` };
-      return chainOf(file, row, (nowDigest ??= digestString(now)), ranOver(place, test, file, now, evidence, false));
-    };
+  const kept = keptTexts(root);
+  for (const [file, placed] of placedOf) {
+    const cut = cuts.get(file);
+    const now = names.get(file);
+    if (cut !== undefined && !('unknown' in cut) && cut.blob === undefined) continue;
+    const answer: (test: string, place: TestPlace) => readonly Edit[] | RegionText = cut === undefined || 'unknown' in cut
+      ? () => cut ?? { unknown: `the record holds no digest of the text of ${file} its regions were cut from` }
+      : now === undefined
+        ? () => ({ unknown: `${file} is not in the source index, so which text of it the checkout holds is not known` })
+        : await chains(file, { name: cut.blob!, digest: cut.digest }, now, held.get(file)!);
     over.set(file, new Map(placed.map(([test, place]) => [test, answer(test, place)] as const)));
   }
   return over;
 
-  function chainOf(file: string, row: string, nowDigest: string, ran: ReturnType<typeof ranOver>): readonly Edit[] | RegionText {
-    if (ran === 'absent') return 'older';
-    if (typeof ran === 'object' && 'unknown' in ran) return ran;
-    if (typeof ran === 'object' && ran.text === undefined) return { unknown: `the text of ${file} that run ran over is neither kept nor committed` };
-    const from = ran === 'held' ? nowDigest : digestString(ran.text!);
-    const key = `${file}\0${from}`;
-    let chain = chains.get(key);
-    if (chain === undefined) {
-      const along = [edits(file, row, from), edits(file, from, nowDigest)];
-      chain = along.every((edit) => edit !== undefined)
-        ? along as readonly Edit[]
-        : { unknown: `a text of ${file} the record or a run names cannot be found` };
-      chains.set(key, chain);
+  /** The chain each run of `file` ran along, from the rows' text through the run's to the checkout's `now`, read once per text. */
+  async function chains(file: string, rows: { readonly name: string; readonly digest: string }, now: string, names: HeldNames) {
+    let checkout: NamedText | Unknown | undefined;
+    const atNow = async (): Promise<NamedText | Unknown> => {
+      try {
+        return { name: now, text: await readFile(resolve(root, file), 'utf8') };
+      } catch (error) {
+        return { unknown: `${file} does not read: ${error instanceof Error ? error.message : String(error)}` };
+      }
+    };
+    // The rows' text by its name: the checkout's, a commit's that holds it, or one a landing kept.
+    const atRows = async (): Promise<NamedText | undefined> => {
+      if (rows.name === now) {
+        checkout ??= await atNow();
+        return 'text' in checkout ? checkout : undefined;
+      }
+      for (const [commit, blobs] of evidence.blobs) {
+        const text = blobs.get(file) === rows.name ? evidence.committed.get(commit)?.get(file) : undefined;
+        if (text !== undefined) return { name: rows.name, text };
+      }
+      const text = kept(rows.digest);
+      return text === undefined ? undefined : { name: rows.name, text };
+    };
+    const along = new Map<string, readonly Edit[] | RegionText>();
+    const result = new Map<TestPlace, readonly Edit[] | RegionText>();
+    for (const [test, place] of placedOf.get(file)!) {
+      const ran = ranOver(place, test, file, names, evidence, false);
+      if (ran === 'absent') result.set(place, 'older');
+      else if (typeof ran === 'object' && 'unknown' in ran) result.set(place, ran);
+      else if (ran !== 'held' && ran.rows !== true && (ran.text === undefined || ran.name === undefined)) {
+        result.set(place, { unknown: `the text of ${file} that run ran over is neither kept nor committed` });
+      } else {
+        const ranName = ran === 'held' ? now : ran.rows === true ? rows.name : ran.name!;
+        let chain = along.get(ranName);
+        if (chain === undefined) {
+          chain = await chainOf(ranName, ran === 'held' || ran.rows === true ? undefined : ran.text);
+          along.set(ranName, chain);
+        }
+        result.set(place, chain);
+      }
     }
-    return chain;
+    return (_test: string, place: TestPlace) => result.get(place)!;
+
+    async function chainOf(ranName: string, ranText: string | undefined): Promise<readonly Edit[] | RegionText> {
+      // One name all along is one text: nothing is read.
+      if (rows.name === now && ranName === now) return [];
+      checkout ??= await atNow();
+      if ('unknown' in checkout) return checkout;
+      const atNowText = checkout;
+      const from = await atRows();
+      const ranAt = ranName === now ? atNowText : ranName === rows.name ? from : ranText === undefined ? undefined : { name: ranName, text: ranText };
+      if (from === undefined || ranAt === undefined) return { unknown: `a text of ${file} the record or a run names cannot be found` };
+      return [evidence.edit(file, from, ranAt), evidence.edit(file, ranAt, atNowText)];
+    }
   }
 }
 

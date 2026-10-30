@@ -29,13 +29,13 @@ import {
   type LineRange,
   type SourceTestRange,
 } from '@variance-authority/sense/test-selection';
-import { digestString } from '@variance-authority/core/format';
 import type { Relations } from '@variance-authority/core/relate';
 import { codeUnitOrder as order } from '@variance-authority/core/segment';
 import { unrunOf } from './covering-frame.js';
-import { rowsText } from './record-rows-text.js';
+import { rowsCut } from './record-rows-text.js';
 import { caseOrder } from './review-json.js';
 import type { Reach, ReviewRegion } from './review.js';
+import type { IndexNames } from './source-graph.js';
 
 /** The test files near a changed module, and those whose distance to it was not measured. */
 export interface Bearings {
@@ -230,22 +230,20 @@ export async function recordedRegions(
 }
 
 /**
- * The files the record ran as the tree holds them: the digest its snapshot
- * took of each module's text, against the text on disk. A file it holds no
- * module for, or that cannot be read, is not one, and neither is one whose
- * rows' text is not known ({@link rowsText}): `index`, the case index read
- * from the record, names no text of its own, and one a landing wrote before the
- * index followed its rows can stand at lines the snapshot moved on from.
+ * The files the record ran as the tree holds them: those whose rows were cut
+ * from the text the source index names each by now, both git blob names
+ * ({@link rowsCut}). A file it holds no module for, or the index holds no name
+ * for, is not one, and neither is one whose rows' text is not known: `index`,
+ * the case index read from the record, names no text of its own, and one a
+ * landing wrote before the index followed its rows can stand at lines the
+ * snapshot moved on from. A record made before its rows named their text by
+ * its git blob names none, so no file of it is.
  */
-export async function ranAsTree(coverageFile: string, root: string, files: readonly string[], index: ExecutionIndex): Promise<ReadonlySet<string>> {
+export function ranAsTree(coverageFile: string, files: readonly string[], index: ExecutionIndex, names: IndexNames): ReadonlySet<string> {
   if (files.length === 0) return new Set();
-  const recorded = rowsText(coverageFile, files, index);
-  const ran = new Set<string>();
-  for (const file of files) {
-    const rows = recorded.get(file);
-    if (typeof rows !== 'string') continue;
-    const text = await readFile(resolve(root, file), 'utf8').catch(() => undefined);
-    if (text !== undefined && rows === digestString(text)) ran.add(file);
-  }
-  return ran;
+  const cut = rowsCut(coverageFile, files, index);
+  return new Set(files.filter((file) => {
+    const rows = cut.get(file);
+    return rows !== undefined && !('unknown' in rows) && rows.blob !== undefined && rows.blob === names.get(file);
+  }));
 }

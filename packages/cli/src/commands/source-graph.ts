@@ -14,7 +14,7 @@ import { readdirSync, type Dirent } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { isAbsolute, join, relative } from 'node:path';
 import type { SourceIndex } from '@variance-authority/core/attribute';
-import type { Relations } from '@variance-authority/core/relate';
+import type { FileRecord, Relations } from '@variance-authority/core/relate';
 import {
   publishedSources,
   runGraphOf,
@@ -87,17 +87,32 @@ export async function relationsFor(
 export interface SourceGraph {
   readonly relations: Relations;
   readonly sources: ReadonlySet<string>;
+  /** The name the index gives the text each file it holds holds now ({@link indexNames}). */
+  readonly names: IndexNames;
 }
 
-/** {@link relationsFor}, with the files the source index read, from the one read of it. */
+/** The source index's name for the text each file it holds holds now: its git blob name. A file it does not hold has none. */
+export type IndexNames = ReadonlyMap<string, string>;
+
+/** The name `records`, the source index, gives the text each file it holds holds now; a file it holds no name for is in none. */
+export function indexNames(records: readonly FileRecord[]): IndexNames {
+  return new Map(records.flatMap((record) => record.digest === undefined ? [] : [[record.file, record.digest] as const]));
+}
+
+/**
+ * {@link relationsFor}, with the files the source index read, from the one
+ * read of it; with `update`, outside CI the index is brought up to the
+ * checkout first, for a reader that names the checkout's texts by it.
+ */
 export async function sourceGraphFor(
   root: string,
   dirs: readonly string[],
   taints: readonly string[] = [],
   before: readonly string[] = [],
   noGit = false,
+  update = false,
 ): Promise<SourceGraph> {
-  const read = await publishedWithin(root, dirs, before, noGit);
+  const read = await publishedWithin(root, dirs, before, noGit, update);
 
   // The mocks are read unasked, as every reader of the checkout's graph reads
   // them; a table named in the config is answered here too, and what it adds
@@ -114,6 +129,7 @@ export async function sourceGraphFor(
   return {
     relations: await runGraphOf(read.records, { root, cache: read.cache, taints: tables, depends, uses: read.uses }),
     sources: new Set(read.records.map((record) => record.file)),
+    names: indexNames(read.all),
   };
 }
 
@@ -130,6 +146,7 @@ async function publishedWithin(
   dirs: readonly string[],
   before: readonly string[],
   noGit: boolean,
+  update: boolean,
 ) {
   let published;
   try {
@@ -138,6 +155,7 @@ async function publishedWithin(
       step: noGit ? 'variance index --no-git' : 'variance index',
       announce: (line) => process.stderr.write(`variance: ${line}\n`),
       ...(noGit ? { packs: false } : {}),
+      update,
     });
   } catch (error) {
     // A pipeline without the step is the operator's to fix, and the refusal
@@ -148,6 +166,7 @@ async function publishedWithin(
   }
   return {
     records: sourcesWithin(published.records, root, dirs, before),
+    all: published.records,
     cache: published.cache,
     uses: published.uses,
   };
