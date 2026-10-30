@@ -83,6 +83,7 @@
  */
 
 import util = require('node:util');
+import jestConsole = require('./jest-console.cjs');
 import probeLog = require('./probe-log.cjs');
 import type { ModuleId } from './index.js';
 
@@ -419,8 +420,11 @@ function listen(tap: Tap, scope: object): void {
   const printer = global.console as (Console & { [NOTE]?: true }) | undefined;
   if (printer === undefined || printer[NOTE] === true) return;
   Object.defineProperty(printer, NOTE, { value: true });
-  // FIXME: Jest names where a console line was printed by counting frames up
-  // from its console method, so under Jest every line names this wrapper.
+  const written = (method: string, text: string): void => {
+    const channel = global[NOTE];
+    if (typeof channel === 'function' && (PRINTS as readonly string[]).includes(method)) channel(`console.${method} ${text}`);
+  };
+  if (jestConsole.noteWrites(printer, written)) return;
   for (const method of PRINTS) {
     const original = printer[method] as ((...values: unknown[]) => void) | undefined;
     if (typeof original !== 'function') continue;
