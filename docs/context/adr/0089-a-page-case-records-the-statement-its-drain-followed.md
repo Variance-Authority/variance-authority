@@ -68,7 +68,9 @@ test looked, and claims only that.
 - A region the page reaches asynchronously is charged to the statement that
   was running when it arrived, not to the one that started it. A request a
   `click` sends and the page answers during the next `expect` is the
-  `expect`'s.
+  `expect`'s. A charge that moves with the outcome is read, not set aside:
+  across the runs the record keeps, a region charged to a later statement on
+  every failing run is a page that was not ready when the test acted.
 - A `test.beforeEach` or `test.afterEach` statement is drained under the
   case's own line, where every other seam flags a hook's line as a hook's. The
   cut does not say which body it is in; a `FIXME` and an `it.todo` hold the
