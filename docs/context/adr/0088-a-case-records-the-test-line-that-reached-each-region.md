@@ -89,7 +89,9 @@ statement a region was first reached under, and claims only that.
   map back, returned or inline.
 - A case whose async work interleaves differently between runs can reach a
   region from another line; the line recorded is the one this run reached it
-  from.
+  from. A line that moves with the outcome is read, not set aside: the record
+  keeps a case's earlier readings over the same code, and `story --compare
+  outcome` lists a region charged to another line on every failing run.
 - A layer carries each case's lines from whichever side recorded its set, and
   a case one side recorded without lines has none.
 - Test files now pass through the seam's transform. The cut goes in after the

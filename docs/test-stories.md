@@ -252,6 +252,31 @@ The comparison can also answer in three other ways:
   group does from what that one run happened to do, and it prints that under its
   first line. Record the test again. The runs you made earlier still count.
 
+### Compare the runs the record kept
+
+You do not have to record a story to start. The coverage record keeps up to 16
+distinct runs of each test over the same code, and the test line each region
+was charged to on each. With no story recorded for the test, `--compare
+outcome` reads those:
+
+```text
+compare  test/page.test.ts > clicks, from the readings the record keeps
+  passed (2 runs) against threw (2 runs)
+
+  charged to a later line when it threw, on every run:
+    wire  src/page.ts:3-5  line 4 when it passed, line 6 when it threw
+
+  reached only when it passed, on every run:
+    handle  src/page.ts:8, the else of the if
+```
+
+A region charged to a later test line on every failing run was reached after
+the step it was reached before when the test passed: the test went ahead before
+the code was ready. A region charged to no line was reached after the test's
+last statement, too late for the run to tell which one. The record reads
+regions, not lines said or the order of steps, so when it names nothing,
+record the story and compare again.
+
 ### Choose the sides
 
 The output calls each group a side. A side is the same test read again, where
