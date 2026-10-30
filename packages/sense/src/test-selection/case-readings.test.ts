@@ -96,6 +96,8 @@ describe('layReadings', () => {
   it('keeps the newest reading as it ran where the landed index holds the case laid over the one before', () => {
     const passed = run(false, { wire: 2, handle: 4 });
     const { section: once } = laid([passed]);
+    // A case recorded once, as the index holds it, costs the section nothing.
+    expect(once).toBeUndefined();
     const threw = run(true, { handle: 3 });
     const union = run(true, { wire: 2, handle: 3 });
     const section = layReadings(once, passed, threw, union, cases, unchanged);
