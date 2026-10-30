@@ -88,6 +88,10 @@ fn bare(value: &str) -> bool {
 /// `GIT_NO_LAZY_FETCH` forbids rather than answering it `missing`; so the read
 /// leaves lazy fetching as the repository has it, and a fetch that failed costs
 /// one request per object rather than a different answer.
+///
+/// A file git holds as a git-LFS pointer is read as the content the pointer
+/// names ([`crate::lfs::smudge`]), and the read fails with git-lfs's reason
+/// when that content cannot be had: the pointer is never parsed as source.
 pub(crate) fn text_at(root: &str, commit: &str) -> Result<HashMap<String, Option<String>>, String> {
     let args = ["-c", "core.quotePath=false", "diff", "--raw", "--no-abbrev", "--no-renames", "-z", "--relative", commit];
     let listed = match crate::git::answer(root, &args, None) {
@@ -128,7 +132,11 @@ pub(crate) fn text_at(root: &str, commit: &str) -> Result<HashMap<String, Option
     })?;
     let mut read = read.into_iter();
     for (file, oid) in changed {
-        texts.insert(file, oid.and_then(|_| read.next()));
+        let text = match oid.and_then(|_| read.next()) {
+            Some(blob) if crate::lfs::pointer(&blob) => Some(crate::lfs::smudge(root, &file, &blob).map_err(|why| unread(&why))?),
+            blob => blob,
+        };
+        texts.insert(file, text.map(|bytes| String::from_utf8_lossy(&bytes).into_owned()));
     }
     Ok(texts)
 }
@@ -136,7 +144,7 @@ pub(crate) fn text_at(root: &str, commit: &str) -> Result<HashMap<String, Option
 /// Each of `oids` from one `cat-file --batch`, in order. An object git answers
 /// `missing` is an error, as is any output that does not parse: every object
 /// asked for was named by the commit's tree.
-fn read_objects(root: &str, oids: &[String]) -> Result<Vec<String>, String> {
+fn read_objects(root: &str, oids: &[String]) -> Result<Vec<Vec<u8>>, String> {
     let asked: String = oids.iter().map(|oid| format!("{oid}\n")).collect();
     let out = crate::git::answer(root, &["cat-file", "--batch"], Some(asked.into_bytes()))?;
     let cut = || "git cat-file --batch ended its answer early".to_owned();
@@ -150,7 +158,7 @@ fn read_objects(root: &str, oids: &[String]) -> Result<Vec<String>, String> {
             Some(Ok(size)) if !head.ends_with(" missing") => size,
             _ => return Err(format!("git answered `{head}`")),
         };
-        read.push(String::from_utf8_lossy(out.get(at..at + size).ok_or_else(cut)?).into_owned());
+        read.push(out.get(at..at + size).ok_or_else(cut)?.to_vec());
         at += size + 1;
     }
     Ok(read)

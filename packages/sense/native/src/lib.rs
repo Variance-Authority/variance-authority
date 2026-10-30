@@ -106,6 +106,7 @@ mod journeys_steps;
 mod journeys_walk;
 #[cfg(feature = "grammars")]
 mod languages;
+mod lfs;
 mod loads;
 mod log;
 mod louvain;

@@ -144,6 +144,41 @@ fn a_file_moved_since_the_commit_is_read_under_the_path_the_commit_had() {
     std::fs::remove_dir_all(&root).unwrap();
 }
 
+#[test]
+fn a_file_git_holds_as_an_lfs_pointer_is_read_as_its_content_or_not_at_all() {
+    let root = std::env::temp_dir().join(format!("sense-journeys-lfs-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&root);
+    std::fs::create_dir_all(&root).unwrap();
+    let root = std::fs::canonicalize(root).unwrap();
+    // A pointer to an object no LFS store holds, committed as the blob itself:
+    // what a repository whose `.gitattributes` sends `.ts` to LFS holds in git.
+    let pointer = "version https://git-lfs.github.com/spec/v1\noid sha256:4d7a214614ab2935c943f9e0ff69d22eadbb8f32b1258daaa5e2ca24d17e2393\nsize 22\n";
+    std::fs::write(root.join("a.ts"), pointer).unwrap();
+    git(&root, &["init", "--quiet"]);
+    git(&root, &["add", "-A"]);
+    git(&root, &["commit", "--quiet", "-m", "a"]);
+    let recorded = git(&root, &["rev-parse", "HEAD"]);
+    std::fs::write(root.join("a.ts"), "export function a() {}\n").unwrap();
+
+    let refused = text_at(root.to_str().unwrap(), &recorded).unwrap_err();
+    assert!(refused.contains("a.ts is a git-LFS pointer"), "the pointer is named, never read as source: {refused}");
+
+    // Where git-lfs is installed and holds the object, the text is its content.
+    if Command::new("git").args(["lfs", "version"]).output().is_ok_and(|out| out.status.success()) {
+        git(&root, &["lfs", "install", "--local"]);
+        git(&root, &["lfs", "track", "b.ts"]);
+        std::fs::write(root.join("b.ts"), "export function b() {}\n").unwrap();
+        git(&root, &["add", "-A"]);
+        git(&root, &["commit", "--quiet", "-m", "b"]);
+        let tracked = git(&root, &["rev-parse", "HEAD"]);
+        assert!(git(&root, &["cat-file", "-p", "HEAD:b.ts"]).starts_with("version https://git-lfs"));
+        std::fs::write(root.join("b.ts"), "export function c() {}\n").unwrap();
+        let then = text_at(root.to_str().unwrap(), &tracked).unwrap();
+        assert_eq!(then.get("b.ts"), Some(&Some("export function b() {}\n".to_owned())));
+    }
+    std::fs::remove_dir_all(&root).unwrap();
+}
+
 /// A clone of a five-file history made with `--filter=<filter>`, holding only
 /// what its checkout needed, so the five texts at the first commit are on the
 /// server alone. The server's `upload-pack` appends a line to `requests` for
