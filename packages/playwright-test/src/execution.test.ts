@@ -1,15 +1,13 @@
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
+import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
-import type { Page, TestInfo } from '@playwright/test';
+import type { TestInfo } from '@playwright/test';
 import {
   closeStage,
   foldStage,
-  moduleId,
   openStage,
   type ExecutionJournal,
 } from '@variance-authority/sense/journal';
-import { caseIndexOf, coveringTests, readTestCoverage } from '@variance-authority/sense/test-selection';
+import { caseIndexOf, coveringTests, decodeExecutionIndex, readTestCoverage } from '@variance-authority/sense/test-selection';
 import { describe, expect, it, vi } from 'vitest';
 import { varianceCompletedFixtures } from './completed.js';
 import {
@@ -17,10 +15,7 @@ import {
   testOf,
   type ExecutionRecorder,
 } from './execution.js';
-import { caseHeard, decodeExecutionIndex, rowOf } from '@variance-authority/sense/test-selection';
-import { variancePrecondition } from '@variance-authority/sense/precondition';
-import type { PreconditionStanding } from '@variance-authority/sense/journal';
-import { caseKey } from './test-coordinate.js';
+import { INSTRUMENTATION, inRoot, instrumented, pageReporting } from './execution.fixture.js';
 
 // These drive the fixture with a `TestInfo` cut to what recording reads, which
 // carries none of the worker internals a hook's describe is read from; that
@@ -29,35 +24,6 @@ vi.mock('./preconditions.js', async (original) => ({
   ...(await original<typeof import('./preconditions.js')>()),
   enterDescribes: async () => {},
 }));
-
-const INSTRUMENTATION = 'sense:instrument/presence-v6';
-
-/** A page that hands over whatever the test says it entered, once per drain. */
-function pageReporting(...journals: readonly (ExecutionJournal | undefined)[]): Page {
-  const queue = [...journals];
-  return {
-    evaluate: async () => queue.shift(),
-  } as unknown as Page;
-}
-
-const SOURCE = ['export function price(amount) {', '  return amount * 2;', '}'].join('\n');
-
-async function inRoot(run: (root: string) => Promise<void>): Promise<void> {
-  const root = await mkdtemp(resolve(tmpdir(), 'variance-playwright-execution-'));
-  try {
-    await run(root);
-  } finally {
-    await rm(root, { recursive: true, force: true });
-  }
-}
-
-/** One real module on disk, so the ordinals its id names mean something. */
-async function instrumented(
-  root: string,
-): Promise<{ cacheRoot: string; id: string; ordinals: number[] }> {
-  await writeFile(resolve(root, 'price.js'), SOURCE, 'utf8');
-  return { cacheRoot: resolve(root, 'cache'), id: moduleId('price.js', SOURCE), ordinals: [0, 1] };
-}
 
 /**
  * End one test the way the runner ends it, through the fixture that is supposed
@@ -408,66 +374,6 @@ describe('a worker that is one of several', () => {
       const index = decodeExecutionIndex(await readFile(coverageFile));
       expect(index.tests.map((one) => one.duration)).toEqual([200]);
       expect((await readTestCoverage(coverageFile)).tests[0]!.duration).toBe(200);
-    });
-  });
-
-  it('lays what a case said, in its beforeEach and its body, on its row, and a case that only said something is a case', async () => {
-    await inRoot(async (root) => {
-      const coverageFile = resolve(root, 'coverage.bin');
-      const { cacheRoot, id } = await instrumented(root);
-      const owner = 'tests/checkout.spec.ts';
-      const pays = { name: 'pays', id: 'one' };
-      const refunds = { name: 'refunds', id: 'two' };
-
-      let standing: PreconditionStanding = { at: 'beforeEach', key: caseKey(owner, pays.id), depth: 1 };
-      const recorder = createExecutionRecorder({ root, cacheRoot, coverageFile }, undefined, () => standing);
-      variancePrecondition('fixture', { network: 'live' });
-      standing = { at: 'case', key: caseKey(owner, pays.id) };
-      variancePrecondition('fixture', { network: 'mocked' });
-      await recorder.note(
-        pageReporting({ instrumentation: INSTRUMENTATION, modules: [{ id, hits: [0], shared: [] }] }),
-        owner,
-        pays,
-      );
-      recorder.mark(owner, true, pays);
-      standing = { at: 'case', key: caseKey(owner, refunds.id) };
-      variancePrecondition('fixture', { seeded: true });
-      recorder.mark(owner, false, refunds);
-      await recorder.close();
-
-      const index = decodeExecutionIndex(await readFile(coverageFile));
-      expect(index.tests.map((one) => [one.name, rowOf(one)?.map(({ name, value, level }) => [name, value, level])]))
-        .toEqual([['pays', [['fixture:network', 'mocked', 0xffff]]], ['refunds', [['fixture:seeded', true, 0xffff]]]]);
-      expect(rowOf(index.tests[0]!)![0]!.site).toMatch(/execution\.test\.ts:\d+$/);
-    });
-  });
-
-  it('leaves what a case read unheard when it drove a page without the collector, and empty when it drove none', async () => {
-    await inRoot(async (root) => {
-      const coverageFile = resolve(root, 'coverage.bin');
-      const { cacheRoot, id } = await instrumented(root);
-      const owner = 'tests/checkout.spec.ts';
-      const pays = { name: 'pays', id: 'one' };
-      const refunds = { name: 'refunds', id: 'two' };
-      const ships = { name: 'ships', id: 'three' };
-
-      let standing: PreconditionStanding = { at: 'case', key: caseKey(owner, ships.id) };
-      const recorder = createExecutionRecorder({ root, cacheRoot, coverageFile }, undefined, () => standing);
-      await recorder.note(pageReporting({ instrumentation: INSTRUMENTATION, modules: [{ id, hits: [0], shared: [] }], read: [] }), owner, ships);
-      recorder.mark(owner, true, ships);
-      standing = { at: 'case', key: caseKey(owner, pays.id) };
-      variancePrecondition('fixture', { network: 'mocked' });
-      await recorder.note(pageReporting(undefined), owner, pays);
-      recorder.mark(owner, true, pays);
-      standing = { at: 'case', key: caseKey(owner, refunds.id) };
-      recorder.mark(owner, false, refunds);
-      await recorder.close();
-
-      const index = decodeExecutionIndex(await readFile(coverageFile));
-      const heard = Object.fromEntries(index.tests.map((one) => [one.name, caseHeard(one)]));
-      expect(heard['pays']).toEqual({ preconditions: [expect.objectContaining({ name: 'fixture:network' })] });
-      expect(heard['refunds']).toEqual({ preconditions: [], reads: [], misused: [] });
-      expect(heard['ships']).toEqual({ preconditions: [], reads: [], misused: [] });
     });
   });
 
