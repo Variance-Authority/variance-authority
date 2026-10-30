@@ -1,43 +1,19 @@
 /**
  * Sets of readings compared: what some sides do every time and the rest never do.
  *
- * A journey is a set because the order async work finishes in changes from one
- * run to the next, and a set that moved every run would say nothing. A story
- * keeps the order, so it inherits the same noise: two readings of a case that
- * passed both times already differ in where their promises resolved. A
- * difference between two readings is therefore no answer by itself. It becomes
- * one when it holds on every reading of some sides and on none of the rest —
- * every failing run took the `else`, every passing one the `then`; every
- * failing run heard the response before the click, every passing one after.
+ * Two readings of a case that passed both times already differ in where their
+ * promises resolved, so a difference between two readings is no answer by
+ * itself. It becomes one when it holds on every reading of some sides and on
+ * none of the rest: every failing run took the `else`, every passing one the
+ * `then`. A side is a set of readings — one case's passing runs, the runs under
+ * one label, or one case of several — and {@link Comparison} lists what
+ * separates two sides or more: where they went, what they said, in what order,
+ * and under which test line.
  *
- * So a side is a set of readings — one case's runs that passed, the runs under
- * one label, or one case of several — and there are two sides or more. Three
- * things are compared:
- *
- * - **Where.** A region every reading of some sides went into and no reading of
- *   the rest did: an arm, a loop body, a function.
- * - **What was said.** A note — a console line, an announcement, what Eyes
- *   saw — that every reading of some sides has and none of the rest.
- * - **In what order.** Two places, or two notes, every side reaches every time,
- *   that each side reaches in one order every time, and not every side in the
- *   same one. Order is compared at first arrival, at the grain of a
- *   declaration or a note, which is the grain a person reads a route at.
- * - **Under which test line.** A region every reading reaches, first reached
- *   under one line of the test on every reading of a side and under another on
- *   another side: the request answered while the spec was already at its next
- *   statement. A seam that cuts a case at its test lines says `test line N`
- *   where each statement starts, and a region is charged to the last one said
- *   before it was first reached.
- *
- * Each difference is told under the sides that hold it, so with three sides an
- * arm both failing cases took and the passing one did not is one finding, not
- * two comparisons a reader has to lay over each other.
- *
- * Everything that differs and does not hold within a side is counted as
- * **unsteady** and left out: it is the interleaving that makes order useless
- * for a journey, and it is what a flake looks like before it is separated from
- * the thing that decides it. With one reading on a side nothing can be told
- * apart from noise, and the comparison says so rather than guess.
+ * What differs within a side as well is **unsteady**, counted and left out: it
+ * is what a flake looks like before it is separated from what decides it. With
+ * one reading on a side nothing can be told from noise, and the comparison
+ * says so.
  */
 
 import { readFileSync } from 'node:fs';
@@ -105,16 +81,18 @@ export interface Charge {
 }
 
 /**
- * Sides of readings set against each other: what some sides did on every
- * reading and the rest on none, the orders the sides hold differently, and a
- * count of what moves within a side as well.
+ * Sides of readings set against each other. Each difference is told under the
+ * sides that hold it, so with three sides an arm both failing cases took and
+ * the passing one did not is one finding, not two comparisons to lay over each
+ * other. Order is compared at first arrival, at the grain of a declaration or
+ * a note, which is the grain a person reads a route at.
  */
 export interface Comparison {
   /** The case the first side's newest reading is of. */
   readonly file: string;
   readonly name: string;
   readonly sides: readonly SideSummary[];
-  /** What separates the sides, one entry for each set of sides that holds something, in the order of the sides. */
+  /** What separates the sides — a region, an arm, a loop body, or a note such as a console line — one entry for each set of sides that holds something, in the order of the sides. */
   readonly only: readonly Only[];
   /** Orders the sides hold differently, first in the order the first side's newest reading reached the earlier of the two. */
   readonly orders: readonly Order[];

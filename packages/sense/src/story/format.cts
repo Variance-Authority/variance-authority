@@ -134,6 +134,17 @@ function labelOf(asked: string | undefined): string | undefined {
   return label === '' ? undefined : label;
 }
 
+/** The row whose region range holds `index`: the last of `bases`, ascending, at or below it. */
+function rowAt(bases: readonly number[], index: number): number {
+  let low = 0;
+  let high = bases.length - 1;
+  while (low < high) {
+    const middle = (low + high + 1) >> 1;
+    if (bases[middle]! <= index) low = middle;
+    else high = middle - 1;
+  }
+  return low;
+}
 
 /**
  * The story of the case keyed `key` on `tape`.
@@ -169,13 +180,7 @@ function encodeStory(tape: Tape, key: string, stopped?: boolean): Buffer {
     for (let at = from; at < to; at += 1) {
       const entry = tape.tape[at]!;
       const index = entry & INDEX;
-      let low = 0;
-      let high = bases.length - 1;
-      while (low < high) {
-        const middle = (low + high + 1) >> 1;
-        if (bases[middle]! <= index) low = middle;
-        else high = middle - 1;
-      }
+      const low = rowAt(bases, index);
       let base = dense.get(low);
       if (base === undefined) {
         base = total;
@@ -336,4 +341,4 @@ function storyWriter(
   };
 }
 
-export = { caseStem, readingOf, labelOf, storyWriter, encodeStory, decodeStory, storyHeader, EVALUATING, READINGS };
+export = { caseStem, readingOf, labelOf, storyWriter, encodeStory, decodeStory, storyHeader, rowAt, EVALUATING, READINGS };

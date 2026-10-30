@@ -54,18 +54,11 @@ export type { ExecutionRecording } from './execution-recording.js';
 export interface ExecutionRecorder {
   /**
    * Take everything one document has entered since the last drain — a page's,
-   * or any frame's, since the application is not always the top document.
-   *
-   * `subject` names the individual test the window belongs to, for a run
-   * recording cases. Without it the crossings join the file and nothing finer,
-   * which is what selection reads either way.
-   *
-   * `line` is the test line whose statement ran since the drain before, for a
-   * case whose file was cut: each region the window holds that the case has
-   * not reached under an earlier line is charged to it. A case drained without
-   * one carries no lines, and a region drained without one before its first is
-   * ambient. `hook` says `line` is a hook's statement, so what it reached is
-   * ambient too.
+   * or any frame's. `subject` names the test it belongs to, for a run recording
+   * cases; without it the crossings join the file only. `line` is the test line
+   * whose statement ran since the drain before: each region the case has not
+   * reached under an earlier line is charged to it. A region drained before
+   * the first line, or under a `hook` line, is ambient.
    */
   readonly note: (page: EvaluatingPage, owner: string, subject?: ObservedTest, line?: number, hook?: boolean) => Promise<void>;
   /**

@@ -40,7 +40,6 @@ export interface RunnerTask {
   /** `duration` is the milliseconds the runner measured for the task, when it did. */
   readonly result?: { readonly state: string; readonly duration?: number };
   readonly tasks?: readonly RunnerTask[];
-  /** `test` for a case, `suite` for a file or a `describe`. */
   readonly type?: string;
   readonly meta?: object;
   /** Vitest 2's name for the project that ran the file. */
@@ -52,10 +51,7 @@ export interface RunnerTask {
   readonly collectDuration?: number;
 }
 
-/**
- * Vitest 3 and 4's reported test module, structurally: a type from the runner's
- * own package would pin the build to a version the project need not have.
- */
+/** Vitest 3 and 4's reported test module, structurally, so the build pins no runner version. */
 export interface ReportedModule {
   readonly moduleId: string;
   readonly children: {
@@ -64,7 +60,6 @@ export interface ReportedModule {
       readonly id?: string;
       readonly fullName?: string;
       diagnostic?: () => { readonly duration?: number } | undefined;
-      /** What the case attached to itself, carried from wherever it ran. */
       meta?: () => object;
     }>;
     /** Vitest 3 and 4 only; a suite holds the errors its own hooks threw. */

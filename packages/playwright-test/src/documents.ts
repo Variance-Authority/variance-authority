@@ -119,11 +119,10 @@ function settlesInTime(work: Promise<void>): Promise<boolean> {
  *
  * The spec was compiled with the cadence plugin ([`cadence-babel.cts`](./cadence-babel.cts)),
  * which awaits what `__VA__.c(line, file, hook)` returns before each statement
- * of an async test or hook body. A region a hook's statement reached first is
- * ambient under that line, as Node's collector charges it. A spec compiled
- * without the plugin never calls this, and every region it reached is ambient. A body declared in another file names
- * that file and is not waited on: its work is charged to the spec's statement
- * that called it.
+ * of an async test or hook body; what a hook's statement reached first is
+ * ambient, as in Node. A spec compiled without the plugin never calls this, and
+ * all it reached is ambient. A body declared in another file names that file
+ * and is not waited on: the spec's statement that called it is charged.
  *
  * A drain that does not finish in {@link STATEMENT_WAIT_MS} leaves the case's
  * lines from there on unknown: every region drained after it is ambient,

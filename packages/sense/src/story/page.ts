@@ -161,14 +161,7 @@ export function pageStories(directory: string): PageStories {
       });
       for (const entry of story.tape) {
         const index = entry & 0x7fffffff;
-        let low = 0;
-        let high = bases.length - 1;
-        while (low < high) {
-          const middle = (low + high + 1) >> 1;
-          if (bases[middle]! <= index) low = middle;
-          else high = middle - 1;
-        }
-        tape.entries.push((index + rebased[low]!) | (entry & format.EVALUATING));
+        tape.entries.push((index + rebased[format.rowAt(bases, index)]!) | (entry & format.EVALUATING));
       }
       for (const [at, text] of story.notes) tape.notes.push([offset + at, text]);
       for (const [id, text] of story.held) tape.held.set(id, text);

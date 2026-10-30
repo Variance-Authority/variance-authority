@@ -105,11 +105,7 @@ export function selectionPlugin(
    * shared by every project in it.
    */
   const takes = (file: string): boolean => mayTake(file, (at) => taken.include(at) || taken.unprobed?.(at) === true);
-  /**
-   * A test file the run cuts: the file itself only, since a query asks for a
-   * module built from it. A page records no case, but its story still says
-   * which test line ran.
-   */
+  /** A test file cut for its cases, or a page's story: the file only, since a query asks for a module built from it. */
   const cutting = (id: string, file: string): boolean =>
     cut !== undefined && id === file && (run.cases || story !== undefined) && cut(file);
   /** The modules probed first because their files name their own maps, until the probes plugin passes them by. */
@@ -144,8 +140,7 @@ export function selectionPlugin(
     // has already been merged in. A file in a page has no disk, no builtins and
     // no runner of this seam's: its setup module hands the runner what it ran.
     // TODO: record cases in a page — a drain per test in `beforeEach` and
-    // `afterEach`, carried on each test's `meta` as the file's is. A story
-    // already rides there; the record's case index does not.
+    // `afterEach`, carried on each test's `meta` as the file's is.
     async config(config) {
       // Vite awaits this hook before the banner prints or a sequencer is
       // made, and both ask whether files are shuffled.
@@ -158,8 +153,6 @@ export function selectionPlugin(
         // file's setup files, and the setup module written here is what installs
         // the page's root. A module that installs it, imported ahead of them,
         // would carry what they load to the file the way the case runner does.
-        // Loaded here, where a page asks for it, and not at the top: the tap
-        // it sends to the page is read from the build.
         const tape = story === undefined ? undefined : (await import('../story/page.js')).storyPageSource();
         writeSeamModule(run, setupId, browserSetupSource(mode, 'vitest', tape));
         if (config.test.runner === runnerId) delete config.test.runner;
