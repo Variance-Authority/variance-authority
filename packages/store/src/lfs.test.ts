@@ -172,6 +172,16 @@ describe('a baseline store in the repository', () => {
     expect(store.tracking.added).toBe(true);
   });
 
+  it('refuses a pattern of its own that tracks no WebP, before writing any entry', async () => {
+    // A pattern set for PNG baselines would let every WebP this store keeps go
+    // into git as a plain blob, with the tracking check still green.
+    await expect(createLfsStore({ root, git: TRACKED, pattern: 'baselines/*.png' })).rejects.toThrow(
+      /`baselines\/\*\.png` matches no WebP/,
+    );
+    await expect(readFile(join(root, '.gitattributes'), 'utf8')).rejects.toThrow(/ENOENT/);
+    await expect(createLfsStore({ root, git: TRACKED, pattern: 'baselines/*' })).resolves.toBeDefined();
+  });
+
   it('tracks the images a collocated template renders and no other image in the tree', async () => {
     // A root that is the repository holds every screenshot, icon and fixture
     // anyone committed. An entry for `*.png` would move all of them into LFS.

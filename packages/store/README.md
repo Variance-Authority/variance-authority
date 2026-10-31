@@ -384,7 +384,7 @@ running git-lfs.
 | option | default | what it decides |
 |---|---|---|
 | `root` | required | baseline root, laid out exactly as the durable store lays it out |
-| `pattern` | `*-*.webp` | which files are tracked, relative to the `.gitattributes` the entry lives in. Only images match by default; the `.json` sidecar next to each is never routed through LFS |
+| `pattern` | `*-*.webp` | which files are tracked, relative to the `.gitattributes` the entry lives in. Only images match by default; the `.json` sidecar next to each is never routed through LFS. A pattern that does not end in `.webp` or `*` is refused, since it would track none of the kept images |
 | `attributesFile` | `<root>/.gitattributes` | where the tracking entry lives — the baseline root, not the repository root |
 | `cacheRoot` | `root` | where the render cache goes. Defaults to `root`, so cache entries are tracked and committed alongside baselines unless this points outside the work tree |
 | `recordRoot` | `root` | where the `.json` sidecars go, passed straight to the durable store. The reason to set it is sharpest here: `pattern` routes the images out of the object database, and the sidecars are the text left behind gaining a revision per document change |

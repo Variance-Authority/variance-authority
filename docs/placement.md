@@ -216,8 +216,9 @@ the baselines a root of their own, or set `baselines.pattern` yourself.
 
 A root that already tracks `*-*.png` keeps that entry, so the PNGs committed
 before stay in LFS, and the store adds the `.webp` entry beside it. A
-`baselines.pattern` you set yourself is written as you gave it: make it match
-`.webp`.
+`baselines.pattern` you set yourself is written as you gave it, and one that
+does not end in `.webp` or `*` is refused, because it would leave every kept
+image out of LFS.
 
 `directory` at a root of `.` is refused on the same template for the same
 reason: the action commits back what the glob names, and `*-*.webp` from the

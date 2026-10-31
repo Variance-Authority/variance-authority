@@ -157,6 +157,12 @@ export async function createLfsStore(options: LfsStoreOptions): Promise<LfsStore
   // Every image this store writes is a WebP. A `.png` kept before stays under
   // the entry that tracked it then, never removed here, until an accept replaces it.
   const pattern = options.pattern ?? attributesPattern(`${template.glob}.webp`);
+  if (!/(?:\.webp|\*)$/.test(pattern)) {
+    throw new Error(
+      `the LFS pattern \`${pattern}\` matches no WebP, and every image this store keeps is one: ` +
+        'they would go into git as plain blobs. End the pattern in `.webp` or `*`.',
+    );
+  }
   const attributesFile = options.attributesFile ?? join(options.root, '.gitattributes');
 
   const placed = options.path === undefined ? {} : { path: options.path };
