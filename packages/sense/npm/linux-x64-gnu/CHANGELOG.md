@@ -1,5 +1,7 @@
 # @variance-authority/sense-linux-x64-gnu
 
+## 0.22.0
+
 ## 0.21.0
 
 ## 0.20.0

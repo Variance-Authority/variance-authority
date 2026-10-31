@@ -1,6 +1,6 @@
 {
   "name": "@variance-authority/isolator",
-  "version": "0.21.0",
+  "version": "0.22.0",
   "description": "Experimental. Give every test, request or render its own copy of a module's mutable state: a build transform turns module-level variables into per-session slots.",
   "keywords": [
     "variance-authority",
