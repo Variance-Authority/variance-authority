@@ -1,8 +1,11 @@
 // compass: variance-authority.reach
 import { writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { HOUR, PAY, iso, oneRun, recordFixture } from './covering-record.fixture.js';
+
+// `ci-info` decides CI once, when it loads, so the module is cut: these questions are asked outside CI.
+vi.mock('ci-info', () => ({ isCI: false }));
 
 /**
  * Each line a `covering` question asks has one status, decided once over the

@@ -22,8 +22,8 @@ import type { SetExecutionModule } from './execution-set-format.js';
 import { NO_OWNER } from './format-layout.js';
 import { addressedAlike } from './region-landing.js';
 import { keptTexts } from './kept-texts.js';
-import { hunksOf, placeThrough, type Hunk } from './placed.js';
-import { textAtRecording } from './recorded-text.js';
+import { hunksOf, placeThrough, type HeldLines, type Hunk } from './placed.js';
+import { blobsAt, textAtRecording } from './recorded-text.js';
 import { diffTexts } from './text-diff.js';
 import { NO_LINE } from './written-lines.js';
 
@@ -47,46 +47,137 @@ export type EditOf = (file: string) => Edit | undefined;
 export type Edits = (file: string, from: string, to: string) => Edit | undefined;
 
 /**
+ * Where a reader of edits finds a text besides the ones it finds by digest: the
+ * name the source index gives each file now, and the texts the reader already
+ * holds, by file and name.
+ */
+export interface TextNames {
+  /** The git name the source index gives `file`'s text in the checkout now, or none. */
+  readonly now?: (file: string) => string | undefined;
+  /** A text of `file` the reader already holds by `name`, or none. */
+  readonly inHand?: (file: string, name: string) => string | undefined;
+}
+
+/**
  * A reader of the edit one module went from the text `from` names to the text
- * `to` names, both digests.
- *
- * Two digests that agree are no edit and need no text. Otherwise each text is
- * found the way a reading of an edit finds it: kept by a landing, at one of the
- * commits the record names, or on disk, and taken only when it hashes to its
- * digest. `undefined` when either cannot be had: the caller then reads the
- * whole module as changed.
+ * `to` names, each a digest (`v1:`) or a git blob name (`git:`). Two names that
+ * agree are no edit and read no text. `undefined` when either text cannot be
+ * had, a file that does not read among them. Each text and edit is read once.
  */
 export function editsBetween(
   root: string,
   cacheRoot: string | undefined,
   commits: readonly (string | undefined)[],
+  names: TextNames = {},
 ): Edits {
   const kept = keptTexts(root, cacheRoot);
   const atRecording = textAtRecording(root, []);
-  const textOf = (file: string, digest: string): string | undefined => {
-    const text = kept(digest);
-    if (text !== undefined) return text;
-    for (const commit of new Set(commits)) {
-      const found = hashingTo(atRecording(file, commit), digest);
-      if (found !== undefined) return found;
-    }
+  const at = [...new Set(commits)].filter((commit) => commit !== undefined);
+  const onDisk = (file: string): string | undefined => {
     try {
-      return hashingTo(readFileSync(resolve(root, file), 'utf8'), digest);
+      return readFileSync(resolve(root, file), 'utf8');
     } catch {
       return undefined;
     }
   };
+  // A digest's text is kept by a landing, at a commit the record names, or on disk, and taken only when it hashes so.
+  const byDigest = (file: string, digest: string): string | undefined => {
+    const text = kept(digest);
+    if (text !== undefined) return text;
+    for (const commit of at) {
+      const found = hashingTo(atRecording(file, commit), digest);
+      if (found !== undefined) return found;
+    }
+    return hashingTo(onDisk(file), digest);
+  };
+  // A git name's is on disk when the source index names the file so now, else at a commit holding it by that name.
+  const byGitName = (file: string, name: string): string | undefined => {
+    if (names.now?.(file) === name) return onDisk(file);
+    if (at.length === 0) return undefined;
+    const held = blobsAt(root, new Map(at.map((commit) => [commit, [file]])));
+    const commit = at.find((each) => held.get(each)?.get(file) === name);
+    return commit === undefined ? undefined : atRecording(file, commit);
+  };
+  const texts = new Map<string, string | undefined>();
+  const textOf = (file: string, name: string): string | undefined => {
+    const key = `${file}\0${name}`;
+    if (texts.has(key)) return texts.get(key);
+    const text = names.inHand?.(file, name) ?? (name.startsWith('git:') ? byGitName(file, name) : byDigest(file, name));
+    texts.set(key, text);
+    return text;
+  };
+  const edits = new Map<string, Edit | undefined>();
   return (file, from, to) => {
     if (from === to) return NO_EDIT;
+    const key = `${file}\0${from}\0${to}`;
+    if (edits.has(key)) return edits.get(key);
     const [before, after] = [textOf(file, from), textOf(file, to)];
-    if (before === undefined || after === undefined) return undefined;
-    const reading = readEdit(root, file, before, after);
-    return { hunks: hunksOf(diffTexts(before, after)), ...(reading === undefined ? {} : { reading }) };
+    const edit = before === undefined || after === undefined ? undefined : editOf(root, file, before, after);
+    edits.set(key, edit);
+    return edit;
   };
+}
+
+/** The edit `file` went through from the text `before` to the text `after`, both in hand. */
+function editOf(root: string, file: string, before: string, after: string): Edit {
+  const reading = readEdit(root, file, before, after);
+  return { hunks: hunksOf(diffTexts(before, after)), ...(reading === undefined ? {} : { reading }) };
 }
 
 function hashingTo(text: string | undefined, digest: string): string | undefined {
   return text !== undefined && digestString(text) === digest ? text : undefined;
+}
+
+/** A region of a text: its kind and the lines it stands at, or {@link NO_LINE}. */
+type Region = { readonly kind: string } & HeldLines;
+
+/**
+ * Where one edit leaves a region of the text it starts at, the step every
+ * carry of a region's cases takes. A region the hunks leave whole at its lines
+ * `stays`, at the lines they shift it to, and runs as it did; so does one
+ * with no lines of its own, where it was. Any other region is `reached` where
+ * the edit's reading reaches its kind ({@link editReaches}), and spared where
+ * it does not, standing at the `lines` the hunks move it to when they place
+ * it at all.
+ */
+type Landing =
+  | { readonly stays: HeldLines }
+  | { readonly reached: boolean; readonly lines?: HeldLines };
+
+/**
+ * Whether `edit` reaches what runs in a region of `kind` that it did not leave
+ * whole. A text the edit left whole runs as it did, as the recut keeps a row
+ * whose text did not move.
+ */
+function editReaches(edit: Edit, kind: string): boolean {
+  return reaches(edit.hunks.length === 0 ? 'none' : edit.reading, kind);
+}
+
+/** Where `edit` leaves `region`, by the rule {@link Landing} names. */
+function landing(edit: Edit, region: Region): Landing {
+  if (region.startLine === NO_LINE) return { stays: region };
+  const through = placeThrough(edit.hunks, region);
+  if (through !== undefined && !through.moved) return { stays: through.lines };
+  const reached = editReaches(edit, region.kind);
+  return through === undefined ? { reached } : { reached, lines: through.lines };
+}
+
+/**
+ * Whether an edit along `edits` changed `region`: {@link landing} folded along
+ * the chain, the step {@link landedThrough} carries a region's cases by. Each
+ * edit starts at the text the one before it ends at, and the region is
+ * numbered in the first; a region stays or is spared at the lines one edit
+ * leaves it at for the next.
+ */
+export function regionTouched(region: Region, edits: readonly Edit[]): boolean {
+  let lines: HeldLines = region;
+  for (const edit of edits) {
+    const step = landing(edit, { kind: region.kind, startLine: lines.startLine, endLine: lines.endLine });
+    if ('stays' in step) lines = step.stays;
+    else if (step.reached) return true;
+    else if (step.lines !== undefined) lines = step.lines;
+  }
+  return false;
 }
 
 type Cut = Pick<SetExecutionModule, 'blocks' | 'owner'>;
@@ -122,18 +213,12 @@ export function landedThrough(held: Cut, recorded: Cut, change: Edit | undefined
   const lands = new Int32Array(recorded.blocks.length).fill(-1);
   const overwrote = new Int32Array(recorded.blocks.length).fill(-1);
   if (change === undefined) return { lands, overwrote, unread: true };
-  // A text the edit left whole runs as it did, as the recut keeps a row whose text did not move.
-  const reading = change.hunks.length === 0 ? 'none' : change.reading;
   // The held regions the edit left alone, at the lines it places them, in order.
   const seats = new Map<string, number[]>();
   for (const [at, block] of held.blocks.entries()) {
-    let placed: { readonly startLine: number; readonly endLine: number } | undefined = block;
-    if (block.startLine !== NO_LINE) {
-      const through = placeThrough(change.hunks, block);
-      placed = through === undefined || through.moved ? undefined : through.lines;
-    }
-    if (placed === undefined) continue;
-    const key = seatOf(block.kind, placed.startLine, placed.endLine);
+    const step = landing(change, block);
+    if (!('stays' in step)) continue;
+    const key = seatOf(block.kind, step.stays.startLine, step.stays.endLine);
     seats.set(key, [...(seats.get(key) ?? []), at]);
   }
   // A recorded region takes the held region of its kind seated at its lines,
@@ -175,7 +260,7 @@ export function landedThrough(held: Cut, recorded: Cut, change: Edit | undefined
       ? was
       : owner === undefined || owner === NO_OWNER ? -1 : decided[owner]!;
     // Where the edit reached its kind, those cases ran another text there.
-    if (!reaches(reading, block.kind)) lands[at] = decided[at]!;
+    if (!editReaches(change, block.kind)) lands[at] = decided[at]!;
     else overwrote[at] = decided[at]!;
   }
   return { lands, overwrote, unread: false };

@@ -7,6 +7,9 @@ import { commitRunsFile, coveringTestsInFile, testCoverageFile, type ExecutionIn
 import { namedTestFiles } from './covering-ran.js';
 import { ASSUMED, DAY, HOUR, MINUTE, PAY, iso, oneRun, recordFixture, unplaced } from './covering-record.fixture.js';
 
+// `ci-info` decides CI once, when it loads, so the module is cut: these questions are asked outside CI.
+vi.mock('ci-info', () => ({ isCI: false }));
+
 /**
  * Where and when each test file a `covering` answer names last ran, and
  * whether it ran over the asked text: read from the runs record beside the

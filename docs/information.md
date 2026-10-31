@@ -358,7 +358,10 @@ generation names its format, source contents, directory membership, and
 resolution and toolchain basis. Readers reject an incompatible, foreign,
 incomplete, or corrupt generation rather than accepting part of it as an empty
 graph: in CI they refuse and name `variance index`, and on a workstation they
-update it from the checkout first.
+update it from the checkout first. A whole generation is read as it stands,
+except by the commands that name the checkout's texts by it, which update it
+before they read, in CI too: a generation published at one commit is brought up
+to the checkout, paying only for the files that differ.
 
 The same binary generation can cross a CI cache or artifact boundary. No Sense
 service owns it and no process exchanges decoded object trees. Local and remote

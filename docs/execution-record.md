@@ -490,6 +490,7 @@ parent has rows: child rows for parent `i` are `[off[i], off[i + 1])`.
 | tests | `tests.preconditions` | range into the precondition rows |
 | preconditions | `preconditions.name`, `preconditions.digest` | a path the test's answer depends on, and the digest it had |
 | modules | `modules.path`, `modules.source` | the module path, sorted by code unit, and the digest of its source |
+| modules | `modules.blob` | the name git gives the module's text as a blob, as a string id, `0xffffffff` for a module recorded without one |
 | modules | `modules.instrumented` | one byte, `1` when the module has blocks |
 | modules | `modules.blocks` | range into the block rows |
 | blocks | `blocks.ordinal`, `blocks.kind`, `blocks.owner` | position, kind byte, and owning block's ordinal, `0xffffffff` at the root |
@@ -499,6 +500,18 @@ parent has rows: child rows for parent `i` are `[off[i], off[i + 1])`.
 | blocks | `blocks.set` | the pooled set of tests that executed the block |
 | blocks | `blocks.loadedSet` | the pooled set of tests that had executed the block before their own file began, empty for most regions |
 | sets | `sets.blob`, `sets.off` | the pool both of those name: one copy of each distinct set of tests, however many regions name it |
+
+**The text's git name.** `modules.blob` names the text the module's rows were
+cut from the way the source index names a file: `git:` and the object name git
+gives those bytes as a blob. The two names meet without reading the file, so
+`variance coverage` tells whether the checkout still holds the text a region
+was numbered in by comparing them, and reads a text only to diff two that the
+names say differ. A region whose text the checkout still holds is run over
+this text, though a module it calls may have changed since: the name says the
+region's code is the code that ran, not that its behaviour was checked. Both names are git's own, in the hash the repository uses,
+SHA-1 or SHA-256. A record of layout 11, written before the
+column, opens with every module unkeyed, and `variance coverage` counts what
+it ran as over a text not known.
 
 **Durations.** `tests.duration` is the runner's own figure for the file, never a
 second clock: Vitest's file result, which is its cases alone, Jest's

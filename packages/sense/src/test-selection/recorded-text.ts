@@ -70,11 +70,11 @@
  */
 
 import { execFileSync } from 'node:child_process';
-import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { isLfsPointer } from '@variance-authority/core';
 import { native, nativeRefusal } from '../addon.js';
+import { blobName } from '../digest.js';
 
 /**
  * How much text one window may hold, and how many paths the first one guesses at.
@@ -217,9 +217,7 @@ function unanswered(expected: readonly string[], from: number, width: number, an
  * `textAtRecording` would read a process per commit.
  */
 export function textsAt(root: string, asked: ReadonlyMap<string, Iterable<string>>): Map<string, Map<string, string>> {
-  const { texts, refused } = readTextsAt(root, asked);
-  for (const why of refused.values()) for (const reason of why.values()) throw new Error(reason);
-  return texts;
+  return answered(readTextsAt(root, asked));
 }
 
 /** The texts {@link readTextsAt} read, and why git could not give the others, each by commit and then path. */
@@ -238,7 +236,29 @@ interface CommitTexts {
  * a read names together first, and it gives a git-LFS pointer as its content.
  */
 export function readTextsAt(root: string, asked: ReadonlyMap<string, Iterable<string>>): CommitTexts {
-  const read = native()?.textsAt;
+  return columns(root, asked, native()?.textsAt);
+}
+
+/**
+ * The git blob name, `git:<object>`, of paths at several commits, by commit
+ * and then path, leaving out a path the commit does not hold, and naming git's
+ * reason for each commit it could not list: {@link readTextsAt}'s read without
+ * the bodies, so a reader that only asks whether two commits hold the same text
+ * reads none. The name is git's, in the repository's own hash.
+ */
+export function readBlobsAt(root: string, asked: ReadonlyMap<string, Iterable<string>>): CommitTexts {
+  return columns(root, asked, native()?.blobsAt);
+}
+
+/** {@link readBlobsAt}'s names, failing on the first path git could not list. */
+export function blobsAt(root: string, asked: ReadonlyMap<string, Iterable<string>>): Map<string, Map<string, string>> {
+  return answered(readBlobsAt(root, asked));
+}
+
+type Columns = (root: string, commits: string[], paths: string[][]) => { commit: number[]; file: string[]; text: string[]; refusedCommit: number[]; refusedFile: string[]; refused: string[] };
+
+/** `asked` read by the addon's `read`, from its columns into maps by commit and then path. */
+function columns(root: string, asked: ReadonlyMap<string, Iterable<string>>, read: Columns | undefined): CommitTexts {
   if (read === undefined) throw new Error(`the text at a recording is read by the native addon, which ${nativeRefusal() || 'is older than this package'}`);
   const commits = [...asked.keys()];
   const texts = new Map(commits.map((commit) => [commit, new Map<string, string>()]));
@@ -253,6 +273,12 @@ export function readTextsAt(root: string, asked: ReadonlyMap<string, Iterable<st
     refused.set(commit, (refused.get(commit) ?? new Map()).set(found.refusedFile[at]!, found.refused[at]!));
   }
   return { texts, refused };
+}
+
+/** The texts or names read, failing on the first path git could not read. */
+function answered({ texts, refused }: CommitTexts): Map<string, Map<string, string>> {
+  for (const why of refused.values()) for (const reason of why.values()) throw new Error(reason);
+  return texts;
 }
 
 /**
@@ -322,10 +348,3 @@ function unchangedOnDisk(root: string, listing: Listing, file: string): string |
   return undefined;
 }
 
-/** Git's name for `bytes` as a blob, in the repository's hash: a SHA-256 name is 64 digits. */
-function blobName(bytes: Buffer, digits: number): string {
-  return createHash(digits === 64 ? 'sha256' : 'sha1')
-    .update(`blob ${bytes.length}\0`)
-    .update(bytes)
-    .digest('hex');
-}

@@ -11,7 +11,7 @@ import { changedLines } from './diff-lines.js';
 import { openTestCoverage } from './format-view.js';
 import { encodeTestCoverage } from './format.js';
 import type { TestCoverage } from './index.js';
-import { readTextsAt, textAtRecording, textsAt } from './recorded-text.js';
+import { blobsAt, readBlobsAt, readTextsAt, textAtRecording, textsAt } from './recorded-text.js';
 import { narrowByExecutionFromView } from './select.js';
 
 /**
@@ -197,6 +197,19 @@ describe('the text at a recording is read a window at a time', () => {
       expect([...refused.get(commit)!.keys()]).toEqual([path(1)]);
       expect(refused.get(commit)!.get(path(1))).toMatch(/^git could not read the files asked about at commit [0-9a-f]{12}: .*\S/s);
       expect(refused.get(absent)).toEqual(new Map([[path(0), expect.stringMatching(/^commit ffffffffffff is not in this checkout's object store/)]]));
+    });
+  });
+
+  it('names each path\'s blob without reading it, and refuses a commit this clone does not hold rather than naming every path absent', async () => {
+    await checkout(async (root, commit) => {
+      const name = `git:${execFileSync('git', ['rev-parse', `${commit}:${path(0)}`], { cwd: root, encoding: 'utf8' }).trim()}`;
+      const absent = 'f'.repeat(40);
+
+      const { texts, refused } = readBlobsAt(root, new Map([[commit, [path(0), 'src/never.ts']], [absent, [path(0)]]]));
+
+      expect(texts).toEqual(new Map([[commit, new Map([[path(0), name]])], [absent, new Map()]]));
+      expect(refused).toEqual(new Map([[absent, new Map([[path(0), expect.stringMatching(/^commit ffffffffffff is not in this checkout's object store/)]])]]));
+      expect(() => blobsAt(root, new Map([[absent, [path(0)]]]))).toThrow(/commit ffffffffffff is not in this checkout's object store/);
     });
   });
 

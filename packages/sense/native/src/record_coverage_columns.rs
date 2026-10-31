@@ -39,6 +39,7 @@ pub(crate) struct Columns {
     precondition_digest: Vec<u32>,
     module_path: Vec<u32>,
     module_source: Vec<u32>,
+    module_blob: Vec<u32>,
     module_instrumented: Vec<u8>,
     module_blocks: Vec<u32>,
     block_ordinal: Vec<u32>,
@@ -67,6 +68,7 @@ impl Columns {
             precondition_digest: Vec::with_capacity(inputs),
             module_path: Vec::with_capacity(modules),
             module_source: Vec::with_capacity(modules),
+            module_blob: Vec::with_capacity(modules),
             module_instrumented: Vec::with_capacity(modules),
             module_blocks: Vec::with_capacity(modules + 1),
             block_ordinal: Vec::with_capacity(blocks),
@@ -97,9 +99,11 @@ impl Columns {
     }
 
     /// The next module row; its regions are the ones written until the next.
-    pub fn module(&mut self, path: u32, source: u32, instrumented: bool) {
+    /// `blob` is the string id of its text's git blob name, or `no_blob`.
+    pub fn module(&mut self, path: u32, source: u32, blob: u32, instrumented: bool) {
         self.module_path.push(path);
         self.module_source.push(source);
+        self.module_blob.push(blob);
         self.module_instrumented.push(u8::from(instrumented));
         self.module_blocks.push(self.block_ordinal.len() as u32);
     }
@@ -129,6 +133,9 @@ impl Columns {
                 used[*id as usize] = true;
             }
         }
+        for id in self.module_blob.iter().filter(|id| **id != LAYOUT.coverage.no_blob) {
+            used[*id as usize] = true;
+        }
     }
 
     /// Every string id written, as `rank` numbers it.
@@ -137,6 +144,9 @@ impl Columns {
             for id in column.iter_mut() {
                 *id = rank[*id as usize];
             }
+        }
+        for id in self.module_blob.iter_mut().filter(|id| **id != LAYOUT.coverage.no_blob) {
+            *id = rank[*id as usize];
         }
     }
 
@@ -190,6 +200,7 @@ impl Columns {
             Column::Words(name("preconditions.digest")?, self.precondition_digest),
             Column::Words(name("modules.path")?, self.module_path),
             Column::Words(name("modules.source")?, self.module_source),
+            Column::Words(name(&LAYOUT.coverage.blob)?, self.module_blob),
             Column::Bytes(name("modules.instrumented")?, self.module_instrumented),
             Column::Words(name("modules.blocks")?, self.module_blocks),
             Column::Words(name("blocks.ordinal")?, self.block_ordinal),

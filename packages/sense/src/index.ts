@@ -80,6 +80,7 @@ export {
   type SourceUpdate,
   type SourceUpdateOptions,
 } from './published.js';
+export { publishedNames, readPublishedNames, type PublishedNames } from './published-names.js';
 export { placesOf, stepped, type Progress } from './progress.js';
 export { readySourceIndex } from './ready-index.js';
 export { inIndexTurn, indexTurnPath, type IndexTurnHolder } from './index-turn.js';
@@ -202,6 +203,7 @@ export {
 } from './journeys.js';
 
 export { gitDigests } from './tree.js';
+export { seedPaths } from './files.js';
 export { workingTreeChanges, type WorkingTreeChanges } from './working-tree-changes.js';
 export {
   aliasesOf,

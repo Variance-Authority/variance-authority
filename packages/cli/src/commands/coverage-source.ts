@@ -46,6 +46,7 @@ import {
   declaredEntrypoints,
   defaultInclude,
   type ExecutionIndex,
+  type RunOver,
 } from '@variance-authority/sense/test-selection';
 import type { FileSize, SourceScope } from '@variance-authority/sense';
 import { beforeReach, relationsOfFiles, type FileRecord } from '@variance-authority/core/relate';
@@ -83,6 +84,8 @@ export interface CoverageSource {
   readonly ran: number;
   /** Regions in scope: the ones the suites loaded, before reach, and in files nothing recorded. */
   readonly regions: number;
+  /** The regions a suite ran, parted by the text they ran over; before reach is in none of the parts. Absent when no suite was asked. */
+  readonly over?: RunOver;
 }
 
 /** One directory counted on its own: its own files, and everything they reach. */
@@ -245,7 +248,7 @@ export function harnessReach(records: readonly FileRecord[], harness: readonly s
 export function coverageSource(
   reading: Scoped,
   indexes: readonly ExecutionIndex[],
-  count: { readonly run: number; readonly regions: number },
+  count: { readonly run: number; readonly regions: number; readonly over?: RunOver },
   reach: ReadonlySet<string> | undefined,
 ): CoverageSource {
   const loaded = new Set(indexes.flatMap((index) => index.modules.map((module) => module.file)));
@@ -262,6 +265,7 @@ export function coverageSource(
     unloaded,
     ran: count.run + beforeRegions,
     regions: count.regions + beforeRegions + unloaded.regions,
+    ...(count.over === undefined ? {} : { over: { this: count.over.this, older: count.over.older, notKnown: count.over.notKnown } }),
   };
 }
 

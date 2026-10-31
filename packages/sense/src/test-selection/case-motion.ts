@@ -3,6 +3,7 @@ import type { Relations } from '@variance-authority/core/relate';
 import { codeUnitOrder } from '@variance-authority/core/segment';
 import { addressKey } from './carried-rows.js';
 import { placeThrough, type Hunk } from './placed.js';
+import { sameCut } from './region-landing.js';
 import type { ExecutionBlock, ExecutionIndex, ExecutionModule, ExecutionTest } from './reverse.js';
 import type { Stand } from './stands.js';
 import { stoppedIn } from './stopped.js';
@@ -371,14 +372,6 @@ function keptCallers(
   if (retained === undefined || held === undefined || !sameCut(held, module)) return () => [];
   const at = new Map(module.blocks.map((block, position) => [block, position]));
   return (block) => callers(retained, held.blocks[at.get(block)!]!);
-}
-
-function sameCut(left: ExecutionModule, right: ExecutionModule): boolean {
-  return left.blocks.length === right.blocks.length && left.blocks.every((block, at) => {
-    const other = right.blocks[at]!;
-    return block.kind === other.kind && block.name === other.name && block.path === other.path &&
-      block.startLine === other.startLine && block.endLine === other.endLine;
-  });
 }
 
 /** The cases that called into a region, once each, in record order; one that ran it in another text (`overwritten`) is not known to. */

@@ -9,6 +9,7 @@ import { updateSourceIndex } from '@variance-authority/sense';
 import { INSTRUMENTATION_ID } from '@variance-authority/sense/instrument';
 import { digestString } from '@variance-authority/core/format';
 import { main } from '../bin.js';
+import { hashObject } from './review-fixture.js';
 
 /**
  * A checkout whose `unit` record ran `src/pay.ts`, for the tests of how fresh
@@ -161,10 +162,16 @@ export function recordFixture(): RecordFixture {
     const pay = {
       file: 'src/pay.ts',
       sourceDigest: digestString(options.ranOver ?? options.second?.pay ?? PAY),
+      // A landing names the text each row was cut from by its git blob too, as the source index names a file on disk.
+      sourceBlob: hashObject(options.ranOver ?? options.second?.pay ?? PAY),
       instrumented: options.row === undefined,
       // A module has regions exactly when the build instrumented it.
       blocks: options.row !== undefined ? [] : [{
         ordinal: 0, kind: 'module' as const, digest: digestString('module src/pay.ts'), name: 'src/pay.ts', path: 'module',
+        startLine: 1, endLine: 6, source: true, testFiles,
+      }, {
+        // The case index's function, at the lines it cut it at: both cuts were made at one text.
+        ordinal: 1, kind: 'function' as const, digest: digestString('function src/pay.ts pay'), name: 'pay', path: 'entry',
         startLine: 1, endLine: 6, source: true, testFiles,
       }],
     };
@@ -180,7 +187,7 @@ export function recordFixture(): RecordFixture {
       })),
       modules: [
         ...(options.row === false ? [] : [pay]),
-        ...(options.setup === undefined ? [] : [{ file: 'src/setup.ts', sourceDigest: digestString(options.setupRanOver ?? options.setup), instrumented: false, blocks: [] }]),
+        ...(options.setup === undefined ? [] : [{ file: 'src/setup.ts', sourceDigest: digestString(options.setupRanOver ?? options.setup), sourceBlob: hashObject(options.setupRanOver ?? options.setup), instrumented: false, blocks: [] }]),
       ],
     }, {
       // The row spelling cannot hold a flagged case; the set spelling can.

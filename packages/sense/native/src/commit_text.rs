@@ -14,6 +14,9 @@
 //! refused with git's reason beside the texts it could: a commit the checkout
 //! does not hold — a shallow clone, or one fetched at depth 1 — refuses each
 //! path asked at it naming the commit, never with every path answered absent.
+//! [`blobs_at`] is the same listing without the bodies: each path's blob name,
+//! `git:<object>`, for a reader that only asks whether two commits hold the
+//! same text.
 
 // compass: variance-authority.reach.source-index
 
@@ -48,20 +51,25 @@ pub fn texts_at(root: String, commits: Vec<String>, paths: Vec<Vec<String>>) -> 
     read(&root, &commits, &paths).map_err(napi::Error::from_reason)
 }
 
-pub(crate) fn read(root: &str, commits: &[String], paths: &[Vec<String>]) -> Result<CommitTexts, String> {
-    let mut found = CommitTexts {
-        commit: Vec::new(),
-        file: Vec::new(),
-        text: Vec::new(),
-        refused_commit: Vec::new(),
-        refused_file: Vec::new(),
-        refused: Vec::new(),
-    };
-    let unread = |commits: &[&String], why: &str| {
-        let at: Vec<&str> = commits.iter().map(|commit| short(commit)).collect();
-        format!("git could not read the files asked about at commit {}: {why}", at.join(", "))
-    };
-    let mut held: Vec<(usize, &str, String)> = Vec::new();
+/// The blob name, `git:<object>`, of `paths[at]` at `commits[at]`, in the
+/// columns [`texts_at`] answers in: a path the commit does not hold is left
+/// out, and a commit git could not list refuses each path asked at it.
+#[napi(catch_unwind)]
+pub fn blobs_at(root: String, commits: Vec<String>, paths: Vec<Vec<String>>) -> CommitTexts {
+    let mut found = empty();
+    for (at, file, oid) in listed(&root, &commits, &paths, &mut found) {
+        found.commit.push(at as u32);
+        found.file.push(file.to_owned());
+        found.text.push(format!("git:{oid}"));
+    }
+    found
+}
+
+/// The blob each of `paths[at]` names in `commits[at]`'s tree, as `(at, path,
+/// object)`, leaving out a path the tree does not list. A commit git could not
+/// list refuses each path asked at it into `found`.
+fn listed<'a>(root: &str, commits: &[String], paths: &'a [Vec<String>], found: &mut CommitTexts) -> Vec<(usize, &'a str, String)> {
+    let mut held = Vec::new();
     for (at, (commit, files)) in commits.iter().zip(paths).enumerate() {
         if files.is_empty() {
             continue;
@@ -78,6 +86,28 @@ pub(crate) fn read(root: &str, commits: &[String], paths: &[Vec<String>]) -> Res
             }
         }
     }
+    held
+}
+
+fn empty() -> CommitTexts {
+    CommitTexts {
+        commit: Vec::new(),
+        file: Vec::new(),
+        text: Vec::new(),
+        refused_commit: Vec::new(),
+        refused_file: Vec::new(),
+        refused: Vec::new(),
+    }
+}
+
+fn unread(commits: &[&String], why: &str) -> String {
+    let at: Vec<&str> = commits.iter().map(|commit| short(commit)).collect();
+    format!("git could not read the files asked about at commit {}: {why}", at.join(", "))
+}
+
+pub(crate) fn read(root: &str, commits: &[String], paths: &[Vec<String>]) -> Result<CommitTexts, String> {
+    let mut found = empty();
+    let held = listed(root, commits, paths, &mut found);
     let asked: Vec<Blob> = held.iter().map(|(at, file, oid)| Blob { oid, path: file, commit: &commits[*at] }).collect();
     let every: Vec<&String> = commits.iter().collect();
     let texts = each_content(root, &asked).map_err(|why| unread(&every, &why))?;

@@ -18,7 +18,7 @@ import type { Parsed } from './cache.js';
 import type { Digest } from './digest.js';
 import type { NativeInstrumented, NativePlaced } from './instrument/spliced.js';
 import { keyFor, parseWay } from './files.js';
-import { type ResolveOptions } from './resolve.js';
+import type { ResolveOptions } from './resolve.js';
 import { isRelative, kindFor, packageOf, requestOf } from './specifier.js';
 import type { Aliases, AliasTable } from './witness.js';
 import type { NativeIndexGraph, NativeIndexGraphOptions } from './native-index-graph.js';
@@ -238,6 +238,8 @@ export interface NativeScanner extends NativeOrientMaps, NativeDependencyLexicon
    * refusing one git could not read with git's reason. Throws with git's reason when git answers nothing at all.
    */
   textsAt?(root: string, commits: string[], paths: string[][]): { commit: number[]; file: string[]; text: string[]; refusedCommit: number[]; refusedFile: string[]; refused: string[] };
+  /** `textsAt`'s listing without the bodies: each path's blob name, `git:<object>`, in the same columns. */
+  blobsAt?(root: string, commits: string[], paths: string[][]): { commit: number[]; file: string[]; text: string[]; refusedCommit: number[]; refusedFile: string[]; refused: string[] };
   /** Why `commit` cannot be read here when this checkout's object store does not hold it, with the fetch that brings it. */
   commitAbsent?(root: string, commit: string): string | null;
   /** Of these files, those whose nearest `package.json` declares that loading them does something. */

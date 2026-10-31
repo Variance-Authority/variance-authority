@@ -1,13 +1,20 @@
+import { mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { INSTRUMENTATION_ID } from '@variance-authority/sense/instrument';
 import {
   coveringChange,
   coveringTests,
   coveringTestsInFile,
+  writeTestCoverage,
   type CoveringTest,
   type ExecutionBlock,
   type ExecutionIndex,
 } from '@variance-authority/sense/test-selection';
-import { editOf, regionsOf, removedText } from './review-region.js';
+import { digestString } from '@variance-authority/core/format';
+import { hashObject } from './review-fixture.js';
+import { editOf, ranAsTree, regionsOf, removedText } from './review-region.js';
 
 /** `spill` leaves `src/old.ts` and is written into `src/caps.ts` under `cap`. */
 const MOVED = [
@@ -134,5 +141,55 @@ describe('the cases that ran a changed line', () => {
     const [cap] = regionsOf([{ kind: 'function', name: 'cap', startLine: 1, endLine: 10, tests: [twin('a#2'), twin('a#1')] }], undefined, [{ start: 4, end: 4 }], undefined, 'src/caps.ts', removedText(''), []);
 
     expect(cap?.called.map((called) => called.id)).toEqual(['a#1', 'a#2']);
+  });
+});
+
+
+describe('the files a record ran as the tree holds them', () => {
+  const before = 'export const cap = 1;\n';
+  const after = 'export const cap = 2;\n';
+  const module = (text: string, blob = true) => ({
+    file: 'src/caps.ts', sourceDigest: digestString(text), instrumented: true,
+    ...(blob ? { sourceBlob: hashObject(text) } : {}),
+    blocks: [{ ordinal: 0, kind: 'module', digest: 'module', name: 'src/caps.ts', path: 'module', startLine: 1, endLine: 1, source: true, testFiles: ['caps.test.ts'] }],
+  });
+  const recorded = async (texts: readonly ReturnType<typeof module>[], check: (coverageFile: string) => void): Promise<void> => {
+    const at = await mkdtemp(join(tmpdir(), 'variance-ran-as-tree-'));
+    const coverageFile = join(at, 'coverage.bin');
+    await writeTestCoverage(coverageFile, {
+      version: 3,
+      instrumentation: INSTRUMENTATION_ID,
+      tests: [{ file: 'caps.test.ts', complete: true, preconditions: [] }],
+      modules: texts,
+    });
+    try {
+      check(coverageFile);
+    } finally {
+      await rm(at, { recursive: true, force: true });
+    }
+  };
+  const none: ExecutionIndex = { tests: [], modules: [] };
+
+  it('tells by the name the source index gives the text now, reading no text', async () => {
+    // No file is on disk: the index's name says which text the tree holds.
+    await recorded([module(after)], (coverageFile) => {
+      expect(ranAsTree(coverageFile, ['src/caps.ts'], none, new Map([['src/caps.ts', hashObject(after)]]))).toEqual(new Set(['src/caps.ts']));
+      expect(ranAsTree(coverageFile, ['src/caps.ts'], none, new Map([['src/caps.ts', hashObject(before)]]))).toEqual(new Set());
+      // A file the index does not hold is not one.
+      expect(ranAsTree(coverageFile, ['src/caps.ts'], none, new Map())).toEqual(new Set());
+    });
+  });
+
+  it('leaves out a file whose rows name no git blob, though they were cut from the text the tree holds', async () => {
+    await recorded([module(after, false)], (coverageFile) => {
+      expect(ranAsTree(coverageFile, ['src/caps.ts'], none, new Map([['src/caps.ts', hashObject(after)]]))).toEqual(new Set());
+    });
+  });
+
+  it('leaves out a file the record holds rows of from two texts, though the tree holds the text of the last', async () => {
+    // Two builds read `src/caps.ts`, one before the edit and one after: two rows of one file.
+    await recorded([module(before), module(after)], (coverageFile) => {
+      expect(ranAsTree(coverageFile, ['src/caps.ts'], none, new Map([['src/caps.ts', hashObject(after)]]))).toEqual(new Set());
+    });
   });
 });

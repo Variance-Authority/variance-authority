@@ -97,10 +97,11 @@ describe('coverage of a repository that declares suites', () => {
 
     expect(answer.code).toBe(0);
     expect(answer.out).toContain('coverage — 4 regions in 2 files the suites loaded');
-    expect(answer.out).toMatch(/any suite\s+3\s+75\.0%/u);
+    // No runs record lies beside these records, so nothing is known to have run over this text.
+    expect(answer.out).toMatch(/any suite\s+0\s+0\.0%\s+over this text; ran in any text 3 \(75\.0%\)/u);
     expect(answer.out).toMatch(/checkout\s+e2e\s+unrecorded/u);
-    expect(answer.out).toMatch(/stories\s+visual\s+2\s+50\.0%/u);
-    expect(answer.out).toMatch(/unit\s+unit\s+2\s+50\.0%/u);
+    expect(answer.out).toMatch(/stories\s+visual\s+0\s+0\.0%\s+over this text; ran in any text 2 \(50\.0%\)/u);
+    expect(answer.out).toMatch(/unit\s+unit\s+0\s+0\.0%\s+over this text; ran in any text 2 \(50\.0%\)/u);
     expect(answer.out).toMatch(/more than one kind\s+1/u);
     expect(answer.out).toMatch(/one kind alone\s+2\s+unit 1 · visual 1/u);
     expect(answer.out).toMatch(/nothing ran\s+1/u);
@@ -136,7 +137,7 @@ describe('coverage of a repository that declares suites', () => {
 
     expect(answer.code).toBe(0);
     expect(answer.out).toContain("against each suite's base — 3 regions (4 at the base) in 1 file the suites loaded");
-    expect(answer.out).toMatch(/unit\s+unit\s+3 → 2\s+75\.0% → 66\.7%\s+\+1 newly run · −1 no longer run · −1 had run in 1 file no longer loaded/u);
+    expect(answer.out).toMatch(/unit\s+unit\s+0\s+0\.0%\s+\+1 newly run · −1 no longer run · −1 had run in 1 file no longer loaded\s+over this text; ran in any text 3 → 2 \(75\.0% → 66\.7%\)/u);
     expect(answer.out).toContain('unit: src/pay.test.ts no longer runs void in src/pay.ts (1 region) at the base');
     expect(answer.out).toContain(`unit compared with ${base}`);
   });
@@ -157,9 +158,10 @@ describe('coverage of a repository that declares suites', () => {
   it('prints a table for a pull request', async () => {
     const answer = await ask(['coverage', '--root', root, '--format', 'markdown']);
 
-    expect(answer.out).toContain('| Suite | Regions executed by cases | Compared with baseline |');
+    expect(answer.out).toContain('| Suite | Regions run over this text | Compared with baseline |');
     expect(answer.out).toContain('| `checkout` | Unrecorded | Not compared |');
-    expect(answer.out).toContain('| unit alone | 1 | 25.0% |');
+    expect(answer.out).toContain('| `unit` | 0.0% | 50.0% ran in any text; No baseline available; change cannot be compared |');
+    expect(answer.out).toContain('| Executed by cases in any text, by kind | Regions | Share |\n|---|--:|--:|\n| More than one kind | 1 | 25.0% |\n| unit alone | 1 | 25.0% |');
     expect(answer.out).toContain('source beyond the recordings');
     expect(answer.out).not.toContain('###');
   });
@@ -410,7 +412,7 @@ describe('coverage of a change no suite loads', () => {
 
     const answer = await ask(['coverage', '--root', repo, '--suite', 'unit', '--against', base, '--format', 'markdown']);
 
-    expect(answer.out).toContain('| Suite | Regions executed by cases | Compared with baseline |');
+    expect(answer.out).toContain('| Suite | Regions run over this text | Compared with baseline |');
     expect(answer.out).not.toContain('does not load');
   });
 

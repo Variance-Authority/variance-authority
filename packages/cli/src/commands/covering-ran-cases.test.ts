@@ -1,8 +1,11 @@
 import { writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { digestString } from '@variance-authority/core/format';
 import { DAY, HOUR, PAY, iso, recordFixture } from './covering-record.fixture.js';
+
+// `ci-info` decides CI once, when it loads, so the module is cut: these questions are asked outside CI.
+vi.mock('ci-info', () => ({ isCI: false }));
 
 /**
  * A run that ran a test file only in part (`-t`, `.only`, a filter) names the

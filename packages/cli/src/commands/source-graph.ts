@@ -12,17 +12,21 @@
 
 import { readdirSync, type Dirent } from 'node:fs';
 import { readFile } from 'node:fs/promises';
-import { isAbsolute, join, relative } from 'node:path';
+import { isAbsolute, join, relative, resolve } from 'node:path';
 import type { SourceIndex } from '@variance-authority/core/attribute';
-import type { Relations } from '@variance-authority/core/relate';
+import type { FileRecord, Relations } from '@variance-authority/core/relate';
 import {
+  publishedNames,
   publishedSources,
   runGraphOf,
   SourceIndexUnpublished,
+  sourceIndexPath,
   sourcesWithin,
   taintFile,
+  updateSourceIndex,
 } from '@variance-authority/sense';
 import { isCI } from 'ci-info';
+import { messageOf } from '../config-values.js';
 import { OperatorError } from '../exit.js';
 import { indexOf } from './affected.js';
 import { installedDepends } from './installed.js';
@@ -87,6 +91,71 @@ export async function relationsFor(
 export interface SourceGraph {
   readonly relations: Relations;
   readonly sources: ReadonlySet<string>;
+  /** The name the index gives the text each file it holds holds now ({@link indexNames}). */
+  readonly names: IndexNames;
+}
+
+/** The source index's name for the text each file it holds holds now: its git blob name. A file it does not hold has none. */
+export type IndexNames = ReadonlyMap<string, string>;
+
+/** The name `records`, the source index, gives the text each file it holds holds now; a file it holds no name for is in none. */
+export function indexNames(records: readonly FileRecord[]): IndexNames {
+  return new Map(records.flatMap((record) => record.digest === undefined ? [] : [[record.file, record.digest] as const]));
+}
+
+/**
+ * Bring the source index at `root` up to the checkout, for a reader that names
+ * the checkout's texts by it and so needs it to name the texts on disk now. In
+ * CI too: a published index was published at some commit, and the checkout may
+ * be another, so it is updated from where it stands and pays only for what
+ * differs. One CI never published is not built here: the reader refuses it, as
+ * every reader in CI does. The readers that only walk the graph read the index
+ * as it stands. An update that cannot be made is said on stderr and never
+ * refused: the index is read as it stands, and what it names is not the
+ * checkout's. The reason, or nothing when the index is up to the checkout.
+ */
+export async function indexUpToCheckout(root: string, ci = isCI): Promise<string | undefined> {
+  if (ci && !(await isPublished(root))) return undefined;
+  const path = sourceIndexPath(resolve(root));
+  let refused: string | undefined;
+  try {
+    refused = (await updateSourceIndex(root)).refused;
+  } catch (error) {
+    refused = messageOf(error);
+  }
+  if (refused === undefined) return undefined;
+  const reason = `the source index at ${path} could not be updated to the checkout: ${refused}`;
+  process.stderr.write(`variance: ${reason}; reading it as it stands.\n`);
+  return reason;
+}
+
+/** Whether CI published a whole source index at `root`, read off none of its rows. */
+async function isPublished(root: string): Promise<boolean> {
+  try {
+    await publishedNames(root, [], { ci: true, step: 'variance index', announce: () => {} });
+    return true;
+  } catch (error) {
+    if (error instanceof SourceIndexUnpublished) return false;
+    throw error;
+  }
+}
+
+/**
+ * The source index's names for the texts `files` hold on disk now, read off its
+ * rows of those files alone ({@link publishedNames}), brought up to the checkout
+ * first ({@link indexUpToCheckout}); or why they have no names: the update
+ * failed, or CI published no index. A file the index holds no name for is in
+ * none.
+ */
+export async function checkoutNames(root: string, files: readonly string[], ci = isCI): Promise<IndexNames | { readonly missed: string }> {
+  const notUpdated = await indexUpToCheckout(root, ci);
+  if (notUpdated !== undefined) return { missed: notUpdated };
+  try {
+    return (await publishedNames(root, files, { ci, step: 'variance index', announce: (line) => process.stderr.write(`variance: ${line}\n`) })).names;
+  } catch (error) {
+    if (error instanceof SourceIndexUnpublished) return { missed: error.message };
+    throw error;
+  }
 }
 
 /** {@link relationsFor}, with the files the source index read, from the one read of it. */
@@ -114,6 +183,7 @@ export async function sourceGraphFor(
   return {
     relations: await runGraphOf(read.records, { root, cache: read.cache, taints: tables, depends, uses: read.uses }),
     sources: new Set(read.records.map((record) => record.file)),
+    names: indexNames(read.all),
   };
 }
 
@@ -148,6 +218,7 @@ async function publishedWithin(
   }
   return {
     records: sourcesWithin(published.records, root, dirs, before),
+    all: published.records,
     cache: published.cache,
     uses: published.uses,
   };

@@ -39,6 +39,7 @@ use crate::crossing_sets::{self, SetPool};
 use crate::order;
 use crate::record_start::Agreed;
 use crate::record_coverage::{Coverage, Phases, Text};
+use crate::record_layout::LAYOUT;
 use crate::record_coverage_columns::{Columns, Region};
 use crate::record_coverage_dictionary::{Dictionary, Spelled};
 use crate::record_coverage_recut::{carried, Disputed, Recut};
@@ -84,6 +85,8 @@ struct Test {
 struct Module {
     path: u32,
     source: u32,
+    /// The git blob name of its text, or `no_blob` where no shard recorded one.
+    blob: u32,
     instrumented: bool,
     /// The shard that first named the module, which a refusal names.
     origin: u32,
@@ -253,6 +256,7 @@ impl<'c> Fold<'c> {
         for row in 0..coverage.modules() {
             let path = local.id(dictionary, coverage.module_path[row]);
             let source = local.id(dictionary, coverage.module_source[row]);
+            let blob = coverage.blob_in(row, |id| local.id(dictionary, id));
             let instrumented = coverage.module_instrumented[row] == 1;
             let file = local.strings.at(coverage.module_path[row]);
             // The checkout's row, where it cut this text under these probes.
@@ -282,7 +286,7 @@ impl<'c> Fold<'c> {
                         })
                         .collect()
                 });
-                modules.push(Module { path, source, instrumented: instrumented || fresh.is_some(), origin: at, blocks });
+                modules.push(Module { path, source, blob, instrumented: instrumented || fresh.is_some(), origin: at, blocks });
                 modules.len() as u32 - 1
             });
             let held = &mut modules[module as usize];
@@ -291,6 +295,9 @@ impl<'c> Fold<'c> {
                     "`{file}` is different source in {} and {name}: the two shards built it from different text, so the regions of one do not name the regions of the other.",
                     names[held.origin as usize]
                 ));
+            }
+            if held.blob == LAYOUT.coverage.no_blob {
+                held.blob = blob;
             }
             if instrumented && !held.instrumented {
                 held.instrumented = true;
@@ -386,6 +393,9 @@ impl<'c> Fold<'c> {
         for module in &modules {
             use_(module.path);
             use_(module.source);
+            if module.blob != LAYOUT.coverage.no_blob {
+                use_(module.blob);
+            }
             blocks += module.blocks.len();
             for block in &module.blocks {
                 use_(block.digest);
@@ -427,7 +437,8 @@ impl<'c> Fold<'c> {
         };
         let mut crossings = 0_u64;
         for module in modules {
-            out.module(ranked(module.path), ranked(module.source), module.instrumented);
+            let blob = if module.blob == LAYOUT.coverage.no_blob { module.blob } else { ranked(module.blob) };
+            out.module(ranked(module.path), ranked(module.source), blob, module.instrumented);
             for block in &module.blocks {
                 let (called, entered) = set(block.called)?;
                 crossings += u64::from(entered);

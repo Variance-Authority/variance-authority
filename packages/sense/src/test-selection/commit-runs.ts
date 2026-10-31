@@ -220,7 +220,9 @@ export async function landRun(
       ? previous
       : layCases(previous, cases.fresh, root, { ...cases.run, modules: current.modules, inputs: inputsOf(current) }, cases.eyes, texts, before?.commit, undefined, cacheRoot);
   const over = await recordBytes(coverageFile);
-  const coverage = await layeredOver(coverageFile, over, current, root, cacheRoot);
+  // What differs from `HEAD` is asked once, for the rows' names and the texts kept.
+  const landed = current.commit === undefined ? undefined : await landedTree(root, cacheRoot);
+  const coverage = await layeredOver(coverageFile, over, current, root, cacheRoot, landed);
   // The rows of a module this run did not record may have been re-cut to the
   // text on disk; the cases held for it are laid onto the same cut (`case-cuts.ts`).
   const followed = laid.index === undefined ? laid : followRowsIn(laid, openTestCoverage(coverage), texts, editsBetween(root, cacheRoot, [before?.commit, current.commit]));
@@ -229,8 +231,6 @@ export async function landRun(
   // The snapshot's rows are coordinates in the texts on disk now, and the
   // commit it names holds none of the edited ones. Kept after the write, so a
   // text is never kept for a row that did not land.
-  // What differs from `HEAD` is asked once, for both.
-  const landed = current.commit === undefined ? undefined : await landedTree(root, cacheRoot);
   const kept = await keepRecordedTexts(landed, openTestCoverage(bytes));
   // So is the install it ran on, before the record that names it.
   const installed = await keepRecordedInstall(landed);

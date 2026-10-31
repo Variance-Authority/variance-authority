@@ -24,9 +24,12 @@ import {
 import { type CrossingSetsPool } from './crossing-sets.js';
 import { openCrossingSets, type CrossingSetsView } from './crossing-sets-read.js';
 import {
+  BLOB,
   DURATION,
   FORMAT,
+  NO_BLOB,
   PHASES,
+  UNKEYED_FORMAT,
   UNTIMED_FORMAT,
   BLOCK_KINDS,
   NAMES,
@@ -78,6 +81,12 @@ export interface TestCoverageView {
   readonly preconditionDigest: WordColumn;
   readonly modulePath: WordColumn;
   readonly moduleSource: WordColumn;
+  /**
+   * The git blob name of the text each module's `moduleSource` digests, one row
+   * a module: a dictionary id, or `NO_BLOB` where the row was recorded without
+   * one. Absent from a snapshot written in a layout before it was recorded.
+   */
+  readonly moduleBlob: WordColumn | undefined;
   readonly moduleInstrumented: ByteColumn;
   readonly moduleBlocks: WordColumn;
   readonly blockOrdinal: WordColumn;
@@ -160,7 +169,8 @@ export function openTestCoverage(input: Uint8Array | Bytes): TestCoverageView {
   const header = JSON.parse(head.toString('utf8', 4, 4 + headerLength).replace(/\0+$/, '')) as Header;
   if (!readableFormat(header.version)) throw new Error(`unsupported test coverage version: ${header.version}`);
   const timed = header.version !== UNTIMED_FORMAT;
-  const phased = header.version === FORMAT;
+  const phased = header.version === FORMAT || header.version === UNKEYED_FORMAT;
+  const keyed = header.version === FORMAT;
   const base = 4 + headerLength;
   if (!validSections(header.sections, file.length - base)) throw invalid();
   const found = new Map(header.sections.map((section) => [section.name, section]));
@@ -179,7 +189,7 @@ export function openTestCoverage(input: Uint8Array | Bytes): TestCoverageView {
   };
 
   const rows: Record<string, number> = {};
-  for (const name of [...NAMES, ...(timed ? [DURATION] : []), ...(phased ? [PHASES] : [])]) {
+  for (const name of [...NAMES, ...(timed ? [DURATION] : []), ...(phased ? [PHASES] : []), ...(keyed ? [BLOB] : [])]) {
     const section = at(name);
     if (section.rows !== undefined) rows[name] = section.rows;
     else {
@@ -332,6 +342,7 @@ export function openTestCoverage(input: Uint8Array | Bytes): TestCoverageView {
     preconditionDigest: words('preconditions.digest', (values) => ids(values, strings)),
     modulePath: words('modules.path', (values) => ids(values, strings)),
     moduleSource: words('modules.source', (values) => ids(values, strings)),
+    moduleBlob: keyed ? words(BLOB, (values) => ids(values, strings, NO_BLOB)) : undefined,
     moduleInstrumented: flags('modules.instrumented', (values, from) => {
       bits(values);
       presence(values, from, (module) => moduleBlocks.at(module));
@@ -417,6 +428,7 @@ export function allColumns(view: TestCoverageView) {
     preconditionDigest: view.preconditionDigest.all(),
     modulePath: view.modulePath.all(),
     moduleSource: view.moduleSource.all(),
+    moduleBlob: view.moduleBlob?.all(),
     moduleInstrumented: view.moduleInstrumented.all(),
     moduleBlocks: view.moduleBlocks.all(),
     blockOrdinal: view.blockOrdinal.all(),
