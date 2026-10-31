@@ -13,11 +13,6 @@ const SERVER = fileURLToPath(new URL('../test/fixtures/watchman-server.mjs', imp
 /**
  * Spec 0107: the update asks Watchman what moved since the clock its
  * generation carries, and asks git only what Watchman cannot vouch for.
- *
- * The server is a fixture speaking Watchman's protocol, because CI does not run
- * Watchman; the client is the addon's. Every git the addon spawns goes through
- * a shim on `PATH` that writes its arguments down, so what the update asked
- * git is counted, not timed.
  */
 describe.skipIf(process.platform === 'win32')('the update over a watched checkout', () => {
   let root: string;
@@ -75,12 +70,14 @@ describe.skipIf(process.platform === 'win32')('the update over a watched checkou
     git('add', '--force', 'cache/kept.ts');
     git('-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '--quiet', '-m', 'fixture');
 
+    // Every git the addon spawns writes its arguments down: what the update asked git is counted, not timed.
     const real = execFileSync('sh', ['-c', 'command -v git'], { encoding: 'utf8' }).trim();
     const bin = join(wire, 'bin');
     await mkdir(bin);
     await writeFile(join(bin, 'git'), `#!/bin/sh\necho "$*" >> '${asked()}'\nexec '${real}' "$@"\n`);
     await chmod(join(bin, 'git'), 0o755);
 
+    // CI runs no Watchman: the server is a fixture speaking its protocol, and the client is the addon's.
     await tell({});
     const requests = join(wire, 'requests.log');
     server = spawn(process.execPath, [SERVER, join(wire, 'sock'), answers(), requests], { stdio: ['ignore', 'pipe', 'inherit'] });

@@ -61,6 +61,7 @@ mod grammar;
 mod graph_dominators;
 mod graph_index;
 mod harvest;
+mod change_tree;
 mod held;
 #[cfg(unix)]
 mod held_listing;
@@ -269,26 +270,6 @@ pub fn git_tree_for(root: String, dirs: Vec<String>) -> Option<GitTree> {
     Some(tree_from_snapshot(snapshot, seeds))
 }
 
-/// The tree an update of the index at `index` is made against: the one the
-/// index holds when Watchman vouches nothing moved since it was listed, else
-/// git's (`held_listing.rs`).
-#[napi(catch_unwind)]
-pub fn change_tree(root: String, index: String, dirs: Vec<String>) -> Option<GitTree> {
-    #[cfg(unix)]
-    {
-        let (snapshot, change) = held_listing::change_tree(&root, &index, &dirs)?;
-        let seeds = seed::seed_paths(&root, &dirs, &snapshot.paths);
-        let mut tree = tree_from_snapshot(snapshot, seeds);
-        tree.change = change;
-        Some(tree)
-    }
-    #[cfg(not(unix))]
-    {
-        let _ = index;
-        git_tree_for(root, dirs)
-    }
-}
-
 impl GitTree {
     /// Every tracked path, in code-unit order.
     pub(crate) fn listed(&self) -> &[String] {
@@ -443,14 +424,7 @@ impl GitTree {
     #[napi(catch_unwind)]
     pub fn update_index(&self, options: source_update::UpdateOptions) -> napi::Result<Option<source_update::Updated>> {
         #[cfg(unix)]
-        let carry = match &self.change {
-            // The update this listing was carried by was made against it under this configuration.
-            Some(held_listing::Change::Vouched(meta)) if meta.config.as_deref() == Some(options.config.as_str()) => {
-                return Ok(Some(source_update::Updated { files: meta.files, reread: 0, published: false, refused: None }));
-            }
-            Some(held_listing::Change::Vouched(meta) | held_listing::Change::Listed(meta)) => Some(meta.clone()),
-            None => None,
-        };
+        let carry = match change_tree::carry(&self.change, &options.config) { Ok(carry) => carry, Err(done) => return Ok(Some(done)) };
         source_update::update(
             options,
             source_update::Tree {
