@@ -212,14 +212,14 @@ function pathAt(coverage: TestCoverageView, column: WordColumn, held: Map<number
  * The digest beside a precondition is the text that test ran over, so a row
  * recording the arrived one is a test that already ran what is there now: a
  * run over a dirty tree, its edit left in place or committed since. That row
- * governs nothing (`wholeOnly`: of a whole test). A name held only by such rows
- * is in `ranOver`, and is not `unread`: the record holds it.
+ * governs nothing, save a test's own file in a run that did not finish. A name
+ * held only by such rows is in `ranOver`, and is not `unread`: the record holds
+ * it.
  */
 export function testsGovernedBy(
   coverage: TestCoverageView,
   files: readonly string[],
   arrived: ReadonlyMap<string, string> = new Map(),
-  wholeOnly = false,
 ): {
   readonly tests: ReadonlyMap<number, readonly string[]>;
   readonly unread: readonly string[];
@@ -253,35 +253,32 @@ export function testsGovernedBy(
   for (let test = 0; test < coverage.testPath.length; test += 1) {
     const start = end;
     end = preconditions.at(test + 1);
-    // The selection's policy: a run that did not finish proves no text.
-    const proves = !wholeOnly || coverage.testComplete.at(test) === 1;
     const own = coverage.testPath.at(test);
-    let declaredOwn = false;
+    // A run that did not finish proved none of its own file's text.
+    const whole = coverage.testComplete.at(test) === 1;
+    // Its own file governs a test whether or not it declared it.
+    let ownName = wanted.get(own);
     let governing: string[] | undefined;
-    const govern = (name: string): void => {
-      if (governing === undefined) {
-        governing = [];
-        tests.set(test, governing);
-      }
-      governing.push(name);
-    };
     for (let input = start; input < end; input += 1) {
       const id = named.at(input);
       const name = wanted.get(id);
       if (name === undefined) continue;
       matched.add(name);
-      if (id === own) declaredOwn = true;
-      if (proves && ran.has(id) && digests.at(input) === ran.get(id)) {
+      if (id === own) ownName = undefined;
+      if ((whole || id !== own) && ran.has(id) && digests.at(input) === ran.get(id)) {
         over.add(name);
         continue;
       }
-      govern(name);
+      if (governing === undefined) {
+        governing = [];
+        tests.set(test, governing);
+      }
+      governing.push(name);
     }
-    // Its own file governs a test whether or not it declared it.
-    const ownName = declaredOwn ? undefined : wanted.get(own);
     if (ownName !== undefined) {
       matched.add(ownName);
-      govern(ownName);
+      if (governing === undefined) tests.set(test, [ownName]);
+      else governing.push(ownName);
     }
   }
 

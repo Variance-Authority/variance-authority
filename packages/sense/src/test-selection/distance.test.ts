@@ -155,11 +155,10 @@ describe('distanceFromView', () => {
     expect(distances.filter(({ test }) => test === 'test/card.test.tsx')).toHaveLength(1);
   });
 
-  it('measures a test the record never saw whole from no file the parser read as changing nothing or was not asked of', () => {
+  it('measures a test the record never saw whole from no file the parser read as changing nothing', () => {
     // A whitespace or comment edit reads `none`: the change cannot reach a test
-    // through that file, so it seeds no path, and neither does a file no parser
-    // was asked of. A `none` the record's kept text decided is the partial
-    // run's own edit, and it still does.
+    // through that file, so it seeds no path. A `none` the record's kept text
+    // decided is the partial run's own edit, and it still does.
     const coverage = openTestCoverage(encodeTestCoverage(layerCoverage));
     const narrowing = narrowByExecutionFromView(coverage, baseDiff);
     const unseen = new Set(['test/card.test.tsx']);
@@ -174,10 +173,7 @@ describe('distanceFromView', () => {
     const parsed = distanceFromView(coverage, { ...partial, readings: [{ file, verdict: 'none', names: [] }] }, { relations });
     const kept = distanceFromView(coverage, { ...partial, readings: [{ file, verdict: 'none', names: [], kept: true }] }, { relations });
 
-    const unasked = distanceFromView(coverage, { ...partial, readings: [{ file, unread: 'unasked' }] }, { relations });
-
     expect(parsed.map(({ test }) => test)).not.toContain('test/card.test.tsx');
-    expect(unasked.map(({ test }) => test)).not.toContain('test/card.test.tsx');
     expect(of(kept, 'test/card.test.tsx')).toMatchObject({ hops: 3, from: file });
   });
 

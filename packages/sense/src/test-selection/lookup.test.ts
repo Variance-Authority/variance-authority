@@ -110,14 +110,18 @@ describe('which tests a changed file governs', () => {
     expect(answer.unread).toEqual([]);
   });
 
-  it('counts a row at the arrived text of a test never seen whole as ran over, unless the caller asks for whole runs only', () => {
+  it('reads a row at the arrived text as ran over, save a test never seen whole\'s own file, which governs it', () => {
     const from = openTestCoverage(
       encodeTestCoverage({ ...coverage, tests: coverage.tests.map((test) => (test.file === 'test/alpha.test.ts' ? { ...test, complete: false } : test)) }),
     );
-    const arrived = new Map([['test/alpha.test.ts', 'source:test/alpha.test.ts']]);
+    const arrived = new Map([
+      ['test/alpha.test.ts', 'source:test/alpha.test.ts'],
+      ['vitest.config.ts', 'source:config'],
+    ]);
+    const answer = testsGovernedBy(from, ['test/alpha.test.ts', 'vitest.config.ts'], arrived);
 
-    expect([...testsGovernedBy(from, ['test/alpha.test.ts'], arrived).ranOver]).toEqual(['test/alpha.test.ts']);
-    expect(named(from, testsGovernedBy(from, ['test/alpha.test.ts'], arrived, true))).toEqual({ 'test/alpha.test.ts': ['test/alpha.test.ts'] });
+    expect(named(from, answer)).toEqual({ 'test/alpha.test.ts': ['test/alpha.test.ts'] });
+    expect([...answer.ranOver]).toEqual(['vitest.config.ts']);
   });
 
   it('lists every input of one test, in the order the table holds them', () => {

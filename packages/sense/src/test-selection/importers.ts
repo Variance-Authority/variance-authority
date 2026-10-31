@@ -150,7 +150,7 @@ export function answerByImporters(
   // A suite that declines relations still follows what a module declares it reads of an ignored file.
   const declines = options.unmeasured === 'nothing';
   if (relations === undefined || changed.length + wholes.length === 0 || (declines && ignoring.size === 0)) {
-    return { selected: new Map(), unread: changed.filter((file) => !ignoring.has(file)), governed: testsGovernedBy(coverage, [...also], arrived, true), wholes: new Map(), unheld: [] };
+    return { selected: new Map(), unread: changed.filter((file) => !ignoring.has(file)), governed: testsGovernedBy(coverage, [...also], arrived), wholes: new Map(), unheld: [] };
   }
   const knownAs = options.knownAs ?? ((file: string): readonly string[] => [file]);
   // Every test a walk reached, with what reached it — held rather than
@@ -260,7 +260,7 @@ export function answerByImporters(
   // could not answer from a row.
   const held = testsGovernedBy(coverage, [
     ...new Set([...changed.flatMap((file) => [...knownAs(file)]), ...governing.keys(), ...also]),
-  ], arrived, true);
+  ], arrived);
 
   const selected = new Map<number, ImporterReason[]>();
   const whole = new Map<number, string[]>();

@@ -97,19 +97,20 @@ export type FileReading =
       readonly file: string;
       readonly verdict?: undefined;
       /**
-       * `source`: no `sourceAt`, so no old text was proved. `hunk`: a context
-       * or removed line is not the recorded text's. `parse`: a text does not
-       * parse. `addon`: no native scanner here. `language`: not a JavaScript or
-       * TypeScript module. `exports`: no row and no export to follow, as with
-       * CommonJS `module.exports`: its importers answer whole. `unasked`: no
-       * parser was asked; its rows, preconditions or importers answer for it.
+       * `source`: the caller gave no `sourceAt`, so no old text was proved.
+       * `hunk`: a context or removed line is not the recorded text's.
+       * `parse`: one of the two texts does not parse.
+       * `addon`: no native scanner on this machine.
+       * `language`: not a JavaScript or TypeScript module, the only language
+       * the verdict reads.
+       * `exports`: a file with no row that names no export to follow, as a
+       * CommonJS module's `module.exports` does not: its importers answer whole.
        */
-      readonly unread: 'source' | 'hunk' | 'parse' | 'addon' | 'language' | 'exports' | 'unasked';
+      readonly unread: 'source' | 'hunk' | 'parse' | 'addon' | 'language' | 'exports';
     };
 
-/** Whether the change may reach a test through the file: every reading but a `none` the parser decided and an `unasked` one. */
-export const reachesThrough = (reading: FileReading): boolean =>
-  reading.verdict === undefined ? reading.unread !== 'unasked' : reading.verdict !== 'none' || reading.kept === true;
+/** Whether the change may reach a test through the file: every reading but a `none` the parser decided. */
+export const reachesThrough = (reading: FileReading): boolean => reading.verdict !== 'none' || reading.kept === true;
 
 /** What the reading needs from the query it runs inside. */
 export interface ReadingContext {
