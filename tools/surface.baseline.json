@@ -3362,6 +3362,7 @@
         "readRowlessFromView": "function",
         "readSplit": "function",
         "readTestCoverage": "function",
+        "readTextsAt": "function",
         "readableTestCoverage": "function",
         "readingFrom": "function",
         "readingLines": "function",

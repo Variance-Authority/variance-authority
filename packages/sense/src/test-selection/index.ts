@@ -87,7 +87,7 @@ export { hunksOf } from './patch.js';
 // The other half of that wiring, for the ordinary case of a git checkout. It
 // ships because the check is opt-in: a caller that does not know to pass
 // `sourceAt` gets `stale` empty, which reads exactly like frames that agree.
-export { readTextsAt, textAtRecording, textsAt, type CommitTexts } from './recorded-text.js';
+export { readTextsAt, textAtRecording, textsAt } from './recorded-text.js';
 export { keptDigests, keptTexts, type KeptTexts } from './kept-texts.js';
 // A landing of shards reads the install each shard's own landing kept.
 export { shardsInstall, shardsTexts, type KeptInstall, type ShardRuns } from './kept-install.js';

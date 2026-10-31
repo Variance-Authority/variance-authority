@@ -234,16 +234,11 @@ export interface NativeScanner extends NativeOrientMaps, NativeDependencyLexicon
    */
   resolveSources?(root: string, file: string, sources: string[], listed?: string[], tsconfig?: string | false): string[];
   /**
-   * `paths[at]` at `commits[at]`, from one `git cat-file --batch`, as columns, leaving out a path the commit does not hold.
-   * A path git could not read — a commit or a blob this clone lacks, a git-LFS pointer with no content here — is refused with git's reason in the `refused` columns.
-   * Throws with git's reason when git answers nothing at all.
+   * `paths[at]` at `commits[at]`, from one `git cat-file --batch`, as columns, leaving out a path the commit does not hold, and
+   * refusing one git could not read with git's reason. Throws with git's reason when git answers nothing at all.
    */
-  textsAt?(
-    root: string,
-    commits: string[],
-    paths: string[][],
-  ): { commit: number[]; file: string[]; text: string[]; refusedCommit: number[]; refusedFile: string[]; refused: string[] };
-  /** Why `commit` cannot be read here when this checkout's object store does not hold it, with the fetch that brings it; `null` when it does. */
+  textsAt?(root: string, commits: string[], paths: string[][]): { commit: number[]; file: string[]; text: string[]; refusedCommit: number[]; refusedFile: string[]; refused: string[] };
+  /** Why `commit` cannot be read here when this checkout's object store does not hold it, with the fetch that brings it. */
   commitAbsent?(root: string, commit: string): string | null;
   /** Of these files, those whose nearest `package.json` declares that loading them does something. */
   declaredEffects?(root: string, files: string[]): string[];

@@ -223,7 +223,7 @@ export function textsAt(root: string, asked: ReadonlyMap<string, Iterable<string
 }
 
 /** The texts {@link readTextsAt} read, and why git could not give the others, each by commit and then path. */
-export interface CommitTexts {
+interface CommitTexts {
   readonly texts: Map<string, Map<string, string>>;
   readonly refused: Map<string, Map<string, string>>;
 }
