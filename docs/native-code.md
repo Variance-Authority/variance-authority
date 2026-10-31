@@ -25,8 +25,8 @@ install.
 so installing the CLI installs `sharp`. What is optional per platform is the
 binary underneath it, not the package. If you depend on the comparison packages
 directly instead of the CLI, that choice is yours to make:
-`@variance-authority/png` alone needs only `Buffer`, and `png-sharp` is a
-separate install.
+`@variance-authority/png` alone needs only `Buffer` and WebAssembly, which
+reads and writes WebP without an addon, and `png-sharp` is a separate install.
 
 Measured on macOS arm64, the compiled addons come to roughly 25 MB — libvips is
 15 MB of it, the two oxc bindings are about 1.5 MB each, and the scanner is

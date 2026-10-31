@@ -162,7 +162,7 @@ keeps the run to the test you just reviewed. Either one promotes the Variance
 Authority candidate.
 
 The accept run promotes the image that run painted, returns `unchanged`, and
-passes. Open the `.png` it wrote before you commit it: that file and its `.json`
+passes. Open the `.webp` it wrote before you commit it: that file and its `.json`
 are the two files that will appear in your pull request.
 
 Run the suite normally once more:
