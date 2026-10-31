@@ -41,25 +41,15 @@ import { differencePixels, type DecodedImage } from './mask.js';
 export type { DecodedImage };
 
 /**
- * How PNG bytes become pixels, so that *which* decoder is a deployment choice.
+ * How image bytes become pixels, so that *which* decoder is a deployment choice.
  *
- * Measured, because the difference is larger than it looks and not where it was
- * expected (journal 0016). Decoding is **90% of a comparison** — `pixelmatch`
- * itself is 9% — so this interface is where a run's raster cost actually lives.
- * On 1280×800: `pngjs` 22.6 ms, `sharp` 15.0 ms, and `sharp` again at **1.9 ms**
- * when several decode at once, because libvips runs on libuv's threadpool and
- * leaves the event loop free. Two wasm PNG decoders were tried and both were
- * *slower* than the pure-JS one. WebP is the other way round: libwebp as wasm
- * decodes a full page in 12.8 ms, where `pngjs` takes 77.4 ms for the same page
- * as a PNG (#860), so a kept WebP decodes through it when no addon is loaded.
+ * Decoding is **90% of a comparison** (journal 0016), so this is where a run's
+ * raster cost lives. On 1280×800: `pngjs` 22.6 ms, `sharp` 15.0 ms, and `sharp`
+ * at **1.9 ms** when several decode at once on libuv's threadpool, which is why
+ * the seam is async. Wasm lost to `pngjs` for PNG and beats it for WebP.
  *
- * Async for exactly that reason. A synchronous seam would forbid the threadpool,
- * which is where the order of magnitude is — not in the per-image constant.
- *
- * The default stays `pngjs` and this package keeps requiring nothing native, so
- * `observe` remains installable anywhere JavaScript runs. `sharp` is a native
- * addon that a Worker cannot load, which under ADR-0013 makes it a different
- * package's requirement rather than a conditional import here.
+ * The default stays `pngjs` and nothing native, so `observe` installs anywhere
+ * JavaScript runs; `sharp` is another package's requirement (ADR-0013).
  */
 export interface PngDecoder {
   decode(bytes: Buffer): Promise<DecodedImage>;

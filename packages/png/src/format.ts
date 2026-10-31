@@ -9,7 +9,9 @@ export { imageFormat, type ImageFormat } from './header.js';
 /**
  * Decode either format without a native addon: PNG through `pngjs`, WebP
  * through libwebp compiled to WebAssembly (`@jsquash/webp`, a 135 KB module
- * compiled on the first WebP and never for a run that reads only PNGs).
+ * compiled on the first WebP and never for a run that reads only PNGs). Wasm
+ * decodes a full-page WebP in 12.8 ms, where `pngjs` takes 77.4 ms for the same
+ * page as a PNG (#860).
  *
  * Bytes in neither format are refused by name. Handing them to `pngjs` would
  * report a CRC error about a file that was never a PNG.
