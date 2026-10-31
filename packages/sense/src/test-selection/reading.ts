@@ -97,17 +97,12 @@ export type FileReading =
       readonly file: string;
       readonly verdict?: undefined;
       /**
-       * `source`: the caller gave no `sourceAt`, so no old text was proved.
-       * `hunk`: a context or removed line is not the recorded text's.
-       * `parse`: one of the two texts does not parse.
-       * `addon`: no native scanner on this machine.
-       * `language`: not a JavaScript or TypeScript module, the only language
-       * the verdict reads.
-       * `exports`: a file with no row that names no export to follow, as a
-       * CommonJS module's `module.exports` does not: its importers answer whole.
-       * `unasked`: no parser read it — its rows were charged whole or by line,
-       * or it has none and no text to read — and its rows, its preconditions
-       * or its importers answer for it.
+       * `source`: no `sourceAt`, so no old text was proved. `hunk`: a context
+       * or removed line is not the recorded text's. `parse`: a text does not
+       * parse. `addon`: no native scanner here. `language`: not a JavaScript or
+       * TypeScript module. `exports`: no row and no export to follow, as with
+       * CommonJS `module.exports`: its importers answer whole. `unasked`: no
+       * parser was asked; its rows, preconditions or importers answer for it.
        */
       readonly unread: 'source' | 'hunk' | 'parse' | 'addon' | 'language' | 'exports' | 'unasked';
     };
