@@ -1,0 +1,1910 @@
+{
+ "coord": {
+  "packages/core/src/rules": [
+   "normalization"
+  ],
+  "packages/core/src/format": [
+   "normalization"
+  ],
+  "packages/core/src/attribute/boundary.ts": [
+   "adjudication",
+   "normalization"
+  ],
+  "packages/react": [
+   "normalization"
+  ],
+  "packages/jsx-source": [
+   "normalization"
+  ],
+  "packages/core/src/attribute/source.ts": [
+   "normalization"
+  ],
+  "packages/jsx-source/src/record.ts": [
+   "normalization"
+  ],
+  "packages/jsx-source/src/under.ts": [
+   "normalization"
+  ],
+  "packages/core/src/format/provenance.ts": [
+   "adjudication",
+   "normalization"
+  ],
+  "packages/core/src/attribute/stack.ts": [
+   "normalization"
+  ],
+  "packages/core/src/attribute/source-map.ts": [
+   "normalization"
+  ],
+  "packages/core/src/attribute/call-site.ts": [
+   "adjudication",
+   "normalization"
+  ],
+  "packages/core/src/attribute/component-hash.ts": [
+   "adjudication",
+   "normalization"
+  ],
+  "packages/core/src/attribute/instances.ts": [
+   "adjudication",
+   "normalization"
+  ],
+  "packages/core/src/format/wiring.ts": [
+   "normalization"
+  ],
+  "packages/core/src/format/holding.ts": [
+   "normalization"
+  ],
+  "packages/react/src/wiring.ts": [
+   "normalization"
+  ],
+  "packages/react/src/holding.ts": [
+   "normalization"
+  ],
+  "packages/react/src/identity.ts": [
+   "normalization",
+   "stability"
+  ],
+  "packages/react/src/resolve.ts": [
+   "normalization"
+  ],
+  "packages/react/src/portal.ts": [
+   "normalization"
+  ],
+  "packages/react/src/fiber.ts": [
+   "normalization"
+  ],
+  "packages/core/src/format/hash.ts": [
+   "normalization"
+  ],
+  "packages/core/src/format/canonical.ts": [
+   "normalization"
+  ],
+  "packages/core/src/format/value.ts": [
+   "normalization"
+  ],
+  "packages/core/src/format/accessibility.ts": [
+   "normalization"
+  ],
+  "packages/core/src/rules/normalize/project.ts": [
+   "normalization"
+  ],
+  "packages/core/src/rules/normalize/index.ts": [
+   "normalization"
+  ],
+  "packages/core/src/rules/ruleset.ts": [
+   "normalization"
+  ],
+  "packages/core/src/rules/normalize/alias.ts": [
+   "normalization"
+  ],
+  "packages/core/src/rules/normalize/cascade.ts": [
+   "normalization"
+  ],
+  "packages/core/src/rules/normalize/shorthand.ts": [
+   "normalization"
+  ],
+  "packages/core/src/rules/normalize/wrapper.ts": [
+   "normalization"
+  ],
+  "packages/core/src/format/snapshot.ts": [
+   "normalization"
+  ],
+  "packages/core/src/compare": [
+   "adjudication"
+  ],
+  "packages/core/src/attribute": [
+   "adjudication"
+  ],
+  "packages/core/src/judge": [
+   "adjudication"
+  ],
+  "packages/observe/src": [
+   "adjudication"
+  ],
+  "packages/png": [
+   "adjudication"
+  ],
+  "packages/png-sharp": [
+   "adjudication"
+  ],
+  "packages/cli/src/commands": [
+   "adjudication",
+   "reach"
+  ],
+  "packages/core/src/compare/derive.ts": [
+   "adjudication"
+  ],
+  "packages/cli/src/commands/variations.ts": [
+   "adjudication"
+  ],
+  "packages/cli/src/commands/names.ts": [
+   "adjudication"
+  ],
+  "packages/core/src/judge/sensitivity.ts": [
+   "adjudication"
+  ],
+  "packages/observe/src/decide.ts": [
+   "adjudication"
+  ],
+  "packages/cli/src/commands/sensitivities.ts": [
+   "adjudication"
+  ],
+  "packages/cli/src/commands/observe-one.ts": [
+   "adjudication"
+  ],
+  "packages/core/src/attribute/composition.ts": [
+   "adjudication"
+  ],
+  "packages/core/src/attribute/divergence.ts": [
+   "adjudication"
+  ],
+  "packages/core/src/attribute/movement.ts": [
+   "adjudication"
+  ],
+  "packages/core/src/attribute/control.ts": [
+   "adjudication"
+  ],
+  "packages/core/src/attribute/because.ts": [
+   "adjudication"
+  ],
+  "packages/cli/src/commands/compose.ts": [
+   "adjudication"
+  ],
+  "packages/core/src/judge/inspect.ts": [
+   "adjudication"
+  ],
+  "packages/core/src/judge/locale.ts": [
+   "adjudication"
+  ],
+  "packages/core/src/compare/band.ts": [
+   "adjudication"
+  ],
+  "packages/core/src/compare/impact.ts": [
+   "adjudication"
+  ],
+  "packages/core/src/compare/diff": [
+   "adjudication"
+  ],
+  "packages/core/src/compare/observability.ts": [
+   "adjudication"
+  ],
+  "packages/core/src/compare/parting.ts": [
+   "adjudication"
+  ],
+  "packages/png/src/compare.ts": [
+   "adjudication"
+  ],
+  "packages/png/src/difference.ts": [
+   "adjudication"
+  ],
+  "packages/png/src/size.ts": [
+   "adjudication"
+  ],
+  "packages/core/src/attribute/mask.ts": [
+   "adjudication"
+  ],
+  "packages/core/src/judge/fingerprint.ts": [
+   "adjudication"
+  ],
+  "packages/core/src/attribute/region.ts": [
+   "adjudication"
+  ],
+  "packages/core/src/attribute/locate.ts": [
+   "adjudication"
+  ],
+  "packages/observe/src/attribution.ts": [
+   "adjudication"
+  ],
+  "packages/observe/src/index.ts": [
+   "adjudication"
+  ],
+  "packages/observe/src/observe.ts": [
+   "adjudication",
+   "materialization"
+  ],
+  "packages/core/src/judge/verdict.ts": [
+   "adjudication"
+  ],
+  "packages/core/src/judge/ignore.ts": [
+   "adjudication"
+  ],
+  "packages/core/src/judge/scope.ts": [
+   "adjudication"
+  ],
+  "packages/cli/src/commands/ignores.ts": [
+   "adjudication"
+  ],
+  "packages/cli/src/config-ignore.ts": [
+   "adjudication"
+  ],
+  "packages/raster/src/store.ts": [
+   "materialization",
+   "retention"
+  ],
+  "packages/store": [
+   "retention"
+  ],
+  "packages/remote/src/store.ts": [
+   "retention"
+  ],
+  "packages/remote/src/serve-store.ts": [
+   "retention"
+  ],
+  "packages/remote/src/transport.ts": [
+   "materialization",
+   "retention"
+  ],
+  "packages/history": [
+   "retention"
+  ],
+  "packages/server": [
+   "retention"
+  ],
+  "packages/cli/src/commands/history.ts": [
+   "retention"
+  ],
+  "packages/sense/src/test-selection/prune.ts": [
+   "retention"
+  ],
+  "packages/cli/src/commands/prune-cache.ts": [
+   "retention"
+  ],
+  "packages/cli/src/commands/accept.ts": [
+   "retention"
+  ],
+  "packages/cli/src/commands/images.ts": [
+   "retention"
+  ],
+  "packages/history/src/observation.ts": [
+   "retention"
+  ],
+  "packages/history/src/instability.ts": [
+   "retention",
+   "stability"
+  ],
+  "packages/history/src/approval.ts": [
+   "retention"
+  ],
+  "packages/history/src/store.ts": [
+   "retention"
+  ],
+  "packages/history/src/absent.ts": [
+   "retention"
+  ],
+  "packages/history/src/client.ts": [
+   "retention"
+  ],
+  "packages/history/src/protocol.ts": [
+   "retention"
+  ],
+  "packages/server/src/backend.ts": [
+   "retention"
+  ],
+  "packages/server/src/backend-sqlite.ts": [
+   "retention"
+  ],
+  "packages/server/src/http.ts": [
+   "retention"
+  ],
+  "packages/store/src/changelog.ts": [
+   "retention"
+  ],
+  "packages/store/src/durable.ts": [
+   "retention"
+  ],
+  "packages/store/src/lfs.ts": [
+   "retention"
+  ],
+  "packages/history/src/churn.ts": [
+   "retention"
+  ],
+  "packages/history/src/flakiness.ts": [
+   "retention",
+   "stability"
+  ],
+  "packages/history/src/token-drift.ts": [
+   "retention"
+  ],
+  "packages/history/src/sentences.ts": [
+   "retention"
+  ],
+  "packages/history/src/drift.ts": [
+   "retention"
+  ],
+  "packages/server/src/answers.ts": [
+   "retention"
+  ],
+  "packages/cli/src/commands/history-report.ts": [
+   "retention"
+  ],
+  "packages/cli/src/commands/collector.ts": [
+   "acquisition",
+   "stability"
+  ],
+  "packages/cli/src/commands/schedule.ts": [
+   "acquisition"
+  ],
+  "packages/storybook": [
+   "acquisition"
+  ],
+  "packages/storybook-collector": [
+   "acquisition"
+  ],
+  "packages/route-collector": [
+   "acquisition"
+  ],
+  "packages/dom": [
+   "acquisition"
+  ],
+  "packages/unit-test": [
+   "acquisition"
+  ],
+  "packages/package": [
+   "acquisition"
+  ],
+  "packages/storybook/src/subjects.ts": [
+   "acquisition"
+  ],
+  "packages/storybook/src/index-file.ts": [
+   "acquisition"
+  ],
+  "packages/storybook/src/read.ts": [
+   "acquisition"
+  ],
+  "packages/route-collector/src/sitemap.ts": [
+   "acquisition"
+  ],
+  "packages/playwright/src/viewport.ts": [
+   "acquisition",
+   "materialization"
+  ],
+  "packages/route-collector/src/serve.ts": [
+   "acquisition"
+  ],
+  "packages/playwright-test/src/acquire.ts": [
+   "acquisition"
+  ],
+  "packages/playwright-test/src/page-agent.ts": [
+   "acquisition"
+  ],
+  "packages/playwright-test/src/fixture.ts": [
+   "acquisition",
+   "materialization",
+   "stability"
+  ],
+  "packages/playwright-test/src/direct.ts": [
+   "acquisition"
+  ],
+  "packages/playwright-test/src/in-place.ts": [
+   "acquisition",
+   "materialization"
+  ],
+  "packages/vitest-browser/src/observe.ts": [
+   "acquisition"
+  ],
+  "packages/vitest-browser/src/node.ts": [
+   "acquisition"
+  ],
+  "packages/dom/src/document.ts": [
+   "acquisition"
+  ],
+  "packages/unit-test/src/capture.ts": [
+   "acquisition"
+  ],
+  "packages/unit-test/src/archive.ts": [
+   "acquisition"
+  ],
+  "packages/unit-test/src/collector.ts": [
+   "acquisition"
+  ],
+  "packages/unit-test/src/value.ts": [
+   "acquisition"
+  ],
+  "packages/unit-test/src/shape.ts": [
+   "acquisition"
+  ],
+  "packages/package/src/surface.ts": [
+   "acquisition"
+  ],
+  "packages/package/src/manifest.ts": [
+   "acquisition"
+  ],
+  "packages/cli/src/commands/run.ts": [
+   "acquisition"
+  ],
+  "packages/unit-test/src/contract.ts": [
+   "acquisition"
+  ],
+  "packages/cli/src/commands/alone.ts": [
+   "acquisition",
+   "stability"
+  ],
+  "packages/storybook/src/preview.ts": [
+   "acquisition"
+  ],
+  "packages/storybook-collector/src/index.ts": [
+   "acquisition",
+   "stability"
+  ],
+  "packages/route-collector/src/index.ts": [
+   "acquisition",
+   "stability"
+  ],
+  "packages/playwright/src/harness.ts": [
+   "acquisition"
+  ],
+  "packages/dom/src/collect.ts": [
+   "acquisition"
+  ],
+  "packages/dom/src/profile.ts": [
+   "acquisition"
+  ],
+  "packages/dom/src/css.ts": [
+   "acquisition"
+  ],
+  "packages/dom/src/inherit.ts": [
+   "acquisition"
+  ],
+  "packages/dom/src/aria.ts": [
+   "acquisition"
+  ],
+  "packages/dom/src/ignore.ts": [
+   "acquisition"
+  ],
+  "packages/dom/src/assets.ts": [
+   "acquisition"
+  ],
+  "packages/playwright/src/agent.ts": [
+   "acquisition"
+  ],
+  "packages/playwright/src/acquire.ts": [
+   "acquisition"
+  ],
+  "packages/playwright/src/network.ts": [
+   "acquisition",
+   "stability"
+  ],
+  "packages/event": [
+   "runtime"
+  ],
+  "packages/wire": [
+   "runtime"
+  ],
+  "packages/vantage": [
+   "runtime"
+  ],
+  "packages/eyes": [
+   "runtime"
+  ],
+  "packages/scenario": [
+   "runtime"
+  ],
+  "packages/playwright-test/src/wire.ts": [
+   "runtime"
+  ],
+  "packages/playwright-test/src/events.ts": [
+   "runtime"
+  ],
+  "packages/playwright-test/src/vantage.ts": [
+   "runtime"
+  ],
+  "packages/eyes/src/access.ts": [
+   "runtime"
+  ],
+  "packages/eyes/src/snapshot.ts": [
+   "runtime"
+  ],
+  "packages/eyes/src/page-agent.ts": [
+   "runtime"
+  ],
+  "packages/eyes/src/rtl.ts": [
+   "runtime"
+  ],
+  "packages/eyes/src/playwright.ts": [
+   "runtime"
+  ],
+  "packages/eyes/src/playwright-proxy.ts": [
+   "runtime"
+  ],
+  "packages/eyes/src/archive.ts": [
+   "runtime"
+  ],
+  "packages/vantage/src/observatory.ts": [
+   "runtime"
+  ],
+  "packages/vantage/src/watch.ts": [
+   "runtime"
+  ],
+  "packages/vantage/src/attach.ts": [
+   "runtime"
+  ],
+  "packages/vantage/src/report.ts": [
+   "runtime"
+  ],
+  "packages/vantage/src/state.ts": [
+   "runtime"
+  ],
+  "packages/event/src/index.ts": [
+   "runtime"
+  ],
+  "packages/event/src/log.ts": [
+   "runtime"
+  ],
+  "packages/event/src/head.ts": [
+   "runtime"
+  ],
+  "packages/event/src/page.ts": [
+   "runtime"
+  ],
+  "packages/scenario/src/archive.ts": [
+   "runtime"
+  ],
+  "packages/wire/src/index.ts": [
+   "runtime"
+  ],
+  "packages/wire/src/listen.ts": [
+   "runtime"
+  ],
+  "packages/scenario/src/execution.ts": [
+   "runtime"
+  ],
+  "packages/scenario/src/contract.ts": [
+   "runtime"
+  ],
+  "packages/scenario/src/machine.ts": [
+   "runtime"
+  ],
+  "packages/scenario/src/assessment.ts": [
+   "runtime"
+  ],
+  "packages/raster/src/renderer.ts": [
+   "materialization"
+  ],
+  "packages/raster/src/assemble.ts": [
+   "materialization"
+  ],
+  "packages/raster/src/codec.ts": [
+   "materialization"
+  ],
+  "packages/playwright/src/renderer.ts": [
+   "materialization"
+  ],
+  "packages/remote/src/renderer.ts": [
+   "materialization"
+  ],
+  "packages/playwright/src/capture.ts": [
+   "materialization"
+  ],
+  "packages/observe/src/capture.ts": [
+   "materialization"
+  ],
+  "packages/remote/src/batch.ts": [
+   "materialization"
+  ],
+  "packages/core/src/format/stabilize.ts": [
+   "stability"
+  ],
+  "packages/core/src/format/intervention.ts": [
+   "stability"
+  ],
+  "packages/core/src/attribute/instability.ts": [
+   "stability"
+  ],
+  "packages/dom/src/stabilize.ts": [
+   "stability"
+  ],
+  "packages/playwright/src/blank.ts": [
+   "stability"
+  ],
+  "packages/playwright/src/gif.ts": [
+   "stability"
+  ],
+  "packages/react/src/arrival.ts": [
+   "stability"
+  ],
+  "packages/cli/src/commands/again.ts": [
+   "stability"
+  ],
+  "packages/raster/src/gate.ts": [
+   "stability"
+  ],
+  "packages/session/src": [
+   "stability"
+  ],
+  "packages/session/src/session.ts": [
+   "stability"
+  ],
+  "packages/session/src/state.ts": [
+   "stability"
+  ],
+  "packages/session/src/reads.ts": [
+   "stability"
+  ],
+  "packages/session/src/ledger.ts": [
+   "stability"
+  ],
+  "packages/session/src/findings.ts": [
+   "stability"
+  ],
+  "packages/react/src/suspense.ts": [
+   "stability"
+  ],
+  "packages/react/src/commits.ts": [
+   "stability"
+  ],
+  "packages/react/src/quiet.ts": [
+   "stability"
+  ],
+  "packages/tribunal/src": [
+   "review"
+  ],
+  "packages/tribunal/src/ui": [
+   "review"
+  ],
+  "packages/tribunal/src/node": [
+   "review"
+  ],
+  "packages/tribunal/migrations": [
+   "review"
+  ],
+  "tribunal-cloudflare/app": [
+   "review"
+  ],
+  "packages/tribunal/src/review.ts": [
+   "review"
+  ],
+  "packages/tribunal/src/review-ingest.ts": [
+   "review"
+  ],
+  "packages/tribunal/src/review-read.ts": [
+   "review"
+  ],
+  "packages/tribunal/src/review-types.ts": [
+   "review"
+  ],
+  "packages/tribunal/src/schema.ts": [
+   "review"
+  ],
+  "packages/tribunal/src/bindings.ts": [
+   "review"
+  ],
+  "packages/tribunal/src/worker-entry.ts": [
+   "review"
+  ],
+  "packages/tribunal/wrangler.jsonc": [
+   "review"
+  ],
+  "packages/tribunal/src/next.ts": [
+   "review"
+  ],
+  "packages/tribunal/src/node/serve.ts": [
+   "review"
+  ],
+  "packages/tribunal/src/node/bin.ts": [
+   "review"
+  ],
+  "packages/tribunal/src/node/database.ts": [
+   "review"
+  ],
+  "tribunal-cloudflare/app/tribunal.ts": [
+   "review"
+  ],
+  "tribunal-cloudflare/app/env.ts": [
+   "review"
+  ],
+  "tribunal-cloudflare/app/api/[[...path]]/route.ts": [
+   "review"
+  ],
+  "tribunal-cloudflare/wrangler.jsonc": [
+   "review"
+  ],
+  "packages/tribunal/src/worker.ts": [
+   "review"
+  ],
+  "tribunal-cloudflare/app/access.ts": [
+   "review"
+  ],
+  "tribunal-cloudflare/app/page.tsx": [
+   "review"
+  ],
+  "packages/tribunal/src/worker-auth.ts": [
+   "review"
+  ],
+  "packages/tribunal/src/worker-http.ts": [
+   "review"
+  ],
+  "packages/tribunal/src/worker-input.ts": [
+   "review"
+  ],
+  "packages/tribunal/src/ui/review.tsx": [
+   "review"
+  ],
+  "packages/tribunal/src/ui/route.ts": [
+   "review"
+  ],
+  "packages/tribunal/src/ui/docket.tsx": [
+   "review"
+  ],
+  "packages/tribunal/src/ui/carried.tsx": [
+   "review"
+  ],
+  "packages/tribunal/src/ui/client.ts": [
+   "review"
+  ],
+  "packages/tribunal/src/node/ui-assets.ts": [
+   "review"
+  ],
+  "tribunal-cloudflare/app/review.tsx": [
+   "review"
+  ],
+  "packages/tribunal/src/review-write.ts": [
+   "review"
+  ],
+  "packages/tribunal/src/changelog.ts": [
+   "review"
+  ],
+  "packages/tribunal/src/migration-steps.ts": [
+   "review"
+  ],
+  "packages/report/src": [
+   "report"
+  ],
+  "packages/cli/src/commands/report.ts": [
+   "report"
+  ],
+  "packages/cli/src/commands/comment.ts": [
+   "report"
+  ],
+  "packages/cli/src/commands/merge.ts": [
+   "report"
+  ],
+  "packages/cli/src/exit.ts": [
+   "report"
+  ],
+  "packages/mcp/src": [
+   "report"
+  ],
+  "packages/help/src": [
+   "report"
+  ],
+  "packages/cli/src/commands/docket.ts": [
+   "report"
+  ],
+  "packages/report/src/intent.ts": [
+   "report"
+  ],
+  "packages/cli/src/commands/adjudicate.ts": [
+   "report"
+  ],
+  "packages/mcp/src/tools/adjudicate.ts": [
+   "report"
+  ],
+  "packages/cli/src/commands/run-report.ts": [
+   "report"
+  ],
+  "packages/cli/src/commands/comment-blocks.ts": [
+   "report"
+  ],
+  "packages/cli/src/commands/comment-text.ts": [
+   "report"
+  ],
+  "packages/report/src/format.ts": [
+   "report"
+  ],
+  "packages/report/src/file.ts": [
+   "report"
+  ],
+  "packages/report/src/cluster.ts": [
+   "report"
+  ],
+  "packages/report/src/promotion.ts": [
+   "report"
+  ],
+  "packages/report/src/changelog.ts": [
+   "report"
+  ],
+  "packages/mcp/src/tools/tool.ts": [
+   "report"
+  ],
+  "packages/mcp/src/tools.ts": [
+   "report"
+  ],
+  "packages/mcp/src/tools": [
+   "report"
+  ],
+  "packages/mcp/src/tools/diff.ts": [
+   "report"
+  ],
+  "packages/help/src/tools.ts": [
+   "report"
+  ],
+  "packages/help/src/tools": [
+   "report"
+  ],
+  "packages/cli/src/commands/report-html.ts": [
+   "report"
+  ],
+  "packages/sense/src": [
+   "reach"
+  ],
+  "packages/sense/src/lock": [
+   "reach"
+  ],
+  "packages/sense/src/instrument": [
+   "reach"
+  ],
+  "packages/sense/src/test-selection": [
+   "reach"
+  ],
+  "packages/core/src/relate": [
+   "reach"
+  ],
+  "packages/sense/src/story": [
+   "reach"
+  ],
+  "packages/core/src/relate/merkle.ts": [
+   "reach"
+  ],
+  "packages/sense/src/instrument/index.ts": [
+   "reach"
+  ],
+  "packages/sense/src/instrument/spliced.ts": [
+   "reach"
+  ],
+  "packages/sense/native/src/instrument_walk.rs": [
+   "reach"
+  ],
+  "packages/sense/src/test-selection/probes.ts": [
+   "reach"
+  ],
+  "packages/sense/src/test-selection/source-lines.ts": [
+   "reach"
+  ],
+  "packages/sense/src/test-selection/instrumented-modules.ts": [
+   "reach"
+  ],
+  "packages/core/src/relate/graph.ts": [
+   "reach"
+  ],
+  "packages/core/src/relate/reach.ts": [
+   "reach"
+  ],
+  "packages/core/src/relate/records.ts": [
+   "reach"
+  ],
+  "packages/core/src/relate/before.ts": [
+   "reach"
+  ],
+  "packages/sense/src/lock/yarn.ts": [
+   "reach"
+  ],
+  "packages/sense/src/resolve.ts": [
+   "reach"
+  ],
+  "packages/cli/src/commands/installed.ts": [
+   "reach"
+  ],
+  "packages/sense/src/test-selection/journey.ts": [
+   "reach"
+  ],
+  "packages/sense/src/test-selection/stitch.ts": [
+   "reach"
+  ],
+  "packages/cli/src/commands/journey.ts": [
+   "reach"
+  ],
+  "packages/sense/src/test-selection/index.ts": [
+   "reach"
+  ],
+  "packages/sense/src/test-selection/journal.ts": [
+   "reach"
+  ],
+  "packages/sense/src/test-selection/merge.ts": [
+   "reach"
+  ],
+  "packages/sense/src/test-selection/commit.ts": [
+   "reach"
+  ],
+  "packages/sense/src/test-selection/divergence.ts": [
+   "reach"
+  ],
+  "packages/sense/src/test-selection/deviation.ts": [
+   "reach"
+  ],
+  "packages/sense/src/test-selection/reverse.ts": [
+   "reach"
+  ],
+  "packages/sense/src/test-selection/format.ts": [
+   "reach"
+  ],
+  "packages/cli/src/commands/affected.ts": [
+   "reach"
+  ],
+  "packages/cli/src/commands/reach.ts": [
+   "reach"
+  ],
+  "packages/cli/src/commands/run-select.ts": [
+   "reach"
+  ],
+  "packages/cli/src/commands/since.ts": [
+   "reach"
+  ],
+  "packages/cli/src/commands/changes.ts": [
+   "reach"
+  ],
+  "packages/sense/src/test-selection/importers.ts": [
+   "reach"
+  ],
+  "packages/sense/src/test-selection/select.ts": [
+   "reach"
+  ],
+  "packages/sense/src/scan.ts": [
+   "reach"
+  ],
+  "packages/sense/src/read.ts": [
+   "reach"
+  ],
+  "packages/sense/native/src/emitted.rs": [
+   "reach"
+  ],
+  "packages/sense/src/tree.ts": [
+   "reach"
+  ],
+  "packages/sense/src/published.ts": [
+   "reach"
+  ],
+  "packages/sense/src/source-index.ts": [
+   "reach"
+  ],
+  "packages/sense/src/immutable-log.ts": [
+   "reach"
+  ],
+  "packages/sense/src/cache.ts": [
+   "reach"
+  ],
+  "packages/sense/src/reuse.ts": [
+   "reach"
+  ],
+  "packages/cli/src/commands/index-command.ts": [
+   "reach"
+  ],
+  "packages/cli/src/commands/source-graph.ts": [
+   "reach"
+  ],
+  "packages/sense/src/instrument/story-tap.cts": [
+   "reach"
+  ],
+  "packages/sense/src/test-selection/collectors.cts": [
+   "reach"
+  ],
+  "packages/sense/src/story/format.cts": [
+   "reach"
+  ],
+  "packages/sense/src/story/directory.ts": [
+   "reach"
+  ],
+  "packages/sense/src/story/read.ts": [
+   "reach"
+  ],
+  "packages/sense/src/story/fold.ts": [
+   "reach"
+  ],
+  "packages/cli/src/commands/story.ts": [
+   "reach"
+  ],
+  "packages/cli/src/commands/story-view.ts": [
+   "reach"
+  ],
+  "packages/cli/src/commands/story-tree.ts": [
+   "reach"
+  ],
+  "packages/cli/src/commands/story-levels.ts": [
+   "reach"
+  ],
+  "packages/cli/src/package-home.ts": [
+   "reach"
+  ],
+  "packages/presentation/src": [
+   "presentation"
+  ],
+  "packages/presentation/skills/variance-presentation": [
+   "presentation"
+  ],
+  "docs/presentation.md": [
+   "presentation"
+  ],
+  "packages/presentation/src/playwright.ts": [
+   "presentation"
+  ],
+  "packages/presentation/src/browser-agent.ts": [
+   "presentation"
+  ],
+  "packages/presentation/src/browser-agent-entry.ts": [
+   "presentation"
+  ],
+  "packages/presentation/src/bundle.ts": [
+   "presentation"
+  ],
+  "packages/presentation/src/playwright.chromium.test.ts": [
+   "presentation"
+  ],
+  "packages/presentation/src/compare.ts": [
+   "presentation"
+  ],
+  "packages/presentation/src/report.ts": [
+   "presentation"
+  ],
+  "packages/report/src/presentation-record.ts": [
+   "presentation"
+  ],
+  "packages/presentation/src/paint.ts": [
+   "presentation"
+  ],
+  "packages/presentation/src/model.ts": [
+   "presentation"
+  ],
+  "packages/presentation/src/hierarchy.ts": [
+   "presentation"
+  ],
+  "packages/presentation/src/hierarchy.test.ts": [
+   "presentation"
+  ],
+  "packages/presentation/src/analyze.ts": [
+   "presentation"
+  ],
+  "packages/presentation/src/graph.ts": [
+   "presentation"
+  ],
+  "packages/presentation/src/measure.ts": [
+   "presentation"
+  ],
+  "packages/presentation/src/patterns.ts": [
+   "presentation"
+  ],
+  "packages/presentation/src/telemetry.ts": [
+   "presentation"
+  ],
+  "packages/presentation/src/findings.ts": [
+   "presentation"
+  ],
+  "packages/presentation/src/analyze.test.ts": [
+   "presentation"
+  ],
+  "packages/presentation/src/focus.ts": [
+   "presentation"
+  ],
+  "packages/presentation/src/alignment.ts": [
+   "presentation"
+  ],
+  "packages/presentation/src/spacing.ts": [
+   "presentation"
+  ],
+  "packages/presentation/src/focus.test.ts": [
+   "presentation"
+  ],
+  "packages/presentation/src/alignment.test.ts": [
+   "presentation"
+  ],
+  "packages/presentation/src/spacing.test.ts": [
+   "presentation"
+  ]
+ },
+ "specs": [
+  {
+   "spec": "0002-history-store.md",
+   "gold": [
+    "retention"
+   ],
+   "paths": [
+    "packages/history/src/store.ts"
+   ]
+  },
+  {
+   "spec": "0008-locale-runs.md",
+   "gold": [
+    "adjudication"
+   ],
+   "paths": [
+    "cases/incumbent-case/src/locale.chromium.test.ts",
+    "packages/cli/src/config.ts",
+    "packages/core/src/judge/locale.test.ts"
+   ]
+  },
+  {
+   "spec": "0011-storage-and-cache-primitives.md",
+   "gold": [
+    "acquisition",
+    "adjudication",
+    "materialization",
+    "normalization",
+    "retention",
+    "stability"
+   ],
+   "paths": [
+    "examples/kitchen-sink/src/components/Button.tsx",
+    "packages/cli/src/commands/collector.ts",
+    "packages/core/src/attribute/component-hash.ts",
+    "packages/dom/src/collect.test.ts",
+    "packages/raster/src/store.ts",
+    "packages/store/src/lfs.ts"
+   ]
+  },
+  {
+   "spec": "0012-order-dependence-in-a-run.md",
+   "gold": [
+    "acquisition",
+    "report",
+    "stability"
+   ],
+   "paths": [
+    "packages/cli/src/commands/run.ts",
+    "packages/mcp/src/tools.ts",
+    "packages/playwright/src/harness.ts",
+    "packages/session",
+    "packages/session/src/session.ts"
+   ]
+  },
+  {
+   "spec": "0013-a-real-agent.md",
+   "gold": [
+    "adjudication",
+    "report"
+   ],
+   "paths": [
+    "cases/incumbent-case",
+    "examples/agent-claim",
+    "examples/todomvc",
+    "examples/todomvc/src/observe.chromium.test.ts",
+    "packages/core/src/judge/intent.ts",
+    "packages/mcp",
+    "packages/mcp/src/tools.ts",
+    "packages/observe"
+   ]
+  },
+  {
+   "spec": "0014-hosted-who-the-caller-is-and-what-the-bill-counts.md",
+   "gold": [
+    "review"
+   ],
+   "paths": [
+    "packages/tribunal/src/schema.ts",
+    "packages/tribunal/src/worker-auth.ts"
+   ]
+  },
+  {
+   "spec": "0016-ci-that-has-run.md",
+   "gold": [],
+   "paths": [
+    ".github/actions/variance",
+    ".github/workflows/variance.yml",
+    "packages/cli/README.md"
+   ]
+  },
+  {
+   "spec": "0018-git-lfs-proven-as-git-lfs.md",
+   "gold": [],
+   "paths": [
+    "cases"
+   ]
+  },
+  {
+   "spec": "0019-provenance-without-react.md",
+   "gold": [
+    "acquisition"
+   ],
+   "paths": [
+    "cases",
+    "packages/dom/src/attributed.ts"
+   ]
+  },
+  {
+   "spec": "0020-a-cross-browser-grid.md",
+   "gold": [],
+   "paths": [
+    "packages/playwright/src/engines.chromium.test.ts"
+   ]
+  },
+  {
+   "spec": "0021-tribunal-on-a-real-deployment.md",
+   "gold": [],
+   "paths": [
+    "packages/cli",
+    "tools/tribunal-migrations.mjs"
+   ]
+  },
+  {
+   "spec": "0022-evidence-from-code-this-project-did-not-write.md",
+   "gold": [
+    "acquisition"
+   ],
+   "paths": [
+    "cases",
+    "cases/storybook-case",
+    "packages/dom/src/collect.test.ts"
+   ]
+  },
+  {
+   "spec": "0023-accept-tells-new-from-changed.md",
+   "gold": [],
+   "paths": []
+  },
+  {
+   "spec": "0024-what-a-prop-controls.md",
+   "gold": [
+    "adjudication",
+    "normalization"
+   ],
+   "paths": [
+    "examples/todomvc/src/contrast.test.tsx",
+    "packages/core/src/attribute/boundary.ts"
+   ]
+  },
+  {
+   "spec": "0025-component-relations.md",
+   "gold": [],
+   "paths": [
+    "examples/kitchen-sink/src/styles/tokens.css"
+   ]
+  },
+  {
+   "spec": "0026-selection-by-closure-digest.md",
+   "gold": [],
+   "paths": []
+  },
+  {
+   "spec": "0027-a-test-is-selected-by-what-it-executed.md",
+   "gold": [],
+   "paths": []
+  },
+  {
+   "spec": "0028-the-instrument.md",
+   "gold": [
+    "reach"
+   ],
+   "paths": [
+    "packages/sense/src/instrument/index.ts"
+   ]
+  },
+  {
+   "spec": "0029-what-a-run-remembers.md",
+   "gold": [
+    "reach"
+   ],
+   "paths": [
+    "packages/core/src/relate/merkle.ts"
+   ]
+  },
+  {
+   "spec": "0030-a-diff-lands-on-blocks.md",
+   "gold": [],
+   "paths": []
+  },
+  {
+   "spec": "0031-a-contract-is-a-subject.md",
+   "gold": [
+    "acquisition",
+    "materialization"
+   ],
+   "paths": [
+    "package.json",
+    "packages/observe/src/capture.ts",
+    "packages/unit-test",
+    "packages/unit-test/src/archive.ts",
+    "packages/unit-test/src/collector.ts",
+    "tools/boundaries.check.ts",
+    "tools/surface.check.ts"
+   ]
+  },
+  {
+   "spec": "0032-a-render-nobody-committed.md",
+   "gold": [],
+   "paths": [
+    "packages/cli/src/config.ts"
+   ]
+  },
+  {
+   "spec": "0033-two-sides-a-person-chose.md",
+   "gold": [],
+   "paths": []
+  },
+  {
+   "spec": "0035-a-flake-is-what-the-run-did-not-execute.md",
+   "gold": [],
+   "paths": []
+  },
+  {
+   "spec": "0036-a-journey-crosses-processes.md",
+   "gold": [
+    "reach"
+   ],
+   "paths": [
+    "packages/cli/src/commands/affected.ts",
+    "packages/cli/src/commands/journey.ts",
+    "packages/sense/scripts/overhead.mjs",
+    "packages/sense/src/test-selection/journey.ts"
+   ]
+  },
+  {
+   "spec": "0037-a-closure-per-node.md",
+   "gold": [
+    "adjudication",
+    "normalization",
+    "reach"
+   ],
+   "paths": [
+    "examples/todomvc",
+    "packages/core/src/attribute/boundary.ts",
+    "packages/core/src/attribute/closure.ts",
+    "packages/core/src/judge/fingerprint.ts",
+    "packages/sense/src/test-selection/divergence.ts",
+    "packages/sense/src/test-selection/index.ts",
+    "packages/sense/src/tree.ts"
+   ]
+  },
+  {
+   "spec": "0038-a-journey-is-read-against-the-committed-tree.md",
+   "gold": [],
+   "paths": []
+  },
+  {
+   "spec": "0039-a-subject-is-found-from-a-description.md",
+   "gold": [],
+   "paths": [
+    "examples/todomvc/src/stories.tsx"
+   ]
+  },
+  {
+   "spec": "0040-a-baseline-in-git-is-a-picture.md",
+   "gold": [
+    "adjudication",
+    "reach",
+    "retention"
+   ],
+   "paths": [
+    "packages/cli/src/commands/push.ts",
+    "packages/png/src/size.ts",
+    "packages/store/src/durable.ts"
+   ]
+  },
+  {
+   "spec": "0041-orientation-is-the-first-five-minutes.md",
+   "gold": [],
+   "paths": []
+  },
+  {
+   "spec": "0042-a-start-point-is-a-path-sense-holds.md",
+   "gold": [
+    "adjudication",
+    "reach",
+    "report"
+   ],
+   "paths": [
+    "packages/cli/skills/variance-authority/references/locate.md",
+    "packages/cli/src/commands/resources.ts",
+    "packages/mcp/src/tools/scope.test.ts"
+   ]
+  },
+  {
+   "spec": "0043-a-record-costs-what-the-run-cost.md",
+   "gold": [
+    "reach"
+   ],
+   "paths": [
+    "packages/sense/src/test-selection/crossing-sets.ts",
+    "packages/sense/src/test-selection/format-layer.ts",
+    "packages/sense/src/test-selection/index.ts",
+    "packages/sense/src/test-selection/instrumented-modules.ts",
+    "packages/sense/src/test-selection/jest-reporter.ts",
+    "packages/sense/src/test-selection/journal.ts",
+    "packages/sense/src/test-selection/run-fold.ts",
+    "packages/sense/src/test-selection/selection-fold.ts",
+    "packages/sense/src/test-selection/vitest.ts"
+   ]
+  },
+  {
+   "spec": "0044-many-writers-one-record.md",
+   "gold": [
+    "adjudication",
+    "reach"
+   ],
+   "paths": [
+    "packages/cli/src/commands/land.ts",
+    "packages/sense/src/immutable-log.ts",
+    "packages/sense/src/test-selection/format-layer.ts",
+    "packages/sense/src/test-selection/index-lock.ts",
+    "packages/sense/src/test-selection/jest-reporter.ts",
+    "packages/sense/src/test-selection/journal.ts",
+    "packages/sense/src/test-selection/selection-fold.ts"
+   ]
+  },
+  {
+   "spec": "0045-a-snapshot-states-its-own-age.md",
+   "gold": [
+    "reach"
+   ],
+   "paths": [
+    "packages/core",
+    "packages/sense/src/test-selection/carried-sources.ts",
+    "packages/sense/src/test-selection/column-codec.ts",
+    "packages/sense/src/test-selection/columns.ts",
+    "packages/sense/src/test-selection/crossing-sets-read.ts",
+    "packages/sense/src/test-selection/format-layer.ts",
+    "packages/sense/src/test-selection/format-layout.ts",
+    "packages/sense/src/test-selection/format-validation.ts",
+    "packages/sense/src/test-selection/format-view.ts",
+    "packages/sense/src/test-selection/format.test.ts",
+    "packages/sense/src/test-selection/lookup.ts",
+    "packages/sense/src/test-selection/record-format.ts"
+   ]
+  },
+  {
+   "spec": "0046-the-safety-rule-lives-in-one-place.md",
+   "gold": [
+    "reach"
+   ],
+   "paths": [
+    "docs/instruments.md",
+    "packages/sense/README.md",
+    "packages/sense/src/test-selection/recorded-text.ts",
+    "tools/test-since.mjs"
+   ]
+  },
+  {
+   "spec": "0047-a-skip-list-is-worth-what-it-skips.md",
+   "gold": [
+    "adjudication",
+    "reach"
+   ],
+   "paths": [
+    "docs/instruments.md",
+    "docs/metrics.md",
+    "packages/cli/src/commands/select.ts",
+    "packages/sense/scripts/coverage-corpus.mjs",
+    "packages/sense/scripts/overhead.mjs",
+    "packages/sense/scripts/select-check.mjs",
+    "packages/sense/scripts/shape-sweep.mjs",
+    "packages/sense/scripts/snapshot-scale.mjs"
+   ]
+  },
+  {
+   "spec": "0048-a-worker-that-dies-says-so.md",
+   "gold": [
+    "reach"
+   ],
+   "paths": [
+    "packages/sense/src/instrument",
+    "packages/sense/src/test-selection",
+    "packages/sense/src/test-selection/finished-files.ts",
+    "packages/sense/src/test-selection/instrumented-modules.ts",
+    "packages/sense/src/test-selection/jest-reporter.ts",
+    "packages/sense/src/test-selection/journal-format.cts",
+    "packages/sense/src/test-selection/selection-fold.ts",
+    "packages/sense/src/test-selection/worker-source.ts",
+    "tools/unrun.mjs"
+   ]
+  },
+  {
+   "spec": "0049-nothing-can-ask-the-record-where-it-stands.md",
+   "gold": [
+    "adjudication",
+    "reach",
+    "report"
+   ],
+   "paths": [
+    "docs/distance.md",
+    "packages/cli/src/commands/asking.ts",
+    "packages/cli/src/select-args.ts",
+    "packages/mcp/src/bin.ts",
+    "packages/mcp/src/protocol.ts",
+    "packages/mcp/src/tools.ts",
+    "packages/mcp/src/tools/source-tests.ts",
+    "packages/sense/src/test-selection/at-source.ts",
+    "packages/sense/src/test-selection/cases.ts",
+    "packages/sense/src/test-selection/crossing-sets-read.ts",
+    "packages/sense/src/test-selection/distance.ts",
+    "packages/sense/src/test-selection/index.ts",
+    "packages/sense/src/test-selection/reverse.ts",
+    "packages/sense/src/test-selection/selection-fold.ts"
+   ]
+  },
+  {
+   "spec": "0050-reconciling-a-discovered-plan-with-the-store.md",
+   "gold": [],
+   "paths": []
+  },
+  {
+   "spec": "0051-a-sensitivity-is-scoped-by-id-and-nothing-else.md",
+   "gold": [
+    "adjudication",
+    "normalization"
+   ],
+   "paths": [
+    "packages/core/src/attribute/component-hash.ts",
+    "packages/core/src/judge/scope.ts"
+   ]
+  },
+  {
+   "spec": "0052-a-run-holds-every-tree-it-rendered.md",
+   "gold": [
+    "acquisition",
+    "adjudication",
+    "retention",
+    "stability"
+   ],
+   "paths": [
+    "jvm/test/shop/frontend/search.html",
+    "packages/cli/src/commands/collector.ts",
+    "packages/cli/src/commands/images.ts",
+    "packages/cli/src/commands/run.ts",
+    "packages/core/src/attribute/divergence.ts",
+    "packages/core/src/attribute/lexicon.ts",
+    "packages/store"
+   ]
+  },
+  {
+   "spec": "0053-a-surface-inside-a-suite-reaches-less.md",
+   "gold": [
+    "acquisition",
+    "runtime"
+   ],
+   "paths": [
+    "packages/cli",
+    "packages/playwright-test",
+    "packages/playwright-test/src/events.ts",
+    "packages/playwright-test/src/evidence.ts",
+    "packages/route-collector",
+    "packages/unit-test",
+    "packages/vitest-browser",
+    "packages/vitest-browser/src/node.ts"
+   ]
+  },
+  {
+   "spec": "0054-eyes-attention-is-read-as-test-steps.md",
+   "gold": [],
+   "paths": []
+  },
+  {
+   "spec": "0055-a-workspace-import-resolves-to-its-source.md",
+   "gold": [
+    "acquisition",
+    "normalization",
+    "reach"
+   ],
+   "paths": [
+    ".compass/variance-authority/reach/source-scan/README.md",
+    ".gitignore",
+    "AGENTS.md",
+    "docs/source.md",
+    "package.json",
+    "packages",
+    "packages/cli",
+    "packages/core/src/format/index.ts",
+    "packages/package/src/manifest.ts",
+    "packages/sense/README.md",
+    "packages/sense/native/Cargo.toml",
+    "packages/sense/native/src/batch.rs",
+    "packages/sense/native/src/resolve.rs",
+    "packages/sense/src/native-read.test.ts",
+    "packages/sense/src/native.ts",
+    "packages/sense/src/record.ts",
+    "packages/sense/src/repo-path.ts",
+    "packages/sense/src/resolve.ts",
+    "packages/sense/src/reuse.ts",
+    "packages/sense/src/scan.ts",
+    "packages/sense/src/taint/index.ts",
+    "packages/sense/src/taint/join.ts",
+    "packages/sense/src/test-selection/source-lines.ts",
+    "packages/sense/src/witness.ts",
+    "packages/sense/tsconfig.json",
+    "tools/page-side.mjs",
+    "tools/since-diff.mjs",
+    "tools/since-graph.check.ts",
+    "tools/since-graph.mjs",
+    "tools/test-since.mjs",
+    "vitest.config.mts"
+   ]
+  },
+  {
+   "spec": "0056-a-session-daemon-keeps-the-index-current.md",
+   "gold": [
+    "reach"
+   ],
+   "paths": [
+    "packages/sense/scripts/published-index.mjs",
+    "packages/sense/src/native.test.ts"
+   ]
+  },
+  {
+   "spec": "0059-a-change-runs-the-cases-that-ran-it.md",
+   "gold": [
+    "reach"
+   ],
+   "paths": [
+    "packages/sense/src/test-selection/cases.ts",
+    "packages/sense/src/test-selection/execution-select.ts"
+   ]
+  },
+  {
+   "spec": "0061-a-depends-directive-takes-a-glob.md",
+   "gold": [
+    "reach"
+   ],
+   "paths": [
+    "packages/sense/native/src/depends.rs",
+    "packages/sense/src/depends.test.ts"
+   ]
+  },
+  {
+   "spec": "0062-a-suite-says-which-files-reach-it.md",
+   "gold": [
+    "reach"
+   ],
+   "paths": [
+    "packages/core/src/relate/graph.ts",
+    "packages/sense/src/test-selection/importers.ts"
+   ]
+  },
+  {
+   "spec": "0063-an-editor-asks-about-the-text-it-holds.md",
+   "gold": [
+    "adjudication",
+    "reach"
+   ],
+   "paths": [
+    "packages/cli/src/commands/covering-frame.ts",
+    "packages/sense/src/test-selection/divergence.ts",
+    "packages/sense/src/test-selection/frame.ts",
+    "packages/sense/src/test-selection/placed.ts",
+    "packages/sense/src/test-selection/range-state.ts",
+    "packages/sense/src/test-selection/reading.ts",
+    "packages/sense/src/test-selection/reverse.ts",
+    "packages/sense/src/test-selection/select.ts"
+   ]
+  },
+  {
+   "spec": "0064-the-record-in-vs-code.md",
+   "gold": [],
+   "paths": [
+    "editors/vscode",
+    "editors/vscode/README.md"
+   ]
+  },
+  {
+   "spec": "0065-the-record-in-webstorm.md",
+   "gold": [],
+   "paths": [
+    "editors/webstorm",
+    "editors/webstorm/README.md",
+    "package.json"
+   ]
+  },
+  {
+   "spec": "0067-a-case-carries-its-outcome.md",
+   "gold": [
+    "reach"
+   ],
+   "paths": [
+    "packages/sense/native/src/journey_journal.rs",
+    "packages/sense/src/test-selection/cases.ts",
+    "packages/sense/src/test-selection/finished-files.ts",
+    "packages/sense/src/test-selection/journal-format.cts",
+    "packages/sense/src/test-selection/reverse.ts"
+   ]
+  },
+  {
+   "spec": "0068-an-edit-runs-what-it-reaches-from-the-editor.md",
+   "gold": [
+    "reach"
+   ],
+   "paths": [
+    "AGENTS.md",
+    "packages/sense/src/test-selection/at-distance.ts",
+    "tools/test-since.mjs"
+   ]
+  },
+  {
+   "spec": "0070-a-change-says-what-its-tests-moved.md",
+   "gold": [
+    "reach"
+   ],
+   "paths": [
+    "packages/sense/src/test-selection/case-layer.ts"
+   ]
+  },
+  {
+   "spec": "0071-a-test-is-read-alone.md",
+   "gold": [
+    "reach"
+   ],
+   "paths": [
+    "packages/sense/src/test-selection/case-layer.ts"
+   ]
+  },
+  {
+   "spec": "0072-a-case-read-two-ways-is-compared-with-itself.md",
+   "gold": [
+    "reach"
+   ],
+   "paths": [
+    "packages/sense/src/test-selection/case-fold.ts",
+    "packages/sense/src/test-selection/memoized.integration.test.ts",
+    "packages/sense/test/fixtures/memoized-vitest/src/price.ts",
+    "packages/sense/test/fixtures/memoized-vitest/test/checkout.mocked.ts"
+   ]
+  },
+  {
+   "spec": "0073-a-test-owns-the-files-its-services-ran.md",
+   "gold": [],
+   "paths": [
+    "jvm/README.md",
+    "jvm/measure/README.md",
+    "jvm/measure/compare-records.mjs"
+   ]
+  },
+  {
+   "spec": "0074-what-ci-derived-is-reachable-from-a-checkout.md",
+   "gold": [
+    "adjudication",
+    "reach"
+   ],
+   "paths": [
+    "docs/placement.md",
+    "packages/cli/src/commands/share.ts",
+    "packages/cli/src/config-share.ts",
+    "packages/core/src/share/index.ts"
+   ]
+  },
+  {
+   "spec": "0075-a-python-test-is-selected-by-the-regions-it-ran.md",
+   "gold": [],
+   "paths": [
+    "jvm/measure",
+    "jvm/measure/README.md"
+   ]
+  },
+  {
+   "spec": "0076-a-go-test-is-selected-by-the-blocks-it-ran.md",
+   "gold": [],
+   "paths": [
+    "jvm/measure",
+    "jvm/measure/README.md"
+   ]
+  },
+  {
+   "spec": "0077-a-rust-test-is-selected-by-the-regions-it-ran.md",
+   "gold": [],
+   "paths": [
+    "jvm/measure",
+    "jvm/measure/README.md",
+    "packages/sense",
+    "packages/sense/native/build.rs"
+   ]
+  },
+  {
+   "spec": "0078-a-swift-test-is-selected-inside-its-target.md",
+   "gold": [],
+   "paths": []
+  },
+  {
+   "spec": "0079-shards-steal-from-each-other.md",
+   "gold": [
+    "adjudication",
+    "reach"
+   ],
+   "paths": [
+    "packages/cli/src/commands/lanes.ts",
+    "packages/cli/src/commands/shard.ts"
+   ]
+  },
+  {
+   "spec": "0080-coverage-is-counted-per-kind.md",
+   "gold": [
+    "adjudication",
+    "reach"
+   ],
+   "paths": [
+    "packages/cli/src/commands/coverage-source.ts",
+    "packages/cli/src/commands/coverage.ts",
+    "packages/cli/src/commands/covering-motion.ts",
+    "packages/cli/src/commands/covering-suites.ts",
+    "packages/sense/native/src/source_size.rs",
+    "packages/sense/src/test-selection/case-motion.ts",
+    "packages/sense/src/test-selection/coverage-count.ts",
+    "packages/sense/src/test-selection/merge-carry.ts",
+    "packages/sense/src/test-selection/suites.ts"
+   ]
+  },
+  {
+   "spec": "0081-the-tech-stack-is-read-from-the-code.md",
+   "gold": [
+    "report"
+   ],
+   "paths": [
+    "packages/help/src/tools/search-answer.ts",
+    "tools/docs-entrypoints.check.ts"
+   ]
+  },
+  {
+   "spec": "0082-a-test-that-did-not-run-is-named.md",
+   "gold": [],
+   "paths": [
+    "AGENTS.md",
+    "tools/docs-entrypoints.check.ts",
+    "tools/unrun.mjs"
+   ]
+  },
+  {
+   "spec": "0083-the-code-map-offers-choices.md",
+   "gold": [],
+   "paths": []
+  },
+  {
+   "spec": "0084-independent-judgments-orient-the-code-map.md",
+   "gold": [],
+   "paths": []
+  },
+  {
+   "spec": "0086-a-readme-is-searched.md",
+   "gold": [],
+   "paths": [
+    "README.md"
+   ]
+  },
+  {
+   "spec": "0087-every-suite-is-compared-with-its-own-base.md",
+   "gold": [
+    "adjudication",
+    "reach"
+   ],
+   "paths": [
+    "packages/cli/src/commands/coverage.ts",
+    "packages/sense/src/test-selection/suites.ts"
+   ]
+  },
+  {
+   "spec": "0088-a-suite-is-carried-alone.md",
+   "gold": [
+    "adjudication",
+    "reach"
+   ],
+   "paths": [
+    "packages/cli/src/commands/carry.ts",
+    "packages/sense/src/test-selection/suites.ts"
+   ]
+  },
+  {
+   "spec": "0089-this-repository-reports-every-kind-it-runs.md",
+   "gold": [
+    "acquisition"
+   ],
+   "paths": [
+    ".github/workflows/check.yml",
+    ".github/workflows/variance.yml",
+    "cases/playwright-storybook-case",
+    "cases/storybook-case",
+    "packages/playwright-test/src/with-test-selection.ts",
+    "packages/storybook-collector/src/options.ts",
+    "variance.config.json"
+   ]
+  }
+ ]
+}

@@ -1,0 +1,467 @@
+[
+ {
+  "readme": ".compass/variance-authority/retention/baseline-files/README.md",
+  "title": "Pruning orphaned image pairs after a component is deleted",
+  "body": "When a component file is deleted or moved, its stored images and sidecars stay behind under the identity directory and nobody notices until the tree is audited. A new command will list pairs whose subject no longer appears in the run's own subject list and, on request, delete them in the same commit as the code change. It will take the list of subjects from the run rather than scanning source, and it will print every pair it removes together with the renderer identity that painted it, so nothing vanishes without a line saying what and why."
+ },
+ {
+  "readme": ".compass/variance-authority/retention/baseline-files/README.md",
+  "title": "A clone without the large-file filter prints one refusal per subject",
+  "body": "Today a checkout that lacks the large-file filter holds pointer files, and each one is refused by name at the moment its lookup happens. A run over four hundred subjects therefore prints four hundred identical refusals, and the one fact that matters \u2014 this clone has no filter installed \u2014 is buried under them. The run should notice the first pointer, check once whether the tracked root is really routed through the filter, and stop with a single sentence naming the install step before any comparison begins."
+ },
+ {
+  "readme": ".compass/variance-authority/retention/baseline-files/README.md",
+  "title": "Colocated images will be refused when their sidecar did not land with them",
+  "body": "The pair of image and sidecar is the unit, but only the image travels through the large-file filter, so a commit can add a new image while the text half stays behind. The rule will state that, in the layout that puts images next to their components, a lookup that finds an image without its sidecar is an operator error naming the missing path. A raster with no stated digest, fonts or identity cannot be believed, and a half-landed pair should fail loudly rather than be read as a fresh subject."
+ },
+ {
+  "readme": ".compass/variance-authority/retention/baseline-store/README.md",
+  "title": "One call that describes the whole declared working set",
+  "body": "Callers may already declare the keys they are about to ask about, but the declaration is only a hint and every description is still requested one key at a time. A new operation will answer the cheap description for the whole declared set in one call, returning for each key either the description, a positive absence, or an operator error, and never merging those three. Local backends can implement it as a loop; the value is that every backend exposes one shape and the comparison stops paying per-subject overhead to learn that most documents did not move."
+ },
+ {
+  "readme": ".compass/variance-authority/retention/baseline-store/README.md",
+  "title": "A subject whose only image came from another machine gets rebased silently",
+  "body": "When the only stored image for a subject was painted under a different renderer identity, some callers read the answer as 'nothing stored' and write the current screen as a first image. The subject is quietly rebased on the wrong machine and its earlier history is shadowed. The answer should always carry the foreign identity it found, and any caller that receives it must report the subject as incomparable, naming both identities, instead of treating a known image elsewhere as a brand new subject."
+ },
+ {
+  "readme": ".compass/variance-authority/retention/baseline-store/README.md",
+  "title": "The throwaway mode will say that it keeps nothing",
+  "body": "The ephemeral implementation answers every lookup with nothing and accepts every write without keeping it, which is correct for a pipeline that paints both sides on one machine. The contract will change so its answers carry a distinct marker meaning 'this store does not keep images', rather than an ordinary absence. Report text can then say the comparison had no durable side, and a nightly job that was misconfigured into the throwaway mode will stop presenting every subject as new without a hint as to why."
+ },
+ {
+  "readme": ".compass/variance-authority/retention/changelog/README.md",
+  "title": "Explaining one subject's image instead of the whole root",
+  "body": "Reading back why images look the way they do works over every path under the root. A narrower question will be answered as well: given one subject key, return only the commits that touched that subject's image or sidecar, newest first, with the trailer each carried. The path filter is already in place; this adds a per-subject path to it, so an engineer staring at one surprising image gets that image's own story in one call, still accompanied by every reason the answer might be a lower bound."
+ },
+ {
+  "readme": ".compass/variance-authority/retention/changelog/README.md",
+  "title": "A squash merge drops the trailer and the history looks unexplained",
+  "body": "Teams that squash pull requests often rewrite the final commit message, which throws away the trailer that carried the baseline update record. The history then shows an image changing with no explanation, and the commit is counted as one that carried nothing. It should instead be listed as an update whose explanation was lost, 'message rewritten' should be added to the list of reasons the answer is bounded, and that case should stay distinct from a commit that genuinely touched no stored image at all."
+ },
+ {
+  "readme": ".compass/variance-authority/retention/changelog/README.md",
+  "title": "Every bound on a history answer will carry the oldest commit it reached",
+  "body": "A bounded answer already says what bounded it \u2014 a shallow clone, a trailer nobody here understands, a limit the log filled. The rule will tighten so each of those reasons also names the oldest commit that was actually read, letting a caller say 'nothing known before 3f2a1c' rather than just 'shallow'. A lower bound with no edge cannot be compared against a later answer, and two people looking at the same image from different clones would otherwise disagree without any way to see where their views end."
+ },
+ {
+  "readme": ".compass/variance-authority/retention/promotion/README.md",
+  "title": "Accepting every subject carried by one cause",
+  "body": "Accepting candidates from the command line takes subject names today. A new mode will take a cause component instead and accept every subject in the run whose only cause is that component, while refusing by name any subject where a second cause rides in the same image. One token edit touching three hundred subjects becomes a single command. Approval rows are still written one per subject and run, so the join with the observations the run wrote stays exactly as precise as it is now."
+ },
+ {
+  "readme": ".compass/variance-authority/retention/promotion/README.md",
+  "title": "Accepting a downloaded CI artifact gives no hint where the image went",
+  "body": "Downloading an artifact from CI and accepting it locally writes each image under the identity stored in its sidecar, which is right, but the command prints nothing about that identity. An engineer who expected the images on their own machine to change sees nothing move and assumes the accept failed. The command should print, for every subject, the renderer identity it wrote under and whether that matches the machine running the command, so a cross-machine accept is visible instead of confusing."
+ },
+ {
+  "readme": ".compass/variance-authority/retention/promotion/README.md",
+  "title": "The approval row will also carry the candidate's document digest",
+  "body": "Approvals are keyed by subject and run, and that key stays. The row will additionally hold the document digest read from the candidate's sidecar, as a plain value rather than part of the key. When a retried CI job produces two candidates under one run id, later history can tell which of the two somebody actually agreed to. Nothing is derived: the digest is already in hand at accept time, so carrying it costs nothing and removes an ambiguity that no later query could resolve."
+ },
+ {
+  "readme": ".compass/variance-authority/retention/readings/README.md",
+  "title": "Churn grouped by who authored the approved change",
+  "body": "The history already answers how often a component changed. A new answer will group those approved changes by the author of the commit that introduced each one, so a team can see whether a shared token is being nudged by five people in small steps that no one review ever added up. It will follow the same rules \u2014 approved changes only, collateral counted apart, bands compared within their tier \u2014 and state what the window left out. It lists counts with denominators and never ranks people."
+ },
+ {
+  "readme": ".compass/variance-authority/retention/readings/README.md",
+  "title": "A token that switches units breaks its drift journey",
+  "body": "When a spacing token moves from pixels to rem, the drift calculation cannot subtract the two values, reports the step as a finding it could not quantify, and starts accumulating again from zero. The total that crept in before the migration is lost. The journey should instead be split at the unit change, both halves reported with their own totals and commits, and the sentence should say the unit changed at a named commit, so cumulative movement on either side of the migration stays visible."
+ },
+ {
+  "readme": ".compass/variance-authority/retention/readings/README.md",
+  "title": "Recency sentences will name the commit of the most recent sweep",
+  "body": "Recency is counted in sweeps rather than in days, and that stays. Each sentence will additionally name the commit the most recent sweep ran at, because 'none in the last nine sweeps' means something different when the last of those sweeps was half a year ago on a branch nobody builds. The count remains the measure; the commit is provenance, letting a reader tell a flake that was genuinely fixed from a suite that simply stopped being swept."
+ },
+ {
+  "readme": ".compass/variance-authority/retention/record/README.md",
+  "title": "A Postgres engine behind the existing storage seam",
+  "body": "The history service ships one embedded SQL engine. A Postgres engine will be added behind the same storage seam for teams that already operate one and do not want another file to back up. It will serve the same slices under the same limits with the same statements of what a limit left out, and every rule will still be computed by the shared arithmetic, so the new engine only stores and fetches rows and never re-derives churn, recurrence or drift on its own."
+ },
+ {
+  "readme": ".compass/variance-authority/retention/record/README.md",
+  "title": "A quiet run disappears when the service is down at write time",
+  "body": "If the history service is unreachable when a run finishes, the write fails with a warning and the run itself \u2014 including the run in which nothing moved \u2014 is never kept. Every later rate then divides by one run fewer, and nothing anywhere says so. The client should spool the write to local disk and replay it at the start of the next run, stating that it did, so the denominator is restored instead of quietly shrinking with every outage."
+ },
+ {
+  "readme": ".compass/variance-authority/retention/record/README.md",
+  "title": "Movement rows will be refused unless their run arrives in the same request",
+  "body": "Movement rows and the run they belong to travel together in one write per run. The contract will make that explicit: the service will refuse any movement row whose run is not in the same request, and refuse a run id it already holds. This closes the path where a retried client appends the same movement twice under one run \u2014 a duplicate an append-only store can never remove, and one that inflates every churn figure computed over it."
+ },
+ {
+  "readme": ".compass/variance-authority/retention/remote-baselines/README.md",
+  "title": "Streaming the working-set answer for very large suites",
+  "body": "A declared working set already becomes a single request. For a monorepo with forty thousand subjects, that single response is large enough to delay the first comparison by seconds. The client will accept the answer as a stream, handing each description onward as it arrives, while still failing the whole run on a truncated or malformed stream rather than reading the missing tail as subjects with nothing stored. The full lookup per moved subject is unchanged."
+ },
+ {
+  "readme": ".compass/variance-authority/retention/remote-baselines/README.md",
+  "title": "A URL one segment too high fails with no hint about the cause",
+  "body": "When the configured endpoint points one path segment above where the protocol is mounted, every request returns 404 and the run stops with an operator error saying only that the lookup failed. The outcome is right; the sentence is not useful. The client should probe a version route once at the start and, when that returns 404, say that the URL does not appear to serve the image protocol at all, naming the exact path it tried."
+ },
+ {
+  "readme": ".compass/variance-authority/retention/remote-baselines/README.md",
+  "title": "Every response will state the protocol version it speaks",
+  "body": "Construction deliberately performs no handshake, and that stays. Instead, every response will carry the protocol version the serving side speaks, and the client will refuse an answer whose version it does not recognise before parsing the body. The two halves are released together, but deployments are not upgraded together, and a quiet mismatch in wire format is precisely the failure that would otherwise surface as a comparison outcome instead of as an operator error."
+ },
+ {
+  "readme": ".compass/variance-authority/retention/render-cache/README.md",
+  "title": "Printing the hit rate of already-painted images",
+  "body": "Because a failing cache looks exactly like a cold one, an operator only discovers a broken cache by noticing a pipeline has slowed down. The run summary will print how many documents were looked up, how many were served from images already painted on this machine, and how many writes were attempted. Lookups still never throw; the change only counts, so the day a bucket permission changes the hit rate visibly drops to zero instead of hiding inside wall time."
+ },
+ {
+  "readme": ".compass/variance-authority/retention/render-cache/README.md",
+  "title": "Long-lived runners fill their disk with images nobody will reuse",
+  "body": "On a persistent CI machine the directory of already-painted images adds one entry per edit and nothing ever prunes it, until the disk fills and the runner fails for a reason that has nothing to do with visuals. Entries are worth nothing after the next edit, so the filesystem backend should evict least recently used entries once a size ceiling is reached, and that ceiling should be an operator setting with a stated default rather than unbounded growth."
+ },
+ {
+  "readme": ".compass/variance-authority/retention/render-cache/README.md",
+  "title": "Cache keys will name the recipe digest as its own field",
+  "body": "A hit is keyed by document digest under a renderer identity, and the holding-still recipe reaches the key only because it is folded into that identity. The key will name the recipe digest as a separate field, so a backend that serialises identity partially cannot collapse two recipes into one entry. By contract the cache still cannot produce a wrong image; this makes that property checkable field by field rather than resting on how each backend encodes identity."
+ },
+ {
+  "readme": ".compass/variance-authority/review/README.md",
+  "title": "Answering persistent causes once per branch",
+  "body": "Answers are given one build at a time. A branch pushed six times produces six builds, and the person deciding repeats the same approval each time a cause survives into the next push. A new view will list causes that persist across a branch's builds and let one answer apply to the latest build, writing one row per subject against that build only. Earlier builds stay unanswered; nothing is copied backward, and every row still carries the name of whoever gave it."
+ },
+ {
+  "readme": ".compass/variance-authority/review/README.md",
+  "title": "A failed image write after pressing approve leaves the person guessing",
+  "body": "When writing the promoted image through the store fails, the approval is correctly not stored, but the page receives a bare 500 and the button looks as if it was never pressed. People retry blindly, or give up believing the service is down. The response should say the image could not be written, carry the store's error, and state plainly that no approval exists yet, so the person knows that trying again is safe and what went wrong."
+ },
+ {
+  "readme": ".compass/variance-authority/review/README.md",
+  "title": "The approving secret will be bound to one project",
+  "body": "A deployment holds one secret that may upload evidence and one that may approve it. The contract will bind the approving secret to a project, so a deployment serving several projects cannot approve candidates in one using a credential issued for another. The two-secret split is unchanged; this narrows the damage a leaked approving token can do from the entire deployment to the one project it was issued for."
+ },
+ {
+  "readme": ".compass/variance-authority/review/build-store/README.md",
+  "title": "Comparing two uploads from the same branch",
+  "body": "Each uploaded run is read back on its own today. A new read will take two uploads from one branch and return the causes present in the later one that were absent from the earlier, and the ones that went away. It will reuse stored attributions only and never re-derive a cause, and a subject missing from one of the two uploads will be reported as missing rather than unchanged, so a push that skipped subjects is not mistaken for a fix."
+ },
+ {
+  "readme": ".compass/variance-authority/review/build-store/README.md",
+  "title": "An upload at a newer artifact version fails the pipeline with no way forward",
+  "body": "When a CI job running a newer CLI uploads a report version this deployment cannot read, the upload is refused, which is right. But the job fails the whole pipeline on that step, and the message does not say which versions the deployment accepts. The refusal should name the version sent, the versions understood, and the service release that reads the newer one, so the operator upgrades the service instead of pinning the CLI back."
+ },
+ {
+  "readme": ".compass/variance-authority/review/build-store/README.md",
+  "title": "Ties in the agenda will be broken deterministically",
+  "body": "Ordering causes by their own pixels puts the real edit ahead of a container that only reflowed, and that stays. Ties are common, though \u2014 a token change touching chips of identical size \u2014 and today their order is whatever the database returned. The rule will break ties first by the number of subjects that cause touches, then by component name in code-unit order, so two people opening the same upload see the same list in the same order."
+ },
+ {
+  "readme": ".compass/variance-authority/review/capability/README.md",
+  "title": "Rotating a secret without breaking every CI job",
+  "body": "A deployment is constructed with exactly two secrets, so rotating one means redeploying and breaking every job still holding the old value. The deployment will accept an optional previous value for each secret, valid until a stated instant and refused afterwards. The construction-time refusals extend to those previous values as well, so a rotation can never reintroduce a value that is weak or identical to the other role's current secret."
+ },
+ {
+  "readme": ".compass/variance-authority/review/capability/README.md",
+  "title": "A trailing newline lets two nearly identical secrets pass as distinct",
+  "body": "Operators often paste secrets out of files that end in a newline. The construction check compares raw strings, so an upload secret and an approving secret that differ only by that trailing newline pass as two values, and a single leaked string effectively grants both roles. Construction should refuse any secret containing whitespace, naming which of the two it was, instead of trimming it silently or treating it as a distinct value."
+ },
+ {
+  "readme": ".compass/variance-authority/review/capability/README.md",
+  "title": "Read-only history questions will need an explicit grant from policy",
+  "body": "Some history questions can be asked with either secret, as a named exception in the path table. That exception will become an explicit grant the operator's policy returns, so a deployment can decide the upload credential may not ask about churn or drift at all. The default stays as today; what changes is that the permission is stated by the policy where an operator can read it, rather than implied by which paths happen to be listed."
+ },
+ {
+  "readme": ".compass/variance-authority/review/decision/README.md",
+  "title": "Reverting an approval as a second row",
+  "body": "Once somebody approves, the only way back is to approve an older candidate from a later upload. A new answer, 'revert', will write the previous image back through the store and append a row saying who reverted what and why, leaving the original approval standing in history. It depends on the prior image still existing, so it will be refused by name when that image has expired rather than painting a substitute."
+ },
+ {
+  "readme": ".compass/variance-authority/review/decision/README.md",
+  "title": "The reason typed for a batch approval reaches only the first subject",
+  "body": "A person approving several subjects at once can type why, but the sentence is stored only against the first subject; the rest carry nothing, and the explanation for their images later reads as blank. Every row written by one batch should carry the same sentence, and the batch should be refused up front if the sentence cannot be stored for every subject it claims to cover, rather than half of them."
+ },
+ {
+  "readme": ".compass/variance-authority/review/decision/README.md",
+  "title": "A rejection will have to say why",
+  "body": "Approving and rejecting can both be done without a sentence. The rule will change so a rejection must carry one, because a rejected change is exactly what the author has to act on next, and a bare 'no' gives them nothing to act on. Approvals remain optional. A rejection without text will be refused with a 400 naming the missing field, before anything is stored."
+ },
+ {
+  "readme": ".compass/variance-authority/review/deployment-adapters/README.md",
+  "title": "A container image for the self-hosted process",
+  "body": "The file-and-socket host runs from the npm package today. A published OCI image will wrap it, with the data directory as a volume and every setting read from the environment, so a team can run it beside their CI without installing Node. The image adds no route, refusal or status code; it runs the same executable, and its health probe uses a path the handler already serves rather than a new one."
+ },
+ {
+  "readme": ".compass/variance-authority/review/deployment-adapters/README.md",
+  "title": "An unmigrated platform database fails the first request with a SQL error",
+  "body": "On the hosted platform the handler never migrates, which is right, but when an operator forgets to apply migrations the first request fails with a raw SQL error about a missing column. The mount should compare the stored schema version with the one it was built for on the first request, and answer with a sentence naming both versions and the command that applies the missing steps."
+ },
+ {
+  "readme": ".compass/variance-authority/review/deployment-adapters/README.md",
+  "title": "One body ceiling for every mount",
+  "body": "Only the socket host enforces a ceiling on request bodies; the platform and framework mounts rely on whatever their host happens to allow. The contract will move that ceiling into the shared handler's configuration, so all three mounts refuse an oversized upload with the same status and the same sentence. This keeps the existing promise that no mount adds a refusal of its own."
+ },
+ {
+  "readme": ".compass/variance-authority/review/identity/README.md",
+  "title": "A generic OpenID Connect verifier",
+  "body": "Only one provider's signed tokens are verified on a network host today. A generic OpenID Connect verifier will be added, configured by issuer and audience, fetching keys from the issuer's published set and caching them per isolate the same way. Absent configuration still means no page is drawn, and a half-configured provider \u2014 an issuer with no audience \u2014 will be refused by name at start rather than accepting tokens minted for any application."
+ },
+ {
+  "readme": ".compass/variance-authority/review/identity/README.md",
+  "title": "A key-fetch outage looks exactly like being logged out",
+  "body": "When the provider's published signing keys cannot be fetched, verification fails and the page simply is not drawn, exactly as for a visitor with no token. The person sees an empty page and blames their own login. The host should answer that the signing keys could not be fetched, naming the provider URL, and keep that separate from a token that was fetched and failed to verify."
+ },
+ {
+  "readme": ".compass/variance-authority/review/identity/README.md",
+  "title": "Loopback hosts will refuse a service-account name by default",
+  "body": "On a loopback bind the name on every approval defaults to the operating-system user running the process. On a shared build box that user is a service account, and every approval ends up carrying its name. The rule will refuse to draw the page when the default user looks like a service account \u2014 no home directory, or a name on a configured deny-list \u2014 until the operator sets a person's name explicitly."
+ },
+ {
+  "readme": ".compass/variance-authority/review/retention-sweep/README.md",
+  "title": "Estimating what a new window would remove",
+  "body": "Somebody changing the number of days to keep cannot see what the new value would delete until it already has. A dry-run flag will return the same four counts \u2014 uploads, subjects, objects, and approvals that would outlive their uploads \u2014 while removing nothing. It will go through the same cutoff code, so the estimate cannot disagree with the real pass, and it will require the same approving credential."
+ },
+ {
+  "readme": ".compass/variance-authority/review/retention-sweep/README.md",
+  "title": "An interrupted pass leaves rows whose objects are gone",
+  "body": "Objects are deleted before rows, so a pass interrupted halfway leaves rows pointing at missing objects, which then read back as damage. That is safe, but noisy: the next page load reports damage for uploads that were only being removed. The next pass should find rows whose objects are gone and whose upload is already past the window, remove them, and count them separately as finished from an earlier interrupted pass."
+ },
+ {
+  "readme": ".compass/variance-authority/review/retention-sweep/README.md",
+  "title": "Pinned uploads will survive the window",
+  "body": "Every upload older than the window is removed. Some matter longer \u2014 the one a release was cut from, the one cited in an incident write-up. An upload will be able to carry a pin, set only with the approving credential; pinned uploads will never be removed by age, and the counts returned will include how many pinned uploads were kept past the window, so the policy stays visible."
+ },
+ {
+  "readme": ".compass/variance-authority/review/review-router/README.md",
+  "title": "A path that lists what this deployment serves",
+  "body": "Clients currently discover what a deployment supports only by calling a path and reading the refusal. A new path will return the artifact versions accepted for upload, the storage protocol versions it re-serves, and the history questions either secret may ask. It sits behind authentication like every other path, and it is answered from the same table the dispatcher uses, so the listing cannot drift from what is actually served."
+ },
+ {
+  "readme": ".compass/variance-authority/review/review-router/README.md",
+  "title": "An unencoded slash in a subject name produces a not-found",
+  "body": "A subject name containing an unencoded slash splits into extra path segments, nothing matches, and an authenticated caller is told the path does not exist. What actually happened is a malformed argument. When a request under a known prefix fails to match, the handler should answer 400 saying the subject segment was not encoded, instead of a 404 that sends the caller looking for a path that was never wrong."
+ },
+ {
+  "readme": ".compass/variance-authority/review/review-router/README.md",
+  "title": "A 409 will name both lineages",
+  "body": "A lineage conflict answers 409 with a generic sentence. The contract will require the body to state the lineage the caller claimed and the one already held, as plain fields, so a CI retry can decide on its own whether to upload again or stop. The status code is unchanged; only what a caller with a valid credential learns from the refusal grows, and nothing changes for callers without one."
+ },
+ {
+  "readme": ".compass/variance-authority/review/review-surface/README.md",
+  "title": "Walking the agenda from the keyboard",
+  "body": "Answering thirty causes needs a mouse today. The page will bind keys to next and previous cause, to switching between before, after and difference images, and to approve and reject, with the reject key opening the reason field. Bindings will be listed on the page. No single key press answers anything without a visible confirmation of which subject and which cause the answer applies to."
+ },
+ {
+  "readme": ".compass/variance-authority/review/review-surface/README.md",
+  "title": "A copied subject link loses which upload it belonged to",
+  "body": "A link copied from a subject page carries the subject but not the upload, so a colleague opening it sees the latest upload's view, which may show a different candidate than the one being discussed. Every page address should include the upload, and a link without one should say which upload it picked and why, rather than silently rendering the newest one as if it were the same."
+ },
+ {
+  "readme": ".compass/variance-authority/review/review-surface/README.md",
+  "title": "Every missing number will be drawn with its reason",
+  "body": "A value that is unknown is already shown as a gap instead of a zero, and that stays. The rule will require each missing value to carry its reason on the page \u2014 not swept yet, coverage never stated, no component hashes in the stored image \u2014 instead of one generic dash. A dash tells the person nothing to do next; a reason tells them which run or which setting would fill the gap."
+ },
+ {
+  "readme": ".compass/variance-authority/runtime/README.md",
+  "title": "Narration from worker threads",
+  "body": "Product code running inside a Web Worker or a Node worker thread cannot see the page carrier or a request cookie, so what it says goes nowhere. A fourth resolution will let the parent realm hand a return address to the worker when it is constructed, so the same three calls inside worker code report home. A worker that was handed nothing still reports to nobody, which remains the honest answer."
+ },
+ {
+  "readme": ".compass/variance-authority/runtime/README.md",
+  "title": "A proxy that strips cookies silences a service with no warning",
+  "body": "When an ingress proxy drops unrecognised cookies, the journey id and return address never reach the service, so its narration goes nowhere and every crossing from that process is missing. The run should notice that a declared participant never reported and name it, together with the cookie pair it expected, rather than proceeding as though that service had simply had nothing to say."
+ },
+ {
+  "readme": ".compass/variance-authority/runtime/README.md",
+  "title": "No listening socket unless something will use it",
+  "body": "The driver opens an ephemeral loopback listener per execution whenever the fixtures load. The rule will change so a listener opens only once a participant has been declared or a watching process has attached, so a suite that uses none of this pays nothing for it \u2014 keeping the promise that the unused path costs no more than a property read and a return."
+ },
+ {
+  "readme": ".compass/variance-authority/runtime/announcements/README.md",
+  "title": "Waiting for the n-th time a coordinate is heard",
+  "body": "A test can wait until a coordinate has been heard. A new wait will settle once a coordinate has been heard a stated number of times \u2014 the third retry, the second save \u2014 ordered by arrival and never by clock. It will settle immediately from the log when the count was already reached, and on failure print every occurrence it did hear with its ordinal and the realm that spoke."
+ },
+ {
+  "readme": ".compass/variance-authority/runtime/announcements/README.md",
+  "title": "Unfinished work in a passing test is never mentioned",
+  "body": "Work that started and never ended is reported when a run ends, but only when the test failed. A passing test whose code opened a process and never closed it prints nothing, and the leak is found months later in production. Unfinished work should be listed for every test, passing ones included, as a remark rather than a failure, so it is named while the change that caused it is still recent."
+ },
+ {
+  "readme": ".compass/variance-authority/runtime/announcements/README.md",
+  "title": "The subject coordinate will be required",
+  "body": "The three coordinates are location, subject and action, and a missing subject is currently filled from the location. The contract will refuse a call without one \u2014 as an error under test and as a no-op in production \u2014 because two components sharing a location string otherwise become indistinguishable to a wait written against one of them, and that wait settles on the wrong component."
+ },
+ {
+  "readme": ".compass/variance-authority/runtime/attention/README.md",
+  "title": "Authorship for Vue component trees",
+  "body": "Provenance is taken from React's fiber tree today. A second reader will take authorship from Vue's component instance chain, copying the same fields in the same synchronous turn. A page with neither library will produce entries whose provenance is marked unobserved rather than left out, so a journal from a non-React application still lists which elements a test named, in order, and states why authorship is missing."
+ },
+ {
+  "readme": ".compass/variance-authority/runtime/attention/README.md",
+  "title": "A planned locator that is never used vanishes from the journal",
+  "body": "When a test builds a locator and then fails before using it, the planned locator is dropped and the journal ends at the last one consumed. That planned locator is exactly what somebody debugging the failure wants to see. Each one should appear with 'never consumed' as its outcome, so an incomplete journal shows where the test was heading when it stopped."
+ },
+ {
+  "readme": ".compass/variance-authority/runtime/attention/README.md",
+  "title": "Declared test phases will be checked for order",
+  "body": "Arrange, act and assert are kept only because the author declared them, and that stays. The rule adds one check: a journal whose declared phases go backwards \u2014 assert, then arrange \u2014 is marked incomplete with that as the reason. No phase is ever inferred, and nothing about how phases are declared changes; the change only refuses to present an out-of-order declaration as a clean three-part test."
+ },
+ {
+  "readme": ".compass/variance-authority/runtime/channel/README.md",
+  "title": "Unix-socket return addresses",
+  "body": "The driver listens on an ephemeral loopback HTTP port. On hosts where TCP loopback is filtered, a Unix domain socket path will be offered as the return address instead, guarded by the same rule \u2014 only an address the driver created \u2014 and carried the same way on a cookie. Participants still write the same line, and which transport a report used appears in the driver's diagnostics."
+ },
+ {
+  "readme": ".compass/variance-authority/runtime/channel/README.md",
+  "title": "Acknowledged delivery retries forever against a listener that exited",
+  "body": "When the driver's worker has already exited, a participant's acknowledged delivery keeps retrying until its own process is killed, holding the service's shutdown open indefinitely. Delivery should carry a total deadline tied to the execution, after which it rejects loudly with the address it could not reach, so a service under test always shuts down in bounded time, and the driver's diagnostics show which deliveries were abandoned."
+ },
+ {
+  "readme": ".compass/variance-authority/runtime/channel/README.md",
+  "title": "Journey cookies will be scoped to the path the driver started",
+  "body": "The journey and return-address cookies are set for the whole origin. The rule will scope them to the path of the request the driver began, whenever the driver knows it, so a parallel test navigating the same origin in another context cannot pick up a return address that belongs to a different execution and report into the wrong test. Where the path is unknown the cookies keep today's scope."
+ },
+ {
+  "readme": ".compass/variance-authority/runtime/scenario-archive/README.md",
+  "title": "Listing what is kept for one run",
+  "body": "An adopter can store and fetch one execution by its full address, but cannot ask what is kept for a run. A listing call will return, for a project and run, every admitted execution with its expiry instant and its read declaration, plus only a count of expired ones. It opens no object bodies, so it stays cheap and cannot leak kept text to a caller who should see only metadata."
+ },
+ {
+  "readme": ".compass/variance-authority/runtime/scenario-archive/README.md",
+  "title": "Expired text stays on disk because nobody calls collection",
+  "body": "Collecting expired evidence is a call somebody has to make, and in practice nobody makes it. Text past its expiry stays readable on disk even though every read correctly answers unobserved, and an adopter who promised deletion by a date is quietly out of compliance. Reads should keep answering as they do, and every write should report how many expired objects are still present."
+ },
+ {
+  "readme": ".compass/variance-authority/runtime/scenario-archive/README.md",
+  "title": "Admission will require a stated way to delete",
+  "body": "A policy declares expiry, access and a deletion method, but a policy whose deletion method is empty is accepted today. The rule will refuse such a policy at the door, because a promise to expire with no stated way to delete is one nobody can keep, and an adopter should learn that when the first object arrives rather than during an audit."
+ },
+ {
+  "readme": ".compass/variance-authority/runtime/scenarios/README.md",
+  "title": "Keeping profiles apart when folding paths",
+  "body": "The partial state machine is folded from executions without regard to the profile that read each precondition. A fold will be able to keep profiles separate, so a transition seen only at mobile width is labelled with that profile, and a destination that differs by profile is reported as divergent by profile rather than as an act with an unpredictable outcome."
+ },
+ {
+  "readme": ".compass/variance-authority/runtime/scenarios/README.md",
+  "title": "Matching tails after a parting are reported as unrelated",
+  "body": "When two paths part at act five, everything after is unmatched, and that stays. But if both then repeat the same eight acts, the comparison shows sixteen unmatched entries with no hint that the tails agree. It should keep refusing to align them, and additionally state that both tails share one key sequence, so a reader sees the parting was local rather than total."
+ },
+ {
+  "readme": ".compass/variance-authority/runtime/scenarios/README.md",
+  "title": "Act keys will be unique within a definition",
+  "body": "Acts are identified by their authored key, yet a definition with two acts sharing a key is accepted and aligned by occurrence. The contract will refuse such a definition at construction, naming both positions, because alignment by occurrence then decides identity by position \u2014 exactly what authored keys exist to prevent. Occurrence alignment remains for a key that legitimately repeats across executions, where the author meant the same act."
+ },
+ {
+  "readme": ".compass/variance-authority/runtime/watched-run/README.md",
+  "title": "A terminal viewer for a suite in flight",
+  "body": "A watching process can attach and read the snapshot, but nothing ships that draws it. A small CLI command will attach to the address and print the tests held, their state, and their unfinished work, refreshing whenever the snapshot changes. With nothing to show, it will print the variable to set and the address it looked at, instead of an empty screen."
+ },
+ {
+  "readme": ".compass/variance-authority/runtime/watched-run/README.md",
+  "title": "Attaching late shows tests with no beginning",
+  "body": "A process that attaches after a suite has started receives only later reports, so tests already running appear with no title or file, and some are listed as closed without ever having opened. The long-lived process already holds the whole snapshot, so it should send it in full on attach, with changes after it, and a late watcher should see the same run an early one does."
+ },
+ {
+  "readme": ".compass/variance-authority/runtime/watched-run/README.md",
+  "title": "Buffer sizes will be settings, stated in every snapshot",
+  "body": "Both buffers drop from the front, and the drops are counted. Their sizes are constants in code. The rule will make them environment settings, print the effective bounds in every snapshot, and refuse a value of zero, since a buffer that keeps nothing would report every event as dropped and look like a broken setup. A watcher reading an old snapshot should never have to guess which bounds applied when it was taken."
+ },
+ {
+  "readme": ".compass/variance-authority/stability/README.md",
+  "title": "Reserving a share of the investigation budget per subject",
+  "body": "Extra captures draw on one investigation budget per run. A subject's declaration will be able to reserve a share of it, so a known-fragile checkout page always gets its extra capture even when earlier subjects spent the budget. Unreserved budget is shared as before, and a reservation that could not be honoured is reported against the subject that asked for it."
+ },
+ {
+  "readme": ".compass/variance-authority/stability/README.md",
+  "title": "Agreeing documents with no pixel comparison read as trustworthy",
+  "body": "When two documents agree and no pixel comparison was taken, the subject is shown as agreeing with itself, although movement below the box tree was never looked at. It should be reported as unobserved at the pixel tier, so the report says 'documents agreed, pixels not compared' instead of implying the render itself was checked. A subject stays in that state until a run takes the pixel comparison, and the history counts it as unexamined, not as quiet."
+ },
+ {
+  "readme": ".compass/variance-authority/stability/README.md",
+  "title": "Every trust finding will name the instrument that produced it",
+  "body": "A finding reports that two captures of one subject disagreed. The contract will require it to name the instrument that found it \u2014 time advanced in a held page, or the page rebuilt from scratch \u2014 because the two point at different fixes: the component, or the suite's ordering. The report format will refuse a finding that does not carry its instrument."
+ },
+ {
+  "readme": ".compass/variance-authority/stability/arrival/README.md",
+  "title": "Settlement detection for Vue Suspense",
+  "body": "Only React boundaries are read for fallbacks and pending commits today. A reader for Vue's Suspense will report the same three states with the same counts, found by walking the component tree rather than by polling pixels. Pages with neither library still report unobserved, so adding Vue never turns a page nobody could read into one that waited successfully. Server-rendered pages still hydrating will be reported pending under either library."
+ },
+ {
+  "readme": ".compass/variance-authority/stability/arrival/README.md",
+  "title": "A lazy chunk that never loads is blamed on the boundary",
+  "body": "When a code-split route fails to fetch its chunk, the boundary shows its fallback forever and the subject is refused after the timeout. The refusal names the boundary but not that the pending work is a failed import. It should include any module request still unanswered under that boundary, so the fix points at the chunk and its URL, not at whoever wrote the boundary."
+ },
+ {
+  "readme": ".compass/variance-authority/stability/arrival/README.md",
+  "title": "The consecutive-clean-read guard will fold into render identity",
+  "body": "A subject counts as settled after a required number of consecutive clean reads. That number changes which frame is captured, yet two runs with different values compare as though equivalent. It will be folded into the recipe digest, so a change in the guard makes images incomparable instead of silently shifting what a stored image depicts. The value in force will also appear in each refusal sentence, so a reader sees what 'settled' meant for that run."
+ },
+ {
+  "readme": ".compass/variance-authority/stability/instability/README.md",
+  "title": "Pointing a disagreement at the change that preceded it",
+  "body": "A located disagreement names a component, a band and a line. It will also look up the last approved change to that component's file and, when the disagreement first appeared after it, name that commit. The lookup is labelled a lead, not a cause, and is omitted when history cannot answer, rather than guessed. A shallow clone or a file with no approved changes produces no lead and says which of the two it was."
+ },
+ {
+  "readme": ".compass/variance-authority/stability/instability/README.md",
+  "title": "A web font swap is blamed on the nearest text component",
+  "body": "When a web font finishes loading between two captures, glyph metrics change text box sizes, and the finding names the component around that text as the one that moved. The cause sits below the box tree. When every moved property is geometry driven by a font resolution difference, the finding should be classed as a font event naming the family, not attributed to a component's markup."
+ },
+ {
+  "readme": ".compass/variance-authority/stability/instability/README.md",
+  "title": "A guessed evidence shape will list what it ruled out",
+  "body": "A label for what kind of movement this was is offered only when a single explanation fits. The rule will require that guess to list the shapes that were considered and excluded, each with the fact that excluded it. A confident label with no visible alternatives is what sends somebody to the wrong file; listing the eliminated ones lets them check the reasoning at a glance."
+ },
+ {
+  "readme": ".compass/variance-authority/stability/isolated-reading/README.md",
+  "title": "Bisecting earlier subjects to find the polluter",
+  "body": "Re-running a changed subject in a clean page says the change was order dependence, but not who caused it. A follow-up will, within budget, replay halves of the preceding subjects into a fresh page before the victim, narrowing to the subject whose presence reproduces the change. It will stop and report the remaining range when the budget ends, never naming a culprit it did not isolate."
+ },
+ {
+  "readme": ".compass/variance-authority/stability/isolated-reading/README.md",
+  "title": "A collector with no clean-page method is reported as a spent budget",
+  "body": "When the collector cannot build a clean page, some runs print that the budget was exhausted, because the attempt counter reached zero. The operator raises the number and nothing changes. The message should say the collector lacks the method and name it, and attempts that could never run should not consume budget at all. The change keeps standing either way; only the sentence explaining why nothing was re-captured is corrected."
+ },
+ {
+  "readme": ".compass/variance-authority/stability/isolated-reading/README.md",
+  "title": "The clean-page pass will require an explicitly quiet first check",
+  "body": "The clean-page pass is skipped once the time-advanced check found something. The rule will go further: it runs only on subjects whose time-advanced check explicitly came back quiet, not on subjects where that check was skipped or returned unknown. An inference that depends on agreement cannot rest on a comparison nobody made, and the skipped subjects will be listed with the reason the clean-page pass did not run."
+ },
+ {
+  "readme": ".compass/variance-authority/stability/second-reading/README.md",
+  "title": "Re-capturing only the subtree that moved",
+  "body": "Capturing a subject again after a pause takes the whole document. For large pages, a capture of only the subtree that moved in the first comparison will be offered, digest-compared against the same subtree of the first capture. The question stays the same \u2014 did this subject agree with itself \u2014 at lower cost, and the whole document is used when the subtree cannot be located again."
+ },
+ {
+  "readme": ".compass/variance-authority/stability/second-reading/README.md",
+  "title": "A disagreement without snapshots is reported as agreement",
+  "body": "When a collector supplies documents but no snapshots, a sweep can prove two captures disagree by digest but cannot say where. Some runs then report the subject as trustworthy because no component was named. It should be reported as unstable with the location unknown, and the missing snapshot should be given as the reason nobody could name it. The occurrence still counts toward the subject's flake rate, with the component left empty rather than guessed."
+ },
+ {
+  "readme": ".compass/variance-authority/stability/second-reading/README.md",
+  "title": "The pause between captures will be stated in every result",
+  "body": "The two captures happen seconds apart, with the interval fixed in code. The interval decides what can be caught \u2014 a two-second ticker is missed by a one-second gap. It will become configurable per subject, be carried in each result, and history will only compare frequencies across runs that used the same interval. A subject with no declared interval keeps today's default, now written into its result."
+ },
+ {
+  "readme": ".compass/variance-authority/stability/stabilization/README.md",
+  "title": "An intervention that pins the page clock",
+  "body": "The shipped vocabulary covers animations, the caret, scrollbars, images and fonts. A clock intervention will pin the page's Date and advance timers only on request, with its own id and tier, scoped to the tiers that can see a timestamp. It folds into the recipe digest like every other value, so pinned and unpinned captures are incomparable rather than a regression."
+ },
+ {
+  "readme": ".compass/variance-authority/stability/stabilization/README.md",
+  "title": "Reordered conflicting interventions paint differently under one digest",
+  "body": "Ids are sorted before hashing so that the order a recipe was composed in never changes the render key. But when two interventions govern one property, they apply in recipe order and the later one wins, so two reordered recipes can paint differently while sharing a digest. When conflicting interventions are both present, their order should enter the digest, or the recipe should be refused outright. Recipes with no conflicting pair keep the sorted digest unchanged."
+ },
+ {
+  "readme": ".compass/variance-authority/stability/stabilization/README.md",
+  "title": "Blanked assets will be listed by name in the result",
+  "body": "Assets replaced on the wire are hashed into the environment inputs, which is enough for identity but opaque to a person. The rule will require the result to name every asset served as a blank, with the rule that matched it, so somebody looking at a capture can see which images are placeholders without decoding a digest. Assets served unmodified because their header could not be read will be listed beside them with that diagnostic."
+ },
+ {
+  "readme": ".compass/variance-authority/stability/standing-world/README.md",
+  "title": "Probing origin storage and cookie names between subjects",
+  "body": "The cheap probe taken around each subject covers stylesheets, variables on the root, attributes on html and body, leftover nodes, and the document title. It will also read origin storage keys and cookie names \u2014 never values \u2014 so a subject that persists a theme preference is named as a writer, and a later subject rendering from it is named as a reader linked by that key."
+ },
+ {
+  "readme": ".compass/variance-authority/stability/standing-world/README.md",
+  "title": "A modal that unmounts late is blamed on the next subject",
+  "body": "When a subject's modal unmounts asynchronously after the probe has run, its leftover node is first seen after the following subject, and that subject is recorded as the writer. The probe should wait for commits to stop before diffing, and when a stray node's owning component belongs to an earlier subject, name that subject instead. The wait must be bounded; a node still unowned after it should be reported as unattributed rather than pinned on whoever ran next."
+ },
+ {
+  "readme": ".compass/variance-authority/stability/standing-world/README.md",
+  "title": "Confirmation re-runs will default on for suspected subjects",
+  "body": "Confirmation by re-running at the end is sampled and opt-in. The rule will turn it on by default for any subject the always-on tier suspected, leaving it opt-in for the rest, since suspicion without confirmation over-reports and those subjects are exactly where a re-run earns its cost. The budget stays shared, the number confirmed is reported, and a suspicion left unconfirmed because the budget ran out says so in its sentence."
+ }
+]

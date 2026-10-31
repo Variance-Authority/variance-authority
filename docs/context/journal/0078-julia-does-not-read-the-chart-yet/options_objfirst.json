@@ -1,0 +1,13 @@
+{
+ "acquisition": "Storybook stories, served pages, test harnesses, live DOM and computed styles, unreachable states: drives an existing tool to a UI state and captures it without mounting components.",
+ "adjudication": "Snapshot differences, pixel diffs, ignore masks, root cause versus collateral, pass/fail verdict: compares two snapshots and names the responsible component and source line.",
+ "materialization": "Screenshots, pinned browser setup, remote rendering service, fonts and device settings, rendering-input hash: paints a serialized page into an image stamped with how it was produced.",
+ "normalization": "Canonical tree format, content hashes, node-to-source-line mapping, component ownership of nodes: converts raw DOM captures into comparable structure without I/O.",
+ "presentation": "Spacing, alignment, grouping, visual emphasis, repeated patterns in a single screen: measures layout relationships of one UI with no prior version to compare.",
+ "reach": "Import graph, per-test coverage data, affected tests and stories, skipped-item list: decides which UI states a code change could reach, naming everything left out.",
+ "report": "Versioned run output file, terminal summary, HTML page, pull-request comment, agent-facing tools: renders one run's results for readers without recomputing them.",
+ "retention": "Reference images, baseline history, rendering-environment keys, sign-off log, change and flakiness rates: keeps past results over time and computes trends from them.",
+ "review": "Approval web interface, reviewer identity, accept or reject per change, baseline replacement, upload permissions: lets a named person approve changes and update references.",
+ "runtime": "In-process events, execution IDs, trace context, which elements a test touched, code paths taken: streams signals from the running application while it is alive.",
+ "stability": "Loading and network idle, animations and clocks, repeated captures, nondeterministic rendering: checks whether a capture is trustworthy before anything is concluded."
+}
