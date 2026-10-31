@@ -106,6 +106,13 @@ export const TYPED =
   "A use is listed here only where its line writes the value's type. A use through an inferred value, a generic, a subtype by `extends`, " +
   "a JSX attribute, a utility type or an inline type literal is not: which type a value has is a type checker's answer, and none runs here.";
 
+/** Whose go-to-definition or go-to-implementation answers past what the bodies read here declare, by `checkerOf`'s answer. */
+export const CHECKER = {
+  typescript: "TypeScript's language service's",
+  other: "its language server's",
+  mixed: "each declaration's own language server's",
+} as const;
+
 /** Whose type checker answers for declarations in these files: TypeScript's for JavaScript and TypeScript alone, `other` for one other language, `mixed` for several. */
 export function checkerOf(files: readonly string[]): 'typescript' | 'other' | 'mixed' {
   const languages = new Set(files.map(languageOf));
@@ -143,7 +150,7 @@ export function routes(members: Members, spell: Spelling): readonly string[] {
   const which = only === undefined ? 'the declaration you mean' : `${only.at}:${only.line}`;
   const gap =
     `An implementation of \`${named && only !== undefined ? `${only.by}.${name}` : name}\` that takes its type from where it goes — an argument, a property, a returned value — ` +
-    `writes no type on its line and is not listed: ${checker === 'typescript' ? "TypeScript's" : "its language server's"} go-to-implementation on ${which} names it.`;
+    `writes no type on its line and is not listed: ${CHECKER[checker]} go-to-implementation on ${which} names it.`;
   const stop = membersStop(members);
   return ['', gap, TYPED, `${ask} on ${at}.`, ...(stop === undefined ? [] : [stop])];
 }

@@ -287,8 +287,9 @@ impl<'a> Visit<'a> for Walker<'_> {
 
     // The alias names its own body only: a type literal in a type parameter's
     // constraint is walked first and is not the alias. Its body is the literal
-    // it is, or each literal its intersection or union joins, as TypeScript
-    // reads `type X = Base & { m }` for `X.m`; a literal any deeper is not.
+    // it is, or each literal its intersection or union joins: TypeScript reads
+    // `type X = Base & { m }` for `X.m`, and a line writes a union's `u.m` once
+    // `u` is narrowed to the arm that declares `m`; a literal any deeper is not.
     fn visit_ts_type_alias_declaration(&mut self, it: &TSTypeAliasDeclaration<'a>) {
         if let Some(parameters) = &it.type_parameters { self.visit_ts_type_parameter_declaration(parameters); }
         let name = it.id.name.to_string();

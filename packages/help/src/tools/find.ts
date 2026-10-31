@@ -3,7 +3,7 @@ import { everyEntry } from '@variance-authority/package/help';
 import { importsByPath } from './by-path.js';
 import { says } from './declaration-key.js';
 import { DECLARED_CAP, declarations, declaredAt, isNested, notShown, unreadLine } from './declared.js';
-import { checkerOf, type Members, membersStop } from './members.js';
+import { CHECKER, checkerOf, type Members, membersStop } from './members.js';
 import type { Spelling } from '@variance-authority/mcp/tools';
 import { search } from './search.js';
 import { exportsNamed } from './unpublished.js';
@@ -148,13 +148,6 @@ export function unfound(help: Help, name: string, within: string | undefined, sp
 export class FoundNothing extends Error {
   override readonly name = 'FoundNothing';
 }
-
-/** Whose go-to-definition names a member the bodies read here do not declare, by the language its container is written in. */
-const CHECKER = {
-  typescript: "TypeScript's language service's",
-  other: "its language server's",
-  mixed: "each declaration's own language server's",
-} as const;
 
 /** Where a name is written that no reader here declares. */
 const AS_TEXT = 'A name written only as text, in a string or a comment, declares nothing: a text search such as `rg` finds it.';
