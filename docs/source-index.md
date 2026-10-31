@@ -118,9 +118,9 @@ variance run --against <ref>
 
 Each one reads the index as it was last published. Run `variance index` after
 the checkout changes and before them — in CI, as its own step after the cache
-restore. On a workstation, `variance select` also updates the index once when
-your change holds a source file the index has never seen, prints that in one
-line on stderr, and reads it.
+restore. On a workstation, `variance select`, and a runner's selection through
+it, also updates the index once when your change holds a source file the index
+has never seen, prints that in one line on stderr, and reads it.
 
 When a reader finds no index, or one it can read only up to a bad segment, the
 answer depends on where it runs. In CI it exits with an error that names

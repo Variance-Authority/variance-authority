@@ -2,7 +2,7 @@ import { execFileSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, realpathSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { digestString } from '@variance-authority/core/format';
 import { testCoverageFile, writeTestCoverage, type TestCoverage } from '@variance-authority/sense/test-selection';
 import { parseArgs } from '../parse.js';
@@ -10,6 +10,11 @@ import { answerConfigless, withoutConfig } from './configless.js';
 import { indexOutput } from './index-command.js';
 import { selectOutput } from './select-command.js';
 import { shardsOutput } from './shards-command.js';
+
+// These cases are a workstation's: there a reader updates an index that lacks
+// a changed file, and CI reads its index as published. `ci-info` decides CI
+// once, when it loads, so the module is cut rather than the variable stubbed.
+vi.mock('ci-info', () => ({ isCI: false }));
 
 /**
  * `variance select --at-distance` over a record written to disk and a graph
