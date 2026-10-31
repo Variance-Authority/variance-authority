@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 import { digestOfSha256, type Digest } from '@variance-authority/core/format';
+import { wordsOf } from './align.js';
 import type { DecodedImage } from './mask.js';
 
 /**
@@ -17,24 +18,13 @@ import type { DecodedImage } from './mask.js';
  * kept baseline a WebP of the same pixels, and the two encodings share nothing.
  */
 export function pixelDigest(image: DecodedImage): Digest {
-  // Not `digestBytes`: its SHA-256 is core's portable one, slow over megabytes,
-  // and it takes one buffer, where this streams the pixels to drop the colour
-  // under transparency without copying them.
-  const hash = createHash('sha256').update(`pixels\u0000${image.width}x${image.height}\u0000`);
-  const { data } = image;
-  let run = 0;
-  let clear = 0;
-  for (let at = 0; at < data.length; at += 4) {
-    if (data[at + 3] === 0) {
-      if (at > run) hash.update(data.subarray(run, at));
-      clear += 4;
-      run = at + 4;
-    } else if (clear > 0) {
-      hash.update(new Uint8Array(clear));
-      clear = 0;
-    }
-  }
-  if (data.length > run) hash.update(data.subarray(run));
-  if (clear > 0) hash.update(new Uint8Array(clear));
-  return digestOfSha256(hash.digest('hex'));
+  // Not `digestBytes`: its SHA-256 is core's portable one, slow over megabytes.
+  // The words are the comparison's own, so the two can never read pixels apart.
+  const words = wordsOf(image);
+  return digestOfSha256(
+    createHash('sha256')
+      .update(`pixels\u0000${image.width}x${image.height}\u0000`)
+      .update(new Uint8Array(words.buffer, words.byteOffset, words.byteLength))
+      .digest('hex'),
+  );
 }

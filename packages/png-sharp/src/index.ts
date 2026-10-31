@@ -1,5 +1,4 @@
 import sharp from 'sharp';
-import type { Digest } from '@variance-authority/core/format';
 import {
   imageFormat,
   pixelDigest,
@@ -57,13 +56,6 @@ export const sharpDecoder: PngDecoder = {
   },
 };
 
-/** What a store keeps for an accepted capture: the bytes, and the digest of the pixels they decode to. */
-export interface KeptImage {
-  readonly bytes: Buffer;
-  /** `pixelDigest` of the kept pixels, so a comparison against them can skip decoding them. */
-  readonly pixels: Digest;
-}
-
 /**
  * The bytes a store keeps for an accepted capture: a lossless WebP at effort 2,
  * 73% smaller than the PNG in about 170 ms a page (#860), decoded back before
@@ -76,7 +68,7 @@ export interface KeptImage {
  * The pixels decoded back are the ones digested, so the digest is of what was
  * kept.
  */
-export async function keepImage(bytes: Buffer): Promise<KeptImage> {
+export async function keepImage(bytes: Buffer): Promise<{ readonly bytes: Buffer; readonly pixels: ReturnType<typeof pixelDigest> }> {
   const format = imageFormat(bytes);
   if (format === 'webp') {
     refuseUnkept(bytes);

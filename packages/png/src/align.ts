@@ -62,9 +62,6 @@ export function alignRows(
   limit = ALIGNMENT_LIMIT,
 ): AlignedRows | undefined {
   if (before.width !== after.width) return undefined;
-  // Two captures of an unchanged page: every row pairs with itself, known from
-  // one native comparison rather than a pass over the rows in words.
-  if (before.height === after.height && Buffer.compare(before.data, after.data) === 0) return unchanged(after.height);
 
   const width = after.width;
   const was = wordsOf(before);
@@ -106,13 +103,6 @@ export function alignRows(
 
   const rows = pairing(left, right, script, after.height, (from, to) => differing(was, from, now, to, width));
   return explainsMore(rows, was, now, before.height, after.height, width, head) ? rows : undefined;
-}
-
-/** The pairing of two equal images: each row with itself, and nothing moved. */
-function unchanged(height: number): AlignedRows {
-  const source = new Int32Array(height);
-  for (let y = 0; y < height; y += 1) source[y] = y;
-  return { source, inserted: [], removed: [], shifted: [], grown: [], shrunk: [] };
 }
 
 /**
@@ -208,7 +198,7 @@ function runsOf(rows: Float64Array): Runs {
  * drops that colour, no comparison sees it, so neither may a row's identity.
  * The words are little-endian, so alpha is the top byte.
  */
-function wordsOf({ width, height, data }: DecodedImage): Uint32Array {
+export function wordsOf({ width, height, data }: DecodedImage): Uint32Array {
   const words =
     data.byteOffset % 4 === 0
       ? new Uint32Array(data.buffer, data.byteOffset, width * height)
@@ -226,11 +216,15 @@ function hidden(word: number): boolean {
   return word !== 0 && word < 0x01000000;
 }
 
+/** Whether two rows hold the same words, compared natively rather than word by word. */
 function same(left: Uint32Array, leftRow: number, right: Uint32Array, rightRow: number, width: number): boolean {
-  const from = leftRow * width;
-  const to = rightRow * width;
-  for (let x = 0; x < width; x += 1) if (left[from + x] !== right[to + x]) return false;
-  return true;
+  const bytes = width * 4;
+  return (
+    Buffer.compare(
+      Buffer.from(left.buffer, left.byteOffset + leftRow * bytes, bytes),
+      Buffer.from(right.buffer, right.byteOffset + rightRow * bytes, bytes),
+    ) === 0
+  );
 }
 
 /**

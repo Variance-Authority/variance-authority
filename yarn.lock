@@ -5344,7 +5344,6 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@variance-authority/png-sharp@workspace:packages/png-sharp"
   dependencies:
-    "@variance-authority/core": "workspace:^"
     "@variance-authority/png": "workspace:^"
     pngjs: "npm:^7.0.0"
     sharp: "npm:^0.34.4"
