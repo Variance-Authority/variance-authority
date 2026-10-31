@@ -52,6 +52,14 @@ pub(crate) fn smudge(root: &str, path: &str, commit: &str, blob: &[u8]) -> Resul
     // A pointer is a few hundred bytes, well under a pipe buffer.
     let written = child.stdin.take().map(|mut pipe| pipe.write_all(blob));
     let output = child.wait_with_output().map_err(|error| refused(&error.to_string()))?;
+    // git-lfs answers with the pointer itself, and succeeds, where it was told
+    // not to smudge: `GIT_LFS_SKIP_SMUDGE`, or a path `lfs.fetchexclude` or
+    // `lfs.fetchinclude` leaves out with no object in the local store.
+    if output.status.success() && matches!(written, Some(Ok(()))) && pointer(&output.stdout) {
+        return Err(refused(
+            "git lfs smudge gave the pointer back, as it does under `GIT_LFS_SKIP_SMUDGE` or for a path `lfs.fetchexclude` or `lfs.fetchinclude` leaves out",
+        ));
+    }
     if output.status.success() && matches!(written, Some(Ok(()))) {
         return Ok(output.stdout);
     }

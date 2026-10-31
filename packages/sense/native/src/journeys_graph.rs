@@ -74,14 +74,49 @@ fn bare(value: &str) -> bool {
     !value.starts_with('.') && !value.starts_with('/')
 }
 
+/// Every source file whose text at a commit is not the checkout's: the ones
+/// that differ, as they were there, and the ones the commit never held. A file
+/// it does not name is the same on disk.
+#[derive(Debug)]
+pub(crate) struct Then {
+    changed: HashMap<String, Option<String>>,
+    /// Untracked and ignored paths, a directory as one entry ending in `/`.
+    untracked: Vec<String>,
+}
+
+impl Then {
+    /// `Some(None)` for a file the commit did not hold, `Some(text)` for one
+    /// that differs, and `None` for one the checkout holds as the commit did.
+    pub(crate) fn get(&self, file: &str) -> Option<&Option<String>> {
+        const ABSENT: &Option<String> = &None;
+        self.changed.get(file).or_else(|| {
+            let outside = self.untracked.iter().any(|path| path == file || (path.ends_with('/') && file.starts_with(path.as_str())));
+            outside.then_some(ABSENT)
+        })
+    }
+
+    #[cfg(test)]
+    pub(crate) fn contains_key(&self, file: &str) -> bool {
+        self.get(file).is_some()
+    }
+}
+
 /// The text of every source file that differs between `commit` and the
 /// working tree, as it was at `commit`: `None` for a file that did not exist
-/// there, as the diff names it by an object of all zeros. One diff, and the
-/// objects it names read together as [`contents`] reads them; a file not in the
-/// map is the same on disk. Renames are not detected: a file moved since the
-/// commit is a path the commit did not have, and the path it had is read from
-/// there under its own name.
-pub(crate) fn text_at(root: &str, commit: &str) -> Result<HashMap<String, Option<String>>, String> {
+/// there, as the diff names it by an object of all zeros, or as git lists it
+/// untracked or ignored, which the diff never names. One diff, and the objects
+/// it names read together as [`contents`] reads them. Renames are not
+/// detected: a file moved since the commit is a path the commit did not have,
+/// and the path it had is read from there under its own name.
+pub(crate) fn text_at(root: &str, commit: &str) -> Result<Then, String> {
+    let others = ["ls-files", "-z", "--others", "--directory", "--no-empty-directory"];
+    let (changed, untracked) = rayon::join(|| changed_at(root, commit), || crate::git::answer(root, &others, None));
+    let untracked = untracked.map_err(|why| format!("git could not list the files it does not track: {why}"))?;
+    let untracked = untracked.split(|&byte| byte == 0).filter(|path| !path.is_empty()).map(|path| String::from_utf8_lossy(path).into_owned()).collect();
+    Ok(Then { changed: changed?, untracked })
+}
+
+fn changed_at(root: &str, commit: &str) -> Result<HashMap<String, Option<String>>, String> {
     let args = ["-c", "core.quotePath=false", "diff", "--raw", "--no-abbrev", "--no-renames", "-z", "--relative", commit];
     let listed = match crate::git::answer(root, &args, None) {
         Ok(listed) => listed,
