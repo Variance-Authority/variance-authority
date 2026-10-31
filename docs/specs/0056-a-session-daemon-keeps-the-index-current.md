@@ -36,6 +36,8 @@ own. It is a client of the one that runs:
     This is the size of the tick.
 - **Watchman.** Where the repository's `core.fsmonitor` is the Watchman hook, the
   daemon subscribes to Watchman directly. Watchman pushes, so there is no tick.
+  Without the daemon, a reader asks the same watch at the question
+  ([spec 0107](0107-the-index-asks-watchman-what-moved.md)).
 - **Neither.** On a host with neither, for example Linux without Watchman, where
   git ships no builtin monitor, the daemon falls back to `git status` on each
   tick. Its first line says so and states what one status costs. It never
