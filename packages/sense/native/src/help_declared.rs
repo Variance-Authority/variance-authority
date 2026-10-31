@@ -115,7 +115,7 @@ pub(crate) enum Matching {
     Exact,
     /// The name, lowercased, contains `query`, which the caller lowercased, or
     /// the doc comment above it does, read as prose, or writes it as a phrase
-    /// by [`crate::dependency_lexicon::purposes::phrase`]'s rule.
+    /// by [`crate::dependency_lexicon::purposes::writes_run`]'s rule.
     Containing,
     /// The words of the name and of its doc, cut into stems as the dependency
     /// lexicon cuts a package's words, hold any of `stems` — the question's —

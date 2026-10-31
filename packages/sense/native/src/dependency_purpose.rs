@@ -189,7 +189,7 @@ pub(crate) fn near(query: &str, text: &str) -> u32 {
     pairs.iter().filter(|pair| writes(&said, &at, &pair[..]).is_some()).count() as u32
 }
 
-/// The run [`phrase`] asks of every text for `query`, cut once: `None` when the
+/// The run [`writes_run`] asks of every text for `query`, cut once: `None` when the
 /// question holds fewer than two distinct stems, which is no phrase.
 pub(crate) fn phrase_run(query: &str) -> Option<Vec<(u32, String)>> {
     let asked = asked_run(query);
@@ -202,12 +202,6 @@ pub(crate) fn writes_run(run: &[(u32, String)], text: &str) -> Option<u32> {
     let run: Vec<(u32, &str)> = run.iter().map(|(place, stem)| (*place, stem.as_str())).collect();
     let said = placed(text);
     writes(&said, &by_place(&said), &run)
-}
-
-/// The first paragraph of `text` that writes the whole of `query`'s run of two
-/// distinct stems or more, read by [`writes`]; `None` when no paragraph does.
-pub(crate) fn phrase(query: &str, text: &str) -> Option<u32> {
-    writes_run(&phrase_run(query)?, text)
 }
 
 fn sorted(mut words: Vec<String>) -> Vec<String> { words.sort_unstable(); words.dedup(); words }
@@ -254,7 +248,12 @@ pub(super) fn purpose(root: &Path, runtime: &Option<Identity>, declarations: &Op
 
 #[cfg(test)]
 mod tests {
-    use super::{near, phrase, stem};
+    use super::{near, phrase_run, stem, writes_run};
+
+    /// The first paragraph of `text` that writes `query`'s run, cut for this one text.
+    fn phrase(query: &str, text: &str) -> Option<u32> {
+        writes_run(&phrase_run(query)?, text)
+    }
 
     #[test]
     fn a_word_between_two_of_the_question_parts_them() {
