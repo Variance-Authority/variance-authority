@@ -13,7 +13,15 @@
  */
 
 import { digestString } from '@variance-authority/core/format';
-import { textAtRecording } from '@variance-authority/sense/test-selection';
+import { readTextsAt } from '@variance-authority/sense/test-selection';
+
+/** The modules {@link cutElsewhere} cannot compare, by why. */
+export interface CutElsewhere {
+  /** Cut from another text than the commit holds, or from one nobody knew. */
+  readonly elsewhere: readonly string[];
+  /** Git could not give the text at the commit, with git's reason, by module. */
+  readonly unread: ReadonlyMap<string, string>;
+}
 
 /**
  * The modules of `modules` whose text at `at` is not the one `texts` says
@@ -21,21 +29,26 @@ import { textAtRecording } from '@variance-authority/sense/test-selection';
  * that names texts is spelled as sets, whose modules stand in code-unit order
  * of path. A module `texts` does not
  * name was cut from a text nobody knew, and one `at` does not hold has no
- * lines there to stand on, so both are among them. With no `texts` at all, as
- * in a layer written before it named them, none is: that says nothing either
- * way, and the layer is compared as it always was.
+ * lines there to stand on, so both are among them. One git could not give the
+ * text of is not compared either, and carries git's reason. With no `texts` at
+ * all, as in a layer written before it named them, none is: that says nothing
+ * either way, and the layer is compared as it always was.
  */
 export function cutElsewhere(
   modules: readonly string[],
   texts: Readonly<Record<string, string>> | undefined,
   at: string,
   root: string,
-): readonly string[] {
-  if (texts === undefined) return [];
-  const textAt = textAtRecording(root, modules);
-  return modules.filter((file) => {
-    const cut = texts[file];
-    const text = cut === undefined ? undefined : textAt(file, at);
-    return text === undefined || digestString(text) !== cut;
+): CutElsewhere {
+  if (texts === undefined) return { elsewhere: [], unread: new Map() };
+  const named = modules.filter((file) => texts[file] !== undefined);
+  const read = named.length === 0 ? undefined : readTextsAt(root, new Map([[at, named]]));
+  const held = read?.texts.get(at);
+  const unread = read?.refused.get(at) ?? new Map<string, string>();
+  const elsewhere = modules.filter((file) => {
+    if (unread.has(file)) return false;
+    const text = texts[file] === undefined ? undefined : held?.get(file);
+    return text === undefined || digestString(text) !== texts[file];
   });
+  return { elsewhere, unread: new Map(modules.flatMap((file) => (unread.has(file) ? [[file, unread.get(file)!] as const] : []))) };
 }

@@ -20,7 +20,7 @@ const NOT_CARRIED = 'the record does not say where that run stood, so not which 
 
 
 /** What a stand at a commit this clone does not hold says of a file, in git's words with the fetch that brings it. */
-const HELD_NOT = "commit ffffffffffff is not in this checkout's object store. Fetch it with `git fetch origin ffffffffffffffffffffffffffffffffffffffff`, or check out with `fetch-depth: 0`";
+const HELD_NOT = "commit ffffffffffff is not in this checkout's object store. Fetch it with `git fetch origin ffffffffffffffffffffffffffffffffffffffff`, or check out every commit: `fetch-depth: 0` with `filter: tree:0` on `actions/checkout`";
 const UNREAD = (file: string): RegExp => new RegExp(`^git could not give the text of ${file.replaceAll('.', '\\.')} where that run stood: commit ffffffffffff is not in this checkout's object store`);
 
 describe('a covering answer says when the test files it names last ran, and over which text', () => {

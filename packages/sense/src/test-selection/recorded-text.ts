@@ -209,8 +209,8 @@ function unanswered(expected: readonly string[], from: number, width: number, an
 }
 
 /**
- * Paths at several commits from one `git cat-file --batch`, by commit and then
- * path, leaving out a path the commit does not hold.
+ * Paths at several commits, read as {@link readTextsAt} reads them, by commit
+ * and then path, leaving out a path the commit does not hold.
  *
  * For a reader that wants a few paths at each of a few commits at once — the
  * manifests and the lockfile where each group of tests last ran — which
@@ -229,7 +229,7 @@ interface CommitTexts {
 }
 
 /**
- * Paths at each commit, from one `git cat-file --batch`, by commit and then
+ * Paths at each commit, read by the addon, by commit and then
  * path, leaving out a path the commit does not hold, and naming git's reason
  * for each one it could not read: a commit or a blob this clone lacks, or a
  * git-LFS pointer with no content here. For a reader that names the gap and

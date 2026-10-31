@@ -204,7 +204,7 @@ describe('variance index', () => {
 
     const { code, out } = await run(['index']);
 
-    expect(out.split('\n')).toContain("journeys: not prepared: commit 0123456789ab is not in this checkout's object store. Fetch it with `git fetch origin 0123456789abcdef0123456789abcdef01234567`, or check out with `fetch-depth: 0`");
+    expect(out.split('\n')).toContain("journeys: not prepared: commit 0123456789ab is not in this checkout's object store. Fetch it with `git fetch origin 0123456789abcdef0123456789abcdef01234567`, or check out every commit: `fetch-depth: 0` with `filter: tree:0` on `actions/checkout`");
     expect(out).toContain('questions: published at');
     expect(code).toBe(EXIT_OPERATOR);
   });

@@ -234,7 +234,7 @@ export interface NativeScanner extends NativeOrientMaps, NativeDependencyLexicon
    */
   resolveSources?(root: string, file: string, sources: string[], listed?: string[], tsconfig?: string | false): string[];
   /**
-   * `paths[at]` at `commits[at]`, from one `git cat-file --batch`, as columns, leaving out a path the commit does not hold, and
+   * `paths[at]` at `commits[at]`, read at each commit through the addon, as columns, leaving out a path the commit does not hold, and
    * refusing one git could not read with git's reason. Throws with git's reason when git answers nothing at all.
    */
   textsAt?(root: string, commits: string[], paths: string[][]): { commit: number[]; file: string[]; text: string[]; refusedCommit: number[]; refusedFile: string[]; refused: string[] };

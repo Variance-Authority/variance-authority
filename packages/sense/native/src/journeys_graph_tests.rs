@@ -143,7 +143,8 @@ fn a_file_moved_since_the_commit_is_read_under_the_path_the_commit_had() {
     assert_eq!(
         missing,
         "commit 0123456789ab is not in this checkout's object store. \
-         Fetch it with `git fetch origin 0123456789abcdef0123456789abcdef01234567`, or check out with `fetch-depth: 0`"
+         Fetch it with `git fetch origin 0123456789abcdef0123456789abcdef01234567`, or check out every commit: \
+         `fetch-depth: 0` with `filter: tree:0` on `actions/checkout`"
     );
     std::fs::remove_dir_all(&root).unwrap();
 }

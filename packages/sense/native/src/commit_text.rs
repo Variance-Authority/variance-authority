@@ -150,7 +150,8 @@ pub(crate) fn absent(root: &str, commit: &str) -> Option<String> {
     (!known).then(|| {
         format!(
             "commit {} is not in this checkout's object store. \
-             Fetch it with `git fetch origin {commit}`, or check out with `fetch-depth: 0`",
+             Fetch it with `git fetch origin {commit}`, or check out every commit: \
+             `fetch-depth: 0` with `filter: tree:0` on `actions/checkout`",
             short(commit)
         )
     })

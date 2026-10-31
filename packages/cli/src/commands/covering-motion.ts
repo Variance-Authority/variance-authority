@@ -67,6 +67,12 @@ export interface CoveringMotion {
    */
   readonly unmeasured?: readonly string[];
   /**
+   * Modules git could not give the text of at the commit they are compared
+   * from, each with git's reason. They are not compared. Absent when there are
+   * none.
+   */
+  readonly unreadText?: readonly { readonly file: string; readonly why: string }[];
+  /**
    * The file naming the run that wrote the case index last, when it is there
    * and could not be read. Which files a run at this commit wrote is then not
    * known, so nothing is compared.
@@ -193,15 +199,16 @@ async function againstBefore(
   const cased = held.modules
     .filter((module) => (file === undefined || module.file === file) && module.blocks.some((block) => block.crossings.length > 0))
     .map((module) => module.file);
-  const elsewhere = cutElsewhere(cased, lastCaseRunOf(sections)?.beforeTexts, commit, root);
+  const { elsewhere, unread: unreadText } = cutElsewhere(cased, lastCaseRunOf(sections)?.beforeTexts, commit, root);
   const asked = new Set(cases);
   const now = keepCases(full, asked);
   // A case of a file no run here ran retains an earlier recording, which stands
   // at both ends. A case a run here recorded says nothing of what came before.
   const retained = keepCases(full, new Set(full.tests.filter((test) => !asked.has(test.id) && !ran.has(test.file)).map((test) => test.id)));
-  const exclude = new Set([...(parting?.files ?? []), ...elsewhere]);
+  const exclude = new Set([...(parting?.files ?? []), ...elsewhere, ...unreadText.keys()]);
   const moved = caseMotion(held, now, { ...(await graphFor(now, root)), ...carriedOver(await runs(), repository), exclude, retained, diff });
-  return { base, moved: file === undefined ? moved : within(moved, file), ...(elsewhere.length === 0 ? {} : { unmeasured: elsewhere }) };
+  return { base, moved: file === undefined ? moved : within(moved, file), ...(elsewhere.length === 0 ? {} : { unmeasured: elsewhere }),
+    ...(unreadText.size === 0 ? {} : { unreadText: [...unreadText].map(([path, why]) => ({ file: path, why })) }) };
 }
 
 /** The before layer, as a refusal names it, and why it can name no commit. */
@@ -370,6 +377,7 @@ export function motionText(
       listedOf(motion.unmeasured, listed, 'file')
     }.`);
   }
+  for (const { file, why } of motion.unreadText ?? []) lines.push(`Not compared, ${file}: ${why}`);
   lines.push(...unwritten);
   return lines;
 }
