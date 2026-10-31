@@ -62,6 +62,9 @@ export function alignRows(
   limit = ALIGNMENT_LIMIT,
 ): AlignedRows | undefined {
   if (before.width !== after.width) return undefined;
+  // Two captures of an unchanged page: every row pairs with itself, known from
+  // one native comparison rather than a pass over the rows in words.
+  if (before.height === after.height && Buffer.compare(before.data, after.data) === 0) return unchanged(after.height);
 
   const width = after.width;
   const was = wordsOf(before);
@@ -103,6 +106,13 @@ export function alignRows(
 
   const rows = pairing(left, right, script, after.height, (from, to) => differing(was, from, now, to, width));
   return explainsMore(rows, was, now, before.height, after.height, width, head) ? rows : undefined;
+}
+
+/** The pairing of two equal images: each row with itself, and nothing moved. */
+function unchanged(height: number): AlignedRows {
+  const source = new Int32Array(height);
+  for (let y = 0; y < height; y += 1) source[y] = y;
+  return { source, inserted: [], removed: [], shifted: [], grown: [], shrunk: [] };
 }
 
 /**

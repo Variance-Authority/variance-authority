@@ -1,5 +1,5 @@
 import { PNG } from 'pngjs';
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import type { Raster, RenderIdentity } from '@variance-authority/core/format';
 import {
   compareRasters,
@@ -9,14 +9,6 @@ import {
   type DecodedImage,
   type PngDecoder,
 } from './index.js';
-import { alignRows } from './align.js';
-
-// Wrapped, not replaced: every comparison aligns as it would, and the one of
-// equal pixels is held to aligning nothing.
-vi.mock('./align.js', async (actual) => {
-  const module = await actual<typeof import('./align.js')>();
-  return { ...module, alignRows: vi.fn(module.alignRows) };
-});
 
 /**
  * A kept baseline records the digest of its pixels, and a comparison whose
@@ -130,9 +122,8 @@ describe('comparing a capture with a baseline that records its pixel digest', ()
 });
 
 describe('a comparison of two images', () => {
-  it('of equal pixels is the comparison of nothing, found without reading a row', () => {
+  it('of equal pixels is the comparison of nothing', () => {
     const copy = { ...GRADIENT, data: Buffer.from(GRADIENT.data) };
-    vi.mocked(alignRows).mockClear();
 
     expect(comparePixels(GRADIENT, copy)).toEqual({
       width: 24,
@@ -145,6 +136,5 @@ describe('a comparison of two images', () => {
       mask: { width: 24, height: 16, data: new Uint8Array(24 * 16), changed: 0 },
       alignment: { inserted: [], removed: [], shifted: [] },
     });
-    expect(alignRows).not.toHaveBeenCalled();
   });
 });

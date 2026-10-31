@@ -285,3 +285,21 @@ function changedRows(mask: Uint8Array, width: number): number[] {
   }
   return [...rows].sort((a, b) => a - b);
 }
+
+describe('two equal captures', () => {
+  it('pair every row with itself, and move none', () => {
+    const before = column([1, 1, 2, 3, 3, 3]);
+    const after = column([1, 1, 2, 3, 3, 3]);
+
+    const rows = alignRows(before, after);
+
+    expect(rows && { ...rows, source: [...rows.source] }).toEqual({
+      source: [0, 1, 2, 3, 4, 5],
+      inserted: [],
+      removed: [],
+      shifted: [],
+      grown: [],
+      shrunk: [],
+    });
+  });
+});

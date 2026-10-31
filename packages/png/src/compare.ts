@@ -130,12 +130,6 @@ export function comparePixels(
 
   const policies = options.policies ?? [DEFAULT_POLICY, STRICT_POLICY];
   const isolateWith = options.isolateWith ?? DEFAULT_POLICY;
-  // Equal pixels compare to nothing under every policy, and each row pairs with
-  // itself: the answer is known without aligning a row or matching a pixel, and
-  // aligning the rows is most of what a comparison costs.
-  if (!dimensionsChanged && (left === right || Buffer.compare(left.data, right.data) === 0)) {
-    return nothingChanged(right, policies, isolateWith);
-  }
   // Once for every policy: the pairing is a fact about the two images, and the
   // policies differ only in what they call a different pixel.
   const rows = alignRows(left, right) ?? null;
@@ -159,7 +153,13 @@ export function comparePixels(
     if (policy.id === isolateWith.id) mask = maskOf(out.data, width, height, out.changed);
   }
 
-  if (mask === undefined) throw isolationMissing(policies, isolateWith);
+  if (mask === undefined) {
+    throw new Error(
+      `isolation policy "${isolateWith.id}" was not among the compared policies ` +
+        `(${policies.map((p) => p.id).join(', ')}); the mask would describe a different ` +
+        'comparison from the counts beside it',
+    );
+  }
 
   return {
     width,
@@ -172,31 +172,6 @@ export function comparePixels(
     mask,
     ...(alignment === undefined ? {} : { alignment }),
   };
-}
-
-/** The comparison of equal pixels: nothing differs, and no row moved. */
-function nothingChanged(image: DecodedImage, policies: readonly DiffPolicy[], isolateWith: DiffPolicy): RasterComparison {
-  if (!policies.some((policy) => policy.id === isolateWith.id)) throw isolationMissing(policies, isolateWith);
-  const { width, height } = image;
-  return {
-    width,
-    height,
-    dimensionsChanged: false,
-    before: { width, height },
-    after: { width, height },
-    changed: Object.fromEntries(policies.map((policy) => [policy.id, 0])),
-    total: width * height,
-    mask: { width, height, data: new Uint8Array(width * height), changed: 0 },
-    alignment: { inserted: [], removed: [], shifted: [] },
-  };
-}
-
-function isolationMissing(policies: readonly DiffPolicy[], isolateWith: DiffPolicy): Error {
-  return new Error(
-    `isolation policy "${isolateWith.id}" was not among the compared policies ` +
-      `(${policies.map((p) => p.id).join(', ')}); the mask would describe a different ` +
-      'comparison from the counts beside it',
-  );
 }
 
 function maskOf(
