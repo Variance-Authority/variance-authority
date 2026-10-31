@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync, mkdirSync, readFileSync, realpathSync, symlinkSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, relative } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -320,6 +320,19 @@ describe('the commit a diff is measured from', () => {
 
     const tops = readFileSync(trace, 'utf8').split('\n').filter((line) => line.includes('"event":"start"') && line.includes('"--show-toplevel"'));
     expect(tops).toHaveLength(1);
+  });
+
+  it('fails with git\'s reason when the lockfile at a commit does not read, rather than answering it absent', async () => {
+    const root = realpathSync(mkdtempSync(join(tmpdir(), 'va-since-')));
+    repo(root);
+    commit(root, { 'yarn.lock': '# the install\n', 'src/a.ts': 'export const a = 0;\n' }, 'run');
+    const head = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).trim();
+    const lockfile = execFileSync('git', ['rev-parse', `${head}:yarn.lock`], { cwd: root, encoding: 'utf8' }).trim();
+    rmSync(join(root, '.git', 'objects', lockfile.slice(0, 2), lockfile.slice(2)));
+    writeFileSync(join(root, 'src/a.ts'), 'export const a = 1;\n');
+    const point = await commitPoint(head, [], root);
+
+    await expect(installDiffs([{ point, changed: ['src/a.ts'] }], root)).rejects.toThrow(/git could not read the files asked about at commit [0-9a-f]{12}/);
   });
 
   it('reads the lockfile at every commit a group of tests last ran at from one git process', async () => {

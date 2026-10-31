@@ -1,4 +1,5 @@
 import { execFileSync } from 'node:child_process';
+import { mkdtempSync, rmSync } from 'node:fs';
 import { mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -201,7 +202,26 @@ describe('editsBetween', () => {
   });
 
   it('has no edit when a text cannot be found', () => {
-    expect(editsBetween('/nowhere', undefined, ['0'.repeat(40)])('src/a.ts', 'v1:one', 'v1:two')).toBeUndefined();
+    // A repository whose one commit holds neither text.
+    const root = mkdtempSync(join(tmpdir(), 'variance-region-edit-'));
+    try {
+      execFileSync('git', ['init', '--quiet'], { cwd: root });
+      execFileSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '--quiet', '--allow-empty', '--message', 'empty'], { cwd: root });
+      const commit = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).trim();
+      expect(editsBetween(root, undefined, [commit])('src/a.ts', 'v1:one', 'v1:two')).toBeUndefined();
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it('fails naming the commit the texts were recorded at when the clone does not hold it, rather than finding no edit', () => {
+    const root = mkdtempSync(join(tmpdir(), 'variance-region-edit-'));
+    try {
+      execFileSync('git', ['init', '--quiet'], { cwd: root });
+      expect(() => editsBetween(root, undefined, ['0'.repeat(40)])('src/a.ts', 'v1:one', 'v1:two')).toThrow(/commit 000000000000 is not in this checkout's object store/);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
   });
 
   describe('between texts named by git', () => {

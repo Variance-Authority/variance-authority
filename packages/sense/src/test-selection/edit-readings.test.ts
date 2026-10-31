@@ -126,8 +126,8 @@ describe.runIf(nativeAvailable())('reading the edit under a run', () => {
     expect(readings.get(editKey(FILE, digestString(BEFORE), digestString(AFTER)))).toBe('bodies');
   });
 
-  it('has no reading when the text the rows were cut from is nowhere to be had', async () => {
-    expect(await readingOf(AFTER, '2222222222222222222222222222222222222222')).toBeUndefined();
+  it('fails naming the commit the rows were cut at when the clone does not hold it, rather than reading nothing', async () => {
+    await expect(readingOf(AFTER, '2222222222222222222222222222222222222222')).rejects.toThrow(/commit 222222222222 is not in this checkout's object store/);
   });
 
   it('reads a body edit that binds a new import as a load, since a landing holds no graph', async () => {

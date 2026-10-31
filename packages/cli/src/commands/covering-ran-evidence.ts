@@ -11,17 +11,16 @@
 
 import { realpath } from 'node:fs/promises';
 import { join, relative, sep } from 'node:path';
-import { existedAt } from '@variance-authority/sense';
 import {
-  blobsAt,
   blocksOfTarget,
   editsBetween,
   keptTexts,
   placeAcross,
   placeInTexts,
   readsTheSnapshot,
+  readBlobsAt,
+  readTextsAt,
   regionTouched,
-  textsAt,
   type Edit,
   type ExecutionIndex,
   type HeldNames,
@@ -103,7 +102,8 @@ export interface EvidenceQuestion {
 
 /**
  * Read what the runs' verdicts need: the committed texts at every commit a run
- * stood at, which asked files those commits lack, the kept texts the runs name when a region is asked, and the
+ * stood at, which asked files those commits lack, git's reason for each it
+ * could not read, the kept texts the runs name when a region is asked, and the
  * snapshot's placements when a run wrote it — the question's own for one
  * file, else read for each held text.
  *
@@ -119,29 +119,35 @@ export async function evidenceOf(runs: readonly TestPlace[], held: ReadonlyMap<s
   const committed = new Map<string, Map<string, string>>();
   const names = new Map<string, Map<string, string>>();
   const absent = new Map<string, Set<string>>();
+  const refused = new Map<string, Map<string, string>>();
   if (repository !== undefined) {
     const under = relative(await realpath(repository), await realpath(root));
     const repoPath = (file: string): string => (under === '' ? file : join(under, file).split(sep).join('/'));
     const commits = [...new Set([...placed.flatMap((run) => run.commit ?? []), ...(question.at ?? [])])];
-    const named = files.length === 0 ? new Map<string, Map<string, string>>() : blobsAt(repository, new Map(commits.map((commit) => [commit, files.map(repoPath)])));
+    const named = readBlobsAt(repository, new Map(commits.map((commit) => [commit, files.map(repoPath)])));
     const toRead = (commit: string): string[] => files.filter((file) => {
-      const name = named.get(commit)?.get(repoPath(file));
+      const name = named.texts.get(commit)?.get(repoPath(file));
       return name !== undefined && name !== held.get(file)!.blob;
     });
-    const blobs = textsAt(repository, new Map(commits.map((commit) => [commit, toRead(commit).map(repoPath)])));
+    const read = readTextsAt(repository, new Map(commits.map((commit) => [commit, toRead(commit).map(repoPath)])));
     for (const commit of commits) {
-      const texts = blobs.get(commit);
+      const texts = read.texts.get(commit);
+      const why = read.refused.get(commit);
       committed.set(commit, new Map(files.flatMap((file) => {
         const text = texts?.get(repoPath(file));
         return text === undefined ? [] : [[file, text] as const];
       })));
       names.set(commit, new Map(files.flatMap((file) => {
-        const name = named.get(commit)?.get(repoPath(file));
+        const name = named.texts.get(commit)?.get(repoPath(file));
         return name === undefined ? [] : [[file, name] as const];
       })));
-      // No text or name read is a file the commit lacks, or a commit or a blob this clone lacks: git's tree tells them apart.
-      const lacks = files.filter((file) => texts?.get(repoPath(file)) === undefined && names.get(commit)?.get(file) === undefined &&
-        existedAt(repository, commit, repoPath(file)) === false);
+      const refusals = files.flatMap((file) => {
+        const reason = named.refused.get(commit)?.get(repoPath(file)) ?? why?.get(repoPath(file));
+        return reason === undefined ? [] : [[file, reason] as const];
+      });
+      if (refusals.length > 0) refused.set(commit, new Map(refusals));
+      // A file git neither named nor refused is one the commit's tree does not list.
+      const lacks = files.filter((file) => names.get(commit)?.has(file) !== true && !refused.get(commit)?.has(file));
       if (lacks.length > 0) absent.set(commit, new Set(lacks));
     }
   }
@@ -174,7 +180,7 @@ export async function evidenceOf(runs: readonly TestPlace[], held: ReadonlyMap<s
     inHand.set(`${file}\0${to.name}`, to.text);
     return edits(file, from.name, to.name)!;
   };
-  return { repository: repository !== undefined, committed, blobs: names, absent, kept, last, placements, ranOther: question.ranOther, rows: question.rows, across, edit };
+  return { repository: repository !== undefined, committed, blobs: names, absent, refused, kept, last, placements, ranOther: question.ranOther, rows: question.rows, across, edit };
 }
 
 /**

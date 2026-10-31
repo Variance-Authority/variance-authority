@@ -219,7 +219,9 @@
       ".": {
         "CaptureArtifact": "interface",
         "CaptureMaterial": "type",
+        "LFS_POINTER_HEAD_BYTES": "const",
         "didYouMean": "function",
+        "isLfsPointer": "function",
         "nearest": "function"
       },
       "./format": {
@@ -3365,6 +3367,7 @@
         "ranWhileLoading": "function",
         "rankDistillCauses": "function",
         "reachOf": "function",
+        "readBlobsAt": "function",
         "readCommitRuns": "function",
         "readDistillRecords": "function",
         "readFetchedMainline": "function",
@@ -3373,6 +3376,7 @@
         "readRowlessFromView": "function",
         "readSplit": "function",
         "readTestCoverage": "function",
+        "readTextsAt": "function",
         "readableTestCoverage": "function",
         "readingFrom": "function",
         "readingLines": "function",
@@ -3813,12 +3817,10 @@
       "./lfs": {
         "CommandResult": "interface",
         "CommandRunner": "type",
-        "LFS_POINTER_HEAD_BYTES": "const",
         "LfsStore": "interface",
         "LfsStoreOptions": "interface",
         "LfsTracking": "interface",
         "createLfsStore": "function",
-        "isLfsPointer": "function",
         "lfsSetup": "function",
         "runCommand": "const"
       },

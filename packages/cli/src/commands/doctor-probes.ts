@@ -1,6 +1,7 @@
 import { access, open, readdir, readFile, stat } from 'node:fs/promises';
 import type { Dirent } from 'node:fs';
 import { join } from 'node:path';
+import { isLfsPointer, LFS_POINTER_HEAD_BYTES } from '@variance-authority/core';
 import {
   digestOfFileName,
   identityDigest,
@@ -63,7 +64,7 @@ export interface DoctorProbes {
    * record `baselines.path` places, and in each identity directory. Nothing
    * else is opened, because a collocated root is the repository, and an LFS
    * file that is no baseline is not a baseline the run would refuse. The
-   * signature is the store's own (`isLfsPointer`), so doctor finds exactly what
+   * signature is the store's own (core's `isLfsPointer`), so doctor finds exactly what
    * the run would refuse — which is none of them where git-lfs is set up in the
    * root's work tree, since there the run fetches each image it compares.
    */
@@ -147,7 +148,7 @@ export function machineProbes(config: Config): DoctorProbes {
       }
     },
     pointers: async (root) => {
-      const { isLfsPointer, LFS_POINTER_HEAD_BYTES, lfsSetup, runCommand } = await import(
+      const { lfsSetup, runCommand } = await import(
         '@variance-authority/store/lfs'
       );
       const found: string[] = [];

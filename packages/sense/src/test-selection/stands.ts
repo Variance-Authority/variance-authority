@@ -50,6 +50,7 @@ import { testPlaces } from './test-places.js';
 import { askCoverageFile } from './coverage-file.js';
 import { nearestFirst, type TestDistance } from './distance.js';
 import type { ExecutionNarrowing, SelectionReason } from './narrowing.js';
+import { native } from '../addon.js';
 
 /** One git invocation, answering its stdout and throwing when git fails. */
 export type Git = (...args: string[]) => string;
@@ -108,6 +109,15 @@ export interface StandReading {
  * `core.quotePath` says, and a trimmed line loses a path's own leading space.
  */
 const paths = (text: string): string[] => text.split('\0').filter((path) => path !== '');
+
+/** Why `commit` cannot be diffed when this clone does not hold it, with the fetch that brings it, as `commit_text.rs` words it. */
+function heldNot(git: Git, commit: string): string | undefined {
+  try {
+    return native()?.commitAbsent?.(git('rev-parse', '--show-toplevel').trim(), commit) ?? undefined;
+  } catch {
+    return undefined;
+  }
+}
 
 /** Whether `ancestor` is in the history of `commit`, asked of git. */
 function isAncestor(git: Git, ancestor: string, commit: string): boolean {
@@ -239,13 +249,14 @@ export function readingFrom({
       const installed = runs?.commit === commit ? installOfStand(runs, stand, standing) : undefined;
       read.push({ commit: stand, tests: standing, changed, whole: stand === merged ? changed : [], ...(installed === undefined ? {} : { installed }) });
     } catch {
+      const why = heldNot(git, stand);
       return {
         base: commit,
         from: stand,
         stands: [],
         says: `${reason}${said}`,
         ...also,
-        widened: `git could not diff ${stand.slice(0, 12)}, where ${standing.length} test(s) last ran, against ${at}`,
+        widened: `git could not diff ${stand.slice(0, 12)}, where ${standing.length} test(s) last ran, against ${at}${why === undefined ? '' : `: ${why}`}`,
       };
     }
   }

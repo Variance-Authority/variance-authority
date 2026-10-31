@@ -72,7 +72,8 @@
 import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { native } from '../addon.js';
+import { isLfsPointer } from '@variance-authority/core';
+import { native, nativeRefusal } from '../addon.js';
 import { blobName } from '../digest.js';
 
 /**
@@ -172,7 +173,7 @@ export function textAtRecording(
     if (from === -1) {
       outside += 1;
       if (outside > 1 && listing === undefined) listing = listed(root, commit);
-      return (listing ? unchangedOnDisk(root, listing, file) : undefined) ?? batch(root, new Map([[commit, [file]]]), true).get(commit)!.get(file);
+      return (listing ? unchangedOnDisk(root, listing, file) : undefined) ?? textsAt(root, new Map([[commit, [file]]])).get(commit)!.get(file);
     }
     // Any other path opens a window over it and the paths after it not yet
     // answered: the selector asks a few paths ahead of the rest, so a window can
@@ -184,7 +185,7 @@ export function textAtRecording(
     // resident together.
     held = new Map();
     asked = new Set(window);
-    held = batch(root, new Map([[commit, window]]), true).get(commit)!;
+    held = textsAt(root, new Map([[commit, window]])).get(commit)!;
 
     let bytes = 0;
     for (const text of held.values()) bytes += text.length;
@@ -208,127 +209,76 @@ function unanswered(expected: readonly string[], from: number, width: number, an
 }
 
 /**
- * Paths at several commits from one `git cat-file --batch`, by commit and then
- * path, leaving out a path the commit does not hold.
+ * Paths at several commits, read as {@link readTextsAt} reads them, by commit
+ * and then path, leaving out a path the commit does not hold.
  *
  * For a reader that wants a few paths at each of a few commits at once — the
  * manifests and the lockfile where each group of tests last ran — which
  * `textAtRecording` would read a process per commit.
  */
 export function textsAt(root: string, asked: ReadonlyMap<string, Iterable<string>>): Map<string, Map<string, string>> {
-  return batch(root, new Map([...asked].map(([commit, files]) => [commit, [...new Set(files)]])), true);
+  return answered(readTextsAt(root, asked));
+}
+
+/** The texts {@link readTextsAt} read, and why git could not give the others, each by commit and then path. */
+interface CommitTexts {
+  readonly texts: Map<string, Map<string, string>>;
+  readonly refused: Map<string, Map<string, string>>;
 }
 
 /**
- * The git blob name, `git:<sha>`, of paths at several commits, by commit and
- * then path, leaving out a path the commit does not hold: {@link textsAt}'s
- * read without the bodies, so a reader that only asks whether two commits hold
- * the same text reads none. The name is git's, in the repository's own hash.
+ * Paths at each commit, read by the addon, by commit and then
+ * path, leaving out a path the commit does not hold, and naming git's reason
+ * for each one it could not read: a commit or a blob this clone lacks, or a
+ * git-LFS pointer with no content here. For a reader that names the gap and
+ * answers the rest, where {@link textsAt} fails on the first. The addon reads
+ * them, as `commit_text.rs` describes: in a partial clone it fetches the blobs
+ * a read names together first, and it gives a git-LFS pointer as its content.
  */
+export function readTextsAt(root: string, asked: ReadonlyMap<string, Iterable<string>>): CommitTexts {
+  return columns(root, asked, native()?.textsAt);
+}
+
+/**
+ * The git blob name, `git:<object>`, of paths at several commits, by commit
+ * and then path, leaving out a path the commit does not hold, and naming git's
+ * reason for each commit it could not list: {@link readTextsAt}'s read without
+ * the bodies, so a reader that only asks whether two commits hold the same text
+ * reads none. The name is git's, in the repository's own hash.
+ */
+export function readBlobsAt(root: string, asked: ReadonlyMap<string, Iterable<string>>): CommitTexts {
+  return columns(root, asked, native()?.blobsAt);
+}
+
+/** {@link readBlobsAt}'s names, failing on the first path git could not list. */
 export function blobsAt(root: string, asked: ReadonlyMap<string, Iterable<string>>): Map<string, Map<string, string>> {
-  return batch(root, new Map([...asked].map(([commit, files]) => [commit, [...new Set(files)]])), false);
+  return answered(readBlobsAt(root, asked));
 }
 
-/**
- * Checkouts the addon found no promisor remote in. Whether a clone is partial
- * is settled when it is cloned, so it is asked once per checkout rather than
- * once for every window that answers a path missing.
- */
-const whole = new Set<string>();
+type Columns = (root: string, commits: string[], paths: string[][]) => { commit: number[]; file: string[]; text: string[]; refusedCommit: number[]; refusedFile: string[]; refused: string[] };
 
-/**
- * Paths at each commit, from one process — and in a partial clone, a second
- * for the paths it had not fetched yet, after fetching each commit's together.
- *
- * `cat-file --batch` fetches each object a partial clone lacks in a request of
- * its own, a network round trip per path. So with the addon at hand the first
- * read does not fetch, and the addon fetches what it answered missing
- * together, as `promisor.rs` describes. A path still missing after that is one
- * the commit does not hold. Without the addon the read fetches as git does by
- * default: slower in a partial clone, and the same answers.
- */
-function batch(root: string, asked: ReadonlyMap<string, readonly string[]>, bodies: boolean): Map<string, Map<string, string>> {
-  const fetchMissingAt = whole.has(root) ? undefined : native()?.fetchMissingAt;
-  const { texts, missing } = read(root, asked, fetchMissingAt === undefined, bodies);
-  const fetched = new Map<string, string[]>();
-  for (const [commit, files] of missing) {
-    const answer = fetchMissingAt?.(root, commit, files);
-    if (answer === false) {
-      whole.add(root);
-      break;
-    }
-    if (answer === true) fetched.set(commit, files);
+/** `asked` read by the addon's `read`, from its columns into maps by commit and then path. */
+function columns(root: string, asked: ReadonlyMap<string, Iterable<string>>, read: Columns | undefined): CommitTexts {
+  if (read === undefined) throw new Error(`the text at a recording is read by the native addon, which ${nativeRefusal() || 'is older than this package'}`);
+  const commits = [...asked.keys()];
+  const texts = new Map(commits.map((commit) => [commit, new Map<string, string>()]));
+  const refused = new Map<string, Map<string, string>>();
+  if (commits.length === 0) return { texts, refused };
+  const found = read(root, commits, [...asked.values()].map((files) => [...new Set(files)]));
+  for (let at = 0; at < found.file.length; at += 1) {
+    texts.get(commits[found.commit[at]!]!)!.set(found.file[at]!, found.text[at]!);
   }
-  for (const [commit, found] of read(root, fetched, true, bodies).texts) {
-    for (const [file, text] of found) texts.get(commit)?.set(file, text);
+  for (let at = 0; at < found.refusedFile.length; at += 1) {
+    const commit = commits[found.refusedCommit[at]!]!;
+    refused.set(commit, (refused.get(commit) ?? new Map()).set(found.refusedFile[at]!, found.refused[at]!));
   }
+  return { texts, refused };
+}
+
+/** The texts or names read, failing on the first path git could not read. */
+function answered({ texts, refused }: CommitTexts): Map<string, Map<string, string>> {
+  for (const why of refused.values()) for (const reason of why.values()) throw new Error(reason);
   return texts;
-}
-
-/**
- * `asked` from one `cat-file --batch`, with the paths it answered missing:
- * each path's text, or without `bodies` its blob name from `--batch-check`.
- * Without `fetch`, an object a partial clone has not fetched is answered
- * missing too.
- *
- * `--batch` writes `<sha> <type> <size>\n<size bytes>\n` per found object and
- * `<spec> missing\n` per absent one, so the sizes are read rather than the
- * newlines guessed at — a source file holding the word `missing` on a line of
- * its own would otherwise end the object early.
- */
-function read(
-  root: string,
-  asked: ReadonlyMap<string, readonly string[]>,
-  fetch: boolean,
-  bodies: boolean,
-): { texts: Map<string, Map<string, string>>; missing: Map<string, string[]> } {
-  const texts = new Map([...asked.keys()].map((commit) => [commit, new Map<string, string>()]));
-  const missing = new Map<string, string[]>();
-  const specs = [...asked].flatMap(([commit, files]) => files.map((file) => ({ commit, file })));
-  if (specs.length === 0) return { texts, missing };
-
-  let output: Buffer;
-  try {
-    output = execFileSync('git', ['cat-file', bodies ? '--batch' : '--batch-check'], {
-      cwd: root,
-      input: specs.map(({ commit, file }) => `${commit}:${file}\n`).join(''),
-      maxBuffer: 1 << 30,
-      stdio: ['pipe', 'pipe', 'ignore'],
-      ...(fetch ? {} : { env: { ...process.env, GIT_NO_LAZY_FETCH: '1' } }),
-    });
-  } catch {
-    // Git before 2.44 does not answer `missing` for an object lazy fetching
-    // would have fetched: it stops at the first one, fatally. So a read that
-    // did not fetch answers every path missing, and the caller fetches them
-    // together. Otherwise this is not a checkout, no such commit, or no git;
-    // every module then reads as unverified, which widens rather than narrows,
-    // and is the direction this whole subsystem is allowed to fail in.
-    return { texts, missing: fetch ? missing : new Map([...asked].map(([commit, files]) => [commit, [...files]])) };
-  }
-
-  let at = 0;
-  for (const { commit, file } of specs) {
-    const newline = output.indexOf(0x0a, at);
-    if (newline === -1) break;
-    const header = output.toString('utf8', at, newline);
-    at = newline + 1;
-    // `<spec> missing` carries no size and no body, so the next header starts
-    // where this line ended.
-    const size = Number(header.slice(header.lastIndexOf(' ') + 1));
-    if (!Number.isFinite(size)) {
-      if (header.endsWith(' missing')) missing.set(commit, [...(missing.get(commit) ?? []), file]);
-      continue;
-    }
-    // Advance past the body whatever its type, so one path that is somehow not a
-    // blob costs its own answer and not every answer after it.
-    if (header.endsWith(` blob ${size}`)) {
-      texts.get(commit)!.set(file, bodies ? output.toString('utf8', at, at + size) : `git:${header.slice(0, header.indexOf(' '))}`);
-    }
-    // The object, then the newline `--batch` writes after it; `--batch-check` writes neither.
-    if (bodies) at += size + 1;
-  }
-
-  return { texts, missing };
 }
 
 /**
@@ -367,7 +317,8 @@ function listed(root: string, commit: string): Listing | null {
  * The text on disk at `file`, when its bytes are the blob the listed commit
  * holds there. `undefined` otherwise, for the caller to ask git: a path the
  * listing does not hold, one that is not a regular file there, or one whose
- * bytes on disk moved or are gone.
+ * bytes on disk moved or are gone, or one whose blob is a git-LFS pointer, which
+ * git smudges or refuses rather than this answering the pointer as the text.
  */
 function unchangedOnDisk(root: string, listing: Listing, file: string): string | undefined {
   const { bytes, starts } = listing;
@@ -391,7 +342,7 @@ function unchangedOnDisk(root: string, listing: Listing, file: string): string |
       } catch {
         return undefined;
       }
-      return blobName(text, object.length) === object ? text.toString('utf8') : undefined;
+      return blobName(text, object.length) === object && !isLfsPointer(text) ? text.toString('utf8') : undefined;
     }
   }
   return undefined;

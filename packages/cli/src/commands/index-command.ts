@@ -27,11 +27,9 @@
  * on. In CI, under
  * `--wait`, or when `main` is called as a library, they are made in this process.
  *
- * One line per artifact on stdout, because the step's output is read by the
- * person looking at a pipeline log: where the index is, how many files it holds
- * and how many this run had to read again; then what the code map holds, or why
- * there is none; then per suite what the walk found, or why it was not made; then
- * the lexicon and the published value, or why each is not.
+ * One line per artifact on stdout, for the person reading a pipeline log: the
+ * index, the code map, each suite's walk, the lexicon and the value, each with
+ * what it holds or why it is not. A walk git could not make is told to `failed`.
  */
 
 import {
@@ -49,7 +47,7 @@ import {
   type SourceUpdate,
 } from '@variance-authority/sense';
 import { OperatorError } from '../exit.js';
-import { followUpsLogPath, holdFollowUps, readiedFollowUps, releaseFollowUps, reserveFollowUps, waitingLine, type Detach } from './index-follow-ups.js';
+import { followUpsLogPath, heldBy, holdFollowUps, readiedFollowUps, releaseFollowUps, reserveFollowUps, waitingLine, type Detach } from './index-follow-ups.js';
 
 export type { Detach } from './index-follow-ups.js';
 
@@ -67,6 +65,11 @@ export interface IndexRequest {
   readonly waiting?: (text: string) => void;
   /** Told each step as it starts and ends: the update's own, then each follow-up's, which run at once. */
   readonly progress?: Progress;
+  /**
+   * Told why, once per suite, when a walk could not be made: a fault, never the
+   * absence of a recording. Detached follow-ups tell their own process's caller.
+   */
+  readonly failed?: (why: string) => void;
 }
 
 export async function indexOutput(request: IndexRequest): Promise<string> {
@@ -79,7 +82,7 @@ export async function indexOutput(request: IndexRequest): Promise<string> {
     const pid = request.detach(['index', '--follow-ups', ...(request.noGit ? ['--no-git'] : [])], log);
     if (pid === undefined) return `${[describe(update), ...(await followUps(request, update))].join('\n')}\n`;
     holdFollowUps(index, { pid, log });
-    return `${describe(update)}\nfollow-ups: the code map, the journeys, the dependency lexicon and the questions are being made by process ${pid}, and the next variance command that reads them waits for it; their lines are written to ${log}\n`;
+    return `${describe(update)}\nfollow-ups: the code map, the journeys, the dependency lexicon and the questions are being made by process ${pid}, and the next variance command that reads them waits for it, and exits as the operator's when a walk git could not read failed; their lines are written to ${log}\n`;
   } finally {
     // A no-op once the lock is handed on: it is then the process's to let go.
     releaseFollowUps(index, process.pid);
@@ -123,13 +126,18 @@ function turnLine({ pid, root }: IndexTurnHolder): string {
  * What a detached `index` runs: the update again, which finds the index it was
  * handed and writes nothing, for the listing of the checkout it carries; then
  * the follow-ups, the lock marked once the index is readied; then the lock is
- * let go. A process that failed keeps it, so the next command that reads the
- * follow-ups finds its holder gone and makes them itself.
+ * let go. A walk git could not read marks the lock with why instead, for the
+ * next command that reads the follow-ups to tell: nobody reads this process's
+ * exit. A process that threw keeps the lock unmarked, so that command finds its
+ * holder gone and makes them itself.
  */
 export async function followUpsOutput(request: Omit<IndexRequest, 'detach'>): Promise<string> {
   const index = sourceIndexPath(request.cwd);
-  const output = await inline(request, () => readiedFollowUps(index, process.pid));
-  releaseFollowUps(index, process.pid);
+  const failed: string[] = [];
+  const output = await inline({ ...request, failed: (why) => { failed.push(why); request.failed?.(why); } }, () => readiedFollowUps(index, process.pid));
+  const held = heldBy(index);
+  if (failed.length > 0 && held?.pid === process.pid) holdFollowUps(index, { ...held, failed });
+  else releaseFollowUps(index, process.pid);
   return output;
 }
 
@@ -146,7 +154,7 @@ async function followUps(request: IndexRequest, update: SourceUpdate, readied?: 
     // the update wrote and nothing another writes, so they are made at once.
     const [map, walks, names, questions] = await Promise.all([
       stepped(progress, 'writing the code map', () => codeMap(cwd, update)),
-      stepped(progress, 'writing the journeys', () => journeys(cwd, update)),
+      stepped(progress, 'writing the journeys', () => journeys(cwd, update, request.failed)),
       stepped(progress, 'writing the dependency lexicon', () => lexicon(cwd)),
       stepped(progress, 'writing the questions', () => answerable(cwd, update.path, noGit, progress)),
     ]);
@@ -200,12 +208,17 @@ async function lexicon(root: string): Promise<string> {
  * were made from. They carry the update's listing of the
  * checkout rather than asking git again.
  */
-async function journeys(cwd: string, update: SourceUpdate): Promise<readonly string[]> {
+async function journeys(cwd: string, update: SourceUpdate, failed?: (why: string) => void): Promise<readonly string[]> {
+  let prepared: readonly PreparedJourneys[];
   try {
-    return (await prepareJourneys(cwd, update.path, update)).map(journeysLine);
+    prepared = await prepareJourneys(cwd, update.path, update);
   } catch (error) {
-    return [`journeys: not prepared: ${error instanceof Error ? error.message : String(error)}`];
+    const why = error instanceof Error ? error.message : String(error);
+    failed?.(why);
+    return [`journeys: not prepared: ${why}`];
   }
+  for (const one of prepared) if ('failed' in one) failed?.(one.failed);
+  return prepared.map(journeysLine);
 }
 
 /** A share as a whole percent; a share that rounds to nothing but is not nothing is `<1%`. */
@@ -214,29 +227,27 @@ function percent(part: number, whole: number): string {
   return part > 0 && share < 0.5 ? '<1%' : `${Math.round(share)}%`;
 }
 
+/** `n` and its unit, the unit in the singular for one. */
+function count(n: number, unit: string): string {
+  return `${n} ${n === 1 ? unit : `${unit}s`}`;
+}
+
 /** The line `variance index` prints for one suite's journeys, and why they were not prepared when they were not. */
 export function journeysLine(one: PreparedJourneys): string {
   const named = one.suite === undefined ? 'journeys' : `journeys, suite ${one.suite}`;
   if ('unprepared' in one) return `${named}: not prepared: ${one.unprepared}`;
+  if ('failed' in one) return `${named}: not prepared: ${one.failed}`;
   const { prepared } = one;
   const share = prepared.functionsEntered === 0 ? '' : ` (${percent(prepared.placed, prepared.functionsEntered)})`;
   const notes = [
     prepared.kept ? 'kept, because the recording, the index and the walk are the ones they were made from' : '',
-    prepared.tree === undefined || prepared.tree === null
-      ? ''
-      : `the files were parsed as the working tree has them, not as the recording ran them, because ${prepared.tree}`,
-    prepared.fellBack > 0 ? `${prepared.fellBack} imports the index did not resolve were resolved by the walk` : '',
-    prepared.recorded > 0
-      ? `${prepared.recorded} calls were placed from the recording, because their import resolved to no function and exactly one the case ran is exported under the imported name`
-      : '',
-    prepared.ambiguous > 0
-      ? `${prepared.ambiguous} calls have no place, because their import resolved to no function and several the case ran are exported under the imported name, ` +
-        `in ${prepared.ambiguousCases} ${prepared.ambiguousCases === 1 ? 'case' : 'cases'}`
-      : '',
+    prepared.fellBack > 0 ? `${count(prepared.fellBack, 'import specifier')} the index did not resolve were resolved by the walk` : '',
   ].filter((note) => note !== '');
+  // A function two cases entered is two entries: the share is over entries,
+  // and the calls and flows are distinct over every case.
   return [
-    `${named}: ${prepared.cases} cases walked; a caller is found for ${prepared.placed} of the ${prepared.functionsEntered} functions they ran${share}; ` +
-      `${prepared.calls} calls, ${prepared.flows} package flows`,
+    `${named}: ${count(prepared.cases, 'case')} walked; a caller is placed for ${prepared.placed} of the ${prepared.functionsEntered} functions the cases entered, ` +
+      `counted once per case that entered each${share}; ${count(prepared.calls, 'distinct call')}, ${count(prepared.flows, 'distinct package flow')}`,
     ...notes,
   ].join('; ');
 }

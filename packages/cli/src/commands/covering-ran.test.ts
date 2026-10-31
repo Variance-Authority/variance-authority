@@ -21,6 +21,11 @@ const { checkout, ask } = recordFixture();
 /** Why which text a test file ran over is not known when the runs record does not place it. */
 const NOT_CARRIED = 'the record does not say where that run stood, so not which text of src/pay.ts it ran over';
 
+
+/** What a stand at a commit this clone does not hold says of a file, in git's words with the fetch that brings it. */
+const HELD_NOT = "commit ffffffffffff is not in this checkout's object store. Fetch it with `git fetch origin ffffffffffffffffffffffffffffffffffffffff`, or check out every commit: `fetch-depth: 0` with `filter: tree:0` on `actions/checkout`";
+const UNREAD = (file: string): RegExp => new RegExp(`^git could not give the text of ${file.replaceAll('.', '\\.')} where that run stood: commit ffffffffffff is not in this checkout's object store`);
+
 describe('a covering answer says when the test files it names last ran, and over which text', () => {
   it('dates the answer by when its test file\'s runs landed, not by a later partial run that stamped the record', async () => {
     const now = Date.now();
@@ -216,12 +221,12 @@ describe('a covering answer says when the test files it names last ran, and over
 
     expect(json['ran']).toMatchObject({
       stands: [
-        { commit: foreign, tests: ['src/pay.test.ts'], unknown: 'this clone holds no committed text of src/pay.ts where that run stood' },
+        { commit: foreign, tests: ['src/pay.test.ts'], unknown: expect.stringMatching(UNREAD('src/pay.ts')) },
         { tests: ['src/fee.test.ts'], text: 'held' },
       ],
     });
     expect(text).toContain([
-      'Whether src/pay.test.ts ran over src/pay.ts as it is now, in a run that landed 2 hours ago, is not known: this clone holds no committed text of src/pay.ts where that run stood.',
+      `Whether src/pay.test.ts ran over src/pay.ts as it is now, in a run that landed 2 hours ago, is not known: git could not give the text of src/pay.ts where that run stood: ${HELD_NOT}.`,
       'src/pay.ts is the text the other test file named here ran over, in a run that landed 6 minutes ago.',
     ].join('\n  '));
   });
@@ -406,14 +411,14 @@ describe('a covering answer says when the test files it names last ran, and over
     expect(json['ran']).toMatchObject({
       stands: [{
         commit: foreign, tests: ['src/pay.test.ts'], text: 'other', other: ['src/pay.ts'],
-        unknown: 'this clone holds no committed text of src/setup.ts where that run stood',
+        unknown: expect.stringMatching(UNREAD('src/setup.ts')),
       }, { tests: ['src/fee.test.ts'], files: ['src/pay.ts'], text: 'other', other: ['src/pay.ts'] }],
     });
     expect((json['ran'] as { stands: object[] }).stands[0]).not.toHaveProperty('files');
     expect(text).toContain([
       'src/pay.test.ts ran over another text of src/pay.ts, in a run that landed 2 hours ago.',
       'Whether src/pay.test.ts ran over src/setup.ts as it is now, in a run that landed 2 hours ago, is not known: ' +
-      'this clone holds no committed text of src/setup.ts where that run stood.',
+      `git could not give the text of src/setup.ts where that run stood: ${HELD_NOT}.`,
       'src/fee.test.ts ran over another text of src/pay.ts, in a run that landed 6 minutes ago.',
     ].join('\n  '));
     expect(text).not.toContain('another text of src/pay.ts and src/setup.ts');

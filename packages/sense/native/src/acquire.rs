@@ -200,6 +200,11 @@ fn read_blob<R: BufRead>(
     }
     let mut newline = [0];
     let _ = reader.read_exact(&mut newline);
+    // A file git-lfs tracks is a pointer in git and its content on disk, where
+    // the checkout smudged it: the disk holds the bytes this scan reads.
+    if crate::lfs::pointer(&bytes) {
+        return open_and_parse(root, file, largest, digests, arenas, symbols);
+    }
     let Ok(source) = String::from_utf8(bytes) else {
         return open_and_parse(root, file, largest, digests, arenas, symbols);
     };
@@ -371,6 +376,11 @@ fn open<'a>(root: &Path, file: &'a str, largest: u64, digests: bool) -> (&'a str
             }
             _ => failed(error),
         };
+    }
+    // Failed rather than declined: `git lfs pull` changes these bytes and not
+    // the object name a decline is kept by, which is the pointer's either way.
+    if crate::lfs::pointer(source.as_bytes()) {
+        return settled(crate::lfs::checked_out(file), Outcome::Failed);
     }
     let digest = if digests {
         digest::of_string(&source)
