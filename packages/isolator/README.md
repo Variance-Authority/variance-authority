@@ -152,6 +152,8 @@ import { isolate, skipper } from '@variance-authority/isolator/transform';
 import { defineConfig } from 'vitest/config';
 
 const skipped = skipper(process.cwd());
+// Files whose modules must load after something the file does first.
+const isolated = ['src/**/*.dom.test.tsx', 'src/**/*.mocked.test.ts'];
 
 export default defineConfig({
   plugins: [{
@@ -165,7 +167,13 @@ export default defineConfig({
       return { code: rewritten, map };
     },
   }],
-  test: { isolate: false, setupFiles: ['./reset.setup.ts'] },
+  test: {
+    setupFiles: ['./reset.setup.ts'],
+    projects: [
+      { extends: true, test: { name: 'shared', isolate: false, exclude: isolated } },
+      { extends: true, test: { name: 'isolated', include: isolated } },
+    ],
+  },
 });
 ```
 
@@ -185,9 +193,11 @@ Name your own test files in the plugin's test if they are not `*.test.*` or
 
 The isolator resets what modules hold, not what the process holds: the working
 directory after `process.chdir`, `process.env` and a global carry into the next
-file, so restore each in the file that changed it. A
-`vi.mock` reaches only the modules loaded after it: one an earlier file loaded
-keeps what it imported then.
+file, so restore each in the file that changed it. Nor does it load a module
+again. A `vi.mock` reaches only the modules loaded after it, and a renderer
+binds the DOM and the React DevTools hook it finds when it loads, so a file
+that mocks or renders into a DOM keeps a worker of its own, in the `isolated`
+project.
 
 ## Run it in Rspack or webpack
 
