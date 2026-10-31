@@ -666,14 +666,17 @@ When a Watchman server already watches your checkout, an update asks it which
 files changed since the last update, and asks git only when one did. The update
 keeps, beside the index it writes, the listing git made and the Watchman clock
 taken before git made it. Next time, when the same server reports no change since
-that clock but to paths git ignores — a tool's cache, a build's output — and none
-of git's own files changed — `HEAD`, the index, a ref, an exclude or
-configuration file — the update reads the listing it kept and runs no git at
-all. On Material UI's 41,171 paths that is 22–39 ms against 157–195 ms with git.
+that clock, and none of git's own files changed — `HEAD`, the index, a ref, an
+exclude or configuration file — the update reads the listing it kept and runs
+no git at all. When all it reports are paths git ignores — a tool's cache, a
+build's output — the update asks git only `check-ignore` about them. On Material
+UI's 41,171 paths an update that runs no git takes 22 ms against 121 ms with git.
 
 Anything else lists with git, as above: a change Watchman reports, a server
 that restarted, a checkout no server watches, a machine with no Watchman. Nothing
-starts a server or adds a watch; the watch is yours to add:
+starts a server or adds a watch. Under a watch, an update that lists with git
+costs 5 ms more when only git's files changed, and 29 ms more when a tracked file
+did: the Watchman round trips that found the change. The watch is yours to add:
 
 ```bash
 watchman watch-project .

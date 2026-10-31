@@ -26,6 +26,7 @@
 | SQLite | `variance-authority.retention` | An engine for a file the operator possesses; the record outlives it and could be kept anywhere |
 | pixelmatch, pngjs, sharp, @jsquash/webp | `variance-authority.adjudication` | Codecs and comparators; replacing one changes the speed of an answer and not the answer |
 | oxc | `variance-authority.reach` | A parser for source the adopter already owns |
+| Watchman | `variance-authority.reach` | A server the adopter already runs, asked over its socket and never started; without it git answers the same question, slower |
 | nx, turbo | `variance-authority.reach` | Build tools that contribute seeds to a selection and never a selection; the system works with neither installed |
 
 ## Not ours
@@ -38,6 +39,7 @@ here is a scope decision of its own, not a step inside a feature.
 |---|---|
 | What a type is, whether code type-checks | TypeScript |
 | Which files exist, what changed, what was there before | git |
+| Which files moved since a clock | Watchman, where the adopter runs it |
 | What source text means as syntax | oxc |
 | What an import meant under test, how a case is collected and run | the test runner (Jest, Vitest, Rstest, Playwright) |
 | How a page paints | Chromium |

@@ -14,14 +14,20 @@ scanning.
 
 ## Inputs and outputs
 
-In: the parses and records one update scanned from the whole checkout. Out: the
+In: the parses and records one update scanned from the whole checkout, and what
+moved since the last update: Watchman's answer since the clock that update held,
+where a running server watches the checkout, else git's listing. Out: the
 published records, narrowed to a reader's seeds; to the next update, what has
-not moved.
+not moved, and the listing it was made against with the clock that dates it.
 
 ## Depends on
 
 - [`source-scan`](../source-scan/README.md) — the update is a scan of the whole
   checkout, whoever asks for it
+- [`version-control`](../../../externals/version-control.md) — the listing of
+  the checkout, and the files whose change moves it
+- Watchman, where the adopter runs it — which files moved since a clock; asked,
+  never started, and never given a watch
 
 ## Used by
 
@@ -57,6 +63,7 @@ reference to it, since the owner compacts and deletes its segments.
 
 ## Implementation coordinates
 
+- `packages/sense/native/src/held_listing.rs`, `packages/sense/native/src/watchman.rs` — the listing an update carries, and Watchman asked whether it stands
 - `packages/sense/src/published.ts` — `updateSourceIndex`, `publishedSources`, `sourcesWithin`
 - `packages/sense/src/source-index.ts` — `openSourceIndex`, the two caches and the append
 - `packages/sense/src/immutable-log.ts` — the segment chain, and the copy a worktree starts from
