@@ -92,7 +92,14 @@ The update takes the delta and:
 1. drops every reported path from the listing and the records, and adds back
    those that are files on disk, in the index's scope (§4), and either tracked
    in git's index or not named by `git check-ignore --stdin -z`; a path that
-   fails is left out of the listing and left alone on disk;
+   fails is left out of the listing and left alone on disk. Every source hands
+   in paths relative to the checkout: a caller's delta with an empty, absolute
+   or `..` path is refused, as `overlayKnownChanges` refuses it today, and a
+   Watchman name is relative to the root it was asked with `relative_root`.
+   Duplicates collapse; a directory is not a file, so it adds nothing and
+   every held path under it joins the delta; a symlink is hashed as git
+   hashes it, by its target text, never followed; a path outside the index's
+   scope is dropped;
 2. hashes those paths with `hash-object --stdin-paths`;
 3. updates the membership digest of each directory a path was added to or
    removed from;
@@ -113,7 +120,8 @@ the base commit, its stat and both blob names. It is the one listing: the code
 map reads it from the generation, and nothing else keeps one. It sits in a
 section of its own that only the update and the code map open; a reader's
 decode does not read it. Beside it the generation carries its base commit, the
-Watchman clock, its socket path and ignored directories, and the stats of §3,
+Watchman clock with the query it answers — the socket path, the watched root
+and the `relative_root` — its ignored directories, and the stats of §3,
 a few hundred bytes. On Kibana the names
 alone are 12.3 MB, and 0.87 MB after gzip against a 10.5 MB index; the spec
 measures the stored form against the index's own size before it ships.
@@ -145,7 +153,10 @@ by a stat — size, modification time, change time and inode — recorded beside
 the clock: from the worktree's git directory, `index` and `HEAD`; from the
 common directory, the ref `HEAD` names, `packed-refs`, `info/exclude`,
 `info/attributes`, `config` and `config.worktree`; and the global, XDG and
-system config, `core.excludesFile` and `core.attributesFile`:
+system config, `core.excludesFile` and `core.attributesFile`; and every file an
+`include.path` or `includeIf` reaches, as `git config --show-origin --list`
+names them when the stats are recorded. An included file inside the checkout
+that Watchman reports counts as moved:
 
 - **Ignore rules.** Watchman does not read `.gitignore`; on Material UI an
   unknown clock reported 202,919 files against 41,171 tracked ones. An
@@ -209,7 +220,12 @@ daemon uses too: the server is running and watches the checkout's root or a
 directory above it, with the checkout read through `relative_root`. The update
 asks it in the same round trip as the delta: a `since` query on a root no watch
 holds fails, and that failure is the git source. A generation with no clock yet
-asks `watch-list` once to learn the watched root.
+asks `watch-list` once to learn the watched root, and records it with the
+`relative_root` and socket path beside the clock (§2). Each update asks that
+recorded query; when the checkout's root no longer sits under the recorded
+watched root at the recorded `relative_root`, or the clock names another
+server, the update takes the git source before it applies any delta and then
+asks `watch-list` again to renew the identity.
 
 - It never starts the server, adds a watch, writes a `.watchmanconfig` or sets
   `core.fsmonitor`. Starting a file-system daemon on somebody's repository is

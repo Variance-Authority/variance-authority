@@ -37,7 +37,12 @@ own. It is a client of the one that runs:
 - **Watchman.** Where the repository runs Watchman, by the test in
   [spec 0107](0107-the-index-asks-watchman-what-moved.md) §4, the daemon
   subscribes to it directly. Watchman pushes, so there is no tick. Without the
-  daemon, a reader asks the same watch `since` its generation's clock.
+  daemon, a reader asks the same watch `since` its generation's clock. A push
+  only continues the published generation: when the subscription drops, the
+  server restarts or a push says `is_fresh_instance`, the daemon reconnects,
+  asks `since` the published generation's clock, and takes 0107's git source
+  when Watchman cannot vouch for that clock, before it publishes again. It
+  never resumes from the last batch it was pushed.
 - **Neither.** On a host with neither, for example Linux without Watchman, where
   git ships no builtin monitor, the daemon falls back to `git status` on each
   tick. Its first line says so and states what one status costs. It never
