@@ -4954,6 +4954,16 @@ __metadata:
   languageName: unknown
   linkType: soft
 
+"@variance-authority/case-vitest-shared-modules@workspace:cases/vitest-shared-modules-case":
+  version: 0.0.0-use.local
+  resolution: "@variance-authority/case-vitest-shared-modules@workspace:cases/vitest-shared-modules-case"
+  dependencies:
+    "@variance-authority/ioc": "workspace:^"
+    "@variance-authority/isolator": "workspace:^"
+    vitest: "npm:^5.0.5"
+  languageName: unknown
+  linkType: soft
+
 "@variance-authority/cli@workspace:^, @variance-authority/cli@workspace:packages/cli":
   version: 0.0.0-use.local
   resolution: "@variance-authority/cli@workspace:packages/cli"
@@ -5223,7 +5233,7 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@variance-authority/isolator@workspace:packages/isolator":
+"@variance-authority/isolator@workspace:^, @variance-authority/isolator@workspace:packages/isolator":
   version: 0.0.0-use.local
   resolution: "@variance-authority/isolator@workspace:packages/isolator"
   dependencies:
