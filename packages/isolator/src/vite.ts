@@ -1,24 +1,10 @@
 /**
  * The plugin for Vitest: isolate each module before Vite's own transforms
  * read it. It speaks the plugin hooks Vitest calls and imports neither Vite nor
- * Vitest.
- *
- * ```ts
- * // vitest.config.ts
- * import { isolator } from '@variance-authority/isolator/vite';
- * export default defineConfig({ plugins: [isolator()], test: { isolate: false, setupFiles: ['./reset.setup.ts'] } });
- * ```
- *
- * The setup file calls ioc's `configureResetHandler(beforeEach)` and runs each
- * concurrent test in an `isolated` session through `aroundEach`, and files that
- * mock or render into a DOM keep an isolated project: the package README, "Run
- * it in Vitest", has both.
- *
- * Vitest answers which files it runs itself: a module any project calls a
- * test, by its `include` and `includeSource`, and a project's setup files stay
- * as they are, since each runs once for every file anyway. Everything else
- * follows the rule every seam shares, which `skips.ts` holds. A declaration it
- * leaves is a warning, with the reason.
+ * Vitest. Vitest answers which files are tests, by every project's `include`
+ * and `includeSource`, and its setup files stay as they are, since each runs
+ * once for every file anyway. Everything else follows the rule every seam
+ * shares, which `skips.ts` holds; a declaration it leaves is a warning.
  */
 
 import { relative } from 'node:path';
@@ -47,7 +33,15 @@ export interface IsolatorPlugin {
 
 const SCRIPT = /\.[cm]?[jt]sx?$/;
 
-/** The isolator as a Vite plugin, for a Vitest run that keeps its modules across files. */
+/**
+ * The isolator as a Vite plugin, for a Vitest run that keeps its modules across
+ * files. The package README, "Run it in Vitest", has the setup file it pairs
+ * with and the project split for files that mock or render into a DOM:
+ *
+ * ```ts
+ * export default defineConfig({ plugins: [isolator()], test: { isolate: false, setupFiles: ['./reset.setup.ts'] } });
+ * ```
+ */
 export function isolator(options: IsolatorPluginOptions = {}): IsolatorPlugin {
   // A plugin of the root config serves every project that extends it.
   const projects: IsolatorProject[] = [];
