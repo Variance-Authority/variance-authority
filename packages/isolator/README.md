@@ -203,6 +203,33 @@ Record coverage with isolation on. A worker that keeps a module credits it to
 the first file that loaded it, so a record made shared says the files after
 never entered it ([a record needs a module graph per test file](https://variance-authority.dev/docs/selecting#a-record-needs-a-module-graph-per-test-file)).
 
+## Run it in Storybook
+
+```js
+// .storybook/main.js
+import { isolator } from '@variance-authority/isolator/vite';
+
+export default {
+  viteFinal: (config) => ({
+    ...config,
+    plugins: [...(config.plugins ?? []), isolator({ exclude: ['.storybook/**', 'src/**/*.stories.@(js|jsx|ts|tsx)'] })],
+  }),
+};
+
+// .storybook/preview.js
+import { nextSession } from '@variance-authority/isolator';
+
+export default { loaders: [() => (nextSession(), {})] };
+```
+
+Under Vite alone the plugin rewrites every module but the ones `exclude`
+names. Leave out the Storybook config and the story files: Storybook reads a
+story file's exports once for the page. Put the reset first among the project
+loaders, not in `beforeEach`, because Storybook runs every loader before any
+`beforeEach`, and a story's own loader that reads module state would read the
+story before it. Each story switched to on the same page then starts from the
+values its modules were loaded with.
+
 ## Run it in Rspack or webpack
 
 ```js
@@ -324,7 +351,7 @@ isolator: src/mode.ts:1 `mode` stays shared: an exported `let` is read by its im
 | `@variance-authority/isolator/react` | `requestSessions()` makes each React Server Components request a session, through every Suspense boundary it streams. React's `cache` keeps a request only in the Flight renderer, under the `react-server` condition. |
 | `@variance-authority/isolator/jest` | The Jest transformer. |
 | `@variance-authority/isolator/loader` | The loader for Rspack and webpack. |
-| `@variance-authority/isolator/vite` | The plugin for Vitest. |
+| `@variance-authority/isolator/vite` | The plugin for Vitest, and for Vite alone, as in Storybook. |
 | `@variance-authority/isolator/transform` | `isolate(code, file)`, the transform itself, for any other tool. |
 | `@variance-authority/isolator/runtime` | `frame`, which rewritten modules import. |
 

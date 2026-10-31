@@ -4911,6 +4911,7 @@ __metadata:
     "@variance-authority/cli": "workspace:^"
     "@variance-authority/core": "workspace:^"
     "@variance-authority/dom": "workspace:^"
+    "@variance-authority/isolator": "workspace:^"
     "@variance-authority/jsx-source": "workspace:^"
     "@variance-authority/playwright": "workspace:^"
     "@variance-authority/react": "workspace:^"

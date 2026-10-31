@@ -261,6 +261,29 @@ reads off a card — and not consistently between two renders, which fails
 `alone.chromium.test.js`. The Storybook every other suite here reads stays the
 one with no addons and no global decorators.
 
+## Stories switched on one page under the isolator
+
+A preview page loads its modules once, so a story that writes module state
+leaves it for every story shown after it on that page. The isolator puts the
+state back between stories. From the repository root:
+
+```bash
+yarn workspace @variance-authority/case-storybook build-storybook:isolated
+yarn vitest run --config vitest.chromium.config.mts cases/storybook-case/src/isolated.chromium.test.js
+yarn workspace @variance-authority/case-storybook bench:switch
+```
+
+`build-storybook:isolated` builds `isolated/` with `.storybook-isolated/`, into
+`storybook-isolated/`: the isolator plugin in `viteFinal`, and `nextSession()`
+as the first project loader. `Isolated/Tally` counts in a module variable from
+its loader. Shown in turn on one page, `First` and `Second` both read 1;
+`Shared first` and `Shared second` skip the reset and read 2 and 3. The page
+loads once. Built without the plugin, the test fails.
+
+`bench:switch` shows the two isolated stories 40 times, on one page and on a
+new page per story, checks that every story read 1, and prints the median time
+per story. On an M4 Max: 6.2 ms on one page, 113 ms on a page per story.
+
 ## Driving the CLI end to end
 
 The adapter reads a Storybook. This runs the whole tool over one. From the

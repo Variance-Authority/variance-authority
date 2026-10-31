@@ -47,8 +47,28 @@ describe('the isolator under Vitest', () => {
     expect(warnings).toEqual([`isolator: count.ts:1 \`count\` stays shared: an exported \`let\` is read by its importers as a live binding, which no getter can stand in for`]);
   });
 
-  it('refuses a module outside Vitest, before any project configured it', () => {
+  it('refuses a module before Vite resolved its config', () => {
     const plugin = isolator();
-    expect(() => plugin.transform.call({ warn: () => {} }, STATE, join(root, 'state.ts'))).toThrow('the plugin runs under Vitest');
+    expect(() => plugin.transform.call({ warn: () => {} }, STATE, join(root, 'state.ts'))).toThrow('before Vite resolved its config');
+  });
+});
+
+describe('the isolator under Vite alone', () => {
+  const root = realpathSync(mkdtempSync(join(tmpdir(), 'isolator-vite-')));
+
+  /** The plugin as a Vite build calls it, with no Vitest project. */
+  function built(exclude?: readonly string[]) {
+    const plugin = isolator({ exclude });
+    plugin.configResolved({ root });
+    return (code: string, id: string) => plugin.transform.call({ warn: () => {} }, code, id);
+  }
+
+  it('rewrites every module of the build, since each loads once for the whole page', () => {
+    expect(built()(STATE, join(root, 'state.ts'))?.code).toContain('@variance-authority/isolator/runtime');
+  });
+
+  it('leaves the globs it is handed, relative to the build root', () => {
+    const transform = built(['.storybook/**', 'src/**/*.stories.tsx']);
+    expect([transform(STATE, join(root, '.storybook/preview.ts')), transform(STATE, join(root, 'src/button.stories.tsx'))]).toEqual([undefined, undefined]);
   });
 });
