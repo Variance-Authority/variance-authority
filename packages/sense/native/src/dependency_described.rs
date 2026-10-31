@@ -13,7 +13,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use napi_derive::napi;
 use serde::Serialize;
 
-use super::purposes::{code_stems, near, stem, stems};
+use super::purposes::{code_stems, near, phrase_run, stem, stems, writes_run};
 use super::view::Row;
 use super::Api;
 
@@ -58,10 +58,17 @@ pub fn described_words(query: String) -> Vec<Vec<String>> {
     asked(&query, code_stems).into_iter().map(|(stem, word)| vec![stem, word]).collect()
 }
 
-/// Per text, how many of the adjacent word pairs of `query` it writes adjacent.
+/// Per text, how many of the adjacent stem pairs of `query` it writes at the distance the question puts them.
 #[napi(js_name = "nearOf")]
 pub fn near_of(query: String, texts: Vec<String>) -> Vec<u32> {
     texts.iter().map(|text| near(&query, text)).collect()
+}
+
+/// Per text, the first paragraph that writes the whole of `query`'s stems in order, two distinct or more, by the rule `nearOf` counts pairs by.
+#[napi(js_name = "phraseOf")]
+pub fn phrase_of(query: String, texts: Vec<String>) -> Vec<Option<u32>> {
+    let Some(run) = phrase_run(&query) else { return vec![None; texts.len()] };
+    texts.iter().map(|text| writes_run(&run, text)).collect()
 }
 
 /// Each word reduced to its stem, in order: which of a dictionary's terms a stem of `describedWords` stands for.

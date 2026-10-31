@@ -12,6 +12,7 @@ import { queryDependencyLexicon, type LexiconMatches } from '../dependency-lexic
 import { declaredMatches, exactness } from './declared.js';
 import { docRows, exported, exportedOrder, first } from './exported-matches.js';
 import { counting, type ImportingOf, type InArea, type PublishedMatch } from './published-match.js';
+import { docsSaying } from './phrase.js';
 
 /**
  * What `search` found, before a word of it is written.
@@ -49,7 +50,7 @@ export interface SearchQuestion {
   /**
    * A substring of a name or its documentation, matched case-insensitively; or
    * several words, which also match a name whose own words — split where the
-   * case or a digit changes — start with every one of them.
+   * case or a digit changes — start with every one of them, and a doc writing them as a phrase ({@link docsSaying}).
    */
   readonly query: string;
   /** Paths whose imports the answer is confined to. */
@@ -320,7 +321,7 @@ function matched(index: SearchIndex, question: SearchQuestion, tree: Tree | unde
   const within = area === undefined ? undefined : index.fileIds(area.files);
   const named = ascending(index.namesContaining(query), namesOfWords(index, query));
   const byName = new Set(named);
-  const openings = new Set(index.docOpeningsContaining(query));
+  const saying = docsSaying(index, query);
   // The name that is the question is the thing asked for, however few import
   // it: as written first, then the same word in another case.
   const exact = new Map<number, number>();
@@ -328,13 +329,13 @@ function matched(index: SearchIndex, question: SearchQuestion, tree: Tree | unde
     const tier = exactness(index.name(name), question.query);
     if (tier !== undefined) exact.set(name, tier);
   }
-  const field = (row: number, name: number): number => exact.get(name) ?? (byName.has(name) ? 2 : openings.has(row) ? 3 : 4);
-  const hits = surface(index, [...publishedOf(index, named), ...index.docsContaining(query)], area, within, field);
+  const field = (row: number, name: number): number => exact.get(name) ?? (byName.has(name) ? 2 : saying.published.openings.has(row) ? 3 : 4);
+  const hits = surface(index, [...publishedOf(index, named), ...saying.published.rows], area, within, field);
   const answered = new Set(hits.map((hit) => hit.name));
   // An exported row is reached by its doc as a published one is, and inside an
   // area only through a row whose file is in it.
-  const through = docRows(index, index.exportedDocsContaining(query), within, byName);
-  const rest = exported(index, ascending(named, [...through.keys()]), answered, within, through, new Set(index.exportedDocOpeningsContaining(query)), exact);
+  const through = docRows(index, saying.exported.rows, within, byName);
+  const rest = exported(index, ascending(named, [...through.keys()]), answered, within, through, saying.exported.openings, exact);
   return { query, area, within, named, hits, answered, rest } as const;
 }
 

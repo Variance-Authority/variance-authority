@@ -131,7 +131,8 @@ describe('the names a question puts first', () => {
   });
 
   it('puts a name holding a word of the question before a doc holding them all and no name', () => {
-    const order = describedFirst('region placement');
+    // No doc writes the words in this order, so none answers as a phrase.
+    const order = describedFirst('placement region');
     expect(order.slice(0, 3)).toEqual(['region', 'Placed', 'written']);
     expect(order.indexOf('regionCount')).toBeGreaterThan(order.indexOf('written'));
   });
