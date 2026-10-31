@@ -110,6 +110,16 @@ describe('which tests a changed file governs', () => {
     expect(answer.unread).toEqual([]);
   });
 
+  it('counts a row at the arrived text of a test never seen whole as ran over, unless the caller asks for whole runs only', () => {
+    const from = openTestCoverage(
+      encodeTestCoverage({ ...coverage, tests: coverage.tests.map((test) => (test.file === 'test/alpha.test.ts' ? { ...test, complete: false } : test)) }),
+    );
+    const arrived = new Map([['test/alpha.test.ts', 'source:test/alpha.test.ts']]);
+
+    expect([...testsGovernedBy(from, ['test/alpha.test.ts'], arrived).ranOver]).toEqual(['test/alpha.test.ts']);
+    expect(named(from, testsGovernedBy(from, ['test/alpha.test.ts'], arrived, true))).toEqual({ 'test/alpha.test.ts': ['test/alpha.test.ts'] });
+  });
+
   it('lists every input of one test, in the order the table holds them', () => {
     const from = view();
     const answer = testsGovernedBy(from, ['vitest.config.ts', 'test/beta.test.ts']);

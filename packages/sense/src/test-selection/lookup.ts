@@ -211,14 +211,17 @@ function pathAt(coverage: TestCoverageView, column: WordColumn, held: Map<number
  * `arrived` gives some names the digest of the text the caller's tree holds.
  * The digest beside a precondition is the text that test ran over, so a row
  * recording the arrived one is a test that already ran what is there now: a
- * run over a dirty tree, its edit left in place or committed since. Of a test
- * the record saw whole, that row governs nothing. A name held only by such rows
- * is in `ranOver`, and is not `unread`: the record holds it.
+ * run over a dirty tree, its edit left in place or committed since. That row
+ * governs nothing, and each test is decided by its own row; with `wholeOnly`,
+ * the selection's policy, only of a test the record saw whole, since a run that
+ * did not finish proves no text. A name held only by such rows is in
+ * `ranOver`, and is not `unread`: the record holds it.
  */
 export function testsGovernedBy(
   coverage: TestCoverageView,
   files: readonly string[],
   arrived: ReadonlyMap<string, string> = new Map(),
+  wholeOnly = false,
 ): {
   readonly tests: ReadonlyMap<number, readonly string[]>;
   readonly unread: readonly string[];
@@ -252,7 +255,7 @@ export function testsGovernedBy(
   for (let test = 0; test < coverage.testPath.length; test += 1) {
     const start = end;
     end = preconditions.at(test + 1);
-    const whole = coverage.testComplete.at(test) === 1;
+    const proves = !wholeOnly || coverage.testComplete.at(test) === 1;
     const own = coverage.testPath.at(test);
     let declaredOwn = false;
     let governing: string[] | undefined;
@@ -269,7 +272,7 @@ export function testsGovernedBy(
       if (name === undefined) continue;
       matched.add(name);
       if (id === own) declaredOwn = true;
-      if (whole && ran.has(id) && digests.at(input) === ran.get(id)) {
+      if (proves && ran.has(id) && digests.at(input) === ran.get(id)) {
         over.add(name);
         continue;
       }

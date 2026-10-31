@@ -107,8 +107,9 @@ export type FileReading =
       readonly unread: 'source' | 'hunk' | 'parse' | 'addon' | 'language' | 'exports' | 'unasked';
     };
 
-/** Whether the change may reach a test through the file: every reading but a `none` the parser decided. */
-export const reachesThrough = (reading: FileReading): boolean => reading.verdict !== 'none' || reading.kept === true;
+/** Whether the change may reach a test through the file: every reading but a `none` the parser decided and an `unasked` one. */
+export const reachesThrough = (reading: FileReading): boolean =>
+  reading.verdict === undefined ? reading.unread !== 'unasked' : reading.verdict !== 'none' || reading.kept === true;
 
 /** What the reading needs from the query it runs inside. */
 export interface ReadingContext {
