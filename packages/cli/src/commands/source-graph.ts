@@ -107,14 +107,15 @@ export function indexNames(records: readonly FileRecord[]): IndexNames {
  * every reader in CI does. The readers that only walk the graph read the index
  * as it stands. An update that cannot be made is said on stderr and never
  * refused: the index is read as it stands, and what it names is not the
- * checkout's. The reason, or nothing when the index is up to the checkout.
+ * checkout's. `packs` false reads no installed package, as `variance index
+ * --no-git` does. The reason, or nothing when the index is up to the checkout.
  */
-export async function indexUpToCheckout(root: string, ci = isCI): Promise<string | undefined> {
+export async function indexUpToCheckout(root: string, ci = isCI, packs = true): Promise<string | undefined> {
   if (ci && !(await isPublished(root))) return undefined;
   const path = sourceIndexPath(resolve(root));
   let refused: string | undefined;
   try {
-    refused = (await updateSourceIndex(root)).refused;
+    refused = (await updateSourceIndex(root, packs ? {} : { packs: false })).refused;
   } catch (error) {
     refused = messageOf(error);
   }
@@ -203,7 +204,7 @@ async function publishedWithin(
   noGit: boolean,
   holding: readonly string[],
 ) {
-  if (!isCI) await upToHolding(root, holding);
+  if (!isCI) await upToHolding(root, holding, noGit);
   let published;
   try {
     published = await publishedSources(root, {
@@ -232,17 +233,18 @@ async function publishedWithin(
  * `holding` that the checkout holds and a scan reads, saying which on stderr:
  * a file added since the last `variance index` has no edges until it is read.
  */
-async function upToHolding(root: string, holding: readonly string[]): Promise<void> {
+async function upToHolding(root: string, holding: readonly string[], noGit: boolean): Promise<void> {
   if (holding.length === 0) return;
+  const step = noGit ? 'variance index --no-git' : 'variance index';
   const announce = (line: string) => process.stderr.write(`variance: ${line}\n`);
-  const { names } = await publishedNames(root, holding, { ci: false, step: 'variance index', announce });
+  const { names } = await publishedNames(root, holding, { ci: false, step, announce });
   const where = resolve(root);
   const lacking = seedPaths(where, ['.'], holding.filter((file) => !names.has(file)))
     .find((file) => existsSync(join(where, file)));
   if (lacking === undefined) return;
   announce(`the source index at ${sourceIndexPath(where)} does not hold ${lacking}, which the checkout does; ` +
-    'updating it from the checkout, which is what `variance index` does.');
-  await indexUpToCheckout(root, false);
+    `updating it from the checkout, which is what \`${step}\` does.`);
+  await indexUpToCheckout(root, false, !noGit);
 }
 
 const SOURCE_EXTENSIONS = ['.tsx', '.jsx', '.ts', '.js'];

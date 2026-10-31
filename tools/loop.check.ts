@@ -6,8 +6,9 @@ import { describe, expect, it } from 'vitest';
  *
  * A seam leg's note names `VARIANCE_AUTHORITY_AT_DISTANCE` as the knob that
  * runs another leg: "the same run with `VARIANCE_AUTHORITY_AT_DISTANCE=2-`".
- * A script that sets the variable outright makes that sentence false, so each
- * one sets its own leg as the default an outer value overrides.
+ * The edit loop is the script that note is printed under, so it sets its own
+ * leg as the default an outer value overrides; the waves fix theirs, since a
+ * gate stamped for a leg must have run it.
  *
  * An argument goes to the runner, which runs a file or a filter it is given
  * and refuses a flag it does not take, rather than to the step after it, which
@@ -17,15 +18,14 @@ import { describe, expect, it } from 'vitest';
 const steps = (line: string) => line.split('&&').map((step) => step.trim());
 const VITEST = /\bvitest run\b/;
 
-describe('the scripts that run a leg', () => {
+describe('the edit loop', () => {
   const scripts = JSON.parse(readFileSync('package.json', 'utf8')).scripts as Record<string, string>;
-  const legs = Object.entries(scripts).filter(([, line]) => line.includes('VARIANCE_AUTHORITY_AT_DISTANCE='));
 
-  it.each(legs)('%s takes its leg from an outer VARIANCE_AUTHORITY_AT_DISTANCE', (_, line) => {
-    expect(line).not.toMatch(/VARIANCE_AUTHORITY_AT_DISTANCE=(?!\$\{VARIANCE_AUTHORITY_AT_DISTANCE:-)/);
+  it('takes its leg from an outer VARIANCE_AUTHORITY_AT_DISTANCE', () => {
+    expect(scripts['test:loop']).toContain('VARIANCE_AUTHORITY_AT_DISTANCE=${VARIANCE_AUTHORITY_AT_DISTANCE:-');
   });
 
-  it('hands the edit loop\'s arguments to the runner', () => {
+  it('hands its arguments to the runner', () => {
     expect(steps(scripts['test:loop']!).find((step) => VITEST.test(step))).toContain('"$@"');
   });
 });

@@ -77,9 +77,10 @@ until the next `variance index`: a test that reaches an edited file only
 through it stays in the open leg.
 
 `yarn test:loop` hands its arguments to the runner and reads its leg from
-`VARIANCE_AUTHORITY_AT_DISTANCE`, `0-1` when unset, as `verify:near` and
-`verify:far` read theirs. A flag Vitest does not take fails before any test
-runs, where it used to reach `tools/needs.mjs` unread
+`VARIANCE_AUTHORITY_AT_DISTANCE`, `0-1` when unset; the waves keep
+their fixed legs, since a gate stamped for a leg must have run it. A flag
+Vitest does not take fails before any test runs, where it used to reach
+`tools/needs.mjs` unread
 ([#855](https://github.com/Variance-Authority/variance-authority/issues/855));
 the leg's notes under a seam name the variable, which is how the same run asks
 for another leg.
