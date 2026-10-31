@@ -296,8 +296,9 @@ a fully transparent pixel taken as zero, since a comparison does not read it.
 It hashes decoded pixels and never encoded bytes: a capture is a PNG and a kept
 baseline a WebP of the same pixels, and the two encodings share nothing.
 
-Two equal images, however they were found equal, pair each row with itself from
-one comparison of their bytes rather than a pass over their rows.
+The rows two images share at the top and the bottom are found by comparing
+each pair of rows natively, so two equal images, however they were found equal,
+cost one such scan before the pixel comparison.
 
 `diffImage` resolves to an encoded PNG — the after image dimmed with changed pixels
 in red — for the person who does want to look. It is derived from the same bytes
