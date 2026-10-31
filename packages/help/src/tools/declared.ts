@@ -29,7 +29,13 @@ import type { Spelling } from '@variance-authority/mcp/tools';
 import { grep } from './grep.js';
 
 /** How many declarations of one name `symbol` writes out before it counts the rest. */
-const DECLARED_CAP = 5;
+export const DECLARED_CAP = 5;
+
+/** The line counting the `count` declarations of `name`, each a `noun`, past the first `DECLARED_CAP`; none when there are no more. */
+export function notShown(count: number, noun: string, name: string): readonly string[] {
+  const more = count - DECLARED_CAP;
+  return more > 0 ? [`${more} more ${noun}${more === 1 ? '' : 's'} of \`${name}\` not shown.`] : [];
+}
 
 /** What the source index says about declarations, or why it says nothing. */
 export type Declarations =
@@ -205,8 +211,6 @@ function textAt(root: string, held: Pick<DeclaredName, 'at' | 'name' | 'line'>):
  * `DECLARED_CAP` of them, a count of the rest, and the files whose
  * declarations were not read; nothing when the
  * source index is not at hand, since a name nothing exports is then unknown.
- * `topLevel` says whether one of them is a file's top-level declaration: one
- * inside a function is the workspace's too, and stands for no member.
  */
 export function declaredBlocks(
   root: string | undefined,
@@ -214,21 +218,20 @@ export function declaredBlocks(
   wanted: string | undefined,
   spell: Spelling,
   from: readonly string[] = [],
-): { readonly blocks: readonly string[]; readonly topLevel: boolean } {
+): { readonly blocks: readonly string[] } {
   const read = declarations(root, name);
-  if (root === undefined || 'refused' in read) return { blocks: [], topLevel: false };
+  if (root === undefined || 'refused' in read) return { blocks: [] };
   const held = nearestFirst(
     read.names.filter((one) => wanted === undefined || one.by === wanted),
     from,
   );
-  if (held.length === 0) return { blocks: [], topLevel: false };
-  const more = held.length - DECLARED_CAP;
+  if (held.length === 0) return { blocks: [] };
   const blocks = [
     ...held.slice(0, DECLARED_CAP).map((one) => declaredBlock(root, one, spell)),
-    ...(more > 0 ? [`${more} more ${more === 1 ? 'declaration' : 'declarations'} of \`${name}\` not shown.`] : []),
+    ...notShown(held.length, 'declaration', name),
     ...unreadLine(read.unread),
   ];
-  return { blocks, topLevel: held.some((one) => !isNested(one)) };
+  return { blocks };
 }
 
 /** Whether a function's body declares it, rather than its file's top level. */

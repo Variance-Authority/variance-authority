@@ -118,13 +118,14 @@ describe('variance ask over a renamed import', () => {
     expect(unpublished.out).toContain('Members:\npackages/kit/src/money/types.ts:2 — percent: number;');
   });
 
-  it('answers `symbol` for a local name that is also a member with the import alone, as a member is answered only when nothing else binds the name', async () => {
+  it('answers `symbol` for a local name that is also a member with the import, then the member beside it', async () => {
     checkout({ ...RENAMED, 'packages/lib/src/shape.ts': 'export interface Shape {\n  shout: string;\n}\n' });
     expect((await run(['index'])).code).toBe(EXIT_CLEAN);
 
     const { code, out } = await run(['ask', 'symbol', '--name', 'shout']);
     expect(code).toBe(EXIT_CLEAN);
     expect(out).toContain("`shout` is a local name: packages/lib/src/shout.ts:1 imports `inner` as `shout` from './inner.js'.");
-    expect(out).not.toContain('a member of');
+    expect(out).toContain('a member of `Shape`, declared at packages/lib/src/shape.ts:2');
+    expect(out.indexOf('is a local name')).toBeLessThan(out.indexOf('a member of'));
   });
 });

@@ -49,11 +49,28 @@ export function describedWordsNative(query: string): readonly (readonly [stem: s
   return addon.describedWords(query);
 }
 
-/** Per text, how many of the adjacent word pairs of `query` it writes adjacent: a doc that says the question's phrase. */
+/**
+ * Per text, how many of the adjacent stem pairs of `query` it writes, each at
+ * the distance the question puts it. Words are read as `describedWordsNative`
+ * reads them; a function word holds its place, so "a page and its sink" writes
+ * no pair of `page sink`, and a possessive or punctuation holds none, so "the
+ * page's sink" writes it. A blank line ends the run.
+ */
 export function nearOfNative(query: string, texts: readonly string[]): readonly number[] {
   const addon = native();
   if (addon === undefined) throw new Error(`nearness requires the native scanner: ${nativeRefusal() ?? 'it is unavailable'}`);
   return addon.nearOf(query, [...texts]);
+}
+
+/**
+ * Per text, the first paragraph, from 0, that writes the whole of `query` — two
+ * stems or more, in order, at the distances the question puts them, by the rule
+ * {@link nearOfNative} counts pairs by — or `undefined` when no paragraph does.
+ */
+export function phraseOfNative(query: string, texts: readonly string[]): readonly (number | undefined)[] {
+  const addon = native();
+  if (addon === undefined) throw new Error(`a phrase requires the native scanner: ${nativeRefusal() ?? 'it is unavailable'}`);
+  return addon.phraseOf(query, [...texts]).map((paragraph) => paragraph ?? undefined);
 }
 
 /** Each word reduced to its stem, in order: the rule `describedWordsNative` stems a question by. */

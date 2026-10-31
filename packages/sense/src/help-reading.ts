@@ -314,7 +314,7 @@ export interface DeclaredName {
   readonly held?: readonly number[] | null;
   /** Asked by `declaredDescribedOf`: the positions, ascending, of those its name holds. */
   readonly named?: readonly number[] | null;
-  /** Asked by `declaredDescribedOf`: how many of the question's adjacent word pairs its doc writes adjacent. */
+  /** Asked by `declaredDescribedOf`: how many of the question's adjacent word pairs its doc writes as a phrase, by `near`. */
   readonly near?: number | null;
   /** Asked by `declaredDescribedOf`: the bytes of the doc the words were held against, its lines joined by single spaces; absent when it writes none. */
   readonly docLength?: number | null;
@@ -336,7 +336,7 @@ export interface DescribedFile {
   readonly held: readonly number[];
   /** The positions, ascending, of those its name holds. */
   readonly named: readonly number[];
-  /** How many of the question's adjacent word pairs its module doc writes adjacent. */
+  /** How many of the question's adjacent word pairs its module doc writes as a phrase. */
   readonly near: number;
   /** The bytes of the module doc the words were held against, its lines joined by single spaces; absent when it writes none. */
   readonly docLength?: number | null;
@@ -377,7 +377,7 @@ export function declaredOf(
  * `describedWordsNative` cuts `query` by, hold any of `stems`, in any
  * order; only in `files`, repo-relative, when they are named.
  * Each carries the positions of the stems it holds, how many its name holds,
- * and how many of the question's adjacent word pairs its doc writes adjacent.
+ * and how many of the question's adjacent word pairs its doc writes as a phrase.
  * Beside them, the files whose name and module doc hold any, the same way.
  * `undefined` when no index was published; throws when the index does not read.
  */

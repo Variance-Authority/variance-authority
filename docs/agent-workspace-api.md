@@ -89,11 +89,9 @@ every language the index reads, Python, Rust, Java, Kotlin and Swift
 included, and a function or an arrow function declared inside another
 function's body is read in JavaScript and TypeScript and answered with the
 function that holds it. `ask symbol` answers a top-level declaration of the
-name first, in any of those languages; on a name that no top-level declaration
-or import has, it names each container that declares it as a member, with the
-member's `file:line`, beside any function that declares it inside its body, and
-points to `uses`, which lists the members beside any top-level
-declaration. When the workspace also holds Python, Rust, Java, Kotlin or Swift
+name first, in any of those languages, then each container that declares it as
+a member, with the member's `file:line`, and points to `uses`. A dotted name,
+`Tree.has`, asks for the member `has` of `Tree` alone. When the workspace also holds Python, Rust, Java, Kotlin or Swift
 files, an answer that looked for members ends with a sentence that names those
 languages, whether or not it found one, and sends you to their language
 server's workspace symbols. The graph does not record that one
@@ -472,7 +470,11 @@ serve the text, so what you read is the file as it is now.
 Use `docs_search` only when the name is unknown: it performs a
 case-insensitive substring match over names and documentation, not semantic
 ranking. Several words also match a name written in those words, in any order,
-so `kept reading` finds `keptReading` in that answer. Where your words land on a
+so `kept reading` finds `keptReading` in that answer, and so does a doc that
+writes them as a phrase: in order by stem, each as many words after the last as
+in your question, a possessive or punctuation between them counting for none.
+So `page sink` finds the doc "installs the page's sink" and not "a page and its
+sink". Where your words land on a
 name only loosely — a word typed wrong, or two words its documentation writes
 but not beside each other — those names follow under a heading of their own,
 after that answer and never inside it. So do the names holding any of your

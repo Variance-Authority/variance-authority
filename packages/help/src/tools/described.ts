@@ -49,7 +49,7 @@ import { admittedBy, rowWithin, termsOfStems } from './loose.js';
  * and a tie is a tie (ADR-0057). `N` is everything reached, the names another
  * section shows included, so the weight of a word does not move with what is
  * left. Then the words its name holds, then how many of the question's adjacent
- * word pairs its doc writes adjacent, then how many rows publish or export it, in
+ * word pairs its doc writes as a phrase, then how many rows publish or export it, in
  * an area those {@link rowWithin} it, then the name's own rank. A word every doc
  * says in passing tells nothing about which of them was meant:
  * `find the repository root` is asked of `repositoryRoot`, not of every doc that
@@ -72,7 +72,7 @@ export interface DescribedKey {
   readonly words: readonly string[];
   /** Those of them its name holds. */
   readonly named: readonly string[];
-  /** How many of the question's adjacent word pairs its doc writes adjacent. */
+  /** How many of the question's adjacent word pairs its doc writes, by {@link nearOfNative}. */
   readonly near: number;
   /** Rows that publish or export it, in an area only those {@link rowWithin} it. */
   readonly rows: number;
@@ -266,7 +266,7 @@ export function describedShown(
   }
 
   const rows = [...read].flatMap((one) => ('tied' in one ? one.tied : []));
-  // One word has no pair to write adjacent, so no doc is decoded for it.
+  // One word has no pair to write as a phrase, so no doc is decoded for it.
   const near = words.length > 1 ? nearOfNative(query, rows.map((one) => rowDoc(index, one.through) ?? '')) : [];
   let at = 0;
   const order = describedOrderBy(weight);

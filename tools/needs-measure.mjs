@@ -44,7 +44,7 @@ function unitsAt(commit, paths = []) {
       const text = out.subarray(header + 1, header + 1 + size).toString('utf8');
       at = header + 1 + size + 1;
       try {
-        read.set(blob, unitsIn(path, text).map(({ name, kind, line, bag }) => ({ name, kind, line, bag })));
+        read.set(blob, unitsIn(path, text).map(({ name, kind, line, bag, platform }) => ({ name, kind, line, bag, platform })));
       } catch {
         read.set(blob, []);
         unparsed += 1;

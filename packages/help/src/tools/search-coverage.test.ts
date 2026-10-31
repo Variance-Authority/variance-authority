@@ -11,7 +11,8 @@ import { searchIndexOf } from './search.js';
  * a name holding one of the question's words, its doc the rest, sorts before
  * short docs holding the same words. A doc that says most of what was asked is
  * about it, however long it runs to say the rest: the Vite plugin whose
- * transform instruments each module holds five of the six words.
+ * transform instruments each module holds five of the six words. The short
+ * docs hold the words a place too far apart to write the question as a phrase.
  */
 
 const manifest = JSON.stringify({ name: 'kit', type: 'module', exports: { '.': { types: './dist/index.d.ts', default: './dist/index.js' } }, files: ['dist'] });
@@ -68,11 +69,11 @@ const KIT = [
   'export function transformHook(name: string): string {\n  return name;\n}',
   doc(TEXT_AT),
   'export function textAt(commit: string): string {\n  return commit;\n}',
-  '/** The text of a file at the commit before. */',
+  '/** The text kept of a file at the commit before. */',
   "export const PRICE = 'price';",
   '/** A file a run recorded at its commit, and its text. */',
   "export const RECORDED = 'recorded';",
-  '/** The text of the file at the commit it was cut at. */',
+  '/** The text of the one file at the commit it was cut at. */',
   "export const STALE = 'stale';",
   ...Array.from({ length: 12 }, (_, at) => `${usual(at)}\nexport function readingAt${at}(file: string): string {\n  return file;\n}`),
 ].join('\n');

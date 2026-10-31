@@ -83,7 +83,10 @@ describe('ask symbol', () => {
     ]);
   });
   it.todo('answers a name published only inside an `export * as` namespace as published, with the import that reaches it (`text.shout`) — needs the publish walk to follow `export * as` into the namespace\'s module');
-  it.todo('answers `Container.member` (`Tree.has`) as the member of that container — needs the question parsed into container and member and looked up as a pair');
+  it('answers `Container.member` (`Tree.has`) as the member of that container', async () => {
+    const { declarations } = await symbol('Tree.has');
+    expect(declarations).toEqual([expect.objectContaining({ visibility: 'member', container: 'Tree', file: 'packages/core/src/tree.ts' })]);
+  });
   it.todo('answers a re-export of a dependency (`export { x } from \'dep\'`) as where it came from, not as a declaration — needs a re-export from a dependency recorded as a re-export, not a declaration');
   it.todo('answers a function declared inside another function, with the function that holds it — needs nested declarations in the index with the declaration that holds them');
   it.todo('answers every declaration, however many there are, and narrows by --file and --kind — needs the cap removed and --file and --kind filters on the reader');

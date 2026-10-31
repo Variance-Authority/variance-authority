@@ -212,10 +212,13 @@ declares and does not export, at its top level or inside a function, is answered
 from the source index, as below, after any export of the same name in another
 file; one inside a function is answered with the function that holds it. A name
 an import binds with `as` is answered with that import and the original it
-names. A member of an interface, a type literal or a class, when nothing else
-declares or binds the name at a file's top level, is answered with its container
-and the file and line that declare it, one block per declaration, beside any
-declaration of the name inside a function. `ask search` reads top-level
+names. A member of an interface, a type literal or a class is answered with its
+container and the file and line that declare it, one block per declaration,
+after every other declaration of the name. `Tree.has` asks for the member `has`
+of `Tree` alone; when `Tree` is declared and no body read declares `has` on it,
+the answer names `Tree`'s declaration and leaves what it inherits, and a
+member of an enum, a namespace or an object literal, which the source index does
+not read, to the go-to-definition of the language server for `Tree`'s language. `ask search` reads top-level
 declarations only: a name declared inside a function is found by `ask symbol`.
 
 `--package` with the path of one file in a package, such as
@@ -374,7 +377,7 @@ src/shapes/use.ts:8 — @acme/shop, destructure
 
 No line uses `size` through a value whose type is written as `Other` at src/shapes/props.ts:7.
 
-An implementation of `size` that takes its type from where it goes — an argument, a property, a returned value — writes no type on its line and is not listed: TypeScript's go-to-implementation on the declaration you mean names it.
+An implementation of `size` that takes its type from where it goes — an argument, a property, a returned value — writes no type on its line and is not listed: TypeScript's language service's go-to-implementation on the declaration you mean names it.
 A use is listed here only where its line writes the value's type. A use through an inferred value, a generic, a subtype by `extends`, a JSX attribute, a utility type or an inline type literal is not: which type a value has is a type checker's answer, and none runs here.
 Ask TypeScript for those: its language service's find-references on the declaration you mean, each listed above with its file and line (`package` narrows the declarations to one package).
 ```
