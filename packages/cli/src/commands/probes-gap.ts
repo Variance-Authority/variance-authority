@@ -92,7 +92,12 @@ function identityOf(ask: (file: string, question: (view: { readonly instrumentat
 export async function cutGap(root: string, commit: string | undefined, file: string, blocks: readonly ExecutionBlock[]): Promise<CutGap> {
   if (commit === undefined) return { file, unread: 'the record names no commit, so the text it was made over is not known' };
   const { sourceCut, textAtRecording } = await import('@variance-authority/sense/test-selection');
-  const text = textAtRecording(root, [file])(file, commit);
+  let text: string | undefined;
+  try {
+    text = textAtRecording(root, [file])(file, commit);
+  } catch (error) {
+    return { file, unread: error instanceof Error ? error.message : String(error) };
+  }
   if (text === undefined) return { file, unread: `git holds no text of it at ${commit}` };
   const cut = sourceCut(text, file, 'presence');
   if (cut === undefined) return { file, unread: `this build cannot parse it as it stood at ${commit}` };

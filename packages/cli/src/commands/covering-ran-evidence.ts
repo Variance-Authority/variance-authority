@@ -55,6 +55,26 @@ export interface EvidenceQuestion {
 }
 
 /**
+ * The texts of `paths` at each commit, read together. git refuses the whole
+ * read when one commit or blob is not in this clone, so a refusal reads each
+ * commit alone, and a commit git still refuses gets no texts: its runs stand
+ * where this clone holds nothing, which the verdict names as that gap.
+ */
+function committedTexts(repository: string, commits: readonly string[], paths: readonly string[]): ReadonlyMap<string, ReadonlyMap<string, string>> {
+  try {
+    return textsAt(repository, new Map(commits.map((commit) => [commit, [...paths]])));
+  } catch {
+    return new Map(commits.flatMap((commit) => {
+      try {
+        return [[commit, textsAt(repository, new Map([[commit, [...paths]]])).get(commit) ?? new Map<string, string>()] as const];
+      } catch {
+        return [];
+      }
+    }));
+  }
+}
+
+/**
  * Read what the runs' verdicts need: the committed texts at every commit a run
  * stood at, which asked files those commits lack, the kept texts the runs name when a region is asked, and the
  * snapshot's placements when a run wrote it — the question's own for one
@@ -71,7 +91,7 @@ export async function evidenceOf(runs: readonly TestPlace[], held: ReadonlyMap<s
     const under = relative(await realpath(repository), await realpath(root));
     const repoPath = (file: string): string => (under === '' ? file : join(under, file).split(sep).join('/'));
     const commits = [...new Set(placed.flatMap((run) => run.commit ?? []))];
-    const blobs = textsAt(repository, new Map(commits.map((commit) => [commit, files.map(repoPath)])));
+    const blobs = committedTexts(repository, commits, files.map(repoPath));
     for (const commit of commits) {
       const texts = blobs.get(commit);
       committed.set(commit, new Map(files.flatMap((file) => {
