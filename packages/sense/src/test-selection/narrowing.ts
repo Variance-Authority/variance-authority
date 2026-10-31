@@ -114,20 +114,14 @@ export interface ExecutionNarrowing {
   readonly because?: readonly SelectionCause[];
 
   /**
-   * What the parser made of each changed file whose frame was proved: which
-   * verdict charged it, or why it was charged by its lines alone. Without
-   * `sourceAt` every file is `unread: 'source'`: the old text is only ever held
-   * through it. Absent from an answer that never read a diff: one asked at a
-   * point, or of a recording that selects by journeys.
+   * What the reader made of each changed file: which verdict charged it, why
+   * it was charged by its lines alone, or why no reader was asked of it. Every
+   * changed file has one. Without `sourceAt` every file read is
+   * `unread: 'source'`: the old text is only ever held through it. Absent from
+   * an answer that never read a diff: one asked at a point, or of a recording
+   * that selects by journeys.
    */
   readonly readings?: readonly FileReading[];
-
-  /**
-   * The changed files no parser was asked of and no other field names: their
-   * rows, their preconditions or their importers answered for them. Present
-   * exactly when `readings` is, so every changed file is named somewhere.
-   */
-  readonly unasked?: readonly string[];
 }
 
 /** One selected test and everything that selected it. */

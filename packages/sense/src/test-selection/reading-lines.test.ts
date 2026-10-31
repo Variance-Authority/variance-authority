@@ -51,34 +51,27 @@ describe('what a selector prints about each changed file', () => {
     ]);
   });
 
-  it('names every changed file no reading names, each by why, however many there are', () => {
-    // The notes beside these count the files, explain what each kind costs,
-    // and cut the list at three; this is where the fourth is named, by its
-    // status alone, so nothing is explained twice.
+  it('names every changed file no reader was asked of by why, each kind explained once', () => {
+    // The notes beside these count each kind and say its remedy; the lines
+    // name the files, and say what each kind costs on its first line.
     expect(
-      readingLines([{ file: 'src/read.ts', verdict: 'bodies', names: [] }], {
-        unread: ['data/a.json', 'data/b.json', 'data/c.json', 'data/d.json'],
-        stale: ['src/old.ts'],
-        declined: ['src/far.ts'],
-        ignored: ['src/gen.ts'],
-        unasked: ['src/rules.ts'],
-      }),
+      readingLines([
+        { file: 'src/read.ts', verdict: 'bodies', names: [] },
+        { file: 'data/a.json', unread: 'nothing' },
+        { file: 'data/b.json', unread: 'nothing' },
+        { file: 'src/old.ts', unread: 'stale' },
+        { file: 'src/far.ts', unread: 'declined' },
+        { file: 'src/gen.ts', unread: 'ignored' },
+        { file: 'src/rules.ts', unread: 'answered' },
+      ]),
     ).toEqual([
       'read src/read.ts: bodies — the changed regions are charged, not the whole module',
-      'read data/a.json: unread',
-      'read data/b.json: unread',
-      'read data/c.json: unread',
-      'read data/d.json: unread',
-      'read src/old.ts: stale',
-      'read src/far.ts: declined',
-      'read src/gen.ts: ignored',
-      'read src/rules.ts: unasked — its rows, its preconditions or its importers answer for it',
-    ]);
-  });
-
-  it('names a file a reading already names once', () => {
-    expect(readingLines([{ file: 'src/old.ts', unread: 'source' }], { stale: ['src/old.ts'] })).toEqual([
-      'read src/old.ts: unread (no recorded text to read it against) — its changed lines are charged',
+      'read data/a.json: unread (the record and the file graph hold nothing about it) — it keeps no test in the run',
+      'read data/b.json: unread (the record and the file graph hold nothing about it)',
+      'read src/old.ts: unread (recorded from a text nobody kept) — every region of it is charged',
+      'read src/far.ts: unread (the suite declines relations and its record did not measure it)',
+      "read src/gen.ts: unread (the suite's `ignore` matches it) — only a test that declares it runs for it",
+      'read src/rules.ts: unread (its rows, its preconditions or its importers answer for it)',
     ]);
   });
 });

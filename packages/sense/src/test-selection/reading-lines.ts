@@ -1,5 +1,5 @@
 /**
- * What the parser made of each changed file, as the lines a run prints.
+ * What the reader made of each changed file, as the lines a run prints.
  *
  * Two selectors print this: `variance run --since` and `variance select` in the
  * CLI. They share this function so the
@@ -12,35 +12,28 @@
  * rather than selected, and the fix is the missing edge.
  */
 
-import type { ExecutionNarrowing } from './narrowing.js';
 import type { FileReading } from './reading.js';
 
 export type { FileReading };
 
-/** The changed files a selection names outside its readings, each by why. */
-export type UnreadFiles = Partial<Pick<ExecutionNarrowing, 'unread' | 'stale' | 'declined' | 'ignored' | 'unasked'>>;
-
 /**
- * One line per changed file saying how it was read, or why it was not, and one
- * line per test that loaded it through an import the graph does not list.
- * `others` are the changed files no reading names, a line each after the
- * readings, so a file the summary notes cut from their list is still named;
- * the note explains the kind once, and the line names the file. A file a
- * reading names is not named again. Empty for neither.
+ * One line per reading saying how its file was read, or why it was not, and
+ * one line per test that loaded it through an import the graph does not list.
+ * A selection gives every changed file a reading, so every one is named here;
+ * the summary notes count each kind and say its remedy. Empty for no readings.
  *
  * What a verdict charges is said once, on the first line that prints that
  * verdict, and the lines after it print the verdict alone: a change to forty
  * files that all read `bodies` is one explanation and forty names, not forty
  * copies of the explanation.
  */
-export function readingLines(readings: readonly FileReading[], others: UnreadFiles = {}): readonly string[] {
+export function readingLines(readings: readonly FileReading[]): readonly string[] {
   const glossed = new Set<string>();
   const once = (key: keyof typeof GLOSS): string => {
     if (glossed.has(key)) return '';
     glossed.add(key);
     return GLOSS[key];
   };
-  const read = new Set(readings.map((reading) => reading.file));
   return [
     ...readings.flatMap((reading) => [
       `read ${reading.file}: ${verdictOf(reading)}${once(glossOf(reading))}`,
@@ -48,20 +41,8 @@ export function readingLines(readings: readonly FileReading[], others: UnreadFil
         (test) => `unseen ${test}: loaded ${reading.file}${once('unseen')}`,
       ),
     ]),
-    ...OTHERS.flatMap((key) =>
-      (others[key] ?? [])
-        .filter((file) => !read.has(file))
-        .map((file) => `read ${file}: ${key}${key === 'unasked' ? once('unasked') : ''}`),
-    ),
   ];
 }
-
-/**
- * The kinds of file outside the readings, in the order their lines go. Each is
- * printed by its status alone: the summary note of its kind already says what
- * it costs, and `unasked`, which has no note, is glossed here.
- */
-const OTHERS = ['unread', 'stale', 'declined', 'ignored', 'unasked'] as const;
 
 function verdictOf(reading: FileReading): string {
   if (reading.verdict === undefined) return `unread (${UNREAD[reading.unread]})`;
@@ -79,7 +60,7 @@ function verdictOf(reading: FileReading): string {
 
 /** The gloss a reading's line explains itself with, the first time that line is printed. */
 function glossOf(reading: FileReading): keyof typeof GLOSS {
-  if (reading.verdict === undefined) return reading.unread === 'exports' ? 'importers' : 'unread';
+  if (reading.verdict === undefined) return UNREAD_GLOSS[reading.unread] ?? 'unread';
   return reading.kept === true ? 'kept' : reading.verdict;
 }
 
@@ -96,9 +77,22 @@ const GLOSS = {
   // A file with no row has no lines to charge: the walk charges what imports it.
   importers: ' — every test that loaded its nearest measured importers is charged',
   unseen: ' by an import the file graph does not list; named, not selected',
-  // No parser was asked: the record answers for the file without its text.
-  unasked: ' — its rows, its preconditions or its importers answer for it',
+  keepsNone: ' — it keeps no test in the run',
+  stale: ' — every region of it is charged',
+  ignored: ' — only a test that declares it runs for it',
+  // The reason says it all: the record answers for the file without its text.
+  answered: '',
 } as const;
+
+/** The gloss an `unread` reason prints, when it is not `unread`'s own. */
+const UNREAD_GLOSS: Partial<Record<keyof typeof UNREAD, keyof typeof GLOSS>> = {
+  exports: 'importers',
+  nothing: 'keepsNone',
+  declined: 'keepsNone',
+  stale: 'stale',
+  ignored: 'ignored',
+  answered: 'answered',
+};
 
 const UNREAD = {
   source: 'no recorded text to read it against',
@@ -107,4 +101,9 @@ const UNREAD = {
   addon: 'no native scanner on this machine',
   language: 'not a JavaScript or TypeScript module',
   exports: 'it names no export to follow',
+  nothing: 'the record and the file graph hold nothing about it',
+  stale: 'recorded from a text nobody kept',
+  declined: 'the suite declines relations and its record did not measure it',
+  ignored: "the suite's `ignore` matches it",
+  answered: 'its rows, its preconditions or its importers answer for it',
 } as const;

@@ -105,12 +105,29 @@ export type FileReading =
        * the verdict reads.
        * `exports`: a file with no row that names no export to follow, as a
        * CommonJS module's `module.exports` does not: its importers answer whole.
+       *
+       * The rest are files no reader was asked of, named so that every changed
+       * file has a reading:
+       * `nothing`: the record and the file graph hold nothing about it.
+       * `stale`: recorded from a text nobody kept, so every region is charged.
+       * `declined`: the suite declines relations and its record did not measure it.
+       * `ignored`: the suite's `ignore` matches it.
+       * `answered`: its rows, its preconditions or its importers answered for it.
        */
-      readonly unread: 'source' | 'hunk' | 'parse' | 'addon' | 'language' | 'exports';
+      readonly unread: 'source' | 'hunk' | 'parse' | 'addon' | 'language' | 'exports' | Unasked;
     };
 
-/** Whether the change may reach a test through the file: every reading but a `none` the parser decided. */
-export const reachesThrough = (reading: FileReading): boolean => reading.verdict !== 'none' || reading.kept === true;
+/** Why a changed file was asked of no reader. */
+export type Unasked = 'nothing' | 'stale' | 'declined' | 'ignored' | 'answered';
+
+const UNASKED: ReadonlySet<string> = new Set<Unasked>(['nothing', 'stale', 'declined', 'ignored', 'answered']);
+
+/**
+ * Whether the change may reach a test through the file: every reading but a
+ * `none` the parser decided and a file no reader was asked of.
+ */
+export const reachesThrough = (reading: FileReading): boolean =>
+  reading.verdict === undefined ? !UNASKED.has(reading.unread) : reading.verdict !== 'none' || reading.kept === true;
 
 /** What the reading needs from the query it runs inside. */
 export interface ReadingContext {

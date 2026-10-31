@@ -35,7 +35,7 @@ import {
   type BeforeReach,
   type Relations,
 } from '@variance-authority/core/relate';
-import { ignoredBy, readingLines, type ExecutionNarrowing } from '@variance-authority/sense/test-selection';
+import { ignoredBy, readingLines, type ExecutionNarrowing, type FileReading } from '@variance-authority/sense/test-selection';
 import type { ReachReport } from '@variance-authority/report';
 import { OperatorError } from '../exit.js';
 import { affectedSubjects, type Affected } from './affected.js';
@@ -304,20 +304,15 @@ export async function selectionFor(
               '`source.relations` is off, so a change to what this run rests on narrowed it like any other file.',
           ]
         : []),
-      // What the parser made of each changed file: the files the structural
-      // ground did not seed from, then the journal's reading. A file both read
-      // as `none` is said once.
-      ...new Set(
-        readingLines(
-          [
-            ...[...(options.since.movedExports ?? [])]
-              .filter(([, exports]) => exports.length === 0)
-              .map(([file]) => ({ file, verdict: 'none' as const, names: [] })),
-            ...(journal?.readings ?? []),
-          ],
-          journal,
-        ),
-      ),
+      // What the reader made of each changed file: the files the structural
+      // ground did not seed from, then the journal's reading of the rest. A
+      // file both read is said once, by the structural ground.
+      ...readingLines(withoutSaid(
+        [...(options.since.movedExports ?? [])]
+          .filter(([, exports]) => exports.length === 0)
+          .map(([file]) => ({ file, verdict: 'none' as const, names: [] })),
+        journal?.readings ?? [],
+      )),
     ],
   };
 }
@@ -486,4 +481,10 @@ function notesFor(
             `${journey?.skipped.length ?? 0} by what the last run recorded as covered.`,
         ]),
   ];
+}
+
+/** `first`, then each of `then` whose file `first` does not name. */
+function withoutSaid(first: readonly FileReading[], then: readonly FileReading[]): readonly FileReading[] {
+  const said = new Set(first.map((reading) => reading.file));
+  return [...first, ...then.filter((reading) => !said.has(reading.file))];
 }

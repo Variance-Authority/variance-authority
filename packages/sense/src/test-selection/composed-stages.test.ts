@@ -84,11 +84,11 @@ describe('the composition is its stages', () => {
     expect(composed.unread).not.toContain(DECLARING);
   });
 
-  it('names a stale file once, as stale, and not again as unasked', () => {
-    const { stale, unasked } = narrowByChangeFromView(view(), change, { sourceAt });
+  it('names a stale file once, as stale', () => {
+    const { stale, readings } = narrowByChangeFromView(view(), change, { sourceAt });
 
     expect(stale).toEqual([SOURCE]);
-    expect(unasked).toEqual([]);
+    expect(readings?.filter((reading) => reading.file === SOURCE)).toEqual([{ file: SOURCE, unread: 'stale' }]);
   });
 
   it('walks a rowless file a declaring test already ran the arrived text of, as the composition does', () => {

@@ -44,7 +44,6 @@ export function jsonOf(selection: TestSelection): object {
     ...(selection.ignored === undefined ? {} : { ignored: selection.ignored }),
     stale: selection.stale,
     ...(selection.readings === undefined ? {} : { readings: selection.readings }),
-    ...(selection.unasked === undefined ? {} : { unasked: selection.unasked }),
     ...(selection.leg === undefined ? {} : { leg: selection.leg, left: selection.left ?? [] }),
     ...(selection.distances === undefined ? {} : { distances: selection.distances }),
   };

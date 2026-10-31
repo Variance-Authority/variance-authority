@@ -6,7 +6,7 @@ import { testPathOf } from './lookup.js';
 import { changeOfDiff, ignoredChange, type Change } from './change.js';
 import { declarable, ranOverAll, withRanOver } from './ran-over.js';
 import { recordedOverKept } from './kept-texts.js';
-import { rowlessNames } from './reading.js';
+import { rowlessNames, type FileReading, type Unasked } from './reading.js';
 import { ignoreMatcher } from './route.js';
 import { byRelations, withGraph } from './precision.js';
 import { arrivedAt, chargeMeasured, namedAs, readUnmeasured, routed, runOf, seenThrough, selectAnswered, walked } from './stages.js';
@@ -55,10 +55,27 @@ export function selectTestFilesFromView(
   return readDiff(coverage, changeOfDiff(diff), options).entered;
 }
 
-/** The changed files none of `named` names, in code-unit order. */
-function unaskedOf(changed: Iterable<string>, named: Iterable<string>): string[] {
-  const said = new Set(named);
-  return [...changed].filter((file) => !said.has(file)).sort(codeUnitOrder);
+/**
+ * The readings, then a reading for every changed file they do not name, by
+ * the first of `unasked` that names it: the reading says why no reader was
+ * asked of it. A file named nowhere was answered for by its rows, its
+ * preconditions or its importers.
+ */
+function everyChanged(
+  readings: readonly FileReading[],
+  changed: Iterable<string>,
+  unasked: readonly (readonly [Unasked, readonly string[]])[],
+): FileReading[] {
+  const said = new Set(readings.map((reading) => reading.file));
+  const more: FileReading[] = [];
+  const say = (file: string, unread: Unasked) => {
+    if (said.has(file)) return;
+    said.add(file);
+    more.push({ file, unread });
+  };
+  for (const [unread, files] of unasked) for (const file of files) say(file, unread);
+  for (const file of [...changed].sort(codeUnitOrder)) say(file, 'answered');
+  return [...readings, ...more];
 }
 
 /**
@@ -75,7 +92,7 @@ function readDiff(
   coverage: TestCoverageView,
   change: Change,
   asked: ExecutionNarrowingOptions,
-): Required<Pick<ExecutionNarrowing, 'entered' | 'unread' | 'because' | 'stale' | 'readings' | 'unasked'>> &
+): Required<Pick<ExecutionNarrowing, 'entered' | 'unread' | 'because' | 'stale' | 'readings'>> &
   Pick<ExecutionNarrowing, 'declined' | 'ignored'> {
   const named = change.lines;
   const ignores = ignoreMatcher(asked.ignore);
@@ -182,16 +199,20 @@ function readDiff(
   const declining = options.unmeasured === 'nothing';
 
   const because = causesOf(coverage, run.selected);
-  const readings = seenThrough(withRanOver(run.readings, ranOver), through);
+  const stale = [...run.stale].sort(codeUnitOrder);
+  const readings = everyChanged(seenThrough(withRanOver(run.readings, ranOver), through), changed.keys(), [
+    [declining ? 'declined' : 'nothing', unmeasured],
+    ['stale', stale],
+    ['ignored', ignoring],
+  ]);
 
   return {
     entered: because.map((cause) => cause.test),
     unread: declining ? [] : unmeasured,
     ...(declining ? { declined: unmeasured } : {}),
     ...(asked.ignore === undefined ? {} : { ignored: ignoring }),
-    stale: [...run.stale].sort(codeUnitOrder),
+    stale,
     because,
     readings,
-    unasked: unaskedOf(changed.keys(), [...readings.map((reading) => reading.file), ...unmeasured, ...run.stale, ...ignoring]),
   };
 }
