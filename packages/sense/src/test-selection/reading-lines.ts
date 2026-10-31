@@ -24,8 +24,9 @@ export type UnreadFiles = Partial<Pick<ExecutionNarrowing, 'unread' | 'stale' | 
  * One line per changed file saying how it was read, or why it was not, and one
  * line per test that loaded it through an import the graph does not list.
  * `others` are the changed files no reading names, a line each after the
- * readings, so a file the summary notes cut from their list is still named. A
- * file a reading names is not named again. Empty for neither.
+ * readings, so a file the summary notes cut from their list is still named;
+ * the note explains the kind once, and the line names the file. A file a
+ * reading names is not named again. Empty for neither.
  *
  * What a verdict charges is said once, on the first line that prints that
  * verdict, and the lines after it print the verdict alone: a change to forty
@@ -47,20 +48,20 @@ export function readingLines(readings: readonly FileReading[], others: UnreadFil
         (test) => `unseen ${test}: loaded ${reading.file}${once('unseen')}`,
       ),
     ]),
-    ...OTHERS.flatMap(([key, said, gloss]) =>
-      (others[key] ?? []).filter((file) => !read.has(file)).map((file) => `read ${file}: ${said}${once(gloss)}`),
+    ...OTHERS.flatMap((key) =>
+      (others[key] ?? [])
+        .filter((file) => !read.has(file))
+        .map((file) => `read ${file}: ${key}${key === 'unasked' ? once('unasked') : ''}`),
     ),
   ];
 }
 
-/** What a file outside the readings is printed as, in the order the lines go. */
-const OTHERS = [
-  ['unread', 'unread (the record and the file graph hold nothing about it)', 'unrecorded'],
-  ['stale', 'stale (recorded from a text nobody kept)', 'stale'],
-  ['declined', 'declined (the suite declines relations, and its record did not measure it)', 'declined'],
-  ['ignored', "ignored (the suite's `ignore` matches it)", 'ignored'],
-  ['unasked', 'unasked', 'unasked'],
-] as const;
+/**
+ * The kinds of file outside the readings, in the order their lines go. Each is
+ * printed by its status alone: the summary note of its kind already says what
+ * it costs, and `unasked`, which has no note, is glossed here.
+ */
+const OTHERS = ['unread', 'stale', 'declined', 'ignored', 'unasked'] as const;
 
 function verdictOf(reading: FileReading): string {
   if (reading.verdict === undefined) return `unread (${UNREAD[reading.unread]})`;
@@ -95,10 +96,6 @@ const GLOSS = {
   // A file with no row has no lines to charge: the walk charges what imports it.
   importers: ' — every test that loaded its nearest measured importers is charged',
   unseen: ' by an import the file graph does not list; named, not selected',
-  unrecorded: ' — it keeps no test in the run',
-  stale: ' — every region of it is charged',
-  declined: ' — it keeps no test in the run',
-  ignored: ' — only a test that declares it runs for it',
   // No parser was asked: the record answers for the file without its text.
   unasked: ' — its rows, its preconditions or its importers answer for it',
 } as const;
