@@ -50,10 +50,12 @@ Everything decodes to 8-bit RGBA, row-major, which is the one shape every
 function here takes and returns. Alpha is a fourth channel like any other: two
 images identical in RGB but differing in alpha are compared as changed.
 
-Every function that takes encoded bytes reads the format from the bytes' own
-header, so a kept baseline that is a WebP and a capture that is a PNG compare
-the same way. Bytes whose header declares neither are refused by name, before
-any decoder sees them.
+A baseline is read through a decoder — `decodePortable`, `pngjsDecoder` or
+`sharpDecoder` — and each reads the format from the bytes' own header, so a
+kept baseline that is a WebP and a capture that is a PNG compare the same way.
+Bytes whose header declares neither are refused by name, before any decoder
+sees them. `comparePngs`, `decodeImage` and `foreignRaster` read captures,
+which are always PNG.
 
 Bytes that start as a PNG but are not a valid one make `pngjs` throw a plain
 `Error` —

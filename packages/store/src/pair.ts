@@ -142,24 +142,26 @@ export async function readRaster(
  * The record, and the image it says is beside it, checked against what is on
  * disk; the image's bytes are left to the caller.
  *
- * The record is read first because it says which image to expect: its
- * dimensions say whether one was taken, and `image` says under which
- * extension. A lookup therefore costs the record, then a stat of each
- * extension, then — for `find` — the one image the record names.
+ * The record says which image to expect: its dimensions say whether one was
+ * taken, and `image` says under which extension. It is read while each
+ * extension is stat-ed, so a lookup costs the slowest of the three, then — for
+ * `find` — the one image the record names.
  */
 async function readPair(
   places: Places,
 ): Promise<{ record: Read<Omit<Raster, 'bytes'>>; image?: string } | null> {
   const recordPath = `${places.record}.json`;
-  const text = await orAbsent(() => readFile(recordPath, 'utf8'), recordPath);
+  const [text, images] = await Promise.all([
+    orAbsent(() => readFile(recordPath, 'utf8'), recordPath),
+    imagesAt(places),
+  ]);
   if (text === null) {
-    const [stray] = await imagesAt(places);
+    const [stray] = images;
     if (stray === undefined) return null;
     throw halfAPair(places, stray, recordPath);
   }
 
   const { record, as } = parseSidecar(text, recordPath);
-  const images = await imagesAt(places);
   // The sidecar says whether there should be an image: `width` and `height` are
   // written exactly when one was taken. So a pixel-less baseline is a `.json`
   // with no image *and no dimensions*, which is a complete record — and a

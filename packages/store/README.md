@@ -238,7 +238,8 @@ Both store backends implement one contract, `RasterStore`, which is defined in
 
 `put` encodes the image once, on the accept, and decodes the WebP back to check
 that every channel of every pixel survived before anything is written; a
-comparison only ever decodes. A baseline kept as a `.png` before stays readable
+comparison only ever decodes. The sidecar's `image` field names the kept
+format, so a lookup reads the one file it names. A baseline kept as a `.png` before stays readable
 — its sidecar has no `image` field — until its next accept replaces it with the
 WebP. A WebP holds at most 16,383 pixels on a side, so `put` refuses a taller or
 wider image with the tree as it was.

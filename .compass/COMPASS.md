@@ -24,7 +24,7 @@
 | Chromium | `variance-authority.materialization` | The engine that paints; the pixels are ours |
 | React | `variance-authority.normalization` | A library inside the adopter's application, read as data rather than talked to; the application is what they possess |
 | SQLite | `variance-authority.retention` | An engine for a file the operator possesses; the record outlives it and could be kept anywhere |
-| pixelmatch, pngjs, sharp | `variance-authority.adjudication` | Codecs and comparators; replacing one changes the speed of an answer and not the answer |
+| pixelmatch, pngjs, sharp, @jsquash/webp | `variance-authority.adjudication` | Codecs and comparators; replacing one changes the speed of an answer and not the answer |
 | oxc | `variance-authority.reach` | A parser for source the adopter already owns |
 | nx, turbo | `variance-authority.reach` | Build tools that contribute seeds to a selection and never a selection; the system works with neither installed |
 

@@ -29,7 +29,7 @@ import { anyWidthOf, held } from './held.js';
 import { legacyHolders, partitionsOf } from './legacy.js';
 import { refuseAPointerRecord } from './lfs-pointer.js';
 import { familyOf, identities, nearness } from './line.js';
-import { KEPT_AS, imageOf, readRaster, readSidecar, retire, type ImageReader, type Places, type Read } from './pair.js';
+import { KEPT, KEPT_AS, imageOf, readRaster, readSidecar, retire, type ImageReader, type Places, type Read } from './pair.js';
 import { DEFAULT_BASELINE_PATH, parseBaselinePath, sanitized } from './path-template.js';
 
 /**
@@ -338,7 +338,7 @@ export function createDurableStore(root: string, options: DurableStoreOptions = 
         await mkdir(dirname(places.image), { recursive: true });
         await writeFile(imageOf(places, KEPT_AS), kept);
       }
-      for (const as of ['png', 'webp'] as const) {
+      for (const as of KEPT) {
         if (kept === undefined || as !== KEPT_AS) await rm(imageOf(places, as), { force: true });
       }
       await writeFile(`${places.record}.json`, record, 'utf8');
