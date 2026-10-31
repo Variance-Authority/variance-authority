@@ -26,7 +26,7 @@ not moved, and the listing it was made against with the clock that dates it.
   checkout, whoever asks for it
 - [`version-control`](../../../externals/version-control.md) — the listing of
   the checkout, and the files whose change moves it
-- Watchman, where the adopter runs it — which files moved since a clock; asked,
+- [`watchman`](../../../externals/watchman.md), where the adopter runs it — which files moved since a clock; asked,
   never started, and never given a watch
 
 ## Used by

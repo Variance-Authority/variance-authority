@@ -92,7 +92,7 @@ async function main() {
     // digest, the walk over held records, taint, save). It costs about what
     // a publish with a hundred edits costs, and nothing here says which stage is why.
     measure('publish, nothing moved', 'publish', corpus);
-    // FIXME: spec 0107 criteria 5–6 — a Kibana corpus, and a row per change source (Watchman vouching, git as configured,
+    // TODO: spec 0107 criteria 5–6 — a Kibana corpus, and a row per change source (Watchman vouching, git as configured,
     // neither accelerator, no server after the update that recorded its absence) for nothing moved and one edit.
     edit(corpus, one);
     measure('publish, 1 file edited', 'publish', corpus);
