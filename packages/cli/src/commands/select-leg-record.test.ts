@@ -1,10 +1,9 @@
 import { execFileSync } from 'node:child_process';
-import { chmodSync, mkdirSync, mkdtempSync, realpathSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, realpathSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { dirname, join } from 'node:path';
+import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { digestString } from '@variance-authority/core/format';
-import { sourceIndexPath } from '@variance-authority/sense';
 import { testCoverageFile, writeTestCoverage, type TestCoverage } from '@variance-authority/sense/test-selection';
 import { parseArgs } from '../parse.js';
 import { answerConfigless, withoutConfig } from './configless.js';
@@ -16,6 +15,19 @@ import { shardsOutput } from './shards-command.js';
 // the checkout, and CI updates only an index it published. `ci-info` decides CI
 // once, when it loads, so the module is cut rather than the variable stubbed.
 vi.mock('ci-info', () => ({ isCI: false }));
+
+// What the file system refuses an update is the index writer's; a read-only
+// directory does not refuse root, who runs CI. One case sets this, and the
+// writer answers with it instead of writing.
+const refusal = vi.hoisted(() => ({ reason: undefined as string | undefined }));
+vi.mock('@variance-authority/sense', async (original) => {
+  const sense = await original<typeof import('@variance-authority/sense')>();
+  return {
+    ...sense,
+    updateSourceIndex: (...args: Parameters<typeof sense.updateSourceIndex>) =>
+      refusal.reason === undefined ? sense.updateSourceIndex(...args) : Promise.resolve({ refused: refusal.reason }),
+  };
+});
 
 /**
  * `variance select --at-distance` over a record written to disk and a graph
@@ -218,8 +230,7 @@ describe('a leg read from a real record and a real graph', () => {
     process.chdir(root);
     await indexOutput({ cwd: root });
     writeFileSync(join(root, 'src/widget.ts'), WIDGET.replace("return 'a';", "return 'z';"));
-    const index = dirname(sourceIndexPath(root));
-    chmodSync(index, 0o555);
+    refusal.reason = 'EACCES: permission denied';
     try {
       const near = JSON.parse((await selectOutput({ cwd: root, format: 'json', atDistance: { from: 0, to: 2 } })).out);
 
@@ -227,7 +238,7 @@ describe('a leg read from a real record and a real graph', () => {
       expect(near.left).toEqual([]);
       expect(near.notes[0]).toMatch(/^`--at-distance 0-2` runs every selected test file: the hops are measured on a graph that is not the checkout's, because the source index at .* could not be updated to the checkout: /);
     } finally {
-      chmodSync(index, 0o755);
+      refusal.reason = undefined;
     }
   });
 
