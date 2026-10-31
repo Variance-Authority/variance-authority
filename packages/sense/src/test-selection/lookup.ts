@@ -211,10 +211,9 @@ function pathAt(coverage: TestCoverageView, column: WordColumn, held: Map<number
  * `arrived` gives some names the digest of the text the caller's tree holds.
  * The digest beside a precondition is the text that test ran over, so a row
  * recording the arrived one is a test that already ran what is there now: a
- * run over a dirty tree, its edit left in place or committed since. When the
- * record saw that test whole, the row governs nothing, and each test is decided
- * by its own row; a test the run did not finish ran none of it to the end. A name held only by
- * such rows is in `ranOver`, and is not `unread`: the record holds it.
+ * run over a dirty tree, its edit left in place or committed since. Of a test
+ * the record saw whole, that row governs nothing. A name held only by such rows
+ * is in `ranOver`, and is not `unread`: the record holds it.
  */
 export function testsGovernedBy(
   coverage: TestCoverageView,
