@@ -47,7 +47,7 @@ import {
   type DeclaredSuite,
 } from '@variance-authority/sense/test-selection';
 import type { ParsedCarry } from '../carry-args.js';
-import { DEFAULT_BASELINE_PATH, parseBaselinePath } from '@variance-authority/store/durable';
+import { DEFAULT_BASELINE_PATH, KEPT, parseBaselinePath } from '@variance-authority/store/durable';
 import type { Mainlines } from '../share-lines.js';
 import type { Config } from '../config.js';
 import { loadConfig } from '../config-load.js';
@@ -286,8 +286,7 @@ function pathspecsOf(store: Exclude<NonNullable<Config['baselines']>, { kind: 'r
   const records = store.records ?? store.root;
   const roots = records === store.root ? [store.root] : [store.root, records];
   return [
-    `:(glob)${join(store.root, `${glob}.webp`)}`,
-    `:(glob)${join(store.root, `${glob}.png`)}`,
+    ...KEPT.map((as) => `:(glob)${join(store.root, `${glob}.${as}`)}`),
     `:(glob)${join(records, `${glob}.json`)}`,
     ...roots.map((root) => `:(glob)${join(root, `**/${PARTITION}/*`)}`),
     ...(store.kind === 'lfs' ? [`:(glob)${join(store.root, '.gitattributes')}`] : []),

@@ -247,7 +247,7 @@ the bytes arrive cannot change a verdict.
 | `comparePixels` | `(left: DecodedImage, right: DecodedImage, options?: CompareOptions) => RasterComparison` |
 | `compareRasters` | `(before: Raster, after: Raster, options?: CompareOptions & { decoder?: PngDecoder }) => Promise<RasterComparison>` |
 | `diffImage` | `(before: Buffer, after: Buffer, policy?: DiffPolicy) => Promise<Buffer>` |
-| `changeImages` | `(before: Buffer, after: Buffer, regions: readonly DiffRegion[], policy?: DiffPolicy, labels?: ChangeLabels) => { diff: Buffer; change?: Buffer }` |
+| `changeImages` | `(before: DecodedImage, after: DecodedImage, regions: readonly DiffRegion[], policy?: DiffPolicy, labels?: ChangeLabels) => { diff: Buffer; change?: Buffer }` |
 | `keepImage` | `(bytes: Buffer) => Promise<Buffer>` |
 | `imageFormat` | `(bytes: Uint8Array) => 'png' \| 'webp' \| null` |
 | `imageSize` | `(bytes: Uint8Array) => { width, height } \| null` |

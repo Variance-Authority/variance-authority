@@ -48,8 +48,10 @@ export type { DecodedImage };
  * itself is 9% — so this interface is where a run's raster cost actually lives.
  * On 1280×800: `pngjs` 22.6 ms, `sharp` 15.0 ms, and `sharp` again at **1.9 ms**
  * when several decode at once, because libvips runs on libuv's threadpool and
- * leaves the event loop free. Two wasm decoders were tried and both were
- * *slower* than the pure-JS one.
+ * leaves the event loop free. Two wasm PNG decoders were tried and both were
+ * *slower* than the pure-JS one. WebP is the other way round: libwebp as wasm
+ * decodes a full page in 12.8 ms, where `pngjs` takes 77.4 ms for the same page
+ * as a PNG (#860), so a kept WebP decodes through it when no addon is loaded.
  *
  * Async for exactly that reason. A synchronous seam would forbid the threadpool,
  * which is where the order of magnitude is — not in the per-image constant.
