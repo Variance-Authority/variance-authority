@@ -62,6 +62,10 @@ function serveStatic(root) {
 }
 
 let server;
+/**
+ * One browser for the file and one page for the test, never one per story: the
+ * page is the session whose module state the stories would share.
+ */
 let browser;
 let baseUrl = '';
 
