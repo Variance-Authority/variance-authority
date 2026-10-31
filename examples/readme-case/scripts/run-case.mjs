@@ -73,7 +73,7 @@ export async function runReadmeCase() {
       report,
       beforePng,
       afterPng,
-      diffPng: diffImage(beforePng, afterPng),
+      diffPng: await diffImage(beforePng, afterPng),
       comparison: comparePngs(beforePng, afterPng),
       engine: harness.engine,
     };

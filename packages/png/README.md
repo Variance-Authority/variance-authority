@@ -244,7 +244,7 @@ the bytes arrive cannot change a verdict.
 | `comparePngs` | `(before: Buffer, after: Buffer, options?: CompareOptions) => RasterComparison` |
 | `comparePixels` | `(left: DecodedImage, right: DecodedImage, options?: CompareOptions) => RasterComparison` |
 | `compareRasters` | `(before: Raster, after: Raster, options?: CompareOptions & { decoder?: PngDecoder }) => Promise<RasterComparison>` |
-| `diffImage` | `(before: Buffer, after: Buffer, policy?: DiffPolicy) => Buffer` |
+| `diffImage` | `(before: Buffer, after: Buffer, policy?: DiffPolicy) => Promise<Buffer>` |
 | `changeImages` | `(before: Buffer, after: Buffer, regions: readonly DiffRegion[], policy?: DiffPolicy, labels?: ChangeLabels) => { diff: Buffer; change?: Buffer }` |
 | `keepImage` | `(bytes: Buffer) => Promise<Buffer>` |
 | `imageFormat` | `(bytes: Uint8Array) => 'png' \| 'webp' \| null` |
@@ -274,7 +274,7 @@ threadpool decoder makes a pair of images cost roughly what one costs. The
 default decoder is `pngjs` for a PNG and WebAssembly libwebp for a WebP, so
 this package still requires nothing native.
 
-`diffImage` returns an encoded PNG — the after image dimmed with changed pixels
+`diffImage` resolves to an encoded PNG — the after image dimmed with changed pixels
 in red — for the person who does want to look. It is derived from the same bytes
 and is not the comparison result.
 

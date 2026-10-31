@@ -87,7 +87,7 @@ describe('the root README example\'s committed artifacts', () => {
       readFile(join(REPOSITORY_ROOT, 'README.md'), 'utf8'),
     ]);
 
-    expect(diff).toEqual(diffImage(before, after));
+    expect(diff).toEqual(await diffImage(before, after));
     for (const name of ['before.png', 'after.png', 'diff.png']) {
       expect(readme).toContain(`examples/readme-case/artifacts/${name}`);
     }
