@@ -1,5 +1,5 @@
 import { PNG } from 'pngjs';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import type { Raster, RenderIdentity } from '@variance-authority/core/format';
 import {
   compareRasters,
@@ -10,6 +10,14 @@ import {
   type DecodedImage,
   type PngDecoder,
 } from './index.js';
+import { alignRows } from './align.js';
+
+// Wrapped, not replaced: every comparison aligns as it would, and the one of
+// equal pixels is held to aligning nothing.
+vi.mock('./align.js', async (actual) => {
+  const module = await actual<typeof import('./align.js')>();
+  return { ...module, alignRows: vi.fn(module.alignRows) };
+});
 
 /**
  * A kept baseline records the digest of its pixels, and a comparison whose
@@ -161,6 +169,25 @@ describe('the digest of a raster’s structure', () => {
 });
 
 describe('a comparison of two images', () => {
+  it('of equal pixels is the comparison of nothing, found without reading a row', () => {
+    const copy = { ...GRADIENT, data: Buffer.from(GRADIENT.data) };
+    vi.mocked(alignRows).mockClear();
+
+    expect(comparePixels(GRADIENT, copy)).toEqual({
+      width: 24,
+      height: 16,
+      dimensionsChanged: false,
+      before: { width: 24, height: 16 },
+      after: { width: 24, height: 16 },
+      changed: { default: 0, strict: 0 },
+      total: 24 * 16,
+      mask: { width: 24, height: 16, data: new Uint8Array(24 * 16), changed: 0 },
+      alignment: { inserted: [], removed: [], shifted: [] },
+      structure: 'kept',
+    });
+    expect(alignRows).not.toHaveBeenCalled();
+  });
+
   it('says the structure was kept when only the colours changed', () => {
     const comparison = comparePixels(card(WHITE, BLUE, BLACK), card(DARK, MAGENTA, WHITE));
 
