@@ -38,7 +38,7 @@ describe('a run narrowed by a journal cut under other probes', () => {
     const { report } = await runWith(configOf({ source: { dirs: ['src'] } }), BOTH, stored(), {
       since: { ref: 'origin/main', changed: ['src/Button.tsx'], diff: DIFF },
       scanSource: async () => SOURCE,
-      readJourney: async () => ({ whole: ['fixture:a', 'fixture:b'], entered: ['fixture:a'], unread: [], because: [], probes }),
+      readJourney: async () => ({ whole: ['fixture:a', 'fixture:b'], entered: ['fixture:a'], unread: [], stale: [], because: [], probes }),
     });
 
     expect(report.observations.map((entry) => entry.subject)).toEqual(['fixture:a']);

@@ -212,8 +212,8 @@ function pathAt(coverage: TestCoverageView, column: WordColumn, held: Map<number
  * The digest beside a precondition is the text that test ran over, so a row
  * recording the arrived one is a test that already ran what is there now: a
  * run over a dirty tree, its edit left in place or committed since. That row
- * governs nothing, and each test is decided by its own row. A name held only by
- * such rows is in `ranOver`, and is not `unread`: the record holds it.
+ * governs nothing, save a test's own file in a run that did not finish. A name
+ * held only by such rows is in `ranOver`, not `unread`: the record holds it.
  */
 export function testsGovernedBy(
   coverage: TestCoverageView,
@@ -252,13 +252,19 @@ export function testsGovernedBy(
   for (let test = 0; test < coverage.testPath.length; test += 1) {
     const start = end;
     end = preconditions.at(test + 1);
+    const own = coverage.testPath.at(test);
+    // A run that did not finish proved none of its own file's text.
+    const whole = coverage.testComplete.at(test) === 1;
+    // Its own file governs a test whether or not it declared it.
+    let ownName = wanted.get(own);
     let governing: string[] | undefined;
     for (let input = start; input < end; input += 1) {
       const id = named.at(input);
       const name = wanted.get(id);
       if (name === undefined) continue;
       matched.add(name);
-      if (ran.has(id) && digests.at(input) === ran.get(id)) {
+      if (id === own) ownName = undefined;
+      if ((whole || id !== own) && ran.has(id) && digests.at(input) === ran.get(id)) {
         over.add(name);
         continue;
       }
@@ -267,6 +273,11 @@ export function testsGovernedBy(
         tests.set(test, governing);
       }
       governing.push(name);
+    }
+    if (ownName !== undefined) {
+      matched.add(ownName);
+      if (governing === undefined) tests.set(test, [ownName]);
+      else governing.push(ownName);
     }
   }
 

@@ -225,8 +225,9 @@ export interface TestSelection {
   readonly ignored?: readonly string[];
   readonly stale: readonly string[];
   /**
-   * What the parser made of each changed file. Absent when no diff was read
-   * against the journal, which is not the same as a diff that changed nothing.
+   * What the reader made of each changed file, or why no reader was asked of
+   * it. Absent when no diff was read against the journal, which is not the
+   * same as a diff that changed nothing.
    */
   readonly readings?: readonly FileReading[];
   /** The hops `--at-distance` asked for; `to` is absent for an open leg. Absent when no leg was asked. */

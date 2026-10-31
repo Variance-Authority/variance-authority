@@ -322,10 +322,10 @@ export async function selectSuite(request: SuiteRequest): Promise<SuiteReading> 
           ...(request.atDistance === undefined || asked?.distances === undefined ? {} : { distances: asked.distances }),
           ...(unrunAtHead.length === 0 ? {} : { unrunAtHead }),
           ...(request.atDistance === undefined || stale === undefined ? {} : { stale }),
-          narrowing: {
+          narrowing: selection.withEveryReading({
             ...narrowing,
             unread: [...new Set([...withoutManifests(narrowing.unread, manifests), ...unplaced])].sort(),
-          },
+          }),
         };
 
   const answer = said({ ...rested, ground });

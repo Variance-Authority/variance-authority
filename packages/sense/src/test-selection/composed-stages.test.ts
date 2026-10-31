@@ -74,6 +74,36 @@ describe('the composition is its stages', () => {
     expect(narrowByChangeFromView(view(), change, { sourceAt }).entered).not.toContain(DECLARING);
   });
 
+  it('keeps a test whose own file the change edits when it declared no precondition and was never seen whole', () => {
+    const unseen = { ...record, tests: [record.tests[0]!, { file: DECLARING, complete: false, preconditions: [] }] };
+    const opened = openTestCoverage(encodeTestCoverage(unseen));
+
+    expect(testsDeclaringFromView(opened, change, { sourceAt })).toMatchObject({ entered: [DECLARING], unanswered: [SOURCE] });
+    const composed = narrowByChangeFromView(opened, change, { sourceAt });
+    expect(composed.because).toContainEqual({ test: DECLARING, via: [{ kind: 'precondition', name: DECLARING }] });
+    expect(composed.unread).not.toContain(DECLARING);
+  });
+
+  it('names a stale file once, as stale', () => {
+    const { stale, readings } = narrowByChangeFromView(view(), change, { sourceAt });
+
+    expect(stale).toEqual([SOURCE]);
+    expect(readings?.filter((reading) => reading.file === SOURCE)).toEqual([{ file: SOURCE, unread: 'stale' }]);
+  });
+
+  it('names a stale built twin by the source the change names, and keeps the recorded name in the stale list', () => {
+    const BUILT = 'dist/two.js';
+    const twin = openTestCoverage(encodeTestCoverage({ ...record, modules: [{ ...record.modules[0]!, file: BUILT }] }));
+    const knownAs = (file: string): readonly string[] => ([SOURCE, BUILT].includes(file) ? [SOURCE, BUILT] : [file]);
+
+    const builtAt = (file: string): string | undefined => (file === BUILT ? 'export const name = "two";\n' : sourceAt(file));
+
+    const { stale, readings } = narrowByChangeFromView(twin, change, { sourceAt: builtAt, knownAs });
+
+    expect(stale).toEqual([BUILT]);
+    expect(readings?.filter((reading) => reading.file === SOURCE || reading.file === BUILT)).toEqual([{ file: SOURCE, unread: 'stale' }]);
+  });
+
   it('walks a rowless file a declaring test already ran the arrived text of, as the composition does', () => {
     const HELPER = 'src/helper.ts';
     const COMMITTED_HELPER = 'export const one = 1;\n';

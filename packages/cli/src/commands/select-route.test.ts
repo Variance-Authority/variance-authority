@@ -46,7 +46,8 @@ describe('a changed file the record did not measure', () => {
     const said = await select(root);
 
     expect(said.out).toBe('test/alpha.test.ts\ntest/beta.test.ts\n');
-    expect(said.err).toContain('the suite declines relations, so 1 changed file its record did not measure (src/feature.ts)');
+    expect(said.err).toContain('the suite declines relations, so 1 changed file its record did not measure keeps no test');
+    expect(said.err).toContain('read src/feature.ts: unread (the suite declines relations and its record did not measure it)');
     expect(said.err).not.toContain('records nothing');
   });
 

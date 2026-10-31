@@ -9,16 +9,14 @@ import { many } from './prose-counts.js';
 
 /**
  * The changed paths the journal records nothing about, argued at the top of
- * `select.ts`.
- *
- * Named rather than counted, because the one an operator acts on is a fixture a
- * test reads without importing it, and that is recognised by its name.
+ * `select.ts`. Counted: each has a `read` line of its own, which names it, and
+ * the one an operator acts on, a fixture a test reads without importing it, is
+ * recognised there by its name.
  */
 export function unreadNotes(unread: readonly string[]): readonly string[] {
   if (unread.length === 0) return [];
   return [
-    `the journal records nothing about ${many(unread.length, 'changed file')} ` +
-      `(${unread.slice(0, 3).join(', ')}${unread.length > 3 ? ', …' : ''}), so ` +
+    `the journal records nothing about ${many(unread.length, 'changed file')}, so ` +
       `${unread.length === 1 ? 'it keeps' : 'they keep'} no test in the run; a file the suite ` +
       'reads without importing it is declared as a precondition',
   ];
@@ -33,7 +31,6 @@ export function declinedNotes(declined: readonly string[]): readonly string[] {
   if (declined.length === 0) return [];
   return [
     `the suite declines relations, so ${many(declined.length, 'changed file')} its record did not measure ` +
-      `(${declined.slice(0, 3).join(', ')}${declined.length > 3 ? ', …' : ''}) ` +
       `${declined.length === 1 ? 'keeps' : 'keep'} no test in the run; a file the suite rests on is declared in its \`before\``,
   ];
 }
@@ -42,8 +39,7 @@ export function declinedNotes(declined: readonly string[]): readonly string[] {
 export function ignoredNotes(ignored: readonly string[]): readonly string[] {
   if (ignored.length === 0) return [];
   return [
-    `the suite ignores ${many(ignored.length, 'changed file')} ` +
-      `(${ignored.slice(0, 3).join(', ')}${ignored.length > 3 ? ', …' : ''}) by its \`ignore\`, ` +
+    `the suite ignores ${many(ignored.length, 'changed file')} by its \`ignore\`, ` +
       `so only a test that declares ${ignored.length === 1 ? 'it' : 'one'}, as a precondition or by a \`/// <depends>\`, runs for ${ignored.length === 1 ? 'it' : 'them'}`,
   ];
 }
@@ -76,10 +72,9 @@ export function recordingNotes(
   }
 
   if (stale.length > 0) {
-    const [first] = stale;
     notes.push(
       `${many(stale.length, 'changed module')} ${stale.length === 1 ? 'was' : 'were'} recorded ` +
-        `from a text the journal's own commit does not hold and the cache did not keep (${first}), ` +
+        `from a text the journal's own commit does not hold and the cache did not keep, ` +
         `so every region of ${stale.length === 1 ? 'it' : 'them'} was charged rather than read; the ` +
         `next run that loads ${stale.length === 1 ? 'it' : 'them'} records ${stale.length === 1 ? 'it' : 'them'} again`,
     );
