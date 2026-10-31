@@ -143,7 +143,7 @@ describe('the journeys prepared beside the index', () => {
 
     record(recording(), '0123456789abcdef0123456789abcdef01234567');
     expect(await prepareJourneys(root)).toEqual([
-      { out: journeysPath(sourceIndexPath(root)), failed: "commit 0123456789ab is not in this checkout's object store" },
+      { out: journeysPath(sourceIndexPath(root)), failed: "commit 0123456789ab is not in this checkout's object store. Fetch it with `git fetch origin 0123456789abcdef0123456789abcdef01234567`, or check out with `fetch-depth: 0`" },
     ]);
   });
 

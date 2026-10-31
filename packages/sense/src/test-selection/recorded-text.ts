@@ -73,6 +73,7 @@ import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { isLfsPointer } from '@variance-authority/core';
 import { native, nativeRefusal } from '../addon.js';
 
 /**
@@ -276,7 +277,8 @@ function listed(root: string, commit: string): Listing | null {
  * The text on disk at `file`, when its bytes are the blob the listed commit
  * holds there. `undefined` otherwise, for the caller to ask git: a path the
  * listing does not hold, one that is not a regular file there, or one whose
- * bytes on disk moved or are gone.
+ * bytes on disk moved or are gone, or one whose blob is a git-LFS pointer, which
+ * git smudges or refuses rather than this answering the pointer as the text.
  */
 function unchangedOnDisk(root: string, listing: Listing, file: string): string | undefined {
   const { bytes, starts } = listing;
@@ -300,7 +302,7 @@ function unchangedOnDisk(root: string, listing: Listing, file: string): string |
       } catch {
         return undefined;
       }
-      return blobName(text, object.length) === object ? text.toString('utf8') : undefined;
+      return blobName(text, object.length) === object && !isLfsPointer(text) ? text.toString('utf8') : undefined;
     }
   }
   return undefined;

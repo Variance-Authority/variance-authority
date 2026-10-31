@@ -383,7 +383,7 @@ export async function movedSince(point: DiffPoint | undefined, changed: readonly
 
 /**
  * The files at a revision, each `undefined` when that revision has no such
- * file.
+ * file, and a failure with git's reason when one could not be read.
  *
  * The two are told apart by the caller and mean different things: a lockfile
  * that was not there before is an install this cannot compare, and one that is
@@ -397,7 +397,7 @@ export async function movedSince(point: DiffPoint | undefined, changed: readonly
  */
 function filesAt(repository: string, revision: string): (path: string) => Promise<string | undefined> {
   return (path) =>
-    new Promise((answer) => {
+    new Promise((answer, fail) => {
       let turn = pending.get(repository);
       if (turn === undefined) {
         const asked = (turn = new Map());
@@ -409,28 +409,36 @@ function filesAt(repository: string, revision: string): (path: string) => Promis
       }
       const paths = turn.get(revision) ?? new Map<string, Answer[]>();
       turn.set(revision, paths);
-      paths.set(path, [...(paths.get(path) ?? []), answer]);
+      paths.set(path, [...(paths.get(path) ?? []), { answer, fail }]);
     });
 }
 
-type Answer = (text: string | undefined) => void;
+interface Answer {
+  readonly answer: (text: string | undefined) => void;
+  readonly fail: (why: unknown) => void;
+}
 
 /** The paths asked of each repository this turn, by revision, with who is waiting on each. */
 const pending = new Map<string, Map<string, Map<string, Answer[]>>>();
 
-/** Answers every path in `turn`; one the read could not answer is `undefined`, so nobody waits forever. */
+/**
+ * Answers every path in `turn`, or fails every one with git's reason when the
+ * read could not finish: a path it could not read is not a path the revision
+ * lacks, and nobody waits forever.
+ */
 async function readTurn(repository: string, turn: ReadonlyMap<string, ReadonlyMap<string, readonly Answer[]>>): Promise<void> {
-  let texts: ReadonlyMap<string, ReadonlyMap<string, string>> | undefined;
+  let texts: ReadonlyMap<string, ReadonlyMap<string, string>>;
   try {
     const { textsAt } = await import('@variance-authority/sense/test-selection');
     texts = textsAt(repository, new Map([...turn].map(([revision, paths]) => [revision, paths.keys()])));
-  } catch {
-    texts = undefined;
+  } catch (why) {
+    for (const paths of turn.values()) for (const answers of paths.values()) for (const { fail } of answers) fail(why);
+    return;
   }
   for (const [revision, paths] of turn) {
     for (const [file, answers] of paths) {
-      const text = texts?.get(revision)?.get(file);
-      for (const one of answers) one(text);
+      const text = texts.get(revision)?.get(file);
+      for (const { answer } of answers) answer(text);
     }
   }
 }

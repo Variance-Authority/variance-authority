@@ -18,6 +18,7 @@ use std::path::Path;
 
 use rayon::prelude::*;
 
+use crate::commit_text::{absent, contents, Blob};
 use crate::compact::Layer;
 use crate::journeys_parse::{parse, Callee, Export, Parsed};
 use crate::package_graph::{fold, join_parses, At, Crossing};
@@ -75,35 +76,16 @@ fn bare(value: &str) -> bool {
 
 /// The text of every source file that differs between `commit` and the
 /// working tree, as it was at `commit`: `None` for a file that did not exist
-/// there, as the diff names it by an object of all zeros. One diff, in a
-/// partial clone one fetch of the objects the diff names ([`crate::promisor`]),
-/// and one `cat-file --batch` by object name; a file not in the map is the same
-/// on disk. Renames are not detected: a file moved since the commit is a path
-/// the commit did not have, and the path it had is read from there under its
-/// own name.
-///
-/// Every object the diff names exists, so one git cannot read is a fault and
-/// never an absent file: the read then fails with git's own reason. That holds
-/// on every git, including those before 2.44, which stop at the first object
-/// `GIT_NO_LAZY_FETCH` forbids rather than answering it `missing`; so the read
-/// leaves lazy fetching as the repository has it, and a fetch that failed costs
-/// one request per object rather than a different answer.
-///
-/// A file git holds as a git-LFS pointer is read as the content the pointer
-/// names ([`crate::lfs::smudge`]), and the read fails with git-lfs's reason
-/// when that content cannot be had: the pointer is never parsed as source.
+/// there, as the diff names it by an object of all zeros. One diff, and the
+/// objects it names read together as [`contents`] reads them; a file not in the
+/// map is the same on disk. Renames are not detected: a file moved since the
+/// commit is a path the commit did not have, and the path it had is read from
+/// there under its own name.
 pub(crate) fn text_at(root: &str, commit: &str) -> Result<HashMap<String, Option<String>>, String> {
     let args = ["-c", "core.quotePath=false", "diff", "--raw", "--no-abbrev", "--no-renames", "-z", "--relative", commit];
     let listed = match crate::git::answer(root, &args, None) {
         Ok(listed) => listed,
-        Err(why) => {
-            let known = crate::git::git(root, &["cat-file", "-e", &format!("{commit}^{{commit}}")], None).is_some();
-            return Err(if known {
-                format!("git could not list what changed since commit {}: {why}", short(commit))
-            } else {
-                format!("commit {} is not in this checkout's object store", short(commit))
-            });
-        }
+        Err(why) => return Err(absent(root, commit).unwrap_or_else(|| format!("git could not list what changed since commit {}: {why}", short(commit)))),
     };
     // `:<mode> <mode> <object> <object> <status>` and then the path, each ended
     // by a NUL. The first object is the commit's, all zeros where it had none.
@@ -119,49 +101,16 @@ pub(crate) fn text_at(root: &str, commit: &str) -> Result<HashMap<String, Option
         })
         .filter(|(path, _)| code(path))
         .collect();
-    let mut texts = HashMap::new();
-    if changed.is_empty() {
-        return Ok(texts);
-    }
     let unread = |why: &str| format!("git could not read the files changed since commit {}: {why}", short(commit));
-    let oids: Vec<String> = changed.iter().filter_map(|(_, oid)| oid.clone()).collect();
-    let fetched = crate::promisor::fetch(root, &oids);
-    let read = read_objects(root, &oids).map_err(|why| match &fetched {
-        Err(fetch) if fetch != &why => unread(&format!("{why} (the fetch before it: {fetch})")),
-        _ => unread(&why),
-    })?;
+    let read = {
+        let asked: Vec<Blob> = changed.iter().filter_map(|(path, oid)| Some(Blob { oid: oid.as_deref()?, path, commit })).collect();
+        contents(root, &asked).map_err(|why| unread(&why))?
+    };
     let mut read = read.into_iter();
-    for (file, oid) in changed {
-        let text = match oid.and_then(|_| read.next()) {
-            Some(blob) if crate::lfs::pointer(&blob) => Some(crate::lfs::smudge(root, &file, commit, &blob).map_err(|why| unread(&why))?),
-            blob => blob,
-        };
-        texts.insert(file, text.map(|bytes| String::from_utf8_lossy(&bytes).into_owned()));
-    }
-    Ok(texts)
-}
-
-/// Each of `oids` from one `cat-file --batch`, in order. An object git answers
-/// `missing` is an error, as is any output that does not parse: every object
-/// asked for was named by the commit's tree.
-fn read_objects(root: &str, oids: &[String]) -> Result<Vec<Vec<u8>>, String> {
-    let asked: String = oids.iter().map(|oid| format!("{oid}\n")).collect();
-    let out = crate::git::answer(root, &["cat-file", "--batch"], Some(asked.into_bytes()))?;
-    let cut = || "git cat-file --batch ended its answer early".to_owned();
-    let mut read = Vec::with_capacity(oids.len());
-    let mut at = 0;
-    for _ in oids {
-        let end = at + out.get(at..).ok_or_else(cut)?.iter().position(|&byte| byte == b'\n').ok_or_else(cut)?;
-        let head = String::from_utf8_lossy(&out[at..end]).into_owned();
-        at = end + 1;
-        let size = match head.rsplit(' ').next().map(str::parse::<usize>) {
-            Some(Ok(size)) if !head.ends_with(" missing") => size,
-            _ => return Err(format!("git answered `{head}`")),
-        };
-        read.push(out.get(at..at + size).ok_or_else(cut)?.to_vec());
-        at += size + 1;
-    }
-    Ok(read)
+    Ok(changed
+        .into_iter()
+        .map(|(file, oid)| (file, oid.and_then(|_| read.next()).map(|bytes| String::from_utf8_lossy(&bytes).into_owned())))
+        .collect())
 }
 
 /// A commit as the output names one.

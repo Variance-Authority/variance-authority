@@ -166,6 +166,24 @@ describe('the text at a recording is read a window at a time', () => {
     });
   });
 
+  it('fails naming the commit when this clone does not hold it, rather than answering every path missing', async () => {
+    await checkout(async (root) => {
+      // A shallow checkout, or one fetched at depth 1, never held the recording's commit.
+      const absent = 'f'.repeat(40);
+
+      expect(() => textsAt(root, new Map([[absent, [path(0)]]]))).toThrow(/commit ffffffffffff is not in this checkout's object store/);
+    });
+  });
+
+  it('fails with git\'s reason when the tree names a blob the object store lacks, rather than answering it missing', async () => {
+    await checkout(async (root, commit) => {
+      const blob = execFileSync('git', ['rev-parse', `${commit}:${path(1)}`], { cwd: root, encoding: 'utf8' }).trim();
+      rmSync(resolve(root, '.git', 'objects', blob.slice(0, 2), blob.slice(2)));
+
+      expect(() => textsAt(root, new Map([[commit, [path(0), path(1)]]]))).toThrow(/^git could not read the files asked about at commit [0-9a-f]{12}: .*\S/s);
+    });
+  });
+
   it('answers nothing at all without a position to read from', async () => {
     await checkout(async (root) => {
       const sourceAt = textAtRecording(root, [path(0)]);
@@ -402,6 +420,23 @@ describe('the text at a recording of a file git-lfs tracks', () => {
       expect(() => textsAt(root, new Map([[commit, ['src/big.ts', 'src/small.ts']]]))).toThrow(
         new RegExp(`src/big\\.ts at ${commit} is a git-LFS pointer, and git-lfs could not give its content: .+Run \`git lfs install --local\`, and \`git lfs fetch origin ${commit}\``, 's'),
       );
+    });
+  });
+
+  it('is refused when the checkout holds the pointer too, rather than read from disk as the source', async () => {
+    // A checkout made without git-lfs: the bytes on disk are the commit's blob,
+    // and that blob is the pointer.
+    await lfsCheckout(async (root, git) => {
+      await writeFile(resolve(root, '.gitattributes'), 'src/big.ts filter=lfs diff=lfs merge=lfs -text\n', 'utf8');
+      await writeFile(resolve(root, 'src/big.ts'), POINTER, 'utf8');
+      await git('-c', 'filter.lfs.clean=cat', '-c', 'filter.lfs.process=', '-c', 'filter.lfs.required=false', 'add', '--all');
+      await git('commit', '--quiet', '--message', 'a pointer with no object');
+    }, (root, commit) => {
+      // Two paths the caller never named: the second is answered from disk when its bytes are the commit's.
+      const sourceAt = textAtRecording(root, []);
+      expect(sourceAt('src/small.ts', commit)).toBe('export const small = 1;\n');
+
+      expect(() => sourceAt('src/big.ts', commit)).toThrow(/src\/big\.ts at [0-9a-f]+ is a git-LFS pointer, and git-lfs could not give its content/);
     });
   });
 

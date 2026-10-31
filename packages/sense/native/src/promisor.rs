@@ -10,9 +10,12 @@
 //! reads after it 0.03 s.
 //!
 //! So a reader hands here every blob it is about to read, and then reads
-//! them with lazy fetching left as the repository has it. The fetch is the one
-//! git makes for its own batched prefetch. A fetch that failed costs the old
-//! one request per object, never a text read as absent.
+//! them with lazy fetching left as the repository has it. `rev-list
+//! --missing=print` names the ones the clone lacks without fetching them, and
+//! only those are fetched, in the request git makes for its own batched
+//! prefetch. A git that cannot name them has every blob fetched instead. A
+//! fetch that failed costs the old one request per object, never a text read
+//! as absent.
 //!
 //! The reader does not ask first with `GIT_NO_LAZY_FETCH=1`: git 2.43, the one
 //! Ubuntu 24.04 ships, stops at the first object that variable forbids, warning
@@ -27,19 +30,27 @@ use std::sync::{Mutex, OnceLock};
 
 use crate::git::git;
 
-/// Whether `root` is a partial clone. Settled when it was cloned, so asked once
-/// per checkout rather than once per read.
-pub(crate) fn partial(root: &str) -> bool {
-    promised(root).is_some()
-}
-
-/// Fetch `oids` from the remote that promised them, in one request, or git's
-/// reason for not fetching them. Nothing to do outside a partial clone.
-pub(crate) fn fetch(root: &str, oids: &[String]) -> Result<(), String> {
+/// Fetch those of `oids` the clone lacks from the remote that promised them,
+/// in one request, or git's reason for not fetching them. Nothing to do
+/// outside a partial clone.
+pub(crate) fn fetch(root: &str, oids: &[&str]) -> Result<(), String> {
     match promised(root) {
-        Some(remote) => fetch_from(root, &remote, oids),
+        Some(remote) => fetch_from(root, &remote, &lacking(root, oids)),
         None => Ok(()),
     }
+}
+
+/// Those of `oids` the clone does not hold, as `rev-list` prints them: `?`
+/// and the object name. Every one of them when git cannot say.
+fn lacking<'a>(root: &str, oids: &[&'a str]) -> Vec<&'a str> {
+    let stdin: String = oids.iter().map(|oid| format!("{oid}\n")).collect();
+    let args = ["rev-list", "--objects", "--no-walk", "--missing=print", "--stdin"];
+    let Ok(listed) = crate::git::answer(root, &args, Some(stdin.into_bytes())) else {
+        return oids.to_vec();
+    };
+    let listed = String::from_utf8_lossy(&listed);
+    let missing: std::collections::HashSet<&str> = listed.lines().filter_map(|line| line.strip_prefix('?')).collect();
+    oids.iter().copied().filter(|oid| missing.contains(oid)).collect()
 }
 
 /// [`remote`], asked once per checkout.
@@ -56,7 +67,7 @@ fn promised(root: &str) -> Option<String> {
     known
 }
 
-fn fetch_from(root: &str, remote: &str, oids: &[String]) -> Result<(), String> {
+fn fetch_from(root: &str, remote: &str, oids: &[&str]) -> Result<(), String> {
     if oids.is_empty() {
         return Ok(());
     }
