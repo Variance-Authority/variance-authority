@@ -71,7 +71,10 @@ in the open leg. An edit to the new file alone then selected nothing at `0-1`
 The line stays as published. The selection asks the published index for the
 files the diff changed, and on a workstation an index that lacks one the
 checkout holds is updated once, with a line on stderr, as a missing one is. CI
-reads its index as published: the pipeline's step ran over that checkout.
+reads its index as published: the pipeline's step ran over that checkout. A
+file added since the index that the diff does not change still has no hops
+until the next `variance index`: a test that reaches an edited file only
+through it stays in the open leg.
 
 `yarn test:loop` hands its arguments to the runner and reads its leg from
 `VARIANCE_AUTHORITY_AT_DISTANCE`, `0-1` when unset, as `verify:near` and
