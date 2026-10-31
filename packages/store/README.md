@@ -15,8 +15,8 @@ one runner's own directory, or a repository a team checks out.
 
 Throughout, a **subject** is one named UI state you asked for and can ask for
 again — a story, a route, a component in a particular state. A stored baseline
-for one subject is two files: a PNG, and a JSON **sidecar** written beside it
-recording how that image was painted.
+for one subject is two files: the image, kept as a lossless WebP, and a JSON
+**sidecar** written beside it recording how that image was painted.
 
 ## Requirements
 
@@ -32,7 +32,7 @@ npm install --save-dev @variance-authority/store
 
 Complete and runnable as written — save it as `baselines.mjs` and run
 `node baselines.mjs`. The PNG below is a real one-pixel image, so nothing has to
-be rendered first.
+be rendered first; `put` keeps it as a WebP.
 
 ```js
 import { mkdtemp } from 'node:fs/promises';
@@ -84,7 +84,7 @@ Two files under the root, at a path you can read back to the subject, its label
 and the engine that painted it:
 
 ```
-<root>/components/Button/primary__wide-chromium.png
+<root>/components/Button/primary__wide-chromium.webp
 <root>/components/Button/primary__wide-chromium.json
 ```
 
@@ -93,7 +93,7 @@ The path comes from a template, `{title}/{name}-{engine}` unless you pass
 or a story's title; `{name}` is the rest, or a story's name. `{file}` and
 `{dir}` place the baseline beside the file that declares its subject,
 so `{dir}/__baselines__/{file}/{name}-{engine}` keeps
-`src/ui/__baselines__/Button.stories.tsx/Primary-chromium.png` next to the
+`src/ui/__baselines__/Button.stories.tsx/Primary-chromium.webp` next to the
 story. Two subjects that would share a path are refused before anything is
 written, and the refusal names both.
 
@@ -111,7 +111,8 @@ The sidecar, verbatim:
   },
   "width": 1,
   "height": 1,
-  "missingFonts": []
+  "missingFonts": [],
+  "image": "webp"
 }
 ```
 
@@ -162,7 +163,7 @@ platform that *was* found, rather than a suite-wide failure with no stated
 cause.
 
 `describe` reads a few hundred bytes of text and stats the image. `find` is the
-same lookup with the PNG, base64-encoded, attached.
+same lookup with the image, base64-encoded, attached.
 
 ## Approve a change
 
@@ -231,9 +232,16 @@ Both store backends implement one contract, `RasterStore`, which is defined in
 ## Where the files go
 
 ```
-<root>/<path>.png
+<root>/<path>.webp
 <root>/<path>.json
 ```
+
+`put` encodes the image once, on the accept, and decodes the WebP back to check
+that every channel of every pixel survived before anything is written; a
+comparison only ever decodes. A baseline kept as a `.png` before stays readable
+— its sidecar has no `image` field — until its next accept replaces it with the
+WebP. A WebP holds at most 16,383 pixels on a side, so `put` refuses a taller or
+wider image with the tree as it was.
 
 `<path>` is the `path` template rendered for the key and the engine family. The
 template's tokens:
@@ -296,7 +304,7 @@ and your `.gitignore`.
 
 ## Missing and corrupt baselines
 
-A missing pair — both `.png` and `.json` absent for a key — returns `null` and
+A missing pair — both the image and the `.json` absent for a key — returns `null` and
 is treated as a new baseline. Any other corruption throws:
 
 - one file without the other
@@ -327,7 +335,7 @@ In a fresh repository that prints:
 ```json
 {
   "attributesFile": ".variance/baselines/.gitattributes",
-  "pattern": "*.png",
+  "pattern": "*-*.webp",
   "added": true,
   "filter": "lfs",
   "diagnostics": []
@@ -337,7 +345,7 @@ In a fresh repository that prints:
 and leaves `.variance/baselines/.gitattributes` reading:
 
 ```
-*.png filter=lfs diff=lfs merge=lfs -text
+*-*.webp filter=lfs diff=lfs merge=lfs -text
 ```
 
 `filter` is what git resolves the `filter` attribute to for a matching path, and
@@ -347,7 +355,7 @@ un-smudged clone does not read as a passing run.
 
 That last case is the one worth naming. An un-smudged checkout — LFS not
 installed, or `GIT_LFS_SKIP_SMUDGE` set — hands you about 130 bytes of text
-where a PNG should be, and comparing two of those reports `unchanged` for every
+where an image should be, and comparing two of those reports `unchanged` for every
 subject in the suite. When `find` reads a pointer, the store runs `git lfs pull
 --include=<that file>` and reads the image it fetched. The pull fetches that
 file and no other: the pattern is anchored at the work tree's root, a
@@ -376,7 +384,7 @@ running git-lfs.
 | option | default | what it decides |
 |---|---|---|
 | `root` | required | baseline root, laid out exactly as the durable store lays it out |
-| `pattern` | `*.png` | which files are tracked, relative to the `.gitattributes` the entry lives in. Only images match by default; the `.json` sidecar next to each is never routed through LFS |
+| `pattern` | `*-*.webp` | which files are tracked, relative to the `.gitattributes` the entry lives in. Only images match by default; the `.json` sidecar next to each is never routed through LFS |
 | `attributesFile` | `<root>/.gitattributes` | where the tracking entry lives — the baseline root, not the repository root |
 | `cacheRoot` | `root` | where the render cache goes. Defaults to `root`, so cache entries are tracked and committed alongside baselines unless this points outside the work tree |
 | `recordRoot` | `root` | where the `.json` sidecars go, passed straight to the durable store. The reason to set it is sharpest here: `pattern` routes the images out of the object database, and the sidecars are the text left behind gaining a revision per document change |

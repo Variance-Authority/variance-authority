@@ -273,7 +273,7 @@ component behind them are printed as coordinates and marked unattributed. The
 list is ordered by area, and the message states that: area measures displacement
 rather than blame, so a container pushed by an edit can outrank the edit itself.
 
-The images themselves are files. The approved baseline is the `.png` under the
+The images themselves are files. The approved baseline is the `.webp` under the
 baseline directory, beside the `.json` recording what painted it. The candidate
 this run painted is in `renders/` in [your cache](cache.md), named by the
 digest of the document it was painted from.

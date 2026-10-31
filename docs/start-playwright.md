@@ -78,7 +78,7 @@ Two observations that use the same id in one root address the same baseline and
 overwrite each other, whichever files they live in.
 
 The `/` is a directory in the baseline's path: `cart/empty` is written as
-`cart/empty-chromium.png`, so ids that share a prefix share a folder.
+`cart/empty-chromium.webp`, so ids that share a prefix share a folder.
 
 Omit `subjectId` and the id defaults to the test's title path, and the baseline
 is filed under the `describe` titles with the test's own title as its name.
@@ -92,11 +92,11 @@ somewhere else. Each one is two files, named for the subject and the browser
 engine that painted it:
 
 ```
-.variance/baselines/cart/empty-chromium.png
+.variance/baselines/cart/empty-chromium.webp
 .variance/baselines/cart/empty-chromium.json
 ```
 
-The `.png` is the approved image. The `.json` records which renderer painted it
+The `.webp` is the approved image, kept losslessly. The `.json` records which renderer painted it
 and what it may be compared against.
 
 The path is a template, `{title}/{name}-{engine}` by default. Set

@@ -58,11 +58,11 @@ export default routeCollector({
 
 **The id is yours.** Choose one that survives a renamed route, and keep it out
 of the URL's shape. The id is also the baseline's path: under the default
-`baselines.path`, `checkout/empty` is written as `checkout/empty-chromium.png`,
+`baselines.path`, `checkout/empty` is written as `checkout/empty-chromium.webp`,
 each `/` a directory, so the folder you review reads like your list of routes.
 A site root, `/`, has no segment to name a file after, so it is
-written as `index-chromium.png`, the file a server answers `/` with, and at a
-declared width as `index-1280-chromium.png`.
+written as `index-chromium.webp`, the file a server answers `/` with, and at a
+declared width as `index-1280-chromium.webp`.
 Ids are also what `ignore` rules glob over, so `checkout/empty` and
 `checkout/one-item` are both matched by `checkout/*`.
 

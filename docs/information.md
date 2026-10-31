@@ -316,7 +316,8 @@ Pixel bytes have three distinct homes:
   default beside `.variance/report.json`, under `.variance/images`, and the
   report references them by relative path. A CI job must upload the report and
   the image directory together.
-- **Approved visual reference:** the authoritative PNG plus readable sidecar at
+- **Approved visual reference:** the authoritative image, a lossless WebP, plus
+  readable sidecar at
   a baseline key and painter partition. It lives in a configured directory, in
   Git LFS, or in a baseline service you deploy.
 

@@ -35,9 +35,11 @@ Playwright's Chromium is a few hundred megabytes, far more than all of it
 combined, and it is downloaded into Playwright's own cache rather than into
 `node_modules`.
 
-Nothing here is WebAssembly. Two wasm PNG decoders were measured against the
-pure-JavaScript one and both were slower, so there is no portable-and-fast
-middle option.
+The one WebAssembly module is libwebp, compiled for `@jsquash/webp`, which
+keeps an accepted baseline as a lossless WebP and reads it back wherever `sharp`
+does not load. It runs on every platform Node does, so it has no binaries to
+miss. Two wasm PNG decoders were measured against the pure-JavaScript one and
+both were slower, so captures have no portable-and-fast middle option.
 
 ### Platforms and architectures
 
@@ -121,7 +123,8 @@ withholding an install.
 
 ## Choosing the PNG decoder
 
-The PNG decoder is the one piece you choose. `decoder` is a top-level key in
+The PNG decoder is the one piece you choose. It reads the kept WebP baselines
+too: `sharp` natively, `pngjs` through libwebp. `decoder` is a top-level key in
 `variance.config.json` and takes three values:
 
 ```json

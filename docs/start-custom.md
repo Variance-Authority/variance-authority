@@ -359,7 +359,7 @@ rather than the directory, and git still descends:
 ```
 
 Inside that root, images are filed by subject and engine —
-`receipt/empty-chromium.png` — and the `.json` beside each records the machine
+`receipt/empty-chromium.webp` — and the `.json` beside each records the machine
 that painted it. A run compares against that image whichever machine painted
 it, and names the machine as the cause when it is not this one. So baselines approved on your laptop are
 compared with a Linux runner's pixels, and the platform's font and antialiasing
