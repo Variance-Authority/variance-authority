@@ -1339,7 +1339,8 @@
       "./transform": {
         "Isolated": "interface",
         "Left": "interface",
-        "isolate": "function"
+        "isolate": "function",
+        "skipper": "function"
       }
     }
   },
