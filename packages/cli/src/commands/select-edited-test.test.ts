@@ -69,6 +69,7 @@ describe('`variance select` over a change that edits a test file', () => {
     expect(json.left).toEqual([]);
     expect(json.unread).toEqual([]);
     expect(got.err).not.toContain('records nothing about');
+    expect(got.err).not.toContain('the record was taken over this text');
     expect(json.distances).toEqual([
       { test: 'test/total.test.ts', hops: 0, bearing: 'precondition', from: 'test/total.test.ts', trail: ['test/total.test.ts'] },
     ]);
