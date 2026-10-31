@@ -40,6 +40,8 @@ import MagicString, { type SourceMap } from 'magic-string';
 import { parseSync } from 'oxc-parser';
 import { binders, bound, isNode, moduleReferences, varNames, type Node } from './scope.js';
 
+export { skipper } from './skips.js';
+
 /** The specifier a rewritten module imports its frame from. */
 const RUNTIME = '@variance-authority/isolator/runtime';
 

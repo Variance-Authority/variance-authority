@@ -39,7 +39,8 @@ Node 22.15 or newer, on macOS (Apple silicon), Linux (glibc, x64 or arm64) or
 Windows (x64): which modules declare side effects is read by
 [Sense](https://variance-authority.dev/reference/packages/sense)'s native reader. React 19 only for the React entry. The transform is one
 function, `isolate(code, file)`; Jest 30, Rspack 2 and webpack 5 get a seam
-that calls it, and any other build tool calls it itself.
+that calls it, Vitest a plugin of a dozen lines, and any other build tool
+calls it itself.
 
 ## What it rewrites
 
@@ -138,6 +139,56 @@ Test files are not rewritten. A test file's own `let` carries what a
 Neither is anything under `node_modules`, nor a module its package lists in
 `sideEffects`.
 
+## Run it in Vitest
+
+Vitest's `isolate: false` keeps each worker's modules loaded from one test file
+to the next, which saves loading them again for every file, and lets every
+file see what the files before it left in them. The isolator takes the second
+part away: each test reads the values its modules were loaded with.
+
+```ts
+// vitest.config.ts
+import { isolate, skipper } from '@variance-authority/isolator/transform';
+import { defineConfig } from 'vitest/config';
+
+const skipped = skipper(process.cwd());
+
+export default defineConfig({
+  plugins: [{
+    name: 'isolator',
+    enforce: 'pre',
+    transform(code, id) {
+      const path = id.split('?')[0];
+      if (!/\.[cm]?[jt]sx?$/.test(path) || /\.(test|spec)\./.test(path) || skipped(path)) return;
+      const { code: rewritten, map, left } = isolate(code, path);
+      for (const { line, name, reason } of left) this.warn(`${path}:${line} \`${name}\` stays shared: ${reason}`);
+      return { code: rewritten, map };
+    },
+  }],
+  test: { isolate: false, setupFiles: ['./reset.setup.ts'] },
+});
+```
+
+```ts
+// reset.setup.ts
+import { configureResetHandler } from '@variance-authority/ioc/reset/setup';
+import { beforeEach } from 'vitest';
+
+configureResetHandler(beforeEach);
+```
+
+`skipper(root)` answers which files stay as they are, as it does for the Jest
+transformer and the loader: anything under `node_modules`, what `sideEffects`
+lists, and the globs it is handed in its second argument, relative to `root`.
+Name your own test files in the plugin's test if they are not `*.test.*` or
+`*.spec.*`.
+
+The isolator resets what modules hold, not what the process holds: the working
+directory after `process.chdir`, `process.env` and a global carry into the next
+file, so restore each in the file that changed it. A
+`vi.mock` reaches only the modules loaded after it: one an earlier file loaded
+keeps what it imported then.
+
 ## Run it in Rspack or webpack
 
 ```js
@@ -170,8 +221,8 @@ const { code, map, left } = isolate(source, path);
 `isolate` takes a module's text and its path, whose extension decides how it
 is parsed, and returns the rewritten text, its source map — `undefined` when
 nothing moved — and what it left shared, with the reason. Hand it the file as
-it is on disk, before any other transform, and skip test files,
-`node_modules` and what `sideEffects` lists, as the Jest seam does.
+it is on disk, before any other transform, and skip test files and what
+`skipper(root)` answers for, as the Vitest plugin above does.
 
 ## Keep a variable shared
 
@@ -259,7 +310,7 @@ isolator: src/mode.ts:1 `mode` stays shared: an exported `let` is read by its im
 | `@variance-authority/isolator/react` | `requestSessions()` makes each React Server Components request a session, through every Suspense boundary it streams. React's `cache` keeps a request only in the Flight renderer, under the `react-server` condition. |
 | `@variance-authority/isolator/jest` | The Jest transformer. |
 | `@variance-authority/isolator/loader` | The loader for Rspack and webpack. |
-| `@variance-authority/isolator/transform` | `isolate(code, file)`, the transform itself, for any other tool. |
+| `@variance-authority/isolator/transform` | `isolate(code, file)`, the transform itself, and `skipper(root, exclude)`, which files it leaves, for Vitest and any other tool. |
 | `@variance-authority/isolator/runtime` | `frame`, which rewritten modules import. |
 
 The first source that answers wins. When none does — in a test, or in a browser
@@ -273,7 +324,6 @@ nobody holds any more takes its values with it.
   as `function setup() { register(handlers); } setup();` does. The transform
   reads what the module does at its top level, not inside the functions it
   calls; mark the declaration `@isolator-ignore`.
-- **Vitest.** There is no Vite plugin yet.
 - **A class's static fields.** They live on the class, which is one object for
   every session.
 - **State inside a package you do not build.** `node_modules` is never
