@@ -213,8 +213,7 @@ function pathAt(coverage: TestCoverageView, column: WordColumn, held: Map<number
  * recording the arrived one is a test that already ran what is there now: a
  * run over a dirty tree, its edit left in place or committed since. That row
  * governs nothing, save a test's own file in a run that did not finish. A name
- * held only by such rows is in `ranOver`, and is not `unread`: the record holds
- * it.
+ * held only by such rows is in `ranOver`, not `unread`: the record holds it.
  */
 export function testsGovernedBy(
   coverage: TestCoverageView,
