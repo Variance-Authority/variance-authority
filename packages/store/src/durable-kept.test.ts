@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { PNG } from 'pngjs';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { Raster, RenderIdentity } from '@variance-authority/core/format';
-import { decodePortable, imageFormat, KEEP_LIMIT } from '@variance-authority/png';
+import { decodePortable, imageFormat, KEEP_LIMIT, keepImage } from '@variance-authority/png';
 import { createDurableStore } from './durable.js';
 
 /**
@@ -97,6 +97,15 @@ describe('a baseline kept as a PNG', () => {
     await store.put(KEY, rasterOf(capture(6, 4)));
     await writeFile(join(root, 's-chromium.png'), capture(6, 4));
     await expect(store.find(KEY, CHROMIUM)).rejects.toThrow(/s-chromium\.png/);
+  });
+});
+
+describe('a baseline with no pixels', () => {
+  it('beside a WebP it does not claim is damage, since nobody recorded that image', async () => {
+    const { width: _w, height: _h, bytes: _b, ...pixelless } = rasterOf(capture(6, 4));
+    await writeFile(join(root, 's-chromium.json'), JSON.stringify({ ...pixelless, placedFor: KEY }));
+    await writeFile(join(root, 's-chromium.webp'), await keepImage(capture(6, 4)));
+    await expect(createDurableStore(root).find(KEY, CHROMIUM)).rejects.toThrow(/s-chromium\.webp/);
   });
 });
 

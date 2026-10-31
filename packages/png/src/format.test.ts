@@ -66,6 +66,14 @@ describe('keepImage', () => {
   });
 });
 
+describe('decodePortable', () => {
+  it('refuses bytes in neither format by name, rather than as a corrupt PNG', async () => {
+    await expect(decodePortable(Buffer.from('<!doctype html> a proxy error page'))).rejects.toThrow(
+      /neither a PNG nor a WebP/,
+    );
+  });
+});
+
 describe('pngjsDecoder', () => {
   it('reads a kept WebP without a native addon', async () => {
     const decoded = await pngjsDecoder.decode(await keepImage(picture));

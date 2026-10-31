@@ -24,6 +24,23 @@ describe('imageSize', () => {
     expect(imageSize(await keepImage(png(390, 871)))).toEqual({ width: 390, height: 871 });
   });
 
+  it('reads the canvas an extended WebP declares, as one carrying metadata is', () => {
+    const extended = Buffer.alloc(30);
+    extended.write('RIFF', 0);
+    extended.writeUInt32LE(22, 4);
+    extended.write('WEBPVP8X', 8);
+    extended.writeUIntLE(390 - 1, 24, 3);
+    extended.writeUIntLE(871 - 1, 27, 3);
+    expect(imageSize(extended)).toEqual({ width: 390, height: 871 });
+  });
+
+  it('says nothing about a lossy WebP, which nothing here keeps', () => {
+    const lossy = Buffer.alloc(30);
+    lossy.write('RIFF', 0);
+    lossy.write('WEBPVP8 ', 8);
+    expect(imageSize(lossy)).toBe(null);
+  });
+
   it('says nothing about bytes that are neither a PNG nor a WebP', () => {
     expect(imageSize(Buffer.from('a truncated download, or an HTML error page, or a JPEG'))).toBe(
       null,
