@@ -1322,7 +1322,9 @@
         "frame": "function"
       },
       "./node": {
+        "AroundEach": "type",
         "Registrar": "type",
+        "isolateConcurrentEach": "function",
         "isolateConcurrentTests": "function",
         "isolated": "function"
       },
