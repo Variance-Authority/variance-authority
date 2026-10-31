@@ -10,8 +10,9 @@ import { afterAll } from 'vitest';
  * removed, reading a cache nobody meant it to. So a file that leaves either
  * changed fails here, naming what it left, and the fix is in that file.
  *
- * This is the first setup file, so its `afterAll` runs after every other one,
- * once the file's own hooks have put back what they will.
+ * It loads after the setup files that take away what the run, not the file,
+ * set, and before any that registers a hook, so its `afterAll` runs after every
+ * other one, once the file's own hooks have put back what they will.
  */
 
 /**

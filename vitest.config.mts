@@ -126,9 +126,9 @@ const shared = defineConfig({
     // machine held seven thousand of them. The recording is folded in the main
     // process, which does not read `env`, so it still lands in the real cache.
     env: { VARIANCE_AUTHORITY_CACHE: mkdtempSync(join(tmpdir(), 'va-test-cache-')) },
-    // Each file says what it keeps from a test or a file. The first one goes
-    // first so that its `afterAll` runs last.
-    setupFiles: ['tools/process-per-file.ts', 'tools/temporary-per-test.ts', 'tools/no-selection-in-tests.ts', 'tools/no-ci-run-in-tests.ts'],
+    // Each file says what it keeps from a test or a file. `process-per-file`
+    // comes before every one that registers a hook, so its `afterAll` runs last.
+    setupFiles: ['tools/no-selection-in-tests.ts', 'tools/no-ci-run-in-tests.ts', 'tools/process-per-file.ts', 'tools/temporary-per-test.ts'],
   },
   esbuild: {
     jsx: 'automatic',
