@@ -73,11 +73,14 @@ recording, so it answers by what the code declares and what ran, not by what a
 line happens to spell:
 
 ```bash
-yarn variance ask symbol --name <name>     # what it is and where it is declared
-yarn variance ask uses --name <name>       # who imports it
-yarn variance ask search --query <words>   # find a name by what it does
-yarn variance covering --file <path>       # which tests entered a file
+./node_modules/.bin/variance ask symbol --name <name>     # what it is and where it is declared
+./node_modules/.bin/variance ask uses --name <name>       # who imports it
+./node_modules/.bin/variance ask search --query <words>   # find a name by what it does
+./node_modules/.bin/variance covering --file <path>       # which tests entered a file
 ```
+
+The workspace questions are also the `docs_*` tools of the
+`variance-authority-help` server that [`.mcp.json`](.mcp.json) declares.
 
 Text is `rg`'s: prose, configuration, workflows, logs, session transcripts,
 string literals, and a line in a file you already have open. So is a code
