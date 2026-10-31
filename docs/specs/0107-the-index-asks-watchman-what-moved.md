@@ -180,7 +180,7 @@ asks `watch-list` once to learn the watched root.
 
 ## 5. Where it lives
 
-The client is `packages/sense/native/src/watchman.rs`, beside `git.rs`, and the
+The client is a new `watchman` module in the sense crate, beside `git.rs`, and the
 change source is chosen in the native update behind `updateSourceIndex`: the
 step that owns what moved. Not in a reader, and not in `indexUpToCheckout`,
 which only calls the update. The compass gains a row under *Not ours*: which
