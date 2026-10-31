@@ -7,8 +7,7 @@ import { describe, expect, it } from 'vitest';
  * A seam leg's note names `VARIANCE_AUTHORITY_AT_DISTANCE` as the knob that
  * runs another leg: "the same run with `VARIANCE_AUTHORITY_AT_DISTANCE=2-`".
  * The edit loop is the script that note is printed under, so it sets its own
- * leg as the default an outer value overrides; the waves fix theirs, since a
- * gate stamped for a leg must have run it.
+ * leg, `0-1`, as the default an outer value overrides.
  *
  * An argument goes to the runner, which runs a file or a filter it is given
  * and refuses a flag it does not take, rather than to the step after it, which
@@ -22,7 +21,7 @@ describe('the edit loop', () => {
   const scripts = JSON.parse(readFileSync('package.json', 'utf8')).scripts as Record<string, string>;
 
   it('takes its leg from an outer VARIANCE_AUTHORITY_AT_DISTANCE', () => {
-    expect(scripts['test:loop']).toContain('VARIANCE_AUTHORITY_AT_DISTANCE=${VARIANCE_AUTHORITY_AT_DISTANCE:-');
+    expect(scripts['test:loop']).toContain('VARIANCE_AUTHORITY_AT_DISTANCE=${VARIANCE_AUTHORITY_AT_DISTANCE:-0-1}');
   });
 
   it('hands its arguments to the runner', () => {

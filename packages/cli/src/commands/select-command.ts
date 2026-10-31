@@ -55,7 +55,7 @@ import type { Leg } from './select-leg.js';
 import { suiteOf, type SuiteReading, type SuiteRequest } from './select-suite.js';
 import { probesGap, probesNote } from './probes-gap.js';
 import { fetchable } from './execution-input.js';
-import { relationsFor } from './source-graph.js';
+import { relationsFor, upToHolding } from './source-graph.js';
 import { suiteBase } from './suite-base.js';
 import { landingRecord, oneRecord, recordedSuite } from './suite-record.js';
 import { headOf } from './suite-share.js';
@@ -267,7 +267,8 @@ export async function selectSuite(request: SuiteRequest): Promise<SuiteReading> 
     }
   }
 
-  const relations = request.relations ?? await relationsFor(here, ['.'], [], [], request.noGit, changed);
+  if (request.relations === undefined) await upToHolding(here, changed, request.noGit);
+  const relations = request.relations ?? await relationsFor(here, ['.'], [], [], request.noGit);
   // A bump or a moved manifest is the files it changed, changed whole.
   const beyond = new Map([...installs].map(([stand, installed]) => [stand, beyondOf(relations, installed)] as const));
   // What the suite rests on before reach, moved by any group's diff or install, runs the whole suite.

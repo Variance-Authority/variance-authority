@@ -78,8 +78,14 @@ export function sourceFiles(root: string, dirs: readonly string[]): readonly str
  * reaches our code by the same backwards walk an edited file does
  * ([`installed.ts`](./installed.ts)).
  */
-export async function relationsFor(...asked: Parameters<typeof sourceGraphFor>): Promise<Relations> {
-  return (await sourceGraphFor(...asked)).relations;
+export async function relationsFor(
+  root: string,
+  dirs: readonly string[],
+  taints: readonly string[] = [],
+  before: readonly string[] = [],
+  noGit = false,
+): Promise<Relations> {
+  return (await sourceGraphFor(root, dirs, taints, before, noGit)).relations;
 }
 
 /** The graph {@link relationsFor} reads, and the files the index read source in to build it: a node the graph holds is not one, since an import of a file nothing reads is a node too. */
@@ -154,21 +160,15 @@ export async function checkoutNames(root: string, files: readonly string[], ci =
   }
 }
 
-/**
- * {@link relationsFor}, with the files the source index read, from the one read
- * of it. `holding` names the files the caller's question is about, a diff's
- * changed files: a workstation's index that lacks one is brought up to the
- * checkout first ({@link indexUpToCheckout}).
- */
+/** {@link relationsFor}, with the files the source index read, from the one read of it. */
 export async function sourceGraphFor(
   root: string,
   dirs: readonly string[],
   taints: readonly string[] = [],
   before: readonly string[] = [],
   noGit = false,
-  holding: readonly string[] = [],
 ): Promise<SourceGraph> {
-  const read = await publishedWithin(root, dirs, before, noGit, holding);
+  const read = await publishedWithin(root, dirs, before, noGit);
 
   // The mocks are read unasked, as every reader of the checkout's graph reads
   // them; a table named in the config is answered here too, and what it adds
@@ -202,9 +202,7 @@ async function publishedWithin(
   dirs: readonly string[],
   before: readonly string[],
   noGit: boolean,
-  holding: readonly string[],
 ) {
-  if (!isCI) await upToHolding(root, holding, noGit);
   let published;
   try {
     published = await publishedSources(root, {
@@ -232,9 +230,11 @@ async function publishedWithin(
  * Bring a workstation's source index up to the checkout when it lacks one of
  * `holding` that the checkout holds and a scan reads, saying which on stderr:
  * a file added since the last `variance index` has no edges until it is read.
+ * A question's command asks it before it reads the graph; CI reads the index
+ * it published.
  */
-async function upToHolding(root: string, holding: readonly string[], noGit: boolean): Promise<void> {
-  if (holding.length === 0) return;
+export async function upToHolding(root: string, holding: readonly string[], noGit = false, ci = isCI): Promise<void> {
+  if (ci || holding.length === 0) return;
   const step = noGit ? 'variance index --no-git' : 'variance index';
   const announce = (line: string) => process.stderr.write(`variance: ${line}\n`);
   const { names } = await publishedNames(root, holding, { ci: false, step, announce });
