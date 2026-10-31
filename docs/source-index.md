@@ -118,7 +118,10 @@ variance run --against <ref>
 
 Each one reads the index as it was last published. Run `variance index` after
 the checkout changes and before them — in CI, as its own step after the cache
-restore.
+restore. `variance select`, and a runner's selection through it, also brings
+the index up to the checkout before it measures hops, since a hop is an import
+the checkout holds now. When the index cannot be updated, a leg runs every
+selected test file and says why.
 
 When a reader finds no index, or one it can read only up to a bad segment, the
 answer depends on where it runs. In CI it exits with an error that names

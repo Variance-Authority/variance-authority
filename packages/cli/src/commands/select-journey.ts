@@ -11,7 +11,7 @@ import { beyondOf, withWhole } from './select-beyond.js';
 import { journeySuite, restingOf } from './select-before.js';
 import { suiteOf, type SuiteReading, type SuiteRequest } from './select-suite.js';
 import { diffPoint, diffSince } from './since.js';
-import { relationsFor } from './source-graph.js';
+import { indexUpToCheckout, relationsFor } from './source-graph.js';
 
 /**
  * `--execution`: read a journey file against a change the caller hands in.
@@ -67,6 +67,7 @@ export async function journeyReading(request: SuiteRequest & { readonly executio
   if (installed !== undefined && 'whole' in installed) {
     return suiteOf({ at: request.execution, given: true, ground: { kind: 'no-install', whole: installed.whole } }, request.atDistance);
   }
+  if (request.relations === undefined) await indexUpToCheckout(request.root, undefined, !request.noGit);
   const relations = request.relations ?? await relationsFor(request.root, ['.'], [], [], request.noGit);
   // A bump or a moved manifest is the files it changed, changed whole.
   const beyond = beyondOf(relations, installed);
