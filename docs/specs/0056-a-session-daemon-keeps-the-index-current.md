@@ -34,10 +34,10 @@ own. It is a client of the one that runs:
     Node process cost 12.6 ms median and 17 ms at worst. Most of that is git
     waiting until it has seen every event up to the moment of the question.
     This is the size of the tick.
-- **Watchman.** Where the repository's `core.fsmonitor` is the Watchman hook, the
-  daemon subscribes to Watchman directly. Watchman pushes, so there is no tick.
-  Without the daemon, a reader asks the same watch at the question
-  ([spec 0107](0107-the-index-asks-watchman-what-moved.md)).
+- **Watchman.** Where the repository runs Watchman, by the test in
+  [spec 0107](0107-the-index-asks-watchman-what-moved.md) §4, the daemon
+  subscribes to it directly. Watchman pushes, so there is no tick. Without the
+  daemon, a reader asks the same watch `since` its generation's clock.
 - **Neither.** On a host with neither, for example Linux without Watchman, where
   git ships no builtin monitor, the daemon falls back to `git status` on each
   tick. Its first line says so and states what one status costs. It never
@@ -58,8 +58,9 @@ variance watch: 194,544 files for this checkout, pid 41210
 The daemon holds no copy of any index. For each batch of changed paths it
 commands the owning step with those paths carried in:
 
-- **The source index.** `updateSourceIndex` takes the changed paths as its
-  overlay, instead of asking `git status` to find them again. It hashes only
+- **The source index.** `updateSourceIndex` takes the changed paths as the
+  delta since its generation (spec 0107 §2), instead of asking `git status` to
+  find them again. It hashes only
   those paths with `git hash-object --stdin-paths`, and reads again only the
   records whose digest or shape moved. A `/` answer runs the update exactly as
   `variance index` does now.
