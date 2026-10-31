@@ -123,6 +123,14 @@ different identities (renderer, engine, platform declared:ios-simulator-17.4 →
 declared:figma-export); 192 pixels differ across 2 regions
 ```
 
+When every edge of the after image is where it was in the before image, the
+pixels changed colour only, and the sentence says so: a token moved from
+`#2f3437` to `#3a4043` on every border reads `100 pixels differ across 1 region,
+colour only: every edge is where it was`. A change that moved, reshaped or
+resized something, like the box above, carries no such clause; nor does one
+inside a gradient or a photo, whose edges cannot say. See `edges` in
+[`@variance-authority/png`](../png).
+
 The observation carries the same cause as `signals.identity: 'machine'` and
 `signals.moved`, one entry per field that moved, before image first.
 

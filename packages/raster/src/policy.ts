@@ -80,11 +80,11 @@ export interface RasterComparison {
    * Whether the two images meet their colours in the same places: `kept` when
    * every edge is where it was, so the pixels that changed changed colour only
    * — a theme, a token — and `moved` when something changed shape, place or
-   * size. See `structureDigest`. It classifies the change; `changed` decides it.
+   * size. See `edgeDigest`. It classifies the change; `changed` decides it.
    * Absent when either image is too busy for its edges to say — a gradient, a
    * photo — so the change is not classified, rather than called colour only.
    */
-  readonly structure?: 'kept' | 'moved';
+  readonly edges?: 'kept' | 'moved';
 }
 
 /** Rows `from` up to, and not including, `to`. */

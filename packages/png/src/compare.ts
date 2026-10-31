@@ -10,7 +10,7 @@ import {
 } from '@variance-authority/raster';
 import { alignRows } from './align.js';
 import { changeImages } from './change.js';
-import { pixelDigest, structureDigest } from './digest.js';
+import { pixelDigest, edgeDigest } from './digest.js';
 import { decodePortable } from './format.js';
 import { differencePixels, type DecodedImage } from './mask.js';
 
@@ -171,21 +171,21 @@ export function comparePixels(
     total: width * height,
     mask,
     ...(alignment === undefined ? {} : { alignment }),
-    ...structureOf(left, right),
+    ...edgesOf(left, right),
   };
 }
 
 /**
  * Whether the edges of the two images sit in the same places, or nothing when
- * either is too busy to say (see `structureDigest`). Two sizes are two
- * structures however busy they are.
+ * either is too busy to say (see `edgeDigest`). Two sizes never
+ * share their edges, however busy.
  */
-function structureOf(left: DecodedImage, right: DecodedImage): Pick<RasterComparison, 'structure'> {
-  if (left.width !== right.width || left.height !== right.height) return { structure: 'moved' };
-  const before = structureDigest(left);
-  const after = structureDigest(right);
+function edgesOf(left: DecodedImage, right: DecodedImage): Pick<RasterComparison, 'edges'> {
+  if (left.width !== right.width || left.height !== right.height) return { edges: 'moved' };
+  const before = edgeDigest(left);
+  const after = edgeDigest(right);
   if (before === undefined || after === undefined) return {};
-  return { structure: before === after ? 'kept' : 'moved' };
+  return { edges: before === after ? 'kept' : 'moved' };
 }
 
 /** The comparison of equal pixels: nothing differs, and no row moved. */
@@ -202,7 +202,7 @@ function nothingChanged(image: DecodedImage, policies: readonly DiffPolicy[], is
     total: width * height,
     mask: { width, height, data: new Uint8Array(width * height), changed: 0 },
     alignment: { inserted: [], removed: [], shifted: [] },
-    structure: 'kept',
+    edges: 'kept',
   };
 }
 

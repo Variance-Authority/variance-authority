@@ -157,10 +157,10 @@ export function describeChange(
 
 /**
  * Whether the change was colour only: every edge where it was, so a theme or a
- * token moved and nothing changed shape, place or size (see `structureDigest`).
+ * token moved and nothing changed shape, place or size (see `edgeDigest`).
  */
 function recoloured(comparison: RasterComparison): string {
-  return comparison.structure === 'kept' ? ', colour only: every edge is where it was' : '';
+  return comparison.edges === 'kept' ? ', colour only: every edge is where it was' : '';
 }
 
 /**

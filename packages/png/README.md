@@ -110,7 +110,9 @@ against the same image with a 5×5 black square painted into it:
   after: { width: 20, height: 20 },
   changed: { default: 25, strict: 25 },
   total: 400,
-  mask: { width: 20, height: 20, changed: 25, data: Uint8Array(400) }
+  mask: { width: 20, height: 20, changed: 25, data: Uint8Array(400) },
+  alignment: { inserted: [], removed: [], shifted: [] },
+  edges: 'moved'
 }
 ```
 
@@ -121,6 +123,17 @@ differs, and `mask.changed` counts them under the single policy you isolated on.
 
 That mask is what `isolateRegions` in `@variance-authority/core/attribute` takes
 to group the changed pixels into rectangles.
+
+`edges` tells you whether the change kept every edge. It is `kept` when the
+two images meet their colours in exactly the same places, so the pixels that
+changed changed colour only: a theme, or a design token that moved. It is
+`moved` when something changed shape, place or size, as the black square here
+did. An edge is any difference between neighbouring pixels, with no luminance
+threshold, so a recolour cannot push one across a threshold. `edges` is
+absent when more than half the pixels of either image sit on an edge, as they
+do in a gradient or a photo: a change inside such an image leaves every edge
+where it was, and calling it colour only would be wrong. It classifies the
+change and never decides it; `changed` does.
 
 ## The two policies
 
@@ -258,6 +271,8 @@ the bytes arrive cannot change a verdict.
 | `imageFormat` | `(bytes: Uint8Array) => 'png' \| 'webp' \| null` |
 | `imageSize` | `(bytes: Uint8Array) => { width, height } \| null` |
 | `decode` | `(base64: string) => Buffer` |
+| `pixelDigest` | `(image: DecodedImage) => Digest` |
+| `edgeDigest` | `(image: DecodedImage) => Digest \| undefined` |
 
 `comparePixels` takes RGBA somebody else already decoded and does no decoding of
 its own. A `DecodedImage` is `{ width, height, data }` where `data` is a `Buffer`
@@ -281,6 +296,23 @@ seam is why it is the async one: decoding is about 90% of a comparison, and a
 threadpool decoder makes a pair of images cost roughly what one costs. The
 default decoder is `pngjs` for a PNG and WebAssembly libwebp for a WebP, so
 this package still requires nothing native.
+
+When the `before` record carries `pixels`, the digest of its decoded pixels,
+`compareRasters` decodes the capture first and hashes it. If the two digests
+are equal, the baseline is never decoded, and the comparison is the one equal
+pixels produce. If they differ, the baseline is decoded and compared as usual.
+`keepImage` in `@variance-authority/png-sharp` records the digest when it keeps
+a baseline. A record without one is decoded on both sides.
+
+`pixelDigest` hashes the width, the height and the RGBA, with the colour under
+a fully transparent pixel taken as zero, since a comparison does not read it.
+It hashes decoded pixels and never encoded bytes: a capture is a PNG and a kept
+baseline a WebP of the same pixels, and the two encodings share nothing.
+`edgeDigest` hashes where neighbouring pixels differ and nothing about
+their colours; it is what `edges` compares.
+
+Equal pixels compare to nothing without aligning a row or running `pixelmatch`,
+whether a digest found them equal or both sides were decoded.
 
 `diffImage` resolves to an encoded PNG — the after image dimmed with changed pixels
 in red — for the person who does want to look. It is derived from the same bytes

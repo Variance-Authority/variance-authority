@@ -37,7 +37,7 @@ export function pixelDigest(image: DecodedImage): Digest {
 }
 
 /**
- * The digest of an image's structure: where its colours meet, and nothing about
+ * The digest of an image's edges: where its colours meet, and nothing about
  * what they are.
  *
  * Each pixel contributes whether it differs from its right neighbour and from
@@ -60,7 +60,7 @@ export function pixelDigest(image: DecodedImage): Digest {
  * It classifies a difference already found, and settles nothing: two images
  * that share it may differ in every pixel.
  */
-export function structureDigest(image: DecodedImage): Digest | undefined {
+export function edgeDigest(image: DecodedImage): Digest | undefined {
   const { width, height, data } = image;
   const edges = new Uint8Array(width * height);
   let edged = 0;
@@ -75,7 +75,7 @@ export function structureDigest(image: DecodedImage): Digest | undefined {
     }
   }
   if (edged * 2 > width * height) return undefined;
-  const hash = createHash('sha256').update(`structure\u0000${width}x${height}\u0000`).update(edges);
+  const hash = createHash('sha256').update(`edges\u0000${width}x${height}\u0000`).update(edges);
   return digestOfSha256(hash.digest('hex'));
 }
 
