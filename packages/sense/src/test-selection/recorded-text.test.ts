@@ -11,7 +11,7 @@ import { changedLines } from './diff-lines.js';
 import { openTestCoverage } from './format-view.js';
 import { encodeTestCoverage } from './format.js';
 import type { TestCoverage } from './index.js';
-import { textAtRecording, textsAt } from './recorded-text.js';
+import { readTextsAt, textAtRecording, textsAt } from './recorded-text.js';
 import { narrowByExecutionFromView } from './select.js';
 
 /**
@@ -181,6 +181,22 @@ describe('the text at a recording is read a window at a time', () => {
       rmSync(resolve(root, '.git', 'objects', blob.slice(0, 2), blob.slice(2)));
 
       expect(() => textsAt(root, new Map([[commit, [path(0), path(1)]]]))).toThrow(/^git could not read the files asked about at commit [0-9a-f]{12}: .*\S/s);
+    });
+  });
+
+  it("names what git could not read by file and commit, beside the texts it could, for a reader that names the gap", async () => {
+    await checkout(async (root, commit) => {
+      const blob = execFileSync('git', ['rev-parse', `${commit}:${path(1)}`], { cwd: root, encoding: 'utf8' }).trim();
+      rmSync(resolve(root, '.git', 'objects', blob.slice(0, 2), blob.slice(2)));
+      const absent = 'f'.repeat(40);
+
+      const { texts, refused } = readTextsAt(root, new Map([[commit, [path(0), path(1), 'src/never.ts']], [absent, [path(0)]]]));
+
+      expect(texts).toEqual(new Map([[commit, new Map([[path(0), body(0)]])], [absent, new Map()]]));
+      expect(new Set(refused.keys())).toEqual(new Set([commit, absent]));
+      expect([...refused.get(commit)!.keys()]).toEqual([path(1)]);
+      expect(refused.get(commit)!.get(path(1))).toMatch(/^git could not read the files asked about at commit [0-9a-f]{12}: .*\S/s);
+      expect(refused.get(absent)).toEqual(new Map([[path(0), expect.stringMatching(/^commit ffffffffffff is not in this checkout's object store/)]]));
     });
   });
 

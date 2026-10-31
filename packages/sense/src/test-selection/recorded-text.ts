@@ -173,7 +173,7 @@ export function textAtRecording(
     if (from === -1) {
       outside += 1;
       if (outside > 1 && listing === undefined) listing = listed(root, commit);
-      return (listing ? unchangedOnDisk(root, listing, file) : undefined) ?? batch(root, new Map([[commit, [file]]])).get(commit)!.get(file);
+      return (listing ? unchangedOnDisk(root, listing, file) : undefined) ?? textsAt(root, new Map([[commit, [file]]])).get(commit)!.get(file);
     }
     // Any other path opens a window over it and the paths after it not yet
     // answered: the selector asks a few paths ahead of the rest, so a window can
@@ -185,7 +185,7 @@ export function textAtRecording(
     // resident together.
     held = new Map();
     asked = new Set(window);
-    held = batch(root, new Map([[commit, window]])).get(commit)!;
+    held = textsAt(root, new Map([[commit, window]])).get(commit)!;
 
     let bytes = 0;
     for (const text of held.values()) bytes += text.length;
@@ -217,28 +217,42 @@ function unanswered(expected: readonly string[], from: number, width: number, an
  * `textAtRecording` would read a process per commit.
  */
 export function textsAt(root: string, asked: ReadonlyMap<string, Iterable<string>>): Map<string, Map<string, string>> {
-  return batch(root, new Map([...asked].map(([commit, files]) => [commit, [...new Set(files)]])));
+  const { texts, refused } = readTextsAt(root, asked);
+  for (const why of refused.values()) for (const reason of why.values()) throw new Error(reason);
+  return texts;
+}
+
+/** The texts {@link readTextsAt} read, and why git could not give the others, each by commit and then path. */
+export interface CommitTexts {
+  readonly texts: Map<string, Map<string, string>>;
+  readonly refused: Map<string, Map<string, string>>;
 }
 
 /**
  * Paths at each commit, from one `git cat-file --batch`, by commit and then
- * path, leaving out a path the commit does not hold. The addon reads them, as
- * `commit_text.rs` describes: in a partial clone it fetches the blobs a read
- * names together first, it gives a git-LFS pointer as its content, and a read
- * git cannot finish throws with git's reason rather than answering a path the
- * commit holds missing.
+ * path, leaving out a path the commit does not hold, and naming git's reason
+ * for each one it could not read: a commit or a blob this clone lacks, or a
+ * git-LFS pointer with no content here. For a reader that names the gap and
+ * answers the rest, where {@link textsAt} fails on the first. The addon reads
+ * them, as `commit_text.rs` describes: in a partial clone it fetches the blobs
+ * a read names together first, and it gives a git-LFS pointer as its content.
  */
-function batch(root: string, asked: ReadonlyMap<string, readonly string[]>): Map<string, Map<string, string>> {
+export function readTextsAt(root: string, asked: ReadonlyMap<string, Iterable<string>>): CommitTexts {
   const read = native()?.textsAt;
   if (read === undefined) throw new Error(`the text at a recording is read by the native addon, which ${nativeRefusal() || 'is older than this package'}`);
   const commits = [...asked.keys()];
   const texts = new Map(commits.map((commit) => [commit, new Map<string, string>()]));
-  if (commits.length === 0) return texts;
-  const found = read(root, commits, [...asked.values()].map((files) => [...files]));
+  const refused = new Map<string, Map<string, string>>();
+  if (commits.length === 0) return { texts, refused };
+  const found = read(root, commits, [...asked.values()].map((files) => [...new Set(files)]));
   for (let at = 0; at < found.file.length; at += 1) {
     texts.get(commits[found.commit[at]!]!)!.set(found.file[at]!, found.text[at]!);
   }
-  return texts;
+  for (let at = 0; at < found.refusedFile.length; at += 1) {
+    const commit = commits[found.refusedCommit[at]!]!;
+    refused.set(commit, (refused.get(commit) ?? new Map()).set(found.refusedFile[at]!, found.refused[at]!));
+  }
+  return { texts, refused };
 }
 
 /**

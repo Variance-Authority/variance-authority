@@ -11,13 +11,12 @@
 
 import { realpath } from 'node:fs/promises';
 import { join, relative, sep } from 'node:path';
-import { existedAt } from '@variance-authority/sense';
 import {
   keptTexts,
   placeAcross,
   placeInTexts,
   readsTheSnapshot,
-  textsAt,
+  readTextsAt,
   type HeldLines,
   type NotHeld,
   type Placement,
@@ -55,28 +54,9 @@ export interface EvidenceQuestion {
 }
 
 /**
- * The texts of `paths` at each commit, read together. git refuses the whole
- * read when one commit or blob is not in this clone, so a refusal reads each
- * commit alone, and a commit git still refuses gets no texts: its runs stand
- * where this clone holds nothing, which the verdict names as that gap.
- */
-function committedTexts(repository: string, commits: readonly string[], paths: readonly string[]): ReadonlyMap<string, ReadonlyMap<string, string>> {
-  try {
-    return textsAt(repository, new Map(commits.map((commit) => [commit, [...paths]])));
-  } catch {
-    return new Map(commits.flatMap((commit) => {
-      try {
-        return [[commit, textsAt(repository, new Map([[commit, [...paths]]])).get(commit) ?? new Map<string, string>()] as const];
-      } catch {
-        return [];
-      }
-    }));
-  }
-}
-
-/**
  * Read what the runs' verdicts need: the committed texts at every commit a run
- * stood at, which asked files those commits lack, the kept texts the runs name when a region is asked, and the
+ * stood at, which asked files those commits lack, git's reason for each it
+ * could not read, the kept texts the runs name when a region is asked, and the
  * snapshot's placements when a run wrote it — the question's own for one
  * file, else read for each held text.
  */
@@ -87,19 +67,26 @@ export async function evidenceOf(runs: readonly TestPlace[], held: ReadonlyMap<s
   const placed = runs.filter((run) => run.assumed !== true);
   const committed = new Map<string, Map<string, string>>();
   const absent = new Map<string, Set<string>>();
+  const refused = new Map<string, Map<string, string>>();
   if (repository !== undefined) {
     const under = relative(await realpath(repository), await realpath(root));
     const repoPath = (file: string): string => (under === '' ? file : join(under, file).split(sep).join('/'));
     const commits = [...new Set(placed.flatMap((run) => run.commit ?? []))];
-    const blobs = committedTexts(repository, commits, files.map(repoPath));
+    const read = readTextsAt(repository, new Map(commits.map((commit) => [commit, files.map(repoPath)])));
     for (const commit of commits) {
-      const texts = blobs.get(commit);
+      const texts = read.texts.get(commit);
+      const why = read.refused.get(commit);
       committed.set(commit, new Map(files.flatMap((file) => {
         const text = texts?.get(repoPath(file));
         return text === undefined ? [] : [[file, text] as const];
       })));
-      // No text read is a file the commit lacks, or a commit or a blob this clone lacks: git's tree tells them apart.
-      const lacks = files.filter((file) => texts?.get(repoPath(file)) === undefined && existedAt(repository, commit, repoPath(file)) === false);
+      // A file git neither read nor refused is one the commit's tree does not list.
+      const refusals = files.flatMap((file) => {
+        const reason = why?.get(repoPath(file));
+        return reason === undefined ? [] : [[file, reason] as const];
+      });
+      if (refusals.length > 0) refused.set(commit, new Map(refusals));
+      const lacks = files.filter((file) => texts?.get(repoPath(file)) === undefined && why?.get(repoPath(file)) === undefined);
       if (lacks.length > 0) absent.set(commit, new Set(lacks));
     }
   }
@@ -124,7 +111,7 @@ export async function evidenceOf(runs: readonly TestPlace[], held: ReadonlyMap<s
     pairs.set(key, place);
     return place;
   };
-  return { repository: repository !== undefined, committed, absent, kept, last, placements, ranOther: question.ranOther, across };
+  return { repository: repository !== undefined, committed, absent, refused, kept, last, placements, ranOther: question.ranOther, across };
 }
 
 /**

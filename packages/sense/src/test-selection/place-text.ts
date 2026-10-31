@@ -28,6 +28,8 @@ export interface RanOverEvidence {
   readonly committed: ReadonlyMap<string, ReadonlyMap<string, string>>;
   /** The asked files each run's commit does not hold, told from a text this clone lacks. */
   readonly absent: ReadonlyMap<string, ReadonlySet<string>>;
+  /** Why git could not give an asked file's text at a run's commit, by commit and the asked name. */
+  readonly refused: ReadonlyMap<string, ReadonlyMap<string, string>>;
   /** The text behind each digest a run names that the record keeps, read when a line or a function is asked. */
   readonly kept: ReadonlyMap<string, string>;
   /** When the run that wrote a snapshot naming no commit landed: its rows are the record of the texts it ran over. */
@@ -69,6 +71,8 @@ export function ranOver(run: TestPlace, test: string, file: string, text: string
   }
   if (committed !== undefined) return digestString(committed) === digest ? 'held' : { text: committed };
   if (run.commit !== undefined && evidence.absent.get(run.commit)?.has(file) === true) return 'absent';
+  const refused = run.commit === undefined ? undefined : evidence.refused.get(run.commit)?.get(file);
+  if (refused !== undefined) return { unknown: `git could not give the text of ${file} where that run stood: ${refused}` };
   // A run outside a checkout names no texts (`ranOverTexts`), so one that names them stood at a commit.
   return {
     unknown: evidence.repository

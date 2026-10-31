@@ -257,6 +257,7 @@ describe('a test that did not run at the journal commit', () => {
     expect(said.out).toBe('');
     expect(said.err).toContain(`cannot read what changed since ${gone}`);
     expect(said.err).toContain(`git could not diff ${gone.slice(0, 12)}, where 1 test(s) last ran, against`);
+    expect(said.err).toContain(`commit ${gone.slice(0, 12)} is not in this checkout's object store. Fetch it with \`git fetch origin ${gone}\`, or check out with \`fetch-depth: 0\``);
   });
 
   it('refuses a runs record that is not JSON, by the file it read', async () => {

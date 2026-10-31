@@ -140,7 +140,11 @@ fn a_file_moved_since_the_commit_is_read_under_the_path_the_commit_had() {
     assert!(!then.contains_key("notes.md"), "only source files are read from the commit");
 
     let missing = text_at(root.to_str().unwrap(), "0123456789abcdef0123456789abcdef01234567").unwrap_err();
-    assert_eq!(missing, "commit 0123456789ab is not in this checkout's object store");
+    assert_eq!(
+        missing,
+        "commit 0123456789ab is not in this checkout's object store. \
+         Fetch it with `git fetch origin 0123456789abcdef0123456789abcdef01234567`, or check out with `fetch-depth: 0`"
+    );
     std::fs::remove_dir_all(&root).unwrap();
 }
 
