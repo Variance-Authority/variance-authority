@@ -1,7 +1,15 @@
 import { PNG } from 'pngjs';
 import { describe, expect, it } from 'vitest';
 import type { Raster, RenderIdentity } from '@variance-authority/core/format';
-import { compareRasters, comparePixels, pixelDigest, pngjsDecoder, type DecodedImage, type PngDecoder } from './index.js';
+import {
+  compareRasters,
+  comparePixels,
+  pixelDigest,
+  pngjsDecoder,
+  structureDigest,
+  type DecodedImage,
+  type PngDecoder,
+} from './index.js';
 
 /**
  * A kept baseline records the digest of its pixels, and a comparison whose
@@ -111,5 +119,66 @@ describe('comparing a capture with a baseline that records its pixel digest', ()
 
     expect(decoder.calls()).toBe(2);
     expect(comparison).toEqual(comparePixels(GRADIENT, GRADIENT));
+  });
+});
+
+/** A card: a box of one colour on a ground of another, with a line of "text" in a third. */
+function card(ground: Rgba, box: Rgba, ink: Rgba, left = 4): DecodedImage {
+  return image(24, 16, (x, y) => {
+    if (y === 8 && x >= left + 2 && x < left + 10) return ink;
+    if (x >= left && x < left + 14 && y >= 3 && y < 13) return box;
+    return ground;
+  });
+}
+type Rgba = [number, number, number, number];
+const WHITE: Rgba = [255, 255, 255, 255];
+const BLUE: Rgba = [45, 108, 223, 255];
+const BLACK: Rgba = [0, 0, 0, 255];
+const DARK: Rgba = [18, 18, 18, 255];
+const MAGENTA: Rgba = [181, 23, 158, 255];
+
+describe('the digest of a raster’s structure', () => {
+  it('is the same when every colour is swapped for another, as a theme does', () => {
+    expect(structureDigest(card(DARK, MAGENTA, WHITE))).toBe(structureDigest(card(WHITE, BLUE, BLACK)));
+  });
+
+  it('moves when the box moves by one pixel', () => {
+    expect(structureDigest(card(WHITE, BLUE, BLACK, 5))).not.toBe(structureDigest(card(WHITE, BLUE, BLACK)));
+  });
+
+  it('moves when two colours become one, because an edge went with them', () => {
+    expect(structureDigest(card(WHITE, WHITE, BLACK))).not.toBe(structureDigest(card(WHITE, BLUE, BLACK)));
+  });
+
+  it('is absent for an image whose pixels nearly all sit on an edge, which no change inside can move', () => {
+    expect(structureDigest(GRADIENT)).toBeUndefined();
+  });
+
+  it('is the same for pixels that differ only in the colour under full transparency', () => {
+    const clear = (under: Rgba): DecodedImage => image(4, 4, (x) => (x < 2 ? under : BLUE));
+    expect(structureDigest(clear([255, 0, 0, 0]))).toBe(structureDigest(clear([0, 0, 255, 0])));
+  });
+});
+
+describe('a comparison of two images', () => {
+  it('says the structure was kept when only the colours changed', () => {
+    const comparison = comparePixels(card(WHITE, BLUE, BLACK), card(DARK, MAGENTA, WHITE));
+
+    expect(comparison.changed['strict']).toBeGreaterThan(0);
+    expect(comparison.structure).toBe('kept');
+  });
+
+  it('says the structure moved when the box moved', () => {
+    expect(comparePixels(card(WHITE, BLUE, BLACK), card(WHITE, BLUE, BLACK, 5)).structure).toBe('moved');
+  });
+
+  it('says nothing of the structure when an image is too busy for its edges to say', () => {
+    const notched = image(24, 16, (x, y) => (x === 7 && y === 3 ? WHITE : [x * 9, y * 13, (x + y) % 256, 255]));
+
+    expect(comparePixels(GRADIENT, notched).structure).toBeUndefined();
+  });
+
+  it('says the structure moved when the size changed', () => {
+    expect(comparePixels(GRADIENT, image(24, 17, () => WHITE)).structure).toBe('moved');
   });
 });

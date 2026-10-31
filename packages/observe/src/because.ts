@@ -150,8 +150,17 @@ export function describeChange(
 
   return (
     `${count(changed, 'pixel')} differ across ` +
-    `${count(isolation.regions.length, 'region')}${where}${capped}${movement(comparison)}${size}`
+    `${count(isolation.regions.length, 'region')}${where}${capped}${movement(comparison)}${size}` +
+    recoloured(comparison)
   );
+}
+
+/**
+ * Whether the change was colour only: every edge where it was, so a theme or a
+ * token moved and nothing changed shape, place or size (see `structureDigest`).
+ */
+function recoloured(comparison: RasterComparison): string {
+  return comparison.structure === 'kept' ? ', colour only: every edge is where it was' : '';
 }
 
 /**

@@ -10,7 +10,7 @@ import {
 } from '@variance-authority/raster';
 import { alignRows } from './align.js';
 import { changeImages } from './change.js';
-import { pixelDigest } from './digest.js';
+import { pixelDigest, structureDigest } from './digest.js';
 import { decodePortable } from './format.js';
 import { differencePixels, type DecodedImage } from './mask.js';
 
@@ -171,7 +171,23 @@ export function comparePixels(
     total: width * height,
     mask,
     ...(alignment === undefined ? {} : { alignment }),
+    ...structureOf(left, right),
   };
+}
+
+/**
+ * Whether the edges of the two images sit in the same places, or nothing when
+ * either is too busy to say (see `structureDigest`). Equal pixels have one
+ * structure however busy, and need no pass to say so; two sizes are two
+ * structures however busy they are.
+ */
+function structureOf(left: DecodedImage, right: DecodedImage): Pick<RasterComparison, 'structure'> {
+  if (left.width !== right.width || left.height !== right.height) return { structure: 'moved' };
+  if (left === right || Buffer.compare(left.data, right.data) === 0) return { structure: 'kept' };
+  const before = structureDigest(left);
+  const after = structureDigest(right);
+  if (before === undefined || after === undefined) return {};
+  return { structure: before === after ? 'kept' : 'moved' };
 }
 
 function maskOf(

@@ -24,9 +24,14 @@ const MACHINE: RenderIdentity = {
   fonts: [],
 };
 
+/** A box of one shade on a pale ground: flat colour, as a component paints. */
 function painted(shade: number): string {
   const image = new PNG({ width: 16, height: 12 });
-  for (let at = 0; at < image.data.length; at += 4) image.data.set([shade, at % 251, 40, 255], at);
+  for (let at = 0; at < image.data.length; at += 4) {
+    const x = (at / 4) % 16;
+    const y = Math.floor(at / 4 / 16);
+    image.data.set(x >= 4 && x < 12 && y >= 3 && y < 9 ? [shade, 40, 40, 255] : [240, 240, 240, 255], at);
+  }
   return PNG.sync.write(image).toString('base64');
 }
 
@@ -100,5 +105,36 @@ describe('a moved document against a kept baseline', () => {
 
     expect(observation.verdict).toBe('changed');
     expect(decoder.calls).toBe(2);
+  });
+});
+
+describe('a change whose edges stayed put', () => {
+  it('is named a change of colour only', async () => {
+    const store = createDurableStore(root);
+    await store.put({ subject: 's' }, await keptRaster(await rendererOf(painted(10)).render(documentOf('<i>before</i>'))));
+
+    const observation = await observeAgainstBaseline(
+      documentOf('<i>after</i>'),
+      { subject: 's' },
+      { renderer: rendererOf(painted(200)), store },
+    );
+
+    expect(observation.because).toContain('colour only');
+  });
+
+  it('is not, when something changed shape', async () => {
+    const store = createDurableStore(root);
+    await store.put({ subject: 's' }, await keptRaster(await rendererOf(painted(10)).render(documentOf('<i>before</i>'))));
+    const notched = PNG.sync.read(Buffer.from(painted(10), 'base64'));
+    notched.data.set([255, 255, 255, 255], (5 * 16 + 7) * 4);
+
+    const observation = await observeAgainstBaseline(
+      documentOf('<i>after</i>'),
+      { subject: 's' },
+      { renderer: rendererOf(PNG.sync.write(notched).toString('base64')), store },
+    );
+
+    expect(observation.verdict).toBe('changed');
+    expect(observation.because).not.toContain('colour only');
   });
 });
