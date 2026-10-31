@@ -58,7 +58,6 @@ export function containerOf(by: string): string {
   return /^a (?:type literal|class)$/u.test(by) ? by : `\`${by}\``;
 }
 
-
 /** Identifiers joined by dots: the only names that write a container's member. */
 const MEMBER_PATH = /^[\p{ID_Start}$_][\p{ID_Continue}$\u200C\u200D]*(?:\.[\p{ID_Start}$_][\p{ID_Continue}$\u200C\u200D]*)+$/u;
 

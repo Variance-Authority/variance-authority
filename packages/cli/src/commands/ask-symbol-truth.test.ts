@@ -251,7 +251,8 @@ describe('variance ask symbol says what is true of a name', () => {
       expect(out).not.toContain('as a member');
       expect(out).not.toContain('a member of `Tree`');
       expect(out).toContain('`Forest` is declared at packages/lib/src/forest.ts:3, and no interface, type alias or class body read here declares `chainsTo` on `Forest`.');
-      expect(out).toContain("An inherited or merged member, an enum member, a namespace's export and an object's property are a type checker's answer");
+      expect(out).toContain("An inherited member is a type checker's answer, and none runs here; the source index reads no enum, namespace or object literal body:");
+      expect(out).not.toContain('merged');
       expect(out).toContain("TypeScript's language service's go-to-definition on `Forest.chainsTo`");
     }
   });

@@ -206,7 +206,7 @@ export function nowhere(
             ? `No file read here declares \`${head}\` at its top level; a namespace an import or an \`export * as\` binds is not read as one.`
             : `\`${head}\` is declared at ${containers.slice(0, DECLARED_CAP).map((one) => `${one.at}:${one.line}`).join(', ')}, and no interface, type alias or class body read here declares \`${members.member}\` on \`${on}\`.`,
           ...notShown(containers.length, 'declaration', head),
-          `An inherited or merged member, an enum member, a namespace's export and an object's property are a type checker's answer, and none runs here: ` +
+          `An inherited member is a type checker's answer, and none runs here; the source index reads no enum, namespace or object literal body: ` +
             `${CHECKER[checkerOf(containers.map((one) => one.at))]} go-to-definition on \`${name}\` where a line writes it names the declaration.`,
         ].join(' ')
       : stop === undefined
