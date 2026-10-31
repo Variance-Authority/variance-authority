@@ -42,8 +42,8 @@ socket and asking `since <clock>`:
 | Watchman `since`, one file moved | 13.2 ms | 12.6 ms |
 
 The Watchman row does not grow with the checkout. Most of it is the cookie
-Watchman writes and waits for, so the answer covers every write before the
-question: the same tick git's fsmonitor IPC costs (12.6 ms, spec 0056). The Kibana
+Watchman writes and waits for, so on Linux the answer covers every write before
+the question; on macOS it may not (§3). It is the same tick git's fsmonitor IPC costs (12.6 ms, spec 0056). The Kibana
 clone here sets both accelerators; `docs/performance.md` measures it with
 neither in its config and an untracked cache left in its index, where the same
 `status` costs about 280 ms. The `status` row is one of four parts the update
@@ -105,15 +105,23 @@ the base commit, its stat and both blob names. It is the one listing: the code
 map reads it from the generation, and nothing else keeps one. It sits in a
 section of its own that only the update and the code map open; a reader's
 decode does not read it. Beside it the generation carries its base commit, the
-Watchman clock and socket path, and the stats of §3, a few hundred bytes. On Kibana the names
+Watchman clock, its socket path and ignored directories, and the stats of §3,
+a few hundred bytes. On Kibana the names
 alone are 12.3 MB, and 0.87 MB after gzip against a 10.5 MB index; the spec
 measures the stored form against the index's own size before it ships.
 
-**The clock moves with a publish.** An update that changes nothing publishes
-nothing, so it does not move the clock, and the next update is told the same
-paths again. A reverted edit is hashed again on every update until something
+**The clock moves with a publish, and a renewal is a publish.** An update that
+changes no record publishes no records, so the clock stays and the next update
+is told the same paths again. A reverted edit is hashed again until something
 publishes; that cost follows the paths touched since the last publish, not the
-checkout, and is accepted.
+checkout, and is accepted. What is not accepted is a fallback that repeats:
+when the git source answered because Watchman could not vouch for the clock
+(§3) and the server now answers for the root, or when a stat of §3 moved, the
+update publishes a generation that differs only in its clock, socket path,
+ignored directories and stats, with no record changed. After a restart one
+update pays the git source and the next asks Watchman; after `.git/index`
+moves, `diff-index` runs once, not on every update until something else
+publishes.
 
 ## 3. What Watchman reports, and what it cannot
 
@@ -150,6 +158,28 @@ system config, `core.excludesFile` and `core.attributesFile`:
   `diff-tree` names join the delta.
 - **Members outside the root.** An index whose member list reaches beside its
   checkout takes the git source for those members.
+- **Watchman's own exclusions.** A watch is not proof that every indexed path
+  is watched: `ignore_dirs` in the root's `.watchmanconfig` removes subtrees
+  from every answer. On a private server with `ignore_dirs: ["skip"]`, editing
+  the tracked `skip/t.txt` and `src/u.txt` reported only `src/u.txt`. Watchman
+  reads that file only when the watch is established, so the update asks
+  `get-config` when it takes or renews a clock and records the `ignore_dirs` it
+  answers beside the clock. Indexed paths under an ignored directory are
+  answered by the git source, a `status` scoped to those directories by
+  pathspec, as members outside the root are. A reported `.watchmanconfig`
+  takes the git source and a fresh `get-config`.
+- **macOS.** FSEvents gives no ordering guarantee, and Watchman's own
+  documentation says a large `git checkout` on a busy host can deliver events
+  after the sync cookie. Three things bound it. What git writes in a checkout,
+  reset, merge or rebase moves `HEAD` or the index, so `diff-tree` and
+  `diff-index` name those paths whatever FSEvents delivers. On macOS the query
+  passes `settle_period` (20 ms) and `settle_timeout`, so Watchman answers only
+  after its events have been quiet that long; over a held socket on a quiet
+  tree the query costs the same with it as without (0.19 ms and 0.21 ms), since
+  the wait counts from the last event. An event that still arrives after the
+  answer carries a tick after the clock the generation records, so the next
+  update reports it. A bulk write by something other than git may reach the
+  index one update late on macOS; it is never lost.
 
 Anything Watchman cannot vouch for — a generation with no clock, a clock for
 another root or another server, `is_fresh_instance`, a recrawl, a socket error
@@ -171,10 +201,15 @@ asks `watch-list` once to learn the watched root.
   not an indexer's decision, as `working-tree-changes.ts` says for git's
   monitor.
 - It never spawns the CLI on a hot path. `watchman --no-spawn get-sockname`
-  costs 103 ms, eight Watchman queries. The socket comes from `$WATCHMAN_SOCK`
-  or the path recorded with the generation. The CLI is asked when neither is
-  there, and once more when the recorded path refuses the connection, as after
-  a restart on a new socket; only if that fails too does the git source answer.
+  costs 103 ms, eight Watchman queries; with no server it still answers the
+  path a server would listen on and starts nothing. The path is learned once
+  per lineage, from `$WATCHMAN_SOCK` or that call, and recorded with the
+  generation whether or not anything listens there; a host with no `watchman`
+  on `PATH` records that absence the same way. A connect to a path nothing
+  listens on is refused in 0.02 ms, and that refusal is the git source. The CLI
+  is asked again only when `$WATCHMAN_SOCK` or the stat of the `watchman`
+  binary on `PATH` moved, since the path follows the installed build's state
+  directory, not the server's lifetime: a restart listens on the same path.
 - There is no switch. Every source feeds one update, so which one answered is a
   cost, never an answer, and the progress line names it.
 
@@ -211,22 +246,31 @@ monitor removes and a second cache would not.
    `add -f` and `rm --cached`, a commit with no file changed, a branch switch, a
    case-only rename on macOS, a watch above the checkout, a read-only
    checkout where the sync cookie fails, a linked worktree, a global
-   `core.autocrlf` change, and a publish by another process between a caller's
-   reading and its update.
+   `core.autocrlf` change, a publish by another process between a caller's
+   reading and its update, a tracked file inside an `ignore_dirs` directory, a
+   write that lands after an update's answer and before its publish, and a
+   checkout between two commits thousands of files apart, run on macOS.
 2. On a watched checkout, an update with nothing moved runs no `ls-tree`, no
    `status`, no `hash-object` and no CLI spawn, hashes zero paths and checks
    zero records. After one edit it hashes one path and checks the records that
-   path and its directories reach. Counted in a test, not timed.
+   path and its directories reach. After a server restart, the first of two
+   no-op updates takes the git source and publishes a renewed clock, and the
+   second takes the Watchman source and runs no git. After a `status` rewrote
+   `.git/index`, `diff-index` runs on one update, not the next. Counted in a
+   test, not timed.
 3. With no server, the root unwatched, no clock, another root's clock, and
    `is_fresh_instance`, the git source answers and the progress line names the
    reason.
 4. After an update on a host with no running server, no Watchman process
-   exists. With a running server, `watch-list` is the same before and after.
+   exists, and a second update spawns no CLI. With a running server,
+   `watch-list` is the same before and after.
 5. The stored listing's size is measured on Kibana against the index's own size,
    and a reader's decode there does not grow.
 6. `packages/sense/scripts/published-index.mjs` gains a Kibana corpus and a row
    per change source for `indexUpToCheckout`, end to end: nothing moved and one
-   edit, against today's update with the accelerators as configured and off.
+   edit, against today's update with the accelerators as configured and off,
+   and a row with no server running, after the update that recorded its
+   absence.
 
 ## 7. Prior art
 
