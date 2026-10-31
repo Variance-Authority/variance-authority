@@ -315,7 +315,7 @@ export async function selectionFor(
               .map(([file]) => ({ file, verdict: 'none' as const, names: [] })),
             ...(journal?.readings ?? []),
           ],
-          journal?.unasked,
+          journal,
         ),
       ),
     ],

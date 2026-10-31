@@ -12,28 +12,34 @@
  * rather than selected, and the fix is the missing edge.
  */
 
+import type { ExecutionNarrowing } from './narrowing.js';
 import type { FileReading } from './reading.js';
 
 export type { FileReading };
 
+/** The changed files a selection names outside its readings, each by why. */
+export type UnreadFiles = Partial<Pick<ExecutionNarrowing, 'unread' | 'stale' | 'declined' | 'ignored' | 'unasked'>>;
+
 /**
  * One line per changed file saying how it was read, or why it was not, and one
  * line per test that loaded it through an import the graph does not list.
- * `unasked` are the changed files no parser was asked of, a line each after
- * the readings. Empty for neither.
+ * `others` are the changed files no reading names, a line each after the
+ * readings, so a file the summary notes cut from their list is still named. A
+ * file a reading names is not named again. Empty for neither.
  *
  * What a verdict charges is said once, on the first line that prints that
  * verdict, and the lines after it print the verdict alone: a change to forty
  * files that all read `bodies` is one explanation and forty names, not forty
  * copies of the explanation.
  */
-export function readingLines(readings: readonly FileReading[], unasked: readonly string[] = []): readonly string[] {
+export function readingLines(readings: readonly FileReading[], others: UnreadFiles = {}): readonly string[] {
   const glossed = new Set<string>();
   const once = (key: keyof typeof GLOSS): string => {
     if (glossed.has(key)) return '';
     glossed.add(key);
     return GLOSS[key];
   };
+  const read = new Set(readings.map((reading) => reading.file));
   return [
     ...readings.flatMap((reading) => [
       `read ${reading.file}: ${verdictOf(reading)}${once(glossOf(reading))}`,
@@ -41,9 +47,20 @@ export function readingLines(readings: readonly FileReading[], unasked: readonly
         (test) => `unseen ${test}: loaded ${reading.file}${once('unseen')}`,
       ),
     ]),
-    ...unasked.map((file) => `read ${file}: unasked${once('unasked')}`),
+    ...OTHERS.flatMap(([key, said, gloss]) =>
+      (others[key] ?? []).filter((file) => !read.has(file)).map((file) => `read ${file}: ${said}${once(gloss)}`),
+    ),
   ];
 }
+
+/** What a file outside the readings is printed as, in the order the lines go. */
+const OTHERS = [
+  ['unread', 'unread (the record and the file graph hold nothing about it)', 'unrecorded'],
+  ['stale', 'stale (recorded from a text nobody kept)', 'stale'],
+  ['declined', 'declined (the suite declines relations, and its record did not measure it)', 'declined'],
+  ['ignored', "ignored (the suite's `ignore` matches it)", 'ignored'],
+  ['unasked', 'unasked', 'unasked'],
+] as const;
 
 function verdictOf(reading: FileReading): string {
   if (reading.verdict === undefined) return `unread (${UNREAD[reading.unread]})`;
@@ -78,6 +95,10 @@ const GLOSS = {
   // A file with no row has no lines to charge: the walk charges what imports it.
   importers: ' — every test that loaded its nearest measured importers is charged',
   unseen: ' by an import the file graph does not list; named, not selected',
+  unrecorded: ' — it keeps no test in the run',
+  stale: ' — every region of it is charged',
+  declined: ' — it keeps no test in the run',
+  ignored: ' — only a test that declares it runs for it',
   // No parser was asked: the record answers for the file without its text.
   unasked: ' — its rows, its preconditions or its importers answer for it',
 } as const;

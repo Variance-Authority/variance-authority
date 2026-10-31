@@ -73,6 +73,14 @@ describe('`variance select` prints how it read each changed file', () => {
     expect(selectionNotes(selection).trimEnd().split('\n').slice(1)).toEqual(PRINTED);
   });
 
+  it('names every changed file the journal records nothing about, past the three its note lists', () => {
+    const unread = ['data/a.json', 'data/b.json', 'data/c.json', 'data/d.json'];
+    const notes = selectionNotes(
+      skippableTests({ at: '/cache/coverage.bin', commit: 'c0ffee', ground: { kind: 'read', narrowing: { ...narrowing, unread } } }),
+    );
+    expect(notes.split('\n').filter((line) => line.startsWith('read data/'))).toHaveLength(4);
+  });
+
   it('keeps them off stdout, and gives them to `--format json` as data', () => {
     expect(formatSelection(selection, 'plain', '/repo')).toBe('test/b.test.ts\n');
     expect(JSON.parse(formatSelection(selection, 'json', '/repo')).readings).toEqual(READINGS);

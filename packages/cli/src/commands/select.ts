@@ -426,7 +426,7 @@ export function selectionNotes(selection: TestSelection): string {
       : [`skipping nothing: ${selection.widened}.`];
 
   for (const note of selection.notes) lines.push(`${note}.`);
-  lines.push(...readingLines(selection.readings ?? [], selection.unasked));
+  lines.push(...readingLines(selection.readings ?? [], selection));
 
   return `${lines.join('\n')}\n`;
 }

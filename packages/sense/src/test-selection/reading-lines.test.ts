@@ -50,4 +50,34 @@ describe('what a selector prints about each changed file', () => {
       'read src/again.ts: none (the record was taken over this text)',
     ]);
   });
+
+  it('names every changed file no reading names, each by why, however many there are', () => {
+    // The notes beside these count the files and cut the list at three; this
+    // is where the fourth is named.
+    expect(
+      readingLines([{ file: 'src/read.ts', verdict: 'bodies', names: [] }], {
+        unread: ['data/a.json', 'data/b.json', 'data/c.json', 'data/d.json'],
+        stale: ['src/old.ts'],
+        declined: ['src/far.ts'],
+        ignored: ['src/gen.ts'],
+        unasked: ['src/rules.ts'],
+      }),
+    ).toEqual([
+      'read src/read.ts: bodies — the changed regions are charged, not the whole module',
+      'read data/a.json: unread (the record and the file graph hold nothing about it) — it keeps no test in the run',
+      'read data/b.json: unread (the record and the file graph hold nothing about it)',
+      'read data/c.json: unread (the record and the file graph hold nothing about it)',
+      'read data/d.json: unread (the record and the file graph hold nothing about it)',
+      'read src/old.ts: stale (recorded from a text nobody kept) — every region of it is charged',
+      'read src/far.ts: declined (the suite declines relations, and its record did not measure it) — it keeps no test in the run',
+      'read src/gen.ts: ignored (the suite\'s `ignore` matches it) — only a test that declares it runs for it',
+      'read src/rules.ts: unasked — its rows, its preconditions or its importers answer for it',
+    ]);
+  });
+
+  it('names a file a reading already names once', () => {
+    expect(readingLines([{ file: 'src/old.ts', unread: 'source' }], { stale: ['src/old.ts'] })).toEqual([
+      'read src/old.ts: unread (no recorded text to read it against) — its changed lines are charged',
+    ]);
+  });
 });
