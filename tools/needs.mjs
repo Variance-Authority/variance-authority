@@ -25,7 +25,8 @@ import { isFunction, isSource, lines, visit } from './owners.mjs';
  * entry 0077 holds the measurements.
  */
 
-// FIXME: the bags belong to the scan's harvest, asked through `variance ask`.
+// FIXME: the bags belong to the scan's harvest, asked through `variance ask`,
+// the platform's words with them.
 // This script parses every script a second time, beside the source index, and
 // keeps a cache of its own, to prove the signal before the addon carries it.
 
@@ -338,13 +339,20 @@ function importsOf(program) {
   return imported;
 }
 
+// The expression under `a?.b`, `a!` and `(a)`, which name the same chain as `a`.
+const WRAPPERS = new Set(['ChainExpression', 'TSNonNullExpression', 'ParenthesizedExpression']);
+function unwrapped(node) {
+  while (WRAPPERS.has(node?.type)) node = node.expression;
+  return node;
+}
+
 // A static member chain, `a.b.c`, or undefined when a link is computed.
 function chainOf(node) {
   if (node === null || node === undefined) return undefined;
   if (node.type === 'Identifier') return node.name;
   if (node.type === 'ThisExpression') return 'this';
   if (node.type === 'MemberExpression' && !node.computed && node.property) return `${chainOf(node.object) ?? '?'}.${node.property.name}`;
-  if (node.type === 'ChainExpression' || node.type === 'TSNonNullExpression' || node.type === 'ParenthesizedExpression') return chainOf(node.expression);
+  if (WRAPPERS.has(node.type)) return chainOf(unwrapped(node));
   return undefined;
 }
 
@@ -435,12 +443,11 @@ function platformOf(root, imported) {
     if (node.type === 'CallExpression' || node.type === 'NewExpression') calls.push(node);
   });
   for (const call of calls.sort((left, right) => right.start - left.start || left.end - right.end)) {
-    let callee = call.callee;
-    while (['ChainExpression', 'TSNonNullExpression', 'ParenthesizedExpression'].includes(callee?.type)) callee = callee.expression;
+    const callee = unwrapped(call.callee);
     const builtin = (identifier) => identifier?.type === 'Identifier' && isBuiltin(imported.get(identifier.name)?.split('#')[0] ?? '');
     let base = callee;
     while (base?.type === 'MemberExpression' && !base.computed) base = base.object;
-    while (['ChainExpression', 'TSNonNullExpression', 'ParenthesizedExpression'].includes(base?.type)) base = base.expression;
+    base = unwrapped(base);
     if (!builtin(base) && !(callee?.type === 'MemberExpression' && isPlatform(base))) continue;
     nodes.add(call);
     if (base.type === 'Identifier') nodes.add(base);
