@@ -120,17 +120,31 @@ fn held(index: &str) -> Option<(Snapshot, Meta)> {
     (oids.len() == paths.len() && regular.len() == paths.len()).then_some((Snapshot { paths, oids, regular, unhashed }, meta))
 }
 
+/// Git ignores every one of `paths` under `root`, so none of them is in a listing.
+/// A tool's cache, a build's output: most of what moves in a checkout is these.
+/// A tracked file is never ignored, whatever pattern matches it.
+fn ignores_all(root: &str, paths: &[String]) -> bool {
+    if paths.is_empty() {
+        return true;
+    }
+    let asked: Vec<u8> = paths.iter().flat_map(|path| path.bytes().chain([0])).collect();
+    // Exits 1, and so answers `None`, when it ignores none of them.
+    git::git(root, &["check-ignore", "--stdin", "-z"], Some(asked))
+        .is_some_and(|ignored| ignored.iter().filter(|byte| **byte == 0).count() == paths.len())
+}
+
 /// The tree under `root` for an update of the index at `index`: the held one when
 /// Watchman vouches for it, else git's, with what makes it carried when a watch covers `root`.
 pub(crate) fn change_tree(root: &str, index: &str, dirs: &[String]) -> Option<(Snapshot, Option<Change>)> {
-    let socket = watchman::socket();
+    let held = held(index);
+    let socket = watchman::socket(held.as_ref().map(|(_, meta)| meta.watch.socket.as_str()));
     let excluded = Path::new(index).parent().and_then(|parent| parent.strip_prefix(root).ok()).map(|parent| parent.to_string_lossy().into_owned()).filter(|parent| !parent.is_empty());
-    if let (Some(socket), Some((snapshot, meta))) = (&socket, held(index)) {
+    if let (Some(socket), Some((snapshot, meta))) = (&socket, held) {
         let vouched = meta.watch.socket == *socket
             && meta.dirs == dirs
             && meta.watch.ignored.is_empty()
             && meta.inputs.iter().all(|(input, was)| stamp(Path::new(input)) == *was)
-            && watchman::since(&meta.watch, excluded.as_deref()).is_some_and(|since| !since.fresh && since.files.is_empty());
+            && watchman::since(&meta.watch, excluded.as_deref()).is_some_and(|since| !since.fresh && ignores_all(root, &since.files));
         if vouched {
             return Some((snapshot, Some(Change::Vouched(meta))));
         }

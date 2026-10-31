@@ -36,12 +36,18 @@ pub(crate) struct Since {
     pub files: Vec<String>,
 }
 
-/// The socket a running server listens on: `$WATCHMAN_SOCK`, else what the CLI
-/// names without starting one. `None` when no server runs.
-pub(crate) fn socket() -> Option<String> {
+/// The socket a running server listens on: `$WATCHMAN_SOCK`, else `known` when
+/// something listens there, else what the CLI names without starting one. `None`
+/// when no server runs. The CLI costs about 100 ms, so a socket the last update
+/// held is tried first.
+pub(crate) fn socket(known: Option<&str>) -> Option<String> {
     if let Some(socket) = std::env::var_os("WATCHMAN_SOCK") {
         return socket.into_string().ok();
     }
+    if let Some(known) = known.filter(|known| UnixStream::connect(known).is_ok()) {
+        return Some(known.to_owned());
+    }
+    // FIXME: with the CLI installed and no server running, every update pays its ~100 ms start to learn there is none.
     let output = Command::new("watchman")
         .args(["--no-spawn", "--no-pretty", "get-sockname"])
         .stdin(Stdio::null())
@@ -94,9 +100,12 @@ pub(crate) fn since(watch: &Watch, excluded: Option<&str>) -> Option<Since> {
     if let Some(relative) = &watch.relative {
         query["relative_root"] = json!(relative);
     }
+    // A directory is in no listing; a file that moved in one is reported on its own.
+    let mut expression = vec![json!("allof"), json!(["not", ["type", "d"]])];
     if let Some(excluded) = excluded {
-        query["expression"] = json!(["not", ["dirname", excluded]]);
+        expression.push(json!(["not", ["dirname", excluded]]));
     }
+    query["expression"] = Value::Array(expression);
     let answer = ask(&watch.socket, &json!(["query", watch.watched, query]))?;
     let fresh = answer.get("is_fresh_instance").and_then(Value::as_bool).unwrap_or(true);
     let files = answer

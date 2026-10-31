@@ -12,6 +12,26 @@ import { createServer } from 'node:net';
 
 const [socket, answers, requests] = process.argv.slice(2);
 
+/** The part of Watchman's expression language the client speaks, over `{ name, type }`; a bare name is a file. */
+function matches(expression, file) {
+  const [term, ...operands] = expression;
+  const { name, type = 'f' } = typeof file === 'string' ? { name: file } : file;
+  switch (term) {
+    case 'allof':
+      return operands.every((operand) => matches(operand, file));
+    case 'not':
+      return !matches(operands[0], file);
+    case 'type':
+      return type === operands[0];
+    case 'dirname':
+      return name.startsWith(`${operands[0]}/`);
+    default:
+      throw new Error(`the fixture does not speak ${term}`);
+  }
+}
+
+const named = (file) => (typeof file === 'string' ? file : file.name);
+
 function answer(command) {
   const told = JSON.parse(readFileSync(answers, 'utf8'));
   const [name, root] = command;
@@ -24,7 +44,9 @@ function answer(command) {
       return { config: told.config ?? {} };
     case 'query':
       if (!told.roots.includes(root)) return { error: `unable to resolve root ${root}` };
-      return { clock: told.clock, is_fresh_instance: told.fresh ?? false, files: told.files ?? [] };
+      const { expression } = command[2];
+      const files = (told.files ?? []).filter((file) => expression === undefined || matches(expression, file));
+      return { clock: told.clock, is_fresh_instance: told.fresh ?? false, files: files.map(named) };
     default:
       return { error: `unknown command ${name}` };
   }

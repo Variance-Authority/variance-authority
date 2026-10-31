@@ -68,8 +68,11 @@ describe.skipIf(process.platform === 'win32')('the update over a watched checkou
     await write('package.json', '{ "name": "fixture" }');
     await write('app/index.ts', "import { unit } from '../lib/unit.js';\nexport const app = unit;\n");
     await write('lib/unit.ts', 'export const unit = 1;\n');
+    await write('.gitignore', 'cache/\n');
+    await write('cache/kept.ts', 'export const kept = 1;\n');
     git('init', '--quiet');
     git('add', '.');
+    git('add', '--force', 'cache/kept.ts');
     git('-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '--quiet', '-m', 'fixture');
 
     const real = execFileSync('sh', ['-c', 'command -v git'], { encoding: 'utf8' }).trim();
@@ -130,11 +133,27 @@ describe.skipIf(process.platform === 'win32')('the update over a watched checkou
     expect((await gitRan()).some((ran) => ran.startsWith('ls-tree'))).toBe(true);
 
     await write('lib/unit.ts', 'export const unit = 2;\n', 30_000);
-    await tell({ clock: 'c:2:2', files: [{ name: 'lib/unit.ts', exists: true, type: 'f' }] });
+    await tell({ clock: 'c:2:2', files: ['lib/unit.ts'] });
     const edited = await updateNatively(root, index);
     expect((await gitRan()).some((ran) => ran.startsWith('ls-tree'))).toBe(true);
     expect(edited?.reread).toBe(1);
-    git('checkout', '--', 'lib/unit.ts');
+    await write('lib/unit.ts', 'export const unit = 1;\n');
+  });
+
+  it('asks git only whether it ignores the paths Watchman reports, when it ignores every one', async () => {
+    await updateNatively(root, index);
+    await gitRan();
+
+    // A directory is in no listing: what moved inside it is reported apart.
+    await tell({ clock: 'c:3:1', files: ['cache/out.js', 'cache/deep/map.json', { name: 'lib', type: 'd' }] });
+    const ignored = await updateNatively(root, index);
+    expect((await gitRan()).map((ran) => ran.split(' ')[0])).toEqual(['check-ignore']);
+    expect(ignored).toMatchObject({ reread: 0 });
+
+    // Tracked, so not ignored, though the pattern matches it.
+    await tell({ clock: 'c:3:2', files: ['cache/out.js', 'cache/kept.ts'] });
+    await updateNatively(root, index);
+    expect((await gitRan()).some((ran) => ran.startsWith('ls-tree'))).toBe(true);
   });
 
   it('asks git when nothing listens at the socket', async () => {
