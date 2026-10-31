@@ -47,7 +47,7 @@ import {
   type SourceUpdate,
 } from '@variance-authority/sense';
 import { OperatorError } from '../exit.js';
-import { followUpsLogPath, holdFollowUps, readiedFollowUps, releaseFollowUps, reserveFollowUps, waitingLine, type Detach } from './index-follow-ups.js';
+import { followUpsLogPath, heldBy, holdFollowUps, readiedFollowUps, releaseFollowUps, reserveFollowUps, waitingLine, type Detach } from './index-follow-ups.js';
 
 export type { Detach } from './index-follow-ups.js';
 
@@ -82,7 +82,7 @@ export async function indexOutput(request: IndexRequest): Promise<string> {
     const pid = request.detach(['index', '--follow-ups', ...(request.noGit ? ['--no-git'] : [])], log);
     if (pid === undefined) return `${[describe(update), ...(await followUps(request, update))].join('\n')}\n`;
     holdFollowUps(index, { pid, log });
-    return `${describe(update)}\nfollow-ups: the code map, the journeys, the dependency lexicon and the questions are being made by process ${pid}, and the next variance command that reads them waits for it; their lines are written to ${log}\n`;
+    return `${describe(update)}\nfollow-ups: the code map, the journeys, the dependency lexicon and the questions are being made by process ${pid}, and the next variance command that reads them waits for it, and exits as the operator's when a walk git could not read failed; their lines are written to ${log}\n`;
   } finally {
     // A no-op once the lock is handed on: it is then the process's to let go.
     releaseFollowUps(index, process.pid);
@@ -126,13 +126,18 @@ function turnLine({ pid, root }: IndexTurnHolder): string {
  * What a detached `index` runs: the update again, which finds the index it was
  * handed and writes nothing, for the listing of the checkout it carries; then
  * the follow-ups, the lock marked once the index is readied; then the lock is
- * let go. A process that failed keeps it, so the next command that reads the
- * follow-ups finds its holder gone and makes them itself.
+ * let go. A walk git could not read marks the lock with why instead, for the
+ * next command that reads the follow-ups to tell: nobody reads this process's
+ * exit. A process that threw keeps the lock unmarked, so that command finds its
+ * holder gone and makes them itself.
  */
 export async function followUpsOutput(request: Omit<IndexRequest, 'detach'>): Promise<string> {
   const index = sourceIndexPath(request.cwd);
-  const output = await inline(request, () => readiedFollowUps(index, process.pid));
-  releaseFollowUps(index, process.pid);
+  const failed: string[] = [];
+  const output = await inline({ ...request, failed: (why) => { failed.push(why); request.failed?.(why); } }, () => readiedFollowUps(index, process.pid));
+  const held = heldBy(index);
+  if (failed.length > 0 && held?.pid === process.pid) holdFollowUps(index, { ...held, failed });
+  else releaseFollowUps(index, process.pid);
   return output;
 }
 

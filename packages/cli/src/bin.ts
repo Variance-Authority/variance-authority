@@ -71,7 +71,10 @@ export async function main(
       import('./commands/index-follow-ups.js'),
       import('./commands/configless.js'),
     ]);
-    await settleFollowUps(parsed, streams);
+    // A walk the follow-ups could not make is told while they are settled, and the
+    // command still answers: it exits as the operator's once it has.
+    const unwalked = await settleFollowUps(parsed, streams);
+    const answered = (code: ExitCode): ExitCode => (unwalked && code === EXIT_CLEAN ? EXIT_OPERATOR : code);
     // What answers before a config is read, and why each of them may: see
     // `configless.ts`, which holds those reasons beside the `CONFIGLESS` list in
     // `usage.ts` that keeps `--config` off them. The guard also narrows: past it,
@@ -79,10 +82,10 @@ export async function main(
     // the modules that read one loaded. A mistyped question is refused here, by
     // `constantAnswer`, before a file is opened.
     const constant = await constantAnswer(parsed, streams);
-    if (constant !== undefined) return constant;
-    if (withoutConfig(parsed)) return await answerConfigless(parsed, streams);
+    if (constant !== undefined) return answered(constant);
+    if (withoutConfig(parsed)) return answered(await answerConfigless(parsed, streams));
     const { dispatch } = await import('./dispatch.js');
-    return await dispatch(parsed, streams);
+    return answered(await dispatch(parsed, streams));
   } catch (error) {
     if (isOperatorError(error)) {
       streams.err(`${messageOf(error)}\n${skillLine()}`);
