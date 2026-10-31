@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { Raster, RenderIdentity } from '@variance-authority/core/format';
 import { digestFileName, identityDigest } from '@variance-authority/core/format';
 import { createDurableStore } from './durable.js';
+import { RED_PNG } from './image.fixture.js';
 import { renderCacheIn, sweepRenderCache } from './retention.js';
 
 /** The directory a store names for this identity's partition. */
@@ -163,7 +164,7 @@ describe('the timestamp the sweep reads', () => {
       identity: MAC,
       width: 10,
       height: 10,
-      bytes: 'AAAA',
+      bytes: RED_PNG,
       missingFonts: [],
     };
     await store.renderCache.put(raster);

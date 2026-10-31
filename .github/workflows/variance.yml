@@ -735,7 +735,7 @@ jobs:
         shell: bash
         run: |
           set -uo pipefail
-          committed=$(git ls-files -- 'cases/storybook-case/baselines/*.png') || exit 1
+          committed=$(git ls-files -- 'cases/storybook-case/baselines/*.webp' 'cases/storybook-case/baselines/*.png') || exit 1
           if [ -n "$committed" ]; then expected=2; else expected=0; fi
           # `shell: bash` runs with -e, so the exit is read in the condition.
           if node packages/cli/dist/bin.js doctor \

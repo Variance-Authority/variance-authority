@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { digestFileName, fileNameFor, identityDigest, type Raster, type RenderIdentity } from '@variance-authority/core/format';
 import { createDurableStore } from './durable.js';
+import { RED } from './image.fixture.js';
 
 /**
  * What the store holds and the plan did not name (ADR-0063).
@@ -26,7 +27,7 @@ const MAC: RenderIdentity = {
 /** Another engine: the file these tests must not cross. */
 const FIREFOX: RenderIdentity = { ...MAC, renderer: 'playwright-firefox', engine: 'firefox@133.0' };
 
-function rasterOf(identity: RenderIdentity, digest = 'v1:doc', bytes = 'AAAA'): Raster {
+function rasterOf(identity: RenderIdentity, digest = 'v1:doc', bytes = RED): Raster {
   return { documentDigest: digest, identity, width: 10, height: 10, bytes, missingFonts: [] };
 }
 

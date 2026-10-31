@@ -1895,6 +1895,10 @@
           "types": "./dist/difference.d.ts",
           "default": "./dist/difference.js"
         },
+        "./header": {
+          "types": "./dist/header.d.ts",
+          "default": "./dist/header.js"
+        },
         "./mask": {
           "types": "./dist/mask.d.ts",
           "default": "./dist/mask.js"
@@ -1916,6 +1920,8 @@
         "ChangeLabels": "interface",
         "DeclaredPainter": "interface",
         "DecodedImage": "interface",
+        "ImageFormat": "type",
+        "KEEP_LIMIT": "const",
         "PngDecoder": "interface",
         "changeImages": "function",
         "comparePixels": "function",
@@ -1923,16 +1929,30 @@
         "compareRasters": "function",
         "declaredIdentity": "function",
         "decode": "function",
+        "decodePortable": "function",
         "diffImage": "function",
         "foreignDigest": "function",
         "foreignRaster": "function",
-        "pngSize": "function",
-        "pngjsDecoder": "const"
+        "imageFormat": "function",
+        "imageSize": "function",
+        "isLosslessWebp": "function",
+        "pngjsDecoder": "const",
+        "refuseOversize": "function",
+        "refuseUnkept": "function"
       },
       "./difference": {
         "ObservePngDifferenceInput": "interface",
         "decodeImage": "function",
         "observePngDifference": "function"
+      },
+      "./header": {
+        "ImageFormat": "type",
+        "KEEP_LIMIT": "const",
+        "imageFormat": "function",
+        "imageSize": "function",
+        "isLosslessWebp": "function",
+        "refuseOversize": "function",
+        "refuseUnkept": "function"
       },
       "./mask": {
         "AlignedRows": "interface",
@@ -1966,6 +1986,7 @@
     },
     "names": {
       ".": {
+        "keepImage": "function",
         "sharpDecoder": "const"
       }
     }
@@ -3789,6 +3810,10 @@
         "./changelog": {
           "types": "./dist/changelog.d.ts",
           "default": "./dist/changelog.js"
+        },
+        "./keep": {
+          "types": "./dist/keep.d.ts",
+          "default": "./dist/keep.js"
         }
       },
       "files": [
@@ -3806,10 +3831,13 @@
         "DEFAULT_BASELINE_PATH": "const",
         "DurableStoreOptions": "interface",
         "ImageReader": "type",
+        "KEPT": "const",
+        "KeptAs": "type",
         "RenderCacheBound": "interface",
         "RenderCacheSwept": "interface",
         "createDurableStore": "function",
         "familyOf": "function",
+        "isKeptImage": "function",
         "parseBaselinePath": "function",
         "renderCacheIn": "function",
         "sweepRenderCache": "function"
@@ -3838,6 +3866,9 @@
         "Unreadable": "interface",
         "readChangelog": "function",
         "wasRead": "function"
+      },
+      "./keep": {
+        "keptRaster": "function"
       }
     }
   },

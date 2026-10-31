@@ -312,11 +312,13 @@ Pixel bytes have three distinct homes:
 - **Render cache:** a disposable raster keyed by document digest and painter
   identity. The CLI places its local cache at `<cache>/renders`, in
   [your cache](cache.md). A miss or cache failure costs a paint.
-- **Run images:** candidate, baseline, and diff PNGs retained for review. They
-  default beside `.variance/report.json`, under `.variance/images`, and the
-  report references them by relative path. A CI job must upload the report and
-  the image directory together.
-- **Approved visual reference:** the authoritative PNG plus readable sidecar at
+- **Run images:** candidate and diff PNGs, and the baseline as its store
+  kept it (a WebP from a durable store), retained for review. They default beside
+  `.variance/report.json`, under `.variance/images`, and the report references
+  them by relative path. A CI job must upload the report and the image
+  directory together.
+- **Approved visual reference:** the authoritative image, a lossless WebP, plus
+  readable sidecar at
   a baseline key and painter partition. It lives in a configured directory, in
   Git LFS, or in a baseline service you deploy.
 

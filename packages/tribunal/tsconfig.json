@@ -16,6 +16,7 @@
     { "path": "../report" },
     { "path": "../history" },
     { "path": "../png" },
+    { "path": "../png-sharp" },
     { "path": "../server" }
   ]
 }

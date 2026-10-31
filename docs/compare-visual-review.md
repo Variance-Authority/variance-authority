@@ -419,7 +419,7 @@ the person and attaches the capability to each request. A designer clicking
 approve is a deployment you configure, not a seat you buy.
 
 **Approved baselines from another tool are not imported into the store.** A
-baseline here is a PNG plus a sidecar of per-component, per-band hashes, filed
+baseline here is a lossless WebP plus a sidecar of per-component, per-band hashes, filed
 under the identity of the renderer that painted it. Images approved in a hosted
 service come with neither, so the store has nothing to file them under. Their
 pixels are still comparable: `observeRasters` compares any two images, and when

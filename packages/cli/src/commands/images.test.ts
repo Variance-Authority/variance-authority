@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { keepImage } from '@variance-authority/png-sharp';
 import type { RenderDocument } from '@variance-authority/core/format';
 import type { Found, RasterStore } from '@variance-authority/raster';
 import type { Observation } from '@variance-authority/observe';
@@ -51,12 +52,18 @@ function observationOf(verdict: Observation['verdict'], isolation?: Observation[
 /** The candidate in the render cache, the baseline behind `find`, nothing on disk. */
 async function writtenFor(
   verdict: Observation['verdict'],
-  options: { baseline?: boolean; ephemeral?: boolean; isolation?: Observation['isolation'] } = {},
+  options: {
+    baseline?: boolean;
+    ephemeral?: boolean;
+    isolation?: Observation['isolation'];
+    /** The baseline's bytes as a store keeps them, when not the fixture's PNG. */
+    kept?: string;
+  } = {},
 ): Promise<{ written: string[]; record: Awaited<ReturnType<typeof images>> }> {
   const document = documentFor(SUBJECT);
   const renderer = fakeRenderer();
   const store: RasterStore = storeAnswering(
-    options.baseline === false ? null : baselineOf(document, BLACK),
+    options.baseline === false ? null : baselineOf(document, options.kept ?? BLACK),
   );
   await store.renderCache.put(candidateFor(document, WHITE));
 
@@ -81,6 +88,18 @@ async function writtenFor(
 }
 
 describe('which verdicts get a pair', () => {
+  it('names the before by the format the store kept it in', async () => {
+    const kept = (await keepImage(Buffer.from(BLACK, 'base64'))).toString('base64');
+    const { written, record } = await writtenFor('changed', { kept });
+    expect(written).toEqual([
+      '/repo/out/images/fixture%3Aa.after.png',
+      '/repo/out/images/fixture%3Aa.after.json',
+      '/repo/out/images/fixture%3Aa.before.webp',
+      '/repo/out/images/fixture%3Aa.diff.png',
+    ]);
+    expect(record.images).toMatchObject({ before: 'images/fixture%3Aa.before.webp' });
+  });
+
   it('writes a before and a diff for a changed subject', async () => {
     const { written, record } = await writtenFor('changed');
     expect(written).toEqual([

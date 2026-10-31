@@ -103,7 +103,7 @@ The baseline directory now holds the image and its metadata, named for the
 subject and the engine:
 
 ```
-cart/empty-chromium.png
+cart/empty-chromium.webp
 cart/empty-chromium.json
 ```
 

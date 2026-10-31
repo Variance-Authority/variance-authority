@@ -235,7 +235,7 @@ component behind them are printed as coordinates and marked unattributed. The
 plugin the component and the element are still named and the row is absent.
 Paths are absolute, and are made relative to `sourceRoot` when you pass one.
 
-The images are files. The approved baseline is the `.png` under the baseline
+The images are files. The approved baseline is the `.webp` under the baseline
 directory, beside a `.json` recording what painted it; the candidate this run
 painted is in `renders/` in the cache, named by the digest of the document it
 came from.

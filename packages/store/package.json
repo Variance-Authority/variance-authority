@@ -38,6 +38,10 @@
     "./changelog": {
       "types": "./dist/changelog.d.ts",
       "default": "./dist/changelog.js"
+    },
+    "./keep": {
+      "types": "./dist/keep.d.ts",
+      "default": "./dist/keep.js"
     }
   },
   "files": [
@@ -50,10 +54,14 @@
   },
   "dependencies": {
     "@variance-authority/core": "workspace:^",
+    "@variance-authority/png": "workspace:^",
+    "@variance-authority/png-sharp": "workspace:^",
     "@variance-authority/raster": "workspace:^",
     "@variance-authority/report": "workspace:^"
   },
   "devDependencies": {
-    "@variance-authority/sense": "workspace:^"
+    "@variance-authority/sense": "workspace:^",
+    "pngjs": "^7.0.0",
+    "sharp": "^0.34.4"
   }
 }

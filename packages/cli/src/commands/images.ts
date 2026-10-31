@@ -9,7 +9,7 @@ import {
   type SemanticSnapshot,
 } from '@variance-authority/core/format';
 import { packSnapshot, type Observation } from '@variance-authority/observe';
-import { changeImages, decode } from '@variance-authority/png';
+import { changeImages, decode, imageFormat, pngjsDecoder } from '@variance-authority/png';
 import type { BaselineKey, RasterStore, Renderer } from '@variance-authority/raster';
 import type { ObservationRecord } from '@variance-authority/report';
 import type { Config } from '../config.js';
@@ -165,15 +165,24 @@ export async function images(
     return { images: { record, after: relative(reportDir, `${base}.after.png`) } };
   }
 
-  await deps.writeArtifact(`${base}.before.png`, decode(before.bytes));
+  // Named for the format the store kept it in: a baseline accepted since kept
+  // images became WebP is one, and one kept before is a PNG. Written as stored,
+  // because the report shows it to a person and every browser reads both.
+  const was = decode(before.bytes);
+  const beforePath = `${base}.before.${imageFormat(was) ?? 'png'}`;
+  await deps.writeArtifact(beforePath, was);
   // The difference and the crops of it come from one alignment, cut where the
   // comparison isolated its regions, so the picture a comment shows is the
   // change at its own size rather than two pages scaled to a column. It names
   // the subject and each side's source itself, since a person who taps it in a
   // comment sees it without the comment around it.
+  const [wasPixels, nowPixels] = await Promise.all([
+    pngjsDecoder.decode(was),
+    pngjsDecoder.decode(decode(raster.bytes)),
+  ]);
   const { diff, change } = changeImages(
-    decode(before.bytes),
-    decode(raster.bytes),
+    wasPixels,
+    nowPixels,
     observation.isolation?.regions ?? [],
     undefined,
     { subject: id, before: 'baseline', after: 'this run' },
@@ -184,7 +193,7 @@ export async function images(
   return {
     images: {
       record,
-      before: relative(reportDir, `${base}.before.png`),
+      before: relative(reportDir, beforePath),
       after: relative(reportDir, `${base}.after.png`),
       diff: relative(reportDir, `${base}.diff.png`),
       ...(change === undefined ? {} : { change: relative(reportDir, `${base}.change.png`) }),

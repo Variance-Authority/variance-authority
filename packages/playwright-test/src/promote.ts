@@ -13,6 +13,7 @@ import { documentDigest } from '@variance-authority/core/format';
 import type { AccessibilitySnapshot, SemanticSnapshot } from '@variance-authority/core/format';
 import { packSnapshot } from '@variance-authority/observe';
 import type { BaselineKey, RasterStore, Renderer } from '@variance-authority/raster';
+import { keptRaster } from '@variance-authority/store/keep';
 
 
 export function engineOf(page: Page): string {
@@ -57,10 +58,13 @@ export async function promote(
   // raster as-is would record a baseline with no hashes at all, so every later run
   // against it would rank regions by area — the ordering journal 0013 measured as
   // backwards — on the one surface where both documents were in hand.
-  await store.put(key, {
-    ...candidate,
-    components: hashComponents(snapshot),
-    snapshot: packSnapshot(snapshot),
-    accessibility,
-  });
+  await store.put(
+    key,
+    await keptRaster({
+      ...candidate,
+      components: hashComponents(snapshot),
+      snapshot: packSnapshot(snapshot),
+      accessibility,
+    }),
+  );
 }

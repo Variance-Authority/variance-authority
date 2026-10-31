@@ -10,6 +10,7 @@ import {
 } from '@variance-authority/raster';
 import { alignRows } from './align.js';
 import { changeImages } from './change.js';
+import { decodePortable } from './format.js';
 import { differencePixels, type DecodedImage } from './mask.js';
 
 /**
@@ -40,33 +41,27 @@ import { differencePixels, type DecodedImage } from './mask.js';
 export type { DecodedImage };
 
 /**
- * How PNG bytes become pixels, so that *which* decoder is a deployment choice.
+ * How image bytes become pixels, so that *which* decoder is a deployment choice.
  *
- * Measured, because the difference is larger than it looks and not where it was
- * expected (journal 0016). Decoding is **90% of a comparison** — `pixelmatch`
- * itself is 9% — so this interface is where a run's raster cost actually lives.
- * On 1280×800: `pngjs` 22.6 ms, `sharp` 15.0 ms, and `sharp` again at **1.9 ms**
- * when several decode at once, because libvips runs on libuv's threadpool and
- * leaves the event loop free. Two wasm decoders were tried and both were
- * *slower* than the pure-JS one.
+ * Decoding is **90% of a comparison** (journal 0016), so this is where a run's
+ * raster cost lives. On 1280×800: `pngjs` 22.6 ms, `sharp` 15.0 ms, and `sharp`
+ * at **1.9 ms** when several decode at once on libuv's threadpool, which is why
+ * the seam is async. Wasm lost to `pngjs` for PNG and beats it for WebP.
  *
- * Async for exactly that reason. A synchronous seam would forbid the threadpool,
- * which is where the order of magnitude is — not in the per-image constant.
- *
- * The default stays `pngjs` and this package keeps requiring nothing native, so
- * `observe` remains installable anywhere JavaScript runs. `sharp` is a native
- * addon that a Worker cannot load, which under ADR-0013 makes it a different
- * package's requirement rather than a conditional import here.
+ * The default stays `pngjs` and nothing native, so `observe` installs anywhere
+ * JavaScript runs; `sharp` is another package's requirement (ADR-0013).
  */
 export interface PngDecoder {
   decode(bytes: Buffer): Promise<DecodedImage>;
 }
 
-/** The portable default: no native addon, no wasm, works wherever Node does. */
+/**
+ * The portable default: no native addon, works wherever Node does. A PNG is
+ * read by `pngjs`; a kept baseline, which is a lossless WebP, by libwebp
+ * compiled to WebAssembly (see {@link decodePortable}).
+ */
 export const pngjsDecoder: PngDecoder = {
-  async decode(bytes: Buffer): Promise<DecodedImage> {
-    return PNG.sync.read(bytes);
-  },
+  decode: decodePortable,
 };
 
 /**
@@ -187,11 +182,16 @@ export function decode(base64: string): Buffer {
   return Buffer.from(base64, 'base64');
 }
 
-/** A visual diff, for the human who wants one after reading the report. */
-export function diffImage(
+/**
+ * A visual diff, for the human who wants one after reading the report. Either
+ * side may be a kept WebP or a PNG; the diff is always a PNG.
+ */
+export async function diffImage(
   before: Buffer,
   after: Buffer,
   policy: DiffPolicy = DEFAULT_POLICY,
-): Buffer {
-  return changeImages(before, after, [], policy).diff;
+  decoder: PngDecoder = pngjsDecoder,
+): Promise<Buffer> {
+  const [was, now] = await Promise.all([decoder.decode(before), decoder.decode(after)]);
+  return changeImages(was, now, [], policy).diff;
 }

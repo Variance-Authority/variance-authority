@@ -116,7 +116,7 @@ interface RecordStore {
 What a lone image still supplies, with nothing added to any format: `identity`,
 from the `v1-<32 hex>` directory it sits in; `width` and `height`, from the IHDR,
 with an eight-byte reader for exactly this already shipping at
-`packages/png/src/size.ts:26`; and `pictured`, because there are pixels.
+`packages/png/src/header.ts:36`; and `pictured`, because there are pixels.
 
 What it cannot supply is the record. Take each field in the direction its absence
 pushes the run:

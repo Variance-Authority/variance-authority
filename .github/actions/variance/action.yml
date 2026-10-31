@@ -603,7 +603,7 @@ runs:
         # and, for `lfs`, the `.gitattributes` line that tracks them. A staged
         # path that is none of these is a bug in this step, and it stops here
         # rather than riding into a contributor's branch.
-        unexpected="$(git diff --cached --name-only | grep -Ev '(\.(png|json)|(^|/)\.gitattributes)$' || true)"
+        unexpected="$(git diff --cached --name-only | grep -Ev '(\.(png|webp|json)|(^|/)\.gitattributes)$' || true)"
         if [ -n "$unexpected" ]; then
           echo "::error::refusing to commit non-artifact paths staged under the baseline store"
           echo "$unexpected"

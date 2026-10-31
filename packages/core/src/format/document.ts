@@ -315,7 +315,11 @@ export interface Raster {
    */
   readonly width?: number;
   readonly height?: number;
-  /** PNG, base64. Absent when the subject occupies no pixels. */
+  /**
+   * The image, base64, in the format its own header declares: a capture is a
+   * PNG, and a kept baseline is the lossless WebP it was kept as, or a PNG kept
+   * before. Absent when the subject occupies no pixels.
+   */
   readonly bytes?: string;
   /** Fonts the document declared that the renderer did not have. */
   readonly missingFonts: readonly string[];

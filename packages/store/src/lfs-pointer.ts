@@ -1,6 +1,6 @@
 // compass: variance-authority.retention
 
-import { isLfsPointer } from '@variance-authority/core';
+import { isLfsPointer, LFS_POINTER_HEAD_BYTES } from '@variance-authority/core';
 import type { Raster } from '@variance-authority/core/format';
 import { RasterStoreError, REFUSAL } from '@variance-authority/raster';
 
@@ -39,7 +39,15 @@ export function refuseAPointer(raster: Raster, what: string): void {
   if (raster.bytes === undefined) return;
   if (!isLfsPointer(Buffer.from(raster.bytes.slice(0, 60), 'base64'))) return;
 
-  throw refused(what, 'an image', 'the PNG');
+  throw refused(what, 'an image', 'the image');
+}
+
+/**
+ * Image bytes that are a pointer, refused as one by the read that holds them.
+ * The format check on a read would otherwise call them a mislabelled image.
+ */
+export function refuseAPointerImage(bytes: Uint8Array, what: string): void {
+  if (isLfsPointer(bytes.subarray(0, LFS_POINTER_HEAD_BYTES))) throw refused(what, 'an image', 'the image');
 }
 
 /**

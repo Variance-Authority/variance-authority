@@ -9,7 +9,7 @@ page is the reference for choosing one while you set a project up.
 
 A committed baseline is reviewed as a file in a pull request, so it is named
 for what it is an image of: the story or test, and its variant. A change to the
-primary button lists `Ui/Button/Primary-chromium.png` and its `.json` record,
+primary button lists `Ui/Button/Primary-chromium.webp` and its `.json` record,
 and nothing about the machine that painted it. That machine — renderer, browser
 engine version, platform, device scale factor and fonts — is written into the
 record. An image painted on another machine is still compared, and the field
@@ -67,16 +67,16 @@ same as a store nobody has written to yet.
 ## What a committed baseline is called
 
 Under `directory` and `lfs`, `baselines.path` names each file. It is a template
-under `baselines.root`, the store adds `.png` and `.json`, and when you set none
+under `baselines.root`, the store adds `.webp` and `.json`, and when you set none
 it is `{title}/{name}-{engine}`. For a Storybook story titled `Ui/Button` and a
 Playwright test `checkout › empty cart`, a run writes:
 
 ```
-baselines/Ui/Button/Primary-chromium.png
+baselines/Ui/Button/Primary-chromium.webp
 baselines/Ui/Button/Primary-chromium.json
-baselines/Ui/Button/Primary__dark-chromium.png
+baselines/Ui/Button/Primary__dark-chromium.webp
 baselines/Ui/Button/Primary__dark-chromium.json
-baselines/checkout/empty-cart-chromium.png
+baselines/checkout/empty-cart-chromium.webp
 baselines/checkout/empty-cart-chromium.json
 ```
 
@@ -84,6 +84,14 @@ The `.json` record is the attribution: which machine painted the image, from
 which document, with which fonts missing. It stays text, and reviewable, in
 every placement. A labelled image — a second viewport or state of one subject —
 appends the label to the name after `__`.
+
+The image is a lossless WebP: every pixel you accepted, in about a quarter of
+the bytes of the PNG that was captured. A fully transparent pixel keeps only its
+transparency, not the colour under it, which no comparison can see. It is
+encoded once, by `sharp` on the machine that accepts, and never while a run
+compares. A baseline committed as a `.png` before is read as it is,
+and its next accept replaces it with the `.webp`. A WebP holds at most 16,383
+pixels on a side, so an accept refuses a taller page by name.
 
 | token | what it is |
 |---|---|
@@ -178,10 +186,10 @@ caused it:
 
 ```
 src/ui/Button/Button.stories.tsx
-src/ui/Button/__baselines__/Button.stories.tsx/Primary-chromium.png
+src/ui/Button/__baselines__/Button.stories.tsx/Primary-chromium.webp
 src/ui/Button/__baselines__/Button.stories.tsx/Primary-chromium.json
 e2e/checkout.spec.ts
-e2e/__baselines__/checkout.spec.ts/empty-cart-chromium.png
+e2e/__baselines__/checkout.spec.ts/empty-cart-chromium.webp
 e2e/__baselines__/checkout.spec.ts/empty-cart-chromium.json
 ```
 
@@ -198,18 +206,24 @@ with the same tokens.
 
 `{dir}` is available to `directory` too. Under either backend the images sit
 next to code people edit, so they turn up in every diff and every clone; `lfs`
-is what keeps the PNG bytes out of the git history.
+is what keeps the image bytes out of the git history.
 
 `createLfsStore` writes its own `.gitattributes` in the root, with a pattern made
 from the template, so only files the template can name go through LFS. Under
-this template that is `**/__baselines__/*/*-*.png`. The default template's
-pattern is `*-*.png`, which at a root of `.` would also take every hyphenated
+this template that is `**/__baselines__/*/*-*.webp`. The default template's
+pattern is `*-*.webp`, which at a root of `.` would also take every hyphenated
 icon, fixture and screenshot in the repository, so the config refuses that
 pair. Give the template a directory of its own, such as `__baselines__`, give
 the baselines a root of their own, or set `baselines.pattern` yourself.
 
+A root that already tracks `*-*.png` keeps that entry, so the PNGs committed
+before stay in LFS, and the store adds the `.webp` entry beside it. A
+`baselines.pattern` you set yourself is written as you gave it, and one that
+does not end in `.webp` or `*` is refused, because it would leave every kept
+image out of LFS.
+
 `directory` at a root of `.` is refused on the same template for the same
-reason: the action commits back what the glob names, and `*-*.png` from the
+reason: the action commits back what the glob names, and `*-*.webp` from the
 repository root would stage every hyphenated image in it.
 
 ## Somewhere else entirely

@@ -43,7 +43,15 @@ const MAC: RenderIdentity = {
 
 const RUNNER: RenderIdentity = { ...MAC, platform: 'linux/x64' };
 
-function rasterOf(identity: RenderIdentity, bytes = 'QUJD'): Raster {
+/**
+ * A one-pixel PNG, and the lossless WebP an accept keeps it as. The client
+ * encodes before `put`, so the wire carries the WebP and the backing store only
+ * checks it; a capture in the render cache stays the PNG.
+ */
+const PICTURE = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4AWP4z8DwHwAFAAH/e+m+7wAAAABJRU5ErkJggg==';
+const KEPT = 'UklGRhwAAABXRUJQVlA4TA8AAAAvAAAAAAcQ/Y/+ByKi/wEA';
+
+function rasterOf(identity: RenderIdentity, bytes = KEPT): Raster {
   return { documentDigest: 'v1:doc', identity, width: 10, height: 20, bytes, missingFonts: ['Inter'] };
 }
 
@@ -73,11 +81,11 @@ describe('a baseline store somewhere else', () => {
     server = await serveRasterStore(createDurableStore(root));
     const store = createRemoteStore({ endpoint: server.url });
 
-    await store.put({ subject: 'todo--empty' }, rasterOf(MAC, 'SGVsbG8='));
+    await store.put({ subject: 'todo--empty' }, rasterOf(MAC));
     const found = await store.find({ subject: 'todo--empty' }, MAC);
 
     expect(found?.comparable).toBe(true);
-    expect(found?.raster).toEqual(rasterOf(MAC, 'SGVsbG8='));
+    expect(found?.raster).toEqual(rasterOf(MAC));
   });
 
   it('carries the identity partition across the hop', async () => {
@@ -98,9 +106,9 @@ describe('a baseline store somewhere else', () => {
     server = await serveRasterStore(createDurableStore(root));
     const store = createRemoteStore({ endpoint: server.url });
 
-    await store.renderCache.put(rasterOf(MAC, 'QQ=='));
+    await store.renderCache.put(rasterOf(MAC, PICTURE));
 
-    expect((await store.renderCache.get('v1:doc', MAC))?.bytes).toBe('QQ==');
+    expect((await store.renderCache.get('v1:doc', MAC))?.bytes).toBe(PICTURE);
     expect(await store.renderCache.get('v1:other', MAC)).toBeNull();
   });
 
@@ -128,7 +136,7 @@ describe('a baseline store somewhere else', () => {
     // them" are different claims and only the second one saves anything.
     server = await serveRasterStore(createDurableStore(root));
     const store = createRemoteStore({ endpoint: server.url });
-    await store.put({ subject: 'todo--empty' }, rasterOf(MAC, 'SGVsbG8='));
+    await store.put({ subject: 'todo--empty' }, rasterOf(MAC));
 
     const described = await store.describe({ subject: 'todo--empty' }, MAC);
     const body = await (
@@ -151,7 +159,7 @@ describe('a baseline store somewhere else', () => {
       // dropped it would be caught here and nowhere else.
       missingFonts: ['Inter'],
     });
-    expect(body).not.toContain('SGVsbG8=');
+    expect(body).not.toContain(KEPT);
   });
 
   it('carries the identity partition on the cheap lookup too', async () => {
@@ -173,7 +181,7 @@ describe('a baseline store somewhere else', () => {
     // settle on its digest and stay at the old path behind every remote run.
     const partition = join(root, digestFileName(identityDigest(MAC)));
     await mkdir(partition, { recursive: true });
-    await writeFile(join(partition, 'button.png'), Buffer.from('QUJD', 'base64'));
+    await writeFile(join(partition, 'button.png'), Buffer.from(PICTURE, 'base64'));
     await writeFile(join(partition, 'button.json'), JSON.stringify({ ...rasterOf(MAC), bytes: undefined }));
     server = await serveRasterStore(createDurableStore(root));
     const store = createRemoteStore({ endpoint: server.url });

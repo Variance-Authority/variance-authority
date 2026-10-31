@@ -3,10 +3,11 @@
 import { readFile, rm, rmdir, stat } from 'node:fs/promises';
 import { dirname } from 'node:path';
 import type { Raster } from '@variance-authority/core/format';
+import { imageFormat, isLosslessWebp } from '@variance-authority/png/header';
 import { REFUSAL, RasterStoreError, messageOf, sidecarFrom } from '@variance-authority/raster';
 import { orAbsent } from './absent.js';
 import { placedForIn, type PlacedFor } from './claims.js';
-import { refuseAPointerRecord } from './lfs-pointer.js';
+import { refuseAPointerImage, refuseAPointerRecord } from './lfs-pointer.js';
 
 /**
  * One baseline on disk: an image and the record of what painted it, read and
@@ -19,7 +20,7 @@ import { refuseAPointerRecord } from './lfs-pointer.js';
  * missing, and two copies of that answer are two chances to disagree.
  */
 
-/** How a baseline's `.png` becomes bytes. See `DurableStoreOptions.readImage`. */
+/** How a baseline's image becomes bytes. See `DurableStoreOptions.readImage`. */
 export type ImageReader = (path: string) => Promise<Buffer>;
 
 /**
@@ -31,7 +32,7 @@ export type ImageReader = (path: string) => Promise<Buffer>;
  * pass around.
  */
 export interface Places {
-  /** The `.png`'s path, without the extension. */
+  /** The image's path, without the extension. */
   readonly image: string;
   /** The `.json`'s path, without the extension. */
   readonly record: string;
@@ -45,11 +46,62 @@ export interface Places {
 export type Read<T> = T & { readonly placedFor?: PlacedFor };
 
 /**
+ * The extension a baseline's image is kept under: `webp` for every accept since
+ * kept images became WebP (see `keepImage`), and `png` for one kept before.
+ *
+ * The record says which, as `image`, because the record is what a lookup reads
+ * first and the only thing that may say what the pair is. Absent means `png`:
+ * that is every record written before the field existed. Store-local, like
+ * `placedFor`: the bytes declare their own format to everything downstream.
+ */
+export type KeptAs = 'png' | 'webp';
+export const KEPT_AS: KeptAs = 'webp';
+/** Every extension a store has kept an image under, the one it writes first. */
+export const KEPT = ['webp', 'png'] as const satisfies readonly KeptAs[];
+
+/** Whether a file name is a kept image, of either extension a store has written. */
+export function isKeptImage(name: string): boolean {
+  return KEPT.some((as) => name.endsWith(`.${as}`));
+}
+
+/** The image a record says is beside it. */
+export function imageOf(places: Places, as: KeptAs): string {
+  return `${places.image}.${as}`;
+}
+
+/**
+ * The format a sidecar records its image in: the one it names, or `png` for a
+ * sidecar written before kept images had a name. A name no store writes is
+ * damage, not a PNG: guessing would read whatever file happens to sit beside it.
+ */
+function keptAsIn(record: unknown, path: string): KeptAs {
+  const image = (record as { image?: unknown }).image;
+  if (image === undefined) return 'png';
+  if (KEPT.includes(image as KeptAs)) return image as KeptAs;
+  throw new RasterStoreError(
+    `the baseline sidecar ${path} records its image as ${JSON.stringify(image)}, a format no store ` +
+      `keeps (${KEPT.join(', ')}). ${REFUSAL}.`,
+  );
+}
+
+/**
+ * Every image of the pair that is on disk, of either extension. Read where the
+ * record cannot say which to expect: when it is gone, and when it records no
+ * image, since an image beside either is damage whatever its extension.
+ */
+async function imagesAt(places: Places): Promise<readonly string[]> {
+  const found = await Promise.all(
+    KEPT.map(async (as) => ((await orAbsent(() => stat(imageOf(places, as)), imageOf(places, as))) === null ? null : imageOf(places, as))),
+  );
+  return found.filter((path): path is string => path !== null);
+}
+
+/**
  * Remove a pair `put` just superseded, and its directories once empty: an
  * accept moves a baseline rather than leaving a second copy for the fallback.
  */
 export async function retire(places: Places): Promise<void> {
-  await rm(`${places.image}.png`, { force: true });
+  for (const as of KEPT) await rm(imageOf(places, as), { force: true });
   await rm(`${places.record}.json`, { force: true });
   for (const directory of new Set([dirname(places.image), dirname(places.record)])) {
     await rmdir(directory).catch(() => undefined);
@@ -88,77 +140,93 @@ export async function readRaster(
   places: Places,
   readImage: ImageReader = readFile,
 ): Promise<Read<Raster> | null> {
-  const [sidecar, bytes] = await Promise.all([
-    orAbsent(() => readFile(`${places.record}.json`, 'utf8'), `${places.record}.json`),
-    orAbsent(() => readImage(`${places.image}.png`), `${places.image}.png`),
+  const found = await readPair(places);
+  if (found === null) return null;
+  if (found.image === undefined) return found.record;
+  const { image, as = 'png' } = found;
+  // Absent here as well: the image was there a moment ago, and removed since.
+  const bytes = await orAbsent(() => readImage(image), image);
+  if (bytes === null) throw halfAPair(places, `${places.record}.json`, image);
+  refuseMislabelled(image, as, bytes);
+  return { ...found.record, bytes: bytes.toString('base64') };
+}
+
+/**
+ * The record, and the image it says is beside it, checked against what is on
+ * disk; the image's bytes are left to the caller.
+ *
+ * The record says which image to expect: its dimensions say whether one was
+ * taken, and `image` says under which extension. It is read while each
+ * extension is stat-ed, so a lookup costs the slowest of the three, then — for
+ * `find` — the one image the record names.
+ */
+async function readPair(
+  places: Places,
+): Promise<{ record: Read<Omit<Raster, 'bytes'>>; image?: string; as?: KeptAs } | null> {
+  const recordPath = `${places.record}.json`;
+  const [text, images] = await Promise.all([
+    orAbsent(() => readFile(recordPath, 'utf8'), recordPath),
+    imagesAt(places),
   ]);
+  if (text === null) {
+    const [stray] = images;
+    if (stray === undefined) return null;
+    throw halfAPair(places, stray, recordPath);
+  }
 
-  if (sidecar === null && bytes === null) return null;
-  if (sidecar === null) throw halfAPair(places, false);
-
-  const record = parseSidecar(sidecar, `${places.record}.json`);
+  const { record, as } = parseSidecar(text, recordPath);
   // The sidecar says whether there should be an image: `width` and `height` are
   // written exactly when one was taken. So a pixel-less baseline is a `.json`
-  // with no `.png` *and no dimensions*, which is a complete record — and a
+  // with no image *and no dimensions*, which is a complete record — and a
   // sidecar that claims dimensions with no image beside it is still damage.
   if (record.width === undefined) {
-    if (bytes !== null) throw unexpectedImage(places);
-    return record;
+    const [stray] = images;
+    if (stray !== undefined) throw unexpectedImage(places, stray);
+    return { record };
   }
-  if (bytes === null) throw halfAPair(places, true);
-
-  return { ...record, bytes: bytes.toString('base64') };
+  const image = imageOf(places, as);
+  // One image, the one the record names. Another beside it is a file from some
+  // other accept, and which of the two is the baseline is not ours to guess.
+  const stray = images.find((path) => path !== image);
+  if (stray !== undefined) throw unexpectedImage(places, stray);
+  if (!images.includes(image)) throw halfAPair(places, recordPath, image);
+  return { record, image, as };
 }
 
 /**
  * The same lookup as {@link readRaster}, stopping short of the image.
  *
- * The PNG is still stat-ed. Skipping it would make the cheap lookup and the full
+ * The image is still stat-ed. Skipping it would make the cheap lookup and the full
  * one disagree about whether a baseline exists — a sidecar whose image is gone
  * would be a description to one and a corrupted pair to the other, and the
  * verdict would then depend on which question the caller asked. A stat is a
  * directory read; it is the existence check without the megabyte.
  */
 export async function readSidecar(places: Places): Promise<Read<Omit<Raster, 'bytes'>> | null> {
-  const [sidecar, image] = await Promise.all([
-    orAbsent(() => readFile(`${places.record}.json`, 'utf8'), `${places.record}.json`),
-    orAbsent(() => stat(`${places.image}.png`), `${places.image}.png`),
-  ]);
-
-  if (sidecar === null && image === null) return null;
-  if (sidecar === null) throw halfAPair(places, false);
-
-  const record = parseSidecar(sidecar, `${places.record}.json`);
-  if (record.width === undefined) {
-    if (image !== null) throw unexpectedImage(places);
-    return record;
-  }
-  if (image === null) throw halfAPair(places, true);
-
-  return record;
+  return (await readPair(places))?.record ?? null;
 }
 
 /**
- * A `.png` beside a sidecar that recorded no image.
+ * An image the sidecar does not claim: one beside a record of no pixels, or a
+ * second image beside the one it names.
  *
  * The mirror of {@link halfAPair}, and damage for the same reason: the sidecar
  * is the record of what was observed, so an image it never claimed is a file
  * from some other run. Comparing against it would answer about that run.
  */
-function unexpectedImage(places: Places): RasterStoreError {
+function unexpectedImage(places: Places, stray: string): RasterStoreError {
   return new RasterStoreError(
-    `the baseline at ${places.record} records a subject with no pixels, and ` +
-      `${places.image}.png exists anyway. The sidecar is the record of what was observed, so an ` +
-      `image it does not claim came from somewhere else. ${REFUSAL}. Delete ${places.image}.png, ` +
-      'or delete both to record the subject afresh.',
+    `the baseline at ${places.record} does not record ${stray}, and it exists anyway. The sidecar ` +
+      'is the record of what was observed, so an image it does not claim came from somewhere else. ' +
+      `${REFUSAL}. Delete ${stray}, or delete the whole baseline to record the subject afresh.`,
   );
 }
 
 /**
  * One file of the pair without the other.
  *
- * Never a miss. A `.png` with no `.json` is a baseline whose attribution was
- * lost, and a `.json` with no `.png` is an attribution whose baseline was lost —
+ * Never a miss. An image with no `.json` is a baseline whose attribution was
+ * lost, and a `.json` with no image is an attribution whose baseline was lost —
  * both are damage, and both look exactly like a subject nobody has rendered if
  * the lookup is willing to shrug. A CI cache restore that ran out of space and
  * a `put` killed between its two writes produce precisely this.
@@ -167,11 +235,7 @@ function unexpectedImage(places: Places): RasterStoreError {
  * licence to run on one of them: the message names the files it actually looked
  * for, wherever they were.
  */
-function halfAPair(places: Places, sidecarSurvived: boolean): RasterStoreError {
-  const [present, missing] = sidecarSurvived
-    ? [`${places.record}.json`, `${places.image}.png`]
-    : [`${places.image}.png`, `${places.record}.json`];
-
+function halfAPair(places: Places, present: string, missing: string): RasterStoreError {
   return new RasterStoreError(
     `the baseline at ${places.image} is half there: ${present} exists and ${missing} does not. ` +
       'A baseline is the pair, so one file without the other is a corrupted baseline rather ' +
@@ -190,7 +254,7 @@ function halfAPair(places: Places, sidecarSurvived: boolean): RasterStoreError {
  * becomes a digest taken over nothing: two invented answers where the honest one
  * is that the file cannot be read.
  */
-function parseSidecar(text: string, path: string): Read<Omit<Raster, 'bytes'>> {
+function parseSidecar(text: string, path: string): { record: Read<Omit<Raster, 'bytes'>>; as: KeptAs } {
   refuseAPointerRecord(text, path);
   let parsed: unknown;
   try {
@@ -211,5 +275,23 @@ function parseSidecar(text: string, path: string): Read<Omit<Raster, 'bytes'>> {
     );
   }
   const placedFor = placedForIn(parsed);
-  return placedFor === undefined ? sidecar : { ...sidecar, placedFor };
+  return { record: placedFor === undefined ? sidecar : { ...sidecar, placedFor }, as: keptAsIn(parsed, path) };
+}
+
+/**
+ * Refuse an image whose bytes are not what its sidecar and its name say: a
+ * `.webp` holding a PNG or a lossy picture, a `.png` holding anything else. The
+ * record decides which file is read and the header which decoder reads it, so a
+ * disagreement is caught here, on the read that has the bytes, as damage.
+ */
+function refuseMislabelled(image: string, as: KeptAs, bytes: Buffer): void {
+  const format = imageFormat(bytes);
+  if (format === as && (as !== 'webp' || isLosslessWebp(bytes))) return;
+  refuseAPointerImage(bytes, image);
+  const held =
+    format === null ? 'no image format' : format === 'png' ? 'a PNG' : isLosslessWebp(bytes) ? 'a WebP' : 'a lossy WebP';
+  throw new RasterStoreError(
+    `the baseline image ${image} holds ${held}, and its sidecar and its name say a ` +
+      `${as === 'webp' ? 'lossless WebP' : 'PNG'}. ${REFUSAL}. Delete the baseline to record the subject afresh.`,
+  );
 }

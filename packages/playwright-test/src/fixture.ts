@@ -53,6 +53,7 @@ import {
 } from './renderers.js';
 import { playwrightStanding } from './preconditions.js';
 import { AGENT, type AcquireRequest } from './page-agent.js';
+import { keptRaster } from '@variance-authority/store/keep';
 
 /**
  * The optional Playwright fixture parts, for a suite that already owns a shared
@@ -278,7 +279,10 @@ export const varianceFixtures: Fixtures<
         options,
       );
       for (const [name, path] of Object.entries(observed.evidence ?? {})) {
-        await testInfo.attach(`${observed.subject} ${name}`, { path, contentType: 'image/png' });
+        // The before is kept as the store keeps it, a WebP or an older PNG;
+        // the after and the diff are PNGs.
+        const contentType = path.endsWith('.webp') ? 'image/webp' : 'image/png';
+        await testInfo.attach(`${observed.subject} ${name}`, { path, contentType });
       }
       // Annotated as well as carried, so the report shows it under a passing
       // test too.
@@ -414,12 +418,15 @@ async function observeAcquired(
       ...(options.sensitivity === undefined ? {} : { sensitivity: options.sensitivity }),
     });
     if (adopts(observation, run)) {
-      await store.put(key, {
-        ...candidate,
-        components: hashComponents(heldSnapshot),
-        snapshot: packSnapshot(heldSnapshot),
-        accessibility: held.accessibility,
-      });
+      await store.put(
+        key,
+        await keptRaster({
+          ...candidate,
+          components: hashComponents(heldSnapshot),
+          snapshot: packSnapshot(heldSnapshot),
+          accessibility: held.accessibility,
+        }),
+      );
       return accepted(observation);
     }
     return await withEvidence(runtime, key, observation, async () => candidate);

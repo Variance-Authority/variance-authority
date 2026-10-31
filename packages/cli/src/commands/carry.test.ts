@@ -243,6 +243,7 @@ describe('the output the host reads', () => {
       'VARIANCE_CARRY_END',
       'baselines-root=/r/.variance/baselines',
       'baselines-pathspecs<<VARIANCE_CARRY_END',
+      ':(glob)/r/.variance/baselines/**/*-*.webp',
       ':(glob)/r/.variance/baselines/**/*-*.png',
       ':(glob)/r/.variance/baselines/**/*-*.json',
       `:(glob)/r/.variance/baselines/**/${PARTITION}/*`,
@@ -341,6 +342,7 @@ describe('the output the host reads', () => {
 
     expect(githubOutput(collocated).split('\n')).toEqual(expect.arrayContaining([
       'baselines-pathspecs<<VARIANCE_CARRY_END',
+      ':(glob)/r/**/__baselines__/*/*-*.webp',
       ':(glob)/r/**/__baselines__/*/*-*.png',
       ':(glob)/r/**/__baselines__/*/*-*.json',
       `:(glob)/r/**/${PARTITION}/*`,
@@ -358,6 +360,7 @@ describe('the output the host reads', () => {
       mainlines: MAIN,
     });
     expect(split.baselinesPathspecs).toEqual([
+      ':(glob)/r/baselines/**/*-*.webp',
       ':(glob)/r/baselines/**/*-*.png',
       ':(glob)/r/records/**/*-*.json',
       `:(glob)/r/baselines/**/${PARTITION}/*`,
@@ -367,6 +370,30 @@ describe('the output the host reads', () => {
 });
 
 describe('what a commit-back stages, as git reads it', () => {
+  it('takes the WebP an accept keeps and the PNG kept before it, and nothing else beside them', async () => {
+    const repo = await mkdtemp(join(tmpdir(), 'variance-carry-stage-'));
+    const files = ['src/__baselines__/a.tsx/A-chromium.webp', 'src/__baselines__/a.tsx/B-chromium.png', 'src/__baselines__/a.tsx/C-chromium.gif'];
+    try {
+      execFileSync('git', ['init', '--quiet', repo]);
+      for (const file of files) {
+        await mkdir(dirname(join(repo, file)), { recursive: true });
+        await writeFile(join(repo, file), '');
+      }
+      const { baselinesPathspecs } = carryPlan({
+        direction: 'save',
+        root,
+        config: project({ baselines: { kind: 'directory', root: repo, path: '{dir}/__baselines__/{file}/{name}-{engine}' } } as Partial<Config>),
+        run: PULL,
+        mainlines: MAIN,
+      });
+      const listed = execFileSync('git', ['-C', repo, 'ls-files', '--others', '--', ...baselinesPathspecs!], { encoding: 'utf8' });
+
+      expect(listed.trim().split('\n').sort()).toEqual(['src/__baselines__/a.tsx/A-chromium.webp', 'src/__baselines__/a.tsx/B-chromium.png']);
+    } finally {
+      await rm(repo, { recursive: true, force: true });
+    }
+  });
+
   it('takes both spellings of an old partition, and no directory that only starts like one', async () => {
     const repo = await mkdtemp(join(tmpdir(), 'variance-carry-stage-'));
     const hex = 'd9e2d62e05a69046dc75e1a987837b31';

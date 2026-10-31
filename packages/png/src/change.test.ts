@@ -112,7 +112,7 @@ describe('the picture of an insertion', () => {
   // under them moves from 12 to 15.
   const before = image(40, 20, { 1: GREY, 12: GREY });
   const after = image(40, 23, { 1: GREY, 7: BLACK, 8: BLACK, 9: BLACK, 15: GREY });
-  const sheet = sheetOf(changeImages(before, after, regionsOf(before, after)).change);
+  const sheet = sheetOf(changeImages(PNG.sync.read(before), PNG.sync.read(after), regionsOf(before, after)).change);
 
   it('lays before and after side by side, framed on a canvas, under a label each', () => {
     // The page is narrower than a crop, so each panel is the page: 23 rows, the
@@ -165,7 +165,7 @@ describe('a change in place', () => {
     const was = block(before, 600, 1000, 10, GREY);
     const now = block(before, 600, 1000, 10, BLACK);
 
-    const sheet = sheetOf(changeImages(was, now, regionsOf(was, now)).change);
+    const sheet = sheetOf(changeImages(PNG.sync.read(was), PNG.sync.read(now), regionsOf(was, now)).change);
 
     // 32 rows above and below the 10, at the narrowest readable width.
     expect(sheet.panel).toBe(320);
@@ -185,7 +185,7 @@ describe('a change in place', () => {
       const before = image(400, 200, {}, page);
       const after = block(before, 200, 100, 8, GREY);
 
-      const sheet = sheetOf(changeImages(before, after, regionsOf(before, after)).change);
+      const sheet = sheetOf(changeImages(PNG.sync.read(before), PNG.sync.read(after), regionsOf(before, after)).change);
 
       // The edge beside the block, in a colour that stands off the page.
       const middle = sheet.rows >> 1;
@@ -208,7 +208,7 @@ describe('the crop of a long insertion', () => {
       ),
     );
 
-    const sheet = sheetOf(changeImages(before, after, regionsOf(before, after)).change);
+    const sheet = sheetOf(changeImages(PNG.sync.read(before), PNG.sync.read(after), regionsOf(before, after)).change);
 
     // The sheet stops at 400 rows, from 32 rows above the insertion.
     expect(sheet.rows).toBe(400);
@@ -226,7 +226,7 @@ describe('the picture of a removal', () => {
       Object.fromEntries(Array.from({ length: 33 }, (_, y) => [y, y < 10 ? shade(y) : y < 13 ? BLACK : shade(y - 3)])),
     );
 
-    const sheet = sheetOf(changeImages(before, after, regionsOf(before, after)).change);
+    const sheet = sheetOf(changeImages(PNG.sync.read(before), PNG.sync.read(after), regionsOf(before, after)).change);
 
     // The after rows and the removed ones: 33 rows, the removed three level with nothing.
     expect(sheet.rows).toBe(33);
@@ -245,7 +245,7 @@ describe('content that only moved', () => {
     const before = image(40, 100, Object.fromEntries(Array.from({ length: 50 }, (_, y) => [50 + y, shade(y)])));
     const after = image(40, 103, Object.fromEntries(Array.from({ length: 50 }, (_, y) => [53 + y, shade(y)])));
     const regions = regionsOf(before, after);
-    const sheet = sheetOf(changeImages(before, after, regions).change);
+    const sheet = sheetOf(changeImages(PNG.sync.read(before), PNG.sync.read(after), regions).change);
 
     expect(regions.length).toBeGreaterThan(0);
     // One window of context around the rows the gap grew by, not the page.
@@ -261,7 +261,7 @@ describe('content that only moved', () => {
     const before = block(image(40, 1000, shaded(700)), 10, 50, 8, GREY);
     const after = block(image(40, 1003, shaded(703)), 10, 50, 8, BLACK);
 
-    const sheet = sheetOf(changeImages(before, after, regionsOf(before, after)).change);
+    const sheet = sheetOf(changeImages(PNG.sync.read(before), PNG.sync.read(after), regionsOf(before, after)).change);
     const gutter = (y: number) => Array.from({ length: sheet.layout.gutter }, (_, x) => sheet.gutter(x, y));
     const below = rowsOf(sheet, 1);
     // A line across the gutter, not a chevron's two points or the bar's centre.
@@ -283,7 +283,7 @@ describe('content that only moved', () => {
     const before = block(image(40, 1003, shaded(703)), 10, 50, 8, GREY);
     const after = block(image(40, 1000, shaded(700)), 10, 50, 8, BLACK);
 
-    const sheet = sheetOf(changeImages(before, after, regionsOf(before, after)).change);
+    const sheet = sheetOf(changeImages(PNG.sync.read(before), PNG.sync.read(after), regionsOf(before, after)).change);
     const below = rowsOf(sheet, 1);
     const across = (y: number) => {
       // A line across the gutter, not a chevron's two points or the bar's centre.
@@ -306,7 +306,7 @@ describe('content that only moved', () => {
     const before = block(image(40, 1000, shaded(700)), 10, 50, 8, GREY);
     const after = block(image(40, 1001, shaded(701)), 10, 50, 8, BLACK);
 
-    const sheet = sheetOf(changeImages(before, after, regionsOf(before, after)).change);
+    const sheet = sheetOf(changeImages(PNG.sync.read(before), PNG.sync.read(after), regionsOf(before, after)).change);
 
     // One window around the block: 32 rows of context either side of its 8.
     expect(sheet.rows).toBe(32 + 8 + 32);
@@ -317,7 +317,7 @@ describe('content that only moved', () => {
     // 12 to 15, also turned black.
     const before = image(40, 20, { 1: GREY, 12: GREY });
     const after = image(40, 23, { 1: GREY, 7: BLACK, 8: BLACK, 9: BLACK, 15: BLACK });
-    const sheet = sheetOf(changeImages(before, after, regionsOf(before, after)).change);
+    const sheet = sheetOf(changeImages(PNG.sync.read(before), PNG.sync.read(after), regionsOf(before, after)).change);
     const gutter = (y: number) => Array.from({ length: sheet.layout.gutter }, (_, x) => sheet.gutter(x, y));
 
     expect(sheet.after(20, 15)).toBe(washed(BLACK, 'after'));
@@ -340,7 +340,7 @@ describe('a sheet of several cuts', () => {
   const wide = PNG.sync.read(before);
   for (let x = 100; x < 900; x += 1) wide.data.set(BLACK, (604 * 1280 + x) * 4);
   const after = block(PNG.sync.write(wide), 600, 40, 8, BLACK);
-  const sheet = sheetOf(changeImages(before, after, regionsOf(before, after)).change);
+  const sheet = sheetOf(changeImages(PNG.sync.read(before), PNG.sync.read(after), regionsOf(before, after)).change);
   const { unit, frame } = sheet.layout;
 
   it('cuts every window as wide as the widest, framed at the same columns', () => {
@@ -370,8 +370,8 @@ describe('the labels over the columns', () => {
   const labels = { subject: 'Button / primary', before: 'baseline', after: 'this run' };
 
   it('set the subject over both columns, and where each side came from', () => {
-    const plain = sheetOf(changeImages(before, after, regionsOf(before, after)).change);
-    const titled = sheetOf(changeImages(before, after, regionsOf(before, after), undefined, labels).change);
+    const plain = sheetOf(changeImages(PNG.sync.read(before), PNG.sync.read(after), regionsOf(before, after)).change);
+    const titled = sheetOf(changeImages(PNG.sync.read(before), PNG.sync.read(after), regionsOf(before, after), undefined, labels).change);
     expect(titled.header).toBe(changeLayout(titled.panel, true).header);
     expect(titled.header).toBeGreaterThan(plain.header);
     // Dark type where the title goes, and in the before label past "Before".
@@ -393,7 +393,7 @@ describe('where a mark runs', () => {
     const filled = PNG.sync.read(before);
     for (let y = 50; y < 60; y += 1) for (let x = 70; x < 75; x += 1) filled.data.set([y % 64, 0, 0, 255], (y * 200 + x) * 4);
     const after = PNG.sync.write(filled);
-    const sheet = sheetOf(changeImages(before, after, regionsOf(before, after)).change);
+    const sheet = sheetOf(changeImages(PNG.sync.read(before), PNG.sync.read(after), regionsOf(before, after)).change);
 
     const edged = rowsOf(sheet).filter((y) => sheet.after(50 - sheet.layout.frame, y) === colour(CHANGE_COLOURS.after));
     expect(edged.length).toBeGreaterThan(0);
@@ -407,7 +407,7 @@ describe('where a mark runs', () => {
       text(text(source, range(40, 45), 0, 200), range(45 + gap, 50 + gap), 0, 200);
     const before = block(lines(image(200, 101), 1), 100, 71, 8, GREY);
     const after = block(lines(image(200, 100), 0), 100, 70, 8, BLACK);
-    const sheet = sheetOf(changeImages(before, after, regionsOf(before, after)).change);
+    const sheet = sheetOf(changeImages(PNG.sync.read(before), PNG.sync.read(after), regionsOf(before, after)).change);
 
     // Only the block is marked: nothing reaches the left of the page.
     expect(rowsOf(sheet).map((y) => sheet.before(5, y))).not.toContain(colour(CHANGE_COLOURS.before));
@@ -421,7 +421,7 @@ describe('the ends of a cut', () => {
     const page = text(image(200, 200), range(40, 70), 20, 180);
     const before = block(page, 100, 100, 6, GREY);
     const after = block(page, 100, 100, 6, BLACK);
-    const sheet = sheetOf(changeImages(before, after, regionsOf(before, after)).change);
+    const sheet = sheetOf(changeImages(PNG.sync.read(before), PNG.sync.read(after), regionsOf(before, after)).change);
 
     const blank = (y: number) => range(0, sheet.panel).every((x) => sheet.before(x, y) === colour(WHITE));
     const first = rowsOf(sheet).findIndex((y) => !blank(y));
@@ -434,7 +434,7 @@ describe('the ends of a cut', () => {
 describe('no change to cut', () => {
   it('has a difference and no crop', () => {
     const same = image(40, 10, { 2: GREY });
-    const result = changeImages(same, same, []);
+    const result = changeImages(PNG.sync.read(same), PNG.sync.read(same), []);
 
     expect(PNG.sync.read(result.diff).height).toBe(10);
     expect(result.change).toBeUndefined();

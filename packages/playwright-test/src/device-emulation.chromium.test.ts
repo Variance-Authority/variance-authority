@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { chromium, type Browser, type BrowserContextOptions, type TestInfo } from '@playwright/test';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { imageSize } from '@variance-authority/png/header';
 import { CHROMIUM_RASTER_ARGS, observe } from './index.js';
 
 const BROWSER_AVAILABLE = ((): boolean => {
@@ -53,13 +54,12 @@ function info(): TestInfo {
   } as unknown as TestInfo;
 }
 
-/** The accepted baseline's size, read out of the one PNG the store keeps for the subject. */
+/** The accepted baseline's size, read out of the one image the store keeps for the subject. */
 async function storedSize(root: string): Promise<{ width: number; height: number }> {
   const entries = await readdir(root, { recursive: true });
-  const images = entries.filter((entry) => entry.endsWith('.png'));
+  const images = entries.filter((entry) => entry.endsWith('.webp'));
   expect(images).toHaveLength(1);
-  const png = await readFile(join(root, images[0]!));
-  return { width: png.readUInt32BE(16), height: png.readUInt32BE(20) };
+  return imageSize(await readFile(join(root, images[0]!)))!;
 }
 
 /** Accept one baseline of the subject on a page opened with `options`. */

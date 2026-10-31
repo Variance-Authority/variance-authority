@@ -8,7 +8,7 @@ import type {
   PackedSnapshot,
   RenderIdentity,
 } from '@variance-authority/core/format';
-import { pngSize } from '@variance-authority/png';
+import { imageSize } from '@variance-authority/png';
 import type { ReviewConfig } from '../config.js';
 import { OperatorError } from '../exit.js';
 import { messageOf } from '../config-values.js';
@@ -297,7 +297,7 @@ export async function push(options: PushOptions): Promise<PushResult> {
       // Sent with the digest as well as with the bytes: it describes the
       // *reference to* the image, and a subject whose baseline is already in the
       // bucket still needs its viewer told how big it is.
-      const size = pngSize(bytes.value);
+      const size = imageSize(bytes.value);
       pending.push({ subject, kind, bytes: bytes.value, digest: digestOf(bytes.value), rest: { ...size } });
       encoded += bytes.value.byteLength;
       counted[kind] += 1;

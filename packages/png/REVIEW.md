@@ -20,5 +20,5 @@
 - **A foreign raster claims nothing it did not see.** Written in
   [README](README.md#png-bytes-this-project-did-not-paint); pinned by
   [`src/foreign.test.ts`](src/foreign.test.ts).
-- **`pngSize` says nothing about bytes that are not a PNG.** Pinned by
-  [`src/size.test.ts`](src/size.test.ts).
+- **`imageSize` says nothing about bytes that are neither a PNG nor a WebP.**
+  Pinned by [`src/header.test.ts`](src/header.test.ts).

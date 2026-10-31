@@ -67,6 +67,7 @@
     "@playwright/test": ">=1.49 <2"
   },
   "devDependencies": {
+    "@variance-authority/png-sharp": "workspace:*",
     "pngjs": "^7.0.0"
   }
 }

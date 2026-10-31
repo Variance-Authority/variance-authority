@@ -12,6 +12,8 @@ import {
 import {
   DEFAULT_BASELINE_PATH,
   familyOf,
+  isKeptImage,
+  KEPT,
   parseBaselinePath,
   type BaselinePathTemplate,
 } from '@variance-authority/store/durable';
@@ -256,7 +258,7 @@ async function collect(
     const path = join(directory, entry.name);
     const identity = digestOfFileName(entry.name);
     if (identity !== undefined) {
-      const images = (await orNone(path)).filter((name) => name.endsWith('.png')).length;
+      const images = (await orNone(path)).filter(isKeptImage).length;
       const sum = found.get(identity) ?? { baselines: 0, colonSpelled: 0 };
       sum.baselines += images;
       if (entry.name === identity) sum.colonSpelled += images;
@@ -331,7 +333,8 @@ async function placedRecords(
 
 /**
  * The images a store under `root` would read, relative to it: the one beside
- * each record the template places, and every image in an identity directory,
+ * each record the template places, under either name it may be kept by (a
+ * name with nothing at it reads as no pointer), and every image in an identity directory,
  * the layout before `baselines.path`. Only those, so that a collocated root of
  * `.` is not a walk of the repository, and an LFS file that is no baseline is
  * never named as one.
@@ -339,7 +342,7 @@ async function placedRecords(
 async function storedImages(root: string, template: BaselinePathTemplate | undefined): Promise<readonly string[]> {
   const images = new Set<string>();
   if (template !== undefined) {
-    for (const { path } of await placedRecords(root, '', template)) images.add(`${path}.png`);
+    for (const { path } of await placedRecords(root, '', template)) for (const kept of KEPT) images.add(`${path}.${kept}`);
   }
   const identityDirectories = async (directory: string, under: string): Promise<void> => {
     for (const entry of await direntsOf(directory)) {
@@ -351,7 +354,7 @@ async function storedImages(root: string, template: BaselinePathTemplate | undef
         continue;
       }
       for (const name of await orNone(join(directory, entry.name))) {
-        if (name.endsWith('.png')) images.add(`${path}/${name}`);
+        if (isKeptImage(name)) images.add(`${path}/${name}`);
       }
     }
   };
