@@ -6,11 +6,11 @@ import { testPathOf } from './lookup.js';
 import { changeOfDiff, ignoredChange, type Change } from './change.js';
 import { declarable, ranOverAll, withRanOver } from './ran-over.js';
 import { recordedOverKept } from './kept-texts.js';
-import { rowlessNames, type FileReading } from './reading.js';
+import { rowlessNames } from './reading.js';
 import { ignoreMatcher } from './route.js';
 import { byRelations, withGraph } from './precision.js';
 import { arrivedAt, chargeMeasured, namedAs, readUnmeasured, routed, runOf, seenThrough, selectAnswered, walked } from './stages.js';
-import type { ExecutionNarrowing, ExecutionNarrowingOptions, Unasked } from './narrowing.js';
+import { withEveryReading, type ExecutionNarrowing, type ExecutionNarrowingOptions } from './narrowing.js';
 
 /** Both halves of the question, from one pass over the same columns. */
 export function narrowByExecutionFromView(
@@ -53,29 +53,6 @@ export function selectTestFilesFromView(
   options: ExecutionNarrowingOptions = {},
 ): readonly string[] {
   return readDiff(coverage, changeOfDiff(diff), options).entered;
-}
-
-/**
- * The readings, then a reading for every changed file they do not name, by
- * the first of `unasked` that names it: the reading says why no reader was
- * asked of it. A file named nowhere was answered for by its rows, its
- * preconditions or its importers.
- */
-function everyChanged(
-  readings: readonly FileReading[],
-  changed: Iterable<string>,
-  unasked: readonly (readonly [Unasked, readonly string[]])[],
-): FileReading[] {
-  const said = new Set(readings.map((reading) => reading.file));
-  const more: FileReading[] = [];
-  const say = (file: string, unread: Unasked) => {
-    if (said.has(file)) return;
-    said.add(file);
-    more.push({ file, unread });
-  };
-  for (const [unread, files] of unasked) for (const file of files) say(file, unread);
-  for (const file of [...changed].sort(codeUnitOrder)) say(file, 'answered');
-  return [...readings, ...more];
 }
 
 /**
@@ -200,13 +177,9 @@ function readDiff(
 
   const because = causesOf(coverage, run.selected);
   const stale = [...run.stale].sort(codeUnitOrder);
-  const readings = everyChanged(seenThrough(withRanOver(run.readings, ranOver), through), changed.keys(), [
-    [declining ? 'declined' : 'nothing', unmeasured],
-    ['stale', stale],
-    ['ignored', ignoring],
-  ]);
+  const readings = seenThrough(withRanOver(run.readings, ranOver), through);
 
-  return {
+  return withEveryReading({
     entered: because.map((cause) => cause.test),
     unread: declining ? [] : unmeasured,
     ...(declining ? { declined: unmeasured } : {}),
@@ -214,5 +187,5 @@ function readDiff(
     stale,
     because,
     readings,
-  };
+  }, changed.keys());
 }

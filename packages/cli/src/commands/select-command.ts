@@ -320,10 +320,10 @@ export async function selectSuite(request: SuiteRequest): Promise<SuiteReading> 
           kind: 'read',
           ...(request.atDistance === undefined || asked?.distances === undefined ? {} : { distances: asked.distances }),
           ...(unrunAtHead.length === 0 ? {} : { unrunAtHead }),
-          narrowing: {
+          narrowing: selection.withEveryReading({
             ...narrowing,
             unread: [...new Set([...withoutManifests(narrowing.unread, manifests), ...unplaced])].sort(),
-          },
+          }),
         };
 
   const answer = said({ ...rested, ground });

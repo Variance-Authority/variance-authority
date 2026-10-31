@@ -71,7 +71,7 @@ describe('what a selector prints about each changed file', () => {
       'read src/old.ts: unread (recorded from a text nobody kept) — every region of it is charged',
       'read src/far.ts: unread (the suite declines relations and its record did not measure it)',
       "read src/gen.ts: unread (the suite's `ignore` matches it) — only a test that declares it runs for it",
-      'read src/rules.ts: unread (its rows, its preconditions or its importers answer for it)',
+      'read src/rules.ts: unread (its rows, its preconditions, its importers or the install comparison answer for it)',
     ]);
   });
 });

@@ -92,7 +92,8 @@ export async function journeyReading(request: SuiteRequest & { readonly executio
   const narrowing = await selection.selectJourneyFile(request.execution, changed, options)
     ?? selection.narrowByJourneys((await readExecutionFor(request.execution, changed)).index, changed, options);
   const unread = [...withoutManifests(narrowing.unread, installed?.manifests ?? []), ...beyond.unplaced].sort();
-  return suiteOf({ ...base, ground: { kind: 'read', narrowing: { ...narrowing, unread, readings } } }, request.atDistance);
+  const every = selection.withEveryReading({ ...narrowing, unread, readings }, changed.keys());
+  return suiteOf({ ...base, ground: { kind: 'read', narrowing: every } }, request.atDistance);
 }
 
 /** Whether the change is handed in, as `change` text or as the `--diff` patch, rather than measured. */

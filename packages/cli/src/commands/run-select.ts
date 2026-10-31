@@ -35,7 +35,7 @@ import {
   type BeforeReach,
   type Relations,
 } from '@variance-authority/core/relate';
-import { ignoredBy, readingLines, type ExecutionNarrowing, type FileReading } from '@variance-authority/sense/test-selection';
+import { ignoredBy, readingLines, withEveryReading, type ExecutionNarrowing, type FileReading } from '@variance-authority/sense/test-selection';
 import type { ReachReport } from '@variance-authority/report';
 import { OperatorError } from '../exit.js';
 import { affectedSubjects, type Affected } from './affected.js';
@@ -367,7 +367,7 @@ async function journalOf(
     // answered by the install comparison, which has already said what moved.
     return narrowing === undefined
       ? undefined
-      : { ...narrowing, unread: [...withoutManifests(narrowing.unread, install?.manifests ?? []), ...beyond.unplaced].sort() };
+      : withEveryReading({ ...narrowing, unread: [...withoutManifests(narrowing.unread, install?.manifests ?? []), ...beyond.unplaced].sort() });
   };
   if (relations !== undefined) return read(relations);
   const needsGraph = (install?.packages.length ?? 0) > 0 || (install?.moved.length ?? 0) > 0;

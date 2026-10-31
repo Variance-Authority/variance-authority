@@ -115,7 +115,8 @@ describe('selecting from a journey file', () => {
     writeFileSync(join(root, 'change.patch'), git('diff', 'HEAD~1', 'HEAD'));
     const said = await selectOutput({ cwd: root, format: 'plain', execution: 'journeys.bin', diff: 'change.patch', noGit: true });
     expect(said.out).toBe('test/branch.test.ts\n');
-    expect(said.err).not.toContain('yarn.lock');
+    expect(said.err).toContain('read yarn.lock: unread (its rows, its preconditions, its importers or the install comparison answer for it)');
+    expect(said.err).not.toContain('records nothing');
   });
 
   // A question that publishes reads the index `variance index` wrote and saves

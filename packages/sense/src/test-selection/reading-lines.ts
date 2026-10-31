@@ -103,5 +103,5 @@ const UNREAD = {
   stale: 'recorded from a text nobody kept',
   declined: 'the suite declines relations and its record did not measure it',
   ignored: "the suite's `ignore` matches it",
-  answered: 'its rows, its preconditions or its importers answer for it',
+  answered: 'its rows, its preconditions, its importers or the install comparison answer for it',
 } as const;
