@@ -10,6 +10,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 const execute = promisify(execFile);
 const here = dirname(fileURLToPath(import.meta.url));
 const fixture = resolve(here, '../fixture');
+const splitFixture = resolve(here, '../fixture-split');
 // The Vitest this case installs, resolved from the case.
 const vitest = resolve(dirname(createRequire(import.meta.url).resolve('vitest/package.json')), 'vitest.mjs');
 
@@ -84,8 +85,14 @@ describe('a Vitest run that keeps its module graph across files', () => {
     const { output, tests, loads } = await run('ioc', { FIXTURE_RESETS: 'ioc' });
 
     expect(loads, output).toBe(1);
-    expect(tests.filter((test) => test.endsWith('tallies from zero: passed')), output).toHaveLength(2);
-    expect(tests.filter((test) => test.includes('counts from one')).every((test) => test.endsWith('passed')), output).toBe(false);
+    expect(tests, output).toEqual([
+      'first file > counts from one: passed',
+      'first file > counts from one again, whatever the test before it left: failed',
+      'first file > tallies from zero: passed',
+      'second file > counts from one: failed',
+      'second file > counts from one again, whatever the test before it left: failed',
+      'second file > tallies from zero: passed',
+    ]);
   });
 
   it('gives every test the values each module was loaded with once the isolator rewrites them', async () => {
@@ -100,5 +107,32 @@ describe('a Vitest run that keeps its module graph across files', () => {
       'second file > counts from one again, whatever the test before it left: passed',
       'second file > tallies from zero: passed',
     ]);
+  });
+});
+
+describe('the isolator README\'s Vitest config', () => {
+  async function split(value: string) {
+    const report = resolve(directory, `split-${value}.json`);
+    const { stdout, stderr } = await execute(process.execPath, [vitest, 'run', '--reporter=json', `--outputFile=${report}`], {
+      cwd: splitFixture,
+      env: { ...process.env, FIXTURE_SPLIT: value },
+    }).catch((error: { stdout?: string; stderr?: string }) => ({ stdout: error.stdout ?? '', stderr: error.stderr ?? '' }));
+    const parsed = JSON.parse(await readFile(report, 'utf8').catch(() => `{"testResults":[]}`)) as Report;
+    const tests = parsed.testResults
+      .flatMap((file) => file.assertionResults.map((test) => `${file.name.slice(splitFixture.length + 1)} > ${test.title}: ${test.status}`))
+      .sort();
+    return { output: `${stdout}${stderr}`, tests };
+  }
+
+  it('gives a file that mocks a module another file loaded first a worker of its own', async () => {
+    const { output, tests } = await split('true');
+
+    expect(tests, output).toEqual(['src/a.case.ts > reads the module as it is: passed', 'src/b.mocked.case.ts > reads the mocked module: passed']);
+  });
+
+  it('loses the mock when that file shares the worker', async () => {
+    const { output, tests } = await split('false');
+
+    expect(tests, output).toEqual(['src/a.case.ts > reads the module as it is: passed', 'src/b.mocked.case.ts > reads the mocked module: failed']);
   });
 });

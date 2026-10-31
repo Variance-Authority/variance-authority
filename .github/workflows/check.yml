@@ -1174,6 +1174,34 @@ jobs:
         shell: bash
         run: yarn test:unit cases && yarn test:chromium cases
 
+  shared:
+    # The unit slice with each worker keeping its modules across files and the
+    # isolator giving every test the values they loaded with: `yarn test:shared`,
+    # the isolator README's Vitest config run over this repository. It reports
+    # separately from the required `check`: a red result is a finding about the
+    # isolator or a file that leaves state in the process, read against the same
+    # file under `suite`, and it waits for `rules` as `cases` does.
+    needs: rules
+    runs-on: ubuntu-24.04
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # Node 24, for the reason written at the same step in `rules`.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: install
+        shell: bash
+        run: corepack enable && yarn install --immutable
+
+      - uses: ./.github/actions/build
+
+      - name: run the unit slice on shared modules
+        shell: bash
+        run: yarn test:shared
+
   # How many shards each slice's near wave is worth in this group, counted by
   # `variance shards` from the times the mainline record holds and what the
   # group's change selects within two imports. A fixed split paid for every

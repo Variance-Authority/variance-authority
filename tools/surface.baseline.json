@@ -1290,6 +1290,10 @@
           "types": "./dist/loader.d.ts",
           "default": "./dist/loader.js"
         },
+        "./vite": {
+          "types": "./dist/vite.d.ts",
+          "default": "./dist/vite.js"
+        },
         "./transform": {
           "types": "./dist/transform.d.ts",
           "default": "./dist/transform.js"
@@ -1336,11 +1340,16 @@
         "IsolatorLoaderOptions": "interface",
         "default": "function"
       },
+      "./vite": {
+        "IsolatorPlugin": "interface",
+        "IsolatorPluginOptions": "interface",
+        "IsolatorProject": "interface",
+        "isolator": "function"
+      },
       "./transform": {
         "Isolated": "interface",
         "Left": "interface",
-        "isolate": "function",
-        "skipper": "function"
+        "isolate": "function"
       }
     }
   },

@@ -15,13 +15,13 @@ fixture/counter.ts                     a `let` and a `Set` no handler resets; lo
 fixture/tally.ts                       a `let` its module resets with registerResetHandler
 fixture/reset.setup.ts                 ioc's driver on beforeEach, run again by Vitest for every file
 fixture/one.case.ts, two.case.ts       the same three tests: count from one, again, tally from zero
-src/resets.integration.test.ts         the outer test: runs the fixture four ways and reads Vitest's JSON report
+fixture-split/vitest.config.ts         the isolator README's config: a shared project and an isolated one
+fixture-split/src/b.mocked.case.ts     mocks a module that src/a.case.ts, run first, loads through src/reader.ts
+src/resets.integration.test.ts         the outer test: runs each fixture and reads Vitest's JSON report
 ```
 
-The isolator ships no Vite plugin. The fixture's configuration calls `isolate`
-from `@variance-authority/isolator/transform` in a `transform` hook of its own,
-on the file as it is on disk, and skips test files and `node_modules`, as the
-isolator's README tells another build tool to.
+Both fixtures load the isolator through its Vitest plugin,
+`@variance-authority/isolator/vite`.
 
 ## Run it
 
@@ -43,3 +43,6 @@ yarn vitest run --config vitest.integration.config.mts cases/vitest-shared-modul
 - With the isolator rewriting the application modules, every test in both files
   starts from the values each module was loaded with, and the worker still
   evaluates `counter.ts` once.
+- With the README's config, the file that mocks runs in a worker of its own and
+  its mock reaches the module. Put it in the shared worker after a file that
+  loaded that module, and it reads the real one.
