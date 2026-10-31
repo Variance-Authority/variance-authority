@@ -212,10 +212,8 @@ function pathAt(coverage: TestCoverageView, column: WordColumn, held: Map<number
  * The digest beside a precondition is the text that test ran over, so a row
  * recording the arrived one is a test that already ran what is there now: a
  * run over a dirty tree, its edit left in place or committed since. That row
- * governs nothing, and each test is decided by its own row; with `wholeOnly`,
- * the selection's policy, only of a test the record saw whole, since a run that
- * did not finish proves no text. A name held only by such rows is in
- * `ranOver`, and is not `unread`: the record holds it.
+ * governs nothing (`wholeOnly`: of a whole test). A name held only by such rows
+ * is in `ranOver`, and is not `unread`: the record holds it.
  */
 export function testsGovernedBy(
   coverage: TestCoverageView,
@@ -255,6 +253,7 @@ export function testsGovernedBy(
   for (let test = 0; test < coverage.testPath.length; test += 1) {
     const start = end;
     end = preconditions.at(test + 1);
+    // The selection's policy: a run that did not finish proves no text.
     const proves = !wholeOnly || coverage.testComplete.at(test) === 1;
     const own = coverage.testPath.at(test);
     let declaredOwn = false;
