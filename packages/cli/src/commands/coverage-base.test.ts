@@ -1,11 +1,11 @@
 import { execFileSync } from 'node:child_process';
-import { cp, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { cp, mkdir, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
   commitRunsFile,
-  encodeExecutionIndex,
+  encodeAsSetExecutionIndex,
   testCoverageFile,
   writeCommitRuns,
   writeTestCoverage,
@@ -14,7 +14,7 @@ import {
 import { main } from '../bin.js';
 import type { Coverage } from './coverage.js';
 
-type Index = Parameters<typeof encodeExecutionIndex>[0];
+type Index = Parameters<typeof encodeAsSetExecutionIndex>[0];
 
 const UNIT = { id: 'u', file: 'src/pay.test.ts', name: 'charges once', stopped: false };
 
@@ -96,7 +96,8 @@ async function record(
   header: Pick<TestCoverage, 'commit' | 'tests'> = { tests: [] },
 ): Promise<void> {
   await mkdir(dirname(at), { recursive: true });
-  const cases = { index: encodeExecutionIndex(index), ...(last === undefined ? {} : { last: Buffer.from(JSON.stringify(last)) }) };
+  // The set spelling, as a recorder writes it: the journey walk reads no other.
+  const cases = { index: encodeAsSetExecutionIndex(index), ...(last === undefined ? {} : { last: Buffer.from(JSON.stringify(last)) }) };
   await writeTestCoverage(at, { version: 3, instrumentation: 'fixture-instrumentation', ...header, modules: [] }, cases);
 }
 
@@ -123,7 +124,8 @@ beforeAll(async () => {
   cache = await mkdtemp(join(tmpdir(), 'variance-coverage-base-cache-'));
   previous = process.env['VARIANCE_AUTHORITY_CACHE'];
   process.env['VARIANCE_AUTHORITY_CACHE'] = cache;
-  repo = await mkdtemp(join(tmpdir(), 'variance-coverage-base-'));
+  // The real path, as the command reads its own working directory, so a recording is found where it was written.
+  repo = await realpath(await mkdtemp(join(tmpdir(), 'variance-coverage-base-')));
   execFileSync('git', ['init', '--quiet', repo]);
   await writeFile(join(repo, 'variance.config.json'), JSON.stringify({ suites: { unit: { kind: 'unit' } } }));
   await mkdir(join(repo, 'src'));
@@ -316,7 +318,7 @@ describe('coverage against a base, for a test file the runs place before the rec
 
 /** A copy of the fixture's checkout at a path of its own, its history included. */
 async function copyOf(name: string): Promise<string> {
-  const at = join(await mkdtemp(join(tmpdir(), `variance-coverage-base-${name}-`)), 'repo');
+  const at = join(await realpath(await mkdtemp(join(tmpdir(), `variance-coverage-base-${name}-`))), 'repo');
   await cp(repo, at, { recursive: true });
   copies.push(dirname(at));
   return at;
