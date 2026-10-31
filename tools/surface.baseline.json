@@ -3366,6 +3366,7 @@
         "ranWhileLoading": "function",
         "rankDistillCauses": "function",
         "reachOf": "function",
+        "readBlobsAt": "function",
         "readCommitRuns": "function",
         "readDistillRecords": "function",
         "readFetchedMainline": "function",

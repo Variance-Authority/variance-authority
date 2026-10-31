@@ -23,12 +23,6 @@
  * not trusted and not waited on: the next command that reads the follow-ups
  * makes them itself, and says so. A gone process folds nothing, so a reader of
  * the index alone reads it as it stands and leaves the lock to that command.
- *
- * A process that could not walk the journeys exits after the command that
- * started it, so its exit status reaches nobody. It keeps the lock instead,
- * marked with why, and the next command that reads the follow-ups names the
- * reason and exits as the operator's once it has answered. `--wait` makes them
- * before `index` exits, and that exit carries the walk itself.
  */
 
 // compass: variance-authority.reach.source-index
@@ -46,7 +40,11 @@ export interface FollowUpsLock {
   readonly log: string;
   /** The index is readied, and only the code map, the journeys, the lexicon and the questions are left. */
   readonly readied?: true;
-  /** The process finished, and git could not read what these walks needed: each reason, told by the next command that reads the follow-ups. */
+  /**
+   * The process finished, and git could not read what these walks needed. Its
+   * exit reaches nobody, so the next command that reads the follow-ups tells
+   * each reason and exits as the operator's; `--wait` carries the walk in its own exit.
+   */
   readonly failed?: readonly string[];
 }
 

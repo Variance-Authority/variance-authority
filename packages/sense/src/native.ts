@@ -233,10 +233,7 @@ export interface NativeScanner extends NativeOrientMaps, NativeDependencyLexicon
    * `listed` names the files the caller's graph holds under a tracked `build/` ([`repo-path.ts`](./repo-path.ts)); `tsconfig`, the one the scan that built it resolved under ([`typescript.ts`](./typescript.ts)).
    */
   resolveSources?(root: string, file: string, sources: string[], listed?: string[], tsconfig?: string | false): string[];
-  /**
-   * `paths[at]` at `commits[at]`, read at each commit through the addon, as columns, leaving out a path the commit does not hold, and
-   * refusing one git could not read with git's reason. Throws with git's reason when git answers nothing at all.
-   */
+  /** `paths[at]` at `commits[at]` as columns: a path the commit does not hold left out, one git could not read refused with git's reason; throws when git answers nothing. */
   textsAt?(root: string, commits: string[], paths: string[][]): { commit: number[]; file: string[]; text: string[]; refusedCommit: number[]; refusedFile: string[]; refused: string[] };
   /** `textsAt`'s listing without the bodies: each path's blob name, `git:<object>`, in the same columns. */
   blobsAt?(root: string, commits: string[], paths: string[][]): { commit: number[]; file: string[]; text: string[]; refusedCommit: number[]; refusedFile: string[]; refused: string[] };
