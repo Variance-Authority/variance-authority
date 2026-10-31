@@ -34,8 +34,15 @@ own. It is a client of the one that runs:
     Node process cost 12.6 ms median and 17 ms at worst. Most of that is git
     waiting until it has seen every event up to the moment of the question.
     This is the size of the tick.
-- **Watchman.** Where the repository's `core.fsmonitor` is the Watchman hook, the
-  daemon subscribes to Watchman directly. Watchman pushes, so there is no tick.
+- **Watchman.** Where the repository runs Watchman, by the test in
+  [spec 0107](0107-the-index-asks-watchman-what-moved.md) §4, the daemon
+  subscribes to it directly. Watchman pushes, so there is no tick. Without the
+  daemon, a reader asks the same watch `since` its generation's clock. A push
+  only continues the published generation: when the subscription drops, the
+  server restarts or a push says `is_fresh_instance`, the daemon reconnects,
+  asks `since` the published generation's clock, and takes 0107's git source
+  when Watchman cannot vouch for that clock, before it publishes again. It
+  never resumes from the last batch it was pushed.
 - **Neither.** On a host with neither, for example Linux without Watchman, where
   git ships no builtin monitor, the daemon falls back to `git status` on each
   tick. Its first line says so and states what one status costs. It never
@@ -56,11 +63,12 @@ variance watch: 194,544 files for this checkout, pid 41210
 The daemon holds no copy of any index. For each batch of changed paths it
 commands the owning step with those paths carried in:
 
-- **The source index.** `updateSourceIndex` takes the changed paths as its
-  overlay, instead of asking `git status` to find them again. It hashes only
+- **The source index.** `updateSourceIndex` takes the changed paths as the
+  delta since its generation (spec 0107 §2), instead of asking `git status` to
+  find them again. It hashes only
   those paths with `git hash-object --stdin-paths`, and reads again only the
-  records whose digest or shape moved. A `/` answer runs the update exactly as
-  `variance index` does now.
+  records whose digest or shape moved. A `/` answer takes the git source
+  (spec 0107 §2).
 - **Friends.** Any other step that publishes state derived from the checkout
   registers the same way: a name, the paths it owns, and the call that updates
   it. The daemon routes a path to every step that owns it, and runs the steps in
