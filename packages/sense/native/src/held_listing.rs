@@ -72,7 +72,7 @@ fn inputs(root: &str) -> Option<(Vec<String>, Vec<PathBuf>)> {
     // Three questions none of which waits on another: asked at once, they cost one spawn's time.
     // `--path` reads `core.excludesfile` and `core.attributesFile` as git expands them, `~/` included.
     let (dirs, config, named) = std::thread::scope(|scope| {
-        let dirs = scope.spawn(|| git::git(root, &["rev-parse", "--path-format=absolute", "--git-dir", "--git-common-dir"], None));
+        let dirs = scope.spawn(|| git::git(root, &["rev-parse", "--path-format=absolute", "--git-dir", "--git-common-dir", "--symbolic-full-name", "HEAD"], None));
         let config = scope.spawn(|| git::git(root, &["config", "--show-origin", "--list", "-z"], None));
         let named = git::git(root, &["config", "--path", "-z", "--get-regexp", r"^core\.(excludesfile|attributesfile)$"], None);
         (dirs.join().ok().flatten(), config.join().ok().flatten(), named)
@@ -81,11 +81,8 @@ fn inputs(root: &str) -> Option<(Vec<String>, Vec<PathBuf>)> {
     let mut lines = dirs.lines();
     let (dir, common) = (PathBuf::from(lines.next()?), PathBuf::from(lines.next()?));
     let mut inputs = vec![dir.join("HEAD"), dir.join("index"), common.join("packed-refs"), common.join("info/exclude"), common.join("info/attributes")];
-    if let Ok(head) = std::fs::read_to_string(dir.join("HEAD")) {
-        if let Some(reference) = head.trim().strip_prefix("ref: ") {
-            inputs.push(common.join(reference));
-        }
-    }
+    // The branch HEAD names; a detached HEAD prints `HEAD`, which is already stamped.
+    inputs.extend(lines.next().filter(|reference| reference.starts_with("refs/")).map(|reference| common.join(reference)));
     // `-z` prints the origin, then the key and value split by a newline, each ended by NUL.
     // A configuration git could not read is one nothing can vouch for.
     let config = config?;
@@ -148,9 +145,11 @@ fn ignores_all(root: &str, paths: &[String]) -> bool {
 }
 
 /// Whether a held listing can still be vouched for, before Watchman is asked:
-/// the same server and roots, a watch that hides nothing, and git's inputs as they were.
-fn stands(meta: &Meta, socket: &str, dirs: &[String], stamp: impl Fn(&str) -> Option<Stamp>) -> bool {
-    meta.watch.socket == socket && meta.dirs == dirs && meta.watch.ignored.is_empty() && meta.inputs.iter().all(|(input, was)| stamp(input) == *was)
+/// the same checkout, server and roots, a watch that hides nothing, and git's inputs as they were.
+fn stands(meta: &Meta, root: &str, socket: &str, dirs: &[String], stamp: impl Fn(&str) -> Option<Stamp>) -> bool {
+    // An index shared across checkouts holds another's listing, watch and stamps: none of them speaks for this one.
+    let made = meta.watch.relative.as_ref().map_or_else(|| PathBuf::from(&meta.watch.watched), |relative| Path::new(&meta.watch.watched).join(relative));
+    made == Path::new(root) && meta.watch.socket == socket && meta.dirs == dirs && meta.watch.ignored.is_empty() && meta.inputs.iter().all(|(input, was)| stamp(input) == *was)
 }
 
 /// The tree under `root` for an update of the index at `index`: the held one when
@@ -163,7 +162,7 @@ pub(crate) fn change_tree(root: &str, index: &str, dirs: &[String]) -> Option<(S
     let index_dir = Path::new(index).parent().and_then(below);
     if let (Some(socket), Some((snapshot, meta))) = (&socket, held) {
         let excluded: Vec<String> = index_dir.iter().cloned().chain(meta.git.iter().filter_map(|dir| below(Path::new(dir)))).collect();
-        let stands = stands(&meta, socket, dirs, |input| stamp(Path::new(input)));
+        let stands = stands(&meta, root, socket, dirs, |input| stamp(Path::new(input)));
         if stands && watchman::since(&meta.watch, &excluded).is_some_and(|since| !since.fresh && ignores_all(root, &since.files)) {
             return Some((snapshot, Some(Change::Vouched(meta))));
         }

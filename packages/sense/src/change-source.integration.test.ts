@@ -214,6 +214,22 @@ describe.skipIf(process.platform === 'win32')('the update over a watched checkou
     }
   });
 
+  it('asks git for a checkout other than the one the held listing was made against', async () => {
+    await updateNatively(root, index);
+    await gitRan();
+
+    // A clone of the checkout, watched by the same server, updating the same index.
+    const other = realPath(await mkdtemp(join(tmpdir(), 'variance-change-source-other-')));
+    try {
+      execFileSync('git', ['clone', '--quiet', root, other], { stdio: 'ignore' });
+      await tell({ roots: [root, other], clock: 'c:10:1' });
+      await updateNatively(other, index);
+      expect((await gitRan()).some((ran) => ran.startsWith('ls-tree'))).toBe(true);
+    } finally {
+      await rm(other, { recursive: true, force: true });
+    }
+  });
+
   it('asks the watchman command where its server listens once for an index, not on every update', async () => {
     const bin = join(wire, 'cli');
     await mkdir(bin, { recursive: true });
