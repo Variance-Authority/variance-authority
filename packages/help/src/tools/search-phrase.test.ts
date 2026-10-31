@@ -34,8 +34,15 @@ const SINKS = [
   'export const textOf = 0;',
   '/**\n * Kept apart.\n *\n * The cache sweep.\n */',
   'export const later = 0;',
-  '/** The cache sweep, first. */',
+  "/** The cache's sweep, first. */",
   'export const opening = 0;',
+  "/** Drains the page's queue. */",
+  'const drain = 0;',
+  '/** Drawer, tidy. */',
+  'const alpha = 0;',
+  '/**\n * Tidy.\n *\n * Drawer.\n */',
+  'const beta = 0;',
+  'export const kept = [drain, alpha, beta];',
 ].join('\n');
 
 let index: SearchIndex;
@@ -80,6 +87,15 @@ describe('a doc that writes the question as a phrase', () => {
 
   it('ranks a doc that writes it in its opening paragraph above one that writes it later', () => {
     expect(publishedFirst('cache sweep')).toEqual(['opening', 'later']);
+  });
+
+  it('reads a name declared without being exported by the same rule', () => {
+    expect(JSON.stringify(ask('page queue').declared?.shown)).toContain('"drain"');
+  });
+
+  it('parts a declared doc\'s pair at a blank line when it orders the described names', () => {
+    // Docs of one length, each holding both words and neither writing them as a phrase: `beta` only across a blank line.
+    expect((ask('tidy drawer').described?.shown ?? []).map((one) => ('name' in one ? one.name : ''))).toEqual(['alpha', 'beta']);
   });
 
   it('is the rule the described section counts pairs by', () => {

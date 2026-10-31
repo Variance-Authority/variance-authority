@@ -22,7 +22,7 @@ use std::collections::BTreeSet;
 use napi_derive::napi;
 use rayon::prelude::*;
 
-use crate::dependency_lexicon::purposes::{code_stems, near};
+use crate::dependency_lexicon::purposes::{code_stems, near, phrase};
 
 use crate::compact::Layer;
 use crate::help_usage::kind_of;
@@ -114,7 +114,8 @@ pub(crate) enum Matching {
     /// hold `::`, so no other language's match changes.
     Exact,
     /// The name, lowercased, contains `query`, which the caller lowercased, or
-    /// the doc comment above it does, read as prose.
+    /// the doc comment above it does, read as prose, or writes it as a phrase
+    /// by [`phrase`].
     Containing,
     /// The words of the name and of its doc, cut into stems as the dependency
     /// lexicon cuts a package's words, hold any of `stems` — the question's —
@@ -151,11 +152,15 @@ pub(crate) fn span(starts: crate::stored::U32s, ends: crate::stored::U32s, at: u
     if start == NONE || end == NONE { (None, None) } else { (Some(start), Some(end)) }
 }
 
-/// A doc comment as words, its lines joined by single spaces and lowercased,
-/// so a phrase across a line break still matches.
-fn prose(source: &[u16], start: u32, end: u32) -> Option<String> {
-    let doc = crate::dependency_namespace::doc(source, Some(crate::harvest::TextSpan { start, end }))?;
-    Some(doc.split_whitespace().collect::<Vec<_>>().join(" ").to_lowercase())
+/// A doc comment as written, which [`near`] and [`phrase`] read by paragraph,
+/// and as words, its lines joined by single spaces and lowercased, so text
+/// typed across a line break still matches.
+struct Prose { written: String, words: String }
+
+fn prose(source: &[u16], start: u32, end: u32) -> Option<Prose> {
+    let written = crate::dependency_namespace::doc(source, Some(crate::harvest::TextSpan { start, end }))?;
+    let words = written.split_whitespace().collect::<Vec<_>>().join(" ").to_lowercase();
+    Some(Prose { written, words })
 }
 
 /// One file's matches, and the file
@@ -240,10 +245,10 @@ pub(crate) fn declared(root: &str, layers: &[Layer], query: &str, matching: Matc
                     let doc = parses.doc_of_module(row)
                         .and_then(|span| source_of(&mut source, root, crossing.file).and_then(|source| prose(source, span.start, span.end)));
                     let mut held = in_name.clone();
-                    if let Some(doc) = &doc { held.extend(held_in(stems, doc)) }
+                    if let Some(doc) = &doc { held.extend(held_in(stems, &doc.words)) }
                     (!held.is_empty()).then(|| {
-                        let near = doc.as_deref().map_or(0, |doc| near(query, doc));
-                        (layer, crossing.file, row, (held.into_iter().collect(), in_name.into_iter().collect(), near, doc.as_ref().map(|doc| doc.len() as u32)))
+                        let near = doc.as_ref().map_or(0, |doc| near(query, &doc.written));
+                        (layer, crossing.file, row, (held.into_iter().collect(), in_name.into_iter().collect(), near, doc.as_ref().map(|doc| doc.words.len() as u32)))
                     })
                 }
                 _ => None,
@@ -268,7 +273,8 @@ pub(crate) fn declared(root: &str, layers: &[Layer], query: &str, matching: Matc
                 };
                 let described = match &matching {
                     Matching::Exact if name == query || name.strip_suffix(query).is_some_and(|head| head.ends_with("::")) => None,
-                    Matching::Containing if name.to_lowercase().contains(query) || doc().is_some_and(|doc| doc.contains(query)) => None,
+                    Matching::Containing if name.to_lowercase().contains(query)
+                        || doc().is_some_and(|doc| doc.words.contains(query) || phrase(query, &doc.written).is_some()) => None,
                     Matching::Terms { groups } => {
                         let terms = crate::help_search::name_terms(name);
                         if !groups.iter().all(|group| group.iter().any(|term| terms.contains(term))) { continue }
@@ -278,10 +284,10 @@ pub(crate) fn declared(root: &str, layers: &[Layer], query: &str, matching: Matc
                         let in_name = held_in(stems, name);
                         let doc = doc();
                         let mut held = in_name.clone();
-                        if let Some(doc) = &doc { held.extend(held_in(stems, doc)) }
+                        if let Some(doc) = &doc { held.extend(held_in(stems, &doc.words)) }
                         if held.is_empty() { continue }
-                        let near = doc.as_deref().map_or(0, |doc| near(query, doc));
-                        Some((held.into_iter().collect(), in_name.into_iter().collect(), near, doc.as_ref().map(|doc| doc.len() as u32)))
+                        let near = doc.as_ref().map_or(0, |doc| near(query, &doc.written));
+                        Some((held.into_iter().collect(), in_name.into_iter().collect(), near, doc.as_ref().map(|doc| doc.words.len() as u32)))
                     }
                     _ => continue,
                 };

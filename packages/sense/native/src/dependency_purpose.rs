@@ -167,9 +167,10 @@ fn writes(said: &[Placed], at: &HashMap<(u32, u32), &str>, run: &[(u32, &str)]) 
 }
 
 /// The question's stems as one run, each placed after the first: a word the
-/// question drops before its first stem asks for nothing before the run.
+/// question drops before its first stem asks for nothing before the run. A
+/// question is one run, so a line break in it parts nothing.
 fn asked_run(query: &str) -> Vec<(u32, String)> {
-    let asked = placed(query);
+    let asked = placed(&query.replace(['\n', '\r'], " "));
     let start = asked.first().map_or(0, |one| one.place);
     asked.into_iter().map(|one| (one.place - start, one.stem)).collect()
 }
@@ -288,6 +289,12 @@ mod tests {
         assert_eq!(phrase("the page sink", "Page sink for events."), Some(0));
         assert_eq!(phrase("a page sink", "Page sink."), Some(0));
         assert_eq!(near("the page sink", "Page sink."), 1);
+    }
+
+    #[test]
+    fn a_blank_line_in_the_question_is_no_break_in_its_run() {
+        assert_eq!(phrase("the a page\n\nsink", "The page sink."), Some(0));
+        assert_eq!(near("the a page\n\nsink", "The page sink."), 1);
     }
 
     #[test]
