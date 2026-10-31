@@ -21,6 +21,7 @@ const evidence: RanOverEvidence = {
   committed: new Map([['C', new Map([[FILE, HELD]])], ['D', new Map([[FILE, OTHER]])]]),
   absent: new Map([['E', new Set([FILE])]]),
   blobs: new Map([['C', new Map([[FILE, 'git:held']])], ['D', new Map([[FILE, 'git:other']])]]),
+  refused: new Map([['G', new Map([[FILE, 'commit G is not in this checkout\'s object store']])]]),
   kept: new Map([[digestString(OTHER), OTHER]]),
   last: LAST,
   placements: new Map(),
@@ -62,10 +63,11 @@ describe('which text of a file a run ran over', () => {
     expect(ranOver({ commit: 'C', texts: { [FILE]: digestString(OTHER) } }, TEST, FILE, HELD_NAMES, unkept, false)).toEqual({ text: undefined });
   });
 
-  it('says why it is not known for a run the record could not place, one naming no texts, and one at a commit this clone lacks', () => {
+  it('says why it is not known for a run the record could not place, one naming no texts, one where git could not read the file, and one at a commit this clone lacks', () => {
     const unknown = (run: TestPlace, of = evidence) => ranOver(run, TEST, FILE, HELD_NAMES, of, false);
     expect(unknown({ commit: 'C', assumed: true })).toEqual({ unknown: `the record does not say where that run stood, so not which text of ${FILE} it ran over` });
     expect(unknown({ commit: 'C' })).toEqual({ unknown: `the runs record does not say which text of ${FILE} its runs there ran over` });
+    expect(unknown({ commit: 'G', texts: {} })).toEqual({ unknown: `git could not give the text of ${FILE} where that run stood: commit G is not in this checkout's object store` });
     expect(unknown({ commit: 'F', texts: {} })).toEqual({ unknown: `this clone holds no committed text of ${FILE} where that run stood` });
     expect(unknown({ commit: 'F', texts: {} }, { ...evidence, repository: false })).toEqual({ unknown: `the checkout is in no git repository, so no committed text of ${FILE} can be read` });
   });

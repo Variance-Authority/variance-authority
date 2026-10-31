@@ -233,11 +233,12 @@ export interface NativeScanner extends NativeOrientMaps, NativeDependencyLexicon
    * `listed` names the files the caller's graph holds under a tracked `build/` ([`repo-path.ts`](./repo-path.ts)); `tsconfig`, the one the scan that built it resolved under ([`typescript.ts`](./typescript.ts)).
    */
   resolveSources?(root: string, file: string, sources: string[], listed?: string[], tsconfig?: string | false): string[];
-  /**
-   * Fetch in one request the blobs at `commit` of `paths` a partial clone has not fetched yet.
-   * `false` when no remote promised any, so a path a read found missing is absent.
-   */
-  fetchMissingAt?(root: string, commit: string, paths: string[]): boolean;
+  /** `paths[at]` at `commits[at]` as columns: a path the commit does not hold left out, one git could not read refused with git's reason; throws when git answers nothing. */
+  textsAt?(root: string, commits: string[], paths: string[][]): { commit: number[]; file: string[]; text: string[]; refusedCommit: number[]; refusedFile: string[]; refused: string[] };
+  /** `textsAt`'s listing without the bodies: each path's blob name, `git:<object>`, in the same columns. */
+  blobsAt?(root: string, commits: string[], paths: string[][]): { commit: number[]; file: string[]; text: string[]; refusedCommit: number[]; refusedFile: string[]; refused: string[] };
+  /** Why `commit` cannot be read here when this checkout's object store does not hold it, with the fetch that brings it. */
+  commitAbsent?(root: string, commit: string): string | null;
   /** Of these files, those whose nearest `package.json` declares that loading them does something. */
   declaredEffects?(root: string, files: string[]): string[];
   /** Every module id a run's cases and parts name, for the caller to cut again with `deriveModules`. */

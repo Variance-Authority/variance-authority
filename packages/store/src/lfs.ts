@@ -48,7 +48,6 @@ import { checkTracking } from './lfs-tracking.js';
  */
 
 
-export { isLfsPointer, LFS_POINTER_HEAD_BYTES } from './lfs-pointer.js';
 export { lfsSetup } from './lfs-tracking.js';
 
 export interface CommandResult {

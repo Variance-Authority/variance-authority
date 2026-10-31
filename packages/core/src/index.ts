@@ -21,8 +21,9 @@
  *
  * Every name lives in exactly one of them; nothing is reachable from two paths.
  * This entrypoint holds only what belongs to no group: the artifact a capture is
- * written to, and the name a refusal offers when one was mistyped.
+ * written to, the name offered for a mistyped one, and a git-LFS pointer's head.
  */
 
 export * from './artifact.js';
+export { isLfsPointer, LFS_POINTER_HEAD_BYTES } from './lfs-pointer.js';
 export { didYouMean, nearest } from './nearest.js';

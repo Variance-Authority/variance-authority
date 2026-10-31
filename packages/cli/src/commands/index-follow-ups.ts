@@ -40,6 +40,12 @@ export interface FollowUpsLock {
   readonly log: string;
   /** The index is readied, and only the code map, the journeys, the lexicon and the questions are left. */
   readonly readied?: true;
+  /**
+   * The process finished, and git could not read what these walks needed. Its
+   * exit reaches nobody, so the next command that reads the follow-ups tells
+   * each reason and exits as the operator's; `--wait` carries the walk in its own exit.
+   */
+  readonly failed?: readonly string[];
 }
 
 /** Relaunch this program with `argv`, its output written to `log`; the process id. */
@@ -72,8 +78,9 @@ export async function reserveFollowUps(index: string, log: string, waiting: (loc
       if ((error as NodeJS.ErrnoException).code !== 'EEXIST') return false;
     }
     const waited = await awaitFollowUps(index, waiting);
-    // A holder that is gone left nothing this run is not about to make.
-    if (waited.held && !waited.finished) releaseFollowUps(index, waited.lock.pid);
+    // A holder that is gone left nothing this run is not about to make, and one that
+    // failed was told by `settleFollowUps` before this run began.
+    if (waited.held && (!waited.finished || waited.lock.failed !== undefined)) releaseFollowUps(index, waited.lock.pid);
   }
 }
 
@@ -92,7 +99,8 @@ export function heldBy(index: string): FollowUpsLock | undefined {
   try {
     const held = JSON.parse(readFileSync(followUpsLockPath(index), 'utf8')) as Partial<FollowUpsLock>;
     if (typeof held.pid !== 'number' || typeof held.log !== 'string') return undefined;
-    return { pid: held.pid, log: held.log, ...(held.readied === true ? { readied: true } : {}) };
+    const failed = Array.isArray(held.failed) ? held.failed.filter((why) => typeof why === 'string') : [];
+    return { pid: held.pid, log: held.log, ...(held.readied === true ? { readied: true } : {}), ...(failed.length > 0 ? { failed } : {}) };
   } catch {
     return undefined;
   }
@@ -116,6 +124,8 @@ export async function awaitFollowUps(index: string, waiting: (lock: FollowUpsLoc
   for (;;) {
     const lock = heldBy(index);
     if (lock === undefined) return waited === undefined ? { held: false } : { held: true, lock: waited, finished: true };
+    // A lock marked failed is the last thing its process writes: it is done.
+    if (lock.failed !== undefined) return { held: true, lock, finished: true };
     if (!alive(lock.pid)) return { held: true, lock, finished: false };
     if (until === 'readied' && lock.readied === true) return { held: true, lock, finished: true };
     if (waited === undefined) waiting(lock);
@@ -158,15 +168,19 @@ function readsNoIndex(parsed: Parsed): boolean {
  * A command that reads the index alone waits for the fold and no further, and
  * leaves the follow-ups of a gone process to the next command that reads them;
  * one that reads no index does not wait at all.
+ *
+ * True when a walk the follow-ups needed could not be made, by the process
+ * waited on or by this one: each reason is told here, and the command exits as
+ * the operator's once it has answered.
  */
-export async function settleFollowUps(parsed: Parsed, streams: { err(text: string): void }): Promise<void> {
-  if ((parsed.command === 'index' && parsed.followUps === true) || readsNoIndex(parsed)) return;
+export async function settleFollowUps(parsed: Parsed, streams: { err(text: string): void }): Promise<boolean> {
+  if ((parsed.command === 'index' && parsed.followUps === true) || readsNoIndex(parsed)) return false;
   const indexing = parsed.command === 'index';
   const cwd = process.cwd();
   const index = sourceIndexPath(cwd);
   if (READS_THE_INDEX_ALONE.has(parsed.command)) {
     await awaitFollowUps(index, (lock) => streams.err(foldingLine(lock)), 'readied');
-    return;
+    return false;
   }
   let quiet: (() => void) | undefined;
   const waited = await awaitFollowUps(index, (lock) => {
@@ -174,13 +188,21 @@ export async function settleFollowUps(parsed: Parsed, streams: { err(text: strin
     // A terminal sees the other process's latest step climb; a log has its lines already.
     if (process.stderr.isTTY === true) quiet = logHeartbeat(lock.log, (text) => streams.err(text));
   }).finally(() => quiet?.());
-  if (!waited.held || waited.finished) return;
+  if (!waited.held) return false;
+  const { pid, log, failed } = waited.lock;
+  if (failed !== undefined) {
+    releaseFollowUps(index, pid);
+    for (const why of failed) streams.err(`process ${pid} could not walk the journeys \`variance index\` left to it: ${why}; what it wrote is in ${log}\n`);
+    return true;
+  }
+  if (waited.finished) return false;
   rmSync(followUpsLockPath(index), { force: true });
-  if (indexing) return;
-  const { pid, log } = waited.lock;
+  if (indexing) return false;
   streams.err(`process ${pid} ended before it finished what \`variance index\` left to it, so it is made now; what it wrote is in ${log}\n`);
   const { indexOutput } = await import('./index-command.js');
-  streams.err(await indexOutput({ cwd, waiting: (text) => streams.err(text) }));
+  let remade = false;
+  streams.err(await indexOutput({ cwd, waiting: (text) => streams.err(text), failed: () => { remade = true; } }));
+  return remade;
 }
 
 /** What a command says while it waits on the process making the follow-ups. */

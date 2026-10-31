@@ -361,13 +361,15 @@ So a CI job can check out with `GIT_LFS_SKIP_SMUDGE=1`, run `git lfs install
 documents changed. Without that install, git never runs git-lfs: the pull leaves
 the pointer, which the lookup refuses naming the install, and
 `tracking.diagnostics` says so at open. `describe` reads the `.json`
-sidecar, which is never a pointer, and fetches nothing, so on such a checkout a
+sidecar and fetches nothing. A sidecar is a pointer only where `.gitattributes`
+sends the store's `.json` files to LFS too, and then the lookup refuses it as one, so on such a checkout a
 subject whose document did not move passes. `npx variance doctor --baselines`
 reads the head of every image in the root and, where git-lfs is not set up in
 its work tree, counts the pointers, names the first and exits 2 before any run;
-the composite action asks it before every run. `isLfsPointer(head)` is the test
-both use, `LFS_POINTER_HEAD_BYTES` is how many leading bytes it needs, and
-`lfsSetup(cwd, run)` names what keeps git from running git-lfs.
+the composite action asks it before every run. `isLfsPointer(head)`, from
+`@variance-authority/core`, is the test both use, `LFS_POINTER_HEAD_BYTES` is how
+many leading bytes it needs, and `lfsSetup(cwd, run)` names what keeps git from
+running git-lfs.
 
 `createLfsStore` takes:
 

@@ -9,81 +9,81 @@
 //! such reads took 9.0 s; one request for the same fifteen took 0.7 s, and the
 //! reads after it 0.03 s.
 //!
-//! So a reader asks first with `GIT_NO_LAZY_FETCH=1`, which answers what is
-//! here and says `missing` for the rest without fetching, and hands the missing
-//! ones here. The fetch is the one git makes for its own batched prefetch. The
-//! reader then asks again for what was missing, with lazy fetching left as the
-//! repository has it: a fetch that failed costs the old one request per object,
-//! never a text read as absent.
+//! So a reader hands here every blob it is about to read, and then reads
+//! them with lazy fetching left as the repository has it. `rev-list
+//! --missing=print` names the ones the clone lacks without fetching them, and
+//! only those are fetched, in the request git makes for its own batched
+//! prefetch. A git that cannot name them has every blob fetched instead. A
+//! fetch that failed costs the old one request per object, never a text read
+//! as absent.
 //!
-//! A clone with no promisor remote pays nothing: its first read answers
-//! everything it holds, and an object it does not hold is absent.
+//! The reader does not ask first with `GIT_NO_LAZY_FETCH=1`: git 2.43, the one
+//! Ubuntu 24.04 ships, stops at the first object that variable forbids, warning
+//! "lazy fetching disabled" and exiting 128 with "could not fetch ... from
+//! promisor remote", rather than answering it `missing`.
+//!
+//! A clone with no promisor remote pays nothing: there is no remote to ask, and
+//! an object it does not hold is not in the repository.
 
-use napi_derive::napi;
+use std::collections::HashMap;
+use std::sync::{Mutex, OnceLock};
 
 use crate::git::git;
 
-/// Paths one `ls-tree` is handed, so the command line stays well under the
-/// operating system's argument limit whatever the paths are.
-const PATHS_PER_LISTING: usize = 512;
+/// Fetch those of `oids` the clone lacks from the remote that promised them,
+/// in one request, or git's reason for not fetching them. Nothing to do
+/// outside a partial clone.
+pub(crate) fn fetch(root: &str, oids: &[&str]) -> Result<(), String> {
+    match promised(root) {
+        Some(remote) => fetch_from(root, &remote, &lacking(root, oids)),
+        None => Ok(()),
+    }
+}
 
-/// Fetch `oids` from the remote that promised them, in one request.
-///
-/// `false` when no remote did: the repository is not a partial clone, so an
-/// object it does not hold is absent and asking again answers nothing new.
-/// `true` otherwise, whether or not the fetch succeeded — the caller reads
-/// again either way, and a read after a failed fetch fetches lazily.
-pub(crate) fn fetch_missing(root: &str, oids: &[String]) -> bool {
-    let Some(remote) = remote(root) else {
-        return false;
+/// Those of `oids` the clone does not hold, as `rev-list` prints them: `?`
+/// and the object name. Every one of them when git cannot say.
+fn lacking<'a>(root: &str, oids: &[&'a str]) -> Vec<&'a str> {
+    let stdin: String = oids.iter().map(|oid| format!("{oid}\n")).collect();
+    let args = ["rev-list", "--objects", "--no-walk", "--missing=print", "--stdin"];
+    let Ok(listed) = crate::git::answer(root, &args, Some(stdin.into_bytes())) else {
+        return oids.to_vec();
     };
+    let listed = String::from_utf8_lossy(&listed);
+    let missing: std::collections::HashSet<&str> = listed.lines().filter_map(|line| line.strip_prefix('?')).collect();
+    oids.iter().copied().filter(|oid| missing.contains(oid)).collect()
+}
+
+/// [`remote`], asked once per checkout.
+fn promised(root: &str) -> Option<String> {
+    static ASKED: OnceLock<Mutex<HashMap<String, Option<String>>>> = OnceLock::new();
+    let asked = ASKED.get_or_init(Mutex::default);
+    if let Some(known) = asked.lock().ok().and_then(|held| held.get(root).cloned()) {
+        return known;
+    }
+    let known = remote(root);
+    if let Ok(mut held) = asked.lock() {
+        held.insert(root.to_owned(), known.clone());
+    }
+    known
+}
+
+fn fetch_from(root: &str, remote: &str, oids: &[&str]) -> Result<(), String> {
     if oids.is_empty() {
-        return true;
+        return Ok(());
     }
     let stdin: String = oids.iter().map(|oid| format!("{oid}\n")).collect();
     let args = [
         "-c",
         "fetch.negotiationAlgorithm=noop",
         "fetch",
-        &remote,
+        remote,
         "--no-tags",
         "--no-write-fetch-head",
         "--recurse-submodules=no",
         "--filter=blob:none",
         "--stdin",
     ];
-    let _ = git(root, &args, Some(stdin.into_bytes()));
-    true
-}
-
-/// [`fetch_missing`] for paths at a commit, spelled from the top of the
-/// repository as `<commit>:<path>` spells them.
-///
-/// For a reader holding paths rather than object names: the trees name each
-/// path's blob, and a partial clone holds the trees. A path the commit does
-/// not hold names no blob and is left out.
-#[napi(catch_unwind)]
-pub fn fetch_missing_at(root: String, commit: String, paths: Vec<String>) -> bool {
-    if remote(&root).is_none() {
-        return false;
-    }
-    let mut oids = Vec::new();
-    for chunk in paths.chunks(PATHS_PER_LISTING) {
-        let mut args = vec!["--literal-pathspecs", "ls-tree", "-z", "--full-tree", commit.as_str(), "--"];
-        args.extend(chunk.iter().map(String::as_str));
-        let Some(listed) = git(&root, &args, None) else {
-            continue;
-        };
-        // `<mode> <type> <object>\t<path>`, and only a blob is a text.
-        for entry in listed.split(|byte| *byte == 0) {
-            let head = entry.split(|byte| *byte == b'\t').next().unwrap_or_default();
-            let mut fields = head.split(|byte| *byte == b' ').skip(1);
-            if fields.next() == Some(b"blob".as_slice()) {
-                oids.extend(fields.next().map(|oid| String::from_utf8_lossy(oid).into_owned()));
-            }
-        }
-    }
-    fetch_missing(&root, &oids)
+    crate::git::answer(root, &args, Some(stdin.into_bytes())).map(drop)
 }
 
 /// The remote a partial clone fetches what it lacks from, as git chooses it:

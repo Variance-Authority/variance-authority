@@ -1,4 +1,4 @@
-import { chmod, mkdtemp, readdir, rm, unlink, writeFile } from 'node:fs/promises';
+import { chmod, mkdtemp, readFile, readdir, rm, unlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -16,6 +16,10 @@ import {
 } from '@variance-authority/core/format';
 import { RasterStoreError } from '@variance-authority/raster';
 import { createDurableStore } from './durable.js';
+
+/** What git-lfs leaves in the working tree when it did not smudge a file. */
+const LFS_POINTER =
+  'version https://git-lfs.github.com/spec/v1\noid sha256:4d7a214614ab2935c943f9e0ff69d22eadbb8f32b1258daaa5e2ca24d17e2393\nsize 412\n';
 
 /** The directory a store names for this identity's partition. */
 const partition = (identity: RenderIdentity): string => digestFileName(identityDigest(identity));
@@ -278,6 +282,29 @@ describe('a baseline the store cannot read', () => {
     await writeFile(`${pathOf(MAC, 's')}.json`, '{"documentDigest":"v1:do', 'utf8');
 
     await expect(store.find({ subject: 's' }, MAC)).rejects.toThrow(/not readable JSON/);
+  });
+
+  it('refuses a sidecar that is a git-LFS pointer as one, rather than as a truncated write', async () => {
+    // A clone without git-lfs, where the store's `.json` files are tracked by LFS
+    // too: the working tree holds the pointer text where the record should be.
+    const store = createDurableStore(root);
+    await store.put({ subject: 's' }, rasterOf(MAC));
+    await writeFile(`${pathOf(MAC, 's')}.json`, LFS_POINTER, 'utf8');
+
+    await expect(store.find({ subject: 's' }, MAC)).rejects.toThrow(/is a git-LFS pointer, not a baseline record/);
+    await expect(store.describe({ subject: 's' }, MAC)).rejects.toThrow(/is a git-LFS pointer, not a baseline record/);
+  });
+
+  it('refuses to accept over a sidecar that is a git-LFS pointer, and leaves the pointer as it was', async () => {
+    // A damaged pair is repaired by an accept. A pointer is not damage: it is a
+    // record this checkout cannot read, and writing over it commits plain text
+    // into a path git-lfs tracks.
+    const store = createDurableStore(root);
+    await store.put({ subject: 's' }, rasterOf(MAC));
+    await writeFile(`${pathOf(MAC, 's')}.json`, LFS_POINTER, 'utf8');
+
+    await expect(store.put({ subject: 's' }, rasterOf(MAC, 'v1:next'))).rejects.toThrow(/is a git-LFS pointer, not a baseline record/);
+    await expect(readFile(`${pathOf(MAC, 's')}.json`, 'utf8')).resolves.toBe(LFS_POINTER);
   });
 
   it('refuses a sidecar that parses to something that is not a raster', async () => {

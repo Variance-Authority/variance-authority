@@ -14,10 +14,10 @@
 
 // compass: variance-authority.reach.relations
 
-import { resolve } from 'node:path';
+import { existsSync } from 'node:fs';
+import { relative, resolve } from 'node:path';
 import { checkoutListing, checkoutPath, existedAt, type CheckoutListing } from './checkout-path.js';
 import { native, nativeRefusal } from './native.js';
-import { BUILTINS } from './native-index-graph.js';
 import type { NativeForksBetween, NativeJourneyEnd, NativeJourneyMap, NativeJourneyMapFile, NativePathsThrough, NativeJourneysAmong, NativeJourneysAnswer, NativeJourneysAsk, NativeJourneysCommit, NativeJourneysPrepared, NativeTestComposition } from './native-journeys.js';
 import type { SourceUpdate } from './published.js';
 import { sourceIndexPath } from './source-index.js';
@@ -25,7 +25,7 @@ import { declaredTsconfig } from './typescript.js';
 import { nearestTestCoverage } from './test-selection/record-location.js';
 import { keepsCases } from './test-selection/case-record.js';
 import { askCoverageFile } from './test-selection/coverage-file.js';
-import { defaultInclude } from './test-selection/instrumented-modules.js';
+import { defaultInclude, insideRoot } from './test-selection/instrumented-modules.js';
 import { declaredSuites } from './test-selection/suites.js';
 
 export type {
@@ -83,14 +83,18 @@ function recordings(root: string): readonly { readonly suite?: string; readonly 
   });
 }
 
-/** The commit a recording ran at, or why there is none: the walk then reads the tree as it is, and says so. */
+/**
+ * The commit a recording ran at, or why there is none. A recording that names no
+ * commit is an absence; one that does not read throws, since it is a fault.
+ */
 function commitOf(coverage: string): NativeJourneysCommit {
-  try {
-    const commit = askCoverageFile(coverage, (read) => read.commit);
-    return commit === undefined ? { unread: 'the recording names no commit' } : { commit };
-  } catch (error) {
-    return { unread: `the recording's commit did not read (${(error instanceof Error ? error.message : String(error)).split('\n')[0]})` };
-  }
+  const commit = askCoverageFile(coverage, (read) => read.commit);
+  return commit === undefined ? { unread: 'the recording names no commit' } : { commit };
+}
+
+/** Why a recording that is there does not read. */
+function unreadable(root: string, coverage: string, error: unknown): string {
+  return `the recording at ${spelled(root, coverage)} does not read (${(error instanceof Error ? error.message : String(error)).split('\n')[0]})`;
 }
 
 /**
@@ -109,7 +113,12 @@ function knownOf(root: string, file: string, recording: string, listing: Checkou
   // names only the latest run's, so a row laid by an older run is judged against
   // a commit it was not made at. The commit each test file last ran at is in
   // commit-runs' `standing`; carry that instead.
-  const at = commitOf(recording);
+  let at: NativeJourneysCommit;
+  try {
+    at = commitOf(recording);
+  } catch (error) {
+    return { module, ...now, unread: unreadable(root, recording, error) };
+  }
   if (at.commit == null) return { module, ...now, ...(at.unread == null ? {} : { unread: at.unread }) };
   const then = existedAt(root, at.commit, file);
   return typeof then === 'boolean'
@@ -117,10 +126,25 @@ function knownOf(root: string, file: string, recording: string, listing: Checkou
     : { module, ...now, commit: at.commit, unread: then.unread };
 }
 
-/** One suite's prepared journeys, or why none were prepared. */
+/**
+ * `path` as the checkout names it, or as it is when it lies outside the
+ * checkout: a recording kept in a shared cache is at no checkout path, and a
+ * chain of `..` would name it from wherever the reader happens to stand.
+ */
+function spelled(root: string, path: string): string {
+  return insideRoot(root, path) ? relative(root, path) : path;
+}
+
+/**
+ * One suite's prepared journeys, or why none were prepared. `unprepared` is an
+ * absence — nothing recorded, no commit named, no index — and `failed` a walk
+ * that could not be made, git's refusal among them, which its caller reports as
+ * a fault rather than as nothing to walk.
+ */
 export type PreparedJourneys =
   | { readonly suite?: string; readonly out: string; readonly prepared: NativeJourneysPrepared }
-  | { readonly suite?: string; readonly out: string; readonly unprepared: string };
+  | { readonly suite?: string; readonly out: string; readonly unprepared: string }
+  | { readonly suite?: string; readonly out: string; readonly failed: string };
 
 /**
  * Walk each suite's latest recording over the source index at `index` and keep
@@ -143,7 +167,16 @@ export async function prepareJourneys(
     const named = suite === undefined ? {} : { suite };
     const out = journeysPath(index, suite);
     if (recording === undefined) {
-      prepared.push({ ...named, out, unprepared: `nothing is recorded at ${looked}` });
+      // A file that is there and keeps no cases either reads, and holds none, or is a fault.
+      let failed: string | undefined;
+      if (existsSync(looked)) {
+        try {
+          commitOf(looked);
+        } catch (error) {
+          failed = unreadable(root, looked, error);
+        }
+      }
+      prepared.push(failed === undefined ? { ...named, out, unprepared: `nothing is recorded at ${spelled(root, looked)}` } : { ...named, out, failed });
       continue;
     }
     const kept = entry('journeysKept')(index, recording, out);
@@ -151,8 +184,27 @@ export async function prepareJourneys(
       prepared.push({ ...named, out, prepared: kept });
       continue;
     }
-    const at = commitOf(recording);
-    const made = walk(root, index, recording, at, out, BUILTINS, tsconfig);
+    // A recording's lines are coordinates in the tree it ran over, and git owns
+    // that tree: without its commit, or with git unable to read it, there is no
+    // walk, since the working tree is a different answer.
+    let at: NativeJourneysCommit;
+    try {
+      at = commitOf(recording);
+    } catch (error) {
+      prepared.push({ ...named, out, failed: unreadable(root, recording, error) });
+      continue;
+    }
+    if (at.unread != null) {
+      prepared.push({ ...named, out, unprepared: at.unread });
+      continue;
+    }
+    let made: NativeJourneysPrepared | null;
+    try {
+      made = walk(root, index, recording, at, out, tsconfig);
+    } catch (error) {
+      prepared.push({ ...named, out, failed: error instanceof Error ? error.message : String(error) });
+      continue;
+    }
     prepared.push(made === null ? { ...named, out, unprepared: 'there is no source index' } : { ...named, out, prepared: made });
   }
   return prepared;

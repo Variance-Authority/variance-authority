@@ -6,6 +6,7 @@ import type { Raster } from '@variance-authority/core/format';
 import { REFUSAL, RasterStoreError, messageOf, sidecarFrom } from '@variance-authority/raster';
 import { orAbsent } from './absent.js';
 import { placedForIn, type PlacedFor } from './claims.js';
+import { refuseAPointerRecord } from './lfs-pointer.js';
 
 /**
  * One baseline on disk: an image and the record of what painted it, read and
@@ -190,6 +191,7 @@ function halfAPair(places: Places, sidecarSurvived: boolean): RasterStoreError {
  * is that the file cannot be read.
  */
 function parseSidecar(text: string, path: string): Read<Omit<Raster, 'bytes'>> {
+  refuseAPointerRecord(text, path);
   let parsed: unknown;
   try {
     parsed = JSON.parse(text) as unknown;

@@ -569,7 +569,7 @@
     6
   ],
   "packages/cli/src/commands/index-command.ts overview": [
-    27
+    25
   ],
   "packages/cli/src/commands/index-follow-ups.ts overview": [
     21
@@ -3091,9 +3091,6 @@
     40,
     26,
     11
-  ],
-  "packages/sense/src/test-selection/recorded-text.ts block": [
-    6
   ],
   "packages/sense/src/test-selection/recorded-text.ts docblock": [
     11

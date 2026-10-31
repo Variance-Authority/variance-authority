@@ -227,7 +227,7 @@ describe('a journey map around a file the recording keeps no row for', () => {
     );
   });
 
-  it('cannot say when the recording\'s commit does not read', () => {
+  it('cannot say when the recording does not read, and name it', () => {
     committedOld();
     const at = testCoverageFile(root);
     mkdirSync(dirname(at), { recursive: true });
@@ -236,7 +236,7 @@ describe('a journey map around a file the recording keeps no row for', () => {
     writeFileSync(at, sections({ cases: { plain: index, rows: index.length, width: 1 } }));
 
     expect(journeyMap(root, 'src/old.ts')?.notRecorded).toMatch(
-      /^The recording cannot say whether a test loaded src\/old\.ts: the recording's commit did not read \(.+\), so git cannot say whether the file existed when the recording was made\.$/u,
+      /^The recording cannot say whether a test loaded src\/old\.ts: the recording at \S+coverage\.bin does not read \(.+\), so git cannot say whether the file existed when the recording was made\.$/u,
     );
   });
 
