@@ -103,7 +103,7 @@ The `it.todo` entries of the four acceptance files, in order of harm:
 
 1. Each declaration of a name answered apart, in `symbol` and in `uses`.
 2. `--format json`, `--file`, `--kind` on `symbol` and `uses`; no cap on rows.
-3. `Container.member`, and a name reached through `export * as`.
+3. A name reached through `export * as`.
 4. No dependency README prose, no tool of another surface named.
 5. `covering`: `dist/` read as source, repository-relative paths only, the
    record's commit, one notice per answer, JSON without repeated cases.

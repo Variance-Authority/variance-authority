@@ -22,7 +22,7 @@ afterEach(() => {
 });
 
 describe('variance ask uses over a module name', () => {
-  it.each(['packages/kit/src/money/tax.ts', '@acme/kit', 'tsconfig.json'])('asks `%s` as a name, misses it as one, and lists no importers of a module', async (name) => {
+  it.each(['packages/kit/src/money/tax.ts', '@acme/kit', 'tsconfig/base.json'])('asks `%s` as a name, misses it as one, and lists no importers of a module', async (name) => {
     checkout();
     await run(['index']);
 
@@ -32,5 +32,15 @@ describe('variance ask uses over a module name', () => {
     expect(`${out}${err}`).not.toContain('is a module');
     expect(`${out}${err}`).not.toContain('is a package');
     expect(out).not.toMatch(/imports taxOf from @acme\/kit\/src\/money\/tax$/m);
+  });
+
+  it('asks `tsconfig.json` as member `json` of `tsconfig`, which is how a name with a dot reads, and lists no importers of a module', async () => {
+    checkout();
+    await run(['index']);
+
+    const { out, err } = await run(['ask', 'uses', '--name', 'tsconfig.json']);
+    expect(out).toContain('No file read here declares `tsconfig` at its top level');
+    expect(out).not.toContain('declares `tsconfig.json`');
+    expect(`${out}${err}`).not.toContain('is a module');
   });
 });

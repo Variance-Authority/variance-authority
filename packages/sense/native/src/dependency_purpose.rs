@@ -8,7 +8,7 @@
 
 // compass: variance-authority.report.agent-surface
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeSet, HashMap};
 use std::fs;
 use std::path::Path;
 
@@ -80,22 +80,46 @@ pub(super) fn stem(word: &str) -> String {
     stem
 }
 
-/// The stems of the words in `text`, splitting camelCase and punctuation; short words and the words `dropped` names left out.
+/// Each word of `text` with the paragraph it is in, split at punctuation, space
+/// and camelCase. A possessive `'s` is part of the word before it, and a blank
+/// line — a newline, spaces or tabs, a newline — starts the next paragraph.
+fn each_word(text: &str, mut visit: impl FnMut(&str, u32)) {
+    let mut word = String::new();
+    let (mut last_lower, mut paragraph, mut blank_line, mut broke) = (false, 0u32, false, false);
+    let mut chars = text.chars().peekable();
+    while let Some(ch) = chars.next() {
+        if ch.is_alphanumeric() {
+            if broke { paragraph += 1; broke = false; }
+            blank_line = false;
+            if ch.is_uppercase() && last_lower { visit(&word, paragraph); word.clear(); }
+            last_lower = ch.is_lowercase() || ch.is_ascii_digit();
+            word.push(ch);
+            continue;
+        }
+        if matches!(ch, '\'' | '\u{2019}') && !word.is_empty() {
+            let mut ahead = chars.clone();
+            if matches!(ahead.next(), Some('s' | 'S')) && !ahead.next().is_some_and(char::is_alphanumeric) { chars.next(); }
+        }
+        if !word.is_empty() { visit(&word, paragraph); word.clear(); }
+        last_lower = false;
+        match ch {
+            '\n' => { if blank_line { broke = true; } blank_line = true; }
+            ' ' | '\t' => {}
+            _ => blank_line = false,
+        }
+    }
+    if !word.is_empty() { visit(&word, paragraph); }
+}
+
+/// Whether a word is read for its stem: three letters or more, and not a word `dropped` names.
+fn kept(word: &str, dropped: &impl Fn(&str) -> bool) -> bool {
+    word.chars().count() >= 3 && !dropped(&word.to_lowercase())
+}
+
+/// The stems of the words in `text`; short words and the words `dropped` names left out.
 fn cut(text: &str, dropped: impl Fn(&str) -> bool) -> Vec<String> {
     let mut out = Vec::new();
-    let mut word = String::new();
-    let mut last_lower = false;
-    let flush = |word: &mut String, out: &mut Vec<String>| {
-        if word.chars().count() >= 3 && !dropped(&word.to_lowercase()) { out.push(stem(word)); }
-        word.clear();
-    };
-    for ch in text.chars() {
-        if !ch.is_alphanumeric() { flush(&mut word, &mut out); last_lower = false; continue; }
-        if ch.is_uppercase() && last_lower { flush(&mut word, &mut out); }
-        last_lower = ch.is_lowercase() || ch.is_ascii_digit();
-        word.push(ch);
-    }
-    flush(&mut word, &mut out);
+    each_word(text, |word, _| if kept(word, &dropped) { out.push(stem(word)); });
     out
 }
 
@@ -110,18 +134,74 @@ pub(crate) fn code_stems(text: &str) -> Vec<String> {
     cut(text, |word| FUNCTION.contains(&word))
 }
 
-/// How many of the adjacent word pairs of `query` `text` also writes adjacent:
-/// a doc that says the question's phrase, not only its words. Both are read as
-/// [`code_stems`] reads them, so the pairs are of the words a question is
-/// about: `it is` or `of a` are how any sentence is put, and two docs sharing
-/// them share nothing.
+/// One stem of a text where it stands: its paragraph, and its place among every word of it.
+struct Placed { paragraph: u32, place: u32, stem: String }
+
+/// The stems of `text` as [`code_stems`] reads them, each where it stands. A word
+/// read for no stem still holds its place, as Lucene's StopFilter keeps a
+/// dropped word's position increment, so `page and its sink` does not write
+/// `page sink`.
+fn placed(text: &str) -> Vec<Placed> {
+    let dropped = |word: &str| FUNCTION.contains(&word);
+    let (mut out, mut place, mut current) = (Vec::new(), 0u32, 0u32);
+    each_word(text, |word, paragraph| {
+        if paragraph != current { (current, place) = (paragraph, 0); }
+        if kept(word, &dropped) { out.push(Placed { paragraph, place, stem: stem(word) }); }
+        place += 1;
+    });
+    out
+}
+
+/// Each stem of a text by where it stands, read once per text however many runs are asked of it.
+fn by_place(said: &[Placed]) -> HashMap<(u32, u32), &str> {
+    said.iter().map(|one| ((one.paragraph, one.place), one.stem.as_str())).collect()
+}
+
+/// The first paragraph of `said` that writes `run` — each stem with its place
+/// after the run's first — at the same distances; `None` when none does.
+fn writes(said: &[Placed], at: &HashMap<(u32, u32), &str>, run: &[(u32, &str)]) -> Option<u32> {
+    let (first, rest) = run.split_first()?;
+    said.iter().filter(|one| one.stem == first.1).find(|one| {
+        rest.iter().all(|(place, stem)| at.get(&(one.paragraph, one.place + place)) == Some(stem))
+    }).map(|one| one.paragraph)
+}
+
+/// The question's stems as one run, each placed after the first: a word the
+/// question drops before its first stem asks for nothing before the run. A
+/// question is one run, so a line break in it parts nothing.
+fn asked_run(query: &str) -> Vec<(u32, String)> {
+    let asked = placed(&query.replace(['\n', '\r'], " "));
+    let start = asked.first().map_or(0, |one| one.place);
+    asked.into_iter().map(|one| (one.place - start, one.stem)).collect()
+}
+
+/// How many of the adjacent stem pairs of `query` `text` also writes, each at
+/// the distance the question puts it: a doc that says the question's phrase,
+/// not only its words. The pairs are of the words a question is about — `it
+/// is` or `of a` are how any sentence is put — and are read by [`writes`].
 pub(crate) fn near(query: &str, text: &str) -> u32 {
-    let (asked, said) = (code_stems(query), code_stems(text));
-    let pairs = |words: &'_ [String]| -> BTreeSet<(String, String)> {
-        words.windows(2).map(|pair| (pair[0].clone(), pair[1].clone())).collect()
-    };
-    let written = pairs(&said);
-    pairs(&asked).iter().filter(|pair| written.contains(*pair)).count() as u32
+    let asked = asked_run(query);
+    let pairs: BTreeSet<[(u32, &str); 2]> = asked.windows(2)
+        .map(|pair| [(0, pair[0].1.as_str()), (pair[1].0 - pair[0].0, pair[1].1.as_str())]).collect();
+    if pairs.is_empty() { return 0; }
+    let said = placed(text);
+    let at = by_place(&said);
+    pairs.iter().filter(|pair| writes(&said, &at, &pair[..]).is_some()).count() as u32
+}
+
+/// The run [`writes_run`] asks of every text for `query`, cut once: `None` when the
+/// question holds fewer than two distinct stems, which is no phrase.
+pub(crate) fn phrase_run(query: &str) -> Option<Vec<(u32, String)>> {
+    let asked = asked_run(query);
+    let distinct: BTreeSet<&str> = asked.iter().map(|(_, stem)| stem.as_str()).collect();
+    (distinct.len() >= 2).then_some(asked)
+}
+
+/// The first paragraph of `text` that writes `run`, read by [`writes`]; `None` when no paragraph does.
+pub(crate) fn writes_run(run: &[(u32, String)], text: &str) -> Option<u32> {
+    let run: Vec<(u32, &str)> = run.iter().map(|(place, stem)| (*place, stem.as_str())).collect();
+    let said = placed(text);
+    writes(&said, &by_place(&said), &run)
 }
 
 fn sorted(mut words: Vec<String>) -> Vec<String> { words.sort_unstable(); words.dedup(); words }
@@ -168,7 +248,75 @@ pub(super) fn purpose(root: &Path, runtime: &Option<Identity>, declarations: &Op
 
 #[cfg(test)]
 mod tests {
-    use super::stem;
+    use super::{near, phrase_run, stem, writes_run};
+
+    /// The first paragraph of `text` that writes `query`'s run, cut for this one text.
+    fn phrase(query: &str, text: &str) -> Option<u32> {
+        writes_run(&phrase_run(query)?, text)
+    }
+
+    #[test]
+    fn a_word_between_two_of_the_question_parts_them() {
+        // Lucene's StopFilter keeps a dropped word's position: `and its` stands between `page` and `sink`.
+        assert_eq!(near("page sink", "Each page and its sink."), 0);
+        assert_eq!(phrase("page sink", "Each page and its sink."), None);
+    }
+
+    #[test]
+    fn a_possessive_or_punctuation_between_two_words_does_not_part_them() {
+        assert_eq!(near("page sink", "Source that installs the page's sink."), 1);
+        assert_eq!(phrase("page sink", "Source that installs the page's sink."), Some(0));
+        assert_eq!(phrase("page sink", "The page\u{2019}s sink."), Some(0));
+        assert_eq!(phrase("page sink", "One page, sink it."), Some(0));
+    }
+
+    #[test]
+    fn a_word_dropped_from_the_question_holds_its_place_in_the_doc() {
+        assert_eq!(phrase("sink of a page", "The sink of the page."), Some(0));
+        assert_eq!(phrase("sink of a page", "The sink page."), None);
+        assert_eq!(near("sink of a page", "The sink of one page."), 1);
+    }
+
+    #[test]
+    fn a_phrase_is_its_words_in_order_by_stem() {
+        assert_eq!(phrase("region placement", "A region placed by the transform."), Some(0));
+        assert_eq!(phrase("placement region", "A region placed by the transform."), None);
+        assert_eq!(phrase("cache entries sweep", "Cache entries sweeping."), Some(0));
+        assert_eq!(phrase("cache entries sweep", "Cache entries kept for each sweep."), None);
+        assert_eq!(near("cache entries sweep", "Cache entries kept for each sweep."), 1);
+    }
+
+    #[test]
+    fn a_blank_line_ends_the_run_and_the_paragraph_is_named() {
+        assert_eq!(phrase("page sink", "Each page.\n\nSink it."), None);
+        assert_eq!(near("page sink", "Each page.\n \nSink it."), 0);
+        assert_eq!(phrase("page sink", "Opening.\n\nThe page sink.\n\nThe page sink."), Some(1));
+        assert_eq!(phrase("page sink", "One page.\nSink it."), Some(0));
+    }
+
+    #[test]
+    fn a_dropped_word_opening_the_question_asks_nothing_before_the_run() {
+        assert_eq!(phrase("the page sink", "Page sink for events."), Some(0));
+        assert_eq!(phrase("a page sink", "Page sink."), Some(0));
+        assert_eq!(near("the page sink", "Page sink."), 1);
+    }
+
+    #[test]
+    fn a_blank_line_in_the_question_is_no_break_in_its_run() {
+        assert_eq!(phrase("the a page\n\nsink", "The page sink."), Some(0));
+        assert_eq!(near("the a page\n\nsink", "The page sink."), 1);
+    }
+
+    #[test]
+    fn one_stem_asked_twice_is_no_phrase() {
+        assert_eq!(phrase("sink to sink", "The sink to sink path."), None);
+    }
+
+    #[test]
+    fn one_word_of_the_question_is_no_phrase() {
+        assert_eq!(phrase("sink", "The sink."), None);
+        assert_eq!(phrase("the sink", "The sink."), None);
+    }
 
     #[test]
     fn a_word_and_its_inflections_share_one_stem() {
