@@ -139,11 +139,10 @@ variance reach --since origin/main              # files a diff reaches over impo
   needs `--execution` and is refused beside `--since`. `--no-git` reads file
   contents from the working tree, not git's object store. `--at-distance <hops>`
   cuts the run to one leg of the selection and skips the selected files outside
-  it; `0-2` then `3-` runs every selected file in one of the two. A test file
-  the change edits is entered by its own source at zero hops, declared or not,
-  seen whole or not; one seen whole that declared the text it now holds already
-  ran it and stays skipped. stderr counts the entered tests at each hop count
-  and names every file the change holds, which `json` gives as `changed`.
+  it; `0-2` then `3-` runs every selected file in one of the two. An edited
+  test seen whole that declared the text it now holds already ran it and stays
+  skipped. stderr counts the entered tests at each hop count and names every
+  file the change holds, which `json` gives as `changed`.
   `json` gives the leg as `leg`, the files
   it left as `left`, and each entered test's hops, bearing and the reason none
   was measured as `distances`; an entered test with no hop count runs in the
