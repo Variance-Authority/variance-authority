@@ -9,6 +9,7 @@ import {
   REACH_PATH,
   VALUE_JOURNEY_PATH,
 } from '@variance-authority/history';
+import { imageFormat } from '@variance-authority/png/header';
 import { RasterStoreError, rasterFrom } from '@variance-authority/raster';
 import {
   HistoryWriteConflict,
@@ -470,9 +471,12 @@ async function route(
       image[3] as 'before' | 'after' | 'diff',
     );
     if (bytes === null) return json(404, { error: 'this build kept no such image' });
+    // The path says `.png` for every image; the bytes say what this one is. A
+    // `before` is the baseline as the run's store kept it, a lossless WebP.
+    const format = imageFormat(new Uint8Array(bytes));
     return new Response(bytes, {
       headers: {
-        'content-type': 'image/png',
+        'content-type': format === null ? 'application/octet-stream' : `image/${format}`,
         // A build's images never change: the row is written once and the object
         // with it. Anything a reviewer reloads is fetched again for nothing.
         'cache-control': 'private, max-age=31536000, immutable',

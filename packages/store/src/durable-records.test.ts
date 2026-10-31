@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { Raster, RenderIdentity } from '@variance-authority/core/format';
 import { createDurableStore } from './durable.js';
+import { RED, kept } from './image.fixture.js';
 
 const MAC: RenderIdentity = {
   renderer: 'playwright-chromium',
@@ -16,7 +17,7 @@ const MAC: RenderIdentity = {
 /** Same browser, different machine. */
 const RUNNER: RenderIdentity = { ...MAC, platform: 'linux/x64' };
 
-function rasterOf(identity: RenderIdentity, digest = 'v1:doc', bytes = 'AAAA'): Raster {
+function rasterOf(identity: RenderIdentity, digest = 'v1:doc', bytes = RED): Raster {
   return { documentDigest: digest, identity, width: 10, height: 10, bytes, missingFonts: [] };
 }
 
@@ -46,22 +47,22 @@ describe('the record location', () => {
     const store = createDurableStore(root);
     await store.put({ subject: 'todo--empty' }, rasterOf(MAC));
 
-    expect(await readdir(root)).toEqual(['todo--empty-chromium.json', 'todo--empty-chromium.png']);
+    expect(await readdir(root)).toEqual(['todo--empty-chromium.json', 'todo--empty-chromium.webp']);
   });
 
   it('leaves the baseline root holding images alone when it is pointed elsewhere', async () => {
     const records = await mkdtemp(join(tmpdir(), 'variance-records-'));
     try {
       const store = createDurableStore(root, { recordRoot: records });
-      await store.put({ subject: 'todo--empty' }, rasterOf(MAC, 'v1:doc', 'QUJD'));
+      await store.put({ subject: 'todo--empty' }, rasterOf(MAC, 'v1:doc', RED));
 
-      expect(await readdir(root)).toEqual(['todo--empty-chromium.png']);
+      expect(await readdir(root)).toEqual(['todo--empty-chromium.webp']);
       expect(await readdir(records)).toEqual(['todo--empty-chromium.json']);
 
       // And the halves are still one baseline to every reader.
       const found = await store.find({ subject: 'todo--empty' }, MAC);
       expect(found?.comparable).toBe(true);
-      expect(found?.raster.bytes).toBe('QUJD');
+      expect(found?.raster.bytes).toBe(await kept(RED));
       expect((await store.describe({ subject: 'todo--empty' }, MAC))?.pictured).toBe(true);
     } finally {
       await rm(records, { recursive: true, force: true });

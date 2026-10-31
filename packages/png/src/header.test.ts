@@ -1,6 +1,7 @@
 import { PNG } from 'pngjs';
 import { describe, expect, it } from 'vitest';
-import { pngSize } from './size.js';
+import { keepImage } from './format.js';
+import { imageSize } from './header.js';
 
 /**
  * Reading a header is only worth doing if it refuses to answer when it cannot.
@@ -14,18 +15,22 @@ function png(width: number, height: number): Buffer {
   return PNG.sync.write(new PNG({ width, height }));
 }
 
-describe('pngSize', () => {
+describe('imageSize', () => {
   it('reads the dimensions a PNG declares', () => {
-    expect(pngSize(png(390, 871))).toEqual({ width: 390, height: 871 });
+    expect(imageSize(png(390, 871))).toEqual({ width: 390, height: 871 });
   });
 
-  it('says nothing about bytes that are not a PNG', () => {
-    expect(pngSize(Buffer.from('a truncated download, or an HTML error page, or a JPEG'))).toBe(
+  it('reads the dimensions a kept WebP declares, since a baseline is kept as one', async () => {
+    expect(imageSize(await keepImage(png(390, 871)))).toEqual({ width: 390, height: 871 });
+  });
+
+  it('says nothing about bytes that are neither a PNG nor a WebP', () => {
+    expect(imageSize(Buffer.from('a truncated download, or an HTML error page, or a JPEG'))).toBe(
       null,
     );
   });
 
   it('says nothing about a file too short to hold a header', () => {
-    expect(pngSize(png(4, 4).subarray(0, 20))).toBe(null);
+    expect(imageSize(png(4, 4).subarray(0, 20))).toBe(null);
   });
 });

@@ -59,6 +59,7 @@
     "vitest": "^5.0.0"
   },
   "devDependencies": {
+    "@variance-authority/png": "workspace:^",
     "pngjs": "^7.0.0"
   }
 }

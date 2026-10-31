@@ -92,11 +92,14 @@ export interface LfsStoreOptions extends Omit<DurableStoreOptions, 'readImage'> 
   /**
    * Glob for the tracked images, relative to the `.gitattributes` that holds it.
    *
-   * Defaults to the template's glob with `.png` on the end — `*-*.png` for the
+   * Defaults to the template's glob with `.webp` on the end — `*-*.webp` for the
    * default `{title}/{name}-{engine}`, a name with no slash matching at every
-   * depth, and `**\/__baselines__/*\/*-*.png` for
-   * `{dir}/__baselines__/{file}/{name}-{engine}`. Under a root that is the
-   * repository itself the first also takes any other PNG with a `-` in its
+   * depth, and `**\/__baselines__/*\/*-*.webp` for
+   * `{dir}/__baselines__/{file}/{name}-{engine}`: the store keeps every image it
+   * writes as a WebP. A `.png` baseline kept before stays under the entry that
+   * tracked it then, which this store never removes, until its next accept
+   * replaces it. Under a root that is the
+   * repository itself the first also takes any other WebP with a `-` in its
    * name, so the CLI's config refuses that pair unless the template names a
    * directory of its own (`BaselinePathTemplate.anchored`) or this is set. Images only: the `.json` sidecars beside each
    * image are small, readable, and the only thing that says which machine wrote
@@ -158,7 +161,7 @@ export interface LfsStore extends RasterStore {
  */
 export async function createLfsStore(options: LfsStoreOptions): Promise<LfsStore> {
   const template = parseBaselinePath(options.path ?? DEFAULT_BASELINE_PATH);
-  const pattern = options.pattern ?? attributesPattern(`${template.glob}.png`);
+  const pattern = options.pattern ?? attributesPattern(`${template.glob}.webp`);
   const attributesFile = options.attributesFile ?? join(options.root, '.gitattributes');
 
   const placed = options.path === undefined ? {} : { path: options.path };
@@ -213,7 +216,7 @@ export async function createLfsStore(options: LfsStoreOptions): Promise<LfsStore
      *
      * A description is read from the `.json`, and the sidecars are deliberately
      * outside the tracked glob, so they are real text on every clone whether or
-     * not git-lfs is installed. The `.png` beside one may well be 130 bytes of
+     * not git-lfs is installed. The image beside one may well be 130 bytes of
      * pointer, and this call will not notice.
      *
      * That is sound rather than overlooked. An answer built from a digest never

@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { Raster, RenderIdentity } from '@variance-authority/core/format';
 import { digestFileName, identityDigest } from '@variance-authority/core/format';
 import { createDurableStore } from './durable.js';
+import { BLUE, GREEN, RED, kept } from './image.fixture.js';
 
 /**
  * What an identity partition is called on disk, and the name it used to be called.
@@ -26,7 +27,7 @@ const MAC: RenderIdentity = {
 
 const RUNNER: RenderIdentity = { ...MAC, platform: 'linux/x64' };
 
-function rasterOf(identity: RenderIdentity, digest = 'v1:doc', bytes = 'AAAA'): Raster {
+function rasterOf(identity: RenderIdentity, digest = 'v1:doc', bytes = RED): Raster {
   return { documentDigest: digest, identity, width: 10, height: 10, bytes, missingFonts: [] };
 }
 
@@ -66,7 +67,7 @@ describe('the partition a store writes', () => {
     const hex = identityDigest(MAC).slice('v1:'.length);
     expect(await tree(root)).toEqual([
       'button-chromium.json',
-      'button-chromium.png',
+      'button-chromium.webp',
       `v1-${hex}/by-document/v1-0123456789abcdef0123456789abcdef.json`,
       `v1-${hex}/by-document/v1-0123456789abcdef0123456789abcdef.png`,
     ]);
@@ -75,12 +76,12 @@ describe('the partition a store writes', () => {
 
 describe('a partition named with the raw digest', () => {
   it('still compares, in both lookup tiers', async () => {
-    await oldPair(root, 'button', rasterOf(MAC, 'v1:doc', 'QUJD'));
+    await oldPair(root, 'button', rasterOf(MAC, 'v1:doc', RED));
     const store = createDurableStore(root);
 
     const found = await store.find({ subject: 'button' }, MAC);
     expect(found?.comparable).toBe(true);
-    expect(found?.raster.bytes).toBe('QUJD');
+    expect(found?.raster.bytes).toBe(RED);
     expect(found?.relocated).toEqual({ from: `${identityDigest(MAC)}/button`, to: 'button-chromium' });
     expect((await store.describe({ subject: 'button' }, MAC))?.comparable).toBe(true);
   });
@@ -96,13 +97,13 @@ describe('a partition named with the raw digest', () => {
   });
 
   it('is read ahead of another machine`s partition, so a comparable baseline wins', async () => {
-    await oldPair(root, 'button', rasterOf(MAC, 'v1:doc', 'TUFD'));
-    await oldPair(root, 'button', rasterOf(RUNNER, 'v1:doc', 'UlVO'), 'written');
+    await oldPair(root, 'button', rasterOf(MAC, 'v1:doc', BLUE));
+    await oldPair(root, 'button', rasterOf(RUNNER, 'v1:doc', GREEN), 'written');
     const store = createDurableStore(root);
 
     const found = await store.find({ subject: 'button' }, MAC);
     expect(found?.comparable).toBe(true);
-    expect(found?.raster.bytes).toBe('TUFD');
+    expect(found?.raster.bytes).toBe(BLUE);
   });
 
   it('is found under the id`s own directories, and a component directory is never mistaken for one', async () => {
@@ -116,13 +117,13 @@ describe('a partition named with the raw digest', () => {
   });
 
   it('is moved by the next `put`, leaving one copy at the template path', async () => {
-    await oldPair(root, 'button', rasterOf(MAC, 'v1:doc', 'QUJD'));
+    await oldPair(root, 'button', rasterOf(MAC, 'v1:doc', RED));
     const store = createDurableStore(root);
 
-    await store.put({ subject: 'button' }, rasterOf(MAC, 'v1:doc', 'REVG'));
+    await store.put({ subject: 'button' }, rasterOf(MAC, 'v1:doc', GREEN));
 
-    expect(await tree(root)).toEqual(['button-chromium.json', 'button-chromium.png']);
-    expect((await store.find({ subject: 'button' }, MAC))?.raster.bytes).toBe('REVG');
+    expect(await tree(root)).toEqual(['button-chromium.json', 'button-chromium.webp']);
+    expect((await store.find({ subject: 'button' }, MAC))?.raster.bytes).toBe(await kept(GREEN));
   });
 
   it('keeps the subjects a `put` did not name', async () => {
@@ -130,7 +131,7 @@ describe('a partition named with the raw digest', () => {
     await oldPair(root, 'card', rasterOf(MAC));
     const store = createDurableStore(root);
 
-    await store.put({ subject: 'button' }, rasterOf(MAC, 'v1:doc', 'REVG'));
+    await store.put({ subject: 'button' }, rasterOf(MAC, 'v1:doc', GREEN));
 
     expect(await readdir(join(root, identityDigest(MAC)))).toEqual(['card.json', 'card.png']);
     expect((await store.find({ subject: 'card' }, MAC))?.comparable).toBe(true);

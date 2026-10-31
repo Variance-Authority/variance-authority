@@ -7,6 +7,7 @@ import type { Raster, RenderIdentity } from '@variance-authority/core/format';
 import { RasterStoreError } from '@variance-authority/raster';
 import { createDurableStore } from './durable.js';
 import { fetchingReader } from './lfs-fetch.js';
+import { kept, RED } from './image.fixture.js';
 import { createLfsStore, runCommand, type CommandResult, type CommandRunner } from './lfs.js';
 
 /**
@@ -28,8 +29,8 @@ const MAC: RenderIdentity = {
   fonts: ['Inter/400/normal/abc'],
 };
 
-/** A PNG signature and a byte, which is all a store ever looks at. */
-const IMAGE = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x01]).toString('base64');
+/** A capture, which a store keeps as a WebP. */
+const IMAGE = RED;
 
 const POINTER =
   'version https://git-lfs.github.com/spec/v1\n' +
@@ -110,7 +111,7 @@ async function pointersFor(subjects: readonly string[]): Promise<void> {
   const writer = await createLfsStore({ root, verify: false });
   for (const subject of subjects) {
     await writer.put({ subject }, rasterOf());
-    await writeFile(join(root, `${subject}-chromium.png`), POINTER, 'utf8');
+    await writeFile(join(root, `${subject}-chromium.webp`), POINTER, 'utf8');
   }
 }
 
@@ -132,8 +133,8 @@ describe('a clone that skipped the smudge', () => {
     const found = await store.find({ subject: 'todo--empty' }, MAC);
 
     expect(found?.raster.bytes).toBe(IMAGE);
-    expect(pulls).toEqual([['/todo--empty-chromium.png']]);
-    expect(await readFile(join(root, 'todo--full-chromium.png'), 'utf8')).toBe(POINTER);
+    expect(pulls).toEqual([['/todo--empty-chromium.webp']]);
+    expect(await readFile(join(root, 'todo--full-chromium.webp'), 'utf8')).toBe(POINTER);
   });
 
   it('settles from the sidecar without fetching anything', async () => {
@@ -172,8 +173,8 @@ describe('a clone that skipped the smudge', () => {
     for (const found of await Promise.all([first, ...rest])) expect(found?.raster.bytes).toBe(IMAGE);
     // Within a batch, the order is whichever read finished first.
     expect(pulls.map((pull) => [...pull].sort())).toEqual([
-      ['/a-chromium.png'],
-      ['/b-chromium.png', '/c-chromium.png'],
+      ['/a-chromium.webp'],
+      ['/b-chromium.webp', '/c-chromium.webp'],
     ]);
   });
 
@@ -198,7 +199,7 @@ describe('a clone that skipped the smudge', () => {
     const includes = calls.filter((call) => call.startsWith('git lfs pull')).slice(1);
     expect(includes.length).toBeGreaterThan(1);
     for (const call of includes) expect(call.length).toBeLessThan(8100);
-    expect(pulls.slice(1).flat().sort()).toEqual(names.map((name) => `/${name}-chromium.png`));
+    expect(pulls.slice(1).flat().sort()).toEqual(names.map((name) => `/${name}-chromium.webp`));
   });
 
   it('refuses, naming the pull, when git-lfs could not fetch the image', async () => {
@@ -267,7 +268,7 @@ describe('a clone that skipped the smudge', () => {
     const { git: tracked } = skippedSmudge();
     const removing: CommandRunner = async (command, args, options) => {
       if (args[0] !== 'lfs' || args[1] !== 'pull') return tracked(command, args, options);
-      await rm(join(root, 'todo--empty-chromium.png'));
+      await rm(join(root, 'todo--empty-chromium.webp'));
       return OK;
     };
     const store = await createLfsStore({ root, git: removing });
@@ -275,7 +276,7 @@ describe('a clone that skipped the smudge', () => {
     const lookup = store.find({ subject: 'todo--empty' }, MAC);
 
     await expect(lookup).rejects.toBeInstanceOf(RasterStoreError);
-    await expect(lookup).rejects.toThrow(/todo--empty-chromium\.png is a git-LFS pointer, and fetching the image failed.*ENOENT/s);
+    await expect(lookup).rejects.toThrow(/todo--empty-chromium\.webp is a git-LFS pointer, and fetching the image failed.*ENOENT/s);
   });
 
   it('fetches nothing when it was told not to consult git', async () => {
@@ -321,7 +322,7 @@ describe('against a real git with git-lfs', () => {
       git(work, 'push', '--quiet', 'origin', 'HEAD');
 
       // The committed image is a pointer in the object database.
-      const tracked = 'app/[slug]/a!b/page--empty-chromium.png';
+      const tracked = 'app/[slug]/a!b/page--empty-chromium.webp';
       expect(git(work, 'show', `HEAD:${tracked}`)).toMatch(/^version https:\/\/git-lfs/);
 
       git(root, 'clone', '--quiet', origin, clone, { GIT_LFS_SKIP_SMUDGE: '1' });
@@ -332,9 +333,9 @@ describe('against a real git with git-lfs', () => {
       expect(reader.tracking.diagnostics).toEqual([]);
       const found = await reader.find({ subject: 'page--empty' }, MAC);
 
-      expect(found?.raster.bytes).toBe(IMAGE);
+      expect(found?.raster.bytes).toBe(await kept(IMAGE));
       expect(
-        await readFile(join(clone, 'app/[slug]/a!b/page--full-chromium.png'), 'utf8'),
+        await readFile(join(clone, 'app/[slug]/a!b/page--full-chromium.webp'), 'utf8'),
       ).toMatch(/^version https:\/\/git-lfs/);
       expect(git(clone, 'status', '--porcelain')).toBe('');
     },

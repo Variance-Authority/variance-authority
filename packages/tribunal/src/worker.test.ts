@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { keepImage } from '@variance-authority/png';
 import { PNG } from 'pngjs';
 import { beforeEach, describe, expect, it } from 'vitest';
 import {
@@ -356,6 +357,18 @@ describe('two tokens, and what each one may do', () => {
     expect(
       (await call('/review/builds/ci-1/subjects/story:a/after.png', { token: INGEST })).status,
     ).toBe(403);
+  });
+
+  it('names the format each image declares, so a kept WebP is not served as a PNG', async () => {
+    const after = build.images['story:a']!.after!;
+    const kept = (await keepImage(Buffer.from(BYTES, 'base64'))).toString('base64');
+    await call('/review/builds', {
+      token: INGEST,
+      body: { ...build, images: { 'story:a': { after, before: { ...after, bytes: kept } } } },
+    });
+
+    const before = await call('/review/builds/ci-1/subjects/story:a/before.png', { token: REVIEW });
+    expect(before.headers.get('content-type')).toBe('image/webp');
   });
 
   it('reports a decision it cannot carry out as the caller’s problem, not the platform’s', async () => {

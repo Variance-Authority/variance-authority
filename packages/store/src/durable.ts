@@ -12,6 +12,7 @@ import {
   type RenderIdentity,
 } from '@variance-authority/core/format';
 import { codeUnitOrder } from '@variance-authority/core/segment';
+import { keepImage } from '@variance-authority/png';
 import {
   REFUSAL,
   RasterStoreError,
@@ -28,7 +29,7 @@ import { anyWidthOf, held } from './held.js';
 import { legacyHolders, partitionsOf } from './legacy.js';
 import { refuseAPointerRecord } from './lfs-pointer.js';
 import { familyOf, identities, nearness } from './line.js';
-import { readRaster, readSidecar, retire, type ImageReader, type Places, type Read } from './pair.js';
+import { KEPT_AS, imageOf, readRaster, readSidecar, retire, type ImageReader, type Places, type Read } from './pair.js';
 import { DEFAULT_BASELINE_PATH, parseBaselinePath, sanitized } from './path-template.js';
 
 /**
@@ -36,7 +37,7 @@ import { DEFAULT_BASELINE_PATH, parseBaselinePath, sanitized } from './path-temp
  * store exists, with the same sentence the store would throw.
  */
 export { DEFAULT_BASELINE_PATH, parseBaselinePath, type BaselinePathTemplate } from './path-template.js';
-export type { ImageReader } from './pair.js';
+export { isKeptImage, KEPT, type ImageReader, type KeptAs } from './pair.js';
 
 /**
  * Re-exported because `{engine}` is spelled with it: a reader that matches a
@@ -316,18 +317,29 @@ export function createDurableStore(root: string, options: DurableStoreOptions = 
       // keeps the path.
       const before = await readSidecar(places).catch(async () => ({ placedFor: placedForIn(await rawRecord(places)) }));
       occupied(before?.placedFor, key, path);
+      // Encoded here, on the accept, and nowhere a comparison runs: a run that
+      // changes nothing never calls this. Before the first write too, so an
+      // image no WebP can hold is refused with the tree as it was.
+      const kept = raster.bytes === undefined ? undefined : await keepImage(Buffer.from(raster.bytes, 'base64'));
       await mkdir(dirname(places.record), { recursive: true });
-      const record = `${JSON.stringify({ ...raster, bytes: undefined, placedFor: placedForOf(key) }, null, 2)}\n`;
+      const record = `${JSON.stringify(
+        { ...raster, bytes: undefined, ...(kept === undefined ? {} : { image: KEPT_AS }), placedFor: placedForOf(key) },
+        null,
+        2,
+      )}\n`;
       // A path nobody held is taken by creating its record, so of two workers
       // that both read nothing there, the second is refused by name rather than
       // overwriting the first.
       if (before === null) await create(`${places.record}.json`, record, key, path);
       // No image for a subject that has none: the sidecar alone is the whole
       // baseline, and an image left from an earlier accept would contradict it.
-      if (raster.bytes === undefined) await rm(`${places.image}.png`, { force: true });
-      else {
+      // And one image: a PNG an earlier accept kept goes when the WebP comes.
+      if (kept !== undefined) {
         await mkdir(dirname(places.image), { recursive: true });
-        await writeFile(`${places.image}.png`, Buffer.from(raster.bytes, 'base64'));
+        await writeFile(imageOf(places, KEPT_AS), kept);
+      }
+      for (const as of ['png', 'webp'] as const) {
+        if (kept === undefined || as !== KEPT_AS) await rm(imageOf(places, as), { force: true });
       }
       await writeFile(`${places.record}.json`, record, 'utf8');
       // Written first, then the old copy removed, so a write that dies between

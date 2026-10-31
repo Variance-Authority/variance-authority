@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { PNG } from 'pngjs';
-import { compareRasters, comparePngs, pngjsDecoder } from '@variance-authority/png';
+import { compareRasters, comparePngs, keepImage, pngjsDecoder } from '@variance-authority/png';
 import type { Raster, RenderIdentity } from '@variance-authority/core/format';
 import { sharpDecoder } from './index.js';
 
@@ -70,6 +70,22 @@ describe('sharp and pngjs decode identically', () => {
     expect(fast.width).toBe(portable.width);
     expect(fast.height).toBe(portable.height);
     expect(Buffer.from(fast.data).equals(Buffer.from(portable.data))).toBe(true);
+  });
+
+  it.each(CASES)('%s, kept as a WebP', async (_name, bytes) => {
+    // A kept baseline is a lossless WebP with `exact` on. libvips reads it with
+    // its own libwebp, so the colour under a transparent pixel is the case where
+    // the two could part.
+    const kept = await keepImage(bytes);
+    const [fast, portable, capture] = await Promise.all([
+      sharpDecoder.decode(kept),
+      pngjsDecoder.decode(kept),
+      pngjsDecoder.decode(bytes),
+    ]);
+
+    expect({ width: fast.width, height: fast.height }).toEqual({ width: capture.width, height: capture.height });
+    expect(Buffer.from(fast.data).equals(Buffer.from(portable.data))).toBe(true);
+    expect(Buffer.from(fast.data).equals(Buffer.from(capture.data))).toBe(true);
   });
 
   it('reaches the same comparison, including the mask', async () => {

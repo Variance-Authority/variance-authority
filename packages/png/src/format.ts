@@ -2,37 +2,9 @@ import { readFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import { PNG } from 'pngjs';
 import type { DecodedImage } from './mask.js';
-import { pngSize } from './size.js';
+import { imageFormat, imageSize } from './header.js';
 
-/**
- * The two formats an image arrives in, read from its own first bytes.
- *
- * A capture is a PNG, because that is what a browser hands over and what the
- * comparison reads fastest. A kept baseline is a lossless WebP, encoded once
- * when a difference was accepted (see `@variance-authority/png-sharp`), and a
- * baseline kept before that is a PNG. Both reach a comparison as bytes, and the
- * header is the format's own declaration of what they are, so nothing beside
- * the bytes has to travel with them through a wire or a bucket.
- */
-export type ImageFormat = 'png' | 'webp';
-
-/** The format the bytes declare, or `null` when they declare neither. */
-export function imageFormat(bytes: Uint8Array): ImageFormat | null {
-  if (bytes.length >= 8 && PNG_SIGNATURE.every((byte, index) => bytes[index] === byte)) return 'png';
-  if (
-    bytes.length >= 12 &&
-    RIFF.every((byte, index) => bytes[index] === byte) &&
-    WEBP.every((byte, index) => bytes[8 + index] === byte)
-  ) {
-    return 'webp';
-  }
-  return null;
-}
-
-const PNG_SIGNATURE = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a] as const;
-/** `RIFF`, a four-byte length, then `WEBP`. */
-const RIFF = [0x52, 0x49, 0x46, 0x46] as const;
-const WEBP = [0x57, 0x45, 0x42, 0x50] as const;
+export { imageFormat, type ImageFormat } from './header.js';
 
 /**
  * Decode either format without a native addon: PNG through `pngjs`, WebP
@@ -88,7 +60,7 @@ export async function keepImage(bytes: Buffer): Promise<Buffer> {
   if (format === 'webp') return bytes;
   if (format !== 'png') throw notAnImage(bytes);
 
-  const size = pngSize(bytes);
+  const size = imageSize(bytes);
   if (size !== null && (size.width > KEEP_LIMIT || size.height > KEEP_LIMIT)) {
     throw new Error(
       `a ${size.width}x${size.height} image cannot be kept: a WebP holds at most ` +

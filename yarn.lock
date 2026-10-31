@@ -5570,9 +5570,11 @@ __metadata:
   resolution: "@variance-authority/store@workspace:packages/store"
   dependencies:
     "@variance-authority/core": "workspace:^"
+    "@variance-authority/png": "workspace:^"
     "@variance-authority/raster": "workspace:^"
     "@variance-authority/report": "workspace:^"
     "@variance-authority/sense": "workspace:^"
+    pngjs: "npm:^7.0.0"
   languageName: unknown
   linkType: soft
 
@@ -5669,6 +5671,7 @@ __metadata:
     "@variance-authority/dom": "workspace:^"
     "@variance-authority/observe": "workspace:^"
     "@variance-authority/playwright": "workspace:^"
+    "@variance-authority/png": "workspace:^"
     "@variance-authority/raster": "workspace:^"
     "@variance-authority/react": "workspace:^"
     "@variance-authority/sense": "workspace:^"

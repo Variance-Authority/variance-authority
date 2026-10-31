@@ -2,7 +2,7 @@
 
 # @variance-authority/png
 
-> Decode, compare and diff PNGs without a browser: two buffers in, a mask out.
+> Decode, compare and diff PNG captures and lossless WebP baselines without a browser: two buffers in, a mask out.
 
 Part of [Variance Authority](https://variance-authority.dev).
 Point your coding agent at [`llms.txt`](https://variance-authority.dev/llms.txt).
@@ -35,8 +35,11 @@ a codec.
 Node 22 or newer. ESM only — these packages are `"type": "module"` and ship no
 CommonJS build.
 
-`pngjs` decodes and `pixelmatch` compares. Both are ordinary dependencies, so
-there is nothing to choose and nothing native to build. The decoder accepts:
+`pngjs` decodes PNG, `pixelmatch` compares, and `@jsquash/webp` reads and
+writes lossless WebP through libwebp compiled to WebAssembly. All three are
+ordinary dependencies, so there is nothing to choose and nothing native to
+build. The WebP decoder is a 135 KB module compiled on the first WebP a process
+reads, so a run that reads only PNGs never loads it. The PNG decoder accepts:
 
 - every standard PNG colour type — greyscale, truecolour and palette, each with
   or without alpha
@@ -47,7 +50,13 @@ Everything decodes to 8-bit RGBA, row-major, which is the one shape every
 function here takes and returns. Alpha is a fourth channel like any other: two
 images identical in RGB but differing in alpha are compared as changed.
 
-Bytes that are not a valid PNG make `pngjs` throw a plain `Error` —
+Every function that takes encoded bytes reads the format from the bytes' own
+header, so a kept baseline that is a WebP and a capture that is a PNG compare
+the same way. Bytes whose header declares neither are refused by name, before
+any decoder sees them.
+
+Bytes that start as a PNG but are not a valid one make `pngjs` throw a plain
+`Error` —
 `unrecognised content at end of stream` for trailing garbage,
 `There are some read requests waitng on finished stream` for a truncated file
 (the typo is upstream). Nothing here catches it, so wrap the call if a corrupt
@@ -237,7 +246,9 @@ the bytes arrive cannot change a verdict.
 | `compareRasters` | `(before: Raster, after: Raster, options?: CompareOptions & { decoder?: PngDecoder }) => Promise<RasterComparison>` |
 | `diffImage` | `(before: Buffer, after: Buffer, policy?: DiffPolicy) => Buffer` |
 | `changeImages` | `(before: Buffer, after: Buffer, regions: readonly DiffRegion[], policy?: DiffPolicy, labels?: ChangeLabels) => { diff: Buffer; change?: Buffer }` |
-| `pngSize` | `(bytes: Uint8Array) => { width, height } \| null` |
+| `keepImage` | `(bytes: Buffer) => Promise<Buffer>` |
+| `imageFormat` | `(bytes: Uint8Array) => 'png' \| 'webp' \| null` |
+| `imageSize` | `(bytes: Uint8Array) => { width, height } \| null` |
 | `decode` | `(base64: string) => Buffer` |
 
 `comparePixels` takes RGBA somebody else already decoded and does no decoding of
@@ -260,7 +271,8 @@ identity, defined in `@variance-authority/core/format` — rather than loose
 buffers, and decodes both concurrently through a swappable `PngDecoder`. That
 seam is why it is the async one: decoding is about 90% of a comparison, and a
 threadpool decoder makes a pair of images cost roughly what one costs. The
-default decoder is `pngjs`, so this package still requires nothing native.
+default decoder is `pngjs` for a PNG and WebAssembly libwebp for a WebP, so
+this package still requires nothing native.
 
 `diffImage` returns an encoded PNG — the after image dimmed with changed pixels
 in red — for the person who does want to look. It is derived from the same bytes
@@ -296,9 +308,23 @@ each source beside its label. The text is Inter, drawn from glyphs shipped in
 `glyphs/` with no browser and no font on the machine; Inter is under the SIL
 Open Font License 1.1, in `glyphs/inter-LICENSE.txt`.
 
-`pngSize` reads the width and height out of the IHDR without decoding, and
-returns `null` for bytes that are not a PNG or are too short for a header.
-That is the cheap way to check whether two captures are even the same shape.
+`keepImage` turns an accepted capture into the bytes a baseline store keeps: a
+lossless WebP that decodes to every channel of every pixel the capture held,
+including the colour under a fully transparent pixel. Before it returns, it
+decodes its own output and compares it with the capture, and it throws rather
+than keep anything else. A WebP passes through untouched. A WebP holds at most
+16,383 pixels on a side (`KEEP_LIMIT`), so a larger capture is refused, read
+from its header before any pixel is decoded. It runs once per accepted change,
+never on a comparison: on a full-page capture it halves the PNG in about the
+time `pngjs` takes to decode it.
+
+`imageFormat` reads which of the two formats the bytes declare. `imageSize`
+reads the width and height out of a PNG's or a lossless WebP's header without
+decoding, and returns `null` for bytes in neither format or too short for a
+header. That is the cheap way to check whether two images are even the same
+shape. Both are also exported from `@variance-authority/png/header`, which
+imports no codec: a server that labels stored images by their format takes it
+without loading `pngjs` or WebAssembly.
 
 ## PNG bytes this project did not paint
 

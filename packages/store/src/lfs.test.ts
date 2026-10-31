@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { Raster, RenderIdentity } from '@variance-authority/core/format';
 import { RasterStoreError } from '@variance-authority/raster';
 import { createLfsStore, type CommandResult, type CommandRunner } from './lfs.js';
+import { RED, kept } from './image.fixture.js';
 
 /**
  * Baselines in the repository, and the three things that can quietly go wrong.
@@ -30,9 +31,9 @@ const MAC: RenderIdentity = {
 /** Same browser, different machine. The case the identity check exists for. */
 const RUNNER: RenderIdentity = { ...MAC, platform: 'linux/x64' };
 
-const ENTRY = '*-*.png filter=lfs diff=lfs merge=lfs -text';
+const ENTRY = '*-*.webp filter=lfs diff=lfs merge=lfs -text';
 
-function rasterOf(identity: RenderIdentity, bytes = 'QUJD'): Raster {
+function rasterOf(identity: RenderIdentity, bytes = RED): Raster {
   return { documentDigest: 'v1:doc', identity, width: 10, height: 10, bytes, missingFonts: [] };
 }
 
@@ -49,7 +50,7 @@ function gitReporting(filter: string, lfsInstalled = true, setUp = lfsInstalled)
         ? { code: 0, stdout: '', stderr: '' }
         : { code: 1, stdout: '', stderr: "git: 'lfs' is not a git command. See 'git --help'.\n" };
     }
-    return { code: 0, stdout: `probe.png: filter: ${filter}\n`, stderr: '' };
+    return { code: 0, stdout: `probe.webp: filter: ${filter}\n`, stderr: '' };
   };
 }
 
@@ -75,14 +76,14 @@ describe('a baseline store in the repository', () => {
     // Reading it back through git would be a second way to obtain the same bytes,
     // and therefore a way for the two to disagree.
     const store = await createLfsStore({ root, git: TRACKED });
-    await store.put({ subject: 'todo--empty' }, rasterOf(MAC, 'QUJD'));
+    await store.put({ subject: 'todo--empty' }, rasterOf(MAC, RED));
 
     const found = await store.find({ subject: 'todo--empty' }, MAC);
 
     expect(found?.comparable).toBe(true);
-    expect(found?.raster.bytes).toBe('QUJD');
+    expect(found?.raster.bytes).toBe(await kept(RED));
     // At the durable layout's path, not somewhere of this store's own devising.
-    const path = join(root, 'todo--empty-chromium.png');
+    const path = join(root, 'todo--empty-chromium.webp');
     expect((await stat(path)).isFile()).toBe(true);
   });
 
@@ -107,7 +108,7 @@ describe('a baseline store in the repository', () => {
     await store.renderCache.get('v1:doc', MAC);
 
     expect(calls).toEqual([
-      'git check-attr filter -- probe-probe.png',
+      'git check-attr filter -- probe-probe.webp',
       'git lfs version',
       'git config --get filter.lfs.clean',
     ]);
@@ -150,13 +151,25 @@ describe('a baseline store in the repository', () => {
     // `.gitattributes` is a file people write by hand and other tools read.
     // Rewriting someone's entry into this package's preferred form would change
     // how git treats paths this package knows nothing about.
-    await writeFile(join(root, '.gitattributes'), '*-*.png text\n', 'utf8');
+    await writeFile(join(root, '.gitattributes'), '*-*.webp text\n', 'utf8');
 
     const store = await createLfsStore({ root, git: TRACKED });
 
-    expect(await readFile(join(root, '.gitattributes'), 'utf8')).toBe('*-*.png text\n');
+    expect(await readFile(join(root, '.gitattributes'), 'utf8')).toBe('*-*.webp text\n');
     expect(store.tracking.added).toBe(false);
     expect(store.tracking.diagnostics.join('\n')).toMatch(/does not route it through LFS/);
+  });
+
+  it('keeps the entry that tracks the PNG baselines kept before, and tracks the WebP beside it', async () => {
+    // A baseline kept as a PNG stays one until its next accept, so the entry
+    // that routes it through LFS stays too.
+    const legacy = '*-*.png filter=lfs diff=lfs merge=lfs -text\n';
+    await writeFile(join(root, '.gitattributes'), legacy, 'utf8');
+
+    const store = await createLfsStore({ root, git: TRACKED });
+
+    expect(await readFile(join(root, '.gitattributes'), 'utf8')).toBe(`${legacy}${ENTRY}\n`);
+    expect(store.tracking.added).toBe(true);
   });
 
   it('tracks the images a collocated template renders and no other image in the tree', async () => {
@@ -164,7 +177,7 @@ describe('a baseline store in the repository', () => {
     // anyone committed. An entry for `*.png` would move all of them into LFS.
     const store = await createLfsStore({ root, git: TRACKED, path: '{dir}/__baselines__/{file}/{name}-{engine}' });
 
-    expect(store.tracking.pattern).toBe('**/__baselines__/*/*-*.png');
+    expect(store.tracking.pattern).toBe('**/__baselines__/*/*-*.webp');
   });
 
   it('appends without disturbing entries that were already there', async () => {
@@ -197,9 +210,9 @@ describe('a machine that cannot be asked about tracking', () => {
     const absent: CommandRunner = () => Promise.reject(new Error('spawn git ENOENT'));
 
     const store = await createLfsStore({ root, git: absent });
-    await store.put({ subject: 's' }, rasterOf(MAC, 'QQ=='));
+    await store.put({ subject: 's' }, rasterOf(MAC, RED));
 
-    expect((await store.find({ subject: 's' }, MAC))?.raster.bytes).toBe('QQ==');
+    expect((await store.find({ subject: 's' }, MAC))?.raster.bytes).toBe(await kept(RED));
     expect(store.tracking.filter).toBeNull();
     expect(store.tracking.diagnostics.join('\n')).toMatch(/git could not be run/);
   });
@@ -265,7 +278,7 @@ describe('a clone without git-lfs', () => {
     const pointer =
       'version https://git-lfs.github.com/spec/v1\n' +
       'oid sha256:4d7a2145b0d3f1e2c4a5b6c7d8e9f0a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7\nsize 1024\n';
-    await writeFile(join(root, 'todo--empty-chromium.png'), pointer, 'utf8');
+    await writeFile(join(root, 'todo--empty-chromium.webp'), pointer, 'utf8');
 
     // The class as much as the message: `run` routes a `RasterStoreError` to the
     // operator exit and reads any other throw as a fact about the subject it was
@@ -289,7 +302,7 @@ describe('a clone without git-lfs', () => {
     const store = await createLfsStore({ root, git: WITHOUT_LFS });
     await store.put({ subject: 'todo--empty' }, rasterOf(MAC));
     await writeFile(
-      join(root, 'todo--empty-chromium.png'),
+      join(root, 'todo--empty-chromium.webp'),
       'version https://git-lfs.github.com/spec/v1\noid sha256:4d7a\nsize 1024\n',
       'utf8',
     );
@@ -312,9 +325,9 @@ describe('a clone without git-lfs', () => {
     // "switching implementations changes no verdict" false for reasons unrelated
     // to storage.
     const store = await createLfsStore({ root, git: WITHOUT_LFS });
-    await store.put({ subject: 's' }, rasterOf(MAC, 'AAAA'));
+    await store.put({ subject: 's' }, rasterOf(MAC, RED));
 
-    expect((await store.find({ subject: 's' }, MAC))?.raster.bytes).toBe('AAAA');
+    expect((await store.find({ subject: 's' }, MAC))?.raster.bytes).toBe(await kept(RED));
   });
 });
 
@@ -343,9 +356,9 @@ describe('against a real git', () => {
       const store = await createLfsStore({ root, git: TRACKED, recordRoot: records });
       await store.put({ subject: 'todo--empty' }, rasterOf(MAC));
 
-      expect((await readdir(root)).sort()).toEqual(['.gitattributes', 'todo--empty-chromium.png']);
+      expect((await readdir(root)).sort()).toEqual(['.gitattributes', 'todo--empty-chromium.webp']);
       expect(await readdir(records)).toEqual(['todo--empty-chromium.json']);
-      expect((await store.find({ subject: 'todo--empty' }, MAC))?.raster.bytes).toBe('QUJD');
+      expect((await store.find({ subject: 'todo--empty' }, MAC))?.raster.bytes).toBe(await kept(RED));
     } finally {
       await rm(records, { recursive: true, force: true });
     }

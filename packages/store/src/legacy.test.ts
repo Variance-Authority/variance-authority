@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { digestFileName, fileNameFor, identityDigest, type Raster, type RenderIdentity } from '@variance-authority/core/format';
 import type { BaselineKey } from '@variance-authority/raster';
 import { createDurableStore } from './durable.js';
+import { RED } from './image.fixture.js';
 
 /**
  * A repository that kept its baselines under the identity partition upgrades
@@ -24,7 +25,7 @@ const MAC: RenderIdentity = {
 };
 
 function rasterOf(identity: RenderIdentity, digest = 'v1:doc'): Raster {
-  return { documentDigest: digest, identity, width: 10, height: 10, bytes: 'AAAA', missingFonts: [] };
+  return { documentDigest: digest, identity, width: 10, height: 10, bytes: RED, missingFonts: [] };
 }
 
 const PRIMARY: BaselineKey = {

@@ -16,6 +16,7 @@ import {
 } from '@variance-authority/core/format';
 import { RasterStoreError } from '@variance-authority/raster';
 import { createDurableStore } from './durable.js';
+import { BLUE, GREEN, RED, kept } from './image.fixture.js';
 
 /** What git-lfs leaves in the working tree when it did not smudge a file. */
 const LFS_POINTER =
@@ -45,7 +46,7 @@ const MAC: RenderIdentity = {
 /** Same browser, different machine. The case the durable mode exists for. */
 const RUNNER: RenderIdentity = { ...MAC, platform: 'linux/x64' };
 
-function rasterOf(identity: RenderIdentity, digest = 'v1:doc', bytes = 'AAAA'): Raster {
+function rasterOf(identity: RenderIdentity, digest = 'v1:doc', bytes = RED): Raster {
   return { documentDigest: digest, identity, width: 10, height: 10, bytes, missingFonts: [] };
 }
 
@@ -93,12 +94,12 @@ const asRoot = process.getuid?.() === 0;
 describe('the durable mode', () => {
   it('round-trips a baseline for the machine that wrote it', async () => {
     const store = createDurableStore(root);
-    await store.put({ subject: 'todo--empty' }, rasterOf(MAC, 'v1:doc', 'QUJD'));
+    await store.put({ subject: 'todo--empty' }, rasterOf(MAC, 'v1:doc', RED));
 
     const found = await store.find({ subject: 'todo--empty' }, MAC);
 
     expect(found?.comparable).toBe(true);
-    expect(found?.raster.bytes).toBe('QUJD');
+    expect(found?.raster.bytes).toBe(await kept(RED));
   });
 
   it('round-trips a subject id longer than a filename', async () => {
@@ -107,11 +108,11 @@ describe('the durable mode', () => {
     // longest-named subjects the ones nobody can baseline.
     const store = createDurableStore(root);
     const stem = `mui-material/src/Tabs/Tabs.test/${'keyboard-navigation-'.repeat(12)}`;
-    await store.put({ subject: `${stem}/first` }, rasterOf(MAC, 'v1:doc', 'QUJD'));
-    await store.put({ subject: `${stem}/second` }, rasterOf(MAC, 'v1:doc', 'REVG'));
+    await store.put({ subject: `${stem}/first` }, rasterOf(MAC, 'v1:doc', RED));
+    await store.put({ subject: `${stem}/second` }, rasterOf(MAC, 'v1:doc', GREEN));
 
-    expect((await store.find({ subject: `${stem}/first` }, MAC))?.raster.bytes).toBe('QUJD');
-    expect((await store.find({ subject: `${stem}/second` }, MAC))?.raster.bytes).toBe('REVG');
+    expect((await store.find({ subject: `${stem}/first` }, MAC))?.raster.bytes).toBe(await kept(RED));
+    expect((await store.find({ subject: `${stem}/second` }, MAC))?.raster.bytes).toBe(await kept(GREEN));
   });
 
   it('round-trips browser accessibility evidence in both lookup tiers', async () => {
@@ -175,13 +176,13 @@ describe('the durable mode', () => {
     // one beside it. The record says who painted what is there now.
     const store = createDurableStore(root);
     const upgraded = { ...MAC, engine: 'chromium@132.0.0' };
-    await store.put({ subject: 's' }, rasterOf(MAC, 'v1:old', 'T0xE'));
-    await store.put({ subject: 's' }, rasterOf(RUNNER, 'v1:ci', 'UlVO'));
-    await store.put({ subject: 's' }, rasterOf(upgraded, 'v1:new', 'TkVX'));
+    await store.put({ subject: 's' }, rasterOf(MAC, 'v1:old', RED));
+    await store.put({ subject: 's' }, rasterOf(RUNNER, 'v1:ci', GREEN));
+    await store.put({ subject: 's' }, rasterOf(upgraded, 'v1:new', BLUE));
 
-    expect(await readdir(root)).toEqual(['s-chromium.json', 's-chromium.png']);
+    expect(await readdir(root)).toEqual(['s-chromium.json', 's-chromium.webp']);
     const found = await store.find({ subject: 's' }, RUNNER);
-    expect(found?.raster.bytes).toBe('TkVX');
+    expect(found?.raster.bytes).toBe(await kept(BLUE));
     expect(found?.comparable).toBe(false);
     expect(found?.storedUnder.engine).toBe('chromium@132.0.0');
   });
@@ -189,21 +190,21 @@ describe('the durable mode', () => {
   it('keeps another engine family`s baseline in a file of its own', async () => {
     const store = createDurableStore(root);
     const firefox: RenderIdentity = { ...MAC, renderer: 'playwright-firefox', engine: 'firefox@133.0' };
-    await store.put({ subject: 's' }, rasterOf(MAC, 'v1:a', 'QQ=='));
-    await store.put({ subject: 's' }, rasterOf(firefox, 'v1:b', 'Qg=='));
+    await store.put({ subject: 's' }, rasterOf(MAC, 'v1:a', RED));
+    await store.put({ subject: 's' }, rasterOf(firefox, 'v1:b', GREEN));
 
-    expect(await readdir(root)).toEqual(['s-chromium.json', 's-chromium.png', 's-firefox.json', 's-firefox.png']);
-    expect((await store.find({ subject: 's' }, MAC))?.raster.bytes).toBe('QQ==');
-    expect((await store.find({ subject: 's' }, firefox))?.raster.bytes).toBe('Qg==');
+    expect(await readdir(root)).toEqual(['s-chromium.json', 's-chromium.webp', 's-firefox.json', 's-firefox.webp']);
+    expect((await store.find({ subject: 's' }, MAC))?.raster.bytes).toBe(await kept(RED));
+    expect((await store.find({ subject: 's' }, firefox))?.raster.bytes).toBe(await kept(GREEN));
   });
 
   it('separates baselines by label, so one subject can hold several', async () => {
     const store = createDurableStore(root);
-    await store.put({ subject: 's', label: 'wide' }, rasterOf(MAC, 'v1:a', 'QQ=='));
-    await store.put({ subject: 's', label: 'narrow' }, rasterOf(MAC, 'v1:b', 'Qg=='));
+    await store.put({ subject: 's', label: 'wide' }, rasterOf(MAC, 'v1:a', RED));
+    await store.put({ subject: 's', label: 'narrow' }, rasterOf(MAC, 'v1:b', GREEN));
 
-    expect((await store.find({ subject: 's', label: 'wide' }, MAC))?.raster.bytes).toBe('QQ==');
-    expect((await store.find({ subject: 's', label: 'narrow' }, MAC))?.raster.bytes).toBe('Qg==');
+    expect((await store.find({ subject: 's', label: 'wide' }, MAC))?.raster.bytes).toBe(await kept(RED));
+    expect((await store.find({ subject: 's', label: 'narrow' }, MAC))?.raster.bytes).toBe(await kept(GREEN));
   });
 
   it('reports nothing for a subject nobody has ever rendered', async () => {
@@ -251,7 +252,7 @@ describe('the durable mode', () => {
  */
 describe('a baseline the store cannot read', () => {
   it('refuses an image whose sidecar is missing rather than reporting a new subject', async () => {
-    // A `.png` with no `.json` is a corrupted baseline, not a missing one. A CI
+    // An image with no `.json` is a corrupted baseline, not a missing one. A CI
     // cache restore that ran out of space leaves exactly this, and reporting it as
     // absent destroys the image that survived on the next `accept`.
     const store = createDurableStore(root);
@@ -270,7 +271,7 @@ describe('a baseline the store cannot read', () => {
     // directory rather than with the write that made it.
     const store = createDurableStore(root);
     await store.put({ subject: 'todo--empty' }, rasterOf(MAC));
-    await unlink(`${pathOf(MAC, 'todo--empty')}.png`);
+    await unlink(`${pathOf(MAC, 'todo--empty')}.webp`);
 
     await expect(store.find({ subject: 'todo--empty' }, MAC)).rejects.toThrow(/half there/);
   });
@@ -375,7 +376,7 @@ describe('a baseline lookup that does not need the image', () => {
     // the claim mean something.
     const store = createDurableStore(root);
     await store.put({ subject: 'todo--empty' }, rasterOf(MAC, 'v1:painted'));
-    await chmod(`${pathOf(MAC, 'todo--empty')}.png`, 0o000);
+    await chmod(`${pathOf(MAC, 'todo--empty')}.webp`, 0o000);
 
     const described = await store.describe({ subject: 'todo--empty' }, MAC);
 
@@ -414,7 +415,7 @@ describe('a baseline lookup that does not need the image', () => {
     // would depend on which question the caller happened to ask.
     const store = createDurableStore(root);
     await store.put({ subject: 's' }, rasterOf(MAC));
-    await unlink(`${pathOf(MAC, 's')}.png`);
+    await unlink(`${pathOf(MAC, 's')}.webp`);
 
     await expect(store.describe({ subject: 's' }, MAC)).rejects.toThrow(/half there/);
   });
@@ -445,7 +446,7 @@ describe('the render cache location', () => {
       await store.renderCache.put(rasterOf(MAC, 'v1:doc'));
 
       expect(await store.renderCache.get('v1:doc', MAC)).not.toBeNull();
-      expect(await readdir(root)).toEqual(['todo--empty-chromium.json', 'todo--empty-chromium.png']);
+      expect(await readdir(root)).toEqual(['todo--empty-chromium.json', 'todo--empty-chromium.webp']);
       expect(await readdir(join(elsewhere, partition(MAC)))).toEqual(['by-document']);
     } finally {
       await rm(elsewhere, { recursive: true, force: true });

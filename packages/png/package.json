@@ -32,6 +32,10 @@
       "types": "./dist/difference.d.ts",
       "default": "./dist/difference.js"
     },
+    "./header": {
+      "types": "./dist/header.d.ts",
+      "default": "./dist/header.js"
+    },
     "./mask": {
       "types": "./dist/mask.d.ts",
       "default": "./dist/mask.js"
