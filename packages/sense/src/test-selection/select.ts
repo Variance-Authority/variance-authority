@@ -188,5 +188,5 @@ function readDiff(
     stale,
     because,
     readings,
-  }, changed.keys());
+  }, changed.keys(), knownAs);
 }

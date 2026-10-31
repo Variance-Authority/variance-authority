@@ -91,6 +91,19 @@ describe('the composition is its stages', () => {
     expect(readings?.filter((reading) => reading.file === SOURCE)).toEqual([{ file: SOURCE, unread: 'stale' }]);
   });
 
+  it('names a stale built twin by the source the change names, and keeps the recorded name in the stale list', () => {
+    const BUILT = 'dist/two.js';
+    const twin = openTestCoverage(encodeTestCoverage({ ...record, modules: [{ ...record.modules[0]!, file: BUILT }] }));
+    const knownAs = (file: string): readonly string[] => ([SOURCE, BUILT].includes(file) ? [SOURCE, BUILT] : [file]);
+
+    const builtAt = (file: string): string | undefined => (file === BUILT ? 'export const name = "two";\n' : sourceAt(file));
+
+    const { stale, readings } = narrowByChangeFromView(twin, change, { sourceAt: builtAt, knownAs });
+
+    expect(stale).toEqual([BUILT]);
+    expect(readings?.filter((reading) => reading.file === SOURCE || reading.file === BUILT)).toEqual([{ file: SOURCE, unread: 'stale' }]);
+  });
+
   it('walks a rowless file a declaring test already ran the arrived text of, as the composition does', () => {
     const HELPER = 'src/helper.ts';
     const COMMITTED_HELPER = 'export const one = 1;\n';

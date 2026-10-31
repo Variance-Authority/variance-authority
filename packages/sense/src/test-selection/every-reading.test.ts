@@ -19,8 +19,17 @@ describe('a reading for every changed file', () => {
     ]);
   });
 
+  it('names a stale built twin by its changed source, and keeps that when a caller projects again', () => {
+    const knownAs = (file: string): readonly string[] => (file === 'src/component.ts' ? [file, 'dist/component.js'] : [file]);
+    const selected = withEveryReading({ unread: [], stale: ['dist/component.js'], readings: [] }, ['src/component.ts'], knownAs);
+    const edited = withEveryReading({ ...selected, unread: [] });
+
+    expect(selected.readings).toEqual([{ file: 'src/component.ts', unread: 'stale' }]);
+    expect(edited).toMatchObject({ stale: ['dist/component.js'], readings: [{ file: 'src/component.ts', unread: 'stale' }] });
+  });
+
   it('names a file by the first list that holds it', () => {
-    const selected = withEveryReading({ unread: [], declined: ['a.ts'], stale: ['a.ts', 'b.ts'], ignored: ['b.ts', 'c.css'] });
+    const selected = withEveryReading({ unread: [], declined: ['a.ts'], stale: ['a.ts', 'b.ts'], ignored: ['b.ts', 'c.css'] }, []);
 
     expect(selected.readings).toEqual([
       { file: 'a.ts', unread: 'declined' },

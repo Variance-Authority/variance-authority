@@ -24,14 +24,22 @@ type Listed = Pick<ExecutionNarrowing, 'unread' | 'declined' | 'stale' | 'ignore
 /**
  * The narrowing with a reading for every changed file: the readers' own, then
  * one per file no reader was asked of, by the first list that names it, and
- * `answered` for a file no list names. The readings are made from the lists, so
- * a caller that edits a list calls this again, with no `changed`, and a line
- * never contradicts the count beside it: every file it named keeps a reading.
+ * `answered` for a file no list names. The selection projects every list with
+ * the `changed` files; `stale` holds recorded names, so a built twin is read
+ * back onto the changed file `knownAs` gives it. A caller that edits `unread`
+ * after it calls this again with neither, and the other lists' readings stand:
+ * a line never contradicts the count beside it.
  */
-export function withEveryReading<N extends Listed>(narrowing: N, changed: Iterable<string> = []): N {
+export function withEveryReading<N extends Listed>(
+  narrowing: N,
+  changed?: Iterable<string>,
+  knownAs: (file: string) => readonly string[] = (file) => [file],
+): N {
   const readings = narrowing.readings ?? [];
   const read = readings.filter((one) => one.verdict !== undefined || !isUnasked(one.unread));
-  const named = readings.filter((one) => !read.includes(one)).map((one) => one.file);
+  const unasked = readings.filter(
+    (one): one is { readonly file: string; readonly unread: Unasked } => !read.includes(one),
+  );
   const said = new Set(read.map((one) => one.file));
   const more: FileReading[] = [];
   const say = (unread: Unasked) => (file: string) => {
@@ -40,10 +48,17 @@ export function withEveryReading<N extends Listed>(narrowing: N, changed: Iterab
     more.push({ file, unread });
   };
   narrowing.unread.forEach(say('nothing'));
-  (narrowing.declined ?? []).forEach(say('declined'));
-  narrowing.stale.forEach(say('stale'));
-  (narrowing.ignored ?? []).forEach(say('ignored'));
-  [...changed, ...named].sort(codeUnitOrder).forEach(say('answered'));
+  const files = [...(changed ?? [])];
+  if (changed === undefined) {
+    for (const one of unasked) if (one.unread !== 'nothing' && one.unread !== 'answered') say(one.unread)(one.file);
+  } else {
+    const owner = new Map<string, string>();
+    for (const file of files) for (const name of knownAs(file)) if (!owner.has(name)) owner.set(name, file);
+    (narrowing.declined ?? []).forEach(say('declined'));
+    [...new Set(narrowing.stale.map((name) => owner.get(name) ?? name))].sort(codeUnitOrder).forEach(say('stale'));
+    (narrowing.ignored ?? []).forEach(say('ignored'));
+  }
+  [...files, ...unasked.map((one) => one.file)].sort(codeUnitOrder).forEach(say('answered'));
   return { ...narrowing, readings: [...read, ...more] };
 }
 
