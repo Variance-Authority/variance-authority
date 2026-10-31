@@ -168,10 +168,19 @@ export default defineConfig({
 ```ts
 // reset.setup.ts
 import { configureResetHandler } from '@variance-authority/ioc/reset/setup';
-import { beforeEach } from 'vitest';
+import { aroundEach, beforeEach } from 'vitest';
 
 configureResetHandler(beforeEach);
+
+const { isolated } = await import('@variance-authority/isolator/node');
+
+aroundEach((runTest) => isolated(runTest));
 ```
+
+`aroundEach` runs every test in an `isolated` session of its own, so tests that
+run side by side under `test.concurrent` keep their own values too. The
+isolator is imported after the driver is installed, since it registers its
+reset as it loads.
 
 The plugin asks Vitest which files are tests, by every project's `include`
 and `includeSource`, and leaves them and the setup files as they are. It leaves
@@ -182,7 +191,9 @@ adds its own `include` to the root's, and `isolated` would run every file.
 
 The isolator resets what modules hold, not what the process holds: the working
 directory after `process.chdir`, `process.env` and a global carry into the next
-file, so restore each in the file that changed it. Nor does it load a module
+file. Change the last two through `vi.stubEnv` and `vi.stubGlobal` with
+Vitest's `unstubEnvs` and `unstubGlobals` on, and restore the working directory
+in the file that changed it. Nor does it load a module
 again. A `vi.mock` reaches only the modules loaded after it, and a renderer
 binds the DOM and the React DevTools hook it finds when it loads, so a file
 that mocks or renders into a DOM keeps a worker of its own, in the `isolated`

@@ -23,9 +23,12 @@ const declaring = (pattern: string) =>
   execFileSync('git', ['grep', '-l', '-E', pattern], { cwd: ROOT, encoding: 'utf8' }).split('\n').filter((file) => file && unit(file));
 const isolated = [...new Set([...declaring('@vitest-environment jsdom'), ...declaring('vi\\.(doM|m)ock\\('), ...declaring("playwright/lib/common'")])];
 
-// ioc and the isolator are the reset itself, and `tools/` is the suite's own setup.
-config.plugins = [...(config.plugins ?? []), isolator({ exclude: ['packages/ioc/**', 'packages/isolator/**', 'tools/**'] })];
+// `tools/` is the suite's own setup. ioc and the isolator list themselves in `sideEffects`.
+config.plugins = [...(config.plugins ?? []), isolator({ exclude: ['tools/**'] })];
 config.test.setupFiles = ['tools/modules-per-file.ts', ...config.test.setupFiles];
+// A module leak shows only in some file orders, so every run takes a new one
+// and prints its seed. Tests keep their order inside a file, as in every slice.
+config.test.sequence = { ...config.test.sequence, shuffle: { files: true, tests: false } };
 config.test.projects = [
   // `extends` adds a project's include and exclude to the slice's, so each project only excludes.
   { extends: true, test: { name: 'shared', isolate: false, exclude: isolated } },

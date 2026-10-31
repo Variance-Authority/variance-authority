@@ -34,7 +34,7 @@ interface Report {
  * One run of the fixture: what each test did, in the order the files ran, as
  * `file > title: status`, and how many times the worker evaluated `counter.ts`.
  */
-async function run(name: string, env: { readonly FIXTURE_RESETS: string; readonly FIXTURE_ISOLATE?: string }) {
+async function run(name: string, env: { readonly FIXTURE_RESETS: string; readonly FIXTURE_ISOLATE?: string; readonly FIXTURE_CONCURRENT?: string }) {
   const report = resolve(directory, `${name}.json`);
   const loads = resolve(directory, `${name}.loads`);
   const { output } = await execute(process.execPath, [vitest, 'run', '--reporter=json', `--outputFile=${report}`], {
@@ -106,6 +106,26 @@ describe('a Vitest run that keeps its module graph across files', () => {
       'second file > counts from one: passed',
       'second file > counts from one again, whatever the test before it left: passed',
       'second file > tallies from zero: passed',
+    ]);
+  });
+});
+
+describe('tests that run side by side under a kept module graph', () => {
+  it('hand each other their writes when only a reset between tests separates them', async () => {
+    const { output, tests } = await run('concurrent-ioc', { FIXTURE_RESETS: 'ioc', FIXTURE_CONCURRENT: 'true' });
+
+    expect(tests, output).toEqual([
+      'first file > counts from one beside another test: failed',
+      'first file > counts from one beside the first test: failed',
+    ]);
+  });
+
+  it('each keep their own values once every test runs in a session of its own', async () => {
+    const { output, tests } = await run('concurrent-isolator', { FIXTURE_RESETS: 'isolator', FIXTURE_CONCURRENT: 'true' });
+
+    expect(tests, output).toEqual([
+      'first file > counts from one beside another test: passed',
+      'first file > counts from one beside the first test: passed',
     ]);
   });
 });

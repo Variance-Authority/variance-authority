@@ -8,7 +8,8 @@ import { defineConfig } from 'vitest/config';
 //   none      nothing
 //   ioc       the driver, running the handlers modules registered
 //   isolator  the driver, and every application module isolated
-// FIXTURE_ISOLATE=true turns Vitest's own per-file isolation back on.
+// FIXTURE_ISOLATE=true turns Vitest's own per-file isolation back on, and
+// FIXTURE_CONCURRENT=true runs the file of tests that run side by side instead.
 const root = fileURLToPath(new URL('.', import.meta.url));
 const resets = process.env['FIXTURE_RESETS'] ?? 'none';
 
@@ -16,7 +17,7 @@ export default defineConfig({
   root,
   plugins: resets === 'isolator' ? [isolator()] : [],
   test: {
-    include: ['*.case.ts'],
+    include: [process.env['FIXTURE_CONCURRENT'] === 'true' ? '*.parallel.ts' : '*.case.ts'],
     isolate: process.env['FIXTURE_ISOLATE'] === 'true',
     pool: 'forks',
     fileParallelism: false,
