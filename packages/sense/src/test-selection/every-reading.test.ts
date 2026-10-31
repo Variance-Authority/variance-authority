@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { withEveryReading } from './narrowing.js';
+import { withEveryReading } from './reading-lines.js';
 
 describe('a reading for every changed file', () => {
   it('follows the lists a caller edited after the selection, so a line never contradicts the count', () => {

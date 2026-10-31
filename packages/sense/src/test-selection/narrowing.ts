@@ -1,6 +1,5 @@
 // compass: variance-authority.reach
 import type { Relations } from '@variance-authority/core/relate';
-import { codeUnitOrder } from '@variance-authority/core/segment';
 import type { ImporterReason } from './importers.js';
 import type { Precision } from './precision.js';
 import type { Unmeasured } from './route.js';
@@ -139,35 +138,6 @@ const UNASKED: ReadonlySet<string> = new Set<Unasked>(['nothing', 'stale', 'decl
 
 /** Whether an `unread` reason says no reader was asked of the file. */
 export const isUnasked = (unread: string): unread is Unasked => UNASKED.has(unread);
-
-/** The lists a narrowing names its unread files in, and its readings. */
-type Listed = Pick<ExecutionNarrowing, 'unread' | 'declined' | 'stale' | 'ignored' | 'readings'>;
-
-/**
- * The narrowing with a reading for every changed file: the readers' own, then
- * one per file no reader was asked of, by the first list that names it, and
- * `answered` for a file no list names. The readings are made from the lists, so
- * a caller that edits a list calls this again, with no `changed`, and a line
- * never contradicts the count beside it: every file it named keeps a reading.
- */
-export function withEveryReading<N extends Listed>(narrowing: N, changed: Iterable<string> = []): N {
-  const readings = narrowing.readings ?? [];
-  const read = readings.filter((one) => one.verdict !== undefined || !isUnasked(one.unread));
-  const named = readings.filter((one) => !read.includes(one)).map((one) => one.file);
-  const said = new Set(read.map((one) => one.file));
-  const more: FileReading[] = [];
-  const say = (unread: Unasked) => (file: string) => {
-    if (said.has(file)) return;
-    said.add(file);
-    more.push({ file, unread });
-  };
-  narrowing.unread.forEach(say('nothing'));
-  (narrowing.declined ?? []).forEach(say('declined'));
-  narrowing.stale.forEach(say('stale'));
-  (narrowing.ignored ?? []).forEach(say('ignored'));
-  [...changed, ...named].sort(codeUnitOrder).forEach(say('answered'));
-  return { ...narrowing, readings: [...read, ...more] };
-}
 
 /** One selected test and everything that selected it. */
 export interface SelectionCause {

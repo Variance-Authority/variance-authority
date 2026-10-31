@@ -10,7 +10,8 @@ import { rowlessNames } from './reading.js';
 import { ignoreMatcher } from './route.js';
 import { byRelations, withGraph } from './precision.js';
 import { arrivedAt, chargeMeasured, namedAs, readUnmeasured, routed, runOf, seenThrough, selectAnswered, walked } from './stages.js';
-import { withEveryReading, type ExecutionNarrowing, type ExecutionNarrowingOptions } from './narrowing.js';
+import type { ExecutionNarrowing, ExecutionNarrowingOptions } from './narrowing.js';
+import { withEveryReading } from './reading-lines.js';
 
 /** Both halves of the question, from one pass over the same columns. */
 export function narrowByExecutionFromView(
