@@ -10,7 +10,7 @@
  * by `sense`, a dependency imported like any other.
  */
 
-import { readdirSync, type Dirent } from 'node:fs';
+import { existsSync, readdirSync, type Dirent } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { isAbsolute, join, relative, resolve } from 'node:path';
 import type { SourceIndex } from '@variance-authority/core/attribute';
@@ -19,6 +19,7 @@ import {
   publishedNames,
   publishedSources,
   runGraphOf,
+  seedPaths,
   SourceIndexUnpublished,
   sourceIndexPath,
   sourcesWithin,
@@ -155,8 +156,8 @@ export async function checkoutNames(root: string, files: readonly string[], ci =
 /**
  * {@link relationsFor}, with the files the source index read, from the one read
  * of it. `holding` names the files the caller's question is about, a diff's
- * changed files, which a workstation's index is brought up to
- * ({@link publishedSources}).
+ * changed files: a workstation's index that lacks one is brought up to the
+ * checkout first ({@link indexUpToCheckout}).
  */
 export async function sourceGraphFor(
   root: string,
@@ -202,6 +203,7 @@ async function publishedWithin(
   noGit: boolean,
   holding: readonly string[],
 ) {
+  if (!isCI) await upToHolding(root, holding);
   let published;
   try {
     published = await publishedSources(root, {
@@ -209,7 +211,6 @@ async function publishedWithin(
       step: noGit ? 'variance index --no-git' : 'variance index',
       announce: (line) => process.stderr.write(`variance: ${line}\n`),
       ...(noGit ? { packs: false } : {}),
-      holding,
     });
   } catch (error) {
     // A pipeline without the step is the operator's to fix, and the refusal
@@ -224,6 +225,24 @@ async function publishedWithin(
     cache: published.cache,
     uses: published.uses,
   };
+}
+
+/**
+ * Bring a workstation's source index up to the checkout when it lacks one of
+ * `holding` that the checkout holds and a scan reads, saying which on stderr:
+ * a file added since the last `variance index` has no edges until it is read.
+ */
+async function upToHolding(root: string, holding: readonly string[]): Promise<void> {
+  if (holding.length === 0) return;
+  const announce = (line: string) => process.stderr.write(`variance: ${line}\n`);
+  const { names } = await publishedNames(root, holding, { ci: false, step: 'variance index', announce });
+  const where = resolve(root);
+  const lacking = seedPaths(where, ['.'], holding.filter((file) => !names.has(file)))
+    .find((file) => existsSync(join(where, file)));
+  if (lacking === undefined) return;
+  announce(`the source index at ${sourceIndexPath(where)} does not hold ${lacking}, which the checkout does; ` +
+    'updating it from the checkout, which is what `variance index` does.');
+  await indexUpToCheckout(root, false);
 }
 
 const SOURCE_EXTENSIONS = ['.tsx', '.jsx', '.ts', '.js'];
