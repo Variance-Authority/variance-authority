@@ -1931,7 +1931,6 @@
         "decode": "function",
         "decodePortable": "function",
         "diffImage": "function",
-        "edgeDigest": "function",
         "foreignDigest": "function",
         "foreignRaster": "function",
         "imageFormat": "function",

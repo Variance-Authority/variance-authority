@@ -24,7 +24,7 @@ export {
 } from './compare.js';
 export type { DecodedImage, PngDecoder } from './compare.js';
 
-export { pixelDigest, edgeDigest } from './digest.js';
+export { pixelDigest } from './digest.js';
 
 export { changeImages } from './change.js';
 export type { ChangeImages, ChangeLabels } from './change.js';

@@ -322,7 +322,7 @@
   {
     "idiom": "digest",
     "at": "packages/png/src/digest.ts",
-    "count": 2
+    "count": 1
   },
   {
     "idiom": "code-unit-order",

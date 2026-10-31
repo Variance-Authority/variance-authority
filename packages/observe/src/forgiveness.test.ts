@@ -53,7 +53,7 @@ describe('what the default policy forgives', () => {
     );
 
     expect(result.verdict).toBe('changed');
-    expect(result.because).toBe('100 pixels differ across 1 region, colour only: every edge is where it was');
+    expect(result.because).toBe('100 pixels differ across 1 region');
   });
 
   it('names the tolerance a green verdict was earned under', async () => {

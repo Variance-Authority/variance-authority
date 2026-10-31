@@ -111,8 +111,7 @@ against the same image with a 5×5 black square painted into it:
   changed: { default: 25, strict: 25 },
   total: 400,
   mask: { width: 20, height: 20, changed: 25, data: Uint8Array(400) },
-  alignment: { inserted: [], removed: [], shifted: [] },
-  edges: 'moved'
+  alignment: { inserted: [], removed: [], shifted: [] }
 }
 ```
 
@@ -123,19 +122,6 @@ differs, and `mask.changed` counts them under the single policy you isolated on.
 
 That mask is what `isolateRegions` in `@variance-authority/core/attribute` takes
 to group the changed pixels into rectangles.
-
-`edges` tells you whether the change kept every edge. It is `kept` when the
-two images meet their colours in exactly the same places, so the pixels that
-changed changed colour only: a theme, or a design token that moved. It is
-`moved` when something changed shape, place or size, as the black square here
-did. An edge is any difference between neighbouring pixels, with no luminance
-threshold, so a recolour cannot push one across a threshold: rotating the hue
-of thirteen component baselines kept the exact edges of ten, and a luminance
-threshold anywhere from 16 to 64 kept those of at most three. `edges` is
-absent when more than half the pixels of either image sit on an edge, as they
-do in a gradient or a photo: a change inside such an image leaves every edge
-where it was, and calling it colour only would be wrong. It classifies the
-change and never decides it; `changed` does.
 
 ## The two policies
 
@@ -274,7 +260,6 @@ the bytes arrive cannot change a verdict.
 | `imageSize` | `(bytes: Uint8Array) => { width, height } \| null` |
 | `decode` | `(base64: string) => Buffer` |
 | `pixelDigest` | `(image: DecodedImage) => Digest` |
-| `edgeDigest` | `(image: DecodedImage) => Digest \| undefined` |
 
 `comparePixels` takes RGBA somebody else already decoded and does no decoding of
 its own. A `DecodedImage` is `{ width, height, data }` where `data` is a `Buffer`
@@ -310,8 +295,6 @@ a baseline. A record without one is decoded on both sides.
 a fully transparent pixel taken as zero, since a comparison does not read it.
 It hashes decoded pixels and never encoded bytes: a capture is a PNG and a kept
 baseline a WebP of the same pixels, and the two encodings share nothing.
-`edgeDigest` hashes where neighbouring pixels differ and nothing about
-their colours; it is what `edges` compares.
 
 Equal pixels compare to nothing without aligning a row or running `pixelmatch`,
 whether a digest found them equal or both sides were decoded.

@@ -10,7 +10,7 @@ import {
 } from '@variance-authority/raster';
 import { alignRows } from './align.js';
 import { changeImages } from './change.js';
-import { pixelDigest, edgeDigest } from './digest.js';
+import { pixelDigest } from './digest.js';
 import { decodePortable } from './format.js';
 import { differencePixels, type DecodedImage } from './mask.js';
 
@@ -171,21 +171,7 @@ export function comparePixels(
     total: width * height,
     mask,
     ...(alignment === undefined ? {} : { alignment }),
-    ...edgesOf(left, right),
   };
-}
-
-/**
- * Whether the edges of the two images sit in the same places, or nothing when
- * either is too busy to say (see `edgeDigest`). Two sizes never
- * share their edges, however busy.
- */
-function edgesOf(left: DecodedImage, right: DecodedImage): Pick<RasterComparison, 'edges'> {
-  if (left.width !== right.width || left.height !== right.height) return { edges: 'moved' };
-  const before = edgeDigest(left);
-  const after = edgeDigest(right);
-  if (before === undefined || after === undefined) return {};
-  return { edges: before === after ? 'kept' : 'moved' };
 }
 
 /** The comparison of equal pixels: nothing differs, and no row moved. */
@@ -202,7 +188,6 @@ function nothingChanged(image: DecodedImage, policies: readonly DiffPolicy[], is
     total: width * height,
     mask: { width, height, data: new Uint8Array(width * height), changed: 0 },
     alignment: { inserted: [], removed: [], shifted: [] },
-    edges: 'kept',
   };
 }
 

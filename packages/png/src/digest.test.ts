@@ -6,7 +6,6 @@ import {
   comparePixels,
   pixelDigest,
   pngjsDecoder,
-  edgeDigest,
   type DecodedImage,
   type PngDecoder,
 } from './index.js';
@@ -130,44 +129,6 @@ describe('comparing a capture with a baseline that records its pixel digest', ()
   });
 });
 
-/** A card: a box of one colour on a ground of another, with a line of "text" in a third. */
-function card(ground: Rgba, box: Rgba, ink: Rgba, left = 4): DecodedImage {
-  return image(24, 16, (x, y) => {
-    if (y === 8 && x >= left + 2 && x < left + 10) return ink;
-    if (x >= left && x < left + 14 && y >= 3 && y < 13) return box;
-    return ground;
-  });
-}
-type Rgba = [number, number, number, number];
-const WHITE: Rgba = [255, 255, 255, 255];
-const BLUE: Rgba = [45, 108, 223, 255];
-const BLACK: Rgba = [0, 0, 0, 255];
-const DARK: Rgba = [18, 18, 18, 255];
-const MAGENTA: Rgba = [181, 23, 158, 255];
-
-describe('the digest of a raster’s edges', () => {
-  it('is the same when every colour is swapped for another, as a theme does', () => {
-    expect(edgeDigest(card(DARK, MAGENTA, WHITE))).toBe(edgeDigest(card(WHITE, BLUE, BLACK)));
-  });
-
-  it('moves when the box moves by one pixel', () => {
-    expect(edgeDigest(card(WHITE, BLUE, BLACK, 5))).not.toBe(edgeDigest(card(WHITE, BLUE, BLACK)));
-  });
-
-  it('moves when two colours become one, because an edge went with them', () => {
-    expect(edgeDigest(card(WHITE, WHITE, BLACK))).not.toBe(edgeDigest(card(WHITE, BLUE, BLACK)));
-  });
-
-  it('is absent for an image whose pixels nearly all sit on an edge, which no change inside can move', () => {
-    expect(edgeDigest(GRADIENT)).toBeUndefined();
-  });
-
-  it('is the same for pixels that differ only in the colour under full transparency', () => {
-    const clear = (under: Rgba): DecodedImage => image(4, 4, (x) => (x < 2 ? under : BLUE));
-    expect(edgeDigest(clear([255, 0, 0, 0]))).toBe(edgeDigest(clear([0, 0, 255, 0])));
-  });
-});
-
 describe('a comparison of two images', () => {
   it('of equal pixels is the comparison of nothing, found without reading a row', () => {
     const copy = { ...GRADIENT, data: Buffer.from(GRADIENT.data) };
@@ -183,29 +144,7 @@ describe('a comparison of two images', () => {
       total: 24 * 16,
       mask: { width: 24, height: 16, data: new Uint8Array(24 * 16), changed: 0 },
       alignment: { inserted: [], removed: [], shifted: [] },
-      edges: 'kept',
     });
     expect(alignRows).not.toHaveBeenCalled();
-  });
-
-  it('says the edges were kept when only the colours changed', () => {
-    const comparison = comparePixels(card(WHITE, BLUE, BLACK), card(DARK, MAGENTA, WHITE));
-
-    expect(comparison.changed['strict']).toBeGreaterThan(0);
-    expect(comparison.edges).toBe('kept');
-  });
-
-  it('says the edges moved when the box moved', () => {
-    expect(comparePixels(card(WHITE, BLUE, BLACK), card(WHITE, BLUE, BLACK, 5)).edges).toBe('moved');
-  });
-
-  it('says nothing of the edges when an image is too busy for its edges to say', () => {
-    const notched = image(24, 16, (x, y) => (x === 7 && y === 3 ? WHITE : [x * 9, y * 13, (x + y) % 256, 255]));
-
-    expect(comparePixels(GRADIENT, notched).edges).toBeUndefined();
-  });
-
-  it('says the edges moved when the size changed', () => {
-    expect(comparePixels(GRADIENT, image(24, 17, () => WHITE)).edges).toBe('moved');
   });
 });
