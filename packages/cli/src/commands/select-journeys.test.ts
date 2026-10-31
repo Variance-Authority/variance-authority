@@ -215,7 +215,8 @@ describe('selecting from a journey file', () => {
     writeFileSync(join(root, 'change.patch'), unmeasured);
     const said = await selectOutput({ cwd: root, format: 'plain', execution: 'journeys.bin', diff: 'change.patch', noGit: true, suite: 'unit' });
     expect(said.out).toBe('test/branch.test.ts\ntest/other.test.ts\n');
-    expect(said.err).toContain('the suite declines relations, so 1 changed file its record did not measure (src/format.ts)');
+    expect(said.err).toContain('the suite declines relations, so 1 changed file its record did not measure keeps no test');
+    expect(said.err).toContain('read src/format.ts: unread (no recorded text to read it against)');
   });
 
   async function declaring(config: unknown, files: Readonly<Record<string, string>> = {}): Promise<string> {
