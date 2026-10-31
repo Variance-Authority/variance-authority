@@ -62,6 +62,8 @@ mod graph_dominators;
 mod graph_index;
 mod harvest;
 mod held;
+#[cfg(unix)]
+mod held_listing;
 mod help_aliases;
 mod help_declared;
 mod help_in_file;
@@ -165,6 +167,8 @@ mod stored;
 mod text_digests;
 mod top_level;
 mod tree;
+#[cfg(unix)]
+mod watchman;
 mod witness;
 mod witness_aliases;
 
@@ -241,6 +245,9 @@ pub struct GitTree {
     /// The package manifests and `tsconfig*.json` files in each directory, made
     /// the first time a scan asks where built output comes from.
     listing: OnceLock<Arc<emitted::Listing>>,
+    /// How the tree was come by, when a change source other than git had a say.
+    #[cfg(unix)]
+    change: Option<held_listing::Change>,
 }
 
 /// Every tracked path under `root`, or nothing when this is not a checkout.
@@ -260,6 +267,26 @@ pub fn git_tree_for(root: String, dirs: Vec<String>) -> Option<GitTree> {
     let snapshot = git::snapshot(&root)?;
     let seeds = seed::seed_paths(&root, &dirs, &snapshot.paths);
     Some(tree_from_snapshot(snapshot, seeds))
+}
+
+/// The tree an update of the index at `index` is made against: the one the
+/// index holds when Watchman vouches nothing moved since it was listed, else
+/// git's (`held_listing.rs`).
+#[napi(catch_unwind)]
+pub fn change_tree(root: String, index: String, dirs: Vec<String>) -> Option<GitTree> {
+    #[cfg(unix)]
+    {
+        let (snapshot, change) = held_listing::change_tree(&root, &index, &dirs)?;
+        let seeds = seed::seed_paths(&root, &dirs, &snapshot.paths);
+        let mut tree = tree_from_snapshot(snapshot, seeds);
+        tree.change = change;
+        Some(tree)
+    }
+    #[cfg(not(unix))]
+    {
+        let _ = index;
+        git_tree_for(root, dirs)
+    }
 }
 
 impl GitTree {
@@ -291,6 +318,8 @@ fn tree_from_snapshot(snapshot: git::Snapshot, seeds: Vec<String>) -> GitTree {
         unhashed: snapshot.unhashed,
         seeds,
         listing: OnceLock::new(),
+        #[cfg(unix)]
+        change: None,
     }
 }
 
@@ -413,6 +442,15 @@ impl GitTree {
     /// side, or `null` when the JavaScript update has to (`source_update.rs`).
     #[napi(catch_unwind)]
     pub fn update_index(&self, options: source_update::UpdateOptions) -> napi::Result<Option<source_update::Updated>> {
+        #[cfg(unix)]
+        let carry = match &self.change {
+            // The update this listing was carried by was made against it under this configuration.
+            Some(held_listing::Change::Vouched(meta)) if meta.config.as_deref() == Some(options.config.as_str()) => {
+                return Ok(Some(source_update::Updated { files: meta.files, reread: 0, published: false, refused: None }));
+            }
+            Some(held_listing::Change::Vouched(meta) | held_listing::Change::Listed(meta)) => Some(meta.clone()),
+            None => None,
+        };
         source_update::update(
             options,
             source_update::Tree {
@@ -421,6 +459,10 @@ impl GitTree {
                 oids: &self.oids,
                 seeds: &self.seeds,
                 listing: self.listing(),
+                regular: &self.regular,
+                unhashed: &self.unhashed,
+                #[cfg(unix)]
+                carry,
             },
         )
     }

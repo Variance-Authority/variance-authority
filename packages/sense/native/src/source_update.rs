@@ -82,6 +82,11 @@ pub(crate) struct Tree<'t> {
     pub oids: &'t [Oid],
     pub seeds: &'t [String],
     pub listing: Arc<Listing>,
+    pub regular: &'t [bool],
+    pub unhashed: &'t [String],
+    /// What makes this tree carried by the segment the update writes, when a watch covers it.
+    #[cfg(unix)]
+    pub carry: Option<crate::held_listing::Meta>,
 }
 
 /// A file the walk opened, and what the index will hold of it.
@@ -384,8 +389,48 @@ pub(crate) fn update(o: UpdateOptions, tree: Tree) -> napi::Result<Option<Update
         && deleted_parses.is_empty()
         && put_directories.is_empty()
         && deleted_directories.is_empty();
+    #[cfg(unix)]
+    let listing = tree.carry.map(|mut meta| {
+        meta.config = Some(o.config.clone());
+        meta.files = files;
+        crate::held_listing::columns(tree.paths, tree.oids, tree.regular, tree.unhashed, &meta)
+    });
+    #[cfg(not(unix))]
+    let listing: Option<Vec<crate::segment::Column>> = None;
+    let carried = |segment: Vec<u8>, listing: Option<Vec<crate::segment::Column>>| -> Result<Vec<u8>, String> {
+        #[cfg(unix)]
+        if let Some(listing) = listing {
+            return crate::held_listing::carried(&segment, listing);
+        }
+        let _ = &listing;
+        Ok(segment)
+    };
+    let references: Vec<LogSegment> = chain
+        .references
+        .iter()
+        .map(|reference| LogSegment { digest: reference.digest.clone(), length: reference.length as i64 })
+        .collect();
+    // The working layer and this delta become the next working layer: an update
+    // rewrites what changed since the index was readied, and never the base.
+    let base = references.len() - chain.working;
+    let beneath: Vec<&[u8]> = chain.segments[..base].iter().map(Vec::as_slice).collect();
     if unchanged {
-        return Ok(Some(Updated { files, reread, published: false, refused: None }));
+        let Some(listing) = listing else {
+            return Ok(Some(Updated { files, reread, published: false, refused: None }));
+        };
+        // Nothing to publish, and a listing to carry: the working layer is
+        // written again with it, so the next update can ask Watchman from here.
+        let working: Vec<&[u8]> = chain.segments[base..].iter().map(Vec::as_slice).collect();
+        let working = match working.as_slice() {
+            [] => encode_generation::<Read>(&Generation { config: Some(&o.config), directories: &[], parses: &[], records: &[], deleted: Deleted::default() }),
+            [only] => only.to_vec(),
+            _ => merged(&beneath, &working).map_err(fail)?,
+        };
+        let working = carried(working, Some(listing)).map_err(fail)?;
+        return match written(&o.index, Over::Published(chain.published()), &references[..base], &[&working], &references[base..], 1) {
+            Ok(_) => Ok(Some(Updated { files, reread, published: false, refused: None })),
+            Err(error) => Ok(Some(Updated { files, reread, published: false, refused: Some(format!("{}: {error}", o.index)) })),
+        };
     }
 
     puts.sort_by(|left, right| code_unit(left.0, right.0));
@@ -405,18 +450,10 @@ pub(crate) fn update(o: UpdateOptions, tree: Tree) -> napi::Result<Option<Update
         deleted: Deleted { parses: &deleted_parses, records: &deleted_records, directories: &deleted_directories },
     });
 
-    let references: Vec<LogSegment> = chain
-        .references
-        .iter()
-        .map(|reference| LogSegment { digest: reference.digest.clone(), length: reference.length as i64 })
-        .collect();
-    // The working layer and this delta become the next working layer: an update
-    // rewrites what changed since the index was readied, and never the base.
-    let base = references.len() - chain.working;
     let mut working: Vec<&[u8]> = chain.segments[base..].iter().map(Vec::as_slice).collect();
     working.push(&delta);
-    let beneath: Vec<&[u8]> = chain.segments[..base].iter().map(Vec::as_slice).collect();
     let working = if working.len() == 1 { delta.clone() } else { merged(&beneath, &working).map_err(fail)? };
+    let working = carried(working, listing).map_err(fail)?;
     // Another writer between the read and here: its chain is not the one this delta is against.
     let refused = match written(&o.index, Over::Published(chain.published()), &references[..base], &[&working], &references[base..], 1) {
         Ok(false) => return Ok(None),

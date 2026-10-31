@@ -165,6 +165,12 @@ export interface NativeScanner extends NativeOrientMaps, NativeDependencyLexicon
   /** The machine's index turn at `path`, `holder` written beside it; `null` while another process holds it (`native/src/index_turn.rs`). */
   takeIndexTurn(path: string, holder: string): { release(): void } | null;
   gitTreeFor(root: string, dirs: string[]): NativeGitTree | null;
+  /**
+   * The tree an update of the index at `index` is made against: the listing it
+   * holds when Watchman vouches nothing moved since, else git's
+   * (`native/src/held_listing.rs`). Absent from an addon built before it.
+   */
+  changeTree?(root: string, index: string, dirs: string[]): NativeGitTree | null;
   /** Every readable file below the configured roots, using bounded native I/O. */
   seedFiles(root: string, dirs: string[]): string[];
   /**
