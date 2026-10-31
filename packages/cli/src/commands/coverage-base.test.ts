@@ -106,7 +106,7 @@ async function publishIndex(at = repo): Promise<void> {
   process.chdir(at);
   try {
     const indexed = await ask(['index']);
-    if (indexed.code !== 0) throw new Error(`variance index failed in ${at}: ${indexed.err}`);
+    if (indexed.code !== 0) throw new Error(`variance index failed in ${at}: ${indexed.out}\n${indexed.err}`);
   } finally {
     process.chdir(cwd);
   }
