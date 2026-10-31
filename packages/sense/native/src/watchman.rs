@@ -12,6 +12,7 @@
 // compass: variance-authority.reach.source-index
 
 use std::io::{BufRead, BufReader, Write};
+use std::path::Path;
 use std::os::unix::net::UnixStream;
 use std::process::{Command, Stdio};
 
@@ -36,29 +37,62 @@ pub(crate) struct Since {
     pub files: Vec<String>,
 }
 
-/// The socket a running server listens on: `$WATCHMAN_SOCK`, else `known` when
-/// something listens there, else what the CLI names without starting one. `None`
-/// when no server runs. The CLI costs about 100 ms, so a socket the last update
-/// held is tried first.
-pub(crate) fn socket(known: Option<&str>) -> Option<String> {
+/// The `watchman` command `PATH` names, and what its answer depends on.
+#[derive(PartialEq, serde::Serialize, serde::Deserialize)]
+struct Found {
+    path: String,
+    modified: i64,
+    nanos: i64,
+    home: Option<String>,
+    state: Option<String>,
+}
+
+/// Where the command said its server listens, under the command that said it.
+#[derive(serde::Serialize, serde::Deserialize)]
+struct Named {
+    command: Found,
+    socket: Option<String>,
+}
+
+fn command() -> Option<Found> {
+    use std::os::unix::fs::{MetadataExt, PermissionsExt};
+    let path = std::env::var_os("PATH")?;
+    std::env::split_paths(&path).map(|dir| dir.join("watchman")).find_map(|path| {
+        let metadata = std::fs::metadata(&path).ok().filter(|metadata| metadata.is_file() && metadata.permissions().mode() & 0o111 != 0)?;
+        let var = |name| std::env::var_os(name).map(|value| value.to_string_lossy().into_owned());
+        Some(Found { path: path.to_string_lossy().into_owned(), modified: metadata.mtime(), nanos: metadata.mtime_nsec(), home: var("HOME"), state: var("XDG_STATE_HOME") })
+    })
+}
+
+/// The socket a server listens on: `$WATCHMAN_SOCK`, else where the `watchman`
+/// command names it, without starting one. `None` when there is no command.
+///
+/// The command takes about 100 ms to start, and its answer is a path its
+/// version and environment decide whether or not a server runs, so it is asked
+/// once and the answer kept in `kept`, beside the index, until either changes.
+/// Whether a server listens there is the connection's to say.
+pub(crate) fn socket(kept: &Path) -> Option<String> {
     if let Some(socket) = std::env::var_os("WATCHMAN_SOCK") {
         return socket.into_string().ok();
     }
-    if let Some(known) = known.filter(|known| UnixStream::connect(known).is_ok()) {
-        return Some(known.to_owned());
+    let command = command()?;
+    let held = std::fs::read(kept).ok().and_then(|bytes| serde_json::from_slice::<Named>(&bytes).ok());
+    if let Some(held) = held.filter(|held| held.command == command) {
+        return held.socket;
     }
-    // FIXME: with the CLI installed and no server running, every update pays its ~100 ms start to learn there is none.
-    let output = Command::new("watchman")
-        .args(["--no-spawn", "--no-pretty", "get-sockname"])
-        .stdin(Stdio::null())
-        .stderr(Stdio::null())
-        .output()
-        .ok()?;
-    if !output.status.success() {
-        return None;
+    let output = Command::new(&command.path).args(["--no-spawn", "--no-pretty", "get-sockname"]).stdin(Stdio::null()).stderr(Stdio::null()).output().ok();
+    let socket = output.filter(|output| output.status.success()).and_then(|output| {
+        let answer: Value = serde_json::from_slice(&output.stdout).ok()?;
+        answer.get("unix_domain").or_else(|| answer.get("sockname"))?.as_str().map(str::to_owned)
+    });
+    // Written aside and renamed, so an update beside this one reads all of it or none.
+    if let Ok(bytes) = serde_json::to_vec(&Named { command, socket: socket.clone() }) {
+        let aside = kept.with_extension(format!("{}.tmp", std::process::id()));
+        if std::fs::write(&aside, bytes).is_ok() && std::fs::rename(&aside, kept).is_err() {
+            let _ = std::fs::remove_file(&aside);
+        }
     }
-    let answer: Value = serde_json::from_slice(&output.stdout).ok()?;
-    answer.get("unix_domain").or_else(|| answer.get("sockname"))?.as_str().map(str::to_owned)
+    socket
 }
 
 /// One command over a fresh connection, and its answer; `None` on any error.

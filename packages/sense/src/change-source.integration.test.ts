@@ -156,6 +156,26 @@ describe.skipIf(process.platform === 'win32')('the update over a watched checkou
     expect((await gitRan()).some((ran) => ran.startsWith('ls-tree'))).toBe(true);
   });
 
+  it('asks the watchman command where its server listens once for an index, not on every update', async () => {
+    const bin = join(wire, 'cli');
+    await mkdir(bin, { recursive: true });
+    const named = join(wire, 'cli.log');
+    await writeFile(join(bin, 'watchman'), `#!/bin/sh\necho "$*" >> '${named}'\necho '{"sockname":"${join(wire, 'sock')}"}'\n`);
+    await chmod(join(bin, 'watchman'), 0o755);
+    const at = { path: process.env.PATH, socket: process.env.WATCHMAN_SOCK };
+    process.env.PATH = `${bin}:${at.path ?? ''}`;
+    delete process.env.WATCHMAN_SOCK;
+    try {
+      // A server that watches something else: every update lists with git, and none asks the command again.
+      await tell({ roots: ['/elsewhere'] });
+      for (let update = 0; update < 3; update++) await updateNatively(root, index);
+      expect((await readFile(named, 'utf8')).trim().split('\n')).toHaveLength(1);
+    } finally {
+      process.env.PATH = at.path;
+      process.env.WATCHMAN_SOCK = at.socket;
+    }
+  });
+
   it('asks git when nothing listens at the socket', async () => {
     const at = process.env.WATCHMAN_SOCK;
     process.env.WATCHMAN_SOCK = join(wire, 'nobody');

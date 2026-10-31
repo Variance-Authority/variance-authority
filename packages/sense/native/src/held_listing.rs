@@ -137,7 +137,7 @@ fn ignores_all(root: &str, paths: &[String]) -> bool {
 /// Watchman vouches for it, else git's, with what makes it carried when a watch covers `root`.
 pub(crate) fn change_tree(root: &str, index: &str, dirs: &[String]) -> Option<(Snapshot, Option<Change>)> {
     let held = held(index);
-    let socket = watchman::socket(held.as_ref().map(|(_, meta)| meta.watch.socket.as_str()));
+    let socket = watchman::socket(Path::new(&format!("{index}.watchman.json")));
     let excluded = Path::new(index).parent().and_then(|parent| parent.strip_prefix(root).ok()).map(|parent| parent.to_string_lossy().into_owned()).filter(|parent| !parent.is_empty());
     if let (Some(socket), Some((snapshot, meta))) = (&socket, held) {
         let vouched = meta.watch.socket == *socket
