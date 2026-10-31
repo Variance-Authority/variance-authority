@@ -278,7 +278,10 @@ export const varianceFixtures: Fixtures<
         options,
       );
       for (const [name, path] of Object.entries(observed.evidence ?? {})) {
-        await testInfo.attach(`${observed.subject} ${name}`, { path, contentType: 'image/png' });
+        // The before is kept as the store keeps it, a WebP or an older PNG;
+        // the after and the diff are PNGs.
+        const contentType = path.endsWith('.webp') ? 'image/webp' : 'image/png';
+        await testInfo.attach(`${observed.subject} ${name}`, { path, contentType });
       }
       // Annotated as well as carried, so the report shows it under a passing
       // test too.

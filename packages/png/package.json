@@ -49,6 +49,7 @@
     "build": "tsc --build"
   },
   "dependencies": {
+    "@jsquash/webp": "1.5.0",
     "@variance-authority/core": "workspace:^",
     "@variance-authority/raster": "workspace:^",
     "pixelmatch": "^7.2.0",

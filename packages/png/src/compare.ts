@@ -10,6 +10,7 @@ import {
 } from '@variance-authority/raster';
 import { alignRows } from './align.js';
 import { changeImages } from './change.js';
+import { decodePortable } from './format.js';
 import { differencePixels, type DecodedImage } from './mask.js';
 
 /**
@@ -62,11 +63,13 @@ export interface PngDecoder {
   decode(bytes: Buffer): Promise<DecodedImage>;
 }
 
-/** The portable default: no native addon, no wasm, works wherever Node does. */
+/**
+ * The portable default: no native addon, works wherever Node does. A PNG is
+ * read by `pngjs`; a kept baseline, which is a lossless WebP, by libwebp
+ * compiled to WebAssembly (see {@link decodePortable}).
+ */
 export const pngjsDecoder: PngDecoder = {
-  async decode(bytes: Buffer): Promise<DecodedImage> {
-    return PNG.sync.read(bytes);
-  },
+  decode: decodePortable,
 };
 
 /**
@@ -187,11 +190,16 @@ export function decode(base64: string): Buffer {
   return Buffer.from(base64, 'base64');
 }
 
-/** A visual diff, for the human who wants one after reading the report. */
-export function diffImage(
+/**
+ * A visual diff, for the human who wants one after reading the report. Either
+ * side may be a kept WebP or a PNG; the diff is always a PNG.
+ */
+export async function diffImage(
   before: Buffer,
   after: Buffer,
   policy: DiffPolicy = DEFAULT_POLICY,
-): Buffer {
-  return changeImages(before, after, [], policy).diff;
+  decoder: PngDecoder = pngjsDecoder,
+): Promise<Buffer> {
+  const [was, now] = await Promise.all([decoder.decode(before), decoder.decode(after)]);
+  return changeImages(was, now, [], policy).diff;
 }

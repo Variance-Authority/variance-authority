@@ -1946,6 +1946,15 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@jsquash/webp@npm:1.5.0":
+  version: 1.5.0
+  resolution: "@jsquash/webp@npm:1.5.0"
+  dependencies:
+    wasm-feature-detect: "npm:^1.2.11"
+  checksum: 10c0/f76f776ad5e70bef9286ebecad124f5fcee744aa92239bbd518e267291af760f5319d06041026ad969c3a4f0547f878f3ba48fa45c9f56cfa22d583bd54e5963
+  languageName: node
+  linkType: hard
+
 "@manypkg/find-root@npm:^3.1.0":
   version: 3.1.0
   resolution: "@manypkg/find-root@npm:3.1.0"
@@ -5345,6 +5354,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@variance-authority/png@workspace:packages/png"
   dependencies:
+    "@jsquash/webp": "npm:1.5.0"
     "@variance-authority/core": "workspace:^"
     "@variance-authority/raster": "workspace:^"
     pixelmatch: "npm:^7.2.0"
@@ -12916,6 +12926,13 @@ __metadata:
   dependencies:
     xml-name-validator: "npm:^5.0.0"
   checksum: 10c0/8712774c1aeb62dec22928bf1cdfd11426c2c9383a1a63f2bcae18db87ca574165a0fbe96b312b73652149167ac6c7f4cf5409f2eb101d9c805efe0e4bae798b
+  languageName: node
+  linkType: hard
+
+"wasm-feature-detect@npm:^1.2.11":
+  version: 1.9.0
+  resolution: "wasm-feature-detect@npm:1.9.0"
+  checksum: 10c0/d902be44b57fa963d8ff284cb86332f38c3c9b4af04e6c057b09904cf091a8da1c81ec9da7cd57cdf75afe45eeec449f11344fc66b62ea55314837041550f08f
   languageName: node
   linkType: hard
 

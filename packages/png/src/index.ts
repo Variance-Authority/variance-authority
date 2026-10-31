@@ -30,4 +30,7 @@ export type { ChangeImages, ChangeLabels } from './change.js';
 export { declaredIdentity, foreignDigest, foreignRaster } from './foreign.js';
 export type { DeclaredPainter } from './foreign.js';
 
+export { decodePortable, imageFormat, keepImage, KEEP_LIMIT } from './format.js';
+export type { ImageFormat } from './format.js';
+
 export { pngSize } from './size.js';

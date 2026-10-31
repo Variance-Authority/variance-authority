@@ -1,7 +1,7 @@
 import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { Observation } from '@variance-authority/observe';
-import { decode, diffImage } from '@variance-authority/png';
+import { decode, diffImage, imageFormat } from '@variance-authority/png';
 import { fileNameFor, pictured, type Raster } from '@variance-authority/core/format';
 import type { BaselineKey, RasterStore } from '@variance-authority/raster';
 import type { SnapshotCase } from './arranged.js';
@@ -79,8 +79,9 @@ export async function writeEvidence(
     if (stored === undefined || !pictured(stored)) return undefined;
     // It had pixels and now has none. The baseline is the only picture of what
     // is gone, and it is the evidence.
-    const only = `${base}.before.png`;
-    await writeFile(only, decode(stored.bytes));
+    const bytes = decode(stored.bytes);
+    const only = beforeFor(base, bytes);
+    await writeFile(only, bytes);
     return { before: only };
   }
 
@@ -95,15 +96,24 @@ export async function writeEvidence(
   // is the candidate painted red, so it is omitted rather than written.
   if (before === undefined) return { after };
 
-  const beforePath = `${base}.before.png`;
-  const diff = `${base}.diff.png`;
   const beforeBytes = decode(before.bytes);
+  const beforePath = beforeFor(base, beforeBytes);
+  const diff = `${base}.diff.png`;
   await writeFile(beforePath, beforeBytes);
   // A pair of different sizes has a diff too: rows of the same width are aligned
   // and drawn on the after image, and any other pair on the box that holds both.
-  await writeFile(diff, diffImage(beforeBytes, afterBytes));
+  await writeFile(diff, await diffImage(beforeBytes, afterBytes));
 
   return { before: beforePath, after, diff };
+}
+
+/**
+ * Where the baseline goes, named for the format the store kept it in: a WebP
+ * for one accepted since kept images became WebP, a PNG for one kept before.
+ * Written as stored, since a person opens it and every viewer reads both.
+ */
+function beforeFor(base: string, bytes: Buffer): string {
+  return `${base}.before.${imageFormat(bytes) ?? 'png'}`;
 }
 
 /**

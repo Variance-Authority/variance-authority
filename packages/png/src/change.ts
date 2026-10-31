@@ -84,17 +84,19 @@ interface Window {
  * `regions` are the comparison's, on its canvas: the after image's when the
  * rows aligned, the box that holds both when they did not. The difference is
  * computed here on the same rule, so the two agree on where every pixel is.
+ *
+ * Both sides arrive decoded, by whichever decoder the caller already chose for
+ * the comparison: a kept baseline is a WebP and a capture is a PNG, and the
+ * pixels are what this draws from.
  */
 export function changeImages(
-  before: Buffer,
-  after: Buffer,
+  was: DecodedImage,
+  now: DecodedImage,
   regions: readonly DiffRegion[],
   policy: DiffPolicy = DEFAULT_POLICY,
   /** What the sheet says about itself: the subject, and where each side came from. */
   labels: ChangeLabels = {},
 ): ChangeImages {
-  const was = PNG.sync.read(before);
-  const now = PNG.sync.read(after);
   const alignment = alignRows(was, now);
   const difference = differencePixels(was, now, policy, { alignment: alignment ?? null });
   const diff = encode(difference);
