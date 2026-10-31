@@ -59,13 +59,19 @@ export function containerOf(by: string): string {
 }
 
 
+/** Identifiers joined by dots: the only names that write a container's member. */
+const MEMBER_PATH = /^[\p{ID_Start}$_][\p{ID_Continue}$\u200C\u200D]*(?:\.[\p{ID_Start}$_][\p{ID_Continue}$\u200C\u200D]*)+$/u;
+
 /**
  * The member a name asks for and the container it is on: `Tree.chainsTo` is
- * `chainsTo` on `Tree`, read off the last dot as written, never resolved.
+ * `chainsTo` on `Tree`, read off the last dot as written, never resolved. A
+ * name that is no path of identifiers, `src/tax.ts` or `@acme/kit`, asks for
+ * itself.
  */
 export function memberName(name: string): { readonly member: string; readonly on?: string } {
+  if (!MEMBER_PATH.test(name)) return { member: name };
   const dot = name.lastIndexOf('.');
-  return dot <= 0 || dot === name.length - 1 ? { member: name } : { member: name.slice(dot + 1), on: name.slice(0, dot) };
+  return { member: name.slice(dot + 1), on: name.slice(0, dot) };
 }
 
 /**
@@ -101,6 +107,12 @@ export const TYPED =
   "A use is listed here only where its line writes the value's type. A use through an inferred value, a generic, a subtype by `extends`, " +
   "a JSX attribute, a utility type or an inline type literal is not: which type a value has is a type checker's answer, and none runs here.";
 
+/** Whose type checker answers for declarations in these files: TypeScript's for JavaScript and TypeScript alone, `other` for one other language, `mixed` for several. */
+export function checkerOf(files: readonly string[]): 'typescript' | 'other' | 'mixed' {
+  const languages = new Set(files.map(languageOf));
+  return languages.size > 1 ? 'mixed' : languages.size === 0 || languages.has('module') ? 'typescript' : 'other';
+}
+
 /**
  * Where the uses no line types are found: find-references on the one
  * declaration of member `name`, or, when several declare it, on the one the
@@ -112,12 +124,6 @@ export const TYPED =
  * go-to-implementation on the same declaration names the implementations
  * that take their type from where they go, which write none on their line.
  */
-/** Whose type checker answers for declarations in these files: TypeScript's for JavaScript and TypeScript alone, `other` for one other language, `mixed` for several. */
-export function checkerOf(files: readonly string[]): 'typescript' | 'other' | 'mixed' {
-  const languages = new Set(files.map(languageOf));
-  return languages.size > 1 ? 'mixed' : languages.size === 0 || languages.has('module') ? 'typescript' : 'other';
-}
-
 export function routes(members: Members, spell: Spelling): readonly string[] {
   const name = members.member;
   const only = members.declared.length === 1 ? members.declared[0]! : undefined;
