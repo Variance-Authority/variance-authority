@@ -54,6 +54,21 @@ export function isolateConcurrentTests(test: { concurrent: Registrar }): void {
   if (test.concurrent[ISOLATING] !== true) test.concurrent = isolating(test.concurrent);
 }
 
+/** A hook that wraps every test, such as Vitest's `aroundEach`. */
+export type AroundEach = (hook: (runTest: () => unknown, context: { readonly task: { readonly concurrent?: boolean } }) => unknown) => unknown;
+
+/**
+ * Run every concurrent test in its own session, for a runner whose
+ * `test.concurrent` cannot be replaced. Call it from a setup file, with the
+ * runner's hook: `isolateConcurrentEach(aroundEach)`.
+ *
+ * A test that runs alone keeps the session its `beforeEach` reset started; a
+ * session around it would win over that reset.
+ */
+export function isolateConcurrentEach(aroundEach: AroundEach): void {
+  aroundEach((runTest, { task }) => (task.concurrent === true ? isolated(runTest) : runTest()));
+}
+
 function isolating(register: Registrar): Registrar {
   const wrapped = ((name: unknown, fn?: unknown, ...rest: unknown[]) =>
     register(name, typeof fn === 'function' ? (...args: unknown[]) => isolated(() => fn(...args)) : fn, ...rest)) as Registrar;

@@ -8,5 +8,5 @@ import { configureResetHandler } from '@variance-authority/ioc/reset/setup';
  */
 configureResetHandler(beforeEach);
 
-const { isolated } = await import('@variance-authority/isolator/node');
-aroundEach((runTest, { task }) => (task.concurrent === true ? isolated(runTest) : runTest()));
+const { isolateConcurrentEach } = await import('@variance-authority/isolator/node');
+isolateConcurrentEach(aroundEach);

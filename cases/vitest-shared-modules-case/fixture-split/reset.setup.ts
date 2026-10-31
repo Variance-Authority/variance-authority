@@ -10,5 +10,5 @@ configureResetHandler(beforeEach);
 // started, so each concurrent test runs in a session of its own, through every
 // `await`. The isolator registers its reset as it loads, so it is imported once
 // the driver is installed.
-const { isolated } = await import('@variance-authority/isolator/node');
-aroundEach((runTest, { task }) => (task.concurrent === true ? isolated(runTest) : runTest()));
+const { isolateConcurrentEach } = await import('@variance-authority/isolator/node');
+isolateConcurrentEach(aroundEach);

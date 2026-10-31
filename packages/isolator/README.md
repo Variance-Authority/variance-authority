@@ -150,7 +150,7 @@ part away: each test reads the values its modules were loaded with.
 import { isolator } from '@variance-authority/isolator/vite';
 import { defineConfig } from 'vitest/config';
 
-// Files whose modules must load after something the file does first.
+// Every file that calls `vi.mock` or renders into a DOM; one these globs miss runs shared.
 const isolated = ['src/**/*.dom.test.tsx', 'src/**/*.mocked.test.ts'];
 
 export default defineConfig({
@@ -172,16 +172,15 @@ import { aroundEach, beforeEach } from 'vitest';
 
 configureResetHandler(beforeEach);
 
-const { isolated } = await import('@variance-authority/isolator/node');
+const { isolateConcurrentEach } = await import('@variance-authority/isolator/node');
 
-aroundEach((runTest, { task }) => (task.concurrent === true ? isolated(runTest) : runTest()));
+isolateConcurrentEach(aroundEach);
 ```
 
 Tests that run side by side under `test.concurrent` share whatever the last
-`beforeEach` reset, so `aroundEach` runs each of them in an `isolated` session
-of its own. The
-isolator is imported after the driver is installed, since it registers its
-reset as it loads.
+`beforeEach` reset, so `isolateConcurrentEach` runs each of them in an
+`isolated` session of its own. The isolator is imported after the driver is
+installed, since it registers its reset as it loads.
 
 The plugin asks Vitest which files are tests, by every project's `include`
 and `includeSource`, and leaves them and the setup files as they are. It leaves

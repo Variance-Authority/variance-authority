@@ -19,6 +19,7 @@ import { slice } from '../vitest.config.mjs';
 const ROOT = import.meta.dirname.replace(/[/\\]tools$/, '');
 const config = slice('unit');
 const unit = picomatch(config.test.include, { ignore: config.test.exclude, dot: true });
+// FIXME: a text match; a `vi.mock` in a helper a test imports leaves its file shared. Read sense's mock parse instead.
 const declaring = (pattern: string) =>
   execFileSync('git', ['grep', '-l', '-E', pattern], { cwd: ROOT, encoding: 'utf8' }).split('\n').filter((file) => file && unit(file));
 const isolated = [...new Set([...declaring('@vitest-environment jsdom'), ...declaring('vi\\.(doM|m)ock\\('), ...declaring("playwright/lib/common'")])];
