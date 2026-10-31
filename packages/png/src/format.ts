@@ -35,25 +35,12 @@ export const KEEP_LIMIT = 16_383;
 
 /**
  * Turn an accepted capture into the bytes a store keeps: a lossless WebP that
- * decodes to every channel of every pixel the capture held.
+ * decodes to every channel of every pixel the capture held, checked by decoding
+ * it back before it is returned.
  *
- * This runs once per accepted difference, never on a comparison, so a run that
- * changes nothing encodes nothing. libwebp's fastest method is used at the
- * quality where it starts to pay: on a full-page capture it halves the PNG in
- * about the time `pngjs` takes to decode it, and the slower methods cost ten
- * times as long for a further tenth. `exact` keeps the colour under a fully
- * transparent pixel, which the encoder otherwise rewrites to whatever
- * compresses best; the comparison reads raw channels, so that colour is part of
- * the picture.
- *
- * The output is decoded back and compared before it is returned. The check
- * costs one WebP decode and is the only proof that the kept bytes are the
- * accepted pixels; a store that kept something else would make every later
- * verdict about a picture nobody approved.
- *
- * A WebP is returned as it came: it was kept once already. An image beyond
- * {@link KEEP_LIMIT} on either side is refused, read from the PNG header before
- * any pixel is decoded, since no WebP can hold it.
+ * It runs once per accepted difference, never on a comparison, so a run that
+ * changes nothing encodes nothing. A WebP is returned as it came; an image
+ * beyond {@link KEEP_LIMIT} on a side is refused before any pixel is decoded.
  */
 export async function keepImage(bytes: Buffer): Promise<Buffer> {
   const format = imageFormat(bytes);
@@ -77,10 +64,15 @@ export async function keepImage(bytes: Buffer): Promise<Buffer> {
         width: source.width,
         height: source.height,
       },
+      // The fastest method at the quality where it starts to pay: it halves a
+      // full-page PNG in about the time pngjs takes to decode one. `exact` keeps
+      // the colour under a fully transparent pixel, which the comparison reads.
       { lossless: 1, exact: 1, method: 0, quality: 75 },
     ),
   );
 
+  // The only proof the kept bytes are the accepted pixels: a store that kept
+  // anything else would make every later verdict about a picture nobody approved.
   const back = await decodeWebp(kept);
   if (back.width !== source.width || back.height !== source.height || !Buffer.from(back.data.buffer, back.data.byteOffset, back.data.byteLength).equals(source.data)) {
     throw new Error(

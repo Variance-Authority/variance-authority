@@ -55,6 +55,7 @@ export type Read<T> = T & { readonly placedFor?: PlacedFor };
  */
 export type KeptAs = 'png' | 'webp';
 export const KEPT_AS: KeptAs = 'webp';
+/** Every extension a store has kept an image under, the one it writes first. */
 export const KEPT = ['webp', 'png'] as const satisfies readonly KeptAs[];
 
 /** Whether a file name is a kept image, of either extension a store has written. */

@@ -1895,6 +1895,10 @@
           "types": "./dist/difference.d.ts",
           "default": "./dist/difference.js"
         },
+        "./header": {
+          "types": "./dist/header.d.ts",
+          "default": "./dist/header.js"
+        },
         "./mask": {
           "types": "./dist/mask.d.ts",
           "default": "./dist/mask.js"
@@ -1916,6 +1920,8 @@
         "ChangeLabels": "interface",
         "DeclaredPainter": "interface",
         "DecodedImage": "interface",
+        "ImageFormat": "type",
+        "KEEP_LIMIT": "const",
         "PngDecoder": "interface",
         "changeImages": "function",
         "comparePixels": "function",
@@ -1923,16 +1929,24 @@
         "compareRasters": "function",
         "declaredIdentity": "function",
         "decode": "function",
+        "decodePortable": "function",
         "diffImage": "function",
         "foreignDigest": "function",
         "foreignRaster": "function",
-        "pngSize": "function",
+        "imageFormat": "function",
+        "imageSize": "function",
+        "keepImage": "function",
         "pngjsDecoder": "const"
       },
       "./difference": {
         "ObservePngDifferenceInput": "interface",
         "decodeImage": "function",
         "observePngDifference": "function"
+      },
+      "./header": {
+        "ImageFormat": "type",
+        "imageFormat": "function",
+        "imageSize": "function"
       },
       "./mask": {
         "AlignedRows": "interface",
@@ -3806,10 +3820,13 @@
         "DEFAULT_BASELINE_PATH": "const",
         "DurableStoreOptions": "interface",
         "ImageReader": "type",
+        "KEPT": "const",
+        "KeptAs": "type",
         "RenderCacheBound": "interface",
         "RenderCacheSwept": "interface",
         "createDurableStore": "function",
         "familyOf": "function",
+        "isKeptImage": "function",
         "parseBaselinePath": "function",
         "renderCacheIn": "function",
         "sweepRenderCache": "function"

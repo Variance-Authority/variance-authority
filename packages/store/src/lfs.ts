@@ -93,18 +93,11 @@ export interface LfsStoreOptions extends Omit<DurableStoreOptions, 'readImage'> 
    * Glob for the tracked images, relative to the `.gitattributes` that holds it.
    *
    * Defaults to the template's glob with `.webp` on the end — `*-*.webp` for the
-   * default `{title}/{name}-{engine}`, a name with no slash matching at every
-   * depth, and `**\/__baselines__/*\/*-*.webp` for
-   * `{dir}/__baselines__/{file}/{name}-{engine}`: the store keeps every image it
-   * writes as a WebP. A `.png` baseline kept before stays under the entry that
-   * tracked it then, which this store never removes, until its next accept
-   * replaces it. Under a root that is the
-   * repository itself the first also takes any other WebP with a `-` in its
-   * name, so the CLI's config refuses that pair unless the template names a
-   * directory of its own (`BaselinePathTemplate.anchored`) or this is set. Images only: the `.json` sidecars beside each
-   * image are small, readable, and the only thing that says which machine wrote
-   * a baseline, so putting them through LFS would make the reviewable half of the
-   * artifact unreviewable in exchange for nothing.
+   * default `{title}/{name}-{engine}`, matching at every depth. Under a root that
+   * is the repository itself that also takes any other WebP with a `-` in its
+   * name, so the CLI's config refuses the pair unless the template names a
+   * directory of its own (`BaselinePathTemplate.anchored`) or this is set. Images
+   * only: the `.json` sidecars stay reviewable text.
    */
   readonly pattern?: string;
 
@@ -161,6 +154,8 @@ export interface LfsStore extends RasterStore {
  */
 export async function createLfsStore(options: LfsStoreOptions): Promise<LfsStore> {
   const template = parseBaselinePath(options.path ?? DEFAULT_BASELINE_PATH);
+  // Every image this store writes is a WebP. A `.png` kept before stays under
+  // the entry that tracked it then, never removed here, until an accept replaces it.
   const pattern = options.pattern ?? attributesPattern(`${template.glob}.webp`);
   const attributesFile = options.attributesFile ?? join(options.root, '.gitattributes');
 
