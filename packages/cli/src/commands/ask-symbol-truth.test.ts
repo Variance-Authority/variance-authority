@@ -259,6 +259,15 @@ describe('variance ask symbol says what is true of a name', () => {
     }
   });
 
+  it('names a published container where it is declared, once, when its body declares no such member', async () => {
+    checkout({ 'packages/lib-exports/src/index.ts': 'export interface Shelf {\n  readonly size: number;\n}\n' });
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+    const { code, out } = await run(['ask', 'symbol', '--name', 'Shelf.width']);
+    expect(code).toBe(EXIT_CLEAN);
+    expect(out).toContain('`Shelf` is declared at packages/lib-exports/src/index.ts:1, and no interface, type alias or class body read here declares `width` on `Shelf`.');
+    expect(out).not.toContain('No file read here declares `Shelf`');
+  });
+
   it('never refuses an enum member as undeclared', async () => {
     checkout({ 'packages/lib/src/color.ts': 'export enum Color {\n  Red,\n}\n' });
     expect((await run(['index'])).code).toBe(EXIT_CLEAN);
