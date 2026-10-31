@@ -115,13 +115,15 @@ describe.skipIf(process.platform === 'win32')('the update over a watched checkou
     expect(await gitRan()).not.toEqual([]);
 
     await tell({ clock: 'c:1:2' });
-    const second = await updateNatively(root, index);
+    const told: string[] = [];
+    const second = await updateNatively(root, index, (step) => void told.push(step));
     expect(await gitRan()).toEqual([]);
+    expect(told).toContain('Watchman reports nothing moved since the listing the index holds, so git listed nothing');
     expect(second).toMatchObject({ files: first!.files, reread: 0 });
     expect(second!.listing.paths()).toEqual(first!.listing.paths());
   });
 
-  it('asks git when Watchman starts over, and when the clock names a file the generation holds', async () => {
+  it('asks git when Watchman starts over, and when the clock names a file git does not ignore', async () => {
     await updateNatively(root, index);
     await gitRan();
 
@@ -161,6 +163,55 @@ describe.skipIf(process.platform === 'win32')('the update over a watched checkou
     await tell({ clock: 'c:6:1', files: [{ name: '.git', type: 'd' }, '.git/index.lock', '.git/logs/HEAD'] });
     await updateNatively(root, index);
     expect(await gitRan()).toEqual([]);
+  });
+
+  it("carries a listing whose files' stat differs from the index's, which leaves the index as it was", async () => {
+    await updateNatively(root, index);
+    await gitRan();
+
+    // The same text with another date: a `status` that may write the index refreshes its entry.
+    await write('lib/unit.ts', 'export const unit = 1;\n', 45_000);
+    await tell({ clock: 'c:7:1', files: ['lib/unit.ts'] });
+    await updateNatively(root, index);
+    await gitRan();
+
+    await tell({ clock: 'c:7:2' });
+    await updateNatively(root, index);
+    expect(await gitRan()).toEqual([]);
+  });
+
+  it('asks git when a commit moves HEAD, though Watchman reports only what moved in git\'s directory', async () => {
+    await updateNatively(root, index);
+    await gitRan();
+
+    git('-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '--quiet', '--allow-empty', '-m', 'moved');
+    await tell({ clock: 'c:8:1', files: ['.git/index.lock', '.git/logs/HEAD'] });
+    await updateNatively(root, index);
+    expect((await gitRan()).some((ran) => ran.startsWith('ls-tree'))).toBe(true);
+  });
+
+  it('asks git when the excludes file a home-relative `core.excludesfile` names changes', async () => {
+    const home = join(wire, 'home');
+    await mkdir(home, { recursive: true });
+    await writeFile(join(home, 'ignore'), '');
+    const at = process.env.HOME;
+    process.env.HOME = home;
+    git('config', 'core.excludesfile', '~/ignore');
+    await write('notes.ts', 'export const notes = 1;\n');
+    try {
+      await updateNatively(root, index);
+      await gitRan();
+
+      // Outside the watch, so Watchman has nothing to report.
+      await writeFile(join(home, 'ignore'), 'notes.ts\n');
+      await tell({ clock: 'c:9:1' });
+      await updateNatively(root, index);
+      expect((await gitRan()).some((ran) => ran.startsWith('ls-tree'))).toBe(true);
+    } finally {
+      process.env.HOME = at;
+      git('config', '--unset', 'core.excludesfile');
+      await rm(join(root, 'notes.ts'));
+    }
   });
 
   it('asks the watchman command where its server listens once for an index, not on every update', async () => {

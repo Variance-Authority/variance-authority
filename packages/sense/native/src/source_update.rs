@@ -15,7 +15,8 @@
 //! configuration, a file no native reader opens — and the JavaScript update
 //! runs as it always did. Nothing here guesses.
 //!
-//! Nothing changed, nothing is written.
+//! Nothing changed, no record is written; a listing the tree carries (spec
+//! 0107) is written with the segment it stands beside.
 
 // compass: variance-authority.reach.source-index
 
@@ -69,7 +70,7 @@ pub struct Updated {
     pub files: u32,
     /// Files opened to make it.
     pub reread: u32,
-    /// Whether a segment was written; an unchanged tree writes none.
+    /// Whether records were published; an unchanged tree publishes none, and writes only a listing it carries.
     pub published: bool,
     /// What the file system refused, when it did: the index is then as it was.
     pub refused: Option<String>,

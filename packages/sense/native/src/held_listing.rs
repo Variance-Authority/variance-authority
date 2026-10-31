@@ -66,36 +66,45 @@ pub(crate) enum Change {
 }
 
 /// Git's directories, and the files whose change moves what git lists: HEAD
-/// and what it points at, the index, the exclude files, and every
-/// configuration file git read.
+/// and what it points at, the index, the exclude and attribute files, and
+/// every configuration file git read.
 fn inputs(root: &str) -> Option<(Vec<String>, Vec<PathBuf>)> {
-    let dirs = git::git(root, &["rev-parse", "--path-format=absolute", "--git-dir", "--git-common-dir"], None)?;
-    let dirs = String::from_utf8(dirs).ok()?;
+    // Three questions none of which waits on another: asked at once, they cost one spawn's time.
+    // `--path` reads `core.excludesfile` and `core.attributesFile` as git expands them, `~/` included.
+    let (dirs, config, named) = std::thread::scope(|scope| {
+        let dirs = scope.spawn(|| git::git(root, &["rev-parse", "--path-format=absolute", "--git-dir", "--git-common-dir"], None));
+        let config = scope.spawn(|| git::git(root, &["config", "--show-origin", "--list", "-z"], None));
+        let named = git::git(root, &["config", "--path", "-z", "--get-regexp", r"^core\.(excludesfile|attributesfile)$"], None);
+        (dirs.join().ok().flatten(), config.join().ok().flatten(), named)
+    });
+    let dirs = String::from_utf8(dirs?).ok()?;
     let mut lines = dirs.lines();
     let (dir, common) = (PathBuf::from(lines.next()?), PathBuf::from(lines.next()?));
-    let mut inputs = vec![dir.join("HEAD"), dir.join("index"), common.join("packed-refs"), common.join("info/exclude")];
+    let mut inputs = vec![dir.join("HEAD"), dir.join("index"), common.join("packed-refs"), common.join("info/exclude"), common.join("info/attributes")];
     if let Ok(head) = std::fs::read_to_string(dir.join("HEAD")) {
         if let Some(reference) = head.trim().strip_prefix("ref: ") {
             inputs.push(common.join(reference));
         }
     }
     // `-z` prints the origin, then the key and value split by a newline, each ended by NUL.
-    let config = git::git(root, &["config", "--show-origin", "--list", "-z"], None).unwrap_or_default();
+    // A configuration git could not read is one nothing can vouch for.
+    let config = config?;
     let mut fields = config.split(|byte| *byte == 0);
-    while let (Some(origin), Some(entry)) = (fields.next(), fields.next()) {
-        let origin = String::from_utf8_lossy(origin);
-        if let Some(file) = origin.strip_prefix("file:") {
+    while let (Some(origin), Some(_)) = (fields.next(), fields.next()) {
+        if let Some(file) = String::from_utf8_lossy(origin).strip_prefix("file:") {
             inputs.push(Path::new(root).join(file));
         }
-        let entry = String::from_utf8_lossy(entry);
-        if let Some(excludes) = entry.strip_prefix("core.excludesfile\n") {
-            inputs.push(Path::new(root).join(excludes));
+    }
+    // Exits 1 when neither is set.
+    for entry in named.unwrap_or_default().split(|byte| *byte == 0) {
+        if let Some((_, file)) = String::from_utf8_lossy(entry).split_once('\n') {
+            inputs.push(Path::new(root).join(file));
         }
     }
     let home = std::env::var_os("HOME").map(PathBuf::from);
     let config = std::env::var_os("XDG_CONFIG_HOME").map(PathBuf::from).or_else(|| home.as_ref().map(|home| home.join(".config")));
     inputs.extend(home.map(|home| home.join(".gitconfig")));
-    inputs.extend(config.into_iter().flat_map(|config| [config.join("git/config"), config.join("git/ignore")]));
+    inputs.extend(config.into_iter().flat_map(|config| [config.join("git/config"), config.join("git/ignore"), config.join("git/attributes")]));
     inputs.sort();
     inputs.dedup();
     let mut git = vec![dir.to_string_lossy().into_owned(), common.to_string_lossy().into_owned()];
@@ -138,6 +147,12 @@ fn ignores_all(root: &str, paths: &[String]) -> bool {
         .is_some_and(|ignored| ignored.iter().filter(|byte| **byte == 0).count() == paths.len())
 }
 
+/// Whether a held listing can still be vouched for, before Watchman is asked:
+/// the same server and roots, a watch that hides nothing, and git's inputs as they were.
+fn stands(meta: &Meta, socket: &str, dirs: &[String], stamp: impl Fn(&str) -> Option<Stamp>) -> bool {
+    meta.watch.socket == socket && meta.dirs == dirs && meta.watch.ignored.is_empty() && meta.inputs.iter().all(|(input, was)| stamp(input) == *was)
+}
+
 /// The tree under `root` for an update of the index at `index`: the held one when
 /// Watchman vouches for it, else git's, with what makes it carried when a watch covers `root`.
 pub(crate) fn change_tree(root: &str, index: &str, dirs: &[String]) -> Option<(Snapshot, Option<Change>)> {
@@ -148,18 +163,17 @@ pub(crate) fn change_tree(root: &str, index: &str, dirs: &[String]) -> Option<(S
     let index_dir = Path::new(index).parent().and_then(below);
     if let (Some(socket), Some((snapshot, meta))) = (&socket, held) {
         let excluded: Vec<String> = index_dir.iter().cloned().chain(meta.git.iter().filter_map(|dir| below(Path::new(dir)))).collect();
-        let vouched = meta.watch.socket == *socket
-            && meta.dirs == dirs
-            && meta.watch.ignored.is_empty()
-            && meta.inputs.iter().all(|(input, was)| stamp(Path::new(input)) == *was)
-            && watchman::since(&meta.watch, &excluded).is_some_and(|since| !since.fresh && ignores_all(root, &since.files));
-        if vouched {
+        let stands = stands(&meta, socket, dirs, |input| stamp(Path::new(input)));
+        if stands && watchman::since(&meta.watch, &excluded).is_some_and(|since| !since.fresh && ignores_all(root, &since.files)) {
             return Some((snapshot, Some(Change::Vouched(meta))));
         }
     }
     // The clock and the stamps are taken before git lists, so whatever moves while it does is after them.
-    let watch = socket.and_then(|socket| watchman::watch(&socket, root));
-    let (git, inputs) = watch.as_ref().and_then(|_| inputs(root)).unzip();
+    let (watch, inputs) = std::thread::scope(|scope| {
+        let inputs = scope.spawn(|| socket.as_ref().and_then(|_| inputs(root)));
+        (socket.as_deref().and_then(|socket| watchman::watch(socket, root)), inputs.join().ok().flatten())
+    });
+    let (git, inputs) = watch.as_ref().and(inputs).unzip();
     let before = inputs.as_deref().map(stamped);
     let snapshot = git::snapshot(root)?;
     let after = inputs.as_deref().map(stamped);

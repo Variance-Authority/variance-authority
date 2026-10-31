@@ -98,6 +98,8 @@ pub(crate) fn socket(kept: &Path) -> Option<String> {
 /// One command over a fresh connection, and its answer; `None` on any error.
 fn ask(socket: &str, command: &Value) -> Option<Value> {
     let mut stream = UnixStream::connect(socket).ok()?;
+    // A server that stops answering is no answer, not an update that waits on it.
+    stream.set_read_timeout(Some(std::time::Duration::from_secs(15))).ok()?;
     let mut line = serde_json::to_vec(command).ok()?;
     line.push(b'\n');
     stream.write_all(&line).ok()?;
@@ -119,8 +121,10 @@ pub(crate) fn watch(socket: &str, root: &str) -> Option<Watch> {
         .max_by_key(|watched| watched.len())?
         .to_owned();
     let relative = root.strip_prefix(&watched).map(|rest| rest.trim_start_matches('/')).filter(|rest| !rest.is_empty()).map(str::to_owned);
-    let ignored = ask(socket, &json!(["get-config", watched]))
-        .and_then(|config| config.pointer("/config/ignore_dirs").cloned())
+    // No answer is not an empty list: a watch whose configuration is unknown vouches for nothing.
+    let config = ask(socket, &json!(["get-config", watched]))?;
+    let ignored = config
+        .pointer("/config/ignore_dirs")
         .and_then(|dirs| dirs.as_array().map(|dirs| dirs.iter().filter_map(Value::as_str).map(str::to_owned).collect()))
         .unwrap_or_default();
     let clock = ask(socket, &json!(["clock", watched, { "sync_timeout": 10_000 }]))?.get("clock")?.as_str()?.to_owned();

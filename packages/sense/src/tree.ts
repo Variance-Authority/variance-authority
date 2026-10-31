@@ -308,7 +308,7 @@ export async function gitTreeOf(
  */
 export async function changeTreeOf(root: string, index: string, dirs: readonly string[]): Promise<Tree | undefined> {
   const addon = native();
-  if (addon?.changeTree === undefined) return gitTreeOf(root, dirs);
+  if (addon === undefined) return gitTreeOf(root, dirs);
   const held = addon.changeTree(root, index, [...dirs]);
   return held === null ? undefined : nativeTree(held);
 }

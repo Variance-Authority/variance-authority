@@ -26,6 +26,18 @@ pub fn change_tree(root: String, index: String, dirs: Vec<String>) -> Option<Git
     }
 }
 
+#[napi]
+impl GitTree {
+    /// Watchman vouched for the listing the index held, and git listed nothing.
+    #[napi(getter)]
+    pub fn vouched(&self) -> bool {
+        #[cfg(unix)]
+        return matches!(self.change, Some(crate::held_listing::Change::Vouched(_)));
+        #[cfg(not(unix))]
+        false
+    }
+}
+
 /// The listing an update under `config` carries forward, or, when the update
 /// that carried it was made against this tree under the same configuration,
 /// that update's answer, with nothing to do.
