@@ -61,7 +61,7 @@ describe('variance ask uses over an interface method', () => {
     expect(out).not.toContain('packages/kit/src/other.ts:5');
     expect(out).toContain(
       'An implementation of `Deps.readJourney` that takes its type from where it goes — an argument, a property, a returned value — writes no type on its line and is not listed: ' +
-        "TypeScript's go-to-implementation on packages/lib/src/deps.ts:2 names it.",
+        "TypeScript's language service's go-to-implementation on packages/lib/src/deps.ts:2 names it.",
     );
   });
 });

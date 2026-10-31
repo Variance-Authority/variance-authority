@@ -32,6 +32,12 @@ fn a_constraint_is_not_the_alias_body() {
 }
 
 #[test]
+fn an_alias_names_the_literals_its_intersection_or_union_joins() {
+    let found = on("type X = Base & {\n  m: 1;\n};\ntype Y = { m: 2 } | { m: 3 };\ntype Z = Array<{ m: 4 }>;\n", "m");
+    assert_eq!(found, vec![(2, "X".to_owned()), (4, "Y".to_owned()), (4, "Y".to_owned()), (5, "a type literal".to_owned())]);
+}
+
+#[test]
 fn a_constructor_parameter_property_is_a_member() {
     let found = on("class Held {\n  constructor(private m: string, n: number) {}\n}\n", "m");
     assert_eq!(found, vec![(2, "Held".to_owned())]);
