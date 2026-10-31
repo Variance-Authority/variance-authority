@@ -237,7 +237,8 @@ describe('variance ask symbol says what is true of a name', () => {
     expect((await run(['index'])).code).toBe(EXIT_CLEAN);
     const { code, out } = await run(['ask', 'symbol', '--name', 'Nope.chainsTo']);
     expect(code).toBe(EXIT_CLEAN);
-    expect(out).toContain('No file in this workspace declares `Nope.chainsTo`. No file read here declares `Nope` at its top level');
+    expect(out).toContain('No file read here declares `Nope` at its top level');
+    expect(out).not.toContain('declares `Nope.chainsTo`');
     expect(out).toContain("TypeScript's language service's go-to-definition on `Nope.chainsTo`");
     expect(out).not.toContain('as a member');
   });
@@ -253,6 +254,7 @@ describe('variance ask symbol says what is true of a name', () => {
       expect(out).toContain('`Forest` is declared at packages/lib/src/forest.ts:3, and no interface, type alias or class body read here declares `chainsTo` on `Forest`.');
       expect(out).toContain("An inherited member is a type checker's answer, and none runs here; the source index reads no enum, namespace or object literal body:");
       expect(out).not.toContain('merged');
+      expect(out).not.toContain('declares `Forest.chainsTo`');
       expect(out).toContain("TypeScript's language service's go-to-definition on `Forest.chainsTo`");
     }
   });

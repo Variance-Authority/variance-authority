@@ -39,7 +39,8 @@ describe('variance ask uses over a module name', () => {
     await run(['index']);
 
     const { out, err } = await run(['ask', 'uses', '--name', 'tsconfig.json']);
-    expect(out).toContain('No file in this workspace declares `tsconfig.json`. No file read here declares `tsconfig` at its top level');
+    expect(out).toContain('No file read here declares `tsconfig` at its top level');
+    expect(out).not.toContain('declares `tsconfig.json`');
     expect(`${out}${err}`).not.toContain('is a module');
   });
 });

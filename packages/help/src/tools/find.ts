@@ -200,7 +200,7 @@ export function nowhere(
     ? `Which files declare \`${name}\` is not known: ${why}.`
     : on !== undefined && head !== undefined && members !== undefined
       ? [
-          `${none}.`,
+          // A member is declared in its container's body, which is not always read, so a dotted name is never said to be declared nowhere.
           // A namespace `import * as` binds is no declaration the index holds, so a container nothing declares is never proven absent.
           containers.length === 0
             ? `No file read here declares \`${head}\` at its top level; a namespace an import or an \`export * as\` binds is not read as one.`
