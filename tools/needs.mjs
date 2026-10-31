@@ -399,8 +399,8 @@ function bagOf(root, name, imported) {
 }
 
 /** The needs a unit is compared by: its own, without those only the platform's words wrote. */
-export const ownOf = (unit) => {
-  const platform = new Set(unit.platform ?? []);
+const ownOf = (unit) => {
+  const platform = new Set(unit.platform);
   return unit.bag.filter((need) => !platform.has(need));
 };
 
