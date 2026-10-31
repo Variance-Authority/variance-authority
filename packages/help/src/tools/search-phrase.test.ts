@@ -8,11 +8,12 @@ import { searchNames } from './search-answer.js';
 import { searchIndexOf } from './search.js';
 
 /**
- * A doc writes a question of several words when it holds them in order, each
- * next to the last, read by stem the way search reads every word: punctuation
- * and a possessive between them do not break the phrase, a word between them
- * does, and a function word the question drops still holds its place. The
- * described section counts a doc's adjacent pairs by the same rule.
+ * A doc writes a question of several words when one paragraph holds them in
+ * order, each as many words after the last as in the question, read by stem
+ * the way search reads every word: punctuation and a possessive between them
+ * do not break the phrase, a word between them does, and a function word the
+ * question drops still holds its place. A run in the opening paragraph ranks
+ * first. The described section counts a doc's pairs by the same rule.
  */
 
 const manifest = (name: string): string =>
@@ -31,6 +32,10 @@ const SINKS = [
   "export const EVENT_SINK = 'vae';",
   '/** The text of the file at the commit. */',
   'export const textOf = 0;',
+  '/**\n * Kept apart.\n *\n * The cache sweep.\n */',
+  'export const later = 0;',
+  '/** The cache sweep, first. */',
+  'export const opening = 0;',
 ].join('\n');
 
 let index: SearchIndex;
@@ -69,7 +74,15 @@ describe('a doc that writes the question as a phrase', () => {
     expect(publishedFirst('text file commit')).toEqual([]);
   });
 
-  it('is the rule the described section counts adjacent pairs by', () => {
+  it('asks nothing before the run for a word the question drops ahead of its first', () => {
+    expect(publishedFirst('the source that installs')).toEqual(['eventCollectorSource']);
+  });
+
+  it('ranks a doc that writes it in its opening paragraph above one that writes it later', () => {
+    expect(publishedFirst('cache sweep')).toEqual(['opening', 'later']);
+  });
+
+  it('is the rule the described section counts pairs by', () => {
     const docs = ["Source that installs the page's sink.", 'The sink one page writes to.', 'Each page and its sink.'];
     expect(nearOfNative('page sink', docs)).toEqual([1, 0, 0]);
   });

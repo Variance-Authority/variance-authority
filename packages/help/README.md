@@ -569,8 +569,8 @@ substring of a name or its doc, and a name also matches when it is written in
 every word of the query, each word by its start or its stem, so `instrumenting`
 reaches `instrumentModule`. A doc also matches when one of its paragraphs
 writes the query as a phrase: its words in order by stem, each as many words
-after the last as in the query. A word the query is put in, such as `of` or
-`a`, holds its place and any word fills it; a possessive or punctuation holds
+after the last as in the query. A function word such as `of`, or a word under three
+letters, holds its place and any word fills it; a possessive or punctuation holds
 none. So "installs the page's sink" matches `page sink`, "a page and its sink"
 does not, and "the text of the file" matches `text of a file`. A match is a
 fact about the text rather than an opinion about the query. When it matches nothing, the names holding any of

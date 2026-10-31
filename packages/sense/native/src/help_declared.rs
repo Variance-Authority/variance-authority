@@ -58,7 +58,7 @@ pub struct DeclaredName {
     /// Asked by [`Matching::Described`]: the positions, ascending, of those its name holds.
     pub named: Option<Vec<u32>>,
     /// Asked by [`Matching::Described`]: how many of the question's adjacent
-    /// word pairs its doc writes adjacent, as [`near`] counts them.
+    /// word pairs its doc writes as a phrase, as [`near`] counts them.
     pub near: Option<u32>,
     /// Asked by [`Matching::Described`]: the bytes of the doc the words were
     /// held against, its lines joined by single spaces; absent when it writes none.
@@ -86,7 +86,7 @@ pub struct DescribedFile {
     pub held: Vec<u32>,
     /// The positions, ascending, of those its name holds.
     pub named: Vec<u32>,
-    /// How many of the question's adjacent word pairs its module doc writes adjacent.
+    /// How many of the question's adjacent word pairs its module doc writes as a phrase.
     pub near: u32,
     /// The bytes of the module doc the words were held against, its lines
     /// joined by single spaces; absent when it writes none.
