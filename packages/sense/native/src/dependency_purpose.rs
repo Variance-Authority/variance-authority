@@ -152,19 +152,26 @@ fn placed(text: &str) -> Vec<Placed> {
     out
 }
 
-/// The first paragraph of `said` that writes `run` — stems at places relative
-/// to the first's — at the same distances; `None` when none does.
-fn writes(said: &[Placed], run: &[(u32, &str)]) -> Option<u32> {
-    let at: HashMap<(u32, u32), &str> = said.iter().map(|one| ((one.paragraph, one.place), one.stem.as_str())).collect();
+/// Each stem of a text by where it stands, read once per text however many runs are asked of it.
+fn by_place(said: &[Placed]) -> HashMap<(u32, u32), &str> {
+    said.iter().map(|one| ((one.paragraph, one.place), one.stem.as_str())).collect()
+}
+
+/// The first paragraph of `said` that writes `run` — each stem with its place
+/// after the run's first — at the same distances; `None` when none does.
+fn writes(said: &[Placed], at: &HashMap<(u32, u32), &str>, run: &[(u32, &str)]) -> Option<u32> {
     let (first, rest) = run.split_first()?;
-    said.iter().filter(|one| one.stem == first.1 && one.place >= first.0).find(|one| {
-        rest.iter().all(|(place, stem)| at.get(&(one.paragraph, one.place - first.0 + place)) == Some(stem))
+    said.iter().filter(|one| one.stem == first.1).find(|one| {
+        rest.iter().all(|(place, stem)| at.get(&(one.paragraph, one.place + place)) == Some(stem))
     }).map(|one| one.paragraph)
 }
 
-/// The question's stems where it places them, as one run.
-fn asked_run(query: &str) -> Vec<Placed> {
-    placed(query).into_iter().map(|one| Placed { paragraph: 0, ..one }).collect()
+/// The question's stems as one run, each placed after the first: a word the
+/// question drops before its first stem asks for nothing before the run.
+fn asked_run(query: &str) -> Vec<(u32, String)> {
+    let asked = placed(query);
+    let start = asked.first().map_or(0, |one| one.place);
+    asked.into_iter().map(|one| (one.place - start, one.stem)).collect()
 }
 
 /// How many of the adjacent stem pairs of `query` `text` also writes, each at
@@ -174,10 +181,11 @@ fn asked_run(query: &str) -> Vec<Placed> {
 pub(crate) fn near(query: &str, text: &str) -> u32 {
     let asked = asked_run(query);
     let pairs: BTreeSet<[(u32, &str); 2]> = asked.windows(2)
-        .map(|pair| [(0, pair[0].stem.as_str()), (pair[1].place - pair[0].place, pair[1].stem.as_str())]).collect();
+        .map(|pair| [(0, pair[0].1.as_str()), (pair[1].0 - pair[0].0, pair[1].1.as_str())]).collect();
     if pairs.is_empty() { return 0; }
     let said = placed(text);
-    pairs.iter().filter(|pair| writes(&said, &pair[..]).is_some()).count() as u32
+    let at = by_place(&said);
+    pairs.iter().filter(|pair| writes(&said, &at, &pair[..]).is_some()).count() as u32
 }
 
 /// The first paragraph of `text` that writes the whole of `query`'s run of two
@@ -185,8 +193,9 @@ pub(crate) fn near(query: &str, text: &str) -> u32 {
 pub(crate) fn phrase(query: &str, text: &str) -> Option<u32> {
     let asked = asked_run(query);
     if asked.len() < 2 { return None; }
-    let run: Vec<(u32, &str)> = asked.iter().map(|one| (one.place, one.stem.as_str())).collect();
-    writes(&placed(text), &run)
+    let run: Vec<(u32, &str)> = asked.iter().map(|(place, stem)| (*place, stem.as_str())).collect();
+    let said = placed(text);
+    writes(&said, &by_place(&said), &run)
 }
 
 fn sorted(mut words: Vec<String>) -> Vec<String> { words.sort_unstable(); words.dedup(); words }
@@ -272,6 +281,13 @@ mod tests {
         assert_eq!(near("page sink", "Each page.\n \nSink it."), 0);
         assert_eq!(phrase("page sink", "Opening.\n\nThe page sink.\n\nThe page sink."), Some(1));
         assert_eq!(phrase("page sink", "One page.\nSink it."), Some(0));
+    }
+
+    #[test]
+    fn a_dropped_word_opening_the_question_asks_nothing_before_the_run() {
+        assert_eq!(phrase("the page sink", "Page sink for events."), Some(0));
+        assert_eq!(phrase("a page sink", "Page sink."), Some(0));
+        assert_eq!(near("the page sink", "Page sink."), 1);
     }
 
     #[test]
