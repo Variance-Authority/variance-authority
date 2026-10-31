@@ -217,7 +217,7 @@ container and the file and line that declare it, one block per declaration,
 after every other declaration of the name. `Tree.has` asks for the member `has`
 of `Tree` alone; when `Tree` is declared and no body read declares `has` on it,
 the answer names `Tree`'s declaration and leaves what it inherits or merges to
-TypeScript's go-to-definition. `ask search` reads top-level
+the go-to-definition of the type checker for `Tree`'s language. `ask search` reads top-level
 declarations only: a name declared inside a function is found by `ask symbol`.
 
 `--package` with the path of one file in a package, such as

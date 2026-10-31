@@ -232,13 +232,13 @@ describe('variance ask symbol says what is true of a name', () => {
     expect(out).toContain('a member of `Tree`, declared at packages/lib/src/tree.ts:2');
   });
 
-  it('refuses a dotted name whose container nothing declares by saying so', async () => {
+  it('refuses a dotted name whose container nothing declares by what was read, and routes it to TypeScript', async () => {
     checkout(TREE);
     expect((await run(['index'])).code).toBe(EXIT_CLEAN);
     const { code, out } = await run(['ask', 'symbol', '--name', 'Nope.chainsTo']);
     expect(code).toBe(EXIT_CLEAN);
-    expect(out).toContain('No file in this workspace declares `Nope.chainsTo`: none declares `Nope`.');
-    expect(out).not.toContain('inherits');
+    expect(out).toContain('No file in this workspace declares `Nope.chainsTo`. No file read here declares `Nope` at its top level');
+    expect(out).toContain("TypeScript's language service's go-to-definition on `Nope.chainsTo`");
     expect(out).not.toContain('as a member');
   });
 
@@ -250,8 +250,9 @@ describe('variance ask symbol says what is true of a name', () => {
       expect(code).toBe(EXIT_CLEAN);
       expect(out).not.toContain('as a member');
       expect(out).not.toContain('a member of `Tree`');
-      expect(out).toContain('`Forest` is declared at packages/lib/src/forest.ts:3, and no interface, type alias or class body read here declares `chainsTo` on it.');
-      expect(out).toContain("A member `Forest` inherits or merges, an enum member, a namespace export and an object literal's property are TypeScript's answer");
+      expect(out).toContain('`Forest` is declared at packages/lib/src/forest.ts:3, and no interface, type alias or class body read here declares `chainsTo` on `Forest`.');
+      expect(out).toContain("An inherited or merged member, an enum member, a namespace's export and an object's property are a type checker's answer");
+      expect(out).toContain("TypeScript's language service's go-to-definition on `Forest.chainsTo`");
     }
   });
 
@@ -262,7 +263,47 @@ describe('variance ask symbol says what is true of a name', () => {
     expect(code).toBe(EXIT_CLEAN);
     expect(out).not.toContain('as a member');
     expect(out).toContain('`Color` is declared at packages/lib/src/color.ts:1');
-    expect(out).toContain("an enum member, a namespace export and an object literal's property are TypeScript's answer");
+    expect(out).toContain("TypeScript's language service's go-to-definition on `Color.Red`");
+  });
+
+  it('answers a member a type alias declares in the literal its intersection joins', async () => {
+    checkout({ 'packages/lib/src/options.ts': 'interface Base {\n  root: string;\n}\nexport type Options = Base & {\n  readonly index: string;\n};\n' });
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+    const { code, out } = await run(['ask', 'symbol', '--name', 'Options.index']);
+    expect(code).toBe(EXIT_CLEAN);
+    expect(out).toContain('a member of `Options`, declared at packages/lib/src/options.ts:5');
+    expect(out).not.toContain('No file');
+  });
+
+  it('never says nothing declares a container a namespace import binds', async () => {
+    checkout({
+      'packages/lib/src/text.ts': 'export const shout = (said: string): string => said.toUpperCase();\n',
+      'packages/lib/src/index.ts': "import * as text from './text.js';\n\nexport const loud = text.shout('hi');\n",
+    });
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+    const { code, out } = await run(['ask', 'symbol', '--name', 'text.shout']);
+    expect(code).toBe(EXIT_CLEAN);
+    expect(out).not.toContain('none declares');
+    expect(out).toContain('a namespace an import or an `export * as` binds is not read as one');
+    expect(out).toContain("TypeScript's language service's go-to-definition on `text.shout`");
+  });
+
+  it('reads a container written with a dot by the name it starts with', async () => {
+    checkout({ 'packages/lib/src/outer.ts': 'export namespace Outer {\n  export const depth = 1;\n}\n' });
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+    const { code, out } = await run(['ask', 'symbol', '--name', 'Outer.Inner.deep']);
+    expect(code).toBe(EXIT_CLEAN);
+    expect(out).toContain('`Outer` is declared at packages/lib/src/outer.ts:1, and no interface, type alias or class body read here declares `deep` on `Outer.Inner`.');
+  });
+
+  it("routes a member of another language's container to that language's server, never TypeScript", async () => {
+    checkout({ 'packages/lib/src/tree.py': 'class Tree:\n    def chains_to(self):\n        return 1\n' });
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+    const { code, out } = await run(['ask', 'symbol', '--name', 'Tree.chains_to']);
+    expect(code).toBe(EXIT_CLEAN);
+    expect(out).toContain('`Tree` is declared at packages/lib/src/tree.py:1');
+    expect(out).toContain("its language server's go-to-definition on `Tree.chains_to`");
+    expect(out).not.toContain("TypeScript's language service");
   });
 
   it('answers the uses of a dotted name as the uses of its member', async () => {

@@ -3,7 +3,7 @@ import { everyEntry } from '@variance-authority/package/help';
 import { importsByPath } from './by-path.js';
 import { says } from './declaration-key.js';
 import { DECLARED_CAP, declarations, declaredAt, isNested, notShown, unreadLine } from './declared.js';
-import { type Members, membersStop } from './members.js';
+import { checkerOf, type Members, membersStop } from './members.js';
 import type { Spelling } from '@variance-authority/mcp/tools';
 import { search } from './search.js';
 import { exportsNamed } from './unpublished.js';
@@ -149,6 +149,13 @@ export class FoundNothing extends Error {
   override readonly name = 'FoundNothing';
 }
 
+/** Whose go-to-definition names a member the bodies read here do not declare, by the language its container is written in. */
+const CHECKER = {
+  typescript: "TypeScript's language service's",
+  other: "its language server's",
+  mixed: "each declaration's own language server's",
+} as const;
+
 /** Where a name is written that no reader here declares. */
 const AS_TEXT = 'A name written only as text, in a string or a comment, declares nothing: a text search such as `rg` finds it.';
 
@@ -178,29 +185,32 @@ export function nowhere(
   const stop = why === undefined && members !== undefined ? membersStop(members) : undefined;
   // A dotted name asks for a member of its container: whether that container is declared decides the answer, never a namesake on another one.
   const on = why === undefined ? members?.on : undefined;
+  // `Outer.Inner` is declared where `Outer` is: a file declares the name a path starts with.
+  const head = on?.split('.')[0];
   // Exported or kept to its file, a container is declared where a file binds it; an `export … from` binds nothing of its own.
-  const containers = on === undefined
+  const containers = head === undefined
     ? []
     : [
-        ...exportsNamed(help, root, on, wanted).filter((held) => held.bound !== undefined),
-        ...declaredAt(root, on, wanted).filter((one) => !isNested(one)),
+        ...exportsNamed(help, root, head, wanted).filter((held) => held.bound !== undefined),
+        ...declaredAt(root, head, wanted).filter((one) => !isNested(one)),
       ];
   // What was read and found nothing comes first, as only what was read; what was not read, last.
   const none = `No file in ${where}${unread.length === 0 ? '' : ' that the source index read'} declares \`${name}\``;
   const files = why !== undefined
     ? `Which files declare \`${name}\` is not known: ${why}.`
-    : on !== undefined && members !== undefined && containers.length === 0
-      ? `${none}: none declares \`${on}\`.`
-      : on !== undefined && members !== undefined
-        ? [
-            `${none}.`,
-            `\`${on}\` is declared at ${containers.slice(0, DECLARED_CAP).map((one) => `${one.at}:${one.line}`).join(', ')}, and no interface, type alias or class body read here declares \`${members.member}\` on it.`,
-            ...notShown(containers.length, 'declaration', on),
-            `A member \`${on}\` inherits or merges, an enum member, a namespace export and an object literal's property are TypeScript's answer, and none runs here: ` +
-              `its language service's go-to-definition on \`${name}\` where a line writes it names the declaration.`,
-          ].join(' ')
-        : stop === undefined
-      ? `${none}, at its top level or as a member.`
-      : `${none} at its top level, and no JavaScript or TypeScript file declares it as a member.`;
+    : on !== undefined && head !== undefined && members !== undefined
+      ? [
+          `${none}.`,
+          // A namespace `import * as` binds is no declaration the index holds, so a container nothing declares is never proven absent.
+          containers.length === 0
+            ? `No file read here declares \`${head}\` at its top level; a namespace an import or an \`export * as\` binds is not read as one.`
+            : `\`${head}\` is declared at ${containers.slice(0, DECLARED_CAP).map((one) => `${one.at}:${one.line}`).join(', ')}, and no interface, type alias or class body read here declares \`${members.member}\` on \`${on}\`.`,
+          ...notShown(containers.length, 'declaration', head),
+          `An inherited or merged member, an enum member, a namespace's export and an object's property are a type checker's answer, and none runs here: ` +
+            `${CHECKER[checkerOf(containers.map((one) => one.at))]} go-to-definition on \`${name}\` where a line writes it names the declaration.`,
+        ].join(' ')
+      : stop === undefined
+        ? `${none}, at its top level or as a member.`
+        : `${none} at its top level, and no JavaScript or TypeScript file declares it as a member.`;
   return [unfound(help, name, wanted, spell), files, ...(dependencies === undefined ? [] : [dependencies]), ...(stop === undefined ? [] : [stop]), AS_TEXT, ...unread].join(' ');
 }
