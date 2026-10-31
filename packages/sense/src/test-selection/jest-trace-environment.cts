@@ -30,6 +30,7 @@ import nodeFs = require('node:fs');
 import nodeModule = require('node:module');
 import nodeUrl = require('node:url');
 import nodeUtil = require('node:util');
+// FIXME: Jest's colour in `sense`; see `jest-setup.cts`.
 import jestUtil = require('jest-util');
 import path = require('node:path');
 import collectors = require('./collectors.cjs');

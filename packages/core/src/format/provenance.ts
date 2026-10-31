@@ -321,6 +321,8 @@ function asHostObject(object: object): string | null {
  * `react.transitional.element` since React 19. Structural detection here beats a
  * dependency edge from `core` to React.
  */
+// FIXME: React's element brands are React's colour in a `none` package; `react`
+// should answer what an element is, through an extension point `core` exposes.
 function asReactElement(object: object): string | null {
   const $$typeof = (object as { $$typeof?: symbol }).$$typeof;
   if (typeof $$typeof !== 'symbol') return null;

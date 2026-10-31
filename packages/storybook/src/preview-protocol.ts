@@ -339,6 +339,8 @@ export interface TestEnvironmentRequest {
 
 export const TEST_ENVIRONMENT: TestEnvironmentRequest = {
   key: '__variance_authority_test_environment__',
+  // FIXME: Vitest's private flag in a storybook-coloured package; the vitest
+  // package should say whether a page is Vitest's browser mode.
   flag: '__vitest_browser__',
   pauseSheet: [
     'animation-delay: 0s !important',

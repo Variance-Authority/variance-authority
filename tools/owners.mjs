@@ -134,18 +134,14 @@ const PACKAGE_SOURCE = new RegExp(`^packages/.+/src/.+\\.(${SCRIPT.join('|')})$`
 
 /** Every site of every idiom in one file's text, outside the files that own it. */
 export function sitesIn(file, text, read = Object.keys(IDIOMS)) {
-  const parsed = parseSync(file, text);
-  if (parsed.errors.length > 0) {
-    throw new Error(`${file}: ${parsed.errors[0].message}`);
-  }
-  const lineOf = lines(text);
+  const { program, lineOf } = parse(file, text);
   const sites = [];
   const found = (idiom, node, name) => {
     if (!read.includes(idiom) || IDIOMS[idiom].owns.includes(file)) return;
     sites.push({ idiom, at: file, line: lineOf(node.start), name });
   };
 
-  visit(parsed.program, (node, scope) => {
+  visit(program, (node, scope) => {
     if (node.type === 'CallExpression' && isHashCall(node)) found('digest', node, scope.name);
     if (node.type === 'ConditionalExpression' && isCodeUnitOrder(node)) found('code-unit-order', node, scope.name);
     if (isFunction(node) && writesThenRenames(node)) found('atomic-write', node, nameOf(node, scope));
@@ -163,15 +159,40 @@ export function sites() {
 }
 
 /** One row per idiom per file: what the baseline records. */
-export function counted(found) {
+export const counted = (found) => countedBy(found, 'idiom');
+
+/**
+ * One row per value of `field` per file. Shared with `colours.mjs`, which is the
+ * same ratchet over a different reading.
+ */
+export function countedBy(found, field) {
   const rows = new Map();
   for (const site of found) {
-    const key = `${site.idiom} ${site.at}`;
-    const row = rows.get(key) ?? { idiom: site.idiom, at: site.at, count: 0 };
+    const key = `${site[field]} ${site.at}`;
+    const row = rows.get(key) ?? { [field]: site[field], at: site.at, count: 0 };
     row.count += 1;
     rows.set(key, row);
   }
   return [...rows.values()];
+}
+
+/** A file's parse tree and its line map; a file that does not parse throws. */
+export function parse(file, text) {
+  const parsed = parseSync(file, text);
+  if (parsed.errors.length > 0) {
+    throw new Error(`${file}: ${parsed.errors[0].message}`);
+  }
+  return { program: parsed.program, lineOf: lines(text) };
+}
+
+/** The command line of a ratchet: print every site, or record them with `--write`. */
+export function ratchet({ label, baseline, found, rows, print }) {
+  if (process.argv.includes('--write')) {
+    writeFileSync(baseline, `${JSON.stringify(rows, null, 2)}\n`, 'utf8');
+    process.stdout.write(`${label}: ${found.length} sites in ${rows.length} rows, recorded\n`);
+    return;
+  }
+  for (const site of found) process.stdout.write(`${print(site)}\n`);
 }
 
 // `createHash('sha256')`, `crypto.createHash('sha256')`,
@@ -306,13 +327,11 @@ export function lines(text) {
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const found = sites();
-  if (process.argv.includes('--write')) {
-    const rows = counted(found);
-    writeFileSync(BASELINE, `${JSON.stringify(rows, null, 2)}\n`, 'utf8');
-    process.stdout.write(`owners: ${found.length} sites in ${rows.length} rows, recorded\n`);
-  } else {
-    for (const site of found) {
-      process.stdout.write(`${site.at}:${site.line}  ${site.idiom}  ${site.name ?? ''}\n`);
-    }
-  }
+  ratchet({
+    label: 'owners',
+    baseline: BASELINE,
+    found,
+    rows: counted(found),
+    print: (site) => `${site.at}:${site.line}  ${site.idiom}  ${site.name ?? ''}`,
+  });
 }

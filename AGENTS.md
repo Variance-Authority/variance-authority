@@ -160,11 +160,11 @@ Look around:
   change that ships nothing worth naming carries `yarn changeset --empty`. CI
   refuses a pull request that changes a package without either.
 - The code rules in the reference: absent is not empty, a package is named for
-  what it is for, code-unit sorting, 500 lines per file, a budget per written
-  surface, a breach is a collapse and not a trim, a documented export is run by
-  something, every answer has an owner, one browser and one page, no magic and
-  not alone, a path is the file, stop only what you started, a status claim is a
-  marker.
+  what it is for, a specialist keeps its colour, code-unit sorting, 500 lines
+  per file, a budget per written surface, a breach is a collapse and not a trim,
+  a documented export is run by something, every answer has an owner, one
+  browser and one page, no magic and not alone, a path is the file, stop only
+  what you started, a status claim is a marker.
 
 After each edit, run `yarn test:loop` and read its verdict before the next
 edit: the compiler, then the unit tests within one import of what changed. A
@@ -265,7 +265,9 @@ Look around:
 A red check is yours: reproduce it, fix it on the branch and go back to
 pre-verify. A failure is not called flaky, pre-existing or unrelated without the
 same failure on `main`. A CodeRabbit comment is a signal, not an instruction: fix
-what is real, set aside what is not, and never reply to or resolve a thread.
+what is real, set aside what is not, and never reply to or resolve a thread. A
+colour finding, a specialist package taking on another's domain, is always
+real.
 
 A PR is handed over only when every check but a running `site` is green and
 every finding is classified. The report starts from the task as it was set —

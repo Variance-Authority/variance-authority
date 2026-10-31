@@ -30,14 +30,18 @@ next, so the design can be read apart from what the diff made of it:
    quote the rule by its name rather than restating it. The rules this reviewer
    owns are the ones about shape: **One implementation**, **Four roles, and
    complexity goes down**, **Scope stops at a neighbour's answer** (with the
-   compass's **Not ours** table), **No runner is the default** and **Performance
-   is earned, and isolation is not how it is earned**. Two questions have no
+   compass's **Not ours** table), **No runner is the default**, **A specialist keeps
+   its colour** and **Performance is earned, and isolation is not how it is
+   earned**. Two questions have no
    rule of their own, and you ask them too: does the new code sit in the
    container its `// compass:` header names, and does the change add a flag
    between two behaviours, an option no task asked for or an abstraction with
    one caller. Whether the change should happen at all is the `occam`
-   reviewer's question, not yours. What `tools/owners.check.ts` and `yarn restrictions`
-   already fail is not a finding; say only when the diff gets past them.
+   reviewer's question, not yours. What `tools/owners.check.ts`, `tools/colours.check.ts`
+   and `yarn restrictions` already fail is not a finding; say only when the diff
+   gets past them, as a domain's knowledge spelled with names the check does
+   not list, or a package newly called `mixed` that composes nothing. A colour
+   gap is always **blocking**, and no reason in the PR body clears it.
    A change that adds a check — a ratchet, a fence, a reviewer — is judged the
    same way, and three more questions: what it misses that the rule names, what
    it flags that the rule allows, and whether another check already decides it.

@@ -122,7 +122,10 @@ changed.
 against `AGENTS.md`, its references and the code. A real defect goes where
 [change](change.md) draws the line: in the task's diff or in work it needs, on
 this branch; otherwise on its own branch. A finding that contradicts a rule
-here, or misreads the code, is left as it is. Never reply to a thread, never
+here, or misreads the code, is left as it is. A finding that a specialist
+package takes on another package's colour is never left: it is fixed, as
+**A specialist keeps its colour** in [change](change.md) says, whatever the
+PR body argues. Never reply to a thread, never
 resolve one, and never tick its autofix checkboxes.
 
 **A comment on a top-layer page may be about its structure.** A reviewer asking

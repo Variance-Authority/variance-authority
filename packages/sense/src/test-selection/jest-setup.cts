@@ -33,6 +33,8 @@
  * one, because both arrive as the same object in the same event.
  */
 
+// FIXME: Jest's colour in `sense`; this file belongs to a jest-coloured package
+// that fills the selection's extension point.
 import globals = require('@jest/globals');
 import fs = require('node:fs');
 import crypto = require('node:crypto');

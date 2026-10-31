@@ -3,6 +3,7 @@
  * major announces it, narrowed to which files finished and how.
  */
 
+// FIXME: Vitest's colour in `sense`; see `vitest.ts`.
 import type { Reporter } from 'vitest/node';
 import {
   carriedJournal,

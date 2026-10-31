@@ -34,6 +34,7 @@
     "surface": "node tools/surface.mjs",
     "budgets": "tsc --build packages/core && node tools/budgets.mjs",
     "documented": "node tools/documented.mjs",
+    "colours": "node tools/colours.mjs",
     "owners": "node tools/owners.mjs",
     "restrictions": "variance index && variance restrictions",
     "clones": "node tools/clones.mjs",
