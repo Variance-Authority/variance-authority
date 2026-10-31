@@ -34,14 +34,12 @@ export function readingLines(readings: readonly FileReading[]): readonly string[
     glossed.add(key);
     return GLOSS[key];
   };
-  return [
-    ...readings.flatMap((reading) => [
-      `read ${reading.file}: ${verdictOf(reading)}${once(glossOf(reading))}`,
-      ...(reading.verdict === undefined ? [] : (reading.unseen ?? [])).map(
-        (test) => `unseen ${test}: loaded ${reading.file}${once('unseen')}`,
-      ),
-    ]),
-  ];
+  return readings.flatMap((reading) => [
+    `read ${reading.file}: ${verdictOf(reading)}${once(glossOf(reading))}`,
+    ...(reading.verdict === undefined ? [] : (reading.unseen ?? [])).map(
+      (test) => `unseen ${test}: loaded ${reading.file}${once('unseen')}`,
+    ),
+  ]);
 }
 
 function verdictOf(reading: FileReading): string {

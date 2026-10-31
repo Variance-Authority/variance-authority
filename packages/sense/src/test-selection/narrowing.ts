@@ -124,6 +124,21 @@ export interface ExecutionNarrowing {
   readonly readings?: readonly FileReading[];
 }
 
+/**
+ * Why no reader was asked of a changed file, which has a reading all the same:
+ * the record and the file graph hold nothing about it (`nothing`), it was
+ * recorded from a text nobody kept (`stale`), the suite declines relations and
+ * its record did not measure it (`declined`), the suite's `ignore` matches it
+ * (`ignored`), or its rows, preconditions or importers answered for it
+ * (`answered`). None of them says the change reaches a test through the file.
+ */
+export type Unasked = 'nothing' | 'stale' | 'declined' | 'ignored' | 'answered';
+
+const UNASKED: ReadonlySet<string> = new Set<Unasked>(['nothing', 'stale', 'declined', 'ignored', 'answered']);
+
+/** Whether an `unread` reason says no reader was asked of the file. */
+export const isUnasked = (unread: string): unread is Unasked => UNASKED.has(unread);
+
 /** One selected test and everything that selected it. */
 export interface SelectionCause {
   readonly test: string;

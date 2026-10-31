@@ -6,11 +6,11 @@ import { testPathOf } from './lookup.js';
 import { changeOfDiff, ignoredChange, type Change } from './change.js';
 import { declarable, ranOverAll, withRanOver } from './ran-over.js';
 import { recordedOverKept } from './kept-texts.js';
-import { rowlessNames, type FileReading, type Unasked } from './reading.js';
+import { rowlessNames, type FileReading } from './reading.js';
 import { ignoreMatcher } from './route.js';
 import { byRelations, withGraph } from './precision.js';
 import { arrivedAt, chargeMeasured, namedAs, readUnmeasured, routed, runOf, seenThrough, selectAnswered, walked } from './stages.js';
-import type { ExecutionNarrowing, ExecutionNarrowingOptions } from './narrowing.js';
+import type { ExecutionNarrowing, ExecutionNarrowingOptions, Unasked } from './narrowing.js';
 
 /** Both halves of the question, from one pass over the same columns. */
 export function narrowByExecutionFromView(

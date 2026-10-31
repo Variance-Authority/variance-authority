@@ -169,11 +169,9 @@ export interface DistanceOptions {
  * change reaches no test through it. A `none` the record's kept text decided
  * (`kept`) is, because a partial run over an edit reads its own edit that way.
  * Every other reading a reader gave seeds, an `unread` one included
- * ({@link reachesThrough}). A changed file no reader was asked of seeds
- * nothing: a stale one, one the record and graph hold nothing about, one the
- * suite declines or ignores, one its rows answered for. Neither does one with
- * no reading, whose text was checked and that has no line ranges, such as a
- * rename, mode or binary change. A test the walk could not measure (`unmeasured`) is left out with the
+ * ({@link reachesThrough}); a file no reader was asked of seeds nothing, nor
+ * does a changed file with no reading, whose text was checked and that has no
+ * line ranges, such as a rename, mode or binary change. A test the walk could not measure (`unmeasured`) is left out with the
  * rest.
  */
 export function distanceFromView(
