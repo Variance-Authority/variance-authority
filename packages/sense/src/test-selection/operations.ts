@@ -126,10 +126,10 @@ export function testsEnteringFromView(
  * Every test that declared one of each changed file's names as a
  * precondition: the declaration retires the observation whenever the file's
  * text moves, so nothing narrows it. A test's own file is its precondition
- * whether or not it declared it, and selects it whatever text it last ran.
- * With `sourceAt`, any other test that already ran the text a rowless file
- * arrives at is not kept, as in the composition. A file no test declared and
- * no test is is unanswered.
+ * whether or not it declared it ({@link selectOwn}). With `sourceAt`, a test
+ * that already ran the text a rowless file arrives at is not kept, as in the
+ * composition; for its own file, only when it was seen whole and declared it.
+ * A file no test declared and no test is is unanswered.
  */
 export function testsDeclaringFromView(
   coverage: TestCoverageView,
