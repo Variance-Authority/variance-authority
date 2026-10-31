@@ -1993,9 +1993,6 @@
   "packages/png/src/change.ts docblock": [
     19
   ],
-  "packages/png/src/compare.ts docblock": [
-    14
-  ],
   "packages/png/src/difference.test.ts block": [
     7
   ],
