@@ -9,15 +9,18 @@ import { messageOf } from '@variance-authority/raster';
  * Every accept passes through this before `put`, whichever store it writes to.
  * A durable store refuses anything else, and a remote one receives the bytes it
  * keeps, so the server never runs a codec. A raster with no image passes as it
- * came, and so does one already kept.
+ * came; one already kept keeps its bytes. Either way a kept image carries the
+ * digest of its pixels, so the comparison against it can skip decoding it.
  *
  * The encoder is libwebp through sharp, a native addon loaded on the first
  * accept and never by a run that accepts nothing. Where it cannot load, the
  * accept fails and names why: there is no slower encoder to fall back to.
  */
-export async function keptRaster<R extends { readonly bytes?: string }>(raster: R): Promise<R> {
+export async function keptRaster<R extends { readonly bytes?: string; readonly pixels?: string }>(
+  raster: R,
+): Promise<R> {
   if (raster.bytes === undefined) return raster;
-  let keepImage: (bytes: Buffer) => Promise<Buffer>;
+  let keepImage: typeof import('@variance-authority/png-sharp').keepImage;
   try {
     ({ keepImage } = await import('@variance-authority/png-sharp'));
   } catch (error) {
@@ -28,5 +31,6 @@ export async function keptRaster<R extends { readonly bytes?: string }>(raster: 
       { cause: error },
     );
   }
-  return { ...raster, bytes: (await keepImage(Buffer.from(raster.bytes, 'base64'))).toString('base64') };
+  const kept = await keepImage(Buffer.from(raster.bytes, 'base64'));
+  return { ...raster, bytes: kept.bytes.toString('base64'), pixels: kept.pixels };
 }

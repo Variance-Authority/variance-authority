@@ -1,7 +1,7 @@
 import { PNG } from 'pngjs';
 import sharp from 'sharp';
 import { describe, expect, it } from 'vitest';
-import { imageFormat, isLosslessWebp, KEEP_LIMIT, pngjsDecoder } from '@variance-authority/png';
+import { imageFormat, isLosslessWebp, KEEP_LIMIT, pixelDigest, pngjsDecoder } from '@variance-authority/png';
 import { keepImage } from './index.js';
 
 /**
@@ -30,7 +30,7 @@ const picture = png(7, 5, (x, y) =>
 
 describe('keepImage', () => {
   it('keeps a lossless WebP of every pixel the comparison sees', async () => {
-    const kept = await keepImage(picture);
+    const { bytes: kept } = await keepImage(picture);
     expect(isLosslessWebp(kept)).toBe(true);
     const before = PNG.sync.read(picture).data;
     const after = (await pngjsDecoder.decode(kept)).data;
@@ -40,9 +40,17 @@ describe('keepImage', () => {
     }
   });
 
+  it('records the digest of the pixels it kept, which is the capture\'s', async () => {
+    const kept = await keepImage(picture);
+    expect(kept.pixels).toBe(pixelDigest(await pngjsDecoder.decode(picture)));
+    expect(kept.pixels).toBe(pixelDigest(await pngjsDecoder.decode(kept.bytes)));
+  });
+
   it('passes a lossless WebP through untouched, so keeping an image twice encodes it once', async () => {
     const kept = await keepImage(picture);
-    expect(await keepImage(kept)).toBe(kept);
+    const again = await keepImage(kept.bytes);
+    expect(again.bytes).toBe(kept.bytes);
+    expect(again.pixels).toBe(kept.pixels);
   });
 
   it('refuses a lossy WebP rather than pass it through as kept', async () => {

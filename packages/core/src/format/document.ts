@@ -321,6 +321,15 @@ export interface Raster {
    * before. Absent when the subject occupies no pixels.
    */
   readonly bytes?: string;
+  /**
+   * The digest of the pixels {@link bytes} decode to (`pixelDigest` in
+   * `@variance-authority/png`), recorded when the image is kept.
+   *
+   * A comparison whose other side decodes to the same digest reads no pixels
+   * of this one. Absent when nobody recorded it, which costs that comparison a
+   * decode and decides nothing.
+   */
+  readonly pixels?: Digest;
   /** Fonts the document declared that the renderer did not have. */
   readonly missingFonts: readonly string[];
 

@@ -77,7 +77,7 @@ describe('sharp and pngjs decode identically', () => {
     // and pngjsDecoder with libwebp as WebAssembly, so the two must agree byte
     // for byte, and both see the capture: a fully transparent pixel stays
     // transparent, and the colour under it is not kept.
-    const kept = await keepImage(bytes);
+    const { bytes: kept } = await keepImage(bytes);
     const [fast, portable, capture] = await Promise.all([
       sharpDecoder.decode(kept),
       pngjsDecoder.decode(kept),

@@ -302,7 +302,8 @@ export async function promote(
   // FIXME: an approval keeps the candidate as the PNG it was captured as. Every
   // other accept keeps a lossless WebP through `keptRaster`, which needs sharp,
   // and this Worker cannot load it; a run still reads this baseline, as a
-  // baseline kept before WebP.
+  // baseline kept before WebP. It records no `pixels` digest either, so the
+  // run after an approval decodes this baseline to compare against it.
   await baselines.put({ subject }, raster);
 }
 

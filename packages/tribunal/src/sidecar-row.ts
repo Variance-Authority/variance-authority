@@ -27,6 +27,8 @@ export interface SidecarRow {
    * text, and this side neither unpacks nor reads it. Null is *not recorded*.
    */
   readonly snapshot?: string | null;
+  /** `Raster.pixels`, baselines only. Null is *not recorded*, and the run decodes. */
+  readonly pixels?: string | null;
 }
 
 /**
@@ -83,6 +85,7 @@ export function parseRow(row: SidecarRow, where: string): Omit<Raster, 'bytes'> 
     ...(components === undefined ? {} : { components }),
     ...(findingMarks === undefined ? {} : { findingMarks }),
     ...(row.snapshot == null ? {} : { snapshot: row.snapshot }),
+    ...(row.pixels == null ? {} : { pixels: row.pixels }),
   });
 
   if (sidecar === null) {

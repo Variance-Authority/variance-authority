@@ -146,3 +146,26 @@ describe('the snapshot a sidecar carries', () => {
     expect(read !== null && 'snapshot' in read).toBe(false);
   });
 });
+
+describe('the pixel digest a sidecar carries', () => {
+  it('reads back the digest of the kept image', () => {
+    const read = sidecarFrom({ ...(sidecar([BUTTON]) as object), pixels: 'v1:p' });
+
+    expect(read?.pixels).toBe('v1:p');
+  });
+
+  it('drops a digest that is not text rather than refusing the baseline', () => {
+    // It only lets a comparison skip a decode; without it the comparison decodes.
+    const read = sidecarFrom({ ...(sidecar([BUTTON]) as object), pixels: 7 });
+
+    expect(read?.documentDigest).toBe('v1:d');
+    expect(read !== null && 'pixels' in read).toBe(false);
+  });
+
+  it('drops a digest on a record that took no image', () => {
+    const { width: _width, height: _height, ...unpictured } = sidecar([]) as Record<string, unknown>;
+    const read = sidecarFrom({ ...unpictured, pixels: 'v1:p' });
+
+    expect(read !== null && 'pixels' in read).toBe(false);
+  });
+});

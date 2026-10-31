@@ -14,7 +14,7 @@ export const BLUE_PNG = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR
 export const WHITE_PNG = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVR4AWP4DwQACfsD/c8LaHIAAAAASUVORK5CYII=';
 
 async function kept(bytes: string): Promise<string> {
-  return (await keepImage(Buffer.from(bytes, 'base64'))).toString('base64');
+  return (await keepImage(Buffer.from(bytes, 'base64'))).bytes.toString('base64');
 }
 
 export const RED = await kept(RED_PNG);

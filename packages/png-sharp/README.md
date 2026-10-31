@@ -222,8 +222,12 @@ any pixel is decoded.
 ```js
 import { keepImage } from '@variance-authority/png-sharp';
 
-const kept = await keepImage(capturedPng); // a lossless WebP Buffer
+const { bytes, pixels } = await keepImage(capturedPng); // a lossless WebP Buffer, and the digest of its pixels
 ```
+
+`pixels` is the `pixelDigest` of the image as it decodes. A store records it
+beside the bytes, and a comparison whose capture decodes to the same digest
+returns no difference without decoding the baseline.
 
 The same pixels encode to the same bytes under one libwebp, but a `sharp`
 upgrade that brings a new libwebp can write different bytes for them. A
