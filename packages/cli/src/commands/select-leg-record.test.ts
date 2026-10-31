@@ -1,9 +1,10 @@
 import { execFileSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, realpathSync, writeFileSync } from 'node:fs';
+import { chmodSync, mkdirSync, mkdtempSync, realpathSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { digestString } from '@variance-authority/core/format';
+import { sourceIndexPath } from '@variance-authority/sense';
 import { testCoverageFile, writeTestCoverage, type TestCoverage } from '@variance-authority/sense/test-selection';
 import { parseArgs } from '../parse.js';
 import { answerConfigless, withoutConfig } from './configless.js';
@@ -11,8 +12,8 @@ import { indexOutput } from './index-command.js';
 import { selectOutput } from './select-command.js';
 import { shardsOutput } from './shards-command.js';
 
-// These cases are a workstation's: there a reader updates an index that lacks
-// a changed file, and CI reads its index as published. `ci-info` decides CI
+// These cases are a workstation's: there a selection brings the index up to
+// the checkout, and CI updates only an index it published. `ci-info` decides CI
 // once, when it loads, so the module is cut rather than the variable stubbed.
 vi.mock('ci-info', () => ({ isCI: false }));
 
@@ -186,6 +187,48 @@ describe('a leg read from a real record and a real graph', () => {
 
     expect(near.distances).toContainEqual(expect.objectContaining({ test: FRESH, hops: 1 }));
     expect(near.skip).not.toContain(FRESH);
+  });
+
+  // Both files were indexed; the test moved from one to the other after the
+  // index, and the run that recorded it came after the move.
+  it('places a test by its hops to a file it imports since the last index, though the index held both files', async () => {
+    const { root } = checkout({ 'src/spare.ts': SPARE, [PARTIAL]: "import { widget } from '../src/widget';\nwidget();\n" });
+    process.chdir(root);
+    await indexOutput({ cwd: root });
+    writeFileSync(join(root, PARTIAL), "import { untouched } from '../src/spare';\nuntouched();\n");
+    execFileSync('git', ['commit', '--quiet', '-am', 'the test imports the spare'], { cwd: root });
+    const head = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).trim();
+    const recorded = snapshot(head);
+    await writeTestCoverage(testCoverageFile(root), {
+      ...recorded,
+      tests: [...recorded.tests, { file: PARTIAL, complete: false, preconditions: [] }],
+      modules: [...recorded.modules, spareModule()],
+    });
+    writeFileSync(join(root, 'src/spare.ts'), SPARE.replace("return 'b';", "return 'y';"));
+
+    const near = JSON.parse((await selectOutput({ cwd: root, format: 'json', atDistance: { from: 0, to: 1 } })).out);
+
+    expect(near.distances).toContainEqual(expect.objectContaining({ test: PARTIAL, hops: 1 }));
+    expect(near.skip).not.toContain(PARTIAL);
+  });
+
+  it('runs every selected test in the leg when the index cannot be brought up to the checkout', async () => {
+    const { root, head } = checkout();
+    await writeTestCoverage(testCoverageFile(root), snapshot(head));
+    process.chdir(root);
+    await indexOutput({ cwd: root });
+    writeFileSync(join(root, 'src/widget.ts'), WIDGET.replace("return 'a';", "return 'z';"));
+    const index = dirname(sourceIndexPath(root));
+    chmodSync(index, 0o555);
+    try {
+      const near = JSON.parse((await selectOutput({ cwd: root, format: 'json', atDistance: { from: 0, to: 2 } })).out);
+
+      expect(near.skip).toEqual([IDLE]);
+      expect(near.left).toEqual([]);
+      expect(near.notes[0]).toMatch(/^`--at-distance 0-2` runs every selected test file: the hops are measured on a graph that is not the checkout's, because the source index at .* could not be updated to the checkout: /);
+    } finally {
+      chmodSync(index, 0o755);
+    }
   });
 
   // 8633dd2a took these out of `0-2` for their browser start-up; placed by hops, they are back.

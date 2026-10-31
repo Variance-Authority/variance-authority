@@ -55,7 +55,7 @@ import type { Leg } from './select-leg.js';
 import { suiteOf, type SuiteReading, type SuiteRequest } from './select-suite.js';
 import { probesGap, probesNote } from './probes-gap.js';
 import { fetchable } from './execution-input.js';
-import { relationsFor, upToHolding } from './source-graph.js';
+import { indexUpToCheckout, relationsFor } from './source-graph.js';
 import { suiteBase } from './suite-base.js';
 import { landingRecord, oneRecord, recordedSuite } from './suite-record.js';
 import { headOf } from './suite-share.js';
@@ -267,7 +267,7 @@ export async function selectSuite(request: SuiteRequest): Promise<SuiteReading> 
     }
   }
 
-  if (request.relations === undefined) await upToHolding(here, changed, request.noGit);
+  const stale = request.relations === undefined ? await indexUpToCheckout(here, undefined, !request.noGit) : undefined;
   const relations = request.relations ?? await relationsFor(here, ['.'], [], [], request.noGit);
   // A bump or a moved manifest is the files it changed, changed whole.
   const beyond = new Map([...installs].map(([stand, installed]) => [stand, beyondOf(relations, installed)] as const));
@@ -321,6 +321,7 @@ export async function selectSuite(request: SuiteRequest): Promise<SuiteReading> 
           kind: 'read',
           ...(request.atDistance === undefined || asked?.distances === undefined ? {} : { distances: asked.distances }),
           ...(unrunAtHead.length === 0 ? {} : { unrunAtHead }),
+          ...(request.atDistance === undefined || stale === undefined ? {} : { stale }),
           narrowing: {
             ...narrowing,
             unread: [...new Set([...withoutManifests(narrowing.unread, manifests), ...unplaced])].sort(),

@@ -68,13 +68,14 @@ file added after it had no hops, and the test that imports it was placed only
 in the open leg. An edit to the new file alone then selected nothing at `0-1`
 ([#777](https://github.com/Variance-Authority/variance-authority/issues/777)).
 
-The line stays as published. The selection asks the published index for the
-files the diff changed, and on a workstation an index that lacks one the
-checkout holds is updated once, with a line on stderr, as a missing one is. CI
-reads its index as published: the pipeline's step ran over that checkout. A
-file added since the index that the diff does not change still has no hops
-until the next `variance index`: a test that reaches an edited file only
-through it stays in the open leg.
+The line stays as published. A selection brings the source index up to the
+checkout before it reads the graph, as a reader of the checkout's names does:
+the update pays only for what moved, about 60 ms with nothing to read on this
+repository's 3,700 files. Updating only when the index lacks a changed file
+was tried first and left a test that moved its import between two indexed
+files measured on the old edge. When the update is refused, the hops are
+measured on a graph that is not the checkout's, so a leg cuts nothing by them:
+it runs every selected test file and its first note says why.
 
 `yarn test:loop` hands its arguments to the runner and reads its leg from
 `VARIANCE_AUTHORITY_AT_DISTANCE`, `0-1` when unset; the waves keep

@@ -99,6 +99,20 @@ export function inLeg(selection: TestSelection, input: SelectInput, leg: Leg | u
     };
   }
 
+  // Hops read off edges the checkout may no longer hold place no test: every
+  // leg runs what the selection runs.
+  if (input.ground.stale !== undefined) {
+    return {
+      ...selection,
+      ...asked,
+      left: [],
+      notes: [
+        `${asking(leg, range)} runs every selected test file: the hops are measured on a graph that is not the checkout's, because ${input.ground.stale}`,
+        ...selection.notes,
+      ],
+    };
+  }
+
   const { entered } = input.ground.narrowing;
   const placed = new Map((input.ground.distances ?? []).map((distance) => [distance.test, distance]));
   // An entered test with no measured distance is unplaced.

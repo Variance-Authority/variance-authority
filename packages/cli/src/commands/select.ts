@@ -107,6 +107,12 @@ export type SelectGround =
        * Asked only for a leg that starts past 0 hops.
        */
       readonly unrunAtHead?: readonly string[];
+      /**
+       * Why the graph the distances were measured on is not the checkout's:
+       * the source index could not be brought up to it. Asked only for a leg,
+       * which then cuts nothing by hops.
+       */
+      readonly stale?: string;
     }
   | { readonly kind: 'no-journal' }
   | { readonly kind: 'no-coverage' }
