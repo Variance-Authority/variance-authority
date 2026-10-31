@@ -156,6 +156,16 @@ describe.skipIf(process.platform === 'win32')('the update over a watched checkou
     expect((await gitRan()).some((ran) => ran.startsWith('ls-tree'))).toBe(true);
   });
 
+  it("runs no git when what Watchman reports is git's own writes to its directory", async () => {
+    await updateNatively(root, index);
+    await gitRan();
+
+    // Every `status` takes `.git/index.lock`; what git's directory holds is the input stamps' to vouch for.
+    await tell({ clock: 'c:6:1', files: [{ name: '.git', type: 'd' }, '.git/index.lock', '.git/logs/HEAD'] });
+    await updateNatively(root, index);
+    expect(await gitRan()).toEqual([]);
+  });
+
   it('asks the watchman command where its server listens once for an index, not on every update', async () => {
     const bin = join(wire, 'cli');
     await mkdir(bin, { recursive: true });

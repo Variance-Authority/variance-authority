@@ -127,18 +127,16 @@ pub(crate) fn watch(socket: &str, root: &str) -> Option<Watch> {
     Some(Watch { socket: socket.to_owned(), watched, relative, clock, ignored })
 }
 
-/// What moved below the watch's root since its clock, leaving out `excluded`,
-/// a directory relative to that root whose writes are the update's own.
-pub(crate) fn since(watch: &Watch, excluded: Option<&str>) -> Option<Since> {
+/// What moved below the watch's root since its clock, leaving out `excluded`:
+/// directories relative to that root whose writes are the update's or git's.
+pub(crate) fn since(watch: &Watch, excluded: &[String]) -> Option<Since> {
     let mut query = json!({ "since": watch.clock, "fields": ["name"], "empty_on_fresh_instance": true });
     if let Some(relative) = &watch.relative {
         query["relative_root"] = json!(relative);
     }
     // A directory is in no listing; a file that moved in one is reported on its own.
     let mut expression = vec![json!("allof"), json!(["not", ["type", "d"]])];
-    if let Some(excluded) = excluded {
-        expression.push(json!(["not", ["dirname", excluded]]));
-    }
+    expression.extend(excluded.iter().map(|excluded| json!(["not", ["dirname", excluded]])));
     query["expression"] = Value::Array(expression);
     let answer = ask(&watch.socket, &json!(["query", watch.watched, query]))?;
     let fresh = answer.get("is_fresh_instance").and_then(Value::as_bool).unwrap_or(true);

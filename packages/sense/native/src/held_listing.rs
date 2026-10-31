@@ -50,6 +50,8 @@ pub(crate) struct Meta {
     pub dirs: Vec<String>,
     /// Each file git reads to answer `ls-tree HEAD` and `status`, and how it looked.
     pub inputs: Vec<(String, Option<Stamp>)>,
+    /// Git's own directories: what moves in them is git's, and the inputs say whether it matters.
+    pub git: Vec<String>,
     /// `UpdateOptions.config` and `Updated.files` of the update that wrote it.
     pub config: Option<String>,
     pub files: u32,
@@ -63,9 +65,10 @@ pub(crate) enum Change {
     Listed(Meta),
 }
 
-/// The files whose change moves what git lists: HEAD and what it points at,
-/// the index, the exclude files, and every configuration file git read.
-fn inputs(root: &str) -> Option<Vec<PathBuf>> {
+/// Git's directories, and the files whose change moves what git lists: HEAD
+/// and what it points at, the index, the exclude files, and every
+/// configuration file git read.
+fn inputs(root: &str) -> Option<(Vec<String>, Vec<PathBuf>)> {
     let dirs = git::git(root, &["rev-parse", "--path-format=absolute", "--git-dir", "--git-common-dir"], None)?;
     let dirs = String::from_utf8(dirs).ok()?;
     let mut lines = dirs.lines();
@@ -95,7 +98,9 @@ fn inputs(root: &str) -> Option<Vec<PathBuf>> {
     inputs.extend(config.into_iter().flat_map(|config| [config.join("git/config"), config.join("git/ignore")]));
     inputs.sort();
     inputs.dedup();
-    Some(inputs)
+    let mut git = vec![dir.to_string_lossy().into_owned(), common.to_string_lossy().into_owned()];
+    git.dedup();
+    Some((git, inputs))
 }
 
 fn stamped(inputs: &[PathBuf]) -> Vec<(String, Option<Stamp>)> {
@@ -138,27 +143,30 @@ fn ignores_all(root: &str, paths: &[String]) -> bool {
 pub(crate) fn change_tree(root: &str, index: &str, dirs: &[String]) -> Option<(Snapshot, Option<Change>)> {
     let held = held(index);
     let socket = watchman::socket(Path::new(&format!("{index}.watchman.json")));
-    let excluded = Path::new(index).parent().and_then(|parent| parent.strip_prefix(root).ok()).map(|parent| parent.to_string_lossy().into_owned()).filter(|parent| !parent.is_empty());
+    // What the update writes, and what git writes as it answers, are left out of what Watchman is asked.
+    let below = |dir: &Path| dir.strip_prefix(root).ok().map(|dir| dir.to_string_lossy().into_owned()).filter(|dir| !dir.is_empty());
+    let index_dir = Path::new(index).parent().and_then(below);
     if let (Some(socket), Some((snapshot, meta))) = (&socket, held) {
+        let excluded: Vec<String> = index_dir.iter().cloned().chain(meta.git.iter().filter_map(|dir| below(Path::new(dir)))).collect();
         let vouched = meta.watch.socket == *socket
             && meta.dirs == dirs
             && meta.watch.ignored.is_empty()
             && meta.inputs.iter().all(|(input, was)| stamp(Path::new(input)) == *was)
-            && watchman::since(&meta.watch, excluded.as_deref()).is_some_and(|since| !since.fresh && ignores_all(root, &since.files));
+            && watchman::since(&meta.watch, &excluded).is_some_and(|since| !since.fresh && ignores_all(root, &since.files));
         if vouched {
             return Some((snapshot, Some(Change::Vouched(meta))));
         }
     }
     // The clock and the stamps are taken before git lists, so whatever moves while it does is after them.
     let watch = socket.and_then(|socket| watchman::watch(&socket, root));
-    let inputs = watch.as_ref().and_then(|_| inputs(root));
+    let (git, inputs) = watch.as_ref().and_then(|_| inputs(root)).unzip();
     let before = inputs.as_deref().map(stamped);
     let snapshot = git::snapshot(root)?;
     let after = inputs.as_deref().map(stamped);
-    let change = match (watch, before) {
+    let change = match (watch.zip(git), before) {
         // `status` refreshing the index while it listed is a listing nothing can vouch for yet.
-        (Some(watch), Some(before)) if Some(&before) == after.as_ref() => {
-            Some(Change::Listed(Meta { watch, dirs: dirs.to_vec(), inputs: before, config: None, files: 0 }))
+        (Some((watch, git)), Some(before)) if Some(&before) == after.as_ref() => {
+            Some(Change::Listed(Meta { watch, dirs: dirs.to_vec(), inputs: before, git, config: None, files: 0 }))
         }
         _ => None,
     };
