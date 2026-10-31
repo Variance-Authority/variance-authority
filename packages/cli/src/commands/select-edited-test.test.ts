@@ -14,6 +14,8 @@ import { BEFORE, git, published, totalModule } from './mainline-fixture.js';
  * precondition declared or not, laid before checkouts kept a ledger or after.
  */
 
+const EDIT = '// the edit\n';
+
 let home: string;
 const cwd = process.cwd();
 
@@ -28,8 +30,14 @@ afterEach(async () => {
   await rm(home, { recursive: true, force: true });
 });
 
-/** A checkout whose record, laid before the ledger, holds `test/total.test.ts` as `complete` and with no precondition of its own. */
-async function editedUnder(complete: boolean): Promise<string> {
+/**
+ * A checkout that edits `test/total.test.ts`, under a record that holds it as
+ * `complete`. With `ranEdit`, the record holds the test's own row at the
+ * edited text, as the recorder writes it for a run over the dirty tree;
+ * without, it holds no precondition of its own, as a record laid before the
+ * ledger does.
+ */
+async function editedUnder(complete: boolean, ranEdit = false): Promise<string> {
   const ci = await published(home, {
     publish: false,
     record: async (dir) => {
@@ -39,26 +47,28 @@ async function editedUnder(complete: boolean): Promise<string> {
         commit: await git(dir, 'rev-parse', 'HEAD'),
         tests: [
           { file: 'test/other.test.ts', complete: true, preconditions: [] },
-          { file: 'test/total.test.ts', complete, preconditions: [] },
+          { file: 'test/total.test.ts', complete, preconditions: ranEdit ? [{ name: 'test/total.test.ts', digest: digestString(`${await readFile(join(dir, 'test/total.test.ts'), 'utf8')}${EDIT}`) }] : [] },
         ],
         modules: [{ file: 'src/total.ts', sourceDigest: digestString(BEFORE), instrumented: true, blocks: [totalModule(['test/total.test.ts'])] }],
       });
     },
   });
   const test = join(ci.dir, 'test/total.test.ts');
-  await writeFile(test, `${await readFile(test, 'utf8')}// the edit\n`);
+  await writeFile(test, `${await readFile(test, 'utf8')}${EDIT}`);
   process.chdir(ci.dir);
   await indexOutput({ cwd: ci.dir });
   return ci.dir;
 }
 
 describe('`variance select` over a change that edits a test file', () => {
-  it('runs an edited test the record never saw whole at 0 hops, and leaves it for no later leg', async () => {
-    const dir = await editedUnder(false);
+  it('runs an edited test a run over the edit left unseen whole at 0 hops, and leaves it for no later leg', async () => {
+    const dir = await editedUnder(false, true);
     const got = await selectOutput({ cwd: dir, format: 'json', atDistance: { from: 0, to: 0 } });
     const json = JSON.parse(got.out);
     expect(json.skip).toEqual(['test/other.test.ts']);
     expect(json.left).toEqual([]);
+    expect(json.unread).toEqual([]);
+    expect(got.err).not.toContain('records nothing about');
     expect(json.distances).toEqual([
       { test: 'test/total.test.ts', hops: 0, bearing: 'precondition', from: 'test/total.test.ts', trail: ['test/total.test.ts'] },
     ]);
@@ -67,7 +77,10 @@ describe('`variance select` over a change that edits a test file', () => {
   it('runs an edited test the record saw whole and holds no precondition for', async () => {
     const dir = await editedUnder(true);
     const got = await selectOutput({ cwd: dir, format: 'json' });
-    expect(JSON.parse(got.out).skip).toEqual(['test/other.test.ts']);
+    const json = JSON.parse(got.out);
+    expect(json.skip).toEqual(['test/other.test.ts']);
+    expect(json.unread).toEqual([]);
+    expect(got.err).not.toContain('records nothing about');
   });
 
   it('names every changed file it was given', async () => {

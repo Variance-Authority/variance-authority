@@ -93,7 +93,7 @@ function readDiff(
   // A changed test file is entered by definition, before anything is read of
   // the record: whether it was seen whole, declared its own source, or ran
   // this text does not decide whether an edit to it runs.
-  selectOwn(run, named.keys());
+  const own = selectOwn(run, named.keys());
   // An ignored file is cut from what selection infers, not from what a test declared: its names still govern.
   const governing = new Set<string>(ignoring.flatMap((file) => [...knownAs(file)]));
 
@@ -174,7 +174,8 @@ function readDiff(
   // name beside it. A file `knownAs` gives no name at all was asked about
   // under nothing, and is reported.
   const measured = (file: string): boolean => knownAs(file).some((name) => !unmatched.has(name));
-  const unmeasured = [...answered.unread.filter((name) => !measured(name)), ...answered.unheld].sort(codeUnitOrder);
+  // A test's own file was answered by being the test: nothing about it is unread.
+  const unmeasured = [...answered.unread.filter((name) => !own.has(name) && !measured(name)), ...answered.unheld].sort(codeUnitOrder);
   // A suite that declines relations never asked the graph, so nothing it
   // holds is unread: what the record did not measure was declined.
   const declining = options.unmeasured === 'nothing';

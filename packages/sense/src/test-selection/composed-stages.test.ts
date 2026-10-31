@@ -79,7 +79,9 @@ describe('the composition is its stages', () => {
     const opened = openTestCoverage(encodeTestCoverage(unseen));
 
     expect(testsDeclaringFromView(opened, change, { sourceAt })).toMatchObject({ entered: [DECLARING], unanswered: [SOURCE] });
-    expect(narrowByChangeFromView(opened, change, { sourceAt }).because).toContainEqual({ test: DECLARING, via: [{ kind: 'precondition', name: DECLARING }] });
+    const composed = narrowByChangeFromView(opened, change, { sourceAt });
+    expect(composed.because).toContainEqual({ test: DECLARING, via: [{ kind: 'precondition', name: DECLARING }] });
+    expect(composed.unread).not.toContain(DECLARING);
   });
 
   it('walks a rowless file a declaring test already ran the arrived text of, as the composition does', () => {
