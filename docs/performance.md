@@ -660,6 +660,25 @@ git config core.untrackedCache true
 The monitor can be wrong after a crash, on a network filesystem, and across a
 container boundary. When it is, git recomputes.
 
+### A Watchman that already watches the checkout
+
+When a Watchman server already watches your checkout, an update asks it which
+files changed since the last update, and asks git only when one did. The update
+keeps, beside the index it writes, the listing git made and the Watchman clock
+taken before git made it. Next time, when the same server reports no change since
+that clock but to paths git ignores — a tool's cache, a build's output — and none
+of git's own files changed — `HEAD`, the index, a ref, an exclude or
+configuration file — the update reads the listing it kept and runs no git at
+all. On this repository's 3,768 files that is 13 ms against 140 ms with git.
+
+Anything else lists with git, as above: a change Watchman reports, a server
+that restarted, a checkout no server watches, a machine with no Watchman. Nothing
+starts a server or adds a watch; the watch is yours to add:
+
+```bash
+watchman watch-project .
+```
+
 ## The same wall, in somebody else’s program
 
 Everything above turns on one claim: that what a scan of this shape costs is

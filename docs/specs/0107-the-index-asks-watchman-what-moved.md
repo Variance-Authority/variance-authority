@@ -1,5 +1,7 @@
 # Spec 0107 — the index asks Watchman what moved
 
+**Partly built.** An update over a checkout a running Watchman watches reads
+the listing it held, and runs no git, when nothing moved but paths git ignores.
 **Missing:** an update of the source index that starts from the generation it
 updates and asks what moved since it. Every `variance select` brings the index
 up to the checkout before it reads the graph, and today that update rebuilds
