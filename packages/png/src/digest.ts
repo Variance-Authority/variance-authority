@@ -23,7 +23,7 @@ export function pixelDigest(image: DecodedImage): Digest {
   const words = wordsOf(image);
   return digestOfSha256(
     createHash('sha256')
-      .update(`pixels\u0000${image.width}x${image.height}\u0000`)
+      .update(`pixels-v1\u0000${image.width}x${image.height}\u0000`)
       .update(new Uint8Array(words.buffer, words.byteOffset, words.byteLength))
       .digest('hex'),
   );

@@ -80,6 +80,9 @@ line come from [`attribution`](../attribution/README.md).
 
 - `packages/png/src/compare.ts` — `PngDecoder`, `compareRasters`, `comparePngs`,
   `comparePixels`, `maskOf`, `padTo`; the per-policy counts and the mask
+- `packages/png/src/digest.ts` — `pixelDigest`, the digest a kept baseline
+  records as `Raster.pixels`, so `compareRasters` decodes only the capture when
+  the two agree
 - `packages/png/src/difference.ts` — `diffImage`, `observePngDifference`; the
   human artifact, on its own path
 - `packages/png/src/header.ts`, `foreign.ts` — format and dimensions without decoding, and

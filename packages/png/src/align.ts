@@ -197,6 +197,10 @@ function runsOf(rows: Float64Array): Runs {
  * A fully transparent pixel reads as 0 whatever colour it carries: a kept WebP
  * drops that colour, no comparison sees it, so neither may a row's identity.
  * The words are little-endian, so alpha is the top byte.
+ *
+ * `pixelDigest` hashes these words, so a kept baseline's digest is only as
+ * good as this reading: one that reads two images as equal where it did not
+ * before bumps the version in `pixelDigest`'s domain.
  */
 export function wordsOf({ width, height, data }: DecodedImage): Uint32Array {
   const words =
