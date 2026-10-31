@@ -2,7 +2,7 @@ import { execFileSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { INSTRUMENTATION_ID } from '@variance-authority/sense/instrument';
 import { landRun, sourceCut, testCoverageFile, type TestCoverage } from '@variance-authority/sense/test-selection';
 import { indexOutput } from './index-command.js';
@@ -20,12 +20,12 @@ describe('what changed after a test last ran is read region by region', () => {
   const cwd = process.cwd();
 
   beforeEach(() => {
-    process.env['VARIANCE_AUTHORITY_CACHE'] = mkdtempSync(join(tmpdir(), 'va-select-regions-cache-'));
+    vi.stubEnv('VARIANCE_AUTHORITY_CACHE', mkdtempSync(join(tmpdir(), 'va-select-regions-cache-')));
   });
 
   afterEach(() => {
     process.chdir(cwd);
-    delete process.env['VARIANCE_AUTHORITY_CACHE'];
+    vi.unstubAllEnvs();
   });
 
   it('skips a test for an edit, committed after it ran, to a function only another test runs', async () => {

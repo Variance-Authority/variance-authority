@@ -3,7 +3,7 @@ import { mkdtemp, readdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Config } from '../config.js';
 import type { Env } from '../share-lines.js';
 import { costsEntryOf } from './costs-entry.js';
@@ -27,11 +27,11 @@ let home: string;
 
 beforeEach(async () => {
   home = await mkdtemp(join(tmpdir(), 'variance-costs-'));
-  process.env['VARIANCE_AUTHORITY_CACHE'] = join(home, 'cache');
+  vi.stubEnv('VARIANCE_AUTHORITY_CACHE', join(home, 'cache'));
 });
 
 afterEach(async () => {
-  delete process.env['VARIANCE_AUTHORITY_CACHE'];
+  vi.unstubAllEnvs();
   await rm(home, { recursive: true, force: true });
 });
 
@@ -132,7 +132,7 @@ describe('subject costs', () => {
     const root = join(home, 'share');
     await publishRun(configOf({ root }), await reportAt(head), { env: PUSH, cwd: dir });
 
-    process.env['VARIANCE_AUTHORITY_CACHE'] = await mkdtemp(join(home, 'cold-'));
+    vi.stubEnv('VARIANCE_AUTHORITY_CACHE', await mkdtemp(join(home, 'cold-')));
     const found = await mainlineCosts(configOf({ root }), { env: LOCAL, cwd: dir });
     expect(Object.fromEntries(found?.costs ?? [])).toEqual({ 'story:a': 81, 'story:b': 120 });
   });

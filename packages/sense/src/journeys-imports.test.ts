@@ -3,7 +3,7 @@ import { existsSync, mkdirSync, mkdtempSync, realpathSync, symlinkSync, writeFil
 import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { journeysAround, prepareJourneys, type JourneysAnswer } from './journeys.js';
 import { updateSourceIndex } from './published.js';
 import { withCaseSections } from './test-selection/case-record.js';
@@ -50,12 +50,12 @@ interface Ran {
 let root: string;
 
 beforeEach(() => {
-  process.env['VARIANCE_AUTHORITY_CACHE'] = mkdtempSync(join(tmpdir(), 'va-journeys-imports-cache-'));
+  vi.stubEnv('VARIANCE_AUTHORITY_CACHE', mkdtempSync(join(tmpdir(), 'va-journeys-imports-cache-')));
   root = realpathSync(mkdtempSync(join(tmpdir(), 'va-journeys-imports-')));
 });
 
 afterEach(() => {
-  delete process.env['VARIANCE_AUTHORITY_CACHE'];
+  vi.unstubAllEnvs();
 });
 
 function checkout(files: Readonly<Record<string, string>>): void {

@@ -1,4 +1,4 @@
-import { beforeAll, expect, it } from 'vitest';
+import { afterAll, beforeAll, expect, it, vi } from 'vitest';
 import { treeOf } from '@variance-authority/mcp/tools';
 import { readHelp } from '@variance-authority/package/help';
 import { inventedWorkspace } from '../__fixtures__/invented-workspace.js';
@@ -80,6 +80,8 @@ const KIT = [
 
 let index: SearchIndex;
 let root: string;
+
+afterAll(() => vi.unstubAllEnvs());
 
 beforeAll(async () => {
   root = await inventedWorkspace([], [], {

@@ -1,4 +1,4 @@
-import { beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { treeOf } from '@variance-authority/mcp/tools';
 import { readHelp } from '@variance-authority/package/help';
 import { nearOfNative } from '@variance-authority/sense';
@@ -47,6 +47,8 @@ const SINKS = [
 
 let index: SearchIndex;
 let root: string;
+
+afterAll(() => vi.unstubAllEnvs());
 
 beforeAll(async () => {
   root = await inventedWorkspace([], [], {

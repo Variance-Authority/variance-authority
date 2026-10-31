@@ -8,7 +8,7 @@ import {
   withCaseSections,
   writeTestCoverage,
 } from '@variance-authority/sense/test-selection';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { main } from '../bin.js';
 import { EXIT_CLEAN, EXIT_OPERATOR } from '../exit.js';
 import { distillFiles, distillPieces } from './distill.js';
@@ -21,13 +21,13 @@ const cwd = process.cwd();
 const made: string[] = [];
 
 beforeEach(() => {
-  process.env['VARIANCE_AUTHORITY_CACHE'] = mkdtempSync(join(tmpdir(), 'va-distill-cache-'));
+  vi.stubEnv('VARIANCE_AUTHORITY_CACHE', mkdtempSync(join(tmpdir(), 'va-distill-cache-')));
   made.push(process.env['VARIANCE_AUTHORITY_CACHE']);
 });
 
 afterEach(() => {
   process.chdir(cwd);
-  delete process.env['VARIANCE_AUTHORITY_CACHE'];
+  vi.unstubAllEnvs();
   for (const dir of made.splice(0)) rmSync(dir, { recursive: true, force: true });
 });
 

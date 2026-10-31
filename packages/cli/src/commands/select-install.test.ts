@@ -2,7 +2,7 @@ import { execFileSync } from 'node:child_process';
 import { mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { digestString } from '@variance-authority/core/format';
 import {
   commitRunsFile,
@@ -31,12 +31,12 @@ describe('a diff that moved the install', () => {
   beforeEach(() => {
     // Every journal these cases write is addressed through this, so none of them
     // can read or overwrite the recording this repository keeps for itself.
-    process.env['VARIANCE_AUTHORITY_CACHE'] = mkdtempSync(join(tmpdir(), 'va-select-install-cache-'));
+    vi.stubEnv('VARIANCE_AUTHORITY_CACHE', mkdtempSync(join(tmpdir(), 'va-select-install-cache-')));
   });
 
   afterEach(() => {
     process.chdir(cwd);
-    delete process.env['VARIANCE_AUTHORITY_CACHE'];
+    vi.unstubAllEnvs();
   });
 
   it('runs the tests that entered a module importing the bumped package', async () => {
@@ -159,12 +159,12 @@ describe('the install a recording ran on', () => {
 
   beforeEach(() => {
     cache = mkdtempSync(join(tmpdir(), 'va-select-install-cache-'));
-    process.env['VARIANCE_AUTHORITY_CACHE'] = cache;
+    vi.stubEnv('VARIANCE_AUTHORITY_CACHE', cache);
   });
 
   afterEach(() => {
     process.chdir(cwd);
-    delete process.env['VARIANCE_AUTHORITY_CACHE'];
+    vi.unstubAllEnvs();
   });
 
   /** Commit `left-pad` 1.3.0 and the tests, put `recorded` on disk, and land a run over it the way a runner's teardown does. */

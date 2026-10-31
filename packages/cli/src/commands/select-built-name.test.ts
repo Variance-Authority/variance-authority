@@ -2,7 +2,7 @@ import { execFileSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { digestString } from '@variance-authority/core/format';
 import { landRun, testCoverageFile, writeTestCoverage, type TestCoverage } from '@variance-authority/sense/test-selection';
 import { indexOutput } from './index-command.js';
@@ -31,12 +31,12 @@ describe('a change to a source the record holds under its built name', () => {
   const cwd = process.cwd();
 
   beforeEach(() => {
-    process.env['VARIANCE_AUTHORITY_CACHE'] = mkdtempSync(join(tmpdir(), 'va-select-built-name-cache-'));
+    vi.stubEnv('VARIANCE_AUTHORITY_CACHE', mkdtempSync(join(tmpdir(), 'va-select-built-name-cache-')));
   });
 
   afterEach(() => {
     process.chdir(cwd);
-    delete process.env['VARIANCE_AUTHORITY_CACHE'];
+    vi.unstubAllEnvs();
   });
 
   it('selects the test that loaded only the built copy', async () => {

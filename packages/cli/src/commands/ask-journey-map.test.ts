@@ -3,7 +3,7 @@ import { mkdirSync, mkdtempSync, readFileSync, realpathSync, writeFileSync } fro
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { encodeExecutionIndex, landCases, testCoverageFile, withCaseSections, writeTestCoverage } from '@variance-authority/sense/test-selection';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { main } from '../bin.js';
 import { EXIT_CLEAN, EXIT_OPERATOR } from '../exit.js';
 
@@ -12,12 +12,12 @@ import { EXIT_CLEAN, EXIT_OPERATOR } from '../exit.js';
 const cwd = process.cwd();
 
 beforeEach(() => {
-  process.env['VARIANCE_AUTHORITY_CACHE'] = mkdtempSync(join(tmpdir(), 'va-journey-map-cache-'));
+  vi.stubEnv('VARIANCE_AUTHORITY_CACHE', mkdtempSync(join(tmpdir(), 'va-journey-map-cache-')));
 });
 
 afterEach(() => {
   process.chdir(cwd);
-  delete process.env['VARIANCE_AUTHORITY_CACHE'];
+  vi.unstubAllEnvs();
 });
 
 function checkout(): string {

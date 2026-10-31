@@ -42,7 +42,7 @@ beforeEach(async () => {
 });
 
 afterEach(async () => {
-  delete process.env['VARIANCE_AUTHORITY_CACHE'];
+  vi.unstubAllEnvs();
   await rm(home, { recursive: true, force: true });
 });
 

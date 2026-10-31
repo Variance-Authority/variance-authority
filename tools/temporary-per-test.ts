@@ -24,13 +24,15 @@ import { afterAll, beforeEach, type RunnerTask } from 'vitest';
  * still inside the file's. A process a test starts inherits the directory. The
  * only turn a test waits on is one it took on purpose.
  *
- * When the file ends, its directory is removed with everything its tests left
- * in it, unless a test or a hook failed, in which case it is kept, and named,
- * as the evidence. `tools/process-per-file.ts` puts the variables back after,
- * as it does every variable a file changed.
+ * When the file ends, the variables are put back. That matters only in a run
+ * without isolation (`--no-isolate`), where the same worker runs the next file,
+ * and that file's directory would otherwise be made inside this one's. The
+ * file's directory is then removed with everything its tests left in it, unless
+ * a test or a hook failed, in which case it is kept, and named, as the evidence.
  */
 
 const TEMPORARY = ['TMPDIR', 'TEMP', 'TMP'] as const;
+const machine = TEMPORARY.map((name) => process.env[name]);
 
 function temporaryAt(directory: string): void {
   for (const name of TEMPORARY) process.env[name] = directory;
@@ -59,6 +61,11 @@ beforeEach(() => {
 // `tmpdir()` — needs a `globalSetup` teardown that removes what this run made.
 // eslint-disable-next-line no-empty-pattern -- Vitest reads a suite hook's first parameter as a fixture pattern; the suite comes second
 afterAll(({}, suite) => {
+  TEMPORARY.forEach((name, at) => {
+    const value = machine[at];
+    if (value === undefined) delete process.env[name];
+    else process.env[name] = value;
+  });
   if (failed(suite)) {
     console.warn(`kept ${file}, what this file's tests left in their temporary directories, because a test failed`);
     return;
