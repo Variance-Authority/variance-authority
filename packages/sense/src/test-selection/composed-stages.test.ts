@@ -84,11 +84,11 @@ describe('the composition is its stages', () => {
     expect(composed.unread).not.toContain(DECLARING);
   });
 
-  it('gives a reading for every changed file, one the parser was not asked of among them', () => {
-    const { readings } = narrowByChangeFromView(view(), change, { sourceAt });
+  it('names a stale file once, as stale, and not again as unasked', () => {
+    const { stale, unasked } = narrowByChangeFromView(view(), change, { sourceAt });
 
-    expect(readings.map((reading) => reading.file).sort()).toEqual([SOURCE, DECLARING].sort());
-    expect(readings).toContainEqual({ file: SOURCE, unread: 'unasked' });
+    expect(stale).toEqual([SOURCE]);
+    expect(unasked).toEqual([]);
   });
 
   it('walks a rowless file a declaring test already ran the arrived text of, as the composition does', () => {

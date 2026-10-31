@@ -27,6 +27,7 @@ describe('narrowByExecution', () => {
       unread: [],
       stale: [],
       readings: [{ file: 'src/decide.ts', unread: 'source' }],
+      unasked: [],
       because: [
         {
           test: 'test/alpha.test.ts',

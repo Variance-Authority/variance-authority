@@ -28,7 +28,8 @@ describe('a changed module with no row, asked of the files that import it', () =
       entered: ['test/aaa.test.ts'],
       unread: [],
       stale: [],
-      readings: [{ file: 'src/rules.ts', unread: 'unasked' }],
+      readings: [],
+      unasked: ['src/rules.ts'],
       because: [
         { test: 'test/aaa.test.ts', via: [{ kind: 'importer', trail: ['src/rules.ts', 'test/aaa.test.ts'] }] },
       ],
@@ -58,7 +59,8 @@ describe('a changed module with no row, asked of the files that import it', () =
       entered: ['test/alpha.test.ts', 'test/beta.test.ts'],
       unread: [],
       stale: [],
-      readings: [{ file: 'src/rules.ts', unread: 'unasked' }],
+      readings: [],
+      unasked: ['src/rules.ts'],
       because: [
         { test: 'test/alpha.test.ts', via: [{ kind: 'importer', trail }] },
         { test: 'test/beta.test.ts', via: [{ kind: 'importer', trail }] },
@@ -123,7 +125,7 @@ describe('a changed module with no row, asked of the files that import it', () =
     const without = narrowByExecutionFromView(view(), diff('src/rules.ts'), {});
 
     expect(without).toMatchObject({ entered: [], unread: ['src/rules.ts'], because: [] });
-    expect(narrowByExecutionFromView(view(), diff('src/rules.ts'), { relations })).toEqual({ ...without, unread: [], readings: [{ file: 'src/rules.ts', unread: 'unasked' }] });
+    expect(narrowByExecutionFromView(view(), diff('src/rules.ts'), { relations })).toEqual({ ...without, unread: [], unasked: ['src/rules.ts'] });
   });
 
   it('does not walk a type-only import, which is erased before anything runs', () => {
@@ -348,6 +350,7 @@ describe('a changed module with no row, asked of the files that import it', () =
       stale: [],
       // No `sourceAt`, so no old text to read the change against.
       readings: [{ file: 'src/decide.ts', unread: 'source' }],
+      unasked: [],
       because: [
         {
           test: 'test/alpha.test.ts',

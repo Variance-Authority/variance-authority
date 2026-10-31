@@ -142,9 +142,8 @@ variance reach --since origin/main              # files a diff reaches over impo
   it; `0-2` then `3-` runs every selected file in one of the two. An edited test
   seen whole that declared the text it now holds already ran it and stays
   skipped. stderr counts the entered tests at each hop count and gives each
-  changed file a `read` line, which `json` gives under `readings`; a file no
-  parser read is `unasked`. `json` gives the leg
-  as `leg`, the files it left as `left`, and each entered test's hops, bearing
+  changed file a `read` line, which `json` gives under `readings`, or under
+  `unasked` for a file no parser was asked about. `json` gives the leg as `leg`, the files it left as `left`, and each entered test's hops, bearing
   and the reason none was measured as `distances`; an entered test with no hop
   count runs in the end leg, the one leg that holds the furthest hop measured,
   or the open leg when nothing was measured, and an unplaced incomplete test in

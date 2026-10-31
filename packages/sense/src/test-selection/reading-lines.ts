@@ -19,26 +19,30 @@ export type { FileReading };
 /**
  * One line per changed file saying how it was read, or why it was not, and one
  * line per test that loaded it through an import the graph does not list.
- * Empty for no readings.
+ * `unasked` are the changed files no parser was asked of, a line each after
+ * the readings. Empty for neither.
  *
  * What a verdict charges is said once, on the first line that prints that
  * verdict, and the lines after it print the verdict alone: a change to forty
  * files that all read `bodies` is one explanation and forty names, not forty
  * copies of the explanation.
  */
-export function readingLines(readings: readonly FileReading[]): readonly string[] {
+export function readingLines(readings: readonly FileReading[], unasked: readonly string[] = []): readonly string[] {
   const glossed = new Set<string>();
   const once = (key: keyof typeof GLOSS): string => {
     if (glossed.has(key)) return '';
     glossed.add(key);
     return GLOSS[key];
   };
-  return readings.flatMap((reading) => [
-    `read ${reading.file}: ${verdictOf(reading)}${once(glossOf(reading))}`,
-    ...(reading.verdict === undefined ? [] : (reading.unseen ?? [])).map(
-      (test) => `unseen ${test}: loaded ${reading.file}${once('unseen')}`,
-    ),
-  ]);
+  return [
+    ...readings.flatMap((reading) => [
+      `read ${reading.file}: ${verdictOf(reading)}${once(glossOf(reading))}`,
+      ...(reading.verdict === undefined ? [] : (reading.unseen ?? [])).map(
+        (test) => `unseen ${test}: loaded ${reading.file}${once('unseen')}`,
+      ),
+    ]),
+    ...unasked.map((file) => `read ${file}: unasked${once('unasked')}`),
+  ];
 }
 
 function verdictOf(reading: FileReading): string {
@@ -74,6 +78,8 @@ const GLOSS = {
   // A file with no row has no lines to charge: the walk charges what imports it.
   importers: ' — every test that loaded its nearest measured importers is charged',
   unseen: ' by an import the file graph does not list; named, not selected',
+  // No parser was asked: the record answers for the file without its text.
+  unasked: ' — its rows, its preconditions or its importers answer for it',
 } as const;
 
 const UNREAD = {

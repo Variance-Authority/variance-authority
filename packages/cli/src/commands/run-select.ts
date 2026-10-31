@@ -308,12 +308,15 @@ export async function selectionFor(
       // ground did not seed from, then the journal's reading. A file both read
       // as `none` is said once.
       ...new Set(
-        readingLines([
-          ...[...(options.since.movedExports ?? [])]
-            .filter(([, exports]) => exports.length === 0)
-            .map(([file]) => ({ file, verdict: 'none' as const, names: [] })),
-          ...(journal?.readings ?? []),
-        ]),
+        readingLines(
+          [
+            ...[...(options.since.movedExports ?? [])]
+              .filter(([, exports]) => exports.length === 0)
+              .map(([file]) => ({ file, verdict: 'none' as const, names: [] })),
+            ...(journal?.readings ?? []),
+          ],
+          journal?.unasked,
+        ),
       ),
     ],
   };

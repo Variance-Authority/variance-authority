@@ -121,6 +121,13 @@ export interface ExecutionNarrowing {
    * point, or of a recording that selects by journeys.
    */
   readonly readings?: readonly FileReading[];
+
+  /**
+   * The changed files no parser was asked of and no other field names: their
+   * rows, their preconditions or their importers answered for them. Present
+   * exactly when `readings` is, so every changed file is named somewhere.
+   */
+  readonly unasked?: readonly string[];
 }
 
 /** One selected test and everything that selected it. */

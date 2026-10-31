@@ -223,6 +223,8 @@ export interface TestSelection {
    * against the journal, which is not the same as a diff that changed nothing.
    */
   readonly readings?: readonly FileReading[];
+  /** The changed files no parser was asked of and no other field names. Present exactly when `readings` is. */
+  readonly unasked?: readonly string[];
   /** The hops `--at-distance` asked for; `to` is absent for an open leg. Absent when no leg was asked. */
   readonly leg?: { readonly from: number; readonly to?: number };
   /** The selected test files this leg skipped and another leg runs. Present exactly when `leg` is. */
@@ -299,7 +301,7 @@ export function skippableTests(input: SelectInput): TestSelection {
     };
   }
 
-  const { whole, entered, unread, declined, ignored, stale, readings, because, incomplete } = input.ground.narrowing;
+  const { whole, entered, unread, declined, ignored, stale, readings, unasked, because, incomplete } = input.ground.narrowing;
   const notes = [
     ...base.notes,
     ...unreadNotes(unread),
@@ -315,6 +317,7 @@ export function skippableTests(input: SelectInput): TestSelection {
     ...(ignored === undefined ? {} : { ignored }),
     stale,
     ...(readings === undefined ? {} : { readings }),
+    ...(unasked === undefined ? {} : { unasked }),
     ...(incomplete === undefined ? {} : { incomplete }),
     recorded: { whole: whole.length, entered: entered.length },
   };
@@ -423,7 +426,7 @@ export function selectionNotes(selection: TestSelection): string {
       : [`skipping nothing: ${selection.widened}.`];
 
   for (const note of selection.notes) lines.push(`${note}.`);
-  lines.push(...readingLines(selection.readings ?? []));
+  lines.push(...readingLines(selection.readings ?? [], selection.unasked));
 
   return `${lines.join('\n')}\n`;
 }
