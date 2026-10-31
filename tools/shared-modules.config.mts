@@ -4,20 +4,16 @@ import picomatch from 'picomatch';
 import { slice } from '../vitest.config.mjs';
 
 /**
- * The unit slice with each worker keeping its modules across files, and the
- * isolator, not a fresh module graph, giving every file the values they loaded
- * with: `yarn test:shared`.
+ * `yarn test:shared`: the isolator README's Vitest setup over the unit slice,
+ * so the claim that it holds for a real suite is run rather than argued. ioc,
+ * the isolator and `tools/` stay shared, being the reset and the setup. The
+ * recorded run stays isolated: a kept module is credited only to the first
+ * file that loaded it.
  *
- * It is the isolator README's Vitest setup run over this repository, so the
- * claim that it holds for a real suite is checked rather than argued. The
- * recorded run stays `isolate: true`: a worker that keeps a module credits it
- * to the first file that loaded it, and the record would say the files after
- * never entered it.
- *
- * A file that mocks or renders into a DOM runs in the `isolated` project. A
- * `vi.mock` reaches only the modules loaded after it, and React binds the DOM
- * and the DevTools hook it finds when it loads; the files are found by what
- * they declare, so a new one joins without a list to keep.
+ * A file that mocks, renders into a DOM or loads Playwright's test loader runs
+ * isolated, found by what it declares: a `vi.mock` reaches only modules loaded
+ * after it, React binds the DOM it finds as it loads, and Playwright's loader
+ * hooks `require` and ESM for the process with no way back.
  */
 
 const ROOT = import.meta.dirname.replace(/[/\\]tools$/, '');
@@ -25,7 +21,7 @@ const config = slice('unit');
 const unit = picomatch(config.test.include, { ignore: config.test.exclude, dot: true });
 const declaring = (pattern: string) =>
   execFileSync('git', ['grep', '-l', '-E', pattern], { cwd: ROOT, encoding: 'utf8' }).split('\n').filter((file) => file && unit(file));
-const isolated = [...new Set([...declaring('@vitest-environment jsdom'), ...declaring('vi\\.(doM|m)ock\\(')])];
+const isolated = [...new Set([...declaring('@vitest-environment jsdom'), ...declaring('vi\\.(doM|m)ock\\('), ...declaring("playwright/lib/common'")])];
 
 // ioc and the isolator are the reset itself, and `tools/` is the suite's own setup.
 config.plugins = [...(config.plugins ?? []), isolator({ exclude: ['packages/ioc/**', 'packages/isolator/**', 'tools/**'] })];

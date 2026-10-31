@@ -188,6 +188,10 @@ binds the DOM and the React DevTools hook it finds when it loads, so a file
 that mocks or renders into a DOM keeps a worker of its own, in the `isolated`
 project.
 
+Record coverage with isolation on. A worker that keeps a module credits it to
+the first file that loaded it, so a record made shared says the files after
+never entered it ([a record needs a module graph per test file](https://variance-authority.dev/docs/selecting#a-record-needs-a-module-graph-per-test-file)).
+
 ## Run it in Rspack or webpack
 
 ```js
